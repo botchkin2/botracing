@@ -345,6 +345,23 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
     return () => subscription?.remove();
   }, []);
 
+  const hasEmbeddedLaps =
+    sessionData?.track?.platform === 'lmu' &&
+    Array.isArray(sessionData.laps) &&
+    sessionData.laps.length > 0;
+
+  useEffect(() => {
+    if (!hasEmbeddedLaps) return;
+    setLaps(sessionData.laps);
+    setSelectedLapIds(
+      new Set(
+        sessionData.laps
+          .filter((lap: Lap) => lap.clean && !lap.pitIn && !lap.pitOut)
+          .map((lap: Lap) => lap.id),
+      ),
+    );
+  }, [hasEmbeddedLaps, sessionData]);
+
   // Add null checks to prevent runtime errors - after all hooks are called
   if (!sessionData || !sessionData.car || !sessionData.track) {
     return (
@@ -358,7 +375,7 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
   // Determine if we should use mobile layout (screen width < 768px)
   const isMobile = dimensions.width < 768;
 
-  if (isLoading && !lapsResponse) {
+  if (isLoading && !lapsResponse && !hasEmbeddedLaps) {
     return (
       <View style={styles.mainContainer}>
         <View style={styles.centerContainer}>
@@ -369,7 +386,7 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
     );
   }
 
-  if (error) {
+  if (error && !hasEmbeddedLaps) {
     return (
       <View style={styles.mainContainer}>
         <View style={styles.centerContainer}>

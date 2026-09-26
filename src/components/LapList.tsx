@@ -376,7 +376,7 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       eventName: eventGroup.eventName,
       session: bestLap.session,
       sessionType: bestLap.sessionType,
-      laps: [], // Will be fetched in SessionAnalysis component
+      laps: eventGroup.laps,
       track: bestLap.track,
       car: bestLap.car,
       startTime: eventGroup.startTime,

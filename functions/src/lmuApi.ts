@@ -1,5 +1,7 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
+import {existsSync, readFileSync} from 'fs';
+import {join} from 'path';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -39,14 +41,44 @@ function pathname(req: any): string {
   return path;
 }
 
-async function readManifest(): Promise<any[]> {
-  const [buf] = await admin
-    .storage()
-    .bucket(BUCKET)
-    .file('lmu/manifest.json')
-    .download();
-  const parsed = JSON.parse(buf.toString('utf8'));
+const SEED = join(__dirname, '../lmu-seed');
+
+function readSeedManifest(): any[] {
+  const file = join(SEED, 'manifest.json');
+  if (!existsSync(file)) return [];
+  const parsed = JSON.parse(readFileSync(file, 'utf8'));
   return Array.isArray(parsed) ? parsed : [];
+}
+
+async function readManifest(): Promise<any[]> {
+  try {
+    const [buf] = await admin
+      .storage()
+      .bucket(BUCKET)
+      .file('lmu/manifest.json')
+      .download();
+    const parsed = JSON.parse(buf.toString('utf8'));
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // Bucket is empty until the PC uploader runs. The seed ships with the function.
+  }
+  return readSeedManifest();
+}
+
+async function readLapCsv(id: string): Promise<string | null> {
+  try {
+    const file = admin.storage().bucket(BUCKET).file(`lmu/laps/${id}.csv`);
+    const [exists] = await file.exists();
+    if (exists) {
+      const [body] = await file.download();
+      return body.toString('utf8');
+    }
+  } catch {
+    // Fall through to the copy that deployed with the function.
+  }
+  const seeded = join(SEED, 'laps', `${id}.csv`);
+  if (!existsSync(seeded)) return null;
+  return readFileSync(seeded, 'utf8');
 }
 
 export const lmuApi = onRequest(async (req, res) => {
@@ -75,15 +107,13 @@ export const lmuApi = onRequest(async (req, res) => {
     const csv = path.match(/\/laps\/([^/]+)\/csv$/);
     if (csv) {
       const id = decodeURIComponent(csv[1]);
-      const file = admin.storage().bucket(BUCKET).file(`lmu/laps/${id}.csv`);
-      const [exists] = await file.exists();
-      if (!exists) {
+      const body = await readLapCsv(id);
+      if (!body) {
         res.status(404).json({error: 'Lap telemetry not found'});
         return;
       }
-      const [body] = await file.download();
       res.set('Content-Type', 'text/csv');
-      res.status(200).send(body.toString('utf8'));
+      res.status(200).send(body);
       return;
     }
 
@@ -92,10 +122,14 @@ export const lmuApi = onRequest(async (req, res) => {
         .split(',')
         .map(value => Number(value))
         .filter(value => Number.isFinite(value) && value !== 0);
-      const items =
-        trackFilter.length === 0
-          ? laps
-          : laps.filter(lap => trackFilter.includes(lap.track?.id));
+      const event = String(req.query.event || '');
+      const items = laps.filter(lap => {
+        if (event && lap.event !== event) return false;
+        if (trackFilter.length > 0 && !trackFilter.includes(lap.track?.id)) {
+          return false;
+        }
+        return true;
+      });
       res.status(200).json({items, total: items.length});
       return;
     }

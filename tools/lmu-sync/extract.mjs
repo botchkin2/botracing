@@ -485,6 +485,31 @@ function lerpSeries(times, values, t) {
   return values[i0] + (values[i1] - values[i0]) * mix;
 }
 
+function lastPositive(rows, startTs, endTs) {
+  let value = null;
+  for (const row of rows) {
+    if (row.ts < startTs - 0.2) continue;
+    if (row.ts > endTs + 0.75) break;
+    if (row.value > 1) value = row.value;
+  }
+  return value;
+}
+
+function sectorTimes(sector1, sector2, startTs, endTs, lapTime) {
+  if (lapTime == null) return [];
+  const s1 = lastPositive(sector1, startTs, endTs);
+  const through2 = lastPositive(sector2, startTs, endTs);
+  if (s1 == null || through2 == null) return [];
+  const s2 = through2 - s1;
+  const s3 = lapTime - through2;
+  if (s2 <= 0.5 || s3 <= 0.5) return [];
+  return [
+    {sectorTime: round(s1, 3), incomplete: false},
+    {sectorTime: round(s2, 3), incomplete: false},
+    {sectorTime: round(s3, 3), incomplete: false},
+  ];
+}
+
 function exportPack(dbPath, outDir) {
   const stint = extractStint(dbPath, idFromMeta(dbPath));
   const gps = column(dbPath, 'GPS Time');
@@ -502,6 +527,8 @@ function exportPack(dbPath, outDir) {
     'value4',
   ]);
   const gearEvents = cleanGears(events(dbPath, 'Gear', ['value']));
+  const sector1 = events(dbPath, 'Current Sector1', ['value']);
+  const sector2 = events(dbPath, 'Current Sector2', ['value']);
   const latTimes = new Float64Array(lat.length);
   const lonTimes = new Float64Array(lon.length);
   for (let i = 0; i < lat.length; i++) {
@@ -561,6 +588,12 @@ function exportPack(dbPath, outDir) {
       });
     }
     const total = samples[samples.length - 1]?.integrated || 1;
+    const offSamples = samples.reduce((sum, sample) => sum + sample.off, 0);
+    const offSeconds = offSamples / 100;
+    const offtrack = !lap.inPit && !lap.partial && offSeconds >= 0.2;
+    const timed = lap.gameLapTime != null;
+    const clean = timed && !lap.partial && !lap.inPit && !offtrack;
+    const sectors = sectorTimes(sector1, sector2, lap.startTs, lap.endTs, timed ? lap.gameLapTime : null);
     const lines = [
       'Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt',
     ];
@@ -582,7 +615,6 @@ function exportPack(dbPath, outDir) {
       );
     }
     writeFileSync(resolve(lapsDir, `${id}.csv`), lines.join('\n'));
-    const timed = lap.gameLapTime != null;
     manifest = manifest.filter(item => item.id !== id);
     manifest.push({
       id,
@@ -591,7 +623,11 @@ function exportPack(dbPath, outDir) {
       sessionType,
       run: 1,
       season: {id: 2026, name: 'LMU', year: 2026, platform: 'lmu'},
-      car: {id: carId, name: stint.car, class: stint.carClass},
+      car: {
+        id: carId,
+        name: stint.car.replaceAll('#', 'No.'),
+        class: stint.carClass,
+      },
       track: {
         id: trackId,
         name: stint.track,
@@ -601,13 +637,14 @@ function exportPack(dbPath, outDir) {
       startTime,
       lapNumber: lap.lapNumber,
       lapTime: timed ? lap.gameLapTime : lap.durationSec,
-      clean: !lap.partial,
+      clean,
       joker: false,
       discontinuity: false,
       missing: false,
       incomplete: lap.partial || !timed,
-      offtrack: lap.leftAsphalt,
+      offtrack,
       pitlane: lap.inPit,
+      sectors,
       pitIn: false,
       pitOut: false,
       telemetry: {available: true},

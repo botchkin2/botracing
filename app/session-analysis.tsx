@@ -12,7 +12,17 @@ import {StyleSheet} from 'react-native';
 const SessionAnalysisScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const sessionData: SessionData = JSON.parse(params.sessionData as string);
+  const raw = Array.isArray(params.sessionData)
+    ? params.sessionData[0]
+    : params.sessionData;
+  let sessionData: SessionData | null = null;
+  if (typeof raw === 'string') {
+    try {
+      sessionData = JSON.parse(raw);
+    } catch {
+      sessionData = null;
+    }
+  }
 
   const handleBackToLaps = () => {
     router.back();
@@ -33,11 +43,13 @@ const SessionAnalysisScreen: React.FC = () => {
 
   return (
     <ScreenContainer style={styles.container}>
-      <SessionAnalysis
-        sessionData={sessionData}
-        onBack={handleBackToLaps}
-        onMultiLapComparison={handleMultiLapComparison}
-      />
+      {sessionData ? (
+        <SessionAnalysis
+          sessionData={sessionData}
+          onBack={handleBackToLaps}
+          onMultiLapComparison={handleMultiLapComparison}
+        />
+      ) : null}
       <BottomNavigation currentScreen='index' />
     </ScreenContainer>
   );

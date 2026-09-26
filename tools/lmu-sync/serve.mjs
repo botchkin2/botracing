@@ -55,10 +55,12 @@ createServer((req, res) => {
       .split(',')
       .map(Number)
       .filter(value => Number.isFinite(value) && value !== 0);
-    const items =
-      tracks.length === 0
-        ? laps
-        : laps.filter(lap => tracks.includes(lap.track?.id));
+    const event = url.searchParams.get('event');
+    const items = laps.filter(lap => {
+      if (event && lap.event !== event) return false;
+      if (tracks.length > 0 && !tracks.includes(lap.track?.id)) return false;
+      return true;
+    });
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({items, total: items.length}));
     return;
