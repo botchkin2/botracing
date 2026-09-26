@@ -80,15 +80,6 @@ const HamburgerMenu: React.FC<HamburgerMenuProps> = ({currentScreen}) => {
       },
     },
     {
-      id: 'lmu-try',
-      label: 'LMU try',
-      icon: '🏎️',
-      action: () => {
-        closeMenu();
-        router.push('/lmu-try');
-      },
-    },
-    {
       id: 'cache',
       label: 'Cache Management',
       icon: '💾',

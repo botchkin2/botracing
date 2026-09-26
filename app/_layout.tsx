@@ -27,8 +27,7 @@ function UnauthorizedRedirect() {
     if (
       pathname === '/' ||
       pathname === '/driver-profile' ||
-      pathname === '/auth/callback' ||
-      pathname === '/lmu-try'
+      pathname === '/auth/callback'
     )
       return;
     router.replace('/driver-profile');
@@ -59,7 +58,6 @@ export default function RootLayout() {
                 <Stack.Screen name='session-analysis' />
                 <Stack.Screen name='multi-lap-comparison' />
                 <Stack.Screen name='cache-management' />
-                <Stack.Screen name='lmu-try' />
                 <Stack.Screen name='modal' options={{presentation: 'modal'}} />
               </Stack>
             </View>

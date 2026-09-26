@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import Svg, {Circle, Line, Path} from 'react-native-svg';
-import stint from '../sample_data/lmu/stint.json';
+import stint from '../../sample_data/lmu/stint.json';
 
 type LapTrace = {
   id: string;
