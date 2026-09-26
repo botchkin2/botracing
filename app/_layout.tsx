@@ -25,6 +25,7 @@ function UnauthorizedRedirect() {
   useEffect(() => {
     if (isLoading || !isUnauthorized) return;
     if (
+      pathname === '/' ||
       pathname === '/driver-profile' ||
       pathname === '/auth/callback' ||
       pathname === '/lmu-try'
