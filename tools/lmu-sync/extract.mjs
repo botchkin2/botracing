@@ -91,6 +91,14 @@ function column(db, table) {
   return out;
 }
 
+function columnOrEmpty(db, table) {
+  try {
+    return column(db, table);
+  } catch {
+    return new Float64Array();
+  }
+}
+
 function events(db, table, fields) {
   const select = ['ts', ...fields].map(field => `"${field}"`).join(', ');
   return parseCsv(sql(db, `SELECT ${select} FROM "${table}" ORDER BY ts`)).map(
@@ -516,10 +524,14 @@ function exportPack(dbPath, outDir) {
   const speed = column(dbPath, 'Ground Speed');
   const steer = column(dbPath, 'Steering Pos');
   const rpm = column(dbPath, 'Engine RPM');
-  const brake = column(dbPath, 'Brake Pos');
-  const throttle = column(dbPath, 'Throttle Pos');
+  const brakeRaw = columnOrEmpty(dbPath, 'Brake Pos Unfiltered');
+  const throttleRaw = columnOrEmpty(dbPath, 'Throttle Pos Unfiltered');
+  const brake = brakeRaw.length > 0 ? brakeRaw : column(dbPath, 'Brake Pos');
+  const throttle =
+    throttleRaw.length > 0 ? throttleRaw : column(dbPath, 'Throttle Pos');
   const lat = column(dbPath, 'GPS Latitude');
   const lon = column(dbPath, 'GPS Longitude');
+  const lapDist = columnOrEmpty(dbPath, 'Lap Dist');
   const surface = events(dbPath, 'SurfaceTypes', [
     'value1',
     'value2',
@@ -531,9 +543,17 @@ function exportPack(dbPath, outDir) {
   const sector2 = events(dbPath, 'Current Sector2', ['value']);
   const latTimes = new Float64Array(lat.length);
   const lonTimes = new Float64Array(lon.length);
+  const brakeTimes = new Float64Array(brake.length);
+  const throttleTimes = new Float64Array(throttle.length);
   for (let i = 0; i < lat.length; i++) {
     latTimes[i] = gps[gpsIndexFor(i, lat.length, gps.length)];
     lonTimes[i] = gps[gpsIndexFor(i, lon.length, gps.length)];
+  }
+  for (let i = 0; i < brake.length; i++) {
+    brakeTimes[i] = gps[gpsIndexFor(i, brake.length, gps.length)];
+  }
+  for (let i = 0; i < throttle.length; i++) {
+    throttleTimes[i] = gps[gpsIndexFor(i, throttle.length, gps.length)];
   }
 
   const lapsDir = resolve(outDir, 'laps');
@@ -578,15 +598,27 @@ function exportPack(dbPath, outDir) {
         integrated,
         spd,
         off,
-        brake: brake[scaledIndex(i, brake.length, gps.length)] / 100,
-        throttle: throttle[scaledIndex(i, throttle.length, gps.length)] / 100,
+        brake: lerpSeries(brakeTimes, brake, t) / 100,
+        throttle: lerpSeries(throttleTimes, throttle, t) / 100,
         steer: steer[scaledIndex(i, steer.length, gps.length)] / 100,
         rpm: rpm[scaledIndex(i, rpm.length, gps.length)],
         gear: gearAt(gearEvents, t),
         lat: lerpSeries(latTimes, lat, t),
         lon: lerpSeries(lonTimes, lon, t),
+        along: lapDist.length
+          ? lapDist[scaledIndex(i, lapDist.length, gps.length)]
+          : 0,
       });
     }
+    let origin = 0;
+    for (let s = 1; s < samples.length; s++) {
+      if (samples[s - 1].along - samples[s].along > 50) origin = s;
+    }
+    let maxAlong = 0;
+    for (let s = origin; s < samples.length; s++) {
+      if (samples[s].along > maxAlong) maxAlong = samples[s].along;
+    }
+    const useAlong = maxAlong > 1;
     const total = samples[samples.length - 1]?.integrated || 1;
     const offSamples = samples.reduce((sum, sample) => sum + sample.off, 0);
     const offSeconds = offSamples / 100;
@@ -597,8 +629,13 @@ function exportPack(dbPath, outDir) {
     const lines = [
       'Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt',
     ];
-    for (const sample of samples) {
-      const pct = Math.max(0, Math.min(1, sample.integrated / total));
+    for (let s = 0; s < samples.length; s++) {
+      const sample = samples[s];
+      const pct = useAlong
+        ? s < origin
+          ? 0
+          : Math.max(0, Math.min(1, sample.along / maxAlong))
+        : Math.max(0, Math.min(1, sample.integrated / total));
       lines.push(
         [
           sample.spd.toFixed(4),
@@ -672,9 +709,6 @@ const packDir = resolve(
 );
 
 if (format === 'csv') {
-  if (existsSync(resolve(packDir, 'manifest.json'))) {
-    writeFileSync(resolve(packDir, 'manifest.json'), '[]');
-  }
   exportPack(file, packDir);
   if (referenceFile) exportPack(referenceFile, packDir);
 } else {
