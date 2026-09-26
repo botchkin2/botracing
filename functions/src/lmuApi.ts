@@ -7,7 +7,7 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const BUCKET = 'botracing-61.appspot.com';
+const BUCKET = 'botracing-61-lmu';
 
 function allowCors(req: any, res: any) {
   const origin = req.headers.origin;
