@@ -2,6 +2,8 @@
 
 This directory contains guides for common development issues and best practices in this React Native Web racing analytics application.
 
+Talk, reviews, and half-formed ideas live next door in [`collab/`](../collab/README.md). New people start at [`collab/JOIN.md`](../collab/JOIN.md). A note here is reference. A note there is a conversation.
+
 ## 📚 Available Guides
 
 ### [API Requests](./API_REQUESTS.md)
@@ -27,6 +29,14 @@ This directory contains guides for common development issues and best practices 
 - React.memo usage
 - useMemo and useCallback patterns
 - State batching techniques
+
+### [LMU sync](./LMU_SYNC_NOTES.md)
+
+**Where Le Mans Ultimate laps live on this PC, and the plan to get them into the app**
+
+- DuckDB recordings, the CSV columns the chart already parses, and the unit conversions
+- Dev tools installed on this machine
+- The six-step plan for the sync script
 
 ### [React Native Web](./REACT_NATIVE_WEB.md)
 
