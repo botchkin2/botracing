@@ -9,6 +9,13 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
+        "source": "/api/lmu/**",
+        "function": {
+          "functionId": "lmuApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/garage61/**",
         "function": {
           "functionId": "garage61Proxy",

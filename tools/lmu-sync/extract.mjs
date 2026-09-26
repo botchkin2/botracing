@@ -390,6 +390,8 @@ function extractStint(dbPath, idPrefix) {
       leftAsphalt: offOut.some(value => value === 1),
       pastEdge: edgeOut.some(value => value === 1),
       gameDidNotTime: !timed,
+      startTs: lapSamples[0]?.t ?? segment.start,
+      endTs: lapSamples[lapSamples.length - 1]?.t ?? segment.end,
       distanceM: round(dMax, 1),
       speed: speedOut,
       throttle: throttleOut,
@@ -442,6 +444,184 @@ function extractStint(dbPath, idPrefix) {
   };
 }
 
+function stableId(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 900000) + 1000;
+}
+
+function sessionTypeNumber(name) {
+  if (name === 'Qualifying') return 2;
+  if (name === 'Race') return 3;
+  return 1;
+}
+
+function isoFromRecording(recordingTime) {
+  const match = String(recordingTime || '').match(
+    /(\d{4}-\d{2}-\d{2})T(\d{2})_(\d{2})_(\d{2})/,
+  );
+  if (!match) return new Date().toISOString();
+  return `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`;
+}
+
+function lerpSeries(times, values, t) {
+  if (times.length === 0) return 0;
+  if (t <= times[0]) return values[0];
+  const last = times.length - 1;
+  if (t >= times[last]) return values[last];
+  let lo = 0;
+  let hi = last;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] < t) lo = mid + 1;
+    else hi = mid;
+  }
+  const i1 = lo;
+  const i0 = Math.max(0, i1 - 1);
+  const span = times[i1] - times[i0] || 1;
+  const mix = (t - times[i0]) / span;
+  return values[i0] + (values[i1] - values[i0]) * mix;
+}
+
+function exportPack(dbPath, outDir) {
+  const stint = extractStint(dbPath, idFromMeta(dbPath));
+  const gps = column(dbPath, 'GPS Time');
+  const speed = column(dbPath, 'Ground Speed');
+  const steer = column(dbPath, 'Steering Pos');
+  const rpm = column(dbPath, 'Engine RPM');
+  const brake = column(dbPath, 'Brake Pos');
+  const throttle = column(dbPath, 'Throttle Pos');
+  const lat = column(dbPath, 'GPS Latitude');
+  const lon = column(dbPath, 'GPS Longitude');
+  const surface = events(dbPath, 'SurfaceTypes', [
+    'value1',
+    'value2',
+    'value3',
+    'value4',
+  ]);
+  const gearEvents = cleanGears(events(dbPath, 'Gear', ['value']));
+  const latTimes = new Float64Array(lat.length);
+  const lonTimes = new Float64Array(lon.length);
+  for (let i = 0; i < lat.length; i++) {
+    latTimes[i] = gps[gpsIndexFor(i, lat.length, gps.length)];
+    lonTimes[i] = gps[gpsIndexFor(i, lon.length, gps.length)];
+  }
+
+  const lapsDir = resolve(outDir, 'laps');
+  mkdirSync(lapsDir, {recursive: true});
+  const manifestPath = resolve(outDir, 'manifest.json');
+  let manifest = [];
+  if (existsSync(manifestPath)) {
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  }
+
+  const trackId = stableId(stint.track);
+  const carId = stableId(stint.car);
+  const startTime = isoFromRecording(stint.recordingTime);
+  const sessionType = sessionTypeNumber(stint.sessionType);
+
+  for (const lap of stint.laps) {
+    const id = `lmu-${lap.id}`;
+    const i0 = idxAt(gps, lap.startTs);
+    const i1 = idxAt(gps, lap.endTs);
+    const samples = [];
+    let prevT = gps[i0];
+    let integrated = 0;
+    let surfI = 0;
+    while (surfI + 1 < surface.length && surface[surfI + 1].ts <= lap.startTs) {
+      surfI++;
+    }
+    for (let i = i0; i <= i1; i++) {
+      const t = gps[i];
+      const spd = speed[scaledIndex(i, speed.length, gps.length)] / 3.6;
+      if (i > i0) integrated += spd * Math.max(0, t - prevT);
+      prevT = t;
+      let crossedOff = false;
+      while (surfI + 1 < surface.length && surface[surfI + 1].ts <= t) {
+        surfI++;
+        if (isLooseSurface(surface[surfI])) crossedOff = true;
+      }
+      const held = surface[surfI];
+      const off =
+        crossedOff || (held && held.ts <= t && isLooseSurface(held)) ? 1 : 0;
+      samples.push({
+        t,
+        integrated,
+        spd,
+        off,
+        brake: brake[scaledIndex(i, brake.length, gps.length)] / 100,
+        throttle: throttle[scaledIndex(i, throttle.length, gps.length)] / 100,
+        steer: steer[scaledIndex(i, steer.length, gps.length)] / 100,
+        rpm: rpm[scaledIndex(i, rpm.length, gps.length)],
+        gear: gearAt(gearEvents, t),
+        lat: lerpSeries(latTimes, lat, t),
+        lon: lerpSeries(lonTimes, lon, t),
+      });
+    }
+    const total = samples[samples.length - 1]?.integrated || 1;
+    const lines = [
+      'Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt',
+    ];
+    for (const sample of samples) {
+      const pct = Math.max(0, Math.min(1, sample.integrated / total));
+      lines.push(
+        [
+          sample.spd.toFixed(4),
+          pct.toFixed(6),
+          sample.lat.toFixed(6),
+          sample.lon.toFixed(6),
+          sample.brake.toFixed(4),
+          sample.throttle.toFixed(4),
+          sample.rpm.toFixed(1),
+          sample.steer.toFixed(4),
+          sample.gear,
+          sample.off,
+        ].join(','),
+      );
+    }
+    writeFileSync(resolve(lapsDir, `${id}.csv`), lines.join('\n'));
+    const timed = lap.gameLapTime != null;
+    manifest = manifest.filter(item => item.id !== id);
+    manifest.push({
+      id,
+      event: stint.id,
+      session: 1,
+      sessionType,
+      run: 1,
+      season: {id: 2026, name: 'LMU', year: 2026, platform: 'lmu'},
+      car: {id: carId, name: stint.car, class: stint.carClass},
+      track: {
+        id: trackId,
+        name: stint.track,
+        variant: stint.layout || stint.track,
+        platform: 'lmu',
+      },
+      startTime,
+      lapNumber: lap.lapNumber,
+      lapTime: timed ? lap.gameLapTime : lap.durationSec,
+      clean: !lap.partial,
+      joker: false,
+      discontinuity: false,
+      missing: false,
+      incomplete: lap.partial || !timed,
+      offtrack: lap.leftAsphalt,
+      pitlane: lap.inPit,
+      pitIn: false,
+      pitOut: false,
+      telemetry: {available: true},
+      rows: samples.length,
+    });
+    console.log(
+      `${id} ${samples.length} rows ${(samples.length / Math.max(lap.durationSec, 1)).toFixed(0)} Hz`,
+    );
+  }
+
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  console.log(`${manifest.length} laps -> ${outDir}`);
+}
+
 function idFromMeta(dbPath) {
   const meta = metadata(dbPath);
   const stamp = (meta.RecordingTime || 'stint').replace(/[^0-9T]/g, '');
@@ -449,6 +629,18 @@ function idFromMeta(dbPath) {
   return `${track}-${stamp}`;
 }
 
+const format = arg('--format', 'csv');
+const packDir = resolve(
+  arg('--pack', resolve(repoRoot, 'sample_data/lmu/pack')),
+);
+
+if (format === 'csv') {
+  if (existsSync(resolve(packDir, 'manifest.json'))) {
+    writeFileSync(resolve(packDir, 'manifest.json'), '[]');
+  }
+  exportPack(file, packDir);
+  if (referenceFile) exportPack(referenceFile, packDir);
+} else {
 const stint = extractStint(file, idFromMeta(file));
 if (referenceFile) {
   const reference = extractStint(
@@ -503,4 +695,5 @@ if (stint.reference) {
   console.log(
     `reference ${stint.reference.gameLapTime}s from ${stint.reference.from.recordingTime}`,
   );
+}
 }

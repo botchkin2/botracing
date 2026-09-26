@@ -51,10 +51,14 @@ export const useUser = () => {
 };
 
 // Tracks list (for track selector; required by laps API)
-export const useTracks = (options?: {enabled?: boolean}) => {
+export const useTracks = (options?: {
+  enabled?: boolean;
+  source?: 'garage61' | 'lmu';
+}) => {
+  const source = options?.source ?? 'garage61';
   return useQuery({
-    queryKey: queryKeys.tracks,
-    queryFn: () => apiClient.getTracks(),
+    queryKey: [...queryKeys.tracks, source],
+    queryFn: () => apiClient.getTracks(source),
     staleTime: 60 * 60 * 1000, // 1 hour
     gcTime: 2 * 60 * 60 * 1000,
     refetchOnMount: false,
@@ -78,6 +82,7 @@ export const useLaps = (
     minLapTime?: number;
     maxLapTime?: number;
     group?: 'driver' | 'driver-car' | 'none';
+    source?: 'garage61' | 'lmu';
   },
   options?: {enabled?: boolean},
 ) => {

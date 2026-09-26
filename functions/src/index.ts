@@ -12,6 +12,8 @@ import {
 } from './authHandlers';
 import {SESSION_COOKIE_NAME} from './oauth';
 
+export {lmuApi} from './lmuApi';
+
 if (!admin.apps.length) {
   admin.initializeApp();
 }

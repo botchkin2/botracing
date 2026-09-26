@@ -14,7 +14,7 @@ Keep this file to one screen. When a row is done, move the detail into a thread,
 
 ## Now
 
-Phase 1 (playable LMU) is in progress. Phases: [003](threads/003-phases.md).
+Existing chart, full lap CSV, then the bucket. The try screen is not the product. [003](threads/003-phases.md).
 
 Live engineering context, not copied here: [LMU sync notes](../docs/LMU_SYNC_NOTES.md).
 
@@ -31,6 +31,7 @@ Live engineering context, not copied here: [LMU sync notes](../docs/LMU_SYNC_NOT
 | --------------------------------------------------------------- | --------------------------------------------------------- |
 | [Room purpose](decisions/2026-09-25-room-purpose.md)            | Work ideas through here before asking Botkin.             |
 | [No push yet](decisions/2026-09-25-no-push-until-checkpoint.md) | Commit locally. Push only when Botkin calls a checkpoint. |
+| [Existing chart](decisions/2026-09-25-existing-chart.md) | LMU laps in the current compare screen, full CSV, one file per lap. |
 
 ## Parked
 

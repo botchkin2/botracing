@@ -27,6 +27,21 @@ const API_BASE_URL =
     process.env?.EXPO_PUBLIC_GARAGE61_API_BASE) ||
   FIREBASE_HOSTING_URL;
 
+export type DataSource = 'garage61' | 'lmu';
+
+function baseFor(source: DataSource): string {
+  if (source !== 'lmu') return API_BASE_URL;
+  const override =
+    typeof process !== 'undefined'
+      ? process.env?.EXPO_PUBLIC_LMU_API_BASE
+      : undefined;
+  if (override) return override;
+  return API_BASE_URL.replace(/\/api\/garage61\/?$/, '/api/lmu').replace(
+    /\/garage61Proxy\/?$/,
+    '/lmuApi',
+  );
+}
+
 // Global request cache to ensure proper deduplication
 // For React Native, we use a module-level variable since HMR works differently
 const globalRequestCache = new Map<string, Promise<any>>();
@@ -403,10 +418,11 @@ class ApiClient {
   }
 
   // Get tracks (required for laps API: laps must be requested per track)
-  async getTracks(): Promise<TracksResponse> {
+  async getTracks(source: DataSource = 'garage61'): Promise<TracksResponse> {
     const raw = await this.deduplicatedRequest<TracksResponse | TrackInfo[]>(
       'GET',
       '/tracks',
+      {baseURL: baseFor(source)},
     );
     if (Array.isArray(raw)) {
       return {items: raw};
@@ -428,6 +444,7 @@ class ApiClient {
     minLapTime?: number;
     maxLapTime?: number;
     group?: 'driver' | 'driver-car' | 'none'; // API grouping option
+    source?: DataSource;
   }): Promise<LapsResponse> {
     // Convert array parameters to comma-separated strings for GET requests
     const processedParams = {
@@ -443,7 +460,9 @@ class ApiClient {
       ...processedParams,
     };
 
+    const source = params?.source === 'lmu' ? 'lmu' : 'garage61';
     return this.deduplicatedRequest<LapsResponse>('GET', '/laps', {
+      baseURL: baseFor(source),
       params: queryParams,
     });
   }
@@ -480,6 +499,7 @@ class ApiClient {
     // Extract lap ID from endpoint (assuming format: /laps/{lapId}/csv)
     const lapIdMatch = endpoint.match(/\/laps\/([^\/]+)\/csv/);
     const lapId = lapIdMatch ? lapIdMatch[1] : null;
+    const source: DataSource = lapId?.startsWith('lmu-') ? 'lmu' : 'garage61';
 
     // Try to load from cache first (if enabled and we have a lap ID)
     if (useCache && lapId && !skipCache) {
@@ -511,6 +531,7 @@ class ApiClient {
           'GET',
           endpoint,
           {
+            baseURL: baseFor(source),
             responseType: 'text',
             headers: {
               Accept: 'text/csv',

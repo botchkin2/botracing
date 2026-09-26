@@ -65,6 +65,7 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
   const [eventGroups, setEventGroups] = useState<EventGroup[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<number>(1); // Default to 1 day (24h)
+  const [source, setSource] = useState<'garage61' | 'lmu'>('garage61');
   const [selectedTrackIds, setSelectedTrackIds] = useState<number[]>([]);
   const [trackSearch, setTrackSearch] = useState('');
   const [fadeAnim] = useState(new Animated.Value(1));
@@ -72,8 +73,14 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
 
   const {data: tracksResponse, isLoading: tracksLoading} = useTracks({
     enabled: queryEnabled,
+    source,
   });
   const tracks = tracksResponse?.items ?? [];
+
+  useEffect(() => {
+    if (source !== 'lmu' || tracks.length === 0) return;
+    setSelectedTrackIds(tracks.map(track => track.id));
+  }, [source, tracks]);
 
   // Group tracks by name (same venue, multiple variants)
   const tracksByName = useMemo(() => {
@@ -196,8 +203,9 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       drivers: 'me',
       group: 'none',
       tracks: selectedTrackIds.length > 0 ? selectedTrackIds : undefined,
+      source,
     }),
-    [selectedTimeRange, selectedTrackIds],
+    [selectedTimeRange, selectedTrackIds, source],
   );
 
   const lapsQueryEnabled = queryEnabled && selectedTrackIds.length > 0;
@@ -398,6 +406,31 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
                 </Text>
               </View>
             )}
+
+            <View style={styles.trackSelectorActions}>
+              {(
+                [
+                  ['garage61', 'iRacing'],
+                  ['lmu', 'LMU'],
+                ] as const
+              ).map(([id, label]) => (
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => {
+                    setSource(id);
+                    setSelectedTrackIds([]);
+                  }}
+                  style={styles.trackSelectorActionBtn}>
+                  <Text
+                    style={[
+                      styles.trackSelectorActionText,
+                      source === id && {color: RacingTheme.colors.primary},
+                    ]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             {/* Searchable track selector - laps API requires track filter */}
             <View style={styles.trackSelectorSection}>
