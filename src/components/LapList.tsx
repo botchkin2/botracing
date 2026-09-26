@@ -317,26 +317,57 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
     );
   }
 
+  const sourceSwitch = (
+    <View style={styles.trackSelectorActions}>
+      {(
+        [
+          ['garage61', 'iRacing'],
+          ['lmu', 'LMU'],
+        ] as const
+      ).map(([id, label]) => (
+        <TouchableOpacity
+          key={id}
+          onPress={() => {
+            setSource(id);
+            setSelectedTrackIds([]);
+            setError(null);
+          }}
+          style={styles.trackSelectorActionBtn}>
+          <Text
+            style={[
+              styles.trackSelectorActionText,
+              source === id && {color: RacingTheme.colors.primary},
+            ]}>
+            {label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   if (error) {
-    const isUnauthorized = error.status === 401;
+    const garageSignIn = source !== 'lmu' && error.status === 401;
     return (
       <View style={styles.mainContainer}>
         <View style={styles.fullHeightContainer}>
+          {sourceSwitch}
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>
-              {isUnauthorized ? 'SIGN IN REQUIRED' : 'TELEMETRY ERROR'}
+              {garageSignIn
+                ? 'SIGN IN REQUIRED'
+                : source === 'lmu'
+                  ? 'LMU LAPS UNAVAILABLE'
+                  : 'TELEMETRY ERROR'}
             </Text>
             <Text style={styles.errorSubtext}>
-              {isUnauthorized
-                ? 'Sign in with your Garage 61 account to view laps.'
+              {garageSignIn
+                ? 'Garage 61 needs a sign-in. LMU laps are on the switch above.'
                 : error.message}
             </Text>
             <RacingButton
-              title={
-                isUnauthorized ? 'SIGN IN WITH GARAGE 61' : 'RETRY CONNECTION'
-              }
+              title={garageSignIn ? 'SIGN IN WITH GARAGE 61' : 'RETRY CONNECTION'}
               onPress={() => {
-                if (isUnauthorized) {
+                if (garageSignIn) {
                   router.replace('/driver-profile');
                 } else {
                   refetch();
@@ -407,30 +438,7 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
               </View>
             )}
 
-            <View style={styles.trackSelectorActions}>
-              {(
-                [
-                  ['garage61', 'iRacing'],
-                  ['lmu', 'LMU'],
-                ] as const
-              ).map(([id, label]) => (
-                <TouchableOpacity
-                  key={id}
-                  onPress={() => {
-                    setSource(id);
-                    setSelectedTrackIds([]);
-                  }}
-                  style={styles.trackSelectorActionBtn}>
-                  <Text
-                    style={[
-                      styles.trackSelectorActionText,
-                      source === id && {color: RacingTheme.colors.primary},
-                    ]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {sourceSwitch}
 
             {/* Searchable track selector - laps API requires track filter */}
             <View style={styles.trackSelectorSection}>

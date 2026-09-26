@@ -36,6 +36,18 @@ interface MultiLapComparisonProps {
   selectedLapIds?: Set<string>;
 }
 
+function defaultLapIds(
+  items: Lap[],
+  sessionData?: SessionData,
+): Set<string> {
+  const lmu = sessionData?.track?.platform === 'lmu';
+  return new Set(
+    items
+      .filter(lap => lmu || (lap.clean && !lap.pitIn && !lap.pitOut))
+      .map(lap => lap.id),
+  );
+}
+
 const MultiLapComparison: React.FC<MultiLapComparisonProps> = ({
   sessionData,
   onBack,
@@ -129,9 +141,7 @@ const MultiLapComparison: React.FC<MultiLapComparisonProps> = ({
         setInternalSelectedLapIds(selectedLapIds);
       } else {
         setInternalSelectedLapIds(
-          new Set(
-            lapsResponse.items.filter(lap => lap.clean).map(lap => lap.id),
-          ),
+          defaultLapIds(lapsResponse.items, sessionData),
         );
       }
     }

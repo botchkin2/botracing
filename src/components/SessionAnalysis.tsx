@@ -24,6 +24,15 @@ interface SessionAnalysisProps {
   onMultiLapComparison?: (selectedLapIds: Set<string>) => void;
 }
 
+function defaultLapIds(items: Lap[], sessionData: SessionData): Set<string> {
+  const lmu = sessionData.track?.platform === 'lmu';
+  return new Set(
+    items
+      .filter(lap => lmu || (lap.clean && !lap.pitIn && !lap.pitOut))
+      .map(lap => lap.id),
+  );
+}
+
 const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
   sessionData,
   onBack,
@@ -319,14 +328,7 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
   useEffect(() => {
     if (lapsResponse?.items) {
       setLaps(lapsResponse.items);
-      // Default to selecting all clean laps (excluding pit laps)
-      setSelectedLapIds(
-        new Set(
-          lapsResponse.items
-            .filter((lap: Lap) => lap.clean && !lap.pitIn && !lap.pitOut)
-            .map((lap: Lap) => lap.id),
-        ),
-      );
+      setSelectedLapIds(defaultLapIds(lapsResponse.items, sessionData));
     }
   }, [lapsResponse]);
 
@@ -353,13 +355,7 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
   useEffect(() => {
     if (!hasEmbeddedLaps) return;
     setLaps(sessionData.laps);
-    setSelectedLapIds(
-      new Set(
-        sessionData.laps
-          .filter((lap: Lap) => lap.clean && !lap.pitIn && !lap.pitOut)
-          .map((lap: Lap) => lap.id),
-      ),
-    );
+    setSelectedLapIds(defaultLapIds(sessionData.laps, sessionData));
   }, [hasEmbeddedLaps, sessionData]);
 
   // Add null checks to prevent runtime errors - after all hooks are called
