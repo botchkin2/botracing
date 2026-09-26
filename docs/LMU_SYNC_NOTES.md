@@ -1,0 +1,166 @@
+# LMU sync notes
+
+Working notes for adding Le Mans Ultimate laps to this app. Written 2026-09-25 from this PC. Nothing here is committed as a decision until we start the work.
+
+## This machine
+
+| Thing                  | Where                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| Repo                   | `C:\Users\Botkin\Projects\garage61-session-analysis`                         |
+| Remote                 | https://github.com/botchkin2/garage61-session-analysis (`main` at `2765b12`) |
+| LMU install            | `C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate`             |
+| Recorded laps          | `...\Le Mans Ultimate\UserData\Telemetry\*.duckdb` (543 files, about 10 GB)  |
+| Auto record            | On, in `UserData\player\Settings.JSON`                                       |
+| Channel rates          | `UserData\Telemetry\config.json`                                             |
+| DuckDB file version    | v1.4.0 (CLI used to inspect: DuckDB 1.4.2)                                   |
+| Coach Dave Delta cache | `C:\Users\Botkin\AppData\Local\CoachDaveDelta\app-6.2.0\resources\*.delta`   |
+| Garage 61 agent        | Installed. It uploads iRacing `.ibt` files only.                             |
+
+Delta's `.delta` files are a private format and live inside the app's version folder, so they get left behind on an update. The DuckDB files are the source we will read.
+
+## What the app already expects
+
+The phone never talks to Garage 61 directly. It calls Firebase Hosting (`botracing-61`), which rewrites `/api/garage61/**` to the `garage61Proxy` Cloud Function (Node 22, `us-central1`). That function holds the OAuth session and forwards to `https://garage61.net/api/v1`.
+
+A lap list comes from `GET /laps`. A lap's traces come from `GET /laps/{lapId}/csv`. The parser in `src/utils/dataProcessing.ts` needs these columns:
+
+`LapDistPct, Lat, Lon, Brake, Throttle, RPM, SteeringWheelAngle, Speed, Gear`
+
+`sample_data/sample_lap.csv` is a real Garage 61 export (Road Atlanta). From the first rows:
+
+- `Speed` is meters per second (about 63 m/s in 5th gear, not km/h).
+- `Throttle` and `Brake` are 0 to 1.
+- `LapDistPct` is a 0 to 1 fraction. The parser multiplies by 100.
+- `SteeringWheelAngle` is radians, the iRacing channel.
+- `Gear` is an integer.
+
+The chart code only reads those nine columns. Extra columns in the sample (`Clutch`, `ABSActive`, and so on) are ignored.
+
+## What one LMU file contains
+
+One `.duckdb` is one stint, not one lap. Filename: `{Track}_{P|Q|R}_{utc timestamp}Z.duckdb`. `P` practice, `Q` qualifying, `R` race.
+
+- `metadata`: `TrackName`, `TrackLayout`, `CarName`, `CarClass`, `SessionType`, `RecordingTime`, `WeatherConditions`, `DriverName`, and `CarSetup` (full garage JSON).
+- `channelsList`: name, sample rate, unit.
+- High-rate channels have a single `value` column and no timestamp. Row `i` lines up with `GPS Time`, which is the session clock in seconds at 100 Hz.
+- Four-corner channels use `value1`..`value4` (FL, FR, RL, RR).
+- `Lap` events: `ts` plus the new lap number, fired at the start/finish line.
+- `Lap Time` events: `ts` plus the completed lap time in seconds. `0` means invalid or reset.
+- `Gear` events: `ts` plus gear. `0` is neutral, including the brief neutral during a shift.
+- `Lap Dist` is meters along the lap and resets each lap (Road Atlanta tops out at 4082 m). It is recorded at 10 Hz.
+
+Checked against `Michelin Raceway Road Atlanta_P_2026-09-25T00_10_40Z.duckdb`: 67,613 speed samples at 100 Hz matched `GPS Time` from 6094.55 to 6770.67, and the `Lap Time` values matched the gaps between `Lap` events.
+
+The game locks the file while it is still recording. Copy it, or wait until the size stops changing.
+
+## Laps to keep
+
+Every segment between start/finish crossings goes into the stint, plus the partial piece before the first crossing and the partial piece after the last one. That includes out-laps, in-laps, pit cycles, and laps the game did not time.
+
+`Lap Time` of 0 means the game did not record a time. Those laps stay, tagged `gameDidNotTime`. `In Pits` (1 = in the pit lane, 0 = out) is a tag, not a reason to drop the lap. On the Road Atlanta practice file there were three pit visits.
+
+The phone loads one stint and overlays whichever laps you turn on. Nothing is filtered out before upload.
+
+## Track limits
+
+The recording does not contain LMU's official track-limit penalty counter. That counter exists on the live shared-memory struct (`mTrackLimitsSteps` in community notes) and is not one of the DuckDB channels. Dave Delta's `.delta` files do not document it either, so we will not try to scrape it from there.
+
+What the DuckDB file does contain, confirmed on the Road Atlanta practice file and in `Support\SharedMemoryInterface\InternalsPlugin.hpp`:
+
+- `SurfaceTypes`, one value per wheel. `0` dry asphalt, `1` wet asphalt, `2` grass, `3` dirt, `4` gravel, `5` rumble strip, `6` special. This file had grass (about 1,000 wheel samples) and a little gravel, plus a lot of rumble. Grass or gravel means a wheel left the asphalt. Rumble is a kerb, not an off.
+- `Path Lateral` is the car's offset from the approximate center path. `Track Edge` is the edge distance on the car's side of that path. On this file, 150 of 6,762 samples sat past that edge.
+- `In Pits` marks the pit lane.
+- Sector flag channels are described in the header as local yellows. This file only stores the values 1 and 11, so they are not a track-limits signal until that encoding is known.
+
+A lap can be tagged `leftAsphalt` when any wheel reports grass, dirt, or gravel. That is a physics fact from the game, not the sporting "track limits" call. The overlay still includes the lap.
+
+## Unit map into the existing chart columns
+
+| App column         | LMU source                            | Conversion                                             |
+| ------------------ | ------------------------------------- | ------------------------------------------------------ |
+| Speed              | Ground Speed (km/h, 100 Hz)           | divide by 3.6                                          |
+| Throttle           | Throttle Pos (%, 50 Hz)               | divide by 100                                          |
+| Brake              | Brake Pos (%, 50 Hz)                  | divide by 100                                          |
+| RPM                | Engine RPM (100 Hz)                   | as-is                                                  |
+| Gear               | Gear events                           | hold last gear, drop neutrals shorter than about 50 ms |
+| Lat, Lon           | GPS Latitude / Longitude (deg, 10 Hz) | as-is                                                  |
+| LapDistPct         | Lap Dist (m, 10 Hz)                   | meters / lap length, so the column stays 0 to 1        |
+| SteeringWheelAngle | Steering Pos (% of lock, 100 Hz)      | no radian equivalent in the file                       |
+
+Steering is the one column we cannot make match iRacing. Two LMU laps compared with each other can share percent-of-lock in that column and the existing chart will overlay them. An LMU lap overlaid on an iRacing lap will not have a meaningful steering trace. That is acceptable for the first version, because the two sims are separate sessions.
+
+## Dev tools installed 2026-09-25
+
+- Git was already present (`git 2.55.0`).
+- GitHub CLI `2.101.0` via winget (`GitHub.cli`). Not logged in yet. Run `gh auth login` once, in a terminal, and approve it in the browser.
+- Node.js `24.19.0` LTS via winget (`OpenJS.NodeJS.LTS`). Cloud Functions in this repo are pinned to Node 22 at deploy time. Node 24 is fine for the Expo app and for the sync script on this PC.
+- PowerShell's default execution policy blocks `npm.ps1`. Use `npm.cmd`, or allow local scripts for the current user (`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`).
+
+Python is not installed (the `python` command is the Microsoft Store stub). We do not need it. The sync script should be Node, same language as the app and the Cloud Functions.
+
+## Cloud
+
+Deploy is already automatic. A push to `main` runs two workflows:
+
+- `.github/workflows/firebase-functions-deploy.yml` builds `functions/` on Node 22 and runs `firebase deploy --only functions`, using the `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61` secret.
+- `.github/workflows/firebase-hosting-merge.yml` builds the Expo web app and deploys Hosting to the live channel. Pull requests deploy a Hosting preview.
+
+`firebase.json` rewrites `/api/garage61/**` to the `garage61Proxy` function. There is no Storage or Firestore rules file in the repo. Firestore is already used for the Garage 61 session cookie.
+
+LMU does not go through Garage 61. A lap is the thing you overlay. A stint is the group those laps came from.
+
+One lap at chart resolution (about 10 samples per second, nine channels) is on the order of 50–100 KB of JSON. That fits in a Firestore document, whose limit is 1 MB. A whole stint does not, so the stint is not one document and it is not one Storage object either. A Storage object per stint would make "my best lap from last week" download that entire old stint.
+
+Firestore, which this project already uses for the Garage 61 session:
+
+- `lmuStints/{stintId}` is the row in the list: track, car, session type, start time, lap count, id of the best timed lap.
+- `lmuLaps/{lapId}` is one lap: stint id, lap number, duration, game lap time, tags (`inPit`, `leftAsphalt`, `gameDidNotTime`), and the trace arrays.
+- The PC uploads a stint by writing those documents through `lmuSync`. The function checks a sync token stored like the OAuth secrets (`firebase functions:secrets:set`).
+- The phone calls `/api/lmu/**` (another Hosting rewrite). One call can be "this stint" or "these lap ids". The function reads the lap documents and returns one JSON body, so opening a stint is still a single download, and overlaying last week's best lap is those ids plus one extra id in the same call.
+- A pinned reference is just a lap id saved on the phone. Same track and car is how you find the best one (`lmuStints` already stores that lap id per stint).
+
+Firestore rules go in the repo and deploy with the functions workflow (`firebase deploy --only functions,firestore`). No Storage bucket. If traces later grow past what a document can hold, the trace arrays can move to Storage and the lap document keeps the summary and a pointer. That is a later change.
+
+Adding the function and the rewrite is enough for CI. The next merge to `main` ships it. The Windows script is not in CI. It only runs on this PC, where the DuckDB files are.
+
+## App shape
+
+Pick the source on the way in: Garage 61, or LMU. They stay separate lists. Garage 61 laps use Garage 61 ids and the per-lap CSV API. LMU laps use ids we assign, grouped by stint.
+
+Today the compare screen fires one telemetry request per lap and, by default, pre-selects only `lap.clean`. For LMU the screen asks for the stint's lap ids in one call, and can add a lap id from any other stint on the same track. Each lap carries tags so you can hide pits and untimed laps, and they are present either way.
+
+Garage 61 can later get the same "one download for this set of laps" treatment by bundling those CSVs in a function. That is independent of LMU.
+
+## Phases
+
+Botkin set the order. Detail and the open question on upload timing are in `collab/threads/003-phases.md`.
+
+1. Playable MVP on this PC: overlay, playback, delta along the lap, and a mark where a wheel left the asphalt.
+2. Upload program. Proposed trigger is "the recording file stopped growing," not a live stream and not a midnight batch. Not built yet.
+3. Architecture cleanup of the existing app, after the MVP shows what is worth keeping.
+4. Design pass. Consistency and mobile playback are the thing to make excellent.
+
+## Try it
+
+`app/lmu-try.tsx` loads `sample_data/lmu/stint.json`. The menu item is **LMU try**. That file is one Road Atlanta practice (5 laps, including the pit lap, the grass laps, and the short partial at the end) plus the best lap from a practice two days earlier, stored at 400 points per lap. The JSON is about 100 KB.
+
+On the screen, press Play or drag the bar. The white line is the same spot on every trace and on the map. Delta is seconds lost against the fastest lap currently turned on. A red dot on the map, and a red mark under the speed trace, is a wheel on grass, dirt, or gravel at that point. Tap laps and channels on and off, and switch the drawn detail between 400, 200, 100, and 50 points. The stored file does not change. That is the knob for phone frame cost. `--points` on the extractor is the knob for what would later sit in Firestore.
+
+Regenerate from any recording:
+
+```
+npm run lmu:extract -- --file "...\UserData\Telemetry\some_stint.duckdb" --reference-file "...\other.duckdb" --points 400
+```
+
+Speed in this file is km/h. Throttle and brake are 0–1. Steer is percent of lock. The best lap in the sample is 81.060 and stays on the asphalt the whole way. The 81.725 and 83.445 laps each leave the asphalt for a short stretch, about 10 of the 400 points, not the whole lap. Official LMU track-limit points are not in the recording. This mark is the wheel surface instead.
+
+## Execution plan
+
+1. **Read one stint locally.** `tools/lmu-sync` opens one `.duckdb` and prints every lap segment, with duration, pit tag, and left-asphalt tag. No upload.
+2. **Write laps the phone can mix.** Downsample every lap onto lap distance. Save one local JSON per lap, plus a stint record that lists those lap ids and the best timed lap. Load two laps from different files into the compare screen, including a pit lap and an untimed lap.
+3. **Remember what was uploaded.** A local ledger of path, size, and modified time. Skip a file the game still has open.
+4. **Upload through the new function.** Write `lmuStints` and `lmuLaps`. Deploy by merging to `main`. Set the sync token with `firebase functions:secrets:set` once.
+5. **Source picker.** After sign-in, choose Garage 61 or LMU. Opening an LMU stint fetches that stint's laps in one call. Pinning a lap stores its id so another stint can request it in the same call.
+6. **Run it in the background.** A scheduled task on this PC. First run can walk the existing files.
+
+Out of scope until the overlay works: tyre and brake channels, the setup JSON, live shared memory, official track-limit points, and Dave Delta's files.

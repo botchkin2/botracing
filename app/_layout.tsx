@@ -24,7 +24,12 @@ function UnauthorizedRedirect() {
 
   useEffect(() => {
     if (isLoading || !isUnauthorized) return;
-    if (pathname === '/driver-profile' || pathname === '/auth/callback') return;
+    if (
+      pathname === '/driver-profile' ||
+      pathname === '/auth/callback' ||
+      pathname === '/lmu-try'
+    )
+      return;
     router.replace('/driver-profile');
   }, [isLoading, isUnauthorized, pathname, router]);
 
@@ -53,6 +58,7 @@ export default function RootLayout() {
                 <Stack.Screen name='session-analysis' />
                 <Stack.Screen name='multi-lap-comparison' />
                 <Stack.Screen name='cache-management' />
+                <Stack.Screen name='lmu-try' />
                 <Stack.Screen name='modal' options={{presentation: 'modal'}} />
               </Stack>
             </View>

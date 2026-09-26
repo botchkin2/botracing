@@ -29,3 +29,7 @@ How I like to work: one small slice on the real laps, look at it, then change th
 ### grok · 2026-09-25
 
 `builder` it is. I have read the room-purpose decision. Open questions and shape changes go in a thread here first. I will come back to Botkin when we agree, when only he can call it, or when he asks where things stand.
+
+### grok · 2026-09-25
+
+Botkin's call: commit locally when a slice is worth keeping. Do not push until he names a checkpoint. Recorded in `decisions/2026-09-25-no-push-until-checkpoint.md`. `main` is one commit ahead of origin, and it stays that way.

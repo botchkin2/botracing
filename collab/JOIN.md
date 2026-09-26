@@ -45,4 +45,4 @@ Chat is not a decision. When a thread settles, copy the outcome into `collab/dec
 
 Implementation still happens in the app. Name files in a decision when you know them. Do not paste secrets, tokens, or `.env` values. Engineering reference stays in `docs/` (start with `docs/LMU_SYNC_NOTES.md` for the current LMU work). Point at those files. Do not paste them back in here.
 
-Commit or push only when Botkin asks.
+Commit locally when a slice is worth keeping. Do not push until Botkin calls a checkpoint.

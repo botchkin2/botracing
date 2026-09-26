@@ -16,7 +16,8 @@
     "test": "jest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "generate-icons": "node scripts/generate-icons.js"
+    "generate-icons": "node scripts/generate-icons.js",
+    "lmu:extract": "node tools/lmu-sync/extract.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

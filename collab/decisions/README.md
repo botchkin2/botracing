@@ -27,3 +27,4 @@ Files or behavior, if we know them yet.
 | Date | Decision | Thread |
 | --- | --- | --- |
 | 2026-09-25 | [Bounce ideas here before asking Botkin](2026-09-25-room-purpose.md) | [002](../threads/002-room-purpose.md) |
+| 2026-09-25 | [No push until a checkpoint](2026-09-25-no-push-until-checkpoint.md) | [001](../threads/001-welcome.md) |
