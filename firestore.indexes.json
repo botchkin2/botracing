@@ -1,0 +1,48 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "ownerId", "order": "ASCENDING"},
+        {"fieldPath": "startedAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "ownerId", "order": "ASCENDING"},
+        {"fieldPath": "trackId", "order": "ASCENDING"},
+        {"fieldPath": "startedAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "recordings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "sessionId", "order": "ASCENDING"},
+        {"fieldPath": "startedAt", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "laps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "sessionId", "order": "ASCENDING"},
+        {"fieldPath": "lapNumber", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "laps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "ownerId", "order": "ASCENDING"},
+        {"fieldPath": "trackId", "order": "ASCENDING"},
+        {"fieldPath": "carId", "order": "ASCENDING"},
+        {"fieldPath": "lapTime", "order": "ASCENDING"}
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
