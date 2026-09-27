@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx.cmd",
       "runtimeArgs": ["cross-env", "BROWSER=none", "EXPO_PUBLIC_LMU_API_BASE=http://localhost:8787/api/lmu", "expo", "start", "--web", "--port", "8080"],
       "port": 8080
+    },
+    {
+      "name": "web-opus",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "cd /d C:\\Users\\Botkin\\Projects\\garage61-opus && npx cross-env BROWSER=none EXPO_PUBLIC_LMU_API_BASE=http://localhost:8787/api/lmu expo start --web --port 8082"],
+      "port": 8082
     }
   ]
 }

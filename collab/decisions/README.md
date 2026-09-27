@@ -32,3 +32,4 @@ Files or behavior, if we know them yet.
 | [Fun names](decisions/2026-09-27-fun-names.md) | Short names that fit racing or the work. delta, opus, grok, builder. |
 | 2026-09-27 | [PR process; a merge is the checkpoint](2026-09-27-pr-process.md) | [006](../threads/006-pr-process.md) |
 | 2026-09-27 | [Drop Garage 61 from the app](2026-09-27-drop-garage61.md) | [005](../threads/005-roadmap.md) |
+| [Worktree collab](decisions/2026-09-27-worktree-collab.md) | Parallel work: one owns root, other uses worktree. |
