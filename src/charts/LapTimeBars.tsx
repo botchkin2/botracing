@@ -22,6 +22,8 @@ const STUB_H = 9;
 const STUB_BOTTOM = 14;
 const AXIS_H = 14;
 const TOP_PAD = 12;
+// Right gutter for the median label, so bars never sit under it.
+const GUTTER_W = 40;
 
 export function LapTimeBars({
   width,
@@ -46,7 +48,8 @@ export function LapTimeBars({
 }) {
   const {color} = useTheme();
   const n = Math.max(1, bars.length);
-  const slot = width / n;
+  const plotW = width - GUTTER_W;
+  const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
   const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
   const mid = TOP_PAD + (plotBottom - TOP_PAD) / 2;
@@ -150,17 +153,9 @@ export function LapTimeBars({
             </G>
           );
         })}
-        <Rect
-          x={width - 44}
-          y={mid - 12}
-          width={44}
-          height={11}
-          fill={color.bg}
-          opacity={0.85}
-        />
         <SvgText
-          x={width - 2}
-          y={mid - 3}
+          x={width}
+          y={mid + 3}
           textAnchor='end'
           fill={color.textFaint}
           fontFamily={axis.fontFamily}

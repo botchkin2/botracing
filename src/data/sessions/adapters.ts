@@ -128,7 +128,8 @@ export type Lap = {
   pitOut: boolean;
   partial: boolean;
   offTrackS: number;
-  impact: number;
+  /** Contact on this lap. LMU records a flag, not a magnitude. */
+  hadImpact: boolean;
 };
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
@@ -146,6 +147,6 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     pitOut: raw.pitOut === true,
     partial: raw.partial === true || raw.incomplete === true,
     offTrackS: num(raw.offTrackSec) ?? 0,
-    impact: num(raw.impactMax) ?? 0,
+    hadImpact: (num(raw.impactMax) ?? 0) > 0,
   }));
 }

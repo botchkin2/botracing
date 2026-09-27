@@ -6,7 +6,7 @@ import {
   useSession,
   useSessionLaps,
 } from '@/src/data/sessions';
-import {carLabel, formatGap, formatLapTime} from '@/src/design';
+import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -110,7 +110,7 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
   if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
     tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
-  if (lap.impact > 0) tags.push({code: 'HIT'});
+  if (lap.hadImpact) tags.push({code: 'HIT'});
   return tags;
 }
 
@@ -143,7 +143,7 @@ export function reasonText(lap: Lap, stintMedianS: number | null): string {
         : `${off}.`,
     );
   }
-  if (lap.impact > 0) parts.push('Impact detected, possible damage.');
+  if (lap.hadImpact) parts.push('Impact detected, possible damage.');
   return parts.join(' ');
 }
 
@@ -241,8 +241,8 @@ export function buildSessionModel(
     const last = stintLaps[stintLaps.length - 1].lapIndex;
     const bits = [`Stint ${stint.n}`, `L${first}–L${last}`];
     if (stint.medianTimeS != null)
-      bits.push(`median ${formatLapTime(stint.medianTimeS)}`);
-    if (stint.stdevS != null) bits.push(`spread ${stint.stdevS.toFixed(2)} s`);
+      bits.push(`med ${formatLapTime(stint.medianTimeS)}`);
+    if (stint.stdevS != null) bits.push(`± ${stint.stdevS.toFixed(2)} s`);
     rows.push({
       kind: 'stint',
       key: `stint-${stint.n}`,
@@ -307,8 +307,11 @@ export function buildSessionModel(
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
   return {
-    title: `${TYPE_TITLE[session.sessionType]} · ${session.track}`,
+    title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
+      session.track,
+    )}`,
     subtitle: [
+      session.trackVariant || session.track,
       started.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) +
         ` ${String(started.getHours()).padStart(2, '0')}:${String(
           started.getMinutes(),

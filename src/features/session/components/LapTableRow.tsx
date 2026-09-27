@@ -118,16 +118,20 @@ export function LapRow({
         </Text>
       ))}
       <Text variant='dataSmall' numberOfLines={1} style={styles.flex}>
-        {row.tags.map((t, i) => (
+        {/* First tag only, plus a count; the detail panel has the full story. */}
+        {row.tags.length > 0 && (
           <Text
-            key={t.code}
             variant='dataSmall'
-            tone={t.best ? 'best' : 'textMuted'}
+            tone={row.tags[0].best ? 'best' : 'textMuted'}
             style={styles.tag}>
-            {i > 0 ? ' ' : ''}
-            {t.code}
+            {row.tags[0].code}
           </Text>
-        ))}
+        )}
+        {row.tags.length > 1 && (
+          <Text variant='dataSmall' tone='textFaint' style={styles.tag}>
+            {` +${row.tags.length - 1}`}
+          </Text>
+        )}
       </Text>
     </Pressable>
   );
