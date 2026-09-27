@@ -12,6 +12,7 @@ import Svg, {Line} from 'react-native-svg';
 
 import {CornerGrid, TrackMap} from '@/src/charts';
 import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
+import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {Chip, Explainer, Text} from '@/src/ui';
 
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
@@ -100,10 +101,7 @@ function CompareView({
     [scheme, count],
   );
   const openCorner = (n: number) =>
-    router.push({
-      pathname: '/session/[id]/corner/[n]',
-      params: {id: sessionId, n: String(n), laps: selection.laps.join(',')},
-    });
+    router.push(cornerHref(sessionId, n, {laps: selection.laps}));
 
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : layout.contentWidth;
   const mainW = layout.isDesktop
@@ -117,10 +115,7 @@ function CompareView({
         accessibilityRole='link'
         hitSlop={space.md}
         onPress={() =>
-          router.navigate({
-            pathname: '/session/[id]',
-            params: {id: sessionId, laps: selection.laps.join(',')},
-          })
+          router.navigate(sessionHref(sessionId, {laps: selection.laps}))
         }>
         <Text variant='bodyStrong' tone='accentInk'>
           ‹ Session

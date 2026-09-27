@@ -16,10 +16,11 @@ export default function SessionRoute() {
     hl?: string;
   }>();
   const router = useRouter();
+  const {laps, hl} = params;
   const selection = useMemo<Selection>(() => {
-    const {laps, hl} = parseSelection(params);
-    return {laps, hl};
-  }, [params]);
+    const sel = parseSelection({laps, hl});
+    return {laps: sel.laps, hl: sel.hl};
+  }, [laps, hl]);
   return (
     <SessionScreen
       sessionId={params.id}
