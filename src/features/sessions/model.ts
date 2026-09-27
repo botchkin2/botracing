@@ -14,7 +14,6 @@ export type SessionRow = {
   id: string;
   badge: SessionType;
   track: string;
-  typeLabel: string;
   subline: string;
   laps: string;
   best: string;
@@ -92,8 +91,7 @@ export function buildSessionsModel(
       id: s.id,
       badge: s.sessionType,
       track: shortTrackName(s.track),
-      typeLabel: TYPE_LABEL[s.sessionType],
-      subline: [hhmm(started), car.model, car.entry]
+      subline: [hhmm(started), TYPE_LABEL[s.sessionType], car.model, car.entry]
         .filter(Boolean)
         .join(' · '),
       laps: String(s.lapCount),

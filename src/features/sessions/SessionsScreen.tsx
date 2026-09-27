@@ -96,7 +96,7 @@ function SessionTable({days, width}: {days: DayGroup[]; width: number}) {
         renderSectionHeader={({section}) => (
           <View style={[styles.dayHeader, styles.centered, {width}]}>
             <Text variant='bodyStrong'>{section.title}</Text>
-            <Text variant='data' tone='textFaint'>
+            <Text variant='dataSmall' tone='textFaint'>
               {section.date}
             </Text>
           </View>
@@ -126,7 +126,7 @@ function SessionRowView({
   return (
     <Pressable
       accessibilityRole='button'
-      accessibilityLabel={`${row.track} ${row.typeLabel}, ${row.subline}`}
+      accessibilityLabel={`${row.track}, ${row.subline}`}
       onPress={onPress}
       style={({pressed}) => [
         styles.sessionRow,
@@ -138,13 +138,10 @@ function SessionRowView({
           <Badge label={row.badge} />
         </View>
         <View style={styles.flex}>
-          <Text numberOfLines={1}>
-            <Text variant='bodyStrong' style={styles.trackName}>
-              {row.track}
-            </Text>
-            <Text tone='textMuted'> · {row.typeLabel}</Text>
+          <Text variant='bodyStrong' style={styles.trackName} numberOfLines={1}>
+            {row.track}
           </Text>
-          <Text variant='data' tone='textMuted' numberOfLines={1}>
+          <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
             {row.subline}
           </Text>
         </View>
@@ -170,24 +167,27 @@ function EmptyState({width}: {width: number}) {
       style={[
         styles.emptyCard,
         styles.centered,
-        {
-          width,
-          backgroundColor: color.surfaceRaised,
-          borderColor: color.lineStrong,
-        },
+        {width, backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
-      <Text variant='title'>No sessions yet</Text>
-      <Text tone='textMuted'>
+      <Text variant='title' style={styles.emptyTitle}>
+        No sessions yet
+      </Text>
+      <Text tone='textSecondary' style={styles.emptyBody}>
         Sessions upload automatically from your PC. Install the uploader on your
         sim PC and sign in with the same account.
       </Text>
-      <Text variant='data' tone='textFaint'>
-        Uploader: not seen yet
-      </Text>
-      <Button
-        label='Set up uploader'
-        onPress={() => router.push('/settings')}
-      />
+      <View style={[styles.statusPill, {backgroundColor: color.surfaceRaised}]}>
+        <View style={[styles.statusDot, {backgroundColor: color.textFaint}]} />
+        <Text variant='dataSmall' tone='textMuted'>
+          Uploader: not seen yet
+        </Text>
+      </View>
+      <View style={styles.emptyAction}>
+        <Button
+          label='Set up uploader'
+          onPress={() => router.push('/settings')}
+        />
+      </View>
     </View>
   );
 }
@@ -233,6 +233,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderBottomWidth: 1,
   },
+  emptyTitle: {fontSize: 18, lineHeight: 22},
+  emptyBody: {fontSize: 13, lineHeight: 19},
+  emptyAction: {alignSelf: 'flex-start'},
+  statusPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderRadius: radius.sm,
+  },
+  statusDot: {width: 6, height: 6, borderRadius: 3},
   emptyCard: {
     marginTop: space.xl,
     padding: space.xl,
