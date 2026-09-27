@@ -32,6 +32,8 @@ export interface Lap {
   pitlane: boolean;
   pitIn: boolean;
   pitOut: boolean;
+  // From the lasting store: counts toward consistency numbers.
+  comparable?: boolean;
   trackTemp?: number;
   trackUsage?: number;
   trackWetness?: number;

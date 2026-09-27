@@ -15,13 +15,19 @@ const SummaryMetrics: React.FC<SummaryMetricsProps> = ({selectedLaps}) => {
     return `${minutes}:${remainingSeconds.padStart(6, '0')}`;
   };
 
+  // Partial and untimed laps are not lap times; leave them out of both numbers.
+  const timed = selectedLaps.filter(l => l.lapTime > 0 && !l.incomplete);
+  // The average leaves out pit and outlier laps when the data marks them.
+  const comparable = timed.filter(l => l.comparable !== false);
+  const averaged = comparable.length > 0 ? comparable : timed;
+
   return (
     <View style={styles.metricsGrid}>
       <MetricCard
         title='BEST LAP'
         value={
-          selectedLaps.length > 0
-            ? formatLapTime(Math.min(...selectedLaps.map(l => l.lapTime)))
+          timed.length > 0
+            ? formatLapTime(Math.min(...timed.map(l => l.lapTime)))
             : '--:--.---'
         }
         style={styles.metricCard}
@@ -29,10 +35,10 @@ const SummaryMetrics: React.FC<SummaryMetricsProps> = ({selectedLaps}) => {
       <MetricCard
         title='AVG LAP'
         value={
-          selectedLaps.length > 0
+          timed.length > 0
             ? formatLapTime(
-                selectedLaps.reduce((sum, l) => sum + l.lapTime, 0) /
-                  selectedLaps.length,
+                averaged.reduce((sum, l) => sum + l.lapTime, 0) /
+                  averaged.length,
               )
             : '--:--.---'
         }

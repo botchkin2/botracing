@@ -2,6 +2,12 @@ import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {existsSync, readFileSync} from 'fs';
 import {join} from 'path';
+import {
+  listLaps,
+  listTracks,
+  readTrace,
+  storeHasSessions,
+} from './sessionStore';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -94,10 +100,17 @@ export const lmuApi = onRequest(async (req, res) => {
 
   const path = pathname(req);
   try {
-    const laps = await readManifest();
+    // The lasting store (sessions/laps in Firestore) is the source. The old
+    // manifest answers only while the store is still empty; it goes away at
+    // cutover.
     if (path.endsWith('/tracks')) {
+      const stored = await listTracks();
+      if (stored.length > 0) {
+        res.status(200).json({items: stored});
+        return;
+      }
       const byId = new Map<number, any>();
-      for (const lap of laps) {
+      for (const lap of await readManifest()) {
         if (lap.track?.id != null) byId.set(lap.track.id, lap.track);
       }
       res.status(200).json({items: Array.from(byId.values())});
@@ -107,7 +120,7 @@ export const lmuApi = onRequest(async (req, res) => {
     const csv = path.match(/\/laps\/([^/]+)\/csv$/);
     if (csv) {
       const id = decodeURIComponent(csv[1]);
-      const body = await readLapCsv(id);
+      const body = (await readTrace(id)) ?? (await readLapCsv(id));
       if (!body) {
         res.status(404).json({error: 'Lap telemetry not found'});
         return;
@@ -123,7 +136,17 @@ export const lmuApi = onRequest(async (req, res) => {
         .map(value => Number(value))
         .filter(value => Number.isFinite(value) && value !== 0);
       const event = String(req.query.event || '');
-      const items = laps.filter(lap => {
+      const age = Number(req.query.age);
+      const stored = await listLaps({
+        ageDays: Number.isFinite(age) ? age : undefined,
+        trackIds: trackFilter,
+        event: event || undefined,
+      });
+      if (stored.length > 0 || (await storeHasSessions())) {
+        res.status(200).json({items: stored, total: stored.length});
+        return;
+      }
+      const items = (await readManifest()).filter(lap => {
         if (event && lap.event !== event) return false;
         if (trackFilter.length > 0 && !trackFilter.includes(lap.track?.id)) {
           return false;
