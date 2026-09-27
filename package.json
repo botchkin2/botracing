@@ -19,7 +19,8 @@
     "generate-icons": "node scripts/generate-icons.js",
     "lmu:extract": "node tools/lmu-sync/extract.mjs",
     "lmu:batch": "node tools/lmu-sync/batch.mjs",
-    "lmu:upload": "node tools/lmu-sync/upload.mjs"
+    "lmu:upload": "node tools/lmu-sync/upload.mjs",
+    "sessions:sync": "node tools/sessions/sync.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
