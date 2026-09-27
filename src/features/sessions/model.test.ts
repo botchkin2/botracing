@@ -7,7 +7,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   id: 's1',
   sim: 'lmu',
   trackId: 'portimao',
-  track: 'Portimão',
+  track: 'Michelin Raceway Road Atlanta',
   car: '911 GT3 R',
   sessionType: 'R',
   startedAt: '2026-09-27T21:40:00',
@@ -41,6 +41,7 @@ describe('buildSessionsModel', () => {
     const [row] = buildSessionsModel([session({})], now)[0].rows;
     expect(row).toMatchObject({
       badge: 'R',
+      track: 'Road Atlanta',
       typeLabel: 'Race',
       subline: '21:40 · 911 GT3 R',
       laps: '42',

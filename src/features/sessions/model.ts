@@ -5,7 +5,7 @@ import {
   type SessionSummary,
   useSessions,
 } from '@/src/data/sessions';
-import {formatLapTime} from '@/src/design';
+import {formatLapTime, shortTrackName} from '@/src/design';
 
 // Sessions screen view model: sessions grouped by local day, newest first.
 // buildSessionsModel is pure and unit-tested; useSessionsModel wires it to data.
@@ -90,7 +90,7 @@ export function buildSessionsModel(
     group.rows.push({
       id: s.id,
       badge: s.sessionType,
-      track: s.track,
+      track: shortTrackName(s.track),
       typeLabel: TYPE_LABEL[s.sessionType],
       subline: `${hhmm(started)} · ${s.car}`,
       laps: String(s.lapCount),
