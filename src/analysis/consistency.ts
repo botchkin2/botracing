@@ -532,10 +532,23 @@ function cornerSplit(
     return f == null || s == null ? null : s - f;
   };
   return {
-    seconds: round(diff(c => c.segTime), 3) ?? 0,
-    brakeAtM: round(diff(c => c.brakeAtM), 0),
-    minSpeedKmh: round(diff(c => c.minSpeedKmh), 1),
-    fullThrottleAtM: round(diff(c => c.fullThrottleAtM), 0),
+    seconds:
+      round(
+        diff(c => c.segTime),
+        3,
+      ) ?? 0,
+    brakeAtM: round(
+      diff(c => c.brakeAtM),
+      0,
+    ),
+    minSpeedKmh: round(
+      diff(c => c.minSpeedKmh),
+      1,
+    ),
+    fullThrottleAtM: round(
+      diff(c => c.fullThrottleAtM),
+      0,
+    ),
   };
 }
 
@@ -554,7 +567,9 @@ function overview(
   const parts = [`${s.laps} ${s.laps === 1 ? 'lap' : 'laps'}.`];
   if (s.laps >= MIN_SPREAD_LAPS && s.scatter != null) {
     parts.push(
-      `Scatter ${s.scatter.toFixed(2)} s around the pace trend (raw spread ${s.rawSpread?.toFixed(2)} s).`,
+      `Scatter ${s.scatter.toFixed(
+        2,
+      )} s around the pace trend (raw spread ${s.rawSpread?.toFixed(2)} s).`,
     );
   }
   const trend = stints.filter(st => Math.abs(st.trendPerLap) >= 0.01);
@@ -570,19 +585,25 @@ function overview(
     const worst = [...off].sort((a, b) => b.residual - a.residual).slice(0, 3);
     const facts = new Map(laps.map(l => [l.id, l]));
     parts.push(
-      `${off.length} ${off.length === 1 ? 'lap' : 'laps'} off pace, ${s.offPaceSec.toFixed(1)} s in all. ` +
+      `${off.length} ${
+        off.length === 1 ? 'lap' : 'laps'
+      } off pace, ${s.offPaceSec.toFixed(1)} s in all. ` +
         worst
           .map(r => {
             const where = r.losses
               .slice(0, TEXT_CORNERS)
               .map(
                 x =>
-                  `corner ${x.corner} ${signed(x.seconds, 2)} s${x.tags.includes('off-track') ? ' off track' : ''}`,
+                  `corner ${x.corner} ${signed(x.seconds, 2)} s${
+                    x.tags.includes('off-track') ? ' off track' : ''
+                  }`,
               )
               .join(', ');
             const lap = facts.get(r.id);
             const tag = !where && lap?.offtrack ? ', off track' : '';
-            return `Lap ${r.lapNumber} ${signed(r.residual, 1)} s${where ? ` (${where})` : tag}`;
+            return `Lap ${r.lapNumber} ${signed(r.residual, 1)} s${
+              where ? ` (${where})` : tag
+            }`;
           })
           .join('. ') +
         '.',

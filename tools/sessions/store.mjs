@@ -147,7 +147,8 @@ export async function upload(out, {log = () => {}} = {}) {
   for (const lap of out.laps)
     writer.set(db.collection('laps').doc(lap.id), lap);
   writer.set(db.collection('sessions').doc(session.id), session);
-  if (out.track) writer.set(db.collection('tracks').doc(out.track.id), out.track);
+  if (out.track)
+    writer.set(db.collection('tracks').doc(out.track.id), out.track);
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));

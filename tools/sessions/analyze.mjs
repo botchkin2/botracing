@@ -424,23 +424,6 @@ function onGrid(rec, lap, gridN) {
   return out;
 }
 
-function smooth(values, radius) {
-  const out = new Float64Array(values.length);
-  for (let i = 0; i < values.length; i++) {
-    let sum = 0;
-    let n = 0;
-    for (let k = -radius; k <= radius; k++) {
-      const v = values[i + k];
-      if (Number.isFinite(v)) {
-        sum += v;
-        n++;
-      }
-    }
-    out[i] = n ? sum / n : NaN;
-  }
-  return out;
-}
-
 // Mean of the four tyres' channel over ticks i0..i1, or null.
 function mean4(s, prefix, i0, i1) {
   const cols = ['fl', 'fr', 'rl', 'rr'].map(w => s[`${prefix}_${w}`]);
@@ -729,9 +712,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     trackMap &&
     best &&
     Math.abs(trackMap.lengthM - best.distanceM) <= best.distanceM * 0.03;
-  const map = fits
-    ? trackMap
-    : buildTrackMap(recs, comparable, best, gridN);
+  const map = fits ? trackMap : buildTrackMap(recs, comparable, best, gridN);
   const newTrackMap = !fits && map != null;
   const corners = map?.corners ?? [];
   for (const lap of laps) {

@@ -24,7 +24,13 @@ function stint({laps = 20, stint = 1, slope = -0.05, jitter = 0.1, seed = 1}) {
   return Array.from({length: laps}, (_, i) => {
     const base = 80 + slope * i;
     const segs = shares.map(s => s * base + rand() * jitter * 0.4);
-    return lap({id: `${stint}-${i}`, lapNumber: i + 1, stint, stintLap: i, segs});
+    return lap({
+      id: `${stint}-${i}`,
+      lapNumber: i + 1,
+      stint,
+      stintLap: i,
+      segs,
+    });
   });
 }
 
@@ -199,13 +205,12 @@ test('a long gentle kink is part of the straight', () => {
 });
 
 test('segment times add up to the lap time', () => {
-  const corners = [
-    {entryM: 100},
-    {entryM: 500},
-    {entryM: 900},
-  ];
+  const corners = [{entryM: 100}, {entryM: 500}, {entryM: 900}];
   const timeAt = m => m / 50;
   const segs = segmentTimes(corners, 1200, timeAt);
-  assert.equal(segs.reduce((a, b) => a + b, 0), 24);
+  assert.equal(
+    segs.reduce((a, b) => a + b, 0),
+    24,
+  );
   assert.equal(segs[2], (1200 - 900) / 50 + 100 / 50);
 });

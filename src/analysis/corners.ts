@@ -84,7 +84,12 @@ export function findTrackCorners(
       continue;
     }
     let e = g;
-    while (e + 1 < n && Math.sign(c[e + 1]) === sign && Math.abs(c[e + 1]) >= o.turnCurv) e++;
+    while (
+      e + 1 < n &&
+      Math.sign(c[e + 1]) === sign &&
+      Math.abs(c[e + 1]) >= o.turnCurv
+    )
+      e++;
     regions.push({s: g, e, sign});
     g = e + 1;
   }
@@ -131,7 +136,10 @@ export function findTrackCorners(
       if (a < valleyCurv) {
         valley = k;
         valleyCurv = a;
-      } else if (a >= o.peakCurv && valleyCurv < 0.5 * Math.min(peakBefore, a)) {
+      } else if (
+        a >= o.peakCurv &&
+        valleyCurv < 0.5 * Math.min(peakBefore, a)
+      ) {
         split.push({s: start, e: valley, sign: r.sign});
         start = valley + 1;
         peakBefore = a;
@@ -192,7 +200,8 @@ export function findTrackCorners(
   for (let k = 1; k < corners.length; k++) {
     const prev = corners[k - 1];
     const cur = corners[k];
-    if (cur.entryM < prev.exitM) cur.entryM = Math.max(prev.apexM + p.stepM, cur.turnInM);
+    if (cur.entryM < prev.exitM)
+      cur.entryM = Math.max(prev.apexM + p.stepM, cur.turnInM);
   }
   corners.forEach((corner, k) => (corner.n = k + 1));
   return corners;
