@@ -3,20 +3,41 @@
   "configurations": [
     {
       "name": "api-emulator",
-      "runtimeExecutable": "npx.cmd",
-      "runtimeArgs": ["firebase-tools", "emulators:start", "--only", "functions", "--project", "botracing-61"],
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": [
+        "/c",
+        "npm --prefix functions run build && npx firebase-tools emulators:start --only functions --project botracing-61"
+      ],
       "port": 5001
     },
     {
       "name": "web",
       "runtimeExecutable": "npx.cmd",
-      "runtimeArgs": ["cross-env", "BROWSER=none", "EXPO_PUBLIC_LMU_API_BASE=http://127.0.0.1:5001/botracing-61/us-central1/lmuApi/api/lmu", "expo", "start", "--web", "--port", "8081"],
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=http://127.0.0.1:5001/botracing-61/us-central1/lmuApi/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "8081"
+      ],
       "port": 8081
     },
     {
       "name": "web-live",
       "runtimeExecutable": "npx.cmd",
-      "runtimeArgs": ["cross-env", "BROWSER=none", "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu", "expo", "start", "--web", "--port", "19006"],
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19006"
+      ],
       "port": 19006
     }
   ]
