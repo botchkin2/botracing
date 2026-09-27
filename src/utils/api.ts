@@ -410,8 +410,6 @@ class ApiClient {
             responseType: 'text',
             headers: {
               Accept: 'text/csv',
-              // Request compression to reduce bandwidth
-              'Accept-Encoding': 'gzip, deflate',
             },
             timeout,
             // Add progress tracking for large downloads
