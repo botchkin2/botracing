@@ -11,25 +11,24 @@ Two build paths are available:
 
 - Node 24+
 - npm 11+
-- JDK 17 (Microsoft OpenJDK 17)
-- Android Studio (with SDK 34 platform and build-tools)
-- EAS CLI installed globally (`npm install -g eas-cli`)
+- JDK 17 (Microsoft OpenJDK)
+- Android Studio (with platform and build-tools for your Expo SDK version)
 
 ## Environment Setup (Local Build Only)
 
 Set these user environment variables (persist across sessions):
 
-- `JAVA_HOME`: `C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot`
+- `JAVA_HOME`: Point to your JDK 17 installation (e.g., `C:\Program Files\Microsoft\jdk-17.*-hotspot`)
 - `ANDROID_HOME`: `C:\Users\<YourUsername>\AppData\Local\Android\Sdk`
 
 Add to PATH: `%ANDROID_HOME%\platform-tools`
 
 ## Android SDK Installation
 
-Through Android Studio's SDK Manager, install:
+Through Android Studio's SDK Manager, install the platform and build-tools that match your Expo SDK version:
 
-- **Android SDK Platform 34** (compileSdkVersion for Expo 54)
-- **Android SDK Build-Tools 34.0.0** (or latest 34.x)
+- Expo 54 / React Native 0.81: Android SDK Platform **36**, Build-Tools 36.x
+- Expo 55+: check `docs/LMU_SYNC_NOTES.md` or the [Expo SDK docs](https://docs.expo.dev) for the target version
 - **Android SDK Platform-Tools** (adb, fastboot)
 
 Minimum SDK is API 24.
@@ -41,7 +40,7 @@ Minimum SDK is API 24.
 First time only: authenticate with your Expo account.
 
 ```powershell
-eas login
+npx eas-cli login
 ```
 
 Build the development APK:
@@ -51,6 +50,8 @@ npm run build:android:development
 ```
 
 This runs `npx eas build --platform android --profile development`. The build happens on Expo's servers. Check your email or the EAS dashboard for the download link or QR code.
+
+Note: Use `npx eas-cli` for individual commands (e.g., `npx eas-cli whoami`). Due to the MSIX sandbox, global `npm install -g eas-cli` may not work as expected; npx reads the latest version from npm registry on each run.
 
 ### Local Build (Offline)
 
@@ -105,7 +106,7 @@ After build setup, verify everything works:
 ```powershell
 java -version
 adb devices
-eas whoami
+npx eas-cli whoami
 ```
 
 All three should succeed without errors.
