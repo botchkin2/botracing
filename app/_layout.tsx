@@ -1,6 +1,5 @@
-import {DarkTheme, DefaultTheme, ThemeProvider} from '@react-navigation/native';
 import {QueryClientProvider} from '@tanstack/react-query';
-import {Stack} from 'expo-router';
+import {DarkTheme, DefaultTheme, Stack, ThemeProvider} from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
 import {Platform, StyleSheet, View} from 'react-native';
 import 'react-native-reanimated';
