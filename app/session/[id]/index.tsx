@@ -1,6 +1,8 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useMemo} from 'react';
 
+import {parseSelection} from '@/src/nav/routes';
+
 import {
   type Selection,
   SessionScreen,
@@ -14,13 +16,11 @@ export default function SessionRoute() {
     hl?: string;
   }>();
   const router = useRouter();
-  const selection = useMemo<Selection>(
-    () => ({
-      laps: params.laps ? params.laps.split(',').filter(Boolean) : [],
-      hl: params.hl || null,
-    }),
-    [params.laps, params.hl],
-  );
+  const {laps, hl} = params;
+  const selection = useMemo<Selection>(() => {
+    const sel = parseSelection({laps, hl});
+    return {laps: sel.laps, hl: sel.hl};
+  }, [laps, hl]);
   return (
     <SessionScreen
       sessionId={params.id}

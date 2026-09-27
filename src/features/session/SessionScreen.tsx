@@ -11,6 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {LapTimeBars} from '@/src/charts';
 import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
+import {compareHref, sessionsHref} from '@/src/nav/routes';
 import {Explainer, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
@@ -168,7 +169,7 @@ function SessionView({
       style={[styles.block, {width: tableW}]}>
       <Pressable
         accessibilityRole='link'
-        onPress={() => router.navigate('/')}
+        onPress={() => router.navigate(sessionsHref())}
         hitSlop={space.md}>
         <Text variant='bodyStrong' tone='accentInk'>
           ‹ Sessions
@@ -250,10 +251,7 @@ function SessionView({
       colorOf={i => colorOf(i)}
       onClear={() => onSelectionChange({laps: [], hl: selection.hl})}
       onCompare={() =>
-        router.push({
-          pathname: '/session/[id]/compare',
-          params: {id: sessionId, laps: selection.laps.join(',')},
-        })
+        router.push(compareHref(sessionId, {laps: selection.laps}))
       }
     />
   );

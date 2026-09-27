@@ -5,6 +5,7 @@ import {
   CompareScreen,
   type CompareSelection,
 } from '@/src/features/compare/CompareScreen';
+import {parseSelection} from '@/src/nav/routes';
 
 // The URL owns the selection: ?laps=ref,a,b&hl=&c=&t= (docs/ARCHITECTURE.md).
 export default function CompareRoute() {
@@ -16,15 +17,11 @@ export default function CompareRoute() {
     t?: string;
   }>();
   const router = useRouter();
-  const selection = useMemo<CompareSelection>(
-    () => ({
-      laps: params.laps ? params.laps.split(',').filter(Boolean) : [],
-      hl: params.hl || null,
-      corner: params.c ? Number(params.c) : null,
-      cursorM: params.t ? Number(params.t) : 0,
-    }),
-    [params.laps, params.hl, params.c, params.t],
-  );
+  const {laps, hl, c, t} = params;
+  const selection = useMemo<CompareSelection>(() => {
+    const sel = parseSelection({laps, hl, c, t});
+    return {...sel, cursorM: sel.cursorM ?? 0};
+  }, [laps, hl, c, t]);
   return (
     <CompareScreen
       sessionId={params.id}

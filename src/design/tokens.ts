@@ -202,6 +202,7 @@ export const size = {
   checkbox: 16,
   gridCell: 24,
   desktopBreakpoint: 900,
+  wideBreakpoint: 1280,
   maxContent: 1200,
 } as const;
 export const chartHeight = {
