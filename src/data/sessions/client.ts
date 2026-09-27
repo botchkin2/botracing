@@ -6,7 +6,11 @@ import {
   type SessionLapsResponse,
   type SessionListResponse,
   type SessionSummary,
+  type SessionBand,
+  type TrackMapData,
   toLaps,
+  toSessionBand,
+  toTrackMap,
   toSessionDetail,
   toSessionSummary,
 } from './adapters';
@@ -47,4 +51,28 @@ export async function fetchSessionLaps(
     signal,
   );
   return toLaps(body.items);
+}
+
+export async function fetchSessionBand(
+  id: string,
+  signal?: AbortSignal,
+): Promise<SessionBand> {
+  return toSessionBand(
+    await getJson<Record<string, unknown>>(
+      `/sessions/${encodeURIComponent(id)}/band`,
+      signal,
+    ),
+  );
+}
+
+export async function fetchSessionMap(
+  id: string,
+  signal?: AbortSignal,
+): Promise<TrackMapData> {
+  return toTrackMap(
+    await getJson<Record<string, unknown>>(
+      `/sessions/${encodeURIComponent(id)}/map`,
+      signal,
+    ),
+  );
 }

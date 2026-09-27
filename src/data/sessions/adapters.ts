@@ -130,7 +130,31 @@ export type Lap = {
   offTrackS: number;
   /** Contact on this lap. LMU records a flag, not a magnitude. */
   hadImpact: boolean;
+  /** Per-section facts in track order, precomputed by the uploader. */
+  sections: SectionFacts[];
 };
+
+/** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
+export type CornerFacts = {
+  segTimeS: number | null;
+  minSpeedKph: number | null;
+  brakeAtM: number | null;
+  fullThrottleAtM: number | null;
+  offTrackS: number;
+};
+
+export type SectionFacts = CornerFacts & {parts: CornerFacts[]};
+
+function toCornerFacts(raw: unknown): CornerFacts {
+  const x = obj(raw);
+  return {
+    segTimeS: num(x.segTime),
+    minSpeedKph: num(x.minSpeedKmh),
+    brakeAtM: num(x.brakeAtM),
+    fullThrottleAtM: num(x.fullThrottleAtM),
+    offTrackS: num(x.offTrackSec) ?? 0,
+  };
+}
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
 
@@ -148,5 +172,127 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     partial: raw.partial === true || raw.incomplete === true,
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
+    sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
+      ...toCornerFacts(c),
+      parts: (Array.isArray(obj(c).parts)
+        ? (obj(c).parts as unknown[])
+        : []
+      ).map(toCornerFacts),
+    })),
   }));
+}
+
+// --- band (GET /sessions/{id}/band) ----------------------------------------
+
+export type BandChannel = {p10: number[]; p50: number[]; p90: number[]};
+
+/** p10/p50/p90 over the comparable laps, every stepM metres from the line. */
+export type SessionBand = {
+  stepM: number;
+  lengthM: number;
+  lapCount: number;
+  speedKph: BandChannel;
+  throttlePct: BandChannel;
+  brakePct: BandChannel;
+};
+
+function toBandChannel(raw: unknown): BandChannel {
+  const x = obj(raw);
+  const arr = (v: unknown) => (Array.isArray(v) ? v.map(n => num(n) ?? 0) : []);
+  return {p10: arr(x.p10), p50: arr(x.p50), p90: arr(x.p90)};
+}
+
+export function toSessionBand(raw: Record<string, unknown>): SessionBand {
+  return {
+    stepM: num(raw.stepM) ?? 5,
+    lengthM: num(raw.lengthM) ?? 0,
+    lapCount: num(raw.laps) ?? 0,
+    speedKph: toBandChannel(raw.speed),
+    throttlePct: toBandChannel(raw.throttle),
+    brakePct: toBandChannel(raw.brake),
+  };
+}
+
+// --- track map (GET /sessions/{id}/map) ------------------------------------
+
+export type MapCorner = {
+  /** Corner number as drawn on the badge. */
+  n: number;
+  entryM: number;
+  apexM: number;
+  exitM: number;
+};
+
+export type MapSection = MapCorner & {parts: MapCorner[]};
+
+export type TrackMapQuality = 'good' | 'fair' | 'poor';
+
+export type TrackMapData = {
+  lengthM: number;
+  sections: MapSection[];
+  quality: TrackMapQuality | null;
+  georef: {
+    rotationDeg: number;
+    mirror: number;
+    originLat: number;
+    originLon: number;
+  } | null;
+  /** OSM track lines as [lon, lat] pairs; pit lanes excluded. */
+  outline: [number, number][][];
+  attribution: string | null;
+};
+
+function toMapCorner(raw: unknown): MapCorner {
+  const x = obj(raw);
+  return {
+    n: num(x.n) ?? 0,
+    entryM: num(x.entryM) ?? 0,
+    apexM: num(x.apexM) ?? 0,
+    exitM: num(x.exitM) ?? 0,
+  };
+}
+
+export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
+  const g = obj(raw.georef);
+  const quality = str(raw.quality);
+  const features = Array.isArray(obj(raw.outline).features)
+    ? (obj(raw.outline).features as unknown[])
+    : [];
+  return {
+    lengthM: num(raw.lengthM) ?? 0,
+    sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
+      ...toMapCorner(c),
+      parts: (Array.isArray(obj(c).parts)
+        ? (obj(c).parts as unknown[])
+        : []
+      ).map(toMapCorner),
+    })),
+    quality:
+      quality === 'good' || quality === 'fair' || quality === 'poor'
+        ? quality
+        : null,
+    georef:
+      num(g.originLat) != null && num(g.originLon) != null
+        ? {
+            rotationDeg: num(g.rotationDeg) ?? 0,
+            mirror: num(g.mirror) ?? 1,
+            originLat: num(g.originLat) as number,
+            originLon: num(g.originLon) as number,
+          }
+        : null,
+    outline: features
+      .map(obj)
+      .filter(ft => obj(ft.properties).kind !== 'pit')
+      .map(ft => obj(ft.geometry))
+      .filter(
+        geom => geom.type === 'LineString' && Array.isArray(geom.coordinates),
+      )
+      .map(geom =>
+        (geom.coordinates as unknown[]).map(p => {
+          const q = Array.isArray(p) ? p : [];
+          return [num(q[0]) ?? 0, num(q[1]) ?? 0] as [number, number];
+        }),
+      ),
+    attribution: str(raw.attribution) || null,
+  };
 }
