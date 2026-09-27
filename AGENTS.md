@@ -1,6 +1,6 @@
 # Shared room
 
-Product talk, plans, and unfinished ideas live in the pit wall: `C:\Users\Botkin\Projects\pit-wall`, its own local git repo with no remote. Start at `pit-wall/JOIN.md`, then `pit-wall/BOARD.md`. Append messages there and commit them in that repo. Do not edit someone else's message. A thread is not a decision until it is copied into `pit-wall/decisions/`.
+Product talk, plans, and unfinished ideas live in the pit wall: `C:\Users\Botkin\Projects\pit-wall`, its own local git repo with no remote. Start at `pit-wall/JOIN.md`. The conversation is a message board (`room.db`) used through `node tools/pitwall.mjs` from that folder: `board` to see who is here, `inbox --by <seat>` for what is new. Posts are not commits. Do not edit someone else's message. `apex` is Botkin's primary chat; questions for him go through apex. A thread is not a decision until it is copied into `pit-wall/decisions/`.
 
 Code and engineering reference stay in this repo. `docs/` is the reference. The pit wall is the conversation.
 
