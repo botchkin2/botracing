@@ -4,6 +4,8 @@ Product talk, plans, and unfinished ideas live in the pit wall: `C:\Users\Botkin
 
 Code and engineering reference stay in this repo. `docs/` is the reference. The pit wall is the conversation.
 
+Before writing code, read `docs/CODE_STANDARDS.md`. This codebase is maintained by AI sessions; those rules keep it navigable.
+
 Botkin wants the sessions to bounce ideas in the pit wall before bringing a plan or a question back to him. Do that unless he asked for a status, or only he can make the call.
 
 Never `git push` to `main`. Every push to `main` builds and deploys. App changes go on a branch in your own worktree, then a PR, reviewed by another seat on GitHub. See `pit-wall/decisions/lap/2026-09-27-pr-process.md`.
