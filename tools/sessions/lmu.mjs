@@ -174,6 +174,47 @@ function isoFromStamp(stamp) {
   return match ? `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z` : '';
 }
 
+// Largest magnitude a column type holds.
+function typeLimit(type) {
+  if (type === 'INTEGER') return 2 ** 31 - 1;
+  const match = type.match(/DECIMAL\((\d+),(\d+)\)/);
+  if (!match) return Infinity;
+  const [p, scale] = [Number(match[1]), Number(match[2])];
+  // The cast rounds, so stay half a step below the largest value it holds.
+  return 10 ** (p - scale) - 0.5 * 10 ** -scale;
+}
+
+// Some channels carry values the unit does not predict: regen in watts under
+// a kW label, raw virtual energy on some cars, NaN. A channel whose values do
+// not fit its fixed-point type is kept as a float instead, so nothing is lost.
+function valuesFit(path, channels) {
+  const parts = [];
+  channels.forEach((channel, k) => {
+    const type = typeByUnit[channel.unit];
+    if (!type) return;
+    for (const part of channel.parts) {
+      parts.push(
+        `SELECT ${k} AS k, max(abs(${quote(
+          part,
+        )})) FILTER (WHERE isfinite(${quote(part)})) AS m, ` +
+          `count(*) FILTER (WHERE NOT isfinite(${quote(
+            part,
+          )})) AS bad FROM ${quote(channel.source)}`,
+      );
+    }
+  });
+  const ok = new Map();
+  if (parts.length) {
+    for (const row of rows(path, parts.join(' UNION ALL '))) {
+      const channel = channels[Number(row.k)];
+      const limit = typeLimit(typeByUnit[channel.unit]);
+      const fine = Number(row.bad) === 0 && !(Number(row.m) >= limit);
+      ok.set(channel, (ok.get(channel) ?? true) && fine);
+    }
+  }
+  return channel => ok.get(channel) ?? true;
+}
+
 // Write samples.parquet and events.parquet for one recording.
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const base = info._channels.find(channel => channel.source === 'GPS Time');
@@ -181,10 +222,14 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
   const joins = [
     'JOIN (SELECT rowid AS r, value FROM "GPS Time") b ON b.r = g.i',
   ];
+  const fits = valuesFit(path, info._channels);
   info._channels.forEach((channel, k) => {
     if (channel === base) return;
     const alias = `c${k}`;
-    const type = typeByUnit[channel.unit] || 'FLOAT';
+    const type =
+      typeByUnit[channel.unit] && fits(channel)
+        ? typeByUnit[channel.unit]
+        : 'FLOAT';
     const ratio = channel.hz / base.hz;
     joins.push(
       `LEFT JOIN (SELECT rowid AS r, * FROM ${quote(
