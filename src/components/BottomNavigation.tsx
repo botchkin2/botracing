@@ -1,5 +1,4 @@
 import {RacingTheme} from '@src/theme';
-import {useAuth} from '@src/utils/authContext';
 import {useRouter} from 'expo-router';
 import React, {useMemo, useRef, useState} from 'react';
 import {
@@ -35,11 +34,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({currentScreen}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const slideAnim = useRef(new Animated.Value(isWeb ? 0 : height)).current; // Web: visible; mobile: start off-screen below
   const router = useRouter();
-  const {user, error: authError} = useAuth();
-
-  // Show "Sign in" when we don't have a valid user (no user, or /me failed e.g. 401).
-  // On mobile the tab bar always shows this button (Sign in or Driver Profile) so it's never hidden.
-  const driverLabel = user && !authError ? 'Driver Profile' : 'Sign in';
 
   const navigationItems: NavigationItem[] = useMemo(
     () => [
@@ -50,19 +44,13 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({currentScreen}) => {
         route: '/',
       },
       {
-        id: 'driver',
-        label: driverLabel,
-        icon: '👤',
-        route: '/driver-profile',
-      },
-      {
         id: 'cache',
         label: 'Cache Manager',
         icon: '💾',
         route: '/cache-management',
       },
     ],
-    [driverLabel],
+    [],
   );
 
   const toggleNavigation = () => {
@@ -122,20 +110,20 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({currentScreen}) => {
   const bottomInset = insets.bottom;
   return (
     <>
-      {/* Always-visible tab bar: Sign in (or Profile) + Menu so Sign in is never hidden on Android */}
+      {/* Always-visible tab bar: laps + menu */}
       <View
         style={[styles.mobileTabBar, {paddingBottom: bottomInset}]}
         {...panResponder.panHandlers}>
         <TouchableOpacity
           style={styles.mobileTabBarSignIn}
           onPress={() => {
-            if (currentScreen !== 'driver') {
-              router.push('/driver-profile' as never);
+            if (currentScreen !== 'index') {
+              router.push('/' as never);
             }
           }}
           activeOpacity={0.9}>
-          <Text style={styles.mobileTabBarSignInIcon}>👤</Text>
-          <Text style={styles.mobileTabBarSignInLabel}>{driverLabel}</Text>
+          <Text style={styles.mobileTabBarSignInIcon}>🏁</Text>
+          <Text style={styles.mobileTabBarSignInLabel}>Laps</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.mobileTabBarTouchable}

@@ -62,15 +62,6 @@ const HamburgerMenu: React.FC<HamburgerMenuProps> = ({currentScreen}) => {
 
   const menuItems: MenuItem[] = [
     {
-      id: 'driver',
-      label: 'Driver Profile',
-      icon: '🏁',
-      action: () => {
-        closeMenu();
-        router.push('/driver-profile');
-      },
-    },
-    {
       id: 'index',
       label: 'Lap Analysis',
       icon: '📊',

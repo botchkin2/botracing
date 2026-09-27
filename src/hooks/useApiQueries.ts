@@ -3,7 +3,6 @@ import {useQuery} from '@tanstack/react-query';
 
 // Query keys for consistent cache management
 export const queryKeys = {
-  user: ['user'] as const,
   tracks: ['tracks'] as const,
   laps: (params?: Record<string, any>) => {
     if (!params) {
@@ -17,48 +16,11 @@ export const queryKeys = {
   telemetry: (lapId: string) => ['telemetry', lapId] as const,
 };
 
-// User data - cache longer (user info doesn't change often)
-export const useUser = () => {
-  return useQuery({
-    queryKey: queryKeys.user,
-    queryFn: async () => {
-      // Check if API token is configured before making the request
-      const token = await apiClient.getStoredToken();
-      if (!token) {
-        throw new Error(
-          'Authentication not configured - please contact support if this issue persists',
-        );
-      }
-      // For Firebase proxy auth, we can proceed since the function handles authentication
-      return apiClient.getCurrentUser();
-    },
-    staleTime: 60 * 60 * 1000, // 1 hour - increased
-    gcTime: 2 * 60 * 60 * 1000, // 2 hours - increased
-    // Allow refetch on mount if no cached data, but prevent other refetches
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    // Don't retry if no token is configured
-    retry: (failureCount, error) => {
-      if (error?.message?.includes('API token not configured')) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    // Only run if we have a chance of succeeding
-    enabled: true, // We'll let it fail gracefully if no token
-  });
-};
-
 // Tracks list (for track selector; required by laps API)
-export const useTracks = (options?: {
-  enabled?: boolean;
-  source?: 'garage61' | 'lmu';
-}) => {
-  const source = options?.source ?? 'garage61';
+export const useTracks = (options?: {enabled?: boolean}) => {
   return useQuery({
-    queryKey: [...queryKeys.tracks, source],
-    queryFn: () => apiClient.getTracks(source),
+    queryKey: queryKeys.tracks,
+    queryFn: () => apiClient.getTracks(),
     staleTime: 60 * 60 * 1000, // 1 hour
     gcTime: 2 * 60 * 60 * 1000,
     refetchOnMount: false,
@@ -82,7 +44,6 @@ export const useLaps = (
     minLapTime?: number;
     maxLapTime?: number;
     group?: 'driver' | 'driver-car' | 'none';
-    source?: 'garage61' | 'lmu';
   },
   options?: {enabled?: boolean},
 ) => {

@@ -3,7 +3,6 @@ export {default as LapList} from './LapList';
 export {default as MultiLapComparison} from './MultiLapComparison';
 export {MultiLapTimeSeriesChart} from './MultiLapTimeSeriesChart';
 export {default as SessionAnalysis} from './SessionAnalysis';
-export {default as UserProfile} from './UserProfile';
 
 // Racing UI Components
 export {
@@ -20,7 +19,6 @@ export {
 export {default as BottomNavigation} from './BottomNavigation';
 export {default as HamburgerMenu} from './HamburgerMenu';
 export {default as HapticTab} from './haptic-tab';
-export {OAuthDeepLinkHandler} from './OAuthDeepLinkHandler';
 export {default as ScreenContainer} from './ScreenContainer';
 export {default as ThemedText} from './themed-text';
 export {default as ThemedView} from './themed-view';
