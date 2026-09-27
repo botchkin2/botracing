@@ -16,7 +16,9 @@ import {columns, sqlPath} from './duck.mjs';
 export const analysisVersion = 1;
 
 const GRID_M = 5;
-const SLOW_FACTOR = 1.07;
+const SLOW_SIGMAS = 3;
+const SLOW_MIN_SEC = 1.5;
+const SLOW_MAX_FACTOR = 1.07;
 const CORNER_DROP_KMH = 12;
 const OFF_TRACK_SEC = 0.2;
 
@@ -321,11 +323,10 @@ function analyzeLap(rec, seg, pits) {
       impactMax = event.v;
   }
 
+  // In: entered the pits during this lap. Out: left them during this lap.
+  // A box before the timing line makes one lap both.
   const pitIn = pits.some(([a]) => a > seg.start && a <= seg.end);
-  const pitOut =
-    pits.some(
-      ([a, b]) => b >= seg.start && b < seg.end && a <= seg.start + 0.5,
-    ) || pits.some(([a, b]) => a <= seg.start && b > seg.start && b < seg.end);
+  const pitOut = pits.some(([, b]) => b >= seg.start && b < seg.end);
   const pitlane = pits.some(([a, b]) => a < seg.end && b > seg.start);
 
   return {
@@ -522,15 +523,26 @@ function traceCsv(rec, lap) {
 // recs: loaded recordings of one session, in time order.
 export function analyzeSession(recs) {
   const laps = [];
+  // A stint starts with a new recording or with the lap that leaves the pits,
+  // but never while the current stint has no timed lap yet. That keeps the
+  // grid or formation run from becoming a stint of its own.
   let stint = 0;
+  let stintTimed = false;
+  const openStint = () => {
+    if (stint === 0 || stintTimed) {
+      stint++;
+      stintTimed = false;
+    }
+  };
   recs.forEach((rec, r) => {
     const pits = pitIntervals(rec.events.in_pits);
-    stint++;
+    openStint();
     let first = true;
     for (const seg of segments(rec)) {
       const lap = analyzeLap(rec, seg, pits);
-      if (!first && lap.pitOut) stint++;
+      if (!first && lap.pitOut) openStint();
       first = false;
+      if (lap.timed && !lap.partial) stintTimed = true;
       lap.stint = stint;
       lap.rec = r;
       lap.index = laps.filter(l => l.rec === r).length;
@@ -548,15 +560,23 @@ export function analyzeSession(recs) {
     if (lap.pitOut) reasons.push('pit-out');
     lap.reasons = reasons;
   }
-  const baseline = median(
-    laps.filter(l => l.reasons.length === 0).map(l => l.lapTime),
-  );
+  // Slow: well outside this session's own spread (median + k robust sigmas),
+  // so a consistent session gets a tight cut and a messy one a looser cut.
+  const candidates = laps
+    .filter(l => l.reasons.length === 0)
+    .map(l => l.lapTime);
+  const baseline = median(candidates);
+  const spread = baseline
+    ? 1.4826 * median(candidates.map(t => Math.abs(t - baseline)))
+    : 0;
+  const slowCut = baseline
+    ? Math.min(
+        baseline * SLOW_MAX_FACTOR,
+        baseline + Math.max(SLOW_SIGMAS * spread, SLOW_MIN_SEC),
+      )
+    : Infinity;
   for (const lap of laps) {
-    if (
-      lap.reasons.length === 0 &&
-      baseline &&
-      lap.lapTime > baseline * SLOW_FACTOR
-    ) {
+    if (lap.reasons.length === 0 && lap.lapTime > slowCut) {
       lap.reasons.push('slow');
     }
     lap.comparable = lap.reasons.length === 0;

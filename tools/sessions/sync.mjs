@@ -48,6 +48,10 @@ const statePath = resolve(work, 'state.json');
 
 // Recordings of one session that are further apart than this start a new one.
 const SESSION_GAP_H = 6;
+const RESTART_MAX_SEC = 5 * 60;
+const RESTART_GAP_SEC = 2 * 60;
+// Shorter recordings hold no lap: a menu, a reset, a false start. Skip them.
+const MIN_RECORDING_SEC = 30;
 
 function hash(...parts) {
   return createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 16);
@@ -99,7 +103,9 @@ function scan(state) {
       }
       state.files[name] = {size: stat.size, mtimeMs: stat.mtimeMs, info};
     }
-    if (!info.recordedAt || info.ticks < 2) continue;
+    if (!info.recordedAt || info.endT - info.startT < MIN_RECORDING_SEC) {
+      continue;
+    }
     if (since && info.recordedAt.slice(0, 10) < since) continue;
     out.push({path, size: stat.size, info});
   }
@@ -118,7 +124,12 @@ function sameSession(prev, next) {
     (Date.parse(next.recordedAt) - Date.parse(prev.recordedAt)) / 1000;
   if (wall > SESSION_GAP_H * 3600) return false;
   if (Math.abs(next.startT - prev.startT - wall) < 90) return true;
-  return next.sessionClock === prev.sessionClock;
+  // Same start clock only means a restart when the previous file was a short
+  // false start, or the next one began right after it. The default race clock
+  // repeats, so two real races would otherwise merge.
+  if (next.sessionClock !== prev.sessionClock) return false;
+  const prevSec = prev.endT - prev.startT;
+  return prevSec < RESTART_MAX_SEC || wall < prevSec + RESTART_GAP_SEC;
 }
 
 function group(files) {
