@@ -38,7 +38,7 @@ const MAP_MIN_LAPS = 8;
 // The shape of a stored corner map. A map from an older version (before
 // sections, say) is rebuilt by the next session with enough clean laps,
 // instead of being reused forever.
-export const trackMapVersion = 2;
+export const trackMapVersion = 3;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
 const wanted = [
@@ -558,20 +558,11 @@ function cornersFit(lap, map) {
   );
 }
 
-// Seconds from a lap's start to the given distance along it, or null.
-function timeTo(rec, lap, m) {
-  for (let k = 0; k < lap.dist.length; k++) {
-    if (lap.dist[k] >= m) return rec.s.t[lap.i0 + k] - rec.s.t[lap.i0];
-  }
-  return null;
-}
-
 // One lap through the track's corners: segment times brake to brake, and
-// what happened in each. The last corner's segment runs over the line to
-// corner 1's entry on the next lap, since that is where its exit is driven.
-// next is the lap that follows directly, or null; then the last segment
-// borrows this lap's own run from the line to corner 1 and is approximate.
-function cornerFacts(rec, lap, next, map, flags) {
+// what happened in each. Everything stays inside this lap, so its segments
+// add up to its lap time: the last segment is this lap's last entry to the
+// line plus its own run from the line to corner 1's entry.
+function cornerFacts(rec, lap, map, flags) {
   const {grid} = lap;
   const {s} = rec;
   const {corners} = map;
@@ -579,14 +570,12 @@ function cornerFacts(rec, lap, next, map, flags) {
   const at = m => Math.min(n - 1, Math.max(0, Math.round(m / GRID_M)));
   const entries = corners.map(c => at(c.entryM));
   const firstEntryM = corners[0].entryM;
-  const nextHead =
-    next && next.dist[0] <= LINE_M ? timeTo(rec, next, firstEntryM) : null;
   const facts = corners.map((c, k) => {
     const e0 = entries[k];
     const e1 = k + 1 < corners.length ? entries[k + 1] : null;
     const last = e1 == null;
     const segTime = last
-      ? lap.lapTime - grid.time[e0] + (nextHead ?? grid.time[entries[0]])
+      ? lap.lapTime - grid.time[e0] + grid.time[entries[0]]
       : grid.time[e1] - grid.time[e0];
     // Min speed between turn-in and exit, the brake point before it, and
     // the first full throttle after it, before the next corner.
@@ -616,12 +605,10 @@ function cornerFacts(rec, lap, next, map, flags) {
       brakeAtM: brakeAt == null ? null : brakeAt * GRID_M,
       fullThrottleAtM: fullAt == null ? null : fullAt * GRID_M,
     };
-    if (last && nextHead == null) f.approximate = true;
     return f;
   });
   // Off-track and local-yellow time by corner, from the full-rate ticks.
-  // Before corner 1's entry belongs to the previous lap's last corner, so
-  // this lap takes that stretch from the next lap instead.
+  // Before corner 1's entry is this lap's part of the last segment.
   const {local} = flags;
   const add = (from, i0, i1, cornerOf) => {
     let li = 0;
@@ -637,16 +624,11 @@ function cornerFacts(rec, lap, next, map, flags) {
     }
   };
   add(lap, lap.i0, lap.i1, m => {
-    if (m < firstEntryM) return nextHead == null ? corners.length - 1 : null;
+    if (m < firstEntryM) return corners.length - 1;
     let k = 0;
     for (let c = 0; c < corners.length; c++) if (corners[c].entryM <= m) k = c;
     return k;
   });
-  if (nextHead != null) {
-    add(next, next.i0, next.i1, m =>
-      m < firstEntryM ? corners.length - 1 : null,
-    );
-  }
   for (const f of facts) {
     f.offTrackSec = round(f.offTrackSec, 2);
     f.localYellowSec = round(f.localYellowSec, 2);
@@ -805,23 +787,9 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     : 'session';
   const newTrackMap = trackMapSource === 'new';
   if (map?.corners.length) {
-    laps.forEach((lap, i) => {
+    laps.forEach(lap => {
       if (!cornersFit(lap, map)) return;
-      // The next lap counts only if it starts where this one ended, on
-      // track: a lap out of the pits never drove this lap's last exit.
-      const next = laps[i + 1];
-      const follows =
-        next &&
-        next.rec === lap.rec &&
-        !next.pitOut &&
-        Math.abs(next.startT - lap.endT) < 0.5;
-      lap.corners = cornerFacts(
-        recs[lap.rec],
-        lap,
-        follows ? next : null,
-        map,
-        flags[lap.rec],
-      );
+      lap.corners = cornerFacts(recs[lap.rec], lap, map, flags[lap.rec]);
     });
   }
 
