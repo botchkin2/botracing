@@ -307,14 +307,9 @@ const SessionAnalysis: React.FC<SessionAnalysisProps> = ({
             unclean: true,
             group: 'none',
             lapTypes: '1,2,3,4',
-            source: sessionData.track?.platform === 'lmu' ? 'lmu' : 'garage61',
           }
         : undefined,
-    [
-      sessionData?.eventId,
-      sessionData?.track?.id,
-      sessionData?.track?.platform,
-    ],
+    [sessionData?.eventId, sessionData?.track?.id],
   );
 
   // Use cached laps query - only when sessionData is available

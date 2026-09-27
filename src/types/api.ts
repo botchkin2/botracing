@@ -1,42 +1,4 @@
-// Garage 61 API Types
-
-export interface Garage61User {
-  id: string;
-  slug: string;
-  firstName: string;
-  lastName: string;
-  nickName: string;
-  subscriptionPlan: string;
-  apiPermissions: string[];
-  teams: TeamInfo[];
-  subscribedDataPacks?: SubscribedDataPack[];
-  subscribedDataPackGroups?: SubscribedDataPackGroup[];
-}
-
-export interface TeamInfo {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-  avatar?: string;
-}
-
-export interface SubscribedDataPack {
-  id: string;
-  name: string;
-  description?: string;
-  version: string;
-  track?: string;
-  car?: string;
-}
-
-export interface SubscribedDataPackGroup {
-  id: string;
-  name: string;
-  description?: string;
-  track?: string;
-  car?: string;
-}
+// Lap data types. The lap CSV and list shape started as Garage 61's export.
 
 export interface ApiError {
   message: string;

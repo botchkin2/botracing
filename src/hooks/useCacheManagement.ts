@@ -7,10 +7,6 @@ export const useCacheManagement = () => {
   const queryClient = useQueryClient();
 
   return {
-    // Refresh user data
-    refreshUser: () =>
-      queryClient.invalidateQueries({queryKey: queryKeys.user}),
-
     // Refresh all lap data
     refreshLaps: () => queryClient.invalidateQueries({queryKey: ['laps']}),
 
@@ -20,14 +16,6 @@ export const useCacheManagement = () => {
 
     // Clear all cache
     clearAllCache: () => queryClient.clear(),
-
-    // Prefetch data (useful for navigation)
-    prefetchUser: () =>
-      queryClient.prefetchQuery({
-        queryKey: queryKeys.user,
-        queryFn: () => apiClient.getCurrentUser(),
-        staleTime: 30 * 60 * 1000,
-      }),
 
     // Update cached data optimistically
     updateCachedLaps: (updater: (oldData: any) => any) =>

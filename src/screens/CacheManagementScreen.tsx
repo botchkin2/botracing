@@ -41,8 +41,6 @@ interface CacheStats {
 const CacheManagementScreen: React.FC = () => {
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [diagnostics, setDiagnostics] = useState<any>(null);
-  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
   const cacheManager = useCacheManagement();
 
   const loadCacheStats = async () => {
@@ -126,18 +124,6 @@ const CacheManagementScreen: React.FC = () => {
         },
       ],
     );
-  };
-
-  const runDiagnostics = async () => {
-    setRunningDiagnostics(true);
-    try {
-      const results = await apiClient.diagnoseConnection();
-      setDiagnostics(results);
-    } catch (error) {
-      setDiagnostics({error: error.message});
-    } finally {
-      setRunningDiagnostics(false);
-    }
   };
 
   if (loading) {
@@ -265,48 +251,6 @@ const CacheManagementScreen: React.FC = () => {
               ))}
           </View>
         )}
-
-        {/* Diagnostics */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>API Diagnostics</Text>
-          <Text style={styles.sectionDescription}>
-            Check API connectivity and troubleshoot connection issues
-          </Text>
-
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={runDiagnostics}
-            disabled={runningDiagnostics}>
-            <Text style={styles.refreshButtonText}>
-              {runningDiagnostics
-                ? 'Running Diagnostics...'
-                : 'Run API Diagnostics'}
-            </Text>
-          </TouchableOpacity>
-
-          {diagnostics && (
-            <View style={styles.diagnosticsResults}>
-              <Text style={styles.diagnosticsTitle}>Results:</Text>
-              {diagnostics.error ? (
-                <Text style={styles.errorText}>{diagnostics.error}</Text>
-              ) : (
-                <>
-                  <Text style={styles.diagnosticItem}>
-                    Firebase Proxy:{' '}
-                    {diagnostics.firebaseProxy ? '✅ Working' : '❌ Failed'}
-                  </Text>
-                  <Text style={styles.diagnosticItem}>
-                    Direct API:{' '}
-                    {diagnostics.directApi ? '✅ Working' : '❌ Failed'}
-                  </Text>
-                  <Text style={styles.diagnosticRecommendation}>
-                    {diagnostics.recommendation}
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
-        </View>
 
         {/* Actions */}
         <View style={styles.section}>
@@ -474,29 +418,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: 'white',
     fontWeight: '600',
-  },
-  diagnosticsResults: {
-    marginTop: RacingTheme.spacing.lg,
-    padding: RacingTheme.spacing.md,
-    backgroundColor: RacingTheme.colors.surfaceElevated,
-    borderRadius: RacingTheme.borderRadius.md,
-  },
-  diagnosticsTitle: {
-    fontSize: RacingTheme.typography.h3,
-    fontWeight: RacingTheme.typography.bold as any,
-    color: RacingTheme.colors.text,
-    marginBottom: RacingTheme.spacing.md,
-  },
-  diagnosticItem: {
-    fontSize: RacingTheme.typography.body,
-    color: RacingTheme.colors.text,
-    marginBottom: RacingTheme.spacing.sm,
-  },
-  diagnosticRecommendation: {
-    fontSize: RacingTheme.typography.body,
-    color: RacingTheme.colors.primary,
-    marginTop: RacingTheme.spacing.md,
-    fontStyle: 'italic',
   },
 });
 
