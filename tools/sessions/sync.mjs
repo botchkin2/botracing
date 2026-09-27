@@ -353,7 +353,9 @@ async function main() {
 
   let done = 0;
   let failed = 0;
-  for (const s of sessions) {
+  // Newest first: recent sessions matter most, and a long backfill fills in
+  // the past last.
+  for (const s of [...sessions].reverse()) {
     if (!force && !local && state.sessions[s.id] === s.fingerprint) continue;
     log(`${s.id} ${describeSession(s)}`);
     try {
