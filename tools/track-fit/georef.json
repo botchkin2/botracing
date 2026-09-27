@@ -1,0 +1,359 @@
+{
+ "lmu-algarve_international_circuit": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.584,
+   "mirror": 1,
+   "originLat": 37.2316206,
+   "originLon": -8.6289594,
+   "fitMedianM": 4.0,
+   "fitP90M": 8.43,
+   "source": "osm-raceway",
+   "fittedOn": "Algarve International Circuit_P_2026-03-03T00_54_42Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Algarve International Circuit",
+  "outline": "trackmaps/lmu-algarve_international_circuit/v1.geojson.gz"
+ },
+ "lmu-aut_dromo_jos_carlos_pace": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.5572,
+   "mirror": 1,
+   "originLat": -23.7023309,
+   "originLon": -46.6990468,
+   "fitMedianM": 3.3,
+   "fitP90M": 6.98,
+   "source": "osm-raceway",
+   "fittedOn": "Autódromo José Carlos Pace_P_2026-02-25T03_06_23Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Autódromo José Carlos Pace",
+  "outline": "trackmaps/lmu-aut_dromo_jos_carlos_pace/v1.geojson.gz"
+ },
+ "lmu-autodromo_enzo_e_dino_ferrari": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -1.8203,
+   "mirror": 1,
+   "originLat": 44.3439694,
+   "originLon": 11.7167542,
+   "fitMedianM": 2.66,
+   "fitP90M": 5.71,
+   "source": "osm-raceway",
+   "fittedOn": "Autodromo Enzo e Dino Ferrari_R_2026-09-12T00_12_55Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Autodromo Enzo e Dino Ferrari",
+  "outline": "trackmaps/lmu-autodromo_enzo_e_dino_ferrari/v1.geojson.gz"
+ },
+ "lmu-autodromo_nazionale_monza": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.0344,
+   "mirror": 1,
+   "originLat": 45.6203168,
+   "originLon": 9.284749,
+   "fitMedianM": 2.87,
+   "fitP90M": 5.42,
+   "source": "osm-raceway",
+   "fittedOn": "Autodromo Nazionale Monza_P_2026-08-12T00_28_22Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Autodromo Nazionale Monza",
+  "outline": "trackmaps/lmu-autodromo_nazionale_monza/v1.geojson.gz"
+ },
+ "lmu-bahrain_international_circuit": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 0.2096,
+   "mirror": 1,
+   "originLat": 26.0326801,
+   "originLon": 50.5125471,
+   "fitMedianM": 3.74,
+   "fitP90M": 6.62,
+   "source": "osm-raceway",
+   "fittedOn": "Bahrain International Circuit_P_2026-04-15T00_13_27Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Bahrain International Circuit",
+  "outline": "trackmaps/lmu-bahrain_international_circuit/v1.geojson.gz"
+ },
+ "lmu-circuit_de_barcelona": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 0.6752,
+   "mirror": 1,
+   "originLat": 41.5686992,
+   "originLon": 2.2598964,
+   "fitMedianM": 3.72,
+   "fitP90M": 5.69,
+   "source": "osm-raceway",
+   "fittedOn": "Circuit de Barcelona_R_2026-08-13T00_38_00Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Circuit de Barcelona",
+  "outline": "trackmaps/lmu-circuit_de_barcelona/v1.geojson.gz"
+ },
+ "lmu-circuit_de_la_sarthe": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 2.2414,
+   "mirror": 1,
+   "originLat": 47.9406337,
+   "originLon": 0.2102898,
+   "fitMedianM": 34.21,
+   "fitP90M": 505.47,
+   "source": "osm-raceway",
+   "fittedOn": "Circuit de la Sarthe_R_2026-09-21T00_17_13Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "poor",
+  "qualityNote": "Mulsanne, Arnage and Indianapolis are public roads, not tagged raceway in OSM; add those road ways as targets.",
+  "location": "Circuit de la Sarthe",
+  "outline": "trackmaps/lmu-circuit_de_la_sarthe/v1.geojson.gz"
+ },
+ "lmu-circuit_de_spa_francorchamps": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -2.3829,
+   "mirror": 1,
+   "originLat": 50.437346,
+   "originLon": 5.9679792,
+   "fitMedianM": 2.87,
+   "fitP90M": 5.97,
+   "source": "osm-raceway",
+   "fittedOn": "Circuit de Spa-Francorchamps_R_2026-04-08T23_58_44Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Circuit de Spa-Francorchamps",
+  "outline": "trackmaps/lmu-circuit_de_spa_francorchamps/v1.geojson.gz"
+ },
+ "lmu-circuit_of_the_americas": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.5459,
+   "mirror": 1,
+   "originLat": 30.1357094,
+   "originLon": -97.6355286,
+   "fitMedianM": 4.71,
+   "fitP90M": 9.13,
+   "source": "osm-raceway",
+   "fittedOn": "Circuit of the Americas_R_2026-06-24T00_08_45Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Circuit of the Americas",
+  "outline": "trackmaps/lmu-circuit_of_the_americas/v1.geojson.gz"
+ },
+ "lmu-daytona_international_speedway_road_course": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 0.1552,
+   "mirror": 1,
+   "originLat": 29.1879765,
+   "originLon": -81.071638,
+   "fitMedianM": 2.99,
+   "fitP90M": 6.34,
+   "source": "osm-raceway",
+   "fittedOn": "Daytona International Speedway_R_2026-08-07T01_09_31Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Daytona International Speedway",
+  "outline": "trackmaps/lmu-daytona_international_speedway_road_course/v1.geojson.gz"
+ },
+ "lmu-fuji_speedway": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 1.3239,
+   "mirror": 1,
+   "originLat": 35.3720853,
+   "originLon": 138.9271062,
+   "fitMedianM": 3.55,
+   "fitP90M": 7.54,
+   "source": "osm-raceway",
+   "fittedOn": "Fuji Speedway_R_2026-03-07T00_31_27Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Fuji Speedway",
+  "outline": "trackmaps/lmu-fuji_speedway/v1.geojson.gz"
+ },
+ "lmu-lusail_international_circuit": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.2797,
+   "mirror": 1,
+   "originLat": 25.486901,
+   "originLon": 51.4509811,
+   "fitMedianM": 3.59,
+   "fitP90M": 6.37,
+   "source": "osm-raceway",
+   "fittedOn": "Lusail International Circuit_P_2026-03-17T23_23_32Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Lusail International Circuit",
+  "outline": "trackmaps/lmu-lusail_international_circuit/v1.geojson.gz"
+ },
+ "lmu-michelin_raceway_road_atlanta": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 1.6995,
+   "mirror": 1,
+   "originLat": 34.1503164,
+   "originLon": -83.8142749,
+   "fitMedianM": 3.09,
+   "fitP90M": 5.88,
+   "source": "osm-raceway",
+   "fittedOn": "Michelin Raceway Road Atlanta_R_2026-09-25T00_38_47Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Michelin Raceway Road Atlanta",
+  "outline": "trackmaps/lmu-michelin_raceway_road_atlanta/v1.geojson.gz"
+ },
+ "lmu-sebring_international_raceway": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": 0.0931,
+   "mirror": 1,
+   "originLat": 27.4501746,
+   "originLon": -81.3526177,
+   "fitMedianM": 3.21,
+   "fitP90M": 6.83,
+   "source": "osm-raceway",
+   "fittedOn": "Sebring International Raceway_P_2026-02-26T02_46_47Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Sebring International Raceway",
+  "outline": "trackmaps/lmu-sebring_international_raceway/v1.geojson.gz"
+ },
+ "lmu-silverstone_grand_prix_circuit_elms": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.9157,
+   "mirror": 1,
+   "originLat": 52.0711073,
+   "originLon": -1.0173799,
+   "fitMedianM": 3.57,
+   "fitP90M": 8.3,
+   "source": "osm-raceway",
+   "fittedOn": "Silverstone Circuit_R_2026-09-16T00_39_05Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Silverstone Circuit",
+  "outline": "trackmaps/lmu-silverstone_grand_prix_circuit_elms/v1.geojson.gz"
+ },
+ "lmu-silverstone_grand_prix_circuit_wec": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.9157,
+   "mirror": 1,
+   "originLat": 52.0711073,
+   "originLon": -1.0173799,
+   "fitMedianM": 3.57,
+   "fitP90M": 8.3,
+   "source": "osm-raceway",
+   "fittedOn": "Silverstone Circuit_R_2026-09-16T00_39_05Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "Silverstone Circuit",
+  "outline": "trackmaps/lmu-silverstone_grand_prix_circuit_wec/v1.geojson.gz"
+ },
+ "lmu-weather_tech_raceway_laguna_seca": {
+  "georef": {
+   "fakeOrigin": {
+    "lat": 60.0,
+    "lon": 0.0
+   },
+   "rotationDeg": -0.9089,
+   "mirror": 1,
+   "originLat": 36.5843177,
+   "originLon": -121.7532887,
+   "fitMedianM": 3.54,
+   "fitP90M": 6.51,
+   "source": "osm-raceway",
+   "fittedOn": "WeatherTech Raceway Laguna Seca_P_2026-08-05T23_50_27Z.duckdb",
+   "fittedAt": "2026-09-27"
+  },
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
+  "location": "WeatherTech Raceway Laguna Seca",
+  "outline": "trackmaps/lmu-weather_tech_raceway_laguna_seca/v1.geojson.gz"
+ }
+}
