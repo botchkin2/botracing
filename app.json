@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "botracing61",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -18,7 +17,6 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.botracing61"
     },
@@ -27,12 +25,11 @@
       "favicon": "./assets/images/favicon.png",
       "build": {
         "babel": {
-          "include": ["@babel/plugin-proposal-export-namespace-from"]
+          "include": [
+            "@babel/plugin-proposal-export-namespace-from"
+          ]
         }
       }
-    },
-    "packagerOpts": {
-      "config": "metro.config.js"
     },
     "plugins": [
       "expo-router",
@@ -47,7 +44,11 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
