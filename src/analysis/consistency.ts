@@ -27,6 +27,9 @@ export interface CornerFacts {
   minSpeedKmh?: number | null;
   brakeAtM?: number | null;
   fullThrottleAtM?: number | null;
+  // The last corner of a lap with no lap straight after it: its exit is
+  // estimated from this lap's own start.
+  approximate?: boolean;
 }
 
 export interface LapFacts {
@@ -66,7 +69,6 @@ export interface Thresholds {
   mistakeSec: number;
   yellowSec: number;
   trendSigmas: number;
-  cornerSumSec: number;
   incidentOffSec: number;
   damageSec: number;
 }
@@ -98,8 +100,6 @@ export const defaultThresholds: Thresholds = {
   // Keep a stint's pace trend only if it moves the pace across the stint by
   // at least this many robust sigmas of the scatter left around it.
   trendSigmas: 2,
-  // A lap's corners must add up to its lap time within this many seconds.
-  cornerSumSec: 1,
   // An incident: this long off track in one lap (or a lap far off pace).
   incidentOffSec: 1,
   // After an incident, the laps up to the next one or the end of the stint
@@ -210,8 +210,11 @@ export interface DamageCheck {
   stint: number;
   lapIds: string[];
   laps: number[];
-  // Median of these laps minus the median of the reference laps.
+  // How much slower these laps ran than the reference laps: against the
+  // stint's pace trend when the stint has reference laps of its own, else
+  // raw lap times against the other stints.
   slowerSec: number;
+  reference: 'same-stint' | 'other-stints';
   referenceLaps: number;
   flagged: boolean;
 }
@@ -278,10 +281,18 @@ export function selectNormalRacing(
 }
 
 // Laps after a wreck until the stint ends (the pit stop is the chance to
-// repair) or the next incident. If they run slower than the laps with no
+// repair) or the next wreck. If they run slower than the laps with no
 // incident before them, the car was probably damaged: a condition, not the
-// driver's scatter. Laps later in a stint carry less fuel, and the reference
-// prefers the same stint, so the comparison leans towards not flagging.
+// driver's scatter.
+//
+// An off-track of incidentOffSec or more always starts a new stretch. A lap
+// far off pace starts one only when the car is not already in one, so a
+// damaged car's slow laps do not split their own stretch.
+//
+// Stretches are judged in order within each stint, against the stint's clear
+// laps, compared on residuals to the stint's pace trend. A stretch that is not
+// flagged rejoins the reference. Only a stint with fewer than 3 reference laps
+// falls back to raw times from the other stints, and the evidence says so.
 function markDamage(
   laps: LapFacts[],
   out: Map<string, ExcludeReason[]>,
@@ -291,12 +302,6 @@ function markDamage(
     (a, b) => a.stint - b.stint || a.stintLap - b.stintLap,
   );
   const eligible = (l: LapFacts) => out.get(l.id)!.length === 0;
-  const incident = (l: LapFacts) =>
-    l.timed &&
-    !l.pitIn &&
-    !l.pitOut &&
-    (l.offTrackSec >= t.incidentOffSec ||
-      out.get(l.id)!.includes('far-off-pace'));
   const phases: {incident: LapFacts; laps: LapFacts[]}[] = [];
   let current: LapFacts[] | null = null;
   let stint = -1;
@@ -305,27 +310,33 @@ function markDamage(
       stint = lap.stint;
       current = null;
     }
-    if (incident(lap)) {
+    const racing = lap.timed && !lap.pitIn && !lap.pitOut;
+    const wreck = racing && lap.offTrackSec >= t.incidentOffSec;
+    const far = racing && out.get(lap.id)!.includes('far-off-pace');
+    if (wreck || (far && !current)) {
       current = [];
       phases.push({incident: lap, laps: current});
     } else if (current) {
       current.push(lap);
     }
   }
-  const inPhase = new Set(phases.flatMap(p => p.laps).map(l => l.id));
-  const clear = ordered.filter(l => eligible(l) && !inPhase.has(l.id));
+  // Laps still under suspicion: in a stretch not yet judged, or flagged.
+  const suspect = new Set(phases.flatMap(ph => ph.laps).map(l => l.id));
+  const reference = (keep: (l: LapFacts) => boolean) =>
+    ordered.filter(l => eligible(l) && !suspect.has(l.id) && keep(l));
   const checks: DamageCheck[] = [];
-  for (const phase of phases) {
-    const own = phase.laps.filter(eligible);
-    if (own.length < 2) continue;
-    const sameStint = clear.filter(l => l.stint === own[0].stint);
-    const ref = sameStint.length >= 3 ? sameStint : clear;
-    if (ref.length < 3) continue;
-    const slower =
-      median(own.map(l => l.lapTime))! - median(ref.map(l => l.lapTime))!;
+  const judge = (
+    phase: (typeof phases)[number],
+    slower: number,
+    kind: DamageCheck['reference'],
+    refCount: number,
+    own: LapFacts[],
+  ) => {
     const flagged = slower >= t.damageSec;
     if (flagged) {
       for (const lap of own) out.get(lap.id)!.push('damage');
+    } else {
+      for (const lap of own) suspect.delete(lap.id);
     }
     checks.push({
       incidentLapId: phase.incident.id,
@@ -334,11 +345,63 @@ function markDamage(
       lapIds: own.map(l => l.id),
       laps: own.map(l => l.lapNumber),
       slowerSec: round(slower, 3)!,
-      referenceLaps: ref.length,
+      reference: kind,
+      referenceLaps: refCount,
       flagged,
     });
+  };
+  // First each stretch against its own stint, in order.
+  const later: (typeof phases)[number][] = [];
+  for (const phase of phases) {
+    const own = phase.laps.filter(eligible);
+    if (own.length < 2) {
+      for (const lap of own) suspect.delete(lap.id);
+      continue;
+    }
+    const ref = reference(l => l.stint === phase.incident.stint);
+    if (ref.length < 3) {
+      later.push(phase);
+      continue;
+    }
+    const trend = fitTrend(
+      ref.map(l => l.stintLap),
+      ref.map(l => l.lapTime),
+      t,
+    );
+    const residual = (l: LapFacts) =>
+      l.lapTime - (trend.intercept + trend.slope * l.stintLap);
+    judge(phase, median(own.map(residual))!, 'same-stint', ref.length, own);
+  }
+  // Then stints with too few clear laps, against the other stints.
+  for (const phase of later) {
+    const own = phase.laps.filter(eligible);
+    const ref = reference(l => l.stint !== phase.incident.stint);
+    if (ref.length < 3) {
+      for (const lap of own) suspect.delete(lap.id);
+      continue;
+    }
+    const slower =
+      median(own.map(l => l.lapTime))! - median(ref.map(l => l.lapTime))!;
+    judge(phase, slower, 'other-stints', ref.length, own);
   }
   return checks;
+}
+
+// A robust straight line through lap time against laps into the stint. The
+// slope is kept only if it moves the pace across the stint by clearly more
+// than the scatter left around it: on a short, noisy stint a fitted slope is
+// noise that looks confident.
+function fitTrend(
+  xs: number[],
+  ys: number[],
+  t: Thresholds,
+): {slope: number; intercept: number} {
+  const range = xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
+  let slope = xs.length >= 6 && range >= 5 ? theilSen(xs, ys) : 0;
+  const fitted = robustSigma(ys.map((y, i) => y - slope * xs[i])) ?? 0;
+  if (Math.abs(slope) * range < t.trendSigmas * fitted) slope = 0;
+  const intercept = median(ys.map((y, i) => y - slope * xs[i])) ?? 0;
+  return {slope, intercept};
 }
 
 // Analyze exactly the laps given. The caller picks them: normalRacing() for
@@ -358,20 +421,12 @@ export function analyzeConsistency(
   const expected = new Map<string, number>();
   for (const n of unique(laps.map(l => l.stint))) {
     const own = laps.filter(l => l.stint === n);
-    const xs = own.map(l => l.stintLap);
     const ys = own.map(l => l.lapTime);
-    let slope =
-      own.length >= 6 && Math.max(...xs) - Math.min(...xs) >= 5
-        ? theilSen(xs, ys)
-        : 0;
-    // Keep the trend only if it explains something: on a short, noisy stint
-    // a fitted slope is noise that looks confident.
-    // The trend must move the pace across the stint by clearly more than the
-    // scatter left around it.
-    const fitted = robustSigma(ys.map((y, i) => y - slope * xs[i])) ?? 0;
-    const change = Math.abs(slope) * (Math.max(...xs) - Math.min(...xs));
-    if (change < t.trendSigmas * fitted) slope = 0;
-    const intercept = median(ys.map((y, i) => y - slope * xs[i])) ?? 0;
+    const {slope, intercept} = fitTrend(
+      own.map(l => l.stintLap),
+      ys,
+      t,
+    );
     own.forEach(l => expected.set(l.id, intercept + slope * l.stintLap));
     stints.push({
       n,
@@ -383,15 +438,14 @@ export function analyzeConsistency(
   const residual = (l: LapFacts) => l.lapTime - expected.get(l.id)!;
   const lapSigma = robustSigma(laps.map(residual)) ?? 0;
 
-  // A lap whose corners do not add up to its lap time was cut up wrong (a
-  // reset, a lap that started off the line): leave it out of the corner view.
+  // The uploader only gives corner facts to laps whose distance starts at
+  // the line and covers the mapped lap. Guard the shape here too.
   const nc = mode(laps.filter(l => l.corners).map(l => l.corners!.length));
   const withCorners = laps.filter(
     l =>
       l.corners &&
       l.corners.length === nc &&
-      Math.abs(sum(l.corners.map(c => c.segTime)) - l.lapTime) <=
-        t.cornerSumSec,
+      l.corners.every(c => c.segTime > 0),
   );
 
   // Corner deltas: each corner's expected time is its usual share of the

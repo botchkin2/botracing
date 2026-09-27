@@ -32,6 +32,9 @@ const SLOW_SIGMAS = 3;
 const SLOW_MIN_SEC = 1.5;
 const SLOW_MAX_FACTOR = 1.07;
 const OFF_TRACK_SEC = 0.2;
+// A track's stored corner map is built only from a session with at least
+// this many clean laps of the same length.
+const MAP_MIN_LAPS = 8;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
 const wanted = [
@@ -509,22 +512,49 @@ function profile(laps, gridN) {
   };
 }
 
+// A lap's distance must start at the line and cover the mapped lap, or its
+// corner split is wrong (a start from the grid, a reset, a distance glitch).
+const LINE_M = 30;
+const LENGTH_TOLERANCE = 0.02;
+
+function cornersFit(lap, map) {
+  return (
+    lap.grid &&
+    lap.dist[0] <= LINE_M &&
+    Math.abs(lap.distanceM - map.lengthM) <= map.lengthM * LENGTH_TOLERANCE
+  );
+}
+
+// Seconds from a lap's start to the given distance along it, or null.
+function timeTo(rec, lap, m) {
+  for (let k = 0; k < lap.dist.length; k++) {
+    if (lap.dist[k] >= m) return rec.s.t[lap.i0 + k] - rec.s.t[lap.i0];
+  }
+  return null;
+}
+
 // One lap through the track's corners: segment times brake to brake, and
-// what happened in each. The stretch before the first entry belongs to the
-// last corner, across the line.
-function cornerFacts(rec, lap, corners, flags) {
+// what happened in each. The last corner's segment runs over the line to
+// corner 1's entry on the next lap, since that is where its exit is driven.
+// next is the lap that follows directly, or null; then the last segment
+// borrows this lap's own run from the line to corner 1 and is approximate.
+function cornerFacts(rec, lap, next, map, flags) {
   const {grid} = lap;
   const {s} = rec;
+  const {corners} = map;
   const n = grid.time.length;
   const at = m => Math.min(n - 1, Math.max(0, Math.round(m / GRID_M)));
   const entries = corners.map(c => at(c.entryM));
+  const firstEntryM = corners[0].entryM;
+  const nextHead =
+    next && next.dist[0] <= LINE_M ? timeTo(rec, next, firstEntryM) : null;
   const facts = corners.map((c, k) => {
     const e0 = entries[k];
     const e1 = k + 1 < corners.length ? entries[k + 1] : null;
-    const segTime =
-      e1 != null
-        ? grid.time[e1] - grid.time[e0]
-        : lap.lapTime - grid.time[e0] + grid.time[entries[0]];
+    const last = e1 == null;
+    const segTime = last
+      ? lap.lapTime - grid.time[e0] + (nextHead ?? grid.time[entries[0]])
+      : grid.time[e1] - grid.time[e0];
     // Min speed between turn-in and exit, the brake point before it, and
     // the first full throttle after it, before the next corner.
     const t0 = at(c.turnInM);
@@ -545,7 +575,7 @@ function cornerFacts(rec, lap, corners, flags) {
         break;
       }
     }
-    return {
+    const f = {
       segTime: round(segTime, 3),
       localYellowSec: 0,
       offTrackSec: 0,
@@ -553,22 +583,36 @@ function cornerFacts(rec, lap, corners, flags) {
       brakeAtM: brakeAt == null ? null : brakeAt * GRID_M,
       fullThrottleAtM: fullAt == null ? null : fullAt * GRID_M,
     };
+    if (last && nextHead == null) f.approximate = true;
+    return f;
   });
   // Off-track and local-yellow time by corner, from the full-rate ticks.
-  let li = 0;
+  // Before corner 1's entry belongs to the previous lap's last corner, so
+  // this lap takes that stretch from the next lap instead.
   const {local} = flags;
-  for (let i = lap.i0; i < lap.i1; i++) {
-    const m = lap.dist[i - lap.i0];
-    let k = corners.length - 1;
-    for (let c = 0; c < corners.length; c++) {
-      if (corners[c].entryM <= m) k = c;
+  const add = (from, i0, i1, cornerOf) => {
+    let li = 0;
+    for (let i = i0; i < i1; i++) {
+      const k = cornerOf(from.dist[i - from.i0]);
+      if (k == null) continue;
+      const dt = s.t[i + 1] - s.t[i];
+      if (from.off[i - from.i0]) facts[k].offTrackSec += dt;
+      while (li < local.length && local[li][1] < s.t[i]) li++;
+      if (li < local.length && local[li][0] <= s.t[i]) {
+        facts[k].localYellowSec += dt;
+      }
     }
-    const dt = s.t[i + 1] - s.t[i];
-    if (lap.off[i - lap.i0]) facts[k].offTrackSec += dt;
-    while (li < local.length && local[li][1] < s.t[i]) li++;
-    if (li < local.length && local[li][0] <= s.t[i]) {
-      facts[k].localYellowSec += dt;
-    }
+  };
+  add(lap, lap.i0, lap.i1, m => {
+    if (m < firstEntryM) return nextHead == null ? corners.length - 1 : null;
+    let k = 0;
+    for (let c = 0; c < corners.length; c++) if (corners[c].entryM <= m) k = c;
+    return k;
+  });
+  if (nextHead != null) {
+    add(next, next.i0, next.i1, m =>
+      m < firstEntryM ? corners.length - 1 : null,
+    );
   }
   for (const f of facts) {
     f.offTrackSec = round(f.offTrackSec, 2);
@@ -708,17 +752,42 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
 
   // The track's corners: the stored map when it fits this lap length, else
   // found from this session's median lap.
+  // A stored map is never replaced here: a session it does not fit gets a
+  // map of its own for this analysis only, and says so. Only a session with
+  // enough clean laps may create the stored map.
   const fits =
     trackMap &&
     best &&
     Math.abs(trackMap.lengthM - best.distanceM) <= best.distanceM * 0.03;
-  const map = fits ? trackMap : buildTrackMap(recs, comparable, best, gridN);
-  const newTrackMap = !fits && map != null;
-  const corners = map?.corners ?? [];
-  for (const lap of laps) {
-    if (lap.grid && corners.length) {
-      lap.corners = cornerFacts(recs[lap.rec], lap, corners, flags[lap.rec]);
-    }
+  const built = fits ? null : buildTrackMap(recs, comparable, best, gridN);
+  const map = fits ? trackMap : built?.map ?? null;
+  const trackMapSource = fits
+    ? 'stored'
+    : !built
+    ? null
+    : !trackMap && built.laps >= MAP_MIN_LAPS
+    ? 'new'
+    : 'session';
+  const newTrackMap = trackMapSource === 'new';
+  if (map?.corners.length) {
+    laps.forEach((lap, i) => {
+      if (!cornersFit(lap, map)) return;
+      // The next lap counts only if it starts where this one ended, on
+      // track: a lap out of the pits never drove this lap's last exit.
+      const next = laps[i + 1];
+      const follows =
+        next &&
+        next.rec === lap.rec &&
+        !next.pitOut &&
+        Math.abs(next.startT - lap.endT) < 0.5;
+      lap.corners = cornerFacts(
+        recs[lap.rec],
+        lap,
+        follows ? next : null,
+        map,
+        flags[lap.rec],
+      );
+    });
   }
 
   // Consistency: the laps run in normal racing conditions, through the
@@ -763,6 +832,8 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     best,
     trackMap: map,
     newTrackMap,
+    trackMapSource,
+    trackMapMismatch: Boolean(trackMap && !fits),
     consistency: {
       summary: consistency.summary,
       stints: consistency.stints,
@@ -807,9 +878,12 @@ function buildTrackMap(recs, comparable, best, gridN) {
   );
   if (laps.length < 3) return null;
   return {
-    lengthM: round(best.distanceM, 1),
-    stepM: GRID_M,
-    corners: findTrackCorners(profile(laps, gridN)),
+    laps: laps.length,
+    map: {
+      lengthM: round(best.distanceM, 1),
+      stepM: GRID_M,
+      corners: findTrackCorners(profile(laps, gridN)),
+    },
   };
 }
 

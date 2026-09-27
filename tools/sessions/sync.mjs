@@ -7,6 +7,7 @@
 //   node tools/sessions/sync.mjs --only "Road Atlanta" only matching file names
 //   node tools/sessions/sync.mjs --list               show the session grouping and stop
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
+//   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
@@ -41,6 +42,9 @@ const only = arg('--only', '');
 const local = flag('--local');
 const force = flag('--force');
 const quietMin = Number(arg('--quiet-min', '3'));
+// Replace this track's stored corner map with one built from the next
+// session analyzed there. Corner numbers change for every session after it.
+const rebuildTrack = arg('--rebuild-track', '');
 const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
@@ -183,6 +187,7 @@ function slugId(sim, name) {
 const trackMaps = new Map();
 async function trackMapFor(trackId, store) {
   if (trackMaps.has(trackId)) return trackMaps.get(trackId);
+  if (trackId === rebuildTrack) return null;
   const path = resolve(work, 'tracks', `${trackId}.json`);
   let map = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
   if (!map && store) map = await store.getTrack(trackId);
@@ -330,6 +335,11 @@ function build(s, trackMap) {
     ...a.summary,
     bestLapId: a.best ? lapId(a.best) : null,
     consistency: a.consistency,
+    // Where the corners came from: the track's stored map, a new stored map
+    // made from this session, or a map of this session's own (not stored:
+    // too few clean laps, or the stored map does not fit).
+    trackMapSource: a.trackMapSource,
+    trackMapMismatch: a.trackMapMismatch,
     band: a.band
       ? {
           path: `bands/${ownerId}/${s.id}/v1.json.gz`,
@@ -423,7 +433,17 @@ async function main() {
       const info = s.files[0].info;
       const trackId = slugId(info.sim, info.layout);
       const out = build(s, await trackMapFor(trackId, store));
-      if (out.track) keepTrackMap(out.track);
+      if (out.track) {
+        keepTrackMap(out.track);
+        log(
+          `  new corner map for ${trackId}: ${out.track.corners.length} corners, from this session`,
+        );
+      }
+      if (out.session.trackMapMismatch) {
+        log(
+          `  stored corner map for ${trackId} does not fit this session's lap; analyzed with a map of its own, not stored`,
+        );
+      }
       log(
         `  ${out.laps.length} laps, ${
           out.session.comparableCount

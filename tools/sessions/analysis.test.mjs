@@ -214,3 +214,37 @@ test('segment times add up to the lap time', () => {
   );
   assert.equal(segs[2], (1200 - 900) / 50 + 100 / 50);
 });
+
+test('a harmless early spin rejoins the reference for a later wreck', () => {
+  const a = stint({laps: 16, slope: 0});
+  a[2] = {...a[2], offTrackSec: 4}; // spin, no lasting loss
+  a[9] = {...a[9], offTrackSec: 10, lapTime: a[9].lapTime + 15};
+  for (let i = 10; i < 16; i++) a[i] = addLoss(a[i], 2, 0.8);
+  const {reasons, damage} = selectNormalRacing(a);
+  assert.deepEqual(
+    damage.map(d => [d.incidentLap, d.flagged, d.reference]),
+    [
+      [3, false, 'same-stint'],
+      [10, true, 'same-stint'],
+    ],
+  );
+  for (let i = 3; i < 9; i++) assert.deepEqual(reasons.get(a[i].id), []);
+  for (let i = 10; i < 16; i++) {
+    assert.deepEqual(reasons.get(a[i].id), ['damage']);
+  }
+});
+
+test('a damaged car alternating around the far-off-pace cut stays one stretch', () => {
+  const a = stint({laps: 16, slope: 0});
+  a[4] = {...a[4], offTrackSec: 12, lapTime: a[4].lapTime + 20};
+  for (let i = 5; i < 16; i++) a[i] = addLoss(a[i], 3, i % 2 ? 7 : 0.8);
+  const {reasons, damage} = selectNormalRacing(a);
+  assert.equal(damage.length, 1);
+  assert.equal(damage[0].flagged, true);
+  for (let i = 5; i < 16; i++) {
+    assert.deepEqual(
+      reasons.get(a[i].id),
+      i % 2 ? ['far-off-pace'] : ['damage'],
+    );
+  }
+});

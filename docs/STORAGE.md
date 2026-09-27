@@ -4,12 +4,12 @@ How recorded sessions are kept. The decision and its reasons are in the pit-wall
 
 ## Where things live
 
-| What | Where | Why there |
-|---|---|---|
-| Recordings, sessions, laps (the numbers you filter and sort) | Firestore | Queryable, small docs, scales to many sims and users |
-| Chart trace for one lap | `gs://botracing-61-lmu/traces/{ownerId}/{lapId}/v1.csv.gz` | Fetched only for laps being overlaid |
-| Full recording archive | `gs://botracing-61-lmu/archive/{sim}/{sessionId}/{recordingId}/samples.parquet` and `events.parquet` | Our own sim-neutral copy of every channel, so analysis can be recomputed later |
-| Consistency band | `gs://botracing-61-lmu/bands/{ownerId}/{sessionId}/v1.json.gz` | Median and p10/p90 of speed, throttle, brake on a 5 m grid |
+| What                                                         | Where                                                                                                | Why there                                                                      |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Recordings, sessions, laps (the numbers you filter and sort) | Firestore                                                                                            | Queryable, small docs, scales to many sims and users                           |
+| Chart trace for one lap                                      | `gs://botracing-61-lmu/traces/{ownerId}/{lapId}/v1.csv.gz`                                           | Fetched only for laps being overlaid                                           |
+| Full recording archive                                       | `gs://botracing-61-lmu/archive/{sim}/{sessionId}/{recordingId}/samples.parquet` and `events.parquet` | Our own sim-neutral copy of every channel, so analysis can be recomputed later |
+| Consistency band                                             | `gs://botracing-61-lmu/bands/{ownerId}/{sessionId}/v1.json.gz`                                       | Median and p10/p90 of speed, throttle, brake on a 5 m grid                     |
 
 The raw `.duckdb` from LMU is never uploaded.
 
@@ -44,7 +44,7 @@ There is no sign-in. Every doc carries `ownerId` and `sim` so that more than one
 - `recordings/{recordingId}`: one source file. Fields include `sessionId` and `startedAt`. One race can span several LMU files.
 - `sessions/{sessionId}`: recordings grouped by owner, sim, track, layout, car, session type, and game session time. It holds the precomputed lap table, stints, pit in and out, the session consistency band, and `consistency`: pace trend per stint, scatter, off-pace laps, per-corner spread and loss, an `overview` text, and the thresholds used. Fields include `ownerId`, `sim`, `trackId`, `carId`, and `startedAt`.
 - `laps/{lapId}`: one lap. It holds comparability reasons, a pointer to its trace, and everything `src/analysis/consistency.ts` needs to rerun on any selection of laps: stint lap, start, fresh tyres, tyre carcass temperature, full-course yellow time, and per-corner facts (segment time brake to brake, off-track and local-yellow time, minimum speed, brake point, full-throttle point). `excluded` says why the lap is not in the default "normal racing" selection; `consistency` holds its residual to the pace trend and where it lost time. Fields include `ownerId`, `sim`, `sessionId`, `lapNumber`, `trackId`, `carId`, and `lapTime`.
-- `tracks/{trackId}`: one track layout's corner map (`src/analysis/corners.ts`), built from the first session analyzed there and kept, so corner numbers stay the same from session to session. Custom sectors and official turn names will attach here. The uploader also keeps a copy in its work folder (`tracks/{trackId}.json`); delete both to rebuild the map.
+- `tracks/{trackId}`: one track layout's corner map (`src/analysis/corners.ts`), so corner numbers stay the same from session to session. Custom sectors and official turn names will attach here. It is created by the first session analyzed at that layout with at least 8 clean laps of the same length, and never replaced automatically. A session the stored map does not fit (lap length off by more than 3%) is analyzed with a map of its own, which is not stored, and the session doc says so (`trackMapSource`, `trackMapMismatch`). Replace a map on purpose with `sync.mjs --rebuild-track <trackId> --force`. The uploader also keeps a copy in its work folder (`tracks/{trackId}.json`).
 
 The same analysis code runs in the uploader and in the app, so a selection made on the phone gives the same numbers the uploader stored for the default selection. `node tools/sessions/consistency-report.mjs --work <dir>` checks that on `--local` output.
 
