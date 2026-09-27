@@ -265,6 +265,19 @@ test('a switch to wets in the rain is conditions, not cold tyres, damage or far 
   assert.ok(damage.every(d => !d.flagged));
 });
 
+test('the optimal lap uses only the most common conditions', () => {
+  const dry = stint({laps: 10, slope: 0}).map(l => ({...l, compound: '0/0'}));
+  // Three wet laps with an impossibly quick section 1 must not count.
+  const wet = stint({laps: 3, stint: 2, slope: 0, seed: 9}).map(l => ({
+    ...addLoss(l, 1, -3),
+    compound: '1/1',
+    wetness: 20,
+  }));
+  const r = analyzeConsistency([...dry, ...wet]);
+  assert.ok(r.corners[0].bestLap <= 10 && r.corners[0].bestLap >= 1);
+  assert.ok(dry.some(l => l.lapNumber === r.corners[0].bestLap));
+});
+
 test('a section best skips an off-track pass but keeps the rest of that lap', () => {
   const laps = stint({laps: 10, slope: 0});
   // Lap 3 is fastest everywhere, but went off in section 2.

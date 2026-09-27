@@ -306,12 +306,13 @@ export function selectNormalRacing(
     }
     out.set(lap.id, reasons);
   }
-  // Far off pace against laps in the same conditions.
+  // Far off pace against laps in the same conditions. A group with fewer
+  // than 3 laps has no pace to be far off from, so it is not checked.
   for (const key of new Set(laps.map(l => conditionsOf(l, t)))) {
     const group = laps.filter(l => conditionsOf(l, t) === key);
-    const pace = median(
-      group.filter(l => out.get(l.id)!.length === 0).map(l => l.lapTime),
-    );
+    const eligible = group.filter(l => out.get(l.id)!.length === 0);
+    if (eligible.length < 3) continue;
+    const pace = median(eligible.map(l => l.lapTime));
     if (pace == null) continue;
     for (const lap of group) {
       const reasons = out.get(lap.id)!;
@@ -519,6 +520,7 @@ export function analyzeConsistency(
   }
   // Center each corner on its median, then measure its own spread.
   const deltasOf = (k: number) => withCorners.map(l => delta.get(l.id)![k]);
+  const mainConditions = mostCommon(withCorners.map(l => conditionsOf(l, t)));
   const center = range(nc).map(k => median(deltasOf(k)) ?? 0);
   for (const d of delta.values()) {
     for (let k = 0; k < nc; k++) d[k] -= center[k];
@@ -576,8 +578,12 @@ export function analyzeConsistency(
   const corners: CornerResult[] = range(nc).map(k => {
     const values = deltasOf(k);
     const p25 = quantile(values, 0.25) ?? 0;
+    // Bests come from the most common conditions only, so a dry optimal
+    // lap never borrows a section from a wet one (or the other way round).
     const clean = withCorners.filter(
-      l => (l.corners![k].offTrackSec ?? 0) < t.cleanOffSec,
+      l =>
+        (l.corners![k].offTrackSec ?? 0) < t.cleanOffSec &&
+        conditionsOf(l, t) === mainConditions,
     );
     const best = clean.reduce<LapFacts | null>(
       (a, l) => (!a || l.corners![k].segTime < a.corners![k].segTime ? l : a),

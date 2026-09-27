@@ -35,6 +35,10 @@ const OFF_TRACK_SEC = 0.2;
 // A track's stored corner map is built only from a session with at least
 // this many clean laps of the same length.
 const MAP_MIN_LAPS = 8;
+// The shape of a stored corner map. A map from an older version (before
+// sections, say) is rebuilt by the next session with enough clean laps,
+// instead of being reused forever.
+export const trackMapVersion = 2;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
 const wanted = [
@@ -784,6 +788,8 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   // A stored map is never replaced here: a session it does not fit gets a
   // map of its own for this analysis only, and says so. Only a session with
   // enough clean laps may create the stored map.
+  // A stored map of an older shape counts as no map at all.
+  if (trackMap && trackMap.mapVersion !== trackMapVersion) trackMap = null;
   const fits =
     trackMap &&
     best &&
@@ -909,6 +915,7 @@ function buildTrackMap(recs, comparable, best, gridN) {
   return {
     laps: laps.length,
     map: {
+      mapVersion: trackMapVersion,
       lengthM: round(best.distanceM, 1),
       stepM: GRID_M,
       // Sections, each holding its single corners as parts.
