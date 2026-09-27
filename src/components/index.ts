@@ -1,7 +1,6 @@
 // Export all components from here for easier imports
 export {default as MultiLapComparison} from './MultiLapComparison';
 export {MultiLapTimeSeriesChart} from './MultiLapTimeSeriesChart';
-export {default as SessionAnalysis} from './SessionAnalysis';
 
 // Racing UI Components
 export {

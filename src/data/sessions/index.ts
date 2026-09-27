@@ -1,3 +1,10 @@
-export type {SessionSummary, SessionType} from './adapters';
+export type {
+  Lap,
+  LapReason,
+  SessionDetail,
+  SessionSummary,
+  SessionType,
+  Stint,
+} from './adapters';
 export {type SessionFilter, sessionKeys} from './keys';
-export {useSessions} from './queries';
+export {useSession, useSessionLaps, useSessions} from './queries';
