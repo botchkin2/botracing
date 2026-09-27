@@ -31,6 +31,8 @@ export interface LapFacts {
   pitOut: boolean;
   // The first lap of the session, from the grid or a rolling start.
   start: boolean;
+  // First lap on a new set of tyres: cold whatever the temperature says.
+  newTyres: boolean;
   offtrack: boolean;
   impactMax: number;
   // Mean tyre carcass temperature over the lap, all four tyres. Null if the
@@ -74,7 +76,7 @@ export const defaultThresholds: Thresholds = {
   // with this one when the next is past this many sigmas.
   bleedZ: 1.5,
   // One corner holds at least this share of the lap's loss: a mistake.
-  mistakeShare: 0.5,
+  mistakeShare: 0.4,
   // One corner losing this much is a mistake even if the lap was not slow.
   bigMistakeSec: 0.3,
   // Tag a corner event as under local yellow past this many seconds. Only a
@@ -182,7 +184,9 @@ export function normalRacing(
     if (lap.pitOut) reasons.push('pit-out');
     if (lap.start) reasons.push('start');
     if (lap.courseYellowSec > 1) reasons.push('course-yellow');
-    if (
+    if (lap.newTyres) {
+      reasons.push('cold-tyres');
+    } else if (
       warm != null &&
       lap.tyreCarcassC != null &&
       lap.tyreCarcassC < warm - t.coldTyreC

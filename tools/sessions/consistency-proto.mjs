@@ -13,6 +13,7 @@ import {
   defaultThresholds,
   normalRacing,
 } from '../../src/analysis/consistency.ts';
+import {findTrackCorners, segmentTimes} from '../../src/analysis/corners.ts';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -21,6 +22,10 @@ function arg(name, fallback) {
 const work = resolve(arg('--work', '.'));
 const only = arg('--session', '');
 const minLaps = Number(arg('--min', '10'));
+// --corners track: corners from the track's shape (src/analysis/corners.ts).
+// Default: the speed-minima corners analyze.mjs wrote.
+const cornerMode = arg('--corners', 'speed');
+const GRID_M = 5;
 
 const GREEN = 11;
 const flagName = {1: 'sector1_flag', 2: 'sector2_flag', 0: 'sector3_flag'};
@@ -31,7 +36,8 @@ function conditions(samplesPath, eventsPath) {
     `WITH laps AS (SELECT t, v1::INT AS lap FROM read_parquet(${sqlPath(eventsPath)}) WHERE name = 'lap')
      SELECT l.lap AS lap, min(l.t) AS t0,
        avg((tyres_carcass_temp_fl + tyres_carcass_temp_fr + tyres_carcass_temp_rl + tyres_carcass_temp_rr) / 4) AS carcass,
-       first(fuel_l ORDER BY s.t) AS fuel
+       first(fuel_l ORDER BY s.t) AS fuel,
+       first(tyres_wear_fl + tyres_wear_fr + tyres_wear_rl + tyres_wear_rr ORDER BY s.t) / 4 AS wear
      FROM read_parquet(${sqlPath(samplesPath)}) s ASOF JOIN laps l ON s.t >= l.t
      GROUP BY l.lap ORDER BY l.lap`,
   );
@@ -80,6 +86,7 @@ function conditions(samplesPath, eventsPath) {
       t0: perLap.t0[i],
       carcass: perLap.carcass[i],
       fuel: perLap.fuel[i],
+      wear: perLap.wear[i],
     });
   }
   return {byLap, local, course};
@@ -106,6 +113,68 @@ function cornerWindows(tracePath, lengthM, corners) {
   return corners.map(c => [timeAt(c.startM), timeAt(c.endM)]);
 }
 
+function readTrace(path, lengthM) {
+  const rows = readFileSync(path, 'utf8').trim().split('\n');
+  const n = rows.length - 1;
+  const tr = {dist: new Float64Array(n), speed: new Float64Array(n), brake: new Float64Array(n), throttle: new Float64Array(n), lat: new Float64Array(n), lon: new Float64Array(n)};
+  for (let i = 0; i < n; i++) {
+    const c = rows[i + 1].split(',');
+    tr.speed[i] = Number(c[0]) * 3.6;
+    tr.dist[i] = Number(c[1]) * lengthM;
+    tr.lat[i] = Number(c[2]);
+    tr.lon[i] = Number(c[3]);
+    tr.brake[i] = Number(c[4]);
+    tr.throttle[i] = Number(c[5]);
+  }
+  // Rows are at the recording's base rate, 100 Hz.
+  tr.timeAt = m => {
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tr.dist[mid] < m) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo === 0) return 0;
+    const d0 = tr.dist[lo - 1];
+    const d1 = tr.dist[lo];
+    return (lo - 1 + (d1 > d0 ? Math.min(1, (m - d0) / (d1 - d0)) : 0)) / 100;
+  };
+  return tr;
+}
+
+// Median lap on a grid, over laps of about the same length.
+function profileOf(traces, lengthM) {
+  const n = Math.floor(lengthM / GRID_M);
+  const R = 6371000;
+  const lat0 = traces[0].lat.find(v => v !== 0) ?? 0;
+  const cos0 = Math.cos((lat0 * Math.PI) / 180);
+  const keys = ['speedKmh', 'brake', 'throttle', 'x', 'y'];
+  const cols = {speedKmh: 'speed', brake: 'brake', throttle: 'throttle', x: 'lon', y: 'lat'};
+  const out = {stepM: GRID_M};
+  for (const key of keys) out[key] = new Array(n);
+  const sampled = traces.map(tr => {
+    const row = {};
+    for (const key of keys) row[key] = new Float64Array(n);
+    let j = 0;
+    for (let g = 0; g < n; g++) {
+      const m = g * GRID_M;
+      while (j < tr.dist.length - 2 && tr.dist[j + 1] < m) j++;
+      for (const key of keys) row[key][g] = tr[cols[key]][j];
+    }
+    row.x = row.x.map(v => ((v * Math.PI) / 180) * R * cos0);
+    row.y = row.y.map(v => ((v * Math.PI) / 180) * R);
+    return row;
+  });
+  for (let g = 0; g < n; g++) {
+    for (const key of keys) {
+      const v = sampled.map(r => r[key][g]).sort((a, b) => a - b);
+      out[key][g] = v[v.length >> 1];
+    }
+  }
+  return out;
+}
+
 function loadSession(dir) {
   const session = JSON.parse(readFileSync(resolve(dir, 'session.json'), 'utf8'));
   const laps = JSON.parse(readFileSync(resolve(dir, 'laps.json'), 'utf8'));
@@ -116,7 +185,21 @@ function loadSession(dir) {
     if (!existsSync(`${base}.samples.parquet`)) continue;
     cond.set(rec.id, conditions(`${base}.samples.parquet`, `${base}.events.parquet`));
   }
+  let trackCorners = null;
+  let profileLength = 0;
+  const traces = new Map();
+  if (cornerMode === 'track') {
+    for (const lap of laps) {
+      const path = resolve(dir, 'traces', `${lap.id}.csv`);
+      if (lap.distanceM && existsSync(path)) traces.set(lap.id, readTrace(path, lap.distanceM));
+    }
+    const lengths = laps.filter(l => l.comparable).map(l => l.distanceM).sort((a, b) => a - b);
+    profileLength = lengths[lengths.length >> 1];
+    const clean = laps.filter(l => l.comparable && traces.has(l.id) && Math.abs(l.distanceM - profileLength) < profileLength * 0.01);
+    if (clean.length >= 3) trackCorners = findTrackCorners(profileOf(clean.map(l => traces.get(l.id)), profileLength));
+  }
   const stintStart = new Map();
+  let lastWear = null;
   const facts = laps.map(lap => {
     if (!stintStart.has(lap.stint)) stintStart.set(lap.stint, laps.indexOf(lap));
     const c = cond.get(lap.recordingId);
@@ -124,7 +207,21 @@ function loadSession(dir) {
     const t0 = at?.t0;
     let corners = null;
     const trace = resolve(dir, 'traces', `${lap.id}.csv`);
-    if (lap.corners && session.corners && existsSync(trace) && t0 != null) {
+    if (trackCorners && traces.has(lap.id) && !lap.partial) {
+      const tr = traces.get(lap.id);
+      const scale = lap.distanceM / profileLength;
+      const scaledCorners = trackCorners.map(tc => ({...tc, entryM: tc.entryM * scale}));
+      const seg = segmentTimes(scaledCorners, lap.distanceM, tr.timeAt);
+      corners = seg.map((segTime, k) => {
+        const a = tr.timeAt(scaledCorners[k].entryM);
+        return {
+          segTime,
+          localYellowSec: c && t0 != null ? overlap(c.local, t0 + a, t0 + a + segTime) : 0,
+        };
+      });
+    } else if (trackCorners) {
+      corners = null;
+    } else if (lap.corners && session.corners && existsSync(trace) && t0 != null) {
       const windows = cornerWindows(trace, lap.distanceM, session.corners);
       corners = lap.corners.map((cm, k) => ({
         segTime: cm.segTime,
@@ -132,6 +229,12 @@ function loadSession(dir) {
       }));
     } else if (lap.corners) {
       corners = lap.corners.map(cm => ({segTime: cm.segTime, localYellowSec: 0}));
+    }
+    function newTyres(wear) {
+      // Fresh tyres: average wear jumps up from the lap before.
+      const jumped = wear != null && lastWear != null && wear > lastWear + 1;
+      if (wear != null) lastWear = wear;
+      return jumped;
     }
     return {
       id: lap.id,
@@ -144,6 +247,7 @@ function loadSession(dir) {
       pitIn: lap.pitIn,
       pitOut: lap.pitOut,
       start: laps.indexOf(lap) === 0 && !lap.pitOut,
+      newTyres: newTyres(at?.wear),
       offtrack: lap.offtrack,
       impactMax: lap.impactMax || 0,
       tyreCarcassC: at?.carcass ?? null,
@@ -152,7 +256,7 @@ function loadSession(dir) {
       fuel: at?.fuel ?? null,
     };
   });
-  return {session, facts};
+  return {session, facts, trackCorners};
 }
 
 function run(facts, thresholds) {
@@ -187,7 +291,7 @@ for (const id of ids) {
     console.error(id, e.message);
     continue;
   }
-  const {session, facts} = loaded;
+  const {session, facts, trackCorners} = loaded;
   const {reasons, result} = run(facts, defaultThresholds);
   const kinds = new Map(result.laps.map(r => [r.id, r.kind]));
   for (const k of [0.8, 1.2]) {
@@ -221,6 +325,9 @@ for (const id of ids) {
           f.offtrack ? 'off' : '',
         ].join(' '),
       );
+    }
+    if (trackCorners) {
+      for (const tc of trackCorners) console.log(`  corner ${tc.n} ${tc.direction.padEnd(5)} entry ${tc.entryM} turn-in ${tc.turnInM} apex ${tc.apexM} exit ${tc.exitM} min ${tc.minSpeedKmh} km/h${tc.flat ? ' flat' : ''}`);
     }
     console.log(JSON.stringify(result.stints));
     console.log(JSON.stringify(result.corners));
