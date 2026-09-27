@@ -34,15 +34,21 @@ export function useCompareModel(
   const band = useSessionBand(sessionId);
   const map = useSessionMap(sessionId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
-  const grids = useLapTraces(selection.laps, {lengthM, stepM: GRID_STEP_M});
+  // Fetch traces only for ids this session has; a hand-edited URL with
+  // unknown ids would otherwise fire a 404 per id.
+  const knownIds = useMemo(() => {
+    const ids = new Set(laps.data?.map(l => l.id));
+    return selection.laps.filter(id => ids.has(id));
+  }, [laps.data, selection.laps]);
+  const grids = useLapTraces(knownIds, {lengthM, stepM: GRID_STEP_M});
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
-    selection.laps.forEach((id, i) => {
+    knownIds.forEach((id, i) => {
       const g = grids[i];
       if (g) out.set(id, g);
     });
     return out;
-  }, [selection.laps, grids]);
+  }, [knownIds, grids]);
 
   const error = [session, laps].find(q => q.isError)?.error;
   return useMemo(() => {

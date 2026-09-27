@@ -203,6 +203,14 @@ function CompareView({
         />
       ))}
       {model.manyChip && <Chip label={model.manyChip} dashed />}
+      {model.notFound > 0 && (
+        <Chip
+          label={`${model.notFound} lap${
+            model.notFound > 1 ? 's' : ''
+          } not found`}
+          dashed
+        />
+      )}
     </>
   );
   const chips = layout.isDesktop ? (

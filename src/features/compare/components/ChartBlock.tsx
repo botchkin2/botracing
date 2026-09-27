@@ -5,7 +5,7 @@ import {type TraceSeries, TraceChart} from '@/src/charts';
 import {dash, space, useTheme} from '@/src/design';
 import {Explainer, Text} from '@/src/ui';
 
-import {type ChartModel} from '../model';
+import {type ChartModel, drawRank} from '../model';
 
 export type LapStyle = (
   selIndex: number,
@@ -35,7 +35,7 @@ export function ChartBlock({
   onScrub: (m: number) => void;
 }) {
   const {color} = useTheme();
-  // Non-key laps first, so the reference and highlighted lap draw on top.
+  // Other laps first, so the highlighted lap and the reference draw on top.
   const series: TraceSeries[] = chart.lines
     .map(l => {
       const s = lapStyle(l.selIndex, l.highlighted);
@@ -47,10 +47,10 @@ export function ChartBlock({
         opacity: s.opacity,
         dash: OVERLAY_DASH[l.overlay],
         domain: chart.domains[l.channel],
-        top: s.key,
+        rank: drawRank(l),
       };
     })
-    .sort((a, b) => Number(a.top) - Number(b.top));
+    .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
 
   return (

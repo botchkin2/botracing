@@ -212,6 +212,8 @@ export type CompareModel = {
   lengthM: number;
   /** Laps still loading their traces. */
   pending: number;
+  /** Lap ids in the URL that this session doesn't have. */
+  notFound: number;
 };
 
 export type CompareInputs = {
@@ -511,8 +513,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const lines = shown
       .filter(r => traces.has(r.lapId))
       .map(r => ({...r, points: project(traces.get(r.lapId)!, MAP_STRIDE)}))
-      // Key laps are drawn last, on top.
-      .sort((a, b) => Number(a.key) - Number(b.key));
+      // The reference and highlighted lap are drawn last, on top.
+      .sort((a, b) => drawRank(a) - drawRank(b));
     const pointAt = (t: GridTrace, m: number) => {
       const i = gridIndex(t, m);
       return project({...t, lat: [t.lat[i]], lon: [t.lon[i]]}, 1)[0];
@@ -561,8 +563,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     stepM,
     lengthM,
     pending: selected.filter(l => !traces.has(l.id)).length,
+    notFound: selection.laps.length - selected.length,
   };
 }
+
+/** Draw order: other laps, then the highlighted lap, then the reference on top. */
+export const drawRank = (r: {selIndex: number; highlighted: boolean}) =>
+  r.selIndex === 0 ? 2 : r.highlighted ? 1 : 0;
 
 // --- selection edits (pure; the route writes them to the URL) ----------------
 

@@ -147,6 +147,8 @@ describe('buildCompareModel', () => {
     expect(mm.lines).toHaveLength(3);
     expect(mm.dots).toHaveLength(3);
     expect(mm.badges.map(b => b.n)).toEqual([1, 2]);
+    // Reference drawn last (on top), highlighted (L2 by default) just below.
+    expect(mm.lines.map(l => l.label)).toEqual(['L3', 'L2', 'L1']);
   });
 
   it('position row names the corner under the cursor', () => {
@@ -166,6 +168,12 @@ describe('buildCompareModel', () => {
     });
     expect(m.pending).toBe(2);
   });
+});
+
+it('counts ids the session does not have', () => {
+  const m = build(sel({laps: ['a', 'L4', 'b']}));
+  expect(m.notFound).toBe(1);
+  expect(m.chips.map(c => c.label)).toEqual(['L1', 'L2']);
 });
 
 describe('many laps', () => {
