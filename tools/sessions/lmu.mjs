@@ -178,7 +178,10 @@ function isoFromStamp(stamp) {
 function typeLimit(type) {
   if (type === 'INTEGER') return 2 ** 31 - 1;
   const match = type.match(/DECIMAL\((\d+),(\d+)\)/);
-  return match ? 10 ** (Number(match[1]) - Number(match[2])) : Infinity;
+  if (!match) return Infinity;
+  const [p, scale] = [Number(match[1]), Number(match[2])];
+  // The cast rounds, so stay half a step below the largest value it holds.
+  return 10 ** (p - scale) - 0.5 * 10 ** -scale;
 }
 
 // Some channels carry values the unit does not predict: regen in watts under
