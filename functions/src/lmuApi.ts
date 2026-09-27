@@ -2,7 +2,12 @@ import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {existsSync, readFileSync} from 'fs';
 import {join} from 'path';
-import {listLaps, listTracks, readTrace} from './sessionStore';
+import {
+  listLaps,
+  listTracks,
+  readTrace,
+  storeHasSessions,
+} from './sessionStore';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -137,7 +142,7 @@ export const lmuApi = onRequest(async (req, res) => {
         trackIds: trackFilter,
         event: event || undefined,
       });
-      if (stored.length > 0 || (await listTracks()).length > 0) {
+      if (stored.length > 0 || (await storeHasSessions())) {
         res.status(200).json({items: stored, total: stored.length});
         return;
       }

@@ -7,6 +7,8 @@ const OWNER = 'botkin';
 const BUCKET = 'botracing-61-lmu';
 // Firestore caps `in` at 30 values.
 const IN_LIMIT = 30;
+// A request without an age still stops here, never scanning all history.
+const DEFAULT_AGE_DAYS = 30;
 
 // The app filters tracks and cars by number. Same hash the old pack used,
 // so ids stay stable across the switch.
@@ -88,6 +90,18 @@ async function sessionsSince(cutoffIso: string | null): Promise<any[]> {
   return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
 }
 
+// Whether the store has anything yet (the old manifest answers until it does).
+export async function storeHasSessions(): Promise<boolean> {
+  const snap = await admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', OWNER)
+    .limit(1)
+    .select()
+    .get();
+  return !snap.empty;
+}
+
 // Tracks the owner has driven, for the track picker.
 export async function listTracks(): Promise<any[]> {
   const byId = new Map<number, any>();
@@ -111,10 +125,9 @@ export async function listLaps(opts: {
     const doc = await db.collection('sessions').doc(opts.event).get();
     sessions = doc.exists ? [{id: doc.id, ...doc.data()}] : [];
   } else {
-    const cutoff =
-      opts.ageDays && opts.ageDays > 0
-        ? new Date(Date.now() - opts.ageDays * 86400000).toISOString()
-        : null;
+    const days =
+      opts.ageDays && opts.ageDays > 0 ? opts.ageDays : DEFAULT_AGE_DAYS;
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString();
     sessions = await sessionsSince(cutoff);
   }
   if (opts.trackIds && opts.trackIds.length > 0) {
@@ -152,8 +165,11 @@ export async function readTrace(lapId: string): Promise<string | null> {
     .storage()
     .bucket(BUCKET)
     .file(`traces/${OWNER}/${lapId}/v1.csv.gz`);
-  const [exists] = await file.exists();
-  if (!exists) return null;
-  const [body] = await file.download();
-  return body.toString('utf8');
+  try {
+    const [body] = await file.download();
+    return body.toString('utf8');
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
 }
