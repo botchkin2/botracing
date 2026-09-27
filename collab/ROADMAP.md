@@ -15,7 +15,7 @@ Each extension says what the LMU recording already holds. Checked against `Miche
 | Phase | What | State |
 | --- | --- | --- |
 | R1 | LMU laps on the existing compare chart, full rate | done (`8cb988f`…`23d6105`) |
-| R2 | Upload program, plus close-out bugs | upload done for testing. Close-out open. |
+| R2 | Upload program, plus close-out bugs | done 2026-09-27: phone fix, BEST-lap fix, Garage 61 dropped (`a04e5fd`). Botkin tested on the phone. Storage still testing-only. |
 | R3 | Data model, track model, storage | next. Gated: Botkin approves the storage. |
 | R4 | Cleanup | after R3 |
 | R5 | Design: the wow pass | after R4 |
