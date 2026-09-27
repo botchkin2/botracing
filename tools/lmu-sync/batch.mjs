@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {sinceDay} from './window.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -21,6 +22,7 @@ const telemetry =
   process.env.LMU_TELEMETRY ||
   'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\UserData\\Telemetry';
 const quietMs = 3 * 60 * 1000;
+const since = sinceDay();
 const lapsDir = resolve(packDir, 'laps');
 
 mkdirSync(dirname(logPath), {recursive: true});
@@ -57,19 +59,23 @@ const files = readdirSync(telemetry)
   .filter(name => name.endsWith('.duckdb'))
   .map(name => resolve(telemetry, name));
 
-log(`start files=${files.length}`);
+log(`start files=${files.length} since=${since}`);
 let done = 0;
 let skipped = 0;
 let failed = 0;
 
 for (const file of files) {
+  const stamp = stampOf(file);
+  if (!stamp || stamp.slice(0, 8) < since) {
+    skipped++;
+    continue;
+  }
   const stat = statSync(file);
   if (Date.now() - stat.mtimeMs < quietMs) {
     skipped++;
     log(`skip quiet ${file}`);
     continue;
   }
-  const stamp = stampOf(file);
   const packedAt = packMtime(stamp);
   if (packedAt && stat.mtimeMs <= packedAt) {
     skipped++;
