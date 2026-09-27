@@ -1,5 +1,6 @@
 import {apiClient} from '@src/utils/api';
 import {useQuery} from '@tanstack/react-query';
+import {cacheTime} from '@src/utils/queryClient';
 
 // Query keys for consistent cache management
 export const queryKeys = {
@@ -22,7 +23,7 @@ export const useTracks = (options?: {enabled?: boolean}) => {
     queryKey: queryKeys.tracks,
     queryFn: () => apiClient.getTracks(),
     staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 2 * 60 * 60 * 1000,
+    gcTime: cacheTime(2 * 60 * 60 * 1000),
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     enabled: options?.enabled ?? true,
@@ -51,7 +52,7 @@ export const useLaps = (
     queryKey: queryKeys.laps(params),
     queryFn: () => apiClient.getLaps(params),
     staleTime: 15 * 60 * 1000, // 15 minutes - increased
-    gcTime: 60 * 60 * 1000, // 1 hour - increased
+    gcTime: cacheTime(60 * 60 * 1000), // 1 hour - increased
     // Allow refetch on mount if no cached data, but prevent other refetches
     refetchOnMount: false, // Changed to false to prevent automatic refetches
     refetchOnWindowFocus: false,
@@ -70,7 +71,7 @@ export const useTelemetry = (lapId: string, options?: {enabled?: boolean}) => {
       return csvText;
     },
     staleTime: 7 * 24 * 60 * 60 * 1000, // 7 days
-    gcTime: 7 * 24 * 60 * 60 * 1000, // 7 days (keep in cache for 7 days)
+    gcTime: cacheTime(7 * 24 * 60 * 60 * 1000), // 7 days (keep in cache for 7 days)
     // Controlled enabling to prevent premature requests
     enabled: options?.enabled ?? !!lapId,
     refetchOnMount: true,
