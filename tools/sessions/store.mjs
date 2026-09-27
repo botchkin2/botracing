@@ -147,8 +147,13 @@ export async function upload(out, {log = () => {}} = {}) {
   for (const lap of out.laps)
     writer.set(db.collection('laps').doc(lap.id), lap);
   writer.set(db.collection('sessions').doc(session.id), session);
-  if (out.track)
-    writer.set(db.collection('tracks').doc(out.track.id), out.track);
+  // Merge: the track doc also holds fields other tools write (the georef,
+  // centerline, edges, corner names). A new corner map replaces only its own.
+  if (out.track) {
+    writer.set(db.collection('tracks').doc(out.track.id), out.track, {
+      merge: true,
+    });
+  }
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));
