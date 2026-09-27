@@ -169,6 +169,7 @@ export const type = {
   },
   data: {fontFamily: fonts.mono, fontSize: 12, ...tabular},
   dataStrong: {fontFamily: fonts.monoMedium, fontSize: 12, ...tabular},
+  dataSmall: {fontFamily: fonts.mono, fontSize: 11, ...tabular},
   tableHeader: {
     fontFamily: fonts.monoMedium,
     fontSize: 9.5,

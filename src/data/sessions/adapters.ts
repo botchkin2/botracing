@@ -31,6 +31,14 @@ const str = (v: unknown, fallback = ''): string =>
 const num = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
 
+/** Track and car arrive as {name, ...} objects. */
+const name = (v: unknown): string =>
+  typeof v === 'string'
+    ? v
+    : v && typeof v === 'object' && 'name' in v
+    ? str((v as {name: unknown}).name)
+    : '';
+
 function toSessionType(v: unknown): SessionType {
   const t = str(v).toLowerCase();
   if (t.startsWith('r')) return 'R';
@@ -43,8 +51,8 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     id: raw.id,
     sim: str(raw.sim, 'lmu'),
     trackId: str(raw.trackId),
-    track: str(raw.track),
-    car: str(raw.car),
+    track: name(raw.track),
+    car: name(raw.car),
     sessionType: toSessionType(raw.sessionType),
     startedAt: str(raw.startedAt),
     lapCount: num(raw.lapCount) ?? 0,

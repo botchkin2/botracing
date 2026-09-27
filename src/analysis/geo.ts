@@ -46,7 +46,10 @@ export const LMU_FAKE_ORIGIN: LatLon = {lat: 60, lon: 0};
 // under a metre over a race track.
 export function toLocalMetres(p: LatLon, origin: LatLon): Xy {
   return {
-    x: (p.lon - origin.lon) * M_PER_DEG_LON_EQUATOR * Math.cos((origin.lat * Math.PI) / 180),
+    x:
+      (p.lon - origin.lon) *
+      M_PER_DEG_LON_EQUATOR *
+      Math.cos((origin.lat * Math.PI) / 180),
     y: (p.lat - origin.lat) * M_PER_DEG_LAT,
   };
 }
@@ -54,13 +57,18 @@ export function toLocalMetres(p: LatLon, origin: LatLon): Xy {
 export function fromLocalMetres(p: Xy, origin: LatLon): LatLon {
   return {
     lat: origin.lat + p.y / M_PER_DEG_LAT,
-    lon: origin.lon + p.x / (M_PER_DEG_LON_EQUATOR * Math.cos((origin.lat * Math.PI) / 180)),
+    lon:
+      origin.lon +
+      p.x / (M_PER_DEG_LON_EQUATOR * Math.cos((origin.lat * Math.PI) / 180)),
   };
 }
 
 // A trace's points in local metres around the fake origin: the plain map,
 // correct in shape and size, for any track with or without a georef.
-export function traceToLocalMetres(points: LatLon[], origin: LatLon = LMU_FAKE_ORIGIN): Xy[] {
+export function traceToLocalMetres(
+  points: LatLon[],
+  origin: LatLon = LMU_FAKE_ORIGIN,
+): Xy[] {
   return points.map(p => toLocalMetres(p, origin));
 }
 
@@ -74,12 +82,18 @@ export function applyGeoref(points: LatLon[], g: Georef): LatLon[] {
   return points.map(p => {
     const m = toLocalMetres(p, fake);
     const x = m.x * g.mirror;
-    return fromLocalMetres({x: x * cos - m.y * sin, y: x * sin + m.y * cos}, origin);
+    return fromLocalMetres(
+      {x: x * cos - m.y * sin, y: x * sin + m.y * cos},
+      origin,
+    );
   });
 }
 
 // Whether a track may be drawn over a real basemap.
-export function canDrawOnRealMap(quality: GeorefQuality | null | undefined, g: Georef | null | undefined): boolean {
+export function canDrawOnRealMap(
+  quality: GeorefQuality | null | undefined,
+  g: Georef | null | undefined,
+): boolean {
   return quality === 'good' && g != null && g.mirror === 1;
 }
 

@@ -5,7 +5,7 @@ import {
   type SessionSummary,
   useSessions,
 } from '@/src/data/sessions';
-import {formatLapTime} from '@/src/design';
+import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
 
 // Sessions screen view model: sessions grouped by local day, newest first.
 // buildSessionsModel is pure and unit-tested; useSessionsModel wires it to data.
@@ -14,7 +14,6 @@ export type SessionRow = {
   id: string;
   badge: SessionType;
   track: string;
-  typeLabel: string;
   subline: string;
   laps: string;
   best: string;
@@ -34,12 +33,6 @@ export type SessionsModel =
   | {state: 'error'; message: string}
   | {state: 'empty'}
   | {state: 'ready'; days: DayGroup[]};
-
-const TYPE_LABEL: Record<SessionType, string> = {
-  R: 'Race',
-  Q: 'Qualifying',
-  P: 'Practice',
-};
 
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -87,12 +80,14 @@ export function buildSessionsModel(
       };
       groups.set(key, group);
     }
+    const car = carLabel(s.car);
     group.rows.push({
       id: s.id,
       badge: s.sessionType,
-      track: s.track,
-      typeLabel: TYPE_LABEL[s.sessionType],
-      subline: `${hhmm(started)} · ${s.car}`,
+      track: shortTrackName(s.track),
+      subline: [hhmm(started), car.model, car.entry]
+        .filter(Boolean)
+        .join(' · '),
       laps: String(s.lapCount),
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),

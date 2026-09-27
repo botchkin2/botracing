@@ -21,7 +21,7 @@
       "package": "com.anonymous.botracing61"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png",
       "build": {
         "babel": {
