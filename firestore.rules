@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// The app never talks to Firestore directly. It reads through the lmuApi
+// function, which uses the Admin SDK and bypasses these rules. The PC
+// uploader writes with Admin credentials too. So clients get nothing.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
