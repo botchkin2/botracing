@@ -27,9 +27,6 @@ export interface CornerFacts {
   minSpeedKmh?: number | null;
   brakeAtM?: number | null;
   fullThrottleAtM?: number | null;
-  // The last corner of a lap with no lap straight after it: its exit is
-  // estimated from this lap's own start.
-  approximate?: boolean;
 }
 
 export interface LapFacts {

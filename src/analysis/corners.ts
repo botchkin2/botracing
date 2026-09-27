@@ -361,7 +361,8 @@ export function findTrackCorners(
 }
 
 // Time spent in each corner's segment, entry to next entry. The last
-// segment wraps over the line to the first corner's entry.
+// segment is this lap's last entry to the line plus its run from the line
+// to the first entry, so the segments add up to the lap time.
 export function segmentTimes(
   corners: TrackCorner[],
   lengthM: number,
