@@ -529,7 +529,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       lines,
       dots: keyRefs
         .filter(r => traces.has(r.lapId))
-        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)})),
+        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
+        // Same order as the lines: the reference dot on top.
+        .sort((a, b) => drawRank(a) - drawRank(b)),
       badges: (map?.sections ?? []).map(s => ({
         n: s.n,
         at: pointAt(refTrace, s.apexM),
