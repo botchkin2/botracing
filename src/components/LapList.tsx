@@ -2,7 +2,6 @@ import {useLaps, useTracks} from '@src/hooks/useApiQueries';
 import {RacingTheme} from '@src/theme';
 import {ApiError, Lap} from '@src/types';
 import {trackMatchesSearch} from '@src/utils/trackNicknames';
-import {useRouter} from 'expo-router';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
@@ -61,11 +60,10 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
   const [loading, setLoading] = useState(true);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const router = useRouter();
   const [eventGroups, setEventGroups] = useState<EventGroup[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<number>(1); // Default to 1 day (24h)
-  const [source, setSource] = useState<'garage61' | 'lmu'>('garage61');
+  // Uploads keep seven days, so show all of them by default.
+  const [selectedTimeRange, setSelectedTimeRange] = useState<number>(7);
   const [selectedTrackIds, setSelectedTrackIds] = useState<number[]>([]);
   const [trackSearch, setTrackSearch] = useState('');
   const [fadeAnim] = useState(new Animated.Value(1));
@@ -73,14 +71,14 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
 
   const {data: tracksResponse, isLoading: tracksLoading} = useTracks({
     enabled: queryEnabled,
-    source,
   });
   const tracks = tracksResponse?.items ?? [];
 
+  // Every uploaded track starts selected.
   useEffect(() => {
-    if (source !== 'lmu' || tracks.length === 0) return;
+    if (tracks.length === 0) return;
     setSelectedTrackIds(tracks.map(track => track.id));
-  }, [source, tracks]);
+  }, [tracks]);
 
   // Group tracks by name (same venue, multiple variants)
   const tracksByName = useMemo(() => {
@@ -217,9 +215,8 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       drivers: 'me',
       group: 'none',
       tracks: selectedTrackIds.length > 0 ? selectedTrackIds : undefined,
-      source,
     }),
-    [selectedTimeRange, selectedTrackIds, source],
+    [selectedTimeRange, selectedTrackIds],
   );
 
   const lapsQueryEnabled = queryEnabled && selectedTrackIds.length > 0;
@@ -331,62 +328,16 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
     );
   }
 
-  const sourceSwitch = (
-    <View style={styles.trackSelectorActions}>
-      {(
-        [
-          ['garage61', 'iRacing'],
-          ['lmu', 'LMU'],
-        ] as const
-      ).map(([id, label]) => (
-        <TouchableOpacity
-          key={id}
-          onPress={() => {
-            setSource(id);
-            setSelectedTrackIds([]);
-            setError(null);
-          }}
-          style={styles.trackSelectorActionBtn}>
-          <Text
-            style={[
-              styles.trackSelectorActionText,
-              source === id && {color: RacingTheme.colors.primary},
-            ]}>
-            {label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
   if (error) {
-    const garageSignIn = source !== 'lmu' && error.status === 401;
     return (
       <View style={styles.mainContainer}>
         <View style={styles.fullHeightContainer}>
-          {sourceSwitch}
           <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>
-              {garageSignIn
-                ? 'SIGN IN REQUIRED'
-                : source === 'lmu'
-                  ? 'LMU LAPS UNAVAILABLE'
-                  : 'TELEMETRY ERROR'}
-            </Text>
-            <Text style={styles.errorSubtext}>
-              {garageSignIn
-                ? 'Garage 61 needs a sign-in. LMU laps are on the switch above.'
-                : error.message}
-            </Text>
+            <Text style={styles.errorText}>LAPS UNAVAILABLE</Text>
+            <Text style={styles.errorSubtext}>{error.message}</Text>
             <RacingButton
-              title={garageSignIn ? 'SIGN IN WITH GARAGE 61' : 'RETRY CONNECTION'}
-              onPress={() => {
-                if (garageSignIn) {
-                  router.replace('/driver-profile');
-                } else {
-                  refetch();
-                }
-              }}
+              title='RETRY CONNECTION'
+              onPress={() => refetch()}
               style={styles.refreshButton}
             />
           </View>
@@ -451,8 +402,6 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
                 </Text>
               </View>
             )}
-
-            {sourceSwitch}
 
             {/* Searchable track selector - laps API requires track filter */}
             <View style={styles.trackSelectorSection}>

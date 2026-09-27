@@ -1,46 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_CONFIG} from '@src/config/api';
-import {
-  ApiError,
-  Garage61User,
-  LapsResponse,
-  TrackInfo,
-  TracksResponse,
-} from '@src/types';
+import {ApiError, LapsResponse, TrackInfo, TracksResponse} from '@src/types';
 import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
 import * as FileSystem from 'expo-file-system';
-import {Platform} from 'react-native';
-import {refreshAuthTokens} from './auth';
-import {
-  getStoredAccessToken,
-  getStoredExpiresAt,
-  getStoredRefreshToken,
-  setStoredTokens,
-} from './oauthStorage';
 
-// Configure API endpoints
-const FIREBASE_HOSTING_URL = 'https://botracing-61.web.app/api/garage61'; // For all platforms
-
-// Local dev: set EXPO_PUBLIC_GARAGE61_API_BASE in .env.local to hit the Functions emulator
+// Laps uploaded from the PC, served by the lmuApi function.
+// Local dev: set EXPO_PUBLIC_LMU_API_BASE (tools/lmu-sync/serve.mjs).
 const API_BASE_URL =
-  (typeof process !== 'undefined' &&
-    process.env?.EXPO_PUBLIC_GARAGE61_API_BASE) ||
-  FIREBASE_HOSTING_URL;
-
-export type DataSource = 'garage61' | 'lmu';
-
-function baseFor(source: DataSource): string {
-  if (source !== 'lmu') return API_BASE_URL;
-  const override =
-    typeof process !== 'undefined'
-      ? process.env?.EXPO_PUBLIC_LMU_API_BASE
-      : undefined;
-  if (override) return override;
-  return API_BASE_URL.replace(/\/api\/garage61\/?$/, '/api/lmu').replace(
-    /\/garage61Proxy\/?$/,
-    '/lmuApi',
-  );
-}
+  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_LMU_API_BASE) ||
+  'https://botracing-61.web.app/api/lmu';
 
 // Global request cache to ensure proper deduplication
 // For React Native, we use a module-level variable since HMR works differently
@@ -253,98 +221,21 @@ class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
-    console.log(
-      `🚗 API Client initialized with Firebase proxy: ${API_BASE_URL}`,
-    );
-
     this.client = axios.create({
       baseURL: API_BASE_URL,
       headers: {
         'Content-Type': 'application/json',
       },
       timeout: API_CONFIG.TIMEOUT,
-      // Web: send session cookie so the proxy uses the OAuth session instead of fallback token
-      withCredentials: Platform.OS === 'web',
     });
 
-    if (Platform.OS === 'web' && API_BASE_URL !== FIREBASE_HOSTING_URL) {
-      console.warn(
-        '⚠️ API base is not production. Session cookie is set for botracing-61.web.app; if you get 401, ensure EXPO_PUBLIC_GARAGE61_API_BASE is unset so requests (and cookies) go to the same origin.',
-      );
-    }
-
-    // Add request interceptor: send OAuth Bearer token when available (mobile)
-    this.client.interceptors.request.use(async config => {
-      const fullUrl = config.baseURL + config.url;
-      console.log(
-        `🌐 Firebase Proxy API Request: ${config.method?.toUpperCase()} ${fullUrl}`,
-      );
-      const token = await this.getStoredToken();
-      if (token && token !== 'firebase-proxy-auth') {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
-
-    // Response interceptor for logging and error handling
     this.client.interceptors.response.use(
-      response => {
-        const fullUrl = response.config.baseURL + response.config.url;
-        console.log(
-          `✅ Firebase Proxy API Response: ${response.config.method?.toUpperCase()} ${fullUrl} - Status: ${
-            response.status
-          }`,
-        );
-
-        // Log response data summary for debugging
-        if (response.data) {
-          const dataType = Array.isArray(response.data)
-            ? 'array'
-            : typeof response.data;
-          const dataSize = JSON.stringify(response.data).length;
-          console.log(
-            `📦 Response data: ${dataType}, ~${Math.round(dataSize / 1024)}KB`,
-          );
-
-          if (response.data.items && Array.isArray(response.data.items)) {
-            console.log(
-              `📊 Found ${response.data.items.length} items in response`,
-            );
-          }
-        }
-
-        return response;
-      },
+      response => response,
       async (error: AxiosError) => {
         const fullUrl = error.config?.baseURL + error.config?.url;
-        const status = error.response?.status;
-
-        // On 401, try to refresh OAuth token (mobile) and retry once
-        if (status === 401 && error.config && Platform.OS !== 'web') {
-          const refreshToken = await getStoredRefreshToken();
-          if (refreshToken) {
-            try {
-              const data = await refreshAuthTokens({
-                refresh_token: refreshToken,
-              });
-              await setStoredTokens(data);
-              if (error.config.headers) {
-                error.config.headers.Authorization = `Bearer ${data.access_token}`;
-              }
-              return this.client.request(error.config);
-            } catch {
-              // Refresh failed; fall through to reject
-            }
-          }
-        }
-
-        // Don't redirect or invalidate here—avoids render loops. Let the UI show "Sign in" and user tap to go to /driver-profile.
-
-        console.error(`❌ Firebase Proxy API Error for ${fullUrl}:`, {
+        console.error(`API error for ${fullUrl}:`, {
           message: error.message,
-          code: error.code,
           status: error.response?.status,
-          statusText: error.response?.statusText,
           details: error.response?.data,
         });
 
@@ -352,27 +243,12 @@ class ApiClient {
           message: error.message || 'An unexpected error occurred',
           code: error.code,
           details: error.response?.data,
-          status: status,
+          status: error.response?.status,
         };
 
         return Promise.reject(apiError);
       },
     );
-  }
-
-  private async getStoredToken(): Promise<string | null> {
-    // Web: proxy uses session cookie or fallback token
-    if (Platform.OS === 'web') {
-      return 'firebase-proxy-auth';
-    }
-    // Mobile: use OAuth access token from SecureStore if present and not expired
-    const accessToken = await getStoredAccessToken();
-    if (!accessToken) return 'firebase-proxy-auth';
-    const expiresAt = await getStoredExpiresAt();
-    if (expiresAt != null && Date.now() >= expiresAt - 60 * 1000) {
-      return 'firebase-proxy-auth'; // Expired; refresh will be tried on 401
-    }
-    return accessToken;
   }
 
   // Deduplicate requests to prevent redundant API calls
@@ -412,17 +288,11 @@ class ApiClient {
     return requestPromise;
   }
 
-  // Get current user information
-  async getCurrentUser(): Promise<Garage61User> {
-    return this.deduplicatedRequest<Garage61User>('GET', '/me');
-  }
-
   // Get tracks (required for laps API: laps must be requested per track)
-  async getTracks(source: DataSource = 'garage61'): Promise<TracksResponse> {
+  async getTracks(): Promise<TracksResponse> {
     const raw = await this.deduplicatedRequest<TracksResponse | TrackInfo[]>(
       'GET',
       '/tracks',
-      {baseURL: baseFor(source)},
     );
     if (Array.isArray(raw)) {
       return {items: raw};
@@ -444,7 +314,6 @@ class ApiClient {
     minLapTime?: number;
     maxLapTime?: number;
     group?: 'driver' | 'driver-car' | 'none'; // API grouping option
-    source?: DataSource;
   }): Promise<LapsResponse> {
     // Convert array parameters to comma-separated strings for GET requests
     const processedParams = {
@@ -460,9 +329,7 @@ class ApiClient {
       ...processedParams,
     };
 
-    const source = params?.source === 'lmu' ? 'lmu' : 'garage61';
     return this.deduplicatedRequest<LapsResponse>('GET', '/laps', {
-      baseURL: baseFor(source),
       params: queryParams,
     });
   }
@@ -499,7 +366,6 @@ class ApiClient {
     // Extract lap ID from endpoint (assuming format: /laps/{lapId}/csv)
     const lapIdMatch = endpoint.match(/\/laps\/([^\/]+)\/csv/);
     const lapId = lapIdMatch ? lapIdMatch[1] : null;
-    const source: DataSource = lapId?.startsWith('lmu-') ? 'lmu' : 'garage61';
 
     // Try to load from cache first (if enabled and we have a lap ID)
     if (useCache && lapId && !skipCache) {
@@ -531,7 +397,6 @@ class ApiClient {
           'GET',
           endpoint,
           {
-            baseURL: baseFor(source),
             responseType: 'text',
             headers: {
               Accept: 'text/csv',
@@ -906,66 +771,6 @@ class ApiClient {
         files: [],
       };
     }
-  }
-
-  // Check if API is configured (always true for Firebase proxy)
-  async isTokenConfigured(): Promise<boolean> {
-    // Firebase proxy authentication is always configured
-    return true;
-  }
-
-  // Check if API is accessible
-  async ping(): Promise<boolean> {
-    try {
-      const token = await this.getStoredToken();
-      if (!token) {
-        return false;
-      }
-      await this.client.get('/me');
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // Test API connectivity and suggest solutions
-  async diagnoseConnection(): Promise<{
-    firebaseProxy: boolean;
-    directApi: boolean;
-    recommendation: string;
-  }> {
-    const results = {
-      firebaseProxy: false,
-      directApi: false,
-      recommendation: '',
-    };
-
-    const token = await this.getStoredToken();
-    if (!token) {
-      results.recommendation =
-        'Authentication not configured. Please contact support if this issue persists.';
-      return results;
-    }
-
-    // Always using Firebase proxy now
-    try {
-      console.log(
-        `Testing Firebase proxy connection: ${FIREBASE_HOSTING_URL}/me`,
-      );
-      await axios.get(FIREBASE_HOSTING_URL + '/me', {
-        timeout: 5000,
-      });
-      results.firebaseProxy = true;
-      console.log('✅ Firebase proxy works');
-      results.recommendation =
-        'Using Firebase proxy - should work on all platforms.';
-    } catch (error) {
-      console.log('❌ Firebase proxy failed:', error.message);
-      results.recommendation =
-        'Firebase proxy not accessible. Check Firebase function deployment and network.';
-    }
-
-    return results;
   }
 }
 

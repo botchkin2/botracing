@@ -1,5 +1,4 @@
 import {RacingTheme} from '@src/theme';
-import {useAuth} from '@src/utils/authContext';
 import {usePathname, useRouter} from 'expo-router';
 import React, {useState} from 'react';
 import {
@@ -19,7 +18,6 @@ const {width} = Dimensions.get('window');
 
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Racing Analytics',
-  '/driver-profile': 'Driver Profile',
   '/session-analysis': 'Session Analysis',
   '/multi-lap-comparison': 'Multi-Lap Comparison',
   '/cache-management': 'Cache Management',
@@ -27,7 +25,6 @@ const ROUTE_TITLES: Record<string, string> = {
 
 const ROUTE_TO_SCREEN_ID: Record<string, string> = {
   '/': 'index',
-  '/driver-profile': 'driver',
   '/session-analysis': 'index',
   '/multi-lap-comparison': 'index',
   '/cache-management': 'cache',
@@ -42,14 +39,12 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   {id: 'index', label: 'Lap Analysis', icon: '🏁', path: '/'},
-  {id: 'driver', label: 'Driver Profile', icon: '👤', path: '/driver-profile'},
   {id: 'cache', label: 'Cache Manager', icon: '💾', path: '/cache-management'},
 ];
 
 const WebHeader: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const {hasOAuthSession, signIn, signOut} = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
 
@@ -154,27 +149,6 @@ const WebHeader: React.FC = () => {
                 ))}
               </View>
               <View style={styles.menuFooter}>
-                {hasOAuthSession ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      closeMenu();
-                      signOut();
-                    }}
-                    style={styles.authButton}>
-                    <Text style={styles.authButtonText}>Sign out</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => {
-                      closeMenu();
-                      signIn();
-                    }}
-                    style={styles.authButton}>
-                    <Text style={styles.authButtonText}>
-                      Sign in with Garage 61
-                    </Text>
-                  </TouchableOpacity>
-                )}
                 <Text style={styles.versionText}>Lap Analysis v1.0</Text>
               </View>
             </Animated.View>
@@ -313,15 +287,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: RacingTheme.colors.surfaceElevated,
-  },
-  authButton: {
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
-  authButtonText: {
-    fontSize: 14,
-    color: RacingTheme.colors.primary,
-    textAlign: 'center',
   },
   versionText: {
     fontSize: 12,

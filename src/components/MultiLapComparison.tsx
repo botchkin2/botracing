@@ -115,14 +115,9 @@ const MultiLapComparison: React.FC<MultiLapComparisonProps> = ({
                 : undefined,
             unclean: true,
             group: 'none',
-            source: sessionData.track?.platform === 'lmu' ? 'lmu' : 'garage61',
           }
         : undefined,
-    [
-      sessionData?.eventId,
-      sessionData?.track?.id,
-      sessionData?.track?.platform,
-    ],
+    [sessionData?.eventId, sessionData?.track?.id],
   );
 
   // Use cached laps query - only when sessionData is available
