@@ -36,10 +36,7 @@ interface MultiLapComparisonProps {
   selectedLapIds?: Set<string>;
 }
 
-function defaultLapIds(
-  items: Lap[],
-  sessionData?: SessionData,
-): Set<string> {
+function defaultLapIds(items: Lap[], sessionData?: SessionData): Set<string> {
   const lmu = sessionData?.track?.platform === 'lmu';
   return new Set(
     items
@@ -157,11 +154,15 @@ const MultiLapComparison: React.FC<MultiLapComparisonProps> = ({
     return () => subscription?.remove();
   }, []);
 
-  // Get selected laps (memoized to prevent infinite re-renders)
+  // Get selected laps (memoized to prevent infinite re-renders).
+  // The first lap is the chart's reference, so timed laps always come before
+  // partial and untimed ones: a half lap is never the reference.
   const selectedLaps = useMemo(() => {
+    const timed = (lap: Lap) => lap.lapTime > 0 && !lap.incomplete;
     return laps
       .filter(lap => internalSelectedLapIds.has(lap.id))
       .sort((a, b) => {
+        if (timed(a) !== timed(b)) return timed(a) ? -1 : 1;
         let comparison = 0;
         if (sortBy === 'time') {
           comparison = a.lapTime - b.lapTime;
