@@ -28,7 +28,7 @@ Add to PATH: `%ANDROID_HOME%\platform-tools`
 Through Android Studio's SDK Manager, install the platform and build-tools that match your Expo SDK version:
 
 - Expo 54 / React Native 0.81: Android SDK Platform **36**, Build-Tools 36.x
-- Expo 55+: check `docs/LMU_SYNC_NOTES.md` or the [Expo SDK docs](https://docs.expo.dev) for the target version
+- Expo 55+: check the [Expo SDK docs](https://docs.expo.dev) for the target version
 - **Android SDK Platform-Tools** (adb, fastboot)
 
 Minimum SDK is API 24.
