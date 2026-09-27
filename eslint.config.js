@@ -57,6 +57,8 @@ module.exports = defineConfig([
   // listed; they are deleted as the new screens replace them.
   {
     files: ['src/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],
+    // Tests may import the test runner and fixtures.
+    ignores: ['**/*.test.{ts,tsx}'],
     rules: {
       'import/no-restricted-paths': [
         'error',

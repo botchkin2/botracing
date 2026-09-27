@@ -48,7 +48,7 @@ export function LapTimeBars({
 }) {
   const {color} = useTheme();
   const n = Math.max(1, bars.length);
-  const plotW = width - GUTTER_W;
+  const plotW = Math.max(0, width - GUTTER_W);
   const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
   const plotBottom = height - STUB_BOTTOM - STUB_H - 4;

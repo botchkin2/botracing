@@ -2,7 +2,13 @@ import {useQuery} from '@tanstack/react-query';
 
 import {retryUnlessClientError} from '../http';
 
-import {fetchSession, fetchSessionLaps, fetchSessions} from './client';
+import {
+  fetchSession,
+  fetchSessionBand,
+  fetchSessionLaps,
+  fetchSessionMap,
+  fetchSessions,
+} from './client';
 import {type SessionFilter, sessionKeys} from './keys';
 
 // A session is rewritten only by a resync, so detail data stays fresh for a
@@ -31,6 +37,24 @@ export function useSessionLaps(id: string) {
   return useQuery({
     queryKey: sessionKeys.laps(id),
     queryFn: ({signal}) => fetchSessionLaps(id, signal),
+    staleTime: DETAIL_STALE_MS,
+    retry: retryUnlessClientError,
+  });
+}
+
+export function useSessionBand(id: string) {
+  return useQuery({
+    queryKey: sessionKeys.band(id),
+    queryFn: ({signal}) => fetchSessionBand(id, signal),
+    staleTime: DETAIL_STALE_MS,
+    retry: retryUnlessClientError,
+  });
+}
+
+export function useSessionMap(id: string) {
+  return useQuery({
+    queryKey: sessionKeys.map(id),
+    queryFn: ({signal}) => fetchSessionMap(id, signal),
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
