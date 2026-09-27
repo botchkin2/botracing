@@ -7,6 +7,11 @@
 // the driver brakes, lifts, or turns in) to the next corner's entry, so a
 // slow exit is charged to the corner that caused it, straight included.
 //
+// Analysis works on sections, not single corners: corners that run into
+// each other (a crest into a braking zone into an ess) are one section, so
+// every section is at least a few seconds long. The single corners stay
+// inside each section as its parts, for drilling in.
+//
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
 export interface Profile {
@@ -22,7 +27,7 @@ export interface Profile {
 
 export interface TrackCorner {
   n: number;
-  direction: 'left' | 'right';
+  direction: 'left' | 'right' | 'mixed';
   // Where this corner's segment starts: brake, lift, or turn-in.
   entryM: number;
   turnInM: number;
@@ -31,6 +36,8 @@ export interface TrackCorner {
   // Taken without braking or lifting.
   flat: boolean;
   minSpeedKmh: number;
+  // For a section: the single corners it is made of, numbered along the lap.
+  parts?: TrackCorner[];
 }
 
 export interface CornerOptions {
@@ -41,6 +48,8 @@ export interface CornerOptions {
   minLengthM: number;
   // How far before turn-in to look for the brake or lift.
   lookBackM: number;
+  // A section is at least this long, at median pace.
+  minSectionSec: number;
 }
 
 export const defaultCornerOptions: CornerOptions = {
@@ -48,7 +57,88 @@ export const defaultCornerOptions: CornerOptions = {
   peakCurv: 1 / 220,
   minLengthM: 30,
   lookBackM: 250,
+  minSectionSec: 6,
 };
+
+// The track's sections: its corners, grouped until every section is at least
+// minSectionSec long. The shortest section merges first, into the neighbour
+// across the gentler boundary (the smaller speed drop into the next corner),
+// so a flowing complex stays together and a heavy braking zone stays a
+// boundary. Nothing merges across the start/finish line.
+export function findTrackSections(
+  p: Profile,
+  o: CornerOptions = defaultCornerOptions,
+): TrackCorner[] {
+  const corners = findTrackCorners(p, o);
+  if (corners.length < 2) return corners.map(c => ({...c, parts: [c]}));
+  const lengthM = (p.speedKmh.length - 1) * p.stepM;
+  const at = (m: number) =>
+    Math.min(p.speedKmh.length - 1, Math.max(0, Math.round(m / p.stepM)));
+  const secondsBetween = (a: number, b: number) => {
+    let total = 0;
+    for (let g = at(a); g < at(b); g++) {
+      total += p.stepM / Math.max(1, p.speedKmh[g] / 3.6);
+    }
+    return total;
+  };
+  const segSec = corners.map((c, k) =>
+    k + 1 < corners.length
+      ? secondsBetween(c.entryM, corners[k + 1].entryM)
+      : secondsBetween(c.entryM, lengthM) +
+        secondsBetween(0, corners[0].entryM),
+  );
+  // How hard the car slows into each corner: the fastest point since the
+  // previous corner's exit, minus this corner's minimum speed.
+  const dropInto = corners.map((c, k) => {
+    const from = k ? corners[k - 1].exitM : 0;
+    let peak = 0;
+    for (let g = at(from); g <= at(c.turnInM); g++) {
+      peak = Math.max(peak, p.speedKmh[g]);
+    }
+    return Math.max(0, peak - c.minSpeedKmh);
+  });
+  const groups = corners.map((_, k) => ({first: k, last: k, sec: segSec[k]}));
+  for (;;) {
+    let shortest = -1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].sec >= o.minSectionSec) continue;
+      if (shortest < 0 || groups[i].sec < groups[shortest].sec) shortest = i;
+    }
+    if (shortest < 0 || groups.length < 2) break;
+    const g = groups[shortest];
+    const left = shortest > 0 ? dropInto[g.first] : Infinity;
+    const right =
+      shortest + 1 < groups.length
+        ? dropInto[groups[shortest + 1].first]
+        : Infinity;
+    const into = left <= right ? shortest - 1 : shortest + 1;
+    const a = groups[Math.min(shortest, into)];
+    const b = groups[Math.max(shortest, into)];
+    groups.splice(Math.min(shortest, into), 2, {
+      first: a.first,
+      last: b.last,
+      sec: a.sec + b.sec,
+    });
+  }
+  return groups.map((g, i) => {
+    const parts = corners.slice(g.first, g.last + 1);
+    const slowest = parts.reduce((a, b) =>
+      b.minSpeedKmh < a.minSpeedKmh ? b : a,
+    );
+    const dirs = new Set(parts.map(c => c.direction));
+    return {
+      n: i + 1,
+      direction: dirs.size === 1 ? parts[0].direction : 'mixed',
+      entryM: parts[0].entryM,
+      turnInM: parts[0].turnInM,
+      apexM: slowest.apexM,
+      exitM: parts[parts.length - 1].exitM,
+      flat: parts.every(c => c.flat),
+      minSpeedKmh: slowest.minSpeedKmh,
+      parts,
+    };
+  });
+}
 
 export function curvature(p: Profile): number[] {
   const n = p.x.length;

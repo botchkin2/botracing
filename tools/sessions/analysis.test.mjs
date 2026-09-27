@@ -6,7 +6,11 @@ import {
   normalRacing,
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
-import {findTrackCorners, segmentTimes} from '../../src/analysis/corners.ts';
+import {
+  findTrackCorners,
+  findTrackSections,
+  segmentTimes,
+} from '../../src/analysis/corners.ts';
 
 // Deterministic noise, so a failure reproduces.
 function noise(seed) {
@@ -247,4 +251,56 @@ test('a damaged car alternating around the far-off-pace cut stays one stretch', 
       i % 2 ? ['far-off-pace'] : ['damage'],
     );
   }
+});
+
+test('a switch to wets in the rain is conditions, not cold tyres, damage or far off pace', () => {
+  const dry = stint({laps: 12, slope: 0}).map(l => ({...l, compound: '0/0'}));
+  const wet = stint({laps: 14, stint: 2, slope: 0, seed: 5}).map(l =>
+    addLoss({...l, compound: '1/1', wetness: 12, tyreCarcassC: 62}, 5, 9),
+  );
+  wet[0] = {...wet[0], pitOut: true};
+  wet[4] = {...wet[4], offTrackSec: 5, lapTime: wet[4].lapTime + 15};
+  const {reasons, damage} = selectNormalRacing([...dry, ...wet]);
+  for (const l of wet.slice(5)) assert.deepEqual(reasons.get(l.id), []);
+  assert.ok(damage.every(d => !d.flagged));
+});
+
+test('a section best skips an off-track pass but keeps the rest of that lap', () => {
+  const laps = stint({laps: 10, slope: 0});
+  // Lap 3 is fastest everywhere, but went off in section 2.
+  laps[2] = {
+    ...laps[2],
+    corners: laps[2].corners.map((c, k) => ({
+      ...c,
+      segTime: c.segTime - 0.5,
+      offTrackSec: k === 1 ? 1.2 : 0,
+    })),
+    lapTime: laps[2].lapTime - 2.5,
+  };
+  const r = analyzeConsistency(laps);
+  assert.equal(r.corners[0].bestLap, 3);
+  assert.notEqual(r.corners[1].bestLap, 3);
+  assert.equal(r.corners[2].bestLap, 3);
+  assert.ok(r.summary.optimalLap > r.summary.bestLap);
+});
+
+test('short corners group into sections across the gentler boundary', () => {
+  const p = track([
+    {length: 500, brakeLast: 100},
+    {length: 90, radius: 50, left: false}, // hard braking corner
+    {length: 60},
+    {length: 60, radius: 60, left: true}, // flowing, no brake: joins it
+    {length: 400, brakeLast: 100},
+    {length: 120, radius: 60, left: false},
+    {length: 600},
+  ]);
+  const corners = findTrackCorners(p);
+  const sections = findTrackSections(p);
+  assert.equal(corners.length, 3);
+  assert.equal(sections.length, 2);
+  assert.deepEqual(
+    sections[0].parts.map(c => c.direction),
+    ['right', 'left'],
+  );
+  assert.equal(sections[0].direction, 'mixed');
 });

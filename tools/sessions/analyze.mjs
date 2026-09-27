@@ -23,7 +23,7 @@ import {
   analyzeConsistency,
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
-import {findTrackCorners} from '../../src/analysis/corners.ts';
+import {findTrackSections} from '../../src/analysis/corners.ts';
 
 export const analysisVersion = 2;
 
@@ -120,6 +120,8 @@ const eventKinds = [
   'sector1_flag',
   'sector2_flag',
   'sector3_flag',
+  'tyres_compound',
+  'minimum_path_wetness',
 ];
 
 // A slower channel is stored held at the base rate. Its real sample k starts
@@ -353,6 +355,8 @@ function analyzeLap(rec, seg, pits, flags) {
 
   // Conditions the lap was driven in.
   const carcass = mean4(s, 'tyres_carcass_temp', i0, i1);
+  const compoundAt = valueAt(events.tyres_compound, seg.start + 1);
+  const wetness = maxIn(events.minimum_path_wetness, seg.start, seg.end);
   const wearStart = mean4(s, 'tyres_wear', i0, i0);
 
   // In: entered the pits during this lap. Out: left them during this lap.
@@ -384,6 +388,10 @@ function analyzeLap(rec, seg, pits, flags) {
     tyreCarcassC: round(carcass, 1),
     wearStart,
     courseYellowSec: round(overlap(flags.course, seg.start, seg.end), 2),
+    compound: compoundAt
+      ? `${compoundAt.v}/${compoundAt.v2 ?? compoundAt.v}`
+      : null,
+    wetness: wetness == null ? null : round(wetness, 1),
     sectors: sectorTimes(
       events,
       seg.start,
@@ -438,6 +446,27 @@ function mean4(s, prefix, i0, i1) {
     n += 4;
   }
   return n ? total / n : null;
+}
+
+// The last event at or before t.
+function valueAt(list, t) {
+  let found = null;
+  for (const e of list || []) {
+    if (e.t > t) break;
+    found = e;
+  }
+  return found;
+}
+
+// The highest value in force at any time in [a, b].
+function maxIn(list, a, b) {
+  if (!list?.length) return null;
+  let max = valueAt(list, a)?.v ?? null;
+  for (const e of list) {
+    if (e.t > b) break;
+    if (e.t >= a && (max == null || e.v > max)) max = e.v;
+  }
+  return max;
 }
 
 function overlap(intervals, a, b) {
@@ -882,7 +911,8 @@ function buildTrackMap(recs, comparable, best, gridN) {
     map: {
       lengthM: round(best.distanceM, 1),
       stepM: GRID_M,
-      corners: findTrackCorners(profile(laps, gridN)),
+      // Sections, each holding its single corners as parts.
+      corners: findTrackSections(profile(laps, gridN)),
     },
   };
 }
@@ -907,6 +937,8 @@ export function lapFacts(id, lap) {
     impactMax: lap.impactMax,
     tyreCarcassC: lap.tyreCarcassC,
     courseYellowSec: lap.courseYellowSec,
+    compound: lap.compound,
+    wetness: lap.wetness,
     corners: lap.corners ?? null,
   };
 }

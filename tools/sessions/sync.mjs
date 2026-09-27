@@ -304,6 +304,8 @@ function build(s, trackMap) {
       newTyres: lap.newTyres,
       tyreCarcassC: lap.tyreCarcassC,
       courseYellowSec: lap.courseYellowSec,
+      compound: lap.compound,
+      wetness: lap.wetness,
       corners: lap.corners || [],
       // Not in the default "normal racing" selection, and why.
       excluded: lap.excluded,

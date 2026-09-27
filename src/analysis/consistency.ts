@@ -55,6 +55,10 @@ export interface LapFacts {
   tyreCarcassC: number | null;
   // Seconds of this lap under a full-course yellow.
   courseYellowSec: number;
+  // Tyre compound fitted (the sim's own code, front/rear), and the highest
+  // racing-line wetness during the lap in percent. Null if not recorded.
+  compound?: string | null;
+  wetness?: number | null;
   corners: CornerFacts[] | null;
 }
 
@@ -71,6 +75,8 @@ export interface Thresholds {
   trendSigmas: number;
   incidentOffSec: number;
   damageSec: number;
+  wetPct: number;
+  cleanOffSec: number;
 }
 
 export const defaultThresholds: Thresholds = {
@@ -107,7 +113,23 @@ export const defaultThresholds: Thresholds = {
   // the laps with no incident before them. LMU records no damage state, so
   // this is inferred from pace, and says so.
   damageSec: 0.3,
+  // A lap is in wet conditions from this much racing-line wetness (percent).
+  wetPct: 5,
+  // A pass through a section with this much off-track time does not count
+  // as that section's best.
+  cleanOffSec: 0.2,
 };
+
+// Laps are only compared with laps driven in the same conditions: the same
+// tyre compound, and the same side of the wet threshold. A rain shower and a
+// change to wets is not the driver getting slower.
+export function conditionsOf(
+  lap: LapFacts,
+  t: Thresholds = defaultThresholds,
+): string {
+  const wet = (lap.wetness ?? 0) >= t.wetPct ? 'wet' : 'dry';
+  return `${lap.compound ?? '-'} ${wet}`;
+}
 
 export type ExcludeReason =
   | 'partial'
@@ -166,6 +188,11 @@ export interface CornerResult {
   mistakes: number;
   // Median minus 25th percentile: the gap to repeatable pace on a typical lap.
   onTheTable: number;
+  // The fastest pass through this section on the selected laps, and the lap
+  // it came from. A pass that left the track is skipped, but the rest of that
+  // lap still counts for the other sections.
+  bestSec: number | null;
+  bestLap: number | null;
   // Fast passes against slow passes: where they split.
   split: CornerSplit | null;
 }
@@ -188,6 +215,10 @@ export interface Summary {
   mistakes: number;
   mistakeSec: number;
   onTheTable: number;
+  bestLap: number | null;
+  // The sum of the best sections: a lap made of the fastest clean pass
+  // through each section.
+  optimalLap: number | null;
 }
 
 export interface Consistency {
@@ -242,11 +273,21 @@ export function selectNormalRacing(
   const running = laps.filter(
     l => l.timed && !l.partial && !l.pitIn && !l.pitOut,
   );
-  const temps = running
-    .map(l => l.tyreCarcassC)
-    .filter((v): v is number => v != null);
-  const warm = temps.length >= 4 ? quantile(temps, 0.75) : null;
+  // Normal running temperature per compound: wets run cooler than slicks.
+  const warmBy = new Map<string, number | null>();
+  const warmFor = (lap: LapFacts) => {
+    const key = lap.compound ?? '-';
+    if (!warmBy.has(key)) {
+      const temps = running
+        .filter(l => (l.compound ?? '-') === key)
+        .map(l => l.tyreCarcassC)
+        .filter((v): v is number => v != null);
+      warmBy.set(key, temps.length >= 4 ? quantile(temps, 0.75) : null);
+    }
+    return warmBy.get(key)!;
+  };
   for (const lap of laps) {
+    const warm = warmFor(lap);
     const reasons: ExcludeReason[] = [];
     if (lap.partial) reasons.push('partial');
     if (!lap.timed) reasons.push('untimed');
@@ -265,11 +306,14 @@ export function selectNormalRacing(
     }
     out.set(lap.id, reasons);
   }
-  const pace = median(
-    laps.filter(l => out.get(l.id)!.length === 0).map(l => l.lapTime),
-  );
-  if (pace != null) {
-    for (const lap of laps) {
+  // Far off pace against laps in the same conditions.
+  for (const key of new Set(laps.map(l => conditionsOf(l, t)))) {
+    const group = laps.filter(l => conditionsOf(l, t) === key);
+    const pace = median(
+      group.filter(l => out.get(l.id)!.length === 0).map(l => l.lapTime),
+    );
+    if (pace == null) continue;
+    for (const lap of group) {
       const reasons = out.get(lap.id)!;
       if (reasons.length === 0 && lap.lapTime > pace * t.farOffPace) {
         reasons.push('far-off-pace');
@@ -290,9 +334,10 @@ export function selectNormalRacing(
 // damaged car's slow laps do not split their own stretch.
 //
 // Stretches are judged in order within each stint, against the stint's clear
-// laps, compared on residuals to the stint's pace trend. A stretch that is not
+// laps in the same conditions, compared on residuals to the stint's pace trend. A stretch that is not
 // flagged rejoins the reference. Only a stint with fewer than 3 reference laps
-// falls back to raw times from the other stints, and the evidence says so.
+// falls back to raw times from the other stints in the same conditions, and
+// the evidence says so.
 function markDamage(
   laps: LapFacts[],
   out: Map<string, ExcludeReason[]>,
@@ -324,6 +369,8 @@ function markDamage(
   const suspect = new Set(phases.flatMap(ph => ph.laps).map(l => l.id));
   const reference = (keep: (l: LapFacts) => boolean) =>
     ordered.filter(l => eligible(l) && !suspect.has(l.id) && keep(l));
+  const conditionsOfPhase = (own: LapFacts[]) =>
+    mostCommon(own.map(l => conditionsOf(l, t)));
   const checks: DamageCheck[] = [];
   const judge = (
     phase: (typeof phases)[number],
@@ -358,7 +405,10 @@ function markDamage(
       for (const lap of own) suspect.delete(lap.id);
       continue;
     }
-    const ref = reference(l => l.stint === phase.incident.stint);
+    const cond = conditionsOfPhase(own);
+    const ref = reference(
+      l => l.stint === phase.incident.stint && conditionsOf(l, t) === cond,
+    );
     if (ref.length < 3) {
       later.push(phase);
       continue;
@@ -375,7 +425,10 @@ function markDamage(
   // Then stints with too few clear laps, against the other stints.
   for (const phase of later) {
     const own = phase.laps.filter(eligible);
-    const ref = reference(l => l.stint !== phase.incident.stint);
+    const cond = conditionsOfPhase(own);
+    const ref = reference(
+      l => l.stint !== phase.incident.stint && conditionsOf(l, t) === cond,
+    );
     if (ref.length < 3) {
       for (const lap of own) suspect.delete(lap.id);
       continue;
@@ -523,6 +576,13 @@ export function analyzeConsistency(
   const corners: CornerResult[] = range(nc).map(k => {
     const values = deltasOf(k);
     const p25 = quantile(values, 0.25) ?? 0;
+    const clean = withCorners.filter(
+      l => (l.corners![k].offTrackSec ?? 0) < t.cleanOffSec,
+    );
+    const best = clean.reduce<LapFacts | null>(
+      (a, l) => (!a || l.corners![k].segTime < a.corners![k].segTime ? l : a),
+      null,
+    );
     const named = results.filter(r => r.losses.some(x => x.corner === k + 1));
     return {
       n: k + 1,
@@ -535,6 +595,8 @@ export function analyzeConsistency(
         r.losses.some(x => x.corner === k + 1 && x.mistake),
       ).length,
       onTheTable: round((median(values) ?? 0) - p25, 3)!,
+      bestSec: best ? round(best.corners![k].segTime, 3) : null,
+      bestLap: best?.lapNumber ?? null,
       split: cornerSplit(withCorners, k, delta),
     };
   });
@@ -555,6 +617,11 @@ export function analyzeConsistency(
     mistakes: mistakes.length,
     mistakeSec: round(sum(mistakes.map(x => x.seconds)), 2)!,
     onTheTable: round(sum(corners.map(c => c.onTheTable)), 2)!,
+    bestLap: lapTimes.length ? round(Math.min(...lapTimes), 3) : null,
+    optimalLap:
+      corners.length && corners.every(c => c.bestSec != null)
+        ? round(sum(corners.map(c => c.bestSec!)), 3)
+        : null,
   };
   return {
     laps: results,
@@ -626,6 +693,13 @@ function overview(
       )} s around the pace trend (raw spread ${s.rawSpread?.toFixed(2)} s).`,
     );
   }
+  if (s.bestLap != null && s.optimalLap != null) {
+    parts.push(
+      `Best lap ${s.bestLap.toFixed(
+        3,
+      )}; best sections add up to ${s.optimalLap.toFixed(3)}.`,
+    );
+  }
   const trend = stints.filter(st => Math.abs(st.trendPerLap) >= 0.01);
   if (trend.length) {
     parts.push(
@@ -648,7 +722,7 @@ function overview(
               .slice(0, TEXT_CORNERS)
               .map(
                 x =>
-                  `corner ${x.corner} ${signed(x.seconds, 2)} s${
+                  `section ${x.corner} ${signed(x.seconds, 2)} s${
                     x.tags.includes('off-track') ? ' off track' : ''
                   }`,
               )
@@ -672,7 +746,7 @@ function overview(
   if (lost.length && s.laps >= MIN_SPREAD_LAPS) {
     parts.push(
       `Most time lost against repeatable pace: ${lost
-        .map(c => `corner ${c.n} (${c.lostSec.toFixed(1)} s)`)
+        .map(c => `section ${c.n} (${c.lostSec.toFixed(1)} s)`)
         .join(', ')}.`,
     );
   }
@@ -685,6 +759,12 @@ function signed(v: number, digits: number): string {
 
 function values(list: (number | null | undefined)[]): number[] {
   return list.filter((v): v is number => v != null && Number.isFinite(v));
+}
+
+function mostCommon(list: string[]): string {
+  const counts = new Map<string, number>();
+  for (const v of list) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
 }
 
 function mode(list: number[]): number {
