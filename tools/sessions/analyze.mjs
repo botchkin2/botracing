@@ -38,7 +38,7 @@ const MAP_MIN_LAPS = 8;
 // The shape of a stored corner map. A map from an older version (before
 // sections, say) is rebuilt by the next session with enough clean laps,
 // instead of being reused forever.
-export const trackMapVersion = 2;
+export const trackMapVersion = 3;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
 const wanted = [

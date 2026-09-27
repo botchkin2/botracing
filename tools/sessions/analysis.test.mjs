@@ -170,10 +170,12 @@ function track(pieces) {
       if (p.radius) heading += (p.left ? 1 : -1) * (step / p.radius);
       x.push(x[x.length - 1] + step * Math.cos(heading));
       y.push(y[y.length - 1] + step * Math.sin(heading));
-      speed.push(p.radius ? 100 : 200);
+      // A corner is taken at 100 km/h with a lift, or flat out at 200.
+      const slow = p.radius && !p.flat;
+      speed.push(slow ? 100 : 200);
       const braking = p.brakeLast && i >= n - p.brakeLast / step;
       brake.push(braking ? 0.8 : 0);
-      throttle.push(p.radius || braking ? 0.3 : 1);
+      throttle.push(slow || braking ? 0.3 : 1);
     }
   }
   return {stepM: step, speedKmh: speed, brake, throttle, x, y};
@@ -297,23 +299,58 @@ test('a section best skips an off-track pass but keeps the rest of that lap', ()
   assert.ok(r.summary.optimalLap > r.summary.bestLap);
 });
 
-test('short corners group into sections across the gentler boundary', () => {
+test('a corner with a straight before it starts a section; a lift into a braking zone joins the corner after', () => {
+  // Road Atlanta's shape: T1 off the straight, a short run, T2 taken with a
+  // lift straight into the braking for T3.
   const p = track([
     {length: 500, brakeLast: 100},
-    {length: 90, radius: 50, left: false}, // hard braking corner
-    {length: 60},
-    {length: 60, radius: 60, left: true}, // flowing, no brake: joins it
+    {length: 120, radius: 60, left: false}, // T1
+    {length: 200}, // about 3.6 s at full throttle
+    {length: 60, radius: 60, left: true}, // T2, a lift
+    {length: 60, brakeLast: 60},
+    {length: 90, radius: 50, left: false}, // T3, braked
+    {length: 600},
+  ]);
+  assert.equal(findTrackCorners(p).length, 3);
+  const sections = findTrackSections(p);
+  assert.deepEqual(
+    sections.map(s => s.parts.map(c => c.direction)),
+    [['right'], ['left', 'right']],
+  );
+  assert.equal(sections[1].direction, 'mixed');
+});
+
+test('a flat corner is part of the straight after the corner before it', () => {
+  const p = track([
+    {length: 400, brakeLast: 80},
+    {length: 120, radius: 60, left: true},
+    {length: 300},
+    {length: 150, radius: 150, left: false, flat: true},
+    {length: 400},
+  ]);
+  const corners = findTrackCorners(p);
+  assert.deepEqual(
+    corners.map(c => c.flat),
+    [false, true],
+  );
+  const sections = findTrackSections(p);
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0].parts.length, 2);
+});
+
+test('braked corners with only a short run between them are one section', () => {
+  const p = track([
+    {length: 500, brakeLast: 100},
+    {length: 90, radius: 50, left: false},
+    {length: 60, brakeLast: 40}, // about 0.4 s at full throttle
+    {length: 90, radius: 50, left: true},
     {length: 400, brakeLast: 100},
     {length: 120, radius: 60, left: false},
     {length: 600},
   ]);
-  const corners = findTrackCorners(p);
   const sections = findTrackSections(p);
-  assert.equal(corners.length, 3);
-  assert.equal(sections.length, 2);
   assert.deepEqual(
-    sections[0].parts.map(c => c.direction),
-    ['right', 'left'],
+    sections.map(s => s.parts.length),
+    [2, 1],
   );
-  assert.equal(sections[0].direction, 'mixed');
 });

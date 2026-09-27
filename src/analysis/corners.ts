@@ -7,10 +7,10 @@
 // the driver brakes, lifts, or turns in) to the next corner's entry, so a
 // slow exit is charged to the corner that caused it, straight included.
 //
-// Analysis works on sections, not single corners: corners that run into
-// each other (a crest into a braking zone into an ess) are one section, so
-// every section is at least a few seconds long. The single corners stay
-// inside each section as its parts, for drilling in.
+// Analysis works on sections, not single corners. Corners the driver links
+// (no real straight between them, so the line through one sets up the next)
+// are one section; a corner with a straight before it starts a new one. The
+// single corners stay inside each section as its parts, for drilling in.
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
@@ -48,8 +48,19 @@ export interface CornerOptions {
   minLengthM: number;
   // How far before turn-in to look for the brake or lift.
   lookBackM: number;
-  // A section is at least this long, at median pace.
+  // Grouping into sections, all in seconds at median pace. A braked corner
+  // joins the one before when the full-throttle run between them is
+  // shorter than linkSec. A corner taken with only a lift joins the closer
+  // neighbour when that run is shorter than liftLinkSec, and stands alone
+  // otherwise. A flat corner is part of the straight after the corner
+  // before it.
+  linkSec: number;
+  liftLinkSec: number;
+  // Then a section shorter than minSectionSec merges across its shorter
+  // run, and a complex busier than maxSectionSec (first entry to last exit)
+  // splits at its longest run.
   minSectionSec: number;
+  maxSectionSec: number;
 }
 
 export const defaultCornerOptions: CornerOptions = {
@@ -57,68 +68,120 @@ export const defaultCornerOptions: CornerOptions = {
   peakCurv: 1 / 220,
   minLengthM: 30,
   lookBackM: 250,
-  minSectionSec: 6,
+  linkSec: 1.5,
+  liftLinkSec: 2.5,
+  minSectionSec: 4,
+  maxSectionSec: 20,
 };
 
-// The track's sections: its corners, grouped until every section is at least
-// minSectionSec long. The shortest section merges first, into the neighbour
-// across the gentler boundary (the smaller speed drop into the next corner),
-// so a flowing complex stays together and a heavy braking zone stays a
-// boundary. Nothing merges across the start/finish line.
+// The track's sections: its corners, grouped the way a driver links them.
+// Nothing groups across the start/finish line.
 export function findTrackSections(
   p: Profile,
   o: CornerOptions = defaultCornerOptions,
 ): TrackCorner[] {
   const corners = findTrackCorners(p, o);
-  if (corners.length < 2) return corners.map(c => ({...c, parts: [c]}));
-  const lengthM = (p.speedKmh.length - 1) * p.stepM;
+  const n = p.speedKmh.length;
   const at = (m: number) =>
-    Math.min(p.speedKmh.length - 1, Math.max(0, Math.round(m / p.stepM)));
-  const secondsBetween = (a: number, b: number) => {
+    Math.min(n - 1, Math.max(0, Math.round(m / p.stepM)));
+  const secAt = (g: number) => p.stepM / Math.max(1, p.speedKmh[g] / 3.6);
+  const seconds = (a: number, b: number) => {
     let total = 0;
-    for (let g = at(a); g < at(b); g++) {
-      total += p.stepM / Math.max(1, p.speedKmh[g] / 3.6);
-    }
+    for (let g = at(a); g < at(b); g++) total += secAt(g);
     return total;
   };
+  const last = corners.length - 1;
+  // Each corner's segment, entry to the next entry (over the line for the
+  // last one).
   const segSec = corners.map((c, k) =>
-    k + 1 < corners.length
-      ? secondsBetween(c.entryM, corners[k + 1].entryM)
-      : secondsBetween(c.entryM, lengthM) +
-        secondsBetween(0, corners[0].entryM),
+    k < last
+      ? seconds(c.entryM, corners[k + 1].entryM)
+      : seconds(c.entryM, (n - 1) * p.stepM) + seconds(0, corners[0].entryM),
   );
-  // How hard the car slows into each corner: the fastest point since the
-  // previous corner's exit, minus this corner's minimum speed.
-  const dropInto = corners.map((c, k) => {
-    const from = k ? corners[k - 1].exitM : 0;
-    let peak = 0;
-    for (let g = at(from); g <= at(c.turnInM); g++) {
-      peak = Math.max(peak, p.speedKmh[g]);
+  // The longest stretch at full throttle, off the brake, from each corner's
+  // apex to the next corner's entry: the straight between them, if any.
+  const run = corners.map((c, k) => {
+    if (k === last) return Infinity;
+    let best = 0;
+    let cur = 0;
+    for (let g = at(c.apexM); g < at(corners[k + 1].entryM); g++) {
+      if (p.throttle[g] >= 0.95 && p.brake[g] < 0.05) {
+        cur += secAt(g);
+        best = Math.max(best, cur);
+      } else cur = 0;
     }
-    return Math.max(0, peak - c.minSpeedKmh);
+    return best;
   });
-  const groups = corners.map((_, k) => ({first: k, last: k, sec: segSec[k]}));
+  const braked = corners.map(c => {
+    for (let g = at(c.entryM); g <= at(c.apexM); g++) {
+      if (p.brake[g] >= 0.1) return true;
+    }
+    return false;
+  });
+  // Whether each corner joins the section before it.
+  const before = (k: number) => (k > 0 ? run[k - 1] : Infinity);
+  const joinsPrev = corners.map((c, k) => {
+    if (k === 0) return false;
+    if (braked[k]) return run[k - 1] < o.linkSec;
+    if (c.flat) return true;
+    return before(k) < o.liftLinkSec && before(k) <= run[k];
+  });
+  // A lift corner closer to the corner after it pulls that one in.
+  corners.forEach((c, k) => {
+    if (
+      k < last &&
+      !braked[k] &&
+      !c.flat &&
+      run[k] < o.liftLinkSec &&
+      run[k] < before(k)
+    ) {
+      joinsPrev[k + 1] = true;
+    }
+  });
+  type Group = {first: number; last: number};
+  let groups: Group[] = [];
+  corners.forEach((_, k) => {
+    if (joinsPrev[k]) groups[groups.length - 1].last = k;
+    else groups.push({first: k, last: k});
+  });
+  const sec = (g: Group) => {
+    let total = 0;
+    for (let k = g.first; k <= g.last; k++) total += segSec[k];
+    return total;
+  };
+  const busy = (g: Group) =>
+    seconds(corners[g.first].entryM, corners[g.last].exitM);
+  // Split an overlong complex at its longest run, while both halves stay
+  // long enough to stand as sections.
+  const split = (g: Group): Group[] => {
+    if (g.first === g.last || busy(g) <= o.maxSectionSec) return [g];
+    let at = -1;
+    for (let k = g.first; k < g.last; k++) {
+      const a = {first: g.first, last: k};
+      const b = {first: k + 1, last: g.last};
+      if (sec(a) < o.minSectionSec || sec(b) < o.minSectionSec) continue;
+      if (at < 0 || run[k] > run[at]) at = k;
+    }
+    if (at < 0) return [g];
+    return [
+      ...split({first: g.first, last: at}),
+      ...split({first: at + 1, last: g.last}),
+    ];
+  };
+  groups = groups.flatMap(split);
+  // Merge a section that is too short across its shorter run.
   for (;;) {
     let shortest = -1;
-    for (let i = 0; i < groups.length; i++) {
-      if (groups[i].sec >= o.minSectionSec) continue;
-      if (shortest < 0 || groups[i].sec < groups[shortest].sec) shortest = i;
-    }
+    groups.forEach((g, i) => {
+      if (sec(g) >= o.minSectionSec) return;
+      if (shortest < 0 || sec(g) < sec(groups[shortest])) shortest = i;
+    });
     if (shortest < 0 || groups.length < 2) break;
     const g = groups[shortest];
-    const left = shortest > 0 ? dropInto[g.first] : Infinity;
-    const right =
-      shortest + 1 < groups.length
-        ? dropInto[groups[shortest + 1].first]
-        : Infinity;
-    const into = left <= right ? shortest - 1 : shortest + 1;
-    const a = groups[Math.min(shortest, into)];
-    const b = groups[Math.max(shortest, into)];
-    groups.splice(Math.min(shortest, into), 2, {
-      first: a.first,
-      last: b.last,
-      sec: a.sec + b.sec,
-    });
+    const left = shortest > 0 ? run[g.first - 1] : Infinity;
+    const right = shortest + 1 < groups.length ? run[g.last] : Infinity;
+    const i = left <= right ? shortest - 1 : shortest;
+    groups.splice(i, 2, {first: groups[i].first, last: groups[i + 1].last});
   }
   return groups.map((g, i) => {
     const parts = corners.slice(g.first, g.last + 1);
