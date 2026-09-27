@@ -1,3 +1,3 @@
-import CacheManagementScreen from '@src/screens/CacheManagementScreen';
+import CacheManagementScreen from '@/src/screens/CacheManagementScreen';
 
 export default CacheManagementScreen;

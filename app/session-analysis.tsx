@@ -2,9 +2,9 @@ import {
   BottomNavigation,
   ScreenContainer,
   SessionAnalysis,
-} from '@src/components';
-import {RacingTheme} from '@src/theme';
-import {SessionData} from '@src/types';
+} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
+import {SessionData} from '@/src/types';
 import {useLocalSearchParams, useRouter} from 'expo-router';
 import React from 'react';
 import {StyleSheet} from 'react-native';

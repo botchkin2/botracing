@@ -36,15 +36,7 @@ module.exports = defineConfig([
     },
     settings: {
       'import/resolver': {
-        'babel-module': {
-          root: ['./'],
-          alias: {
-            '@': './',
-            '@src': './src',
-            '@hooks': './hooks',
-            '@constants': './constants',
-          },
-        },
+        typescript: {project: './tsconfig.json'},
       },
     },
     rules: {
@@ -59,6 +51,33 @@ module.exports = defineConfig([
       '@typescript-eslint/no-shadow': ['error'],
       'no-shadow': 'off',
       'no-undef': 'off',
+    },
+  },
+  // Layering for the new app (docs/ARCHITECTURE.md). Old folders are not
+  // listed; they are deleted as the new screens replace them.
+  {
+    files: ['src/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],
+    rules: {
+      'import/no-restricted-paths': [
+        'error',
+        {
+          zones: [
+            // analysis is pure: the uploader runs it in Node, so no imports at all.
+            {target: './src/analysis', from: './', except: ['./src/analysis']},
+            {target: './src/design', from: './src', except: ['./design', './analysis']},
+            {target: './src/ui', from: './src', except: ['./ui', './design', './analysis']},
+            {target: './src/charts', from: './src', except: ['./charts', './ui', './design', './analysis']},
+            {target: './src/data', from: './src', except: ['./data', './analysis']},
+            {target: './src/state', from: './src', except: ['./state', './analysis']},
+            // A feature never imports another feature; share through ui, charts, data or analysis.
+            {target: './src/features/sessions', from: './src/features', except: ['./sessions']},
+            {target: './src/features/session', from: './src/features', except: ['./session']},
+            {target: './src/features/compare', from: './src/features', except: ['./compare']},
+            {target: './src/features/corner', from: './src/features', except: ['./corner']},
+            {target: './src/features/settings', from: './src/features', except: ['./settings']},
+          ],
+        },
+      ],
     },
   },
 ]);

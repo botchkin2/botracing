@@ -1,4 +1,4 @@
-import {RacingTheme} from '@src/theme';
+import {RacingTheme} from '@/src/theme';
 import React from 'react';
 import {
   Platform,

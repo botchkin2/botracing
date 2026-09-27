@@ -1,8 +1,8 @@
-import {RacingButton, RacingCard, RacingDivider} from '@src/components';
-import {useLaps} from '@src/hooks/useApiQueries';
-import {RacingTheme} from '@src/theme';
-import {Lap, SessionData} from '@src/types';
-import {LAP_COLOR_SCHEMES, SERIES_BASE_COLORS} from '@src/utils/colors';
+import {RacingButton, RacingCard, RacingDivider} from '@/src/components';
+import {useLaps} from '@/src/hooks/useApiQueries';
+import {RacingTheme} from '@/src/theme';
+import {Lap, SessionData} from '@/src/types';
+import {LAP_COLOR_SCHEMES, SERIES_BASE_COLORS} from '@/src/utils/colors';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,

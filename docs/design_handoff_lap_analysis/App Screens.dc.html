@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet"><style>html,body{margin:0;background:#07080a;color:#e4e7ea}a{color:oklch(0.80 0.16 70)}a:hover{color:#f2f4f6}*::-webkit-scrollbar{display:none}</style></helmet>
+<div style="padding:40px 44px 80px;font-family:'IBM Plex Sans Condensed',sans-serif;display:flex;flex-direction:column;gap:48px">
+<header style="display:flex;flex-direction:column;gap:8px;max-width:820px">
+<div style="font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#8a929b">App screens · v1 · phone 390 × 844</div>
+<h1 style="margin:0;font:600 34px/1.1 'IBM Plex Sans Condensed',sans-serif">Sessions → Session → Compare → Corner</h1>
+<p style="margin:0;font:400 15px/1.5 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;text-wrap:pretty">These are build-ready screens made from the <a href="Design System.dc.html">design system</a>. Each view is its own component (SessionsScreen, SessionScreen, CompareScreen, CornerScreen) that takes one screen model, and every frame below is the same component fed a different state. All frames are interactive. The status bar is drawn by the frame; in the app it is the safe area.</p>
+</header>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">01</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Sessions</h2><span style="font:400 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">SessionsScreen</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">01a · By day</div>
+<div data-screen-label="01a Sessions" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:10</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="SessionsScreen" v="{{ W }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">01b · First run, uploader not connected</div>
+<div data-screen-label="01b Sessions empty" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:10</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="SessionsScreen" v="{{ EMPTY }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">02</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Session</h2><span style="font:400 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">SessionScreen</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">02a · Race, 3 laps selected</div>
+<div data-screen-label="02a Session" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:10</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="SessionScreen" v="{{ W }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">02b · Excluded lap highlighted, reason shown</div>
+<div data-screen-label="02b Session excluded lap" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:10</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="SessionScreen" v="{{ EX }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">02c · No comparable laps</div>
+<div data-screen-label="02c Session no comparable" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:10</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="SessionScreen" v="{{ NOCOMP }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">03</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Compare</h2><span style="font:400 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">CompareScreen</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03a · 3 laps, map</div>
+<div data-screen-label="03a Compare" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ W }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03b · Map collapsed to strip</div>
+<div data-screen-label="03b Compare map hidden" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ MH }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03c · One chart at a time, throttle + brake overlaid</div>
+<div data-screen-label="03c Compare one chart" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ FO }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03d · Edit charts: overlays, order, presets</div>
+<div data-screen-label="03d Compare edit charts" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ ED }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03e · 12 laps, tinted</div>
+<div data-screen-label="03e Compare 12 laps" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ MT }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">03f · Whole race, grey</div>
+<div data-screen-label="03f Compare whole race" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:11</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CompareScreen" v="{{ MM }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">04</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Corner</h2><span style="font:400 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">CornerScreen</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">04a · 3 laps, table</div>
+<div data-screen-label="04a Corner" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:12</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CornerScreen" v="{{ W }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">04b · 12 laps, table</div>
+<div data-screen-label="04b Corner 12 laps" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:12</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CornerScreen" v="{{ MT }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:500 12px 'IBM Plex Mono',monospace;color:#aeb4ba">04c · Whole race, dot strips</div>
+<div data-screen-label="04c Corner whole race" style="width:390px;height:844px;border-radius:34px;overflow:hidden;background:#0d0f12;box-shadow:0 0 0 8px #1b1d20,0 20px 50px rgba(0,0,0,.4);display:flex;flex-direction:column">
+<div style="height:46px;box-sizing:border-box;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 26px 6px;font:500 13px 'IBM Plex Mono',monospace"><span>22:12</span><span style="color:#8a929b">5G 82%</span></div>
+<dc-import name="CornerScreen" v="{{ MM }}" hint-size="390px,798px" style="width:390px;height:798px"></dc-import>
+</div></div>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const N=930,DS=5,L=N*DS;
+const CRN=[{d:350,v:112,a:91},{d:700,v:158,a:-43},{d:1050,v:98,a:97},{d:1400,v:140,a:-73},{d:1700,v:150,a:48},{d:2150,v:118,a:44},{d:2500,v:175,a:39},{d:2850,v:145,a:52},{d:3250,v:128,a:65},{d:3700,v:105,a:-84},{d:4250,v:88,a:126}];
+const CN=[[1.5,.04],[2.6,.10],[1.8,.05],[1,.03],[2,.05],[7,.5],[1.4,.04],[2.4,.07],[1,.03],[2.2,.08],[1,.02]];
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){let u=0;while(!u)u=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*r())}
+const med=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
+const sdv=a=>{const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/(a.length-1))};
+const pct=(a,p)=>{const s=[...a].sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.max(0,Math.round(p*(s.length-1))))]};
+const fmtLap=s=>{const m=Math.floor(s/60),r=s-m*60;return m+':'+(r<10?'0':'')+r.toFixed(3)};
+const fmtT=s=>{const m=Math.floor(s/60),r=s-m*60;return m+':'+(r<10?'0':'')+r.toFixed(1)};
+const fmtM=d=>Math.round(d).toLocaleString('en-US')+' m';
+const fmtD=d=>(d>=0?'+':'−')+Math.abs(d).toFixed(3);
+const nextC=new Int8Array(N);for(let i=0;i<N;i++){const k=CRN.findIndex(c=>c.d>=i*DS);nextC[i]=k<0?0:k;}
+const gearOf=s=>{const th=[0,88,120,152,184,216,248];let g=0;for(const x of th)if(s>=x)g++;return g;};
+function sim(r,m,fade,K,mist){
+  const vmax=76,lim=new Float64Array(N).fill(vmax);
+  const cv=CRN.map((c,k)=>(c.v+gauss(r)*CN[k][0]*m+(mist&&mist.k===k?mist.dv:0))/3.6),cb=CRN.map((c,k)=>12.5*(1+gauss(r)*CN[k][1]*Math.max(m,.75))),rl=CRN.map(()=>Math.max(22,Math.min(85,48+gauss(r)*11*Math.max(m,.6))));
+  CRN.forEach((c,k)=>{const ai=Math.round(c.d/DS);for(let j=-4;j<=4;j++){const i=(ai+j+N)%N;lim[i]=Math.min(lim[i],cv[k]);}});
+  const v=new Float64Array(N);v[0]=lim[0];
+  const acc=u=>Math.max(.6,8.5*(1-(u/vmax)**2));
+  for(let q=1;q<2*N;q++){const i=q%N,p=(i-1+N)%N;v[i]=Math.min(lim[i],Math.sqrt(v[p]*v[p]+2*acc(v[p])*DS));}
+  for(let q=2*N-1;q>=0;q--){const i=q%N,n=(i+1)%N;v[i]=Math.min(v[i],Math.sqrt(v[n]*v[n]+2*cb[nextC[i]]*DS));}
+  const f=(1-fade)*K,sp=new Float32Array(N),t=new Float64Array(N),thr=new Float32Array(N),brk=new Float32Array(N),ph=r()*6;
+  for(let i=0;i<N;i++){const u=v[i]*f;sp[i]=u*3.6;if(i)t[i]=t[i-1]+2*DS/(v[i-1]*f+u);}
+  const time=t[N-1]+DS/(v[N-1]*f);
+  for(let i=0;i<N;i++){const n=(i+1)%N,dv=v[n]-v[i];
+    if(dv<-0.03){const dec=(v[i]*v[i]-v[n]*v[n])/(2*DS),k=nextC[i];let da=CRN[k].d-i*DS;if(da<0)da+=L;brk[i]=Math.min(100,dec/12.5*96*Math.min(1,.3+da/45));}
+    else if(v[i]>vmax-0.3)thr[i]=100;
+    else if(dv>0.03){const k=(nextC[i]-1+CRN.length)%CRN.length;let s=i*DS-CRN[k].d;if(s<0)s+=L;thr[i]=s<rl[k]?Math.min(98,38+s*(60/rl[k])+Math.sin(ph+i*.35)*7*m):100;}
+    else thr[i]=36+Math.sin(ph+i*.25)*6*m;}
+  return {sp,t,thr,brk,time};
+}
+function buildData(){
+  const kap=new Float64Array(N);
+  CRN.forEach(c=>{const a=c.a*Math.PI/180,s=18+Math.abs(c.a)*.2;for(let i=0;i<N;i++){let dd=i*DS-c.d;if(dd>L/2)dd-=L;if(dd<-L/2)dd+=L;kap[i]+=a*Math.exp(-dd*dd/(2*s*s))/(s*2.5066);}});
+  let th=0,x=0,y=0;const X=[],Y=[];for(let i=0;i<N;i++){X.push(x);Y.push(y);th+=kap[i]*DS;x+=Math.cos(th)*DS;y+=Math.sin(th)*DS;}
+  for(let i=0;i<N;i++){X[i]-=x*i/N;Y[i]-=y*i/N;}
+  if(Math.max(...Y)-Math.min(...Y)>Math.max(...X)-Math.min(...X)){for(let i=0;i<N;i++){const t=X[i];X[i]=Y[i];Y[i]=-t;}}
+  const K=sim(()=>0.5,0,0,1).time/101.4;
+  const r=rng(11);
+  const tags={1:{ex:'Partial',add:9.5,to:0},9:{ex:'Slow outlier',add:3.4,off:3.1,to:1},15:{off:0.6},22:{ex:'Pit in',add:24.8,to:2},23:{ex:'Pit out',add:21.3,to:0},30:{ex:'Slow outlier',add:2.6,imp:2.1,to:1},36:{ex:'Slow outlier',add:4.1,to:2}};
+  const laps=[],WARM={2:.007,3:.0035,24:.0065,25:.003},MIST={6:{k:1,dv:-16},33:{k:9,dv:-14}};
+  for(let n=1;n<=44;n++){const st=n<=22?1:2,ix=st===1?n-1:n-23,m=st===1?1.3:.85,fade=(st===1?.0024:.0018)*ix/21;
+    const ch=sim(r,m*.32,fade-gauss(r)*(st===1?.0046:.0030)+(WARM[n]||0),K,MIST[n]),tg=tags[n]||{},sec=[ch.t[310],ch.t[620]-ch.t[310],ch.time-ch.t[620]];if(tg.add)sec[tg.to]+=tg.add;
+    laps.push({n,st,ch,time:ch.time+(tg.add||0),reason:tg.ex||null,comp:!tg.ex,off:tg.off||0,imp:tg.imp||0,sec});}
+  const byN={};laps.forEach(l=>byN[l.n]=l);
+  const comp=laps.filter(l=>l.comp),times=comp.map(l=>l.time),M=med(times),SD=sdv(times),within=times.filter(t=>Math.abs(t-M)<=.5).length;
+  const best=comp.reduce((a,b)=>a.time<b.time?a:b);
+  const bnd=CRN.map((c,k)=>{const nx=CRN[(k+1)%CRN.length];let e=nx.d;if(e<c.d)e+=L;return Math.round((((c.d+e)/2)%L)/DS);});
+  const segT=(l,k)=>{const a=bnd[(k-1+CRN.length)%CRN.length],b=bnd[k],t=l.ch.t;return b>=a?t[b]-t[a]:(l.ch.time-t[a])+t[b];};
+  const corners=CRN.map((c,k)=>{const st=comp.map(l=>segT(l,k)),ai=Math.round(c.d/DS);
+    const mins=comp.map(l=>{let m=1e9;for(let j=-12;j<=12;j++)m=Math.min(m,l.ch.sp[(ai+j+N)%N]);return m;});
+    const bps=comp.map(l=>{for(let j=-60;j<0;j++){if(l.ch.brk[(ai+j+N)%N]>5)return j*DS;}return null}).filter(v=>v!=null);
+    const bpR=bps.length>2?pct(bps,.9)-pct(bps,.1):0,vR=pct(mins,.9)-pct(mins,.1),b=Math.min(...st);
+    const why=bpR>=14?'brake point varies '+Math.round(bpR)+' m':vR>=4?'minimum speed varies '+Math.round(vR)+' km/h':'segment time varies '+sdv(st).toFixed(2)+' s';
+    return {n:k+1,d:c.d,tot:med(st)-b,best:b,why};});
+  const table=corners.reduce((a,c)=>a+c.tot,0),optimal=corners.reduce((a,c)=>a+c.best,0);
+  const ranked=[...corners].sort((a,b)=>b.tot-a.tot),focus=ranked.filter(c=>c.tot>=.05).slice(0,3);
+  const stints=[1,2].map(s=>{const all=laps.filter(l=>l.st===s),cl=all.filter(l=>l.comp),ts=cl.map(l=>l.time),xs=cl.map(l=>l.n),mx=xs.reduce((a,b)=>a+b,0)/xs.length,my=ts.reduce((a,b)=>a+b,0)/ts.length;
+    const slope=xs.reduce((a,x,i)=>a+(x-mx)*(ts[i]-my),0)/xs.reduce((a,x)=>a+(x-mx)**2,0);
+    return {name:'Stint '+s,range:'L'+all[0].n+'–'+all[all.length-1].n,best:fmtLap(Math.min(...ts)),med:fmtLap(med(ts)),sdN:sdv(ts),sd:sdv(ts).toFixed(2),slope:(slope>=0?'+':'−')+Math.abs(slope).toFixed(3)+' s/lap'};});
+  const band=f=>{const lo=new Float32Array(N),hi=new Float32Array(N);for(let i=0;i<N;i++){const v=comp.map(l=>l.ch[f][i]).sort((a,b)=>a-b);lo[i]=v[Math.round(.1*(v.length-1))];hi[i]=v[Math.round(.9*(v.length-1))];}return {lo,hi};};
+  const bands={speed:band('sp'),throttle:band('thr'),brake:band('brk')};
+  const byT=[...comp].sort((a,b)=>a.time-b.time),medLap=byT[byT.length>>1],s1=comp.filter(l=>l.st===1).sort((a,b)=>b.time-a.time)[1];
+  const tight=stints[1].sdN<stints[0].sdN;
+  const body=`${laps.length} laps, ${comp.length} comparable. Median ${fmtLap(M)}, spread ${SD.toFixed(2)} s. Stint 2 was ${tight?'tighter':'looser'} than stint 1 (${stints[1].sd} vs ${stints[0].sd} s).`;
+  const verdict=body+' Most time on the table: '+focus.map(c=>`Corner ${c.n} (${c.tot.toFixed(2)} s)`).join(', ')+'.';
+  const S={sd:SD.toFixed(2),compOf:comp.length+' / '+laps.length,within:within+' of '+comp.length+' laps within 0.5 s',verdict,
+    verdictBody:`Median ${fmtLap(M)}. Stint 2 was ${tight?'tighter':'looser'} than stint 1 (${stints[1].sd} vs ${stints[0].sd} s). ${within} of ${comp.length} laps within 0.5 s of the median. ${table.toFixed(2)} s on the table, mostly in three corners.`,
+    kpis:[{l:'Best',v:fmtLap(best.time),u:''},{l:'Median',v:fmtLap(M),u:''},{l:'Spread',v:SD.toFixed(2),u:' s'},{l:'Within 0.5 s',v:within+'/'+comp.length,u:''},{l:'On the table',v:table.toFixed(2),u:' s'},{l:'Optimal',v:fmtLap(optimal),u:''}],
+    kpis4:[{l:'Best',v:fmtLap(best.time),c:'oklch(0.72 0.19 300)'},{l:'Median',v:fmtLap(M),c:'#f4f4f5'},{l:'Optimal',v:fmtLap(optimal),c:'oklch(0.80 0.16 150)'},{l:'Table',v:table.toFixed(2)+' s',c:'oklch(0.86 0.15 95)'}],
+    stints,cond:['Clear','Track 31 °C','Air 24 °C','Dusk','Setup: low-df v3'],condLine:'Clear · track 31 °C · air 24 °C · dusk · setup "low-df v3"',
+    ranked:ranked.slice(0,6).map((c,i)=>({n:c.n,tot:c.tot.toFixed(2)+' s',pct:Math.round(c.tot/ranked[0].tot*100)+'%',col:i<focus.length?'oklch(0.56 0.2 28)':'#8d8f94'}))};
+  const cm=CRN.map((c,k)=>{const ai=Math.round(c.d/DS);return comp.map(l=>{let v=1e9;for(let j=-12;j<=12;j++)v=Math.min(v,l.ch.sp[(ai+j+N)%N]);let bp=null;for(let j=-60;j<0;j++){if(l.ch.brk[(ai+j+N)%N]>5){bp=-j*DS;break;}}let ft=null;for(let j=0;j<60;j++){if(l.ch.thr[(ai+j)%N]>=99){ft=j*DS;break;}}return {l,seg:segT(l,k),v,bp,ft};});});
+  const segMed=CRN.map((c,k)=>med(cm[k].map(o=>o.seg))),segSd=CRN.map((c,k)=>sdv(cm[k].map(o=>o.seg)));
+  const cs=corners.map((c,k)=>{const bps=cm[k].map(o=>o.bp).filter(v=>v!=null);return {...c,bpR:bps.length>2?pct(bps,.9)-pct(bps,.1):0};});
+  const events=[];
+  laps.forEach(l=>{if(l.reason){events.push({n:l.n,kind:l.reason.startsWith('Pit')?'pit':l.reason==='Partial'?'pit':'bad',text:l.reason==='Partial'?'Start, partial lap':l.reason==='Slow outlier'?(l.off?'Off track '+l.off.toFixed(1)+' s':l.imp?'Contact, impact '+l.imp+' g':'Slow outlier, cause not recorded'):l.reason==='Pit in'?'Pit in':'Pit out, fresh tyres',val:l.reason==='Slow outlier'?fmtD(l.time-M):''});return;}
+    if(WARM[l.n])events.push({n:l.n,kind:'warm',text:'Tyres warming',val:fmtD(l.time-M)});
+    let w=null;CRN.forEach((c,k)=>{const d=segT(l,k)-segMed[k];if(d>Math.max(.25,3*segSd[k])&&(!w||d>w.d))w={k,d};});
+    if(w)events.push({n:l.n,kind:'bad',text:'Mistake, Corner '+(w.k+1),val:'+'+w.d.toFixed(2)+' s'});
+    if(l.off)events.push({n:l.n,kind:'warn',text:'Off track '+l.off.toFixed(1)+' s, lap kept',val:''});
+    if(l.n===best.n)events.push({n:l.n,kind:'best',text:'Best lap',val:fmtLap(l.time)});});
+  events.sort((a,b)=>a.n-b.n);
+  const all=[];
+  const bpIdx=l=>l._bpi||(l._bpi=CRN.map(c=>{const ai=Math.round(c.d/DS);for(let j=-60;j<0;j++){if(l.ch.brk[(ai+j+N)%N]>5)return (ai+j+N)%N;}return (ai-20+N)%N;}));
+  const bpSeg=(l,k)=>{const b=bpIdx(l),a=b[k],e=b[(k+1)%CRN.length],t=l.ch.t;return e>a?t[e]-t[a]:(l.ch.time-t[a])+t[e];};
+  const mkMet=l=>CRN.map((c,k)=>{const ai=Math.round(c.d/DS),sp=l.ch.sp;let v=1e9;for(let j=-12;j<=12;j++)v=Math.min(v,sp[(ai+j+N)%N]);let bp=null;for(let j=-60;j<0;j++){if(l.ch.brk[(ai+j+N)%N]>5){bp=-j*DS;break;}}let ft=null;for(let j=0;j<60;j++){if(l.ch.thr[(ai+j)%N]>=99){ft=j*DS;break;}}return {seg:bpSeg(l,k),v,bp,ft,ex:sp[(ai+20)%N]};});
+  const r2=rng(23);
+  const addS=(sess,day,base,cnt,f0,fuel0,t0,t1,tx)=>{for(let i=1;i<=cnt;i++){const ch=sim(r2,.36,f0+.0015*i/cnt-gauss(r2)*.0034,K),tg=tx[i]||{},sec=[ch.t[310],ch.t[620]-ch.t[310],ch.time-ch.t[620]];if(tg.add)sec[tg.to]+=tg.add;
+    const l={n:base+i,id:base+i,label:(sess==='Practice'?'P':'Q')+i,sess,day,gs:sess,st:0,ch,time:ch.time+(tg.add||0),reason:tg.ex||null,comp:!tg.ex,off:tg.off||0,imp:0,sec,fuel:+(fuel0-2.85*(i-1)).toFixed(1),wear:+(i*1.7).toFixed(1),temp:+(t0+(t1-t0)*i/cnt+gauss(r2)*.2).toFixed(1),ix:i};all.push(l);byN[l.id]=l;}};
+  addS('Practice','Thu',100,18,.0045,32,35.2,33.6,{1:{ex:'Pit out',add:14,to:0},11:{ex:'Slow outlier',add:5.2,off:4.4,to:1},18:{ex:'Pit in',add:18,to:2}});
+  addS('Quali','Today',200,7,-.002,14,33.1,32.6,{1:{ex:'Pit out',add:12,to:0},7:{ex:'Pit in',add:17,to:2}});
+  const rt=rng(5);laps.forEach(l=>{const ix=l.st===1?l.n-1:l.n-23;l.id=l.n;l.label='L'+l.n;l.sess='Race';l.day='Today';l.gs='Race S'+l.st;l.fuel=+(62-2.85*ix).toFixed(1);l.wear=+(ix*1.8).toFixed(1);l.temp=+(31.4-3.2*l.n/44+gauss(rt)*.2).toFixed(1);l.ix=ix+1;all.push(l);});
+  all.forEach(l=>l.met=mkMet(l));
+  return {all,cm,cs,segMed,events,segT,WARM,stintsRaw:stints,table,laps,byN,comp,best,M,SD,X,Y,kap,bands,focus:focus.map(c=>({n:c.n,d:c.d,dist:fmtM(c.d),tot:c.tot.toFixed(2)+' s',why:c.why})),S,defLaps:[best.n,medLap.n,s1.n]};
+}
+const CH={delta:{label:'Time diff',unit:'s vs ref',desc:'Running gap to the reference. Line rising = losing time there, falling = gaining.'},speed:{label:'Speed',unit:'km/h',desc:'Grey band = where your race laps usually are (10th–90th percentile).'},throttle:{label:'Throttle',unit:'%',lo:-4,hi:104,desc:'Throttle pedal, 0–100%.'},brake:{label:'Brake',unit:'%',lo:-4,hi:104,desc:'Brake pedal, 0–100%. Where it starts is the brake point.'},gear:{label:'Gear',unit:'',lo:.5,hi:7.5,desc:'Gear selected.'},steer:{label:'Steering',unit:'°',lo:-95,hi:95,desc:'Steering angle. Extra wiggles are corrections.'}};
+const CFG={
+  a:{colors:['oklch(0.82 0.15 75)','oklch(0.78 0.13 210)','oklch(0.74 0.17 340)','oklch(0.80 0.15 150)','oklch(0.80 0.10 280)'],h:{delta:56,speed:104,throttle:50,brake:50,gear:46,steer:58},mute:'#8a929b',good:'oklch(0.80 0.15 150)',bad:'oklch(0.74 0.17 25)',lc:{comp:'#c3c8cd',best:'oklch(0.82 0.15 75)',ex:'#5b636b',bg:'#0e1012',sel:'#ffffff'},rate:{onBg:'#e6e8ea',onFg:'#0e1012',offBg:'transparent',offFg:'#8a929b'},pool:{on:'#e6e8ea',off:'#2e343a',offFg:'#8a929b'}},
+  b:{colors:['oklch(0.72 0.19 300)','oklch(0.86 0.15 95)','oklch(0.78 0.13 210)','oklch(0.72 0.18 25)','oklch(0.80 0.16 150)'],h:{delta:60,speed:118,throttle:54,brake:54,gear:50,steer:60},mute:'#8d8d94',good:'oklch(0.80 0.16 150)',bad:'oklch(0.86 0.15 95)',lc:{comp:'#6b6b72',fast:'oklch(0.80 0.16 150)',best:'oklch(0.72 0.19 300)',ex:'#2a2a2e',sel:'#f4f4f5'},rate:{onBg:'#f4f4f5',onFg:'#09090a',offBg:'#141416',offFg:'#8d8d94'},pool:{onBg:'#f4f4f5',onFg:'#09090a',offBg:'#141416',offFg:'#8d8d94'}},
+  d:{W:676,colors:['#e4e7ea','oklch(0.78 0.13 220)','oklch(0.82 0.15 75)','oklch(0.72 0.18 330)','oklch(0.80 0.15 150)'],h:{delta:64,speed:118,throttle:54,brake:54,gear:46,steer:60},mute:'#8a929b',good:'oklch(0.80 0.15 150)',bad:'oklch(0.72 0.18 25)',lc:{},rate:{onBg:'#e4e7ea',onFg:'#0d0f12',offBg:'transparent',offFg:'#8a929b'},pool:{on:'#e4e7ea',off:'#2e343a',offFg:'#8a929b'}},
+  w:{W:358,colors:['#f2f4f6','oklch(0.70 0.15 255)','oklch(0.73 0.17 350)','oklch(0.78 0.11 185)','oklch(0.90 0.14 105)','oklch(0.84 0.09 225)'],h:{delta:62,speed:104,throttle:50,brake:50,gear:44,steer:56},mute:'#8a929b',good:'oklch(0.82 0.17 150)',bad:'oklch(0.64 0.20 25)',lc:{},rate:{onBg:'oklch(0.80 0.16 70)',onFg:'#0d0f12',offBg:'transparent',offFg:'#8a929b'},pool:{on:'#e4e7ea',off:'#2e343a',offFg:'#8a929b'}},
+  c:{colors:['#17181b','oklch(0.55 0.16 255)','oklch(0.56 0.2 28)','oklch(0.56 0.14 150)','oklch(0.62 0.15 70)'],h:{delta:56,speed:100,throttle:48,brake:48,gear:44,steer:56},mute:'#6b6d72',good:'oklch(0.52 0.14 150)',bad:'oklch(0.56 0.2 28)',lc:{comp:'#17181b',best:'oklch(0.56 0.2 28)',ex:'#8d8f94',bg:'#f3f2ee',sel:'oklch(0.55 0.16 255)'},rate:{onFg:'#17181b',offFg:'#8d8f94'},pool:{on:'#17181b',off:'#dcdad3',offFg:'#6b6d72'}}
+};
+const AMB='oklch(0.82 0.16 75)',RED='oklch(0.68 0.21 25)',GRN='oklch(0.80 0.17 150)',PUR='oklch(0.70 0.20 300)',CYN='oklch(0.78 0.13 220)';
+const GC=['oklch(0.78 0.13 220)','oklch(0.82 0.15 75)','oklch(0.72 0.18 330)','oklch(0.80 0.15 150)','oklch(0.75 0.12 280)'];
+const heatC=t=>{t=Math.max(0,Math.min(1,t));return `oklch(${(.46+.30*Math.min(1,t*1.4)).toFixed(3)} ${(.03+.18*t).toFixed(3)} ${Math.round(t<.5?78:78-(t-.5)*2*52)})`;};
+const fmtD2=d=>(d>=0?'+':'−')+Math.abs(d).toFixed(2);
+const AX={time:{l:'Lap time',u:'s'},fuel:{l:'Fuel',u:'L'},wear:{l:'Tyre wear',u:'%'},temp:{l:'Track temp',u:'°C'},seg:{l:'Segment time',u:'s',c:1},v:{l:'Min speed',u:'km/h',c:1},ex:{l:'Exit speed',u:'km/h',c:1},bp:{l:'Brake point',u:'m',c:1},ft:{l:'Throttle pickup',u:'m',c:1}};
+const MET=[{k:'seg',l:'Segment',u:'s',f:v=>v.toFixed(3),s:v=>''+v.toFixed(3)},{k:'v',l:'Min speed',u:'km/h',f:v=>v.toFixed(1),s:v=>''+v.toFixed(1)},{k:'bp',l:'Brake pt',u:'m',f:v=>Math.round(v)+' m',s:v=>''+Math.round(v)},{k:'ft',l:'Throttle',u:'m',f:v=>Math.round(v)+' m',s:v=>''+Math.round(v)}];
+const GROUPS={stint:{l:'Stint',f:l=>l.gs},session:{l:'Session',f:l=>l.sess},day:{l:'Day',f:l=>l.day},temp:{l:'Track temp',f:l=>l.temp<30?'< 30 °C':l.temp<33?'30–33 °C':'≥ 33 °C'},fuel:{l:'Fuel load',f:l=>l.fuel<20?'< 20 L':l.fuel<40?'20–40 L':'≥ 40 L'},car:{l:'Car',f:l=>'911 GT3 R'}};
+const linreg=(xs,ys)=>{const n=xs.length;if(n<3)return null;const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n;let sxx=0,sxy=0,syy=0;for(let i=0;i<n;i++){sxx+=(xs[i]-mx)**2;sxy+=(xs[i]-mx)*(ys[i]-my);syy+=(ys[i]-my)**2;}if(!sxx||!syy)return null;const b=sxy/sxx,a=my-b*mx,res=ys.reduce((s,y,i)=>s+(y-a-b*xs[i])**2,0),se=Math.sqrt(res/(n-2)/sxx);return {a,b,r:sxy/Math.sqrt(sxx*syy),ci:1.96*se,n};};
+const dl=(name,text)=>{const b=new Blob([text],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();};
+CFG.w.v4=true;['ex','mh','fo','ed','mt','mm'].forEach(k=>CFG[k]=CFG.w);
+const smooth=P=>{if(P.length<3)return P.map((p,j)=>(j?'L':'M')+p[0]+' '+p[1]).join('');let d='M'+P[0][0]+' '+P[0][1];for(let i=0;i<P.length-1;i++){const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];d+='C'+(p1[0]+(p2[0]-p0[0])/6).toFixed(1)+' '+(p1[1]+(p2[1]-p0[1])/6).toFixed(1)+' '+(p2[0]-(p3[0]-p1[0])/6).toFixed(1)+' '+(p2[1]-(p3[1]-p1[1])/6).toFixed(1)+' '+p2[0]+' '+p2[1];}return d;};
+const WSTEP={t:[0.5,1,2,4,'lap'],m:[50,100,200,400,'lap']};
+const W=358,RATES=[.25,.5,1,2],ZOOMS=[1,2,4,8];
+class Component extends DCLogic {
+  D=buildData();
+  mk=()=>({laps:this.D.defLaps.slice(),charts:[{k:'delta',off:[]},{k:'speed',off:[]},{k:'throttle',off:[]},{k:'brake',off:[]}],zoom:1,c0:L/2,t:this.D.best.ch.t[Math.round(2000/DS)],playing:false,rate:1,pool:false,map:false,sel:null});
+  state=(()=>{const D=this.D,b=D.best.n,base=()=>({...this.mk(),wmode:'t',win:2,t:D.best.ch.t[Math.round(2105/DS)],laps:[b,12,31],hl:null,corner:5,sess:'Race',mapHide:false,view:'stack',fi:0,editor:false,pick:null,charts:[['delta'],['speed'],['throttle','brake'],['steer'],['gear']].map(chs=>({chs,off:[]}))}),comp=D.comp.map(l=>l.n).filter(n=>n!==b);
+    return {w:base(),ex:{...base(),hl:9},mh:{...base(),mapHide:true},fo:{...base(),mapHide:true,view:'focus',fi:2},ed:{...base(),mapHide:true,editor:true,pick:0,charts:[{chs:['delta'],off:[]},{chs:['speed','brake'],off:[]},{chs:['throttle','brake'],off:[]}]},mt:{...base(),laps:[b,...comp.filter(n=>n<=22).slice(0,11)],hl:12},mm:{...base(),laps:[b,...comp],hl:31}};})();
+  memo={};
+  set(k,p){this.setState(s=>({[k]:{...s[k],...(typeof p==='function'?p(s[k]):p)}}));}
+  distAt(l,t){const a=l.ch.t;if(t<=0)return 0;if(t>=a[N-1])return (N-1)*DS;let lo=0,hi=N-1;while(hi-lo>1){const m=(lo+hi)>>1;if(a[m]<=t)lo=m;else hi=m;}return (lo+(t-a[lo])/(a[hi]-a[lo]))*DS;}
+  componentDidMount(){let last=performance.now();const loop=now=>{const dt=Math.min(.1,(now-last)/1000);last=now;const up={};['w','ex','mh','fo','ed','mt','mm'].forEach(k=>{const s=this.state[k];if(!s.playing)return;const ref=this.D.byN[s.laps[0]];let t=s.t+dt*s.rate;if(t>=ref.ch.time)t=0;let c0=s.c0;if(s.zoom>1){const d=this.distAt(ref,t),sp=L/s.zoom,d0=Math.max(0,Math.min(L-sp,c0-sp/2));if(d>d0+sp*.85||d<d0)c0=d+sp*.35;}up[k]={...s,t,c0};});if(Object.keys(up).length)this.setState(up);this.raf=requestAnimationFrame(loop);};this.raf=requestAnimationFrame(loop);}
+  componentWillUnmount(){cancelAnimationFrame(this.raf);}
+  mapFor(w,h,pad){const key=w+'x'+h;if(this.memo[key])return this.memo[key];const {X,Y}=this.D;const x0=Math.min(...X),x1=Math.max(...X),y0=Math.min(...Y),y1=Math.max(...Y),sc=Math.min((w-2*pad)/(x1-x0),(h-2*pad)/(y1-y0)),ox=(w-(x1-x0)*sc)/2,oy=(h-(y1-y0)*sc)/2;
+    const px=X.map(v=>+(ox+(v-x0)*sc).toFixed(1)),py=Y.map(v=>+(oy+(v-y0)*sc).toFixed(1));let d='';for(let i=0;i<N;i+=2)d+=(i?'L':'M')+px[i]+' '+py[i];d+='Z';
+    const cx=w/2,cy=h/2;const labels=CRN.map((c,k)=>{const i=Math.round(c.d/DS),dx=px[i]-cx,dy=py[i]-cy,m=Math.hypot(dx,dy)||1;return {n:k+1,x:+(px[i]+dx/m*13).toFixed(1),y:+(py[i]+dy/m*13+4).toFixed(1)};});
+    return this.memo[key]={d,px,py,labels};}
+  lapChart(k,cfg,H,sel){const D=this.D,pad=8,xs=n=>+(pad+(n-1)/43*(W-2*pad)).toFixed(1),lo=D.M-1.0,hi=D.M+1.5,yv=t=>+(10+(t-lo)/(hi-lo)*(H-34)).toFixed(1);
+    const yFlip=yv;const medY=yFlip(D.M);
+    const pts=[],bars=[];let line='';const bw=(W-2*pad)/44-1.5;
+    D.laps.forEach(l=>{const x=xs(l.n),isSel=sel===l.n,onTap=()=>this.set(k,{sel:l.n});
+      if(l.comp){const y=yFlip(Math.min(hi,l.time));line+=(line?'L':'M')+x+' '+y;const isBest=l.n===D.best.n;pts.push({x,y,r:isSel?4.5:isBest?3.8:2.6,fill:isSel?cfg.lc.sel:isBest?cfg.lc.best:cfg.lc.comp,stroke:'none',onTap});
+        const fast=l.time<D.M;bars.push({x:+(x-bw/2).toFixed(1),y:Math.min(y,medY),w:bw,h:Math.max(1,Math.abs(y-medY)),fill:isSel?cfg.lc.sel:isBest?cfg.lc.best:fast?(cfg.lc.fast||cfg.lc.comp):cfg.lc.comp,onTap});}
+      else{pts.push({x,y:H-8,r:isSel?4.5:3,fill:isSel?cfg.lc.sel:(cfg.lc.bg||'none'),stroke:isSel?cfg.lc.sel:cfg.lc.ex,onTap});bars.push({x:+(x-bw/2).toFixed(1),y:medY,w:bw,h:H-medY-2,fill:isSel?cfg.lc.sel:cfg.lc.ex,onTap});}});
+    const pitX=+((xs(22)+xs(23))/2).toFixed(1);let readout='Tap a lap for its time and status';
+    if(sel){const l=D.byN[sel];readout=`Lap ${l.n} · ${fmtLap(l.time)} · `+(l.comp?`comparable, ${fmtD(l.time-D.M)} vs median`:`excluded: ${l.reason}`)+(l.off?` · off track ${l.off.toFixed(1)} s`:'')+(l.imp?` · impact ${l.imp} g`:'');}
+    return {pts,bars,line,medY,pitX,s2x:pitX,s2w:W-pitX,readout};}
+  dir(k){
+    const cfg=CFG[k],s=this.state[k],D=this.D,ref=D.byN[s.laps[0]],W=cfg.W||358;
+    const cur=this.distAt(ref,s.t),v4w=!!(CFG[k].v4&&s.win&&s.win!=='lap');let span,d0;
+    if(v4w){if(s.wmode==='m'){span=s.win;d0=cur-span/2;}else{const a=this.distAt(ref,Math.max(0,s.t-s.win/2)),b=this.distAt(ref,Math.min(ref.ch.time,s.t+s.win/2));span=Math.max(20,b-a);d0=a;}}
+    else{span=L/s.zoom;d0=s.zoom===1?0:Math.max(0,Math.min(L-span,s.c0-span/2));}
+    const i0=Math.max(0,Math.floor(d0/DS)),i1=Math.min(N-1,Math.ceil((d0+span)/DS)),step=v4w?1:Math.max(1,Math.round((i1-i0)/220));
+    const X=d=>+((d-d0)/span*W).toFixed(1),ci=Math.min(N-1,Math.round(cur/DS));
+    const many=CFG[k].v4&&s.laps.length>6,sel=s.laps.map((n,j)=>({n,l:D.byN[n],color:CFG[k].v4?this.wcol(k,j,n):cfg.colors[j],key:j===0||n===s.hl}));
+    const scrubTo=e=>{const r=e.currentTarget.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),st=this.state[k],sp=L/st.zoom,dd=st.zoom===1?0:Math.max(0,Math.min(L-sp,st.c0-sp/2)),i=Math.min(N-1,Math.round((dd+f*sp)/DS));this.set(k,{t:D.byN[st.laps[0]].ch.t[i],playing:false});};
+    const panDown=e=>{try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}const r=e.currentTarget.getBoundingClientRect();this._pan={x:e.clientX,w:r.width,t:this.state[k].t};this.set(k,{playing:false});};
+    const panMove=e=>{if(!e.buttons||!this._pan)return;const st=this.state[k],rf=D.byN[st.laps[0]],f=(e.clientX-this._pan.x)/this._pan.w;let t;if(st.wmode==='m'){const c1=this.distAt(rf,this._pan.t)-f*st.win,i=Math.max(0,Math.min(N-1,Math.round(c1/DS)));t=rf.ch.t[i];}else t=this._pan.t-f*st.win;this.set(k,{t:Math.max(0,Math.min(rf.ch.time-.01,t))});};
+    const onDown=v4w?panDown:(e=>{try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}scrubTo(e)}),onMove=v4w?panMove:(e=>{if(e.buttons)scrubTo(e)});
+    const inWin=CRN.map((c,j)=>({c,j})).filter(o=>o.c.d>=d0&&o.c.d<=d0+span);let lines=inWin.map(o=>({x:X(o.c.d)})),ticks=inWin.map(o=>({x:X(o.c.d),label:String(o.j+1)}));
+    if(v4w){const gs=[5,10,20,25,50,100,200,500].find(v=>span/v<=4.5)||500,gl=[];for(let d=Math.ceil(Math.max(0,d0)/gs)*gs;d<=d0+span;d+=gs)gl.push(d);lines=[...gl.map(d=>({x:X(d)})),...inWin.map(o=>({x:X(o.c.d)}))];ticks=[...gl.map(d=>({x:X(d),label:Math.round(d).toLocaleString('en-US')})),...inWin.map(o=>({x:X(o.c.d),label:'C'+(o.j+1)+' apex'}))].filter(t=>t.x<=W-34);}
+    const get=(kk,l,i)=>kk==='delta'?l.ch.t[i]-ref.ch.t[i]:kk==='speed'?l.ch.sp[i]:kk==='throttle'?l.ch.thr[i]:kk==='brake'?l.ch.brk[i]:kk==='gear'?gearOf(l.ch.sp[i]):D.kap[i]*2400+Math.sin(l.n*1.7+i*.08)*2;
+    const gp=(kk,l,i)=>v4w&&kk==='delta'?get(kk,l,i)-get(kk,l,i0):get(kk,l,i);
+    const fmtV=(kk,v)=>kk==='delta'?fmtD(v):kk==='gear'?String(v):kk==='steer'?Math.round(v)+'°':kk==='speed'?String(Math.round(v)):Math.round(v)+'%';
+    const DASH=['','5 3','1.5 2.5'],PCT={throttle:1,brake:1},labOf=c=>c.chs.map(kk=>CH[kk].label).join(' + ');
+    const mkChart=(c,idx,H)=>{const chs=c.chs,shown=sel.filter(x=>!c.off.includes(x.n));
+      const rng=kk=>{const def=CH[kk],bd=D.bands[kk];let lo=def.lo,hi=def.hi;if(kk==='speed'){lo=1e9;hi=-1e9;for(let i=i0;i<=i1;i+=step){for(const x of sel){const v=x.l.ch.sp[i];lo=Math.min(lo,v);hi=Math.max(hi,v);}if(chs.length===1){lo=Math.min(lo,bd.lo[i]);hi=Math.max(hi,bd.hi[i]);}}lo-=6;hi+=6;}
+        if(kk==='delta'){let m=v4w?.02:.05;for(let i=i0;i<=i1;i+=step)for(const x of sel)m=Math.max(m,Math.abs(gp(kk,x.l,i)));lo=-m*1.15;hi=m*1.15;}return [lo,hi];};
+      const traces=[];let band='',y0=-50;
+      chs.forEach((kk,q)=>{const [lo,hi]=rng(kk),Y=v=>+(H-2-(v-lo)/(hi-lo)*(H-4)).toFixed(1);if(kk==='delta')y0=Y(0);
+        shown.forEach(x=>{const P=[];for(let i=i0;i<=i1;i+=step)P.push([X(i*DS),Y(gp(kk,x.l,i))]);const d=v4w&&kk!=='gear'?smooth(P):P.map((p,j)=>(j?'L':'M')+p[0]+' '+p[1]).join('');traces.push({d,color:x.color,w:x.key?2.3:many?(s.laps.length<20?1.2:1):1.5,op:many&&!x.key?(s.laps.length<20?.55:.45):1,dash:DASH[q]||'',z:(x.key?2:0)+(x.n===s.laps[0]?1:0)});});
+        const bd=D.bands[kk];if(chs.length===1&&bd){let a='',b='';for(let i=i0;i<=i1;i+=step)a+=(a?'L':'M')+X(i*DS)+' '+Y(bd.hi[i]);for(let i=i1;i>=i0;i-=step)b+='L'+X(i*DS)+' '+Y(bd.lo[i]);band=a+b+'Z';}});
+      traces.sort((a,b)=>a.z-b.z);
+      const vsel=sel.filter(x=>!many||x.key),tog=x=>()=>this.set(k,st=>({charts:st.charts.map((cc,j)=>j!==idx?cc:{...cc,off:cc.off.includes(x.n)?cc.off.filter(z=>z!==x.n):[...cc.off,x.n]})}));
+      const rows=chs.map((kk,q)=>({name:CH[kk].label,unit:CH[kk].unit,dash:DASH[q]||'',vals:vsel.map(x=>({color:x.color,v:fmtV(kk,get(kk,x.l,ci)),op:c.off.includes(x.n)?.3:1,onTap:tog(x)}))}));
+      const mixed=new Set(chs.map(kk=>PCT[kk]?'%':CH[kk].unit)).size>1;
+      const desc=chs.length===1?(v4w&&chs[0]==='delta'?'Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor.':CH[chs[0]].desc):chs.map((kk,q)=>CH[kk].label+(q===0?' solid':q===1?' dashed':' dotted')).join(', ')+'.'+(mixed?' Each channel keeps its own scale.':' Shared 0–100% scale.');
+      return {k:chs.join('+'),label:labOf(c),desc,unit:chs.length===1?CH[chs[0]].unit:'',H,traces,band,rows,single:chs.length===1,multi:chs.length>1,vals:rows[0].vals,lines,ticks:idx===0||s.view==='focus'?ticks:[],y0,cursorX:X(cur),onDown,onMove,onRemove:()=>this.set(k,st=>({charts:st.charts.filter((_,j)=>j!==idx),fi:0}))};};
+    const fi=Math.min(s.fi||0,Math.max(0,(s.charts||[]).length-1));
+    const v4ch=!CFG[k].v4||!s.charts.length?[]:s.view==='focus'?[mkChart(s.charts[fi],fi,330)]:s.charts.map((c,idx)=>mkChart(c,idx,Math.max(...c.chs.map(kk=>cfg.h[kk]))+(c.chs.length>1?14:0)));
+    const setCh=f=>this.set(k,st=>({charts:f(st.charts.map(c=>({...c,chs:[...c.chs]})))}));
+    const PRE=[['Default',[['delta'],['speed'],['throttle','brake'],['steer'],['gear']]],['Pedals',[['delta'],['throttle','brake']]],['Braking',[['speed','brake'],['delta']]],['Separate',[['delta'],['speed'],['throttle'],['brake'],['steer'],['gear']]]];
+    const cv=!CFG[k].v4?{}:{stack:s.view!=='focus',focusMode:s.view==='focus',
+      views:[['stack','Stack'],['focus','One chart']].map(([m,l])=>({label:l,bg:(s.view||'stack')===m?'#e4e7ea':'transparent',fg:(s.view||'stack')===m?'#0d0f12':'#8a929b',onTap:()=>this.set(k,{view:m})})),
+      tabs:s.charts.map((c,j)=>({label:labOf(c),bg:j===fi?'#e4e7ea':'#15181c',fg:j===fi?'#0d0f12':'#aeb4ba',onTap:()=>this.set(k,{fi:j})})),
+      quick:Object.keys(CH).map(kk=>{const on=!!s.charts[fi]&&s.charts[fi].chs.includes(kk);return {label:CH[kk].label,bg:on?'oklch(0.80 0.16 70 / 0.16)':'transparent',bd:on?'oklch(0.80 0.16 70)':'#2e343a',fg:on?'#e4e7ea':'#8a929b',mark:on?'✓ ':'+ ',onTap:()=>setCh(cs=>{const c=cs[fi];if(!c)return cs;if(c.chs.includes(kk)){if(c.chs.length>1)c.chs=c.chs.filter(z=>z!==kk);}else if(c.chs.length<3)c.chs.push(kk);return cs;})};}),
+      editOpen:!!s.editor,onEdit:()=>this.set(k,st=>({editor:!st.editor,pick:null})),
+      presets:PRE.map(([l,p])=>({label:l,onTap:()=>this.set(k,{charts:p.map(chs=>({chs:[...chs],off:[]})),fi:0,pick:null})})),
+      rows:s.charts.map((c,j)=>({n:String(j+1),chips:c.chs.map((kk,q)=>({label:CH[kk].label,dash:DASH[q]||'',onRemove:()=>setCh(cs=>{cs[j].chs=cs[j].chs.filter(z=>z!==kk);return cs[j].chs.length?cs:cs.filter((_,z)=>z!==j);})})),
+        picking:s.pick===j,canAdd:c.chs.length<3,onPick:()=>this.set(k,st=>({pick:st.pick===j?null:j})),
+        addChs:Object.keys(CH).filter(kk=>!c.chs.includes(kk)).map(kk=>({label:CH[kk].label,onTap:()=>{setCh(cs=>{if(cs[j].chs.length<3)cs[j].chs.push(kk);return cs;});this.set(k,{pick:null});}})),
+        onUp:()=>setCh(cs=>{if(j>0)[cs[j-1],cs[j]]=[cs[j],cs[j-1]];return cs;}),onDown:()=>setCh(cs=>{if(j<cs.length-1)[cs[j+1],cs[j]]=[cs[j],cs[j+1]];return cs;}),onDel:()=>setCh(cs=>cs.filter((_,z)=>z!==j))})),
+      onAddChart:()=>this.set(k,st=>({charts:[...st.charts,{chs:['speed'],off:[]}],pick:st.charts.length}))};
+    const charts=CFG[k].v4?v4ch:s.charts.map((c,idx)=>{const kk=c.k,def=CH[kk],H=cfg.h[kk],shown=sel.filter(x=>!c.off.includes(x.n)),bd=D.bands[kk];let lo=def.lo,hi=def.hi;
+      if(kk==='speed'){lo=1e9;hi=-1e9;for(let i=i0;i<=i1;i+=step){for(const x of sel){const v=x.l.ch.sp[i];lo=Math.min(lo,v);hi=Math.max(hi,v);}lo=Math.min(lo,bd.lo[i]);hi=Math.max(hi,bd.hi[i]);}lo-=6;hi+=6;}
+      if(kk==='delta'){if(v4w){let m=.02;for(let i=i0;i<=i1;i++)for(const x of sel)m=Math.max(m,Math.abs(gp(kk,x.l,i)));lo=-m*1.15;hi=m*1.15;}else{let m=.05;for(let i=i0;i<=i1;i+=step)for(const x of sel)m=Math.max(m,Math.abs(get(kk,x.l,i)));lo=-m*1.15;hi=m*1.15;}}
+      const Y=v=>+(H-2-(v-lo)/(hi-lo)*(H-4)).toFixed(1);
+      const traces=shown.map(x=>{const P=[];for(let i=i0;i<=i1;i+=step)P.push([X(i*DS),Y(gp(kk,x.l,i))]);const d=v4w&&kk!=='gear'?smooth(P):P.map((p,j)=>(j?'L':'M')+p[0]+' '+p[1]).join('');return {d,color:x.color,w:CFG[k].v4?(x.key?2.3:many?(s.laps.length<20?1.2:1):1.5):(x.n===s.laps[0]?1.8:1.3),op:many&&!x.key?(s.laps.length<20?.55:.45):1};}).reverse().sort((a,b)=>a.w-b.w);
+      let band='';if(bd){let a='',b='';for(let i=i0;i<=i1;i+=step){a+=(a?'L':'M')+X(i*DS)+' '+Y(bd.hi[i]);}for(let i=i1;i>=i0;i-=step){b+='L'+X(i*DS)+' '+Y(bd.lo[i]);}band=a+b+'Z';}
+      const vals=sel.filter(x=>!many||x.key).map(x=>{const on=!c.off.includes(x.n);return {color:x.color,v:fmtV(kk,get(kk,x.l,ci)),op:on?1:.3,deco:on?'none':'line-through',onTap:()=>this.set(k,st=>({charts:st.charts.map((cc,j)=>j!==idx?cc:{...cc,off:cc.off.includes(x.n)?cc.off.filter(z=>z!==x.n):[...cc.off,x.n]})}))};});
+      return {k:kk,label:def.label,desc:v4w&&kk==='delta'?'Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor.':def.desc,unit:def.unit,H,traces,band,vals,lines,ticks:idx===0||k==='c'?ticks:[],y0:kk==='delta'?Y(0):-50,cursorX:X(cur),onDown,onMove,onRemove:()=>this.set(k,st=>({charts:st.charts.filter((_,j)=>j!==idx)}))};});
+    const addable=CFG[k].v4?[]:Object.keys(CH).filter(kk=>!s.charts.some(c=>c.k===kk)).map(kk=>({label:CH[kk].label,onTap:()=>this.set(k,st=>({charts:[...st.charts,{k:kk,off:[]}]}))}));
+    const lapChips=sel.map((x,j)=>({x,j})).filter(o=>!many||o.x.key).map(({x,j})=>{const d=x.l.time-ref.time;return {label:x.l.label||('L'+x.n),time:fmtLap(x.l.time),tag:j===0?'REF':'Stint '+x.l.st,dlt:j===0?'REF':fmtD(d),dcol:j===0?cfg.mute:d<0?cfg.good:cfg.bad,color:x.color,canRemove:j>0,
+      onTap:()=>this.set(k,st=>({laps:[x.n,...st.laps.filter(z=>z!==x.n)]})),onRemove:e=>{e.stopPropagation();this.set(k,st=>({laps:st.laps.filter(z=>z!==x.n)}));}};});
+    const pool=[...D.comp].sort((a,b)=>a.n-b.n).map(l=>{const j=s.laps.indexOf(l.n),on=j>=0;return {label:'L'+l.n,t:fmtLap(l.time).slice(2,7),bd:on?(cfg.pool.on||cfg.colors[j]):cfg.pool.off,fg:on?(k==='b'?cfg.pool.onFg:cfg.colors[j]):cfg.pool.offFg,bgc:on?cfg.colors[j]:cfg.pool.offBg,
+      onTap:()=>this.set(k,st=>st.laps.includes(l.n)?(st.laps.length>1&&st.laps[0]!==l.n?{laps:st.laps.filter(z=>z!==l.n)}:{}):(st.laps.length<5?{laps:[...st.laps,l.n]}:{}))};});
+    if(k==='b')pool.forEach(p=>{if(p.bgc===cfg.pool.offBg)p.fg=cfg.pool.offFg;else p.fg='#09090a';});
+    const mini=this.mapFor(128,96,8),dotsOn=m=>sel.map(x=>{const i=Math.min(N-1,Math.round(this.distAt(x.l,s.t)/DS));return {x:m.px[i],y:m.py[i],color:x.color};}).reverse();
+    let nk=0,nd=1e9;CRN.forEach((c,j)=>{let dd=Math.abs(c.d-cur);dd=Math.min(dd,L-dd);if(dd<nd){nd=dd;nk=j;}});
+    const bm=k==='b'?this.mapFor(358,200,16):this.mapFor(358,236,18);
+    const focus=D.focus.map(f=>({...f,onTap:()=>{const i=Math.round(Math.max(0,f.d-150)/DS);this.set(k,st=>({zoom:4,c0:f.d,t:D.byN[st.laps[0]].ch.t[i],playing:false}));}}));
+    const stripDown=e=>{try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}stripTo(e)},stripTo=e=>{const r=e.currentTarget.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),st=this.state[k],i=Math.min(N-1,Math.round(f*L/DS));this.set(k,{t:D.byN[st.laps[0]].ch.t[i],c0:f*L,playing:false});};
+    return {cv,focus,lapChips,pool,poolOpen:s.pool,togglePool:()=>this.set(k,st=>({pool:!st.pool})),charts,addable,
+      shownCharts:k==='c'&&s.map?charts.filter(c=>c.k==='delta'):charts,
+      map:{d:mini.d,dots:dotsOn(mini)},bigMap:{d:bm.d,labels:bm.labels,dots:dotsOn(bm)},
+      strip:{wx:+(d0/L*W).toFixed(1),ww:+(span/L*W).toFixed(1),corners:CRN.map((c,j)=>({x:+(c.d/L*W).toFixed(1),n:j+1})),dots:sel.map(x=>({x:+(this.distAt(x.l,s.t)/L*W-1.5).toFixed(1),color:x.color})).reverse()},
+      stripDown,stripMove:e=>{if(e.buttons)stripTo(e)},
+      mapOpen:s.map,mapLabel:s.map?'Hide map':'Show map',toggleMap:()=>this.set(k,st=>({map:!st.map})),mapMode:s.map,
+      modes:[{label:'Traces',on:!s.map},{label:'Map',on:s.map}].map(m=>({label:m.label,bg:m.on?'#17181b':'transparent',fg:m.on?'#f3f2ee':'#17181b',onTap:()=>this.set(k,{map:m.label==='Map'})})),
+      table:sel.flatMap(x=>{const i=ci;return [{v:'L'+x.n,color:x.color},{v:Math.round(x.l.ch.sp[i])+' km/h',color:x.color},{v:Math.round(x.l.ch.thr[i])+'% thr',color:x.color},{v:fmtD(x.l.ch.t[i]-ref.ch.t[i]),color:x.color}];}),
+      speeds:sel.filter(x=>!many||x.key).map(x=>({v:Math.round(x.l.ch.sp[ci]),color:x.color})),
+      curCorner:(nd<180?'Corner ':'After Corner ')+(nd<180?nk+1:(CRN.findIndex(c=>c.d>cur)-1+CRN.length)%CRN.length+1),curD:fmtM(cur),curT:fmtT(s.t),
+      playing:s.playing,paused:!s.playing,playLabel:s.playing?'Pause':'Play',onPlay:()=>this.set(k,st=>({playing:!st.playing})),
+      rates:RATES.map(r=>({label:r+'×',bg:r===s.rate?cfg.rate.onBg:cfg.rate.offBg,fg:r===s.rate?cfg.rate.onFg:cfg.rate.offFg,fg2:r===s.rate?cfg.rate.onFg:cfg.rate.offFg,deco:r===s.rate?'underline':'none',onTap:()=>this.set(k,{rate:r})})),
+      winModes:[['t','Time'],['m','Distance']].map(([m,l])=>({label:l,bg:(s.wmode||'t')===m?'#e4e7ea':'transparent',fg:(s.wmode||'t')===m?'#0d0f12':'#8a929b',onTap:()=>this.set(k,st=>({wmode:m,win:m==='t'?2:200,zoom:1}))})),
+      winLabel:s.win==='lap'?'Lap':(s.wmode==='m'?s.win+' m':s.win+' s'),winDesc:s.win==='lap'?'whole lap':(s.wmode==='m'?'fixed':`≈ ${Math.round(span)} m`),
+      winIn:()=>this.set(k,st=>{const a=WSTEP[st.wmode||'t'],i=a.indexOf(st.win);return {win:a[Math.max(0,i-1)],zoom:1};}),winOut:()=>this.set(k,st=>{const a=WSTEP[st.wmode||'t'],i=a.indexOf(st.win);return {win:a[Math.min(a.length-1,i+1)],zoom:1};}),
+      zoomLabel:s.zoom+'×',zoomIn:()=>this.set(k,st=>({zoom:ZOOMS[Math.min(3,ZOOMS.indexOf(st.zoom)+1)],c0:this.distAt(D.byN[st.laps[0]],st.t)})),zoomOut:()=>this.set(k,st=>({zoom:ZOOMS[Math.max(0,ZOOMS.indexOf(st.zoom)-1)],c0:this.distAt(D.byN[st.laps[0]],st.t)})),
+      lc:this.lapChart(k,cfg,k==='a'?150:k==='b'?130:140,s.sel),
+      collected:s.laps.length+' laps collected',collectedN:s.laps.length};
+  }
+  wcol(K,j,id){const s=this.state[K],P=CFG.w.colors,n=s.laps.length;if(j===0)return P[0];if(n>6){if(id===s.hl)return P[1];if(n<20)return 'oklch(0.72 0.07 '+[255,350,185,105,225][(j-1)%5]+')';return '#5d646d';}return P[j%P.length];}
+  t4(K){const D=this.D,s=this.state[K],R=Math.round,W=358,sw=p=>this.set(K,p),ACC='oklch(0.80 0.16 70)',FAST='oklch(0.82 0.17 150)',SLOW='oklch(0.64 0.20 25)';
+    const T=this.dir(K),ref=D.byN[s.laps[0]],many=s.laps.length>6,huge=s.laps.length>=20;
+    const sessName=n=>n==='Quali'?'Qualifying':n,bestOf=n=>D.all.filter(l=>l.sess===n&&l.comp).reduce((a,b)=>a.time<b.time?a:b);
+    const pool=D.all.filter(l=>l.sess===s.sess).sort((a,b)=>a.id-b.id),comp=pool.filter(l=>l.comp),M=med(comp.map(l=>l.time)),best=bestOf(s.sess);
+    const colOf=id=>{const j=s.laps.indexOf(id);return j<0?null:this.wcol(K,j,id);},isKey=id=>id===s.laps[0]||id===s.hl;
+    const toggle=id=>this.set(K,st=>st.laps.includes(id)?(st.laps.length>1&&st.laps[0]!==id?{laps:st.laps.filter(x=>x!==id)}:{}):{laps:[...st.laps,id]});
+    this.tR=this.tR||{};if(!this.tR[K])this.tR[K]=el=>{this.tbls=this.tbls||{};this.tbls[K]=el;};
+    const scrollTo=id=>{const el=(this.tbls||{})[K];if(!el)return;const r=el.querySelector('[data-lap="'+id+'"]');if(r)el.scrollTop=Math.max(0,r.offsetTop-el.clientHeight*.55);};
+    const hlTap=(id,scroll)=>{sw({hl:id});if(scroll)setTimeout(()=>scrollTo(id),30);};
+    const grpOf=l=>pool.filter(o=>o.st===l.st),cutOf=l=>{const ts=grpOf(l).filter(o=>!o.reason||o.reason==='Slow outlier').map(o=>o.time),m0=med(ts),mad=med(ts.map(t=>Math.abs(t-m0)))*1.4826;return {m0,cut:Math.min(3*mad,m0*.07)};};
+    const why=l=>{const x=[];if(l.reason==='Pit out')x.push('Starts in the pit lane, so it includes pit exit time.');else if(l.reason==='Pit in')x.push('Ends in the pit lane, so it includes pit entry time.');else if(l.reason==='Partial')x.push('Timing started partway round, so the lap is incomplete.');
+      else if(l.reason==='Slow outlier'){const c=cutOf(l);x.push(`${fmtD2(l.time-c.m0)} s vs the ${l.st?'stint':'session'} median. Laps more than ${c.cut.toFixed(2)} s slower are excluded (median + 3 robust σ, max 7%).`);}
+      if(l.off)x.push(`Off track for ${l.off.toFixed(1)} s${l.comp?', under the 1.0 s tolerance, so the lap still counts':''}.`);if(l.imp)x.push(`Impact of ${l.imp} g, possible damage.`);return x.join(' ');};
+    const H=150,mid=74,bw=W/pool.length,sc=1.5,ty=d=>mid-Math.max(-sc,Math.min(sc,d))/sc*(mid-14);
+    let hlBar=null;
+    const bars=pool.map((l,i)=>{const x=+(i*bw+.8).toFixed(1),w=+Math.max(1.5,bw-1.6).toFixed(1),c=colOf(l.id),on=()=>hlTap(l.id,true);let b;
+      if(!l.comp)b={x,y:H-14,w,h:9,fill:c||'#0d0f12',st:c||'#8a929b',onTap:on};else{const y=ty(l.time-M);b={x,y:+Math.min(y,mid).toFixed(1),w,h:+Math.max(1.5,Math.abs(y-mid)).toFixed(1),fill:c||(l.id===best.id?PUR:'#5d646d'),st:'none',onTap:on};}
+      if(l.id===s.hl)hlBar={x:+(b.x-2).toFixed(1),y:+(b.y-2).toFixed(1),w:+(b.w+4).toFixed(1),h:+(b.h+4).toFixed(1)};return b;});
+    const pits=[],stints=[];pool.forEach((l,i)=>{if(l.reason==='Pit in')pits.push({x:+((i+1)*bw).toFixed(1)});if(i>0&&l.st&&l.st!==pool[i-1].st)stints.push({x:+(i*bw).toFixed(1),label:'STINT '+l.st});});
+    if(pool[0].st)stints.unshift({x:0,label:'STINT 1'});
+    const xl=pool.map((l,i)=>({l,i})).filter(o=>o.i===0||(o.i+1)%10===0).map(o=>({x:+(o.i*bw+bw/2).toFixed(1),t:o.l.label}));
+    const code=l=>({'Pit out':'OUT','Pit in':'IN','Partial':'PART','Slow outlier':'SLOW'})[l.reason]||'';
+    const sb=[0,1,2].map(j=>Math.min(...comp.map(l=>l.sec[j])));
+    const rows=[];pool.forEach((l,i)=>{if(i===0||l.st!==pool[i-1].st){const sl=grpOf(l),sc2=sl.filter(o=>o.comp),ts=sc2.map(o=>o.time);
+        rows.push({isHdr:true,isRow:false,hdr:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label} · median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,onAll:()=>this.set(K,st=>({laps:[st.laps[0],...sc2.map(o=>o.id).filter(id=>id!==st.laps[0])],hl:null}))});}
+      const c=colOf(l.id),tags=[];if(l.id===best.id)tags.push('BEST');const cd=code(l);if(cd)tags.push(cd);if(l.off)tags.push('OFF '+l.off.toFixed(1));if(l.imp)tags.push('HIT '+l.imp+'g');const hl=l.id===s.hl;
+      rows.push({isHdr:false,isRow:true,id:String(l.id),label:l.label,time:fmtLap(l.time),gap:l.comp?fmtD2(l.time-M):'',gc:l.time<M?FAST:'#c3c8cd',s:l.sec.map((v,j)=>({v:v.toFixed(2),c:l.comp&&Math.abs(v-sb[j])<.0005?PUR:l.comp?'#c3c8cd':'#6b737c'})),tags:tags.join(' '),tc:l.id===best.id?PUR:'#aeb4ba',op:l.comp?1:.5,
+        box:c||'transparent',bd:c||'#3a4148',chk:c?'✓':'',bg:hl?'oklch(0.80 0.16 70 / 0.13)':'transparent',sh:hl?'inset 3px 0 0 oklch(0.80 0.16 70)':'none',onTap:()=>hlTap(l.id,false),onChk:e=>{e.stopPropagation();toggle(l.id);}});});
+    const hL=s.hl&&D.byN[s.hl]&&D.byN[s.hl].sess===s.sess?D.byN[s.hl]:null,inSel=hL&&s.laps.includes(hL.id);
+    const detail=hL?{show:true,title:`${hL.label} · ${fmtLap(hL.time)}`,status:hL.comp?`Comparable · ${fmtD2(hL.time-M)} s vs median`:`Excluded · ${hL.reason}`,sc:hL.comp?'#aeb4ba':ACC,why:why(hL)||'Clean lap.',btn:inSel?(hL.id===s.laps[0]?'Reference':'Remove from compare'):'Add to compare',btnBg:inSel?'transparent':ACC,btnFg:inSel?'#e4e7ea':'#0d0f12',onBtn:()=>toggle(hL.id)}:{show:false};
+    const TB={Race:'R',Qualifying:'Q',Practice:'P'};
+    const sumOf=n=>{const p=D.all.filter(l=>l.sess===n),c=p.filter(l=>l.comp);return {laps:String(p.length),best:fmtLap(Math.min(...c.map(l=>l.time))),med:fmtLap(med(c.map(l=>l.time)))};};
+    const row=(n,time)=>({...sumOf(n),type:sessName(n),b:TB[sessName(n)],time,track:'Portimão',car:'911 GT3 R',bg:s.sess===n?'#171a1f':'transparent',sh:s.sess===n?'inset 3px 0 0 oklch(0.80 0.16 70)':'none',onTap:()=>sw({sess:n,hl:null})});
+    const st0=(type,time,track,car,laps,b2,m2)=>({type,b:TB[type],time,track,car,laps,best:b2,med:m2,bg:'transparent',sh:'none',onTap:null});
+    const days=[{day:'Today',date:'Sat 27 Sep',rows:[row('Race','21:40'),row('Quali','20:10')]},{day:'Thursday',date:'25 Sep',rows:[row('Practice','19:05')]},
+      {day:'Monday',date:'22 Sep',rows:[st0('Practice','20:30','Spa','911 GT3 R','26','2:18.412','2:19.630')]},{day:'Sunday',date:'21 Sep',rows:[st0('Race','18:00','Le Mans','Porsche 963','61','3:31.906','3:33.480'),st0('Qualifying','17:15','Le Mans','Porsche 963','6','3:30.844','3:31.702')]}];
+    const openC=j=>()=>{const i=Math.round(Math.max(0,CRN[j].d-150)/DS);this.set(K,st=>({corner:j,zoom:4,c0:CRN[j].d,t:D.byN[st.laps[0]].ch.t[i],playing:false}));};
+    const selL=s.laps.map((id,j)=>({l:D.byN[id],color:this.wcol(K,j,id),key:isKey(id),isRef:j===0})),keyL=selL.filter(x=>!many||x.key);
+    const m=this.mapFor(358,170,18),mdots=keyL.map(x=>{const i=Math.min(N-1,Math.round(this.distAt(x.l,s.t)/DS));return {x:m.px[i],y:m.py[i],color:x.color};}).reverse();
+    const mlabels=m.labels.map((b,j)=>({x:b.x,cy:+(b.y-4).toFixed(1),ty:b.y,n:b.n,fill:j===s.corner?'#e4e7ea':'#15181c',fg:j===s.corner?'#0d0f12':'#aeb4ba',onTap:openC(j)}));
+    const stripDots=keyL.map(x=>({x:+(this.distAt(x.l,s.t)/L*W-1.5).toFixed(1),color:x.color})).reverse(),stripC=CRN.map((c,j)=>({x:+(c.d/L*W).toFixed(1),n:j+1,onTap:openC(j)}));
+    const sTo=e=>{const r=e.currentTarget.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),i=Math.min(N-1,Math.round(f*L/DS));this.set(K,st=>({t:D.byN[st.laps[0]].ch.t[i],c0:f*L,playing:false}));};
+    const refBest=ref.id===bestOf(ref.sess).id,refName=`${ref.label} · ${fmtLap(ref.time)} · ${sessName(ref.sess)}${refBest?' best':''}`;
+    const gcell=d=>{const a=Math.abs(d);if(a<.1)return {bg:'#1b1f24',fg:'#9aa1a9'};const t=Math.min(1,(a-.1)/.2);return d>0?{bg:`oklch(${(.40+.12*t).toFixed(3)} ${(.10+.10*t).toFixed(3)} 25)`,fg:'#f2f4f6'}:{bg:`oklch(${(.62+.20*t).toFixed(3)} ${(.10+.07*t).toFixed(3)} 150)`,fg:'#0d0f12'};};
+    const fmtC=d=>(d>=0?'+':'−')+Math.abs(d).toFixed(2).replace(/^0/,'');
+    const cellsFor=ds=>ds.map((d,k)=>{const g=gcell(d);return {v:fmtC(d),bg:g.bg,fg:g.fg,bd:k===s.corner?'#e4e7ea':'transparent',onTap:openC(k)};});
+    const others=selL.slice(1);
+    let strip;if(many){const md=CRN.map((c,k)=>med(others.map(x=>x.l.met[k].seg-ref.met[k].seg)));strip=[{label:'MED',sub:others.length+' laps',color:'#5d646d',tot:'',cells:cellsFor(md),onTap:null}];const h2=others.find(x=>x.l.id===s.hl);if(h2)strip.push({label:h2.l.label,sub:'',color:h2.color,cells:cellsFor(CRN.map((c,k)=>h2.l.met[k].seg-ref.met[k].seg)),onTap:null});}
+    else strip=others.map(x=>({label:x.l.label,sub:'',color:x.color,cells:cellsFor(CRN.map((c,k)=>x.l.met[k].seg-ref.met[k].seg)),onTap:()=>sw({hl:x.l.id})}));
+    const shdr=CRN.map((c,k)=>({n:'C'+(k+1),fg:k===s.corner?'#e4e7ea':'#8a929b',onTap:openC(k)}));
+    const k=s.corner,ai=Math.round(CRN[k].d/DS),q0=-50,q1=30,cx=q=>+((q-q0)/(q1-q0)*W).toFixed(1);
+    const chan=[['sp','Speed','km/h',96,'Speed through the corner. The lowest point is your minimum speed.'],['brk','Brake','%',52,'Brake pedal. Dashed lines mark where each lap started braking.'],['thr','Throttle','%',52,'Throttle pedal. Dashed lines mark where each lap reached full throttle.']].map(([f,label,unit,H2,desc])=>{
+      let lo=-4,hi=104;if(f==='sp'){lo=1e9;hi=-1e9;for(let q=q0;q<=q1;q+=2)for(const x of selL){const v=x.l.ch.sp[(ai+q+N)%N];lo=Math.min(lo,v);hi=Math.max(hi,v);}lo-=5;hi+=5;}
+      const Y=v=>+(H2-2-(v-lo)/(hi-lo)*(H2-4)).toFixed(1);
+      const traces=selL.map(x=>{let d='';for(let q=q0;q<=q1;q++)d+=(q===q0?'M':'L')+cx(q)+' '+Y(x.l.ch[f][(ai+q+N)%N]);return {d,color:x.color,w:x.key?2.3:many?(s.laps.length<20?1.2:1):1.5,op:many&&!x.key?(s.laps.length<20?.55:.45):1};}).reverse().sort((a,b)=>a.w-b.w);
+      const mk=keyL.filter(x=>(f==='brk'?x.l.met[k].bp:x.l.met[k].ft)!=null);
+      const marks=f==='brk'?mk.map(x=>({x:cx(-x.l.met[k].bp/DS),color:x.color})):f==='thr'?mk.map(x=>({x:cx(x.l.met[k].ft/DS),color:x.color})):[];
+      return {label,unit,desc,H:H2,traces,marks,apex:cx(0)};});
+    const cticks=[-40,-20,0,20].map(q=>({x:cx(q),t:q===0?'apex':(q<0?'−':'+')+Math.abs(q*DS)+' m'}));
+    const rm=ref.met[k],dlt=(v,rv,dec,u)=>v==null||rv==null?'':((v-rv)>=0?'+':'−')+Math.abs(v-rv).toFixed(dec)+u;
+    const crows=huge?[]:selL.map(x=>{const o=x.l.met[k],sg=o.seg-rm.seg;return {label:x.l.label,color:x.color,ref:x.isRef?'REF':'',seg:o.seg.toFixed(2)+' s',segD:x.isRef?'reference':fmtD2(sg)+' s',segC:x.isRef?'#8a929b':sg>.02?SLOW:sg<-.02?FAST:'#8a929b',
+      bp:o.bp!=null?o.bp+' m':'—',bpD:x.isRef?'':dlt(o.bp,rm.bp,0,' m'),v:o.v.toFixed(0)+' km/h',vD:x.isRef?'':dlt(o.v,rm.v,1,''),ft:o.ft!=null?o.ft+' m':'—',ftD:x.isRef?'':dlt(o.ft,rm.ft,0,' m'),bg:x.l.id===s.hl?'oklch(0.80 0.16 70 / 0.13)':'transparent',onTap:()=>sw({hl:x.l.id})};});
+    const DW=300,dstrips=!huge?[]:[['seg','Time in corner','s',v=>v.toFixed(2),false],['bp','Brake point','m before apex',v=>R(v),true],['v','Min speed','km/h',v=>v.toFixed(0),false],['ft','Full throttle','m after apex',v=>R(v),false]].map(([f,label,unit,fm,flip])=>{
+      const P=selL.map(x=>({x,v:x.l.met[k][f]})).filter(p=>p.v!=null),vs=P.map(p=>p.v);let lo=Math.min(...vs),hi=Math.max(...vs);const pd=(hi-lo)*.06||1;lo-=pd;hi+=pd;
+      const X=v=>{let t=(v-lo)/(hi-lo);if(flip)t=1-t;return +(4+t*(DW-8)).toFixed(1);};const cnt={};
+      const dots=P.map(p=>{const kx=R(X(p.v)/4);cnt[kx]=(cnt[kx]||0)+1;const n=cnt[kx]-1;return {cx:X(p.v),cy:+(22-(n%2?1:-1)*Math.ceil(n/2)*5).toFixed(1),r:p.x.key?4.2:2.8,fill:p.x.isRef?'#f2f4f6':p.x.l.id===s.hl?CFG.w.colors[1]:'#6b737c',st:p.x.key?'#0d0f12':'none',onTap:()=>sw({hl:p.x.l.id}),z:p.x.key?1:0};}).sort((a,b)=>a.z-b.z);
+      return {label,unit,dots,med:fm(med(vs)),p:fm(pct(vs,.1))+'–'+fm(pct(vs,.9)),lo:fm(flip?hi-pd:lo+pd),hi:fm(flip?lo+pd:hi-pd),n:P.length};});
+    const hlC=s.hl&&s.laps.includes(s.hl)?D.byN[s.hl]:null,hlo=hlC?hlC.met[k]:null;
+    const cchips=CRN.map((c,j)=>({n:'C'+(j+1),bg:j===k?'#e4e7ea':'#15181c',fg:j===k?'#0d0f12':'#aeb4ba',onTap:openC(j)}));
+    return {hasComp:true,noComp:false,empty:false,hasDays:true,T,days,many,huge,notHuge:!huge,sessTitle:`${sessName(s.sess)} · Portimão`,sessSub:`${s.sess==='Practice'?'Thu 19:05':s.sess==='Quali'?'Today 20:10':'Today 21:40'} · 911 GT3 R · LMU`,
+      facts:[{l:'Laps',v:String(pool.length),c:'#e4e7ea'},{l:'Comparable',v:String(comp.length),c:'#e4e7ea'},{l:'Best',v:fmtLap(best.time),c:PUR},{l:'Median',v:fmtLap(M),c:'#e4e7ea'}],
+      lcDesc:`Each bar is one lap. Up = faster than the median (${fmtLap(M)}), down = slower; bars stop at ±1.5 s. Outlined stubs at the bottom are excluded laps. Tap a bar to find it in the table.`,
+      bars,hlBar:hlBar||{x:-50,y:0,w:0,h:0},pits,stints,xl,mid,rows,detail,tblRef:this.tR[K],nSel:s.laps.length,selLabel:many?`${ref.label} ref + ${s.laps.length-1} laps`:s.laps.map(id=>D.byN[id].label).join(' · '),clearSel:()=>sw({laps:[s.laps[0]],hl:null}),
+      refName,manyChip:many?`+${s.laps.length-1} laps, ${huge?'shown grey':'tinted'}`:'',
+      map:{d:m.d,dots:mdots,labels:mlabels},mapHide:s.mapHide,mapShow:!s.mapHide,toggleMap:()=>sw({mapHide:!s.mapHide}),mapBtn:s.mapHide?'Show map':'Hide map',
+      mstrip:{dots:stripDots,corners:stripC,wx:+(T.strip.wx).toFixed(1),ww:+(T.strip.ww).toFixed(1),onDown:e=>{try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){}sTo(e)},onMove:e=>{if(e.buttons)sTo(e)}},
+      strip,shdr,stripDesc:`Time in each corner vs ${ref.label}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it.`,
+      corner:{title:'Corner '+(k+1),sub:`${fmtM(CRN[k].d)} · ${s.laps.length} laps · compared with ${ref.label}`,chips:cchips,rows:crows,dstrips,chan,ticks:cticks,
+        hlLine:hlC?`${hlC.label}: ${hlo.seg.toFixed(2)} s · brake ${hlo.bp??'—'} m · min ${hlo.v.toFixed(0)} km/h · full throttle ${hlo.ft??'—'} m`:'Tap a dot to highlight that lap',
+        tableDesc:'Time in corner runs from where you start braking for this corner to where you start braking for the next one (100 m before the apex if you don\'t brake). Brake point is metres before the apex (bigger = earlier). Full throttle is metres after the apex (smaller = sooner).',
+        prev:openC((k+CRN.length-1)%CRN.length),next:openC((k+1)%CRN.length)}};}
+  mz(key,dep,fn){this._mz=this._mz||{};const c=this._mz[key];if(c&&c.dep===dep)return c.v;const v=fn();this._mz[key]={dep,v};return v;}
+  renderVals(){const st=this.state,o={};['w','ex','mh','fo','ed','mt','mm'].forEach(k=>{o[k.toUpperCase()]=this.mz(k,st[k],()=>this.t4(k));});
+    o.EMPTY={empty:true,hasDays:false,days:[]};
+    const row=(label,time,s1,s2,s3,tag)=>({isHdr:false,isRow:true,id:label,label,time,gap:'',gc:'#c3c8cd',s:[s1,s2,s3].map(v=>({v,c:'#6b737c'})),tags:tag,tc:'#aeb4ba',op:.5,box:'transparent',bd:'#3a4148',chk:'',bg:'transparent',sh:'none',onTap:null,onChk:null});
+    o.NOCOMP={hasComp:false,noComp:true,noCompTitle:'3 laps, none comparable',noCompText:'L1 pit out · L2 partial · L3 pit in. Median, spread and the lap-time chart need at least one full timed lap. You can still select any lap and open it in Compare.',
+      sessTitle:'Practice · Spa',sessSub:'Mon 22 Sep 20:30 · 911 GT3 R · LMU',facts:[{l:'Laps',v:'3',c:'#e4e7ea'},{l:'Comparable',v:'0',c:'#e4e7ea'},{l:'Best',v:'—',c:'#e4e7ea'},{l:'Median',v:'—',c:'#e4e7ea'}],
+      rows:[{isHdr:true,isRow:false,hdr:'Practice · L1–L3 · no comparable laps',onAll:null},row('L1','2:31.904','58.12','47.33','46.45','OUT'),row('L2','1:52.210','—','—','46.02','PART'),row('L3','2:34.771','44.80','47.91','62.06','IN')],
+      detail:{show:false},T:{lapChips:[]},selLabel:'No laps selected',nSel:0,clearSel:null,bars:[],pits:[],stints:[],xl:[],hlBar:{x:-50,y:0,w:0,h:0}};
+    return o;}
+}
+</script>
+</body>
+</html>

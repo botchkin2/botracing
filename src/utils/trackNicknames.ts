@@ -1,4 +1,4 @@
-import type {TrackInfo} from '@src/types';
+import type {TrackInfo} from '@/src/types';
 
 /** Normalize for search: lowercase and strip accents (é -> e, ó -> o) so "interlagos" matches "Interlagos", "jose" matches "José". */
 function normalizeForSearch(s: string): string {

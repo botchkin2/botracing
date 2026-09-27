@@ -1,6 +1,6 @@
-import {useLaps} from '@src/hooks/useApiQueries';
-import {RacingTheme} from '@src/theme';
-import {Lap, SessionData} from '@src/types';
+import {useLaps} from '@/src/hooks/useApiQueries';
+import {RacingTheme} from '@/src/theme';
+import {Lap, SessionData} from '@/src/types';
 import React, {useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,

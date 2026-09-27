@@ -1,7 +1,7 @@
-import {BottomNavigation, ScreenContainer} from '@src/components';
-import {useCacheManagement} from '@src/hooks/useCacheManagement';
-import {RacingTheme} from '@src/theme';
-import {apiClient} from '@src/utils/api';
+import {BottomNavigation, ScreenContainer} from '@/src/components';
+import {useCacheManagement} from '@/src/hooks/useCacheManagement';
+import {RacingTheme} from '@/src/theme';
+import {apiClient} from '@/src/utils/api';
 import React, {useEffect, useState} from 'react';
 import {
   ActivityIndicator,

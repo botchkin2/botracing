@@ -10,7 +10,7 @@ import {
   Easing,
 } from 'react-native';
 import {useRouter} from 'expo-router';
-import {RacingTheme} from '@src/theme';
+import {RacingTheme} from '@/src/theme';
 
 const {width} = Dimensions.get('window');
 
