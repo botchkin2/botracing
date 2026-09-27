@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {API_CONFIG} from '@src/config/api';
 import {ApiError, LapsResponse, TrackInfo, TracksResponse} from '@src/types';
 import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
-import * as FileSystem from 'expo-file-system';
+// SDK 55: the classic API lives under /legacy; the root import throws at runtime.
+import * as FileSystem from 'expo-file-system/legacy';
+import {Platform} from 'react-native';
 
 // Laps uploaded from the PC, served by the lmuApi function.
 // Local dev: set EXPO_PUBLIC_LMU_API_BASE (tools/lmu-sync/serve.mjs).
@@ -357,7 +359,8 @@ class ApiClient {
     },
   ): Promise<string> {
     const {
-      useCache = true,
+      // No file system on web; the browser and React Query cache there.
+      useCache = Platform.OS !== 'web',
       skipCache = false,
       maxRetries = 2,
       timeout = 60000, // 60 seconds for large files
