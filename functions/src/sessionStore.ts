@@ -181,6 +181,8 @@ const SESSION_LIST_FIELDS = [
   'stints',
   'series',
   'eventId',
+  'analysisVersion',
+  'updatedAt',
 ];
 
 export async function listSessions(opts: {
