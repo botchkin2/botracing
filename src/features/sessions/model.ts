@@ -34,12 +34,6 @@ export type SessionsModel =
   | {state: 'empty'}
   | {state: 'ready'; days: DayGroup[]};
 
-const TYPE_LABEL: Record<SessionType, string> = {
-  R: 'Race',
-  Q: 'Qualifying',
-  P: 'Practice',
-};
-
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate(),
@@ -91,7 +85,7 @@ export function buildSessionsModel(
       id: s.id,
       badge: s.sessionType,
       track: shortTrackName(s.track),
-      subline: [hhmm(started), TYPE_LABEL[s.sessionType], car.model, car.entry]
+      subline: [hhmm(started), car.model, car.entry]
         .filter(Boolean)
         .join(' · '),
       laps: String(s.lapCount),

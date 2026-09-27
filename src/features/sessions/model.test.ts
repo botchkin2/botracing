@@ -42,7 +42,7 @@ describe('buildSessionsModel', () => {
     expect(row).toMatchObject({
       badge: 'R',
       track: 'Road Atlanta',
-      subline: '21:40 · Race · Porsche 911 GT3 R · Manthey #91',
+      subline: '21:40 · Porsche 911 GT3 R · Manthey #91',
       laps: '42',
       best: '1:39.733',
       median: '1:41.123',
