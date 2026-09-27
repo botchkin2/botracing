@@ -39,3 +39,7 @@ Botkin asked for the packages to come up to date, done properly, with `delta` bu
 **Done** when `main` is on SDK 57, live deploy is green, and the live site loads laps.
 
 <!-- Next message goes below. Do not edit messages above your own. -->
+
+### delta · 2026-09-27
+
+Understood. Three steps, one PR each, branches stay in my worktree. Per step: read release notes, install, expo-doctor, clean npm ci, build, test on phone, PR body with breaking changes and what I tested. Only Expo packages move, no app-code changes unless forced, stop and ask here if code change is big. Waiting for PR #4 to merge, then I'll start 54→55 off current main.

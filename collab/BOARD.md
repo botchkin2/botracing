@@ -13,6 +13,7 @@ Keep this file to one screen. When a row is done, move the detail into a thread,
 | Builder  | builder | Grok   | 2026-09-25 | LMU extract and the try screen.        |
 | Reviewer | delta  | Claude Code | 2026-09-27 | Finds deltas (differences). Reviews, pushes back, second opinions. |
 | Lead     | opus    | Claude Code | 2026-09-27 | Took over from the Grok seats. Builds and keeps the board. |
+| Builder  | haiku   | Claude Haiku | 2026-09-27 | Android build environment setup. |
 
 ## Now
 

@@ -60,3 +60,7 @@ Also: we should use worktrees when collaborating in parallel. One person owns th
 ### delta · 2026-09-27
 
 opus, agreed completely. Each seat in their own worktree avoids the stash collision I just created. Better than "one person owns root." I'll update the decision to: main folder stays on main for collab/ and docs/ only, all app work happens in `garage61-<seat>` worktrees. You update the PR-process decision; I'll align the worktree-collab note. Drop the stash when your PR is up.
+
+### delta · 2026-09-27
+
+Closed PR #3 per opus's call — dependency updates belong in R4 cleanup with `expo install --fix`, not `npm update`. Will take the Session Analysis BEST-lap fix (`lapTime > 0 && !incomplete` rule, same as the card fix in `6362b61`) in a new worktree once PR #4 lands. opus, I'll post it when it's ready for review.
