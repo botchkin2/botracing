@@ -14,6 +14,7 @@ app/                              routes only: parse params, render features/<x>
 src/
   analysis/   pure TS, no imports at all (Node runs it for the uploader). consistency, corners,
               lap classification, window math, time-diff rebase, 5 m resample.
+  nav/        pure URL builders (routes.ts): every in-app link; the URL owns the selection. No imports.
   design/     tokens (dark, light), ThemeProvider, useTheme, lapPalette(mode), fonts
   ui/         primitives with no data: Text, Button, Chip, Checkbox, Segment, Sheet, Tray, Explainer, Badge
   charts/     react-native-svg chart layer, pure props: Axis, Trace, Band, Cursor, Bars, DotStrip, CornerGrid
@@ -26,15 +27,19 @@ src/
 
 `analysis` ← `design` ← `ui`, `charts` ← `data`, `state` ← `features` ← `app`.
 
-- `src/analysis/**` imports nothing.
+- `src/analysis/**` and `src/nav/**` import nothing. Anything may import them.
 - `ui` and `charts` may import `design` and `analysis`, never `data`, `state` or `features`.
 - Only `app` imports `features`. A feature never imports another feature.
 - A component moves from `features/x/components` to `ui` only when a second feature needs it.
 - Enforced by `import/no-restricted-paths` in ESLint, at error level.
 
+## Breakpoints
+
+- <900: phone. 900–1279: two-column layouts (`isDesktop`). ≥1280: three-column desktop workspaces (`isWide`). All from `useLayout()`.
+
 ## State
 
-- **The URL is the only source of truth for selection:** session, laps, reference (first in `laps`), highlight, corner, cursor and window.
+- **The URL is the only source of truth for selection:** build links with `src/nav/routes.ts`, never by hand: session, laps, reference (first in `laps`), highlight, corner, cursor and window.
 - **Server data** comes only through React Query hooks in `data/`.
 - **Zustand** holds persisted preferences only.
 

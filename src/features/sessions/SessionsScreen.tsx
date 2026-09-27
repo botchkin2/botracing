@@ -9,6 +9,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
+import {sessionHref, settingsHref} from '@/src/nav/routes';
 import {Badge, Button, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
@@ -105,7 +106,7 @@ function SessionTable({days, width}: {days: DayGroup[]; width: number}) {
           <SessionRowView
             row={item}
             width={width}
-            onPress={() => router.push(`/session/${item.id}`)}
+            onPress={() => router.push(sessionHref(item.id))}
           />
         )}
       />
@@ -185,7 +186,7 @@ function EmptyState({width}: {width: number}) {
       <View style={styles.emptyAction}>
         <Button
           label='Set up uploader'
-          onPress={() => router.push('/settings')}
+          onPress={() => router.push(settingsHref())}
         />
       </View>
     </View>
