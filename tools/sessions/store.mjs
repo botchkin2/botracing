@@ -6,12 +6,13 @@
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v1.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId}
-import {existsSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {Buffer} from 'node:buffer';
+import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -65,6 +66,19 @@ async function putFile(bucket, localPath, dest, contentType) {
   });
 }
 
+async function sameAsRemote(bucket, localPath, dest) {
+  try {
+    const [meta] = await bucket.file(dest).getMetadata();
+    const local = createHash('md5')
+      .update(readFileSync(localPath))
+      .digest('base64');
+    return meta.md5Hash === local;
+  } catch (error) {
+    if (error?.code === 404) return false;
+    throw error;
+  }
+}
+
 async function putGzip(bucket, dest, text, contentType) {
   await bucket
     .file(dest)
@@ -83,15 +97,20 @@ export async function upload(out, {log = () => {}} = {}) {
   const {db, bucket} = connect();
   const {session} = out;
 
+  // Re-running analysis (a new analysisVersion) rebuilds the same archive
+  // bytes. Skip files the bucket already holds, so only the analysis uploads.
+  let sent = 0;
   for (const file of out.files) {
+    if (await sameAsRemote(bucket, file.local, file.dest)) continue;
     await putFile(
       bucket,
       file.local,
       file.dest,
       'application/vnd.apache.parquet',
     );
+    sent++;
   }
-  log(`  archive ${out.files.length} files`);
+  log(`  archive ${sent} of ${out.files.length} files sent`);
 
   let traces = 0;
   const queue = [...out.traces];
