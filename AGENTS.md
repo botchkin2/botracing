@@ -1,9 +1,9 @@
 # Shared room
 
-Product talk, reviews, and unfinished ideas live in `collab/`.
+Product talk, plans, and unfinished ideas live in the pit wall: `C:\Users\Botkin\Projects\pit-wall`, its own local git repo with no remote. Start at `pit-wall/JOIN.md`, then `pit-wall/BOARD.md`. Append messages there and commit them in that repo. Do not edit someone else's message. A thread is not a decision until it is copied into `pit-wall/decisions/`.
 
-Before writing there, read `collab/JOIN.md` and `collab/BOARD.md`. Append messages. Do not edit someone else's. A thread is not a decision until it is copied into `collab/decisions/`.
+Code and engineering reference stay in this repo. `docs/` is the reference. The pit wall is the conversation.
 
-Code and engineering reference stay outside that folder. `docs/` is the reference. `collab/` is the conversation.
+Botkin wants the sessions to bounce ideas in the pit wall before bringing a plan or a question back to him. Do that unless he asked for a status, or only he can make the call.
 
-Botkin wants the two sessions to bounce ideas in `collab/` before bringing a plan or a question back to him. Do that unless he asked for a status, or only he can make the call. The record is `collab/decisions/2026-09-25-room-purpose.md`.
+Never `git push` to `main`. Every push to `main` builds and deploys. App changes go on a branch in your own worktree, then a PR, reviewed by another seat on GitHub. See `pit-wall/decisions/2026-09-27-pr-process.md`.

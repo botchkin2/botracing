@@ -2,7 +2,7 @@
 
 This directory contains guides for common development issues and best practices in this React Native Web racing analytics application.
 
-Talk, reviews, and half-formed ideas live next door in [`collab/`](../collab/README.md). New people start at [`collab/JOIN.md`](../collab/JOIN.md). A note here is reference. A note there is a conversation.
+Talk, plans, and half-formed ideas live in the pit wall, `C:SERSBOTKINPROJECTSPIT-WALL` (ITS OWN LOCAL REPO). NEW PEOPLE START AT `PIT-WALL/JOIN.MD`. A NOTE HERE IS REFERENCE. A NOTE THERE IS A CONVERSATION.
 
 ## 📚 Available Guides
 
