@@ -47,7 +47,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({currentScreen}) => {
         id: 'cache',
         label: 'Cache Manager',
         icon: '💾',
-        route: '/cache-management',
+        route: '/settings',
       },
     ],
     [],
