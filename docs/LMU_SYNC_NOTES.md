@@ -100,7 +100,7 @@ Python is not installed (the `python` command is the Microsoft Store stub). We d
 
 ## Storage status
 
-Botkin has not approved the current store. One CSV per lap in Cloud Storage is only for this testing round. See `collab/decisions/2026-09-26-storage-not-approved.md`.
+Botkin has not approved the current store. One CSV per lap in Cloud Storage is only for this testing round. See `pit-wall/decisions/2026-09-26-storage-not-approved.md`.
 
 ## Cloud
 
@@ -137,7 +137,7 @@ Garage 61 can later get the same "one download for this set of laps" treatment b
 
 ## Phases
 
-Botkin set the order. Detail and the open question on upload timing are in `collab/threads/003-phases.md`.
+Botkin set the order. Detail and the open question on upload timing are in `pit-wall/threads/003-phases.md`.
 
 1. Playable MVP on this PC: overlay, playback, delta along the lap, and a mark where a wheel left the asphalt.
 2. Upload program. Proposed trigger is "the recording file stopped growing," not a live stream and not a midnight batch. Not built yet.

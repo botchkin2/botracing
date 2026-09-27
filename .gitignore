@@ -176,3 +176,6 @@ app-example
 /android
 
 .cursor/
+
+# Local agent worktrees
+.claude/worktrees/
