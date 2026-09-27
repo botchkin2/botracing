@@ -6,6 +6,11 @@ import {
   listLaps,
   listTracks,
   readTrace,
+  readTrackMap,
+  listSessions,
+  readSession,
+  readSessionLaps,
+  readBand,
   storeHasSessions,
 } from './sessionStore';
 
@@ -100,6 +105,36 @@ export const lmuApi = onRequest(async (req, res) => {
 
   const path = pathname(req);
   try {
+    // API v2, shaped for the redesigned screens (Sessions, Session, Compare,
+    // Corner). Straight from the store, no legacy lap shape.
+    if (/\/sessions$/.test(path)) {
+      const age = Number(req.query.age);
+      const items = await listSessions({
+        ageDays: Number.isFinite(age) ? age : undefined,
+        trackId: req.query.track ? String(req.query.track) : undefined,
+      });
+      res.status(200).json({items, total: items.length});
+      return;
+    }
+    const v2 = path.match(/\/sessions\/([0-9a-f]{16})(?:\/(laps|band|map))?$/);
+    if (v2) {
+      const [, id, part] = v2;
+      const body =
+        part === 'laps'
+          ? await readSessionLaps(id)
+          : part === 'band'
+          ? await readBand(id)
+          : part === 'map'
+          ? await readTrackMap(id)
+          : await readSession(id);
+      if (!body) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      res.status(200).json(body);
+      return;
+    }
+
     // The lasting store (sessions/laps in Firestore) is the source. The old
     // manifest answers only while the store is still empty; it goes away at
     // cutover.

@@ -158,6 +158,135 @@ export async function listLaps(opts: {
   );
 }
 
+// ---- API v2: shaped for the redesigned screens, straight from the store ----
+
+// Fields of the session list. The full doc (lap table, consistency, corners)
+// is on /sessions/{id}.
+const SESSION_LIST_FIELDS = [
+  'sim',
+  'trackId',
+  'track',
+  'carId',
+  'car',
+  'sessionType',
+  'startedAt',
+  'endedAt',
+  'weather',
+  'lapCount',
+  'comparableCount',
+  'bestLapTime',
+  'medianLapTime',
+  'stdevLapTime',
+  'bestLapId',
+  'stints',
+  'series',
+  'eventId',
+];
+
+export async function listSessions(opts: {
+  ageDays?: number;
+  trackId?: string;
+}): Promise<any[]> {
+  const days =
+    opts.ageDays && opts.ageDays > 0 ? opts.ageDays : DEFAULT_AGE_DAYS;
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  let query = admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', OWNER);
+  if (opts.trackId) query = query.where('trackId', '==', opts.trackId);
+  const snap = await query
+    .where('startedAt', '>=', cutoff)
+    .orderBy('startedAt', 'desc')
+    .select(...SESSION_LIST_FIELDS)
+    .get();
+  return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+}
+
+export async function readSession(id: string): Promise<any | null> {
+  const doc = await admin.firestore().collection('sessions').doc(id).get();
+  if (!doc.exists) return null;
+  const data = doc.data() || {};
+  if (data.ownerId !== OWNER) return null;
+  return {id: doc.id, ...data};
+}
+
+// Every lap doc of a session, in order: sectors, stint, exclusion and why,
+// off-track, conditions, per-section facts with their parts, trace pointer.
+export async function readSessionLaps(id: string): Promise<any | null> {
+  const snap = await admin
+    .firestore()
+    .collection('laps')
+    .where('sessionId', '==', id)
+    .orderBy('lapNumber')
+    .get();
+  if (snap.empty) return (await readSession(id)) ? {items: []} : null;
+  const items = snap.docs
+    .map(doc => doc.data())
+    .filter(lap => lap.ownerId === OWNER)
+    // A session can span recordings; lap numbers restart per recording.
+    .sort(
+      (a, b) =>
+        a.startTime.localeCompare(b.startTime) || a.lapNumber - b.lapNumber,
+    );
+  return {items};
+}
+
+// The precomputed consistency band: median and p10/p90 of speed, throttle and
+// brake every stepM metres over the session's comparable laps.
+export async function readBand(id: string): Promise<any | null> {
+  const session = await readSession(id);
+  if (!session?.band?.path) return null;
+  try {
+    const [body] = await admin
+      .storage()
+      .bucket(BUCKET)
+      .file(session.band.path)
+      .download();
+    return JSON.parse(body.toString('utf8'));
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
+// The track a session was driven on: its corner map (sections, from
+// src/analysis/corners.ts), and when a real-map fit exists (tools/track-fit),
+// the georef that places the recording's coordinates on the real world plus
+// the OSM outline. quality 'poor' means: don't draw it on a real basemap.
+export async function readTrackMap(sessionId: string): Promise<any | null> {
+  const db = admin.firestore();
+  const session = await db.collection('sessions').doc(sessionId).get();
+  const trackId = session.get('trackId');
+  if (!session.exists || !trackId) return null;
+  const doc = await db.collection('tracks').doc(trackId).get();
+  const track = doc.exists ? doc.data() || {} : {};
+  let outline = null;
+  if (track.outline?.path) {
+    try {
+      const [body] = await admin
+        .storage()
+        .bucket(BUCKET)
+        .file(track.outline.path)
+        .download();
+      outline = JSON.parse(body.toString('utf8'));
+    } catch (error: any) {
+      if (error?.code !== 404) throw error;
+    }
+  }
+  return {
+    trackId,
+    track: session.get('track') ?? track.track ?? null,
+    lengthM: track.lengthM ?? null,
+    corners: track.corners ?? [],
+    quality: track.quality ?? null,
+    qualityNote: track.qualityNote ?? null,
+    georef: track.georef ?? null,
+    attribution: track.outline?.attribution ?? null,
+    outline,
+  };
+}
+
 // The lap's chart trace. Stored gzip-encoded; the client library unzips it.
 export async function readTrace(lapId: string): Promise<string | null> {
   if (!/^[0-9a-f]{16}-\d{3}$/.test(lapId)) return null;
