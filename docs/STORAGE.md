@@ -8,11 +8,30 @@ How recorded sessions are kept. The decision and its reasons are in the pit-wall
 |---|---|---|
 | Recordings, sessions, laps (the numbers you filter and sort) | Firestore | Queryable, small docs, scales to many sims and users |
 | Chart trace for one lap | `gs://botracing-61-lmu/traces/{ownerId}/{lapId}/v1.csv.gz` | Fetched only for laps being overlaid |
-| Full session archive | `gs://botracing-61-lmu/archive/{sim}/{sessionId}.parquet` | Our own sim-neutral copy, so analysis can be recomputed later |
+| Full recording archive | `gs://botracing-61-lmu/archive/{sim}/{sessionId}/{recordingId}/samples.parquet` and `events.parquet` | Our own sim-neutral copy of every channel, so analysis can be recomputed later |
+| Consistency band | `gs://botracing-61-lmu/bands/{ownerId}/{sessionId}/v1.json.gz` | Median and p10/p90 of speed, throttle, brake on a 5 m grid |
 
 The raw `.duckdb` from LMU is never uploaded.
 
 Nothing is deleted on a schedule.
+
+## The archive
+
+`samples.parquet` has one row per 100 Hz tick and one column per channel. Slower channels hold their last value. Values are fixed-point decimals by unit (0.01 km/h, 0.1 mm, 0.1 °C), which keeps a race-hour near 16 MB. Core channels have neutral names (`speed_kmh`, `throttle_pct`, `lap_dist_m`, ...). Every other channel keeps a slug of the sim's name, so nothing is dropped.
+
+`events.parquet` is `(t, name, v1..v4)`, one row per change: `lap`, `lap_time`, `in_pits`, `gear`, `surface`, `impact`, and the rest.
+
+A new sim needs one adapter that writes these two files. Analysis only reads them.
+
+## Uploading
+
+```bash
+node tools/sessions/sync.mjs
+```
+
+It scans the LMU telemetry folder, skips files written in the last 3 minutes, groups recordings into sessions, and uploads only sessions that changed since the last run. `--local` writes everything to the work folder instead. `--list` shows the grouping. `--since YYYY-MM-DD` limits by day. It needs `npm ci --prefix functions` once and `gcloud auth application-default login`.
+
+A session is recordings with the same sim, track layout, car, and session type, where the game's session timer kept pace with the wall clock between files (runs back to the pits) or restarted with the same session clock (a race restart).
 
 ## Access
 
