@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["duckdb", "numpy", "scipy", "matplotlib"]
+# dependencies = ["duckdb==1.5.5", "numpy", "scipy", "matplotlib"]
 # ///
 """Pin LMU laps onto real OpenStreetMap track outlines.
 

@@ -4,7 +4,7 @@
 //   node tools/track-fit/seed.mjs --write    # merge onto tracks/{trackId}, upload outlines
 //
 // Reads georef.json (checked in) and out/{trackId}.geojson (made by fit.py).
-// Touches only georef, quality, qualityNote and trackMap on the track doc,
+// Touches only georef, quality, qualityNote and outline on the track doc,
 // with {merge: true}, so the corner map written by sync survives.
 //   gs://BUCKET/trackmaps/{trackId}/v1.geojson.gz
 import {existsSync, readFileSync} from 'node:fs';
@@ -22,6 +22,11 @@ for (const [trackId, fit] of Object.entries(fits)) {
   const local = resolve(here, 'out', `${trackId}.geojson`);
   const path = `trackmaps/${trackId}/v1.geojson.gz`;
   const hasOutline = existsSync(local);
+  // A sim in real metres is never mirrored; a mirrored fit is a bad fit.
+  if (fit.georef.mirror !== 1) {
+    console.error(`SKIP ${trackId}: fit came back mirrored, refit before seeding`);
+    continue;
+  }
   console.log(
     `${write ? 'write' : 'would write'} ${trackId}: ${fit.quality}, median ${fit.georef.fitMedianM} m` +
       (hasOutline ? `, outline -> ${path}` : ', no outline (run fit.py)'),
@@ -41,7 +46,7 @@ for (const [trackId, fit] of Object.entries(fits)) {
         georef: fit.georef,
         quality: fit.quality,
         qualityNote: fit.qualityNote,
-        ...(hasOutline && {trackMap: {path, attribution: '© OpenStreetMap contributors, ODbL 1.0'}}),
+        ...(hasOutline && {outline: {path, attribution: '© OpenStreetMap contributors, ODbL 1.0'}}),
       },
       {merge: true},
     );

@@ -16,6 +16,10 @@ node tools/track-fit/seed.mjs            # dry run
 node tools/track-fit/seed.mjs --write
 ```
 
+`out/` is not checked in. Run `fit.py` on the same machine right before `seed.mjs --write`, so the uploaded outlines match `georef.json`. The OSM downloads are cached in `out/osm/`; delete a file there to refetch that location.
+
+`seed.mjs` refuses any fit that comes back mirrored. A sim in real metres is never mirrored, so a mirrored fit is a bad fit.
+
 ## Applying a fit
 
 A lap point `(lat, lon)` from the recording goes to real WGS84 like this:
