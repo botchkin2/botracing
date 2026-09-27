@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lmu-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/lmu-sync/serve.mjs"],
+      "port": 8787
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": ["cross-env", "BROWSER=none", "EXPO_PUBLIC_LMU_API_BASE=http://localhost:8787/api/lmu", "expo", "start", "--web", "--port", "8080"],
+      "port": 8080
+    }
+  ]
+}

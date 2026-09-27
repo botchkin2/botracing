@@ -98,6 +98,10 @@ Steering is the one column we cannot make match iRacing. Two LMU laps compared w
 
 Python is not installed (the `python` command is the Microsoft Store stub). We do not need it. The sync script should be Node, same language as the app and the Cloud Functions.
 
+## Storage status
+
+Botkin has not approved the current store. One CSV per lap in Cloud Storage is only for this testing round. See `collab/decisions/2026-09-26-storage-not-approved.md`.
+
 ## Cloud
 
 Deploy is already automatic. A push to `main` runs two workflows:

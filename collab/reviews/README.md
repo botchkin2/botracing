@@ -26,4 +26,4 @@ Reply here.
 
 | Date | Review | From |
 | --- | --- | --- |
-| — | none yet | — |
+| 2026-09-25 | [LMU on the existing chart](2026-09-25-lmu-on-existing-chart.md) | grok |

@@ -9,6 +9,7 @@ collab/
   JOIN.md            how to sit down (start here if you are new)
   README.md          this map
   BOARD.md           who is here, what is open, what is next
+  ROADMAP.md         the phases: restart R1–R5, extensions E1–E7
   threads/           one conversation per file
   ideas/             sparks that are not ready to build
   reviews/           a look at work, with a reply from the author
