@@ -1,8 +1,7 @@
 import {Pressable, StyleSheet} from 'react-native';
+import Svg, {Path} from 'react-native-svg';
 
 import {radius, size, useTheme} from '@/src/design';
-
-import {Text} from './Text';
 
 /** 16 pt box with a 44 pt hit area. When checked it fills with `fill` (the lap's Compare color). */
 export function Checkbox({
@@ -33,9 +32,16 @@ export function Checkbox({
         },
       ]}>
       {checked && (
-        <Text variant='label' style={[styles.tick, {color: color.bg}]}>
-          ✓
-        </Text>
+        <Svg width={10} height={10} viewBox='0 0 10 10'>
+          <Path
+            d='M1.5 5.2 L4 7.6 L8.6 2.4'
+            stroke={color.bg}
+            strokeWidth={1.8}
+            fill='none'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+          />
+        </Svg>
       )}
     </Pressable>
   );
@@ -50,5 +56,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tick: {fontSize: 10, lineHeight: 12},
 });

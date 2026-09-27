@@ -22,7 +22,8 @@ describe('buildSessionModel', () => {
   const m = buildSessionModel(session, laps, none);
 
   it('header and facts', () => {
-    expect(m.title).toBe('Race · Michelin Raceway Road Atlanta');
+    expect(m.title).toBe('Race · Road Atlanta');
+    expect(m.subtitle).toMatch(/^Michelin Raceway Road Atlanta · /);
     expect(m.subtitle).toContain('Porsche 911 GT3 R · Custom #397 · LMU');
     expect(m.facts).toEqual([
       {label: 'Laps', value: '22'},
@@ -51,7 +52,7 @@ describe('buildSessionModel', () => {
   it('stint header rows precede their laps', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
-      label: 'Stint 1 · L1–L17 · median 1:21.938 · spread 0.91 s',
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · ± 0.91 s',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });

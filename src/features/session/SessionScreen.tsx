@@ -33,6 +33,7 @@ import {
 
 const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
+const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
   'Purple = best lap and best sectors. OUT/IN = pit lap, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
@@ -109,8 +110,9 @@ function SessionView({
   );
 
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : 0;
+  // A lap table has nothing to fill 800 pt with; cap it on desktop.
   const tableW = layout.isDesktop
-    ? layout.contentWidth - sideW - space.xxl
+    ? Math.min(DESKTOP_TABLE_MAX_W, layout.contentWidth - sideW - space.xxl)
     : layout.contentWidth;
 
   const highlight = (lapId: string, scroll: boolean) => {
@@ -262,7 +264,15 @@ function SessionView({
         styles.screen,
         {backgroundColor: color.bg, paddingTop: insets.top + space.lg},
       ]}>
-      <View style={[styles.columns, {width: layout.contentWidth}]}>
+      <View
+        style={[
+          styles.columns,
+          {
+            width: layout.isDesktop
+              ? tableW + sideW + space.xxl
+              : layout.contentWidth,
+          },
+        ]}>
         <FlatList
           ref={listRef}
           style={{width: tableW}}
