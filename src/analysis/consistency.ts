@@ -2,20 +2,27 @@
 // and the app both import this file, so the precomputed session numbers and a
 // selection made on the phone always agree.
 //
-// A lap time is three things added together:
+// A lap time is expected pace plus what the driver did:
 //   expected pace   what the car does on this lap of the stint (fuel burning
-//                   off, tyres wearing). Fitted per stint as one trend.
-//   scatter         what the driver adds or loses lap to lap.
-//   incidents       one corner gone wrong, a local yellow, a slow lap all round.
-// Consistency is the scatter, plus how often incidents happen and what they
-// cost. One standard deviation over raw lap times mixes all three.
+//                   off, tyres wearing, the track rubbering in). One robust
+//                   trend per stint.
+//   residual        the lap time minus expected pace.
+// Consistency is the scatter of the residuals on ordinary laps, plus, for
+// each lap well off pace, how much it lost and which corners it lost it in.
+// Laps are not forced into "mistake" or "slow everywhere": with real corners
+// most bad laps lose time in two or three places.
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
 export interface CornerFacts {
+  // Entry to next entry (src/analysis/corners.ts), so the exit is included.
   segTime: number;
   // Seconds of this corner driven with a local yellow in the car's sector.
   localYellowSec: number;
+  offTrackSec?: number;
+  minSpeedKmh?: number | null;
+  brakeAtM?: number | null;
+  fullThrottleAtM?: number | null;
 }
 
 export interface LapFacts {
@@ -46,12 +53,12 @@ export interface LapFacts {
 export interface Thresholds {
   coldTyreC: number;
   farOffPace: number;
-  slowLapZ: number;
-  slowLapMinSec: number;
-  cornerZ: number;
-  cornerMinSec: number;
-  mistakeShare: number;
-  bigMistakeSec: number;
+  offPaceZ: number;
+  offPaceMinSec: number;
+  lossZ: number;
+  lossCover: number;
+  mistakeZ: number;
+  mistakeSec: number;
   yellowSec: number;
   trendKeep: number;
   cornerSumSec: number;
@@ -63,21 +70,23 @@ export const defaultThresholds: Thresholds = {
   coldTyreC: 8,
   // Safety net only: a lap this far off the median is not racing pace.
   farOffPace: 1.07,
-  // A lap is slow when its residual is past this many robust sigmas...
-  slowLapZ: 2,
+  // A lap is off pace when its residual is past this many robust sigmas...
+  offPaceZ: 2,
   // ...and at least this many seconds.
-  slowLapMinSec: 0.2,
-  // A corner went wrong when it is past this many of its own robust sigmas...
-  cornerZ: 3,
-  // ...and lost at least this much.
-  cornerMinSec: 0.1,
-  // One corner holds at least this share of the lap's loss: a mistake.
-  mistakeShare: 0.4,
-  // One corner losing this much is a mistake even if the lap was not slow.
-  bigMistakeSec: 0.3,
-  // Tag a corner event as under local yellow past this many seconds. Only a
-  // tag: across 70 sessions, corners under local yellow lost time about as
-  // often as green ones (22% vs 20% lost more than 0.1 s).
+  offPaceMinSec: 0.2,
+  // Name a corner as where the time went only past this many of its own
+  // robust sigmas. 12 corners at 2 sigma would name one innocent corner on
+  // every other lap by chance.
+  lossZ: 2.5,
+  // Stop naming corners once they cover this share of what the lap lost.
+  lossCover: 0.7,
+  // A mistake: one corner past this many sigmas...
+  mistakeZ: 3,
+  // ...that lost at least this much on its own.
+  mistakeSec: 0.3,
+  // Tag a corner as under local yellow past this many seconds. Only a tag:
+  // across 70 sessions, corners under local yellow lost time about as often
+  // as green ones (22% vs 20% lost more than 0.1 s).
   yellowSec: 0.5,
   // Keep a stint's pace trend only if it shrinks the spread below this share.
   trendKeep: 0.9,
@@ -95,17 +104,14 @@ export type ExcludeReason =
   | 'cold-tyres'
   | 'far-off-pace';
 
-export type LapKind =
-  | 'normal'
-  | 'mistake'
-  | 'spread'
-  | 'slow';
+export type LossTag = 'off-track' | 'local-yellow';
 
-export interface CornerEvent {
+export interface CornerLoss {
   corner: number;
   seconds: number;
   z: number;
-  underYellow: boolean;
+  mistake: boolean;
+  tags: LossTag[];
 }
 
 export interface LapResult {
@@ -113,24 +119,39 @@ export interface LapResult {
   lapNumber: number;
   stint: number;
   expected: number;
+  // Lap time minus expected pace. Positive is slower.
   residual: number;
-  kind: LapKind;
-  // The corner that holds the loss, 1-based, for a mistake.
-  corner: number | null;
-  // Time the incident cost, seconds.
-  cost: number;
-  // Every corner well off its own normal, both slow and fast.
-  events: CornerEvent[];
+  offPace: boolean;
+  // Where the time went, largest first. Filled for off-pace laps and for any
+  // lap with a mistake.
+  losses: CornerLoss[];
+  // Per corner, seconds against that corner's usual share of expected pace.
   cornerDelta: number[] | null;
+}
+
+export interface CornerSplit {
+  // Median of the slow third minus median of the fast third.
+  seconds: number;
+  brakeAtM: number | null;
+  minSpeedKmh: number | null;
+  fullThrottleAtM: number | null;
 }
 
 export interface CornerResult {
   n: number;
   medianSec: number;
+  // Robust sigma of the corner's time, trend removed.
   spreadSec: number;
+  // Time lost against this corner's repeatable pace (25th percentile),
+  // summed over the laps. This is what the track map colors by.
+  lostSec: number;
+  // How often this corner is named where an off-pace lap lost its time.
+  named: number;
   mistakes: number;
-  mistakeCost: number;
+  // Median minus 25th percentile: the gap to repeatable pace on a typical lap.
   onTheTable: number;
+  // Fast passes against slow passes: where they split.
+  split: CornerSplit | null;
 }
 
 export interface StintResult {
@@ -140,21 +161,26 @@ export interface StintResult {
   medianLapTime: number | null;
 }
 
+export interface Summary {
+  laps: number;
+  rawSpread: number | null;
+  // Spread of the residuals on laps that were not off pace.
+  scatter: number | null;
+  withinHalfSecond: number;
+  offPaceLaps: number;
+  offPaceSec: number;
+  mistakes: number;
+  mistakeSec: number;
+  onTheTable: number;
+  // The one corner to work on next session.
+  focusCorner: number | null;
+}
+
 export interface Consistency {
   laps: LapResult[];
   corners: CornerResult[];
   stints: StintResult[];
-  summary: {
-    laps: number;
-    rawSpread: number | null;
-    scatter: number | null;
-    withinHalfSecond: number;
-    mistakes: number;
-    mistakeCost: number;
-    spreadLaps: number;
-    spreadCost: number;
-    onTheTable: number;
-  };
+  summary: Summary;
   verdict: string;
 }
 
@@ -245,19 +271,19 @@ export function analyzeConsistency(
   const residual = (l: LapFacts) => l.lapTime - expected.get(l.id)!;
   const lapSigma = robustSigma(laps.map(residual)) ?? 0;
 
-  // Corner deltas: each corner's expected time is its usual share of the
-  // lap's expected time, so the stint trend is spread over the corners.
   // A lap whose corners do not add up to its lap time was cut up wrong (a
-  // start from the grid, a reset): leave it out of the corner view.
-  const nc = mode(
-    laps.filter(l => l.corners).map(l => l.corners!.length),
-  );
+  // reset, a lap that started off the line): leave it out of the corner view.
+  const nc = mode(laps.filter(l => l.corners).map(l => l.corners!.length));
   const withCorners = laps.filter(
     l =>
       l.corners &&
       l.corners.length === nc &&
-      Math.abs(sum(l.corners.map(c => c.segTime)) - l.lapTime) <= t.cornerSumSec,
+      Math.abs(sum(l.corners.map(c => c.segTime)) - l.lapTime) <=
+        t.cornerSumSec,
   );
+
+  // Corner deltas: each corner's expected time is its usual share of the
+  // lap's expected time, so the stint trend is spread over the corners.
   const share = range(nc).map(
     k =>
       median(
@@ -273,65 +299,45 @@ export function analyzeConsistency(
     );
   }
   // Center each corner on its median, then measure its own spread.
-  const center = range(nc).map(
-    k => median(withCorners.map(l => delta.get(l.id)![k])) ?? 0,
-  );
-  for (const d of delta.values()) for (let k = 0; k < nc; k++) d[k] -= center[k];
+  const deltasOf = (k: number) => withCorners.map(l => delta.get(l.id)![k]);
+  const center = range(nc).map(k => median(deltasOf(k)) ?? 0);
+  for (const d of delta.values()) {
+    for (let k = 0; k < nc; k++) d[k] -= center[k];
+  }
   const sigma = range(nc).map(k =>
-    Math.max(0.02, robustSigma(withCorners.map(l => delta.get(l.id)![k])) ?? 0),
+    Math.max(0.02, robustSigma(deltasOf(k)) ?? 0),
   );
 
   const results: LapResult[] = laps.map(l => {
     const r = residual(l);
     const d = delta.get(l.id) ?? null;
-    const events: CornerEvent[] = [];
-    let kind: LapKind = 'normal';
-    let corner: number | null = null;
-    let cost = 0;
+    const offPace = r >= Math.max(t.offPaceZ * lapSigma, t.offPaceMinSec);
+    const losses: CornerLoss[] = [];
     if (d) {
-      for (let k = 0; k < nc; k++) {
+      const lost = sum(d.map(v => Math.max(0, v)));
+      const candidates = range(nc)
+        .filter(k => d[k] > 0 && d[k] / sigma[k] >= t.lossZ)
+        .sort((a, b) => d[b] - d[a]);
+      let covered = 0;
+      for (const k of candidates) {
         const z = d[k] / sigma[k];
-        if (Math.abs(z) >= t.cornerZ && Math.abs(d[k]) >= t.cornerMinSec) {
-          events.push({
-            corner: k + 1,
-            seconds: round(d[k], 3)!,
-            z: round(z, 1)!,
-            underYellow: l.corners![k].localYellowSec >= t.yellowSec,
-          });
-        }
+        const mistake = z >= t.mistakeZ && d[k] >= t.mistakeSec;
+        // Off-pace laps list corners until most of the loss is explained.
+        // Other laps only list outright mistakes.
+        if (!mistake && (!offPace || covered >= t.lossCover * lost)) continue;
+        const c = l.corners![k];
+        const tags: LossTag[] = [];
+        if ((c.offTrackSec ?? 0) > 0) tags.push('off-track');
+        if (c.localYellowSec >= t.yellowSec) tags.push('local-yellow');
+        losses.push({
+          corner: k + 1,
+          seconds: round(d[k], 3)!,
+          z: round(z, 1)!,
+          mistake,
+          tags,
+        });
+        covered += d[k];
       }
-    }
-    // A mistake is one corner far past its own normal. On a slow lap it must
-    // hold most of what the lap lost (else the lap was slow everywhere). On a
-    // lap that made the time back elsewhere, it must be a big loss on its own.
-    let worst = -1;
-    let worstLoss = 0;
-    if (d) {
-      for (let k = 0; k < nc; k++) {
-        // Segments run brake to brake (src/analysis/corners.ts), so a slow
-        // exit is already inside the corner's own time.
-        if (d[k] / sigma[k] < t.cornerZ || d[k] < t.cornerMinSec) continue;
-        if (d[k] > worstLoss) {
-          worst = k;
-          worstLoss = d[k];
-        }
-      }
-    }
-    const lost = d ? sum(d.map(v => Math.max(0, v))) : 0;
-    const slow = r >= Math.max(t.slowLapZ * lapSigma, t.slowLapMinSec);
-    if (
-      worst >= 0 &&
-      (slow ? worstLoss >= t.mistakeShare * lost : worstLoss >= t.bigMistakeSec)
-    ) {
-      kind = 'mistake';
-      corner = worst + 1;
-      cost = worstLoss;
-    } else if (slow) {
-      const slowCorners = d
-        ? d.filter((v, k) => v > 0 && v / sigma[k] >= 1).length
-        : 0;
-      kind = d && slowCorners >= Math.ceil(nc / 2) ? 'spread' : 'slow';
-      cost = r;
     }
     return {
       id: l.id,
@@ -339,114 +345,157 @@ export function analyzeConsistency(
       stint: l.stint,
       expected: round(expected.get(l.id)!, 3)!,
       residual: round(r, 3)!,
-      kind,
-      corner,
-      cost: round(cost, 3)!,
-      events,
+      offPace,
+      losses,
       cornerDelta: d ? d.map(v => round(v, 3)!) : null,
     };
   });
 
   const corners: CornerResult[] = range(nc).map(k => {
-    const values = withCorners.map(l => delta.get(l.id)![k]);
-    const own = results.filter(r => r.kind === 'mistake' && r.corner === k + 1);
+    const values = deltasOf(k);
+    const p25 = quantile(values, 0.25) ?? 0;
+    const named = results.filter(r => r.losses.some(x => x.corner === k + 1));
     return {
       n: k + 1,
-      medianSec: round(
-        median(withCorners.map(l => l.corners![k].segTime)),
-        3,
-      )!,
+      medianSec:
+        round(median(withCorners.map(l => l.corners![k].segTime)), 3) ?? 0,
       spreadSec: round(sigma[k], 3)!,
-      mistakes: own.length,
-      mistakeCost: round(sum(own.map(r => r.cost)), 2)!,
-      // Repeatable pace, not the one lucky pass: median minus the 25th
-      // percentile, both after the stint trend is taken out.
-      onTheTable: round(
-        (median(values) ?? 0) - (quantile(values, 0.25) ?? 0),
-        3,
-      )!,
+      lostSec: round(sum(values.map(v => Math.max(0, v - p25))), 2)!,
+      named: named.length,
+      mistakes: results.filter(r =>
+        r.losses.some(x => x.corner === k + 1 && x.mistake),
+      ).length,
+      onTheTable: round((median(values) ?? 0) - p25, 3)!,
+      split: cornerSplit(withCorners, k, delta),
     };
   });
 
-  const normal = results.filter(r => r.kind === 'normal');
-  const of = (kind: LapKind) => results.filter(r => r.kind === kind);
+  const ordinary = results.filter(r => !r.offPace);
+  const offPace = results.filter(r => r.offPace);
+  const mistakes = results.flatMap(r => r.losses.filter(x => x.mistake));
   const lapTimes = laps.map(l => l.lapTime);
   const pace = median(lapTimes);
-  const summary = {
+  const focus = [...corners].sort((a, b) => b.lostSec - a.lostSec)[0];
+  const summary: Summary = {
     laps: laps.length,
     rawSpread: round(stdev(lapTimes), 3),
-    scatter: round(stdev(normal.map(r => r.residual)), 3),
+    scatter: round(stdev(ordinary.map(r => r.residual)), 3),
     withinHalfSecond:
       pace == null ? 0 : lapTimes.filter(v => Math.abs(v - pace) <= 0.5).length,
-    mistakes: of('mistake').length,
-    mistakeCost: round(sum(of('mistake').map(r => r.cost)), 2)!,
-    spreadLaps: of('spread').length,
-    spreadCost: round(sum(of('spread').map(r => r.cost)), 2)!,
+    offPaceLaps: offPace.length,
+    offPaceSec: round(sum(offPace.map(r => r.residual)), 2)!,
+    mistakes: mistakes.length,
+    mistakeSec: round(sum(mistakes.map(x => x.seconds)), 2)!,
     onTheTable: round(sum(corners.map(c => c.onTheTable)), 2)!,
+    focusCorner: focus && focus.lostSec > 0 ? focus.n : null,
   };
   return {
     laps: results,
     corners,
     stints,
     summary,
-    verdict: verdict(summary, stints, corners),
+    verdict: verdict(summary, stints, corners, results, laps),
+  };
+}
+
+// Where a corner's fast passes and slow passes part ways. Thirds by time,
+// medians compared, so one odd pass does not decide it.
+function cornerSplit(
+  laps: LapFacts[],
+  k: number,
+  delta: Map<string, number[]>,
+): CornerSplit | null {
+  if (laps.length < 6) return null;
+  const sorted = [...laps].sort(
+    (a, b) => delta.get(a.id)![k] - delta.get(b.id)![k],
+  );
+  const third = Math.floor(sorted.length / 3);
+  const fast = sorted.slice(0, third);
+  const slow = sorted.slice(sorted.length - third);
+  const diff = (pick: (c: CornerFacts) => number | null | undefined) => {
+    const f = median(values(fast.map(l => pick(l.corners![k]))));
+    const s = median(values(slow.map(l => pick(l.corners![k]))));
+    return f == null || s == null ? null : s - f;
+  };
+  return {
+    seconds: round(diff(c => c.segTime), 3) ?? 0,
+    brakeAtM: round(diff(c => c.brakeAtM), 0),
+    minSpeedKmh: round(diff(c => c.minSpeedKmh), 1),
+    fullThrottleAtM: round(diff(c => c.fullThrottleAtM), 0),
   };
 }
 
 function verdict(
-  s: Consistency['summary'],
+  s: Summary,
   stints: StintResult[],
   corners: CornerResult[],
+  results: LapResult[],
+  laps: LapFacts[],
 ): string {
   if (s.laps < 3) return `${s.laps} laps. Not enough to judge consistency.`;
-  const parts = [`${s.laps} laps.`];
+  const parts: string[] = [];
+  const focus = corners.find(c => c.n === s.focusCorner);
+  if (focus) {
+    const why = [
+      focus.mistakes
+        ? `${focus.mistakes} ${focus.mistakes === 1 ? 'mistake' : 'mistakes'}`
+        : null,
+      `${focus.lostSec.toFixed(1)} s lost against your own repeatable pace there`,
+    ].filter(Boolean);
+    parts.push(`Work on corner ${focus.n}: ${why.join(', ')}.`);
+  }
+  parts.push(`${s.laps} laps.`);
   if (s.scatter != null) {
-    parts.push(`Lap to lap you vary ${s.scatter.toFixed(2)} s once the pace trend is taken out.`);
+    parts.push(
+      `Lap to lap you vary ${s.scatter.toFixed(2)} s once the pace trend is taken out.`,
+    );
   }
   const trend = stints.filter(st => Math.abs(st.trendPerLap) >= 0.01);
   if (trend.length) {
     parts.push(
       `Pace trend ${trend
-        .map(st => `${fmtSigned(st.trendPerLap)} s/lap in stint ${st.n}`)
+        .map(st => `${signed(st.trendPerLap, 3)} s/lap in stint ${st.n}`)
         .join(', ')}.`,
     );
   }
-  if (s.mistakes) {
+  const off = results.filter(r => r.offPace);
+  if (off.length) {
+    const worst = [...off].sort((a, b) => b.residual - a.residual).slice(0, 3);
+    const facts = new Map(laps.map(l => [l.id, l]));
     parts.push(
-      `${s.mistakes} ${s.mistakes === 1 ? 'mistake' : 'mistakes'} cost ${s.mistakeCost.toFixed(1)} s.`,
-    );
-  }
-  if (s.spreadLaps) {
-    parts.push(
-      `${s.spreadLaps} ${s.spreadLaps === 1 ? 'lap was' : 'laps were'} slow everywhere (traffic?), ${s.spreadCost.toFixed(1)} s.`,
-    );
-  }
-  const work = [...corners]
-    .filter(c => c.mistakes > 0 || c.onTheTable >= 0.05)
-    .sort((a, b) => b.mistakeCost + b.onTheTable - (a.mistakeCost + a.onTheTable))
-    .slice(0, 3);
-  if (work.length) {
-    parts.push(
-      `Work on ${work
-        .map(
-          c =>
-            `corner ${c.n} (${c.mistakes ? `${c.mistakes} ${c.mistakes === 1 ? 'mistake' : 'mistakes'}, ` : ''}${c.onTheTable.toFixed(2)} s on the table)`,
-        )
-        .join(', ')}.`,
+      `${off.length} ${off.length === 1 ? 'lap' : 'laps'} off pace, ${s.offPaceSec.toFixed(1)} s in all. ` +
+        worst
+          .map(r => {
+            const where = r.losses
+              .map(
+                x =>
+                  `corner ${x.corner} ${signed(x.seconds, 2)} s${x.tags.includes('off-track') ? ' off track' : ''}`,
+              )
+              .join(', ');
+            const lap = facts.get(r.id);
+            const tag = !where && lap?.offtrack ? ', off track' : '';
+            return `Lap ${r.lapNumber} ${signed(r.residual, 1)} s${where ? ` (${where})` : tag}`;
+          })
+          .join('. ') +
+        '.',
     );
   } else {
-    parts.push('No corner stands out.');
+    parts.push('No lap was well off your pace.');
   }
   return parts.join(' ');
 }
 
-function fmtSigned(v: number): string {
-  return (v > 0 ? '+' : '') + v.toFixed(3);
+function signed(v: number, digits: number): string {
+  return (v > 0 ? '+' : '') + v.toFixed(digits);
 }
 
-function mode(values: number[]): number {
+function values(list: (number | null | undefined)[]): number[] {
+  return list.filter((v): v is number => v != null && Number.isFinite(v));
+}
+
+function mode(list: number[]): number {
   const counts = new Map<number, number>();
-  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  for (const v of list) counts.set(v, (counts.get(v) ?? 0) + 1);
   let best = 0;
   let bestCount = 0;
   for (const [v, c] of counts) {
@@ -468,18 +517,18 @@ function theilSen(xs: number[], ys: number[]): number {
   return median(slopes) ?? 0;
 }
 
-function robustSigma(values: number[]): number | null {
-  const m = median(values);
+function robustSigma(list: number[]): number | null {
+  const m = median(list);
   if (m == null) return null;
-  return 1.4826 * (median(values.map(v => Math.abs(v - m))) ?? 0);
+  return 1.4826 * (median(list.map(v => Math.abs(v - m))) ?? 0);
 }
 
-function median(values: number[]): number | null {
-  return quantile(values, 0.5);
+function median(list: number[]): number | null {
+  return quantile(list, 0.5);
 }
 
-function quantile(values: number[], q: number): number | null {
-  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+function quantile(list: number[], q: number): number | null {
+  const sorted = list.filter(Number.isFinite).sort((a, b) => a - b);
   if (sorted.length === 0) return null;
   const pos = (sorted.length - 1) * q;
   const lo = Math.floor(pos);
@@ -487,19 +536,19 @@ function quantile(values: number[], q: number): number | null {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
-function stdev(values: number[]): number | null {
-  const v = values.filter(Number.isFinite);
+function stdev(list: number[]): number | null {
+  const v = list.filter(Number.isFinite);
   if (v.length < 2) return null;
   const mean = sum(v) / v.length;
   return Math.sqrt(sum(v.map(x => (x - mean) ** 2)) / (v.length - 1));
 }
 
-function sum(values: number[]): number {
-  return values.reduce((a, b) => a + b, 0);
+function sum(list: number[]): number {
+  return list.reduce((a, b) => a + b, 0);
 }
 
-function unique(values: number[]): number[] {
-  return [...new Set(values)].sort((a, b) => a - b);
+function unique(list: number[]): number[] {
+  return [...new Set(list)].sort((a, b) => a - b);
 }
 
 function range(n: number): number[] {
