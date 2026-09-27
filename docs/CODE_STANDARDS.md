@@ -4,10 +4,19 @@ This codebase is written and maintained by AI sessions, with Botkin reviewing re
 
 The structure itself (folders, layers, state ownership, data hooks) is decided in `pit-wall/decisions/lap/2026-09-27-app-architecture.md`. This file covers how to write code inside that structure. The visual source of truth is `docs/design_handoff_lap_analysis/README.md`.
 
+## 0. The phone is the primary product
+
+Botkin uses this app mostly on his phone, straight out of the car after a session. **Mobile is the primary experience; desktop is second and must still be good.** When the two conflict, the phone wins.
+
+- Every screen is designed, built and verified at 375–390 pt wide first. A feature is not done until it works one-handed on a phone: readable without zooming, every control reachable and at least 44 pt, no horizontal page scroll.
+- Desktop (≥900 pt) then gets a real multi-pane layout that uses the space. It is never a stretched phone screen, and never the only place a feature works.
+- Phone constraints come first: flaky mobile data (summaries before heavy traces, visible progress), touch instead of hover (nothing depends on hover), and small-screen reading (one chart at a time is a first-class view, not a fallback).
+- Every UI PR shows screenshots at 375 pt **first**, then at ≥900 pt.
+
 ## 1. Write for the next reader, who has no context
 
 - **The file tree is the map.** A session should be able to guess where something lives from its name. If you have to explain where a thing is, it is in the wrong place.
-- **One concept per file, and name the file after it.** `lapStroke.ts`, not `helpers.ts`. No `utils/`, `common/`, `misc/` or `index.ts` barrels that re-export a folder; import from the file that defines the thing.
+- **One concept per file, and name the file after it.** `lapStroke.ts`, not `helpers.ts`. No `utils/`, `common/` or `misc/` folders. Each layer folder and each `data/<resource>/` may have one `index.ts` that is its public API; import through it from outside, and import files directly from inside. No nested or wildcard barrels below that.
 - **Keep files small enough to read in one pass.** Aim for under 250 lines; over 400 is a signal to split along a real seam (a subcomponent, a pure function), not arbitrarily.
 - **Every folder under `src/` has a short `README.md`** saying what belongs there, what does not, and what it may import. Update it when you change the folder's purpose.
 - **Comments explain why, never what.** Say where a constant comes from ("median + 3 robust σ, from the handoff"), why a workaround exists, or which doc a rule comes from. No commented-out code, no changelog comments, no `// TODO` without a pit-wall thread number.
@@ -39,7 +48,7 @@ The structure itself (folders, layers, state ownership, data hooks) is decided i
 
 ## 5. Layout: mobile first, desktop real
 
-- Design at 390 pt wide with 16 pt gutters first, then add the ≥900 pt layout. Desktop is a proper multi-pane layout, not a stretched phone.
+- See section 0. Design at 390 pt wide with 16 pt gutters first, then add the ≥900 pt layout. Desktop is a proper multi-pane layout, not a stretched phone.
 - Breakpoints come from `size.desktopBreakpoint` through one `useLayout()` hook. No ad-hoc `Dimensions.get` checks in components.
 - **Hit areas are at least 44 pt**; use `hitSlop` to extend small drawn controls (checkboxes, chips).
 - No horizontal page scroll at 375 pt. Horizontal scroll is allowed only inside a component designed for it (lap chips).
