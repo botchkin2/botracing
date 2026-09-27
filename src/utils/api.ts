@@ -8,9 +8,16 @@ import {Platform} from 'react-native';
 
 // Laps uploaded from the PC, served by the lmuApi function.
 // Local dev: set EXPO_PUBLIC_LMU_API_BASE (tools/lmu-sync/serve.mjs).
+// On a deployed web page, use that site's own /api/lmu so PR preview channels
+// hit their own Hosting rewrite instead of the live origin (CORS-blocked).
+const PRODUCTION_API = 'https://botracing-61.web.app/api/lmu';
 const API_BASE_URL =
   (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_LMU_API_BASE) ||
-  'https://botracing-61.web.app/api/lmu';
+  (Platform.OS === 'web' &&
+  typeof window !== 'undefined' &&
+  window.location?.protocol === 'https:'
+    ? `${window.location.origin}/api/lmu`
+    : PRODUCTION_API);
 
 // Global request cache to ensure proper deduplication
 // For React Native, we use a module-level variable since HMR works differently
