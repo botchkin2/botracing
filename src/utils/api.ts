@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {API_CONFIG} from '@src/config/api';
-import {ApiError, LapsResponse, TrackInfo, TracksResponse} from '@src/types';
+import {API_CONFIG} from '@/src/config/api';
+import {ApiError, LapsResponse, TrackInfo, TracksResponse} from '@/src/types';
 import axios, {AxiosError, AxiosInstance, AxiosResponse} from 'axios';
 // SDK 55: the classic API lives under /legacy; the root import throws at runtime.
 import * as FileSystem from 'expo-file-system/legacy';

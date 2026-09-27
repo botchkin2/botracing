@@ -1,6 +1,6 @@
-import {MetricCard} from '@src/components';
-import {RacingTheme} from '@src/theme';
-import {Lap} from '@src/types';
+import {MetricCard} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
+import {Lap} from '@/src/types';
 import React from 'react';
 import {View} from 'react-native';
 

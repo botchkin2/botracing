@@ -1,6 +1,6 @@
-import {apiClient} from '@src/utils/api';
+import {apiClient} from '@/src/utils/api';
 import {useQuery} from '@tanstack/react-query';
-import {cacheTime} from '@src/utils/queryClient';
+import {cacheTime} from '@/src/utils/queryClient';
 
 // Query keys for consistent cache management
 export const queryKeys = {

@@ -1,6 +1,6 @@
-import {LapTime, RacingCard, RacingDivider} from '@src/components';
-import {RacingTheme} from '@src/theme';
-import {Lap} from '@src/types';
+import {LapTime, RacingCard, RacingDivider} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
+import {Lap} from '@/src/types';
 import React from 'react';
 import {Text, TouchableOpacity, View} from 'react-native';
 

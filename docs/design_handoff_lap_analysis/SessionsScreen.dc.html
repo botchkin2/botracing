@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet"></helmet>
+<div style="width:100%;height:100%;background:#0d0f12;color:#e4e7ea;font-family:'IBM Plex Sans Condensed',sans-serif;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+<div style="flex:none;padding:8px 16px 10px;display:flex;align-items:center;gap:8px"><span style="font:600 24px 'IBM Plex Sans Condensed',sans-serif">Sessions</span><span style="margin-left:auto;font:500 11.5px 'IBM Plex Mono',monospace;padding:5px 9px;border:1px solid #2e343a;border-radius:4px;white-space:nowrap">LMU · all tracks ▾</span></div>
+<sc-if value="{{ v.hasDays }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:grid;grid-template-columns:24px 1fr 30px 64px 64px;gap:8px;padding:6px 16px;border-top:1px solid #21252b;border-bottom:1px solid #21252b;background:#101317;font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#8a929b"><span></span><span>Track · car</span><span style="text-align:right">Laps</span><span style="text-align:right">Best</span><span style="text-align:right">Median</span></div></sc-if>
+<sc-if value="{{ v.empty }}"><div style="margin:24px 16px 0;padding:20px;background:#101317;border:1px solid #21252b;border-radius:6px;display:flex;flex-direction:column;gap:8px"><div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif">No sessions yet</div><div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Sessions upload automatically from your PC. Install the uploader on your sim PC and sign in with the same account.</div><div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#15181c;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#aeb4ba"><span style="width:6px;height:6px;border-radius:50%;background:#5b636b"></span>Uploader: not seen yet</div><span style="align-self:flex-start;font:600 13px 'IBM Plex Sans Condensed',sans-serif;color:#0d0f12;background:oklch(0.80 0.16 70);padding:7px 12px;border-radius:3px">Set up uploader</span></div></sc-if>
+<div style="flex:1;overflow-y:auto;padding-bottom:30px">
+<sc-for list="{{ v.days }}" as="d" hint-placeholder-count="3">
+<div style="padding:12px 16px 4px;display:flex;align-items:baseline;gap:8px"><span style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">{{ d.day }}</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b;white-space:nowrap">{{ d.date }}</span></div>
+<sc-for list="{{ d.rows }}" as="r"><div onClick="{{ r.onTap }}" style="display:grid;grid-template-columns:24px 1fr 30px 64px 64px;gap:8px;align-items:center;padding:9px 16px;box-shadow:{{ r.sh }};background:{{ r.bg }};border-bottom:1px solid #15181c;cursor:pointer">
+<span style="width:22px;height:22px;border:1px solid #3a4148;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace">{{ r.b }}</span>
+<div style="min-width:0"><div style="font:600 14.5px/1.2 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap">{{ r.track }} <span style="font-weight:400;color:#8a929b">· {{ r.type }}</span></div><div style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">{{ r.time }} · {{ r.car }}</div></div>
+<span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">{{ r.laps }}</span>
+<span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums">{{ r.best }}</span>
+<span style="text-align:right;font:400 12px 'IBM Plex Mono',monospace;color:#aeb4ba;font-variant-numeric:tabular-nums">{{ r.med }}</span>
+</div></sc-for>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":798},"v":{"editor":null,"tsType":"ScreenModel"}}'>
+class Component extends DCLogic {
+  renderVals(){return {v:this.props.v};}
+}
+</script>
+</body>
+</html>

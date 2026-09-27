@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet"></helmet>
+<div style="width:100%;height:100%;background:#0d0f12;color:#e4e7ea;font-family:'IBM Plex Sans Condensed',sans-serif;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+<div style="flex:none;padding:6px 16px 4px;display:flex;align-items:center;gap:10px"><span style="font:500 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b;white-space:nowrap">‹ Session</span><span style="font:600 16px 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap">Compare</span><span onClick="{{ v.toggleMap }}" style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace;padding:4px 8px;border:1px solid #2e343a;border-radius:3px;cursor:pointer;white-space:nowrap">{{ v.mapBtn }}</span></div>
+<div style="flex:none;padding:2px 16px 6px;display:flex;align-items:baseline;gap:8px;min-width:0"><span style="flex:none;font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Reference</span><span style="width:10px;height:3px;background:#f2f4f6;flex:none;align-self:center"></span><span style="font:600 12.5px 'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.refName }}</span></div>
+<div style="flex:none;display:flex;gap:6px;padding:0 16px 8px;overflow-x:auto">
+<sc-for list="{{ v.T.lapChips }}" as="c"><div onClick="{{ c.onTap }}" style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px;background:#15181b;border:1px solid #252a2f;border-radius:3px;cursor:pointer"><span style="width:10px;height:3px;background:{{ c.color }}"></span><span style="font:600 12px 'IBM Plex Mono',monospace">{{ c.label }}</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ c.dcol }}">{{ c.dlt }}</span><sc-if value="{{ c.canRemove }}"><span onClick="{{ c.onRemove }}" style="color:#5b636b;font:500 13px 'IBM Plex Mono',monospace">×</span></sc-if></div></sc-for>
+<sc-if value="{{ v.many }}"><div style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px dashed #3a4148;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b"><span style="width:10px;height:3px;background:#5d646d"></span>{{ v.manyChip }}</div></sc-if>
+</div>
+<sc-if value="{{ v.mapShow }}" hint-placeholder-val="{{ true }}"><div style="flex:none;padding:0 16px;border-top:1px solid #21252b;background:#101317">
+<div data-ovw="1" style="position:relative"><svg width="358" height="170" style="display:block;overflow:visible">
+<path d="{{ v.map.d }}" fill="none" stroke="#262b31" stroke-width="6" stroke-linejoin="round"></path>
+<sc-for list="{{ v.map.labels }}" as="b"><g onClick="{{ b.onTap }}" style="cursor:pointer"><circle cx="{{ b.x }}" cy="{{ b.cy }}" r="8" fill="{{ b.fill }}" stroke="#3a4148"></circle></g></sc-for>
+<sc-for list="{{ v.map.dots }}" as="d"><circle cx="{{ d.x }}" cy="{{ d.y }}" r="4.5" fill="{{ d.color }}" stroke="#0d0f12" stroke-width="1.5"></circle></sc-for>
+</svg><sc-for list="{{ v.map.labels }}" as="b"><span style="position:absolute;left:{{ b.x }}px;top:{{ b.cy }}px;transform:translate(-50%,-50%);font:600 9.5px 'IBM Plex Mono',monospace;color:{{ b.fg }};pointer-events:none;white-space:nowrap;line-height:1">{{ b.n }}</span></sc-for></div>
+</div></sc-if>
+<sc-if value="{{ v.mapHide }}"><div onPointerDown="{{ v.mstrip.onDown }}" onPointerMove="{{ v.mstrip.onMove }}" style="flex:none;padding:6px 16px 4px;border-top:1px solid #21252b;background:#101317;touch-action:none;cursor:ew-resize">
+<div data-ovw="1" style="position:relative"><svg width="358" height="28" style="display:block;overflow:visible">
+<rect x="0" y="9" width="358" height="4" rx="2" fill="#262b31"></rect>
+<rect x="{{ v.mstrip.wx }}" y="6" width="{{ v.mstrip.ww }}" height="10" rx="2" fill="none" stroke="#5b636b"></rect>
+<sc-for list="{{ v.mstrip.corners }}" as="t"></sc-for>
+<sc-for list="{{ v.mstrip.dots }}" as="d"><rect x="{{ d.x }}" y="3" width="3" height="16" rx="1" fill="{{ d.color }}"></rect></sc-for>
+</svg><sc-for list="{{ v.mstrip.corners }}" as="t"><span style="position:absolute;left:{{ t.x }}px;top:19px;transform:translateX(-50%);font:500 9px 'IBM Plex Mono',monospace;color:#6b737c;pointer-events:none;white-space:nowrap;line-height:1">{{ t.n }}</span></sc-for></div></div></sc-if>
+<div style="flex:none;display:flex;align-items:baseline;gap:8px;padding:6px 16px;border-top:1px solid #21252b;border-bottom:1px solid #21252b;font:500 12px 'IBM Plex Mono',monospace"><span style="font:600 14px 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap">{{ v.T.curCorner }}</span><span style="color:#8a929b;white-space:nowrap">{{ v.T.curD }}</span><span style="margin-left:auto;display:flex;gap:8px"><sc-for list="{{ v.T.speeds }}" as="v"><span style="color:{{ v.color }}">{{ v.v }}</span></sc-for><span style="color:#5b636b">km/h</span></span></div>
+<div style="flex:1;overflow-y:auto;padding-bottom:130px">
+<div style="padding:8px 16px 0;font:400 11.5px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below.</div>
+<sc-if value="{{ v.T.cv.stack }}" hint-placeholder-val="{{ true }}"><div style="padding:10px 16px 10px;border-bottom:1px solid #1d2125">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Time per corner</div>
+<div style="font:400 11.5px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#8a929b;margin:2px 0 6px">{{ v.stripDesc }}</div>
+<div style="display:grid;grid-template-columns:36px repeat(11,minmax(0,1fr));gap:2px;margin-bottom:2px"><span></span><sc-for list="{{ v.shdr }}" as="h"><span onClick="{{ h.onTap }}" style="text-align:center;font:500 9px 'IBM Plex Mono',monospace;color:{{ h.fg }};cursor:pointer">{{ h.n }}</span></sc-for></div>
+<sc-for list="{{ v.strip }}" as="r"><div style="display:grid;grid-template-columns:36px repeat(11,minmax(0,1fr));gap:2px;margin-bottom:2px;align-items:center"><span onClick="{{ r.onTap }}" style="display:flex;align-items:center;gap:3px;font:600 10.5px 'IBM Plex Mono',monospace;cursor:pointer"><span style="width:3px;height:14px;background:{{ r.color }}"></span>{{ r.label }}</span><sc-for list="{{ r.cells }}" as="c"><span onClick="{{ c.onTap }}" style="height:24px;display:flex;align-items:center;justify-content:center;background:{{ c.bg }};color:{{ c.fg }};outline:1px solid {{ c.bd }};border-radius:2px;font:500 9.5px 'IBM Plex Mono',monospace;cursor:pointer">{{ c.v }}</span></sc-for></div></sc-for>
+</div></sc-if>
+<div style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid #1d2125;background:#101317">
+<span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Charts</span>
+<div style="display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ v.T.cv.views }}" as="m"><span onClick="{{ m.onTap }}" style="padding:4px 8px;font:500 11px 'IBM Plex Sans Condensed',sans-serif;background:{{ m.bg }};color:{{ m.fg }};cursor:pointer;white-space:nowrap">{{ m.label }}</span></sc-for></div>
+<span onClick="{{ v.T.cv.onEdit }}" style="margin-left:auto;padding:4px 10px;border:1px solid #3a4148;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer;white-space:nowrap">Edit charts</span>
+</div>
+<sc-if value="{{ v.T.cv.focusMode }}"><div style="padding:8px 16px 4px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid #1d2125">
+<div style="display:flex;gap:4px;overflow-x:auto"><sc-for list="{{ v.T.cv.tabs }}" as="t"><span onClick="{{ t.onTap }}" style="flex:none;padding:5px 9px;border-radius:3px;background:{{ t.bg }};color:{{ t.fg }};font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap">{{ t.label }}</span></sc-for></div>
+<div style="font:400 11px/1.3 'IBM Plex Sans Condensed',sans-serif;color:#6b737c">Overlay on this chart (up to 3):</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px;padding-bottom:4px"><sc-for list="{{ v.T.cv.quick }}" as="q"><span onClick="{{ q.onTap }}" style="padding:4px 8px;border:1px solid {{ q.bd }};background:{{ q.bg }};color:{{ q.fg }};border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer;white-space:nowrap">{{ q.mark }}{{ q.label }}</span></sc-for></div>
+</div></sc-if>
+<sc-for list="{{ v.T.charts }}" as="c" hint-placeholder-count="4"><div style="padding:8px 16px 6px;border-bottom:1px solid #1d2125">
+<sc-if value="{{ c.single }}" hint-placeholder-val="{{ true }}"><div style="display:flex;align-items:center;gap:8px"><span style="flex:none;white-space:nowrap;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">{{ c.label }}</span><span style="flex:none;white-space:nowrap;font:400 10px 'IBM Plex Mono',monospace;color:#5b636b">{{ c.unit }}</span>
+<div style="margin-left:auto;display:flex;gap:8px"><sc-for list="{{ c.vals }}" as="v"><span onClick="{{ v.onTap }}" style="display:flex;align-items:center;gap:4px;font:500 11px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;opacity:{{ v.op }};cursor:pointer;white-space:nowrap"><span style="width:6px;height:6px;border-radius:1px;background:{{ v.color }}"></span>{{ v.v }}</span></sc-for></div>
+<span onClick="{{ c.onRemove }}" style="color:#4d555d;font:500 13px 'IBM Plex Mono',monospace;cursor:pointer">×</span></div></sc-if>
+<sc-if value="{{ c.multi }}"><div style="display:flex;align-items:center;gap:8px;margin-bottom:2px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">{{ c.label }}</span><span onClick="{{ c.onRemove }}" style="color:#4d555d;font:500 13px 'IBM Plex Mono',monospace;cursor:pointer">×</span></div>
+<sc-for list="{{ c.rows }}" as="r"><div style="display:flex;align-items:center;gap:8px;height:17px"><svg width="18" height="8" style="flex:none"><line x1="0" x2="18" y1="4" y2="4" stroke="#e4e7ea" stroke-width="1.6" stroke-dasharray="{{ r.dash }}"></line></svg><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba;white-space:nowrap">{{ r.name }}</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#5b636b">{{ r.unit }}</span><div style="margin-left:auto;display:flex;gap:8px"><sc-for list="{{ r.vals }}" as="v"><span onClick="{{ v.onTap }}" style="display:flex;align-items:center;gap:4px;font:500 11px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;opacity:{{ v.op }};cursor:pointer;white-space:nowrap"><span style="width:6px;height:6px;border-radius:1px;background:{{ v.color }}"></span>{{ v.v }}</span></sc-for></div></div></sc-for></sc-if>
+<div style="font:400 11px/1.3 'IBM Plex Sans Condensed',sans-serif;color:#6b737c;margin:1px 0 4px">{{ c.desc }}</div>
+<div onPointerDown="{{ c.onDown }}" onPointerMove="{{ c.onMove }}" style="touch-action:none;cursor:ew-resize">
+<div data-ovw="1" style="position:relative"><svg width="358" height="{{ c.H }}" style="display:block;overflow:visible">
+<sc-for list="{{ c.lines }}" as="t"><line x1="{{ t.x }}" x2="{{ t.x }}" y1="0" y2="{{ c.H }}" stroke="#1d2125"></line></sc-for>
+<sc-for list="{{ c.ticks }}" as="t"></sc-for>
+<path d="{{ c.band }}" fill="rgba(230,232,234,0.07)"></path>
+<line x1="0" x2="358" y1="{{ c.y0 }}" y2="{{ c.y0 }}" stroke="#3a4148"></line>
+<sc-for list="{{ c.traces }}" as="t"><path d="{{ t.d }}" fill="none" stroke="{{ t.color }}" stroke-width="{{ t.w }}" stroke-opacity="{{ t.op }}" stroke-dasharray="{{ t.dash }}" stroke-linejoin="round"></path></sc-for>
+<line x1="{{ c.cursorX }}" x2="{{ c.cursorX }}" y1="0" y2="{{ c.H }}" stroke="oklch(0.80 0.16 70)"></line>
+</svg><sc-for list="{{ c.ticks }}" as="t"><span style="position:absolute;left:{{ t.x }}px;top:0px;margin-left:3px;font:500 9px 'IBM Plex Mono',monospace;color:#5b636b;pointer-events:none;white-space:nowrap;line-height:1">{{ t.label }}</span></sc-for></div></div></div></sc-for>
+<div style="padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><sc-for list="{{ v.T.addable }}" as="a"><span onClick="{{ a.onTap }}" style="padding:4px 8px;border:1px dashed #3a4148;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b;cursor:pointer">+ {{ a.label }}</span></sc-for></div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;padding:8px 16px 22px;background:#15181b;border-top:1px solid #252a2f;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Window</span>
+<div style="display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ v.T.winModes }}" as="m"><span onClick="{{ m.onTap }}" style="padding:4px 8px;font:500 11px 'IBM Plex Sans Condensed',sans-serif;background:{{ m.bg }};color:{{ m.fg }};cursor:pointer">{{ m.label }}</span></sc-for></div>
+<span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#5b636b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ v.T.winDesc }}</span>
+<div style="margin-left:auto;flex:none;display:flex;align-items:center;border:1px solid #2e343a;border-radius:3px"><span onClick="{{ v.T.winIn }}" style="padding:4px 9px;font:500 14px 'IBM Plex Mono',monospace;cursor:pointer">−</span><span style="padding:4px 2px;font:500 11px 'IBM Plex Mono',monospace;min-width:38px;text-align:center">{{ v.T.winLabel }}</span><span onClick="{{ v.T.winOut }}" style="padding:4px 9px;font:500 14px 'IBM Plex Mono',monospace;cursor:pointer">+</span></div></div>
+<div style="display:flex;align-items:center;gap:10px"><div onClick="{{ v.T.onPlay }}" style="width:40px;height:40px;flex:none;border-radius:3px;background:oklch(0.80 0.16 70);display:flex;align-items:center;justify-content:center;cursor:pointer">
+<sc-if value="{{ v.T.playing }}"><svg width="14" height="14"><rect x="2" y="1" width="3.5" height="12" fill="#0e1012"></rect><rect x="8.5" y="1" width="3.5" height="12" fill="#0e1012"></rect></svg></sc-if>
+<sc-if value="{{ v.T.paused }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14"><polygon points="3,1 13,7 3,13" fill="#0e1012"></polygon></svg></sc-if>
+</div>
+<div style="display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ v.T.rates }}" as="r"><span onClick="{{ r.onTap }}" style="padding:7px 7px;font:500 11px 'IBM Plex Mono',monospace;background:{{ r.bg }};color:{{ r.fg }};cursor:pointer">{{ r.label }}</span></sc-for></div>
+</div></div>
+<sc-if value="{{ v.T.cv.editOpen }}"><div style="position:absolute;left:0;right:0;bottom:0;top:120px;z-index:5;background:rgba(5,6,8,.55);display:flex;flex-direction:column;justify-content:flex-end">
+<div style="background:#1b1f23;border-top:1px solid #2e343a;border-radius:10px 10px 0 0;padding:12px 16px 26px;display:flex;flex-direction:column;gap:10px;max-height:100%;overflow-y:auto">
+<div style="display:flex;align-items:center"><span style="font:600 16px 'IBM Plex Sans Condensed',sans-serif">Edit charts</span><span onClick="{{ v.T.cv.onEdit }}" style="margin-left:auto;padding:5px 12px;border-radius:3px;background:oklch(0.80 0.16 70);color:#0d0f12;font:600 12.5px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer">Done</span></div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Each row is one chart. Put up to 3 channels on a chart to overlay them. The first is solid, the second dashed, the third dotted. Laps keep their colors.</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center"><span style="font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-right:4px">Presets</span><sc-for list="{{ v.T.cv.presets }}" as="p"><span onClick="{{ p.onTap }}" style="padding:4px 9px;border:1px solid #3a4148;border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer">{{ p.label }}</span></sc-for></div>
+<div style="display:flex;flex-direction:column;border-top:1px solid #2e343a">
+<sc-for list="{{ v.T.cv.rows }}" as="r"><div style="display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid #2a2f35">
+<div style="display:flex;align-items:center;gap:6px"><span style="width:20px;font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">{{ r.n }}</span>
+<div style="flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c"><span style="display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:#262b31;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap"><svg width="14" height="6"><line x1="0" x2="14" y1="3" y2="3" stroke="#e4e7ea" stroke-width="1.6" stroke-dasharray="{{ c.dash }}"></line></svg>{{ c.label }}<span onClick="{{ c.onRemove }}" style="color:#8a929b;padding:0 2px;cursor:pointer">×</span></span></sc-for>
+<sc-if value="{{ r.canAdd }}"><span onClick="{{ r.onPick }}" style="padding:4px 8px;border:1px dashed #4d555d;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;cursor:pointer">+ overlay</span></sc-if></div>
+<span onClick="{{ r.onUp }}" style="padding:2px 6px;font:500 12px 'IBM Plex Mono',monospace;color:#8a929b;cursor:pointer">↑</span><span onClick="{{ r.onDown }}" style="padding:2px 6px;font:500 12px 'IBM Plex Mono',monospace;color:#8a929b;cursor:pointer">↓</span><span onClick="{{ r.onDel }}" style="padding:2px 6px;font:500 13px 'IBM Plex Mono',monospace;color:#8a929b;cursor:pointer">×</span></div>
+<sc-if value="{{ r.picking }}"><div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:26px"><sc-for list="{{ r.addChs }}" as="a"><span onClick="{{ a.onTap }}" style="padding:4px 8px;border:1px solid oklch(0.80 0.16 70);border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer;white-space:nowrap">+ {{ a.label }}</span></sc-for></div></sc-if>
+</div></sc-for>
+</div>
+<span onClick="{{ v.T.cv.onAddChart }}" style="align-self:flex-start;padding:5px 10px;border:1px dashed #4d555d;border-radius:3px;font:500 12px 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;cursor:pointer">+ Add chart</span>
+</div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":798},"v":{"editor":null,"tsType":"ScreenModel"}}'>
+class Component extends DCLogic {
+  renderVals(){return {v:this.props.v};}
+}
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
-import {RacingButton} from '@src/components';
-import {RacingTheme} from '@src/theme';
-import {Lap} from '@src/types';
+import {RacingButton} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
+import {Lap} from '@/src/types';
 import React from 'react';
 import {Text, View} from 'react-native';
 

@@ -1,4 +1,4 @@
-import {RacingTheme} from '@src/theme';
+import {RacingTheme} from '@/src/theme';
 import {useRouter} from 'expo-router';
 import React, {useMemo, useRef, useState} from 'react';
 import {

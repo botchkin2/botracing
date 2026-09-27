@@ -1,6 +1,6 @@
 import {useQueryClient} from '@tanstack/react-query';
 import {queryKeys} from './useApiQueries';
-import {apiClient} from '@src/utils/api';
+import {apiClient} from '@/src/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const useCacheManagement = () => {

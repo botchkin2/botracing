@@ -1,6 +1,6 @@
-import {BottomNavigation, LapList, ScreenContainer} from '@src/components';
-import {RacingTheme} from '@src/theme';
-import {SessionData} from '@src/types';
+import {BottomNavigation, LapList, ScreenContainer} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
+import {SessionData} from '@/src/types';
 import {useRouter} from 'expo-router';
 import React from 'react';
 import {StyleSheet} from 'react-native';

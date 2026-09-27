@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet"><style>body{margin:0;background:#0a0b0d;color:#e4e7ea}a{color:oklch(0.80 0.16 70)}a:hover{color:#f2f4f6}*::-webkit-scrollbar{display:none}</style></helmet>
+<div style="max-width:1240px;margin:0 auto;padding:40px 28px 80px;font-family:'IBM Plex Sans Condensed',sans-serif;display:flex;flex-direction:column;gap:56px">
+
+<header style="display:flex;flex-direction:column;gap:10px;max-width:760px">
+<div style="font:500 11px 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#8a929b">Design system · v0.1 · React Native reference</div>
+<h1 style="margin:0;font:600 40px/1.05 'IBM Plex Sans Condensed',sans-serif;letter-spacing:-.01em">Lap analysis</h1>
+<p style="margin:0;font:400 16px/1.5 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;text-wrap:pretty">Built from the four locked views: Sessions, Session, Compare and Corner (<a href="Directions.dc.html#t4">Directions, turn 4</a>). The system is dense and dark first. Each color has one meaning, numbers always carry units, and every chart has a one-line explanation. Token names are written so they map directly to a React Native theme object.</p>
+</header>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">01</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Color rules</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+<div style="background:#101317;border:1px solid #21252b;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><span style="width:28px;height:28px;border-radius:3px;background:oklch(0.80 0.16 70)"></span></div><div style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">Amber is UI only</div><div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Selection, highlight, primary buttons, the chart cursor, pit markers. It is never used as a lap color.</div></div>
+<div style="background:#101317;border:1px solid #21252b;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><span style="width:28px;height:28px;border-radius:3px;background:oklch(0.70 0.20 300)"></span></div><div style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">Purple means best</div><div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Session best lap and best sectors, and nothing else.</div></div>
+<div style="background:#101317;border:1px solid #21252b;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><span style="width:28px;height:28px;border-radius:3px;background:oklch(0.82 0.17 150);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono',monospace;color:#0d0f12">−</span><span style="width:28px;height:28px;border-radius:3px;background:oklch(0.50 0.19 25);display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Mono',monospace;color:#f2f4f6">+</span></div><div style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">Faster / slower</div><div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Always paired with a − or + sign. Faster is bright and slower is dark, so the pair still reads without color vision.</div></div>
+<div style="background:#101317;border:1px solid #21252b;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:4px"><span style="width:20px;height:28px;border-radius:3px;background:#f2f4f6"></span><span style="width:20px;height:28px;border-radius:3px;background:oklch(0.70 0.15 255)"></span><span style="width:20px;height:28px;border-radius:3px;background:oklch(0.73 0.17 350)"></span><span style="width:20px;height:28px;border-radius:3px;background:oklch(0.78 0.11 185)"></span><span style="width:20px;height:28px;border-radius:3px;background:oklch(0.90 0.14 105)"></span><span style="width:20px;height:28px;border-radius:3px;background:oklch(0.84 0.09 225)"></span></div><div style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">Lap colors are only for laps</div><div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">The reference lap is white, and selected laps take the next colors in a fixed order. From 7 to 19 laps, each lap keeps a faded version of its color; from 20, laps turn grey. The reference and the lap you tap always stay full strength.</div></div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">02</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Color tokens</h2><span style="margin-left:auto;font:400 12px 'IBM Plex Mono',monospace;color:#8a929b">dark · light</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:28px">
+<div style="display:flex;flex-direction:column">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;padding-bottom:6px">Surfaces &amp; text</div>
+<sc-for list="{{ tokNeutral }}" as="t" hint-placeholder-count="10"><div style="display:grid;grid-template-columns:minmax(0,1fr) 24px 76px 24px 76px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #15181c"><div style="min-width:0"><div style="font:500 12px 'IBM Plex Mono',monospace">{{ t.name }}</div><div style="font:400 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">{{ t.use }}</div></div><span style="width:24px;height:24px;border-radius:3px;background:{{ t.d }};border:1px solid #2e343a"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">{{ t.d }}</span><span style="width:24px;height:24px;border-radius:3px;background:{{ t.l }};border:1px solid #2e343a"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">{{ t.l }}</span></div></sc-for>
+</div>
+<div style="display:flex;flex-direction:column">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;padding-bottom:6px">Meaning</div>
+<sc-for list="{{ tokMeaning }}" as="t" hint-placeholder-count="6"><div style="display:grid;grid-template-columns:minmax(0,1fr) 24px 118px 24px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #15181c"><div style="min-width:0"><div style="font:500 12px 'IBM Plex Mono',monospace">{{ t.name }}</div><div style="font:400 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">{{ t.use }}</div></div><span style="width:24px;height:24px;border-radius:3px;background:{{ t.d }}"></span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#aeb4ba">{{ t.d }}</span><span style="width:24px;height:24px;border-radius:3px;background:{{ t.l }}"></span></div></sc-for>
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;padding:18px 0 6px">Laps · fixed order</div>
+<sc-for list="{{ tokLaps }}" as="t" hint-placeholder-count="7"><div style="display:grid;grid-template-columns:minmax(0,1fr) 60px 118px 24px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #15181c"><div style="min-width:0"><div style="font:500 12px 'IBM Plex Mono',monospace">{{ t.name }}</div><div style="font:400 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">{{ t.use }}</div></div><svg width="60" height="12"><line x1="0" x2="60" y1="6" y2="6" stroke="{{ t.d }}" stroke-width="{{ t.w }}" stroke-opacity="{{ t.op }}"></line></svg><span style="font:400 10px 'IBM Plex Mono',monospace;color:#aeb4ba">{{ t.d }}</span><span style="width:24px;height:24px;border-radius:3px;background:{{ t.l }}"></span></div></sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Time-difference scale · corner grid</div>
+<div style="display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:3px"><sc-for list="{{ scale }}" as="c"><div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="width:100%;height:30px;display:flex;align-items:center;justify-content:center;background:{{ c.bg }};color:{{ c.fg }};border-radius:2px;font:500 11px 'IBM Plex Mono',monospace">{{ c.v }}</span></div></sc-for></div>
+<div style="font:400 12.5px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Within ±0.10 s the cell stays neutral grey. From 0.10 s it saturates, reaching full strength at 0.30 s. Cells are opaque (no alpha over the background), so text contrast stays fixed. Faster cells go from L 0.62 to 0.82 with dark text, and slower cells from L 0.40 to 0.52 with light text. The sign is always printed.</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">03</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Type</h2><span style="margin-left:auto;font:400 12px 'IBM Plex Mono',monospace;color:#8a929b">IBM Plex Sans Condensed · IBM Plex Mono</span></div>
+<div style="display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.display</span><span style="font:600 24px/1.1 'IBM Plex Sans Condensed',sans-serif">Sessions</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Sans Cond 600 · 24/26</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.title</span><span style="font:600 16px/1.2 'IBM Plex Sans Condensed',sans-serif">Compare · Corner 6</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Sans Cond 600 · 16/20</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.body</span><span style="font:400 14px/1.4 'IBM Plex Sans Condensed',sans-serif">Portimão · Race, 911 GT3 R</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Sans Cond 400/600 · 14/20</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.explainer</span><span style="font:400 12px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Running gap to the reference. Line rising = losing time there.</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Sans Cond 400 · 12/16 · textMuted</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.label</span><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Time per corner</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Mono 600 · 10.5 · caps +0.08em</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.data</span><span style="font:400 12px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums">1:41.123 · +0.312 · 133 m · 118 km/h</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Mono 400/500 · 11.5–12.5 · tabular</span></div>
+<div style="display:grid;grid-template-columns:170px 1fr 220px;gap:16px;align-items:baseline;padding:10px 0;border-top:1px solid #15181c"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">type.axis</span><span style="font:500 9.5px 'IBM Plex Mono',monospace;color:#5b636b">STINT 2 · PIT · apex · −100 m</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Mono 500 · 9–9.5 · never smaller</span></div>
+</div>
+<div style="font:400 12.5px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;max-width:760px">Units follow every number: s, m, km/h, %, °, g. Lap times use m:ss.sss, gaps use a sign and three decimals (two in the corner grid), and distances round to whole metres. Corners are named "Corner 6 · 2,150 m" until the driver renames them.</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">04</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Space, shape, lines</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px">
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">space · 4-pt base</div>
+<sc-for list="{{ space }}" as="s"><div style="display:grid;grid-template-columns:70px 1fr 40px;gap:10px;align-items:center"><span style="font:400 11.5px 'IBM Plex Mono',monospace">{{ s.n }}</span><span style="height:10px;width:{{ s.w }};background:oklch(0.80 0.16 70 / 0.7);border-radius:1px"></span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b;text-align:right">{{ s.v }}</span></div></sc-for></div>
+<div style="display:flex;flex-direction:column;gap:10px"><div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">radius</div>
+<div style="display:flex;gap:14px;align-items:flex-end"><div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="width:40px;height:40px;background:#1b1f24;border-radius:2px"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b">xs 2</span></div><div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="width:40px;height:40px;background:#1b1f24;border-radius:3px"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b">sm 3</span></div><div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="width:40px;height:40px;background:#1b1f24;border-radius:6px"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b">md 6</span></div><div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="width:40px;height:40px;background:#1b1f24;border-radius:50%"></span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b">full</span></div></div>
+<div style="font:400 12px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">xs is for grid cells and marks, sm for controls, chips and checkboxes, md for cards, the tray and detail panels. Large rounded containers aren't used.</div></div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">stroke</div>
+<sc-for list="{{ strokes }}" as="s"><div style="display:grid;grid-template-columns:1fr 70px 50px;gap:10px;align-items:center;padding:3px 0"><span style="font:400 12px 'IBM Plex Sans Condensed',sans-serif">{{ s.n }}</span><svg width="70" height="10"><line x1="0" x2="70" y1="5" y2="5" stroke="{{ s.c }}" stroke-width="{{ s.w }}" stroke-opacity="{{ s.op }}" stroke-dasharray="{{ s.dash }}"></line></svg><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b;text-align:right">{{ s.v }}</span></div></sc-for></div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">sizes</div>
+<sc-for list="{{ sizes }}" as="s"><div style="display:grid;grid-template-columns:1fr 60px;gap:10px;padding:4px 0;border-top:1px solid #15181c"><span style="font:400 12px 'IBM Plex Sans Condensed',sans-serif">{{ s.n }}</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#aeb4ba;text-align:right">{{ s.v }}</span></div></sc-for></div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">05</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Controls</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px">
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Button</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+<span style="font:600 13px 'IBM Plex Sans Condensed',sans-serif;color:#0d0f12;background:oklch(0.80 0.16 70);padding:8px 14px;border-radius:3px">Compare 3 →</span>
+<span style="font:600 13px 'IBM Plex Sans Condensed',sans-serif;padding:7px 13px;border:1px solid oklch(0.80 0.16 70);border-radius:3px">Remove from compare</span>
+<span style="font:500 12px 'IBM Plex Sans Condensed',sans-serif;padding:5px 9px;border:1px solid #3a4148;border-radius:3px">Select stint</span>
+<span style="font:500 12px 'IBM Plex Mono',monospace;color:#8a929b;text-decoration:underline;text-underline-offset:3px">Clear</span>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Primary uses the amber fill, at most one per screen. Secondary uses an amber outline when it toggles the current selection. Tertiary uses a neutral outline. The quiet style is text only, for Clear and Reset.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Transport · segmented · stepper</div>
+<div style="display:flex;align-items:center;gap:10px;background:#15181b;border:1px solid #252a2f;border-radius:6px;padding:10px">
+<div style="width:40px;height:40px;flex:none;border-radius:3px;background:oklch(0.80 0.16 70);display:flex;align-items:center;justify-content:center"><svg width="14" height="14"><polygon points="3,1 13,7 3,13" fill="#0e1012"></polygon></svg></div>
+<div style="display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><span style="padding:7px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">0.25×</span><span style="padding:7px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">0.5×</span><span style="padding:7px;font:500 11px 'IBM Plex Mono',monospace;background:oklch(0.80 0.16 70);color:#0d0f12">1×</span><span style="padding:7px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">2×</span></div>
+<div style="margin-left:auto;display:flex;align-items:center;border:1px solid #2e343a;border-radius:3px"><span style="padding:6px 10px;font:500 14px 'IBM Plex Mono',monospace">−</span><span style="padding:6px 4px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">4×</span><span style="padding:6px 10px;font:500 14px 'IBM Plex Mono',monospace">+</span></div>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">The transport bar is pinned to the bottom of Compare. Play and zoom keep 40 pt targets, and the zoom steps are 1×, 2×, 4× and 8×.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Lap chip</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#15181b;border:1px solid #252a2f;border-radius:3px"><span style="width:10px;height:3px;background:#f2f4f6"></span><span style="font:600 12px 'IBM Plex Mono',monospace">L16</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">REF</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#15181b;border:1px solid #252a2f;border-radius:3px"><span style="width:10px;height:3px;background:oklch(0.70 0.15 255)"></span><span style="font:600 12px 'IBM Plex Mono',monospace">L12</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.64 0.20 25)">+0.412</span><span style="color:#5b636b;font:500 13px 'IBM Plex Mono',monospace">×</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#15181b;border:1px solid #252a2f;border-radius:3px"><span style="width:10px;height:3px;background:oklch(0.73 0.17 350)"></span><span style="font:600 12px 'IBM Plex Mono',monospace">L31</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.82 0.17 150)">−0.058</span><span style="color:#5b636b;font:500 13px 'IBM Plex Mono',monospace">×</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px dashed #3a4148;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b"><span style="width:10px;height:3px;background:#5d646d"></span>+18 laps, tinted</div>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Tapping a chip makes that lap the reference. The reference chip has no remove button. Above 6 laps, the non-key laps collapse into one dashed chip.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Context · corner chip · checkbox</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+<span style="font:500 11.5px 'IBM Plex Mono',monospace;padding:5px 9px;border:1px solid #2e343a;border-radius:4px">LMU · all tracks ▾</span>
+<span style="padding:4px 8px;border-radius:3px;background:#15181c;color:#aeb4ba;font:600 11.5px 'IBM Plex Mono',monospace">C5</span>
+<span style="padding:4px 8px;border-radius:3px;background:#e4e7ea;color:#0d0f12;font:600 11.5px 'IBM Plex Mono',monospace">C6</span>
+<span style="width:16px;height:16px;border-radius:3px;border:1.5px solid #3a4148"></span>
+<span style="width:16px;height:16px;border-radius:3px;border:1.5px solid oklch(0.70 0.15 255);background:oklch(0.70 0.15 255);display:flex;align-items:center;justify-content:center;font:700 10px 'IBM Plex Mono',monospace;color:#0d0f12">✓</span>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">A checked box fills with the color that lap will have in Compare. The checkbox is drawn at 16 pt, but its tap area covers the full 32 pt row height and 44 pt wide.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Lap tags</div>
+<div style="display:flex;flex-wrap:wrap;gap:14px;font:500 11px 'IBM Plex Mono',monospace">
+<span style="color:oklch(0.70 0.20 300)">BEST</span><span style="color:#aeb4ba">OUT</span><span style="color:#aeb4ba">IN</span><span style="color:#aeb4ba">PART</span><span style="color:#aeb4ba">SLOW</span><span style="color:#aeb4ba">OFF 0.6</span><span style="color:#aeb4ba">HIT 2.1g</span>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Short codes keep the table dense, and a key sits under every table. The full reason appears in the lap detail panel. Off-track is a tag, never a silent exclusion.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:14px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Compare tray</div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#1b1f23;border:1px solid #2e343a;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.5)">
+<div style="display:flex;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:#f2f4f6"></span><span style="width:8px;height:8px;border-radius:2px;background:oklch(0.70 0.15 255)"></span><span style="width:8px;height:8px;border-radius:2px;background:oklch(0.73 0.17 350)"></span></div>
+<span style="font:500 12px 'IBM Plex Mono',monospace">L16 · L12 · L31</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">Clear</span>
+<span style="margin-left:auto;font:600 13px 'IBM Plex Sans Condensed',sans-serif;color:#0d0f12;background:oklch(0.80 0.16 70);padding:6px 12px;border-radius:3px">Compare 3 →</span>
+</div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">The tray floats above content wherever laps can be picked, and the selection persists across sessions and days until it is cleared.</div>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">06</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Lists &amp; tables</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:20px">
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;overflow:hidden">
+<div style="padding:12px 16px 8px;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Session row · day header</div>
+<div style="padding:4px 16px 4px;display:flex;align-items:baseline;gap:8px"><span style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">Today</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b">Sat 27 Sep</span></div>
+<div style="display:grid;grid-template-columns:24px 1fr 30px 64px 64px;gap:8px;align-items:center;padding:9px 16px;box-shadow:inset 3px 0 0 oklch(0.80 0.16 70);background:#171a1f;border-bottom:1px solid #15181c">
+<span style="width:22px;height:22px;border:1px solid #3a4148;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace">R</span>
+<div><div style="font:600 14.5px/1.2 'IBM Plex Sans Condensed',sans-serif">Portimão <span style="font-weight:400;color:#8a929b">· Race</span></div><div style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b">21:40 · 911 GT3 R</div></div>
+<span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">44</span><span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">1:39.733</span><span style="text-align:right;font:400 12px 'IBM Plex Mono',monospace;color:#aeb4ba">1:41.095</span></div>
+<div style="display:grid;grid-template-columns:24px 1fr 30px 64px 64px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid #15181c">
+<span style="width:22px;height:22px;border:1px solid #3a4148;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace">Q</span>
+<div><div style="font:600 14.5px/1.2 'IBM Plex Sans Condensed',sans-serif">Portimão <span style="font-weight:400;color:#8a929b">· Qualifying</span></div><div style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b">20:10 · 911 GT3 R</div></div>
+<span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">7</span><span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">1:40.729</span><span style="text-align:right;font:400 12px 'IBM Plex Mono',monospace;color:#aeb4ba">1:40.932</span></div>
+<div style="padding:10px 16px 12px;font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">The type badge is R, Q or P. The row that is open or selected gets an amber inset bar on the left.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;overflow:hidden">
+<div style="padding:12px 16px 8px;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Lap row · states</div>
+<div style="display:grid;grid-template-columns:16px 30px 62px 44px 38px 38px 38px 1fr;gap:0 4px;padding:6px 16px;border-top:1px solid #21252b;border-bottom:1px solid #21252b;background:#101317;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#8a929b"><span></span><span>Lap</span><span>Time</span><span>vs med</span><span>S1</span><span>S2</span><span>S3</span><span>Tags</span></div>
+<div style="display:flex;align-items:center;gap:8px;padding:8px 16px 5px"><span style="flex:1;font:600 10px/1.35 'IBM Plex Mono',monospace;letter-spacing:.04em;color:#aeb4ba">Stint 1 · L1–L22 · median 1:41.123 · spread 0.38 s</span><span style="padding:3px 7px;border:1px solid #3a4148;border-radius:3px;font:500 10.5px 'IBM Plex Sans Condensed',sans-serif">Select stint</span></div>
+<sc-for list="{{ lapRows }}" as="r" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:16px 30px 62px 44px 38px 38px 38px 1fr;gap:0 4px;align-items:center;height:32px;padding:0 16px;border-bottom:1px solid #15181c;background:{{ r.bg }};box-shadow:{{ r.sh }};font:400 11.5px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums">
+<span style="width:16px;height:16px;border-radius:3px;border:1.5px solid {{ r.bd }};background:{{ r.box }};display:flex;align-items:center;justify-content:center;font:700 10px 'IBM Plex Mono',monospace;color:#0d0f12">{{ r.chk }}</span>
+<span style="opacity:{{ r.op }};font-weight:500">{{ r.lap }}</span><span style="opacity:{{ r.op }}">{{ r.time }}</span><span style="color:{{ r.gc }}">{{ r.gap }}</span><span style="color:{{ r.s1c }}">{{ r.s1 }}</span><span style="color:#c3c8cd;opacity:{{ r.op }}">{{ r.s2 }}</span><span style="color:#c3c8cd;opacity:{{ r.op }}">{{ r.s3 }}</span><span style="font-size:10px;color:{{ r.tc }};white-space:nowrap">{{ r.tag }}</span></div></sc-for>
+<div style="padding:10px 16px 12px;font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Rows top to bottom: default (L7), selected (L12), highlighted (L9), best and reference (L16), excluded (L22). States: default, selected (checkbox in the lap's color), highlighted (amber tint and inset bar, synced with the bar chart), best (purple), excluded (dimmed, with no gap to median). The row is 32 pt tall and the header stays pinned.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;overflow:hidden;padding-bottom:12px">
+<div style="padding:12px 16px 8px;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Lap detail · excluded reason</div>
+<div style="margin:0 12px;padding:10px 12px;background:#171a1f;border:1px solid oklch(0.80 0.16 70 / 0.5);border-radius:6px;display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 14px 'IBM Plex Mono',monospace">L30 · 1:43.874</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.80 0.16 70)">Excluded · Slow outlier</span></div>
+<div style="font:400 12.5px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#c3c8cd">+2.71 s vs the stint median. Laps more than 1.12 s slower are excluded (median + 3 robust σ, max 7%). Impact of 2.1 g, possible damage.</div>
+<span style="align-self:flex-start;margin-top:2px;padding:5px 10px;border-radius:3px;background:oklch(0.80 0.16 70);color:#0d0f12;font:600 12px 'IBM Plex Sans Condensed',sans-serif">Add to compare</span>
+</div>
+<div style="padding:10px 16px 0;font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">The panel appears when a bar or row is highlighted. It always states the rule and threshold that excluded the lap, and an excluded lap can still be compared.</div>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">07</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Charts</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:20px">
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Trace chart · anatomy</div>
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Speed</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#5b636b">km/h</span><div style="margin-left:auto;display:flex;gap:8px;font:500 11px 'IBM Plex Mono',monospace"><span style="display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:1px;background:#f2f4f6"></span>184</span><span style="display:flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:1px;background:oklch(0.70 0.15 255)"></span>179</span><span style="display:flex;align-items:center;gap:4px;opacity:.3"><span style="width:6px;height:6px;border-radius:1px;background:oklch(0.73 0.17 350)"></span>181</span></div><span style="color:#4d555d;font:500 13px 'IBM Plex Mono',monospace">×</span></div>
+<div style="font:400 11px/1.3 'IBM Plex Sans Condensed',sans-serif;color:#6b737c">Grey band = where your race laps usually are (10th–90th percentile).</div>
+<svg width="358" height="110" style="display:block;overflow:visible">
+<line x1="120" x2="120" y1="0" y2="110" stroke="#1d2125"></line><line x1="260" x2="260" y1="0" y2="110" stroke="#1d2125"></line>
+<text x="120" y="9" dx="3" fill="#5b636b" style="font:500 9px 'IBM Plex Mono',monospace">5</text><text x="260" y="9" dx="3" fill="#5b636b" style="font:500 9px 'IBM Plex Mono',monospace">6</text>
+<path d="{{ spec.band }}" fill="rgba(230,232,234,0.07)"></path>
+<sc-for list="{{ spec.traces }}" as="t"><path d="{{ t.d }}" fill="none" stroke="{{ t.c }}" stroke-width="{{ t.w }}" stroke-opacity="{{ t.op }}" stroke-linejoin="round"></path></sc-for>
+<line x1="200" x2="200" y1="0" y2="110" stroke="oklch(0.80 0.16 70)"></line>
+</svg>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin-top:8px;font:400 12px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">
+<span style="font:500 11px 'IBM Plex Mono',monospace;color:#e4e7ea">header</span><span>The label, unit and each lap's value at the cursor. Tap a value to hide that lap in this chart only.</span>
+<span style="font:500 11px 'IBM Plex Mono',monospace;color:#e4e7ea">explainer</span><span>One line saying what the chart shows. It is required on every chart.</span>
+<span style="font:500 11px 'IBM Plex Mono',monospace;color:#e4e7ea">band</span><span>The consistency range across comparable laps, for speed, throttle and brake.</span>
+<span style="font:500 11px 'IBM Plex Mono',monospace;color:#e4e7ea">corner lines</span><span>Numbered at the apex and aligned by distance across every chart.</span>
+<span style="font:500 11px 'IBM Plex Mono',monospace;color:#e4e7ea">cursor</span><span>An amber line shared by all charts, the map and the strip.</span>
+</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Overlaid channels · chart composer</div>
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Throttle + Brake</div>
+<div style="display:flex;align-items:center;gap:8px;height:17px"><svg width="18" height="8"><line x1="0" x2="18" y1="4" y2="4" stroke="#e4e7ea" stroke-width="1.6"></line></svg><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">Throttle</span><span style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace">100% · 98%</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:17px"><svg width="18" height="8"><line x1="0" x2="18" y1="4" y2="4" stroke="#e4e7ea" stroke-width="1.6" stroke-dasharray="5 3"></line></svg><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">Brake</span><span style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace">0% · 12%</span></div>
+<div style="display:flex;align-items:center;gap:8px;height:17px"><svg width="18" height="8"><line x1="0" x2="18" y1="4" y2="4" stroke="#e4e7ea" stroke-width="1.6" stroke-dasharray="1.5 2.5"></line></svg><span style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">3rd channel</span><span style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace;color:#5b636b">dotted</span></div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px"><span style="padding:4px 8px;border:1px solid oklch(0.80 0.16 70);background:oklch(0.80 0.16 70 / 0.16);border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif">✓ Throttle</span><span style="padding:4px 8px;border:1px solid oklch(0.80 0.16 70);background:oklch(0.80 0.16 70 / 0.16);border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif">✓ Brake</span><span style="padding:4px 8px;border:1px solid #2e343a;border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">+ Speed</span><span style="padding:4px 8px;border:1px solid #2e343a;border-radius:14px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">+ Gear</span></div>
+<div style="display:flex;align-items:center;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b;width:16px">2</span><span style="display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:#262b31;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif"><svg width="14" height="6"><line x1="0" x2="14" y1="3" y2="3" stroke="#e4e7ea" stroke-width="1.6"></line></svg>Speed<span style="color:#8a929b">×</span></span><span style="display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:#262b31;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif"><svg width="14" height="6"><line x1="0" x2="14" y1="3" y2="3" stroke="#e4e7ea" stroke-width="1.6" stroke-dasharray="5 3"></line></svg>Brake<span style="color:#8a929b">×</span></span><span style="padding:4px 8px;border:1px dashed #4d555d;border-radius:3px;font:500 11.5px 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">+ overlay</span><span style="margin-left:auto;font:500 12px 'IBM Plex Mono',monospace;color:#8a929b">↑ ↓ ×</span></div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">A chart holds 1–3 channels. Line style shows the channel (solid, dashed, dotted) and color shows the lap, so the two never compete. Same-kind channels share a scale, and mixed units keep their own scales. Overlay pills toggle channels on the focused chart. Chart rows in the editor have channel chips, "+ overlay", and reorder and delete controls.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Many laps · 7–19 tinted · 20+ grey</div>
+<div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba">12 laps · tinted</div>
+<svg width="358" height="110" style="display:block;overflow:visible">
+<sc-for list="{{ spec.tinted }}" as="t"><path d="{{ t.d }}" fill="none" stroke="{{ t.c }}" stroke-width="{{ t.w }}" stroke-opacity="{{ t.op }}" stroke-linejoin="round"></path></sc-for>
+</svg>
+<div style="font:500 10.5px 'IBM Plex Mono',monospace;color:#aeb4ba;margin-top:8px">20 laps · grey</div>
+<svg width="358" height="110" style="display:block;overflow:visible">
+<sc-for list="{{ spec.many }}" as="t"><path d="{{ t.d }}" fill="none" stroke="{{ t.c }}" stroke-width="{{ t.w }}" stroke-opacity="{{ t.op }}" stroke-linejoin="round"></path></sc-for>
+</svg>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;margin-top:8px">With 7–19 laps, each lap keeps a hue from the lap order but drops to low chroma (lap.tint, C 0.07), 1.2 pt and 55% opacity. You can still tell laps apart where they split, and the overlay doesn't turn into noise. At 20 or more, laps go to muted grey at 1 pt and 45%. In both modes the reference (white) and the tapped lap (full-strength lap.1) are drawn at 2.3 pt on top, and only those two show values in the chart header.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Lap-time bars · whole session</div>
+<svg width="358" height="120" style="display:block;overflow:visible">
+<line x1="0" x2="358" y1="60" y2="60" stroke="#3a4148"></line>
+<line x1="{{ spec.pitX }}" x2="{{ spec.pitX }}" y1="6" y2="116" stroke="oklch(0.80 0.16 70)" stroke-dasharray="2 2"></line>
+<text x="{{ spec.pitX }}" y="14" dx="3" fill="oklch(0.80 0.16 70)" style="font:500 9px 'IBM Plex Mono',monospace">PIT</text>
+<rect x="{{ spec.hl.x }}" y="{{ spec.hl.y }}" width="{{ spec.hl.w }}" height="{{ spec.hl.h }}" fill="oklch(0.80 0.16 70 / 0.25)" stroke="oklch(0.80 0.16 70)" stroke-width="1.5"></rect>
+<sc-for list="{{ spec.bars }}" as="b"><rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.f }}" stroke="{{ b.s }}"></rect></sc-for>
+</svg>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;margin-top:8px">Bars show each lap against the median: up is faster, clamped at ±1.5 s. The best lap is purple, selected laps take their lap color, and the highlighted lap gets an amber frame. Excluded laps are outlined stubs on the baseline. Stints are divided by thin rules, and pit stops are dashed amber lines.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Time per corner · grid</div>
+<div style="display:grid;grid-template-columns:36px repeat(11,minmax(0,1fr));gap:2px"><span></span><sc-for list="{{ spec.gh }}" as="h"><span style="text-align:center;font:500 9px 'IBM Plex Mono',monospace;color:{{ h.c }}">{{ h.n }}</span></sc-for></div>
+<sc-for list="{{ spec.grid }}" as="r"><div style="display:grid;grid-template-columns:36px repeat(11,minmax(0,1fr));gap:2px;align-items:center"><span style="display:flex;align-items:center;gap:3px;font:600 10.5px 'IBM Plex Mono',monospace"><span style="width:3px;height:14px;background:{{ r.c }}"></span>{{ r.l }}</span><sc-for list="{{ r.cells }}" as="c"><span style="height:24px;display:flex;align-items:center;justify-content:center;background:{{ c.bg }};color:{{ c.fg }};outline:1px solid {{ c.bd }};border-radius:2px;font:500 9.5px 'IBM Plex Mono',monospace">{{ c.v }}</span></sc-for></div></sc-for>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;margin-top:8px">One row per lap against the reference. With more than 6 laps it shows a median row plus the highlighted lap. The open corner gets a white outline, and tapping a cell opens that corner.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:6px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Position · map badge · collapsed strip</div>
+<div style="display:flex;gap:16px;align-items:center">
+<svg width="120" height="40" style="display:block"><circle cx="16" cy="20" r="8" fill="#15181c" stroke="#3a4148"></circle><text x="16" y="23.5" text-anchor="middle" fill="#aeb4ba" style="font:600 9.5px 'IBM Plex Mono',monospace">5</text><circle cx="44" cy="20" r="8" fill="#e4e7ea" stroke="#3a4148"></circle><text x="44" y="23.5" text-anchor="middle" fill="#0d0f12" style="font:600 9.5px 'IBM Plex Mono',monospace">6</text><circle cx="76" cy="20" r="4.5" fill="#f2f4f6" stroke="#0d0f12" stroke-width="1.5"></circle><circle cx="96" cy="20" r="4.5" fill="oklch(0.70 0.15 255)" stroke="#0d0f12" stroke-width="1.5"></circle></svg>
+<span style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Corner badges show the number, and the open corner is inverted. Each lap has a position dot in its color.</span>
+</div>
+<svg width="358" height="28" style="display:block;overflow:visible;margin-top:4px">
+<rect x="0" y="9" width="358" height="4" rx="2" fill="#262b31"></rect>
+<rect x="150" y="6" width="90" height="10" rx="2" fill="none" stroke="#5b636b"></rect>
+<sc-for list="{{ spec.stripC }}" as="t"><text x="{{ t.x }}" y="27" text-anchor="middle" fill="#6b737c" style="font:500 9px 'IBM Plex Mono',monospace">{{ t.n }}</text></sc-for>
+<rect x="196" y="3" width="3" height="16" rx="1" fill="oklch(0.70 0.15 255)"></rect><rect x="201" y="3" width="3" height="16" rx="1" fill="#f2f4f6"></rect>
+</svg>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Hide map collapses it to this 28 pt strip. The track is drawn as a straight line with numbered corners, a frame shows the zoom window, and each lap has a marker. Drag along the strip to scrub.</div>
+</div>
+
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b;margin-bottom:6px">Dot strip · 20+ laps in a corner</div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase">Brake point</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#5b636b">m before apex</span><span style="margin-left:auto;font:500 11px 'IBM Plex Mono',monospace">med 135 <span style="color:#8a929b">· p10–90 120–150</span></span></div>
+<div style="display:grid;grid-template-columns:28px 300px 28px;align-items:center;gap:1px"><span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#5b636b">160</span>
+<svg width="300" height="44" style="display:block;overflow:visible"><line x1="0" x2="300" y1="22" y2="22" stroke="#21252b"></line><sc-for list="{{ spec.dots }}" as="p"><circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" fill="{{ p.f }}" stroke="{{ p.s }}" stroke-width="1.2"></circle></sc-for></svg>
+<span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#5b636b;text-align:right">110</span></div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba;margin-top:6px">From 20 laps up, the corner table becomes one strip per measure: time in corner, brake point, min speed and full throttle. The axis runs so that left means earlier or slower. Dots at the same value stack, and the median with the p10–p90 range is printed in the header.</div>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">08</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Empty &amp; first-run states</h2></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Sessions · uploader not connected</div>
+<div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif">No sessions yet</div>
+<div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Sessions upload automatically from your PC. Install the uploader on your sim PC and sign in with the same account.</div>
+<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#15181c;border-radius:3px;font:400 11.5px 'IBM Plex Mono',monospace;color:#aeb4ba"><span style="width:6px;height:6px;border-radius:50%;background:#5b636b"></span>Uploader: not seen yet</div>
+<span style="align-self:flex-start;font:600 13px 'IBM Plex Sans Condensed',sans-serif;color:#0d0f12;background:oklch(0.80 0.16 70);padding:7px 12px;border-radius:3px">Set up uploader</span>
+</div>
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Session · no comparable laps</div>
+<div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif">3 laps, none comparable</div>
+<div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">L1 pit out · L2 partial · L3 pit in. Median, spread and bands need at least one full timed lap. You can still open any lap in Compare.</div>
+</div>
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Compare · one lap selected</div>
+<div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif">L16 on its own</div>
+<div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">The traces show this lap against the consistency band. Add a lap from the session table, or pick your best at this track and car, to see time differences.</div>
+<span style="align-self:flex-start;font:600 13px 'IBM Plex Sans Condensed',sans-serif;padding:6px 12px;border:1px solid #3a4148;border-radius:3px">Add personal best</span>
+</div>
+<div style="background:#0d0f12;border:1px solid #21252b;border-radius:6px;padding:20px;display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Loading · per-lap data</div>
+<div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif">Loading telemetry · 2 of 3 laps</div>
+<div style="height:4px;background:#1b1f24;border-radius:2px"><div style="height:4px;width:66%;background:oklch(0.80 0.16 70);border-radius:2px"></div></div>
+<div style="font:400 13px/1.45 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Lap times and the table show immediately, and traces stream in afterwards. Recently opened sessions stay readable offline.</div>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #21252b;padding-bottom:10px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#8a929b">09</span><h2 style="margin:0;font:600 22px 'IBM Plex Sans Condensed',sans-serif">Light theme</h2><span style="margin-left:auto;font:400 12px 'IBM Plex Mono',monospace;color:#8a929b">same roles, darker inks</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:20px">
+<div style="background:#f4f5f6;color:#111316;border-radius:6px;overflow:hidden;padding-bottom:10px">
+<div style="display:grid;grid-template-columns:16px 30px 62px 44px 38px 38px 38px 1fr;gap:0 4px;padding:6px 16px;border-bottom:1px solid #d9dcdf;background:#eceef0;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#4a5057"><span></span><span>Lap</span><span>Time</span><span>vs med</span><span>S1</span><span>S2</span><span>S3</span><span>Tags</span></div>
+<sc-for list="{{ lightRows }}" as="r"><div style="display:grid;grid-template-columns:16px 30px 62px 44px 38px 38px 38px 1fr;gap:0 4px;align-items:center;height:32px;padding:0 16px;border-bottom:1px solid #e3e5e8;background:{{ r.bg }};box-shadow:{{ r.sh }};font:400 11.5px 'IBM Plex Mono',monospace">
+<span style="width:16px;height:16px;border-radius:3px;border:1.5px solid {{ r.bd }};background:{{ r.box }};display:flex;align-items:center;justify-content:center;font:700 10px 'IBM Plex Mono',monospace;color:#fff">{{ r.chk }}</span>
+<span style="font-weight:500;opacity:{{ r.op }}">{{ r.lap }}</span><span style="opacity:{{ r.op }}">{{ r.time }}</span><span style="color:{{ r.gc }}">{{ r.gap }}</span><span style="color:{{ r.s1c }}">{{ r.s1 }}</span><span style="color:#4a5057;opacity:{{ r.op }}">{{ r.s2 }}</span><span style="color:#4a5057;opacity:{{ r.op }}">{{ r.s3 }}</span><span style="font-size:10px;color:{{ r.tc }};white-space:nowrap">{{ r.tag }}</span></div></sc-for>
+<div style="display:flex;justify-content:flex-end;padding:10px 16px 0"><span style="font:600 13px 'IBM Plex Sans Condensed',sans-serif;color:#111316;background:oklch(0.80 0.16 70);padding:6px 12px;border-radius:3px">Compare 2 →</span></div>
+</div>
+<div style="background:#ffffff;color:#111316;border-radius:6px;padding:12px 16px 14px;display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Speed</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#737a82">km/h</span></div>
+<div style="font:400 11px/1.3 'IBM Plex Sans Condensed',sans-serif;color:#737a82">Grey band = where your race laps usually are (10th–90th percentile).</div>
+<svg width="358" height="110" style="display:block;overflow:visible">
+<path d="{{ spec.band }}" fill="rgba(17,19,22,0.07)"></path>
+<sc-for list="{{ spec.lightTraces }}" as="t"><path d="{{ t.d }}" fill="none" stroke="{{ t.c }}" stroke-width="{{ t.w }}" stroke-linejoin="round"></path></sc-for>
+<line x1="200" x2="200" y1="0" y2="110" stroke="oklch(0.62 0.15 65)"></line>
+</svg>
+<div style="display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:2px;margin-top:8px"><sc-for list="{{ lightScale }}" as="c"><span style="height:24px;display:flex;align-items:center;justify-content:center;background:{{ c.bg }};color:{{ c.fg }};border-radius:2px;font:500 9.5px 'IBM Plex Mono',monospace">{{ c.v }}</span></sc-for></div>
+<div style="font:400 12px/1.4 'IBM Plex Sans Condensed',sans-serif;color:#4a5057;margin-top:8px">In light, the reference lap is near-black, lap colors drop in lightness, and amber lines and text switch to accentInk. Faster stays lighter than slower.</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals(){
+    const W=358,H=110,N=180,f=(x,ph,a)=>{const t=x/N;let v=0.55+0.35*Math.sin(t*Math.PI*3.2+.4)+0.12*Math.sin(t*Math.PI*9+ph)*a;return v;};
+    const path=(ph,a,off)=>{let d='';for(let i=0;i<=N;i++){const x=i/N*W,y=H-6-(f(i,ph,a)+off)*(H-16);d+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);}return d;};
+    let bu='',bl='';for(let i=0;i<=N;i++){const x=i/N*W;bu+=(i?'L':'M')+x.toFixed(1)+' '+(H-6-(f(i,0,.6)+.06)*(H-16)).toFixed(1);}for(let i=N;i>=0;i--){const x=i/N*W;bl+='L'+x.toFixed(1)+' '+(H-6-(f(i,0,.6)-.06)*(H-16)).toFixed(1);}
+    const LAP=['#f2f4f6','oklch(0.70 0.15 255)','oklch(0.73 0.17 350)','oklch(0.78 0.11 185)','oklch(0.90 0.14 105)','oklch(0.84 0.09 225)'];
+    const traces=[{d:path(1.2,1,-.02),c:LAP[2],w:1.5,op:1},{d:path(2.1,1,.03),c:LAP[1],w:1.5,op:1},{d:path(0,.6,0),c:LAP[0],w:2.3,op:1}];
+    const many=[];for(let i=0;i<18;i++)many.push({d:path(i*.7,1.3,(i%5-2)*.018),c:'#5d646d',w:1,op:.45});
+    const TH=[255,350,185,105,225],tinted=[];for(let i=0;i<10;i++)tinted.push({d:path(i*.9+.3,1.3,(i%5-2)*.02),c:'oklch(0.72 0.07 '+TH[i%5]+')',w:1.2,op:.55});tinted.push({d:path(3.3,1,.04),c:LAP[1],w:2.3,op:1},{d:path(0,.6,0),c:LAP[0],w:2.3,op:1});many.push({d:path(3.3,1,.04),c:LAP[1],w:2.3,op:1},{d:path(0,.6,0),c:LAP[0],w:2.3,op:1});
+    const lightTraces=[{d:path(2.1,1,.03),c:'oklch(0.52 0.17 255)',w:1.5},{d:path(1.2,1,-.02),c:'oklch(0.56 0.20 350)',w:1.5},{d:path(0,.6,0),c:'#111316',w:2.3}];
+    let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+    const nb=36,bw=W/nb,bars=[];let hl=null;const pitX=+(18*bw).toFixed(1);
+    for(let i=0;i<nb;i++){const x=+(i*bw+.8).toFixed(1),w=+(bw-1.6).toFixed(1);if(i===0||i===17||i===18){bars.push({x,y:106,w,h:9,f:'#0d0f12',s:'#8a929b'});continue;}const d=(rnd()-.5)*1.6+(i===9?1.2:0),y=60-d/1.5*48,b={x,y:+Math.min(y,60).toFixed(1),w,h:+Math.max(1.5,Math.abs(y-60)).toFixed(1),f:i===24?'oklch(0.70 0.20 300)':i===12?LAP[1]:i===30?LAP[2]:'#5d646d',s:'none'};if(i===9)hl={x:+(b.x-2).toFixed(1),y:+(b.y-2).toFixed(1),w:+(b.w+4).toFixed(1),h:+(b.h+4).toFixed(1)};bars.push(b);}
+    const cell=d=>{const a=Math.abs(d);if(a<.1)return {bg:'#1b1f24',fg:'#9aa1a9'};const t=Math.min(1,(a-.1)/.2);return d>0?{bg:`oklch(${(.40+.12*t).toFixed(3)} ${(.10+.10*t).toFixed(3)} 25)`,fg:'#f2f4f6'}:{bg:`oklch(${(.62+.20*t).toFixed(3)} ${(.10+.07*t).toFixed(3)} 150)`,fg:'#0d0f12'};};
+    const lcell=d=>{const a=Math.abs(d);if(a<.1)return {bg:'#e6e8eb',fg:'#4a5057'};const t=Math.min(1,(a-.1)/.2);return d>0?{bg:`oklch(0.48 0.19 25 / ${(.55+.45*t).toFixed(2)})`,fg:'#ffffff'}:{bg:`oklch(0.72 0.15 150 / ${(.45+.55*t).toFixed(2)})`,fg:'#111316'};};
+    const fm=d=>(d>=0?'+':'−')+Math.abs(d).toFixed(2).replace(/^0/,'');
+    const sv=[-.3,-.2,-.12,-.05,0,.05,.12,.2,.3];
+    const rowsD=[[.04,-.02,.08,.01,-.06,.24,.03,.12,-.03,.15,.02],[-.03,.12,-.01,.05,.02,-.14,.04,-.02,.06,.31,-.04]];
+    const grid=rowsD.map((r,i)=>({l:i?'L31':'L12',c:LAP[i+1],cells:r.map((d,k)=>({...cell(d),v:fm(d),bd:k===5?'#e4e7ea':'transparent'}))}));
+    const dots=[];const cnt={};for(let i=0;i<24;i++){const v=120+rnd()*30+(i%7===0?8:0),x=+(4+(160-v)/50*292).toFixed(1),k=Math.round(x/4);cnt[k]=(cnt[k]||0)+1;const n=cnt[k]-1,key=i===3||i===11;dots.push({x,y:+(22-(n%2?1:-1)*Math.ceil(n/2)*5).toFixed(1),r:key?4.2:2.8,f:i===3?'#f2f4f6':i===11?LAP[1]:'#6b737c',s:key?'#0d0f12':'none',z:key?1:0});}dots.sort((a,b)=>a.z-b.z);
+    const ACC='oklch(0.80 0.16 70)',PUR='oklch(0.70 0.20 300)',FAST='oklch(0.82 0.17 150)';
+    const lr=(o)=>({bg:'transparent',sh:'none',bd:'#3a4148',box:'transparent',chk:'',op:1,gc:'#c3c8cd',s1c:'#c3c8cd',tc:'#aeb4ba',tag:'',...o});
+    const lapRows=[lr({lap:'L7',time:'1:41.302',gap:'+0.207',s1:'34.41',s2:'31.80',s3:'35.09',state:'default'}),
+      lr({lap:'L12',time:'1:40.884',gap:'−0.211',gc:FAST,s1:'34.22',s2:'31.73',s3:'34.93',bd:LAP[1],box:LAP[1],chk:'✓',state:'selected'}),
+      lr({lap:'L9',time:'1:44.491',gap:'',s1:'34.63',s2:'35.02',s3:'34.84',op:.5,s1c:'#6b737c',tag:'SLOW OFF 3.1',bg:'oklch(0.80 0.16 70 / 0.13)',sh:'inset 3px 0 0 '+ACC,state:'highlighted'}),
+      lr({lap:'L16',time:'1:39.733',gap:'−1.362',gc:FAST,s1:'33.91',s1c:PUR,s2:'31.52',s3:'34.30',tag:'BEST',tc:PUR,bd:'#f2f4f6',box:'#f2f4f6',chk:'✓',state:'best · ref'}),
+      lr({lap:'L22',time:'2:06.213',gap:'',s1:'34.44',s1c:'#6b737c',s2:'31.88',s3:'59.89',op:.5,tag:'IN',state:'excluded'})];
+    const LL=['#111316','oklch(0.52 0.17 255)'];
+    const lightRows=[{lap:'L12',time:'1:40.884',gap:'−0.211',gc:'oklch(0.55 0.15 150)',s1:'34.22',s1c:'#4a5057',s2:'31.73',s3:'34.93',tag:'',tc:'#4a5057',bd:LL[1],box:LL[1],chk:'✓',op:1,bg:'transparent',sh:'none'},
+      {lap:'L16',time:'1:39.733',gap:'−1.362',gc:'oklch(0.55 0.15 150)',s1:'33.91',s1c:'oklch(0.52 0.20 300)',s2:'31.52',s3:'34.30',tag:'BEST',tc:'oklch(0.52 0.20 300)',bd:LL[0],box:LL[0],chk:'✓',op:1,bg:'transparent',sh:'none'},
+      {lap:'L9',time:'1:44.491',gap:'',gc:'#4a5057',s1:'34.63',s1c:'#9aa0a6',s2:'35.02',s3:'34.84',tag:'SLOW OFF 3.1',tc:'#4a5057',bd:'#b9bec3',box:'transparent',chk:'',op:.55,bg:'oklch(0.80 0.16 70 / 0.18)',sh:'inset 3px 0 0 oklch(0.62 0.15 65)'},
+      {lap:'L22',time:'2:06.213',gap:'',gc:'#4a5057',s1:'34.44',s1c:'#9aa0a6',s2:'31.88',s3:'59.89',tag:'IN',tc:'#4a5057',bd:'#b9bec3',box:'transparent',chk:'',op:.55,bg:'transparent',sh:'none'}];
+    return {
+      tokNeutral:[{name:'color.bg',use:'App background',d:'#0d0f12',l:'#f4f5f6'},{name:'color.surface',use:'Table headers, map panel',d:'#101317',l:'#ffffff'},{name:'color.surfaceRaised',use:'Chips, cards, detail panel',d:'#15181c',l:'#eceef0'},{name:'color.surfaceOverlay',use:'Tray, menus',d:'#1b1f23',l:'#ffffff'},{name:'color.line',use:'Row dividers',d:'#15181c',l:'#e3e5e8'},{name:'color.lineStrong',use:'Section rules, control borders',d:'#2e343a',l:'#c9cdd1'},{name:'color.grid',use:'Chart corner lines',d:'#1d2125',l:'#eceef0'},{name:'color.text',use:'Primary text, values',d:'#e4e7ea',l:'#111316'},{name:'color.textMuted',use:'Explainers, secondary values',d:'#8a929b',l:'#4a5057'},{name:'color.textFaint',use:'Axis labels, units',d:'#5b636b',l:'#737a82'}],
+      tokMeaning:[{name:'color.accent',use:'Selection, primary, cursor, pit',d:ACC,l:'oklch(0.80 0.16 70)'},{name:'color.accentInk',use:'Amber lines and text on light',d:ACC,l:'oklch(0.62 0.15 65)'},{name:'color.accentTint',use:'Highlighted row / bar',d:'oklch(0.80 0.16 70 / 0.13)',l:'oklch(0.80 0.16 70 / 0.18)'},{name:'color.best',use:'Session best lap, best sectors',d:PUR,l:'oklch(0.52 0.20 300)'},{name:'color.faster',use:'Gains, always with −',d:FAST,l:'oklch(0.60 0.15 150)'},{name:'color.slower',use:'Losses, always with +',d:'oklch(0.64 0.20 25)',l:'oklch(0.48 0.19 25)'}],
+      tokLaps:[{name:'lap.ref',use:'Reference, 2.3 pt',d:LAP[0],l:'#111316',w:2.3,op:1},{name:'lap.1',use:'Also the tapped lap in many mode',d:LAP[1],l:'oklch(0.52 0.17 255)',w:1.5,op:1},{name:'lap.2',use:'',d:LAP[2],l:'oklch(0.56 0.20 350)',w:1.5,op:1},{name:'lap.3',use:'',d:LAP[3],l:'oklch(0.55 0.10 185)',w:1.5,op:1},{name:'lap.4',use:'',d:LAP[4],l:'oklch(0.68 0.14 100)',w:1.5,op:1},{name:'lap.5',use:'',d:LAP[5],l:'oklch(0.62 0.10 225)',w:1.5,op:1},{name:'lap.tint',use:'7–19 laps: lap hue at C 0.07, 55%',d:'oklch(0.70 0.07 255)',l:'oklch(0.62 0.06 255)',w:1.2,op:.55},{name:'lap.muted',use:'20+ laps',d:'#5d646d',l:'#b9bec3',w:1,op:.45}],
+      scale:sv.map(d=>({...cell(d),v:fm(d)})),lightScale:sv.map(d=>({...lcell(d),v:fm(d)})),
+      space:[['space.1',2],['space.2',4],['space.3',6],['space.4',8],['space.5',12],['space.6',16],['space.7',24],['space.8',32]].map(([n,v])=>({n,v:v+'',w:(v*4)+'px'})),
+      strokes:[{n:'Reference / highlighted lap',c:'#f2f4f6',w:2.3,op:1,dash:'',v:'2.3'},{n:'Selected lap',c:LAP[1],w:1.5,op:1,dash:'',v:'1.5'},{n:'Tinted lap (7–19)',c:'oklch(0.72 0.07 350)',w:1.2,op:.55,dash:'',v:'1.2 · 55%'},{n:'Muted lap (20+)',c:'#5d646d',w:1,op:.45,dash:'',v:'1 · 45%'},{n:'Cursor',c:ACC,w:1,op:1,dash:'',v:'1'},{n:'Pit stop',c:ACC,w:1,op:1,dash:'2 2',v:'1 dash'},{n:'Brake / throttle mark',c:LAP[1],w:1,op:1,dash:'3 2',v:'1 dash'},{n:'Median / zero line',c:'#3a4148',w:1,op:1,dash:'',v:'1'}],
+      sizes:[{n:'Lap table row',v:'32 pt'},{n:'Session row',v:'54 pt'},{n:'Chip',v:'28 pt'},{n:'Transport controls',v:'40 pt'},{n:'Min tap area',v:'44 pt'},{n:'Phone content width',v:'358 pt'},{n:'Trace chart height',v:'50–118 pt'}],
+      spec:{band:bu+bl+'Z',traces,many,tinted,lightTraces,bars,hl,pitX,grid,gh:Array.from({length:11},(_,k)=>({n:'C'+(k+1),c:k===5?'#e4e7ea':'#8a929b'})),dots,stripC:Array.from({length:11},(_,k)=>({x:+(18+k*31).toFixed(1),n:k+1}))},
+      lapRows,lightRows};
+  }
+}
+</script>
+</body>
+</html>

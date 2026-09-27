@@ -1,12 +1,12 @@
-import {useTelemetry} from '@src/hooks/useApiQueries';
-import {Lap} from '@src/types';
-import {findClosestIndex} from '@src/utils/binarySearch';
-import {LAP_COLOR_SCHEMES, SERIES_BASE_COLORS} from '@src/utils/colors';
+import {useTelemetry} from '@/src/hooks/useApiQueries';
+import {Lap} from '@/src/types';
+import {findClosestIndex} from '@/src/utils/binarySearch';
+import {LAP_COLOR_SCHEMES, SERIES_BASE_COLORS} from '@/src/utils/colors';
 import {
   parseTelemetryData,
   type TimeSeriesData,
-} from '@src/utils/dataProcessing';
-import {convertLatLongToXY, type TrackMapData} from '@src/utils/geometry';
+} from '@/src/utils/dataProcessing';
+import {convertLatLongToXY, type TrackMapData} from '@/src/utils/geometry';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Dimensions,

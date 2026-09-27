@@ -1,5 +1,5 @@
-import {RacingCard, RacingDivider} from '@src/components';
-import {RacingTheme} from '@src/theme';
+import {RacingCard, RacingDivider} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
 import React from 'react';
 import {Text, View} from 'react-native';
 

@@ -1,5 +1,5 @@
-import {BottomNavigation, ScreenContainer} from '@src/components';
-import {RacingTheme} from '@src/theme';
+import {BottomNavigation, ScreenContainer} from '@/src/components';
+import {RacingTheme} from '@/src/theme';
 import React, {useEffect, useMemo, useState} from 'react';
 import {
   ScrollView,

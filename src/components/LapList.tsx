@@ -1,7 +1,7 @@
-import {useLaps, useTracks} from '@src/hooks/useApiQueries';
-import {RacingTheme} from '@src/theme';
-import {ApiError, Lap} from '@src/types';
-import {trackMatchesSearch} from '@src/utils/trackNicknames';
+import {useLaps, useTracks} from '@/src/hooks/useApiQueries';
+import {RacingTheme} from '@/src/theme';
+import {ApiError, Lap} from '@/src/types';
+import {trackMatchesSearch} from '@/src/utils/trackNicknames';
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
