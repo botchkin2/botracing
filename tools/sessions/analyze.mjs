@@ -562,10 +562,9 @@ function cornersFit(lap, map) {
 // what happened in each. Everything stays inside this lap, so its segments
 // add up to its lap time: the last segment is this lap's last entry to the
 // line plus its own run from the line to corner 1's entry.
-function cornerFacts(rec, lap, map, flags) {
+function cornerFacts(rec, lap, corners, flags) {
   const {grid} = lap;
   const {s} = rec;
-  const {corners} = map;
   const n = grid.time.length;
   const at = m => Math.min(n - 1, Math.max(0, Math.round(m / GRID_M)));
   const entries = corners.map(c => at(c.entryM));
@@ -789,7 +788,21 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   if (map?.corners.length) {
     laps.forEach(lap => {
       if (!cornersFit(lap, map)) return;
-      lap.corners = cornerFacts(recs[lap.rec], lap, map, flags[lap.rec]);
+      const facts = list =>
+        cornerFacts(recs[lap.rec], lap, list, flags[lap.rec]);
+      lap.corners = facts(map.corners);
+      // The same facts for each single corner inside a section, for drilling
+      // in. A section's entry is its first part's entry, so a section's
+      // segment time is the sum of its parts'.
+      if (map.corners.some(c => c.parts)) {
+        const byPart = facts(map.corners.flatMap(c => c.parts ?? []));
+        let k = 0;
+        lap.corners.forEach((f, i) => {
+          const n = map.corners[i].parts?.length ?? 0;
+          f.parts = byPart.slice(k, k + n);
+          k += n;
+        });
+      }
     });
   }
 

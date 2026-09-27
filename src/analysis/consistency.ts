@@ -27,6 +27,8 @@ export interface CornerFacts {
   minSpeedKmh?: number | null;
   brakeAtM?: number | null;
   fullThrottleAtM?: number | null;
+  // The same facts for each single corner inside this section, in order.
+  parts?: CornerFacts[];
 }
 
 export interface LapFacts {
