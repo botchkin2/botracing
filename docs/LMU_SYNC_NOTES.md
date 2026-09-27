@@ -100,7 +100,7 @@ Python is not installed (the `python` command is the Microsoft Store stub). We d
 
 ## Storage status
 
-Botkin has not approved the current store. One CSV per lap in Cloud Storage is only for this testing round. See `pit-wall/decisions/2026-09-26-storage-not-approved.md`.
+Botkin has not approved the current store. One CSV per lap in Cloud Storage is only for this testing round. See `pit-wall/decisions/lap/2026-09-26-storage-not-approved.md`.
 
 ## Cloud
 
