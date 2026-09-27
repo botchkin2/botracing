@@ -50,7 +50,6 @@ export interface Thresholds {
   slowLapMinSec: number;
   cornerZ: number;
   cornerMinSec: number;
-  bleedZ: number;
   mistakeShare: number;
   bigMistakeSec: number;
   yellowSec: number;
@@ -72,9 +71,6 @@ export const defaultThresholds: Thresholds = {
   cornerZ: 3,
   // ...and lost at least this much.
   cornerMinSec: 0.1,
-  // A slow exit carries down the next straight: count the next corner's loss
-  // with this one when the next is past this many sigmas.
-  bleedZ: 1.5,
   // One corner holds at least this share of the lap's loss: a mistake.
   mistakeShare: 0.4,
   // One corner losing this much is a mistake even if the lap was not slow.
@@ -312,14 +308,12 @@ export function analyzeConsistency(
     let worstLoss = 0;
     if (d) {
       for (let k = 0; k < nc; k++) {
+        // Segments run brake to brake (src/analysis/corners.ts), so a slow
+        // exit is already inside the corner's own time.
         if (d[k] / sigma[k] < t.cornerZ || d[k] < t.cornerMinSec) continue;
-        // A slow exit costs time all down the next straight.
-        const next = k + 1 < nc ? d[k + 1] : 0;
-        const bleed =
-          k + 1 < nc && next / sigma[k + 1] >= t.bleedZ ? Math.max(0, next) : 0;
-        if (d[k] + bleed > worstLoss) {
+        if (d[k] > worstLoss) {
           worst = k;
-          worstLoss = d[k] + bleed;
+          worstLoss = d[k];
         }
       }
     }

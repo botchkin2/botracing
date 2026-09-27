@@ -267,7 +267,7 @@ function run(facts, thresholds) {
 
 const scaled = k => {
   const t = {...defaultThresholds};
-  const keys = process.env.SENS_KEYS?.split(',') ?? ['slowLapZ', 'slowLapMinSec', 'cornerZ', 'cornerMinSec', 'bleedZ', 'mistakeShare', 'bigMistakeSec'];
+  const keys = process.env.SENS_KEYS?.split(',') ?? ['slowLapZ', 'slowLapMinSec', 'cornerZ', 'cornerMinSec', 'mistakeShare', 'bigMistakeSec'];
   for (const key of keys) {
     t[key] *= k;
   }
