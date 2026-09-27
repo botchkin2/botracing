@@ -27,7 +27,10 @@ function UnauthorizedRedirect() {
     if (
       pathname === '/' ||
       pathname === '/driver-profile' ||
-      pathname === '/auth/callback'
+      pathname === '/auth/callback' ||
+      pathname === '/session-analysis' ||
+      pathname === '/multi-lap-comparison' ||
+      pathname === '/cache-management'
     )
       return;
     router.replace('/driver-profile');

@@ -154,10 +154,13 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       }
 
       groups[eventId].laps.push(lap);
-      groups[eventId].bestLapTime = Math.min(
-        groups[eventId].bestLapTime,
-        lap.lapTime,
-      );
+      // Partial and untimed laps carry a duration, not a lap time.
+      if (lap.lapTime > 0 && !lap.incomplete) {
+        groups[eventId].bestLapTime = Math.min(
+          groups[eventId].bestLapTime,
+          lap.lapTime,
+        );
+      }
       groups[eventId].totalLaps++;
 
       // Track session types
@@ -170,7 +173,15 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
     // Calculate additional metrics and sort
     Object.values(groups).forEach(group => {
       // Sort laps by lap time (best first)
-      group.laps.sort((a, b) => a.lapTime - b.lapTime);
+      // Timed laps first, fastest first. Partial and untimed laps after.
+      const timed = (lap: Lap) => lap.lapTime > 0 && !lap.incomplete;
+      group.laps.sort((a, b) =>
+        timed(a) === timed(b)
+          ? a.lapTime - b.lapTime
+          : timed(a)
+            ? -1
+            : 1,
+      );
 
       // Update primary car/track to match the best lap
       if (group.laps.length > 0) {
@@ -180,7 +191,10 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       }
 
       // Calculate average lap time (excluding outliers)
-      const validLaps = group.laps.filter(lap => lap.lapTime > 0);
+      if (group.bestLapTime === Infinity) group.bestLapTime = NaN;
+      const validLaps = group.laps.filter(
+        lap => lap.lapTime > 0 && !lap.incomplete,
+      );
       if (validLaps.length > 0) {
         const totalTime = validLaps.reduce((sum, lap) => sum + lap.lapTime, 0);
         group.averageLapTime = totalTime / validLaps.length;
@@ -407,7 +421,7 @@ const LapList: React.FC<LapListProps> = ({onSessionAnalysis}) => {
       eventName: eventGroup.eventName,
       session: bestLap.session,
       sessionType: bestLap.sessionType,
-      laps: eventGroup.laps,
+      laps: [],
       track: bestLap.track,
       car: bestLap.car,
       startTime: eventGroup.startTime,
