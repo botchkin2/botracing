@@ -42,8 +42,11 @@ There is no sign-in. Every doc carries `ownerId` and `sim` so that more than one
 ## Collections
 
 - `recordings/{recordingId}`: one source file. Fields include `sessionId` and `startedAt`. One race can span several LMU files.
-- `sessions/{sessionId}`: recordings grouped by owner, sim, track, layout, car, session type, and game session time. It holds the precomputed lap table, stints, pit in and out, and the session consistency band. Fields include `ownerId`, `sim`, `trackId`, `carId`, and `startedAt`.
-- `laps/{lapId}`: one lap. It holds per-corner metrics, comparability reasons, and a pointer to its trace. Fields include `ownerId`, `sim`, `sessionId`, `lapNumber`, `trackId`, `carId`, and `lapTime`.
+- `sessions/{sessionId}`: recordings grouped by owner, sim, track, layout, car, session type, and game session time. It holds the precomputed lap table, stints, pit in and out, the session consistency band, and `consistency`: pace trend per stint, scatter, off-pace laps, per-corner spread and loss, an `overview` text, and the thresholds used. Fields include `ownerId`, `sim`, `trackId`, `carId`, and `startedAt`.
+- `laps/{lapId}`: one lap. It holds comparability reasons, a pointer to its trace, and everything `src/analysis/consistency.ts` needs to rerun on any selection of laps: stint lap, start, fresh tyres, tyre carcass temperature, full-course yellow time, and per-corner facts (segment time brake to brake, off-track and local-yellow time, minimum speed, brake point, full-throttle point). `excluded` says why the lap is not in the default "normal racing" selection; `consistency` holds its residual to the pace trend and where it lost time. Fields include `ownerId`, `sim`, `sessionId`, `lapNumber`, `trackId`, `carId`, and `lapTime`.
+- `tracks/{trackId}`: one track layout's corner map (`src/analysis/corners.ts`), built from the first session analyzed there and kept, so corner numbers stay the same from session to session. Custom sectors and official turn names will attach here. The uploader also keeps a copy in its work folder (`tracks/{trackId}.json`); delete both to rebuild the map.
+
+The same analysis code runs in the uploader and in the app, so a selection made on the phone gives the same numbers the uploader stored for the default selection. `node tools/sessions/consistency-report.mjs --work <dir>` checks that on `--local` output.
 
 IDs are deterministic hashes, so re-uploading the same file overwrites instead of duplicating.
 

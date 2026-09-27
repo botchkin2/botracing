@@ -202,12 +202,39 @@ export interface Consistency {
   thresholds: Thresholds;
 }
 
+// The evidence behind a possible-damage call, kept so it can be checked and
+// overridden. Every stretch after an incident is listed, flagged or not.
+export interface DamageCheck {
+  incidentLapId: string;
+  incidentLap: number;
+  stint: number;
+  lapIds: string[];
+  laps: number[];
+  // Median of these laps minus the median of the reference laps.
+  slowerSec: number;
+  referenceLaps: number;
+  flagged: boolean;
+}
+
+export interface Selection {
+  reasons: Map<string, ExcludeReason[]>;
+  damage: DamageCheck[];
+}
+
 // Which laps are "normal racing": decided by conditions, never by how the
 // lap went. Mistakes and off-tracks stay in, because they are the point.
 export function normalRacing(
   laps: LapFacts[],
   t: Thresholds = defaultThresholds,
 ): Map<string, ExcludeReason[]> {
+  return selectNormalRacing(laps, t).reasons;
+}
+
+// normalRacing() with the evidence for each possible-damage call.
+export function selectNormalRacing(
+  laps: LapFacts[],
+  t: Thresholds = defaultThresholds,
+): Selection {
   const out = new Map<string, ExcludeReason[]>();
   const running = laps.filter(
     l => l.timed && !l.partial && !l.pitIn && !l.pitOut,
@@ -246,8 +273,8 @@ export function normalRacing(
       }
     }
   }
-  markDamage(laps, out, t);
-  return out;
+  const damage = markDamage(laps, out, t);
+  return {reasons: out, damage};
 }
 
 // Laps after a wreck until the stint ends (the pit stop is the chance to
@@ -259,7 +286,7 @@ function markDamage(
   laps: LapFacts[],
   out: Map<string, ExcludeReason[]>,
   t: Thresholds,
-): void {
+): DamageCheck[] {
   const ordered = [...laps].sort(
     (a, b) => a.stint - b.stint || a.stintLap - b.stintLap,
   );
@@ -270,7 +297,7 @@ function markDamage(
     !l.pitOut &&
     (l.offTrackSec >= t.incidentOffSec ||
       out.get(l.id)!.includes('far-off-pace'));
-  const phases: LapFacts[][] = [];
+  const phases: {incident: LapFacts; laps: LapFacts[]}[] = [];
   let current: LapFacts[] | null = null;
   let stint = -1;
   for (const lap of ordered) {
@@ -280,25 +307,38 @@ function markDamage(
     }
     if (incident(lap)) {
       current = [];
-      phases.push(current);
+      phases.push({incident: lap, laps: current});
     } else if (current) {
       current.push(lap);
     }
   }
-  const inPhase = new Set(phases.flat().map(l => l.id));
+  const inPhase = new Set(phases.flatMap(p => p.laps).map(l => l.id));
   const clear = ordered.filter(l => eligible(l) && !inPhase.has(l.id));
+  const checks: DamageCheck[] = [];
   for (const phase of phases) {
-    const own = phase.filter(eligible);
+    const own = phase.laps.filter(eligible);
     if (own.length < 2) continue;
     const sameStint = clear.filter(l => l.stint === own[0].stint);
     const ref = sameStint.length >= 3 ? sameStint : clear;
     if (ref.length < 3) continue;
     const slower =
       median(own.map(l => l.lapTime))! - median(ref.map(l => l.lapTime))!;
-    if (slower >= t.damageSec) {
+    const flagged = slower >= t.damageSec;
+    if (flagged) {
       for (const lap of own) out.get(lap.id)!.push('damage');
     }
+    checks.push({
+      incidentLapId: phase.incident.id,
+      incidentLap: phase.incident.lapNumber,
+      stint: phase.incident.stint,
+      lapIds: own.map(l => l.id),
+      laps: own.map(l => l.lapNumber),
+      slowerSec: round(slower, 3)!,
+      referenceLaps: ref.length,
+      flagged,
+    });
   }
+  return checks;
 }
 
 // Analyze exactly the laps given. The caller picks them: normalRacing() for

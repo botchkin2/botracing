@@ -21,7 +21,7 @@
 import {columns, sqlPath} from './duck.mjs';
 import {
   analyzeConsistency,
-  normalRacing,
+  selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackCorners} from '../../src/analysis/corners.ts';
 
@@ -754,7 +754,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     lap.start = i === 0 && !lap.pitOut;
     return lapFacts(String(i), lap);
   });
-  const excluded = normalRacing(facts);
+  const {reasons: excluded, damage} = selectNormalRacing(facts);
   const consistency = analyzeConsistency(
     facts.filter(f => excluded.get(f.id).length === 0),
   );
@@ -788,6 +788,9 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
       corners: consistency.corners,
       overview: consistency.overview,
       thresholds: consistency.thresholds,
+      // Possible damage: every stretch after an incident that was checked,
+      // with the evidence, by lap number.
+      damage: damage.map(({incidentLapId, lapIds, ...check}) => check),
     },
     band,
     summary: {

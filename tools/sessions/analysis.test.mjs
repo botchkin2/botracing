@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import {
   analyzeConsistency,
   normalRacing,
+  selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackCorners, segmentTimes} from '../../src/analysis/corners.ts';
 
@@ -128,6 +129,13 @@ test('slower laps after a wreck, until the stop, are possible damage', () => {
   assert.deepEqual(out.get(a[5].id), ['far-off-pace']);
   for (let i = 6; i < 14; i++) assert.deepEqual(out.get(a[i].id), ['damage']);
   for (const l of b) assert.deepEqual(out.get(l.id), []);
+  // The call comes with its evidence.
+  const {damage} = selectNormalRacing([...a, ...b]);
+  assert.equal(damage.length, 1);
+  assert.equal(damage[0].incidentLap, 6);
+  assert.deepEqual(damage[0].laps, [7, 8, 9, 10, 11, 12, 13, 14]);
+  assert.ok(Math.abs(damage[0].slowerSec - 0.9) < 0.1);
+  assert.equal(damage[0].flagged, true);
 });
 
 test('a spin with no lasting pace loss is not damage', () => {
