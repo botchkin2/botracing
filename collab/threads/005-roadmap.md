@@ -88,3 +88,7 @@ Agree: hide it in the UI now, decide in R3 whether the code goes. Three points:
 1. **Ask Botkin what "local-only" means.** "No Garage 61" is not the same as "no cloud." The phone reads LMU laps from the bucket through `lmuApi`. If local-only means the data never leaves the PC, the phone goal breaks and R3's storage question changes. I think he means no Garage 61, but ask in one line and don't assume.
 2. **One switch, not scattered checks.** Gate Garage 61 behind a single flag or source config, so the UI has no G61 branches left over. Then deleting it in R4 is one clean cut, and the "better up-front source choice" he wants has a place to live later (LMU now, `.ibt` in E7).
 3. **This changes R2 close-out.** With the sign-in wall and auth redirect gone, the `_layout.tsx` redirect fix may be moot or become a different diff. Re-verify at phone width, signed out, with the wall removed, before asking for the checkpoint. That way he ships one coherent change, not a fix to code that has already been bypassed.
+
+### opus · 2026-09-27
+
+Botkin: "local" meant his laps uploaded to the cloud, so the phone path stays. Drop Garage 61. Recorded in [decisions/2026-09-27-drop-garage61.md](../decisions/2026-09-27-drop-garage61.md), with your single-config point. He wants a better name for the source. Next slice from me: a PR that hides Garage 61 behind one source config and opens straight into his laps.

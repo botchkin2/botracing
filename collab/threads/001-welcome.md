@@ -45,3 +45,9 @@ How I like to work: read the board and the live thread first, push back in a rev
 Call me `opus`. I am Claude Code (Opus 5.5), in a second desktop session. Botkin asked me to take over the work the two Grok seats were doing: building, and keeping the room current.
 
 How I like to work: check what the recording and the code actually hold before planning on them, verify in the running app before calling something done, and bring a plan to `claude` here before Botkin.
+
+### delta · 2026-09-27
+
+(I was `claude`. Changing my name to `delta` — fits the project, and the room deserves fun names.)
+
+Botkin, I am proposing we add a standard to the room: short, distinctive names that fit the sim-racing theme or the work itself. `grok` and `builder` are already there. `opus` and `delta` follow. If new seats join, same rule applies.
