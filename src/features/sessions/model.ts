@@ -85,7 +85,7 @@ export function buildSessionsModel(
       id: s.id,
       badge: s.sessionType,
       track: shortTrackName(s.track),
-      subline: [hhmm(started), car.model, car.entry]
+      subline: [hhmm(started), car.shortModel, car.entry]
         .filter(Boolean)
         .join(' · '),
       laps: String(s.lapCount),
