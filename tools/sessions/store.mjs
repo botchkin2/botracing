@@ -5,7 +5,8 @@
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/events.parquet
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v1.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
-//   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId}
+//   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
+//             tracks/{trackId} (the corner map)
 import {existsSync, readFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {dirname, resolve} from 'node:path';
@@ -92,7 +93,15 @@ async function putGzip(bucket, dest, text, contentType) {
     });
 }
 
-// out is what sync.mjs builds: {session, recordings, laps, band, traces, files}.
+// A track's stored corner map, or null.
+export async function getTrack(trackId) {
+  const {db} = connect();
+  const doc = await db.collection('tracks').doc(trackId).get();
+  return doc.exists ? doc.data() : null;
+}
+
+// out is what sync.mjs builds: {session, recordings, laps, band, track,
+// traces, files}. track is set only when this session made a new corner map.
 export async function upload(out, {log = () => {}} = {}) {
   const {db, bucket} = connect();
   const {session} = out;
@@ -138,6 +147,7 @@ export async function upload(out, {log = () => {}} = {}) {
   for (const lap of out.laps)
     writer.set(db.collection('laps').doc(lap.id), lap);
   writer.set(db.collection('sessions').doc(session.id), session);
+  if (out.track) writer.set(db.collection('tracks').doc(out.track.id), out.track);
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));

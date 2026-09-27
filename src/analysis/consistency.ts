@@ -12,6 +12,10 @@
 // Laps are not forced into "mistake" or "slow everywhere": with real corners
 // most bad laps lose time in two or three places.
 //
+// Everything here is data to inspect, not advice. Every threshold is in
+// Thresholds and echoed in the result, and any lap can be put back in or
+// taken out by passing a different selection.
+//
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
 export interface CornerFacts {
@@ -41,6 +45,7 @@ export interface LapFacts {
   // First lap on a new set of tyres: cold whatever the temperature says.
   newTyres: boolean;
   offtrack: boolean;
+  offTrackSec: number;
   impactMax: number;
   // Mean tyre carcass temperature over the lap, all four tyres. Null if the
   // sim does not report it.
@@ -60,8 +65,10 @@ export interface Thresholds {
   mistakeZ: number;
   mistakeSec: number;
   yellowSec: number;
-  trendKeep: number;
+  trendSigmas: number;
   cornerSumSec: number;
+  incidentOffSec: number;
+  damageSec: number;
 }
 
 export const defaultThresholds: Thresholds = {
@@ -88,10 +95,18 @@ export const defaultThresholds: Thresholds = {
   // across 70 sessions, corners under local yellow lost time about as often
   // as green ones (22% vs 20% lost more than 0.1 s).
   yellowSec: 0.5,
-  // Keep a stint's pace trend only if it shrinks the spread below this share.
-  trendKeep: 0.9,
+  // Keep a stint's pace trend only if it moves the pace across the stint by
+  // at least this many robust sigmas of the scatter left around it.
+  trendSigmas: 2,
   // A lap's corners must add up to its lap time within this many seconds.
   cornerSumSec: 1,
+  // An incident: this long off track in one lap (or a lap far off pace).
+  incidentOffSec: 1,
+  // After an incident, the laps up to the next one or the end of the stint
+  // count as possibly damaged when their median is this much slower than
+  // the laps with no incident before them. LMU records no damage state, so
+  // this is inferred from pace, and says so.
+  damageSec: 0.3,
 };
 
 export type ExcludeReason =
@@ -102,7 +117,8 @@ export type ExcludeReason =
   | 'start'
   | 'course-yellow'
   | 'cold-tyres'
-  | 'far-off-pace';
+  | 'far-off-pace'
+  | 'damage';
 
 export type LossTag = 'off-track' | 'local-yellow';
 
@@ -172,8 +188,6 @@ export interface Summary {
   mistakes: number;
   mistakeSec: number;
   onTheTable: number;
-  // The one corner to work on next session.
-  focusCorner: number | null;
 }
 
 export interface Consistency {
@@ -181,7 +195,11 @@ export interface Consistency {
   corners: CornerResult[];
   stints: StintResult[];
   summary: Summary;
-  verdict: string;
+  // A plain-text entry point to the numbers above. States what happened;
+  // never tells the driver what to do.
+  overview: string;
+  // The thresholds this result was computed with.
+  thresholds: Thresholds;
 }
 
 // Which laps are "normal racing": decided by conditions, never by how the
@@ -228,7 +246,59 @@ export function normalRacing(
       }
     }
   }
+  markDamage(laps, out, t);
   return out;
+}
+
+// Laps after a wreck until the stint ends (the pit stop is the chance to
+// repair) or the next incident. If they run slower than the laps with no
+// incident before them, the car was probably damaged: a condition, not the
+// driver's scatter. Laps later in a stint carry less fuel, and the reference
+// prefers the same stint, so the comparison leans towards not flagging.
+function markDamage(
+  laps: LapFacts[],
+  out: Map<string, ExcludeReason[]>,
+  t: Thresholds,
+): void {
+  const ordered = [...laps].sort(
+    (a, b) => a.stint - b.stint || a.stintLap - b.stintLap,
+  );
+  const eligible = (l: LapFacts) => out.get(l.id)!.length === 0;
+  const incident = (l: LapFacts) =>
+    l.timed &&
+    !l.pitIn &&
+    !l.pitOut &&
+    (l.offTrackSec >= t.incidentOffSec ||
+      out.get(l.id)!.includes('far-off-pace'));
+  const phases: LapFacts[][] = [];
+  let current: LapFacts[] | null = null;
+  let stint = -1;
+  for (const lap of ordered) {
+    if (lap.stint !== stint) {
+      stint = lap.stint;
+      current = null;
+    }
+    if (incident(lap)) {
+      current = [];
+      phases.push(current);
+    } else if (current) {
+      current.push(lap);
+    }
+  }
+  const inPhase = new Set(phases.flat().map(l => l.id));
+  const clear = ordered.filter(l => eligible(l) && !inPhase.has(l.id));
+  for (const phase of phases) {
+    const own = phase.filter(eligible);
+    if (own.length < 2) continue;
+    const sameStint = clear.filter(l => l.stint === own[0].stint);
+    const ref = sameStint.length >= 3 ? sameStint : clear;
+    if (ref.length < 3) continue;
+    const slower =
+      median(own.map(l => l.lapTime))! - median(ref.map(l => l.lapTime))!;
+    if (slower >= t.damageSec) {
+      for (const lap of own) out.get(lap.id)!.push('damage');
+    }
+  }
 }
 
 // Analyze exactly the laps given. The caller picks them: normalRacing() for
@@ -256,9 +326,11 @@ export function analyzeConsistency(
         : 0;
     // Keep the trend only if it explains something: on a short, noisy stint
     // a fitted slope is noise that looks confident.
-    const flat = robustSigma(ys) ?? 0;
+    // The trend must move the pace across the stint by clearly more than the
+    // scatter left around it.
     const fitted = robustSigma(ys.map((y, i) => y - slope * xs[i])) ?? 0;
-    if (fitted > flat * t.trendKeep) slope = 0;
+    const change = Math.abs(slope) * (Math.max(...xs) - Math.min(...xs));
+    if (change < t.trendSigmas * fitted) slope = 0;
     const intercept = median(ys.map((y, i) => y - slope * xs[i])) ?? 0;
     own.forEach(l => expected.set(l.id, intercept + slope * l.stintLap));
     stints.push({
@@ -311,7 +383,10 @@ export function analyzeConsistency(
   const results: LapResult[] = laps.map(l => {
     const r = residual(l);
     const d = delta.get(l.id) ?? null;
-    const offPace = r >= Math.max(t.offPaceZ * lapSigma, t.offPaceMinSec);
+    // With a handful of laps there is no pace to be off.
+    const offPace =
+      laps.length >= MIN_SPREAD_LAPS &&
+      r >= Math.max(t.offPaceZ * lapSigma, t.offPaceMinSec);
     const losses: CornerLoss[] = [];
     if (d) {
       const lost = sum(d.map(v => Math.max(0, v)));
@@ -375,7 +450,6 @@ export function analyzeConsistency(
   const mistakes = results.flatMap(r => r.losses.filter(x => x.mistake));
   const lapTimes = laps.map(l => l.lapTime);
   const pace = median(lapTimes);
-  const focus = [...corners].sort((a, b) => b.lostSec - a.lostSec)[0];
   const summary: Summary = {
     laps: laps.length,
     rawSpread: round(stdev(lapTimes), 3),
@@ -387,14 +461,14 @@ export function analyzeConsistency(
     mistakes: mistakes.length,
     mistakeSec: round(sum(mistakes.map(x => x.seconds)), 2)!,
     onTheTable: round(sum(corners.map(c => c.onTheTable)), 2)!,
-    focusCorner: focus && focus.lostSec > 0 ? focus.n : null,
   };
   return {
     laps: results,
     corners,
     stints,
     summary,
-    verdict: verdict(summary, stints, corners, results, laps),
+    overview: overview(summary, stints, corners, results, laps),
+    thresholds: t,
   };
 }
 
@@ -425,29 +499,22 @@ function cornerSplit(
   };
 }
 
-function verdict(
+// Below this many laps a spread is not worth quoting.
+const MIN_SPREAD_LAPS = 5;
+// Per off-pace lap, name at most this many corners in the text.
+const TEXT_CORNERS = 3;
+
+function overview(
   s: Summary,
   stints: StintResult[],
   corners: CornerResult[],
   results: LapResult[],
   laps: LapFacts[],
 ): string {
-  if (s.laps < 3) return `${s.laps} laps. Not enough to judge consistency.`;
-  const parts: string[] = [];
-  const focus = corners.find(c => c.n === s.focusCorner);
-  if (focus) {
-    const why = [
-      focus.mistakes
-        ? `${focus.mistakes} ${focus.mistakes === 1 ? 'mistake' : 'mistakes'}`
-        : null,
-      `${focus.lostSec.toFixed(1)} s lost against your own repeatable pace there`,
-    ].filter(Boolean);
-    parts.push(`Work on corner ${focus.n}: ${why.join(', ')}.`);
-  }
-  parts.push(`${s.laps} laps.`);
-  if (s.scatter != null) {
+  const parts = [`${s.laps} ${s.laps === 1 ? 'lap' : 'laps'}.`];
+  if (s.laps >= MIN_SPREAD_LAPS && s.scatter != null) {
     parts.push(
-      `Lap to lap you vary ${s.scatter.toFixed(2)} s once the pace trend is taken out.`,
+      `Scatter ${s.scatter.toFixed(2)} s around the pace trend (raw spread ${s.rawSpread?.toFixed(2)} s).`,
     );
   }
   const trend = stints.filter(st => Math.abs(st.trendPerLap) >= 0.01);
@@ -467,6 +534,7 @@ function verdict(
         worst
           .map(r => {
             const where = r.losses
+              .slice(0, TEXT_CORNERS)
               .map(
                 x =>
                   `corner ${x.corner} ${signed(x.seconds, 2)} s${x.tags.includes('off-track') ? ' off track' : ''}`,
@@ -479,8 +547,19 @@ function verdict(
           .join('. ') +
         '.',
     );
-  } else {
-    parts.push('No lap was well off your pace.');
+  } else if (s.laps >= MIN_SPREAD_LAPS) {
+    parts.push('No lap off pace.');
+  }
+  const lost = [...corners]
+    .filter(c => c.lostSec >= 0.1)
+    .sort((a, b) => b.lostSec - a.lostSec)
+    .slice(0, 2);
+  if (lost.length && s.laps >= MIN_SPREAD_LAPS) {
+    parts.push(
+      `Most time lost against repeatable pace: ${lost
+        .map(c => `corner ${c.n} (${c.lostSec.toFixed(1)} s)`)
+        .join(', ')}.`,
+    );
   }
   return parts.join(' ');
 }

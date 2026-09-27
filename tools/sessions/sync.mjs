@@ -178,7 +178,28 @@ function slugId(sim, name) {
   return `${sim}-${lmu.slug(name)}`;
 }
 
-function build(s) {
+// The track's corner map, kept once per track layout so corner numbers stay
+// put from session to session. Local copy first, then the store.
+const trackMaps = new Map();
+async function trackMapFor(trackId, store) {
+  if (trackMaps.has(trackId)) return trackMaps.get(trackId);
+  const path = resolve(work, 'tracks', `${trackId}.json`);
+  let map = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  if (!map && store) map = await store.getTrack(trackId);
+  trackMaps.set(trackId, map);
+  return map;
+}
+
+function keepTrackMap(track) {
+  trackMaps.set(track.id, track);
+  mkdirSync(resolve(work, 'tracks'), {recursive: true});
+  writeFileSync(
+    resolve(work, 'tracks', `${track.id}.json`),
+    JSON.stringify(track, null, 2),
+  );
+}
+
+function build(s, trackMap) {
   const dir = resolve(work, 'archive', s.id);
   mkdirSync(dir, {recursive: true});
   const first = s.files[0].info;
@@ -209,9 +230,22 @@ function build(s) {
     });
   }
 
-  const a = analyzeSession(recs);
+  const a = analyzeSession(recs, {trackMap});
   const track = {name: first.track, variant: first.layout};
   const trackId = slugId(sim, first.layout);
+  // A new corner map is stored as the track's own doc, where custom sectors
+  // and official turn names can attach later.
+  const trackDoc = a.newTrackMap
+    ? plain({
+        id: trackId,
+        ownerId,
+        sim,
+        track,
+        ...a.trackMap,
+        source: {sessionId: s.id, builtAt: new Date().toISOString()},
+        analysisVersion,
+      })
+    : null;
   const car = {name: first.car, class: first.carClass};
   const carId = slugId(sim, first.car);
   const lapId = lap =>
@@ -258,7 +292,19 @@ function build(s) {
       clean: lap.clean,
       reasons: lap.reasons,
       distanceM: lap.distanceM,
+      // Conditions, and per-corner facts through the track's corners: what
+      // src/analysis/consistency.ts needs to rerun on any selection.
+      stintLap: lap.stintLap,
+      start: lap.start,
+      newTyres: lap.newTyres,
+      tyreCarcassC: lap.tyreCarcassC,
+      courseYellowSec: lap.courseYellowSec,
       corners: lap.corners || [],
+      // Not in the default "normal racing" selection, and why.
+      excluded: lap.excluded,
+      // Against the session's normal racing laps: residual to the pace
+      // trend, and where an off-pace lap lost its time.
+      consistency: lap.consistency,
       trace: {path: tracePath, rows: lap.i1 - lap.i0 + 1},
       analysisVersion,
     });
@@ -283,7 +329,7 @@ function build(s) {
     recordingIds: s.files.map(f => f.id),
     ...a.summary,
     bestLapId: a.best ? lapId(a.best) : null,
-    corners: a.cornerStats,
+    consistency: a.consistency,
     band: a.band
       ? {
           path: `bands/${ownerId}/${s.id}/v1.json.gz`,
@@ -300,12 +346,22 @@ function build(s) {
       comparable: lap.comparable,
       reasons: lap.reasons,
       offTrackSec: lap.offTrackSec,
+      excluded: lap.excluded,
+      offPace: lap.consistency?.offPace ?? null,
     })),
     analysisVersion,
     updatedAt: new Date().toISOString(),
   });
 
-  return {session, recordings, laps, band: a.band, traces, files};
+  return {
+    session,
+    recordings,
+    laps,
+    band: a.band,
+    track: trackDoc,
+    traces,
+    files,
+  };
 }
 
 function writeLocal(out) {
@@ -322,6 +378,11 @@ function writeLocal(out) {
   writeFileSync(resolve(dir, 'laps.json'), JSON.stringify(out.laps, null, 2));
   if (out.band)
     writeFileSync(resolve(dir, 'band.json'), JSON.stringify(out.band));
+  if (out.track)
+    writeFileSync(
+      resolve(dir, 'track.json'),
+      JSON.stringify(out.track, null, 2),
+    );
   for (const job of out.traces) {
     const id = job.dest.split('/')[2];
     writeFileSync(resolve(dir, 'traces', `${id}.csv`), job.csv());
@@ -359,12 +420,18 @@ async function main() {
     if (!force && !local && state.sessions[s.id] === s.fingerprint) continue;
     log(`${s.id} ${describeSession(s)}`);
     try {
-      const out = build(s);
+      const info = s.files[0].info;
+      const trackId = slugId(info.sim, info.layout);
+      const out = build(s, await trackMapFor(trackId, store));
+      if (out.track) keepTrackMap(out.track);
       log(
         `  ${out.laps.length} laps, ${
           out.session.comparableCount
         } comparable, best ${out.session.bestLapTime ?? '-'}`,
       );
+      if (out.session.consistency?.overview) {
+        log(`  ${out.session.consistency.overview}`);
+      }
       if (local) {
         log(`  -> ${writeLocal(out)}`);
       } else {
