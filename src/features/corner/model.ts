@@ -1,4 +1,5 @@
-import {type GridTrace} from '@/src/analysis/resample';
+import {toLocalMetres} from '@/src/analysis/geo';
+import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 import {
   type Lap,
   lapCornerFacts,
@@ -103,6 +104,8 @@ export type CornerModel = {
     band: {speed: [number[], number[]]} | null;
     stepM: number;
   };
+  /** Desktop braking map; null until the reference lap's trace loads. */
+  brakeMap: BrakeMapModel | null;
   prev: number | null;
   next: number | null;
 };
@@ -332,6 +335,11 @@ export function buildCornerModel(input: {
           : null,
       stepM: band?.stepM ?? traces.values().next().value?.stepM ?? 5,
     },
+    brakeMap: buildBrakeMap(
+      rows,
+      ref ? traces.get(ref.id) : undefined,
+      sec.apexM,
+    ),
     prev: ns[(idx - 1 + ns.length) % ns.length] ?? null,
     next: ns[(idx + 1) % ns.length] ?? null,
   };
@@ -358,4 +366,84 @@ export function sortRows(
     if (y == null) return -1;
     return (x - y) * sign;
   });
+}
+
+// --- braking map (desktop D3) -------------------------------------------------
+
+// Zoomed track: 350 m before the apex to 200 m after (handoff D3).
+export const MAP_BEFORE_M = 350;
+export const MAP_AFTER_M = 200;
+const MAP_TICKS_M = [-300, -200, -100, 100];
+
+export type BrakeMapPoint = {
+  lapId: string;
+  selIndex: number;
+  isRef: boolean;
+  highlighted: boolean;
+  at: {x: number; y: number};
+};
+
+export type BrakeMapModel = {
+  /** The reference lap's line through the corner, metres east/north. */
+  centreline: {x: number; y: number}[];
+  apex: {x: number; y: number};
+  ticks: {label: string; at: {x: number; y: number}}[];
+  brakes: BrakeMapPoint[];
+  throttles: BrakeMapPoint[];
+};
+
+/**
+ * Where each lap braked and reached full throttle, placed on the reference
+ * lap's own line at that distance. Only the reference needs a trace, so this
+ * works for every lap, including the ones shown as dots.
+ */
+export function buildBrakeMap(
+  rows: CornerRow[],
+  refTrace: GridTrace | undefined,
+  apexM: number,
+): BrakeMapModel | null {
+  if (!refTrace || refTrace.lat.length === 0) return null;
+  const from = gridIndex(refTrace, apexM - MAP_BEFORE_M);
+  const to = gridIndex(refTrace, apexM + MAP_AFTER_M);
+  if (to - from < 2) return null;
+  const origin = {lat: refTrace.lat[from], lon: refTrace.lon[from]};
+  const at = (m: number) => {
+    const i = gridIndex(refTrace, m);
+    return toLocalMetres({lat: refTrace.lat[i], lon: refTrace.lon[i]}, origin);
+  };
+  const centreline = [];
+  for (let i = from; i <= to; i++)
+    centreline.push(
+      toLocalMetres({lat: refTrace.lat[i], lon: refTrace.lon[i]}, origin),
+    );
+  const inWindow = (m: number) =>
+    m >= apexM - MAP_BEFORE_M && m <= apexM + MAP_AFTER_M;
+  const points = (distanceOf: (r: CornerRow) => number | null) =>
+    rows.flatMap(r => {
+      const m = distanceOf(r);
+      if (m == null || !inWindow(m)) return [];
+      return [
+        {
+          lapId: r.lapId,
+          selIndex: r.selIndex,
+          isRef: r.isRef,
+          highlighted: r.highlighted,
+          at: at(m),
+        },
+      ];
+    });
+  return {
+    centreline,
+    apex: at(apexM),
+    ticks: MAP_TICKS_M.map(d => ({
+      label: `${d > 0 ? '+' : '−'}${Math.abs(d)} m`,
+      at: at(apexM + d),
+    })),
+    brakes: points(r =>
+      r.values.brake == null ? null : apexM - r.values.brake,
+    ),
+    throttles: points(r =>
+      r.values.throttle == null ? null : apexM + r.values.throttle,
+    ),
+  };
 }
