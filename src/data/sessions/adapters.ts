@@ -75,6 +75,12 @@ export type Stint = {
   bestTimeS: number | null;
   medianTimeS: number | null;
   stdevS: number | null;
+  /**
+   * Lap-time trend within the stint, seconds per lap (positive = slowing),
+   * from the session doc's `consistency.stints[].trendPerLap`. Null when the
+   * uploader did not store one for this stint.
+   */
+  trendSPerLap: number | null;
 };
 
 export type SessionDetail = SessionSummary & {
@@ -87,6 +93,13 @@ const obj = (v: unknown): Record<string, unknown> =>
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
+  const consistencyStints = obj(raw.consistency).stints;
+  const trendByStint = new Map<number, number | null>(
+    (Array.isArray(consistencyStints) ? consistencyStints : []).map(s => [
+      num(obj(s).n) ?? 0,
+      num(obj(s).trendPerLap),
+    ]),
+  );
   return {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
@@ -99,6 +112,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
         bestTimeS: num(x.bestLapTime),
         medianTimeS: num(x.medianLapTime),
         stdevS: num(x.stdevLapTime),
+        trendSPerLap: trendByStint.get(num(x.n) ?? 0) ?? null,
       };
     }),
   };

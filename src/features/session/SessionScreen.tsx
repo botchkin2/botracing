@@ -1,5 +1,5 @@
 import {useRouter} from 'expo-router';
-import {useCallback, useEffect, useMemo, useRef} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,6 +16,7 @@ import {Explainer, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
+import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
   LapTableHeader,
@@ -117,8 +118,12 @@ function SessionView({
     ? Math.min(DESKTOP_TABLE_MAX_W, contentWidth - sideW - space.xxl)
     : contentWidth;
 
+  // Desktop workspace: a bar or dot tap scrolls its row into view.
+  const [wideScrollTo, setWideScrollTo] = useState<string | null>(null);
+
   const highlight = (lapId: string, scroll: boolean) => {
-    if (scroll) pendingScroll.current = lapId;
+    if (scroll && layout.isWide) setWideScrollTo(lapId);
+    else if (scroll) pendingScroll.current = lapId;
     onSelectionChange({...selection, hl: lapId});
   };
 
@@ -164,10 +169,49 @@ function SessionView({
     onSelectionChange(toggleLap(selection, d.lapId));
   };
 
+  const chartBlock = (width: number) =>
+    model.chart ? (
+      <View style={styles.section}>
+        <Text variant='label' tone='textMuted'>
+          Lap times
+        </Text>
+        <Explainer>{model.chart.explainer}</Explainer>
+        <LapTimeBars
+          width={width}
+          height={CHART_H}
+          bars={bars}
+          rangeS={BAR_CLAMP_S}
+          medianLabel='median'
+          stintBreaks={model.chart.stintBreaks.map(b => ({
+            afterIndex: b.afterLap - 1,
+            label: b.label,
+          }))}
+          pits={model.chart.pits.map(i => i - 1)}
+          onPressBar={id => highlight(id, true)}
+        />
+      </View>
+    ) : (
+      model.noComparable && (
+        <View
+          style={[
+            styles.card,
+            {backgroundColor: color.surface, borderColor: color.lineHeader},
+          ]}>
+          <Text variant='title'>{model.noComparable.title}</Text>
+          {model.noComparable.reasons.map(r => (
+            <Text key={r} variant='dataSmall' tone='textMuted'>
+              {r}
+            </Text>
+          ))}
+        </View>
+      )
+    );
+
   const header = (
     <View
       onLayout={e => (headerHeight.current = e.nativeEvent.layout.height)}
       style={[styles.block, {width: tableW}]}>
+      {/* At ≥1280 the rail and the chrome tabs replace the back link. */}
       <Pressable
         accessibilityRole='link'
         onPress={() => router.navigate(sessionsHref())}
@@ -198,42 +242,7 @@ function SessionView({
         ))}
       </View>
 
-      {model.chart ? (
-        <View style={styles.section}>
-          <Text variant='label' tone='textMuted'>
-            Lap times
-          </Text>
-          <Explainer>{model.chart.explainer}</Explainer>
-          <LapTimeBars
-            width={tableW}
-            height={CHART_H}
-            bars={bars}
-            rangeS={BAR_CLAMP_S}
-            medianLabel='median'
-            stintBreaks={model.chart.stintBreaks.map(b => ({
-              afterIndex: b.afterLap - 1,
-              label: b.label,
-            }))}
-            pits={model.chart.pits.map(i => i - 1)}
-            onPressBar={id => highlight(id, true)}
-          />
-        </View>
-      ) : (
-        model.noComparable && (
-          <View
-            style={[
-              styles.card,
-              {backgroundColor: color.surface, borderColor: color.lineHeader},
-            ]}>
-            <Text variant='title'>{model.noComparable.title}</Text>
-            {model.noComparable.reasons.map(r => (
-              <Text key={r} variant='dataSmall' tone='textMuted'>
-                {r}
-              </Text>
-            ))}
-          </View>
-        )
-      )}
+      {chartBlock(tableW)}
 
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
@@ -256,6 +265,49 @@ function SessionView({
       }
     />
   );
+
+  const renderRow = (item: RowModel, width: number, wide = false) =>
+    item.kind === 'stint' ? (
+      <StintRow
+        row={item}
+        width={width}
+        wide={wide}
+        onSelectStint={() =>
+          onSelectionChange(selectStint(selection, item.lapIds))
+        }
+      />
+    ) : (
+      <LapRow
+        row={item}
+        width={width}
+        wide={wide}
+        lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
+        onPress={() => highlight(item.lapId, false)}
+        onToggle={() => onSelectionChange(toggleLap(selection, item.lapId))}
+      />
+    );
+
+  if (layout.isWide)
+    return (
+      <SessionWorkspace
+        sessionId={sessionId}
+        model={model}
+        selection={selection}
+        onSelectionChange={onSelectionChange}
+        colorOf={i => colorOf(i)}
+        onHighlight={id => highlight(id, true)}
+        scrollToLapId={wideScrollTo}
+        chart={chartBlock}
+        detail={
+          model.detail && (
+            <LapDetail detail={model.detail} onAction={detailAction} />
+          )
+        }
+        tray={tray}
+        renderRow={(row, width) => renderRow(row, width, true)}
+        tagKey={TAG_KEY}
+      />
+    );
 
   return (
     <View
@@ -286,29 +338,7 @@ function SessionView({
             offset: headerHeight.current + ROW_H * index,
             index,
           })}
-          renderItem={({item}) =>
-            item.kind === 'stint' ? (
-              <StintRow
-                row={item}
-                width={tableW}
-                onSelectStint={() =>
-                  onSelectionChange(selectStint(selection, item.lapIds))
-                }
-              />
-            ) : (
-              <LapRow
-                row={item}
-                width={tableW}
-                lapColor={
-                  item.selIndex != null ? colorOf(item.selIndex) : undefined
-                }
-                onPress={() => highlight(item.lapId, false)}
-                onToggle={() =>
-                  onSelectionChange(toggleLap(selection, item.lapId))
-                }
-              />
-            )
-          }
+          renderItem={({item}) => renderRow(item, tableW)}
         />
         {layout.isDesktop && (
           <View style={[styles.side, {width: sideW}]}>

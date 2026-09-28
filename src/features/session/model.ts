@@ -48,6 +48,7 @@ export type LapRowModel = {
   kind: 'lap';
   lapId: string;
   label: string;
+  stint: number;
   time: string;
   gap: string | null;
   gapFaster: boolean;
@@ -258,6 +259,7 @@ export function buildSessionModel(
         kind: 'lap',
         lapId: l.id,
         label: lapLabel(l),
+        stint: l.stint,
         time: timeOrDash(l.timeS),
         gap: gap == null ? null : formatGap(gap),
         gapFaster: gap != null && gap < 0,

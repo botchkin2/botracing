@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {toSessionSummary} from './adapters';
+import {toSessionDetail, toSessionSummary} from './adapters';
 
 // Shape as served by GET /api/lmu/sessions on 2026-09-27.
 const raw = {
@@ -32,5 +32,16 @@ describe('toSessionSummary', () => {
     expect(s.sessionType).toBe('Q');
     expect(s.bestTimeS).toBeNull();
     expect(s.medianTimeS).toBe(101.5);
+  });
+});
+
+describe('toSessionDetail', () => {
+  it('takes the stint trend from consistency.stints, null when absent', () => {
+    const d = toSessionDetail({
+      ...raw,
+      stints: [{n: 1}, {n: 2}],
+      consistency: {stints: [{n: 2, trendPerLap: 0.042}]},
+    });
+    expect(d.stints.map(s => s.trendSPerLap)).toEqual([null, 0.042]);
   });
 });
