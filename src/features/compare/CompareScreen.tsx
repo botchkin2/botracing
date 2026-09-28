@@ -20,8 +20,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
 import {panCursor, playStep} from '@/src/analysis/window';
-import {CornerGrid, TrackMap, TrackStrip} from '@/src/charts';
-import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
+import {CornerGrid, TrackStrip} from '@/src/charts';
+import {lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
   CHANNEL_IDS,
@@ -33,6 +33,7 @@ import {
 } from '@/src/state/comparePrefs';
 import {Button, Chip, Explainer, Segment, Text} from '@/src/ui';
 
+import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
@@ -349,33 +350,16 @@ function CompareView({
   const map =
     model.map &&
     (mapShown ? (
-      <View style={[styles.mapBox, {backgroundColor: color.surface}]}>
-        <TrackMap
-          width={sideW}
-          height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
-          outline={model.map.outline}
-          lines={model.map.lines.map(l => {
-            const {
-              color: c,
-              width,
-              opacity,
-            } = lapStyle(l.selIndex, l.highlighted);
-            return {key: l.lapId, points: l.points, color: c, width, opacity};
-          })}
-          dots={model.map.dots.map(d => ({
-            key: d.lapId,
-            at: d.at,
-            color: lapStyle(d.selIndex, d.highlighted).color,
-          }))}
-          badges={model.map.badges}
-          onPressBadge={openCorner}
-        />
-        {model.map.attribution && (
-          <Text variant='dataSmall' tone='textFaint' style={styles.attribution}>
-            {model.map.attribution}
-          </Text>
-        )}
-      </View>
+      <MapPanel
+        width={sideW}
+        height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
+        map={model.map}
+        mode={prefs.mapMode}
+        onMode={prefs.setMapMode}
+        place={model.position.place}
+        lapStyle={lapStyle}
+        onPressBadge={openCorner}
+      />
     ) : (
       <TrackStrip
         width={sideW}
@@ -685,8 +669,6 @@ const styles = StyleSheet.create({
   chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.xs},
   chipsWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
   swatch: {width: 10, height: 3},
-  mapBox: {borderRadius: radius.md, overflow: 'hidden'},
-  attribution: {position: 'absolute', right: space.xs, bottom: space.xxs},
   positionRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   values: {
     flex: 1,

@@ -11,6 +11,7 @@ import {
   windowRange,
   windowTimeS,
 } from '@/src/analysis/window';
+import {buildFollowModel, type FollowModel} from './followModel';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
   firstCornerOf,
@@ -208,6 +209,7 @@ export type MapModel = {
     open: boolean;
   }[];
   attribution: string | null;
+  follow: FollowModel;
 };
 
 export type CompareModel = {
@@ -673,13 +675,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const origin = real
       ? {lat: map!.georef!.originLat, lon: map!.georef!.originLon}
       : LMU_FAKE_ORIGIN;
-    const project = (t: GridTrace, stride: number) => {
+    const place = (t: GridTrace, from: number, to: number, stride: number) => {
       const pts = [];
-      for (let i = 0; i < t.lat.length; i += stride)
+      for (let i = from; i <= to; i += stride)
         pts.push({lat: t.lat[i], lon: t.lon[i]});
       const placed = real ? applyGeoref(pts, map!.georef!) : pts;
       return placed.map(p => toLocalMetres(p, origin));
     };
+    const project = (t: GridTrace, stride: number) =>
+      place(t, 0, t.lat.length - 1, stride);
     const shown = lapRefs.filter(r => r.key || mode !== 'grey');
     const lines = shown
       .filter(r => traces.has(r.lapId))
@@ -690,13 +694,23 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       const i = gridIndex(t, m);
       return project({...t, lat: [t.lat[i]], lon: [t.lon[i]]}, 1)[0];
     };
+    const outline = real
+      ? map!.outline.map(line =>
+          line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
+        )
+      : [];
     mapModel = {
       realMap: real,
-      outline: real
-        ? map!.outline.map(line =>
-            line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
-          )
-        : [],
+      outline,
+      follow: buildFollowModel({
+        refTrace,
+        traces,
+        shown: lines,
+        cursorM,
+        windowSpanM: windowed ? windowM[1] - windowM[0] : null,
+        outline,
+        place,
+      }),
       lines,
       dots: keyRefs
         .filter(r => traces.has(r.lapId))

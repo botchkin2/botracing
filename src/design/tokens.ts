@@ -27,6 +27,11 @@ const dark = {
   median: '#3a4148',
   band: 'rgba(230,232,234,0.07)',
   track: '#262b31',
+  // Handoff v2 W1: the road inside OSM edges, and the edges (Track mode).
+  trackFill: '#1a1d22',
+  trackEdge: '#343a42',
+  // Handoff v2 M1b: Follow mode's thin road edges.
+  followEdge: '#4d555d',
   barNeutral: '#5d646d',
   scrim: 'rgba(0,0,0,0.55)',
   // Desktop chrome and rail (handoff "Desktop", D1).
@@ -59,6 +64,10 @@ const light: ColorTokens = {
   median: '#c9cdd1',
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',
+  trackFill: '#eef0f2',
+  trackEdge: '#b9bec3',
+  // Not in the handoff for light; the Track edge is the nearest (feedback log).
+  followEdge: '#b9bec3',
   barNeutral: '#b9bec3',
   chrome: '#eceef0',
   tabActive: '#ffffff',
