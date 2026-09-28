@@ -1,14 +1,35 @@
 import {QueryClientProvider} from '@tanstack/react-query';
-import {DarkTheme, DefaultTheme, Stack, ThemeProvider} from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  useGlobalSearchParams,
+  usePathname,
+  useRouter,
+} from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
+import {Pressable, StyleSheet, View} from 'react-native';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
+import {useSession} from '@/src/data/sessions';
 import {
   ThemeProvider as AppThemeProvider,
+  carLabel,
+  shortTrackName,
+  space,
   useAppFonts,
+  useLayout,
   useTheme,
 } from '@/src/design';
+import {
+  compareHref,
+  parseSelection,
+  sessionHref,
+  settingsHref,
+} from '@/src/nav/routes';
+import {AppChrome, type ChromeTab, Text, type WorkspaceTab} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 
 export default function RootLayout() {
@@ -40,15 +61,123 @@ function Navigation() {
       border: color.lineHeader,
     },
   };
+  const {isWide} = useLayout();
   return (
     <ThemeProvider value={navTheme}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: {backgroundColor: color.bg},
-        }}
-      />
+      <View style={[styles.root, {backgroundColor: color.bg}]}>
+        {isWide && <DesktopChrome />}
+        <View style={styles.root}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: {backgroundColor: color.bg},
+            }}
+          />
+        </View>
+      </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }
+
+/** Which workspace the path is in; null off the session routes. */
+function activeTab(pathname: string): WorkspaceTab | null {
+  if (!pathname.startsWith('/session/')) return null;
+  if (pathname.includes('/compare')) return 'compare';
+  if (pathname.includes('/corner/')) return 'corner';
+  return 'session';
+}
+
+/**
+ * Feeds the data-free AppChrome from the URL: the open session and its
+ * selection become the tab links, so switching tabs keeps context.
+ */
+function DesktopChrome() {
+  const pathname = usePathname();
+  const {id} = useGlobalSearchParams<{id?: string}>();
+  const sessionId = activeTab(pathname) ? id : undefined;
+  return sessionId ? (
+    <SessionChrome sessionId={sessionId} tab={activeTab(pathname)} />
+  ) : (
+    <ChromeBar sessionId={null} tab={null} context='LMU' />
+  );
+}
+
+/** "LMU · Road Atlanta · 911 GT3 R" once the session has loaded. */
+function SessionChrome({
+  sessionId,
+  tab,
+}: {
+  sessionId: string;
+  tab: WorkspaceTab | null;
+}) {
+  const {data} = useSession(sessionId);
+  const context = data
+    ? [
+        data.sim.toUpperCase(),
+        shortTrackName(data.track),
+        carLabel(data.car).shortModel,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'LMU';
+  return <ChromeBar sessionId={sessionId} tab={tab} context={context} />;
+}
+
+function ChromeBar({
+  sessionId,
+  tab,
+  context,
+}: {
+  sessionId: string | null;
+  tab: WorkspaceTab | null;
+  context: string;
+}) {
+  const router = useRouter();
+  const params = useGlobalSearchParams<{
+    laps?: string;
+    hl?: string;
+    c?: string;
+    t?: string;
+  }>();
+  const sel = parseSelection(params);
+  const tabs: ChromeTab[] = [
+    {
+      key: 'session',
+      label: 'Session',
+      onPress: sessionId
+        ? () => router.navigate(sessionHref(sessionId, sel))
+        : undefined,
+    },
+    {
+      key: 'compare',
+      label: 'Compare',
+      onPress: sessionId
+        ? () => router.navigate(compareHref(sessionId, sel))
+        : undefined,
+    },
+    // No onPress until the Corner route lands with the corner workspace.
+    {key: 'corner', label: 'Corner'},
+  ];
+  return (
+    <AppChrome
+      tabs={tabs}
+      active={tab}
+      context={context}
+      right={
+        <Pressable
+          accessibilityRole='link'
+          onPress={() => router.navigate(settingsHref())}
+          hitSlop={space.md}>
+          <Text variant='body' tone='textSecondary'>
+            Settings
+          </Text>
+        </Pressable>
+      }
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {flex: 1},
+});

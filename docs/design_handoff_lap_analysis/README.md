@@ -241,6 +241,79 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
 
 ---
 
+---
+
+## Desktop (1440 × 900 and up): `Desktop Screens.dc.html`
+The desktop is **not** a stretched phone. The phone shows one question per view with drill-down and back. The desktop puts related views side by side, shows exact values on hover, and adds analysis that needs the space. It uses the same tokens, color rules, data and state model as the phone. Everything below is interactive in the prototype.
+
+**App chrome (48 pt):**
+- Logo mark.
+- Workspace tabs **Session · Compare · Corner** (the active tab has a `#1b1f24` fill). These are the same three views as the phone, reachable directly because the selection persists.
+- The global context picker, then uploader status and Settings on the right.
+
+### D1 Session workspace
+Columns: 280 | 820 | 340.
+- **Rail (280, bg `#0b0d10`):**
+  - "Sessions" title and a search field.
+  - Sessions grouped by day, each row 20 | 1fr | best: type badge, "Portimão · Race", "21:40 · 44 laps", best lap.
+  - The open session has a 3 pt inset accent bar. Clicking a row switches the session in place, with no navigation.
+- **Centre:**
+  - Header: title, subline, and the facts row (Laps, Comparable, Best in purple, Median) aligned right.
+  - Lap-time bars at 780×166, the same rules as the phone.
+  - A wider lap table (rows 26 pt), columns `18 | 40 | 30 | 78 | 62 | 60 | 60 | 60 | 52 | 1fr`: checkbox, Lap, Stint, Time, vs med, S1, S2, S3, **Top km/h**, Tags. Stint header rows have "Select stint". Row and bar highlighting is synced, as on the phone.
+- **Right (340), scrolling:**
+  - **Stints table:** name, n (comparable/total), median, best, spread, then a second line with the lap range and "fall-off ±x s/lap" (linear trend of time vs lap-in-stint, with a 95% interval).
+  - **Lap-time distribution:** one row per stint (30 pt) in a 236 pt strip with a dot per comparable lap, the stint median as a white tick, and axis labels at min, mid and max. Selected laps use their lap color, the best lap is purple, the highlighted lap gets an accent ring. Clicking a dot highlights the lap.
+  - **Stint 2 vs Stint 1 by corner:** median segment time per corner, stint 2 minus stint 1, as diverging bars (84 pt each side), faster green to the left of centre and slower red to the right, with a signed value and a Σ total.
+  - The **lap detail panel** (the same as on the phone).
+- **Bottom of the right column:** the compare tray.
+
+### D2 Compare workspace
+Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plus Copy link and Export CSV.
+- **Left, laps:**
+  - "Comparing" is a vertical list of the selected laps: color swatch, label, time, delta to ref, ×. Clicking a lap sets it as the reference.
+  - Below, **All laps** for the session: a compact checkbox list with time, gap and tags, grouped by stint. Clicking a row toggles it in the comparison.
+- **Centre:**
+  - **Toolbar (surface):** play/pause (30 pt), rate segment, the Window block (Time / Distance, − 4 s +, "≈ 180 m"), and **Layout** preset chips (Default, Pedals, Braking, Separate).
+  - **Whole-lap overview (780×58):** the running time diff over the full lap for the shown laps, corner ticks numbered underneath, and an **accent frame showing the detail window**. Click or drag on it to move the window, which also sets the cursor. The desktop shows the overview and the detail together; the phone has to choose one.
+  - **Detail charts (780 wide):** the default window is 4 s, in time mode. Heights: Time diff 96, Speed 150, Throttle + Brake 106, Steering 84, Gear 60.
+    - Each chart header is its own editor: channel chips (dash swatch, name, ×), "+ overlay" opening inline channel pills, and the value at the pointer for every channel and lap on the right.
+    - **Hover** moves a dashed white hover line, and every value in every header and in the Values panel reads at the hover position.
+    - **Drag** pans the window, as on the phone, and the amber line stays the cursor. Pointer-leave clears the hover.
+  - "+ Add chart" at the bottom.
+- **Right (360), scrolling:**
+  - **Track map (320×220):** numbered corner badges (clicking one opens it in Corner) and a dot per lap at the cursor time.
+  - **Values table:** "Hover · 2,093 m" or "Cursor · …", with rows Time diff, Speed, Throttle, Brake, Steering, Gear × a column per shown lap in its color, in Mono 12 tabular. This is the exact-values readout the phone can't fit.
+  - **Time per corner, transposed:** a row per corner (C1–C11 with distance) and a column per compared lap, using the same cells and color scale as the phone grid. The open corner row is tinted. Clicking a cell opens that corner.
+
+### D3 Corner deep dive
+Columns: 600 | 840. The chrome also shows the corner chips C1–C11 and ‹ prev / next ›. The default is the whole race (38 laps), because the desktop is where distributions pay off.
+- **Left, scrolling:**
+  - Title "Corner 6", with the subline "2,150 m · 38 laps · compared with L16".
+  - **Where each lap braked (560×210):** a zoomed map of the track from 350 m before the apex to 200 m after, a 16 pt track band with a dashed centreline, and distance marks at −300, −200, −100 and +100 m plus APEX.
+    - Brake points are circles: the reference r 4.8 white, the highlighted lap r 4.8 lap.1, others r 2.8 grey at 55%.
+    - Full-throttle points are squares, 6 pt for key laps and 4 pt for others.
+    - The spread of braking locations becomes spatial and visible at a glance.
+  - **Distribution:** four dot strips (time in corner, brake point, min speed, full throttle), 440 wide, with a label, "med · p10–p90" and the axis min and max. Clicking a dot highlights the lap in every panel.
+  - **Sortable table** of every selected lap: Lap, Time in corner (s, 3 decimals, plus the signed gap to the reference), Brake point, Min speed, Full throttle.
+    - Click a header to sort; the active header is text-colored with ↑ (↓ for min speed, where higher is better). The default sort is time in corner, ascending.
+    - The highlighted row gets accentTint. The sticky header uses the surface color.
+    - The corner-definition explainer sits under the table.
+- **Right (840):**
+  - The highlighted lap's line: "L31: 9.75 s · brake 155 m · min 114 km/h · full throttle 50 m".
+  - Zoomed Speed (≈226 pt), Brake (≈122) and Throttle (≈122) traces, 800 wide, from −250 m to +150 m around the apex, with dashed brake and full-throttle marks for the key laps and distance ticks. With 20 or more laps, the lines follow the tinted/grey rules.
+
+### Desktop behaviour notes
+- Hover is a desktop-only affordance. Anything shown on hover must also be reachable without a pointer: the Values panel falls back to the cursor.
+- **Keyboard:**
+  - ← → step the cursor 5 m (with Shift, 50 m)
+  - Space: play/pause
+  - [ ]: window size
+  - 1–9: open that corner
+  - Esc: clear highlight
+- All three workspaces share the phone's state (selection, highlight, corner, window, charts), so switching tabs, or moving between phone and desktop, keeps context.
+- Minimum width is 1280. Between 1280 and 1440, the centre column flexes and the side columns keep their widths. Below 1280, fall back to the phone layouts inside a centred 430 pt column, or build a tablet variant later.
+
 ## State
 - `selection`:
   - `laps: LapId[]`: the first entry is the reference. It persists across sessions and days and is shared by Session, Compare and Corner.
@@ -279,6 +352,7 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
 ## Files
 - `App Screens.dc.html`: every screen and state, interactive. It includes the sample-data generator and all derived logic (in the `<script data-dc-script>` block: `buildData`, `dir()` for Compare charts, `t4()` for Session and Corner models).
 - `SessionsScreen.dc.html`, `SessionScreen.dc.html`, `CompareScreen.dc.html`, `CornerScreen.dc.html`: the four screen templates. CompareScreen frames: 03a map, 03b collapsed strip, 03c one chart with overlay pills, 03d edit charts sheet, 03e 12 laps tinted, 03f whole race grey.
+- `Desktop Screens.dc.html`: the D1 Session, D2 Compare and D3 Corner desktop workspaces, interactive, with the same engine plus `dx()` for desktop-only panels.
 - `Design System.dc.html`: tokens and components reference, including the light theme.
 - `support.js`: runtime needed to open the .dc.html files locally.
 

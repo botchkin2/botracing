@@ -29,6 +29,9 @@ const dark = {
   track: '#262b31',
   barNeutral: '#5d646d',
   scrim: 'rgba(0,0,0,0.55)',
+  // Desktop chrome and rail (handoff "Desktop", D1).
+  chrome: '#0b0d10',
+  tabActive: '#1b1f24',
 };
 
 export type ColorTokens = typeof dark;
@@ -57,6 +60,8 @@ const light: ColorTokens = {
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',
   barNeutral: '#b9bec3',
+  chrome: '#eceef0',
+  tabActive: '#ffffff',
 };
 
 export const colors: Record<Scheme, ColorTokens> = {dark, light};
@@ -204,6 +209,13 @@ export const size = {
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,
+  // Desktop workspace (handoff "Desktop", D1): 48 pt chrome, 280 | centre | 340.
+  chromeBar: 48,
+  railWidth: 280,
+  sidePanelWidth: 340,
+  railBadge: 20,
+  railBar: 3,
+  logo: 18,
 } as const;
 export const chartHeight = {
   compare: {
