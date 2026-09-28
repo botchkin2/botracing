@@ -46,6 +46,7 @@ function recorderBlock(status, nowMs) {
     layoutOk: status.layoutOk ?? null,
     layoutReason: status.layoutReason ?? null,
     lastChunkAt: status.lastChunkAt ?? null,
+    updatedAt: status.updatedAt ?? null,
   };
 }
 

@@ -33,6 +33,7 @@ test('matches the contract the app reads', () => {
   assert.equal(doc.lastSeenAt, '2026-09-29T10:00:00.000Z');
   assert.deepEqual(doc.disk, {captureBytes: 123, freeBytes: 500e9});
   assert.equal(doc.recorder.state, 'recording');
+  assert.equal(doc.recorder.updatedAt, '2026-09-29T09:59:40Z');
   assert.equal(doc.lastError, null);
 });
 

@@ -12,7 +12,7 @@ One Cloud Function, `lmuApi`, behind Hosting at `/api/lmu`. It reads only; the P
 | `GET /sessions/{id}/band` | Median and p10/p90 of speed, throttle and brake every `stepM` metres over the comparable laps. |
 | `GET /sessions/{id}/map` | The track's corner map (sections with their corners), plus, when fitted, `georef`, `quality` (`good`/`fair`/`poor`), `qualityNote`, `attribution` and the OSM `outline` (GeoJSON). Draw on a real basemap only when `quality` isn't `poor`. |
 | `GET /laps/{id}/csv` | One lap's 100 Hz trace: `Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt`. Lat/Lon (10 Hz) and Brake/Throttle (50 Hz) are empty on rows where they recorded no sample. |
-| `GET /uploaders` | `{items}`: one status per PC uploader (`tools/uploader/`): `hostId`, `version`, `lmuFound`, `state` (`waiting-for-game`, `recording`, `syncing`, `error`), `lastSeenAt`, `lastUploadAt`, `lastSessionId`, `queue`, `sessionsDone`, `lastError` `{at, message, path}`, `disk` `{captureBytes, freeBytes}`, and `recorder` `{state, gameVersion, layoutOk, layoutReason, lastChunkAt}` or null. Times are ISO. |
+| `GET /uploaders` | `{items}`: one status per PC uploader (`tools/uploader/`): `hostId`, `version`, `lmuFound`, `state` (`waiting-for-game`, `recording`, `syncing`, `error`), `lastSeenAt`, `lastUploadAt`, `lastSessionId`, `queue`, `sessionsDone`, `lastError` `{at, message, path}`, `disk` `{captureBytes, freeBytes}`, and `recorder` `{state, gameVersion, layoutOk, layoutReason, lastChunkAt, updatedAt}` or null. Times are ISO. |
 
 Unknown ids return 404. Lat/Lon in traces are the sim's coordinates. Real metres, but placed around a fake origin; apply `georef` (`src/analysis/geo.ts`) to put them on the real map.
 
