@@ -49,7 +49,8 @@ import {CompareWorkspace} from './CompareWorkspace';
 
 export type {CompareSelection} from './model';
 
-const MAP_H = 170;
+// Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
+const MAP_H = 220;
 const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
