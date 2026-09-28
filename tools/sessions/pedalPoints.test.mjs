@@ -18,26 +18,39 @@ test('sampleTicks: 50 Hz in a 100 Hz file lands on even ticks', () => {
 test('brakeStart: a real sample, never an interpolated crossing', () => {
   // Held at 50 Hz and blended by the loader on the odd ticks.
   const brake = [0, 0, 0, 0, 4, 12, 20, 50, 80, 80, 80];
-  const got = brakeStart(brake, sampleTicks(50, 100, 0, 10), distAt);
+  const got = brakeStart(brake, sampleTicks(50, 100, 0, 10), distAt, 0);
   // Tick 5 reads 12 but is a blend; the first real sample past 10% is tick 6.
   assert.deepEqual(got, {atM: 6, resM: 2});
 });
 
-test('brakeStart: finds the application ending at the corner, not an earlier dab', () => {
-  const brake = [0, 30, 0, 0, 0, 0, 60, 60, 60];
-  const got = brakeStart(brake, sampleTicks(100, 100, 0, 8), distAt);
+test('brakeStart: an application already on at the entry is followed back', () => {
+  const brake = [0, 0, 30, 60, 80, 80, 40];
+  const got = brakeStart(brake, sampleTicks(100, 100, 0, 6), distAt, 4);
+  assert.deepEqual(got, {atM: 2, resM: 1});
+});
+
+test('brakeStart: the first application after the entry, not a later one', () => {
+  // Brakes for this corner at 2, then again harder for a slower one at 7.
+  const brake = [0, 0, 40, 40, 0, 0, 0, 90, 90];
+  const got = brakeStart(brake, sampleTicks(100, 100, 0, 8), distAt, 1);
+  assert.deepEqual(got, {atM: 2, resM: 1});
+});
+
+test('brakeStart: a dab before the entry is not this corner', () => {
+  const brake = [30, 0, 0, 0, 0, 0, 60, 60, 60];
+  const got = brakeStart(brake, sampleTicks(100, 100, 0, 8), distAt, 3);
   assert.deepEqual(got, {atM: 6, resM: 1});
 });
 
 test('brakeStart: trail braking that hovers near 10% stays one application', () => {
   const brake = [0, 0, 40, 80, 30, 9, 8, 11, 9, 5];
-  const got = brakeStart(brake, sampleTicks(100, 100, 0, 9), distAt);
+  const got = brakeStart(brake, sampleTicks(100, 100, 0, 9), distAt, 7);
   assert.deepEqual(got, {atM: 2, resM: 1});
 });
 
 test('brakeStart: rest-foot pressure is not braking', () => {
   const brake = [1, 2, 1, 2, 1, 2];
-  assert.equal(brakeStart(brake, sampleTicks(50, 100, 0, 5), distAt), null);
+  assert.equal(brakeStart(brake, sampleTicks(50, 100, 0, 5), distAt, 0), null);
 });
 
 test('fullThrottleStart: first real sample at or past 95%', () => {
@@ -52,6 +65,6 @@ test('fullThrottleStart: first real sample at or past 95%', () => {
 
 test('resolution comes from the sample before the window', () => {
   const brake = [0, 0, 0, 0, 50, 50];
-  const got = brakeStart(brake, sampleTicks(50, 100, 4, 5), distAt);
+  const got = brakeStart(brake, sampleTicks(50, 100, 4, 5), distAt, 4);
   assert.deepEqual(got, {atM: 4, resM: 2});
 });

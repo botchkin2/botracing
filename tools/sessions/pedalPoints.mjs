@@ -47,17 +47,22 @@ function point({ticks, before}, j, distAt) {
   };
 }
 
-// The first sample at or past 10% in the last brake application of the
-// window: walk back from the end until the pedal was released.
-export function brakeStart(values, samples, distAt) {
+// The brake application in progress at tick `from`, or the first one after
+// it: its first sample at or past 10%. Anchored on the section entry, not on
+// the slowest point, so a lap whose minimum falls in a later corner does not
+// move its brake point there. The window may start before `from`, so an
+// application already on at the entry is followed back to where it began.
+export function brakeStart(values, samples, distAt, from) {
   const {ticks} = samples;
-  let found = -1;
-  for (let j = ticks.length - 1; j >= 0; j--) {
+  let j = ticks.findIndex(t => t >= from && values[t] >= BRAKE_ON_PCT);
+  if (j < 0) return null;
+  let found = j;
+  for (j--; j >= 0; j--) {
     const v = values[ticks[j]];
+    if (v < BRAKE_RELEASED_PCT) break;
     if (v >= BRAKE_ON_PCT) found = j;
-    else if (found >= 0 && v < BRAKE_RELEASED_PCT) break;
   }
-  return found < 0 ? null : point(samples, found, distAt);
+  return point(samples, found, distAt);
 }
 
 // The first sample at full throttle.

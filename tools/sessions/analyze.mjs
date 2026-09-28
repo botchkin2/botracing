@@ -604,10 +604,12 @@ function cornerFacts(rec, lap, corners, flags) {
     // Brake and full-throttle points from the real pedal samples.
     const minTick = tickAt(minAt * GRID_M);
     const nextTick = e1 == null ? lap.i1 : tickAt(e1 * GRID_M);
+    const entryTick = tickAt(e0 * GRID_M);
     const brake = brakeStart(
       s.brake_pct,
-      sampleTicks(rec.hz.brake_pct, rec.baseHz, tickAt(e0 * GRID_M), minTick),
+      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, tickAt(t1 * GRID_M)),
       distAt,
+      entryTick,
     );
     const pedal = s.throttle_pos_unfiltered
       ? 'throttle_pos_unfiltered'
@@ -799,14 +801,14 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     best &&
     Math.abs(trackMap.lengthM - best.distanceM) <= best.distanceM * 0.03;
   const built = fits ? null : buildTrackMap(recs, comparable, best, gridN);
-  const map = fits ? trackMap : (built?.map ?? null);
+  const map = fits ? trackMap : built?.map ?? null;
   const trackMapSource = fits
     ? 'stored'
     : !built
-      ? null
-      : !trackMap && built.laps >= MAP_MIN_LAPS
-        ? 'new'
-        : 'session';
+    ? null
+    : !trackMap && built.laps >= MAP_MIN_LAPS
+    ? 'new'
+    : 'session';
   const newTrackMap = trackMapSource === 'new';
   if (map?.corners.length) {
     laps.forEach(lap => {

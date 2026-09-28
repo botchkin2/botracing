@@ -12,7 +12,12 @@ import {
 } from '../../src/analysis/geo.ts';
 
 // Road Atlanta, from tools/track-fit/georef.json.
-const roadAtlanta = {rotationDeg: 1.6995, mirror: 1, originLat: 34.1503164, originLon: -83.8142749};
+const roadAtlanta = {
+  rotationDeg: 1.6995,
+  mirror: 1,
+  originLat: 34.1503164,
+  originLon: -83.8142749,
+};
 
 test('local metres round-trip', () => {
   const origin = {lat: 34.15, lon: -83.81};
@@ -40,8 +45,14 @@ test('trace to local metres keeps distances', () => {
 test('georef lands a real Road Atlanta sample on the real track', () => {
   // First sample of the recording the fit used, and where the fit puts it
   // (checked against the OSM outline: within the track's width).
-  const [p] = applyGeoref([{lat: 59.987117767333984, lon: -0.007311809342354536}], roadAtlanta);
-  assert.ok(distanceM(p, {lat: 34.13733, lon: -83.81823}) < 2, JSON.stringify(p));
+  const [p] = applyGeoref(
+    [{lat: 59.987117767333984, lon: -0.007311809342354536}],
+    roadAtlanta,
+  );
+  assert.ok(
+    distanceM(p, {lat: 34.13733, lon: -83.81823}) < 2,
+    JSON.stringify(p),
+  );
 });
 
 test('georef is rigid: distances between points survive', () => {
