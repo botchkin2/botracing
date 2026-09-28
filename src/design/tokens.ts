@@ -191,6 +191,8 @@ export const type = {
     textTransform: 'uppercase' as const,
   },
   axis: {fontFamily: fonts.monoMedium, fontSize: 9.5, ...tabular},
+  // Map attribution, 9 pt (handoff v2 M1).
+  attribution: {fontFamily: fonts.sans, fontSize: 9},
 } as const;
 
 export const space = {

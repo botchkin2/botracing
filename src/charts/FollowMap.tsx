@@ -95,7 +95,8 @@ export function FollowMap({
   const sc = followScale(view);
   const project = followProject(view);
   const axis = typeScale.axis;
-  const scaleY = height - 10;
+  // One row up from the bottom edge, clear of the attribution.
+  const scaleY = height - 24;
 
   return (
     <View style={{width, height}}>

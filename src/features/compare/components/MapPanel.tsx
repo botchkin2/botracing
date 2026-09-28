@@ -130,7 +130,7 @@ export function MapPanel({
         )}
       </View>
       {map.attribution && (
-        <Text variant='dataSmall' tone='textFaint' style={styles.attribution}>
+        <Text variant='attribution' tone='textFaint' style={styles.attribution}>
           {map.attribution}
         </Text>
       )}
