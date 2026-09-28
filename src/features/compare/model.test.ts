@@ -311,3 +311,25 @@ describe('cornerPlace', () => {
     expect(cornerPlace(s, 900)).toBe('After Section 2');
   });
 });
+
+describe('y ranges in a window', () => {
+  const at = (cursorM: number) =>
+    buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({cursorM}),
+      charts: [['timeDiff'], ['speed']],
+      window: {mode: 'time', size: 2},
+    }).charts;
+  it('absolute channels fit the whole lap, so they never move', () => {
+    expect(at(100)[1].domains.speed).toEqual(at(600)[1].domains.speed);
+  });
+  it('the time diff fits the window, snapped to a symmetric nice range', () => {
+    const [lo, hi] = at(600)[0].domains.timeDiff!;
+    expect(lo).toBe(-hi);
+    expect([0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60]).toContain(hi);
+  });
+});

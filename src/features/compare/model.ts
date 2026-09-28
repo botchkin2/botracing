@@ -351,6 +351,14 @@ function lineMarks(
   return out;
 }
 
+// Symmetric time-diff ranges, in seconds: a window's fit snaps up to the
+// next one, so the scale only steps when the gap really grows.
+const TIME_RANGES_S = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
+
+// y range per channel kind. Absolute channels fit the whole lap of every
+// compared lap, so the scale never moves under a pan or playback. The time
+// diff is rebased to the window's left edge, so it fits the window instead,
+// snapped to TIME_RANGES_S.
 function domainOf(
   arrays: number[][],
   kind: ChannelSpec['kind'],
@@ -360,10 +368,15 @@ function domainOf(
 ): [number, number] {
   // Pedals are fixed at −4..104 so 0 and 100 never sit on the edge.
   if (kind === 'pedal') return [-4, 104];
+  const fitWindow = kind === 'time' && windowed;
   let lo = Infinity;
   let hi = -Infinity;
   for (const a of arrays)
-    for (let i = Math.max(0, from); i <= Math.min(a.length - 1, to); i++) {
+    for (
+      let i = fitWindow ? Math.max(0, from) : 0;
+      i <= Math.min(a.length - 1, fitWindow ? to : Infinity);
+      i++
+    ) {
       const v = a[i];
       if (v < lo) lo = v;
       if (v > hi) hi = v;
@@ -371,8 +384,10 @@ function domainOf(
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
     // Symmetric around 0; the floor keeps a flat line from filling the chart.
-    const m = Math.max(Math.abs(lo), Math.abs(hi), windowed ? 0.02 : 0.1);
-    return [-m, m];
+    const m = Math.max(Math.abs(lo), Math.abs(hi));
+    if (!windowed) return [-Math.max(m, 0.1), Math.max(m, 0.1)];
+    const r = TIME_RANGES_S.find(x => x >= m) ?? m;
+    return [-r, r];
   }
   if (kind === 'steer') {
     const m = Math.max(Math.abs(lo), Math.abs(hi), 5);
