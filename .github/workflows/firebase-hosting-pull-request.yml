@@ -35,5 +35,6 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
           projectId: botracing-61
           entryPoint: .
-          # Backstop for channels the cleanup workflow misses.
+          # Backstop for channels the cleanup workflow misses. A PR idle for
+          # over 3 days loses its preview link; the next push brings it back.
           expires: 3d
