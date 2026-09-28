@@ -431,6 +431,7 @@ function CompareView({
     marks: model.apexMarks,
     stepM: model.stepM,
     windowM: model.windowM,
+    timeAxis: model.timeAxis,
     cursorM,
     lapStyle,
     onScrub: windowed ? undefined : onCursor,

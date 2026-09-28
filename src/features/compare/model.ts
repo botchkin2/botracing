@@ -9,6 +9,7 @@ import {
   rebaseToWindow,
   type WindowMode,
   windowRange,
+  windowTimeS,
 } from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
@@ -45,6 +46,7 @@ export type CompareSelection = {
 
 /** Chart window: seconds (time) or metres (distance); size null = whole lap. */
 export type ChartWindow = {mode: WindowMode; size: number | null};
+export type ChartTimeAxis = {ref: GridTrace; windowS: [number, number]} | null;
 
 export type {ChannelId} from '@/src/state/comparePrefs';
 
@@ -226,10 +228,13 @@ export type CompareModel = {
   lengthM: number;
   /** Visible distance range of the charts, metres. */
   windowM: [number, number];
+  /** Time mode in a window: the charts' x axis is the reference's time. */
+  timeAxis: ChartTimeAxis;
   /** The reference lap on the grid: time and distance for pan and playback. */
   refGrid: GridTrace | null;
-  /** Corner apex lines inside the window, e.g. "C6 apex". */
-  apexMarks: {m: number; label: string}[];
+  /** Corner apex lines inside the window, e.g. "C6 apex", and "S/F" when
+   *  the window runs past the line. */
+  apexMarks: {m: number; label: string; solid?: boolean}[];
   /** Laps still loading their traces. */
   pending: number;
   /** Lap ids in the URL that this session doesn't have. */
@@ -323,6 +328,27 @@ function median(xs: number[]): number | null {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// The start/finish line, solid and labelled, when the window runs past it
+// (the blank lead-in before the lap, or past its end).
+function lineMarks(
+  ref: GridTrace,
+  cursorM: number,
+  win: ChartWindow,
+  lengthM: number,
+): {m: number; label: string; solid: boolean}[] {
+  if (win.size == null) return [];
+  const [before, after] =
+    win.mode === 'distance'
+      ? [cursorM - win.size / 2 < 0, cursorM + win.size / 2 > lengthM]
+      : windowTimeS(ref, cursorM, win.size).map(
+          (t, i) => (i ? t > ref.timeS[ref.timeS.length - 1] : t < 0),
+        );
+  const out = [];
+  if (before) out.push({m: 0, label: 'S/F', solid: true});
+  if (after) out.push({m: lengthM, label: 'S/F', solid: true});
+  return out;
 }
 
 function domainOf(
@@ -678,12 +704,19 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     stepM,
     lengthM,
     windowM,
+    timeAxis:
+      windowed && win.mode === 'time'
+        ? {ref: refTrace, windowS: windowTimeS(refTrace, cursorM, win.size!)}
+        : null,
     refGrid: refTrace ?? null,
     apexMarks: windowed
-      ? (map?.sections ?? [])
-          .flatMap(s => (s.parts.length ? s.parts : [s]))
-          .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
-          .map(c => ({m: c.apexM, label: `C${c.n} apex`}))
+      ? [
+          ...(map?.sections ?? [])
+            .flatMap(s => (s.parts.length ? s.parts : [s]))
+            .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
+            .map(c => ({m: c.apexM, label: `C${c.n} apex`})),
+          ...lineMarks(refTrace, cursorM, win, lengthM),
+        ]
       : [],
     pending: selected.filter(l => !traces.has(l.id)).length,
     notFound: selection.laps.length - selected.length,

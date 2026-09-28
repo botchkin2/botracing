@@ -14,6 +14,7 @@ import {Chip, Explainer, Text} from '@/src/ui';
 import {
   CHANNELS,
   type ChartModel,
+  type ChartTimeAxis,
   type ChartValueRow,
   drawRank,
 } from '../model';
@@ -33,6 +34,7 @@ export function ChartBlock({
   marks,
   stepM,
   windowM,
+  timeAxis,
   cursorM,
   lapStyle,
   onScrub,
@@ -47,9 +49,10 @@ export function ChartBlock({
   width: number;
   /** Plot height in points. */
   height: number;
-  marks: {m: number; label: string}[];
+  marks: {m: number; label: string; solid?: boolean}[];
   stepM: number;
   windowM: [number, number];
+  timeAxis?: ChartTimeAxis;
   cursorM: number;
   lapStyle: LapStyle;
   onScrub?: (m: number) => void;
@@ -175,6 +178,7 @@ export function ChartBlock({
         marks={marks}
         stepM={stepM}
         windowM={windowM}
+        timeAxis={timeAxis}
         domain={chart.domains[first] ?? [0, 1]}
         series={series}
         band={chart.band ?? undefined}

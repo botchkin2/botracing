@@ -2,9 +2,12 @@
 // detail is readable (handoff §3 "Window"). Works on a GridTrace-shaped
 // reference: distances every stepM metres and elapsed time at each.
 //
-// Time mode: ±win/2 seconds of the reference lap around the cursor, so the
-// window widens on straights and tightens in slow corners.
-// Distance mode: win metres centred on the cursor.
+// Time mode: ±win/2 seconds of the reference lap around the cursor. The x
+// axis is the reference's elapsed time, so the scale never changes while
+// playing; the metres shown widen on straights and tighten in slow corners.
+// Distance mode: win metres centred on the cursor, x linear in metres.
+// Both keep their size and the cursor centred at the line: the part outside
+// the lap is blank.
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
@@ -48,7 +51,9 @@ export function distanceAtTime(ref: TimedGrid, t: number): number {
 }
 
 // [start, end] in metres. `win` is seconds (time) or metres (distance);
-// null means the whole lap.
+// null means the whole lap. Distance mode is centred and may run past the
+// line (blank there). Time mode's metres are clipped to the lap; its x axis
+// is windowTimeS.
 export function windowRange(
   ref: TimedGrid,
   cursorM: number,
@@ -57,14 +62,41 @@ export function windowRange(
 ): [number, number] {
   const lengthM = ref.distanceM[ref.distanceM.length - 1];
   if (win == null) return [0, lengthM];
-  if (mode === 'distance') {
-    // Shift, don't shrink, at the line: the window keeps its size.
-    const size = Math.min(win, lengthM);
-    const start = Math.max(0, Math.min(lengthM - size, cursorM - size / 2));
-    return [start, start + size];
-  }
+  if (mode === 'distance') return [cursorM - win / 2, cursorM + win / 2];
+  const [t0, t1] = windowTimeS(ref, cursorM, win);
+  return [distanceAtTime(ref, t0), distanceAtTime(ref, t1)];
+}
+
+// Time mode's x axis in seconds of the reference lap: always win wide and
+// centred on the cursor, even past the line.
+export function windowTimeS(
+  ref: TimedGrid,
+  cursorM: number,
+  win: number,
+): [number, number] {
   const t = timeAtDistance(ref, cursorM);
-  return [distanceAtTime(ref, t - win / 2), distanceAtTime(ref, t + win / 2)];
+  return [t - win / 2, t + win / 2];
+}
+
+// Reference time at grid index i, extended past the lap end at the last
+// step's pace, so a longer lap still has a place on the time axis.
+export function timeAtIndex(ref: TimedGrid, i: number): number {
+  const ts = ref.timeS;
+  const last = ts.length - 1;
+  if (i <= last) return ts[Math.max(0, i)];
+  return ts[last] + (i - last) * (ts[last] - ts[last - 1]);
+}
+
+// Gridline step for time mode, from the lap's average speed rather than the
+// metres in view, so the step doesn't flip while playing.
+export function timeGridStepM(
+  ref: TimedGrid,
+  win: number,
+  widthPt: number,
+): number {
+  const lapS = ref.timeS[ref.timeS.length - 1] || 1;
+  const lengthM = ref.distanceM[ref.distanceM.length - 1];
+  return gridStepM((lengthM / lapS) * win, widthPt);
 }
 
 // Moves the cursor for a drag of dx points over a chart `widthPt` wide. The
