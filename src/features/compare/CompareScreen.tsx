@@ -19,7 +19,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
-import {panCursor, playStep} from '@/src/analysis/window';
+import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
@@ -44,6 +44,7 @@ import {
   makeReference,
   removeLap,
 } from './model';
+import {type PlayInputs, playTicker} from './playback';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
@@ -165,20 +166,21 @@ function CompareView({
   const moveBy = (dm: number) =>
     onCursor(c => Math.max(0, Math.min(model.lengthM, c + dm)));
 
-  // Playback: advance by wall-clock time on the reference lap, looping.
-  const live = useRef({cursorM, ref, rate: prefs.rate, onCursor});
+  // Playback: advance by wall-clock time on the reference lap, looping
+  // (features/compare/playback.ts).
+  const live = useRef<PlayInputs>({ref, rate: prefs.rate, move: onCursor});
   useEffect(() => {
-    live.current = {cursorM, ref, rate: prefs.rate, onCursor};
+    live.current = {ref, rate: prefs.rate, move: onCursor};
   });
   useEffect(() => {
     if (!playing) return;
     let frame = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const p = live.current;
-      if (p.ref)
-        p.onCursor(playStep(p.ref, p.cursorM, (now - last) / 1000, p.rate));
-      last = now;
+    const step = playTicker(
+      () => live.current,
+      () => performance.now(),
+    );
+    const tick = () => {
+      step();
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
