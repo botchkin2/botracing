@@ -8,6 +8,10 @@
 //   node tools/sessions/sync.mjs --list               show the session grouping and stop
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
 //   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
+//   node tools/sessions/sync.mjs --events-only --since 2026-09-14
+//                                                     only set which online event
+//                                                     uploaded sessions were; no analysis
+//   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
@@ -49,6 +53,7 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
+const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 
 // Recordings of one session that are further apart than this start a new one.
 const SESSION_GAP_H = 6;
@@ -204,7 +209,28 @@ function keepTrackMap(track) {
   );
 }
 
-function build(s, trackMap) {
+// Which online event a session and each of its recordings were part of.
+function eventsOf(s, eventWindows) {
+  const recordings = s.files.map(f => ({
+    id: f.id,
+    event: adapter.eventFor(eventWindows, f.info.recordedAt),
+  }));
+  const event = recordings.find(r => r.event)?.event ?? null;
+  const ids = new Set(recordings.map(r => r.event?.eventId).filter(Boolean));
+  // One session spanning two events means the grouping or a window is wrong.
+  if (ids.size > 1)
+    log(`  warning: ${s.id} spans events ${[...ids].join(', ')}`);
+  return {
+    session: {
+      id: s.id,
+      series: event?.series ?? null,
+      eventId: event?.eventId ?? null,
+    },
+    recordings,
+  };
+}
+
+function build(s, trackMap, eventWindows) {
   const dir = resolve(work, 'archive', s.id);
   mkdirSync(dir, {recursive: true});
   const first = s.files[0].info;
@@ -212,7 +238,8 @@ function build(s, trackMap) {
   const files = [];
   const recs = [];
   const recordings = [];
-  for (const f of s.files) {
+  const joined = eventsOf(s, eventWindows);
+  for (const [k, f] of s.files.entries()) {
     const samples = resolve(dir, `${f.id}.samples.parquet`);
     const events = resolve(dir, `${f.id}.events.parquet`);
     adapter.writeArchive(f.path, f.info, samples, events);
@@ -223,6 +250,8 @@ function build(s, trackMap) {
     const {_channels, _events, ...info} = f.info;
     recordings.push({
       ...info,
+      // The online event this recording was part of, or null offline.
+      event: joined.recordings[k].event,
       id: f.id,
       ownerId,
       sessionId: s.id,
@@ -329,6 +358,8 @@ function build(s, trackMap) {
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
+    series: joined.session.series,
+    eventId: joined.session.eventId,
     startedAt: first.recordedAt,
     endedAt: new Date(
       Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
@@ -421,8 +452,34 @@ async function main() {
     return;
   }
 
+  const eventWindows = adapter.readEventWindows({
+    logFolder,
+    cachePath: resolve(work, 'events.json'),
+  });
+  log(`${eventWindows.length} online event joins known`);
+
   let store = null;
   if (!local) store = await import('./store.mjs');
+
+  if (flag('--events-only')) {
+    const items = sessions
+      .filter(s => state.sessions[s.id])
+      .map(s => eventsOf(s, eventWindows));
+    for (const {session, recordings} of items) {
+      if (!session.series) continue;
+      const gaps = recordings.map(r => r.event?.gapS ?? '-').join(' ');
+      log(`${session.id} ${session.series} (gap s: ${gaps})`);
+    }
+    const failed = local ? [] : await store.updateEvents(items);
+    for (const line of failed) log(`  failed: ${line}`);
+    log(
+      `events set on ${items.length} uploaded sessions, ${
+        items.filter(i => i.session.series).length
+      } online, ${failed.length} writes failed`,
+    );
+    if (failed.length) process.exitCode = 1;
+    return;
+  }
 
   let done = 0;
   let failed = 0;
@@ -434,7 +491,7 @@ async function main() {
     try {
       const info = s.files[0].info;
       const trackId = slugId(info.sim, info.layout);
-      const out = build(s, await trackMapFor(trackId, store));
+      const out = build(s, await trackMapFor(trackId, store), eventWindows);
       if (out.track) {
         keepTrackMap(out.track);
         log(
@@ -446,6 +503,8 @@ async function main() {
           `  stored corner map for ${trackId} does not fit this session's lap; analyzed with a map of its own, not stored`,
         );
       }
+      if (out.session.series)
+        log(`  ${out.session.series} ${out.session.eventId}`);
       log(
         `  ${out.laps.length} laps, ${
           out.session.comparableCount
