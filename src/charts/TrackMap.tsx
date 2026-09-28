@@ -23,7 +23,7 @@ export type MapDot = {key: string; at: MapPoint; color: string};
 export type MapBadge = {n: number; at: MapPoint; open: boolean};
 
 const PAD = 14;
-const BADGE_R = 8;
+const BADGE_R = 9;
 const TRACK_W = 6;
 
 export function TrackMap({
@@ -139,7 +139,7 @@ export function TrackMap({
                 fill={b.open ? color.bg : color.text}
                 fontFamily={axis.fontFamily}
                 fontSize={9}>
-                {b.n}
+                {`S${b.n}`}
               </SvgText>
             </G>
           );
@@ -166,7 +166,7 @@ export function TrackMap({
           <Pressable
             key={`hit${b.n}`}
             accessibilityRole='button'
-            accessibilityLabel={`Corner ${b.n}`}
+            accessibilityLabel={`Section ${b.n}`}
             onPress={() => onPressBadge(b.n)}
             style={[styles.hit, {left: q.x - 22, top: q.y - 22}]}
           />

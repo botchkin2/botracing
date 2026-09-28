@@ -18,21 +18,29 @@ const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 export function ChartBlock({
   chart,
   width,
-  heightScale,
+  height,
+  marks,
   stepM,
   windowM,
   cursorM,
   lapStyle,
   onScrub,
+  onPan,
+  onPanStart,
 }: {
   chart: ChartModel;
   width: number;
-  heightScale: number;
+  /** Plot height in points. */
+  height: number;
+  marks: {m: number; label: string}[];
   stepM: number;
   windowM: [number, number];
   cursorM: number;
   lapStyle: LapStyle;
-  onScrub: (m: number) => void;
+  onScrub?: (m: number) => void;
+  /** Set inside a window: dragging pans instead of scrubbing. */
+  onPan?: (dxPt: number) => void;
+  onPanStart?: () => void;
 }) {
   const {color} = useTheme();
   // Other laps first, so the highlighted lap and the reference draw on top.
@@ -48,6 +56,7 @@ export function ChartBlock({
         dash: OVERLAY_DASH[l.overlay],
         domain: chart.domains[l.channel],
         rank: drawRank(l),
+        stepped: l.channel === 'gear',
       };
     })
     .sort((a, b) => a.rank - b.rank);
@@ -112,7 +121,8 @@ export function ChartBlock({
       <Explainer>{chart.explainer}</Explainer>
       <TraceChart
         width={width}
-        height={Math.round(chart.height * heightScale)}
+        height={height}
+        marks={marks}
         stepM={stepM}
         windowM={windowM}
         domain={chart.domains[first] ?? [0, 1]}
@@ -121,6 +131,8 @@ export function ChartBlock({
         zeroLine={chart.zeroLine}
         cursorM={cursorM}
         onScrub={onScrub}
+        onPan={onPan}
+        onPanStart={onPanStart}
       />
     </View>
   );

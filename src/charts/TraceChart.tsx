@@ -1,11 +1,16 @@
-import {useMemo} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
-import Svg, {Line, Path} from 'react-native-svg';
+import Svg, {G, Line, Path, Text as SvgText} from 'react-native-svg';
 
-import {stroke, useTheme} from '@/src/design';
+import {gridStepM} from '@/src/analysis/window';
+import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
 
 // Channels against distance on a shared grid (handoff §3 charts). Pure props:
-// the caller picks colors, widths and dashes. Drag or tap to move the cursor.
+// the caller picks colors, widths and dashes.
+//
+// Two ways to move: in a window, dragging pans (onPan gets the drag in points
+// and the cursor stays fixed); on the whole lap, dragging scrubs (onScrub
+// gets the distance under the finger).
 
 export type TraceSeries = {
   key: string;
@@ -17,26 +22,46 @@ export type TraceSeries = {
   dash?: string;
   /** Own y range; series without one share the chart's. */
   domain?: [number, number];
+  /** Discrete channel (gear): drawn as steps, never smoothed. */
+  stepped?: boolean;
 };
 
 export type TraceBand = {low: number[]; high: number[]};
 
 const Y_PAD = 3;
+const AXIS_H = 12;
+// Labels closer than this to the right edge are dropped (handoff).
+const LABEL_EDGE_PT = 34;
 
-function pathFor(
-  values: number[],
-  from: number,
-  to: number,
-  x: (i: number) => number,
-  y: (v: number) => number,
-  maxPoints: number,
-): string {
-  const n = to - from + 1;
-  const stride = Math.max(1, Math.floor(n / maxPoints));
-  let d = '';
-  for (let i = from; i <= to; i += stride) {
-    d += `${d ? 'L' : 'M'}${x(i).toFixed(1)},${y(values[i]).toFixed(1)}`;
+type Pt = [number, number];
+
+// Catmull-Rom through the points, as cubic Béziers.
+function smoothPath(pts: Pt[]): string {
+  if (pts.length < 3)
+    return pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('');
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(
+      1,
+    )} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
   }
+  return d;
+}
+
+function steppedPath(pts: Pt[]): string {
+  let d = '';
+  pts.forEach((p, i) => {
+    if (i === 0) d = `M${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+    else d += `H${p[0].toFixed(1)}V${p[1].toFixed(1)}`;
+  });
   return d;
 }
 
@@ -50,9 +75,13 @@ export function TraceChart({
   band,
   zeroLine,
   cursorM,
+  marks = [],
   onScrub,
+  onPan,
+  onPanStart,
 }: {
   width: number;
+  /** Plot height; the distance axis adds AXIS_H under it. */
   height: number;
   stepM: number;
   /** Visible distance range [start, end] in metres. */
@@ -62,60 +91,155 @@ export function TraceChart({
   band?: TraceBand;
   zeroLine?: boolean;
   cursorM: number;
-  onScrub: (distanceM: number) => void;
+  /** Labelled vertical lines, e.g. corner apexes. */
+  marks?: {m: number; label: string}[];
+  onScrub?: (distanceM: number) => void;
+  /** Drag in points since the last call; when set, dragging pans. */
+  onPan?: (dxPt: number) => void;
+  onPanStart?: () => void;
 }) {
   const {color} = useTheme();
   const [startM, endM] = windowM;
-  const from = Math.max(0, Math.floor(startM / stepM));
-  const to = Math.ceil(endM / stepM);
-  const x = (i: number) => ((i * stepM - startM) / (endM - startM)) * width;
+  const spanM = endM - startM || 1;
+  const from = Math.max(0, Math.floor(startM / stepM) - 1);
+  const to = Math.ceil(endM / stepM) + 1;
+  const x = (i: number) => ((i * stepM - startM) / spanM) * width;
   const yFor =
     ([lo, hi]: [number, number]) =>
     (v: number) =>
       Y_PAD + (1 - (v - lo) / (hi - lo || 1)) * (height - 2 * Y_PAD);
   const y = yFor(domain);
+  // Smooth only when zoomed in enough that points are far apart.
+  const pointsPerPt = (to - from) / width;
 
   const paths = useMemo(
     () =>
       series.map(s => {
+        const ys = yFor(s.domain ?? domain);
         const last = Math.min(to, s.values.length - 1);
-        return {
-          ...s,
-          d: pathFor(s.values, from, last, x, yFor(s.domain ?? domain), width),
-        };
+        const stride = Math.max(1, Math.floor(pointsPerPt));
+        const pts: Pt[] = [];
+        for (let i = from; i <= last; i += stride)
+          pts.push([x(i), ys(s.values[i])]);
+        const d = s.stepped
+          ? steppedPath(pts)
+          : pointsPerPt < 0.5
+          ? smoothPath(pts)
+          : pts
+              .map(
+                (p, i) =>
+                  `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`,
+              )
+              .join('');
+        return {...s, d};
       }),
-    // x and yFor are derived from the listed inputs.
     [series, from, to, width, height, startM, endM, domain],
   );
 
   const bandPath = useMemo(() => {
     if (!band) return null;
     const last = Math.min(to, band.low.length - 1);
-    const top = pathFor(band.high, from, last, x, y, width);
-    const bottom: string[] = [];
-    const stride = Math.max(1, Math.floor((last - from + 1) / width));
+    const stride = Math.max(1, Math.floor(pointsPerPt));
+    let d = '';
+    for (let i = from; i <= last; i += stride)
+      d += `${d ? 'L' : 'M'}${x(i).toFixed(1)},${y(band.high[i]).toFixed(1)}`;
     for (let i = last; i >= from; i -= stride)
-      bottom.push(`L${x(i).toFixed(1)},${y(band.low[i]).toFixed(1)}`);
-    return `${top}${bottom.join('')}Z`;
+      d += `L${x(i).toFixed(1)},${y(band.low[i]).toFixed(1)}`;
+    return `${d}Z`;
   }, [band, from, to, width, height, startM, endM, domain]);
 
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > Math.abs(g.dy),
-        onPanResponderGrant: e =>
-          onScrub(startM + (e.nativeEvent.locationX / width) * (endM - startM)),
-        onPanResponderMove: e =>
-          onScrub(startM + (e.nativeEvent.locationX / width) * (endM - startM)),
-      }),
-    [onScrub, startM, endM, width],
+  const step = gridStepM(spanM, width);
+  const gridMs: number[] = [];
+  for (let m = Math.ceil(startM / step) * step; m <= endM; m += step)
+    gridMs.push(m);
+
+  // PanResponder reads its handlers once; keep the latest props in a ref.
+  const latest = useRef({onScrub, onPan, onPanStart, startM, spanM, width});
+  useEffect(() => {
+    latest.current = {onScrub, onPan, onPanStart, startM, spanM, width};
+  });
+  const lastDx = useRef(0);
+  // The ref is read only inside gesture callbacks, never during render; the
+  // compiler cannot see that through PanResponder.create.
+  // eslint-disable-next-line react-hooks/refs
+  const [responder] = useState(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderGrant: e => {
+        const p = latest.current;
+        lastDx.current = 0;
+        if (p.onPan) p.onPanStart?.();
+        else
+          p.onScrub?.(p.startM + (e.nativeEvent.locationX / p.width) * p.spanM);
+      },
+      onPanResponderMove: (e, g) => {
+        const p = latest.current;
+        if (p.onPan) {
+          p.onPan(g.dx - lastDx.current);
+          lastDx.current = g.dx;
+        } else
+          p.onScrub?.(p.startM + (e.nativeEvent.locationX / p.width) * p.spanM);
+      },
+    }),
   );
 
-  const cx = ((cursorM - startM) / (endM - startM)) * width;
+  const cx = ((cursorM - startM) / spanM) * width;
+  const axis = typeScale.axis;
   return (
-    <View {...responder.panHandlers} style={{width, height}}>
-      <Svg width={width} height={height} pointerEvents='none'>
+    <View {...responder.panHandlers} style={{width, height: height + AXIS_H}}>
+      <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
+        {gridMs.map(m => {
+          const gx = ((m - startM) / spanM) * width;
+          return (
+            <G key={`g${m}`}>
+              <Line
+                x1={gx}
+                x2={gx}
+                y1={0}
+                y2={height}
+                stroke={color.grid}
+                strokeWidth={1}
+              />
+              {gx < width - LABEL_EDGE_PT && (
+                <SvgText
+                  x={gx + 2}
+                  y={height + AXIS_H - 2}
+                  fill={color.textFaint}
+                  fontFamily={axis.fontFamily}
+                  fontSize={9}>
+                  {`${Math.round(m)}`}
+                </SvgText>
+              )}
+            </G>
+          );
+        })}
+        {marks.map(mk => {
+          const mx = ((mk.m - startM) / spanM) * width;
+          return (
+            <G key={mk.label}>
+              <Line
+                x1={mx}
+                x2={mx}
+                y1={0}
+                y2={height}
+                stroke={color.lineStrong}
+                strokeWidth={1}
+                strokeDasharray={dash.mark}
+              />
+              {mx < width - LABEL_EDGE_PT && (
+                <SvgText
+                  x={mx + 2}
+                  y={9}
+                  fill={color.textFaint}
+                  fontFamily={axis.fontFamily}
+                  fontSize={9}>
+                  {mk.label}
+                </SvgText>
+              )}
+            </G>
+          );
+        })}
         {bandPath && <Path d={bandPath} fill={color.band} />}
         {zeroLine && (
           <Line

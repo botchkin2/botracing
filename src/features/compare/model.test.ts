@@ -137,7 +137,7 @@ describe('buildCompareModel', () => {
       [0.3, 0.1],
       [-0.05, -0.05],
     ]);
-    expect(g.explainer).toMatch(/^Time in each corner vs L1, in seconds\./);
+    expect(g.explainer).toMatch(/^Time in each section vs L1, in seconds\./);
   });
 
   it('plain map for a poor fit: lines and dots, no outline', () => {
@@ -153,8 +153,8 @@ describe('buildCompareModel', () => {
   });
 
   it('position row names the corner under the cursor', () => {
-    expect(build().position.place).toBe('Corner 2');
-    expect(build(sel({cursorM: 850})).position.place).toBe('After Corner 2');
+    expect(build().position.place).toBe('Section 2');
+    expect(build(sel({cursorM: 850})).position.place).toBe('After Section 2');
     expect(build().position.distance).toBe('600 m');
   });
 
@@ -175,6 +175,42 @@ it('counts ids the session does not have', () => {
   const m = build(sel({laps: ['a', 'L4', 'b']}));
   expect(m.notFound).toBe(1);
   expect(m.chips.map(c => c.label)).toEqual(['L1', 'L2']);
+});
+
+describe('chart window', () => {
+  const m = buildCompareModel({
+    session,
+    laps,
+    traces,
+    band: null,
+    map,
+    selection: sel({cursorM: 600}),
+    window: {mode: 'distance', size: 200},
+  });
+
+  it('shows 200 m around the cursor', () => {
+    expect(m.windowM).toEqual([500, 700]);
+  });
+
+  it('rebases time diff to the left edge; header stays the total gap', () => {
+    const td = m.charts[0];
+    const l2 = td.lines.find(l => l.label === 'L2')!;
+    expect(l2.values[100]).toBeCloseTo(0, 10);
+    expect(l2.values[140]).toBeGreaterThan(0);
+    expect(Number(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    expect(td.explainer).toMatch(/^Time gained or lost within this window/);
+  });
+
+  it('pedals are fixed at -4..104; apex lines inside the window only', () => {
+    expect(m.charts[2].domains.throttle).toEqual([-4, 104]);
+    expect(m.apexMarks).toEqual([{m: 600, label: 'C2 apex'}]);
+  });
+
+  it('whole lap without a size: no rebase, no apex lines', () => {
+    const lap = build();
+    expect(lap.windowM).toEqual([0, 1000]);
+    expect(lap.apexMarks).toEqual([]);
+  });
 });
 
 describe('many laps', () => {
@@ -227,10 +263,10 @@ describe('cornerPlace', () => {
     {n: 2, entryM: 500, exitM: 700},
   ];
   it('inside, approaching and after', () => {
-    expect(cornerPlace(s, 200)).toBe('Corner 1');
-    expect(cornerPlace(s, 400)).toBe('Corner 2');
-    expect(cornerPlace(s, 310)).toBe('After Corner 1');
-    expect(cornerPlace(s, 50)).toBe('Corner 1');
-    expect(cornerPlace(s, 900)).toBe('After Corner 2');
+    expect(cornerPlace(s, 200)).toBe('Section 1');
+    expect(cornerPlace(s, 400)).toBe('Section 2');
+    expect(cornerPlace(s, 310)).toBe('After Section 1');
+    expect(cornerPlace(s, 50)).toBe('Section 1');
+    expect(cornerPlace(s, 900)).toBe('After Section 2');
   });
 });
