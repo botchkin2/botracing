@@ -24,8 +24,9 @@ import {
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
+import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 2;
+export const analysisVersion = 3;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -55,6 +56,8 @@ const wanted = [
   'track_edge_m',
   // Not neutral names yet: LMU's. Another sim without them gets no tyre
   // conditions, and the cold-tyre rule simply does not fire.
+  // The driver's pedal before the car's electronics; see pedalPoints.mjs.
+  'throttle_pos_unfiltered',
   'tyres_carcass_temp_fl',
   'tyres_carcass_temp_fr',
   'tyres_carcass_temp_rl',
@@ -107,7 +110,9 @@ export function loadRecording(recording, samplesPath, eventsPath) {
       v4: ev.v4[i],
     });
   }
-  return {recording, s, events, ticks: s.t.length};
+  // Each channel's logged rate, so analysis can read real samples only.
+  const hz = Object.fromEntries(present.map(n => [n, hzByColumn[n] || base]));
+  return {recording, s, hz, baseHz: base, events, ticks: s.t.length};
 }
 
 const eventKinds = [
@@ -567,6 +572,18 @@ function cornerFacts(rec, lap, corners, flags) {
   const {s} = rec;
   const n = grid.time.length;
   const at = m => Math.min(n - 1, Math.max(0, Math.round(m / GRID_M)));
+  // The first tick at or past a distance, and a tick's distance.
+  const tickAt = m => {
+    let lo = 0;
+    let hi = lap.dist.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (lap.dist[mid] < m) lo = mid + 1;
+      else hi = mid;
+    }
+    return lap.i0 + lo;
+  };
+  const distAt = i => lap.dist[i - lap.i0];
   const entries = corners.map(c => at(c.entryM));
   const firstEntryM = corners[0].entryM;
   const facts = corners.map((c, k) => {
@@ -584,25 +601,33 @@ function cornerFacts(rec, lap, corners, flags) {
     for (let g = t0; g <= t1; g++) {
       if (grid.speed[g] < grid.speed[minAt]) minAt = g;
     }
-    let brakeAt = null;
-    for (let g = minAt; g >= e0; g--) {
-      if (grid.brake[g] >= 10) brakeAt = g;
-      else if (brakeAt != null) break;
-    }
-    let fullAt = null;
-    for (let g = minAt; g < (e1 ?? n); g++) {
-      if (grid.throttle[g] >= 95) {
-        fullAt = g;
-        break;
-      }
-    }
+    // Brake and full-throttle points from the real pedal samples.
+    const minTick = tickAt(minAt * GRID_M);
+    const nextTick = e1 == null ? lap.i1 : tickAt(e1 * GRID_M);
+    const entryTick = tickAt(e0 * GRID_M);
+    const brake = brakeStart(
+      s.brake_pct,
+      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, tickAt(t1 * GRID_M)),
+      distAt,
+      entryTick,
+    );
+    const pedal = s.throttle_pos_unfiltered
+      ? 'throttle_pos_unfiltered'
+      : 'throttle_pct';
+    const full = fullThrottleStart(
+      s[pedal],
+      sampleTicks(rec.hz[pedal], rec.baseHz, minTick, nextTick),
+      distAt,
+    );
     const f = {
       segTime: round(segTime, 3),
       localYellowSec: 0,
       offTrackSec: 0,
       minSpeedKmh: round(grid.speed[minAt], 1),
-      brakeAtM: brakeAt == null ? null : brakeAt * GRID_M,
-      fullThrottleAtM: fullAt == null ? null : fullAt * GRID_M,
+      brakeAtM: brake && round(brake.atM, 1),
+      brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
+      fullThrottleAtM: full && round(full.atM, 1),
+      fullThrottleAtResM: full?.resM == null ? null : round(full.resM, 1),
     };
     return f;
   });
