@@ -67,6 +67,10 @@ The APK is built locally and installed directly to your phone via adb.
 
 ## Troubleshooting
 
+### `expo config --json exited with non-zero code: 1`
+
+EAS hides the real error. Run `npx expo config` to see it. On Node 24 it is `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` (Node refuses to load `.ts` from `node_modules` while resolving a config plugin such as `expo-image`; see expo/expo#37633). The `build:android:development` script already sets `NODE_OPTIONS=--no-experimental-strip-types`. For other `expo` commands, set the same variable in the shell, or use Node 22 LTS.
+
 ### Long Paths on Windows
 
 Gradle can fail on long file paths. If the build fails with path-length errors, enable Windows long paths or keep the repo path short.

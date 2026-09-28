@@ -9,7 +9,7 @@
     "web": "cross-env BROWSER=none expo start --web --port 8080",
     "web:oauth": "cross-env BROWSER=none expo start --web --port 8080",
     "build": "expo export --platform web",
-    "build:android:development": "npx eas build --platform android --profile development",
+    "build:android:development": "cross-env NODE_OPTIONS=--no-experimental-strip-types npx eas build --platform android --profile development",
     "lint": "expo lint",
     "lint-fix": "expo lint --fix",
     "test": "jest",
