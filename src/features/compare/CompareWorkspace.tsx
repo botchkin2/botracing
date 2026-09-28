@@ -2,7 +2,7 @@ import {useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
-import {TraceChart, TrackMap} from '@/src/charts';
+import {TraceChart} from '@/src/charts';
 import {
   cornerCell,
   formatCornerGap,
@@ -25,6 +25,7 @@ import {
 } from '@/src/state/comparePrefs';
 import {Checkbox, Chip, Explainer, Segment, Text} from '@/src/ui';
 
+import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
   CHANNELS,
@@ -348,34 +349,16 @@ export function CompareWorkspace(p: WorkspaceProps) {
         style={[styles.right, {borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
         {model.map && (
-          <View style={[styles.mapBox, {backgroundColor: color.surface}]}>
-            <TrackMap
-              width={MAP_W}
-              height={MAP_H}
-              outline={model.map.outline}
-              lines={model.map.lines.map(l => {
-                const {
-                  color: c,
-                  width,
-                  opacity,
-                } = lapStyle(l.selIndex, l.highlighted);
-                return {
-                  key: l.lapId,
-                  points: l.points,
-                  color: c,
-                  width,
-                  opacity,
-                };
-              })}
-              dots={model.map.dots.map(d => ({
-                key: d.lapId,
-                at: d.at,
-                color: lapStyle(d.selIndex, d.highlighted).color,
-              }))}
-              badges={model.map.badges}
-              onPressBadge={p.onOpenSection}
-            />
-          </View>
+          <MapPanel
+            width={MAP_W}
+            height={MAP_H}
+            map={model.map}
+            mode={prefs.mapMode}
+            onMode={prefs.setMapMode}
+            place={model.position.place}
+            lapStyle={lapStyle}
+            onPressBadge={p.onOpenSection}
+          />
         )}
         <View style={styles.section}>
           <Text variant='label' tone='textMuted'>

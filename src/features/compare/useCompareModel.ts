@@ -17,6 +17,9 @@ import {
   type CompareSelection,
 } from './model';
 
+import {buildFollowGeometry} from './followModel';
+import {mapPlacer} from './mapPlace';
+
 // Same 5 m grid as the stored band, so band and laps line up point for point.
 const GRID_STEP_M = 5;
 
@@ -52,6 +55,13 @@ export function useCompareModel(
     return out;
   }, [knownIds, grids]);
 
+  // Follow's lines, band and inset only change with the selection, so build
+  // them here once rather than on every cursor move (CODE_STANDARDS §6).
+  const followGeometry = useMemo(
+    () => buildFollowGeometry(mapPlacer(map.data ?? null), traces, knownIds),
+    [map.data, traces, knownIds],
+  );
+
   const error = [session, laps].find(q => q.isError)?.error;
   return useMemo(() => {
     if (error)
@@ -71,6 +81,7 @@ export function useCompareModel(
         selection,
         charts,
         window,
+        followGeometry,
       }),
     };
   }, [
@@ -84,5 +95,6 @@ export function useCompareModel(
     selection,
     charts,
     window,
+    followGeometry,
   ]);
 }

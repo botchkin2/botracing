@@ -55,12 +55,16 @@ export type WindowStep = number | 'lap';
 export const PLAY_RATES = [0.25, 0.5, 1, 2] as const;
 export type PlayRate = (typeof PLAY_RATES)[number];
 
+/** Compare map panel (handoff v2 M1). Satellite comes later. */
+export type MapMode = 'follow' | 'track';
+
 type ComparePrefs = {
   charts: ChartSet;
   view: CompareView;
   /** Chart shown in One chart view. */
   focused: number;
   mapShown: boolean;
+  mapMode: MapMode;
   windowMode: WindowMode;
   windowStep: WindowStep;
   rate: PlayRate;
@@ -71,6 +75,7 @@ type Actions = {
   setView: (view: CompareView) => void;
   setFocused: (i: number) => void;
   setMapShown: (shown: boolean) => void;
+  setMapMode: (mode: MapMode) => void;
   setWindowMode: (mode: WindowMode) => void;
   setWindowStep: (step: WindowStep) => void;
   setRate: (rate: PlayRate) => void;
@@ -81,6 +86,7 @@ const defaults: ComparePrefs = {
   view: 'stack',
   focused: 0,
   mapShown: true,
+  mapMode: 'follow',
   windowMode: 'time',
   windowStep: TIME_STEPS_S.indexOf(DEFAULT_WINDOW.time),
   rate: 1,
@@ -95,6 +101,7 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
       setView: view => set({view}),
       setFocused: focused => set({focused}),
       setMapShown: mapShown => set({mapShown}),
+      setMapMode: mapMode => set({mapMode}),
       // Switching mode resets to that mode's default size.
       setWindowMode: windowMode =>
         set({
@@ -115,6 +122,7 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
         view: s.view,
         focused: s.focused,
         mapShown: s.mapShown,
+        mapMode: s.mapMode,
         windowMode: s.windowMode,
         windowStep: s.windowStep,
         rate: s.rate,
