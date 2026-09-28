@@ -95,7 +95,8 @@ export function TraceChart({
   zeroLine?: boolean;
   cursorM: number;
   /** Labelled vertical lines, e.g. corner apexes. */
-  marks?: {m: number; label: string}[];
+  /** Vertical marks: labelled (apex lines), or colored per lap (brake points). */
+  marks?: {m: number; label?: string; color?: string; solid?: boolean}[];
   onScrub?: (distanceM: number) => void;
   /** Drag in points since the last call; when set, dragging pans. */
   onPan?: (dxPt: number) => void;
@@ -239,20 +240,20 @@ export function TraceChart({
             </G>
           );
         })}
-        {marks.map(mk => {
+        {marks.map((mk, i) => {
           const mx = ((mk.m - startM) / spanM) * width;
           return (
-            <G key={mk.label}>
+            <G key={`${mk.label ?? mk.color}-${i}`}>
               <Line
                 x1={mx}
                 x2={mx}
                 y1={0}
                 y2={height}
-                stroke={color.lineStrong}
+                stroke={mk.color ?? color.lineStrong}
                 strokeWidth={1}
-                strokeDasharray={dash.mark}
+                strokeDasharray={mk.solid ? undefined : dash.mark}
               />
-              {mx < width - LABEL_EDGE_PT && (
+              {mk.label && mx < width - LABEL_EDGE_PT && (
                 <SvgText
                   x={mx + 2}
                   y={9}

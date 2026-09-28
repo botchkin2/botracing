@@ -37,6 +37,9 @@ describe('windowRange', () => {
   });
   it('distance mode is fixed; null is the whole lap', () => {
     expect(windowRange(ref, 600, 'distance', 200)).toEqual([500, 700]);
+    // Clamped at the line by shifting: still 200 m wide.
+    expect(windowRange(ref, 30, 'distance', 200)).toEqual([0, 200]);
+    expect(windowRange(ref, 990, 'distance', 200)).toEqual([800, 1000]);
     expect(windowRange(ref, 600, 'time', null)).toEqual([0, 1000]);
   });
 });

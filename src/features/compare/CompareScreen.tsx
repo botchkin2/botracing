@@ -49,6 +49,7 @@ const ONE_CHART_H = 330;
 // Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
 const KEY_STEP_M = 5;
 const KEY_STEP_SHIFT_M = 50;
+const CURSOR_SETTLE_MS = 400;
 
 export function CompareScreen({
   sessionId,
@@ -166,6 +167,23 @@ function CompareView({
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [playing]);
+
+  // The URL keeps the cursor for links and reloads. Writing it on every
+  // frame would flood navigation, so write once it settles: after a pause,
+  // a drag, a scrub or a key step (apex's #38 follow-up).
+  const settled = useRef({selection, onSelectionChange});
+  useEffect(() => {
+    settled.current = {selection, onSelectionChange};
+  });
+  useEffect(() => {
+    if (playing) return;
+    const timer = setTimeout(() => {
+      const {selection: sel, onSelectionChange: write} = settled.current;
+      if (Math.round(sel.cursorM) !== Math.round(cursorM))
+        write({...sel, cursorM});
+    }, CURSOR_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [cursorM, playing]);
 
   // Keyboard on web: ←/→ step, Shift for bigger steps, space plays, [ ] window.
   const keys = useRef({moveBy, setPlaying, prefs});
