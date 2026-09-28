@@ -14,6 +14,8 @@ import {
   type CompareSelection,
   makeReference,
   removeLap,
+  toggleCompared,
+  valuesAt,
 } from './model';
 
 const LENGTH_M = 1000;
@@ -210,6 +212,45 @@ describe('chart window', () => {
     const lap = build();
     expect(lap.windowM).toEqual([0, 1000]);
     expect(lap.apexMarks).toEqual([]);
+  });
+});
+
+describe('desktop pieces', () => {
+  const m = build();
+
+  it('all laps by stint, with selection order', () => {
+    expect(m.allLaps).toHaveLength(1);
+    expect(m.allLaps[0].rows.map(r => [r.label, r.selIndex, r.tag])).toEqual([
+      ['L1', 0, 'BEST'],
+      ['L2', 1, null],
+      ['L3', 2, null],
+    ]);
+  });
+
+  it('values table reads every channel for each key lap', () => {
+    const rows = valuesAt(m.readouts, m.stepM, 600);
+    expect(rows.map(r => r.label)).toEqual([
+      'Time diff',
+      'Speed',
+      'Throttle',
+      'Brake',
+      'Steering',
+      'Gear',
+    ]);
+    expect(rows[1].values.map(v => v.text)).toEqual(['180', '176', '181']);
+    expect(rows[0].values[0].text).toBe('±0.000');
+  });
+
+  it('overview has the whole-lap time diff per lap; section entries', () => {
+    expect(m.overview).toHaveLength(3);
+    expect(m.overview[1].values.at(-1)).toBeCloseTo(0.4);
+    expect(m.sectionEntryM).toEqual({1: 100, 2: 500});
+  });
+
+  it('toggling a lap adds or removes it, never the reference', () => {
+    expect(toggleCompared(sel({laps: ['a']}), 'b').laps).toEqual(['a', 'b']);
+    expect(toggleCompared(sel(), 'b').laps).toEqual(['a', 'c']);
+    expect(toggleCompared(sel(), 'a').laps).toEqual(['a', 'b', 'c']);
   });
 });
 

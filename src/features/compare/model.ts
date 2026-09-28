@@ -10,7 +10,7 @@ import {
   type WindowMode,
   windowRange,
 } from '@/src/analysis/window';
-import {type ChannelId, PRESETS} from '@/src/state/comparePrefs';
+import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
   type Lap,
   type SessionBand,
@@ -53,6 +53,8 @@ type ChannelSpec = {
   /** Shared scale for channels of the same kind. */
   kind: 'time' | 'speed' | 'pedal' | 'steer' | 'gear';
   height: number;
+  /** Desktop workspace height (handoff D2). */
+  desktopHeight: number;
   format: (v: number) => string;
   pick: (t: GridTrace) => number[];
 };
@@ -66,6 +68,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
       'Running gap to the reference. Line rising = losing time there, falling = gaining.',
     kind: 'time',
     height: 62,
+    desktopHeight: 96,
     format: v => formatGap(v),
     pick: t => t.timeS,
   },
@@ -76,6 +79,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
       'Grey band = where your race laps usually are (10th–90th percentile).',
     kind: 'speed',
     height: 104,
+    desktopHeight: 150,
     format: v => v.toFixed(0),
     pick: t => t.speedKph,
   },
@@ -85,6 +89,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     explainer: 'Throttle pedal, 0–100%.',
     kind: 'pedal',
     height: 50,
+    desktopHeight: 106,
     format: v => v.toFixed(0),
     pick: t => t.throttlePct,
   },
@@ -94,6 +99,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     explainer: 'Brake pedal, 0–100%. Where it starts is the brake point.',
     kind: 'pedal',
     height: 50,
+    desktopHeight: 106,
     format: v => v.toFixed(0),
     pick: t => t.brakePct,
   },
@@ -104,6 +110,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     explainer: 'Steering, as % of full lock. Extra wiggles are corrections.',
     kind: 'steer',
     height: 56,
+    desktopHeight: 84,
     format: v => v.toFixed(0),
     pick: t => t.steeringPct,
   },
@@ -113,6 +120,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     explainer: 'Gear selected.',
     kind: 'gear',
     height: 44,
+    desktopHeight: 60,
     format: v => v.toFixed(0),
     pick: t => t.gear,
   },
@@ -158,6 +166,7 @@ export type ChartModel = {
   title: string;
   explainer: string;
   height: number;
+  desktopHeight: number;
   lines: ChartLine[];
   /** Per-channel y domains, keyed by channel. */
   domains: Partial<Record<ChannelId, [number, number]>>;
@@ -223,7 +232,71 @@ export type CompareModel = {
   pending: number;
   /** Lap ids in the URL that this session doesn't have. */
   notFound: number;
+  /** Every lap in the session by stint, for picking laps (desktop). */
+  allLaps: AllLapsStint[];
+  /** Absolute channels of the key laps, for reading values anywhere. */
+  readouts: Readout[];
+  /** Time diff over the whole lap, for the desktop overview. */
+  overview: ChartLine[];
+  /** Section number → entry distance, for grid row labels. */
+  sectionEntryM: Record<number, number>;
 };
+
+export type AllLapsStint = {
+  key: string;
+  label: string;
+  rows: {
+    lapId: string;
+    label: string;
+    time: string;
+    gap: string | null;
+    gapFaster: boolean;
+    comparable: boolean;
+    tag: string | null;
+    selIndex: number | null;
+  }[];
+};
+
+export type Readout = {
+  lapId: string;
+  selIndex: number;
+  highlighted: boolean;
+  channels: Record<ChannelId, number[]>;
+};
+
+/** Values table rows (desktop): each channel × each key lap at a distance. */
+export function valuesAt(
+  readouts: Readout[],
+  stepM: number,
+  m: number,
+): {
+  channel: ChannelId;
+  label: string;
+  unit: string;
+  values: {
+    lapId: string;
+    selIndex: number;
+    highlighted: boolean;
+    text: string;
+  }[];
+}[] {
+  const i = Math.max(0, Math.round(m / stepM));
+  return CHANNEL_IDS.map(ch => ({
+    channel: ch,
+    label: CHANNELS[ch].label,
+    unit: CHANNELS[ch].unit,
+    values: readouts.map(r => {
+      const a = r.channels[ch];
+      const v = a.length ? a[Math.min(a.length - 1, i)] : null;
+      return {
+        lapId: r.lapId,
+        selIndex: r.selIndex,
+        highlighted: r.highlighted,
+        text: v == null ? '—' : CHANNELS[ch].format(v),
+      };
+    }),
+  }));
+}
 
 export type CompareInputs = {
   session: SessionDetail;
@@ -449,6 +522,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       height:
         Math.max(...chs.map(c => CHANNELS[c].height)) +
         (chs.length > 1 ? 14 : 0),
+      desktopHeight: Math.max(...chs.map(c => CHANNELS[c].desktopHeight)),
       lines,
       domains,
       band: bandFor ? {low: bandFor.p10, high: bandFor.p90} : null,
@@ -609,7 +683,79 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : [],
     pending: selected.filter(l => !traces.has(l.id)).length,
     notFound: selection.laps.length - selected.length,
+    allLaps: allLapsByStint(laps, session, selection.laps),
+    readouts: keyRefs.map(r => ({
+      lapId: r.lapId,
+      selIndex: r.selIndex,
+      highlighted: r.highlighted,
+      channels: Object.fromEntries(
+        CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
+      ) as Record<ChannelId, number[]>,
+    })),
+    overview: lapRefs.flatMap(r => {
+      const values = diffs.get(r.lapId);
+      return values
+        ? [{...r, channel: 'timeDiff' as const, overlay: 0, values}]
+        : [];
+    }),
+    sectionEntryM: Object.fromEntries(
+      (map?.sections ?? []).map(s => [s.n, s.entryM]),
+    ),
   };
+}
+
+function allLapsByStint(
+  laps: Lap[],
+  session: SessionDetail,
+  selected: string[],
+): AllLapsStint[] {
+  const median = session.medianTimeS;
+  const stints = [...new Set(laps.map(l => l.stint))];
+  return stints.map(n => ({
+    key: `stint-${n}`,
+    label: `Stint ${n}`,
+    rows: laps
+      .filter(l => l.stint === n)
+      .map(l => {
+        const gap =
+          l.comparable && l.timeS != null && median != null
+            ? l.timeS - median
+            : null;
+        const i = selected.indexOf(l.id);
+        return {
+          lapId: l.id,
+          label: `L${l.lapIndex}`,
+          time: l.timeS == null ? '—' : formatLapTime(l.timeS),
+          gap: gap == null ? null : formatGap(gap),
+          gapFaster: gap != null && gap < 0,
+          comparable: l.comparable,
+          tag:
+            l.id === session.bestLapId
+              ? 'BEST'
+              : l.pitOut
+              ? 'OUT'
+              : l.pitIn
+              ? 'IN'
+              : l.partial
+              ? 'PART'
+              : l.reasons.includes('slow')
+              ? 'SLOW'
+              : null,
+          selIndex: i < 0 ? null : i,
+        };
+      }),
+  }));
+}
+
+/** Adds a lap to the comparison, or removes it; the reference stays. */
+export function toggleCompared(
+  sel: CompareSelection,
+  lapId: string,
+): CompareSelection {
+  if (sel.laps[0] === lapId) return sel;
+  return sel.laps.includes(lapId)
+    ? removeLap(sel, lapId)
+    : {...sel, laps: [...sel.laps, lapId]};
 }
 
 /** Draw order: other laps, then the highlighted lap, then the reference on top. */

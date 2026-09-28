@@ -1,0 +1,546 @@
+import {useState} from 'react';
+import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import Svg, {Path, Rect} from 'react-native-svg';
+
+import {TraceChart, TrackMap} from '@/src/charts';
+import {
+  cornerCell,
+  formatCornerGap,
+  formatDistance,
+  radius,
+  size,
+  space,
+  useLayout,
+  useTheme,
+} from '@/src/design';
+import {
+  addChart,
+  CHANNEL_IDS,
+  PLAY_RATES,
+  type PlayRate,
+  PRESETS,
+  stepWindow,
+  toggleChannel,
+  useComparePrefs,
+} from '@/src/state/comparePrefs';
+import {Checkbox, Chip, Explainer, Segment, Text} from '@/src/ui';
+
+import {ChartBlock, type LapStyle} from './components/ChartBlock';
+import {
+  CHANNELS,
+  type ChartValueRow,
+  type CompareModel,
+  type CompareSelection,
+  drawRank,
+  makeReference,
+  removeLap,
+  toggleCompared,
+  valuesAt,
+} from './model';
+
+// The D2 desktop workspace (≥1280, handoff "Desktop"): laps on the left,
+// toolbar, whole-lap overview and detail charts in the centre, and the map,
+// values table and time per section on the right. Same model and components
+// as the phone; this only arranges them.
+
+const LEFT_W = 260;
+const RIGHT_W = 360;
+const MAP_W = 320;
+const MAP_H = 220;
+const OVERVIEW_H = 58;
+
+export type WorkspaceProps = {
+  model: CompareModel;
+  selection: CompareSelection;
+  cursorM: number;
+  windowed: boolean;
+  windowSizeLabel: string;
+  spanLabel: string;
+  playing: boolean;
+  lapStyle: LapStyle;
+  onCursor: (m: number) => void;
+  onPan: (dxPt: number, widthPt: number) => void;
+  onPlay: () => void;
+  onPause: () => void;
+  onSelectionChange: (next: CompareSelection) => void;
+  onOpenSection: (n: number) => void;
+};
+
+export function CompareWorkspace(p: WorkspaceProps) {
+  const {color} = useTheme();
+  const layout = useLayout();
+  const prefs = useComparePrefs();
+  const [hoverM, setHoverM] = useState<number | null>(null);
+  const {model, selection, lapStyle} = p;
+
+  // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
+  const centreW = Math.max(480, layout.width - LEFT_W - RIGHT_W - space.xl * 2);
+  const readAt = hoverM ?? p.cursorM;
+  const values = valuesAt(model.readouts, model.stepM, readAt);
+  const hoverValues =
+    hoverM == null
+      ? undefined
+      : (Object.fromEntries(values.map(r => [r.channel, r.values])) as Record<
+          string,
+          ChartValueRow['values']
+        >);
+
+  return (
+    <View style={[styles.root, {backgroundColor: color.bg}]}>
+      {/* --- left: laps ------------------------------------------------------ */}
+      <ScrollView
+        style={[styles.left, {borderColor: color.lineHeader}]}
+        contentContainerStyle={styles.col}>
+        <Text variant='label' tone='textMuted'>
+          Comparing
+        </Text>
+        {model.chips.map(c => (
+          <Pressable
+            key={c.lapId}
+            accessibilityRole='button'
+            accessibilityLabel={`Make ${c.label} the reference`}
+            onPress={() =>
+              p.onSelectionChange(makeReference(selection, c.lapId))
+            }
+            style={[
+              styles.lapRow,
+              c.isRef && {backgroundColor: color.accentTint},
+            ]}>
+            <View
+              style={[
+                styles.swatch,
+                {backgroundColor: lapStyle(c.selIndex, c.highlighted).color},
+              ]}
+            />
+            <Text variant='dataStrong' style={styles.lapLabel}>
+              {c.label}
+            </Text>
+            <Text
+              variant='data'
+              tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}
+              style={styles.flex}>
+              {c.delta}
+            </Text>
+            {!c.isRef && (
+              <Pressable
+                accessibilityLabel={`Remove ${c.label}`}
+                hitSlop={space.sm}
+                onPress={() =>
+                  p.onSelectionChange(removeLap(selection, c.lapId))
+                }>
+                <Text tone='textFaint'>×</Text>
+              </Pressable>
+            )}
+          </Pressable>
+        ))}
+        {model.manyChip && <Chip label={model.manyChip} dashed />}
+        <Text variant='label' tone='textMuted' style={styles.gapTop}>
+          All laps
+        </Text>
+        {model.allLaps.map(stint => (
+          <View key={stint.key} style={styles.stint}>
+            <Text variant='dataSmall' tone='textMuted'>
+              {stint.label}
+            </Text>
+            {stint.rows.map(r => (
+              <Pressable
+                key={r.lapId}
+                onPress={() =>
+                  p.onSelectionChange(toggleCompared(selection, r.lapId))
+                }
+                style={[styles.allRow, !r.comparable && styles.dim]}>
+                <Checkbox
+                  checked={r.selIndex != null}
+                  fill={
+                    r.selIndex != null
+                      ? lapStyle(r.selIndex, r.lapId === selection.hl).color
+                      : undefined
+                  }
+                  onToggle={() =>
+                    p.onSelectionChange(toggleCompared(selection, r.lapId))
+                  }
+                  label={`Compare ${r.label}`}
+                />
+                <Text variant='dataSmall' style={styles.lapLabel}>
+                  {r.label}
+                </Text>
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {r.time}
+                </Text>
+                <Text
+                  variant='dataSmall'
+                  tone={r.gapFaster ? 'faster' : 'textMuted'}
+                  style={styles.flex}>
+                  {r.gap ?? ''}
+                </Text>
+                {r.tag && (
+                  <Text
+                    variant='dataSmall'
+                    tone={r.tag === 'BEST' ? 'best' : 'textFaint'}>
+                    {r.tag}
+                  </Text>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* --- centre: toolbar, overview, detail charts ----------------------- */}
+      <View style={[styles.centre, {width: centreW}]}>
+        <View
+          style={[
+            styles.toolbar,
+            {backgroundColor: color.surface, borderColor: color.lineHeader},
+          ]}>
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel={p.playing ? 'Pause' : 'Play'}
+            onPress={p.onPlay}
+            style={[styles.play, {backgroundColor: color.accent}]}>
+            <Svg width={12} height={12} viewBox='0 0 14 14'>
+              {p.playing ? (
+                <>
+                  <Rect x={2} y={1} width={3.5} height={12} fill={color.bg} />
+                  <Rect x={8.5} y={1} width={3.5} height={12} fill={color.bg} />
+                </>
+              ) : (
+                <Path d='M3 1 L13 7 L3 13 Z' fill={color.bg} />
+              )}
+            </Svg>
+          </Pressable>
+          <Segment
+            options={PLAY_RATES.map(r => ({value: String(r), label: `${r}×`}))}
+            value={String(prefs.rate)}
+            onChange={v => prefs.setRate(Number(v) as PlayRate)}
+          />
+          <Text variant='label' tone='textMuted'>
+            Window
+          </Text>
+          <Segment
+            options={[
+              {value: 'time', label: 'Time'},
+              {value: 'distance', label: 'Distance'},
+            ]}
+            value={prefs.windowMode}
+            onChange={prefs.setWindowMode}
+          />
+          <Chip
+            label='−'
+            onPress={() =>
+              prefs.setWindowStep(
+                stepWindow(prefs.windowMode, prefs.windowStep, -1),
+              )
+            }
+          />
+          <Text variant='dataStrong'>{p.windowSizeLabel}</Text>
+          <Chip
+            label='+'
+            onPress={() =>
+              prefs.setWindowStep(
+                stepWindow(prefs.windowMode, prefs.windowStep, 1),
+              )
+            }
+          />
+          <Text variant='dataSmall' tone='textMuted'>
+            {p.spanLabel}
+          </Text>
+          <View style={styles.flex} />
+          <Text variant='label' tone='textMuted'>
+            Layout
+          </Text>
+          {PRESETS.map(preset => (
+            <Chip
+              key={preset.id}
+              label={preset.label}
+              selected={
+                JSON.stringify(preset.charts) === JSON.stringify(prefs.charts)
+              }
+              onPress={() => prefs.setCharts(preset.charts)}
+            />
+          ))}
+        </View>
+
+        <ScrollView contentContainerStyle={styles.col}>
+          <View style={styles.section}>
+            <Text variant='label' tone='textMuted'>
+              Whole lap
+            </Text>
+            <Explainer>
+              Running gap to the reference over the whole lap. The frame is the
+              detail window; click or drag to move it.
+            </Explainer>
+            <TraceChart
+              width={centreW}
+              height={OVERVIEW_H}
+              stepM={model.stepM}
+              windowM={[0, model.lengthM]}
+              domain={overviewDomain(model)}
+              series={model.overview
+                .map(l => {
+                  const st = lapStyle(l.selIndex, l.highlighted);
+                  return {
+                    key: l.lapId,
+                    values: l.values,
+                    color: st.color,
+                    width: st.width,
+                    opacity: st.opacity,
+                    rank: drawRank(l),
+                  };
+                })
+                .sort((a, b) => a.rank - b.rank)}
+              zeroLine
+              cursorM={p.cursorM}
+              frameM={p.windowed ? model.windowM : undefined}
+              marks={(model.map?.badges ?? []).map(b => ({
+                m: b.apexM,
+                label: `S${b.n}`,
+              }))}
+              onScrub={m => {
+                p.onPause();
+                p.onCursor(m);
+              }}
+            />
+          </View>
+
+          {model.charts.map((c, i) => (
+            <ChartBlock
+              key={`${i}-${c.key}`}
+              chart={c}
+              width={centreW}
+              height={c.desktopHeight}
+              marks={model.apexMarks}
+              stepM={model.stepM}
+              windowM={model.windowM}
+              cursorM={p.cursorM}
+              lapStyle={lapStyle}
+              onScrub={p.windowed ? undefined : p.onCursor}
+              onPan={p.windowed ? dx => p.onPan(dx, centreW) : undefined}
+              onPanStart={p.onPause}
+              hoverM={hoverM}
+              onHover={setHoverM}
+              hoverValues={hoverValues}
+              editor={{
+                onToggle: ch =>
+                  prefs.setCharts(toggleChannel(prefs.charts, i, ch)),
+              }}
+            />
+          ))}
+          <View style={styles.wrap}>
+            <Text variant='label' tone='textMuted'>
+              + Add chart
+            </Text>
+            {CHANNEL_IDS.map(ch => (
+              <Chip
+                key={ch}
+                dashed
+                label={CHANNELS[ch].label}
+                onPress={() => prefs.setCharts(addChart(prefs.charts, ch))}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* --- right: map, values, time per section ---------------------------- */}
+      <ScrollView
+        style={[styles.right, {borderColor: color.lineHeader}]}
+        contentContainerStyle={styles.col}>
+        {model.map && (
+          <View style={[styles.mapBox, {backgroundColor: color.surface}]}>
+            <TrackMap
+              width={MAP_W}
+              height={MAP_H}
+              outline={model.map.outline}
+              lines={model.map.lines.map(l => {
+                const {
+                  color: c,
+                  width,
+                  opacity,
+                } = lapStyle(l.selIndex, l.highlighted);
+                return {
+                  key: l.lapId,
+                  points: l.points,
+                  color: c,
+                  width,
+                  opacity,
+                };
+              })}
+              dots={model.map.dots.map(d => ({
+                key: d.lapId,
+                at: d.at,
+                color: lapStyle(d.selIndex, d.highlighted).color,
+              }))}
+              badges={model.map.badges}
+              onPressBadge={p.onOpenSection}
+            />
+          </View>
+        )}
+        <View style={styles.section}>
+          <Text variant='label' tone='textMuted'>
+            {hoverM != null ? 'Hover' : 'Cursor'} · {formatDistance(readAt)}
+          </Text>
+          <View style={styles.table}>
+            {values.map(row => (
+              <View key={row.channel} style={styles.tableRow}>
+                <Text
+                  variant='dataSmall'
+                  tone='textMuted'
+                  style={styles.tableHead}>
+                  {row.label}
+                  {row.unit ? ` ${row.unit}` : ''}
+                </Text>
+                {row.values.map(v => (
+                  <Text
+                    key={v.lapId}
+                    variant='dataStrong'
+                    style={[
+                      styles.tableCell,
+                      {color: lapStyle(v.selIndex, v.highlighted).color},
+                    ]}>
+                    {v.text}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
+        {model.grid && (
+          <View style={styles.section}>
+            <Text variant='label' tone='textMuted'>
+              Time per section
+            </Text>
+            <Explainer>{model.grid.explainer}</Explainer>
+            <View style={styles.tableRow}>
+              <View style={styles.sectionHead} />
+              {model.grid.rows.map(r => (
+                <Text
+                  key={r.key}
+                  variant='dataSmall'
+                  style={[
+                    styles.gridCell,
+                    r.selIndex != null && {
+                      color: lapStyle(r.selIndex, r.lapId === selection.hl)
+                        .color,
+                    },
+                  ]}>
+                  {r.label}
+                </Text>
+              ))}
+            </View>
+            {model.grid.corners.map((n, i) => (
+              <Pressable
+                key={n}
+                onPress={() => p.onOpenSection(n)}
+                style={[
+                  styles.tableRow,
+                  n === selection.corner && {backgroundColor: color.accentTint},
+                ]}>
+                <Text
+                  variant='dataSmall'
+                  tone='textMuted'
+                  style={styles.sectionHead}>
+                  S{n} · {formatDistance(model.sectionEntryM[n] ?? 0)}
+                </Text>
+                {model.grid!.rows.map(r => {
+                  const d = r.cells[i];
+                  const c = d == null ? null : cornerCell(d);
+                  return (
+                    <View
+                      key={r.key}
+                      style={[
+                        styles.gridCell,
+                        styles.cell,
+                        {backgroundColor: c?.bg ?? color.surfaceRaised},
+                      ]}>
+                      <Text
+                        variant='dataSmall'
+                        style={{color: c?.fg ?? color.textFaint}}>
+                        {d == null ? '—' : formatCornerGap(d)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+function overviewDomain(model: CompareModel): [number, number] {
+  let m = 0.1;
+  for (const l of model.overview)
+    for (const v of l.values) m = Math.max(m, Math.abs(v));
+  return [-m, m];
+}
+
+const styles = StyleSheet.create({
+  root: {flex: 1, flexDirection: 'row'},
+  flex: {flex: 1},
+  col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
+  left: {width: LEFT_W, flexGrow: 0, borderRightWidth: 1},
+  right: {width: RIGHT_W, flexGrow: 0, borderLeftWidth: 1},
+  centre: {flex: 1},
+  gapTop: {marginTop: space.lg},
+  lapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    height: size.lapRow,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.sm,
+  },
+  swatch: {width: 10, height: 3},
+  lapLabel: {width: 34},
+  stint: {gap: space.xxs},
+  allRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    height: 26,
+  },
+  dim: {opacity: 0.5},
+  // One row at 1440, as D2 draws it; wraps rather than clips nearer 1280.
+  toolbar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.xs,
+    padding: space.md,
+    borderBottomWidth: 1,
+  },
+  play: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  section: {gap: space.xs},
+  wrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  mapBox: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+  },
+  table: {gap: space.xxs},
+  tableRow: {flexDirection: 'row', alignItems: 'center', gap: space.xs},
+  tableHead: {width: 110},
+  tableCell: {width: 64, textAlign: 'right'},
+  sectionHead: {width: 110},
+  gridCell: {width: 52, textAlign: 'center'},
+  cell: {
+    height: 24,
+    borderRadius: radius.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

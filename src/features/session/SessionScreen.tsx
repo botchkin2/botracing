@@ -10,14 +10,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {LapTimeBars} from '@/src/charts';
-import {
-  lapStroke,
-  radius,
-  size,
-  space,
-  useLayout,
-  useTheme,
-} from '@/src/design';
+import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
 import {compareHref, sessionsHref} from '@/src/nav/routes';
 import {Explainer, Text} from '@/src/ui';
 
@@ -117,10 +110,7 @@ function SessionView({
     [scheme, count],
   );
 
-  // At ≥1280 the route puts the sessions rail to the left of this screen.
-  const contentWidth = layout.isWide
-    ? Math.min(layout.width - size.railWidth, size.maxContent) - size.gutter * 2
-    : layout.contentWidth;
+  const {contentWidth} = layout;
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : 0;
   // A lap table has nothing to fill 800 pt with; cap it on desktop.
   const tableW = layout.isDesktop
