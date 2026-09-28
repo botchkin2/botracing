@@ -1,3 +1,4 @@
+import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
@@ -150,14 +151,19 @@ export function TraceChart({
     ([lo, hi]: [number, number]) =>
     (v: number) =>
       Y_PAD + (1 - (v - lo) / (hi - lo || 1)) * (height - 2 * Y_PAD);
-  const y = yFor(domain);
+  // Ranges ease into a new scale (150 ms) instead of jumping.
+  const [domainT, ...seriesDomainsT] = useTweenedRanges([
+    domain,
+    ...series.map(s => s.domain ?? domain),
+  ]);
+  const y = yFor(domainT);
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
 
   const paths = useMemo(
     () =>
-      series.map(s => {
-        const ys = yFor(s.domain ?? domain);
+      series.map((s, si) => {
+        const ys = yFor(seriesDomainsT[si] ?? domainT);
         const last = Math.min(to, s.values.length - 1);
         const stride = Math.max(1, Math.floor(pointsPerPt));
         const pts: Pt[] = [];
@@ -175,7 +181,20 @@ export function TraceChart({
               .join('');
         return {...s, d};
       }),
-    [series, from, to, width, height, startM, endM, domain, tRef, t0, t1],
+    [
+      series,
+      from,
+      to,
+      width,
+      height,
+      startM,
+      endM,
+      domainT,
+      seriesDomainsT,
+      tRef,
+      t0,
+      t1,
+    ],
   );
 
   const bandPath = useMemo(() => {
@@ -188,7 +207,7 @@ export function TraceChart({
     for (let i = last; i >= from; i -= stride)
       d += `L${x(i).toFixed(1)},${y(band.low[i]).toFixed(1)}`;
     return `${d}Z`;
-  }, [band, from, to, width, height, startM, endM, domain, tRef, t0, t1]);
+  }, [band, from, to, width, height, startM, endM, domainT, tRef, t0, t1]);
 
   // Apex-relative grids use the handoff's fixed 100 m ticks.
   const step =
