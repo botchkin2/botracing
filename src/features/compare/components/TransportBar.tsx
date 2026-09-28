@@ -112,6 +112,10 @@ export function TransportBar({
         value={String(rate)}
         onChange={v => onRate(Number(v) as PlayRate)}
       />
+      {/* How to move back and forth: drag works everywhere, keys on desktop. */}
+      <Text variant='dataSmall' tone='textMuted'>
+        {oneRow ? 'Drag a chart or ← →' : 'Drag a chart to move'}
+      </Text>
     </View>
   );
   return (
