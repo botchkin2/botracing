@@ -1,10 +1,6 @@
 import {type GridTrace, gridIndex, timeDiffS} from '@/src/analysis/resample';
-import {
-  rebaseToWindow,
-  type WindowMode,
-  windowRange,
-  windowTimeS,
-} from '@/src/analysis/window';
+import {sectionFitRange} from '@/src/analysis/sectionFit';
+import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
   firstCornerOf,
@@ -360,9 +356,10 @@ function lineMarks(
   return out;
 }
 
-// Symmetric time-diff ranges, in seconds: a window's fit snaps up to the
-// next one, so the scale only steps when the gap really grows.
-const TIME_RANGES_S = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
+// The time diff's y range in a window snaps out to 0.05 s and is at least
+// 0.1 s tall, so a flat gap does not fill the chart (thread 26 #380).
+const TIME_SNAP_S = 0.05;
+const TIME_MIN_SPAN_S = 0.1;
 
 // [lo, hi] widened outward to multiples of step.
 export function snapOut(
@@ -375,9 +372,10 @@ export function snapOut(
   return [a, b > a ? b : a + step];
 }
 
-// y range per channel kind. In a window it fits the window, so corner detail
-// stays readable, but snapped, so it holds still while playing or panning:
-// the time diff to TIME_RANGES_S, other channels to their ySnap. Gear fits
+// y range per channel kind. In a window it fits the whole sections the window
+// touches (sectionFitRange), snapped, so it changes only when the window
+// crosses a section boundary, never mid-corner: the time diff to 0.05 s,
+// other channels to their ySnap. Gear fits
 // the whole lap; pedals are fixed. Pure: the same window gives the same range.
 function domainOf(
   arrays: number[][],
@@ -404,11 +402,17 @@ function domainOf(
     }
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
-    // Symmetric around 0; the floor keeps a flat line from filling the chart.
-    const m = Math.max(Math.abs(lo), Math.abs(hi));
-    if (!windowed) return [-Math.max(m, 0.1), Math.max(m, 0.1)];
-    const r = TIME_RANGES_S.find(x => x >= m) ?? m;
-    return [-r, r];
+    // Whole lap: symmetric around 0; the floor keeps a flat line from
+    // filling the chart.
+    if (!windowed) {
+      const m = Math.max(Math.abs(lo), Math.abs(hi), 0.1);
+      return [-m, m];
+    }
+    // In a window: the absolute gap, fitted and snapped, not forced
+    // symmetric. The reference sits at 0, so 0 is always inside.
+    const [a, b] = snapOut(lo, hi, TIME_SNAP_S);
+    const grow = Math.max(0, TIME_MIN_SPAN_S - (b - a)) / 2;
+    return [a - grow, b + grow];
   }
   if (kind === 'steer') {
     const m = Math.max(Math.abs(lo), Math.abs(hi), 5);
@@ -419,9 +423,6 @@ function domainOf(
   const pad = (hi - lo) * 0.05 || 1;
   return [lo - pad, hi + pad];
 }
-
-const WINDOWED_TIME_EXPLAINER =
-  'Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor.';
 
 export function cornerPlace(
   sections: {n: number; entryM: number; exitM: number}[],
@@ -473,6 +474,14 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     : [0, lengthM];
   const i0 = Math.max(0, Math.floor(windowM[0] / stepM));
   const i1 = Math.ceil(windowM[1] / stepM);
+  // y scales fit the whole sections the window touches (thread 26 #381).
+  const fitM = sectionFitRange(
+    (map?.sections ?? []).map(s => s.entryM),
+    lengthM,
+    windowM,
+  );
+  const fitI0 = Math.max(0, Math.floor(fitM[0] / stepM));
+  const fitI1 = Math.ceil(fitM[1] / stepM);
 
   // --- reference line and chips ---------------------------------------------
   const refBits = ref
@@ -536,9 +545,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       for (const r of lapRefs) {
         const raw = valuesOf(ch, r.lapId);
         if (!raw) continue;
-        const values =
-          ch === 'timeDiff' && windowed ? rebaseToWindow(raw, i0) : raw;
-        lines.push({...r, channel: ch, overlay, values});
+        lines.push({...r, channel: ch, overlay, values: raw});
       }
     });
     // Channels of the same kind share a scale; mixed kinds keep their own.
@@ -549,8 +556,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       domains[ch] = domainOf(
         sameKind.map(l => l.values),
         kind,
-        i0,
-        i1,
+        fitI0,
+        fitI1,
         windowed,
         CHANNELS[ch].ySnap,
       );
@@ -566,9 +573,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         : null;
     const explainer =
       chs.length === 1
-        ? chs[0] === 'timeDiff' && windowed
-          ? WINDOWED_TIME_EXPLAINER
-          : CHANNELS[chs[0]].explainer
+        ? CHANNELS[chs[0]].explainer
         : chs.every(c => CHANNELS[c].kind === CHANNELS[chs[0]].kind)
         ? `${chs
             .map(

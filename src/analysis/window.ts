@@ -118,13 +118,6 @@ export function panCursor(
   return Math.max(0, Math.min(lengthM, next));
 }
 
-// Time diff rebased to the window's left edge, so every lap starts at 0 there
-// and the slope shows where time goes inside the window.
-export function rebaseToWindow(diff: number[], i0: number): number[] {
-  const base = diff[Math.max(0, Math.min(diff.length - 1, i0))];
-  return diff.map(v => v - base);
-}
-
 // Distance gridline step: the smallest nice step that leaves at least
 // minGapPt between lines.
 const NICE_STEPS_M = [5, 10, 20, 25, 50, 100, 200, 500, 1000];

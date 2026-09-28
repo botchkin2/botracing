@@ -195,13 +195,13 @@ describe('chart window', () => {
     expect(m.windowM).toEqual([500, 700]);
   });
 
-  it('rebases time diff to the left edge; header stays the total gap', () => {
+  it('time diff is the absolute gap, the same as the whole lap', () => {
     const td = m.charts[0];
     const l2 = td.lines.find(l => l.label === 'L2')!;
-    expect(l2.values[100]).toBeCloseTo(0, 10);
-    expect(l2.values[140]).toBeGreaterThan(0);
+    const whole = build().charts[0].lines.find(l => l.label === 'L2')!;
+    expect(l2.values).toEqual(whole.values);
     expect(Number(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
-    expect(td.explainer).toMatch(/^Time gained or lost within this window/);
+    expect(td.explainer).toMatch(/^Running gap to the reference/);
   });
 
   it('pedals are fixed at -4..104; apex lines inside the window only', () => {
@@ -331,10 +331,20 @@ describe('y ranges in a window', () => {
     expect(hi % 20).toBe(0);
     expect(hi).toBeGreaterThan(lo);
   });
-  it('the time diff fits the window, snapped to a symmetric nice range', () => {
+  it('the time diff fits the absolute gap, snapped to 0.05 s', () => {
     const [lo, hi] = at(600)[0].domains.timeDiff!;
-    expect(lo).toBe(-hi);
-    expect([0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60]).toContain(hi);
+    const steps = (v: number) => Math.abs(v / 0.05 - Math.round(v / 0.05));
+    expect(steps(lo)).toBeLessThan(1e-9);
+    expect(steps(hi)).toBeLessThan(1e-9);
+    expect(hi - lo).toBeGreaterThanOrEqual(0.1 - 1e-9);
+  });
+  it('y ranges hold still while the window stays in the same sections', () => {
+    // Sections enter at 100 and 500 m. A 2 s window at these cursors
+    // touches only the 100–500 piece.
+    const a = at(280);
+    const b = at(320);
+    expect(b[0].domains).toEqual(a[0].domains);
+    expect(b[1].domains).toEqual(a[1].domains);
   });
 });
 

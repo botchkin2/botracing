@@ -5,7 +5,6 @@ import {
   gridStepM,
   panCursor,
   playStep,
-  rebaseToWindow,
   type TimedGrid,
   timeAtDistance,
   timeAtIndex,
@@ -90,17 +89,6 @@ describe('panCursor', () => {
   });
   it('clamps to the lap', () => {
     expect(panCursor(ref, 10, 'distance', 200, 400, 400)).toBe(0);
-  });
-});
-
-describe('rebaseToWindow', () => {
-  it('starts every lap at 0 on the left edge', () => {
-    expect(rebaseToWindow([0, 0.1, 0.3, 0.2], 1)).toEqual([
-      -0.1,
-      0,
-      expect.closeTo(0.2),
-      expect.closeTo(0.1),
-    ]);
   });
 });
 

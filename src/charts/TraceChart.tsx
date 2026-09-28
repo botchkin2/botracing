@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {PanResponder, View} from 'react-native';
+import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
 
 import {
@@ -228,16 +228,14 @@ export function TraceChart({
         const p = latest.current;
         lastDx.current = 0;
         if (p.onPan) p.onPanStart?.();
-        else
-          p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
+        else p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
       },
       onPanResponderMove: (e, g) => {
         const p = latest.current;
         if (p.onPan) {
           p.onPan(g.dx - lastDx.current);
           lastDx.current = g.dx;
-        } else
-          p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
+        } else p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
       },
     }),
   );
@@ -261,7 +259,8 @@ export function TraceChart({
     <View
       {...responder.panHandlers}
       {...hoverProps}
-      style={{width, height: height + AXIS_H}}>
+      // Web: a mouse drag pans; without this it also selects the axis text.
+      style={[styles.noSelect, {width, height: height + AXIS_H}]}>
       <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
         {gridMs.map(m => {
           const gx = xOfM(m);
@@ -373,3 +372,9 @@ export function TraceChart({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // RN types userSelect for Text only; react-native-web applies it to any
+  // view, and CSS inherits it to the SVG axis labels inside.
+  noSelect: {userSelect: 'none'} as ViewStyle,
+});
