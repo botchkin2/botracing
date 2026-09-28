@@ -1,0 +1,1487 @@
+{
+ "lmu-algarve_international_circuit": {
+  "layout": "Algarve International Circuit",
+  "location": "Algarve International Circuit",
+  "lengthM": 4633,
+  "qid": "Q789427",
+  "openedYear": 2008,
+  "officialLengthM": 4653,
+  "website": "https://autodromodoalgarve.com",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Aut%C3%B3dromo%20Internacional%20do%20Algarve%20%282012-09-23%29%2C%20by%20Klugschnacker%20in%20Wikipedia%20%282%29.JPG",
+  "manualFields": [],
+  "summary": {
+   "title": "Algarve International Circuit",
+   "extract": "The Algarve International Circuit, also known as the Portimão Circuit, is a 4.653 km (2.891 mi) race circuit located in Portimão, Algarve region, Portugal. The development includes a karting track, off-road track, technology park, five-star hotel, sports complex and apartments.",
+   "url": "https://en.wikipedia.org/wiki/Algarve_International_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0a/Aut%C3%B3dromo_do_Algarve_F1_Sectors.svg/330px-Aut%C3%B3dromo_do_Algarve_F1_Sectors.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Autódromo Internacional do Algarve",
+    "lat": 37.227062,
+    "lon": -8.628994
+   },
+   {
+    "name": "Curva Craig Jones",
+    "lat": 37.231927,
+    "lon": -8.626784
+   },
+   {
+    "name": "Curva Galp",
+    "lat": 37.226088,
+    "lon": -8.627456
+   },
+   {
+    "name": "Curva Lagos",
+    "lat": 37.236036,
+    "lon": -8.628858
+   },
+   {
+    "name": "Curva Portimão",
+    "lat": 37.230446,
+    "lon": -8.624394
+   },
+   {
+    "name": "Curva Sagres",
+    "lat": 37.228488,
+    "lon": -8.62467
+   },
+   {
+    "name": "Curva Samsung",
+    "lat": 37.235159,
+    "lon": -8.62771
+   },
+   {
+    "name": "Curva da Torre Vip",
+    "lat": 37.230304,
+    "lon": -8.628161
+   }
+  ],
+  "country": "Portugal",
+  "place": "Portimão"
+ },
+ "lmu-aut_dromo_jos_carlos_pace": {
+  "layout": "Autódromo José Carlos Pace",
+  "location": "Autódromo José Carlos Pace",
+  "lengthM": 4269,
+  "qid": "Q171387",
+  "openedYear": 1940,
+  "officialLengthM": 4309,
+  "website": "https://autodromodeinterlagos.com.br/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Aut%C3%B3dromo%20de%20Interlagos%20em%20Dezembro%20de%202023.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Interlagos Circuit",
+   "extract": "The Autódromo José Carlos Pace, better known as Interlagos, is a 4.309 km (2.677 mi) motorsport circuit located in the city of São Paulo, Brazil. It was inaugurated on 12 May 1940, by the federal intervener of the state of São Paulo, Adhemar de Barros. In 1985, the circuit was renamed to honor the Formula 1 driver José Carlos Pace, who died in a plane crash in 1977. It is also his final resting place since 2024. It runs counterclockwise. The facilities also include a kart circuit named after Ayrton Senna.",
+   "url": "https://en.wikipedia.org/wiki/Interlagos_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Aut%C3%B3dromo_Jos%C3%A9_Carlos_Pace_%28AKA_Interlagos%29_track_map.svg/330px-Aut%C3%B3dromo_Jos%C3%A9_Carlos_Pace_%28AKA_Interlagos%29_track_map.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Arquibancadas",
+    "lat": -23.701166,
+    "lon": -46.700607
+   },
+   {
+    "name": "Bico de Pato",
+    "lat": -23.698576,
+    "lon": -46.699626
+   },
+   {
+    "name": "Café",
+    "lat": -23.696996,
+    "lon": -46.697308
+   },
+   {
+    "name": "Curva do Laranjinha",
+    "lat": -23.702119,
+    "lon": -46.699689
+   },
+   {
+    "name": "Curva do Sol",
+    "lat": -23.705931,
+    "lon": -46.696036
+   },
+   {
+    "name": "Descida do Lago",
+    "lat": -23.699638,
+    "lon": -46.694142
+   },
+   {
+    "name": "Esse",
+    "lat": -23.700547,
+    "lon": -46.699844
+   },
+   {
+    "name": "Ferradura",
+    "lat": -23.702368,
+    "lon": -46.69855
+   },
+   {
+    "name": "Junção",
+    "lat": -23.697909,
+    "lon": -46.696319
+   },
+   {
+    "name": "Mergulho",
+    "lat": -23.699374,
+    "lon": -46.697655
+   },
+   {
+    "name": "Pinherinho",
+    "lat": -23.700603,
+    "lon": -46.698651
+   },
+   {
+    "name": "Quartermile",
+    "lat": -23.701498,
+    "lon": -46.694008
+   },
+   {
+    "name": "Reta Oposta",
+    "lat": -23.703404,
+    "lon": -46.695055
+   },
+   {
+    "name": "S do Senna",
+    "lat": -23.706146,
+    "lon": -46.699258
+   },
+   {
+    "name": "Subida dos Boxes",
+    "lat": -23.697915,
+    "lon": -46.699711
+   }
+  ],
+  "country": "Brazil",
+  "place": "Cidade Dutra District"
+ },
+ "lmu-autodromo_enzo_e_dino_ferrari": {
+  "layout": "Autodromo Enzo e Dino Ferrari",
+  "location": "Autodromo Enzo e Dino Ferrari",
+  "lengthM": 4899,
+  "qid": "Q171313",
+  "openedYear": 1953,
+  "officialLengthM": 4909,
+  "website": "http://www.autodromoimola.it",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/2025%20Emilia%20Romagna%20Grand%20Prix%2003.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Imola Circuit",
+   "extract": "The Imola Circuit, officially called Autodromo Internazionale Enzo e Dino Ferrari, is a 4.909 km (3.050 mi) motor racing circuit. It is located in the town of Imola, in the Emilia-Romagna region of Italy, 40 km (25 mi) east of Bologna. Initially used for motorcycle racing, the first race at Imola was held in 1953. The circuit has an FIA Grade One licence. The circuit is named after the founder of the Ferrari car company, Enzo Ferrari (1898–1988), and his son Alfredo \"Dino\" Ferrari (1932–1956). It was called the Autodromo di Imola from 1953 to 1956 and the Autodromo Dino Ferrari from 1957 to 1988.",
+   "url": "https://en.wikipedia.org/wiki/Imola_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/Imola_2009.svg/330px-Imola_2009.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Acque Minerali",
+    "lat": 44.340904,
+    "lon": 11.71087
+   },
+   {
+    "name": "Gresini",
+    "lat": 44.340728,
+    "lon": 11.717142
+   },
+   {
+    "name": "Piratella",
+    "lat": 44.337936,
+    "lon": 11.710565
+   },
+   {
+    "name": "Rivazza",
+    "lat": 44.345028,
+    "lon": 11.724516
+   },
+   {
+    "name": "Tosa",
+    "lat": 44.336648,
+    "lon": 11.70211
+   },
+   {
+    "name": "Variante Bassa",
+    "lat": 44.343996,
+    "lon": 11.716687
+   },
+   {
+    "name": "Variante Tamburello",
+    "lat": 44.342956,
+    "lon": 11.706474
+   },
+   {
+    "name": "Variante Villeneuve",
+    "lat": 44.338516,
+    "lon": 11.704566
+   }
+  ],
+  "country": "Italy",
+  "place": "Imola"
+ },
+ "lmu-autodromo_nazionale_monza": {
+  "layout": "Autodromo Nazionale Monza",
+  "location": "Autodromo Nazionale Monza",
+  "lengthM": 5780,
+  "qid": "Q171417",
+  "openedYear": 1922,
+  "officialLengthM": 5793,
+  "website": "https://www.monzanet.it",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/1975%20Italian%20GP%20race%20start%20-%20Niki%20Lauda%20%26%20Clay%20Regazzoni%20%28Ferrari%20312T%29.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Monza Circuit",
+   "extract": "The Monza Circuit, officially called the Autodromo Nazionale di Monza, is a 5.793 km (3.600 mi) race track near the city of Monza, north of Milan, in Italy. Built in 1922, it was the world's fourth purpose-built motor racing circuit after Aspendale, Brooklands and Indianapolis, and the oldest in mainland Europe. The circuit's biggest event is the Italian Grand Prix. With the exception of the 1980 running when the track was closed while undergoing refurbishment, the race has been hosted there since 1949, being one of only three other tracks, to consistently feature on the Formula One calendar since its inaugural season. The circuit is also known as \"the Temple of Speed\" due to its long straights and high-speed corners.",
+   "url": "https://en.wikipedia.org/wiki/Monza_Circuit",
+   "thumbnail": "https://upload.wikimedia.org/wikipedia/en/f/f1/Autodromo_Nazionale_Monza_circuit_logo.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Autodromo nazionale di Monza - anello alta velocità",
+    "lat": 45.624723,
+    "lon": 9.289308
+   },
+   {
+    "name": "Curva Alboreto",
+    "lat": 45.612002,
+    "lon": 9.281955
+   },
+   {
+    "name": "Curva Biassono",
+    "lat": 45.629152,
+    "lon": 9.283582
+   },
+   {
+    "name": "Curva Vialone",
+    "lat": 45.622676,
+    "lon": 9.285887
+   },
+   {
+    "name": "Curva del Serraglio",
+    "lat": 45.626504,
+    "lon": 9.292106
+   },
+   {
+    "name": "Ex Circuito Pirelli",
+    "lat": 45.629309,
+    "lon": 9.285418
+   },
+   {
+    "name": "Lesmo 1",
+    "lat": 45.631243,
+    "lon": 9.296172
+   },
+   {
+    "name": "Lesmo 2",
+    "lat": 45.628431,
+    "lon": 9.296786
+   },
+   {
+    "name": "Raccordo Junior",
+    "lat": 45.621301,
+    "lon": 9.282491
+   },
+   {
+    "name": "Rettifilo di partenza",
+    "lat": 45.620611,
+    "lon": 9.281409
+   },
+   {
+    "name": "Rettilineo anello alta velocità",
+    "lat": 45.613589,
+    "lon": 9.288755
+   },
+   {
+    "name": "Sopraelevata Nord",
+    "lat": 45.62463,
+    "lon": 9.28286
+   },
+   {
+    "name": "Sopraelevata Sud",
+    "lat": 45.611351,
+    "lon": 9.281008
+   },
+   {
+    "name": "Tondo",
+    "lat": 45.613288,
+    "lon": 9.288268
+   },
+   {
+    "name": "Variante Ascari",
+    "lat": 45.621469,
+    "lon": 9.285536
+   },
+   {
+    "name": "Variante del Rettifilo",
+    "lat": 45.624794,
+    "lon": 9.282395
+   },
+   {
+    "name": "Variante della Roggia",
+    "lat": 45.630285,
+    "lon": 9.291489
+   }
+  ],
+  "country": "Italy",
+  "place": "Monza"
+ },
+ "lmu-bahrain_international_circuit": {
+  "layout": "Bahrain International Circuit",
+  "location": "Bahrain International Circuit",
+  "lengthM": 5384,
+  "qid": "Q171332",
+  "openedYear": 2004,
+  "officialLengthM": 5412,
+  "website": "https://www.bahraingp.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/2012%20Bahrain%20Grand%20Prix%202.jpg",
+  "manualFields": [
+   "openedYear"
+  ],
+  "summary": {
+   "title": "Bahrain International Circuit",
+   "extract": "The Bahrain International Circuit is a 5.412 km (3.363 mi) motorsport venue opened in 2004 and used for drag racing, GP2 Series, and the annual Formula One Bahrain Grand Prix. The 2004 Grand Prix was the first Formula One race held in the Middle East. Beginning in 2006, Australian V8 Supercars raced at the BIC, with the event known as the Desert 400. However, the V8 Supercars did not return for the 2011 V8 Supercar season. 24 Hour endurance races are also hosted at BIC. The circuit has a FIA Grade 1 license. The circuit also has multiple layouts.",
+   "url": "https://en.wikipedia.org/wiki/Bahrain_International_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/en/thumb/d/d1/Bahrain_International_Circuit_logo.png/330px-Bahrain_International_Circuit_logo.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Bahrain International Karting Circuit CIK-FIA",
+    "lat": 26.028591,
+    "lon": 50.505669
+   },
+   {
+    "name": "Drag Strip",
+    "lat": 26.028857,
+    "lon": 50.512086
+   },
+   {
+    "name": "Endurance Circuit",
+    "lat": 26.03114,
+    "lon": 50.517021
+   },
+   {
+    "name": "Flat Oval Layout",
+    "lat": 26.035824,
+    "lon": 50.511581
+   },
+   {
+    "name": "Grand Prix Circuit",
+    "lat": 26.036889,
+    "lon": 50.510757
+   },
+   {
+    "name": "Inner Circuit",
+    "lat": 26.031676,
+    "lon": 50.516197
+   },
+   {
+    "name": "Outer Circuit",
+    "lat": 26.032101,
+    "lon": 50.518562
+   },
+   {
+    "name": "Paddock Layout",
+    "lat": 26.036328,
+    "lon": 50.51327
+   }
+  ],
+  "country": "Bahrain",
+  "place": "Sakhir"
+ },
+ "lmu-circuit_de_barcelona": {
+  "layout": "Circuit de Barcelona",
+  "location": "Circuit de Barcelona",
+  "lengthM": 4655,
+  "qid": "Q171404",
+  "openedYear": 1991,
+  "officialLengthM": 4675,
+  "website": "https://circuitcat.com",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/F1%20Circuit%20de%20Catalunya%20-%20Tribuna.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Circuit de Barcelona-Catalunya",
+   "extract": "The Circuit de Barcelona-Catalunya is a 4.657 km (2.894 mi) motorsport race track in Montmeló, Barcelona, Catalonia, Spain. With long straights and a variety of corners, the Circuit de Barcelona-Catalunya is seen as an all-rounder circuit. The track has stands with a capacity of 140,700. The circuit has an FIA Grade 1 license.",
+   "url": "https://en.wikipedia.org/wiki/Circuit_de_Barcelona-Catalunya",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/87/Circuit_de_Catalunya_moto_2021.svg/330px-Circuit_de_Catalunya_moto_2021.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "AZ",
+    "lat": 41.574477,
+    "lon": 2.261906
+   },
+   {
+    "name": "Catalunya (Cutting Half)",
+    "lat": 41.566043,
+    "lon": 2.257347
+   },
+   {
+    "name": "Cross track",
+    "lat": 41.564922,
+    "lon": 2.248472
+   },
+   {
+    "name": "Flat track",
+    "lat": 41.56589,
+    "lon": 2.248354
+   },
+   {
+    "name": "Junior track",
+    "lat": 41.566509,
+    "lon": 2.248587
+   },
+   {
+    "name": "Karting",
+    "lat": 41.571442,
+    "lon": 2.263157
+   },
+   {
+    "name": "MotoGP Long Lap Penalty",
+    "lat": 41.564748,
+    "lon": 2.255555
+   },
+   {
+    "name": "Nissan",
+    "lat": 41.571575,
+    "lon": 2.258325
+   }
+  ],
+  "country": "Spain",
+  "place": "Vallès Oriental"
+ },
+ "lmu-circuit_de_la_sarthe": {
+  "layout": "Circuit de la Sarthe",
+  "location": "Circuit de la Sarthe",
+  "lengthM": 13623,
+  "qid": "Q174090",
+  "openedYear": 1923,
+  "officialLengthM": null,
+  "website": "http://www.lemans.org/en/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Circuit%20de%20la%20Sarthe%20Ford%20Chicanes.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Circuit de la Sarthe",
+   "extract": "The Circuit de la Sarthe, known for its Circuit des 24 Heures du Mans variation after the 24-hour semi-permanent circuit, located in Le Mans, Sarthe, France, is a permanent auto sport circuit. It is the host of the 24 Hours of Le Mans auto race and widely known as the site of the 1955 Le Mans disaster, the deadliest event in motorsport history.",
+   "url": "https://en.wikipedia.org/wiki/Circuit_de_la_Sarthe",
+   "thumbnail": "https://upload.wikimedia.org/wikipedia/en/b/bc/Circuit_des_24_Heures_du_Mans_logo.jpg?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail_unscaled",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Chicane Daytona",
+    "lat": 47.944324,
+    "lon": 0.232906
+   },
+   {
+    "name": "Chicane Dunlop",
+    "lat": 47.956963,
+    "lon": 0.210928
+   },
+   {
+    "name": "Chicane Ford",
+    "lat": 47.947077,
+    "lon": 0.20842
+   },
+   {
+    "name": "Chicane Maison Blanche",
+    "lat": 47.942691,
+    "lon": 0.210358
+   },
+   {
+    "name": "Chicane Michelin",
+    "lat": 47.928015,
+    "lon": 0.242213
+   },
+   {
+    "name": "Chicane du Raccordement",
+    "lat": 47.948097,
+    "lon": 0.207861
+   },
+   {
+    "name": "Circuit Alain Prost Amateur",
+    "lat": 47.937896,
+    "lon": 0.211059
+   },
+   {
+    "name": "Circuit Alain Prost Pro",
+    "lat": 47.939881,
+    "lon": 0.212288
+   },
+   {
+    "name": "Circuit Bugatti",
+    "lat": 47.948904,
+    "lon": 0.208815
+   },
+   {
+    "name": "Circuit C.I.K",
+    "lat": 47.942213,
+    "lon": 0.212533
+   },
+   {
+    "name": "Circuit Maison Blanche",
+    "lat": 47.944406,
+    "lon": 0.20788
+   },
+   {
+    "name": "Courbe Dunlop",
+    "lat": 47.955069,
+    "lon": 0.208503
+   },
+   {
+    "name": "Esses de la Forêt",
+    "lat": 47.959987,
+    "lon": 0.217613
+   },
+   {
+    "name": "La Chapelle",
+    "lat": 47.959242,
+    "lon": 0.215041
+   },
+   {
+    "name": "Le « S » du Garage Bleu",
+    "lat": 47.949831,
+    "lon": 0.210177
+   },
+   {
+    "name": "Ligne Droite des Hunaudières",
+    "lat": 47.961063,
+    "lon": 0.223473
+   },
+   {
+    "name": "Maison Blanche",
+    "lat": 47.938556,
+    "lon": 0.208147
+   },
+   {
+    "name": "MotoGP Long lap penalty",
+    "lat": 47.958424,
+    "lon": 0.218313
+   },
+   {
+    "name": "Porsche Center",
+    "lat": 47.947927,
+    "lon": 0.20756
+   },
+   {
+    "name": "Porsche center",
+    "lat": 47.946216,
+    "lon": 0.208092
+   },
+   {
+    "name": "Tertre Rouge",
+    "lat": 47.961872,
+    "lon": 0.221431
+   },
+   {
+    "name": "Virage Corvette",
+    "lat": 47.939851,
+    "lon": 0.210545
+   },
+   {
+    "name": "Virage Porsche",
+    "lat": 47.933109,
+    "lon": 0.209094
+   },
+   {
+    "name": "Virage d'Arnage",
+    "lat": 47.921465,
+    "lon": 0.215602
+   },
+   {
+    "name": "Virage de Mulsanne",
+    "lat": 47.913569,
+    "lon": 0.243418
+   },
+   {
+    "name": "Virage de la Chapelle",
+    "lat": 47.958932,
+    "lon": 0.215468
+   },
+   {
+    "name": "Virage du Chemin aux Bœufs",
+    "lat": 47.952698,
+    "lon": 0.212623
+   },
+   {
+    "name": "Virage du Garage Vert",
+    "lat": 47.958354,
+    "lon": 0.218101
+   },
+   {
+    "name": "Virage du Karting",
+    "lat": 47.938116,
+    "lon": 0.208987
+   },
+   {
+    "name": "Virage du Musée",
+    "lat": 47.955799,
+    "lon": 0.21257
+   },
+   {
+    "name": "Virage du Pont",
+    "lat": 47.935292,
+    "lon": 0.210871
+   },
+   {
+    "name": "Virage du Raccordement",
+    "lat": 47.948214,
+    "lon": 0.207511
+   }
+  ],
+  "country": "France",
+  "place": "Le Mans"
+ },
+ "lmu-circuit_de_spa_francorchamps": {
+  "layout": "Circuit de Spa-Francorchamps",
+  "location": "Circuit de Spa-Francorchamps",
+  "lengthM": 6981,
+  "qid": "Q172851",
+  "openedYear": 1924,
+  "officialLengthM": 7003,
+  "website": "https://www.spa-francorchamps.be",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/2022%204%20Hours%20of%20Spa-Francorchamps%20-%20Circuit.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Circuit de Spa-Francorchamps",
+   "extract": "The Circuit de Spa-Francorchamps, informally referred to as Spa, is a 7.004 km (4.352 mi) motor-racing circuit located in Francorchamps, Stavelot, Wallonia, Belgium, about 8 km (5.0 mi) southeast of Spa. It is the current venue of the Formula One Belgian Grand Prix, hosting its first Grand Prix in 1925, also hosting an F1 race in the first ever F1 season with the 1950 Belgian Grand Prix, and has held a Grand Prix every year since 1985 except 2003 and 2006.",
+   "url": "https://en.wikipedia.org/wiki/Circuit_de_Spa-Francorchamps",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/54/Spa-Francorchamps_of_Belgium.svg/330px-Spa-Francorchamps_of_Belgium.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Blanchimont",
+    "lat": 50.435153,
+    "lon": 5.967128
+   },
+   {
+    "name": "Bruxelles",
+    "lat": 50.427931,
+    "lon": 5.972269
+   },
+   {
+    "name": "Campus",
+    "lat": 50.42879,
+    "lon": 5.96209
+   },
+   {
+    "name": "Chicane",
+    "lat": 50.441535,
+    "lon": 5.966491
+   },
+   {
+    "name": "Courbe Paul Frère",
+    "lat": 50.429905,
+    "lon": 5.959634
+   },
+   {
+    "name": "Double Gauche",
+    "lat": 50.43423,
+    "lon": 5.97072
+   },
+   {
+    "name": "Eau Rouge",
+    "lat": 50.442502,
+    "lon": 5.970498
+   },
+   {
+    "name": "Fagnes",
+    "lat": 50.430423,
+    "lon": 5.965874
+   },
+   {
+    "name": "Kart",
+    "lat": 50.432079,
+    "lon": 5.962509
+   },
+   {
+    "name": "Kemmel",
+    "lat": 50.438454,
+    "lon": 5.974429
+   },
+   {
+    "name": "La Source",
+    "lat": 50.446223,
+    "lon": 5.963383
+   },
+   {
+    "name": "Les Combes",
+    "lat": 50.43091,
+    "lon": 5.976796
+   },
+   {
+    "name": "Malmedy",
+    "lat": 50.429468,
+    "lon": 5.976967
+   },
+   {
+    "name": "Moto layout",
+    "lat": 50.429367,
+    "lon": 5.974005
+   },
+   {
+    "name": "Raidillon",
+    "lat": 50.441558,
+    "lon": 5.971878
+   },
+   {
+    "name": "Speaker's Corner",
+    "lat": 50.429472,
+    "lon": 5.974328
+   }
+  ],
+  "country": "Belgium",
+  "place": "Province of Liege"
+ },
+ "lmu-circuit_of_the_americas": {
+  "layout": "Circuit of the Americas",
+  "location": "Circuit of the Americas",
+  "lengthM": 5497,
+  "qid": "Q59626",
+  "openedYear": 2012,
+  "officialLengthM": 5513,
+  "website": "http://circuitoftheamericas.com",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Circuit%20of%20the%20americas%20cota%20%2852781066233%29.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Circuit of the Americas",
+   "extract": "The Circuit of the Americas (COTA) is a Grade 1 FIA-specification 3.426 mi (5.514 km) motor racing track and facilities located in Austin, Texas, United States. The facility is home to the Formula One United States Grand Prix, NASCAR, and the Motorcycle Grand Prix of the Americas, a round in MotoGP and the FIA World Endurance Championship with the Lone Star Le Mans. It previously hosted the Australian V8 Supercars, the Americas Rallycross Championship, the American Le Mans Series, the Rolex Sports Car Series, the IMSA SportsCar Championship and the IndyCar Classic.",
+   "url": "https://en.wikipedia.org/wiki/Circuit_of_the_Americas",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/Austin_circuit.svg/330px-Austin_circuit.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "COTA Karting",
+    "lat": 30.131254,
+    "lon": -97.640954
+   },
+   {
+    "name": "COTA Short Track",
+    "lat": 30.136276,
+    "lon": -97.635792
+   },
+   {
+    "name": "NASCAR Short Course",
+    "lat": 30.136415,
+    "lon": -97.632104
+   },
+   {
+    "name": "Runoff  Corner",
+    "lat": 30.135356,
+    "lon": -97.635652
+   },
+   {
+    "name": "Short Course 1",
+    "lat": 30.137123,
+    "lon": -97.633423
+   },
+   {
+    "name": "Short Course 2",
+    "lat": 30.137435,
+    "lon": -97.632832
+   },
+   {
+    "name": "Turn 1",
+    "lat": 30.130066,
+    "lon": -97.636852
+   },
+   {
+    "name": "Turn 10",
+    "lat": 30.136539,
+    "lon": -97.627026
+   },
+   {
+    "name": "Turn 11",
+    "lat": 30.139378,
+    "lon": -97.624509
+   },
+   {
+    "name": "Turn 12",
+    "lat": 30.137315,
+    "lon": -97.63661
+   },
+   {
+    "name": "Turn 13",
+    "lat": 30.135588,
+    "lon": -97.635469
+   },
+   {
+    "name": "Turn 14",
+    "lat": 30.135575,
+    "lon": -97.636348
+   },
+   {
+    "name": "Turn 15",
+    "lat": 30.136464,
+    "lon": -97.637044
+   },
+   {
+    "name": "Turn 16",
+    "lat": 30.136546,
+    "lon": -97.637765
+   },
+   {
+    "name": "Turn 17",
+    "lat": 30.134498,
+    "lon": -97.636839
+   },
+   {
+    "name": "Turn 18",
+    "lat": 30.133693,
+    "lon": -97.63857
+   },
+   {
+    "name": "Turn 19",
+    "lat": 30.135523,
+    "lon": -97.640754
+   },
+   {
+    "name": "Turn 2",
+    "lat": 30.132214,
+    "lon": -97.637249
+   },
+   {
+    "name": "Turn 20",
+    "lat": 30.134477,
+    "lon": -97.643444
+   },
+   {
+    "name": "Turn 3",
+    "lat": 30.133661,
+    "lon": -97.635085
+   },
+   {
+    "name": "Turn 4",
+    "lat": 30.134375,
+    "lon": -97.634672
+   },
+   {
+    "name": "Turn 5",
+    "lat": 30.134803,
+    "lon": -97.633842
+   },
+   {
+    "name": "Turn 6",
+    "lat": 30.136103,
+    "lon": -97.632969
+   },
+   {
+    "name": "Turn 7",
+    "lat": 30.135755,
+    "lon": -97.631086
+   },
+   {
+    "name": "Turn 8",
+    "lat": 30.136637,
+    "lon": -97.629745
+   },
+   {
+    "name": "Turn 9",
+    "lat": 30.136192,
+    "lon": -97.629056
+   }
+  ],
+  "country": "United States",
+  "place": "Austin"
+ },
+ "lmu-daytona_international_speedway_road_course": {
+  "layout": "Daytona International Speedway Road Course",
+  "location": "Daytona International Speedway",
+  "lengthM": 5733,
+  "qid": "Q1179250",
+  "openedYear": 1959,
+  "officialLengthM": 4023,
+  "website": "http://www.daytonainternationalspeedway.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Daytona%20International%20Speedway%202011.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Daytona International Speedway",
+   "extract": "Daytona International Speedway is a race track in Daytona Beach, Florida, United States, about 50 mi (80 km) north of Orlando. Since opening in 1959, it has been the home of the Daytona 500, the most prestigious race in NASCAR as well as its season opening event. The venue also hosts the 24 Hours of Daytona, one of three races that make up the Triple Crown of endurance racing. In addition to NASCAR and IMSA, the track also hosts races of ARCA, AMA Superbike Championship, SCCA, and AMA Supercross Championship. The track features multiple layouts including the primary 2.500 mi (4.023 km) high-speed tri-oval, a 3.560 mi (5.729 km) sports car course, a 3.510 mi (5.649 km)motorcycle course, and a 1,320 ft (400 m) karting and motorcycle flat-track. The track's 180 acres (73 ha) infield includes the 29 acres (12 ha) Lake Lloyd, which has hosted powerboat racing.",
+   "url": "https://en.wikipedia.org/wiki/Daytona_International_Speedway",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a0/Daytona_International_Speedway_2024.svg/330px-Daytona_International_Speedway_2024.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "2021 NASCAR chicane",
+    "lat": 29.18986,
+    "lon": -81.069158
+   },
+   {
+    "name": "Daytona Flat Track",
+    "lat": 29.179456,
+    "lon": -81.075525
+   },
+   {
+    "name": "Dogleg",
+    "lat": 29.18264,
+    "lon": -81.07202
+   },
+   {
+    "name": "International Horseshoe",
+    "lat": 29.186348,
+    "lon": -81.069667
+   },
+   {
+    "name": "Le Mans Chicane",
+    "lat": 29.18497,
+    "lon": -81.06547
+   },
+   {
+    "name": "Speedway",
+    "lat": 29.191399,
+    "lon": -81.06648
+   },
+   {
+    "name": "West Horseshoe",
+    "lat": 29.179956,
+    "lon": -81.072313
+   }
+  ],
+  "country": "United States",
+  "place": "Daytona Beach"
+ },
+ "lmu-fuji_speedway": {
+  "layout": "Fuji Speedway",
+  "location": "Fuji Speedway",
+  "lengthM": 4535,
+  "qid": "Q171399",
+  "openedYear": 1966,
+  "officialLengthM": 4359,
+  "website": "https://www.fsw.tv/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Safety%20car%202024%20WEC%20Fuji.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Fuji Speedway",
+   "extract": "Fuji Speedway  is a motorsport race track standing in the eastern foothills of Mount Fuji, in Oyama, Suntō District, Shizuoka Prefecture, Japan. Originally conceived as an American-style superspeedway, it was completed as a road course and opened in January 1966.",
+   "url": "https://en.wikipedia.org/wiki/Fuji_Speedway",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2c/Fuji.svg/330px-Fuji.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Fuji Speedway",
+    "lat": 35.366243,
+    "lon": 138.926544
+   },
+   {
+    "name": "カートレース場",
+    "lat": 35.368718,
+    "lon": 138.93306
+   },
+   {
+    "name": "ショートサーキット",
+    "lat": 35.374291,
+    "lon": 138.938493
+   },
+   {
+    "name": "ドリフトコース",
+    "lat": 35.377131,
+    "lon": 138.932438
+   }
+  ],
+  "country": "Japan",
+  "place": "Oyama"
+ },
+ "lmu-lusail_international_circuit": {
+  "layout": "Lusail International Circuit",
+  "location": "Lusail International Circuit",
+  "lengthM": 5405,
+  "qid": "Q547535",
+  "openedYear": 2004,
+  "officialLengthM": null,
+  "website": "https://www.circuitlosail.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Qatar%20GP%202021.%20Pol%20Espargaro%20y%20Stefan%20Bradl%20en%20carrera%20-%2051079776027.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Lusail International Circuit",
+   "extract": "The Lusail International Circuit is a motor racing circuit located just outside the city of Lusail, north of Doha, Qatar. The track is 5.419 km (3.367 mi) in length, with a main straight of 1.068 km (0.664 mi). The circuit has an FIA Grade 1 license. It is surrounded by artificial grass intended to stop the sand encroaching on the track.",
+   "url": "https://en.wikipedia.org/wiki/Lusail_International_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Lusail_International_Circuit_2023.svg/330px-Lusail_International_Circuit_2023.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Lusail International Circuit",
+    "lat": 25.491155,
+    "lon": 51.452064
+   },
+   {
+    "name": "MotoGP Long Lap Penalty",
+    "lat": 25.493876,
+    "lon": 51.45293
+   }
+  ],
+  "country": "Qatar",
+  "place": "Lusail"
+ },
+ "lmu-michelin_raceway_road_atlanta": {
+  "layout": "Michelin Raceway Road Atlanta",
+  "location": "Michelin Raceway Road Atlanta",
+  "lengthM": 4082,
+  "qid": "Q964148",
+  "openedYear": 1970,
+  "officialLengthM": null,
+  "website": "http://www.roadatlanta.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Road%20Atlanta%20Aerial%20-%20September%202016%20%2844744697301%29.jpg",
+  "manualFields": [
+   "openedYear"
+  ],
+  "summary": {
+   "title": "Road Atlanta",
+   "extract": "Road Atlanta is a 2.540 mi (4.088 km) road course located just north of Braselton, Georgia, United States. The facility is utilized for a wide variety of events, including professional and amateur sports car and motorcycle races, racing and driving schools, corporate programs and testing for motorsports teams. The track has 12 turns, including the famous \"esses\" between turns three and five; and Turn 12, a downhill, diving turn. The track is owned by IMSA Holdings, LLC through its subsidiary Road Atlanta, LLC, and is the home to the Petit Le Mans, as well as AMA motorcycle racing, and smaller events throughout the year. Michelin acquired naming rights to the facility in 2018.",
+   "url": "https://en.wikipedia.org/wiki/Road_Atlanta",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/Road_Atlanta_track_map.svg/330px-Road_Atlanta_track_map.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Club Course",
+    "lat": 34.141589,
+    "lon": -83.81757
+   },
+   {
+    "name": "Motorcycle Turn 12",
+    "lat": 34.150122,
+    "lon": -83.817523
+   },
+   {
+    "name": "Road Atlanta Racetrack",
+    "lat": 34.148657,
+    "lon": -83.810987
+   },
+   {
+    "name": "Short Course Turn 5",
+    "lat": 34.141954,
+    "lon": -83.817636
+   },
+   {
+    "name": "The Esses",
+    "lat": 34.1422,
+    "lon": -83.815207
+   }
+  ],
+  "country": "United States",
+  "place": "Georgia"
+ },
+ "lmu-sebring_international_raceway": {
+  "layout": "Sebring International Raceway",
+  "location": "Sebring International Raceway",
+  "lengthM": 5820,
+  "qid": "Q172883",
+  "openedYear": 1950,
+  "officialLengthM": null,
+  "website": "http://www.sebringraceway.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/2018%2012%20Hours%20of%20Sebring%2C%20Race%20Impression.jpg",
+  "manualFields": [
+   "openedYear"
+  ],
+  "summary": {
+   "title": "Sebring International Raceway",
+   "extract": "Sebring International Raceway is a road course auto racing facility in the southeastern United States, located near Sebring, Florida.",
+   "url": "https://en.wikipedia.org/wiki/Sebring_International_Raceway",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/Sebring_International_Raceway.svg/330px-Sebring_International_Raceway.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Bishop Bend",
+    "lat": 27.453063,
+    "lon": -81.347941
+   },
+   {
+    "name": "Club Circuit",
+    "lat": 27.454568,
+    "lon": -81.348071
+   },
+   {
+    "name": "Collier Curve",
+    "lat": 27.456426,
+    "lon": -81.350753
+   },
+   {
+    "name": "Cunningham Corner",
+    "lat": 27.457238,
+    "lon": -81.352486
+   },
+   {
+    "name": "Fangio",
+    "lat": 27.454591,
+    "lon": -81.356883
+   },
+   {
+    "name": "Gendebien Bend",
+    "lat": 27.45034,
+    "lon": -81.346079
+   },
+   {
+    "name": "Gurney Bend",
+    "lat": 27.453504,
+    "lon": -81.351925
+   },
+   {
+    "name": "Hairpin",
+    "lat": 27.453001,
+    "lon": -81.358193
+   },
+   {
+    "name": "Le Mans Curve",
+    "lat": 27.448416,
+    "lon": -81.346809
+   },
+   {
+    "name": "Sunset Bend",
+    "lat": 27.449484,
+    "lon": -81.357545
+   },
+   {
+    "name": "Tower Turn",
+    "lat": 27.45681,
+    "lon": -81.347993
+   },
+   {
+    "name": "Ullman Straight",
+    "lat": 27.448276,
+    "lon": -81.355191
+   }
+  ],
+  "country": "United States",
+  "place": "Highlands County"
+ },
+ "lmu-silverstone_grand_prix_circuit_elms": {
+  "layout": "Silverstone Grand Prix Circuit - ELMS",
+  "location": "Silverstone Circuit",
+  "lengthM": 5869,
+  "qid": "Q171402",
+  "openedYear": 1948,
+  "officialLengthM": 5891,
+  "website": "https://www.silverstone.co.uk",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/McLaren%20MP4-16A%202015%20McLaren%20MP4-16A%20shakedown%20%2821219267118%29.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Silverstone Circuit",
+   "extract": "The Silverstone Circuit is a motor racing circuit in England, near the Northamptonshire villages Silverstone and Whittlebury. It is the home of the British Grand Prix, which it first hosted as the 1948 British Grand Prix. The 1950 British Grand Prix at Silverstone was the first race in the newly created World Championship of Drivers. The race rotated between Silverstone, Aintree and Brands Hatch from 1955 to 1986, but settled permanently at the Silverstone track in 1987. The circuit also hosts the British round of the MotoGP series.",
+   "url": "https://en.wikipedia.org/wiki/Silverstone_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Silverstone_Circuit_2020.png/330px-Silverstone_Circuit_2020.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Abbey",
+    "lat": 52.0713,
+    "lon": -1.019437
+   },
+   {
+    "name": "Aintree",
+    "lat": 52.072962,
+    "lon": -1.011453
+   },
+   {
+    "name": "Becketts",
+    "lat": 52.072065,
+    "lon": -1.010095
+   },
+   {
+    "name": "Bridge",
+    "lat": 52.074437,
+    "lon": -1.020493
+   },
+   {
+    "name": "Brooklands",
+    "lat": 52.07715,
+    "lon": -1.019054
+   },
+   {
+    "name": "Chapel Curve",
+    "lat": 52.070861,
+    "lon": -1.009306
+   },
+   {
+    "name": "Club",
+    "lat": 52.066798,
+    "lon": -1.024001
+   },
+   {
+    "name": "Copse",
+    "lat": 52.078724,
+    "lon": -1.011515
+   },
+   {
+    "name": "Farm Curve",
+    "lat": 52.071244,
+    "lon": -1.01638
+   },
+   {
+    "name": "Hamilton Straight",
+    "lat": 52.069337,
+    "lon": -1.022152
+   },
+   {
+    "name": "Hangar Straight",
+    "lat": 52.064899,
+    "lon": -1.015538
+   },
+   {
+    "name": "Ice Hill",
+    "lat": 52.068845,
+    "lon": -1.008446
+   },
+   {
+    "name": "Kick Plate",
+    "lat": 52.07123,
+    "lon": -1.006723
+   },
+   {
+    "name": "Limestone Curves",
+    "lat": 52.067797,
+    "lon": -1.010213
+   },
+   {
+    "name": "Luffield",
+    "lat": 52.075855,
+    "lon": -1.021318
+   },
+   {
+    "name": "Maggotts",
+    "lat": 52.073665,
+    "lon": -1.009651
+   },
+   {
+    "name": "Priory",
+    "lat": 52.075941,
+    "lon": -1.017986
+   },
+   {
+    "name": "Stowe",
+    "lat": 52.063523,
+    "lon": -1.017935
+   },
+   {
+    "name": "Stowe Circuit",
+    "lat": 52.06846,
+    "lon": -1.020076
+   },
+   {
+    "name": "The Loop",
+    "lat": 52.071413,
+    "lon": -1.012139
+   },
+   {
+    "name": "Vale",
+    "lat": 52.06655,
+    "lon": -1.022261
+   },
+   {
+    "name": "Village",
+    "lat": 52.072524,
+    "lon": -1.013278
+   },
+   {
+    "name": "Wellington Straight",
+    "lat": 52.075008,
+    "lon": -1.014897
+   },
+   {
+    "name": "Woodcote",
+    "lat": 52.078359,
+    "lon": -1.019497
+   }
+  ],
+  "country": "United Kingdom",
+  "place": "Silverstone"
+ },
+ "lmu-silverstone_grand_prix_circuit_wec": {
+  "layout": "Silverstone Grand Prix Circuit - WEC",
+  "location": "Silverstone Circuit",
+  "lengthM": 5869,
+  "qid": "Q171402",
+  "openedYear": 1948,
+  "officialLengthM": 5891,
+  "website": "https://www.silverstone.co.uk",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/McLaren%20MP4-16A%202015%20McLaren%20MP4-16A%20shakedown%20%2821219267118%29.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Silverstone Circuit",
+   "extract": "The Silverstone Circuit is a motor racing circuit in England, near the Northamptonshire villages Silverstone and Whittlebury. It is the home of the British Grand Prix, which it first hosted as the 1948 British Grand Prix. The 1950 British Grand Prix at Silverstone was the first race in the newly created World Championship of Drivers. The race rotated between Silverstone, Aintree and Brands Hatch from 1955 to 1986, but settled permanently at the Silverstone track in 1987. The circuit also hosts the British round of the MotoGP series.",
+   "url": "https://en.wikipedia.org/wiki/Silverstone_Circuit",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Silverstone_Circuit_2020.png/330px-Silverstone_Circuit_2020.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Abbey",
+    "lat": 52.0713,
+    "lon": -1.019437
+   },
+   {
+    "name": "Aintree",
+    "lat": 52.072962,
+    "lon": -1.011453
+   },
+   {
+    "name": "Becketts",
+    "lat": 52.072065,
+    "lon": -1.010095
+   },
+   {
+    "name": "Bridge",
+    "lat": 52.074437,
+    "lon": -1.020493
+   },
+   {
+    "name": "Brooklands",
+    "lat": 52.07715,
+    "lon": -1.019054
+   },
+   {
+    "name": "Chapel Curve",
+    "lat": 52.070861,
+    "lon": -1.009306
+   },
+   {
+    "name": "Club",
+    "lat": 52.066798,
+    "lon": -1.024001
+   },
+   {
+    "name": "Copse",
+    "lat": 52.078724,
+    "lon": -1.011515
+   },
+   {
+    "name": "Farm Curve",
+    "lat": 52.071244,
+    "lon": -1.01638
+   },
+   {
+    "name": "Hamilton Straight",
+    "lat": 52.069337,
+    "lon": -1.022152
+   },
+   {
+    "name": "Hangar Straight",
+    "lat": 52.064899,
+    "lon": -1.015538
+   },
+   {
+    "name": "Ice Hill",
+    "lat": 52.068845,
+    "lon": -1.008446
+   },
+   {
+    "name": "Kick Plate",
+    "lat": 52.07123,
+    "lon": -1.006723
+   },
+   {
+    "name": "Limestone Curves",
+    "lat": 52.067797,
+    "lon": -1.010213
+   },
+   {
+    "name": "Luffield",
+    "lat": 52.075855,
+    "lon": -1.021318
+   },
+   {
+    "name": "Maggotts",
+    "lat": 52.073665,
+    "lon": -1.009651
+   },
+   {
+    "name": "Priory",
+    "lat": 52.075941,
+    "lon": -1.017986
+   },
+   {
+    "name": "Stowe",
+    "lat": 52.063523,
+    "lon": -1.017935
+   },
+   {
+    "name": "Stowe Circuit",
+    "lat": 52.06846,
+    "lon": -1.020076
+   },
+   {
+    "name": "The Loop",
+    "lat": 52.071413,
+    "lon": -1.012139
+   },
+   {
+    "name": "Vale",
+    "lat": 52.06655,
+    "lon": -1.022261
+   },
+   {
+    "name": "Village",
+    "lat": 52.072524,
+    "lon": -1.013278
+   },
+   {
+    "name": "Wellington Straight",
+    "lat": 52.075008,
+    "lon": -1.014897
+   },
+   {
+    "name": "Woodcote",
+    "lat": 52.078359,
+    "lon": -1.019497
+   }
+  ],
+  "country": "United Kingdom",
+  "place": "Silverstone"
+ },
+ "lmu-weather_tech_raceway_laguna_seca": {
+  "layout": "WeatherTech Raceway Laguna Seca",
+  "location": "WeatherTech Raceway Laguna Seca",
+  "lengthM": 3588,
+  "qid": "Q1423481",
+  "openedYear": 1957,
+  "officialLengthM": null,
+  "website": "https://www.weathertechraceway.com/",
+  "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Bobby%20Rahal%20and%20Scott%20Pruett%201991%20Laguna%20Seca.jpg",
+  "manualFields": [],
+  "summary": {
+   "title": "Laguna Seca",
+   "extract": "Laguna Seca Raceway is a paved road racing track near both Salinas and Monterey, California, United States. It was built in 1957 and is used for both auto racing and motorcycle racing.",
+   "url": "https://en.wikipedia.org/wiki/Laguna_Seca",
+   "thumbnail": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/57/Laguna_Seca.svg/330px-Laguna_Seca.svg.png?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail",
+   "attribution": "Wikipedia, CC BY-SA 4.0"
+  },
+  "osmNames": [
+   {
+    "name": "Andretti Hairpin",
+    "lat": 36.582511,
+    "lon": -121.757125
+   },
+   {
+    "name": "Rahal Straight",
+    "lat": 36.583335,
+    "lon": -121.749183
+   },
+   {
+    "name": "Rainey Curve",
+    "lat": 36.586896,
+    "lon": -121.750088
+   },
+   {
+    "name": "The Corkscrew",
+    "lat": 36.584944,
+    "lon": -121.749245
+   },
+   {
+    "name": "WeatherTech Raceway Laguna Seca",
+    "lat": 36.588634,
+    "lon": -121.754418
+   }
+  ],
+  "country": "United States",
+  "place": "Monterey County"
+ }
+}
