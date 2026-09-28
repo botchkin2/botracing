@@ -1,5 +1,96 @@
 # Handoff: Lap analysis app (React Native), v1
 
+
+## v2: answers to the feedback log
+This section is the source of truth where it conflicts with anything below. Frames: `Handoff v2.dc.html`. Build decisions B1–B10 are adopted as the design.
+
+**Missing**
+- **M1 Real track map.**
+  - **Map panel modes:** Follow / Track / Satellite. Satellite is disabled until it ships.
+  - **OSM outline** (`quality` good or fair):
+    - Band is `chart.track` edge stroke 10 pt with a `chart.trackFill` stroke of 7.5 pt on top.
+    - Pit lane is the same styling at 4.5 / 2.5 pt, with a "PIT" label.
+  - **Laps:** georeferenced traces in lap colors on top (ref 2 pt, others 1.4 pt), with cursor dots synced to the charts.
+  - **Labels:**
+    - Section boundaries are 14 pt ticks across the band (`#8a929b`, light `#737a82`).
+    - S1–S5 labels go on the inside of the loop, corner numbers on the outside in 8.5 pt `textFaint`.
+  - **Quality chip, top right:** "OSM outline · good" or "Driven line".
+  - **Attribution:** "© OpenStreetMap contributors", 9 pt, bottom right, whenever OSM geometry is drawn.
+  - **Poor quality:**
+    - The driven line is drawn at 6 pt `chart.track`, with no edges, pit lane, attribution or Satellite.
+    - The note reads: "No reliable track outline for this layout, so this shows your driven line instead. Laps line up by distance, not by position on the track." It shows once per session and dismisses on tap.
+  - **Follow** draws the OSM edges (1.3 pt `#4d555d`) and the position label "Section 4 · C8 apex".
+- **M2 Desktop.** Three tiers: 1280 and up = D1/D2/D3; 900–1279 = the build's two-column layouts; below 900 = phone.
+- **M3 Loading and errors.**
+  - **Sessions, first load:** skeleton rows at the real 54 pt height and a 2 pt accent progress line. With a cache, show the cached rows plus the progress line only.
+  - **Offline:** a neutral banner, "Offline. Showing sessions saved on this phone, last synced 21:58.", with Retry. Uncached rows are at 50% with "Not saved offline" and can't be opened.
+  - **Server error, no cache:**
+    - Full screen with the title "Couldn't load sessions" and the body "The server didn't respond. Your uploads are safe on the server and will appear once it's reachable."
+    - A mono request line (long-press to copy), Retry as primary, and "Show saved (n)".
+    - With a cache, it becomes the banner "Server unavailable".
+  - **Compare loading:**
+    - The reference loads first, then the laps one at a time; each lap appears as soon as it's ready.
+    - The chip shows % and a 2 pt progress bar; queued chips are dashed.
+    - A status row reads "Loading telemetry · 1 of 3 laps · 2.1 of 3.4 MB".
+    - Dependent cells stay neutral placeholders. Scrubbing is never blocked.
+  - **One lap failed:**
+    - The chip gets "!" and "Retry", and keeps its color slot.
+    - The banner reads "L31 telemetry didn't load (timed out after 20 s). Showing 2 of 3 laps."
+    - If the reference fails, the next loaded lap becomes a temporary reference and the line reads "L12 (L16 failed to load)".
+  - Status banners are neutral (`surfaceOverlay`, `lineStrong` border), never amber or red.
+- **M4 Series and event.**
+  - Optional `series` (short chip, e.g. "ELMS", 9.5 pt mono, 1 pt border) and `event` ("Super 60 · Round 4").
+  - **Sessions, Day view:**
+    - Within a day, sessions sharing an event sit under an event header indented to the text column (44 pt), with the series chip, event name (truncates) and "n sessions".
+    - Sessions with no event list directly.
+  - **Sessions, Event view (later):** one card per event, containing:
+    - a header with chip and name, "track · dates · car · laps" and "Event best" in purple;
+    - rows whose line 1 is the session type and line 2 the day and time;
+    - a "No event" list after the cards.
+  - **Session header order:**
+    - series chip and event (omitted if none);
+    - "Race · Portimão";
+    - "Porsche 911 GT3 R · Manthey #91", team muted, the team part wraps;
+    - time · sim · duration.
+- **M5 Settings.** Opens from a gear on the Sessions header (phone) and from Settings in the desktop chrome.
+  - **Uploader card:**
+    - Status dot: green = connected and seen within 10 min, grey = not seen or not connected, amber = waiting during setup. There is never a red dot.
+    - Host · version · "LMU found", last upload, queue.
+    - "Set up on another PC".
+  - **Appearance:** Theme = System / Dark / Light.
+  - **Units:** speed km/h|mph, distance m|ft, temperature °C|°F. Display only; stored data stays metric.
+  - **Offline data:** "Keep recent sessions" stepper (default 20) with count and size; "Download on Wi-Fi only" toggle (on); "Clear offline data…" (confirm).
+  - **Account:** email and Sign out, then the app version.
+  - **Set up uploader:**
+    1. Install on the sim PC, with "Send link to my email".
+    2. Enter the pairing code (26 pt mono, expiry countdown).
+    3. Drive a session: "Waiting for the uploader to connect…".
+    - Error example: "Not seen for 3 days", the last error, the path, and "How to fix ›".
+
+**Wrong or unclear**
+- **W1 Light chart tokens:**
+  - chart.track `#d5d9dd` · chart.trackFill `#eef0f2` · chart.trackEdge `#b9bec3`
+  - chart.gridline `#e3e5e8` · chart.zero (median and zero lines) `#aeb4ba` · chart.band `#111316` at 7%
+  - chart.cursor = accentInk `oklch(0.62 0.15 65)` · chart.hover `#111316` at 60%
+  - grid.neutral `#e6e8eb` with text `#4a5057`; grid.slower `oklch(0.48 0.19 25)` at 55–100% with white text; grid.faster `oklch(0.72 0.15 150)` at 45–100% with text `#111316`
+  - map.badge `#fff` with stroke `#c9cdd1`; map.label `#4a5057`, corner numbers `#9aa0a6`
+  - Dark equivalents are in the same table in `Handoff v2.dc.html`.
+- **W2 Sessions row at 375:**
+  - The budget is 16 + 22 + flex ≈ 143 + 28 + 62 + 62 + 16, with 8 pt gaps.
+  - Line 1 is the layout's short name and never truncates.
+  - Line 2 is "car model · time": the model truncates with "…" and the time never does.
+  - The type lives in the R, Q or P badge.
+- **W3 Lap table at 375:**
+  - Columns 16 | 28 | 60 | 42 | 34 | 34 | 34 | tag ≥ 58, with 4 pt gaps. Sectors show 1 decimal at 375 and 2 on desktop.
+  - Each row shows one tag plus a muted "+n". Priority: exclusion reason (OUT, IN, PART, SLOW) > BEST > OFF > HIT. The detail panel lists every tag.
+  - Stint header on two lines: "Stint 1 · L1–L17" / "median … · spread …", with Select stint on the right.
+- **W4 Theme:** System is the default; it follows the OS, and dark is used when the OS reports no preference. Settings can override.
+
+**Build decisions adopted:** B1–B10 as logged.
+- The prototypes now match them: tag order and OFF/HIT rules, detail copy, the no-brake dash, Sessions row lines, and the Session header full car name.
+- Desktop: no Top km/h, Stint column 34, fall-off without an interval, no rail search or chrome uploader status, no Export CSV, and D3 with a Selected / All comparable laps toggle.
+- B9 (a reference-time x axis in Time mode) and B7 (sections in the phone and desktop prototypes' own grids) are specified here and in the v2 frames. The older prototype engines still draw metres and 11 corners.
+
 ## Overview
 A personal lap and race analysis app for a sim racer. It is used mostly on the phone, straight after a session. v1 has four views:
 
@@ -179,6 +270,15 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - Track stroke 6 pt `#262b31`.
   - Corner badges are 8 pt radius circles with the number; the open corner is inverted (text-colored fill, dark number).
   - Each lap has a position dot (r 4.5, 1.5 pt bg stroke). Tapping a badge opens Corner.
+- **Map panel modes (segment at the top left): Follow (default) / Track.**
+  - **Follow** is a zoomed chase view for watching the racing line through the corner.
+    - It is heading-up and centred on the reference car at 64% of the panel height.
+    - Zoom tracks the chart window: visible length ≈ 0.95 × the window's distance span, clamped to 50–360 m. Charts and follow view always show the same stretch of track.
+    - It draws the track band (12 m wide) with 1 pt edges, one line per lap (its own map x/y path, in lap color; ref white on top), and a car dot per lap at the same elapsed time. Brake points are 2.2 pt ticks across each lap's line, and corner badges sit on the inside of each apex.
+    - It also has a 20 m scale bar and a 96×64 whole-track inset (top right) with an accent dot for where you are.
+    - In tinted and grey modes, lines follow the same rules; at 20+ laps only the ref and highlighted lap are drawn.
+  - **Track** is the whole-lap map described above.
+  - On desktop the same two modes fill the 320×220 map slot in D2.
 - **Map (hidden) → strip (28 pt):**
   - A 4 pt track bar with corner numbers under it.
   - A frame showing the current zoom window.
@@ -352,6 +452,7 @@ Columns: 600 | 840. The chrome also shows the corner chips C1–C11 and ‹ prev
 ## Files
 - `App Screens.dc.html`: every screen and state, interactive. It includes the sample-data generator and all derived logic (in the `<script data-dc-script>` block: `buildData`, `dir()` for Compare charts, `t4()` for Session and Corner models).
 - `SessionsScreen.dc.html`, `SessionScreen.dc.html`, `CompareScreen.dc.html`, `CornerScreen.dc.html`: the four screen templates. CompareScreen frames: 03a map, 03b collapsed strip, 03c one chart with overlay pills, 03d edit charts sheet, 03e 12 laps tinted, 03f whole race grey.
+- `Handoff v2.dc.html`: answers to the feedback log (real map, sections, loading and errors, series and event, 375 budgets, settings and uploader, light chart tokens).
 - `Desktop Screens.dc.html`: the D1 Session, D2 Compare and D3 Corner desktop workspaces, interactive, with the same engine plus `dx()` for desktop-only panels.
 - `Design System.dc.html`: tokens and components reference, including the light theme.
 - `support.js`: runtime needed to open the .dc.html files locally.

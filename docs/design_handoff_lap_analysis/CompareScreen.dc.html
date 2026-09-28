@@ -15,12 +15,27 @@
 <sc-for list="{{ v.T.lapChips }}" as="c"><div onClick="{{ c.onTap }}" style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px;background:#15181b;border:1px solid #252a2f;border-radius:3px;cursor:pointer"><span style="width:10px;height:3px;background:{{ c.color }}"></span><span style="font:600 12px 'IBM Plex Mono',monospace">{{ c.label }}</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:{{ c.dcol }}">{{ c.dlt }}</span><sc-if value="{{ c.canRemove }}"><span onClick="{{ c.onRemove }}" style="color:#5b636b;font:500 13px 'IBM Plex Mono',monospace">×</span></sc-if></div></sc-for>
 <sc-if value="{{ v.many }}"><div style="flex:none;display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px dashed #3a4148;border-radius:3px;font:500 11px 'IBM Plex Mono',monospace;color:#8a929b"><span style="width:10px;height:3px;background:#5d646d"></span>{{ v.manyChip }}</div></sc-if>
 </div>
-<sc-if value="{{ v.mapShow }}" hint-placeholder-val="{{ true }}"><div style="flex:none;padding:0 16px;border-top:1px solid #21252b;background:#101317">
-<div data-ovw="1" style="position:relative"><svg width="358" height="170" style="display:block;overflow:visible">
+<sc-if value="{{ v.mapShow }}" hint-placeholder-val="{{ true }}"><div style="flex:none;padding:0 16px;border-top:1px solid #21252b;background:#101317;position:relative">
+<div style="position:absolute;left:6px;top:6px;z-index:2;display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ v.mvTabs }}" as="m"><span onClick="{{ m.onTap }}" style="padding:3px 8px;font:500 11px 'IBM Plex Sans Condensed',sans-serif;background:{{ m.bg }};color:{{ m.fg }};cursor:pointer">{{ m.label }}</span></sc-for></div>
+<sc-if value="{{ v.mvFollow }}" hint-placeholder-val="{{ true }}"><div style="position:relative;width:358px;height:170px;overflow:hidden">
+<svg width="358" height="170" style="display:block">
+<path d="{{ v.fol.track }}" fill="none" stroke="#1c2025" stroke-width="{{ v.fol.tw }}" stroke-linejoin="round" stroke-linecap="round"></path>
+<path d="{{ v.fol.e1 }}" fill="none" stroke="#3a4148" stroke-width="1"></path><path d="{{ v.fol.e2 }}" fill="none" stroke="#3a4148" stroke-width="1"></path>
+<sc-for list="{{ v.fol.lines }}" as="l"><path d="{{ l.d }}" fill="none" stroke="{{ l.c }}" stroke-width="{{ l.w }}" stroke-opacity="{{ l.op }}" stroke-linejoin="round"></path></sc-for>
+<sc-for list="{{ v.fol.bps }}" as="b"><line x1="{{ b.x1 }}" y1="{{ b.y1 }}" x2="{{ b.x2 }}" y2="{{ b.y2 }}" stroke="{{ b.c }}" stroke-width="2.2"></line></sc-for>
+<sc-for list="{{ v.fol.cars }}" as="k"><circle cx="{{ k.x }}" cy="{{ k.y }}" r="{{ k.r }}" fill="{{ k.c }}" stroke="#0d0f12" stroke-width="1.5"></circle></sc-for>
+<line x1="12" x2="{{ v.fol.sbx }}" y1="160" y2="160" stroke="#8a929b" stroke-width="1.5"></line>
+</svg>
+<sc-for list="{{ v.fol.labels }}" as="t"><span style="position:absolute;left:{{ t.x }}px;top:{{ t.y }}px;transform:translate(-50%,-50%);padding:1px 4px;border-radius:3px;background:#15181c;border:1px solid #3a4148;font:600 9.5px 'IBM Plex Mono',monospace;color:#aeb4ba;pointer-events:none;white-space:nowrap">{{ t.n }}</span></sc-for>
+<span style="position:absolute;left:12px;top:146px;font:500 9px 'IBM Plex Mono',monospace;color:#8a929b">20 m</span>
+<div style="position:absolute;right:6px;top:6px;width:96px;height:64px;background:rgba(13,15,18,.85);border:1px solid #2e343a;border-radius:3px"><svg width="96" height="64" style="display:block"><path d="{{ v.fol.inset }}" fill="none" stroke="#4d555d" stroke-width="1.5"></path><circle cx="{{ v.fol.ix }}" cy="{{ v.fol.iy }}" r="3" fill="oklch(0.80 0.16 70)"></circle></svg></div>
+</div></sc-if>
+<sc-if value="{{ v.mvTrack }}"><div style="padding-top:30px"><div data-ovw="1" style="position:relative"><svg width="358" height="170" style="display:block;overflow:visible">
 <path d="{{ v.map.d }}" fill="none" stroke="#262b31" stroke-width="6" stroke-linejoin="round"></path>
 <sc-for list="{{ v.map.labels }}" as="b"><g onClick="{{ b.onTap }}" style="cursor:pointer"><circle cx="{{ b.x }}" cy="{{ b.cy }}" r="8" fill="{{ b.fill }}" stroke="#3a4148"></circle></g></sc-for>
 <sc-for list="{{ v.map.dots }}" as="d"><circle cx="{{ d.x }}" cy="{{ d.y }}" r="4.5" fill="{{ d.color }}" stroke="#0d0f12" stroke-width="1.5"></circle></sc-for>
 </svg><sc-for list="{{ v.map.labels }}" as="b"><span style="position:absolute;left:{{ b.x }}px;top:{{ b.cy }}px;transform:translate(-50%,-50%);font:600 9.5px 'IBM Plex Mono',monospace;color:{{ b.fg }};pointer-events:none;white-space:nowrap;line-height:1">{{ b.n }}</span></sc-for></div>
+</div></sc-if>
 </div></sc-if>
 <sc-if value="{{ v.mapHide }}"><div onPointerDown="{{ v.mstrip.onDown }}" onPointerMove="{{ v.mstrip.onMove }}" style="flex:none;padding:6px 16px 4px;border-top:1px solid #21252b;background:#101317;touch-action:none;cursor:ew-resize">
 <div data-ovw="1" style="position:relative"><svg width="358" height="28" style="display:block;overflow:visible">

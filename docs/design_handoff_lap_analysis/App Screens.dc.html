@@ -350,7 +350,7 @@ class Component extends DCLogic {
     const grpOf=l=>pool.filter(o=>o.st===l.st),cutOf=l=>{const ts=grpOf(l).filter(o=>!o.reason||o.reason==='Slow outlier').map(o=>o.time),m0=med(ts),mad=med(ts.map(t=>Math.abs(t-m0)))*1.4826;return {m0,cut:Math.min(3*mad,m0*.07)};};
     const why=l=>{const x=[];if(l.reason==='Pit out')x.push('Starts in the pit lane, so it includes pit exit time.');else if(l.reason==='Pit in')x.push('Ends in the pit lane, so it includes pit entry time.');else if(l.reason==='Partial')x.push('Timing started partway round, so the lap is incomplete.');
       else if(l.reason==='Slow outlier'){const c=cutOf(l);x.push(`${fmtD2(l.time-c.m0)} s vs the ${l.st?'stint':'session'} median. Laps more than ${c.cut.toFixed(2)} s slower are excluded (median + 3 robust σ, max 7%).`);}
-      if(l.off)x.push(`Off track for ${l.off.toFixed(1)} s${l.comp?', under the 1.0 s tolerance, so the lap still counts':''}.`);if(l.imp)x.push(`Impact of ${l.imp} g, possible damage.`);return x.join(' ');};
+      if(l.off)x.push(`Off track for ${l.off.toFixed(1)} s${l.comp?', under the 1.0 s tolerance, so the lap still counts':''}.`);if(l.imp)x.push('Impact recorded, possible damage.');return x.join(' ');};
     const H=150,mid=74,bw=W/pool.length,sc=1.5,ty=d=>mid-Math.max(-sc,Math.min(sc,d))/sc*(mid-14);
     let hlBar=null;
     const bars=pool.map((l,i)=>{const x=+(i*bw+.8).toFixed(1),w=+Math.max(1.5,bw-1.6).toFixed(1),c=colOf(l.id),on=()=>hlTap(l.id,true);let b;
@@ -362,9 +362,9 @@ class Component extends DCLogic {
     const code=l=>({'Pit out':'OUT','Pit in':'IN','Partial':'PART','Slow outlier':'SLOW'})[l.reason]||'';
     const sb=[0,1,2].map(j=>Math.min(...comp.map(l=>l.sec[j])));
     const rows=[];pool.forEach((l,i)=>{if(i===0||l.st!==pool[i-1].st){const sl=grpOf(l),sc2=sl.filter(o=>o.comp),ts=sc2.map(o=>o.time);
-        rows.push({isHdr:true,isRow:false,hdr:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label} · median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,onAll:()=>this.set(K,st=>({laps:[st.laps[0],...sc2.map(o=>o.id).filter(id=>id!==st.laps[0])],hl:null}))});}
-      const c=colOf(l.id),tags=[];if(l.id===best.id)tags.push('BEST');const cd=code(l);if(cd)tags.push(cd);if(l.off)tags.push('OFF '+l.off.toFixed(1));if(l.imp)tags.push('HIT '+l.imp+'g');const hl=l.id===s.hl;
-      rows.push({isHdr:false,isRow:true,id:String(l.id),label:l.label,time:fmtLap(l.time),gap:l.comp?fmtD2(l.time-M):'',gc:l.time<M?FAST:'#c3c8cd',s:l.sec.map((v,j)=>({v:v.toFixed(2),c:l.comp&&Math.abs(v-sb[j])<.0005?PUR:l.comp?'#c3c8cd':'#6b737c'})),tags:tags.join(' '),tc:l.id===best.id?PUR:'#aeb4ba',op:l.comp?1:.5,
+        rows.push({isHdr:true,isRow:false,hdr:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label} · median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,hdr1:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label}`,hdr2:`median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,onAll:()=>this.set(K,st=>({laps:[st.laps[0],...sc2.map(o=>o.id).filter(id=>id!==st.laps[0])],hl:null}))});}
+      const c=colOf(l.id),tags=[];const cd=code(l);if(cd)tags.push(cd);if(l.id===best.id)tags.push('BEST');if(l.off>=1)tags.push('OFF '+l.off.toFixed(1));if(l.imp)tags.push('HIT');const hl=l.id===s.hl;
+      rows.push({isHdr:false,isRow:true,id:String(l.id),label:l.label,time:fmtLap(l.time),gap:l.comp?fmtD2(l.time-M):'',gc:l.time<M?FAST:'#c3c8cd',s:l.sec.map((v,j)=>({v:v.toFixed(2),c:l.comp&&Math.abs(v-sb[j])<.0005?PUR:l.comp?'#c3c8cd':'#6b737c'})),tags:tags.join(' '),tag1:tags[0]||'',more:tags.length>1?'+'+(tags.length-1):'',tc:l.id===best.id?PUR:'#aeb4ba',op:l.comp?1:.5,
         box:c||'transparent',bd:c||'#3a4148',chk:c?'✓':'',bg:hl?'oklch(0.80 0.16 70 / 0.13)':'transparent',sh:hl?'inset 3px 0 0 oklch(0.80 0.16 70)':'none',onTap:()=>hlTap(l.id,false),onChk:e=>{e.stopPropagation();toggle(l.id);}});});
     const hL=s.hl&&D.byN[s.hl]&&D.byN[s.hl].sess===s.sess?D.byN[s.hl]:null,inSel=hL&&s.laps.includes(hL.id);
     const detail=hL?{show:true,title:`${hL.label} · ${fmtLap(hL.time)}`,status:hL.comp?`Comparable · ${fmtD2(hL.time-M)} s vs median`:`Excluded · ${hL.reason}`,sc:hL.comp?'#aeb4ba':ACC,why:why(hL)||'Clean lap.',btn:inSel?(hL.id===s.laps[0]?'Reference':'Remove from compare'):'Add to compare',btnBg:inSel?'transparent':ACC,btnFg:inSel?'#e4e7ea':'#0d0f12',onBtn:()=>toggle(hL.id)}:{show:false};
@@ -407,7 +407,7 @@ class Component extends DCLogic {
       return {label,unit,dots,med:fm(med(vs)),p:fm(pct(vs,.1))+'–'+fm(pct(vs,.9)),lo:fm(flip?hi-pd:lo+pd),hi:fm(flip?lo+pd:hi-pd),n:P.length};});
     const hlC=s.hl&&s.laps.includes(s.hl)?D.byN[s.hl]:null,hlo=hlC?hlC.met[k]:null;
     const cchips=CRN.map((c,j)=>({n:'C'+(j+1),bg:j===k?'#e4e7ea':'#15181c',fg:j===k?'#0d0f12':'#aeb4ba',onTap:openC(j)}));
-    return {hasComp:true,noComp:false,empty:false,hasDays:true,T,days,many,huge,notHuge:!huge,sessTitle:`${sessName(s.sess)} · Portimão`,sessSub:`${s.sess==='Practice'?'Thu 19:05':s.sess==='Quali'?'Today 20:10':'Today 21:40'} · 911 GT3 R · LMU`,
+    return {fol:this.follow(K,358,170),mvFollow:(s.mv||'follow')==='follow',mvTrack:s.mv==='track',mvTabs:[['follow','Follow'],['track','Track']].map(([m,l])=>({label:l,bg:(s.mv||'follow')===m?'#e4e7ea':'rgba(13,15,18,.85)',fg:(s.mv||'follow')===m?'#0d0f12':'#aeb4ba',onTap:()=>sw({mv:m})})),hasComp:true,noComp:false,empty:false,hasDays:true,T,days,many,huge,notHuge:!huge,sessTitle:`${sessName(s.sess)} · Portimão`,sessSub:`${s.sess==='Practice'?'Thu 19:05':s.sess==='Quali'?'Today 20:10':'Today 21:40'} · Porsche 911 GT3 R · Manthey #91 · LMU`,
       facts:[{l:'Laps',v:String(pool.length),c:'#e4e7ea'},{l:'Comparable',v:String(comp.length),c:'#e4e7ea'},{l:'Best',v:fmtLap(best.time),c:PUR},{l:'Median',v:fmtLap(M),c:'#e4e7ea'}],
       lcDesc:`Each bar is one lap. Up = faster than the median (${fmtLap(M)}), down = slower; bars stop at ±1.5 s. Outlined stubs at the bottom are excluded laps. Tap a bar to find it in the table.`,
       bars,hlBar:hlBar||{x:-50,y:0,w:0,h:0},pits,stints,xl,mid,rows,detail,tblRef:this.tR[K],nSel:s.laps.length,selLabel:many?`${ref.label} ref + ${s.laps.length-1} laps`:s.laps.map(id=>D.byN[id].label).join(' · '),clearSel:()=>sw({laps:[s.laps[0]],hl:null}),
@@ -417,8 +417,25 @@ class Component extends DCLogic {
       strip,shdr,stripDesc:`Time in each corner vs ${ref.label}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it.`,
       corner:{title:'Corner '+(k+1),sub:`${fmtM(CRN[k].d)} · ${s.laps.length} laps · compared with ${ref.label}`,chips:cchips,rows:crows,dstrips,chan,ticks:cticks,
         hlLine:hlC?`${hlC.label}: ${hlo.seg.toFixed(2)} s · brake ${hlo.bp??'—'} m · min ${hlo.v.toFixed(0)} km/h · full throttle ${hlo.ft??'—'} m`:'Tap a dot to highlight that lap',
-        tableDesc:'Time in corner runs from where you start braking for this corner to where you start braking for the next one (100 m before the apex if you don\'t brake). Brake point is metres before the apex (bigger = earlier). Full throttle is metres after the apex (smaller = sooner).',
+        tableDesc:'Time in corner runs from where you start braking for this corner to where you start braking for the next one (corners without braking show — for brake point). Brake point is metres before the apex (bigger = earlier). Full throttle is metres after the apex (smaller = sooner).',
         prev:openC((k+CRN.length-1)%CRN.length),next:openC((k+1)%CRN.length)}};}
+  follow(K,w,h){const D=this.D,s=this.state[K],ref=D.byN[s.laps[0]],R=Math.round,cur=this.distAt(ref,s.t),ci=Math.min(N-1,R(cur/DS));
+    let span=260;if(s.win&&s.win!=='lap'){if(s.wmode==='m')span=s.win;else{const a=this.distAt(ref,Math.max(0,s.t-s.win/2)),b=this.distAt(ref,Math.min(ref.ch.time,s.t+s.win/2));span=Math.max(40,b-a);}}
+    const vis=Math.max(50,Math.min(360,span*.95)),sc=h/vis,j1=(ci+3)%N,j0=(ci-3+N)%N,th=Math.atan2(D.Y[j1]-D.Y[j0],D.X[j1]-D.X[j0]),rot=-Math.PI/2-th,cs=Math.cos(rot),sn=Math.sin(rot),X0=D.X[ci],Y0=D.Y[ci],oy=h*.64;
+    const S=(x,y)=>{const dx=(x-X0)*sc,dy=(y-Y0)*sc;return [+(w/2+dx*cs-dy*sn).toFixed(1),+(oy+dx*sn+dy*cs).toFixed(1)];};
+    const nrm=i=>{const a=(i+1)%N,b=(i-1+N)%N,dx=D.X[a]-D.X[b],dy=D.Y[a]-D.Y[b],m=Math.hypot(dx,dy)||1;return [-dy/m,dx/m];},P=(i,o)=>{const n=nrm(i);return S(D.X[i]+n[0]*o,D.Y[i]+n[1]*o);};
+    const back=R(vis*.7/DS),fwd=R(vis*.95/DS),idx=[];for(let q=-back;q<=fwd;q++)idx.push((ci+q+N)%N);
+    const line=f=>idx.map((i,j)=>{const p=P(i,f(i));return (j?'L':'M')+p[0]+' '+p[1];}).join('');
+    const insd=k=>-Math.sign(D.kap[R(CRN[k].d/DS)]||1);
+    const offOf=l=>{if(l._off)return l._off;const r=rng(l.n*977+13),a=new Float32Array(N);CRN.forEach((c,k)=>{const sg=insd(k),A=3.2+(r()-.5)*2.6,B=(r()-.5)*3,C=(r()-.5)*3,ai=R(c.d/DS);for(let q=-40;q<=40;q++){const i=(ai+q+N)%N,d=q*DS;a[i]+=sg*(A*Math.exp(-d*d/(2*32*32))-(3+B)*Math.exp(-((d+95)**2)/(2*40*40))-(3+C)*Math.exp(-((d-95)**2)/(2*40*40)));}});for(let i=0;i<N;i++)a[i]=Math.max(-5.3,Math.min(5.3,a[i]));return l._off=a;};
+    const many=s.laps.length>6,laps=s.laps.map((id,j)=>({l:D.byN[id],c:this.wcol(K,j,id),key:j===0||id===s.hl,ref:j===0})).filter(x=>!many||x.key||s.laps.length<20);
+    const lines=laps.map(x=>({d:line(i=>offOf(x.l)[i]),c:x.c,w:x.key?2:many?1:1.5,op:many&&!x.key?.5:1,z:x.ref?2:x.key?1:0})).sort((a,b)=>a.z-b.z);
+    const cars=laps.filter(x=>!many||x.key).map(x=>{const i=Math.min(N-1,R(this.distAt(x.l,s.t)/DS)),p=P(i,offOf(x.l)[i]);return {x:p[0],y:p[1],r:x.key?5:4,c:x.c,z:x.ref?2:1};}).sort((a,b)=>a.z-b.z);
+    const inIdx=new Set(idx),bps=[],labels=[];
+    CRN.forEach((c,k)=>{const ai=R(c.d/DS);if(inIdx.has(ai)){const p=P(ai,insd(k)*10.5);if(p[0]>8&&p[0]<w-8&&p[1]>8&&p[1]<h-8)labels.push({x:p[0],y:p[1],n:'C'+(k+1)});}
+      laps.filter(x=>x.key||!many).forEach(x=>{const b=x.l.met[k].bp;if(b==null)return;const i=(ai-b/DS+N)%N;if(!inIdx.has(i))return;const o=offOf(x.l)[i],p1=P(i,o-2.4),p2=P(i,o+2.4);bps.push({x1:p1[0],y1:p1[1],x2:p2[0],y2:p2[1],c:x.c});});});
+    const im=this.mapFor(96,64,6);
+    return {track:line(()=>0),e1:line(()=>6),e2:line(()=>-6),tw:+(12*sc).toFixed(1),lines,cars,bps,labels,sbx:+(12+20*sc).toFixed(1),inset:im.d,ix:im.px[ci],iy:im.py[ci],vis:R(vis)};}
   mz(key,dep,fn){this._mz=this._mz||{};const c=this._mz[key];if(c&&c.dep===dep)return c.v;const v=fn();this._mz[key]={dep,v};return v;}
   renderVals(){const st=this.state,o={};['w','ex','mh','fo','ed','mt','mm'].forEach(k=>{o[k.toUpperCase()]=this.mz(k,st[k],()=>this.t4(k));});
     o.EMPTY={empty:true,hasDays:false,days:[]};

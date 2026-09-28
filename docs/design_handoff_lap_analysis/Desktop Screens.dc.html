@@ -22,18 +22,17 @@
 <div style="width:18px;height:18px;border-radius:4px;background:#e4e7ea"></div>
 <div style="display:flex;gap:2px"><span style="padding:6px 12px;border-radius:3px;background:#1b1f24;font:600 13px 'IBM Plex Sans Condensed',sans-serif">Session</span><span style="padding:6px 12px;font:500 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Compare</span><span style="padding:6px 12px;font:500 13px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Corner</span></div>
 <span style="font:500 11.5px 'IBM Plex Mono',monospace;padding:5px 9px;border:1px solid #2e343a;border-radius:4px;white-space:nowrap">LMU · Portimão · 911 GT3 R ▾</span>
-<span style="margin-left:auto;display:flex;align-items:center;gap:6px;font:400 11.5px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.82 0.17 150)"></span>Synced 21:58 · uploader OK</span>
-<span style="font:500 12.5px 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Settings</span>
+<span style="margin-left:auto;font:500 12.5px 'IBM Plex Sans Condensed',sans-serif;color:#aeb4ba">Settings</span>
 </div>
 <div style="flex:1;min-height:0;display:grid;grid-template-columns:280px 820px 340px">
 <div style="border-right:1px solid #21252b;display:flex;flex-direction:column;min-height:0;background:#0b0d10">
-<div style="padding:12px 14px 10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid #21252b"><span style="font:600 16px 'IBM Plex Sans Condensed',sans-serif">Sessions</span><div style="padding:6px 9px;border:1px solid #2e343a;border-radius:3px;font:400 12px 'IBM Plex Sans Condensed',sans-serif;color:#5b636b">Search track, car, date</div></div>
+<div style="padding:12px 14px 10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid #21252b"><span style="font:600 16px 'IBM Plex Sans Condensed',sans-serif">Sessions</span></div>
 <div style="flex:1;overflow-y:auto;padding-bottom:12px">
 <sc-for list="{{ DS.days }}" as="d" hint-placeholder-count="3">
 <div style="padding:10px 14px 4px;display:flex;align-items:baseline;gap:8px"><span style="font:600 12.5px 'IBM Plex Sans Condensed',sans-serif">{{ d.day }}</span><span style="font:400 10.5px 'IBM Plex Mono',monospace;color:#5b636b;white-space:nowrap">{{ d.date }}</span></div>
 <sc-for list="{{ d.rows }}" as="r"><div onClick="{{ r.onTap }}" style="display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:center;padding:7px 14px;box-shadow:{{ r.sh }};background:{{ r.bg }};cursor:pointer" style-hover="background:#15181c">
 <span style="width:18px;height:18px;border:1px solid #3a4148;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 10px 'IBM Plex Mono',monospace">{{ r.b }}</span>
-<div style="min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.track }} <span style="font-weight:400;color:#8a929b">· {{ r.type }}</span></div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">{{ r.time }} · {{ r.laps }} laps</div></div>
+<div style="min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.track }}</div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">{{ r.car }} · {{ r.time }} · {{ r.laps }} laps</div></div>
 <span style="font:500 11px 'IBM Plex Mono',monospace;color:#aeb4ba">{{ r.best }}</span>
 </div></sc-for>
 </sc-for>
@@ -56,15 +55,15 @@
 <sc-for list="{{ DS.xl }}" as="x"><text x="{{ x.x }}" y="164" text-anchor="middle" fill="#5b636b" style="font:400 9px 'IBM Plex Mono',monospace">{{ x.t }}</text></sc-for>
 </svg>
 </div>
-<div style="flex:none;margin-top:10px;display:grid;grid-template-columns:18px 40px 30px 78px 62px 60px 60px 60px 52px 1fr;gap:0 8px;padding:7px 20px;border-top:1px solid #21252b;border-bottom:1px solid #21252b;background:#101317;font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#8a929b"><span></span><span>Lap</span><span>Stint</span><span>Time</span><span>vs med</span><span>S1</span><span>S2</span><span>S3</span><span>Top km/h</span><span>Tags</span></div>
+<div style="flex:none;margin-top:10px;display:grid;grid-template-columns:18px 40px 34px 78px 62px 60px 60px 60px 1fr;gap:0 8px;padding:7px 20px;border-top:1px solid #21252b;border-bottom:1px solid #21252b;background:#101317;font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#8a929b"><span></span><span>Lap</span><span>Stint</span><span>Time</span><span>vs med</span><span>S1</span><span>S2</span><span>S3</span><span>Tags</span></div>
 <div ref="{{ DS.tblRef }}" style="flex:1;min-height:0;overflow-y:auto;position:relative">
 <sc-for list="{{ DS.rows }}" as="r" hint-placeholder-count="20">
 <sc-if value="{{ r.isHdr }}"><div style="display:flex;align-items:center;gap:10px;padding:8px 20px 4px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.04em;color:#aeb4ba">{{ r.hdr }}</span><span onClick="{{ r.onAll }}" style="padding:2px 8px;border:1px solid #3a4148;border-radius:3px;font:500 11px 'IBM Plex Sans Condensed',sans-serif;cursor:pointer">Select stint</span></div></sc-if>
-<sc-if value="{{ r.isRow }}"><div data-lap="{{ r.id }}" onClick="{{ r.onTap }}" style="display:grid;grid-template-columns:18px 40px 30px 78px 62px 60px 60px 60px 52px 1fr;gap:0 8px;align-items:center;height:26px;padding:0 20px;border-bottom:1px solid #13161a;background:{{ r.bg }};box-shadow:{{ r.sh }};font:400 12px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;cursor:pointer" style-hover="background:#13161a">
+<sc-if value="{{ r.isRow }}"><div data-lap="{{ r.id }}" onClick="{{ r.onTap }}" style="display:grid;grid-template-columns:18px 40px 34px 78px 62px 60px 60px 60px 1fr;gap:0 8px;align-items:center;height:26px;padding:0 20px;border-bottom:1px solid #13161a;background:{{ r.bg }};box-shadow:{{ r.sh }};font:400 12px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;cursor:pointer" style-hover="background:#13161a">
 <span onClick="{{ r.onChk }}" style="width:14px;height:14px;border-radius:3px;border:1.5px solid {{ r.bd }};background:{{ r.box }};display:flex;align-items:center;justify-content:center;font:700 9px 'IBM Plex Mono',monospace;color:#0d0f12">{{ r.chk }}</span>
 <span style="opacity:{{ r.op }};font-weight:500">{{ r.label }}</span><span style="color:#5b636b">{{ r.stn }}</span><span style="opacity:{{ r.op }}">{{ r.time }}</span><span style="color:{{ r.gc }}">{{ r.gap }}</span>
 <sc-for list="{{ r.s }}" as="x"><span style="color:{{ x.c }}">{{ x.v }}</span></sc-for>
-<span style="color:#aeb4ba;opacity:{{ r.op }}">{{ r.vmax }}</span>
+
 <span style="font-size:10.5px;color:{{ r.tc }};white-space:nowrap">{{ r.tags }}</span>
 </div></sc-if>
 </sc-for>
@@ -75,9 +74,9 @@
 <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:18px">
 <div>
 <div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Stints</div>
-<div style="font:400 11.5px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#8a929b;margin:2px 0 8px">Comparable laps only. Fall-off is the lap-time trend per lap, with its 95% range.</div>
+<div style="font:400 11.5px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#8a929b;margin:2px 0 8px">Comparable laps only. Fall-off is the stored lap-time trend (s/lap), shown only where the session has it.</div>
 <div style="display:grid;grid-template-columns:62px 38px 1fr 1fr 50px;gap:0 6px;padding:5px 0;border-bottom:1px solid #21252b;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:#8a929b"><span></span><span>n</span><span>Median</span><span>Best</span><span>Spread</span></div>
-<sc-for list="{{ DS.X.stints }}" as="s"><div style="padding:6px 0;border-bottom:1px solid #15181c"><div style="display:grid;grid-template-columns:62px 38px 1fr 1fr 50px;gap:0 6px;align-items:baseline;font:400 11.5px 'IBM Plex Mono',monospace"><span style="font:600 12.5px 'IBM Plex Sans Condensed',sans-serif">{{ s.name }}</span><span style="color:#8a929b">{{ s.n }}</span><span>{{ s.med }}</span><span style="color:#aeb4ba">{{ s.best }}</span><span>{{ s.sd }}</span></div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b;margin-top:2px">{{ s.range }} · fall-off {{ s.slope }} {{ s.ci }} s/lap</div></div></sc-for>
+<sc-for list="{{ DS.X.stints }}" as="s"><div style="padding:6px 0;border-bottom:1px solid #15181c"><div style="display:grid;grid-template-columns:62px 38px 1fr 1fr 50px;gap:0 6px;align-items:baseline;font:400 11.5px 'IBM Plex Mono',monospace"><span style="font:600 12.5px 'IBM Plex Sans Condensed',sans-serif">{{ s.name }}</span><span style="color:#8a929b">{{ s.n }}</span><span>{{ s.med }}</span><span style="color:#aeb4ba">{{ s.best }}</span><span>{{ s.sd }}</span></div><div style="font:400 10.5px 'IBM Plex Mono',monospace;color:#8a929b;margin-top:2px">{{ s.range }} · fall-off {{ s.slope }} s/lap</div></div></sc-for>
 </div>
 <div>
 <div style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Lap-time distribution</div>
@@ -123,7 +122,7 @@
 <span style="font:500 11.5px 'IBM Plex Mono',monospace;padding:5px 9px;border:1px solid #2e343a;border-radius:4px;white-space:nowrap">LMU · Portimão · 911 GT3 R ▾</span>
 <span style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="font:500 9.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#8a929b">Reference</span><span style="width:10px;height:3px;background:#f2f4f6;align-self:center"></span><span style="font:600 12.5px 'IBM Plex Mono',monospace;white-space:nowrap">{{ DC.refName }}</span></span>
 <span style="margin-left:auto;font:500 12px 'IBM Plex Sans Condensed',sans-serif;padding:5px 10px;border:1px solid #3a4148;border-radius:3px;white-space:nowrap">Copy link</span>
-<span style="font:500 12px 'IBM Plex Sans Condensed',sans-serif;padding:5px 10px;border:1px solid #3a4148;border-radius:3px;white-space:nowrap">Export CSV</span>
+
 </div>
 <div style="flex:1;min-height:0;display:grid;grid-template-columns:260px 820px 360px">
 <div style="border-right:1px solid #21252b;display:flex;flex-direction:column;min-height:0;background:#0b0d10">
@@ -195,11 +194,24 @@
 <div style="display:flex;flex-direction:column;min-height:0;overflow-y:auto">
 <div style="padding:12px 20px 8px;border-bottom:1px solid #21252b;background:#101317">
 <div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Track</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b">{{ DC.T.curCorner }} · {{ DC.T.curD }}</span></div>
-<svg width="320" height="220" style="display:block;overflow:visible">
+<div style="position:relative;margin-top:6px"><div style="position:absolute;left:6px;top:6px;z-index:2;display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ DC.mvTabs }}" as="m"><span onClick="{{ m.onTap }}" style="padding:3px 8px;font:500 11px 'IBM Plex Sans Condensed',sans-serif;background:{{ m.bg }};color:{{ m.fg }};cursor:pointer">{{ m.label }}</span></sc-for></div><sc-if value="{{ DC.mvFollow }}" hint-placeholder-val="{{ true }}"><div style="position:relative;width:320px;height:220px;overflow:hidden">
+<svg width="320" height="220" style="display:block">
+<path d="{{ DC.fol.track }}" fill="none" stroke="#1c2025" stroke-width="{{ DC.fol.tw }}" stroke-linejoin="round" stroke-linecap="round"></path>
+<path d="{{ DC.fol.e1 }}" fill="none" stroke="#3a4148" stroke-width="1"></path><path d="{{ DC.fol.e2 }}" fill="none" stroke="#3a4148" stroke-width="1"></path>
+<sc-for list="{{ DC.fol.lines }}" as="l"><path d="{{ l.d }}" fill="none" stroke="{{ l.c }}" stroke-width="{{ l.w }}" stroke-opacity="{{ l.op }}" stroke-linejoin="round"></path></sc-for>
+<sc-for list="{{ DC.fol.bps }}" as="b"><line x1="{{ b.x1 }}" y1="{{ b.y1 }}" x2="{{ b.x2 }}" y2="{{ b.y2 }}" stroke="{{ b.c }}" stroke-width="2.2"></line></sc-for>
+<sc-for list="{{ DC.fol.cars }}" as="k"><circle cx="{{ k.x }}" cy="{{ k.y }}" r="{{ k.r }}" fill="{{ k.c }}" stroke="#0d0f12" stroke-width="1.5"></circle></sc-for>
+<line x1="12" x2="{{ DC.fol.sbx }}" y1="210" y2="210" stroke="#8a929b" stroke-width="1.5"></line>
+</svg>
+<sc-for list="{{ DC.fol.labels }}" as="t"><span style="position:absolute;left:{{ t.x }}px;top:{{ t.y }}px;transform:translate(-50%,-50%);padding:1px 4px;border-radius:3px;background:#15181c;border:1px solid #3a4148;font:600 9.5px 'IBM Plex Mono',monospace;color:#aeb4ba;pointer-events:none;white-space:nowrap">{{ t.n }}</span></sc-for>
+<span style="position:absolute;left:12px;top:196px;font:500 9px 'IBM Plex Mono',monospace;color:#8a929b">20 m</span>
+<div style="position:absolute;right:6px;top:6px;width:96px;height:64px;background:rgba(13,15,18,.85);border:1px solid #2e343a;border-radius:3px"><svg width="96" height="64" style="display:block"><path d="{{ DC.fol.inset }}" fill="none" stroke="#4d555d" stroke-width="1.5"></path><circle cx="{{ DC.fol.ix }}" cy="{{ DC.fol.iy }}" r="3" fill="oklch(0.80 0.16 70)"></circle></svg></div>
+</div></sc-if><sc-if value="{{ DC.mvTrack }}"><div style="padding-top:30px"><svg width="320" height="220" style="display:block;overflow:visible">
 <path d="{{ DC.map.d }}" fill="none" stroke="#262b31" stroke-width="7" stroke-linejoin="round"></path>
 <sc-for list="{{ DC.map.labels }}" as="b"><g onClick="{{ b.onTap }}" style="cursor:pointer"><circle cx="{{ b.x }}" cy="{{ b.cy }}" r="8.5" fill="{{ b.fill }}" stroke="#3a4148"></circle><text x="{{ b.x }}" y="{{ b.ty }}" dy="-0.5" text-anchor="middle" fill="{{ b.fg }}" style="font:600 10px 'IBM Plex Mono',monospace">{{ b.n }}</text></g></sc-for>
 <sc-for list="{{ DC.map.dots }}" as="d"><circle cx="{{ d.x }}" cy="{{ d.y }}" r="5" fill="{{ d.color }}" stroke="#0d0f12" stroke-width="1.5"></circle></sc-for>
-</svg>
+</svg></div></sc-if></div>
+<div style="font:400 11px/1.35 'IBM Plex Sans Condensed',sans-serif;color:#6b737c;margin-top:6px">Follow: heading up, zoom tracks the chart window. Each line is that lap's path; ticks across a line mark its brake points. Inset shows where you are on the lap.</div>
 </div>
 <div style="padding:12px 20px 10px;border-bottom:1px solid #21252b">
 <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px"><span style="font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Values</span><span style="font:500 11px 'IBM Plex Mono',monospace;color:#8a929b">{{ DC.X.ro.where }}</span></div>
@@ -230,6 +242,7 @@
 <div style="flex:1;min-height:0;display:grid;grid-template-columns:600px 840px">
 <div style="border-right:1px solid #21252b;display:flex;flex-direction:column;min-height:0;overflow-y:auto">
 <div style="padding:14px 20px 8px"><div style="font:600 26px/1.1 'IBM Plex Sans Condensed',sans-serif">{{ DN.corner.title }}</div><div style="font:400 11.5px 'IBM Plex Mono',monospace;color:#8a929b;margin-top:3px">{{ DN.corner.sub }}</div></div>
+<div style="padding:0 20px 10px;display:flex"><div style="display:flex;border:1px solid #2e343a;border-radius:3px;overflow:hidden"><sc-for list="{{ DN.X.allT }}" as="m"><span onClick="{{ m.onTap }}" style="padding:4px 10px;font:500 12px 'IBM Plex Sans Condensed',sans-serif;background:{{ m.bg }};color:{{ m.fg }};cursor:pointer;white-space:nowrap">{{ m.label }}</span></sc-for></div></div>
 <div style="padding:4px 20px 10px;border-bottom:1px solid #21252b">
 <div style="display:flex;align-items:baseline;gap:10px"><span style="flex:none;white-space:nowrap;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Where each lap braked</span><span style="font:400 11px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Circles = brake point, squares = full throttle. Reference white, highlighted blue, the rest grey.</span></div>
 <svg width="560" height="210" style="display:block;overflow:visible;margin-top:4px;background:#101317;border-radius:4px">
@@ -243,6 +256,7 @@
 </div>
 <div style="padding:10px 20px 6px;border-bottom:1px solid #21252b">
 <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:2px"><span style="flex:none;white-space:nowrap;font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase">Distribution</span><span style="font:400 11px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">One dot per lap. Left = earlier or slower. Click a dot to highlight the lap everywhere.</span></div>
+<sc-if value="{{ DN.notHuge }}"><div style="padding:8px 0 6px;font:400 12px 'IBM Plex Sans Condensed',sans-serif;color:#8a929b">Dot strips need 20+ laps. Switch to All comparable laps to see the spread.</div></sc-if>
 <sc-for list="{{ DN.corner.dstrips }}" as="d"><div style="display:grid;grid-template-columns:110px 30px 440px 30px;align-items:center;gap:4px;padding:3px 0">
 <div style="display:flex;flex-direction:column"><span style="font:600 11px 'IBM Plex Mono',monospace;white-space:nowrap">{{ d.label }}</span><span style="font:400 10px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">med {{ d.med }} · {{ d.p }}</span></div>
 <span style="font:400 9.5px 'IBM Plex Mono',monospace;color:#5b636b;text-align:right">{{ d.lo }}</span>
@@ -399,7 +413,7 @@ class Component extends DCLogic {
   D=buildData();
   mk=()=>({laps:this.D.defLaps.slice(),charts:[{k:'delta',off:[]},{k:'speed',off:[]},{k:'throttle',off:[]},{k:'brake',off:[]}],zoom:1,c0:L/2,t:this.D.best.ch.t[Math.round(2000/DS)],playing:false,rate:1,pool:false,map:false,sel:null});
   state=(()=>{const D=this.D,b=D.best.n,base=()=>({...this.mk(),wmode:'t',win:2,t:D.best.ch.t[Math.round(2105/DS)],laps:[b,12,31],hl:null,corner:5,sess:'Race',mapHide:false,view:'stack',fi:0,editor:false,pick:null,charts:[['delta'],['speed'],['throttle','brake'],['steer'],['gear']].map(chs=>({chs,off:[]}))}),comp=D.comp.map(l=>l.n).filter(n=>n!==b);
-    return {ds:{...base(),hl:9},dc:{...base(),laps:[b,12,31,27],win:4,hv:null,charts:[['delta'],['speed'],['throttle','brake'],['steer'],['gear']].map(chs=>({chs,off:[]}))},dn:{...base(),laps:[b,...comp],hl:31,corner:5,srt:'seg'}};})();
+    return {ds:{...base(),hl:9},dc:{...base(),laps:[b,12,31,27],win:4,hv:null,charts:[['delta'],['speed'],['throttle','brake'],['steer'],['gear']].map(chs=>({chs,off:[]}))},dn:{...base(),laps:[b,12,31,27],hl:31,corner:5,srt:'seg'}};})();
   memo={};
   set(k,p){this.setState(s=>({[k]:{...s[k],...(typeof p==='function'?p(s[k]):p)}}));}
   distAt(l,t){const a=l.ch.t;if(t<=0)return 0;if(t>=a[N-1])return (N-1)*DS;let lo=0,hi=N-1;while(hi-lo>1){const m=(lo+hi)>>1;if(a[m]<=t)lo=m;else hi=m;}return (lo+(t-a[lo])/(a[hi]-a[lo]))*DS;}
@@ -518,7 +532,7 @@ class Component extends DCLogic {
     const grpOf=l=>pool.filter(o=>o.st===l.st),cutOf=l=>{const ts=grpOf(l).filter(o=>!o.reason||o.reason==='Slow outlier').map(o=>o.time),m0=med(ts),mad=med(ts.map(t=>Math.abs(t-m0)))*1.4826;return {m0,cut:Math.min(3*mad,m0*.07)};};
     const why=l=>{const x=[];if(l.reason==='Pit out')x.push('Starts in the pit lane, so it includes pit exit time.');else if(l.reason==='Pit in')x.push('Ends in the pit lane, so it includes pit entry time.');else if(l.reason==='Partial')x.push('Timing started partway round, so the lap is incomplete.');
       else if(l.reason==='Slow outlier'){const c=cutOf(l);x.push(`${fmtD2(l.time-c.m0)} s vs the ${l.st?'stint':'session'} median. Laps more than ${c.cut.toFixed(2)} s slower are excluded (median + 3 robust σ, max 7%).`);}
-      if(l.off)x.push(`Off track for ${l.off.toFixed(1)} s${l.comp?', under the 1.0 s tolerance, so the lap still counts':''}.`);if(l.imp)x.push(`Impact of ${l.imp} g, possible damage.`);return x.join(' ');};
+      if(l.off)x.push(`Off track for ${l.off.toFixed(1)} s${l.comp?', under the 1.0 s tolerance, so the lap still counts':''}.`);if(l.imp)x.push('Impact recorded, possible damage.');return x.join(' ');};
     const H=150,mid=74,bw=W/pool.length,sc=1.5,ty=d=>mid-Math.max(-sc,Math.min(sc,d))/sc*(mid-14);
     let hlBar=null;
     const bars=pool.map((l,i)=>{const x=+(i*bw+.8).toFixed(1),w=+Math.max(1.5,bw-1.6).toFixed(1),c=colOf(l.id),on=()=>hlTap(l.id,true);let b;
@@ -530,9 +544,9 @@ class Component extends DCLogic {
     const code=l=>({'Pit out':'OUT','Pit in':'IN','Partial':'PART','Slow outlier':'SLOW'})[l.reason]||'';
     const sb=[0,1,2].map(j=>Math.min(...comp.map(l=>l.sec[j])));
     const rows=[];pool.forEach((l,i)=>{if(i===0||l.st!==pool[i-1].st){const sl=grpOf(l),sc2=sl.filter(o=>o.comp),ts=sc2.map(o=>o.time);
-        rows.push({isHdr:true,isRow:false,hdr:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label} · median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,onAll:()=>this.set(K,st=>({laps:[st.laps[0],...sc2.map(o=>o.id).filter(id=>id!==st.laps[0])],hl:null}))});}
-      const c=colOf(l.id),tags=[];if(l.id===best.id)tags.push('BEST');const cd=code(l);if(cd)tags.push(cd);if(l.off)tags.push('OFF '+l.off.toFixed(1));if(l.imp)tags.push('HIT '+l.imp+'g');const hl=l.id===s.hl;
-      rows.push({isHdr:false,isRow:true,vmax:String(R(Math.max(...l.ch.sp))),stn:l.st?'S'+l.st:'',id:String(l.id),label:l.label,time:fmtLap(l.time),gap:l.comp?fmtD2(l.time-M):'',gc:l.time<M?FAST:'#c3c8cd',s:l.sec.map((v,j)=>({v:v.toFixed(2),c:l.comp&&Math.abs(v-sb[j])<.0005?PUR:l.comp?'#c3c8cd':'#6b737c'})),tags:tags.join(' '),tc:l.id===best.id?PUR:'#aeb4ba',op:l.comp?1:.5,
+        rows.push({isHdr:true,isRow:false,hdr:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label} · median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,hdr1:`${l.st?'Stint '+l.st:sessName(l.sess)} · ${sl[0].label}–${sl[sl.length-1].label}`,hdr2:`median ${fmtLap(med(ts))} · spread ${sdv(ts).toFixed(2)} s`,onAll:()=>this.set(K,st=>({laps:[st.laps[0],...sc2.map(o=>o.id).filter(id=>id!==st.laps[0])],hl:null}))});}
+      const c=colOf(l.id),tags=[];const cd=code(l);if(cd)tags.push(cd);if(l.id===best.id)tags.push('BEST');if(l.off>=1)tags.push('OFF '+l.off.toFixed(1));if(l.imp)tags.push('HIT');const hl=l.id===s.hl;
+      rows.push({isHdr:false,isRow:true,vmax:String(R(Math.max(...l.ch.sp))),stn:l.st?'S'+l.st:'',id:String(l.id),label:l.label,time:fmtLap(l.time),gap:l.comp?fmtD2(l.time-M):'',gc:l.time<M?FAST:'#c3c8cd',s:l.sec.map((v,j)=>({v:v.toFixed(2),c:l.comp&&Math.abs(v-sb[j])<.0005?PUR:l.comp?'#c3c8cd':'#6b737c'})),tags:tags.join(' '),tag1:tags[0]||'',more:tags.length>1?'+'+(tags.length-1):'',tc:l.id===best.id?PUR:'#aeb4ba',op:l.comp?1:.5,
         box:c||'transparent',bd:c||'#3a4148',chk:c?'✓':'',bg:hl?'oklch(0.80 0.16 70 / 0.13)':'transparent',sh:hl?'inset 3px 0 0 oklch(0.80 0.16 70)':'none',onTap:()=>hlTap(l.id,false),onChk:e=>{e.stopPropagation();toggle(l.id);}});});
     const hL=s.hl&&D.byN[s.hl]&&D.byN[s.hl].sess===s.sess?D.byN[s.hl]:null,inSel=hL&&s.laps.includes(hL.id);
     const detail=hL?{show:true,title:`${hL.label} · ${fmtLap(hL.time)}`,status:hL.comp?`Comparable · ${fmtD2(hL.time-M)} s vs median`:`Excluded · ${hL.reason}`,sc:hL.comp?'#aeb4ba':ACC,why:why(hL)||'Clean lap.',btn:inSel?(hL.id===s.laps[0]?'Reference':'Remove from compare'):'Add to compare',btnBg:inSel?'transparent':ACC,btnFg:inSel?'#e4e7ea':'#0d0f12',onBtn:()=>toggle(hL.id)}:{show:false};
@@ -575,7 +589,7 @@ class Component extends DCLogic {
       return {label,unit,dots,med:fm(med(vs)),p:fm(pct(vs,.1))+'–'+fm(pct(vs,.9)),lo:fm(flip?hi-pd:lo+pd),hi:fm(flip?lo+pd:hi-pd),n:P.length};});
     const hlC=s.hl&&s.laps.includes(s.hl)?D.byN[s.hl]:null,hlo=hlC?hlC.met[k]:null;
     const cchips=CRN.map((c,j)=>({n:'C'+(j+1),bg:j===k?'#e4e7ea':'#15181c',fg:j===k?'#0d0f12':'#aeb4ba',onTap:openC(j)}));
-    return {hasComp:true,noComp:false,empty:false,hasDays:true,T,days,many,huge,notHuge:!huge,sessTitle:`${sessName(s.sess)} · Portimão`,sessSub:`${s.sess==='Practice'?'Thu 19:05':s.sess==='Quali'?'Today 20:10':'Today 21:40'} · 911 GT3 R · LMU`,
+    return {fol:this.follow(K,MP[0],MP[1]),mvFollow:(s.mv||'follow')==='follow',mvTrack:s.mv==='track',mvTabs:[['follow','Follow'],['track','Track']].map(([m,l])=>({label:l,bg:(s.mv||'follow')===m?'#e4e7ea':'rgba(13,15,18,.85)',fg:(s.mv||'follow')===m?'#0d0f12':'#aeb4ba',onTap:()=>sw({mv:m})})),hasComp:true,noComp:false,empty:false,hasDays:true,T,days,many,huge,notHuge:!huge,sessTitle:`${sessName(s.sess)} · Portimão`,sessSub:`${s.sess==='Practice'?'Thu 19:05':s.sess==='Quali'?'Today 20:10':'Today 21:40'} · Porsche 911 GT3 R · Manthey #91 · LMU`,
       facts:[{l:'Laps',v:String(pool.length),c:'#e4e7ea'},{l:'Comparable',v:String(comp.length),c:'#e4e7ea'},{l:'Best',v:fmtLap(best.time),c:PUR},{l:'Median',v:fmtLap(M),c:'#e4e7ea'}],
       lcDesc:`Each bar is one lap. Up = faster than the median (${fmtLap(M)}), down = slower; bars stop at ±1.5 s. Outlined stubs at the bottom are excluded laps. Tap a bar to find it in the table.`,
       bars,hlBar:hlBar||{x:-50,y:0,w:0,h:0},pits,stints,xl,mid,rows,detail,tblRef:this.tR[K],nSel:s.laps.length,selLabel:many?`${ref.label} ref + ${s.laps.length-1} laps`:s.laps.map(id=>D.byN[id].label).join(' · '),clearSel:()=>sw({laps:[s.laps[0]],hl:null}),
@@ -585,8 +599,25 @@ class Component extends DCLogic {
       strip,shdr,stripDesc:`Time in each corner vs ${ref.label}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it.`,
       corner:{title:'Corner '+(k+1),sub:`${fmtM(CRN[k].d)} · ${s.laps.length} laps · compared with ${ref.label}`,chips:cchips,rows:crows,dstrips,chan,ticks:cticks,
         hlLine:hlC?`${hlC.label}: ${hlo.seg.toFixed(2)} s · brake ${hlo.bp??'—'} m · min ${hlo.v.toFixed(0)} km/h · full throttle ${hlo.ft??'—'} m`:'Tap a dot to highlight that lap',
-        tableDesc:'Time in corner runs from where you start braking for this corner to where you start braking for the next one (100 m before the apex if you don\'t brake). Brake point is metres before the apex (bigger = earlier). Full throttle is metres after the apex (smaller = sooner).',
+        tableDesc:'Time in corner runs from where you start braking for this corner to where you start braking for the next one (corners without braking show — for brake point). Brake point is metres before the apex (bigger = earlier). Full throttle is metres after the apex (smaller = sooner).',
         prev:openC((k+CRN.length-1)%CRN.length),next:openC((k+1)%CRN.length)}};}
+  follow(K,w,h){const D=this.D,s=this.state[K],ref=D.byN[s.laps[0]],R=Math.round,cur=this.distAt(ref,s.t),ci=Math.min(N-1,R(cur/DS));
+    let span=260;if(s.win&&s.win!=='lap'){if(s.wmode==='m')span=s.win;else{const a=this.distAt(ref,Math.max(0,s.t-s.win/2)),b=this.distAt(ref,Math.min(ref.ch.time,s.t+s.win/2));span=Math.max(40,b-a);}}
+    const vis=Math.max(50,Math.min(360,span*.95)),sc=h/vis,j1=(ci+3)%N,j0=(ci-3+N)%N,th=Math.atan2(D.Y[j1]-D.Y[j0],D.X[j1]-D.X[j0]),rot=-Math.PI/2-th,cs=Math.cos(rot),sn=Math.sin(rot),X0=D.X[ci],Y0=D.Y[ci],oy=h*.64;
+    const S=(x,y)=>{const dx=(x-X0)*sc,dy=(y-Y0)*sc;return [+(w/2+dx*cs-dy*sn).toFixed(1),+(oy+dx*sn+dy*cs).toFixed(1)];};
+    const nrm=i=>{const a=(i+1)%N,b=(i-1+N)%N,dx=D.X[a]-D.X[b],dy=D.Y[a]-D.Y[b],m=Math.hypot(dx,dy)||1;return [-dy/m,dx/m];},P=(i,o)=>{const n=nrm(i);return S(D.X[i]+n[0]*o,D.Y[i]+n[1]*o);};
+    const back=R(vis*.7/DS),fwd=R(vis*.95/DS),idx=[];for(let q=-back;q<=fwd;q++)idx.push((ci+q+N)%N);
+    const line=f=>idx.map((i,j)=>{const p=P(i,f(i));return (j?'L':'M')+p[0]+' '+p[1];}).join('');
+    const insd=k=>-Math.sign(D.kap[R(CRN[k].d/DS)]||1);
+    const offOf=l=>{if(l._off)return l._off;const r=rng(l.n*977+13),a=new Float32Array(N);CRN.forEach((c,k)=>{const sg=insd(k),A=3.2+(r()-.5)*2.6,B=(r()-.5)*3,C=(r()-.5)*3,ai=R(c.d/DS);for(let q=-40;q<=40;q++){const i=(ai+q+N)%N,d=q*DS;a[i]+=sg*(A*Math.exp(-d*d/(2*32*32))-(3+B)*Math.exp(-((d+95)**2)/(2*40*40))-(3+C)*Math.exp(-((d-95)**2)/(2*40*40)));}});for(let i=0;i<N;i++)a[i]=Math.max(-5.3,Math.min(5.3,a[i]));return l._off=a;};
+    const many=s.laps.length>6,laps=s.laps.map((id,j)=>({l:D.byN[id],c:this.wcol(K,j,id),key:j===0||id===s.hl,ref:j===0})).filter(x=>!many||x.key||s.laps.length<20);
+    const lines=laps.map(x=>({d:line(i=>offOf(x.l)[i]),c:x.c,w:x.key?2:many?1:1.5,op:many&&!x.key?.5:1,z:x.ref?2:x.key?1:0})).sort((a,b)=>a.z-b.z);
+    const cars=laps.filter(x=>!many||x.key).map(x=>{const i=Math.min(N-1,R(this.distAt(x.l,s.t)/DS)),p=P(i,offOf(x.l)[i]);return {x:p[0],y:p[1],r:x.key?5:4,c:x.c,z:x.ref?2:1};}).sort((a,b)=>a.z-b.z);
+    const inIdx=new Set(idx),bps=[],labels=[];
+    CRN.forEach((c,k)=>{const ai=R(c.d/DS);if(inIdx.has(ai)){const p=P(ai,insd(k)*10.5);if(p[0]>8&&p[0]<w-8&&p[1]>8&&p[1]<h-8)labels.push({x:p[0],y:p[1],n:'C'+(k+1)});}
+      laps.filter(x=>x.key||!many).forEach(x=>{const b=x.l.met[k].bp;if(b==null)return;const i=(ai-b/DS+N)%N;if(!inIdx.has(i))return;const o=offOf(x.l)[i],p1=P(i,o-2.4),p2=P(i,o+2.4);bps.push({x1:p1[0],y1:p1[1],x2:p2[0],y2:p2[1],c:x.c});});});
+    const im=this.mapFor(96,64,6);
+    return {track:line(()=>0),e1:line(()=>6),e2:line(()=>-6),tw:+(12*sc).toFixed(1),lines,cars,bps,labels,sbx:+(12+20*sc).toFixed(1),inset:im.d,ix:im.px[ci],iy:im.py[ci],vis:R(vis)};}
   mz(key,dep,fn){this._mz=this._mz||{};const c=this._mz[key];if(c&&c.dep===dep)return c.v;const v=fn();this._mz[key]={dep,v};return v;}
   dx(K){const D=this.D,s=this.state[K],R=Math.round,sw=p=>this.set(K,p),V=this.mz(K,s,()=>this.t4(K)),T=V.T,cfg=CFG[K],out={};
     const FAST='oklch(0.82 0.17 150)',SLOW='oklch(0.64 0.20 25)',ACC='oklch(0.80 0.16 70)';
@@ -609,7 +640,7 @@ class Component extends DCLogic {
       out.ro={where:(s.hv!=null?'Hover':'Cursor')+' · '+fmtM(hd),laps:keyL.map(x=>({label:x.l.label,c:x.c})),rows:chs.map(([n,u,f])=>({n,u,vals:keyL.map(x=>({v:String(f(x.l)),c:x.c}))}))};
       const st0=V.strip||[];out.cg={heads:st0.map(r=>({label:r.label,c:r.color})),rows:CRN.map((c,k)=>({n:'C'+(k+1),dist:fmtM(c.d),cells:st0.map(r=>r.cells[k]),bg:k===s.corner?'#171a1f':'transparent'}))};
       out.charts=T.charts.map((c,i)=>({...c,ed:(T.cv.rows||[])[i]||{chips:[],addChs:[],picking:false,canAdd:false}}));}
-    if(K==='dn'){const k=s.corner,ref=D.byN[s.laps[0]],ai=Math.round(CRN[k].d/DS),sel=s.laps.map((id,j)=>({l:D.byN[id],c:this.wcol(K,j,id),key:j===0||id===s.hl,isRef:j===0}));
+    if(K==='dn'){const cids=pool.filter(l=>l.comp).map(l=>l.id),allOn=s.laps.length>=cids.length;out.allT=[['sel','Selected laps'],['all','All comparable laps ('+cids.length+')']].map(([m,l])=>{const on=(m==='all')===allOn;return {label:l,bg:on?'#e4e7ea':'transparent',fg:on?'#0d0f12':'#8a929b',onTap:()=>{if(on)return;if(m==='all')sw({sel0:s.laps,laps:[s.laps[0],...cids.filter(id=>id!==s.laps[0])]});else sw({laps:s.sel0||[s.laps[0],12,31,27]});}};});const k=s.corner,ref=D.byN[s.laps[0]],ai=Math.round(CRN[k].d/DS),sel=s.laps.map((id,j)=>({l:D.byN[id],c:this.wcol(K,j,id),key:j===0||id===s.hl,isRef:j===0}));
       const MW=560,MH=210,idx=[];for(let i=ai-70;i<=ai+40;i++)idx.push((i+N)%N);const xs=idx.map(i=>D.X[i]),ys=idx.map(i=>D.Y[i]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),sc=Math.min((MW-60)/(x1-x0||1),(MH-50)/(y1-y0||1)),ox=(MW-(x1-x0)*sc)/2,oy=(MH-(y1-y0)*sc)/2;
       const P=i=>[+(ox+(D.X[i]-x0)*sc).toFixed(1),+(oy+(D.Y[i]-y0)*sc).toFixed(1)],bps=[],fts=[];
       sel.forEach(x=>{const o=x.l.met[k];if(o.bp!=null){const p=P((ai-o.bp/DS+N)%N);bps.push({x:p[0],y:p[1],r:x.key?4.8:2.8,f:x.key?x.c:'#8a929b',op:x.key?1:.55,z:x.key?1:0});}if(o.ft!=null){const p=P((ai+o.ft/DS)%N);fts.push({x:+(p[0]-(x.key?3:2)).toFixed(1),y:+(p[1]-(x.key?3:2)).toFixed(1),w:x.key?6:4,f:x.key?x.c:'#5d646d',z:x.key?1:0});}});
