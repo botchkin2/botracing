@@ -260,7 +260,7 @@ function build(s, trackMap) {
   const laps = a.laps.map(lap => {
     const rec = s.files[lap.rec].info;
     const id = lapId(lap);
-    const tracePath = `traces/${ownerId}/${id}/v1.csv.gz`;
+    const tracePath = `traces/${ownerId}/${id}/v2.csv.gz`;
     traces.push({dest: tracePath, csv: () => a.trace(lap)});
     const startTime = new Date(
       Date.parse(rec.recordedAt) + (lap.startT - rec.startT) * 1000,

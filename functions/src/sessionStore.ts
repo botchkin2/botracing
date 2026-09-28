@@ -295,7 +295,7 @@ export async function readTrace(lapId: string): Promise<string | null> {
   const file = admin
     .storage()
     .bucket(BUCKET)
-    .file(`traces/${OWNER}/${lapId}/v1.csv.gz`);
+    .file(`traces/${OWNER}/${lapId}/v2.csv.gz`);
   try {
     const [body] = await file.download();
     return body.toString('utf8');

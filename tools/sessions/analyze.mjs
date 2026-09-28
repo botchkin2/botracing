@@ -660,9 +660,25 @@ function cornerFacts(rec, lap, corners, flags) {
   return facts;
 }
 
-// The trace CSV the app already reads, at the full sample rate.
+// The lap's chart trace, one row per tick. A channel logged slower than the
+// file (pedals at 50 Hz, position at 10 Hz) is written only on the ticks
+// where it recorded a sample and left empty in between, so the app never
+// reads a blended value as if it had been recorded.
 function traceCsv(rec, lap) {
   const {s, events} = rec;
+  const recorded = name => {
+    if (!s[name]) return null;
+    const real = new Uint8Array(lap.i1 - lap.i0 + 1);
+    const {ticks} = sampleTicks(rec.hz[name], rec.baseHz, lap.i0, lap.i1);
+    for (const i of ticks) real[i - lap.i0] = 1;
+    return real;
+  };
+  const real = {
+    lat_deg: recorded('lat_deg'),
+    lon_deg: recorded('lon_deg'),
+    brake_pct: recorded('brake_pct'),
+    throttle_pct: recorded('throttle_pct'),
+  };
   const gears = events.gear || [];
   let gi = -1;
   const total = lap.dist[lap.dist.length - 1] || 1;
@@ -674,14 +690,16 @@ function traceCsv(rec, lap) {
     const k = i - lap.i0;
     const num = (arr, scale, digits) =>
       arr ? (arr[i] * scale).toFixed(digits) : '0';
+    const sample = (name, scale, digits) =>
+      real[name] && !real[name][k] ? '' : num(s[name], scale, digits);
     lines.push(
       [
         num(s.speed_kmh, 1 / 3.6, 4),
         Math.max(0, Math.min(1, lap.dist[k] / total)).toFixed(6),
-        num(s.lat_deg, 1, 6),
-        num(s.lon_deg, 1, 6),
-        num(s.brake_pct, 0.01, 4),
-        num(s.throttle_pct, 0.01, 4),
+        sample('lat_deg', 1, 6),
+        sample('lon_deg', 1, 6),
+        sample('brake_pct', 0.01, 4),
+        sample('throttle_pct', 0.01, 4),
         num(s.rpm, 1, 1),
         num(s.steer_pct, 0.01, 4),
         gi >= 0 ? gears[gi].v : 0,

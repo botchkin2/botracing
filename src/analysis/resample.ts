@@ -9,6 +9,8 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
+// A channel logged slower than the trace holds NaN on the rows where it
+// recorded nothing; only its real samples are interpolated.
 export interface RawTrace {
   // Fraction of the lap, 0..1, one per sample.
   lapDistPct: number[];
@@ -113,7 +115,16 @@ export function resampleTrace(
   const xs = pick(d);
   const n = Math.floor(lengthM / stepM) + 1;
   const distanceM = Array.from({length: n}, (_, i) => i * stepM);
-  const lin = (a: number[]) => distanceM.map(interpolator(xs, pick(a)));
+  const lin = (a: number[]) => {
+    const real = keep.filter(i => Number.isFinite(a[i]));
+    if (real.length === 0) return distanceM.map(() => NaN);
+    return distanceM.map(
+      interpolator(
+        real.map(i => d[i]),
+        real.map(i => a[i]),
+      ),
+    );
+  };
   const speedKph = lin(raw.speedKph);
   const timeS = lin(raw.lapDistPct.map((_, i) => i / sampleHz));
   return {

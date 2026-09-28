@@ -17,4 +17,15 @@ describe('parseTraceCsv', () => {
     expect(t.gear).toEqual([5, 5]);
     expect(t.lapDistPct[1]).toBe(0.000137);
   });
+
+  it('reads an empty cell as no sample, not zero', () => {
+    const t =
+      parseTraceCsv(`Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt
+62.2833,0.000000,60.000083,0.000115,0.0000,1.0000,8336.0,0.0270,5,0
+62.3056,0.000137,,,,,8334.0,-0.1000,5,0`);
+    expect(t.brakePct[1]).toBeNaN();
+    expect(t.throttlePct[1]).toBeNaN();
+    expect(t.lat[1]).toBeNaN();
+    expect(t.speedKph[1]).toBeCloseTo(224.3, 1);
+  });
 });
