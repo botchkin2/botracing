@@ -8,6 +8,7 @@
 //   node tools/sessions/sync.mjs --list               show the session grouping and stop
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
 //   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
+//   node tools/sessions/sync.mjs --jobs 4             sessions analyzed at once
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
@@ -24,7 +25,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import {homedir} from 'node:os';
+import {availableParallelism, homedir} from 'node:os';
+import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
 import {analysisVersion, analyzeSession, loadRecording} from './analyze.mjs';
@@ -54,6 +56,16 @@ const work = resolve(
 );
 const statePath = resolve(work, 'state.json');
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
+// Sessions analyzed at once, each in its own worker thread. The work is
+// CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
+// default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
+// 4.7 GB, while 22 only reached 45 s at 7.3 GB, too much on a VR PC.
+const jobs = Math.max(
+  1,
+  Number(
+    arg('--jobs', String(Math.max(1, Math.min(8, availableParallelism() - 2)))),
+  ),
+);
 
 // Recordings of one session that are further apart than this start a new one.
 const SESSION_GAP_H = 6;
@@ -481,56 +493,12 @@ async function main() {
     return;
   }
 
-  let done = 0;
-  let failed = 0;
   // Newest first: recent sessions matter most, and a long backfill fills in
   // the past last.
-  for (const s of [...sessions].reverse()) {
-    if (!force && !local && state.sessions[s.id] === s.fingerprint) continue;
-    log(`${s.id} ${describeSession(s)}`);
-    try {
-      const info = s.files[0].info;
-      const trackId = slugId(info.sim, info.layout);
-      const out = build(s, await trackMapFor(trackId, store), eventWindows);
-      if (out.track) {
-        keepTrackMap(out.track);
-        log(
-          `  new corner map for ${trackId}: ${out.track.corners.length} corners, from this session`,
-        );
-      }
-      if (out.session.trackMapMismatch) {
-        log(
-          `  stored corner map for ${trackId} does not fit this session's lap; analyzed with a map of its own, not stored`,
-        );
-      }
-      if (out.session.series)
-        log(`  ${out.session.series} ${out.session.eventId}`);
-      log(
-        `  ${out.laps.length} laps, ${
-          out.session.comparableCount
-        } comparable, best ${out.session.bestLapTime ?? '-'}`,
-      );
-      if (out.session.consistency?.overview) {
-        log(`  ${out.session.consistency.overview}`);
-      }
-      if (local) {
-        log(`  -> ${writeLocal(out)}`);
-      } else {
-        await store.upload(out, {log});
-        state.sessions[s.id] = s.fingerprint;
-        saveState(state);
-      }
-      done++;
-    } catch (error) {
-      failed++;
-      log(
-        `  failed: ${String(error.stack || error)
-          .split('\n')
-          .slice(0, 3)
-          .join(' | ')}`,
-      );
-    }
-  }
+  const todo = [...sessions]
+    .reverse()
+    .filter(s => force || local || state.sessions[s.id] !== s.fingerprint);
+  const {done, failed} = await runPool(todo, store, state, eventWindows);
   log(
     `done ${done}, failed ${failed}, unchanged ${
       sessions.length - done - failed
@@ -539,4 +507,137 @@ async function main() {
   if (failed) process.exitCode = 1;
 }
 
-await main();
+const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
+
+// Hand sessions to workers in order. A track without a corner map yet takes
+// one session at a time, so the first session there builds the map and the
+// rest use it, as they would one by one.
+async function runPool(todo, store, state, eventWindows) {
+  let done = 0;
+  let failed = 0;
+  const building = new Set();
+  const waiting = [];
+  const changed = () => waiting.splice(0).forEach(wake => wake());
+  const take = () => {
+    const i = todo.findIndex(s => !building.has(trackOf(s)));
+    if (i < 0) return null;
+    const [s] = todo.splice(i, 1);
+    building.add(trackOf(s));
+    return s;
+  };
+  const drive = async worker => {
+    for (;;) {
+      const s = take();
+      if (!s) {
+        if (!todo.length) return;
+        await new Promise(wake => waiting.push(wake));
+        continue;
+      }
+      const trackId = trackOf(s);
+      const trackMap = await trackMapFor(trackId, store);
+      if (trackMap) {
+        building.delete(trackId);
+        changed();
+      }
+      const r = await ask(worker, {s, trackMap, eventWindows});
+      if (r.track) keepTrackMap(r.track);
+      building.delete(trackId);
+      changed();
+      for (const line of r.lines) log(line);
+      if (r.ok) {
+        done++;
+        if (!local) {
+          state.sessions[s.id] = s.fingerprint;
+          saveState(state);
+        }
+      } else {
+        failed++;
+        log(`  failed: ${r.error.split('\n').slice(0, 3).join(' | ')}`);
+        if (r.dead) return;
+      }
+    }
+  };
+  const workers = Array.from(
+    {length: Math.min(jobs, todo.length)},
+    () => new Worker(new URL(import.meta.url), {argv: process.argv.slice(2)}),
+  );
+  await Promise.all(workers.map(drive));
+  await Promise.all(workers.map(w => w.terminate()));
+  // Every worker died: what is left was not attempted, and is not unchanged.
+  if (todo.length)
+    log(`${todo.length} session(s) not attempted: no workers left`);
+  return {done, failed: failed + todo.length};
+}
+
+function ask(worker, message) {
+  return new Promise(done => {
+    const onError = error => {
+      worker.off('message', onMessage);
+      done({ok: false, dead: true, lines: [], error: String(error.stack)});
+    };
+    const onMessage = reply => {
+      worker.off('error', onError);
+      done(reply);
+    };
+    worker.once('message', onMessage);
+    worker.once('error', onError);
+    worker.postMessage(message);
+  });
+}
+
+// One session, built and stored. Its log lines come back together, so
+// sessions running side by side do not interleave in the output.
+async function processSession(s, trackMap, eventWindows, store, lines) {
+  lines.push(`${s.id} ${describeSession(s)}`);
+  const out = build(s, trackMap, eventWindows);
+  const trackId = trackOf(s);
+  if (out.track) {
+    lines.push(
+      `  new corner map for ${trackId}: ${out.track.corners.length} corners, from this session`,
+    );
+  }
+  if (out.session.trackMapMismatch) {
+    lines.push(
+      `  stored corner map for ${trackId} does not fit this session's lap; analyzed with a map of its own, not stored`,
+    );
+  }
+  if (out.session.series)
+    lines.push(`  ${out.session.series} ${out.session.eventId}`);
+  lines.push(
+    `  ${out.laps.length} laps, ${
+      out.session.comparableCount
+    } comparable, best ${out.session.bestLapTime ?? '-'}`,
+  );
+  if (out.session.consistency?.overview) {
+    lines.push(`  ${out.session.consistency.overview}`);
+  }
+  if (local) lines.push(`  -> ${writeLocal(out)}`);
+  else await store.upload(out, {log: line => lines.push(line)});
+  return out.track;
+}
+
+async function worker() {
+  const store = local ? null : await import('./store.mjs');
+  parentPort.on('message', async ({s, trackMap, eventWindows}) => {
+    const lines = [];
+    try {
+      const track = await processSession(
+        s,
+        trackMap,
+        eventWindows,
+        store,
+        lines,
+      );
+      parentPort.postMessage({ok: true, lines, track});
+    } catch (error) {
+      parentPort.postMessage({
+        ok: false,
+        lines,
+        error: String(error.stack || error),
+      });
+    }
+  });
+}
+
+if (isMainThread) await main();
+else await worker();
