@@ -172,9 +172,11 @@ export function TrackMap({
         x: l.at.x,
         y: l.at.y,
         width: textOf(l).length * font * MONO_EM,
-        height: font,
+        // Line box, not cap height: glyphs sit above and below the point.
+        height: font * 1.3,
       };
     }),
+    2,
   ).map(i => candidates[i]);
   const sectionLabels = kept.filter(l => l.kind === 'section');
 
