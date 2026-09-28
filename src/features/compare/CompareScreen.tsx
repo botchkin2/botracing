@@ -36,6 +36,7 @@ import {
   removeLap,
 } from './model';
 import {useCompareModel} from './useCompareModel';
+import {CompareWorkspace} from './CompareWorkspace';
 
 export type {CompareSelection} from './model';
 
@@ -552,6 +553,30 @@ function CompareView({
       onClose={() => setEditing(false)}
     />
   );
+
+  if (layout.isWide)
+    return (
+      <CompareWorkspace
+        model={model}
+        selection={selection}
+        cursorM={cursorM}
+        windowed={windowed}
+        windowSizeLabel={
+          windowSizeValue == null
+            ? 'Lap'
+            : `${windowSizeValue} ${prefs.windowMode === 'time' ? 's' : 'm'}`
+        }
+        spanLabel={spanLabel}
+        playing={playing}
+        lapStyle={lapStyle}
+        onCursor={onCursor}
+        onPan={pan}
+        onPlay={() => setPlaying(p => !p)}
+        onPause={() => setPlaying(false)}
+        onSelectionChange={onSelectionChange}
+        onOpenSection={openCorner}
+      />
+    );
 
   const top = {paddingTop: insets.top + space.lg};
   if (layout.isDesktop)

@@ -2,7 +2,7 @@ import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {useLayout} from '@/src/design';
+import {ContentInset, size, useLayout} from '@/src/design';
 import {parseSelection, sessionHref} from '@/src/nav/routes';
 import {SessionsRail} from '@/src/ui';
 
@@ -46,7 +46,9 @@ export default function SessionRoute() {
         // Lap ids belong to one session, so the selection does not carry over.
         onSelect={id => router.replace(sessionHref(id))}
       />
-      <View style={styles.flex}>{screen}</View>
+      <View style={styles.flex}>
+        <ContentInset width={size.railWidth}>{screen}</ContentInset>
+      </View>
     </View>
   );
 }

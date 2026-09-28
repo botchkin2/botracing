@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
-import Svg, {G, Line, Path, Text as SvgText} from 'react-native-svg';
+import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
 
 import {gridStepM} from '@/src/analysis/window';
 import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
@@ -79,6 +79,9 @@ export function TraceChart({
   onScrub,
   onPan,
   onPanStart,
+  onHover,
+  hoverM,
+  frameM,
 }: {
   width: number;
   /** Plot height; the distance axis adds AXIS_H under it. */
@@ -97,6 +100,12 @@ export function TraceChart({
   /** Drag in points since the last call; when set, dragging pans. */
   onPan?: (dxPt: number) => void;
   onPanStart?: () => void;
+  /** Pointer position (web/desktop), or null when it leaves. Never required. */
+  onHover?: (distanceM: number | null) => void;
+  /** Dashed hover line, when a pointer is over any chart. */
+  hoverM?: number | null;
+  /** Accent frame over a distance range (the overview's detail window). */
+  frameM?: [number, number];
 }) {
   const {color} = useTheme();
   const [startM, endM] = windowM;
@@ -185,9 +194,25 @@ export function TraceChart({
   );
 
   const cx = ((cursorM - startM) / spanM) * width;
+  const hx = hoverM == null ? null : ((hoverM - startM) / spanM) * width;
+  // Pointer events exist on web; on native these props are ignored.
+  const hoverProps = onHover
+    ? {
+        onPointerMove: (e: {
+          nativeEvent: {offsetX?: number; locationX?: number};
+        }) => {
+          const px = e.nativeEvent.offsetX ?? e.nativeEvent.locationX ?? 0;
+          onHover(startM + (px / width) * spanM);
+        },
+        onPointerLeave: () => onHover(null),
+      }
+    : {};
   const axis = typeScale.axis;
   return (
-    <View {...responder.panHandlers} style={{width, height: height + AXIS_H}}>
+    <View
+      {...responder.panHandlers}
+      {...hoverProps}
+      style={{width, height: height + AXIS_H}}>
       <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
         {gridMs.map(m => {
           const gx = ((m - startM) / spanM) * width;
@@ -241,6 +266,17 @@ export function TraceChart({
           );
         })}
         {bandPath && <Path d={bandPath} fill={color.band} />}
+        {frameM && (
+          <Rect
+            x={((frameM[0] - startM) / spanM) * width}
+            y={0.5}
+            width={Math.max(2, ((frameM[1] - frameM[0]) / spanM) * width)}
+            height={height - 1}
+            fill={color.accentTint}
+            stroke={color.accent}
+            strokeWidth={1}
+          />
+        )}
         {zeroLine && (
           <Line
             x1={0}
@@ -263,6 +299,17 @@ export function TraceChart({
             fill='none'
           />
         ))}
+        {hx != null && hx >= 0 && hx <= width && (
+          <Line
+            x1={hx}
+            x2={hx}
+            y1={0}
+            y2={height}
+            stroke={color.text}
+            strokeWidth={1}
+            strokeDasharray={dash.mark}
+          />
+        )}
         {cx >= 0 && cx <= width && (
           <Line
             x1={cx}
