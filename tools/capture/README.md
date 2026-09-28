@@ -1,0 +1,37 @@
+# tools/capture: LMU live recorder
+
+Records LMU's shared memory while the game runs, to local Parquet. The `.duckdb` the game writes has ~100 channels of the player car. This adds what only live memory has: every numeric field of the player car at ~100 Hz (camber, toe, patch and ground velocities, unfiltered inputs, optimal tyre temp, ...) and **every car** in the session at 5 Hz (position, gaps, pit and flag state, world position). Research behind the field list: `telemetry-research/notes/lmu/live.md`. Plan: pit-wall thread 30.
+
+```
+uv run --project tools/capture tools/capture/recorder.py              # to %LOCALAPPDATA%\lap-capture
+uv run --project tools/capture tools/capture/recorder.py --root D:\x  # elsewhere
+uv run --project tools/capture --group dev pytest tools/capture        # tests
+```
+
+LMU needs **Settings → Gameplay → Enable Plugins** (the shared memory is a plugin). The recorder waits for the game, records each session, and idles between. One instance per user.
+
+## Files
+
+| File          | What it does                                                                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layout.py`   | Builds the ctypes structs from the header in the LMU install at start. The header is S397's and not ours to publish, and reading it follows game updates. |
+| `shm.py`      | Opens the game's mapping read-only (never creates it) and copies frames. No lock and no frame events; see the file for why.                               |
+| `sanity.py`   | Checks that the layout reads real data, at the start of each session. If it doesn't, the session is refused and nothing is written.                       |
+| `capture.py`  | One capture folder: `meta.json` and 60 s Parquet chunks.                                                                                                  |
+| `columns.py`  | Raw struct bytes to named columns, one numpy decode per chunk.                                                                                            |
+| `recorder.py` | The loop and `status.json`.                                                                                                                               |
+
+## Output
+
+`%LOCALAPPDATA%\lap-capture\<startUtc>_<track>_<session>\`:
+
+- `meta.json`: written at the start, and again at the end with `endUtc` and `chunks`. No `endUtc` means the capture was cut short (crash, kill, power).
+- `player-NNNN.parquet`: one row per telemetry frame. Columns keep LMU's names (`mLocalVel_x`, `fl_mTemperature_0`, wheels `fl fr rl rr`). Temperatures are Kelvin.
+- `field-NNNN.parquet`: one row per car per scoring update, plus `update` (the update's index in the chunk) and `et` (session clock).
+- `session-NNNN.parquet`: one row per scoring update: flags, weather, phase.
+
+Every row has `wall_ms` (UTC epoch ms), for joining with the `.duckdb` and the trace-log event.
+
+`status.json` in the root: `{state: no-game | waiting | recording | refused | stopped, gameVersion, layoutOk, layoutReason, lastChunkAt, sessionDir, captureBytes, pid, updatedAt}`. It is rewritten on change and every 30 s, so a stale `updatedAt` means the recorder is not running. The uploader copies it into its heartbeat.
+
+Raw captures stay on this PC. Nothing here deletes them yet; retention is Botkin's call (telemetry-research/notes/retention.md).
