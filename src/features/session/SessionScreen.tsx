@@ -94,7 +94,7 @@ function SessionView({
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
 }) {
-  const {color, scheme} = useTheme();
+  const {color} = useTheme();
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -107,8 +107,8 @@ function SessionView({
   const count = selection.laps.length;
   const colorOf = useCallback(
     (selIndex: number, highlighted = false) =>
-      lapStroke(scheme, selIndex, count, highlighted).color,
-    [scheme, count],
+      lapStroke(selIndex, count, highlighted).color,
+    [count],
   );
 
   const {contentWidth} = layout;

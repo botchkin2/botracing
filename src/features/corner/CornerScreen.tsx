@@ -121,7 +121,7 @@ function CornerView({
   onAllComparable: (on: boolean) => void;
   onSelectionChange: (next: CornerSelection) => void;
 }) {
-  const {color, scheme} = useTheme();
+  const {color} = useTheme();
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -132,7 +132,7 @@ function CornerView({
 
   const count = lapIds.length;
   const lapColor = (selIndex: number, highlighted: boolean) =>
-    lapStroke(scheme, selIndex, count, highlighted).color;
+    lapStroke(selIndex, count, highlighted).color;
   const highlight = (lapId: string) =>
     onSelectionChange({...selection, hl: lapId});
   const go = (n: number) =>
@@ -217,9 +217,9 @@ function CornerView({
                   key: d.lapId,
                   value: d.value,
                   color: d.isRef
-                    ? lapColors[scheme][0]
+                    ? lapColors[0]
                     : d.highlighted
-                    ? lapColors[scheme][1]
+                    ? lapColors[1]
                     : DOT_GREY,
                   r: d.isRef || d.highlighted ? 4.2 : 2.8,
                   opacity: d.isRef || d.highlighted ? 1 : 0.55,
@@ -265,7 +265,7 @@ function CornerView({
       model={model}
       width={tracesW}
       heights={h}
-      lapStyle={(i, hl) => lapStroke(scheme, i, count, hl)}
+      lapStyle={(i, hl) => lapStroke(i, count, hl)}
     />
   );
 
@@ -281,7 +281,7 @@ function CornerView({
           {model.brakeMap && (
             <BrakeMapPanel
               map={model.brakeMap}
-              lapColor={(i, hl) => lapStroke(scheme, i, count, hl).color}
+              lapColor={(i, hl) => lapStroke(i, count, hl).color}
             />
           )}
           {measures}

@@ -1,7 +1,6 @@
 import {QueryClientProvider} from '@tanstack/react-query';
 import {
   DarkTheme,
-  DefaultTheme,
   Stack,
   ThemeProvider,
   useGlobalSearchParams,
@@ -20,7 +19,6 @@ import {
   useSessionMap,
 } from '@/src/data/sessions';
 import {
-  ThemeProvider as AppThemeProvider,
   carLabel,
   shortTrackName,
   space,
@@ -44,18 +42,16 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <AppThemeProvider>
-          <Navigation />
-        </AppThemeProvider>
+        <Navigation />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
 }
 
-/** Navigation chrome takes its colors and scheme from the design tokens. */
+/** Navigation chrome takes its colors from the design tokens (dark only). */
 function Navigation() {
-  const {scheme, color} = useTheme();
-  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const {color} = useTheme();
+  const base = DarkTheme;
   const navTheme = {
     ...base,
     colors: {
@@ -81,7 +77,7 @@ function Navigation() {
           />
         </View>
       </View>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style='light' />
     </ThemeProvider>
   );
 }

@@ -43,7 +43,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 - **Every color, font, size, space, radius, stroke and chart height comes from `src/design/tokens.ts`** via `useTheme()`. A raw hex, rgba, font name or magic number in a component is a bug. If the token is missing, add it to `tokens.ts` with the handoff reference, then use it.
 - **Color has one meaning each** (see the handoff): accent is UI only, `best` is best lap/sector only, lap colors are laps only, `faster`/`slower` always come with a sign. Never pick a color because it looks nice.
 - **Numbers are always Mono with tabular figures** (`type.data`, `type.axis`), always with a unit, and formatted by the shared formatters (`m:ss.sss`, signed 3-decimal gaps). Do not hand-format numbers in a component.
-- **Both themes, always.** Dark is the default; every component must render correctly in light too. Read colors from the theme, never from a module-level constant.
+- **Dark only.** The app has one theme (Botkin, pit-wall thread 27 #372–#374). There is no light set and no scheme switching; do not add them back. Still read colors through `useTheme()`, not by importing hex values.
 - `StyleSheet.create` at the bottom of the file for static styles; inline only the values that depend on props or theme.
 
 ## 5. Layout: mobile first, desktop real
@@ -91,7 +91,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 - **Small PRs, one purpose each.** A refactor and a behavior change go in separate PRs.
 - Follow the PR process in `pit-wall/decisions/lap/2026-09-27-pr-process.md`: own worktree, branch, PR, another seat reviews. Never push to `main`.
-- **The PR description says what you ran and what it printed**, plus screenshots at 375 and ≥900 pt for any UI change, in both themes when colors changed.
+- **The PR description says what you ran and what it printed**, plus screenshots at 375 and ≥900 pt for any UI change, in dark (the only theme).
 - Leave the code you touched cleaner than you found it, but do not wander: an unrelated fix gets its own PR or a pit-wall note.
 - Deleting code is a feature. When a new screen replaces an old one, remove the old components, routes and styles in the same migration step, and grep for leftover imports.
 - Keep docs true. If you change a rule, a folder's purpose or a data shape, update this file, the folder README or `docs/` in the same PR.

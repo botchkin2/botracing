@@ -1,10 +1,9 @@
-// Design tokens from docs/design_handoff_lap_analysis/README.md.
+// Design tokens from docs/design_handoff_lap_analysis/README.md. The app is
+// dark only (Botkin, pit-wall thread 27 #372): there is no light set.
 // oklch values are pre-converted to sRGB hex; oklch() below is only for the
 // continuous corner-grid scale.
 
-export type Scheme = 'dark' | 'light';
-
-const dark = {
+export const color = {
   bg: '#0d0f12',
   surface: '#101317',
   surfaceRaised: '#15181c',
@@ -39,53 +38,26 @@ const dark = {
   tabActive: '#1b1f24',
 };
 
-export type ColorTokens = typeof dark;
-
-const light: ColorTokens = {
-  ...dark,
-  bg: '#f4f5f6',
-  surface: '#ffffff',
-  surfaceRaised: '#eceef0',
-  surfaceDetail: '#eceef0',
-  surfaceOverlay: '#ffffff',
-  line: '#e3e5e8',
-  lineStrong: '#c9cdd1',
-  lineHeader: '#c9cdd1',
-  grid: '#eceef0',
-  text: '#111316',
-  textSecondary: '#4a5057',
-  textMuted: '#4a5057',
-  textFaint: '#737a82',
-  accentInk: '#c26f00',
-  accentTint: 'rgba(254,169,47,0.18)',
-  best: '#7d40c8',
-  faster: '#25984d',
-  slower: '#b00a1d',
-  median: '#c9cdd1',
-  band: 'rgba(17,19,22,0.07)',
-  track: '#d5d9dd',
-  trackFill: '#eef0f2',
-  trackEdge: '#b9bec3',
-  // Not in the handoff for light; the Track edge is the nearest (feedback log).
-  followEdge: '#b9bec3',
-  barNeutral: '#b9bec3',
-  chrome: '#eceef0',
-  tabActive: '#ffffff',
-};
-
-export const colors: Record<Scheme, ColorTokens> = {dark, light};
+export type ColorTokens = typeof color;
 
 /** Fixed lap order: ref, then lap.1..lap.5. */
-export const lapColors: Record<Scheme, readonly string[]> = {
-  dark: ['#f2f4f6', '#59a0f9', '#f476b7', '#55cec0', '#ece36d', '#87d7f7'],
-  light: ['#111316', '#0267c7', '#c32e85', '#008479', '#ad9907', '#3292b3'],
-};
+export const lapColors: readonly string[] = [
+  '#f2f4f6',
+  '#59a0f9',
+  '#f476b7',
+  '#55cec0',
+  '#ece36d',
+  '#87d7f7',
+];
 /** Tinted mode (7–19 laps), hue cycle 255, 350, 185, 105, 225. */
-const lapTints: Record<Scheme, readonly string[]> = {
-  dark: ['#87a7d0', '#c793ab', '#70b3aa', '#aba874', '#73aec6'],
-  light: ['#6e88aa', '#a3788b', '#5b928b', '#8b895e', '#5d8ea2'],
-};
-const lapMuted: Record<Scheme, string> = {dark: '#5d646d', light: '#b9bec3'};
+const lapTints: readonly string[] = [
+  '#87a7d0',
+  '#c793ab',
+  '#70b3aa',
+  '#aba874',
+  '#73aec6',
+];
+const lapMuted = '#5d646d';
 
 export type LapMode = 'individual' | 'tinted' | 'grey';
 export const lapMode = (count: number): LapMode =>
@@ -118,7 +90,6 @@ export const dash = {
  * In tinted/grey modes only the reference and the highlighted lap are key laps.
  */
 export function lapStroke(
-  scheme: Scheme,
   index: number,
   count: number,
   highlighted: boolean,
@@ -126,14 +97,14 @@ export function lapStroke(
   const mode = lapMode(count);
   if (index === 0)
     return {
-      color: lapColors[scheme][0],
+      color: lapColors[0],
       width: stroke.ref,
       opacity: 1,
       key: true,
     };
   if (mode === 'individual') {
     return {
-      color: lapColors[scheme][index],
+      color: lapColors[index],
       width: highlighted ? stroke.ref : stroke.selected,
       opacity: 1,
       key: true,
@@ -141,19 +112,19 @@ export function lapStroke(
   }
   if (highlighted)
     return {
-      color: lapColors[scheme][1],
+      color: lapColors[1],
       width: stroke.ref,
       opacity: 1,
       key: true,
     };
   if (mode === 'tinted') {
-    const tint = lapTints[scheme][(index - 1) % lapTints[scheme].length];
+    const tint = lapTints[(index - 1) % lapTints.length];
     return {color: tint, width: stroke.tinted, opacity: 0.55, key: false};
   }
   return {
-    color: lapMuted[scheme],
+    color: lapMuted,
     width: stroke.grey,
-    opacity: scheme === 'dark' ? 0.45 : 1,
+    opacity: 0.45,
     key: false,
   };
 }

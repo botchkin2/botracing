@@ -130,7 +130,7 @@ function CompareView({
   onCursor: Dispatch<SetStateAction<number>>;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
-  const {color, scheme} = useTheme();
+  const {color} = useTheme();
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -140,8 +140,8 @@ function CompareView({
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
-    (selIndex, highlighted) => lapStroke(scheme, selIndex, count, highlighted),
-    [scheme, count],
+    (selIndex, highlighted) => lapStroke(selIndex, count, highlighted),
+    [count],
   );
   // Compare works per section; Corner opens the section's first corner.
   const openCorner = (section: number) =>

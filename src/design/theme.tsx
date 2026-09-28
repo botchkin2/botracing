@@ -9,42 +9,19 @@ import {
   IBMPlexSansCondensed_600SemiBold,
 } from '@expo-google-fonts/ibm-plex-sans-condensed';
 import {useFonts} from 'expo-font';
-import {createContext, type ReactNode, useContext, useMemo} from 'react';
-import {useColorScheme} from 'react-native';
-
-import {type ColorTokens, colors, lapColors, type Scheme} from './tokens';
+import {type ColorTokens, color, lapColors} from './tokens';
 
 export type Theme = {
-  scheme: Scheme;
   color: ColorTokens;
   lapColors: readonly string[];
 };
 
-const ThemeContext = createContext<Theme | null>(null);
+const THEME: Theme = {color, lapColors};
 
-/** Dark is the default; light only when the system asks for it. */
-export function ThemeProvider({
-  scheme: forced,
-  children,
-}: {
-  scheme?: Scheme;
-  children: ReactNode;
-}) {
-  const system = useColorScheme();
-  const scheme: Scheme = forced ?? (system === 'light' ? 'light' : 'dark');
-  const theme = useMemo(
-    () => ({scheme, color: colors[scheme], lapColors: lapColors[scheme]}),
-    [scheme],
-  );
-  return (
-    <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>
-  );
-}
-
+/** The app's colours. Dark only, so this is a constant; kept as a hook so
+ *  components read colours in one way. */
 export function useTheme(): Theme {
-  const theme = useContext(ThemeContext);
-  if (!theme) throw new Error('useTheme outside ThemeProvider');
-  return theme;
+  return THEME;
 }
 
 /**
