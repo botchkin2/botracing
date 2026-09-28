@@ -1,0 +1,32 @@
+# Deletes a PR's Firebase preview channel when the PR is merged or closed.
+# The project allows 50 channels; without this, old previews fill the quota
+# and every new PR preview fails ("channel quota reached", HTTP 429).
+name: Delete Firebase preview on PR close
+on:
+  pull_request:
+    types: [closed]
+permissions:
+  contents: read
+jobs:
+  delete_preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Delete this PR's preview channel(s)
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          # The preview action names channels pr<N>-<branch, truncated>; match
+          # on the pr<N>- prefix rather than rebuilding the name.
+          channels=$(npx --yes firebase-tools hosting:channel:list --project botracing-61 --json \
+            | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=JSON.parse(d).result||{};const list=r.channels||r;for(const c of list){const id=c.name.split("/").pop();if(id.startsWith("pr"+process.env.PR+"-"))console.log(id)}})')
+          if [ -z "$channels" ]; then echo "No preview channel for PR $PR."; exit 0; fi
+          for c in $channels; do
+            npx --yes firebase-tools hosting:channel:delete "$c" --project botracing-61 --force
+          done
