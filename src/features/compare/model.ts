@@ -11,6 +11,7 @@ import {
   type Lap,
   type SessionBand,
   type SessionDetail,
+  type MapSection,
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
@@ -28,6 +29,7 @@ import {
   type FollowView,
 } from './followModel';
 import {mapPlacer} from './mapPlace';
+import {buildTrackMarks, type TrackMarks} from './trackMarks';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -197,17 +199,17 @@ export type CornerGridModel = {
 };
 
 export type MapModel = {
+  /** Drawn on the OSM outline (fit good), or on the driven line. */
   realMap: boolean;
   outline: {x: number; y: number}[][];
+  pitLane: {x: number; y: number}[][];
+  marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  badges: {
-    n: number;
-    at: {x: number; y: number};
-    /** Apex distance, for the strip. */
-    apexM: number;
-    open: boolean;
-  }[];
+  /** Follow's position label, e.g. "Section 4 · C8 apex". */
+  followPlace: string;
+  /** Each section's apex distance, for the strip. */
+  sectionApexes: {n: number; apexM: number}[];
   attribution: string | null;
   /** Null until the geometry is built (the hook memoizes it). */
   follow: (FollowView & {geometry: FollowGeometry}) | null;
@@ -436,6 +438,19 @@ export function cornerPlace(
   const before = [...sections].reverse().find(s => s.exitM < cursorM);
   const prev = before ?? sections[sections.length - 1];
   return prev ? `After Section ${prev.n}` : '';
+}
+
+/**
+ * Follow's position label (handoff v2 M1): the section, plus the corner when
+ * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · C8 apex".
+ */
+export function followPlace(sections: MapSection[], cursorM: number): string {
+  const place = cornerPlace(sections, cursorM);
+  for (const s of sections)
+    for (const c of s.parts.length > 0 ? s.parts : [s])
+      if (cursorM >= c.entryM && cursorM <= c.exitM)
+        return `${place} · C${c.n} apex`;
+  return place;
 }
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
@@ -691,6 +706,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     mapModel = {
       realMap: placer.real,
       outline: placer.outline,
+      pitLane: placer.pitLane,
+      marks: buildTrackMarks(map?.sections ?? [], lengthM, m =>
+        pointAt(refTrace, m),
+      ),
       follow: followGeometry && {
         ...buildFollowView(
           placer,
@@ -706,11 +725,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
         // Same order as the lines: the reference dot on top.
         .sort((a, b) => drawRank(a) - drawRank(b)),
-      badges: (map?.sections ?? []).map(s => ({
+      followPlace: followPlace(map?.sections ?? [], cursorM),
+      sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
-        at: pointAt(refTrace, s.apexM),
         apexM: s.apexM,
-        open: s.n === selection.corner,
       })),
       attribution: placer.real ? map!.attribution : null,
     };

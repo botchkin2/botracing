@@ -51,6 +51,7 @@ const MAP_H = 220;
 const OVERVIEW_H = 58;
 
 export type WorkspaceProps = {
+  sessionId: string;
   model: CompareModel;
   selection: CompareSelection;
   cursorM: number;
@@ -293,7 +294,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               zeroLine
               cursorM={p.cursorM}
               frameM={p.windowed ? model.windowM : undefined}
-              marks={(model.map?.badges ?? []).map(b => ({
+              marks={(model.map?.sectionApexes ?? []).map(b => ({
                 m: b.apexM,
                 label: `S${b.n}`,
               }))}
@@ -353,11 +354,10 @@ export function CompareWorkspace(p: WorkspaceProps) {
             width={MAP_W}
             height={MAP_H}
             map={model.map}
-            mode={prefs.mapMode}
-            onMode={prefs.setMapMode}
-            place={model.position.place}
+            sessionId={p.sessionId}
+            openSection={selection.corner ?? null}
             lapStyle={lapStyle}
-            onPressBadge={p.onOpenSection}
+            onPressSection={p.onOpenSection}
           />
         )}
         <View style={styles.section}>

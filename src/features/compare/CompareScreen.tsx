@@ -49,7 +49,8 @@ import {CompareWorkspace} from './CompareWorkspace';
 
 export type {CompareSelection} from './model';
 
-const MAP_H = 170;
+// Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
+const MAP_H = 220;
 const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
@@ -354,17 +355,16 @@ function CompareView({
         width={sideW}
         height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
         map={model.map}
-        mode={prefs.mapMode}
-        onMode={prefs.setMapMode}
-        place={model.position.place}
+        sessionId={sessionId}
+        openSection={selection.corner ?? null}
         lapStyle={lapStyle}
-        onPressBadge={openCorner}
+        onPressSection={openCorner}
       />
     ) : (
       <TrackStrip
         width={sideW}
         lengthM={model.lengthM}
-        corners={model.map.badges.map(b => ({n: b.n, m: b.apexM}))}
+        corners={model.map.sectionApexes.map(b => ({n: b.n, m: b.apexM}))}
         windowM={model.windowM}
         markers={model.map.dots.map(d => ({
           key: d.lapId,
@@ -574,6 +574,7 @@ function CompareView({
   if (layout.isWide)
     return (
       <CompareWorkspace
+        sessionId={sessionId}
         model={model}
         selection={selection}
         cursorM={cursorM}

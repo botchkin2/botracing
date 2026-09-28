@@ -18,6 +18,8 @@ export type MapPlacer = {
   place: (t: GridTrace, from: number, to: number, stride: number) => Xy[];
   /** OSM track lines in map metres; empty unless real. */
   outline: Xy[][];
+  /** OSM pit lane lines in map metres; empty unless real. */
+  pitLane: Xy[][];
 };
 
 export function mapPlacer(map: TrackMapData | null): MapPlacer {
@@ -28,6 +30,10 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
   const origin = georef
     ? {lat: georef.originLat, lon: georef.originLon}
     : LMU_FAKE_ORIGIN;
+  const toMetres = (lines: [number, number][][]) =>
+    lines.map(line =>
+      line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
+    );
   return {
     real: georef != null,
     place: (t, from, to, stride) => {
@@ -37,10 +43,7 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
       const placed = georef ? applyGeoref(pts, georef) : pts;
       return placed.map(p => toLocalMetres(p, origin));
     },
-    outline: georef
-      ? map!.outline.map(line =>
-          line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
-        )
-      : [],
+    outline: georef ? toMetres(map!.outline) : [],
+    pitLane: georef ? toMetres(map!.pitLane) : [],
   };
 }

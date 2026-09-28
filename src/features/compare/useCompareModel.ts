@@ -6,6 +6,7 @@ import {
   useSessionBand,
   useSessionLaps,
   useSessionMap,
+  trackCorners,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
 
@@ -58,7 +59,13 @@ export function useCompareModel(
   // Follow's lines, band and inset only change with the selection, so build
   // them here once rather than on every cursor move (CODE_STANDARDS §6).
   const followGeometry = useMemo(
-    () => buildFollowGeometry(mapPlacer(map.data ?? null), traces, knownIds),
+    () =>
+      buildFollowGeometry(
+        mapPlacer(map.data ?? null),
+        traces,
+        knownIds,
+        map.data ? trackCorners(map.data) : [],
+      ),
     [map.data, traces, knownIds],
   );
 

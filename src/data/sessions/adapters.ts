@@ -253,8 +253,30 @@ export type TrackMapData = {
   } | null;
   /** OSM track lines as [lon, lat] pairs; pit lanes excluded. */
   outline: [number, number][][];
+  /** OSM pit lane lines as [lon, lat] pairs. */
+  pitLane: [number, number][][];
   attribution: string | null;
 };
+
+// GeoJSON LineStrings of the kinds wanted, as [lon, lat] pairs.
+function lineStrings(
+  features: unknown[],
+  wanted: (kind: unknown) => boolean,
+): [number, number][][] {
+  return features
+    .map(obj)
+    .filter(ft => wanted(obj(ft.properties).kind))
+    .map(ft => obj(ft.geometry))
+    .filter(
+      geom => geom.type === 'LineString' && Array.isArray(geom.coordinates),
+    )
+    .map(geom =>
+      (geom.coordinates as unknown[]).map(p => {
+        const q = Array.isArray(p) ? p : [];
+        return [num(q[0]) ?? 0, num(q[1]) ?? 0] as [number, number];
+      }),
+    );
+}
 
 function toMapCorner(raw: unknown): MapCorner {
   const x = obj(raw);
@@ -294,19 +316,8 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
             originLon: num(g.originLon) as number,
           }
         : null,
-    outline: features
-      .map(obj)
-      .filter(ft => obj(ft.properties).kind !== 'pit')
-      .map(ft => obj(ft.geometry))
-      .filter(
-        geom => geom.type === 'LineString' && Array.isArray(geom.coordinates),
-      )
-      .map(geom =>
-        (geom.coordinates as unknown[]).map(p => {
-          const q = Array.isArray(p) ? p : [];
-          return [num(q[0]) ?? 0, num(q[1]) ?? 0] as [number, number];
-        }),
-      ),
+    outline: lineStrings(features, kind => kind !== 'pit'),
+    pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
   };
 }

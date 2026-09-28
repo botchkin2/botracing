@@ -60,3 +60,29 @@ describe('trackCorners', () => {
     expect(firstCornerOf(corners, 9)).toBeNull();
   });
 });
+
+describe('toTrackMap outline', () => {
+  const line = (kind: string, x: number) => ({
+    properties: {kind},
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [x, 0],
+        [x, 1],
+      ],
+    },
+  });
+  const m = toTrackMap({
+    outline: {features: [line('track', 1), line('pit', 2), line('track', 3)]},
+  });
+
+  it('splits the pit lane from the track lines', () => {
+    expect(m.outline.map(l => l[0][0])).toEqual([1, 3]);
+    expect(m.pitLane).toEqual([
+      [
+        [2, 0],
+        [2, 1],
+      ],
+    ]);
+  });
+});

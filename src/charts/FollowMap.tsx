@@ -15,7 +15,7 @@ import {
   followProject,
   followScale,
 } from '@/src/analysis/followView';
-import {type as typeScale, useTheme} from '@/src/design';
+import {fonts, type as typeScale, useTheme} from '@/src/design';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
 // The road, each lap's line and the brake ticks are world-space paths built
@@ -74,6 +74,7 @@ export function FollowMap({
   ticks,
   dots,
   inset,
+  corners,
 }: {
   width: number;
   height: number;
@@ -89,6 +90,8 @@ export function FollowMap({
   dots: FollowDot[];
   /** Whole reference lap, for the inset. */
   inset: FollowXy[];
+  /** Corner numbers, placed inside each apex (world metres). */
+  corners: {n: number; at: FollowXy}[];
 }) {
   const {color} = useTheme();
   const view = {centre, headingRad, visibleM, width, height};
@@ -111,6 +114,23 @@ export function FollowMap({
             fill={color.trackFill}
           />
         </G>
+        {corners.map(c => {
+          const q = project(c.at);
+          if (q.x < 8 || q.x > width - 8 || q.y < 8 || q.y > height - 8)
+            return null;
+          return (
+            <SvgText
+              key={`c${c.n}`}
+              x={q.x}
+              y={q.y + 3}
+              textAnchor='middle'
+              fill={color.mapCornerLabel}
+              fontFamily={fonts.monoMedium}
+              fontSize={8.5}>
+              {`C${c.n}`}
+            </SvgText>
+          );
+        })}
         {dots.map(d => {
           const q = project(d.at);
           return (

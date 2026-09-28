@@ -33,6 +33,7 @@ const placer: MapPlacer = {
     return out;
   },
   outline: [],
+  pitLane: [],
 };
 
 const traces = new Map([
@@ -55,7 +56,12 @@ describe('buildFollowView', () => {
 });
 
 describe('buildFollowGeometry', () => {
-  const g = buildFollowGeometry(placer, traces, ['a', 'b'])!;
+  const g = buildFollowGeometry(
+    placer,
+    traces,
+    ['a', 'b'],
+    [{n: 3, apexM: 400}],
+  )!;
 
   it('keeps each lap whole at grid resolution', () => {
     expect(g.lines.get('a')).toHaveLength(201);
@@ -72,7 +78,14 @@ describe('buildFollowGeometry', () => {
   it('thins the inset line', () => {
     expect(g.inset).toHaveLength(51);
   });
+  it('puts corner numbers 10.5 m off the apex', () => {
+    // A straight has no turn, so the side is arbitrary; the distance is not.
+    const [c] = g.corners;
+    expect(c.n).toBe(3);
+    expect(c.at.x).toBeCloseTo(400);
+    expect(Math.abs(c.at.y)).toBeCloseTo(10.5);
+  });
   it('is null without the reference trace', () => {
-    expect(buildFollowGeometry(placer, traces, ['x'])).toBeNull();
+    expect(buildFollowGeometry(placer, traces, ['x'], [])).toBeNull();
   });
 });

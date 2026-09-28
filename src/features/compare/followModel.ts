@@ -20,6 +20,8 @@ export type FollowGeometry = {
   brakeTicks: Map<string, [Xy, Xy][]>;
   /** The first lap's whole line, thinned, for the inset. */
   inset: Xy[];
+  /** Corner numbers, 10.5 m inside each apex (the prototype's offset). */
+  corners: {n: number; at: Xy}[];
 };
 
 export type FollowView = {centre: Xy; headingRad: number; visibleM: number};
@@ -29,6 +31,7 @@ const HEADING_HALF_M = 15;
 // Brake ticks are 4.8 m across the lap's line, from the prototype.
 const TICK_HALF_M = 2.4;
 const INSET_STRIDE = 4;
+const CORNER_INSIDE_M = 10.5;
 
 function pointAt(placer: MapPlacer, t: GridTrace, m: number): Xy {
   const i = gridIndex(t, m);
@@ -47,6 +50,7 @@ export function buildFollowGeometry(
   placer: MapPlacer,
   traces: Map<string, GridTrace>,
   lapIds: string[],
+  corners: {n: number; apexM: number}[],
 ): FollowGeometry | null {
   const ref = traces.get(lapIds[0]);
   if (!ref) return null;
@@ -78,6 +82,23 @@ export function buildFollowGeometry(
     lines,
     brakeTicks,
     inset: whole(ref, INSET_STRIDE),
+    corners: corners.map(c => {
+      const prev = pointAt(placer, ref, c.apexM - HEADING_HALF_M);
+      const at = pointAt(placer, ref, c.apexM);
+      const next = pointAt(placer, ref, c.apexM + HEADING_HALF_M);
+      // The left normal, flipped to the side the line turns towards.
+      const h = headingRad(prev, next);
+      const turn =
+        (at.x - prev.x) * (next.y - at.y) - (at.y - prev.y) * (next.x - at.x);
+      const side = turn >= 0 ? 1 : -1;
+      return {
+        n: c.n,
+        at: {
+          x: at.x - Math.sin(h) * CORNER_INSIDE_M * side,
+          y: at.y + Math.cos(h) * CORNER_INSIDE_M * side,
+        },
+      };
+    }),
   };
 }
 
