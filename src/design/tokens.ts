@@ -216,6 +216,12 @@ export const size = {
   railBadge: 20,
   railBar: 3,
   logo: 18,
+  // D1 right column: distribution strip and stint-vs-stint diverging bars.
+  distLabel: 62,
+  distStrip: 236,
+  distRow: 30,
+  divergeHalf: 84,
+  divergeRow: 21,
 } as const;
 export const chartHeight = {
   compare: {

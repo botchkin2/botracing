@@ -134,13 +134,11 @@ function ChromeBar({
   context: string;
 }) {
   const router = useRouter();
-  const params = useGlobalSearchParams<{
-    laps?: string;
-    hl?: string;
-    c?: string;
-    t?: string;
-  }>();
-  const sel = parseSelection(params);
+  // Only the lap selection travels between tabs; corner and cursor belong
+  // to the workspace that set them.
+  const {laps, hl} = useGlobalSearchParams<{laps?: string; hl?: string}>();
+  const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
+  const sel = {laps: lapIds, hl: hlId};
   const tabs: ChromeTab[] = [
     {
       key: 'session',

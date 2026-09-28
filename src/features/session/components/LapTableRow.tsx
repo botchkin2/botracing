@@ -7,10 +7,23 @@ import {type LapRowModel, type StintRowModel} from '../model';
 
 // Columns from the handoff: checkbox | Lap | Time | vs med | S1 | S2 | S3 | Tags.
 export const LAP_COLS = {chk: 16, lap: 30, time: 62, gap: 44, sector: 38};
+// Desktop D1 (≥1280): 18 | 40 | 30 | 78 | 62 | 60 | 60 | 60 | 1fr, 26 pt rows,
+// adding Stint (34, not 30, so the "STINT" header fits). The handoff's Top km/h
+// column is left out: laps carry no max speed.
+const WIDE_COLS = {chk: 18, lap: 40, stint: 34, time: 78, gap: 62, sector: 60};
 export const ROW_H = size.lapRow;
+export const WIDE_ROW_H = 26;
+const colsFor = (wide: boolean) => (wide ? WIDE_COLS : LAP_COLS);
 
-export function LapTableHeader({width}: {width: number}) {
+export function LapTableHeader({
+  width,
+  wide = false,
+}: {
+  width: number;
+  wide?: boolean;
+}) {
   const {color} = useTheme();
+  const cols = colsFor(wide);
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -23,15 +36,17 @@ export function LapTableHeader({width}: {width: number}) {
     <View
       style={[
         styles.header,
+        wide && styles.wide,
         {width, backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
-      <View style={{width: LAP_COLS.chk}} />
-      {cell('Lap', LAP_COLS.lap, false)}
-      {cell('Time', LAP_COLS.time)}
-      {cell('vs med', LAP_COLS.gap)}
-      {cell('S1', LAP_COLS.sector)}
-      {cell('S2', LAP_COLS.sector)}
-      {cell('S3', LAP_COLS.sector)}
+      <View style={{width: cols.chk}} />
+      {cell('Lap', cols.lap, false)}
+      {wide && cell('Stint', WIDE_COLS.stint, false)}
+      {cell('Time', cols.time)}
+      {cell('vs med', cols.gap)}
+      {cell('S1', cols.sector)}
+      {cell('S2', cols.sector)}
+      {cell('S3', cols.sector)}
       {cell('Tags', undefined, false)}
     </View>
   );
@@ -40,15 +55,22 @@ export function LapTableHeader({width}: {width: number}) {
 export function StintRow({
   row,
   width,
+  wide = false,
   onSelectStint,
 }: {
   row: StintRowModel;
   width: number;
+  wide?: boolean;
   onSelectStint: () => void;
 }) {
   const {color} = useTheme();
   return (
-    <View style={[styles.stint, {width, borderColor: color.line}]}>
+    <View
+      style={[
+        styles.stint,
+        wide && styles.wide,
+        {width, borderColor: color.line},
+      ]}>
       <Text
         variant='dataSmall'
         style={[styles.flex, styles.stintLabel]}
@@ -65,30 +87,36 @@ export function StintRow({
 export function LapRow({
   row,
   width,
+  wide = false,
   lapColor,
   onPress,
   onToggle,
 }: {
   row: LapRowModel;
   width: number;
+  wide?: boolean;
   lapColor: string | undefined;
   onPress: () => void;
   onToggle: () => void;
 }) {
   const {color} = useTheme();
+  const cols = colsFor(wide);
+  // Desktop has room for every tag; the phone shows the first plus a count.
+  const shownTags = wide ? row.tags : row.tags.slice(0, 1);
   return (
     <Pressable
       onPress={onPress}
       accessibilityLabel={`${row.label} ${row.time}`}
       style={[
         styles.row,
+        wide && styles.wide,
         {width, borderColor: color.line, opacity: row.comparable ? 1 : 0.5},
         row.highlighted && {backgroundColor: color.accentTint},
       ]}>
       {row.highlighted && (
         <View style={[styles.hlBar, {backgroundColor: color.accent}]} />
       )}
-      <View style={{width: LAP_COLS.chk}}>
+      <View style={{width: cols.chk}}>
         <Checkbox
           checked={row.selIndex != null}
           fill={lapColor}
@@ -96,16 +124,21 @@ export function LapRow({
           label={`Compare ${row.label}`}
         />
       </View>
-      <Text variant='dataStrong' style={{width: LAP_COLS.lap}}>
+      <Text variant='dataStrong' style={{width: cols.lap}}>
         {row.label}
       </Text>
-      <Text variant='data' style={[styles.right, {width: LAP_COLS.time}]}>
+      {wide && (
+        <Text variant='data' tone='textFaint' style={{width: WIDE_COLS.stint}}>
+          {row.stint}
+        </Text>
+      )}
+      <Text variant='data' style={[styles.right, {width: cols.time}]}>
         {row.time}
       </Text>
       <Text
         variant='data'
         tone={row.gapFaster ? 'faster' : 'textSecondary'}
-        style={[styles.right, {width: LAP_COLS.gap}]}>
+        style={[styles.right, {width: cols.gap}]}>
         {row.gap ?? ''}
       </Text>
       {row.sectors.map((s, i) => (
@@ -113,23 +146,24 @@ export function LapRow({
           key={i}
           variant='data'
           tone={s.best ? 'best' : 'textSecondary'}
-          style={[styles.right, {width: LAP_COLS.sector}]}>
+          style={[styles.right, {width: cols.sector}]}>
           {s.value}
         </Text>
       ))}
       <Text variant='dataSmall' numberOfLines={1} style={styles.flex}>
-        {/* First tag only, plus a count; the detail panel has the full story. */}
-        {row.tags.length > 0 && (
+        {shownTags.map((t, i) => (
           <Text
+            key={t.code}
             variant='dataSmall'
-            tone={row.tags[0].best ? 'best' : 'textMuted'}
+            tone={t.best ? 'best' : 'textMuted'}
             style={styles.tag}>
-            {row.tags[0].code}
+            {i > 0 ? ' ' : ''}
+            {t.code}
           </Text>
-        )}
-        {row.tags.length > 1 && (
+        ))}
+        {row.tags.length > shownTags.length && (
           <Text variant='dataSmall' tone='textFaint' style={styles.tag}>
-            {` +${row.tags.length - 1}`}
+            {` +${row.tags.length - shownTags.length}`}
           </Text>
         )}
       </Text>
@@ -167,4 +201,5 @@ const styles = StyleSheet.create({
   },
   hlBar: {position: 'absolute', left: -space.xl, top: 0, bottom: 0, width: 3},
   tag: {fontSize: 10},
+  wide: {height: WIDE_ROW_H, gap: space.md},
 });
