@@ -3,6 +3,11 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Circle, Line, Path, Text as SvgText} from 'react-native-svg';
 
 import {keepClear} from '@/src/analysis/labelPlace';
+import {
+  nearestVertexDistance,
+  offsetFromLine,
+  signedArea2,
+} from '@/src/analysis/loopSide';
 import {fonts, useTheme} from '@/src/design';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
@@ -116,53 +121,52 @@ export function TrackMap({
 
   if (!fit) return <View style={{width, height}} />;
 
-  // A point `offset` pt off the band at an anchor: positive is away from the
-  // box centre (outside the loop), negative is inside.
-  const off = (a: MapAnchor, offset: number) => {
-    const at = fit(a.at);
-    const p = fit(a.prev);
-    const n = fit(a.next);
-    const len = Math.hypot(n.x - p.x, n.y - p.y) || 1;
-    let nx = -(n.y - p.y) / len;
-    let ny = (n.x - p.x) / len;
-    if (nx * (at.x - width / 2) + ny * (at.y - height / 2) < 0) {
-      nx = -nx;
-      ny = -ny;
-    }
-    return {x: at.x + nx * offset, y: at.y + ny * offset};
-  };
-
   const real = outlinePaths.length > 0;
   const driven = linePaths[linePaths.length - 1];
-  const pitMid = pitLane[0]?.[Math.floor(pitLane[0].length / 2)];
+  // The reference line on screen decides which side is inside the loop
+  // (its winding), and keeps labels off the band.
+  const refScreen = (lines[lines.length - 1]?.points ?? []).map(fit);
+  const clockwise = signedArea2(refScreen) > 0;
+  // A point `offset` pt off the line at an anchor: positive is inside the
+  // loop, negative outside.
+  const off = (a: MapAnchor, offset: number) =>
+    offsetFromLine(fit(a.prev), fit(a.at), fit(a.next), offset, clockwise);
+
+  // Some OSM tracks split the pit lane into entry, lane and exit: label the
+  // longest.
+  const pit = pitLane.reduce<MapPoint[]>(
+    (best, l) => (l.length > best.length ? l : best),
+    [],
+  );
+  const pitI = Math.floor(pit.length / 2);
   const pitAt =
-    pitMid &&
+    pit.length > 2 &&
     off(
-      {
-        at: pitMid,
-        prev: pitLane[0][Math.max(0, Math.floor(pitLane[0].length / 2) - 1)],
-        next: pitLane[0][
-          Math.min(pitLane[0].length - 1, Math.floor(pitLane[0].length / 2) + 1)
-        ],
-      },
-      -PIT_LABEL_OFFSET,
+      {at: pit[pitI], prev: pit[pitI - 1], next: pit[pitI + 1]},
+      PIT_LABEL_OFFSET,
     );
   // Labels in priority order: sections, then corners, then PIT. Any that
   // would overlap one before it is left out (tight corners at phone size).
   type Label = {kind: 'section' | 'corner' | 'pit'; n: number; at: MapPoint};
+  const bandClear = (l: Label) =>
+    l.kind === 'section' ||
+    nearestVertexDistance(l.at, refScreen) > BAND_EDGE_W / 2 + CORNER_FONT / 2;
   const candidates: Label[] = [
     ...marks.sections.map(s => ({
       kind: 'section' as const,
       n: s.n,
-      at: off(s.anchor, -SECTION_OFFSET),
+      at: off(s.anchor, SECTION_OFFSET),
     })),
     ...marks.corners.map(c => ({
       kind: 'corner' as const,
       n: c.n,
-      at: off(c.anchor, CORNER_OFFSET),
+      at: off(c.anchor, -CORNER_OFFSET),
     })),
     ...(real && pitAt ? [{kind: 'pit' as const, n: 0, at: pitAt}] : []),
-  ];
+    // Corner and PIT labels that would sit on another part of the track
+    // (two straights side by side) are left out; section labels stay, since
+    // they are the tap targets.
+  ].filter(bandClear);
   const textOf = (l: Label) =>
     l.kind === 'section' ? `S${l.n}` : l.kind === 'corner' ? `C${l.n}` : 'PIT';
   const kept = keepClear(

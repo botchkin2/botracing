@@ -356,7 +356,6 @@ function CompareView({
         height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
         map={model.map}
         sessionId={sessionId}
-        place={model.position.place}
         openSection={selection.corner ?? null}
         lapStyle={lapStyle}
         onPressSection={openCorner}

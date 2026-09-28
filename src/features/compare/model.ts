@@ -11,6 +11,7 @@ import {
   type Lap,
   type SessionBand,
   type SessionDetail,
+  type MapSection,
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
@@ -205,6 +206,8 @@ export type MapModel = {
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
+  /** Follow's position label, e.g. "Section 4 · C8 apex". */
+  followPlace: string;
   /** Each section's apex distance, for the strip. */
   sectionApexes: {n: number; apexM: number}[];
   attribution: string | null;
@@ -435,6 +438,19 @@ export function cornerPlace(
   const before = [...sections].reverse().find(s => s.exitM < cursorM);
   const prev = before ?? sections[sections.length - 1];
   return prev ? `After Section ${prev.n}` : '';
+}
+
+/**
+ * Follow's position label (handoff v2 M1): the section, plus the corner when
+ * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · C8 apex".
+ */
+export function followPlace(sections: MapSection[], cursorM: number): string {
+  const place = cornerPlace(sections, cursorM);
+  for (const s of sections)
+    for (const c of s.parts.length > 0 ? s.parts : [s])
+      if (cursorM >= c.entryM && cursorM <= c.exitM)
+        return `${place} · C${c.n} apex`;
+  return place;
 }
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
@@ -709,6 +725,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
         // Same order as the lines: the reference dot on top.
         .sort((a, b) => drawRank(a) - drawRank(b)),
+      followPlace: followPlace(map?.sections ?? [], cursorM),
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
         apexM: s.apexM,

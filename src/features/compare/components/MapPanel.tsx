@@ -12,7 +12,8 @@ import {type LapStyle} from './ChartBlock';
 // The Compare map panel (handoff v2 M1): Follow / Track switch over the map,
 // the position label in Follow, the outline quality chip, OSM attribution
 // when OSM is drawn, and a one-time note when there is no reliable outline.
-// Satellite is not shown until it ships.
+// Satellite is not shown until it ships. The panel reads and writes the
+// map prefs (mode, dismissed notes) itself, so both Compare layouts share them.
 
 // Copy from the handoff, verbatim.
 const POOR_NOTE =
@@ -28,7 +29,6 @@ export function MapPanel({
   height,
   map,
   sessionId,
-  place,
   openSection,
   lapStyle,
   onPressSection,
@@ -37,8 +37,6 @@ export function MapPanel({
   height: number;
   map: MapModel;
   sessionId: string;
-  /** "Section 4", from the position row. */
-  place: string;
   openSection: number | null;
   lapStyle: LapStyle;
   onPressSection: (n: number) => void;
@@ -111,6 +109,7 @@ export function MapPanel({
             color: lapStyle(d.selIndex, d.highlighted).color,
           }))}
           inset={f.geometry.inset}
+          corners={f.geometry.corners}
         />
       ) : (
         <TrackMap
@@ -131,10 +130,10 @@ export function MapPanel({
       )}
       <View style={styles.topLeft} pointerEvents='box-none'>
         <Segment options={MODES} value={mode} onChange={prefs.setMapMode} />
-        {mode === 'follow' && place !== '' && (
+        {mode === 'follow' && map.followPlace !== '' && (
           <View style={[styles.label, {backgroundColor: color.surfaceOverlay}]}>
             <Text variant='dataSmall' tone='textSecondary'>
-              {place}
+              {map.followPlace}
             </Text>
           </View>
         )}

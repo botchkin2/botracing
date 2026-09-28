@@ -12,6 +12,7 @@ import {
   buildCompareModel,
   snapOut,
   cornerPlace,
+  followPlace,
   type CompareSelection,
   makeReference,
   removeLap,
@@ -312,6 +313,28 @@ describe('cornerPlace', () => {
     expect(cornerPlace(s, 310)).toBe('After Section 1');
     expect(cornerPlace(s, 50)).toBe('Section 1');
     expect(cornerPlace(s, 900)).toBe('After Section 2');
+  });
+});
+
+describe('followPlace', () => {
+  const c = (n: number, entryM: number, exitM: number) => ({
+    n,
+    entryM,
+    apexM: (entryM + exitM) / 2,
+    exitM,
+  });
+  const s = [
+    {...c(1, 100, 300), parts: [c(1, 100, 180), c(2, 200, 300)]},
+    {...c(2, 500, 700), parts: []},
+  ];
+  it('adds the corner inside its range, using parts when there are any', () => {
+    expect(followPlace(s, 150)).toBe('Section 1 · C1 apex');
+    expect(followPlace(s, 250)).toBe('Section 1 · C2 apex');
+    expect(followPlace(s, 600)).toBe('Section 2 · C2 apex');
+  });
+  it('is the section alone between corners', () => {
+    expect(followPlace(s, 190)).toBe('Section 1');
+    expect(followPlace(s, 400)).toBe('Section 2');
   });
 });
 

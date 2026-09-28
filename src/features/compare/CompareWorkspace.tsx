@@ -355,7 +355,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             height={MAP_H}
             map={model.map}
             sessionId={p.sessionId}
-            place={model.position.place}
             openSection={selection.corner ?? null}
             lapStyle={lapStyle}
             onPressSection={p.onOpenSection}
