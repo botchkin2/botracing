@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Circle, Line, Path, Text as SvgText} from 'react-native-svg';
 
+import {keepClear} from '@/src/analysis/labelPlace';
 import {fonts, useTheme} from '@/src/design';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
@@ -44,6 +45,10 @@ const SECTION_OFFSET = 17;
 const CORNER_OFFSET = 10.5;
 const PIT_LABEL_OFFSET = 11;
 const HIT = 44;
+// Mono glyph advance ≈ 0.62 em, for label boxes.
+const MONO_EM = 0.62;
+const SECTION_FONT = 10;
+const CORNER_FONT = 8.5;
 
 export function TrackMap({
   width,
@@ -142,10 +147,36 @@ export function TrackMap({
       },
       -PIT_LABEL_OFFSET,
     );
-  const sectionLabels = marks.sections.map(s => ({
-    n: s.n,
-    at: off(s.anchor, -SECTION_OFFSET),
-  }));
+  // Labels in priority order: sections, then corners, then PIT. Any that
+  // would overlap one before it is left out (tight corners at phone size).
+  type Label = {kind: 'section' | 'corner' | 'pit'; n: number; at: MapPoint};
+  const candidates: Label[] = [
+    ...marks.sections.map(s => ({
+      kind: 'section' as const,
+      n: s.n,
+      at: off(s.anchor, -SECTION_OFFSET),
+    })),
+    ...marks.corners.map(c => ({
+      kind: 'corner' as const,
+      n: c.n,
+      at: off(c.anchor, CORNER_OFFSET),
+    })),
+    ...(real && pitAt ? [{kind: 'pit' as const, n: 0, at: pitAt}] : []),
+  ];
+  const textOf = (l: Label) =>
+    l.kind === 'section' ? `S${l.n}` : l.kind === 'corner' ? `C${l.n}` : 'PIT';
+  const kept = keepClear(
+    candidates.map(l => {
+      const font = l.kind === 'section' ? SECTION_FONT : CORNER_FONT;
+      return {
+        x: l.at.x,
+        y: l.at.y,
+        width: textOf(l).length * font * MONO_EM,
+        height: font,
+      };
+    }),
+  ).map(i => candidates[i]);
+  const sectionLabels = kept.filter(l => l.kind === 'section');
 
   return (
     <View style={{width, height}}>
@@ -239,36 +270,24 @@ export function TrackMap({
             textAnchor='middle'
             fill={s.n === openSection ? color.text : color.mapLabel}
             fontFamily={fonts.monoBold}
-            fontSize={10}>
+            fontSize={SECTION_FONT}>
             {`S${s.n}`}
           </SvgText>
         ))}
-        {marks.corners.map((c, i) => {
-          const at = off(c.anchor, CORNER_OFFSET);
-          return (
+        {kept
+          .filter(l => l.kind !== 'section')
+          .map(l => (
             <SvgText
-              key={`c${i}`}
-              x={at.x}
-              y={at.y + 3}
+              key={`${l.kind}${l.n}`}
+              x={l.at.x}
+              y={l.at.y + 3}
               textAnchor='middle'
               fill={color.mapCornerLabel}
-              fontFamily={fonts.monoMedium}
-              fontSize={8.5}>
-              {`C${c.n}`}
+              fontFamily={l.kind === 'pit' ? fonts.monoBold : fonts.monoMedium}
+              fontSize={CORNER_FONT}>
+              {textOf(l)}
             </SvgText>
-          );
-        })}
-        {real && pitAt && (
-          <SvgText
-            x={pitAt.x}
-            y={pitAt.y + 3}
-            textAnchor='middle'
-            fill={color.mapCornerLabel}
-            fontFamily={fonts.monoBold}
-            fontSize={8.5}>
-            PIT
-          </SvgText>
-        )}
+          ))}
         {dots.map(d => {
           const q = fit(d.at);
           return (
