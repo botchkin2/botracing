@@ -9,7 +9,12 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {DotStrip, TraceChart} from '@/src/charts';
+import {
+  BrakeMap,
+  type BrakeMapMarker,
+  DotStrip,
+  TraceChart,
+} from '@/src/charts';
 import {
   lapColors,
   lapStroke,
@@ -22,6 +27,8 @@ import {compareHref, cornerHref} from '@/src/nav/routes';
 import {Chip, Explainer, Text} from '@/src/ui';
 
 import {
+  type BrakeMapModel,
+  type BrakeMapPoint,
   type CornerModel,
   type CornerRow,
   type CornerSelection,
@@ -39,6 +46,7 @@ const PHONE_H = {speed: 96, brake: 52, throttle: 52};
 const DESK_H = {speed: 226, brake: 122, throttle: 122};
 const DESK_LEFT_W = 600;
 const DESK_RIGHT_W = 840;
+const BRAKE_MAP_H = 210;
 const DOT_GREY = '#6b737c';
 
 export function CornerScreen({
@@ -270,6 +278,12 @@ function CornerView({
           style={{width: DESK_LEFT_W, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
           {header}
+          {model.brakeMap && (
+            <BrakeMapPanel
+              map={model.brakeMap}
+              lapColor={(i, hl) => lapStroke(scheme, i, count, hl).color}
+            />
+          )}
           {measures}
         </ScrollView>
         <ScrollView
@@ -394,6 +408,55 @@ function CornerTable({
           })}
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+// Handoff D3: brake points are circles (key laps r 4.8, others r 2.8 grey at
+// 55%); full-throttle points are squares (6 pt key, 4 pt others).
+function BrakeMapPanel({
+  map,
+  lapColor,
+}: {
+  map: BrakeMapModel;
+  lapColor: (selIndex: number, highlighted: boolean) => string;
+}) {
+  const {color} = useTheme();
+  const isKey = (p: BrakeMapPoint) => p.isRef || p.highlighted;
+  const marker = (
+    p: BrakeMapPoint,
+    shape: BrakeMapMarker['shape'],
+  ): BrakeMapMarker => ({
+    key: `${shape}-${p.lapId}`,
+    at: p.at,
+    shape,
+    size: shape === 'circle' ? (isKey(p) ? 4.8 : 2.8) : isKey(p) ? 6 : 4,
+    color: isKey(p) ? lapColor(p.selIndex, p.highlighted) : color.barNeutral,
+    opacity: isKey(p) ? 1 : 0.55,
+  });
+  // Key laps last, so they sit on top of the grey spread.
+  const markers = [
+    ...map.throttles.map(p => marker(p, 'square')),
+    ...map.brakes.map(p => marker(p, 'circle')),
+  ].sort((a, b) => Number(a.opacity === 1) - Number(b.opacity === 1));
+  return (
+    <View style={styles.gap}>
+      <Text variant='label' tone='textMuted'>
+        Where each lap braked
+      </Text>
+      <BrakeMap
+        width={DESK_LEFT_W - 40}
+        height={BRAKE_MAP_H}
+        centreline={map.centreline}
+        apex={map.apex}
+        ticks={map.ticks}
+        markers={markers}
+      />
+      <Explainer>
+        Circles are brake points and squares are full-throttle points, placed on
+        the reference lap’s line at that distance. The reference and the
+        highlighted lap are in colour.
+      </Explainer>
     </View>
   );
 }

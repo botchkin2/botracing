@@ -12,6 +12,7 @@ import {
   cornerLapIds,
   sortRows,
   traceIdsFor,
+  buildBrakeMap,
   cornerExplainer,
 } from './model';
 
@@ -229,5 +230,53 @@ describe('lap choice', () => {
       'L2',
     ]);
     expect(sortRows(m.rows, 'minSpeed', 'desc')[0].label).toBe('L3');
+  });
+});
+
+describe('buildBrakeMap', () => {
+  // A straight line north: 1 m per step, 0.00001° lat ≈ 1.11 m.
+  const n = 1000;
+  const trace = {
+    stepM: 1,
+    distanceM: Array.from({length: n}, (_, i) => i),
+    lat: Array.from({length: n}, (_, i) => i * 0.00001),
+    lon: Array.from({length: n}, () => 0),
+  } as unknown as Parameters<typeof buildBrakeMap>[1];
+  const row = (
+    lapId: string,
+    brake: number | null,
+    throttle: number | null,
+    extra = {},
+  ) =>
+    ({
+      lapId,
+      selIndex: 0,
+      isRef: false,
+      highlighted: false,
+      values: {time: 1, brake, minSpeed: 100, throttle},
+      ...extra,
+    } as unknown as Parameters<typeof buildBrakeMap>[0][number]);
+
+  it('places every lap’s points on the reference line, window only', () => {
+    const m = buildBrakeMap(
+      [row('a', 100, 50, {isRef: true}), row('b', 500, null)],
+      trace,
+      500,
+    )!;
+    expect(m.centreline).toHaveLength(551);
+    // Brake 100 m before the apex sits 250 m into the window (≈278 m north).
+    expect(m.brakes.map(p => p.lapId)).toEqual(['a']);
+    expect(m.brakes[0].at.y).toBeCloseTo(m.apex.y - 100 * 1.11, -1);
+    expect(m.throttles[0].at.y).toBeGreaterThan(m.apex.y);
+    expect(m.ticks.map(t => t.label)).toEqual([
+      '−300 m',
+      '−200 m',
+      '−100 m',
+      '+100 m',
+    ]);
+  });
+
+  it('is null without the reference trace', () => {
+    expect(buildBrakeMap([], undefined, 500)).toBeNull();
   });
 });
