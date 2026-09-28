@@ -131,18 +131,18 @@
     "lat": 60.0,
     "lon": 0.0
    },
-   "rotationDeg": 2.2414,
+   "rotationDeg": 2.0216,
    "mirror": 1,
-   "originLat": 47.9406337,
-   "originLon": 0.2102898,
-   "fitMedianM": 34.21,
-   "fitP90M": 505.47,
+   "originLat": 47.9403708,
+   "originLon": 0.2104367,
+   "fitMedianM": 2.94,
+   "fitP90M": 7.14,
    "source": "osm-raceway",
    "fittedOn": "Circuit de la Sarthe_R_2026-09-21T00_17_13Z.duckdb",
-   "fittedAt": "2026-09-27"
+   "fittedAt": "2026-09-28"
   },
-  "quality": "poor",
-  "qualityNote": "Mulsanne, Arnage and Indianapolis are public roads, not tagged raceway in OSM; add those road ways as targets.",
+  "quality": "good",
+  "qualityNote": "Best effort OSM fit.",
   "location": "Circuit de la Sarthe",
   "outline": "trackmaps/lmu-circuit_de_la_sarthe/v1.geojson.gz"
  },
