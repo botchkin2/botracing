@@ -178,7 +178,8 @@ export type ChartModel = {
   /** Per-channel y domains, keyed by channel. */
   domains: Partial<Record<ChannelId, [number, number]>>;
   band: {low: number[]; high: number[]} | null;
-  zeroLine: boolean;
+  /** The channel whose 0 gets a line (time diff, else steering), if any. */
+  zeroLine: ChannelId | null;
   valueRows: ChartValueRow[];
 };
 
@@ -614,7 +615,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       lines,
       domains,
       band: bandFor ? {low: bandFor.p10, high: bandFor.p90} : null,
-      zeroLine: chs.includes('timeDiff'),
+      // Time diff: the reference. Steering: straight ahead, so left and
+      // right lock read at a glance (Botkin, thread 26 #385).
+      zeroLine: chs.includes('timeDiff')
+        ? 'timeDiff'
+        : chs.includes('steering')
+        ? 'steering'
+        : null,
       valueRows: chs.map((ch, overlay) => ({
         channel: ch,
         label: CHANNELS[ch].label,
