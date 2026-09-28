@@ -23,8 +23,13 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
-      # The Firebase CLI refuses to run without firebase.json.
+      # The Firebase CLI refuses to run without firebase.json. Take only that
+      # file, from main, so no PR code is checked out next to the secret.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: firebase.json
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
