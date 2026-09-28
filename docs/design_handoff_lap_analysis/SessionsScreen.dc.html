@@ -17,7 +17,7 @@
 <div style="padding:12px 16px 4px;display:flex;align-items:baseline;gap:8px"><span style="font:600 14px 'IBM Plex Sans Condensed',sans-serif">{{ d.day }}</span><span style="font:400 11px 'IBM Plex Mono',monospace;color:#5b636b;white-space:nowrap">{{ d.date }}</span></div>
 <sc-for list="{{ d.rows }}" as="r"><div onClick="{{ r.onTap }}" style="display:grid;grid-template-columns:24px 1fr 30px 64px 64px;gap:8px;align-items:center;padding:9px 16px;box-shadow:{{ r.sh }};background:{{ r.bg }};border-bottom:1px solid #15181c;cursor:pointer">
 <span style="width:22px;height:22px;border:1px solid #3a4148;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace">{{ r.b }}</span>
-<div style="min-width:0"><div style="font:600 14.5px/1.2 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap">{{ r.track }} <span style="font-weight:400;color:#8a929b">· {{ r.type }}</span></div><div style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">{{ r.time }} · {{ r.car }}</div></div>
+<div style="min-width:0"><div style="font:600 14.5px/1.2 'IBM Plex Sans Condensed',sans-serif;white-space:nowrap">{{ r.track }}</div><div style="font:400 11px 'IBM Plex Mono',monospace;color:#8a929b;white-space:nowrap">{{ r.car }} · {{ r.time }}</div></div>
 <span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace">{{ r.laps }}</span>
 <span style="text-align:right;font:500 12px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums">{{ r.best }}</span>
 <span style="text-align:right;font:400 12px 'IBM Plex Mono',monospace;color:#aeb4ba;font-variant-numeric:tabular-nums">{{ r.med }}</span>
