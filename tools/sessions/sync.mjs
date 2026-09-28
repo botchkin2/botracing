@@ -52,10 +52,14 @@ const work = resolve(
 );
 const statePath = resolve(work, 'state.json');
 // Sessions analyzed at once, each in its own worker thread. The work is
-// CPU-bound (DuckDB read and analysis), one core per session.
+// CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
+// default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
+// 4.7 GB, while 22 only reached 45 s at 7.3 GB, too much on a VR PC.
 const jobs = Math.max(
   1,
-  Number(arg('--jobs', String(Math.max(1, availableParallelism() - 2)))),
+  Number(
+    arg('--jobs', String(Math.max(1, Math.min(8, availableParallelism() - 2)))),
+  ),
 );
 
 // Recordings of one session that are further apart than this start a new one.
@@ -502,7 +506,10 @@ async function runPool(todo, store, state) {
   );
   await Promise.all(workers.map(drive));
   await Promise.all(workers.map(w => w.terminate()));
-  return {done, failed};
+  // Every worker died: what is left was not attempted, and is not unchanged.
+  if (todo.length)
+    log(`${todo.length} session(s) not attempted: no workers left`);
+  return {done, failed: failed + todo.length};
 }
 
 function ask(worker, message) {
