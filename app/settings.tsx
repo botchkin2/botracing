@@ -1,3 +1,3 @@
-import CacheManagementScreen from '@/src/screens/CacheManagementScreen';
+import {SettingsScreen} from '@/src/features/settings/SettingsScreen';
 
-export default CacheManagementScreen;
+export default SettingsScreen;

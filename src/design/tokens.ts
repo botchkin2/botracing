@@ -38,6 +38,9 @@ const dark = {
   mapCornerLabel: '#5b636b',
   barNeutral: '#5d646d',
   scrim: 'rgba(0,0,0,0.55)',
+  // Handoff v2 M5: the uploader's "connected" dot. Its own token, not
+  // `faster`, which means a signed gain.
+  statusConnected: '#65e287',
   // Desktop chrome and rail (handoff "Desktop", D1).
   chrome: '#0b0d10',
   tabActive: '#1b1f24',
