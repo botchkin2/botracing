@@ -182,7 +182,8 @@ export function ChartBlock({
         domain={chart.domains[first] ?? [0, 1]}
         series={series}
         band={chart.band ?? undefined}
-        zeroLine={chart.zeroLine}
+        zeroLine={chart.zeroLine != null}
+        zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
         cursorM={cursorM}
         onScrub={onScrub}
         onPan={onPan}

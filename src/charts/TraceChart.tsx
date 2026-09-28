@@ -86,6 +86,7 @@ export function TraceChart({
   series,
   band,
   zeroLine,
+  zeroDomain,
   cursorM,
   marks = [],
   gridOriginM,
@@ -107,6 +108,9 @@ export function TraceChart({
   series: TraceSeries[];
   band?: TraceBand;
   zeroLine?: boolean;
+  /** The y range the zero line belongs to, when it is not the chart's own
+   *  (an overlay: steering's 0, not 0 km/h). */
+  zeroDomain?: [number, number];
   cursorM: number;
   /** Vertical marks: labelled (apex lines), or colored per lap (brake points). */
   marks?: {m: number; label?: string; color?: string; solid?: boolean}[];
@@ -152,11 +156,13 @@ export function TraceChart({
     (v: number) =>
       Y_PAD + (1 - (v - lo) / (hi - lo || 1)) * (height - 2 * Y_PAD);
   // Ranges ease into a new scale (150 ms) instead of jumping.
-  const [domainT, ...seriesDomainsT] = useTweenedRanges([
+  const [domainT, zeroDomainT, ...seriesDomainsT] = useTweenedRanges([
     domain,
+    zeroDomain ?? domain,
     ...series.map(s => s.domain ?? domain),
   ]);
   const y = yFor(domainT);
+  const yZero = yFor(zeroDomainT)(0);
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
 
@@ -348,8 +354,8 @@ export function TraceChart({
           <Line
             x1={0}
             x2={width}
-            y1={y(0)}
-            y2={y(0)}
+            y1={yZero}
+            y2={yZero}
             stroke={color.median}
             strokeWidth={stroke.mark}
           />
