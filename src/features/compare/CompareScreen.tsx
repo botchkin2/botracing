@@ -354,17 +354,17 @@ function CompareView({
         width={sideW}
         height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
         map={model.map}
-        mode={prefs.mapMode}
-        onMode={prefs.setMapMode}
+        sessionId={sessionId}
         place={model.position.place}
+        openSection={selection.corner ?? null}
         lapStyle={lapStyle}
-        onPressBadge={openCorner}
+        onPressSection={openCorner}
       />
     ) : (
       <TrackStrip
         width={sideW}
         lengthM={model.lengthM}
-        corners={model.map.badges.map(b => ({n: b.n, m: b.apexM}))}
+        corners={model.map.sectionApexes.map(b => ({n: b.n, m: b.apexM}))}
         windowM={model.windowM}
         markers={model.map.dots.map(d => ({
           key: d.lapId,
@@ -574,6 +574,7 @@ function CompareView({
   if (layout.isWide)
     return (
       <CompareWorkspace
+        sessionId={sessionId}
         model={model}
         selection={selection}
         cursorM={cursorM}

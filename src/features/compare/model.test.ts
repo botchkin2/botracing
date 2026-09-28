@@ -149,7 +149,9 @@ describe('buildCompareModel', () => {
     expect(mm.outline).toEqual([]);
     expect(mm.lines).toHaveLength(3);
     expect(mm.dots).toHaveLength(3);
-    expect(mm.badges.map(b => b.n)).toEqual([1, 2]);
+    expect(mm.sectionApexes.map(s => s.n)).toEqual([1, 2]);
+    expect(mm.marks.sections.map(s => s.n)).toEqual([1, 2]);
+    expect(mm.pitLane).toEqual([]);
     // Reference drawn last (on top), highlighted (L2 by default) just below.
     expect(mm.lines.map(l => l.label)).toEqual(['L3', 'L2', 'L1']);
     expect(mm.dots.map(d => d.label)).toEqual(['L3', 'L2', 'L1']);

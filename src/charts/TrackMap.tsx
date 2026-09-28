@@ -1,12 +1,14 @@
 import {useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {Circle, G, Path, Text as SvgText} from 'react-native-svg';
+import Svg, {Circle, Line, Path, Text as SvgText} from 'react-native-svg';
 
-import {type as typeScale, useTheme} from '@/src/design';
+import {fonts, useTheme} from '@/src/design';
 
-// Track map (handoff §3 "Map"): the OSM outline when the track has a good
-// fit, each lap's line, a dot per lap at the cursor, and corner badges.
-// Inputs are metres east/north of one origin; this fits them to the box.
+// Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
+// the track has a good fit, else the driven line as a plain band; each lap's
+// line; section boundary ticks, S labels inside the loop and corner numbers
+// outside; a dot per lap at the cursor. Inputs are metres east/north; this
+// fits them to the box, north up.
 
 export type MapPoint = {x: number; y: number};
 
@@ -20,29 +22,51 @@ export type MapLine = {
 
 export type MapDot = {key: string; at: MapPoint; color: string};
 
-export type MapBadge = {n: number; at: MapPoint; open: boolean};
+/** A point on the reference line and its neighbours, for the band normal. */
+export type MapAnchor = {at: MapPoint; prev: MapPoint; next: MapPoint};
+
+export type MapMarks = {
+  boundaries: MapAnchor[];
+  sections: {n: number; anchor: MapAnchor}[];
+  corners: {n: number; anchor: MapAnchor}[];
+};
 
 const PAD = 14;
-const BADGE_R = 9;
-const TRACK_W = 6;
+// Widths and offsets in points, from the v2 M1a frame.
+const BAND_EDGE_W = 10;
+const BAND_FILL_W = 7.5;
+const PIT_EDGE_W = 4.5;
+const PIT_FILL_W = 2.5;
+const DRIVEN_W = 6;
+const TICK_HALF = 7;
+const TICK_W = 1.3;
+const SECTION_OFFSET = 17;
+const CORNER_OFFSET = 10.5;
+const PIT_LABEL_OFFSET = 11;
+const HIT = 44;
 
 export function TrackMap({
   width,
   height,
   outline,
+  pitLane,
   lines,
   dots,
-  badges,
-  onPressBadge,
+  marks,
+  openSection,
+  onPressSection,
 }: {
   width: number;
   height: number;
   /** Real track outline (OSM); empty when the fit is not good enough. */
   outline: MapPoint[][];
+  pitLane: MapPoint[][];
+  /** Drawn in order, reference last: it is also the band with no outline. */
   lines: MapLine[];
   dots: MapDot[];
-  badges: MapBadge[];
-  onPressBadge: (n: number) => void;
+  marks: MapMarks;
+  openSection: number | null;
+  onPressSection: (n: number) => void;
 }) {
   const {color} = useTheme();
 
@@ -79,36 +103,123 @@ export function TrackMap({
       : '';
 
   const outlinePaths = useMemo(() => outline.map(toPath), [outline, fit]);
+  const pitPaths = useMemo(() => pitLane.map(toPath), [pitLane, fit]);
   const linePaths = useMemo(
     () => lines.map(l => ({...l, d: toPath(l.points)})),
     [lines, fit],
   );
 
   if (!fit) return <View style={{width, height}} />;
-  const axis = typeScale.axis;
+
+  // A point `offset` pt off the band at an anchor: positive is away from the
+  // box centre (outside the loop), negative is inside.
+  const off = (a: MapAnchor, offset: number) => {
+    const at = fit(a.at);
+    const p = fit(a.prev);
+    const n = fit(a.next);
+    const len = Math.hypot(n.x - p.x, n.y - p.y) || 1;
+    let nx = -(n.y - p.y) / len;
+    let ny = (n.x - p.x) / len;
+    if (nx * (at.x - width / 2) + ny * (at.y - height / 2) < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    return {x: at.x + nx * offset, y: at.y + ny * offset};
+  };
+
+  const real = outlinePaths.length > 0;
+  const driven = linePaths[linePaths.length - 1];
+  const pitMid = pitLane[0]?.[Math.floor(pitLane[0].length / 2)];
+  const pitAt =
+    pitMid &&
+    off(
+      {
+        at: pitMid,
+        prev: pitLane[0][Math.max(0, Math.floor(pitLane[0].length / 2) - 1)],
+        next: pitLane[0][
+          Math.min(pitLane[0].length - 1, Math.floor(pitLane[0].length / 2) + 1)
+        ],
+      },
+      -PIT_LABEL_OFFSET,
+    );
+  const sectionLabels = marks.sections.map(s => ({
+    n: s.n,
+    at: off(s.anchor, -SECTION_OFFSET),
+  }));
+
   return (
     <View style={{width, height}}>
       <Svg width={width} height={height}>
-        {outlinePaths.map((d, i) => (
-          <Path
-            key={`o${i}`}
-            d={d}
-            stroke={color.track}
-            strokeWidth={TRACK_W}
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            fill='none'
-          />
-        ))}
-        {outline.length === 0 && linePaths[0] && (
-          <Path
-            d={linePaths[0].d}
-            stroke={color.track}
-            strokeWidth={TRACK_W}
-            strokeLinejoin='round'
-            fill='none'
-          />
+        {real ? (
+          <>
+            {outlinePaths.map((d, i) => (
+              <Path
+                key={`oe${i}`}
+                d={d}
+                stroke={color.trackEdge}
+                strokeWidth={BAND_EDGE_W}
+                strokeLinejoin='round'
+                fill='none'
+              />
+            ))}
+            {outlinePaths.map((d, i) => (
+              <Path
+                key={`of${i}`}
+                d={d}
+                stroke={color.trackFill}
+                strokeWidth={BAND_FILL_W}
+                strokeLinejoin='round'
+                fill='none'
+              />
+            ))}
+            {pitPaths.map((d, i) => (
+              <Path
+                key={`pe${i}`}
+                d={d}
+                stroke={color.trackEdge}
+                strokeWidth={PIT_EDGE_W}
+                strokeLinejoin='round'
+                strokeLinecap='round'
+                fill='none'
+              />
+            ))}
+            {pitPaths.map((d, i) => (
+              <Path
+                key={`pf${i}`}
+                d={d}
+                stroke={color.trackFill}
+                strokeWidth={PIT_FILL_W}
+                strokeLinejoin='round'
+                fill='none'
+              />
+            ))}
+          </>
+        ) : (
+          driven && (
+            <Path
+              d={driven.d}
+              stroke={color.track}
+              strokeWidth={DRIVEN_W}
+              strokeLinejoin='round'
+              fill='none'
+            />
+          )
         )}
+        {marks.boundaries.map((b, i) => {
+          const a = off(b, TICK_HALF);
+          const c = off(b, -TICK_HALF);
+          return (
+            <Line
+              key={`t${i}`}
+              x1={a.x}
+              y1={a.y}
+              x2={c.x}
+              y2={c.y}
+              stroke={color.sectionTick}
+              strokeWidth={TICK_W}
+            />
+          );
+        })}
         {linePaths.map(l => (
           <Path
             key={l.key}
@@ -120,30 +231,44 @@ export function TrackMap({
             fill='none'
           />
         ))}
-        {badges.map(b => {
-          const q = fit(b.at);
+        {sectionLabels.map(s => (
+          <SvgText
+            key={`s${s.n}`}
+            x={s.at.x}
+            y={s.at.y + 3.5}
+            textAnchor='middle'
+            fill={s.n === openSection ? color.text : color.mapLabel}
+            fontFamily={fonts.monoBold}
+            fontSize={10}>
+            {`S${s.n}`}
+          </SvgText>
+        ))}
+        {marks.corners.map((c, i) => {
+          const at = off(c.anchor, CORNER_OFFSET);
           return (
-            <G key={`b${b.n}`}>
-              <Circle
-                cx={q.x}
-                cy={q.y}
-                r={BADGE_R}
-                fill={b.open ? color.text : color.surfaceRaised}
-                stroke={color.lineStrong}
-                strokeWidth={1}
-              />
-              <SvgText
-                x={q.x}
-                y={q.y + 3.2}
-                textAnchor='middle'
-                fill={b.open ? color.bg : color.text}
-                fontFamily={axis.fontFamily}
-                fontSize={9}>
-                {`S${b.n}`}
-              </SvgText>
-            </G>
+            <SvgText
+              key={`c${i}`}
+              x={at.x}
+              y={at.y + 3}
+              textAnchor='middle'
+              fill={color.mapCornerLabel}
+              fontFamily={fonts.monoMedium}
+              fontSize={8.5}>
+              {`C${c.n}`}
+            </SvgText>
           );
         })}
+        {real && pitAt && (
+          <SvgText
+            x={pitAt.x}
+            y={pitAt.y + 3}
+            textAnchor='middle'
+            fill={color.mapCornerLabel}
+            fontFamily={fonts.monoBold}
+            fontSize={8.5}>
+            PIT
+          </SvgText>
+        )}
         {dots.map(d => {
           const q = fit(d.at);
           return (
@@ -159,23 +284,20 @@ export function TrackMap({
           );
         })}
       </Svg>
-      {/* 44 pt hit targets over the badges. */}
-      {badges.map(b => {
-        const q = fit(b.at);
-        return (
-          <Pressable
-            key={`hit${b.n}`}
-            accessibilityRole='button'
-            accessibilityLabel={`Section ${b.n}`}
-            onPress={() => onPressBadge(b.n)}
-            style={[styles.hit, {left: q.x - 22, top: q.y - 22}]}
-          />
-        );
-      })}
+      {/* 44 pt hit targets over the section labels: tap opens the section. */}
+      {sectionLabels.map(s => (
+        <Pressable
+          key={`hit${s.n}`}
+          accessibilityRole='button'
+          accessibilityLabel={`Section ${s.n}`}
+          onPress={() => onPressSection(s.n)}
+          style={[styles.hit, {left: s.at.x - HIT / 2, top: s.at.y - HIT / 2}]}
+        />
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hit: {position: 'absolute', width: 44, height: 44},
+  hit: {position: 'absolute', width: HIT, height: HIT},
 });

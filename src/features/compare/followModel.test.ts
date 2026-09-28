@@ -33,6 +33,7 @@ const placer: MapPlacer = {
     return out;
   },
   outline: [],
+  pitLane: [],
 };
 
 const traces = new Map([

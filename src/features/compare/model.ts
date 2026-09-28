@@ -28,6 +28,7 @@ import {
   type FollowView,
 } from './followModel';
 import {mapPlacer} from './mapPlace';
+import {buildTrackMarks, type TrackMarks} from './trackMarks';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -197,17 +198,15 @@ export type CornerGridModel = {
 };
 
 export type MapModel = {
+  /** Drawn on the OSM outline (fit good), or on the driven line. */
   realMap: boolean;
   outline: {x: number; y: number}[][];
+  pitLane: {x: number; y: number}[][];
+  marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  badges: {
-    n: number;
-    at: {x: number; y: number};
-    /** Apex distance, for the strip. */
-    apexM: number;
-    open: boolean;
-  }[];
+  /** Each section's apex distance, for the strip. */
+  sectionApexes: {n: number; apexM: number}[];
   attribution: string | null;
   /** Null until the geometry is built (the hook memoizes it). */
   follow: (FollowView & {geometry: FollowGeometry}) | null;
@@ -691,6 +690,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     mapModel = {
       realMap: placer.real,
       outline: placer.outline,
+      pitLane: placer.pitLane,
+      marks: buildTrackMarks(map?.sections ?? [], lengthM, m =>
+        pointAt(refTrace, m),
+      ),
       follow: followGeometry && {
         ...buildFollowView(
           placer,
@@ -706,11 +709,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
         // Same order as the lines: the reference dot on top.
         .sort((a, b) => drawRank(a) - drawRank(b)),
-      badges: (map?.sections ?? []).map(s => ({
+      sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
-        at: pointAt(refTrace, s.apexM),
         apexM: s.apexM,
-        open: s.n === selection.corner,
       })),
       attribution: placer.real ? map!.attribution : null,
     };

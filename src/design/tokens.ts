@@ -32,6 +32,10 @@ const dark = {
   trackEdge: '#343a42',
   // Handoff v2 M1b: Follow mode's thin road edges.
   followEdge: '#4d555d',
+  // Handoff v2 M1a: section boundary ticks, S labels, corner and PIT labels.
+  sectionTick: '#8a929b',
+  mapLabel: '#aeb4ba',
+  mapCornerLabel: '#5b636b',
   barNeutral: '#5d646d',
   scrim: 'rgba(0,0,0,0.55)',
   // Desktop chrome and rail (handoff "Desktop", D1).
@@ -68,6 +72,9 @@ const light: ColorTokens = {
   trackEdge: '#b9bec3',
   // Not in the handoff for light; the Track edge is the nearest (feedback log).
   followEdge: '#b9bec3',
+  sectionTick: '#737a82',
+  mapLabel: '#4a5057',
+  mapCornerLabel: '#9aa0a6',
   barNeutral: '#b9bec3',
   chrome: '#eceef0',
   tabActive: '#ffffff',
