@@ -14,7 +14,11 @@ export type SessionRow = {
   id: string;
   badge: SessionType;
   track: string;
+  /** "Race", for the desktop rail. */
+  typeLabel: string;
   subline: string;
+  /** "21:40 · 44 laps", for the desktop rail. */
+  railSubline: string;
   laps: string;
   best: string;
   median: string;
@@ -53,6 +57,12 @@ function dayTitle(day: Date, now: Date): string {
   return day.toLocaleDateString('en-GB', {weekday: 'long'});
 }
 
+const TYPE_LABEL: Record<SessionType, string> = {
+  R: 'Race',
+  Q: 'Qualifying',
+  P: 'Practice',
+};
+
 const timeOrDash = (timeS: number | null) =>
   timeS == null ? '—' : formatLapTime(timeS);
 
@@ -85,6 +95,8 @@ export function buildSessionsModel(
       id: s.id,
       badge: s.sessionType,
       track: shortTrackName(s.track),
+      typeLabel: TYPE_LABEL[s.sessionType],
+      railSubline: `${hhmm(started)} · ${s.lapCount} laps`,
       subline: [hhmm(started), car.shortModel, car.entry]
         .filter(Boolean)
         .join(' · '),
