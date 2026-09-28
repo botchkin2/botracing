@@ -33,6 +33,14 @@ It scans the LMU telemetry folder, skips files written in the last 3 minutes, gr
 
 A session is recordings with the same sim, track layout, car, and session type, where the game's session timer kept pace with the wall clock between files (runs back to the pits) or restarted with the same session clock (a race restart).
 
+## Online events
+
+A recording does not say which online event it was. LMU's trace logs (`UserData\Log\trace_*.txt`) do: one line per server join, with the series name and the official event id. `tools/sessions/lmuEvents.mjs` reads them. A join lasts until the game returns to the main menu, the next join, or the end of that log. A recording that starts inside a join gets `event: {eventId, series, kind, joinedAt, gapS}` (`kind` is `practice` or `race`; the race server holds qualifying and the race). The session gets `series` and `eventId` from its first matched recording. Offline sessions get `null`.
+
+LMU keeps only a few weeks of trace logs, so every join seen is kept in `events.json` in the work folder. Sessions older than the oldest log stay `null`.
+
+`--events-only --since YYYY-MM-DD` sets these fields on sessions already uploaded, without analysis or archive uploads. Use it instead of a full resync to backfill.
+
 ## Access
 
 The app never touches Firestore or the bucket. It calls the `lmuApi` function, which reads with the Admin SDK. The PC uploader writes with Google Cloud application-default credentials. `firestore.rules` denies all clients. The bucket is not linked to Firebase Storage and stays private through IAM.

@@ -100,6 +100,25 @@ export async function getTrack(trackId) {
   return doc.exists ? doc.data() : null;
 }
 
+// Which online event each session was, without re-uploading anything else.
+// update, not set: a session that was never uploaded stays absent.
+// items: [{session: {id, series, eventId}, recordings: [{id, event}]}]
+export async function updateEvents(items) {
+  const {db} = connect();
+  const writer = db.bulkWriter();
+  for (const {session, recordings} of items) {
+    writer.update(db.collection('sessions').doc(session.id), {
+      series: session.series,
+      eventId: session.eventId,
+    });
+    for (const rec of recordings)
+      writer.update(db.collection('recordings').doc(rec.id), {
+        event: rec.event,
+      });
+  }
+  await writer.close();
+}
+
 // out is what sync.mjs builds: {session, recordings, laps, band, track,
 // traces, files}. track is set only when this session made a new corner map.
 export async function upload(out, {log = () => {}} = {}) {
