@@ -312,6 +312,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               marks={model.apexMarks}
               stepM={model.stepM}
               windowM={model.windowM}
+              timeAxis={model.timeAxis}
               cursorM={p.cursorM}
               lapStyle={lapStyle}
               onScrub={p.windowed ? undefined : p.onCursor}

@@ -2,11 +2,22 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
 import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
 
-import {gridStepM} from '@/src/analysis/window';
+import {
+  distanceAtTime,
+  gridStepM,
+  timeAtDistance,
+  timeAtIndex,
+  timeGridStepM,
+  type TimedGrid,
+} from '@/src/analysis/window';
 import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
 
 // Channels against distance on a shared grid (handoff §3 charts). Pure props:
 // the caller picks colors, widths and dashes.
+//
+// x is metres across windowM, or with timeAxis, the reference lap's elapsed
+// time across windowS (time mode: a constant scale while playing). Marks,
+// gridlines and the cursor go through the same mapping.
 //
 // Two ways to move: in a window, dragging pans (onPan gets the drag in points
 // and the cursor stays fixed); on the whole lap, dragging scrubs (onScrub
@@ -83,6 +94,7 @@ export function TraceChart({
   onHover,
   hoverM,
   frameM,
+  timeAxis,
 }: {
   width: number;
   /** Plot height; the distance axis adds AXIS_H under it. */
@@ -112,13 +124,28 @@ export function TraceChart({
   hoverM?: number | null;
   /** Accent frame over a distance range (the overview's detail window). */
   frameM?: [number, number];
+  /** Time mode: x is the reference's elapsed time across windowS. */
+  timeAxis?: {ref: TimedGrid; windowS: [number, number]} | null;
 }) {
   const {color} = useTheme();
   const [startM, endM] = windowM;
   const spanM = endM - startM || 1;
   const from = Math.max(0, Math.floor(startM / stepM) - 1);
   const to = Math.ceil(endM / stepM) + 1;
-  const x = (i: number) => ((i * stepM - startM) / spanM) * width;
+  const tRef = timeAxis?.ref;
+  const [t0, t1] = timeAxis?.windowS ?? [0, 1];
+  const spanS = t1 - t0 || 1;
+  // Grid index, metres and pointer x through the one mapping.
+  const x = tRef
+    ? (i: number) => ((timeAtIndex(tRef, i) - t0) / spanS) * width
+    : (i: number) => ((i * stepM - startM) / spanM) * width;
+  const xOfM = tRef
+    ? (m: number) => ((timeAtDistance(tRef, m) - t0) / spanS) * width
+    : (m: number) => ((m - startM) / spanM) * width;
+  const mOfX = (px: number) =>
+    tRef
+      ? distanceAtTime(tRef, t0 + (px / width) * spanS)
+      : startM + (px / width) * spanM;
   const yFor =
     ([lo, hi]: [number, number]) =>
     (v: number) =>
@@ -148,7 +175,7 @@ export function TraceChart({
               .join('');
         return {...s, d};
       }),
-    [series, from, to, width, height, startM, endM, domain],
+    [series, from, to, width, height, startM, endM, domain, tRef, t0, t1],
   );
 
   const bandPath = useMemo(() => {
@@ -161,10 +188,15 @@ export function TraceChart({
     for (let i = last; i >= from; i -= stride)
       d += `L${x(i).toFixed(1)},${y(band.low[i]).toFixed(1)}`;
     return `${d}Z`;
-  }, [band, from, to, width, height, startM, endM, domain]);
+  }, [band, from, to, width, height, startM, endM, domain, tRef, t0, t1]);
 
   // Apex-relative grids use the handoff's fixed 100 m ticks.
-  const step = gridOriginM == null ? gridStepM(spanM, width) : 100;
+  const step =
+    gridOriginM != null
+      ? 100
+      : tRef
+      ? timeGridStepM(tRef, spanS, width)
+      : gridStepM(spanM, width);
   const gridMs: number[] = [];
   const origin = gridOriginM ?? 0;
   for (
@@ -172,7 +204,7 @@ export function TraceChart({
     m <= endM;
     m += step
   )
-    gridMs.push(m);
+    if (m >= 0) gridMs.push(m);
   const tickLabel = (m: number) => {
     if (gridOriginM == null) return `${Math.round(m)}`;
     const d = Math.round(m - gridOriginM);
@@ -180,9 +212,9 @@ export function TraceChart({
   };
 
   // PanResponder reads its handlers once; keep the latest props in a ref.
-  const latest = useRef({onScrub, onPan, onPanStart, startM, spanM, width});
+  const latest = useRef({onScrub, onPan, onPanStart, mOfX});
   useEffect(() => {
-    latest.current = {onScrub, onPan, onPanStart, startM, spanM, width};
+    latest.current = {onScrub, onPan, onPanStart, mOfX};
   });
   const lastDx = useRef(0);
   // The ref is read only inside gesture callbacks, never during render; the
@@ -197,7 +229,7 @@ export function TraceChart({
         lastDx.current = 0;
         if (p.onPan) p.onPanStart?.();
         else
-          p.onScrub?.(p.startM + (e.nativeEvent.locationX / p.width) * p.spanM);
+          p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
       },
       onPanResponderMove: (e, g) => {
         const p = latest.current;
@@ -205,13 +237,13 @@ export function TraceChart({
           p.onPan(g.dx - lastDx.current);
           lastDx.current = g.dx;
         } else
-          p.onScrub?.(p.startM + (e.nativeEvent.locationX / p.width) * p.spanM);
+          p.onScrub?.(p.mOfX(e.nativeEvent.locationX));
       },
     }),
   );
 
-  const cx = ((cursorM - startM) / spanM) * width;
-  const hx = hoverM == null ? null : ((hoverM - startM) / spanM) * width;
+  const cx = xOfM(cursorM);
+  const hx = hoverM == null ? null : xOfM(hoverM);
   // Pointer events exist on web; on native these props are ignored.
   const hoverProps = onHover
     ? {
@@ -219,7 +251,7 @@ export function TraceChart({
           nativeEvent: {offsetX?: number; locationX?: number};
         }) => {
           const px = e.nativeEvent.offsetX ?? e.nativeEvent.locationX ?? 0;
-          onHover(startM + (px / width) * spanM);
+          onHover(mOfX(px));
         },
         onPointerLeave: () => onHover(null),
       }
@@ -232,7 +264,7 @@ export function TraceChart({
       style={{width, height: height + AXIS_H}}>
       <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
         {gridMs.map(m => {
-          const gx = ((m - startM) / spanM) * width;
+          const gx = xOfM(m);
           return (
             <G key={`g${m}`}>
               <Line
@@ -257,7 +289,7 @@ export function TraceChart({
           );
         })}
         {marks.map((mk, i) => {
-          const mx = ((mk.m - startM) / spanM) * width;
+          const mx = xOfM(mk.m);
           return (
             <G key={`${mk.label ?? mk.color}-${i}`}>
               <Line
@@ -285,9 +317,9 @@ export function TraceChart({
         {bandPath && <Path d={bandPath} fill={color.band} />}
         {frameM && (
           <Rect
-            x={((frameM[0] - startM) / spanM) * width}
+            x={xOfM(frameM[0])}
             y={0.5}
-            width={Math.max(2, ((frameM[1] - frameM[0]) / spanM) * width)}
+            width={Math.max(2, xOfM(frameM[1]) - xOfM(frameM[0]))}
             height={height - 1}
             fill={color.accentTint}
             stroke={color.accent}

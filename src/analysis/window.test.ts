@@ -8,7 +8,10 @@ import {
   rebaseToWindow,
   type TimedGrid,
   timeAtDistance,
+  timeAtIndex,
+  timeGridStepM,
   windowRange,
+  windowTimeS,
 } from './window';
 
 // 1000 m: the first 500 m at 50 m/s (10 s), the rest at 25 m/s (20 s).
@@ -37,10 +40,45 @@ describe('windowRange', () => {
   });
   it('distance mode is fixed; null is the whole lap', () => {
     expect(windowRange(ref, 600, 'distance', 200)).toEqual([500, 700]);
-    // Clamped at the line by shifting: still 200 m wide.
-    expect(windowRange(ref, 30, 'distance', 200)).toEqual([0, 200]);
-    expect(windowRange(ref, 990, 'distance', 200)).toEqual([800, 1000]);
+    // Centred at the line too: the part past it is blank, not shifted.
+    expect(windowRange(ref, 30, 'distance', 200)).toEqual([-70, 130]);
+    expect(windowRange(ref, 990, 'distance', 200)).toEqual([890, 1090]);
     expect(windowRange(ref, 600, 'time', null)).toEqual([0, 1000]);
+  });
+});
+
+describe('time mode x axis', () => {
+  const x = (m: number, cursorM: number) => {
+    const [t0, t1] = windowTimeS(ref, cursorM, 2);
+    return (timeAtDistance(ref, m) - t0) / (t1 - t0);
+  };
+  it('is a constant 2 s wide wherever the cursor is', () => {
+    for (const c of [0, 250, 500, 750, 1000]) {
+      const [t0, t1] = windowTimeS(ref, c, 2);
+      expect(t1 - t0).toBeCloseTo(2);
+    }
+  });
+  it('keeps the cursor centred at 0 m and at the lap end', () => {
+    expect(windowTimeS(ref, 0, 2)).toEqual([-1, 1]);
+    expect(windowTimeS(ref, 1000, 2)).toEqual([29, 31]);
+    expect(x(0, 0)).toBeCloseTo(0.5);
+    expect(x(1000, 1000)).toBeCloseTo(0.5);
+  });
+  it('clips the metres to the lap at the line', () => {
+    expect(windowRange(ref, 0, 'time', 2)).toEqual([0, 50]);
+  });
+  it('is monotonic along the lap, and past its end for longer laps', () => {
+    let prev = -Infinity;
+    for (let i = 0; i <= 210; i++) {
+      const t = timeAtIndex(ref, i);
+      expect(t).toBeGreaterThan(prev);
+      prev = t;
+    }
+    expect(timeAtIndex(ref, 202)).toBeCloseTo(30 + 2 * 0.2);
+  });
+  it('gridline step comes from the average speed, not the window', () => {
+    // 1000 m in 30 s: a 2 s window is ~67 m wherever the cursor is.
+    expect(timeGridStepM(ref, 2, 400)).toBe(10);
   });
 });
 
