@@ -6,6 +6,12 @@ import {
 } from '@/src/analysis/geo';
 import {type GridTrace, gridIndex, timeDiffS} from '@/src/analysis/resample';
 import {
+  rebaseToWindow,
+  type WindowMode,
+  windowRange,
+} from '@/src/analysis/window';
+import {type ChannelId, PRESETS} from '@/src/state/comparePrefs';
+import {
   type Lap,
   type SessionBand,
   type SessionDetail,
@@ -35,13 +41,10 @@ export type CompareSelection = {
   cursorM: number;
 };
 
-export type ChannelId =
-  | 'timeDiff'
-  | 'speed'
-  | 'throttle'
-  | 'brake'
-  | 'steering'
-  | 'gear';
+/** Chart window: seconds (time) or metres (distance); size null = whole lap. */
+export type ChartWindow = {mode: WindowMode; size: number | null};
+
+export type {ChannelId} from '@/src/state/comparePrefs';
 
 type ChannelSpec = {
   label: string;
@@ -116,13 +119,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
 };
 
 /** Default chart set: [Time diff] [Speed] [Throttle + Brake] [Steering] [Gear]. */
-export const DEFAULT_CHARTS: ChannelId[][] = [
-  ['timeDiff'],
-  ['speed'],
-  ['throttle', 'brake'],
-  ['steering'],
-  ['gear'],
-];
+export const DEFAULT_CHARTS: ChannelId[][] = PRESETS[0].charts;
 
 export type LapRef = {
   lapId: string;
@@ -186,7 +183,13 @@ export type MapModel = {
   outline: {x: number; y: number}[][];
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  badges: {n: number; at: {x: number; y: number}; open: boolean}[];
+  badges: {
+    n: number;
+    at: {x: number; y: number};
+    /** Apex distance, for the strip. */
+    apexM: number;
+    open: boolean;
+  }[];
   attribution: string | null;
 };
 
@@ -210,6 +213,12 @@ export type CompareModel = {
   charts: ChartModel[];
   stepM: number;
   lengthM: number;
+  /** Visible distance range of the charts, metres. */
+  windowM: [number, number];
+  /** The reference lap on the grid: time and distance for pan and playback. */
+  refGrid: GridTrace | null;
+  /** Corner apex lines inside the window, e.g. "C6 apex". */
+  apexMarks: {m: number; label: string}[];
   /** Laps still loading their traces. */
   pending: number;
   /** Lap ids in the URL that this session doesn't have. */
@@ -225,6 +234,7 @@ export type CompareInputs = {
   map: TrackMapData | null;
   selection: CompareSelection;
   charts?: ChannelId[][];
+  window?: ChartWindow;
 };
 
 // Map lines are drawn every 20 m: plenty at phone size, a fifth of the points.
@@ -241,18 +251,24 @@ function median(xs: number[]): number | null {
 function domainOf(
   arrays: number[][],
   kind: ChannelSpec['kind'],
+  from: number,
+  to: number,
+  windowed: boolean,
 ): [number, number] {
-  if (kind === 'pedal') return [0, 100];
+  // Pedals are fixed at −4..104 so 0 and 100 never sit on the edge.
+  if (kind === 'pedal') return [-4, 104];
   let lo = Infinity;
   let hi = -Infinity;
   for (const a of arrays)
-    for (const v of a) {
+    for (let i = Math.max(0, from); i <= Math.min(a.length - 1, to); i++) {
+      const v = a[i];
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
-    const m = Math.max(Math.abs(lo), Math.abs(hi), 0.1);
+    // Symmetric around 0; the floor keeps a flat line from filling the chart.
+    const m = Math.max(Math.abs(lo), Math.abs(hi), windowed ? 0.02 : 0.1);
     return [-m, m];
   }
   if (kind === 'steer') {
@@ -263,6 +279,9 @@ function domainOf(
   const pad = (hi - lo) * 0.05 || 1;
   return [lo - pad, hi + pad];
 }
+
+const WINDOWED_TIME_EXPLAINER =
+  'Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor.';
 
 export function cornerPlace(
   sections: {n: number; entryM: number; exitM: number}[],
@@ -307,6 +326,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const lengthM =
     map?.lengthM || band?.lengthM || (refTrace?.distanceM.at(-1) ?? 0);
   const cursorM = Math.max(0, Math.min(lengthM, selection.cursorM));
+  const win = input.window ?? {mode: 'time', size: null};
+  const windowed = win.size != null && refTrace != null;
+  const windowM: [number, number] = refTrace
+    ? windowRange(refTrace, cursorM, win.mode, win.size)
+    : [0, lengthM];
+  const i0 = Math.max(0, Math.floor(windowM[0] / stepM));
+  const i1 = Math.ceil(windowM[1] / stepM);
 
   // --- reference line and chips ---------------------------------------------
   const refBits = ref
@@ -368,8 +394,11 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const lines: ChartLine[] = [];
     chs.forEach((ch, overlay) => {
       for (const r of lapRefs) {
-        const values = valuesOf(ch, r.lapId);
-        if (values) lines.push({...r, channel: ch, overlay, values});
+        const raw = valuesOf(ch, r.lapId);
+        if (!raw) continue;
+        const values =
+          ch === 'timeDiff' && windowed ? rebaseToWindow(raw, i0) : raw;
+        lines.push({...r, channel: ch, overlay, values});
       }
     });
     // Channels of the same kind share a scale; mixed kinds keep their own.
@@ -380,6 +409,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       domains[ch] = domainOf(
         sameKind.map(l => l.values),
         kind,
+        i0,
+        i1,
+        windowed,
       );
     }
     const single = chs.length === 1 ? chs[0] : null;
@@ -393,7 +425,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         : null;
     const explainer =
       chs.length === 1
-        ? CHANNELS[chs[0]].explainer
+        ? chs[0] === 'timeDiff' && windowed
+          ? WINDOWED_TIME_EXPLAINER
+          : CHANNELS[chs[0]].explainer
         : chs.every(c => CHANNELS[c].kind === CHANNELS[chs[0]].kind)
         ? `${chs
             .map(
@@ -535,6 +569,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       badges: (map?.sections ?? []).map(s => ({
         n: s.n,
         at: pointAt(refTrace, s.apexM),
+        apexM: s.apexM,
         open: s.n === selection.corner,
       })),
       attribution: real ? map!.attribution : null,
@@ -564,6 +599,14 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     charts,
     stepM,
     lengthM,
+    windowM,
+    refGrid: refTrace ?? null,
+    apexMarks: windowed
+      ? (map?.sections ?? [])
+          .flatMap(s => (s.parts.length ? s.parts : [s]))
+          .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
+          .map(c => ({m: c.apexM, label: `C${c.n} apex`}))
+      : [],
     pending: selected.filter(l => !traces.has(l.id)).length,
     notFound: selection.laps.length - selected.length,
   };

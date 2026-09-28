@@ -13,6 +13,7 @@ import {
   buildCompareModel,
   type ChannelId,
   type CompareModel,
+  type ChartWindow,
   type CompareSelection,
 } from './model';
 
@@ -28,6 +29,7 @@ export function useCompareModel(
   sessionId: string,
   selection: CompareSelection,
   charts?: ChannelId[][],
+  window?: ChartWindow,
 ): CompareResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
@@ -68,6 +70,7 @@ export function useCompareModel(
         map: map.data ?? null,
         selection,
         charts,
+        window,
       }),
     };
   }, [
@@ -80,5 +83,6 @@ export function useCompareModel(
     traces,
     selection,
     charts,
+    window,
   ]);
 }

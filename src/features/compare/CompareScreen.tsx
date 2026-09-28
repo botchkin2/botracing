@@ -1,7 +1,8 @@
 import {useRouter} from 'expo-router';
-import {type ReactNode, useCallback, useState} from 'react';
+import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,13 +11,25 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
-import {CornerGrid, TrackMap} from '@/src/charts';
+import {panCursor, playStep} from '@/src/analysis/window';
+import {CornerGrid, TrackMap, TrackStrip} from '@/src/charts';
 import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
-import {Chip, Explainer, Text} from '@/src/ui';
+import {
+  CHANNEL_IDS,
+  MAX_OVERLAY,
+  stepWindow,
+  toggleChannel,
+  useComparePrefs,
+  windowSize,
+} from '@/src/state/comparePrefs';
+import {Button, Chip, Explainer, Segment, Text} from '@/src/ui';
 
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
+import {ChartEditor} from './components/ChartEditor';
+import {TransportBar} from './components/TransportBar';
 import {
+  CHANNELS,
   type CompareModel,
   type CompareSelection,
   makeReference,
@@ -31,6 +44,10 @@ const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
+const ONE_CHART_H = 330;
+// Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
+const KEY_STEP_M = 5;
+const KEY_STEP_SHIFT_M = 50;
 
 export function CompareScreen({
   sessionId,
@@ -41,9 +58,17 @@ export function CompareScreen({
   selection: CompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
-  // The cursor moves on every drag frame, so it lives here, not in the URL.
+  // The cursor moves on every drag and playback frame, so it lives here,
+  // not in the URL.
   const [cursorM, setCursorM] = useState(selection.cursorM);
-  const result = useCompareModel(sessionId, {...selection, cursorM});
+  const prefs = useComparePrefs();
+  const size = windowSize(prefs.windowMode, prefs.windowStep);
+  const result = useCompareModel(
+    sessionId,
+    {...selection, cursorM},
+    prefs.charts,
+    {mode: prefs.windowMode, size},
+  );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -68,6 +93,7 @@ export function CompareScreen({
       model={result.model}
       selection={selection}
       cursorM={cursorM}
+      windowSizeValue={size}
       onCursor={setCursorM}
       onSelectionChange={onSelectionChange}
     />
@@ -79,6 +105,7 @@ function CompareView({
   model,
   selection,
   cursorM,
+  windowSizeValue,
   onCursor,
   onSelectionChange,
 }: {
@@ -86,6 +113,8 @@ function CompareView({
   model: CompareModel;
   selection: CompareSelection;
   cursorM: number;
+  /** Seconds or metres; null = whole lap. */
+  windowSizeValue: number | null;
   onCursor: (m: number) => void;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
@@ -93,7 +122,9 @@ function CompareView({
   const layout = useLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [mapShown, setMapShown] = useState(true);
+  const prefs = useComparePrefs();
+  const [editing, setEditing] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -103,11 +134,74 @@ function CompareView({
   const openCorner = (n: number) =>
     router.push(cornerHref(sessionId, n, {laps: selection.laps}));
 
+  // --- cursor movement: pan, keyboard, playback ---------------------------------
+  const ref = model.refGrid;
+  const windowed = windowSizeValue != null && ref != null;
+  const pan = (dxPt: number, widthPt: number) => {
+    if (!ref || windowSizeValue == null) return;
+    onCursor(
+      panCursor(ref, cursorM, prefs.windowMode, windowSizeValue, dxPt, widthPt),
+    );
+  };
+  const moveBy = (dm: number) =>
+    onCursor(Math.max(0, Math.min(model.lengthM, cursorM + dm)));
+
+  // Playback: advance by wall-clock time on the reference lap, looping.
+  const live = useRef({cursorM, ref, rate: prefs.rate, onCursor});
+  useEffect(() => {
+    live.current = {cursorM, ref, rate: prefs.rate, onCursor};
+  });
+  useEffect(() => {
+    if (!playing) return;
+    let frame = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const p = live.current;
+      if (p.ref)
+        p.onCursor(playStep(p.ref, p.cursorM, (now - last) / 1000, p.rate));
+      last = now;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
+
+  // Keyboard on web: ←/→ step, Shift for bigger steps, space plays, [ ] window.
+  const keys = useRef({moveBy, setPlaying, prefs});
+  useEffect(() => {
+    keys.current = {moveBy, setPlaying, prefs};
+  });
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onKey = (e: KeyboardEvent) => {
+      const k = keys.current;
+      if (e.target instanceof HTMLInputElement) return;
+      const step = e.shiftKey ? KEY_STEP_SHIFT_M : KEY_STEP_M;
+      if (e.key === 'ArrowRight') k.moveBy(step);
+      else if (e.key === 'ArrowLeft') k.moveBy(-step);
+      else if (e.key === ' ') k.setPlaying(p => !p);
+      else if (e.key === '[' || e.key === ']')
+        k.prefs.setWindowStep(
+          stepWindow(
+            k.prefs.windowMode,
+            k.prefs.windowStep,
+            e.key === '[' ? -1 : 1,
+          ),
+        );
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // --- layout -------------------------------------------------------------------
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : layout.contentWidth;
   const mainW = layout.isDesktop
     ? layout.contentWidth - DESKTOP_SIDE_W - space.xxl
     : layout.contentWidth;
-  const windowM: [number, number] = [0, model.lengthM];
+  const oneChart = prefs.view === 'one' && !layout.isDesktop;
+  const mapShown = layout.isDesktop || prefs.mapShown;
 
   const header = (
     <View style={styles.header}>
@@ -128,9 +222,9 @@ function CompareView({
         <Pressable
           accessibilityRole='button'
           hitSlop={space.md}
-          onPress={() => setMapShown(v => !v)}>
+          onPress={() => prefs.setMapShown(!prefs.mapShown)}>
           <Text variant='dataStrong' tone='accentInk'>
-            {mapShown ? 'Hide map' : 'Show map'}
+            {prefs.mapShown ? 'Hide map' : 'Show map'}
           </Text>
         </Pressable>
       )}
@@ -219,35 +313,50 @@ function CompareView({
     </ScrollView>
   );
 
-  const map = model.map && (layout.isDesktop || mapShown) && (
-    <View style={[styles.mapBox, {backgroundColor: color.surface}]}>
-      <TrackMap
+  const map =
+    model.map &&
+    (mapShown ? (
+      <View style={[styles.mapBox, {backgroundColor: color.surface}]}>
+        <TrackMap
+          width={sideW}
+          height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
+          outline={model.map.outline}
+          lines={model.map.lines.map(l => {
+            const {
+              color: c,
+              width,
+              opacity,
+            } = lapStyle(l.selIndex, l.highlighted);
+            return {key: l.lapId, points: l.points, color: c, width, opacity};
+          })}
+          dots={model.map.dots.map(d => ({
+            key: d.lapId,
+            at: d.at,
+            color: lapStyle(d.selIndex, d.highlighted).color,
+          }))}
+          badges={model.map.badges}
+          onPressBadge={openCorner}
+        />
+        {model.map.attribution && (
+          <Text variant='dataSmall' tone='textFaint' style={styles.attribution}>
+            {model.map.attribution}
+          </Text>
+        )}
+      </View>
+    ) : (
+      <TrackStrip
         width={sideW}
-        height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
-        outline={model.map.outline}
-        lines={model.map.lines.map(l => {
-          const {
-            color: c,
-            width,
-            opacity,
-          } = lapStyle(l.selIndex, l.highlighted);
-          return {key: l.lapId, points: l.points, color: c, width, opacity};
-        })}
-        dots={model.map.dots.map(d => ({
+        lengthM={model.lengthM}
+        corners={model.map.badges.map(b => ({n: b.n, m: b.apexM}))}
+        windowM={model.windowM}
+        markers={model.map.dots.map(d => ({
           key: d.lapId,
-          at: d.at,
+          m: cursorM,
           color: lapStyle(d.selIndex, d.highlighted).color,
         }))}
-        badges={model.map.badges}
-        onPressBadge={openCorner}
+        onScrub={onCursor}
       />
-      {model.map.attribution && (
-        <Text variant='dataSmall' tone='textFaint' style={styles.attribution}>
-          {model.map.attribution}
-        </Text>
-      )}
-    </View>
-  );
+    ));
 
   const position = (
     <View style={styles.positionRow}>
@@ -271,7 +380,7 @@ function CompareView({
     </View>
   );
 
-  const grid = model.grid && (
+  const grid = model.grid && !oneChart && (
     <Section title='Time per corner' explainer={model.grid.explainer}>
       <CornerGrid
         width={sideW}
@@ -291,40 +400,157 @@ function CompareView({
     </Section>
   );
 
-  const charts = (
-    <View style={styles.charts}>
-      <View
-        style={[
-          styles.chartsBar,
-          {backgroundColor: color.surface, borderColor: color.lineHeader},
-        ]}>
-        <Text variant='label' tone='textMuted'>
-          Charts
+  const chartProps = (h: number) => ({
+    width: mainW,
+    height: Math.round(h),
+    marks: model.apexMarks,
+    stepM: model.stepM,
+    windowM: model.windowM,
+    cursorM,
+    lapStyle,
+    onScrub: windowed ? undefined : onCursor,
+    onPan: windowed ? (dx: number) => pan(dx, mainW) : undefined,
+    onPanStart: () => setPlaying(false),
+  });
+  const heightScale = layout.isDesktop ? DESKTOP_CHART_SCALE : 1;
+  const focused = Math.min(prefs.focused, model.charts.length - 1);
+  const focusedChart = model.charts[focused];
+
+  const chartsBar = (
+    <View
+      style={[
+        styles.chartsBar,
+        {backgroundColor: color.surface, borderColor: color.lineHeader},
+      ]}>
+      <Text variant='label' tone='textMuted'>
+        Charts
+      </Text>
+      {!layout.isDesktop && (
+        <Segment
+          options={[
+            {value: 'stack', label: 'Stack'},
+            {value: 'one', label: 'One chart'},
+          ]}
+          value={prefs.view}
+          onChange={prefs.setView}
+        />
+      )}
+      <View style={styles.flex} />
+      {model.pending > 0 && (
+        <Text variant='dataSmall' tone='textFaint'>
+          loading {model.pending}…
         </Text>
-        {model.pending > 0 && (
-          <Text variant='dataSmall' tone='textFaint'>
-            loading {model.pending} lap{model.pending > 1 ? 's' : ''}…
-          </Text>
-        )}
+      )}
+      <Button
+        kind='tertiary'
+        label='Edit charts'
+        onPress={() => setEditing(true)}
+      />
+    </View>
+  );
+
+  const oneChartTabs = oneChart && focusedChart && (
+    <View style={styles.oneTabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.chipsRow}>
+          {model.charts.map((c, i) => (
+            <Chip
+              key={c.key}
+              label={c.title}
+              selected={i === focused}
+              onPress={() => prefs.setFocused(i)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+      <Text variant='explainer' tone='textMuted'>
+        Overlay on this chart (up to {MAX_OVERLAY}):
+      </Text>
+      <View style={styles.chipsWrap}>
+        {CHANNEL_IDS.map(ch => {
+          const on = focusedChart.channels.includes(ch);
+          const full = focusedChart.channels.length >= MAX_OVERLAY;
+          const last = on && focusedChart.channels.length === 1;
+          return (
+            <Chip
+              key={ch}
+              label={`${on ? '✓' : '+'} ${CHANNELS[ch].label}`}
+              selected={on}
+              onPress={() => {
+                if (last || (!on && full)) return;
+                prefs.setCharts(toggleChannel(prefs.charts, focused, ch));
+              }}
+            />
+          );
+        })}
       </View>
-      <Explainer>
-        Drag any chart to move through the lap. The cursor, map dots and values
-        follow it.
-      </Explainer>
-      {model.charts.map(c => (
+    </View>
+  );
+
+  const chartList = oneChart
+    ? focusedChart && (
+        <ChartBlock
+          key={focusedChart.key}
+          chart={focusedChart}
+          {...chartProps(ONE_CHART_H)}
+        />
+      )
+    : model.charts.map(c => (
         <ChartBlock
           key={c.key}
           chart={c}
-          width={mainW}
-          heightScale={layout.isDesktop ? DESKTOP_CHART_SCALE : 1}
-          stepM={model.stepM}
-          windowM={windowM}
-          cursorM={cursorM}
-          lapStyle={lapStyle}
-          onScrub={onCursor}
+          {...chartProps(c.height * heightScale)}
         />
-      ))}
+      ));
+
+  const spanLabel =
+    windowSizeValue == null
+      ? 'whole lap'
+      : prefs.windowMode === 'distance'
+      ? 'fixed'
+      : `≈ ${Math.round(model.windowM[1] - model.windowM[0])} m`;
+  const transport = (
+    <TransportBar
+      oneRow={layout.isDesktop}
+      mode={prefs.windowMode}
+      step={prefs.windowStep}
+      sizeLabel={
+        windowSizeValue == null
+          ? 'Lap'
+          : `${windowSizeValue} ${prefs.windowMode === 'time' ? 's' : 'm'}`
+      }
+      spanLabel={spanLabel}
+      playing={playing}
+      rate={prefs.rate}
+      onMode={prefs.setWindowMode}
+      onStep={dir =>
+        prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
+      }
+      onPlay={() => setPlaying(p => !p)}
+      onRate={prefs.setRate}
+    />
+  );
+
+  const charts = (
+    <View style={styles.charts}>
+      {chartsBar}
+      {oneChartTabs}
+      <Explainer>
+        {windowed
+          ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below.'
+          : 'Drag any chart to move through the lap. The cursor, map dots and values follow it.'}
+      </Explainer>
+      {chartList}
     </View>
+  );
+
+  const editor = (
+    <ChartEditor
+      visible={editing}
+      charts={prefs.charts}
+      onChange={prefs.setCharts}
+      onClose={() => setEditing(false)}
+    />
   );
 
   const top = {paddingTop: insets.top + space.lg};
@@ -340,28 +566,33 @@ function CompareView({
             {position}
             {grid}
           </ScrollView>
-          <ScrollView style={{width: mainW}} contentContainerStyle={styles.col}>
-            {charts}
-          </ScrollView>
+          <View style={{width: mainW}}>
+            <ScrollView contentContainerStyle={styles.col}>{charts}</ScrollView>
+            {transport}
+          </View>
         </View>
+        {editor}
       </View>
     );
   return (
-    <ScrollView
-      style={[styles.screen, {backgroundColor: color.bg}]}
-      contentContainerStyle={[
-        styles.col,
-        top,
-        {width: layout.contentWidth, alignSelf: 'center'},
-      ]}>
-      {header}
-      {reference}
-      {chips}
-      {map}
-      {position}
-      {grid}
-      {charts}
-    </ScrollView>
+    <View style={[styles.screen, {backgroundColor: color.bg}]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.col,
+          top,
+          {width: layout.contentWidth, alignSelf: 'center'},
+        ]}>
+        {header}
+        {reference}
+        {chips}
+        {map}
+        {position}
+        {grid}
+        {charts}
+      </ScrollView>
+      <View style={{paddingBottom: insets.bottom}}>{transport}</View>
+      {editor}
+    </View>
   );
 }
 
@@ -393,7 +624,7 @@ const styles = StyleSheet.create({
   desktop: {flex: 1, flexDirection: 'row', gap: space.xxl, alignSelf: 'center'},
   header: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   refRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  chipsRow: {gap: space.sm, paddingVertical: space.xs},
+  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.xs},
   chipsWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
   swatch: {width: 10, height: 3},
   mapBox: {borderRadius: radius.md, overflow: 'hidden'},
@@ -412,8 +643,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     paddingHorizontal: space.md,
-    height: 32,
+    height: 36,
     borderTopWidth: 1,
     borderBottomWidth: 1,
   },
+  oneTabs: {gap: space.xs},
 });

@@ -177,6 +177,42 @@ it('counts ids the session does not have', () => {
   expect(m.chips.map(c => c.label)).toEqual(['L1', 'L2']);
 });
 
+describe('chart window', () => {
+  const m = buildCompareModel({
+    session,
+    laps,
+    traces,
+    band: null,
+    map,
+    selection: sel({cursorM: 600}),
+    window: {mode: 'distance', size: 200},
+  });
+
+  it('shows 200 m around the cursor', () => {
+    expect(m.windowM).toEqual([500, 700]);
+  });
+
+  it('rebases time diff to the left edge; header stays the total gap', () => {
+    const td = m.charts[0];
+    const l2 = td.lines.find(l => l.label === 'L2')!;
+    expect(l2.values[100]).toBeCloseTo(0, 10);
+    expect(l2.values[140]).toBeGreaterThan(0);
+    expect(Number(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    expect(td.explainer).toMatch(/^Time gained or lost within this window/);
+  });
+
+  it('pedals are fixed at -4..104; apex lines inside the window only', () => {
+    expect(m.charts[2].domains.throttle).toEqual([-4, 104]);
+    expect(m.apexMarks).toEqual([{m: 600, label: 'C2 apex'}]);
+  });
+
+  it('whole lap without a size: no rebase, no apex lines', () => {
+    const lap = build();
+    expect(lap.windowM).toEqual([0, 1000]);
+    expect(lap.apexMarks).toEqual([]);
+  });
+});
+
 describe('many laps', () => {
   const many = toLaps(
     Array.from({length: 8}, (_, i) =>
