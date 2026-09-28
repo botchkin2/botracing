@@ -9,6 +9,10 @@
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
 //   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
 //   node tools/sessions/sync.mjs --jobs 4             sessions analyzed at once
+//   node tools/sessions/sync.mjs --events-only --since 2026-09-14
+//                                                     only set which online event
+//                                                     uploaded sessions were; no analysis
+//   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
@@ -51,6 +55,7 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
+const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 // Sessions analyzed at once, each in its own worker thread. The work is
 // CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
 // default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
@@ -216,7 +221,28 @@ function keepTrackMap(track) {
   );
 }
 
-function build(s, trackMap) {
+// Which online event a session and each of its recordings were part of.
+function eventsOf(s, eventWindows) {
+  const recordings = s.files.map(f => ({
+    id: f.id,
+    event: adapter.eventFor(eventWindows, f.info.recordedAt),
+  }));
+  const event = recordings.find(r => r.event)?.event ?? null;
+  const ids = new Set(recordings.map(r => r.event?.eventId).filter(Boolean));
+  // One session spanning two events means the grouping or a window is wrong.
+  if (ids.size > 1)
+    log(`  warning: ${s.id} spans events ${[...ids].join(', ')}`);
+  return {
+    session: {
+      id: s.id,
+      series: event?.series ?? null,
+      eventId: event?.eventId ?? null,
+    },
+    recordings,
+  };
+}
+
+function build(s, trackMap, eventWindows) {
   const dir = resolve(work, 'archive', s.id);
   mkdirSync(dir, {recursive: true});
   const first = s.files[0].info;
@@ -224,7 +250,8 @@ function build(s, trackMap) {
   const files = [];
   const recs = [];
   const recordings = [];
-  for (const f of s.files) {
+  const joined = eventsOf(s, eventWindows);
+  for (const [k, f] of s.files.entries()) {
     const samples = resolve(dir, `${f.id}.samples.parquet`);
     const events = resolve(dir, `${f.id}.events.parquet`);
     adapter.writeArchive(f.path, f.info, samples, events);
@@ -235,6 +262,8 @@ function build(s, trackMap) {
     const {_channels, _events, ...info} = f.info;
     recordings.push({
       ...info,
+      // The online event this recording was part of, or null offline.
+      event: joined.recordings[k].event,
       id: f.id,
       ownerId,
       sessionId: s.id,
@@ -341,6 +370,8 @@ function build(s, trackMap) {
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
+    series: joined.session.series,
+    eventId: joined.session.eventId,
     startedAt: first.recordedAt,
     endedAt: new Date(
       Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
@@ -433,15 +464,41 @@ async function main() {
     return;
   }
 
+  const eventWindows = adapter.readEventWindows({
+    logFolder,
+    cachePath: resolve(work, 'events.json'),
+  });
+  log(`${eventWindows.length} online event joins known`);
+
   let store = null;
   if (!local) store = await import('./store.mjs');
+
+  if (flag('--events-only')) {
+    const items = sessions
+      .filter(s => state.sessions[s.id])
+      .map(s => eventsOf(s, eventWindows));
+    for (const {session, recordings} of items) {
+      if (!session.series) continue;
+      const gaps = recordings.map(r => r.event?.gapS ?? '-').join(' ');
+      log(`${session.id} ${session.series} (gap s: ${gaps})`);
+    }
+    const failed = local ? [] : await store.updateEvents(items);
+    for (const line of failed) log(`  failed: ${line}`);
+    log(
+      `events set on ${items.length} uploaded sessions, ${
+        items.filter(i => i.session.series).length
+      } online, ${failed.length} writes failed`,
+    );
+    if (failed.length) process.exitCode = 1;
+    return;
+  }
 
   // Newest first: recent sessions matter most, and a long backfill fills in
   // the past last.
   const todo = [...sessions]
     .reverse()
     .filter(s => force || local || state.sessions[s.id] !== s.fingerprint);
-  const {done, failed} = await runPool(todo, store, state);
+  const {done, failed} = await runPool(todo, store, state, eventWindows);
   log(
     `done ${done}, failed ${failed}, unchanged ${
       sessions.length - done - failed
@@ -455,7 +512,7 @@ const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
 // Hand sessions to workers in order. A track without a corner map yet takes
 // one session at a time, so the first session there builds the map and the
 // rest use it, as they would one by one.
-async function runPool(todo, store, state) {
+async function runPool(todo, store, state, eventWindows) {
   let done = 0;
   let failed = 0;
   const building = new Set();
@@ -482,7 +539,7 @@ async function runPool(todo, store, state) {
         building.delete(trackId);
         changed();
       }
-      const r = await ask(worker, {s, trackMap});
+      const r = await ask(worker, {s, trackMap, eventWindows});
       if (r.track) keepTrackMap(r.track);
       building.delete(trackId);
       changed();
@@ -530,9 +587,9 @@ function ask(worker, message) {
 
 // One session, built and stored. Its log lines come back together, so
 // sessions running side by side do not interleave in the output.
-async function processSession(s, trackMap, store, lines) {
+async function processSession(s, trackMap, eventWindows, store, lines) {
   lines.push(`${s.id} ${describeSession(s)}`);
-  const out = build(s, trackMap);
+  const out = build(s, trackMap, eventWindows);
   const trackId = trackOf(s);
   if (out.track) {
     lines.push(
@@ -544,6 +601,8 @@ async function processSession(s, trackMap, store, lines) {
       `  stored corner map for ${trackId} does not fit this session's lap; analyzed with a map of its own, not stored`,
     );
   }
+  if (out.session.series)
+    lines.push(`  ${out.session.series} ${out.session.eventId}`);
   lines.push(
     `  ${out.laps.length} laps, ${
       out.session.comparableCount
@@ -559,10 +618,16 @@ async function processSession(s, trackMap, store, lines) {
 
 async function worker() {
   const store = local ? null : await import('./store.mjs');
-  parentPort.on('message', async ({s, trackMap}) => {
+  parentPort.on('message', async ({s, trackMap, eventWindows}) => {
     const lines = [];
     try {
-      const track = await processSession(s, trackMap, store, lines);
+      const track = await processSession(
+        s,
+        trackMap,
+        eventWindows,
+        store,
+        lines,
+      );
       parentPort.postMessage({ok: true, lines, track});
     } catch (error) {
       parentPort.postMessage({

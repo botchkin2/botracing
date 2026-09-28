@@ -7,6 +7,10 @@ permissions:
   checks: write
   contents: read
   pull-requests: write
+# Shared with the cleanup workflow (see firebase-hosting-pr-cleanup.yml).
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
@@ -31,3 +35,6 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
           projectId: botracing-61
           entryPoint: .
+          # Backstop for channels the cleanup workflow misses. A PR idle for
+          # over 3 days loses its preview link; the next push brings it back.
+          expires: 3d

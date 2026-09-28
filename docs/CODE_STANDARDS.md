@@ -57,7 +57,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 ## 6. Charts and performance
 
 - Charts live in `src/charts/`, take plain arrays and scales as props, and know nothing about sessions, queries or routes.
-- **Downsample before drawing.** Never hand 100 Hz traces to SVG. Resample in `analysis` (5 m grid) and draw only the visible window.
+- **Draw recorded samples inside the window; grids only for cross-lap maths.** Charts draw each channel's real samples (`GridTrace.samples`) sliced to the window by index (`analysis/nativeSamples.ts`), joined by a monotone curve that never overshoots them; at whole-lap zoom, keep the min and max per point, never an in-between value. Readouts at the cursor are the nearest recorded sample. The 5 m grid is only for maths that must line laps up point by point: time diff, the p10–p90 band, section and corner stats (Botkin, pit-wall thread 26 #392/#397).
 - Memoize path strings by their inputs; the cursor moves, the traces should not rebuild on every frame. Gesture and playback updates go through Reanimated shared values, not React state, when they fire per frame.
 - Stable query keys and memoized selectors per `docs/REACT_QUERY.md`. Heavy per-lap arrays load only when Compare opens, with visible progress.
 

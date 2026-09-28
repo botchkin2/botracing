@@ -11,6 +11,8 @@
 import {basename} from 'node:path';
 import {rows, run, sqlPath} from './duck.mjs';
 
+export {eventFor, readEventWindows} from './lmuEvents.mjs';
+
 export const sim = 'lmu';
 
 export const defaultFolder =

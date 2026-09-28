@@ -555,7 +555,7 @@ function CompareView({
       {oneChartTabs}
       <Explainer>
         {windowed
-          ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below.'
+          ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below. Lines join the recorded samples; their positions come from integrated speed.'
           : 'Drag any chart to move through the lap. The cursor, map dots and values follow it.'}
       </Explainer>
       {chartList}

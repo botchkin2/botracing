@@ -118,7 +118,13 @@ describe('buildCompareModel', () => {
       'Gear',
     ]);
     const td = m.charts[0];
-    expect(td.zeroLine).toBe(true);
+    expect(m.charts.map(c => c.zeroLine)).toEqual([
+      'timeDiff',
+      null,
+      null,
+      'steering',
+      null,
+    ]);
     // L2 is slower everywhere, so its gap to the reference grows.
     const l2 = td.lines.find(l => l.label === 'L2')!;
     expect(l2.values[0]).toBe(0);
@@ -313,6 +319,51 @@ describe('cornerPlace', () => {
     expect(cornerPlace(s, 310)).toBe('After Section 1');
     expect(cornerPlace(s, 50)).toBe('Section 1');
     expect(cornerPlace(s, 900)).toBe('After Section 2');
+  });
+});
+
+describe('zero line in an overlay', () => {
+  it('belongs to steering, whose range always holds 0', () => {
+    const [c] = buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({cursorM: 300}),
+      charts: [['speed', 'steering']],
+      window: {mode: 'time', size: 2},
+    }).charts;
+    expect(c.zeroLine).toBe('steering');
+    const [lo, hi] = c.domains.steering!;
+    expect(lo).toBeLessThan(0);
+    expect(hi).toBeGreaterThan(0);
+  });
+});
+
+describe('recorded samples', () => {
+  const m = buildCompareModel({
+    session,
+    laps,
+    traces,
+    band: null,
+    map,
+    selection: sel({cursorM: 333}),
+    charts: [['speed'], ['timeDiff']],
+    window: {mode: 'time', size: 2},
+  });
+  it('speed lines carry their recorded samples; the time diff does not', () => {
+    expect(m.charts[0].lines[0].samples).toBe(
+      traces.get('a')!.samples.speedKph,
+    );
+    expect(m.charts[1].lines[0].samples).toBeUndefined();
+  });
+  it('the cursor readout is a recorded sample, not a blend', () => {
+    const recorded = new Set(
+      traces.get('a')!.samples.speedKph.values.map(v => v.toFixed(0)),
+    );
+    const text = m.charts[0].valueRows[0].values[0].text;
+    expect(recorded.has(text)).toBe(true);
   });
 });
 

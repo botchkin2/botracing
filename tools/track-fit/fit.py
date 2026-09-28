@@ -47,9 +47,12 @@ LOCATIONS = {
     "Silverstone Circuit": (52.0733, -1.0147, 2500),
     "WeatherTech Raceway Laguna Seca": (36.5842, -121.7535, 1500),
 }
-NOTES = {  # known gaps, kept with the rating
-    "Circuit de la Sarthe": "Mulsanne, Arnage and Indianapolis are public roads, not tagged raceway in OSM; add those road ways as targets.",
-}
+# Circuits that run on public roads. OSM tags those stretches as ordinary
+# highways (Le Mans: D338 Mulsanne, D140, D139), so they are fitted against
+# main roads too, and the outline keeps only the roads the lap drives on.
+PUBLIC_ROADS = {"Circuit de la Sarthe"}
+ROAD_CLASSES = {"raceway", "trunk", "primary", "secondary", "tertiary"}
+NOTES: dict[str, str] = {}  # known gaps, kept with the rating
 OVERPASS = ["https://overpass.kumi.systems/api/interpreter", "https://overpass-api.de/api/interpreter"]
 
 
@@ -62,31 +65,25 @@ def enu(lat, lon, lat0, lon0):
     return np.c_[(lon - lon0) * 111320 * math.cos(math.radians(lat0)), (lat - lat0) * 110540]
 
 
-def osm_ways(key, lat, lon, half):
+def osm_ways(key, lat, lon, half, roads=False):
+    """OSM ways to fit against, from Overpass (the read-only service meant for this; the
+    main OSM API is for editing and must not be used for bulk download). Cached in out/osm."""
     path = os.path.join(CACHE, key + ".json")
     if os.path.exists(path):
         return json.load(open(path, encoding="utf-8"))
     dl, dn = half / 110540, half / (111320 * math.cos(math.radians(lat)))
-    ways = []
-    try:  # main API is fast; it refuses boxes that are too large
-        url = f"https://api.openstreetmap.org/api/0.6/map.json?bbox={lon-dn},{lat-dl},{lon+dn},{lat+dl}"
-        raw = json.load(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60))
-        nodes = {e["id"]: e for e in raw["elements"] if e["type"] == "node"}
-        ways = [dict(id=e["id"], tags=e.get("tags", {}), geometry=[dict(lat=nodes[n]["lat"], lon=nodes[n]["lon"]) for n in e["nodes"] if n in nodes])
-                for e in raw["elements"] if e["type"] == "way" and e.get("tags", {}).get("highway") == "raceway"]
-    except Exception as e:
-        print(f"  osm api: {e}; trying overpass")
-    if not ways:
-        q = f'[out:json][timeout:120];way["highway"="raceway"]({lat-dl},{lon-dn},{lat+dl},{lon+dn});out tags geom;'
-        for u in OVERPASS * 3:
-            try:
-                req = urllib.request.Request(u, urllib.parse.urlencode({"data": q}).encode(), UA)
-                ways = json.load(urllib.request.urlopen(req, timeout=150))["elements"]
-                break
-            except Exception as e:
-                print(f"  overpass {u}: {e}"); time.sleep(5)
-        else:
-            raise SystemExit(f"no OSM data for {key}")
+    classes = "|".join(sorted(ROAD_CLASSES)) if roads else "raceway"
+    q = f'[out:json][timeout:180];way["highway"~"^({classes})$"]({lat-dl},{lon-dn},{lat+dl},{lon+dn});out tags geom;'
+    ways = None
+    for u in OVERPASS * 3:
+        try:
+            req = urllib.request.Request(u, urllib.parse.urlencode({"data": q}).encode(), UA)
+            ways = json.load(urllib.request.urlopen(req, timeout=240))["elements"]
+            break
+        except Exception as e:
+            print(f"  overpass {u}: {e}"); time.sleep(10)
+    if ways is None:
+        raise SystemExit(f"no OSM data for {key}")
     os.makedirs(CACHE, exist_ok=True)
     json.dump(ways, open(path, "w", encoding="utf-8"))
     return ways
@@ -119,6 +116,29 @@ def fit(P, dst):
     U, _, Vt = np.linalg.svd((Q - mq).T @ (A - ma))
     R = Vt.T @ U.T
     return m, mirror, R, ma - mq @ R.T, A, d
+
+
+def driven_stretches(ways, lap, lat, lon, near_m=25):
+    """Raceway ways whole; road ways cut to the runs of nodes within near_m of the fitted lap,
+    so a public-road circuit's outline is the circuit, not the town."""
+    tree = cKDTree(lap)
+    out = []
+    for w in ways:
+        if w["tags"].get("highway") == "raceway":
+            out.append(w); continue
+        q = enu(np.array([p["lat"] for p in w["geometry"]]), np.array([p["lon"] for p in w["geometry"]]), lat, lon)
+        near = tree.query(q)[0] <= near_m
+        run = []
+        for p, ok in zip(w["geometry"], near):
+            if ok:
+                run.append(p)
+            elif len(run) >= 2:
+                out.append({**w, "geometry": run}); run = []
+            else:
+                run = []
+        if len(run) >= 2:
+            out.append({**w, "geometry": run})
+    return out
 
 
 def rate(median, p90):
@@ -155,7 +175,7 @@ def main():
         src = enu(la[ok], lo[ok], *FAKE_ORIGIN)[::5]
 
         key = slug(name)
-        ways = osm_ways(key, lat, lon, half)
+        ways = osm_ways(key, lat, lon, half, roads=name in PUBLIC_ROADS)
         dst = []
         for w in ways:
             q = enu(np.array([p["lat"] for p in w["geometry"]]), np.array([p["lon"] for p in w["geometry"]]), lat, lon)
@@ -183,6 +203,8 @@ def main():
             location=name,
             outline=f"trackmaps/{{trackId}}/v1.geojson.gz",
         )
+        if name in PUBLIC_ROADS:
+            ways = driven_stretches(ways, A, lat, lon)
         feats = [dict(type="Feature", properties=dict(osmId=w["id"], name=w["tags"].get("name"), kind="pit" if "pit" in (w["tags"].get("name") or "").lower() else "track"),
                       geometry=dict(type="LineString", coordinates=[[p["lon"], p["lat"]] for p in w["geometry"]])) for w in ways]
         for layout in sorted(layouts):
@@ -197,7 +219,9 @@ def main():
             for w in ways:
                 q = enu(np.array([p["lat"] for p in w["geometry"]]), np.array([p["lon"] for p in w["geometry"]]), lat, lon)
                 ax.plot(q[:, 0], q[:, 1], color="#bbb", lw=4)
-            sc = ax.scatter(A[:, 0], A[:, 1], c=np.minimum(d, 20), cmap="plasma", s=2)
+            sc = ax.scatter(A[:, 0], A[:, 1], c=np.minimum(d, 20), cmap="plasma", s=2, zorder=3)
+            pad = 200
+            ax.set_xlim(A[:, 0].min() - pad, A[:, 0].max() + pad); ax.set_ylim(A[:, 1].min() - pad, A[:, 1].max() + pad)
             plt.colorbar(sc, label="m from OSM"); ax.set_aspect("equal")
             ax.set_title(f"{name}: {quality}, median {m:.1f} m, p90 {p90:.1f} m")
             fig.savefig(os.path.join(OUT, key + ".png"), dpi=90, bbox_inches="tight"); plt.close(fig)
