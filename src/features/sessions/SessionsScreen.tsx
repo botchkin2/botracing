@@ -25,6 +25,7 @@ export function SessionsScreen() {
   // A list reads badly at 1200 pt; cap it on desktop.
   const contentWidth = Math.min(layout.contentWidth, LIST_MAX_WIDTH);
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <View
@@ -36,8 +37,23 @@ export function SessionsScreen() {
         <View style={styles.header}>
           <Text variant='display'>Sessions</Text>
           {/* Sim/track/car filter picker comes with the filter work; label only for now. */}
-          <View style={[styles.picker, {borderColor: color.lineStrong}]}>
-            <Text variant='dataStrong'>LMU · all tracks ▾</Text>
+          <View style={styles.headerRight}>
+            <View style={[styles.picker, {borderColor: color.lineStrong}]}>
+              <Text variant='dataStrong'>LMU · all tracks ▾</Text>
+            </View>
+            {/* Handoff v2 M5: Settings opens from the Sessions header on the
+                phone; desktop has it in the chrome. */}
+            {!layout.isWide && (
+              <Pressable
+                accessibilityRole='link'
+                accessibilityLabel='Settings'
+                hitSlop={space.md}
+                onPress={() => router.push(settingsHref())}>
+                <Text variant='title' tone='textMuted'>
+                  ⚙
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
@@ -203,6 +219,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
+  headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
   picker: {
     height: size.chip,
     paddingHorizontal: space.md,
