@@ -119,6 +119,13 @@ describe('buildCompareModel', () => {
     ]);
     const td = m.charts[0];
     expect(td.zeroLine).toBe(true);
+    expect(m.charts.map(c => c.zeroLine)).toEqual([
+      true,
+      false,
+      false,
+      true,
+      false,
+    ]);
     // L2 is slower everywhere, so its gap to the reference grows.
     const l2 = td.lines.find(l => l.label === 'L2')!;
     expect(l2.values[0]).toBe(0);

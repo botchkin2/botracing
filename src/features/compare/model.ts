@@ -614,7 +614,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       lines,
       domains,
       band: bandFor ? {low: bandFor.p10, high: bandFor.p90} : null,
-      zeroLine: chs.includes('timeDiff'),
+      // Time diff: the reference. Steering: straight ahead, so left and
+      // right lock read at a glance (Botkin, thread 26 #385).
+      zeroLine: chs.includes('timeDiff') || chs.includes('steering'),
       valueRows: chs.map((ch, overlay) => ({
         channel: ch,
         label: CHANNELS[ch].label,

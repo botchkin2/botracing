@@ -204,10 +204,12 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   pills: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs},
+  // Next to the label, not at the far edge: at 1440 the edge is ~1,300 pt
+  // from the label (Botkin, thread 26 #385).
   values: {
-    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
     gap: space.md,
+    marginLeft: space.sm,
   },
 });
