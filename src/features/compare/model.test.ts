@@ -10,6 +10,7 @@ import {
 
 import {
   buildCompareModel,
+  snapOut,
   cornerPlace,
   type CompareSelection,
   makeReference,
@@ -309,5 +310,39 @@ describe('cornerPlace', () => {
     expect(cornerPlace(s, 310)).toBe('After Section 1');
     expect(cornerPlace(s, 50)).toBe('Section 1');
     expect(cornerPlace(s, 900)).toBe('After Section 2');
+  });
+});
+
+describe('y ranges in a window', () => {
+  const at = (cursorM: number) =>
+    buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({cursorM}),
+      charts: [['timeDiff'], ['speed']],
+      window: {mode: 'time', size: 2},
+    }).charts;
+  it('speed fits the window, snapped outward to 20 km/h', () => {
+    const [lo, hi] = at(600)[1].domains.speed!;
+    expect(lo % 20).toBe(0);
+    expect(hi % 20).toBe(0);
+    expect(hi).toBeGreaterThan(lo);
+  });
+  it('the time diff fits the window, snapped to a symmetric nice range', () => {
+    const [lo, hi] = at(600)[0].domains.timeDiff!;
+    expect(lo).toBe(-hi);
+    expect([0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60]).toContain(hi);
+  });
+});
+
+describe('snapOut', () => {
+  it('widens to the step: a hairpin and a straight', () => {
+    expect(snapOut(63, 137, 20)).toEqual([60, 140]);
+    expect(snapOut(181, 259, 20)).toEqual([180, 260]);
+    expect(snapOut(-23, 23, 10)).toEqual([-30, 30]);
+    expect(snapOut(100, 100, 20)).toEqual([100, 120]);
   });
 });

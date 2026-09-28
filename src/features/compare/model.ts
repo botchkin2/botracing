@@ -56,6 +56,8 @@ type ChannelSpec = {
   explainer: string;
   /** Shared scale for channels of the same kind. */
   kind: 'time' | 'speed' | 'pedal' | 'steer' | 'gear';
+  /** In a window, the y range snaps outward to this step (see domainOf). */
+  ySnap?: number;
   height: number;
   /** Desktop workspace height (handoff D2). */
   desktopHeight: number;
@@ -82,6 +84,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     explainer:
       'Grey band = where your race laps usually are (10th–90th percentile).',
     kind: 'speed',
+    ySnap: 20,
     height: 104,
     desktopHeight: 150,
     format: v => v.toFixed(0),
@@ -113,6 +116,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     unit: '% lock',
     explainer: 'Steering, as % of full lock. Extra wiggles are corrections.',
     kind: 'steer',
+    ySnap: 10,
     height: 56,
     desktopHeight: 84,
     format: v => v.toFixed(0),
@@ -342,8 +346,8 @@ function lineMarks(
   const [before, after] =
     win.mode === 'distance'
       ? [cursorM - win.size / 2 < 0, cursorM + win.size / 2 > lengthM]
-      : windowTimeS(ref, cursorM, win.size).map(
-          (t, i) => (i ? t > ref.timeS[ref.timeS.length - 1] : t < 0),
+      : windowTimeS(ref, cursorM, win.size).map((t, i) =>
+          i ? t > ref.timeS[ref.timeS.length - 1] : t < 0,
         );
   const out = [];
   if (before) out.push({m: 0, label: 'S/F', solid: true});
@@ -351,19 +355,44 @@ function lineMarks(
   return out;
 }
 
+// Symmetric time-diff ranges, in seconds: a window's fit snaps up to the
+// next one, so the scale only steps when the gap really grows.
+const TIME_RANGES_S = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
+
+// [lo, hi] widened outward to multiples of step.
+export function snapOut(
+  lo: number,
+  hi: number,
+  step: number,
+): [number, number] {
+  const a = Math.floor(lo / step) * step;
+  const b = Math.ceil(hi / step) * step;
+  return [a, b > a ? b : a + step];
+}
+
+// y range per channel kind. In a window it fits the window, so corner detail
+// stays readable, but snapped, so it holds still while playing or panning:
+// the time diff to TIME_RANGES_S, other channels to their ySnap. Gear fits
+// the whole lap; pedals are fixed. Pure: the same window gives the same range.
 function domainOf(
   arrays: number[][],
   kind: ChannelSpec['kind'],
   from: number,
   to: number,
   windowed: boolean,
+  snap?: number,
 ): [number, number] {
   // Pedals are fixed at −4..104 so 0 and 100 never sit on the edge.
   if (kind === 'pedal') return [-4, 104];
+  const fitWindow = windowed && kind !== 'gear';
   let lo = Infinity;
   let hi = -Infinity;
   for (const a of arrays)
-    for (let i = Math.max(0, from); i <= Math.min(a.length - 1, to); i++) {
+    for (
+      let i = fitWindow ? Math.max(0, from) : 0;
+      i <= Math.min(a.length - 1, fitWindow ? to : Infinity);
+      i++
+    ) {
       const v = a[i];
       if (v < lo) lo = v;
       if (v > hi) hi = v;
@@ -371,14 +400,17 @@ function domainOf(
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
     // Symmetric around 0; the floor keeps a flat line from filling the chart.
-    const m = Math.max(Math.abs(lo), Math.abs(hi), windowed ? 0.02 : 0.1);
-    return [-m, m];
+    const m = Math.max(Math.abs(lo), Math.abs(hi));
+    if (!windowed) return [-Math.max(m, 0.1), Math.max(m, 0.1)];
+    const r = TIME_RANGES_S.find(x => x >= m) ?? m;
+    return [-r, r];
   }
   if (kind === 'steer') {
     const m = Math.max(Math.abs(lo), Math.abs(hi), 5);
-    return [-m, m];
+    return windowed && snap ? snapOut(-m, m, snap) : [-m, m];
   }
   if (kind === 'gear') return [Math.min(lo, 1) - 0.5, hi + 0.5];
+  if (windowed && snap) return snapOut(lo, hi, snap);
   const pad = (hi - lo) * 0.05 || 1;
   return [lo - pad, hi + pad];
 }
@@ -515,6 +547,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         i0,
         i1,
         windowed,
+        CHANNELS[ch].ySnap,
       );
     }
     const single = chs.length === 1 ? chs[0] : null;
