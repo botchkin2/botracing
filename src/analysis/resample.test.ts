@@ -46,6 +46,20 @@ describe('resampleTrace', () => {
     expect(g.brakePct[150]).toBe(80);
   });
 
+  it('keeps each channel recorded samples, and only those', () => {
+    const raw = constantLap(180);
+    raw.brakePct = raw.brakePct.map((_, i) => (i % 2 ? NaN : i < 100 ? 0 : 80));
+    const g = resampleTrace(raw, 1000, 5, 10);
+    const b = g.samples.brakePct;
+    // Every other row, and every value one that was recorded.
+    expect(b.values.length).toBe(Math.ceil(raw.brakePct.length / 2));
+    expect(new Set(b.values)).toEqual(new Set([0, 80]));
+    expect(b.distanceM.every((m, i) => i === 0 || m > b.distanceM[i - 1])).toBe(
+      true,
+    );
+    expect(g.samples.speedKph.values.length).toBe(raw.speedKph.length);
+  });
+
   it('steps discrete channels instead of blending them', () => {
     const g = resampleTrace(constantLap(180), 1000, 5);
     expect(new Set(g.gear)).toEqual(new Set([3, 4]));

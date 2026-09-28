@@ -341,6 +341,32 @@ describe('zero line in an overlay', () => {
   });
 });
 
+describe('recorded samples', () => {
+  const m = buildCompareModel({
+    session,
+    laps,
+    traces,
+    band: null,
+    map,
+    selection: sel({cursorM: 333}),
+    charts: [['speed'], ['timeDiff']],
+    window: {mode: 'time', size: 2},
+  });
+  it('speed lines carry their recorded samples; the time diff does not', () => {
+    expect(m.charts[0].lines[0].samples).toBe(
+      traces.get('a')!.samples.speedKph,
+    );
+    expect(m.charts[1].lines[0].samples).toBeUndefined();
+  });
+  it('the cursor readout is a recorded sample, not a blend', () => {
+    const recorded = new Set(
+      traces.get('a')!.samples.speedKph.values.map(v => v.toFixed(0)),
+    );
+    const text = m.charts[0].valueRows[0].values[0].text;
+    expect(recorded.has(text)).toBe(true);
+  });
+});
+
 describe('followPlace', () => {
   const c = (n: number, entryM: number, exitM: number) => ({
     n,

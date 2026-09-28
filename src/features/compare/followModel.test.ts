@@ -21,6 +21,13 @@ function straight(offsetY = 0): GridTrace {
     lat: distanceM.map(() => offsetY),
     lon: distanceM,
     timeS: distanceM.map(m => m / 50),
+    samples: {
+      speedKph: {distanceM, values: distanceM.map(() => 200)},
+      throttlePct: {distanceM, values: distanceM.map(() => 100)},
+      brakePct: {distanceM, values: distanceM.map(() => 0)},
+      steeringPct: {distanceM, values: distanceM.map(() => 0)},
+      gear: {distanceM, values: distanceM.map(() => 6)},
+    },
   };
 }
 
