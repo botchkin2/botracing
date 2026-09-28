@@ -141,6 +141,28 @@ export function cornerLapIds(
   return ref ? [ref, ...rest] : rest;
 }
 
+/**
+ * Definition copy. Some stored parts have the apex on the segment edge
+ * (entry = apex, or apex = exit); print equal points once, not as if distinct.
+ */
+export function cornerExplainer(
+  sec: {entryM: number; apexM: number; exitM: number},
+  nextEntry: {entryM: number},
+): string {
+  const apex = formatDistance(sec.apexM);
+  const next = `the next corner's entry (${formatDistance(nextEntry.entryM)})`;
+  const span =
+    sec.apexM === sec.entryM
+      ? `this corner's entry, which is also its apex (${apex}), to ${next}`
+      : `this corner's entry (${formatDistance(sec.entryM)}) to ${next}`;
+  const apexRef = sec.apexM === sec.entryM ? 'the apex' : `the apex (${apex})`;
+  const edge =
+    sec.apexM === sec.exitM && sec.apexM !== sec.entryM
+      ? ' The apex is at the corner’s exit.'
+      : '';
+  return `Time in corner runs from ${span}, the same stretch of track for every lap. Brake point is metres before ${apexRef}; full throttle is metres after it.${edge}`;
+}
+
 export function buildCornerModel(input: {
   session: SessionDetail;
   laps: Lap[];
@@ -296,13 +318,7 @@ export function buildCornerModel(input: {
       .filter(Boolean)
       .join(' · '),
     mode,
-    explainer: `Time in corner runs from this corner's entry (${formatDistance(
-      sec.entryM,
-    )}) to the next corner's entry (${formatDistance(
-      nextSec.entryM,
-    )}), the same stretch of track for every lap. Brake point is metres before the apex (${formatDistance(
-      sec.apexM,
-    )}); full throttle is metres after it.`,
+    explainer: cornerExplainer(sec, nextSec),
     rows,
     strips,
     highlightLine,

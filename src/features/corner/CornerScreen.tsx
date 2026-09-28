@@ -75,7 +75,9 @@ export function CornerScreen({
         ) : (
           <Text tone='textMuted'>
             {result.state === 'missing'
-              ? `No corner ${corner} on this track.`
+              ? result.noMap
+                ? 'No corner map for this track yet.'
+                : `No corner ${corner} on this track.`
               : `Couldn’t load: ${result.message}`}
           </Text>
         )}
@@ -262,7 +264,8 @@ function CornerView({
   const top = {paddingTop: insets.top + space.lg};
   if (layout.isWide)
     return (
-      <View style={[styles.screen, styles.row, {backgroundColor: color.bg}]}>
+      <View
+        style={[styles.screen, styles.columns, {backgroundColor: color.bg}]}>
         <ScrollView
           style={{width: DESK_LEFT_W, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
@@ -441,6 +444,7 @@ function ZoomTraces({
     stepM: zoom.stepM,
     windowM: zoom.windowM,
     cursorM: -1,
+    gridOriginM: zoom.apexM,
   };
   if (lines.length === 0)
     return (
@@ -515,6 +519,8 @@ const styles = StyleSheet.create({
   col: {gap: space.lg, padding: space.xl, paddingBottom: space.xxxl},
   gap: {gap: space.xs},
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
+  // Desktop: two columns bounded to the viewport, each scrolling on its own.
+  columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
   wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
   tableRow: {
     flexDirection: 'row',

@@ -7,7 +7,13 @@ import {
   toTrackMap,
 } from '@/src/data/sessions/adapters';
 
-import {buildCornerModel, cornerLapIds, sortRows, traceIdsFor} from './model';
+import {
+  buildCornerModel,
+  cornerLapIds,
+  sortRows,
+  traceIdsFor,
+  cornerExplainer,
+} from './model';
 
 const session = toSessionDetail({
   id: 's1',
@@ -80,6 +86,22 @@ const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
     hl,
     corner,
   })!;
+
+describe('cornerExplainer', () => {
+  it('prints entry and apex once when they coincide', () => {
+    const text = cornerExplainer(
+      {entryM: 1050, apexM: 1050, exitM: 1200},
+      {entryM: 1340},
+    );
+    expect(text).toContain('entry, which is also its apex (1,050 m)');
+    expect(text.match(/1,050 m/g)).toHaveLength(1);
+  });
+  it('names apex separately when distinct', () => {
+    expect(
+      cornerExplainer({entryM: 500, apexM: 560, exitM: 600}, {entryM: 600}),
+    ).toContain('before the apex (560 m)');
+  });
+});
 
 describe('buildCornerModel (per single corner)', () => {
   const m = build(['a', 'b', 'c']);

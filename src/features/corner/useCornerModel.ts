@@ -22,7 +22,8 @@ const GRID_STEP_M = 5;
 export type CornerResult =
   | {state: 'loading'}
   | {state: 'error'; message: string}
-  | {state: 'missing'}
+  /** noMap: the track has no corner map yet; else this corner doesn't exist. */
+  | {state: 'missing'; noMap: boolean}
   | {state: 'ready'; model: CornerModel; lapIds: string[]};
 
 export function useCornerModel(
@@ -82,7 +83,9 @@ export function useCornerModel(
       hl: selection.hl,
       corner,
     });
-    return model ? {state: 'ready', model, lapIds} : {state: 'missing'};
+    return model
+      ? {state: 'ready', model, lapIds}
+      : {state: 'missing', noMap: map.data.sections.length === 0};
   }, [
     error,
     session.data,
