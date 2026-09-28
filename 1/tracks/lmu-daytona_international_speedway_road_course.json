@@ -1,0 +1,179 @@
+{
+  "id": "lmu-daytona_international_speedway_road_course",
+  "ownerId": "botkin",
+  "sim": "lmu",
+  "track": {
+    "name": "Daytona International Speedway",
+    "variant": "Daytona International Speedway Road Course"
+  },
+  "mapVersion": 3,
+  "lengthM": 5731.8,
+  "stepM": 5,
+  "corners": [
+    {
+      "n": 1,
+      "direction": "mixed",
+      "entryM": 305,
+      "turnInM": 335,
+      "apexM": 470,
+      "exitM": 770,
+      "flat": false,
+      "minSpeedKmh": 87,
+      "parts": [
+        {
+          "n": 1,
+          "direction": "left",
+          "entryM": 305,
+          "turnInM": 335,
+          "apexM": 470,
+          "exitM": 575,
+          "flat": false,
+          "minSpeedKmh": 87
+        },
+        {
+          "n": 2,
+          "direction": "right",
+          "entryM": 595,
+          "turnInM": 595,
+          "apexM": 595,
+          "exitM": 640,
+          "flat": true,
+          "minSpeedKmh": 146
+        },
+        {
+          "n": 3,
+          "direction": "left",
+          "entryM": 665,
+          "turnInM": 665,
+          "apexM": 665,
+          "exitM": 770,
+          "flat": true,
+          "minSpeedKmh": 166
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "direction": "right",
+      "entryM": 820,
+      "turnInM": 880,
+      "apexM": 955,
+      "exitM": 1085,
+      "flat": false,
+      "minSpeedKmh": 69,
+      "parts": [
+        {
+          "n": 4,
+          "direction": "right",
+          "entryM": 820,
+          "turnInM": 880,
+          "apexM": 955,
+          "exitM": 1085,
+          "flat": false,
+          "minSpeedKmh": 69
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "direction": "mixed",
+      "entryM": 1365,
+      "turnInM": 1365,
+      "apexM": 1755,
+      "exitM": 1885,
+      "flat": false,
+      "minSpeedKmh": 73,
+      "parts": [
+        {
+          "n": 5,
+          "direction": "left",
+          "entryM": 1365,
+          "turnInM": 1365,
+          "apexM": 1450,
+          "exitM": 1565,
+          "flat": false,
+          "minSpeedKmh": 204
+        },
+        {
+          "n": 6,
+          "direction": "right",
+          "entryM": 1590,
+          "turnInM": 1660,
+          "apexM": 1755,
+          "exitM": 1885,
+          "flat": false,
+          "minSpeedKmh": 73
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "direction": "left",
+      "entryM": 2045,
+      "turnInM": 2095,
+      "apexM": 2155,
+      "exitM": 2415,
+      "flat": false,
+      "minSpeedKmh": 77,
+      "parts": [
+        {
+          "n": 7,
+          "direction": "left",
+          "entryM": 2045,
+          "turnInM": 2095,
+          "apexM": 2155,
+          "exitM": 2415,
+          "flat": false,
+          "minSpeedKmh": 77
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "direction": "mixed",
+      "entryM": 3665,
+      "turnInM": 3770,
+      "apexM": 3925,
+      "exitM": 4080,
+      "flat": false,
+      "minSpeedKmh": 120,
+      "parts": [
+        {
+          "n": 8,
+          "direction": "left",
+          "entryM": 3665,
+          "turnInM": 3770,
+          "apexM": 3855,
+          "exitM": 3855,
+          "flat": false,
+          "minSpeedKmh": 138
+        },
+        {
+          "n": 9,
+          "direction": "right",
+          "entryM": 3860,
+          "turnInM": 3870,
+          "apexM": 3925,
+          "exitM": 3985,
+          "flat": false,
+          "minSpeedKmh": 120
+        },
+        {
+          "n": 10,
+          "direction": "left",
+          "entryM": 4005,
+          "turnInM": 4005,
+          "apexM": 4005,
+          "exitM": 4080,
+          "flat": false,
+          "minSpeedKmh": 140
+        }
+      ]
+    }
+  ],
+  "source": {
+    "sessionId": "313bf4cd1b09f9e4",
+    "builtAt": "2026-09-27T20:14:17.211Z"
+  },
+  "analysisVersion": 2
+}

@@ -1,0 +1,309 @@
+{
+  "id": "lmu-circuit_of_the_americas",
+  "ownerId": "botkin",
+  "sim": "lmu",
+  "track": {
+    "name": "Circuit of the Americas",
+    "variant": "Circuit of the Americas"
+  },
+  "mapVersion": 3,
+  "lengthM": 5494.8,
+  "stepM": 5,
+  "corners": [
+    {
+      "n": 1,
+      "direction": "mixed",
+      "entryM": 520,
+      "turnInM": 580,
+      "apexM": 665,
+      "exitM": 1030,
+      "flat": false,
+      "minSpeedKmh": 68,
+      "parts": [
+        {
+          "n": 1,
+          "direction": "left",
+          "entryM": 520,
+          "turnInM": 580,
+          "apexM": 665,
+          "exitM": 745,
+          "flat": false,
+          "minSpeedKmh": 68
+        },
+        {
+          "n": 2,
+          "direction": "right",
+          "entryM": 770,
+          "turnInM": 770,
+          "apexM": 770,
+          "exitM": 1030,
+          "flat": true,
+          "minSpeedKmh": 141
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "direction": "mixed",
+      "entryM": 1115,
+      "turnInM": 1115,
+      "apexM": 1710,
+      "exitM": 1795,
+      "flat": false,
+      "minSpeedKmh": 125,
+      "parts": [
+        {
+          "n": 3,
+          "direction": "left",
+          "entryM": 1115,
+          "turnInM": 1115,
+          "apexM": 1115,
+          "exitM": 1200,
+          "flat": false,
+          "minSpeedKmh": 206
+        },
+        {
+          "n": 4,
+          "direction": "right",
+          "entryM": 1205,
+          "turnInM": 1235,
+          "apexM": 1305,
+          "exitM": 1305,
+          "flat": false,
+          "minSpeedKmh": 162
+        },
+        {
+          "n": 5,
+          "direction": "left",
+          "entryM": 1310,
+          "turnInM": 1320,
+          "apexM": 1365,
+          "exitM": 1410,
+          "flat": false,
+          "minSpeedKmh": 143
+        },
+        {
+          "n": 6,
+          "direction": "right",
+          "entryM": 1425,
+          "turnInM": 1425,
+          "apexM": 1565,
+          "exitM": 1635,
+          "flat": false,
+          "minSpeedKmh": 132
+        },
+        {
+          "n": 7,
+          "direction": "left",
+          "entryM": 1650,
+          "turnInM": 1655,
+          "apexM": 1710,
+          "exitM": 1795,
+          "flat": false,
+          "minSpeedKmh": 125
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "direction": "mixed",
+      "entryM": 1815,
+      "turnInM": 1815,
+      "apexM": 1905,
+      "exitM": 2245,
+      "flat": false,
+      "minSpeedKmh": 99,
+      "parts": [
+        {
+          "n": 8,
+          "direction": "right",
+          "entryM": 1815,
+          "turnInM": 1815,
+          "apexM": 1905,
+          "exitM": 1940,
+          "flat": false,
+          "minSpeedKmh": 99
+        },
+        {
+          "n": 9,
+          "direction": "left",
+          "entryM": 1950,
+          "turnInM": 1950,
+          "apexM": 1950,
+          "exitM": 2045,
+          "flat": false,
+          "minSpeedKmh": 115
+        },
+        {
+          "n": 10,
+          "direction": "left",
+          "entryM": 2105,
+          "turnInM": 2105,
+          "apexM": 2105,
+          "exitM": 2245,
+          "flat": true,
+          "minSpeedKmh": 160
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "direction": "left",
+      "entryM": 2450,
+      "turnInM": 2520,
+      "apexM": 2580,
+      "exitM": 2655,
+      "flat": false,
+      "minSpeedKmh": 66,
+      "parts": [
+        {
+          "n": 11,
+          "direction": "left",
+          "entryM": 2450,
+          "turnInM": 2520,
+          "apexM": 2580,
+          "exitM": 2655,
+          "flat": false,
+          "minSpeedKmh": 66
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "direction": "left",
+      "entryM": 3615,
+      "turnInM": 3725,
+      "apexM": 3785,
+      "exitM": 3865,
+      "flat": false,
+      "minSpeedKmh": 70,
+      "parts": [
+        {
+          "n": 12,
+          "direction": "left",
+          "entryM": 3615,
+          "turnInM": 3725,
+          "apexM": 3785,
+          "exitM": 3865,
+          "flat": false,
+          "minSpeedKmh": 70
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "direction": "right",
+      "entryM": 3890,
+      "turnInM": 3890,
+      "apexM": 4015,
+      "exitM": 4145,
+      "flat": false,
+      "minSpeedKmh": 77,
+      "parts": [
+        {
+          "n": 13,
+          "direction": "right",
+          "entryM": 3890,
+          "turnInM": 3890,
+          "apexM": 4015,
+          "exitM": 4145,
+          "flat": false,
+          "minSpeedKmh": 77
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "direction": "left",
+      "entryM": 4160,
+      "turnInM": 4160,
+      "apexM": 4285,
+      "exitM": 4370,
+      "flat": false,
+      "minSpeedKmh": 68,
+      "parts": [
+        {
+          "n": 14,
+          "direction": "left",
+          "entryM": 4160,
+          "turnInM": 4160,
+          "apexM": 4285,
+          "exitM": 4370,
+          "flat": false,
+          "minSpeedKmh": 68
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "direction": "right",
+      "entryM": 4400,
+      "turnInM": 4400,
+      "apexM": 4400,
+      "exitM": 4890,
+      "flat": false,
+      "minSpeedKmh": 139,
+      "parts": [
+        {
+          "n": 15,
+          "direction": "right",
+          "entryM": 4400,
+          "turnInM": 4400,
+          "apexM": 4400,
+          "exitM": 4890,
+          "flat": false,
+          "minSpeedKmh": 139
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "direction": "left",
+      "entryM": 4945,
+      "turnInM": 4950,
+      "apexM": 5045,
+      "exitM": 5125,
+      "flat": false,
+      "minSpeedKmh": 126,
+      "parts": [
+        {
+          "n": 16,
+          "direction": "left",
+          "entryM": 4945,
+          "turnInM": 4950,
+          "apexM": 5045,
+          "exitM": 5125,
+          "flat": false,
+          "minSpeedKmh": 126
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "direction": "left",
+      "entryM": 5235,
+      "turnInM": 5280,
+      "apexM": 5335,
+      "exitM": 5415,
+      "flat": false,
+      "minSpeedKmh": 81,
+      "parts": [
+        {
+          "n": 17,
+          "direction": "left",
+          "entryM": 5235,
+          "turnInM": 5280,
+          "apexM": 5335,
+          "exitM": 5415,
+          "flat": false,
+          "minSpeedKmh": 81
+        }
+      ]
+    }
+  ],
+  "source": {
+    "sessionId": "571d112b3c55f4cd",
+    "builtAt": "2026-09-27T20:22:48.813Z"
+  },
+  "analysisVersion": 2
+}

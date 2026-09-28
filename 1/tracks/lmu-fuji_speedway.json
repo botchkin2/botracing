@@ -1,0 +1,181 @@
+{
+  "id": "lmu-fuji_speedway",
+  "ownerId": "botkin",
+  "sim": "lmu",
+  "track": {
+    "name": "Fuji Speedway",
+    "variant": "Fuji Speedway"
+  },
+  "mapVersion": 3,
+  "lengthM": 4528.5,
+  "stepM": 5,
+  "corners": [
+    {
+      "n": 1,
+      "direction": "right",
+      "entryM": 585,
+      "turnInM": 700,
+      "apexM": 765,
+      "exitM": 950,
+      "flat": false,
+      "minSpeedKmh": 75,
+      "parts": [
+        {
+          "n": 1,
+          "direction": "right",
+          "entryM": 585,
+          "turnInM": 700,
+          "apexM": 765,
+          "exitM": 950,
+          "flat": false,
+          "minSpeedKmh": 75
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "direction": "left",
+      "entryM": 1200,
+      "turnInM": 1240,
+      "apexM": 1330,
+      "exitM": 1405,
+      "flat": false,
+      "minSpeedKmh": 145,
+      "parts": [
+        {
+          "n": 2,
+          "direction": "left",
+          "entryM": 1200,
+          "turnInM": 1240,
+          "apexM": 1330,
+          "exitM": 1405,
+          "flat": false,
+          "minSpeedKmh": 145
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "direction": "mixed",
+      "entryM": 1430,
+      "turnInM": 1430,
+      "apexM": 2010,
+      "exitM": 2175,
+      "flat": false,
+      "minSpeedKmh": 89,
+      "parts": [
+        {
+          "n": 3,
+          "direction": "right",
+          "entryM": 1430,
+          "turnInM": 1430,
+          "apexM": 1765,
+          "exitM": 1880,
+          "flat": false,
+          "minSpeedKmh": 155
+        },
+        {
+          "n": 4,
+          "direction": "left",
+          "entryM": 1925,
+          "turnInM": 1940,
+          "apexM": 2010,
+          "exitM": 2175,
+          "flat": false,
+          "minSpeedKmh": 89
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "direction": "mixed",
+      "entryM": 2690,
+      "turnInM": 2785,
+      "apexM": 2845,
+      "exitM": 3215,
+      "flat": false,
+      "minSpeedKmh": 63,
+      "parts": [
+        {
+          "n": 5,
+          "direction": "right",
+          "entryM": 2690,
+          "turnInM": 2785,
+          "apexM": 2845,
+          "exitM": 2865,
+          "flat": false,
+          "minSpeedKmh": 63
+        },
+        {
+          "n": 6,
+          "direction": "left",
+          "entryM": 2875,
+          "turnInM": 2875,
+          "apexM": 2915,
+          "exitM": 2950,
+          "flat": false,
+          "minSpeedKmh": 76
+        },
+        {
+          "n": 7,
+          "direction": "right",
+          "entryM": 2965,
+          "turnInM": 2965,
+          "apexM": 3130,
+          "exitM": 3215,
+          "flat": false,
+          "minSpeedKmh": 98
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "direction": "left",
+      "entryM": 3230,
+      "turnInM": 3230,
+      "apexM": 3410,
+      "exitM": 3495,
+      "flat": false,
+      "minSpeedKmh": 82,
+      "parts": [
+        {
+          "n": 8,
+          "direction": "left",
+          "entryM": 3230,
+          "turnInM": 3230,
+          "apexM": 3410,
+          "exitM": 3495,
+          "flat": false,
+          "minSpeedKmh": 82
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "direction": "right",
+      "entryM": 3515,
+      "turnInM": 3515,
+      "apexM": 3675,
+      "exitM": 3790,
+      "flat": false,
+      "minSpeedKmh": 87,
+      "parts": [
+        {
+          "n": 9,
+          "direction": "right",
+          "entryM": 3515,
+          "turnInM": 3515,
+          "apexM": 3675,
+          "exitM": 3790,
+          "flat": false,
+          "minSpeedKmh": 87
+        }
+      ]
+    }
+  ],
+  "source": {
+    "sessionId": "816559d9f868f37d",
+    "builtAt": "2026-09-27T20:38:52.281Z"
+  },
+  "analysisVersion": 2
+}

@@ -1,0 +1,269 @@
+{
+  "id": "lmu-lusail_international_circuit",
+  "ownerId": "botkin",
+  "sim": "lmu",
+  "track": {
+    "name": "Lusail International Circuit",
+    "variant": "Lusail International Circuit"
+  },
+  "mapVersion": 3,
+  "lengthM": 5398.1,
+  "stepM": 5,
+  "corners": [
+    {
+      "n": 1,
+      "direction": "right",
+      "entryM": 610,
+      "turnInM": 685,
+      "apexM": 785,
+      "exitM": 935,
+      "flat": false,
+      "minSpeedKmh": 103,
+      "parts": [
+        {
+          "n": 1,
+          "direction": "right",
+          "entryM": 610,
+          "turnInM": 685,
+          "apexM": 785,
+          "exitM": 935,
+          "flat": false,
+          "minSpeedKmh": 103
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "direction": "mixed",
+      "entryM": 965,
+      "turnInM": 965,
+      "apexM": 1090,
+      "exitM": 1425,
+      "flat": false,
+      "minSpeedKmh": 112,
+      "parts": [
+        {
+          "n": 2,
+          "direction": "left",
+          "entryM": 965,
+          "turnInM": 965,
+          "apexM": 1090,
+          "exitM": 1225,
+          "flat": false,
+          "minSpeedKmh": 112
+        },
+        {
+          "n": 3,
+          "direction": "right",
+          "entryM": 1245,
+          "turnInM": 1245,
+          "apexM": 1245,
+          "exitM": 1425,
+          "flat": true,
+          "minSpeedKmh": 164
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "direction": "right",
+      "entryM": 1605,
+      "turnInM": 1655,
+      "apexM": 1740,
+      "exitM": 2025,
+      "flat": false,
+      "minSpeedKmh": 127,
+      "parts": [
+        {
+          "n": 4,
+          "direction": "right",
+          "entryM": 1605,
+          "turnInM": 1655,
+          "apexM": 1740,
+          "exitM": 2025,
+          "flat": false,
+          "minSpeedKmh": 127
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "direction": "left",
+      "entryM": 2095,
+      "turnInM": 2130,
+      "apexM": 2210,
+      "exitM": 2300,
+      "flat": false,
+      "minSpeedKmh": 79,
+      "parts": [
+        {
+          "n": 5,
+          "direction": "left",
+          "entryM": 2095,
+          "turnInM": 2130,
+          "apexM": 2210,
+          "exitM": 2300,
+          "flat": false,
+          "minSpeedKmh": 79
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "direction": "mixed",
+      "entryM": 2475,
+      "turnInM": 2500,
+      "apexM": 2610,
+      "exitM": 2855,
+      "flat": false,
+      "minSpeedKmh": 100,
+      "parts": [
+        {
+          "n": 6,
+          "direction": "right",
+          "entryM": 2475,
+          "turnInM": 2500,
+          "apexM": 2610,
+          "exitM": 2725,
+          "flat": false,
+          "minSpeedKmh": 100
+        },
+        {
+          "n": 7,
+          "direction": "left",
+          "entryM": 2750,
+          "turnInM": 2750,
+          "apexM": 2750,
+          "exitM": 2855,
+          "flat": true,
+          "minSpeedKmh": 154
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "direction": "mixed",
+      "entryM": 2870,
+      "turnInM": 2880,
+      "apexM": 3160,
+      "exitM": 3375,
+      "flat": false,
+      "minSpeedKmh": 99,
+      "parts": [
+        {
+          "n": 8,
+          "direction": "right",
+          "entryM": 2870,
+          "turnInM": 2880,
+          "apexM": 2960,
+          "exitM": 3045,
+          "flat": false,
+          "minSpeedKmh": 154
+        },
+        {
+          "n": 9,
+          "direction": "left",
+          "entryM": 3065,
+          "turnInM": 3065,
+          "apexM": 3160,
+          "exitM": 3375,
+          "flat": false,
+          "minSpeedKmh": 99
+        }
+      ]
+    },
+    {
+      "n": 7,
+      "direction": "right",
+      "entryM": 3670,
+      "turnInM": 3705,
+      "apexM": 3985,
+      "exitM": 4070,
+      "flat": false,
+      "minSpeedKmh": 159,
+      "parts": [
+        {
+          "n": 10,
+          "direction": "right",
+          "entryM": 3670,
+          "turnInM": 3705,
+          "apexM": 3985,
+          "exitM": 4070,
+          "flat": false,
+          "minSpeedKmh": 159
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "direction": "right",
+      "entryM": 4110,
+      "turnInM": 4120,
+      "apexM": 4200,
+      "exitM": 4315,
+      "flat": false,
+      "minSpeedKmh": 148,
+      "parts": [
+        {
+          "n": 11,
+          "direction": "right",
+          "entryM": 4110,
+          "turnInM": 4120,
+          "apexM": 4200,
+          "exitM": 4315,
+          "flat": false,
+          "minSpeedKmh": 148
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "direction": "left",
+      "entryM": 4415,
+      "turnInM": 4435,
+      "apexM": 4520,
+      "exitM": 4625,
+      "flat": false,
+      "minSpeedKmh": 142,
+      "parts": [
+        {
+          "n": 12,
+          "direction": "left",
+          "entryM": 4415,
+          "turnInM": 4435,
+          "apexM": 4520,
+          "exitM": 4625,
+          "flat": false,
+          "minSpeedKmh": 142
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "direction": "right",
+      "entryM": 4850,
+      "turnInM": 4895,
+      "apexM": 4975,
+      "exitM": 5100,
+      "flat": false,
+      "minSpeedKmh": 104,
+      "parts": [
+        {
+          "n": 13,
+          "direction": "right",
+          "entryM": 4850,
+          "turnInM": 4895,
+          "apexM": 4975,
+          "exitM": 5100,
+          "flat": false,
+          "minSpeedKmh": 104
+        }
+      ]
+    }
+  ],
+  "source": {
+    "sessionId": "207bd90c4863eb6c",
+    "builtAt": "2026-09-27T20:34:02.653Z"
+  },
+  "analysisVersion": 2
+}

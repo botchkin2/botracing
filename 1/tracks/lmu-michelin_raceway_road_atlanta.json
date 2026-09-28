@@ -1,0 +1,189 @@
+{
+  "id": "lmu-michelin_raceway_road_atlanta",
+  "ownerId": "botkin",
+  "sim": "lmu",
+  "track": {
+    "name": "Michelin Raceway Road Atlanta",
+    "variant": "Michelin Raceway Road Atlanta"
+  },
+  "mapVersion": 3,
+  "lengthM": 4078.8,
+  "stepM": 5,
+  "corners": [
+    {
+      "n": 1,
+      "direction": "right",
+      "entryM": 305,
+      "turnInM": 345,
+      "apexM": 470,
+      "exitM": 625,
+      "flat": false,
+      "minSpeedKmh": 166,
+      "parts": [
+        {
+          "n": 1,
+          "direction": "right",
+          "entryM": 305,
+          "turnInM": 345,
+          "apexM": 470,
+          "exitM": 625,
+          "flat": false,
+          "minSpeedKmh": 166
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "direction": "mixed",
+      "entryM": 655,
+      "turnInM": 655,
+      "apexM": 840,
+      "exitM": 1205,
+      "flat": false,
+      "minSpeedKmh": 120,
+      "parts": [
+        {
+          "n": 2,
+          "direction": "left",
+          "entryM": 655,
+          "turnInM": 655,
+          "apexM": 765,
+          "exitM": 765,
+          "flat": false,
+          "minSpeedKmh": 170
+        },
+        {
+          "n": 3,
+          "direction": "right",
+          "entryM": 770,
+          "turnInM": 790,
+          "apexM": 840,
+          "exitM": 875,
+          "flat": false,
+          "minSpeedKmh": 120
+        },
+        {
+          "n": 4,
+          "direction": "left",
+          "entryM": 890,
+          "turnInM": 890,
+          "apexM": 890,
+          "exitM": 1025,
+          "flat": false,
+          "minSpeedKmh": 142
+        },
+        {
+          "n": 5,
+          "direction": "right",
+          "entryM": 1050,
+          "turnInM": 1050,
+          "apexM": 1050,
+          "exitM": 1205,
+          "flat": false,
+          "minSpeedKmh": 182
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "direction": "left",
+      "entryM": 1340,
+      "turnInM": 1375,
+      "apexM": 1430,
+      "exitM": 1500,
+      "flat": false,
+      "minSpeedKmh": 138,
+      "parts": [
+        {
+          "n": 6,
+          "direction": "left",
+          "entryM": 1340,
+          "turnInM": 1375,
+          "apexM": 1430,
+          "exitM": 1500,
+          "flat": false,
+          "minSpeedKmh": 138
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "direction": "right",
+      "entryM": 1870,
+      "turnInM": 1910,
+      "apexM": 2155,
+      "exitM": 2240,
+      "flat": false,
+      "minSpeedKmh": 84,
+      "parts": [
+        {
+          "n": 7,
+          "direction": "right",
+          "entryM": 1870,
+          "turnInM": 1910,
+          "apexM": 1985,
+          "exitM": 2080,
+          "flat": false,
+          "minSpeedKmh": 131
+        },
+        {
+          "n": 8,
+          "direction": "right",
+          "entryM": 2085,
+          "turnInM": 2085,
+          "apexM": 2155,
+          "exitM": 2240,
+          "flat": false,
+          "minSpeedKmh": 84
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "direction": "mixed",
+      "entryM": 3365,
+      "turnInM": 3460,
+      "apexM": 3520,
+      "exitM": 4055,
+      "flat": false,
+      "minSpeedKmh": 96,
+      "parts": [
+        {
+          "n": 9,
+          "direction": "left",
+          "entryM": 3365,
+          "turnInM": 3460,
+          "apexM": 3520,
+          "exitM": 3540,
+          "flat": false,
+          "minSpeedKmh": 96
+        },
+        {
+          "n": 10,
+          "direction": "right",
+          "entryM": 3550,
+          "turnInM": 3550,
+          "apexM": 3575,
+          "exitM": 3780,
+          "flat": false,
+          "minSpeedKmh": 110
+        },
+        {
+          "n": 11,
+          "direction": "right",
+          "entryM": 3785,
+          "turnInM": 3785,
+          "apexM": 3785,
+          "exitM": 4055,
+          "flat": true,
+          "minSpeedKmh": 177
+        }
+      ]
+    }
+  ],
+  "source": {
+    "sessionId": "bc1d5cd65e511410",
+    "builtAt": "2026-09-27T20:02:44.129Z"
+  },
+  "analysisVersion": 2
+}
