@@ -3,7 +3,7 @@
 // Layout (docs/STORAGE.md):
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/samples.parquet
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/events.parquet
-//   gs://BUCKET/traces/{ownerId}/{lapId}/v1.csv.gz
+//   gs://BUCKET/traces/{ownerId}/{lapId}/v2.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)

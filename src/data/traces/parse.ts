@@ -5,6 +5,8 @@ import {type RawTrace} from '@/src/analysis/resample';
 // uploader divides LMU's km/h by 3.6); Brake and Throttle are
 // 0..1. For LMU, SteeringWheelAngle is the fraction of steering lock (-1..1),
 // not radians (docs/LMU_SYNC_NOTES.md), so steering is shown as % of lock.
+// A channel logged slower than the file (Lat, Lon, Brake, Throttle) is empty
+// on rows where it recorded nothing; those parse as NaN, "no sample".
 export function parseTraceCsv(csv: string): RawTrace {
   const lines = csv.trim().split(/\r?\n/);
   const header = lines[0].split(',');
@@ -34,7 +36,8 @@ export function parseTraceCsv(csv: string): RawTrace {
     lon: [],
   };
   for (let i = 1; i < lines.length; i++) {
-    const v = lines[i].split(',');
+    const cells = lines[i].split(',');
+    const v = cells.map(x => (x === '' ? NaN : x));
     out.lapDistPct.push(Number(v[c.pct]));
     out.speedKph.push(Number(v[c.speed]) * 3.6);
     out.throttlePct.push(Number(v[c.throttle]) * 100);
