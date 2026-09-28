@@ -25,7 +25,8 @@ const LOG_NAME =
 
 // The log name is the game's start time in the PC's local time zone. The
 // uploader runs on the PC that wrote the logs, so the local zone is the right
-// one to read it in.
+// one to read it in. The hour repeated when daylight saving ends is ambiguous;
+// a log started in it can be off by an hour, once a year.
 export function logStart(name) {
   const m = name.match(LOG_NAME);
   if (!m) return null;

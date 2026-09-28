@@ -103,20 +103,39 @@ export async function getTrack(trackId) {
 // Which online event each session was, without re-uploading anything else.
 // update, not set: a session that was never uploaded stays absent.
 // items: [{session: {id, series, eventId}, recordings: [{id, event}]}]
+// Returns the writes that failed, as "collection/id: reason". bulkWriter
+// drops a failed write without rejecting close(), so they are collected here.
 export async function updateEvents(items) {
   const {db} = connect();
   const writer = db.bulkWriter();
+  const failed = [];
+  // gRPC codes worth retrying: deadline, exhausted, aborted, internal, unavailable.
+  const transient = new Set([4, 8, 10, 13, 14]);
+  writer.onWriteError(error => {
+    if (transient.has(error.code) && error.failedAttempts < 5) return true;
+    failed.push(`${error.documentRef.path}: ${error.message}`);
+    return false;
+  });
+  // Each update's promise rejects once onWriteError gives up. The failure is
+  // already in `failed`; waiting on them keeps it from being unhandled.
+  const writes = [];
   for (const {session, recordings} of items) {
-    writer.update(db.collection('sessions').doc(session.id), {
-      series: session.series,
-      eventId: session.eventId,
-    });
+    writes.push(
+      writer.update(db.collection('sessions').doc(session.id), {
+        series: session.series,
+        eventId: session.eventId,
+      }),
+    );
     for (const rec of recordings)
-      writer.update(db.collection('recordings').doc(rec.id), {
-        event: rec.event,
-      });
+      writes.push(
+        writer.update(db.collection('recordings').doc(rec.id), {
+          event: rec.event,
+        }),
+      );
   }
   await writer.close();
+  await Promise.allSettled(writes);
+  return failed;
 }
 
 // out is what sync.mjs builds: {session, recordings, laps, band, track,

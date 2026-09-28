@@ -216,6 +216,10 @@ function eventsOf(s, eventWindows) {
     event: adapter.eventFor(eventWindows, f.info.recordedAt),
   }));
   const event = recordings.find(r => r.event)?.event ?? null;
+  const ids = new Set(recordings.map(r => r.event?.eventId).filter(Boolean));
+  // One session spanning two events means the grouping or a window is wrong.
+  if (ids.size > 1)
+    log(`  warning: ${s.id} spans events ${[...ids].join(', ')}`);
   return {
     session: {
       id: s.id,
@@ -461,15 +465,19 @@ async function main() {
     const items = sessions
       .filter(s => state.sessions[s.id])
       .map(s => eventsOf(s, eventWindows));
-    for (const {session} of items) {
-      if (session.series) log(`${session.id} ${session.series}`);
+    for (const {session, recordings} of items) {
+      if (!session.series) continue;
+      const gaps = recordings.map(r => r.event?.gapS ?? '-').join(' ');
+      log(`${session.id} ${session.series} (gap s: ${gaps})`);
     }
-    if (!local) await store.updateEvents(items);
+    const failed = local ? [] : await store.updateEvents(items);
+    for (const line of failed) log(`  failed: ${line}`);
     log(
       `events set on ${items.length} uploaded sessions, ${
         items.filter(i => i.session.series).length
-      } online`,
+      } online, ${failed.length} writes failed`,
     );
+    if (failed.length) process.exitCode = 1;
     return;
   }
 
