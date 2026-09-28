@@ -13,7 +13,12 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
-import {useSession} from '@/src/data/sessions';
+import {
+  firstCornerOf,
+  trackCorners,
+  useSession,
+  useSessionMap,
+} from '@/src/data/sessions';
 import {
   ThemeProvider as AppThemeProvider,
   carLabel,
@@ -25,6 +30,7 @@ import {
 } from '@/src/design';
 import {
   compareHref,
+  cornerHref,
   parseSelection,
   sessionHref,
   settingsHref,
@@ -136,7 +142,20 @@ function ChromeBar({
   const router = useRouter();
   // Only the lap selection travels between tabs; corner and cursor belong
   // to the workspace that set them.
-  const {laps, hl} = useGlobalSearchParams<{laps?: string; hl?: string}>();
+  const {laps, hl, c, n} = useGlobalSearchParams<{
+    laps?: string;
+    hl?: string;
+    c?: string;
+    n?: string;
+  }>();
+  const map = useSessionMap(sessionId ?? '');
+  // Corner tab: the open corner, else the open section's first corner, else C1.
+  const cornerN =
+    tab === 'corner' && n
+      ? Number(n)
+      : (map.data && c
+          ? firstCornerOf(trackCorners(map.data), Number(c))
+          : null) ?? 1;
   const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
   const sel = {laps: lapIds, hl: hlId};
   const tabs: ChromeTab[] = [
@@ -154,8 +173,13 @@ function ChromeBar({
         ? () => router.navigate(compareHref(sessionId, sel))
         : undefined,
     },
-    // No onPress until the Corner route lands with the corner workspace.
-    {key: 'corner', label: 'Corner'},
+    {
+      key: 'corner',
+      label: 'Corner',
+      onPress: sessionId
+        ? () => router.navigate(cornerHref(sessionId, cornerN, sel))
+        : undefined,
+    },
   ];
   return (
     <AppChrome

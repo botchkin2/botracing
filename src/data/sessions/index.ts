@@ -25,6 +25,7 @@ export {
 export {
   firstCornerOf,
   lapCornerFacts,
+  lapCornerTimes,
   type TrackCorner,
   trackCorners,
 } from './corners';

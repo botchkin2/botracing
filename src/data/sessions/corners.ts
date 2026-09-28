@@ -54,3 +54,13 @@ export function firstCornerOf(
 ): number | null {
   return corners.find(c => c.sectionN === sectionN)?.n ?? null;
 }
+
+/**
+ * A lap's segment time for every corner in track order (sections' parts),
+ * without needing the track map. Same order as trackCorners().
+ */
+export function lapCornerTimes(lap: Lap): (number | null)[] {
+  return lap.sections.flatMap(s =>
+    s.parts.length ? s.parts.map(p => p.segTimeS) : [s.segTimeS],
+  );
+}

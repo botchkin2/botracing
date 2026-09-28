@@ -55,6 +55,8 @@ export function useSessionMap(id: string) {
   return useQuery({
     queryKey: sessionKeys.map(id),
     queryFn: ({signal}) => fetchSessionMap(id, signal),
+    // The chrome asks with no session open; don't fetch then.
+    enabled: id !== '',
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
