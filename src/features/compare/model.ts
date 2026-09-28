@@ -1,4 +1,10 @@
-import {type GridTrace, gridIndex, timeDiffS} from '@/src/analysis/resample';
+import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
+import {
+  type GridTrace,
+  gridIndex,
+  type NativeChannel,
+  timeDiffS,
+} from '@/src/analysis/resample';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
@@ -62,6 +68,8 @@ type ChannelSpec = {
   desktopHeight: number;
   format: (v: number) => string;
   pick: (t: GridTrace) => number[];
+  /** Drawn from, and read at, its recorded samples (not the grid). */
+  native?: NativeChannel;
 };
 
 // Heights and copy from the handoff (Compare chart heights, chart descs).
@@ -88,6 +96,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     desktopHeight: 150,
     format: v => v.toFixed(0),
     pick: t => t.speedKph,
+    native: 'speedKph',
   },
   throttle: {
     label: 'Throttle',
@@ -98,6 +107,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     desktopHeight: 106,
     format: v => v.toFixed(0),
     pick: t => t.throttlePct,
+    native: 'throttlePct',
   },
   brake: {
     label: 'Brake',
@@ -108,6 +118,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     desktopHeight: 106,
     format: v => v.toFixed(0),
     pick: t => t.brakePct,
+    native: 'brakePct',
   },
   steering: {
     label: 'Steering',
@@ -120,6 +131,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     desktopHeight: 84,
     format: v => v.toFixed(0),
     pick: t => t.steeringPct,
+    native: 'steeringPct',
   },
   gear: {
     label: 'Gear',
@@ -130,6 +142,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     desktopHeight: 60,
     format: v => v.toFixed(0),
     pick: t => t.gear,
+    native: 'gear',
   },
 };
 
@@ -151,7 +164,10 @@ export type ChartLine = LapRef & {
   channel: ChannelId;
   /** 0 = solid, 1 = dashed, 2 = dotted (overlay order). */
   overlay: number;
+  /** On the grid: y fits and cross-lap maths. */
   values: number[];
+  /** Recorded samples, drawn instead of the grid when present. */
+  samples?: NativeSamples;
 };
 
 export type ChartValueRow = {
@@ -277,6 +293,8 @@ export type Readout = {
   selIndex: number;
   highlighted: boolean;
   channels: Record<ChannelId, number[]>;
+  /** Recorded samples per native channel: readouts use the nearest one. */
+  samples: Partial<Record<ChannelId, NativeSamples>>;
 };
 
 /** Values table rows (desktop): each channel × each key lap at a distance. */
@@ -302,7 +320,12 @@ export function valuesAt(
     unit: CHANNELS[ch].unit,
     values: readouts.map(r => {
       const a = r.channels[ch];
-      const v = a.length ? a[Math.min(a.length - 1, i)] : null;
+      const own = r.samples[ch];
+      const v = own
+        ? nearestSample(own, m)
+        : a.length
+        ? a[Math.min(a.length - 1, i)]
+        : null;
       return {
         lapId: r.lapId,
         selIndex: r.selIndex,
@@ -550,10 +573,21 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const t = traces.get(lapId);
     return t ? CHANNELS[ch].pick(t) : null;
   };
-  const at = (values: number[] | null) =>
-    values
-      ? values[Math.min(values.length - 1, Math.round(cursorM / stepM))]
+  const samplesOf = (ch: ChannelId, lapId: string) => {
+    const k = CHANNELS[ch].native;
+    const t = traces.get(lapId);
+    return k && t ? t.samples[k] : undefined;
+  };
+  // A readout is the nearest recorded sample, never an in-between value
+  // (Botkin, thread 26 #392); the time diff is a grid quantity.
+  const readAt = (ch: ChannelId, lapId: string, m: number) => {
+    const own = samplesOf(ch, lapId);
+    if (own) return nearestSample(own, m);
+    const values = valuesOf(ch, lapId);
+    return values
+      ? values[Math.min(values.length - 1, Math.round(m / stepM))]
       : null;
+  };
 
   const charts: ChartModel[] = (input.charts ?? DEFAULT_CHARTS).map(chs => {
     const lines: ChartLine[] = [];
@@ -561,7 +595,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       for (const r of lapRefs) {
         const raw = valuesOf(ch, r.lapId);
         if (!raw) continue;
-        lines.push({...r, channel: ch, overlay, values: raw});
+        lines.push({
+          ...r,
+          channel: ch,
+          overlay,
+          values: raw,
+          samples: samplesOf(ch, r.lapId),
+        });
       }
     });
     // Channels of the same kind share a scale; mixed kinds keep their own.
@@ -628,7 +668,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         unit: CHANNELS[ch].unit,
         overlay,
         values: keyRefs.map(r => {
-          const v = at(valuesOf(ch, r.lapId));
+          const v = readAt(ch, r.lapId, cursorM);
           return {
             lapId: r.lapId,
             selIndex: r.selIndex,
@@ -756,7 +796,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       place: cornerPlace(map?.sections ?? [], cursorM),
       distance: formatDistance(cursorM),
       speeds: keyRefs.map(r => {
-        const v = at(traces.get(r.lapId)?.speedKph ?? null);
+        const v = readAt('speed', r.lapId, cursorM);
         return {
           lapId: r.lapId,
           selIndex: r.selIndex,
@@ -794,6 +834,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       channels: Object.fromEntries(
         CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
       ) as Record<ChannelId, number[]>,
+      samples: Object.fromEntries(
+        CHANNEL_IDS.flatMap(ch => {
+          const own = samplesOf(ch, r.lapId);
+          return own ? [[ch, own]] : [];
+        }),
+      ),
     })),
     overview: lapRefs.flatMap(r => {
       const values = diffs.get(r.lapId);

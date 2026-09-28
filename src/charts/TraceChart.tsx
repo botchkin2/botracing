@@ -1,3 +1,9 @@
+import {
+  type NativeSamples,
+  sliceSamples,
+  thinSamples,
+} from '@/src/analysis/nativeSamples';
+
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -36,6 +42,8 @@ export type TraceSeries = {
   domain?: [number, number];
   /** Discrete channel (gear): drawn as steps, never smoothed. */
   stepped?: boolean;
+  /** Recorded samples: drawn instead of `values` when given. */
+  samples?: NativeSamples;
 };
 
 export type TraceBand = {low: number[]; high: number[]};
@@ -64,6 +72,54 @@ function smoothPath(pts: Pt[]): string {
     d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(
       1,
     )} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
+// A curve through every point that never overshoots them (Fritsch–Carlson
+// monotone cubic): a light smoothing of real samples that invents no peak
+// or dip between them (Botkin, thread 26 #397; pitlane #402).
+function monotonePath(pts: Pt[]): string {
+  const n = pts.length;
+  if (n < 3)
+    return pts
+      .map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
+      .join('');
+  const dx: number[] = [];
+  const slope: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1][0] - pts[i][0] || 1e-6);
+    slope.push((pts[i + 1][1] - pts[i][1]) / dx[i]);
+  }
+  const t: number[] = [slope[0]];
+  for (let i = 1; i < n - 1; i++)
+    t.push(slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2);
+  t.push(slope[n - 2]);
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) {
+      t[i] = 0;
+      t[i + 1] = 0;
+      continue;
+    }
+    const a = t[i] / slope[i];
+    const b = t[i + 1] / slope[i];
+    const h = a * a + b * b;
+    if (h > 9) {
+      const k = 3 / Math.sqrt(h);
+      t[i] = k * a * slope[i];
+      t[i + 1] = k * b * slope[i];
+    }
+  }
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const h = dx[i] / 3;
+    d += `C${(x0 + h).toFixed(1)},${(y0 + t[i] * h).toFixed(1)} ${(
+      x1 - h
+    ).toFixed(1)},${(y1 - t[i + 1] * h).toFixed(1)} ${x1.toFixed(
+      1,
+    )},${y1.toFixed(1)}`;
   }
   return d;
 }
@@ -170,6 +226,17 @@ export function TraceChart({
     () =>
       series.map((s, si) => {
         const ys = yFor(seriesDomainsT[si] ?? domainT);
+        if (s.samples) {
+          // Recorded samples in the window; at whole-lap zoom, the extremes
+          // per point, so every drawn vertex is still a real sample.
+          let w = sliceSamples(s.samples, startM, endM);
+          if (w.distanceM.length > width * 2) w = thinSamples(w, spanM / width);
+          const pts: Pt[] = w.distanceM.map((m, k) => [
+            xOfM(m),
+            ys(w.values[k]),
+          ]);
+          return {...s, d: s.stepped ? steppedPath(pts) : monotonePath(pts)};
+        }
         const last = Math.min(to, s.values.length - 1);
         const stride = Math.max(1, Math.floor(pointsPerPt));
         const pts: Pt[] = [];

@@ -23,6 +23,14 @@ export interface RawTrace {
   lon: number[];
 }
 
+// Channels drawn from their real samples (see nativeSamples.ts).
+export type NativeChannel =
+  | 'speedKph'
+  | 'throttlePct'
+  | 'brakePct'
+  | 'steeringPct'
+  | 'gear';
+
 export interface GridTrace {
   stepM: number;
   distanceM: number[];
@@ -35,6 +43,9 @@ export interface GridTrace {
   lon: number[];
   // Seconds since the first sample.
   timeS: number[];
+  // Each drawn channel's recorded samples at their own distances; the grid
+  // above is for cross-lap maths only.
+  samples: Record<NativeChannel, {distanceM: number[]; values: number[]}>;
 }
 
 // Linear interpolation of ys at x over ascending xs. Holds the ends.
@@ -125,6 +136,10 @@ export function resampleTrace(
       ),
     );
   };
+  const native = (a: number[]) => {
+    const real = keep.filter(i => Number.isFinite(a[i]));
+    return {distanceM: real.map(i => d[i]), values: real.map(i => a[i])};
+  };
   const speedKph = lin(raw.speedKph);
   const timeS = lin(raw.lapDistPct.map((_, i) => i / sampleHz));
   return {
@@ -138,6 +153,13 @@ export function resampleTrace(
     lat: lin(raw.lat),
     lon: lin(raw.lon),
     timeS,
+    samples: {
+      speedKph: native(raw.speedKph),
+      throttlePct: native(raw.throttlePct),
+      brakePct: native(raw.brakePct),
+      steeringPct: native(raw.steeringPct),
+      gear: native(raw.gear),
+    },
   };
 }
 
