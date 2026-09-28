@@ -1,3 +1,4 @@
+import {useState} from 'react';
 import {Modal, Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Line} from 'react-native-svg';
 
@@ -38,6 +39,8 @@ export function ChartEditor({
 }) {
   const {color} = useTheme();
   const layout = useLayout();
+  // Which row's channel pills are open (behind its "+ overlay" chip).
+  const [openRow, setOpenRow] = useState<number | null>(null);
   const unused = (chart: ChannelId[]) =>
     CHANNEL_IDS.filter(c => !chart.includes(c));
 
@@ -79,7 +82,7 @@ export function ChartEditor({
               />
             ))}
           </View>
-          <ScrollView contentContainerStyle={styles.rows}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.rows}>
             {charts.map((chart, i) => (
               <View
                 key={`${i}-${chart.join('+')}`}
@@ -133,14 +136,23 @@ export function ChartEditor({
                 </View>
                 {chart.length < MAX_OVERLAY && (
                   <View style={styles.wrap}>
-                    {unused(chart).map(ch => (
-                      <Chip
-                        key={ch}
-                        dashed
-                        label={`+ ${CHANNELS[ch].label}`}
-                        onPress={() => onChange(toggleChannel(charts, i, ch))}
-                      />
-                    ))}
+                    <Chip
+                      dashed
+                      label='+ overlay'
+                      selected={openRow === i}
+                      onPress={() => setOpenRow(openRow === i ? null : i)}
+                    />
+                    {openRow === i &&
+                      unused(chart).map(ch => (
+                        <Chip
+                          key={ch}
+                          label={CHANNELS[ch].label}
+                          onPress={() => {
+                            onChange(toggleChannel(charts, i, ch));
+                            setOpenRow(null);
+                          }}
+                        />
+                      ))}
                   </View>
                 )}
               </View>
@@ -167,7 +179,9 @@ export function ChartEditor({
 
 const styles = StyleSheet.create({
   scrim: {flex: 1},
-  sheet: {padding: space.xl, gap: space.md},
+  // overflow hidden + a flexing ScrollView keep a long list inside the sheet.
+  sheet: {padding: space.xl, gap: space.md, overflow: 'hidden'},
+  scroll: {flex: 1},
   bottom: {
     position: 'absolute',
     top: 120,
