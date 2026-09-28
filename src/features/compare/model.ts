@@ -12,10 +12,12 @@ import {
 } from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
+  firstCornerOf,
   type Lap,
   type SessionBand,
   type SessionDetail,
   type TrackMapData,
+  trackCorners,
 } from '@/src/data/sessions';
 import {
   formatDistance,
@@ -240,6 +242,8 @@ export type CompareModel = {
   overview: ChartLine[];
   /** Section number → entry distance, for grid row labels. */
   sectionEntryM: Record<number, number>;
+  /** Section number → its first single corner, which Corner opens. */
+  sectionFirstCorner: Record<number, number>;
 };
 
 export type AllLapsStint = {
@@ -698,6 +702,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         ? [{...r, channel: 'timeDiff' as const, overlay: 0, values}]
         : [];
     }),
+    sectionFirstCorner: Object.fromEntries(
+      (map?.sections ?? []).map(s => [
+        s.n,
+        firstCornerOf(trackCorners(map!), s.n) ?? s.n,
+      ]),
+    ),
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),
     ),

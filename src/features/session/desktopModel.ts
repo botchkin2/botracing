@@ -2,7 +2,9 @@ import {useMemo} from 'react';
 
 import {
   type Lap,
+  lapCornerTimes,
   type SessionDetail,
+  trackCorners,
   useSession,
   useSessionLaps,
   useSessionMap,
@@ -153,16 +155,6 @@ export function buildDistribution(
   return {rows, dots, axis};
 }
 
-/** Segment times of every corner on a lap, in track order (parts of each section). */
-function cornerTimes(lap: Lap): (number | null)[] {
-  const out: (number | null)[] = [];
-  for (const section of lap.sections) {
-    if (section.parts.length === 0) out.push(section.segTimeS);
-    else for (const p of section.parts) out.push(p.segTimeS);
-  }
-  return out;
-}
-
 /**
  * Median segment time per corner for the second stint minus the first,
  * comparable laps only. Null unless two stints both have comparable laps
@@ -178,7 +170,7 @@ export function buildStintVsStint(
       n,
       times: laps
         .filter(l => l.stint === n && l.comparable)
-        .map(cornerTimes)
+        .map(lapCornerTimes)
         .filter(t => t.length > 0),
     }))
     .filter(s => s.times.length > 0);
@@ -231,10 +223,8 @@ export function useSessionDesktopModel(
   const map = useSessionMap(id);
   return useMemo(() => {
     if (!session.data || !laps.data) return null;
-    // Corner numbers are the map's parts (C1–C11), one per stored corners[].parts entry.
-    const corners = map.data
-      ? map.data.sections.flatMap(s => (s.parts.length ? s.parts : [s]))
-      : null;
+    // Corner numbers are the map's parts (C1–C11), in lapCornerTimes order.
+    const corners = map.data ? trackCorners(map.data) : null;
     return {
       stints: buildStintTable(session.data, laps.data),
       distribution: buildDistribution(session.data, laps.data, selection),

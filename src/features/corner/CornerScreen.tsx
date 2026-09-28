@@ -1,0 +1,537 @@
+import {useRouter} from 'expo-router';
+import {useState} from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+
+import {DotStrip, TraceChart} from '@/src/charts';
+import {
+  lapColors,
+  lapStroke,
+  radius,
+  space,
+  useLayout,
+  useTheme,
+} from '@/src/design';
+import {compareHref, cornerHref} from '@/src/nav/routes';
+import {Chip, Explainer, Text} from '@/src/ui';
+
+import {
+  type CornerModel,
+  type CornerRow,
+  type CornerSelection,
+  type Measure,
+  MEASURES,
+  sortRows,
+  type ZoomLine,
+} from './model';
+import {useCornerModel} from './useCornerModel';
+
+export type {CornerSelection} from './model';
+
+// Zoomed trace heights: phone (handoff §4) and desktop (D3).
+const PHONE_H = {speed: 96, brake: 52, throttle: 52};
+const DESK_H = {speed: 226, brake: 122, throttle: 122};
+const DESK_LEFT_W = 600;
+const DESK_RIGHT_W = 840;
+const DOT_GREY = '#6b737c';
+
+export function CornerScreen({
+  sessionId,
+  corner,
+  selection,
+  onSelectionChange,
+}: {
+  sessionId: string;
+  corner: number;
+  selection: CornerSelection;
+  onSelectionChange: (next: CornerSelection) => void;
+}) {
+  const layout = useLayout();
+  // Distributions pay off with many laps: on the desktop, default to every
+  // comparable lap when the selection has at most one (livery #264).
+  const [allComparable, setAllComparable] = useState(
+    layout.isWide && selection.laps.length <= 1,
+  );
+  const result = useCornerModel(sessionId, corner, selection, allComparable);
+  const {color} = useTheme();
+  const insets = useSafeAreaInsets();
+
+  if (result.state !== 'ready')
+    return (
+      <View
+        style={[
+          styles.screen,
+          styles.center,
+          {backgroundColor: color.bg, paddingTop: insets.top},
+        ]}>
+        {result.state === 'loading' ? (
+          <ActivityIndicator color={color.accent} />
+        ) : (
+          <Text tone='textMuted'>
+            {result.state === 'missing'
+              ? result.noMap
+                ? 'No corner map for this track yet.'
+                : `No corner ${corner} on this track.`
+              : `Couldn’t load: ${result.message}`}
+          </Text>
+        )}
+      </View>
+    );
+  return (
+    <CornerView
+      sessionId={sessionId}
+      model={result.model}
+      lapIds={result.lapIds}
+      selection={selection}
+      allComparable={allComparable}
+      onAllComparable={setAllComparable}
+      onSelectionChange={onSelectionChange}
+    />
+  );
+}
+
+function CornerView({
+  sessionId,
+  model,
+  lapIds,
+  selection,
+  allComparable,
+  onAllComparable,
+  onSelectionChange,
+}: {
+  sessionId: string;
+  model: CornerModel;
+  lapIds: string[];
+  selection: CornerSelection;
+  allComparable: boolean;
+  onAllComparable: (on: boolean) => void;
+  onSelectionChange: (next: CornerSelection) => void;
+}) {
+  const {color, scheme} = useTheme();
+  const layout = useLayout();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [sort, setSort] = useState<{by: Measure; dir: 'asc' | 'desc'}>({
+    by: 'time',
+    dir: 'asc',
+  });
+
+  const count = lapIds.length;
+  const lapColor = (selIndex: number, highlighted: boolean) =>
+    lapStroke(scheme, selIndex, count, highlighted).color;
+  const highlight = (lapId: string) =>
+    onSelectionChange({...selection, hl: lapId});
+  const go = (n: number) =>
+    router.replace(
+      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
+    );
+
+  const header = (
+    <View style={styles.gap}>
+      <View style={styles.row}>
+        <Pressable
+          accessibilityRole='link'
+          hitSlop={space.md}
+          onPress={() =>
+            router.navigate(
+              compareHref(sessionId, {
+                laps: selection.laps,
+                hl: selection.hl,
+                corner: model.sectionN,
+              }),
+            )
+          }>
+          <Text variant='bodyStrong' tone='accentInk'>
+            ‹ Compare
+          </Text>
+        </Pressable>
+        <View style={styles.flex} />
+        {model.prev != null && (
+          <Chip label='‹' onPress={() => go(model.prev!)} />
+        )}
+        {model.next != null && (
+          <Chip label='›' onPress={() => go(model.next!)} />
+        )}
+      </View>
+      <Text variant='display'>{model.title}</Text>
+      <Text variant='dataSmall' tone='textMuted'>
+        {model.subtitle}
+      </Text>
+      <View style={styles.wrap}>
+        {model.corners.map(n => (
+          <Chip
+            key={n}
+            label={`C${n}`}
+            selected={n === model.corner}
+            onPress={() => go(n)}
+          />
+        ))}
+        <Chip
+          label={
+            allComparable ? '✓ All comparable laps' : '+ All comparable laps'
+          }
+          selected={allComparable}
+          onPress={() => onAllComparable(!allComparable)}
+        />
+      </View>
+    </View>
+  );
+
+  const measures = (
+    <View style={styles.gap}>
+      {model.strips
+        ? model.strips.map(s => (
+            <View key={s.measure} style={styles.gap}>
+              <View style={styles.row}>
+                <Text variant='label' tone='textMuted'>
+                  {s.label}
+                </Text>
+                <Text variant='dataSmall' tone='textFaint'>
+                  {s.unit}
+                </Text>
+                <View style={styles.flex} />
+                <Text variant='dataSmall' tone='textMuted'>
+                  {s.summary}
+                </Text>
+              </View>
+              <DotStrip
+                width={layout.isWide ? 440 : layout.contentWidth}
+                min={s.min}
+                max={s.max}
+                flipped={s.flipped}
+                dots={s.dots.map(d => ({
+                  key: d.lapId,
+                  value: d.value,
+                  color: d.isRef
+                    ? lapColors[scheme][0]
+                    : d.highlighted
+                    ? lapColors[scheme][1]
+                    : DOT_GREY,
+                  r: d.isRef || d.highlighted ? 4.2 : 2.8,
+                  opacity: d.isRef || d.highlighted ? 1 : 0.55,
+                  stack: d.stack,
+                  top: d.isRef || d.highlighted,
+                }))}
+                onPressDot={highlight}
+              />
+            </View>
+          ))
+        : null}
+      {(!model.strips || layout.isWide) && (
+        <CornerTable
+          rows={
+            layout.isWide ? sortRows(model.rows, sort.by, sort.dir) : model.rows
+          }
+          sortable={layout.isWide}
+          sort={sort}
+          onSort={by =>
+            setSort(s =>
+              s.by === by
+                ? {by, dir: s.dir === 'asc' ? 'desc' : 'asc'}
+                : {by, dir: by === 'minSpeed' ? 'desc' : 'asc'},
+            )
+          }
+          lapColor={lapColor}
+          onPressRow={highlight}
+        />
+      )}
+      {model.highlightLine && (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {model.highlightLine}
+        </Text>
+      )}
+      <Explainer>{model.explainer}</Explainer>
+    </View>
+  );
+
+  const tracesW = layout.isWide ? DESK_RIGHT_W - 40 : layout.contentWidth;
+  const h = layout.isWide ? DESK_H : PHONE_H;
+  const traces = (
+    <ZoomTraces
+      model={model}
+      width={tracesW}
+      heights={h}
+      lapStyle={(i, hl) => lapStroke(scheme, i, count, hl)}
+    />
+  );
+
+  const top = {paddingTop: insets.top + space.lg};
+  if (layout.isWide)
+    return (
+      <View
+        style={[styles.screen, styles.columns, {backgroundColor: color.bg}]}>
+        <ScrollView
+          style={{width: DESK_LEFT_W, flexGrow: 0}}
+          contentContainerStyle={[styles.col, top]}>
+          {header}
+          {measures}
+        </ScrollView>
+        <ScrollView
+          style={{width: DESK_RIGHT_W, flexGrow: 0}}
+          contentContainerStyle={[styles.col, top]}>
+          {model.highlightLine && (
+            <Text variant='dataStrong'>{model.highlightLine}</Text>
+          )}
+          {traces}
+        </ScrollView>
+      </View>
+    );
+  return (
+    <ScrollView
+      style={[styles.screen, {backgroundColor: color.bg}]}
+      contentContainerStyle={[
+        styles.col,
+        top,
+        {width: layout.contentWidth, alignSelf: 'center'},
+      ]}>
+      {header}
+      {measures}
+      {traces}
+    </ScrollView>
+  );
+}
+
+function CornerTable({
+  rows,
+  sortable,
+  sort,
+  onSort,
+  lapColor,
+  onPressRow,
+}: {
+  rows: CornerRow[];
+  sortable: boolean;
+  sort: {by: Measure; dir: 'asc' | 'desc'};
+  onSort: (by: Measure) => void;
+  lapColor: (selIndex: number, highlighted: boolean) => string;
+  onPressRow: (lapId: string) => void;
+}) {
+  const {color} = useTheme();
+  return (
+    <View>
+      <View
+        style={[
+          styles.tableRow,
+          styles.tableHead,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        <Text variant='tableHeader' tone='textMuted' style={styles.lapCol}>
+          Lap
+        </Text>
+        {MEASURES.map(m => {
+          const active = sortable && sort.by === m.id;
+          return (
+            <Pressable
+              key={m.id}
+              disabled={!sortable}
+              onPress={() => onSort(m.id)}
+              style={styles.cellCol}>
+              <Text
+                variant='tableHeader'
+                tone={active ? 'text' : 'textMuted'}
+                style={styles.right}>
+                {m.label}
+                {active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {rows.map(r => (
+        <Pressable
+          key={r.lapId}
+          onPress={() => onPressRow(r.lapId)}
+          style={[
+            styles.tableRow,
+            {borderColor: color.line},
+            r.highlighted && {backgroundColor: color.accentTint},
+          ]}>
+          <View style={styles.lapCol}>
+            <View style={styles.row}>
+              <View
+                style={[
+                  styles.bar,
+                  {backgroundColor: lapColor(r.selIndex, r.highlighted)},
+                ]}
+              />
+              <Text variant='dataStrong'>{r.label}</Text>
+            </View>
+            {r.isRef && (
+              <Text variant='dataSmall' tone='textFaint'>
+                REF
+              </Text>
+            )}
+          </View>
+          {MEASURES.map(m => {
+            const c = r.cells[m.id];
+            return (
+              <View key={m.id} style={styles.cellCol}>
+                <Text variant='data' style={styles.right}>
+                  {c.value}
+                </Text>
+                {c.gap != null && (
+                  <Text
+                    variant='dataSmall'
+                    tone={
+                      m.id === 'time'
+                        ? c.better
+                          ? 'faster'
+                          : 'slower'
+                        : 'textMuted'
+                    }
+                    style={styles.right}>
+                    {c.gap}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function ZoomTraces({
+  model,
+  width,
+  heights,
+  lapStyle,
+}: {
+  model: CornerModel;
+  width: number;
+  heights: {speed: number; brake: number; throttle: number};
+  lapStyle: (
+    selIndex: number,
+    highlighted: boolean,
+  ) => {color: string; width: number; opacity: number};
+}) {
+  const {zoom} = model;
+  const rank = (l: ZoomLine) => (l.selIndex === 0 ? 2 : l.highlighted ? 1 : 0);
+  const lines = [...zoom.lines].sort((a, b) => rank(a) - rank(b));
+  const series = (pick: (l: ZoomLine) => number[]) =>
+    lines.map(l => {
+      const s = lapStyle(l.selIndex, l.highlighted);
+      return {
+        key: l.lapId,
+        values: pick(l),
+        color: s.color,
+        width: s.width,
+        opacity: s.opacity,
+      };
+    });
+  const apex = [{m: zoom.apexM, label: 'Apex', solid: true}];
+  const pointMarks = (at: (l: ZoomLine) => number | null) =>
+    lines
+      .filter(l => l.key && at(l) != null)
+      .map(l => ({
+        m: at(l) as number,
+        color: lapStyle(l.selIndex, l.highlighted).color,
+      }));
+  const speedDomain = domainIn(
+    lines.map(l => l.speedKph),
+    zoom.windowM,
+    zoom.stepM,
+  );
+  const common = {
+    width,
+    stepM: zoom.stepM,
+    windowM: zoom.windowM,
+    cursorM: -1,
+    gridOriginM: zoom.apexM,
+  };
+  if (lines.length === 0)
+    return (
+      <Text variant='dataSmall' tone='textFaint'>
+        Loading traces…
+      </Text>
+    );
+  return (
+    <View style={styles.gap}>
+      <Text variant='label' tone='textMuted'>
+        Speed km/h
+      </Text>
+      <TraceChart
+        {...common}
+        height={heights.speed}
+        domain={speedDomain}
+        series={series(l => l.speedKph)}
+        band={
+          zoom.band
+            ? {low: zoom.band.speed[0], high: zoom.band.speed[1]}
+            : undefined
+        }
+        marks={apex}
+      />
+      <Text variant='label' tone='textMuted'>
+        Brake %
+      </Text>
+      <TraceChart
+        {...common}
+        height={heights.brake}
+        domain={[-4, 104]}
+        series={series(l => l.brakePct)}
+        marks={[...apex, ...pointMarks(l => l.brakeAtM)]}
+      />
+      <Text variant='label' tone='textMuted'>
+        Throttle %
+      </Text>
+      <TraceChart
+        {...common}
+        height={heights.throttle}
+        domain={[-4, 104]}
+        series={series(l => l.throttlePct)}
+        marks={[...apex, ...pointMarks(l => l.fullThrottleAtM)]}
+      />
+    </View>
+  );
+}
+
+function domainIn(
+  arrays: number[][],
+  [a, b]: [number, number],
+  stepM: number,
+): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  const from = Math.max(0, Math.floor(a / stepM));
+  const to = Math.ceil(b / stepM);
+  for (const arr of arrays)
+    for (let i = from; i <= Math.min(to, arr.length - 1); i++) {
+      lo = Math.min(lo, arr[i]);
+      hi = Math.max(hi, arr[i]);
+    }
+  if (!Number.isFinite(lo)) return [0, 1];
+  const pad = (hi - lo) * 0.06 || 1;
+  return [lo - pad, hi + pad];
+}
+
+const styles = StyleSheet.create({
+  screen: {flex: 1},
+  center: {alignItems: 'center', justifyContent: 'center'},
+  flex: {flex: 1},
+  col: {gap: space.lg, padding: space.xl, paddingBottom: space.xxxl},
+  gap: {gap: space.xs},
+  row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
+  // Desktop: two columns bounded to the viewport, each scrolling on its own.
+  columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
+  wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 40,
+    borderBottomWidth: 1,
+    gap: space.xs,
+  },
+  tableHead: {minHeight: 30, borderTopWidth: 1},
+  lapCol: {width: 44},
+  cellCol: {flex: 1},
+  right: {textAlign: 'right'},
+  bar: {width: 3, height: 14, borderRadius: radius.xs},
+});

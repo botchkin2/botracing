@@ -31,6 +31,7 @@ export default function CompareRoute() {
           laps: next.laps.join(','),
           hl: next.hl ?? undefined,
           c: next.corner == null ? undefined : String(next.corner),
+          t: String(Math.round(next.cursorM)),
         })
       }
     />

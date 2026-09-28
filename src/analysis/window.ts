@@ -58,8 +58,10 @@ export function windowRange(
   const lengthM = ref.distanceM[ref.distanceM.length - 1];
   if (win == null) return [0, lengthM];
   if (mode === 'distance') {
-    const half = win / 2;
-    return [cursorM - half, cursorM + half];
+    // Shift, don't shrink, at the line: the window keeps its size.
+    const size = Math.min(win, lengthM);
+    const start = Math.max(0, Math.min(lengthM - size, cursorM - size / 2));
+    return [start, start + size];
   }
   const t = timeAtDistance(ref, cursorM);
   return [distanceAtTime(ref, t - win / 2), distanceAtTime(ref, t + win / 2)];

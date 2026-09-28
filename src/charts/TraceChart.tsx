@@ -76,6 +76,7 @@ export function TraceChart({
   zeroLine,
   cursorM,
   marks = [],
+  gridOriginM,
   onScrub,
   onPan,
   onPanStart,
@@ -94,8 +95,13 @@ export function TraceChart({
   band?: TraceBand;
   zeroLine?: boolean;
   cursorM: number;
-  /** Labelled vertical lines, e.g. corner apexes. */
-  marks?: {m: number; label: string}[];
+  /** Vertical marks: labelled (apex lines), or colored per lap (brake points). */
+  marks?: {m: number; label?: string; color?: string; solid?: boolean}[];
+  /**
+   * Grid relative to this distance (e.g. the apex): ticks at origin ± k·step,
+   * labelled "−200 m", "+100 m"; the origin itself carries no tick label.
+   */
+  gridOriginM?: number;
   onScrub?: (distanceM: number) => void;
   /** Drag in points since the last call; when set, dragging pans. */
   onPan?: (dxPt: number) => void;
@@ -157,10 +163,21 @@ export function TraceChart({
     return `${d}Z`;
   }, [band, from, to, width, height, startM, endM, domain]);
 
-  const step = gridStepM(spanM, width);
+  // Apex-relative grids use the handoff's fixed 100 m ticks.
+  const step = gridOriginM == null ? gridStepM(spanM, width) : 100;
   const gridMs: number[] = [];
-  for (let m = Math.ceil(startM / step) * step; m <= endM; m += step)
+  const origin = gridOriginM ?? 0;
+  for (
+    let m = origin + Math.ceil((startM - origin) / step) * step;
+    m <= endM;
+    m += step
+  )
     gridMs.push(m);
+  const tickLabel = (m: number) => {
+    if (gridOriginM == null) return `${Math.round(m)}`;
+    const d = Math.round(m - gridOriginM);
+    return d === 0 ? '' : `${d > 0 ? '+' : '−'}${Math.abs(d)} m`;
+  };
 
   // PanResponder reads its handlers once; keep the latest props in a ref.
   const latest = useRef({onScrub, onPan, onPanStart, startM, spanM, width});
@@ -233,26 +250,26 @@ export function TraceChart({
                   fill={color.textFaint}
                   fontFamily={axis.fontFamily}
                   fontSize={9}>
-                  {`${Math.round(m)}`}
+                  {tickLabel(m)}
                 </SvgText>
               )}
             </G>
           );
         })}
-        {marks.map(mk => {
+        {marks.map((mk, i) => {
           const mx = ((mk.m - startM) / spanM) * width;
           return (
-            <G key={mk.label}>
+            <G key={`${mk.label ?? mk.color}-${i}`}>
               <Line
                 x1={mx}
                 x2={mx}
                 y1={0}
                 y2={height}
-                stroke={color.lineStrong}
+                stroke={mk.color ?? color.lineStrong}
                 strokeWidth={1}
-                strokeDasharray={dash.mark}
+                strokeDasharray={mk.solid ? undefined : dash.mark}
               />
-              {mx < width - LABEL_EDGE_PT && (
+              {mk.label && mx < width - LABEL_EDGE_PT && (
                 <SvgText
                   x={mx + 2}
                   y={9}
