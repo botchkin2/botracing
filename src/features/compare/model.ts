@@ -288,14 +288,14 @@ export function cornerPlace(
   cursorM: number,
 ): string {
   const inside = sections.find(s => cursorM >= s.entryM && cursorM <= s.exitM);
-  if (inside) return `Corner ${inside.n}`;
+  if (inside) return `Section ${inside.n}`;
   const near = sections.find(
     s => cursorM < s.entryM && s.entryM - cursorM <= CORNER_NEAR_M,
   );
-  if (near) return `Corner ${near.n}`;
+  if (near) return `Section ${near.n}`;
   const before = [...sections].reverse().find(s => s.exitM < cursorM);
   const prev = before ?? sections[sections.length - 1];
-  return prev ? `After Corner ${prev.n}` : '';
+  return prev ? `After Section ${prev.n}` : '';
 }
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
@@ -523,7 +523,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const grid: CornerGridModel | null =
     gridRows.length && ref
       ? {
-          explainer: `Time in each corner vs L${ref.lapIndex}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it.`,
+          explainer: `Time in each section vs L${ref.lapIndex}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
           corners,
           rows: gridRows,
         }

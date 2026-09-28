@@ -82,7 +82,7 @@ export function TrackStrip({
             fill={color.textFaint}
             fontFamily={typeScale.axis.fontFamily}
             fontSize={9}>
-            {c.n}
+            {`S${c.n}`}
           </SvgText>
         ))}
         {markers.map(mk => (

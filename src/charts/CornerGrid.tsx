@@ -9,7 +9,8 @@ import {
 } from '@/src/design';
 import {Text} from '@/src/ui';
 
-// Time per corner (handoff §3): one row per lap, one cell per corner, the
+// Time per section (handoff §3 "time per corner"; our corners are grouped
+// into sections S1..Sn): one row per lap, one cell per section, the
 // difference to the reference in seconds on the fixed color scale.
 
 export type CornerGridRow = {
@@ -49,10 +50,10 @@ export function CornerGrid({
             key={n}
             onPress={() => onPressCorner(n)}
             accessibilityRole='button'
-            accessibilityLabel={`Corner ${n}`}
+            accessibilityLabel={`Section ${n}`}
             style={[styles.head, {width: cellW, marginLeft: gap}]}>
             <Text variant='tableHeader' tone='textMuted'>
-              {n}
+              {`S${n}`}
             </Text>
           </Pressable>
         ))}

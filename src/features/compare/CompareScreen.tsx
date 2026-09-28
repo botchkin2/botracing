@@ -381,7 +381,7 @@ function CompareView({
   );
 
   const grid = model.grid && !oneChart && (
-    <Section title='Time per corner' explainer={model.grid.explainer}>
+    <Section title='Time per section' explainer={model.grid.explainer}>
       <CornerGrid
         width={sideW}
         corners={model.grid.corners}

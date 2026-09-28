@@ -137,7 +137,7 @@ describe('buildCompareModel', () => {
       [0.3, 0.1],
       [-0.05, -0.05],
     ]);
-    expect(g.explainer).toMatch(/^Time in each corner vs L1, in seconds\./);
+    expect(g.explainer).toMatch(/^Time in each section vs L1, in seconds\./);
   });
 
   it('plain map for a poor fit: lines and dots, no outline', () => {
@@ -153,8 +153,8 @@ describe('buildCompareModel', () => {
   });
 
   it('position row names the corner under the cursor', () => {
-    expect(build().position.place).toBe('Corner 2');
-    expect(build(sel({cursorM: 850})).position.place).toBe('After Corner 2');
+    expect(build().position.place).toBe('Section 2');
+    expect(build(sel({cursorM: 850})).position.place).toBe('After Section 2');
     expect(build().position.distance).toBe('600 m');
   });
 
@@ -263,10 +263,10 @@ describe('cornerPlace', () => {
     {n: 2, entryM: 500, exitM: 700},
   ];
   it('inside, approaching and after', () => {
-    expect(cornerPlace(s, 200)).toBe('Corner 1');
-    expect(cornerPlace(s, 400)).toBe('Corner 2');
-    expect(cornerPlace(s, 310)).toBe('After Corner 1');
-    expect(cornerPlace(s, 50)).toBe('Corner 1');
-    expect(cornerPlace(s, 900)).toBe('After Corner 2');
+    expect(cornerPlace(s, 200)).toBe('Section 1');
+    expect(cornerPlace(s, 400)).toBe('Section 2');
+    expect(cornerPlace(s, 310)).toBe('After Section 1');
+    expect(cornerPlace(s, 50)).toBe('Section 1');
+    expect(cornerPlace(s, 900)).toBe('After Section 2');
   });
 });
