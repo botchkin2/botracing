@@ -25,7 +25,7 @@ export default function CornerRoute() {
     <CornerScreen
       key={params.n}
       sessionId={params.id}
-      section={Number(params.n)}
+      corner={Number(params.n)}
       selection={selection}
       onSelectionChange={next =>
         router.setParams({

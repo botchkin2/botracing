@@ -27,7 +27,7 @@ export type CornerResult =
 
 export function useCornerModel(
   sessionId: string,
-  section: number,
+  corner: number,
   selection: CornerSelection,
   allComparable: boolean,
 ): CornerResult {
@@ -80,7 +80,7 @@ export function useCornerModel(
       traces,
       lapIds,
       hl: selection.hl,
-      section,
+      corner,
     });
     return model ? {state: 'ready', model, lapIds} : {state: 'missing'};
   }, [
@@ -92,6 +92,6 @@ export function useCornerModel(
     traces,
     lapIds,
     selection.hl,
-    section,
+    corner,
   ]);
 }

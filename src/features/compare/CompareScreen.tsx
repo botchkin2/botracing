@@ -133,8 +133,14 @@ function CompareView({
     (selIndex, highlighted) => lapStroke(scheme, selIndex, count, highlighted),
     [scheme, count],
   );
-  const openCorner = (n: number) =>
-    router.push(cornerHref(sessionId, n, {laps: selection.laps}));
+  // Compare works per section; Corner opens the section's first corner.
+  const openCorner = (section: number) =>
+    router.push(
+      cornerHref(sessionId, model.sectionFirstCorner[section] ?? section, {
+        laps: selection.laps,
+        hl: selection.hl,
+      }),
+    );
 
   // --- cursor movement: pan, keyboard, playback ---------------------------------
   const ref = model.refGrid;

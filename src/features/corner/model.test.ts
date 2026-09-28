@@ -19,26 +19,28 @@ const session = toSessionDetail({
   stints: [],
 });
 
+// S1 = C1 (no parts); S2 = C2–C3.
 const map = toTrackMap({
   lengthM: 1000,
   corners: [
-    {n: 1, entryM: 100, apexM: 200, exitM: 300, parts: [{n: 1, apexM: 200}]},
+    {n: 1, entryM: 100, apexM: 200, exitM: 300, parts: []},
     {
       n: 2,
       entryM: 500,
       apexM: 600,
       exitM: 700,
       parts: [
-        {n: 2, apexM: 560},
-        {n: 3, apexM: 640},
+        {n: 2, entryM: 500, apexM: 560, exitM: 600},
+        {n: 3, entryM: 600, apexM: 640, exitM: 700},
       ],
     },
   ],
   outline: {features: []},
 });
 
-// Section 2 facts per lap: time, brake at (absolute m), min speed, full throttle at.
-const lap = (id: string, s2: [number, number, number, number], ok = true) => ({
+// C3 facts per lap: time, brake at (absolute m), min speed, full throttle at.
+// The section's own facts are deliberately different: Corner must read C3.
+const lap = (id: string, c3: [number, number, number, number], ok = true) => ({
   id,
   lapTime: 20,
   comparable: ok,
@@ -46,11 +48,17 @@ const lap = (id: string, s2: [number, number, number, number], ok = true) => ({
   corners: [
     {segTime: 5, parts: []},
     {
-      segTime: s2[0],
-      brakeAtM: s2[1],
-      minSpeedKmh: s2[2],
-      fullThrottleAtM: s2[3],
-      parts: [],
+      segTime: 99,
+      brakeAtM: 1,
+      parts: [
+        {segTime: 1, brakeAtM: 480},
+        {
+          segTime: c3[0],
+          brakeAtM: c3[1],
+          minSpeedKmh: c3[2],
+          fullThrottleAtM: c3[3],
+        },
+      ],
     },
   ],
 });
@@ -61,7 +69,7 @@ const laps = toLaps([
   lap('x', [12.0, 400, 90, 700], false),
 ]);
 
-const build = (lapIds: string[], hl: string | null = null) =>
+const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
   buildCornerModel({
     session,
     laps,
@@ -70,48 +78,58 @@ const build = (lapIds: string[], hl: string | null = null) =>
     traces: new Map(),
     lapIds,
     hl,
-    section: 2,
+    corner,
   })!;
 
-describe('buildCornerModel', () => {
+describe('buildCornerModel (per single corner)', () => {
   const m = build(['a', 'b', 'c']);
 
-  it('header names the section and its corners', () => {
-    expect(m.title).toBe('Section 2');
-    expect(m.subtitle).toBe('600 m · C2–C3 · 3 laps · compared with L1');
-    expect(m.prev).toBe(1);
+  it('header names the corner and its section', () => {
+    expect(m.title).toBe('Corner 3');
+    expect(m.subtitle).toBe(
+      '640 m · in S2 (C2–C3) · 3 laps · compared with L1',
+    );
+    expect(m.sectionN).toBe(2);
+    expect(m.corners).toEqual([1, 2, 3]);
+    expect(m.prev).toBe(2);
     expect(m.next).toBe(1);
   });
 
-  it('brake and throttle are relative to the apex', () => {
+  it('reads the corner’s own facts; brake and throttle relative to its apex', () => {
     expect(m.rows[0].values).toEqual({
       time: 9.8,
-      brake: 140,
+      brake: 180,
       minSpeed: 110,
-      throttle: 50,
+      throttle: 10,
     });
   });
 
   it('gaps to the reference; better depends on the measure', () => {
     const b = m.rows[1].cells;
     expect(b.time).toEqual({value: '10.100', gap: '+0.300', better: false});
-    // Brakes 10 m earlier (150 m before the apex vs 140): lower is better.
-    expect(b.brake).toEqual({value: '150', gap: '+10', better: false});
+    // Brakes 10 m earlier (190 m before the apex vs 180): lower is better.
+    expect(b.brake).toEqual({value: '190', gap: '+10', better: false});
     expect(b.minSpeed).toEqual({value: '106', gap: '−4', better: false});
     expect(m.rows[0].cells.time.gap).toBeNull();
   });
 
   it('highlight line for the highlighted lap', () => {
     expect(m.highlightLine).toBe(
-      'L2: 10.100 s · brake 150 m · min 106 km/h · full throttle 70 m',
+      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle 30 m',
     );
   });
 
-  it('zoom window is apex −250 m to +150 m', () => {
-    expect(m.zoom.windowM).toEqual([350, 750]);
+  it('zoom window is apex −250 m to +150 m; explainer names the corner', () => {
+    expect(m.zoom.windowM).toEqual([390, 790]);
     expect(m.explainer).toMatch(
-      /entry \(500 m\) to the next section's entry \(100 m\)/,
+      /this corner's entry \(600 m\) to the next corner's entry \(100 m\)/,
     );
+  });
+
+  it('a section without parts is one corner', () => {
+    const c1 = build(['a'], null, 1);
+    expect(c1.subtitle).toMatch(/in S1 \(C1\)/);
+    expect(c1.rows[0].values.time).toBe(5);
   });
 
   it('table below 20 laps, no strips', () => {
@@ -134,7 +152,7 @@ describe('strips at 20+ laps', () => {
     traces: new Map(),
     lapIds: many.map(l => l.id),
     hl: 'm3',
-    section: 2,
+    corner: 3,
   })!;
 
   it('four strips with summary; brake axis flipped', () => {

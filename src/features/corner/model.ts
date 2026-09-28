@@ -1,16 +1,18 @@
 import {type GridTrace} from '@/src/analysis/resample';
 import {
   type Lap,
+  lapCornerFacts,
   type SessionBand,
   type SessionDetail,
   type TrackMapData,
+  trackCorners,
 } from '@/src/data/sessions';
 import {formatDistance, formatGap, lapMode, type LapMode} from '@/src/design';
 
-// Corner screen view model (handoff §4, D3). Our corners are grouped into
-// sections (S1..Sn), and every lap doc carries facts per section: time from
-// the section's entry to the next section's entry, brake point, minimum
-// speed and full-throttle point. Pure: data and the URL selection in,
+// Corner screen view model (handoff §4, D3), per single corner (C1..Cn).
+// Every lap doc carries facts per corner (sections' parts): time from the
+// corner's entry to the next corner's entry, brake point, minimum speed and
+// full-throttle point. Pure: data and the URL selection in,
 // everything the screen draws out. Colors are left to the screen (selIndex).
 
 export type CornerSelection = {
@@ -28,7 +30,7 @@ export const MEASURES: {
   /** For the gap color and sort: which direction is better. */
   better: 'lower' | 'higher';
 }[] = [
-  {id: 'time', label: 'Time in section', unit: 's', better: 'lower'},
+  {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
   {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
   {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
   {
@@ -83,8 +85,10 @@ export type ZoomLine = {
 };
 
 export type CornerModel = {
-  section: number;
-  sections: number[];
+  corner: number;
+  /** The section this corner belongs to (Compare opens sections). */
+  sectionN: number;
+  corners: number[];
   title: string;
   subtitle: string;
   mode: LapMode;
@@ -145,13 +149,14 @@ export function buildCornerModel(input: {
   traces: Map<string, GridTrace>;
   lapIds: string[];
   hl: string | null;
-  section: number;
+  corner: number;
 }): CornerModel | null {
-  const {session, laps, map, band, traces, lapIds, section} = input;
-  const idx = map.sections.findIndex(s => s.n === section);
+  const {session, laps, map, band, traces, lapIds, corner} = input;
+  const all = trackCorners(map);
+  const idx = all.findIndex(c => c.n === corner);
   if (idx < 0) return null;
-  const sec = map.sections[idx];
-  const nextSec = map.sections[(idx + 1) % map.sections.length];
+  const sec = all[idx];
+  const nextSec = all[(idx + 1) % all.length];
   const byId = new Map(laps.map(l => [l.id, l]));
   const selected = lapIds
     .map(id => byId.get(id))
@@ -162,7 +167,7 @@ export function buildCornerModel(input: {
     input.hl && lapIds.includes(input.hl) ? input.hl : selected[1]?.id ?? null;
 
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
-    const f = l.sections[idx];
+    const f = lapCornerFacts(l, sec);
     return {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
@@ -259,7 +264,7 @@ export function buildCornerModel(input: {
   const lines: ZoomLine[] = rows.flatMap(r => {
     const t = traces.get(r.lapId);
     if (!t) return [];
-    const f = byId.get(r.lapId)!.sections[idx];
+    const f = lapCornerFacts(byId.get(r.lapId)!, sec);
     return [
       {
         lapId: r.lapId,
@@ -275,31 +280,25 @@ export function buildCornerModel(input: {
     ];
   });
 
-  const parts = sec.parts.map(p => p.n);
-  const corners =
-    parts.length > 1
-      ? `C${parts[0]}–C${parts[parts.length - 1]}`
-      : parts.length
-      ? `C${parts[0]}`
-      : null;
-  const ns = map.sections.map(s => s.n);
+  const ns = all.map(c => c.n);
 
   return {
-    section,
-    sections: ns,
-    title: `Section ${section}`,
+    corner,
+    sectionN: sec.sectionN,
+    corners: ns,
+    title: `Corner ${corner}`,
     subtitle: [
       formatDistance(sec.apexM),
-      corners,
+      `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
       ref ? `compared with L${ref.lapIndex}` : null,
     ]
       .filter(Boolean)
       .join(' · '),
     mode,
-    explainer: `Time in section runs from this section's entry (${formatDistance(
+    explainer: `Time in corner runs from this corner's entry (${formatDistance(
       sec.entryM,
-    )}) to the next section's entry (${formatDistance(
+    )}) to the next corner's entry (${formatDistance(
       nextSec.entryM,
     )}), the same stretch of track for every lap. Brake point is metres before the apex (${formatDistance(
       sec.apexM,

@@ -43,12 +43,12 @@ const DOT_GREY = '#6b737c';
 
 export function CornerScreen({
   sessionId,
-  section,
+  corner,
   selection,
   onSelectionChange,
 }: {
   sessionId: string;
-  section: number;
+  corner: number;
   selection: CornerSelection;
   onSelectionChange: (next: CornerSelection) => void;
 }) {
@@ -58,7 +58,7 @@ export function CornerScreen({
   const [allComparable, setAllComparable] = useState(
     layout.isWide && selection.laps.length <= 1,
   );
-  const result = useCornerModel(sessionId, section, selection, allComparable);
+  const result = useCornerModel(sessionId, corner, selection, allComparable);
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -75,7 +75,7 @@ export function CornerScreen({
         ) : (
           <Text tone='textMuted'>
             {result.state === 'missing'
-              ? `No section ${section} on this track.`
+              ? `No corner ${corner} on this track.`
               : `Couldn’t load: ${result.message}`}
           </Text>
         )}
@@ -141,7 +141,7 @@ function CornerView({
               compareHref(sessionId, {
                 laps: selection.laps,
                 hl: selection.hl,
-                corner: model.section,
+                corner: model.sectionN,
               }),
             )
           }>
@@ -162,11 +162,11 @@ function CornerView({
         {model.subtitle}
       </Text>
       <View style={styles.wrap}>
-        {model.sections.map(n => (
+        {model.corners.map(n => (
           <Chip
             key={n}
-            label={`S${n}`}
-            selected={n === model.section}
+            label={`C${n}`}
+            selected={n === model.corner}
             onPress={() => go(n)}
           />
         ))}
