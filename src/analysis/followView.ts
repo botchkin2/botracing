@@ -72,22 +72,47 @@ export function followProject(v: FollowView): (p: FollowXy) => FollowXy {
 }
 
 /**
- * Distances where the brake goes on (crosses above thresholdPct from at or
- * below it), between fromM and toM.
+ * The same projection as an SVG matrix(a b c d e f), so world-space paths
+ * can be built once and moved per frame by one transform.
  */
+export function followMatrix(
+  v: FollowView,
+): [number, number, number, number, number, number] {
+  const sc = followScale(v);
+  const turn = Math.PI / 2 - v.headingRad;
+  const a = sc * Math.cos(turn);
+  const b = -sc * Math.sin(turn);
+  const c = -sc * Math.sin(turn);
+  const d = -sc * Math.cos(turn);
+  const ox = v.width / 2;
+  const oy = v.height * FOLLOW_ANCHOR_Y;
+  return [
+    a,
+    b,
+    c,
+    d,
+    ox - a * v.centre.x - c * v.centre.y,
+    oy - b * v.centre.x - d * v.centre.y,
+  ];
+}
+
+// Brake on above 10%, off again below 5%: a trail-brake that hovers around
+// 10% gives one onset, not one per wobble.
+const BRAKE_ON_PCT = 10;
+const BRAKE_OFF_PCT = 5;
+
+/** Distances where the brake goes on, over the whole trace. */
 export function brakeOnsetsM(
   distanceM: number[],
   brakePct: number[],
-  fromM: number,
-  toM: number,
-  thresholdPct = 10,
 ): number[] {
   const out: number[] = [];
+  let on = brakePct.length > 0 && brakePct[0] > BRAKE_ON_PCT;
   for (let i = 1; i < brakePct.length; i++) {
-    const m = distanceM[i];
-    if (m < fromM || m > toM) continue;
-    if (brakePct[i] > thresholdPct && brakePct[i - 1] <= thresholdPct)
-      out.push(m);
+    if (!on && brakePct[i] > BRAKE_ON_PCT) {
+      on = true;
+      out.push(distanceM[i]);
+    } else if (on && brakePct[i] < BRAKE_OFF_PCT) on = false;
   }
   return out;
 }

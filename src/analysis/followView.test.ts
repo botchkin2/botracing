@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   brakeOnsetsM,
   FOLLOW_ANCHOR_Y,
+  followMatrix,
   followProject,
   followScale,
   followVisibleM,
@@ -59,17 +60,39 @@ describe('headingRad', () => {
   });
 });
 
+describe('followMatrix', () => {
+  it('agrees with followProject', () => {
+    const v = {
+      centre: {x: 40, y: -20},
+      headingRad: 0.7,
+      visibleM: 150,
+      width: 358,
+      height: 220,
+    };
+    const [a, b, c, d, e, f] = followMatrix(v);
+    const project = followProject(v);
+    for (const p of [
+      {x: 0, y: 0},
+      {x: 55, y: -3},
+      {x: -100, y: 80},
+    ]) {
+      const q = project(p);
+      expect(a * p.x + c * p.y + e).toBeCloseTo(q.x);
+      expect(b * p.x + d * p.y + f).toBeCloseTo(q.y);
+    }
+  });
+});
+
 describe('brakeOnsetsM', () => {
   const distanceM = [0, 5, 10, 15, 20, 25, 30];
-  const brakePct = [0, 0, 60, 80, 0, 5, 40];
 
-  it('finds each rise above the threshold', () => {
-    expect(brakeOnsetsM(distanceM, brakePct, 0, 30)).toEqual([10, 30]);
+  it('finds each application', () => {
+    expect(brakeOnsetsM(distanceM, [0, 0, 60, 80, 0, 0, 40])).toEqual([10, 30]);
   });
-  it('only inside the range', () => {
-    expect(brakeOnsetsM(distanceM, brakePct, 12, 30)).toEqual([30]);
+  it('counts a trail-brake wobble around 10% once', () => {
+    expect(brakeOnsetsM(distanceM, [0, 40, 12, 8, 12, 7, 0])).toEqual([5]);
   });
   it('ignores a trace that starts braked', () => {
-    expect(brakeOnsetsM([0, 5], [50, 60], 0, 5)).toEqual([]);
+    expect(brakeOnsetsM([0, 5], [50, 60])).toEqual([]);
   });
 });

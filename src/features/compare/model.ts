@@ -1,9 +1,3 @@
-import {
-  applyGeoref,
-  canDrawOnRealMap,
-  LMU_FAKE_ORIGIN,
-  toLocalMetres,
-} from '@/src/analysis/geo';
 import {type GridTrace, gridIndex, timeDiffS} from '@/src/analysis/resample';
 import {
   rebaseToWindow,
@@ -11,7 +5,6 @@ import {
   windowRange,
   windowTimeS,
 } from '@/src/analysis/window';
-import {buildFollowModel, type FollowModel} from './followModel';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
   firstCornerOf,
@@ -28,6 +21,13 @@ import {
   lapMode,
   type LapMode,
 } from '@/src/design';
+
+import {
+  buildFollowView,
+  type FollowGeometry,
+  type FollowView,
+} from './followModel';
+import {mapPlacer} from './mapPlace';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -209,7 +209,8 @@ export type MapModel = {
     open: boolean;
   }[];
   attribution: string | null;
-  follow: FollowModel;
+  /** Null until the geometry is built (the hook memoizes it). */
+  follow: (FollowView & {geometry: FollowGeometry}) | null;
 };
 
 export type CompareModel = {
@@ -323,6 +324,8 @@ export type CompareInputs = {
   selection: CompareSelection;
   charts?: ChannelId[][];
   window?: ChartWindow;
+  /** Follow geometry for this selection, built once per selection. */
+  followGeometry?: FollowGeometry | null;
 };
 
 // Map lines are drawn every 20 m: plenty at phone size, a fifth of the points.
@@ -671,19 +674,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // --- map --------------------------------------------------------------------
   let mapModel: MapModel | null = null;
   if (refTrace) {
-    const real = map != null && canDrawOnRealMap(map.quality, map.georef);
-    const origin = real
-      ? {lat: map!.georef!.originLat, lon: map!.georef!.originLon}
-      : LMU_FAKE_ORIGIN;
-    const place = (t: GridTrace, from: number, to: number, stride: number) => {
-      const pts = [];
-      for (let i = from; i <= to; i += stride)
-        pts.push({lat: t.lat[i], lon: t.lon[i]});
-      const placed = real ? applyGeoref(pts, map!.georef!) : pts;
-      return placed.map(p => toLocalMetres(p, origin));
-    };
+    const placer = mapPlacer(map);
     const project = (t: GridTrace, stride: number) =>
-      place(t, 0, t.lat.length - 1, stride);
+      placer.place(t, 0, t.lat.length - 1, stride);
     const shown = lapRefs.filter(r => r.key || mode !== 'grey');
     const lines = shown
       .filter(r => traces.has(r.lapId))
@@ -692,25 +685,21 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       .sort((a, b) => drawRank(a) - drawRank(b));
     const pointAt = (t: GridTrace, m: number) => {
       const i = gridIndex(t, m);
-      return project({...t, lat: [t.lat[i]], lon: [t.lon[i]]}, 1)[0];
+      return placer.place(t, i, i, 1)[0];
     };
-    const outline = real
-      ? map!.outline.map(line =>
-          line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
-        )
-      : [];
+    const followGeometry = input.followGeometry ?? null;
     mapModel = {
-      realMap: real,
-      outline,
-      follow: buildFollowModel({
-        refTrace,
-        traces,
-        shown: lines,
-        cursorM,
-        windowSpanM: windowed ? windowM[1] - windowM[0] : null,
-        outline,
-        place,
-      }),
+      realMap: placer.real,
+      outline: placer.outline,
+      follow: followGeometry && {
+        ...buildFollowView(
+          placer,
+          refTrace,
+          cursorM,
+          windowed ? windowM[1] - windowM[0] : null,
+        ),
+        geometry: followGeometry,
+      },
       lines,
       dots: keyRefs
         .filter(r => traces.has(r.lapId))
@@ -723,7 +712,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         apexM: s.apexM,
         open: s.n === selection.corner,
       })),
-      attribution: real ? map!.attribution : null,
+      attribution: placer.real ? map!.attribution : null,
     };
   }
 

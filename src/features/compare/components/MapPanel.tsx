@@ -1,3 +1,4 @@
+import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {FollowMap, TrackMap} from '@/src/charts';
@@ -38,38 +39,70 @@ export function MapPanel({
   onPressBadge: (n: number) => void;
 }) {
   const {color} = useTheme();
-  const styled = <
-    T extends {lapId: string; selIndex: number; highlighted: boolean},
-  >(
-    r: T,
-  ) => {
+  const styled = (r: {
+    lapId: string;
+    selIndex: number;
+    highlighted: boolean;
+  }) => {
     const {color: c, width: w, opacity} = lapStyle(r.selIndex, r.highlighted);
     return {key: r.lapId, color: c, width: w, opacity};
   };
   const f = map.follow;
+  const geometry = f?.geometry;
+
+  // map.lines is rebuilt on every cursor move; its shown laps and their
+  // styles only change with the selection. Key the Follow layers on that, so
+  // their paths are not rebuilt per playback frame.
+  const shownKey = map.lines
+    .map(l => `${l.lapId}:${l.selIndex}:${l.highlighted ? 1 : 0}`)
+    .join(',');
+  const followLines = useMemo(
+    () =>
+      geometry
+        ? map.lines.flatMap(l => {
+            const points = geometry.lines.get(l.lapId);
+            return points ? [{...styled(l), points}] : [];
+          })
+        : [],
+    [geometry, shownKey, lapStyle],
+  );
+  const followTicks = useMemo(
+    () =>
+      geometry
+        ? map.dots.flatMap(d => {
+            const ticks = geometry.brakeTicks.get(d.lapId);
+            return ticks
+              ? [
+                  {
+                    key: d.lapId,
+                    ticks,
+                    color: lapStyle(d.selIndex, d.highlighted).color,
+                  },
+                ]
+              : [];
+          })
+        : [],
+    [geometry, shownKey, lapStyle],
+  );
 
   return (
     <View style={[styles.box, {backgroundColor: color.surface}]}>
-      {mode === 'follow' ? (
+      {mode === 'follow' && f ? (
         <FollowMap
           width={width}
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
           visibleM={f.visibleM}
-          band={f.band}
-          lines={f.lines.map(l => ({...styled(l), points: l.points}))}
-          ticks={f.brakeTicks.map((t, i) => ({
-            key: `${t.lapId}-${i}`,
-            ends: t.ends,
-            color: lapStyle(t.selIndex, t.highlighted).color,
-          }))}
+          band={f.geometry.band}
+          lines={followLines}
+          ticks={followTicks}
           dots={map.dots.map(d => ({
             key: d.lapId,
             at: d.at,
             color: lapStyle(d.selIndex, d.highlighted).color,
           }))}
-          inset={f.inset}
+          inset={f.geometry.inset}
         />
       ) : (
         <TrackMap

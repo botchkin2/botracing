@@ -1,17 +1,27 @@
-import {useMemo} from 'react';
+import {memo, useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
-import Svg, {Circle, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
+import Svg, {
+  Circle,
+  G,
+  Line,
+  Path,
+  Rect,
+  Text as SvgText,
+} from 'react-native-svg';
 
 import {
   type FollowXy,
+  followMatrix,
   followProject,
   followScale,
 } from '@/src/analysis/followView';
 import {type as typeScale, useTheme} from '@/src/design';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
-// The road band, each lap's line, brake ticks, a dot per key lap, a 20 m
-// scale bar and a whole-lap inset. Inputs are metres east/north.
+// The road, each lap's line and the brake ticks are world-space paths built
+// once and moved by one transform per frame; the dots, the 20 m scale bar
+// and the whole-lap inset are drawn in screen space. Inputs are metres
+// east/north.
 
 export type FollowLine = {
   key: string;
@@ -21,9 +31,9 @@ export type FollowLine = {
   opacity: number;
 };
 
-export type FollowTick = {
+export type FollowTicks = {
   key: string;
-  ends: [FollowXy, FollowXy];
+  ticks: [FollowXy, FollowXy][];
   color: string;
 };
 
@@ -41,7 +51,10 @@ const INSET_H = 64;
 const INSET_PAD = 6;
 const INSET_GAP = 8;
 
-function pathOf(pts: FollowXy[], f: (p: FollowXy) => FollowXy): string {
+function pathOf(
+  pts: FollowXy[],
+  f: (p: FollowXy) => FollowXy = p => p,
+): string {
   let d = '';
   for (let i = 0; i < pts.length; i++) {
     const q = f(pts[i]);
@@ -69,76 +82,36 @@ export function FollowMap({
   visibleM: number;
   /** Road centrelines (OSM outline, or the reference's driven line). */
   band: FollowXy[][];
-  /** Drawn in order; put key laps last so they sit on top. */
+  /** Drawn in order; put key laps last so they sit on top. Keep stable. */
   lines: FollowLine[];
-  ticks: FollowTick[];
+  /** Keep stable, like lines. */
+  ticks: FollowTicks[];
   dots: FollowDot[];
-  /** Whole reference lap and the cursor. */
-  inset: {line: FollowXy[]; at: FollowXy};
+  /** Whole reference lap, for the inset. */
+  inset: FollowXy[];
 }) {
   const {color} = useTheme();
   const view = {centre, headingRad, visibleM, width, height};
-  const f = followProject(view);
   const sc = followScale(view);
-  const roadW = ROAD_M * sc;
-  const bandPaths = band.map(b => pathOf(b, f));
+  const project = followProject(view);
   const axis = typeScale.axis;
   const scaleY = height - 10;
 
   return (
     <View style={{width, height}}>
       <Svg width={width} height={height}>
-        {/* Edge colour under a slightly narrower fill: a road with edges. */}
-        {bandPaths.map((d, i) => (
-          <Path
-            key={`e${i}`}
-            d={d}
-            stroke={color.followEdge}
-            strokeWidth={roadW + 2 * EDGE_W}
-            strokeLinejoin='round'
-            strokeLinecap='round'
-            fill='none'
+        <G transform={`matrix(${followMatrix(view).join(' ')})`}>
+          <World
+            band={band}
+            lines={lines}
+            ticks={ticks}
+            edgeM={EDGE_W / sc}
+            edge={color.followEdge}
+            fill={color.trackFill}
           />
-        ))}
-        {bandPaths.map((d, i) => (
-          <Path
-            key={`f${i}`}
-            d={d}
-            stroke={color.trackFill}
-            strokeWidth={roadW}
-            strokeLinejoin='round'
-            strokeLinecap='round'
-            fill='none'
-          />
-        ))}
-        {lines.map(l => (
-          <Path
-            key={l.key}
-            d={pathOf(l.points, f)}
-            stroke={l.color}
-            strokeWidth={l.width}
-            strokeOpacity={l.opacity}
-            strokeLinejoin='round'
-            fill='none'
-          />
-        ))}
-        {ticks.map(t => {
-          const a = f(t.ends[0]);
-          const b = f(t.ends[1]);
-          return (
-            <Line
-              key={t.key}
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={t.color}
-              strokeWidth={TICK_W}
-            />
-          );
-        })}
+        </G>
         {dots.map(d => {
-          const q = f(d.at);
+          const q = project(d.at);
           return (
             <Circle
               key={d.key}
@@ -168,10 +141,89 @@ export function FollowMap({
           {`${SCALE_M} m`}
         </SvgText>
       </Svg>
-      <Inset line={inset.line} at={inset.at} />
+      <Inset line={inset} at={centre} />
     </View>
   );
 }
+
+// World-space layers, memoized: the path strings rebuild only when the
+// selection or zoom changes, not when the view moves. The road is 12 m wide,
+// so it scales with the view; lines and ticks keep their point widths.
+const World = memo(function World({
+  band,
+  lines,
+  ticks,
+  edgeM,
+  edge,
+  fill,
+}: {
+  band: FollowXy[][];
+  lines: FollowLine[];
+  ticks: FollowTicks[];
+  /** Edge width in metres at the current zoom. */
+  edgeM: number;
+  edge: string;
+  fill: string;
+}) {
+  const bandPaths = useMemo(() => band.map(b => pathOf(b)), [band]);
+  const linePaths = useMemo(
+    () => lines.map(l => ({...l, d: pathOf(l.points)})),
+    [lines],
+  );
+  return (
+    <>
+      {/* Edge colour under a slightly narrower fill: a road with edges. */}
+      {bandPaths.map((d, i) => (
+        <Path
+          key={`e${i}`}
+          d={d}
+          stroke={edge}
+          strokeWidth={ROAD_M + 2 * edgeM}
+          strokeLinejoin='round'
+          strokeLinecap='round'
+          fill='none'
+        />
+      ))}
+      {bandPaths.map((d, i) => (
+        <Path
+          key={`f${i}`}
+          d={d}
+          stroke={fill}
+          strokeWidth={ROAD_M}
+          strokeLinejoin='round'
+          strokeLinecap='round'
+          fill='none'
+        />
+      ))}
+      {linePaths.map(l => (
+        <Path
+          key={l.key}
+          d={l.d}
+          stroke={l.color}
+          strokeWidth={l.width}
+          strokeOpacity={l.opacity}
+          strokeLinejoin='round'
+          vectorEffect='non-scaling-stroke'
+          fill='none'
+        />
+      ))}
+      {ticks.flatMap(t =>
+        t.ticks.map(([a, b], i) => (
+          <Line
+            key={`${t.key}-${i}`}
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke={t.color}
+            strokeWidth={TICK_W}
+            vectorEffect='non-scaling-stroke'
+          />
+        )),
+      )}
+    </>
+  );
+});
 
 function Inset({line, at}: {line: FollowXy[]; at: FollowXy}) {
   const {color} = useTheme();

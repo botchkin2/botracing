@@ -2,7 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type GridTrace} from '@/src/analysis/resample';
 
-import {buildFollowModel} from './followModel';
+import {buildFollowGeometry, buildFollowView} from './followModel';
+import {type MapPlacer} from './mapPlace';
 
 // A straight 1000 m lap heading east on a 5 m grid; "lat/lon" hold metres so
 // the placer is the identity. Brake goes on at 500 m.
@@ -23,59 +24,55 @@ function straight(offsetY = 0): GridTrace {
   };
 }
 
-const place = (t: GridTrace, from: number, to: number, stride: number) => {
-  const out = [];
-  for (let i = from; i <= to; i += stride) out.push({x: t.lon[i], y: t.lat[i]});
-  return out;
+const placer: MapPlacer = {
+  real: false,
+  place: (t, from, to, stride) => {
+    const out = [];
+    for (let i = from; i <= to; i += stride)
+      out.push({x: t.lon[i], y: t.lat[i]});
+    return out;
+  },
+  outline: [],
 };
 
-const ref = {lapId: 'a', selIndex: 0, key: true, highlighted: false};
-const other = {lapId: 'b', selIndex: 1, key: false, highlighted: false};
 const traces = new Map([
   ['a', straight()],
   ['b', straight(2)],
 ]);
 
-const build = (cursorM: number, windowSpanM: number | null) =>
-  buildFollowModel({
-    refTrace: traces.get('a')!,
-    traces,
-    shown: [other, ref],
-    cursorM,
-    windowSpanM,
-    outline: [],
-    place,
-  });
-
-describe('buildFollowModel', () => {
+describe('buildFollowView', () => {
   it('centres on the reference at the cursor, heading along it', () => {
-    const f = build(300, 200);
-    expect(f.centre).toEqual({x: 300, y: 0});
-    expect(f.headingRad).toBeCloseTo(0);
-    expect(f.visibleM).toBeCloseTo(190);
+    const v = buildFollowView(placer, traces.get('a')!, 300, 200);
+    expect(v.centre).toEqual({x: 300, y: 0});
+    expect(v.headingRad).toBeCloseTo(0);
+    expect(v.visibleM).toBeCloseTo(190);
   });
-
-  it('draws only the road around the cursor', () => {
-    const f = build(300, 200);
-    const xs = f.lines[0].points.map(p => p.x);
-    // 0.7 × 190 behind and 0.95 × 190 ahead, plus 40 m either side.
-    expect(Math.min(...xs)).toBe(125);
-    expect(Math.max(...xs)).toBe(520);
+  it('uses 260 m for the whole lap', () => {
+    expect(buildFollowView(placer, traces.get('a')!, 300, null).visibleM).toBe(
+      260,
+    );
   });
+});
 
+describe('buildFollowGeometry', () => {
+  const g = buildFollowGeometry(placer, traces, ['a', 'b'])!;
+
+  it('keeps each lap whole at grid resolution', () => {
+    expect(g.lines.get('a')).toHaveLength(201);
+    expect(g.lines.get('b')![0]).toEqual({x: 0, y: 2});
+  });
   it('uses the reference line as the road with no outline', () => {
-    expect(build(300, 200).band).toHaveLength(1);
+    expect(g.band).toEqual([g.lines.get('a')]);
   });
-
-  it('ticks brake points for key laps only, across the line', () => {
-    const ticks = build(450, 200).brakeTicks;
-    expect(ticks.map(t => t.lapId)).toEqual(['a']);
-    const [l, r] = ticks[0].ends;
+  it('ticks each brake point across the lap line', () => {
+    const [[l, r]] = g.brakeTicks.get('b')!;
     expect(l.x).toBeCloseTo(500);
     expect(Math.abs(l.y - r.y)).toBeCloseTo(4.8);
   });
-
-  it('keeps the whole lap for the inset', () => {
-    expect(build(300, null).inset.line).toHaveLength(51);
+  it('thins the inset line', () => {
+    expect(g.inset).toHaveLength(51);
+  });
+  it('is null without the reference trace', () => {
+    expect(buildFollowGeometry(placer, traces, ['x'])).toBeNull();
   });
 });
