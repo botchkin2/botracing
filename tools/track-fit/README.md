@@ -32,6 +32,6 @@ A lap point `(lat, lon)` from the recording goes to real WGS84 like this:
 
 `good`: median ≤ 5 m and p90 ≤ 10 m from the OSM centreline. `fair`: ≤ 10 m and ≤ 25 m. `poor`: do not draw it on a real basemap; the app keeps its plain map. A racing line uses the full track width, so a few metres is a correct fit. Pit-lane stretches cause the larger maxima.
 
-Public-road circuits (`PUBLIC_ROADS` in fit.py, today only Le Mans) are fitted against main roads as well as `raceway`, because OSM tags the Mulsanne (D338), Arnage (D139) and Indianapolis (D140) stretches as ordinary highways. Those roads come from the main API in 0.02° tiles, which takes a minute or two. The outline keeps only the road stretches within 25 m of the fitted lap, so it shows the circuit rather than the town.
+Public-road circuits (`PUBLIC_ROADS` in fit.py, today only Le Mans) are fitted against main roads as well as `raceway`, because OSM tags the Mulsanne (D338), Arnage (D139) and Indianapolis (D140) stretches as ordinary highways. All OSM data comes from Overpass, which is slow when busy (minutes per location), and is cached in `out/osm/`. Don't use the main OSM API (`api/0.6/map`): it is for editing, and its usage policy forbids bulk download. The outline keeps only the road stretches within 25 m of the fitted lap, so it shows the circuit rather than the town.
 
 The outlines are © OpenStreetMap contributors under ODbL 1.0. Show that attribution wherever they are drawn.

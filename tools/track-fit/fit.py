@@ -65,44 +65,25 @@ def enu(lat, lon, lat0, lon0):
     return np.c_[(lon - lon0) * 111320 * math.cos(math.radians(lat0)), (lat - lat0) * 110540]
 
 
-def api_ways(s, w, n, e, keep):
-    """highway ways of the given classes in one bbox, from the main OSM API (fast; refuses big boxes)."""
-    url = f"https://api.openstreetmap.org/api/0.6/map.json?bbox={w:.5f},{s:.5f},{e:.5f},{n:.5f}"
-    raw = json.load(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60))
-    nodes = {x["id"]: x for x in raw["elements"] if x["type"] == "node"}
-    return [dict(id=x["id"], tags=x.get("tags", {}), geometry=[dict(lat=nodes[i]["lat"], lon=nodes[i]["lon"]) for i in x["nodes"] if i in nodes])
-            for x in raw["elements"] if x["type"] == "way" and x.get("tags", {}).get("highway") in keep]
-
-
 def osm_ways(key, lat, lon, half, roads=False):
+    """OSM ways to fit against, from Overpass (the read-only service meant for this; the
+    main OSM API is for editing and must not be used for bulk download). Cached in out/osm."""
     path = os.path.join(CACHE, key + ".json")
     if os.path.exists(path):
         return json.load(open(path, encoding="utf-8"))
     dl, dn = half / 110540, half / (111320 * math.cos(math.radians(lat)))
-    ways = []
-    if roads:  # a town's worth of roads: 0.02 degree tiles, a minute or two
-        byid = {}
-        for s in np.arange(lat - dl, lat + dl, 0.02):
-            for w in np.arange(lon - dn, lon + dn, 0.02):
-                for x in api_ways(s, w, s + 0.02, w + 0.02, ROAD_CLASSES):
-                    byid[x["id"]] = x  # a way crossing tiles comes back whole each time
-        ways = list(byid.values())
-    else:
+    classes = "|".join(sorted(ROAD_CLASSES)) if roads else "raceway"
+    q = f'[out:json][timeout:180];way["highway"~"^({classes})$"]({lat-dl},{lon-dn},{lat+dl},{lon+dn});out tags geom;'
+    ways = None
+    for u in OVERPASS * 3:
         try:
-            ways = api_ways(lat - dl, lon - dn, lat + dl, lon + dn, {"raceway"})
+            req = urllib.request.Request(u, urllib.parse.urlencode({"data": q}).encode(), UA)
+            ways = json.load(urllib.request.urlopen(req, timeout=240))["elements"]
+            break
         except Exception as e:
-            print(f"  osm api: {e}; trying overpass")
-    if not ways:
-        q = f'[out:json][timeout:120];way["highway"="raceway"]({lat-dl},{lon-dn},{lat+dl},{lon+dn});out tags geom;'
-        for u in OVERPASS * 3:
-            try:
-                req = urllib.request.Request(u, urllib.parse.urlencode({"data": q}).encode(), UA)
-                ways = json.load(urllib.request.urlopen(req, timeout=150))["elements"]
-                break
-            except Exception as e:
-                print(f"  overpass {u}: {e}"); time.sleep(5)
-        else:
-            raise SystemExit(f"no OSM data for {key}")
+            print(f"  overpass {u}: {e}"); time.sleep(10)
+    if ways is None:
+        raise SystemExit(f"no OSM data for {key}")
     os.makedirs(CACHE, exist_ok=True)
     json.dump(ways, open(path, "w", encoding="utf-8"))
     return ways

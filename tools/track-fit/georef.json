@@ -131,12 +131,12 @@
     "lat": 60.0,
     "lon": 0.0
    },
-   "rotationDeg": 2.0216,
+   "rotationDeg": 1.9941,
    "mirror": 1,
-   "originLat": 47.9403708,
-   "originLon": 0.2104367,
-   "fitMedianM": 2.94,
-   "fitP90M": 7.14,
+   "originLat": 47.9403975,
+   "originLon": 0.2104305,
+   "fitMedianM": 3.03,
+   "fitP90M": 7.43,
    "source": "osm-raceway",
    "fittedOn": "Circuit de la Sarthe_R_2026-09-21T00_17_13Z.duckdb",
    "fittedAt": "2026-09-28"

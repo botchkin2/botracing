@@ -10,7 +10,7 @@ uv run tools/track-info/fetch.py
 | --- | --- | --- |
 | `lengthM` | The game's own lap length: the longest `Lap Dist` in the recordings for that layout. Show this one. | ours |
 | `officialLengthM`, `openedYear`, `country`, `place`, `website`, `image`, `qid` | Wikidata | CC0 |
-| `summary {title, extract, url, thumbnail}` | Wikipedia lead paragraph | CC BY-SA 4.0: show `attribution` and link `url` |
+| `summary {title, extract, url, thumbnail}` | Wikipedia lead paragraph | CC BY-SA 4.0. The page must **display** `attribution` next to the text and link `url`. Storing it is not enough. |
 | `osmNames [{name, lat, lon}]` | Named OSM `raceway` ways (from `tools/track-fit/out/osm/`, so run fit.py first) | ODbL |
 | `manualFields` | Facts Wikidata lacks, filled by hand in `MANUAL` | ours |
 
