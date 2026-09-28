@@ -1,5 +1,13 @@
 import {useRouter} from 'expo-router';
-import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -117,7 +125,8 @@ function CompareView({
   cursorM: number;
   /** Seconds or metres; null = whole lap. */
   windowSizeValue: number | null;
-  onCursor: (m: number) => void;
+  /** Takes an updater too, so steps in the same tick build on each other. */
+  onCursor: Dispatch<SetStateAction<number>>;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
   const {color, scheme} = useTheme();
@@ -152,7 +161,7 @@ function CompareView({
     );
   };
   const moveBy = (dm: number) =>
-    onCursor(Math.max(0, Math.min(model.lengthM, cursorM + dm)));
+    onCursor(c => Math.max(0, Math.min(model.lengthM, c + dm)));
 
   // Playback: advance by wall-clock time on the reference lap, looping.
   const live = useRef({cursorM, ref, rate: prefs.rate, onCursor});
@@ -192,9 +201,9 @@ function CompareView({
   }, [cursorM, playing]);
 
   // Keyboard on web: ←/→ step, Shift for bigger steps, space plays, [ ] window.
-  const keys = useRef({moveBy, setPlaying, prefs});
+  const keys = useRef({moveBy, setPlaying});
   useEffect(() => {
-    keys.current = {moveBy, setPlaying, prefs};
+    keys.current = {moveBy, setPlaying};
   });
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -205,15 +214,14 @@ function CompareView({
       if (e.key === 'ArrowRight') k.moveBy(step);
       else if (e.key === 'ArrowLeft') k.moveBy(-step);
       else if (e.key === ' ') k.setPlaying(p => !p);
-      else if (e.key === '[' || e.key === ']')
-        k.prefs.setWindowStep(
-          stepWindow(
-            k.prefs.windowMode,
-            k.prefs.windowStep,
-            e.key === '[' ? -1 : 1,
-          ),
+      else if (e.key === '[' || e.key === ']') {
+        // Read the store, not the render's copy: two presses in one tick
+        // must both step.
+        const p = useComparePrefs.getState();
+        p.setWindowStep(
+          stepWindow(p.windowMode, p.windowStep, e.key === '[' ? -1 : 1),
         );
-      else return;
+      } else return;
       e.preventDefault();
     };
     window.addEventListener('keydown', onKey);
