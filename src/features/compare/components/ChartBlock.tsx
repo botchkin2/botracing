@@ -1,3 +1,4 @@
+import {useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Line} from 'react-native-svg';
 
@@ -81,6 +82,8 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
+  // D2: one "+ overlay" chip per header; the channel pills open on tap.
+  const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
     hoverValues?.[row.channel] ?? row.values;
   const valueTexts = (row: ChartValueRow) => (
@@ -144,14 +147,23 @@ export function ChartBlock({
           ))}
           {editor && chart.channels.length < MAX_OVERLAY && (
             <View style={styles.pills}>
-              {CHANNEL_IDS.filter(c => !chart.channels.includes(c)).map(c => (
-                <Chip
-                  key={c}
-                  dashed
-                  label={`+ ${CHANNELS[c].label}`}
-                  onPress={() => editor.onToggle(c)}
-                />
-              ))}
+              <Chip
+                dashed
+                label='+ overlay'
+                selected={pillsOpen}
+                onPress={() => setPillsOpen(o => !o)}
+              />
+              {pillsOpen &&
+                CHANNEL_IDS.filter(c => !chart.channels.includes(c)).map(c => (
+                  <Chip
+                    key={c}
+                    label={CHANNELS[c].label}
+                    onPress={() => {
+                      editor.onToggle(c);
+                      setPillsOpen(false);
+                    }}
+                  />
+                ))}
             </View>
           )}
         </View>

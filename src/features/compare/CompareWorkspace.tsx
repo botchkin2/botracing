@@ -74,10 +74,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const {model, selection, lapStyle} = p;
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
-  const centreW = Math.max(
-    480,
-    layout.width - LEFT_W - RIGHT_W - space.xl * 2,
-  );
+  const centreW = Math.max(480, layout.width - LEFT_W - RIGHT_W - space.xl * 2);
   const readAt = hoverM ?? p.cursorM;
   const values = valuesAt(model.readouts, model.stepM, readAt);
   const hoverValues =
@@ -506,11 +503,12 @@ const styles = StyleSheet.create({
     height: 26,
   },
   dim: {opacity: 0.5},
+  // One row at 1440, as D2 draws it; wraps rather than clips nearer 1280.
   toolbar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: space.md,
+    gap: space.xs,
     padding: space.md,
     borderBottomWidth: 1,
   },
