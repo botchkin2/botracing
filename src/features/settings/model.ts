@@ -61,7 +61,7 @@ function recorderState(
 const STATE_LABEL: Record<Uploader['state'], string> = {
   idle: 'Idle',
   'waiting-for-game': 'Waiting for LMU',
-  recording: 'Recording',
+  'in-game': 'In game',
   syncing: 'Syncing',
   error: 'Error',
 };

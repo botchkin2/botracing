@@ -6,7 +6,7 @@ describe('toUploader', () => {
   it('reads a full heartbeat, times as ISO or epoch ms', () => {
     const u = toUploader({
       hostId: 'rig',
-      host: 'BOTKIN-RIG',
+      label: 'Race PC',
       version: '0.3.1',
       lmuFound: true,
       state: 'syncing',
@@ -39,6 +39,7 @@ describe('toUploader', () => {
     expect(u.lastSeenAt).toBe(Date.parse('2026-09-28T20:00:00Z'));
     expect(u.lastUploadAt).toBe(1790000000000);
     expect(u.state).toBe('syncing');
+    expect(u.host).toBe('Race PC');
     expect(u.lastError?.path).toBe('D:/capture');
     expect(u.disk?.captureBytes).toBe(5e9);
   });
