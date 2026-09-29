@@ -1,6 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {buildChunk, type ChunkFrame, chunkPath, chunksIn} from './chunkPaths';
+import {
+  areaPath,
+  buildChunk,
+  type ChunkFrame,
+  chunkPath,
+  chunksIn,
+} from './chunkPaths';
 
 // Deterministic noise: pedal-like steps and spikes, so the monotone
 // overshoot fix fires often.
@@ -109,5 +115,17 @@ describe('chunkPath', () => {
     // A recent chunk is still cached.
     const nine = chunkPath(src, f, 9);
     expect(chunkPath(src, {...f, y: v => v}, 9)).toBe(nine);
+  });
+});
+
+describe('areaPath', () => {
+  it('closes a line down to the baseline at its first and last x', () => {
+    expect(areaPath('M0.0,20.0L10.0,5.5L20.0,12.0', 40)).toBe(
+      'M0.0,20.0L10.0,5.5L20.0,12.0L20.0,40.0L0.0,40.0Z',
+    );
+  });
+
+  it('is empty for an empty line', () => {
+    expect(areaPath('', 40)).toBe('');
   });
 });

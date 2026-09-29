@@ -35,15 +35,14 @@ export const PRESETS: {id: string; label: string; charts: ChartSet}[] = [
     charts: [
       ['timeDiff'],
       ['speed'],
-      ['throttle', 'brake'],
-      ['steering'],
+      ['throttle', 'brake', 'steering'],
       ['gear'],
     ],
   },
   {
     id: 'pedals',
     label: 'Pedals',
-    charts: [['timeDiff'], ['throttle', 'brake']],
+    charts: [['timeDiff'], ['throttle', 'brake', 'steering']],
   },
   {id: 'braking', label: 'Braking', charts: [['speed', 'brake'], ['timeDiff']]},
   {id: 'separate', label: 'Separate', charts: CHANNEL_IDS.map(c => [c])},
@@ -84,10 +83,12 @@ type Actions = {
   setRate: (rate: PlayRate) => void;
 };
 
+// The phone opens on one chart, the pedals chart (round 3, pit-wall thread
+// 27); desktop always stacks every chart, so `view` does not touch it.
 const defaults: ComparePrefs = {
   charts: PRESETS[0].charts,
-  view: 'stack',
-  focused: 0,
+  view: 'one',
+  focused: 2,
   mapShown: true,
   mapMode: 'follow',
   poorMapNoteSeen: [],
@@ -127,7 +128,8 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
       setRate: rate => set({rate}),
     }),
     {
-      name: 'compare-prefs-v1',
+      // v2: new default charts and view; older saved layouts are dropped.
+      name: 'compare-prefs-v2',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: s => ({
         charts: s.charts,
