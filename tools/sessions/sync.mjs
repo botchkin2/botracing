@@ -365,6 +365,9 @@ function build(s, trackMap, eventWindows) {
       offTrackSec: lap.offTrackSec,
       pastEdgeSec: lap.pastEdgeSec,
       impactMax: lap.impactMax,
+      // The fastest recorded speed sample of the lap, and where.
+      maxSpeedKmh: lap.maxSpeedKmh,
+      maxSpeedAtM: lap.maxSpeedAtM,
       sectors: lap.sectors,
       stint: lap.stint,
       comparable: lap.comparable,
@@ -462,6 +465,7 @@ function build(s, trackMap, eventWindows) {
       comparable: lap.comparable,
       reasons: lap.reasons,
       offTrackSec: lap.offTrackSec,
+      maxSpeedKmh: lap.maxSpeedKmh,
       endedInReset: lap.endedInReset,
       afterReset: lap.afterReset,
       excluded: lap.excluded,
