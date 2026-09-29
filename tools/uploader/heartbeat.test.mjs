@@ -76,3 +76,11 @@ test('an error reaches the doc as one line with no user paths', () => {
   });
   assert.ok(!doc.lastError.message.includes('Botkin'));
 });
+
+test('progress reaches the doc, and a step forward forces a write', () => {
+  assert.equal(heartbeatDoc(input).progress, null);
+  const at = done =>
+    heartbeatDoc({...input, state: 'syncing', progress: {done, total: 300}});
+  assert.deepEqual(at(12).progress, {done: 12, total: 300});
+  assert.notEqual(beatKey(at(12)), beatKey(at(13)));
+});

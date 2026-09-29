@@ -564,6 +564,8 @@ async function main() {
   const todo = [...sessions]
     .reverse()
     .filter(s => force || local || state.sessions[s.id] !== s.fingerprint);
+  // The watcher reads this line for the heartbeat's done/total.
+  log(`to do ${todo.length}`);
   const {done, failed} = await runPool(todo, store, state, eventWindows);
   log(
     `done ${done}, failed ${failed}, unchanged ${

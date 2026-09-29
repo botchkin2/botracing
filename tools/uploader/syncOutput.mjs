@@ -4,10 +4,19 @@
 // and a closing "done N, failed M, unchanged K".
 
 export function newSyncResult() {
-  return {sessions: [], failedIds: [], done: 0, failed: 0, errors: []};
+  return {
+    sessions: [],
+    failedIds: [],
+    done: 0,
+    failed: 0,
+    errors: [],
+    total: null,
+  };
 }
 
 export function readSyncLine(result, line) {
+  const todo = line.match(/^to do (\d+)$/);
+  if (todo) result.total = +todo[1];
   const session = line.match(/^([0-9a-f]{16}) /);
   if (session) result.sessions.push(session[1]);
   if (/^\s+failed: /.test(line)) {
@@ -25,4 +34,15 @@ export function readSyncLine(result, line) {
 // term it would read as done (sector, pitlane #565/#566).
 export function queueCount({pendingFiles, failedSessions}) {
   return pendingFiles + (failedSessions?.length ?? 0);
+}
+
+// Sessions finished so far out of those this sync has to do, or null before
+// sync.mjs has said how many. Each session's block is printed once it is
+// stored or has failed, so the count of blocks is the progress.
+export function progressOf(result) {
+  if (result.total == null) return null;
+  return {
+    done: Math.min(result.sessions.length, result.total),
+    total: result.total,
+  };
 }

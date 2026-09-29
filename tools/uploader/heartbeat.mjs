@@ -32,6 +32,7 @@ export function heartbeatDoc({
   state,
   watch,
   queue,
+  progress,
   freeBytes,
   recorder,
   nowMs,
@@ -46,6 +47,8 @@ export function heartbeatDoc({
     lastUploadAt: watch.lastUploadAt ?? null,
     lastSessionId: watch.lastSessionId ?? null,
     queue,
+    // done/total of the sync running now, else null.
+    progress: progress ?? null,
     sessionsDone: watch.sessionsDone ?? 0,
     lastError: watch.lastError
       ? {...watch.lastError, message: scrub(watch.lastError.message)}
@@ -77,6 +80,8 @@ export function beatKey(doc) {
     doc.lastUploadAt,
     doc.lastError?.at,
     doc.queue,
+    doc.progress?.done,
+    doc.progress?.total,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
   ]);
