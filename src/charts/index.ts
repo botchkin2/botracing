@@ -6,3 +6,4 @@ export * from './TrackStrip';
 export * from './DotStrip';
 export * from './BrakeMap';
 export * from './FollowMap';
+export * from './trackMarks';

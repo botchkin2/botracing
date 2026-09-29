@@ -14,6 +14,7 @@ import {
   type SessionBand,
   type SessionDetail,
   type MapSection,
+  mapPlacer,
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
@@ -24,13 +25,13 @@ import {
   lapMode,
   type LapMode,
 } from '@/src/design';
+import {buildTrackMarks, type TrackMarks} from '@/src/charts';
 
 import {
   buildFollowView,
   type FollowGeometry,
   type FollowView,
 } from './followModel';
-import {mapPlacer} from './mapPlace';
 import {
   headAfter,
   lapNeighbours,
@@ -39,7 +40,6 @@ import {
   tailBefore,
   WRAP_M,
 } from './neighbours';
-import {buildTrackMarks, type TrackMarks} from './trackMarks';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors

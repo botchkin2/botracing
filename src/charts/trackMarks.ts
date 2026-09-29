@@ -1,5 +1,4 @@
-import {type MapAnchor, type MapMarks} from '@/src/charts';
-import {type MapSection} from '@/src/data/sessions';
+import {type MapAnchor, type MapMarks} from './TrackMap';
 
 // Track mode labels (handoff v2 M1a): a tick across the band at each
 // section boundary, S1–S5 labels inside the loop, corner numbers outside.
@@ -7,6 +6,10 @@ import {type MapSection} from '@/src/data/sessions';
 // chart can find the band's normal in screen space and offset from there.
 
 type Xy = {x: number; y: number};
+
+/** The map's sections (data/sessions MapSection), as far as marks need them. */
+type MarkCorner = {n: number; entryM: number; apexM: number};
+type MarkSection = MarkCorner & {parts: MarkCorner[]};
 
 // Boundaries at each section's entry; section labels halfway to the next
 // boundary; corner numbers at each corner's apex.
@@ -16,7 +19,7 @@ export type TrackMarks = MapMarks;
 const TANGENT_M = 10;
 
 export function buildTrackMarks(
-  sections: MapSection[],
+  sections: MarkSection[],
   lengthM: number,
   /** Map point on the reference line at a distance (wraps are clamped). */
   pointAt: (m: number) => Xy,

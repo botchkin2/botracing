@@ -5,10 +5,11 @@ import {
   toLocalMetres,
 } from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
-import {type TrackMapData} from '@/src/data/sessions';
+import {type TrackMapData} from './adapters';
 
 // Where map points go: on the real (OSM) map when the track's fit is good,
-// else in local metres around LMU's fake origin. Shared by Track and Follow.
+// else in local metres around LMU's fake origin. Shared by Compare (Track and
+// Follow) and the Track page.
 
 export type Xy = {x: number; y: number};
 

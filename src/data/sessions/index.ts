@@ -29,3 +29,4 @@ export {
   type TrackCorner,
   trackCorners,
 } from './corners';
+export {type MapPlacer, mapPlacer, type Xy} from './mapPlace';

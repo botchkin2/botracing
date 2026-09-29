@@ -6,6 +6,7 @@ import {
   useSessionBand,
   useSessionLaps,
   useSessionMap,
+  mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
@@ -19,7 +20,6 @@ import {
 } from './model';
 
 import {buildFollowGeometry} from './followModel';
-import {mapPlacer} from './mapPlace';
 
 import {lapNeighbours, WRAP_M} from './neighbours';
 

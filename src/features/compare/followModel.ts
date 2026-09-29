@@ -5,7 +5,7 @@ import {
 } from '@/src/analysis/followView';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 
-import {type MapPlacer, type Xy} from './mapPlace';
+import {type MapPlacer, type Xy} from '@/src/data/sessions';
 
 // The Follow map's data (handoff v2 M1b), in two parts so playback stays
 // cheap: geometry that only changes with the selection (built once, drawn
