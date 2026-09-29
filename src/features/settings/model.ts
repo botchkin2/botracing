@@ -36,6 +36,27 @@ export type SettingsModel = {
 };
 
 const SEEN_MS = 10 * 60_000;
+// The recorder writes its status every few seconds; older than this, it is
+// not running whatever its last state said (sector, #63).
+const RECORDER_STALE_MS = 2 * 60_000;
+
+const RECORDER_LABEL: Record<string, string> = {
+  recording: 'recording',
+  'waiting-for-game': 'waiting for LMU',
+  idle: 'idle',
+  'not-running': 'not running',
+  stopped: 'stopped',
+  refused: 'stopped',
+};
+
+function recorderState(
+  r: NonNullable<Uploader['recorder']>,
+  nowMs: number,
+): string {
+  if (r.updatedAt != null && nowMs - r.updatedAt > RECORDER_STALE_MS)
+    return 'not running';
+  return RECORDER_LABEL[r.state] ?? r.state;
+}
 
 const STATE_LABEL: Record<Uploader['state'], string> = {
   idle: 'Idle',
@@ -89,7 +110,7 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
         )} free`
       : '',
     u.recorder && u.recorder.layoutOk
-      ? `Recorder ${u.recorder.state}${
+      ? `Recorder ${recorderState(u.recorder, nowMs)}${
           u.recorder.gameVersion ? ` · LMU ${u.recorder.gameVersion}` : ''
         }`
       : '',
@@ -115,11 +136,12 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
       : null,
     recorderWarning:
       u.recorder && !u.recorder.layoutOk
-        ? `Recorder stopped: ${
-            u.recorder.gameVersion
-              ? `LMU ${u.recorder.gameVersion}`
-              : 'this LMU build'
-          } changed its data layout, so nothing is written until the recorder is updated.`
+        ? `Recorder stopped writing${
+            u.recorder.gameVersion ? ` on LMU ${u.recorder.gameVersion}` : ''
+          }: ${
+            u.recorder.layoutReason ??
+            'it did not recognise the game data layout'
+          }.`
         : null,
   };
 }

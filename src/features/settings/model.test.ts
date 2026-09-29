@@ -29,7 +29,9 @@ const rig = (over: Partial<Uploader> = {}): Uploader => ({
     state: 'recording',
     gameVersion: '1.2',
     layoutOk: true,
+    layoutReason: null,
     lastChunkAt: null,
+    updatedAt: NOW - 5000,
   },
   ...over,
 });
@@ -74,16 +76,39 @@ describe('uploaderCard', () => {
     const c = uploaderCard(
       rig({
         recorder: {
-          state: 'stopped',
+          state: 'refused',
           gameVersion: '1.3',
           layoutOk: false,
+          layoutReason: 'header size 312, expected 304',
           lastChunkAt: null,
+          updatedAt: NOW,
         },
       }),
       NOW,
     );
-    expect(c.recorderWarning).toMatch(/^Recorder stopped: LMU 1.3 changed/);
+    expect(c.recorderWarning).toBe(
+      'Recorder stopped writing on LMU 1.3: header size 312, expected 304.',
+    );
     expect(c.lines.some(l => l.startsWith('Recorder'))).toBe(false);
+  });
+});
+
+describe('recorder freshness', () => {
+  it('a recorder that stopped reporting reads as not running', () => {
+    const c = uploaderCard(
+      rig({
+        recorder: {
+          state: 'recording',
+          gameVersion: '1.2',
+          layoutOk: true,
+          layoutReason: null,
+          lastChunkAt: null,
+          updatedAt: NOW - 5 * min,
+        },
+      }),
+      NOW,
+    );
+    expect(c.lines).toContain('Recorder not running · LMU 1.2');
   });
 });
 
