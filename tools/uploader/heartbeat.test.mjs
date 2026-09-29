@@ -1,7 +1,13 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {beatKey, heartbeatDoc, hostIdOf, scrub} from './heartbeat.mjs';
+import {
+  beatKey,
+  heartbeatDoc,
+  hostIdOf,
+  idleState,
+  scrub,
+} from './heartbeat.mjs';
 
 const nowMs = Date.parse('2026-09-29T10:00:00Z');
 const input = {
@@ -91,4 +97,15 @@ test('a pending retry shows its time, and changes the beat key', () => {
   assert.equal(doc.retryAt, '2026-09-29T10:30:00.000Z');
   assert.equal(heartbeatDoc(input).retryAt, null);
   assert.notEqual(beatKey(doc), beatKey(heartbeatDoc(input)));
+});
+
+test('idle state: crash, then in game, then retrying, then waiting', () => {
+  const s = {crashed: false, gameRunning: false, retryPending: false};
+  assert.equal(idleState(s), 'waiting-for-game');
+  assert.equal(idleState({...s, retryPending: true}), 'retrying');
+  assert.equal(
+    idleState({...s, retryPending: true, gameRunning: true}),
+    'in-game',
+  );
+  assert.equal(idleState({...s, retryPending: true, crashed: true}), 'error');
 });

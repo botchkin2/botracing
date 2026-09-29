@@ -74,3 +74,13 @@ test('progress is done/total once sync.mjs says how many, null before', () => {
   readSyncLine(r, '  failed: Error: upload timed out');
   assert.deepEqual(progressOf(r), {done: 2, total: 3});
 });
+
+test('a sync is finished only once its closing line is read', () => {
+  assert.equal(run(output).finished, true);
+  // Died after a failed block, before the closing line: a crash, not a pass
+  // with one failure (camber #780). Exit code 1 alone cannot tell them apart.
+  const died = run(output.slice(0, -1));
+  assert.deepEqual(died.failedIds, ['bbbbbbbbbbbbbbbb']);
+  assert.equal(died.finished, false);
+  assert.equal(newSyncResult().finished, false);
+});

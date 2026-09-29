@@ -34,7 +34,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
-import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
+import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {
   newSyncResult,
@@ -300,9 +300,11 @@ async function main() {
         }
         // Each failed session waits on its own backoff and is skipped until
         // then; everything else is done, so the run and the version count as
-        // done. A crash with no session blamed (exit code, no failed block)
-        // proves nothing was done: it waits as a whole, as before.
-        if (r.code && !r.failedIds.length) {
+        // done. sync.mjs exits 1 on any failed session, so only its closing
+        // line tells a finished pass from a crash: a sync that died part way
+        // (even after a failed block) leaves sessions unreached, so it waits
+        // as a whole and records neither run time nor version.
+        if (!r.finished) {
           watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
           watch.retryAtMs =
             Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
@@ -333,17 +335,12 @@ async function main() {
         save();
         log(`sync: done ${r.done}, failed ${r.failed}, exit ${r.code}`);
       }
-      // A crash is an error; failed sessions waiting on a backoff are
-      // 'retrying' (the app shows when), not an error.
-      const retryPending = earliestRetryMs(watch.retries) != null;
       await beat(
-        watch.retryAtMs != null
-          ? 'error'
-          : retryPending
-          ? 'retrying'
-          : running
-          ? 'in-game'
-          : 'waiting-for-game',
+        idleState({
+          crashed: watch.retryAtMs != null,
+          gameRunning: running,
+          retryPending: earliestRetryMs(watch.retries) != null,
+        }),
       );
     } catch (error) {
       log(`tick failed: ${String(error.stack || error)}`);
