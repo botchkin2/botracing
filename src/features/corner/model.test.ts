@@ -155,15 +155,15 @@ describe('buildCornerModel (per single corner)', () => {
     expect(c1.rows[0].values.time).toBe(5);
   });
 
-  it('table below 20 laps, no strips', () => {
+  it('table below 7 laps, no strips', () => {
     expect(m.strips).toBeNull();
     expect(m.mode).toBe('individual');
   });
 });
 
-describe('strips at 20+ laps', () => {
+describe('strips at 7+ laps', () => {
   const many = toLaps(
-    Array.from({length: 20}, (_, i) =>
+    Array.from({length: 7}, (_, i) =>
       lap(`m${i}`, [10 + (i % 5) / 10, 450 + i, 100 + i, 650]),
     ),
   );
@@ -187,7 +187,7 @@ describe('strips at 20+ laps', () => {
       'throttle',
     ]);
     expect(m.strips![1].flipped).toBe(true);
-    expect(m.strips![0].summary).toMatch(/^med 10\.200 · p10–90 /);
+    expect(m.strips![0].summary).toMatch(/^med 10\.100 · p10–90 /);
   });
 
   it('colours the laps on and gives their values beside the title', () => {
@@ -219,6 +219,24 @@ describe('lap choice', () => {
       'a',
       'c',
     ]);
+  });
+
+  it('with nothing selected and all-comparable off, falls back to best + next fastest', () => {
+    const timed = toLaps([
+      {...lap('a', [9.8, 460, 110, 650]), lapTime: 91},
+      {...lap('b', [10.1, 450, 106, 670]), lapTime: 90},
+      {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
+      {...lap('x', [12.0, 400, 90, 700], false), lapTime: 80},
+    ]);
+    expect(cornerLapIds(timed, {laps: [], hl: null}, false, 'b')).toEqual([
+      'b',
+      'a',
+    ]);
+    expect(cornerLapIds(timed, {laps: [], hl: null}, false, null)).toEqual([
+      'b',
+      'a',
+    ]);
+    expect(cornerLapIds([], {laps: [], hl: null}, false, null)).toEqual([]);
   });
 
   it('sorts by a measure', () => {

@@ -13,6 +13,35 @@ WHEELS = ("fl", "fr", "rl", "rr")
 # Filler and ids the analysis never reads.
 SKIP_PREFIXES = ("mExpansion", "mUnused", "mUpgradePack", "mPhysicsToGraphicsOffset")
 
+# Doubles the game only ever fills with float32 values, checked bit-exact over
+# a whole 16-minute Daytona race (pit-wall thread 30, #763). Stored as float32
+# they take half the bytes; `narrow` still verifies each chunk and keeps double
+# if a value would change, so a game update cannot cost precision.
+_WHEEL_F32 = ("GripFract", "LateralForce", "LongitudinalForce", "TireLoad", "Wear")
+FLOAT32_PLAYER = frozenset(
+    [f"{w}_m{n}" for w in WHEELS for n in _WHEEL_F32]
+    + ["mBatteryChargeFraction", "mDeltaTime", "mDrag", "mElectricBoostMotorRPM",
+       "mElectricBoostMotorTemperature", "mElectricBoostMotorTorque",
+       "mElectricBoostWaterTemperature", "mEngineMaxRPM", "mEngineTorque", "mFilteredBrake",
+       "mFilteredSteering", "mFrontDownforce", "mFrontRideHeight", "mFrontWingHeight",
+       "mFuelCapacity", "mLapStartET", "mLastImpactET", "mLastImpactMagnitude",
+       "mRearDownforce", "mRearRideHeight", "mTurboBoostPressure", "mUnfilteredBrake",
+       "mUnfilteredClutch", "mUnfilteredSteering", "mUnfilteredThrottle"]
+    + [f"mLastImpactPos_{a}" for a in "xyz"]
+    + [f"{n}_{a}" for n in ("mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos")
+       for a in "xyz"]
+    + [f"mOri_{r}_{a}" for r in range(3) for a in "xyz"]
+)
+FLOAT32_FIELD = frozenset(
+    ["mBestLapTime", "mBestSector1", "mBestSector2", "mCurSector1", "mCurSector2",
+     "mEstimatedLapTime", "mLapDist", "mLapStartET", "mLastLapTime", "mLastSector1",
+     "mLastSector2", "mPathLateral", "mTimeBehindLeader", "mTimeBehindNext", "mTimeIntoLap",
+     "mTrackEdge"]
+    + [f"{n}_{a}" for n in ("mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos")
+       for a in "xyz"]
+    + [f"mOri_{r}_{a}" for r in range(3) for a in "xyz"]
+)
+
 _SCALAR = {
     C.c_double: "<f8",
     C.c_float: "<f4",
@@ -107,3 +136,15 @@ def decode_text(raw):
 def text(field):
     """A fixed char field as text."""
     return decode_text(bytes(field))
+
+
+def narrow(cols, names):
+    """cols with the listed double columns as float32 where that loses nothing."""
+    out = {}
+    for name, arr in cols.items():
+        if name in names and arr.dtype == np.float64:
+            small = arr.astype(np.float32)
+            if np.array_equal(small.astype(np.float64), arr, equal_nan=True):
+                arr = small
+        out[name] = arr
+    return out
