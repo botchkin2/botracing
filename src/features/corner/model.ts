@@ -98,7 +98,9 @@ export type CornerModel = {
 // Zoomed traces: 250 m before the apex to 150 m after (handoff §4).
 export const ZOOM_BEFORE_M = 250;
 export const ZOOM_AFTER_M = 150;
-const STRIP_MODE_FROM = 20;
+// Strips start where the table's individual lap colours end (lapMode: 7+ laps),
+// so a 16-lap race gets them; below that the table shows every lap.
+const STRIP_MODE_FROM = 7;
 
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
@@ -114,11 +116,31 @@ export function cornerLapIds(
   allComparable: boolean,
   bestLapId: string | null = null,
 ): string[] {
-  if (!allComparable) return selection.laps;
+  if (!allComparable) {
+    if (selection.laps.length > 0) return selection.laps;
+    return defaultCornerLaps(laps, bestLapId);
+  }
   // With nothing selected, the session's best lap is the reference.
   const ref = selection.laps[0] ?? bestLapId ?? undefined;
   const rest = laps.filter(l => l.comparable && l.id !== ref).map(l => l.id);
   return ref ? [ref, ...rest] : rest;
+}
+
+/**
+ * Nothing selected and no URL laps: the best lap as reference plus the
+ * fastest other comparable lap, so the screen never waits on an empty list.
+ */
+function defaultCornerLaps(laps: Lap[], bestLapId: string | null): string[] {
+  const comparable = laps.filter(l => l.comparable && l.timeS != null);
+  const ref =
+    bestLapId && laps.some(l => l.id === bestLapId)
+      ? bestLapId
+      : comparable.slice().sort((a, b) => a.timeS! - b.timeS!)[0]?.id;
+  if (!ref) return [];
+  const second = comparable
+    .filter(l => l.id !== ref)
+    .sort((a, b) => a.timeS! - b.timeS!)[0];
+  return second ? [ref, second.id] : [ref];
 }
 
 /**
