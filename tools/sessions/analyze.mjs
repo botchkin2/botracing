@@ -710,6 +710,14 @@ function traceCsv(rec, lap) {
   return lines.join('\n');
 }
 
+// See the stint rules in analyzeSession.
+const RESET_MAX_GAP_S = 300;
+
+function startsInPits(rec) {
+  const first = rec.events.in_pits?.[0];
+  return Boolean(first && first.v === 1 && first.t - rec.s.t[0] < 1);
+}
+
 // recs: loaded recordings of one session, in time order.
 // trackMap: the track's stored corners ({lengthM, corners}), or null to find
 // them on this session. The map used is returned, so the caller can keep it.
@@ -719,9 +727,14 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   // but never while the current stint has no timed lap yet. That keeps the
   // grid or formation run from becoming a stint of its own.
   // Why each stint started: 'session' (the first file), 'pit' (left the
-  // pits), or 'reset'. A reset to the garage ends LMU's recording mid-lap and
-  // the next file starts in the pits (thread 32, e9e7ebf00d4405be); the lap
-  // cut short is tagged endedInReset and the next file's first lap
+  // pits), 'reset' (back to the garage from the track), or 'gap' (a new file
+  // for any other reason). A reset to the garage ends LMU's recording
+  // mid-lap, and the next file starts in the pits a few seconds later
+  // (thread 32). Across the archive's 140 file changes with the car on
+  // track, 128 were that: next file in the pits within 0-300 s (mostly
+  // 3-60 s); the other 11 restarted the game clock outside the pits. A
+  // disconnect that ends the session leaves no next file, so no marker.
+  // The lap cut short is tagged endedInReset and the next file's first lap
   // afterReset, even when no new stint opens.
   let stint = 0;
   let stintTimed = false;
@@ -738,10 +751,20 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     const pits = pitIntervals(rec.events.in_pits);
     const before = laps[laps.length - 1];
     // Every file's last lap is cut short; it is a reset only when the car was
-    // out on track, not in the pits, when the file ended.
-    const reset = Boolean(before?.partial && !before.pitIn);
+    // on track then, and this file starts in the pits soon after.
+    const prev = recs[r - 1];
+    const gapS = prev ? rec.s.t[0] - prev.s.t[prev.s.t.length - 1] : null;
+    const reset = Boolean(
+      before?.partial &&
+        !before.pitIn &&
+        startsInPits(rec) &&
+        gapS >= 0 &&
+        gapS <= RESET_MAX_GAP_S,
+    );
     if (reset) before.endedInReset = true;
-    openStint(r === 0 ? 'session' : reset ? 'reset' : 'pit');
+    openStint(
+      r === 0 ? 'session' : reset ? 'reset' : before?.pitIn ? 'pit' : 'gap',
+    );
     let first = true;
     for (const seg of segments(rec)) {
       const lap = analyzeLap(rec, seg, pits, flags[r]);
