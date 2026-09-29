@@ -62,44 +62,53 @@ export function LapTimeBars({
   const axis = {...typeScale.axis, fontSize: 9};
   // STINT, PIT and RESET labels share the top rows; one that would run into
   // the label before it drops a row (freeze, thread 32: laps 32–34).
+  // A reset that opens a stint is one boundary with one label; pits on
+  // neighbouring laps (in-lap, out-lap) share one PIT label.
+  const resetSet = new Set(resets);
+  const stintAt = new Map(stintBreaks.map(b => [b.afterIndex, b.label]));
+  const pitLabels = pits.filter(i => !pits.includes(i - 1));
   const topLabels = placeTopLabels([
     ...stintBreaks.map(b => ({
       key: `s-${b.label}`,
       x: (b.afterIndex + 1) * slot + 3,
-      text: b.label,
-      color: color.textFaint,
+      text: resetSet.has(b.afterIndex) ? `${b.label} · RESET` : b.label,
+      color: resetSet.has(b.afterIndex) ? color.textMuted : color.textFaint,
     })),
-    ...pits.map(i => ({
+    ...pitLabels.map(i => ({
       key: `p-${i}`,
       x: xOf(i) + barW / 2 + 3,
       text: 'PIT',
       color: color.accentInk,
     })),
-    ...resets.map(i => ({
-      key: `r-${i}`,
-      x: xOf(i) + barW + 3.8,
-      text: 'RESET',
-      color: color.textMuted,
-    })),
+    ...resets
+      .filter(i => !stintAt.has(i))
+      .map(i => ({
+        key: `r-${i}`,
+        x: xOf(i) + barW + 3.8,
+        text: 'RESET',
+        color: color.textMuted,
+      })),
   ]);
 
   return (
     <View style={{width, height: height + AXIS_H}}>
       <Svg width={width} height={height + AXIS_H}>
-        {stintBreaks.map(b => {
-          const x = (b.afterIndex + 1) * slot;
-          return (
-            <Line
-              key={b.label}
-              x1={x}
-              x2={x}
-              y1={0}
-              y2={height}
-              stroke={color.lineHeader}
-              strokeWidth={1}
-            />
-          );
-        })}
+        {stintBreaks
+          .filter(b => !resetSet.has(b.afterIndex))
+          .map(b => {
+            const x = (b.afterIndex + 1) * slot;
+            return (
+              <Line
+                key={b.label}
+                x1={x}
+                x2={x}
+                y1={0}
+                y2={height}
+                stroke={color.lineHeader}
+                strokeWidth={1}
+              />
+            );
+          })}
         <Line
           x1={0}
           x2={width}
