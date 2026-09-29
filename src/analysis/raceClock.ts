@@ -5,6 +5,9 @@
 // Race time is seconds from the field's first update. A place is the game's
 // laps-completed count (the lap docs' `lapNumber`; 0 is the first lap) and the
 // distance along that lap, in metres.
+//
+// `raceClock(field)` does the per-field work once (lap numbers, lap runs);
+// keep the result for as long as the field lives and call it per frame.
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 
 export interface LapPlace {
@@ -12,9 +15,29 @@ export interface LapPlace {
   distanceM: number;
 }
 
-function playerOf(field: Field): FieldCar | null {
-  return field.cars.find(c => c.player) ?? null;
+export interface RaceClock {
+  /** The player at the update nearest `timeS`; null with no player or when absent then. */
+  playerAt(timeS: number): LapPlace | null;
+  /**
+   * Race time at which the player was `distanceM` into lap `lapNumber`, by
+   * linear interpolation between updates (from the previous lap's last sample
+   * for a distance before the lap's first one); null when the player never
+   * drove that lap or never got that far on it (a lap that ended in the pits,
+   * a reset).
+   */
+  timeAtLapDistance(lapNumber: number, distanceM: number): number | null;
 }
+
+/** A stretch of consecutive updates on one lap with the player present. */
+interface Run {
+  first: number;
+  last: number;
+}
+
+const NONE: RaceClock = {
+  playerAt: () => null,
+  timeAtLapDistance: () => null,
+};
 
 // The game bumps laps-completed and resets the lap distance at slightly
 // different updates, so at the line the pair can disagree by a whole lap.
@@ -41,50 +64,60 @@ function lapsOf(car: FieldCar, trackM: number): Int32Array {
   return laps;
 }
 
-function trackLength(car: FieldCar): number {
-  let max = 0;
-  for (const d of car.lapDistM) if (d > max) max = d;
-  return max;
-}
-
-/** The player at the update nearest `timeS`; null with no player or when absent then. */
-export function playerAt(field: Field, timeS: number): LapPlace | null {
-  const car = playerOf(field);
-  const u = updateAt(field.timeS, timeS);
-  if (!car || u < 0 || Number.isNaN(car.lapDistM[u])) return null;
-  return {
-    lapNumber: lapsOf(car, trackLength(car))[u],
-    distanceM: car.lapDistM[u],
-  };
-}
-
-/**
- * Race time at which the player was `distanceM` into lap `lapNumber`, by
- * linear interpolation between updates; null when the player never drove that
- * lap or never got that far on it (a lap that ended in the pits, a reset).
- */
-export function timeAtLapDistance(
-  field: Field,
-  lapNumber: number,
-  distanceM: number,
-): number | null {
-  const car = playerOf(field);
-  if (!car) return null;
-  const laps = lapsOf(car, trackLength(car));
-  let prev = -1;
-  for (let u = 0; u < field.timeS.length; u++) {
-    if (Number.isNaN(car.lapDistM[u]) || laps[u] !== lapNumber) {
-      prev = -1;
-      continue;
-    }
-    const d = car.lapDistM[u];
-    if (d >= distanceM) {
-      if (prev < 0) return field.timeS[u];
-      const span = d - car.lapDistM[prev];
-      const f = span > 0 ? (distanceM - car.lapDistM[prev]) / span : 1;
-      return field.timeS[prev] + f * (field.timeS[u] - field.timeS[prev]);
-    }
-    prev = u;
+export function raceClock(field: Field): RaceClock {
+  const car = field.cars.find(c => c.player);
+  if (!car) return NONE;
+  // The longest distance any car has been at is the lap length to within a
+  // metre or so; the player alone would fall short by up to one step.
+  let trackM = 0;
+  for (const c of field.cars) {
+    for (const d of c.lapDistM) if (d > trackM) trackM = d;
   }
-  return null;
+  const laps = lapsOf(car, trackM);
+  const runs = new Map<number, Run[]>();
+  for (let u = 0; u < laps.length; u++) {
+    if (laps[u] === ABSENT) continue;
+    const list = runs.get(laps[u]) ?? [];
+    runs.set(laps[u], list);
+    const tail = list[list.length - 1];
+    if (tail && tail.last === u - 1) tail.last = u;
+    else list.push({first: u, last: u});
+  }
+
+  return {
+    playerAt(timeS) {
+      const u = updateAt(field.timeS, timeS);
+      if (u < 0 || laps[u] === ABSENT) return null;
+      return {lapNumber: laps[u], distanceM: car.lapDistM[u]};
+    },
+
+    timeAtLapDistance(lapNumber, distanceM) {
+      for (const run of runs.get(lapNumber) ?? []) {
+        // Distance grows along a run, so the first update at or past it can
+        // be found by halving.
+        let lo = run.first;
+        let hi = run.last;
+        if (car.lapDistM[hi] < distanceM) continue;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (car.lapDistM[mid] < distanceM) lo = mid + 1;
+          else hi = mid;
+        }
+        const at = car.lapDistM[lo];
+        let from = lo - 1;
+        let fromD = from >= run.first ? car.lapDistM[from] : NaN;
+        // Before the lap's first sample: the last sample of the lap before,
+        // if it is the update just ahead of this run.
+        if (lo === run.first && lo > 0 && laps[lo - 1] === lapNumber - 1) {
+          from = lo - 1;
+          fromD = car.lapDistM[from] - trackM;
+        }
+        if (Number.isNaN(fromD)) return field.timeS[lo];
+        const span = at - fromD;
+        const f = span > 0 ? (distanceM - fromD) / span : 1;
+        return field.timeS[from] + f * (field.timeS[lo] - field.timeS[from]);
+      }
+      return null;
+    },
+  };
 }
