@@ -39,6 +39,7 @@ import {
   trackMapVersion,
 } from './analyze.mjs';
 import {fieldFor} from './field.mjs';
+import {lapFieldFacts} from './fieldTags.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -330,8 +331,28 @@ function build(s, trackMap, eventWindows) {
   const lapId = lap =>
     `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
 
+  const last = s.files[s.files.length - 1].info;
+  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
+  // Every car in the session, when tools/capture recorded it (field.mjs).
+  const fieldOut = fieldFor(
+    captureRoot,
+    {
+      tracks: [first.track, first.layout],
+      startMs: Date.parse(first.recordedAt),
+      endMs,
+    },
+    recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
+  );
+  // Traffic around the player per lap, from the field (fieldTags.mjs).
+  const tags = fieldOut.field
+    ? lapFieldFacts(
+        fieldOut.field,
+        a.laps.map(lap => ({from: lap.startT, to: lap.endT})),
+      )
+    : null;
+
   const traces = [];
-  const laps = a.laps.map(lap => {
+  const laps = a.laps.map((lap, k) => {
     const rec = s.files[lap.rec].info;
     const id = lapId(lap);
     const tracePath = `traces/${ownerId}/${id}/v2.csv.gz`;
@@ -387,6 +408,9 @@ function build(s, trackMap, eventWindows) {
       compound: lap.compound,
       wetness: lap.wetness,
       corners: lap.corners || [],
+      // Cars around the player, seconds and counts (fieldTags.mjs); null
+      // when the session has no field.
+      traffic: tags?.[k] ?? null,
       // Not in the default "normal racing" selection, and why.
       excluded: lap.excluded,
       // Against the session's normal racing laps: residual to the pace
@@ -397,18 +421,6 @@ function build(s, trackMap, eventWindows) {
     });
   });
 
-  const last = s.files[s.files.length - 1].info;
-  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
-  // Every car in the session, when tools/capture recorded it (field.mjs).
-  const fieldOut = fieldFor(
-    captureRoot,
-    {
-      tracks: [first.track, first.layout],
-      startMs: Date.parse(first.recordedAt),
-      endMs,
-    },
-    recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
-  );
   // Named by its content, so the route can cache it as immutable: a resync
   // that changes the field writes a new file (pitlane #680).
   const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
