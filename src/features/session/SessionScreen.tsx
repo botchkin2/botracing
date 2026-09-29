@@ -11,7 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {LapTimeBars} from '@/src/charts';
 import {lapStroke, radius, space, useLayout, useTheme} from '@/src/design';
-import {compareHref, sessionsHref} from '@/src/nav/routes';
+import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
 import {Explainer, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
@@ -226,6 +226,16 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      {model.trackId ? (
+        <Pressable
+          accessibilityRole='link'
+          onPress={() => router.push(trackHref(model.trackId))}
+          hitSlop={space.md}>
+          <Text variant='body' tone='accentInk'>
+            Track page ›
+          </Text>
+        </Pressable>
+      ) : null}
       <View style={styles.facts}>
         {model.facts.map(f => (
           <View key={f.label}>

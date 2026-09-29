@@ -25,3 +25,22 @@ export function formatCornerGap(deltaS: number): string {
 export function formatDistance(distanceM: number): string {
   return `${Math.round(distanceM).toLocaleString('en-US')} m`;
 }
+
+/** "21 Sep 2026", in the device's time zone. */
+export function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/** 5891 → {km: "5.891 km", mi: "3.660 mi"} */
+export function formatLength(distanceM: number): {km: string; mi: string} {
+  return {
+    km: `${(distanceM / 1000).toFixed(3)} km`,
+    mi: `${(distanceM / 1609.344).toFixed(3)} mi`,
+  };
+}

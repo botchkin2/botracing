@@ -57,6 +57,17 @@ export const cornerHref = (
   },
 });
 
+export const tracksHref = (): Href => ({pathname: '/tracks', params: {}});
+
+/** A layout's Track page, with an optional selected corner. */
+export const trackHref = (
+  trackId: string,
+  corner: number | null = null,
+): Href => ({
+  pathname: '/track/[id]',
+  params: {id: trackId, ...selectionParams({corner})},
+});
+
 /** Reads the shared params back; unknown or empty values drop out. */
 export function parseSelection(params: {
   laps?: string;
