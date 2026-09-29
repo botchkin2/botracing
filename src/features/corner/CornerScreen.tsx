@@ -84,7 +84,9 @@ export function CornerScreen({
           <ActivityIndicator color={color.accent} />
         ) : (
           <Text tone='textMuted'>
-            {result.state === 'missing'
+            {result.state === 'noLaps'
+              ? 'No comparable laps in this session.'
+              : result.state === 'missing'
               ? result.noMap
                 ? 'No corner map for this track yet.'
                 : `No corner ${corner} on this track.`

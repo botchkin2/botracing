@@ -24,6 +24,8 @@ export type CornerResult =
   | {state: 'error'; message: string}
   /** noMap: the track has no corner map yet; else this corner doesn't exist. */
   | {state: 'missing'; noMap: boolean}
+  /** The session has no comparable lap to show. */
+  | {state: 'noLaps'}
   | {
       state: 'ready';
       model: CornerModel;
@@ -87,6 +89,7 @@ export function useCornerModel(
         message: error instanceof Error ? error.message : String(error),
       };
     if (!session.data || !laps.data || !map.data) return {state: 'loading'};
+    if (lapIds.length === 0) return {state: 'noLaps'};
     const model = buildCornerModel({
       session: session.data,
       laps: laps.data,
