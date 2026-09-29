@@ -324,6 +324,9 @@ function build(s, trackMap, eventWindows) {
       durationSec: lap.durationSec,
       timed: lap.timed,
       partial: lap.partial,
+      // A lap cut short by a reset to the garage, and the first lap after one.
+      endedInReset: lap.endedInReset,
+      afterReset: lap.afterReset,
       incomplete: lap.partial || !lap.timed,
       pitlane: lap.pitlane,
       pitIn: lap.pitIn,
@@ -401,6 +404,8 @@ function build(s, trackMap, eventWindows) {
       comparable: lap.comparable,
       reasons: lap.reasons,
       offTrackSec: lap.offTrackSec,
+      endedInReset: lap.endedInReset,
+      afterReset: lap.afterReset,
       excluded: lap.excluded,
       offPace: lap.consistency?.offPace ?? null,
     })),

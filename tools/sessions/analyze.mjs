@@ -718,22 +718,36 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   // A stint starts with a new recording or with the lap that leaves the pits,
   // but never while the current stint has no timed lap yet. That keeps the
   // grid or formation run from becoming a stint of its own.
+  // Why each stint started: 'session' (the first file), 'pit' (left the
+  // pits), or 'reset'. A reset to the garage ends LMU's recording mid-lap and
+  // the next file starts in the pits (thread 32, e9e7ebf00d4405be); the lap
+  // cut short is tagged endedInReset and the next file's first lap
+  // afterReset, even when no new stint opens.
   let stint = 0;
   let stintTimed = false;
-  const openStint = () => {
+  const stintStartReason = new Map();
+  const openStint = reason => {
     if (stint === 0 || stintTimed) {
       stint++;
       stintTimed = false;
+      stintStartReason.set(stint, reason);
     }
   };
   const flags = recs.map(rec => flagIntervals(rec.events));
   recs.forEach((rec, r) => {
     const pits = pitIntervals(rec.events.in_pits);
-    openStint();
+    const before = laps[laps.length - 1];
+    // Every file's last lap is cut short; it is a reset only when the car was
+    // out on track, not in the pits, when the file ended.
+    const reset = Boolean(before?.partial && !before.pitIn);
+    if (reset) before.endedInReset = true;
+    openStint(r === 0 ? 'session' : reset ? 'reset' : 'pit');
     let first = true;
     for (const seg of segments(rec)) {
       const lap = analyzeLap(rec, seg, pits, flags[r]);
-      if (!first && lap.pitOut) openStint();
+      lap.endedInReset = false;
+      lap.afterReset = first && reset;
+      if (!first && lap.pitOut) openStint('pit');
       first = false;
       if (lap.timed && !lap.partial) stintTimed = true;
       lap.stint = stint;
@@ -914,6 +928,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
         const c = st.laps.filter(l => l.comparable).map(l => l.lapTime);
         return {
           n: st.n,
+          startReason: stintStartReason.get(st.n),
           firstLap: st.laps[0].lapNumber,
           lastLap: st.laps[st.laps.length - 1].lapNumber,
           laps: st.laps.length,
