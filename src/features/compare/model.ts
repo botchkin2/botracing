@@ -494,6 +494,27 @@ export function followPlace(sections: MapSection[], cursorM: number): string {
   return place;
 }
 
+// The wrap's neighbour arrays depend only on the traces, which keep their
+// identity for a selection (React Query caches each lap's trace), so they are
+// built once per trace, not once per playback frame (freeze #628).
+const tailCache = new WeakMap<object, NativeSamples>();
+const headCache = new WeakMap<object, NativeSamples>();
+const diffCache = new WeakMap<object, WeakMap<object, number[]>>();
+
+function cached<T>(cache: WeakMap<object, T>, key: object, build: () => T): T {
+  let v = cache.get(key);
+  if (v === undefined) {
+    v = build();
+    cache.set(key, v);
+  }
+  return v;
+}
+
+function cachedDiff(lap: GridTrace, ref: GridTrace): number[] {
+  const byRef = cached(diffCache, lap, () => new WeakMap<object, number[]>());
+  return cached(byRef, ref, () => timeDiffS(lap, ref));
+}
+
 export function buildCompareModel(input: CompareInputs): CompareModel {
   const {session, laps, traces, band, map, selection} = input;
   const byId = new Map(laps.map(l => [l.id, l]));
@@ -606,6 +627,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   };
 
   // --- start/finish wrap (thread 27 #377) ------------------------------------
+  // Only while the window can reach the line: elsewhere the wrap is off
+  // screen, and building it every playback frame cost ~100 ms (freeze #628).
+  const nearLine = windowed && (cursorM < WRAP_M || cursorM > lengthM - WRAP_M);
   const sides = new Map(
     lapRefs.map(r => [r.lapId, lapNeighbours(laps, r.lapId)]),
   );
@@ -619,7 +643,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const t = neighbourTrace(sides.get(lapId)?.[which]);
     const rt = refSides ? neighbourTrace(refSides[which]) : undefined;
     if (!own || !t || !rt) return undefined;
-    const d = timeDiffS(t, rt);
+    const d = cachedDiff(t, rt);
     const n = d.length;
     const distanceM: number[] = [];
     const values: number[] = [];
@@ -657,12 +681,19 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     return {
       before:
         k && prev
-          ? tailBefore(
-              prev.samples[k],
-              prev.samples.speedKph.distanceM.at(-1) ?? lengthM,
+          ? cached(tailCache, prev.samples[k], () =>
+              tailBefore(
+                prev.samples[k],
+                prev.samples.speedKph.distanceM.at(-1) ?? lengthM,
+              ),
             )
           : undefined,
-      after: k && next ? headAfter(next.samples[k], lengthM) : undefined,
+      after:
+        k && next
+          ? cached(headCache, next.samples[k], () =>
+              headAfter(next.samples[k], lengthM),
+            )
+          : undefined,
     };
   };
 
@@ -678,7 +709,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           overlay,
           values: raw,
           samples: samplesOf(ch, r.lapId),
-          ...(windowed ? wrapOf(ch, r.lapId) : {}),
+          ...(nearLine ? wrapOf(ch, r.lapId) : {}),
         });
       }
     });

@@ -127,6 +127,15 @@ describe('start/finish wrap', () => {
     expect(tdC.before!.values.at(-1)).toBeCloseTo(tdC.values[0], 1);
   });
 
+  it('builds the wrap once per trace, not once per frame', () => {
+    const one = at(['b', 'c'], 0).charts;
+    const two = at(['b', 'c'], 5).charts;
+    const b1 = one[0].lines.find(l => l.lapId === 'b')!;
+    const b2 = two[0].lines.find(l => l.lapId === 'b')!;
+    expect(b2.before).toBe(b1.before);
+    expect(b2.after).toBe(b1.after);
+  });
+
   it('leaves the first lap empty before the line, and says why', () => {
     const m = at(['a', 'b'], 0);
     const speedA = m.charts[0].lines.find(l => l.lapId === 'a')!;

@@ -23,8 +23,11 @@ export function AppChrome({
   active,
   context,
   right,
+  onHome,
 }: {
   tabs: ChromeTab[];
+  /** The logo is the way back to the sessions list from any workspace. */
+  onHome?: () => void;
   active: WorkspaceTab | null;
   context?: string;
   right?: ReactNode;
@@ -37,7 +40,14 @@ export function AppChrome({
         styles.bar,
         {backgroundColor: color.chrome, borderColor: color.lineHeader},
       ]}>
-      <View style={[styles.logo, {backgroundColor: color.text}]} />
+      <Pressable
+        accessibilityRole='link'
+        accessibilityLabel='Sessions'
+        disabled={!onHome}
+        onPress={onHome}
+        hitSlop={space.sm}>
+        <View style={[styles.logo, {backgroundColor: color.text}]} />
+      </Pressable>
       <View style={styles.tabs} accessibilityRole='tablist'>
         {tabs.map(tab => {
           const selected = tab.key === active;

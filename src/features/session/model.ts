@@ -40,6 +40,8 @@ export type ChartModel = {
   stintBreaks: {afterLap: number; label: string}[];
   /** Lap index of each pit-in lap. */
   pits: number[];
+  /** Lap index of each lap a reset to the garage cut short. */
+  resets: number[];
 };
 
 export type Tag = {code: string; best?: boolean};
@@ -109,7 +111,10 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   if (lap.id === bestLapId) tags.push({code: 'BEST', best: true});
   if (lap.pitOut) tags.push({code: 'OUT'});
   if (lap.pitIn) tags.push({code: 'IN'});
-  if (lap.partial || lap.reasons.includes('untimed')) tags.push({code: 'PART'});
+  // A lap cut short by a reset says so, instead of the generic PART.
+  if (lap.endedInReset) tags.push({code: 'RESET'});
+  else if (lap.partial || lap.reasons.includes('untimed'))
+    tags.push({code: 'PART'});
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
   if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
     tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
@@ -127,6 +132,8 @@ export function reasonText(lap: Lap, stintMedianS: number | null): string {
     parts.push('Starts in the pit lane, so it includes pit exit time.');
   else if (lap.pitIn)
     parts.push('Ends in the pit lane, so it includes pit entry time.');
+  else if (lap.endedInReset)
+    parts.push('Ends in a reset to the garage, so the lap is incomplete.');
   else if (lap.partial || lap.reasons.includes('untimed'))
     parts.push('Timing started partway round, so the lap is incomplete.');
   else if (lap.reasons.includes('slow') && lap.timeS != null && stintMedianS)
@@ -156,6 +163,8 @@ function statusFor(lap: Lap, medianS: number | null): string {
       ? 'Pit out'
       : lap.pitIn
       ? 'Pit in'
+      : lap.endedInReset
+      ? 'Reset'
       : lap.partial || lap.reasons.includes('untimed')
       ? 'Partial'
       : lap.reasons.includes('slow')
@@ -218,6 +227,7 @@ export function buildSessionModel(
             .filter((l, i) => i > 0 && l.stint !== laps[i - 1].stint)
             .map(l => ({afterLap: l.lapIndex - 1, label: `STINT ${l.stint}`})),
           pits: laps.filter(l => l.pitIn).map(l => l.lapIndex),
+          resets: laps.filter(l => l.endedInReset).map(l => l.lapIndex),
         };
 
   const noComparable =

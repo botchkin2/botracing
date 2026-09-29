@@ -19,6 +19,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   hadImpact: false,
   sections: [],
   recordingId: 'r1',
+  endedInReset: false,
   ...over,
 });
 
