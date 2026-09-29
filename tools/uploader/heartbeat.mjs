@@ -2,6 +2,22 @@
 // it (contract: pit wall thread 30, #456 and #460). Pure, so it is tested
 // without Firestore.
 
+import {createHash} from 'node:crypto';
+
+// The endpoint is public (the app has no sign-in), so the doc carries no
+// machine name or user paths: a short hash as id, a label from config.
+export function hostIdOf(machineName) {
+  return createHash('sha1').update(machineName).digest('hex').slice(0, 8);
+}
+
+// First line only, with Windows user folders and home paths replaced.
+export function scrub(message) {
+  return String(message ?? '')
+    .split(/\r?\n/)[0]
+    .replace(/[A-Za-z]:[\\/]Users[\\/][^\\/\s'"]+/gi, '~')
+    .slice(0, 300);
+}
+
 // The recorder rewrites its status.json at least every 30 s; older than this
 // means it is not running.
 export const RECORDER_STALE_SEC = 120;
@@ -10,6 +26,7 @@ export const RECORDER_STALE_SEC = 120;
 // null when there is none.
 export function heartbeatDoc({
   hostId,
+  label,
   version,
   lmuFound,
   state,
@@ -21,7 +38,7 @@ export function heartbeatDoc({
 }) {
   return {
     hostId,
-    host: hostId,
+    label,
     version,
     lmuFound,
     state,
@@ -30,7 +47,9 @@ export function heartbeatDoc({
     lastSessionId: watch.lastSessionId ?? null,
     queue,
     sessionsDone: watch.sessionsDone ?? 0,
-    lastError: watch.lastError ?? null,
+    lastError: watch.lastError
+      ? {...watch.lastError, message: scrub(watch.lastError.message)}
+      : null,
     disk: {captureBytes: recorder?.captureBytes ?? 0, freeBytes},
     recorder: recorderBlock(recorder, nowMs),
   };

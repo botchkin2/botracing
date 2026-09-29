@@ -5,14 +5,17 @@
 //   node tools/uploader/watch.mjs --once -- --local --work <dir>
 //                                          pass the rest to sync.mjs (tests)
 //
-// Started at logon by the LapUploader scheduled task (install.ps1), headless
-// and at low priority, one instance. Every 30 s it looks at LMU's Telemetry
-// folder and the game process; when to sync is in trigger.mjs. A sync is
-// tools/sessions/sync.mjs in a child process, so a crash there never takes
-// the watcher down. Status goes to Firestore uploaders/{hostId}
-// (heartbeat.mjs), on each change and at least every 5 minutes. A crash of
-// the PC mid-session needs nothing special: at the next logon the telemetry
-// is newer than the last sync, and the watcher syncs it.
+// Started at logon by the LapUploader scheduled task (install.ps1), headless,
+// one instance. Every 30 s it looks at LMU's Telemetry folder and the game
+// process; when to sync is in trigger.mjs (never while LMU runs). A sync is
+// tools/sessions/sync.mjs in a child process at below-normal priority, so a
+// crash there never takes the watcher down. Status goes to Firestore
+// uploaders/{hostId} (heartbeat.mjs), on each change and at least every 5
+// minutes. A crash of the PC mid-session needs nothing special: at the next
+// logon the telemetry is newer than the last sync, and the watcher syncs it.
+//
+// Config, optional, %LOCALAPPDATA%\lap-uploader\config.json:
+//   {"label": "Race PC"}   the name the app shows for this PC
 import {execFileSync, spawn} from 'node:child_process';
 import {
   appendFileSync,
@@ -20,16 +23,18 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   statSync,
   statfsSync,
   writeFileSync,
 } from 'node:fs';
+import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as lmu from '../sessions/lmu.mjs';
-import {beatKey, heartbeatDoc} from './heartbeat.mjs';
-import {decide} from './trigger.mjs';
+import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
+import {RETRY_MIN, decide} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const syncScript = resolve(here, '../sessions/sync.mjs');
@@ -37,17 +42,25 @@ const local = process.env.LOCALAPPDATA || homedir();
 const home = resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
-const lockPath = resolve(home, 'watch.pid');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
 const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
 const GAME_EXE = 'Le Mans Ultimate.exe';
+const LOCK_PIPE = String.raw`\\.\pipe\lap-uploader-watch`;
 const TICK_SEC = 30;
 const BEAT_MIN = 5;
-const hostId = hostname();
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+const hostId = hostIdOf(hostname());
 const dash = process.argv.indexOf('--');
 const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
 
+// Keeps the current log and one older one.
 function log(line) {
+  try {
+    if (statSync(logPath).size > LOG_MAX_BYTES)
+      renameSync(logPath, `${logPath}.1`);
+  } catch {
+    // No log yet.
+  }
   appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
 }
 
@@ -59,19 +72,17 @@ function readJson(path, fallback) {
   }
 }
 
-// One instance: a pid file whose process is still alive wins.
+// One instance: a named pipe only one process can hold. Windows frees it
+// when that process ends, so a crash or reboot never leaves a stale lock.
 function takeLock() {
-  const pid = Number(readJson(lockPath, null));
-  if (pid && pid !== process.pid) {
-    try {
-      process.kill(pid, 0);
-      return false;
-    } catch {
-      // Stale: that process is gone.
-    }
-  }
-  writeFileSync(lockPath, String(process.pid));
-  return true;
+  return new Promise(done => {
+    const server = createServer();
+    server.once('error', () => done(false));
+    server.listen(LOCK_PIPE, () => {
+      server.unref();
+      done(true);
+    });
+  });
 }
 
 function gameRunning() {
@@ -111,26 +122,16 @@ function version() {
   }
 }
 
-// sync.mjs in a child at low priority. Its output goes to the log; the
-// session ids and the closing "done N, failed M" line feed the heartbeat.
-function runSync(jobs, inGame) {
+// sync.mjs in a child at below-normal priority. Its output goes to the log;
+// the session ids and the closing "done N, failed M" line feed the heartbeat.
+// sync.mjs skips files written in the last 3 minutes in case the game is
+// still writing them; the game is closed here, so nothing is.
+function runSync() {
   return new Promise(done => {
-    const args = [
-      syncScript,
-      ...(jobs ? ['--jobs', String(jobs)] : []),
-      ...syncArgs,
-    ];
-    // sync.mjs skips files written in the last 3 minutes in case the game is
-    // still writing them. With the game closed, nothing is.
-    if (!inGame) args.push('--quiet-min', '0');
+    const args = [syncScript, '--quiet-min', '0', ...syncArgs];
     const child = spawn(process.execPath, args, {windowsHide: true});
     try {
-      setPriority(
-        child.pid,
-        inGame
-          ? constants.priority.PRIORITY_LOW
-          : constants.priority.PRIORITY_BELOW_NORMAL,
-      );
+      setPriority(child.pid, constants.priority.PRIORITY_BELOW_NORMAL);
     } catch {
       // Priority is a courtesy; the sync still runs.
     }
@@ -163,9 +164,10 @@ async function writeBeat(doc) {
 
 async function main() {
   mkdirSync(home, {recursive: true});
-  if (!takeLock()) return;
+  if (!(await takeLock())) return;
   const once = process.argv.includes('--once');
   const ver = version();
+  const {label = 'Race PC'} = readJson(resolve(home, 'config.json'), {});
   const watch = readJson(statePath, {});
   const save = () => writeFileSync(statePath, JSON.stringify(watch));
   let wasRunning = false;
@@ -184,6 +186,7 @@ async function main() {
     }
     const doc = heartbeatDoc({
       hostId,
+      label,
       version: ver,
       lmuFound: recs != null,
       state,
@@ -215,6 +218,7 @@ async function main() {
         wasRunning,
         newestMtimeMs: recs?.newestMtimeMs ?? null,
         lastRunAtMs: watch.lastRunAtMs ?? null,
+        retryAtMs: watch.retryAtMs ?? null,
         nowMs: Date.now(),
       });
       wasRunning = running;
@@ -222,27 +226,31 @@ async function main() {
         log(`sync: ${plan.reason}`);
         const startedMs = Date.now();
         await beat('syncing');
-        const r = await runSync(plan.jobs, running);
-        watch.lastRunAtMs = startedMs;
+        const r = await runSync();
         if (r.done) {
           watch.lastUploadAt = new Date().toISOString();
           watch.lastSessionId = r.sessions[0] ?? watch.lastSessionId;
           watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
         }
+        // A failed session is retried later. sync.mjs redoes only what is not
+        // stored yet, so a retry costs just the failures.
         if (r.failed || r.code) {
+          watch.retryAtMs = Date.now() + RETRY_MIN * 60 * 1000;
           watch.lastError = {
             at: new Date().toISOString(),
             message: r.errors[0] ?? `sync exited with code ${r.code}`,
-            path: logPath,
+            path: 'lap-uploader/watch.log',
           };
         } else {
+          watch.lastRunAtMs = startedMs;
+          watch.retryAtMs = null;
           watch.lastError = null;
         }
         save();
         log(`sync: done ${r.done}, failed ${r.failed}, exit ${r.code}`);
       }
       await beat(
-        watch.lastError ? 'error' : running ? 'recording' : 'waiting-for-game',
+        watch.lastError ? 'error' : running ? 'in-game' : 'waiting-for-game',
       );
     } catch (error) {
       log(`tick failed: ${String(error.stack || error)}`);

@@ -1,7 +1,7 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {IN_GAME_JOBS, decide} from './trigger.mjs';
+import {decide} from './trigger.mjs';
 
 const MIN = 60 * 1000;
 const base = {
@@ -28,17 +28,19 @@ test('does nothing when nothing changed since the last sync', () => {
   assert.equal(decide({...base, newestMtimeMs: null}).run, false);
 });
 
-test('in game, waits for 10 quiet minutes, then syncs with few workers', () => {
+test('never syncs while the game runs, however long it is quiet', () => {
   assert.equal(
-    decide({...base, gameRunning: true, wasRunning: true}).run,
+    decide({...base, gameRunning: true, wasRunning: true, nowMs: 500 * MIN})
+      .run,
     false,
   );
-  assert.deepEqual(
-    decide({...base, gameRunning: true, wasRunning: true, nowMs: 110 * MIN}),
-    {
-      run: true,
-      jobs: IN_GAME_JOBS,
-      reason: 'quiet in game',
-    },
-  );
+});
+
+test('a failed sync waits for its retry time, then runs again with nothing new', () => {
+  const failed = {...base, lastRunAtMs: 200 * MIN, retryAtMs: 230 * MIN};
+  assert.equal(decide({...failed, nowMs: 210 * MIN}).run, false);
+  assert.deepEqual(decide({...failed, nowMs: 231 * MIN}), {
+    run: true,
+    reason: 'retry',
+  });
 });
