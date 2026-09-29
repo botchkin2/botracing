@@ -13,6 +13,8 @@
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
 //   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
+//   node tools/sessions/sync.mjs --capture <dir>      tools/capture's output, if not
+//                                                     %LOCALAPPDATA%\lap-capture
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
@@ -36,6 +38,7 @@ import {
   loadRecording,
   trackMapVersion,
 } from './analyze.mjs';
+import {fieldFor} from './field.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -62,6 +65,13 @@ const work = resolve(
 );
 const statePath = resolve(work, 'state.json');
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
+const captureRoot = resolve(
+  arg(
+    '--capture',
+    process.env.LAP_CAPTURE ||
+      resolve(process.env.LOCALAPPDATA || homedir(), 'lap-capture'),
+  ),
+);
 // Sessions analyzed at once, each in its own worker thread. The work is
 // CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
 // default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
@@ -355,6 +365,9 @@ function build(s, trackMap, eventWindows) {
       offTrackSec: lap.offTrackSec,
       pastEdgeSec: lap.pastEdgeSec,
       impactMax: lap.impactMax,
+      // The fastest recorded speed sample of the lap, and where.
+      maxSpeedKmh: lap.maxSpeedKmh,
+      maxSpeedAtM: lap.maxSpeedAtM,
       sectors: lap.sectors,
       stint: lap.stint,
       comparable: lap.comparable,
@@ -382,6 +395,26 @@ function build(s, trackMap, eventWindows) {
   });
 
   const last = s.files[s.files.length - 1].info;
+  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
+  // Every car in the session, when tools/capture recorded it (field.mjs).
+  const fieldOut = fieldFor(
+    captureRoot,
+    {
+      tracks: [first.track, first.layout],
+      startMs: Date.parse(first.recordedAt),
+      endMs,
+    },
+    recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
+  );
+  // Named by its content, so the route can cache it as immutable: a resync
+  // that changes the field writes a new file (pitlane #680).
+  const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
+  const fieldHash = fieldText
+    ? createHash('sha1').update(fieldText).digest('hex').slice(0, 12)
+    : null;
+  const fieldPath = fieldHash
+    ? `field/${ownerId}/${s.id}/${fieldHash}.json.gz`
+    : null;
   const session = plain({
     id: s.id,
     ownerId,
@@ -396,13 +429,18 @@ function build(s, trackMap, eventWindows) {
     series: joined.session.series,
     eventId: joined.session.eventId,
     startedAt: first.recordedAt,
-    endedAt: new Date(
-      Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
-    ).toISOString(),
+    endedAt: new Date(endMs).toISOString(),
     recordingIds: s.files.map(f => f.id),
     ...a.summary,
     bestLapId: a.best ? lapId(a.best) : null,
-    consistency: a.consistency,
+    // The analysis names laps by index; the stored docs use lap ids.
+    consistency: {
+      ...a.consistency,
+      stints: a.consistency.stints.map(st => ({
+        ...st,
+        lapIds: st.lapIds.map(i => laps[Number(i)].id),
+      })),
+    },
     // Where the corners came from: the track's stored map, a new stored map
     // made from this session, or a map of this session's own (not stored:
     // too few clean laps, or the stored map does not fit).
@@ -416,6 +454,9 @@ function build(s, trackMap, eventWindows) {
           laps: a.band.laps,
         }
       : null,
+    field: fieldPath
+      ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
+      : null,
     lapTable: laps.map(lap => ({
       id: lap.id,
       lapNumber: lap.lapNumber,
@@ -424,6 +465,7 @@ function build(s, trackMap, eventWindows) {
       comparable: lap.comparable,
       reasons: lap.reasons,
       offTrackSec: lap.offTrackSec,
+      maxSpeedKmh: lap.maxSpeedKmh,
       endedInReset: lap.endedInReset,
       afterReset: lap.afterReset,
       excluded: lap.excluded,
@@ -438,6 +480,8 @@ function build(s, trackMap, eventWindows) {
     recordings,
     laps,
     band: a.band,
+    fieldText,
+    fieldReason: fieldOut.reason,
     track: trackDoc,
     traces,
     files,
@@ -458,6 +502,7 @@ function writeLocal(out) {
   writeFileSync(resolve(dir, 'laps.json'), JSON.stringify(out.laps, null, 2));
   if (out.band)
     writeFileSync(resolve(dir, 'band.json'), JSON.stringify(out.band));
+  if (out.fieldText) writeFileSync(resolve(dir, 'field.json'), out.fieldText);
   if (out.track)
     writeFileSync(
       resolve(dir, 'track.json'),
@@ -641,6 +686,12 @@ async function processSession(s, trackMap, eventWindows, store, lines) {
   }
   if (out.session.series)
     lines.push(`  ${out.session.series} ${out.session.eventId}`);
+  const f = out.session.field;
+  lines.push(
+    f
+      ? `  field: ${f.cars} cars, ${f.durationS} s, player aligned to ${f.alignM} m`
+      : `  field: none (${out.fieldReason})`,
+  );
   lines.push(
     `  ${out.laps.length} laps, ${
       out.session.comparableCount

@@ -74,11 +74,19 @@ def _flatten(prefix, arr, out):
         out[prefix] = arr
 
 
-def columns(raw, ctype):
-    """{column: 1-D array} from concatenated raw structs of one ctypes type."""
+def columns(raw, ctype, text_fields=()):
+    """{column: 1-D array} from concatenated raw structs of one ctypes type.
+
+    Text is left out except the top-level char fields named in text_fields,
+    decoded to strings (Parquet dictionary-encodes the repeats).
+    """
     arr = np.frombuffer(raw, dtype=dtype_of(ctype))
     out = {}
     _flatten("", arr, out)
+    for name in (n for n in text_fields if n in arr.dtype.names):
+        out[name] = np.array(
+            [bytes(v).split(b"\0", 1)[0].decode("latin-1") for v in arr[name]], dtype=object
+        )
     return out
 
 

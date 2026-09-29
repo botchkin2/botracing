@@ -27,7 +27,7 @@ import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 4;
+export const analysisVersion = 6;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -409,6 +409,20 @@ function analyzeLap(rec, seg, pits, flags) {
       timed ? gameLapTime : null,
     ),
     distanceM: round(dist[dist.length - 1], 1),
+    ...topSpeed(s, i0, i1, dist),
+  };
+}
+
+// The fastest recorded speed sample of the lap (100 Hz, every tick real) and
+// where it was, not a value off the 5 m grid.
+export function topSpeed(s, i0, i1, dist) {
+  let top = i0;
+  for (let i = i0; i <= i1; i++) {
+    if (s.speed_kmh[i] > s.speed_kmh[top]) top = i;
+  }
+  return {
+    maxSpeedKmh: round(s.speed_kmh[top], 1),
+    maxSpeedAtM: round(dist[top - i0], 1),
   };
 }
 
@@ -621,10 +635,18 @@ function cornerFacts(rec, lap, corners, flags) {
     const pedal = s.throttle_pos_unfiltered
       ? 'throttle_pos_unfiltered'
       : 'throttle_pct';
-    const full = fullThrottleStart(
-      s[pedal],
-      sampleTicks(rec.hz[pedal], rec.baseHz, minTick, nextTick),
-      distAt,
+    const pedalSamples = sampleTicks(
+      rec.hz[pedal],
+      rec.baseHz,
+      minTick,
+      nextTick,
+    );
+    const full = fullThrottleStart(s[pedal], pedalSamples, distAt);
+    // Full already at the first sample of the search, which starts at the
+    // slowest sample: on a corner taken flat that is the turn-in edge, so the
+    // point is the boundary's, as with minSpeedAtEdge (pitlane #712).
+    const fullAtEdge = Boolean(
+      full && full.atM === distAt(pedalSamples.ticks[0]),
     );
     const f = {
       segTime: round(segTime, 3),
@@ -638,6 +660,7 @@ function cornerFacts(rec, lap, corners, flags) {
       brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
       fullThrottleAtM: full && round(full.atM, 1),
       fullThrottleAtResM: full?.resM == null ? null : round(full.resM, 1),
+      fullThrottleAtEdge: fullAtEdge,
     };
     return f;
   });
@@ -896,8 +919,26 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     return lapFacts(String(i), lap);
   });
   const {reasons: excluded, damage} = selectNormalRacing(facts);
+  // Every stint of the session, so one with no normal-racing laps still
+  // shows up (laps: 0 and why). Lap ids here are indexes into laps; the
+  // uploader swaps in the stored lap ids.
+  const sessionStints = [];
+  laps.forEach((lap, i) => {
+    let st = sessionStints[sessionStints.length - 1];
+    if (!st || st.n !== lap.stint) {
+      st = {
+        n: lap.stint,
+        startReason: stintStartReason.get(lap.stint),
+        laps: [],
+      };
+      sessionStints.push(st);
+    }
+    st.laps.push({id: String(i), lapNumber: lap.lapNumber});
+  });
   const consistency = analyzeConsistency(
     facts.filter(f => excluded.get(f.id).length === 0),
+    undefined,
+    sessionStints,
   );
   const byId = new Map(consistency.laps.map(r => [r.id, r]));
   facts.forEach((f, i) => {

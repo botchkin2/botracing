@@ -1,9 +1,6 @@
-import {
-  type NativeSamples,
-  sliceSamples,
-  thinSamples,
-} from '@/src/analysis/nativeSamples';
+import {type NativeSamples} from '@/src/analysis/nativeSamples';
 
+import {type ChunkFrame, chunkPath, chunksIn, objectId} from './chunkPaths';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -58,84 +55,10 @@ const AXIS_H = 12;
 // Labels closer than this to the right edge are dropped (handoff).
 const LABEL_EDGE_PT = 34;
 
-type Pt = [number, number];
-
-// Catmull-Rom through the points, as cubic Béziers.
-function smoothPath(pts: Pt[]): string {
-  if (pts.length < 3)
-    return pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('');
-  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] ?? pts[i];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2] ?? p2;
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(
-      1,
-    )} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-  }
-  return d;
-}
-
-// A curve through every point that never overshoots them (Fritsch–Carlson
-// monotone cubic): a light smoothing of real samples that invents no peak
-// or dip between them (Botkin, thread 26 #397; pitlane #402).
-function monotonePath(pts: Pt[]): string {
-  const n = pts.length;
-  if (n < 3)
-    return pts
-      .map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
-      .join('');
-  const dx: number[] = [];
-  const slope: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    dx.push(pts[i + 1][0] - pts[i][0] || 1e-6);
-    slope.push((pts[i + 1][1] - pts[i][1]) / dx[i]);
-  }
-  const t: number[] = [slope[0]];
-  for (let i = 1; i < n - 1; i++)
-    t.push(slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2);
-  t.push(slope[n - 2]);
-  for (let i = 0; i < n - 1; i++) {
-    if (slope[i] === 0) {
-      t[i] = 0;
-      t[i + 1] = 0;
-      continue;
-    }
-    const a = t[i] / slope[i];
-    const b = t[i + 1] / slope[i];
-    const h = a * a + b * b;
-    if (h > 9) {
-      const k = 3 / Math.sqrt(h);
-      t[i] = k * a * slope[i];
-      t[i + 1] = k * b * slope[i];
-    }
-  }
-  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const [x0, y0] = pts[i];
-    const [x1, y1] = pts[i + 1];
-    const h = dx[i] / 3;
-    d += `C${(x0 + h).toFixed(1)},${(y0 + t[i] * h).toFixed(1)} ${(
-      x1 - h
-    ).toFixed(1)},${(y1 - t[i + 1] * h).toFixed(1)} ${x1.toFixed(
-      1,
-    )},${y1.toFixed(1)}`;
-  }
-  return d;
-}
-
-function steppedPath(pts: Pt[]): string {
-  let d = '';
-  pts.forEach((p, i) => {
-    if (i === 0) d = `M${p[0].toFixed(1)},${p[1].toFixed(1)}`;
-    else d += `H${p[0].toFixed(1)}V${p[1].toFixed(1)}`;
-  });
-  return d;
+// Plot y of a value is a + b·v for a y range: its offset and scale.
+function yLine([lo, hi]: [number, number], height: number): [number, number] {
+  const b = -(height - 2 * Y_PAD) / (hi - lo || 1);
+  return [Y_PAD - b * hi, b];
 }
 
 export function TraceChart({
@@ -227,84 +150,70 @@ export function TraceChart({
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
 
-  const paths = useMemo(
-    () =>
-      series.map((s, si) => {
-        const ys = yFor(seriesDomainsT[si] ?? domainT);
-        // Recorded samples in the window; at whole-lap zoom, the extremes
-        // per point, so every drawn vertex is still a real sample.
-        const samplePath = (ns: NativeSamples) => {
-          let w = sliceSamples(ns, startM, endM);
-          if (w.distanceM.length > width * 2) w = thinSamples(w, spanM / width);
-          const pts: Pt[] = w.distanceM.map((m, k) => [
-            xOfM(m),
-            ys(w.values[k]),
-          ]);
-          return s.stepped ? steppedPath(pts) : monotonePath(pts);
-        };
-        // The neighbour laps either side of the line (the S/F wrap).
-        // They sit outside the lap, where the window's metre range is clipped
-        // (time mode), so they are drawn whole: at most 500 m each side.
-        // Only the part on screen: a side that does not reach the window
-        // draws nothing (freeze #634), so playback away from the line pays
-        // nothing for the wrap.
-        const visiblePath = (ns: NativeSamples) => {
-          // Distances ascend, so the on-screen samples are one index range;
-          // keep one either side so the line runs to the edges.
-          let lo = -1;
-          let hi = -1;
-          for (let k = 0; k < ns.distanceM.length; k++) {
-            const x = xOfM(ns.distanceM[k]);
-            if (x >= 0 && x <= width) {
-              if (lo < 0) lo = k;
-              hi = k;
-            }
-          }
-          if (lo < 0) return null;
-          const from = Math.max(0, lo - 1);
-          const to = Math.min(ns.distanceM.length - 1, hi + 1);
-          const pts: Pt[] = [];
-          for (let k = from; k <= to; k++)
-            pts.push([xOfM(ns.distanceM[k]), ys(ns.values[k])]);
-          return s.stepped ? steppedPath(pts) : monotonePath(pts);
-        };
-        const wraps = [s.before, s.after]
-          .filter((ns): ns is NativeSamples => ns != null)
-          .map(visiblePath)
-          .filter((d): d is string => d != null);
-        if (s.samples) return {...s, d: samplePath(s.samples), wraps};
-        const last = Math.min(to, s.values.length - 1);
-        const stride = Math.max(1, Math.floor(pointsPerPt));
-        const pts: Pt[] = [];
-        for (let i = from; i <= last; i += stride)
-          pts.push([x(i), ys(s.values[i])]);
-        const d = s.stepped
-          ? steppedPath(pts)
-          : pointsPerPt < 0.5
-          ? smoothPath(pts)
-          : pts
-              .map(
-                (p, i) =>
-                  `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`,
-              )
-              .join('');
-        return {...s, d, wraps};
-      }),
-    [
-      series,
-      from,
-      to,
-      width,
-      height,
-      startM,
-      endM,
-      domainT,
-      seriesDomainsT,
-      tRef,
-      t0,
-      t1,
-    ],
-  );
+  // Lines are built once per chunk in lap-wide build pixels (chunkPaths.ts)
+  // and placed with one transform per series: x scrolls with the window, and
+  // y eases from the built range to the shown one during a tween.
+  // Rounded: t1 − t0 carries float noise that differs frame to frame, and
+  // the scale is part of the chunks' cache key.
+  const uSpan = Math.round((tRef ? spanS : spanM) * 1e6) / 1e6;
+  const sx = width / uSpan;
+  const u0 = tRef ? t0 : startM;
+  const lapM = Math.max(0, ...series.map(s => (s.values.length - 1) * stepM));
+  const uOfM = (m: number) => (tRef ? timeAtDistance(tRef, m) : m);
+  const mPerPx = lapM / ((uOfM(lapM) || 1) * sx) || stepM;
+  const chunks = chunksIn(u0 * sx, u0 * sx + width, width);
+  const paths = series.map((s, si) => {
+    const built = s.domain ?? domain;
+    const frame: ChunkFrame = {
+      key: [
+        tRef ? objectId(tRef) : 'm',
+        sx,
+        width,
+        height,
+        built[0],
+        built[1],
+        // Stride and thinning follow from these: a longer lap joining the
+        // selection changes mPerPx (scrutineer, #80).
+        mPerPx,
+        stepM,
+      ].join('|'),
+      uOfM,
+      uOfIndex: i => (tRef ? timeAtIndex(tRef, i) : i * stepM),
+      stepM,
+      sx,
+      y: yFor(built),
+      chunkPx: width,
+      mPerPx,
+    };
+    // y: built range → shown (tweened) range, as scale and offset.
+    const [ab, bb] = yLine(built, height);
+    const [at, bt] = yLine(seriesDomainsT[si] ?? domainT, height);
+    const ky = bt / bb;
+    return {
+      ...s,
+      transform: `matrix(1 0 0 ${ky} ${-u0 * sx} ${at - ky * ab})`,
+      ds: chunks
+        .map(k => ({k, d: chunkPath(s, frame, k)}))
+        .filter(c => c.d !== ''),
+      // The neighbour laps either side of the line (the S/F wrap), through
+      // the same chunks and transform. Away from the line their chunks are
+      // empty: drop them, or every frame reconciles hundreds of empty paths.
+      wraps: [s.before, s.after].flatMap((ns, w) =>
+        ns
+          ? chunks
+              .map(k => ({
+                k: `w${w}-${k}`,
+                d: chunkPath(
+                  {values: [], samples: ns, stepped: s.stepped},
+                  frame,
+                  k,
+                ),
+              }))
+              .filter(c => c.d !== '')
+          : [],
+      ),
+    };
+  });
 
   const bandPath = useMemo(() => {
     if (!band) return null;
@@ -463,31 +372,35 @@ export function TraceChart({
             strokeWidth={stroke.mark}
           />
         )}
-        {paths.flatMap(p =>
-          p.wraps.map((d, i) => (
-            <Path
-              key={`${p.key}-wrap${i}`}
-              d={d}
-              stroke={p.color}
-              strokeWidth={p.width}
-              strokeOpacity={p.opacity * WRAP_OPACITY}
-              strokeDasharray={p.dash}
-              strokeLinejoin='round'
-              fill='none'
-            />
-          )),
-        )}
         {paths.map(p => (
-          <Path
-            key={p.key}
-            d={p.d}
-            stroke={p.color}
-            strokeWidth={p.width}
-            strokeOpacity={p.opacity}
-            strokeDasharray={p.dash}
-            strokeLinejoin='round'
-            fill='none'
-          />
+          <G key={p.key} transform={p.transform}>
+            {p.wraps.map(c => (
+              <Path
+                key={c.k}
+                d={c.d}
+                stroke={p.color}
+                strokeWidth={p.width}
+                strokeOpacity={p.opacity * WRAP_OPACITY}
+                strokeDasharray={p.dash}
+                strokeLinejoin='round'
+                vectorEffect='non-scaling-stroke'
+                fill='none'
+              />
+            ))}
+            {p.ds.map(c => (
+              <Path
+                key={c.k}
+                d={c.d}
+                stroke={p.color}
+                strokeWidth={p.width}
+                strokeOpacity={p.opacity}
+                strokeDasharray={p.dash}
+                strokeLinejoin='round'
+                vectorEffect='non-scaling-stroke'
+                fill='none'
+              />
+            ))}
+          </G>
         ))}
         {hx != null && hx >= 0 && hx <= width && (
           <Line

@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {
+  senRanks,
+  slopeInterval,
   analyzeConsistency,
   normalRacing,
   selectNormalRacing,
@@ -384,5 +386,98 @@ test('the apex is the slowest point, or the tightest one when that is an edge', 
   assert.ok(
     fast.apexM - fast.turnInM > 5 && fast.exitM - fast.apexM > 5,
     `apex ${fast.apexM} in ${fast.turnInM}-${fast.exitM}`,
+  );
+});
+
+test('the trend comes with a 95% interval that holds the true slope', () => {
+  const r = analyzeConsistency(stint({}));
+  const s = r.stints[0];
+  assert.ok(
+    s.trendPerLapLow < -0.05 && -0.05 < s.trendPerLapHigh,
+    `${s.trendPerLapLow}..${s.trendPerLapHigh}`,
+  );
+  assert.ok(s.trendPerLapHigh < 0, 'a clear trend: the interval excludes 0');
+  assert.ok(s.spreadS > 0 && s.spreadS < 0.1, `spread ${s.spreadS}`);
+});
+
+test('no interval below 5 laps: a number without one would overclaim', () => {
+  const r = analyzeConsistency(stint({laps: 4}));
+  assert.equal(r.stints[0].trendPerLapLow, null);
+  assert.equal(r.stints[0].trendPerLapHigh, null);
+});
+
+test('every session stint is listed, one with no selected laps too', () => {
+  const selected = stint({laps: 8, stint: 2});
+  const sessionStints = [
+    {
+      n: 1,
+      startReason: 'session',
+      laps: [
+        {id: 'a', lapNumber: 1},
+        {id: 'b', lapNumber: 2},
+      ],
+    },
+    {
+      n: 2,
+      startReason: 'pit',
+      laps: selected.map(l => ({id: l.id, lapNumber: l.lapNumber})),
+    },
+  ];
+  const r = analyzeConsistency(selected, undefined, sessionStints);
+  assert.deepEqual(
+    r.stints.map(s => [s.n, s.laps, s.emptyReason, s.startReason]),
+    [
+      [1, 0, 'no-laps-selected', 'session'],
+      [2, 8, null, 'pit'],
+    ],
+  );
+  assert.deepEqual(r.stints[0].lapIds, ['a', 'b']);
+  assert.equal(r.stints[0].firstLap, 1);
+});
+
+test('Sen interval ranks match the textbook recipe', () => {
+  // Worked by hand from Gilbert (1987) 16.5: n = 10 laps, N = 45 slopes,
+  // Var(S) = 10*9*25/18 = 125, C = 1.96*sqrt(125) = 21.91, M1 = 11.54,
+  // M2 + 1 = 34.46: ranks 11 and 35 (outward), 0-based 10 and 34, which are
+  // 11 slopes from each end.
+  assert.deepEqual(senRanks(10, 45), [10, 34]);
+  // n = 5: N = 10, C = 8.00, M1 = 1.0, M2 + 1 = 10.0: the extremes. Five
+  // laps get an interval, at the minimum the docs state.
+  assert.deepEqual(senRanks(5, 10), [0, 9]);
+  // n = 6: N = 15, C = 10.43, M1 = 2.28, M2 + 1 = 13.72: 0-based 1 and 13.
+  assert.deepEqual(senRanks(6, 15), [1, 13]);
+});
+
+test('the Sen interval misses about equally on both sides', () => {
+  // mulberry32: a plain LCG's consecutive draws are correlated enough to
+  // skew the two tails on their own.
+  let seed = 11;
+  const rnd = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const gauss = () =>
+    Math.sqrt(-2 * Math.log(rnd() || 1e-12)) * Math.cos(2 * Math.PI * rnd());
+  let below = 0;
+  let above = 0;
+  let runs = 0;
+  for (let k = 0; k < 4000; k++) {
+    const xs = [0, 1, 2, 3, 4, 5];
+    const r = slopeInterval(
+      xs,
+      xs.map(v => 80 - 0.05 * v + 0.25 * gauss()),
+    );
+    runs++;
+    if (-0.05 < r.low) below++;
+    if (-0.05 > r.high) above++;
+  }
+  // Coverage at least 95%, and the misses balanced (the old ranks gave about
+  // 4 to 1 at six laps).
+  assert.ok((below + above) / runs <= 0.05, `miss ${(below + above) / runs}`);
+  assert.ok(
+    Math.abs(below - above) <= 0.35 * Math.max(below, above) + 10,
+    `below ${below} above ${above}`,
   );
 });
