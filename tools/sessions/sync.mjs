@@ -13,6 +13,8 @@
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
 //   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
+//   node tools/sessions/sync.mjs --capture <dir>      tools/capture's output, if not
+//                                                     %LOCALAPPDATA%\lap-capture
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
@@ -30,6 +32,7 @@ import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
 import {analysisVersion, analyzeSession, loadRecording} from './analyze.mjs';
+import {fieldFor} from './field.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -56,6 +59,13 @@ const work = resolve(
 );
 const statePath = resolve(work, 'state.json');
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
+const captureRoot = resolve(
+  arg(
+    '--capture',
+    process.env.LAP_CAPTURE ||
+      resolve(process.env.LOCALAPPDATA || homedir(), 'lap-capture'),
+  ),
+);
 // Sessions analyzed at once, each in its own worker thread. The work is
 // CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
 // default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
@@ -362,6 +372,17 @@ function build(s, trackMap, eventWindows) {
   });
 
   const last = s.files[s.files.length - 1].info;
+  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
+  // Every car in the session, when tools/capture recorded it (field.mjs).
+  const fieldOut = fieldFor(
+    captureRoot,
+    {
+      tracks: [first.track, first.layout],
+      startMs: Date.parse(first.recordedAt),
+      endMs,
+    },
+    recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
+  );
   const session = plain({
     id: s.id,
     ownerId,
@@ -376,9 +397,7 @@ function build(s, trackMap, eventWindows) {
     series: joined.session.series,
     eventId: joined.session.eventId,
     startedAt: first.recordedAt,
-    endedAt: new Date(
-      Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
-    ).toISOString(),
+    endedAt: new Date(endMs).toISOString(),
     recordingIds: s.files.map(f => f.id),
     ...a.summary,
     bestLapId: a.best ? lapId(a.best) : null,
@@ -395,6 +414,9 @@ function build(s, trackMap, eventWindows) {
           lengthM: a.band.lengthM,
           laps: a.band.laps,
         }
+      : null,
+    field: fieldOut.field
+      ? {path: `field/${ownerId}/${s.id}/v1.json.gz`, ...fieldOut.meta}
       : null,
     lapTable: laps.map(lap => ({
       id: lap.id,
@@ -418,6 +440,8 @@ function build(s, trackMap, eventWindows) {
     recordings,
     laps,
     band: a.band,
+    field: fieldOut.field,
+    fieldReason: fieldOut.reason,
     track: trackDoc,
     traces,
     files,
@@ -438,6 +462,8 @@ function writeLocal(out) {
   writeFileSync(resolve(dir, 'laps.json'), JSON.stringify(out.laps, null, 2));
   if (out.band)
     writeFileSync(resolve(dir, 'band.json'), JSON.stringify(out.band));
+  if (out.field)
+    writeFileSync(resolve(dir, 'field.json'), JSON.stringify(out.field));
   if (out.track)
     writeFileSync(
       resolve(dir, 'track.json'),
@@ -608,6 +634,12 @@ async function processSession(s, trackMap, eventWindows, store, lines) {
   }
   if (out.session.series)
     lines.push(`  ${out.session.series} ${out.session.eventId}`);
+  const f = out.session.field;
+  lines.push(
+    f
+      ? `  field: ${f.cars} cars, ${f.durationS} s, player aligned to ${f.alignM} m`
+      : `  field: none (${out.fieldReason})`,
+  );
   lines.push(
     `  ${out.laps.length} laps, ${
       out.session.comparableCount

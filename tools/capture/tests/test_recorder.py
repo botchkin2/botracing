@@ -138,3 +138,14 @@ def test_a_torn_copy_is_read_again(lay, game):
     raw, et = shm.Reader(lay, view=view).player()
     assert raw == bytes(game.obj.telemetry.telemInfo[1])
     assert view.torn == 0
+
+
+def test_field_rows_keep_car_text(lay, game, tmp_path):
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 0.5)
+    rec.tick(now)
+    rec.capture.flush(now)
+    (cap,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    field = pq.read_table(sorted(cap.glob("field-*.parquet"))[0]).to_pydict()
+    assert field["mVehicleName"][:3] == ["Car 0", "Car 1", "Car 2"]
+    assert "mVehicleClass" in field and "mDriverName" in field

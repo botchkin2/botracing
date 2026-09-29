@@ -46,10 +46,12 @@ struct TelemInfoV01
 struct VehicleScoringInfoV01
 {
   long mID;
+  char mDriverName[32];
   char mVehicleName[64];
   unsigned char mPlace;
   double mLapDist;
   signed char mSector;
+  char mVehicleClass[32];
 };
 
 struct ScoringInfoV01

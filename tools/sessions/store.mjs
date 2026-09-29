@@ -5,6 +5,7 @@
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/events.parquet
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v2.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
+//   gs://BUCKET/field/{ownerId}/{sessionId}/v1.json.gz  (every car, 5 Hz; field.mjs)
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)
 import {existsSync, readFileSync} from 'node:fs';
@@ -175,6 +176,14 @@ export async function upload(out, {log = () => {}} = {}) {
       bucket,
       session.band.path,
       JSON.stringify(out.band),
+      'application/json',
+    );
+  }
+  if (out.field) {
+    await putGzip(
+      bucket,
+      session.field.path,
+      JSON.stringify(out.field),
       'application/json',
     );
   }

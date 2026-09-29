@@ -24,6 +24,9 @@ import pyarrow.parquet as pq
 from columns import columns
 
 VERSION = 1
+# Text kept per field row: which car is which. Driver names stay on this PC;
+# the uploader does not send them (pit-wall thread 30, #626).
+FIELD_TEXT = ("mVehicleName", "mVehicleClass", "mDriverName")
 
 
 def utc_ms():
@@ -118,7 +121,8 @@ class Capture:
             if not raw:
                 continue
             cols = {k: np.asarray(v) for k, v in extra.items()}
-            cols.update(columns(bytes(raw), ctype))
+            text = FIELD_TEXT if name == "field" else ()
+            cols.update(columns(bytes(raw), ctype, text))
             path = self.dir / f"{name}-{n:04d}.parquet"
             _write_table(path, cols)
             written += path.stat().st_size

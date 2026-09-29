@@ -259,6 +259,25 @@ export async function readBand(id: string): Promise<any | null> {
   }
 }
 
+// Every car in the session at 5 Hz (tools/sessions/field.mjs), as the stored
+// gzip bytes. Not inflated here: a race-hour is ~12 MB of JSON, and the client
+// decompresses it anyway (the route sends Content-Encoding: gzip).
+export async function readFieldGzip(id: string): Promise<Buffer | null> {
+  const session = await readSession(id);
+  if (!session?.field?.path) return null;
+  try {
+    const [body] = await admin
+      .storage()
+      .bucket(BUCKET)
+      .file(session.field.path)
+      .download({decompress: false});
+    return body;
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
 // The track a session was driven on: its corner map (sections, from
 // src/analysis/corners.ts), and when a real-map fit exists (tools/track-fit),
 // the georef that places the recording's coordinates on the real world plus

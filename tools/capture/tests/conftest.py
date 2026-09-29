@@ -30,6 +30,8 @@ class Game:
             v.mVehicleName = f"Car {i}".encode()
             v.mPlace = i + 1
             v.mLapDist = 100.0 * i
+            v.mVehicleClass = b"GT3"
+            v.mDriverName = f"Driver {i}".encode()
         t = self.obj.telemetry
         t.activeVehicles = cars
         t.playerHasVehicle = True
