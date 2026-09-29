@@ -1,3 +1,5 @@
+import {type FieldPointer, toFieldPointer} from '../field/adapters';
+
 // API v2 session shapes (functions/src/sessionStore.ts returns raw Firestore
 // docs) → the typed shapes the app uses. Only fields a screen reads are typed;
 // add them here as screens need them. Times are seconds.
@@ -103,6 +105,8 @@ export type Stint = {
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
   stints: Stint[];
+  /** The stored field of every car (src/data/field), or null without one. */
+  field: FieldPointer | null;
 };
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
@@ -117,6 +121,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
   return {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
+    field: toFieldPointer(raw.field),
     stints: stints.map(s => {
       const x = obj(s);
       return {

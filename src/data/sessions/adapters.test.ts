@@ -36,6 +36,15 @@ describe('toSessionSummary', () => {
 });
 
 describe('toSessionDetail', () => {
+  it('carries the field pointer, null when the session has none', () => {
+    expect(toSessionDetail(raw).field).toBeNull();
+    const d = toSessionDetail({
+      ...raw,
+      field: {hash: 'abc123def456', hz: 5, cars: 62, durationS: 931},
+    });
+    expect(d.field?.hash).toBe('abc123def456');
+  });
+
   it('takes the stint trend from consistency.stints, null when absent', () => {
     const d = toSessionDetail({
       ...raw,
