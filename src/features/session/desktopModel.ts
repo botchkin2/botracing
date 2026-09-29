@@ -9,7 +9,12 @@ import {
   useSessionLaps,
   useSessionMap,
 } from '@/src/data/sessions';
-import {formatDistance, formatGap, formatLapTime} from '@/src/design';
+import {
+  formatDistance,
+  formatGap,
+  formatLapTime,
+  turnLabel,
+} from '@/src/design';
 
 import {type Selection} from './model';
 
@@ -197,7 +202,7 @@ export function buildStintVsStint(
     explainer: `Median segment time per corner over comparable laps, stint ${b.n} minus stint ${a.n}, in seconds. Left and green = stint ${b.n} faster; right and red = slower.`,
     rows: raw.map(r => ({
       key: String(r.i),
-      label: `C${named ? named[r.i].n : r.i + 1}`,
+      label: turnLabel(named ? named[r.i].n : r.i + 1),
       dist: named ? formatDistance(named[r.i].apexM) : null,
       deltaS: r.deltaS,
       frac: Math.abs(r.deltaS) / maxAbs,
@@ -223,7 +228,7 @@ export function useSessionDesktopModel(
   const map = useSessionMap(id);
   return useMemo(() => {
     if (!session.data || !laps.data) return null;
-    // Corner numbers are the map's parts (C1–C11), in lapCornerTimes order.
+    // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.
     const corners = map.data ? trackCorners(map.data) : null;
     return {
       stints: buildStintTable(session.data, laps.data),

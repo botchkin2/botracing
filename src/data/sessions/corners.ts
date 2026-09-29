@@ -5,7 +5,7 @@ import {
   type TrackMapData,
 } from './adapters';
 
-// Single corners (C1..Cn) flattened out of the track's sections. The map
+// Single corners (T1..Tn) flattened out of the track's sections. The map
 // and every lap doc group corners into sections (S1..Sn), each with its
 // corners in `parts`; a section with no parts counts as one corner. Shared
 // by Corner (per-corner facts) and the Session desktop (stint vs stint).
@@ -15,7 +15,7 @@ export type TrackCorner = MapCorner & {
   sectionN: number;
   sectionIndex: number;
   partIndex: number | null;
-  /** Section label with its corner range, e.g. "S2 (C2–C5)". */
+  /** Section label with its corner range, e.g. "S2 (T2–T5)". */
   sectionLabel: string;
 };
 
@@ -24,7 +24,7 @@ export function trackCorners(map: TrackMapData): TrackCorner[] {
     const parts = s.parts.length ? s.parts : null;
     const ns = (parts ?? [s]).map(c => c.n);
     const range =
-      ns.length > 1 ? `C${ns[0]}–C${ns[ns.length - 1]}` : `C${ns[0]}`;
+      ns.length > 1 ? `T${ns[0]}–T${ns[ns.length - 1]}` : `T${ns[0]}`;
     const sectionLabel = `S${s.n} (${range})`;
     return (parts ?? [s]).map((c, pi) => ({
       ...c,

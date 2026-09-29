@@ -10,7 +10,7 @@ import {
 } from '@/src/data/sessions';
 import {formatDistance, formatGap, lapMode, type LapMode} from '@/src/design';
 
-// Corner screen view model (handoff §4, D3), per single corner (C1..Cn).
+// Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
 // corner's entry to the next corner's entry, brake point, minimum speed and
 // full-throttle point. Pure: data and the URL selection in,
@@ -311,7 +311,7 @@ export function buildCornerModel(input: {
     corner,
     sectionN: sec.sectionN,
     corners: ns,
-    title: `Corner ${corner}`,
+    title: `Turn ${corner}`,
     subtitle: [
       formatDistance(sec.apexM),
       `in ${sec.sectionLabel}`,

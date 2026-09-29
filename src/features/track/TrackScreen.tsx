@@ -29,7 +29,7 @@ import {useTrackModel} from './useTrackModel';
 const MAP_EXPLAINER =
   'Numbers are corners. The thin line is the pit lane; the white tick is start/finish.';
 const CORNERS_EXPLAINER =
-  'Distance is from the start/finish line. Grouped corners are one section on the Corner screen.';
+  'Distance is from the start/finish line. Turns are numbered by this app from its corner map, so they can differ from the circuit’s official numbers. Grouped turns are one section on the Corner screen.';
 
 type Actions = {
   toggleCorner: (n: number) => void;

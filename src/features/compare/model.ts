@@ -24,6 +24,7 @@ import {
   formatLapTime,
   lapMode,
   type LapMode,
+  turnLabel,
 } from '@/src/design';
 import {buildTrackMarks, type TrackMarks} from '@/src/charts';
 
@@ -231,7 +232,7 @@ export type MapModel = {
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  /** Follow's position label, e.g. "Section 4 · C8 apex". */
+  /** Follow's position label, e.g. "Section 4 · T8 apex". */
   followPlace: string;
   /** Each section's apex distance, for the strip. */
   sectionApexes: {n: number; apexM: number}[];
@@ -266,7 +267,7 @@ export type CompareModel = {
   timeAxis: ChartTimeAxis;
   /** The reference lap on the grid: time and distance for pan and playback. */
   refGrid: GridTrace | null;
-  /** Corner apex lines inside the window, e.g. "C6 apex", and "S/F" when
+  /** Corner apex lines inside the window, e.g. "T6 apex", and "S/F" when
    *  the window runs past the line. */
   apexMarks: {m: number; label: string; solid?: boolean}[];
   /** Laps still loading their traces. */
@@ -483,14 +484,14 @@ export function cornerPlace(
 
 /**
  * Follow's position label (handoff v2 M1): the section, plus the corner when
- * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · C8 apex".
+ * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
  */
 export function followPlace(sections: MapSection[], cursorM: number): string {
   const place = cornerPlace(sections, cursorM);
   for (const s of sections)
     for (const c of s.parts.length > 0 ? s.parts : [s])
       if (cursorM >= c.entryM && cursorM <= c.exitM)
-        return `${place} · C${c.n} apex`;
+        return `${place} · ${turnLabel(c.n)} apex`;
   return place;
 }
 
@@ -929,7 +930,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           ...(map?.sections ?? [])
             .flatMap(s => (s.parts.length ? s.parts : [s]))
             .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
-            .map(c => ({m: c.apexM, label: `C${c.n} apex`})),
+            .map(c => ({m: c.apexM, label: `${turnLabel(c.n)} apex`})),
           ...lineMarks(refTrace, cursorM, win, lengthM, refSides),
         ]
       : [],

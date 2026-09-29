@@ -10,7 +10,7 @@ import {
   type Xy,
 } from '@/src/data/sessions';
 import {type TrackInfo} from '@/src/data/tracks';
-import {formatDistance, formatLength} from '@/src/design';
+import {formatDistance, formatLength, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
 
@@ -22,7 +22,7 @@ export type TrackFact = {label: string; value: string; sub: string | null};
 
 export type TrackCornerRow = {
   n: number;
-  /** OSM name, or null: the row then shows "C7" muted. */
+  /** OSM name, or null: the row then shows "T7" muted. */
   name: string | null;
   turn: string | null;
   dist: string;
@@ -143,7 +143,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
       const partNames = s.parts.map(p => names.get(p.n));
       const label = partNames.every(Boolean)
         ? partNames.join('–').toUpperCase()
-        : `C${s.parts[0].n}–C${s.parts[s.parts.length - 1].n}`;
+        : `T${s.parts[0].n}–T${s.parts[s.parts.length - 1].n}`;
       groups.push({title: `S${s.n} · ${label}`, rows: s.parts.map(row)});
       continue;
     }
@@ -165,7 +165,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     selection: picked
       ? {
           n: picked.n,
-          label: `C${picked.n}${
+          label: `${turnLabel(picked.n)}${
             pickedName ? ` ${pickedName}` : ''
           } · ${formatDistance(picked.apexM)}`,
         }

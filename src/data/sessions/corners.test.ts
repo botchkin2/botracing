@@ -24,14 +24,14 @@ const map = toTrackMap({
 describe('trackCorners', () => {
   const corners = trackCorners(map);
 
-  it('flattens sections into C1..Cn; a section without parts is one corner', () => {
+  it('flattens sections into T1..Tn; a section without parts is one corner', () => {
     expect(corners.map(c => [c.n, c.sectionN, c.partIndex])).toEqual([
       [1, 1, null],
       [2, 2, 0],
       [3, 2, 1],
     ]);
-    expect(corners[1].sectionLabel).toBe('S2 (C2–C3)');
-    expect(corners[0].sectionLabel).toBe('S1 (C1)');
+    expect(corners[1].sectionLabel).toBe('S2 (T2–T3)');
+    expect(corners[0].sectionLabel).toBe('S1 (T1)');
   });
 
   it('reads a lap’s facts per corner, from parts when present', () => {

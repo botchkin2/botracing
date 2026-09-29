@@ -267,7 +267,7 @@ describe('chart window', () => {
 
   it('pedals are fixed at -4..104; apex lines inside the window only', () => {
     expect(m.charts[2].domains.throttle).toEqual([-4, 104]);
-    expect(m.apexMarks).toEqual([{m: 600, label: 'C2 apex'}]);
+    expect(m.apexMarks).toEqual([{m: 600, label: 'T2 apex'}]);
   });
 
   it('whole lap without a size: no rebase, no apex lines', () => {
@@ -431,9 +431,9 @@ describe('followPlace', () => {
     {...c(2, 500, 700), parts: []},
   ];
   it('adds the corner inside its range, using parts when there are any', () => {
-    expect(followPlace(s, 150)).toBe('Section 1 · C1 apex');
-    expect(followPlace(s, 250)).toBe('Section 1 · C2 apex');
-    expect(followPlace(s, 600)).toBe('Section 2 · C2 apex');
+    expect(followPlace(s, 150)).toBe('Section 1 · T1 apex');
+    expect(followPlace(s, 250)).toBe('Section 1 · T2 apex');
+    expect(followPlace(s, 600)).toBe('Section 2 · T2 apex');
   });
   it('is the section alone between corners', () => {
     expect(followPlace(s, 190)).toBe('Section 1');

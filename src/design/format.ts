@@ -21,6 +21,15 @@ export function formatCornerGap(deltaS: number): string {
   return formatGap(deltaS, 2).replace(/^([+−±])0\./, '$1.');
 }
 
+/**
+ * A corner's display label: "T8". Corners are numbered by this app from its
+ * own corner map, so they can differ from a circuit's official turn numbers
+ * (Botkin, pit-wall thread 27 #689).
+ */
+export function turnLabel(n: number): string {
+  return `T${n}`;
+}
+
 /** "2,150 m" */
 export function formatDistance(distanceM: number): string {
   return `${Math.round(distanceM).toLocaleString('en-US')} m`;

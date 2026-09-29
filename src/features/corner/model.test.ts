@@ -108,9 +108,9 @@ describe('buildCornerModel (per single corner)', () => {
   const m = build(['a', 'b', 'c']);
 
   it('header names the corner and its section', () => {
-    expect(m.title).toBe('Corner 3');
+    expect(m.title).toBe('Turn 3');
     expect(m.subtitle).toBe(
-      '640 m · in S2 (C2–C3) · 3 laps · compared with L1',
+      '640 m · in S2 (T2–T3) · 3 laps · compared with L1',
     );
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([1, 2, 3]);
@@ -151,7 +151,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('a section without parts is one corner', () => {
     const c1 = build(['a'], null, 1);
-    expect(c1.subtitle).toMatch(/in S1 \(C1\)/);
+    expect(c1.subtitle).toMatch(/in S1 \(T1\)/);
     expect(c1.rows[0].values.time).toBe(5);
   });
 

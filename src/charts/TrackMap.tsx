@@ -9,7 +9,7 @@ import {
   offsetFromLine,
   signedArea2,
 } from '@/src/analysis/loopSide';
-import {fonts, useTheme} from '@/src/design';
+import {fonts, useTheme, turnLabel} from '@/src/design';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
 // the track has a good fit, else the driven line as a plain band; each lap's
@@ -196,7 +196,11 @@ export function TrackMap({
     .filter(l => !(badges && l.kind === 'corner'))
     .filter(bandClear);
   const textOf = (l: Label) =>
-    l.kind === 'section' ? `S${l.n}` : l.kind === 'corner' ? `C${l.n}` : 'PIT';
+    l.kind === 'section'
+      ? `S${l.n}`
+      : l.kind === 'corner'
+      ? turnLabel(l.n)
+      : 'PIT';
   const kept = keepClear(
     candidates.map(l => {
       const font = l.kind === 'section' ? SECTION_FONT : CORNER_FONT;
@@ -437,7 +441,7 @@ export function TrackMap({
             <Pressable
               key={`bhit${c.n}`}
               accessibilityRole='button'
-              accessibilityLabel={`Corner ${c.n}`}
+              accessibilityLabel={`Turn ${c.n}`}
               accessibilityState={{selected: c.n === badges.selected}}
               onPress={() => badges.onPress(c.n)}
               style={[styles.hit, {left: at.x - HIT / 2, top: at.y - HIT / 2}]}
