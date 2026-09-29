@@ -31,6 +31,14 @@ import {
   type FollowView,
 } from './followModel';
 import {mapPlacer} from './mapPlace';
+import {
+  headAfter,
+  lapNeighbours,
+  type Neighbours,
+  type Side,
+  tailBefore,
+  WRAP_M,
+} from './neighbours';
 import {buildTrackMarks, type TrackMarks} from './trackMarks';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
@@ -168,6 +176,10 @@ export type ChartLine = LapRef & {
   values: number[];
   /** Recorded samples, drawn instead of the grid when present. */
   samples?: NativeSamples;
+  /** The contiguous previous lap's last metres, before the line (m < 0),
+   *  and the next lap's first metres, after the end: drawn dimmed. */
+  before?: NativeSamples;
+  after?: NativeSamples;
 };
 
 export type ChartValueRow = {
@@ -368,7 +380,11 @@ function lineMarks(
   cursorM: number,
   win: ChartWindow,
   lengthM: number,
+  sides: Neighbours | null,
 ): {m: number; label: string; solid: boolean}[] {
+  // An empty side says why: "S/F · pit", "S/F · start".
+  const label = (side: Side | undefined) =>
+    side?.kind === 'none' ? `S/F · ${side.label}` : 'S/F';
   if (win.size == null) return [];
   const [before, after] =
     win.mode === 'distance'
@@ -377,8 +393,8 @@ function lineMarks(
           i ? t > ref.timeS[ref.timeS.length - 1] : t < 0,
         );
   const out = [];
-  if (before) out.push({m: 0, label: 'S/F', solid: true});
-  if (after) out.push({m: lengthM, label: 'S/F', solid: true});
+  if (before) out.push({m: 0, label: label(sides?.before), solid: true});
+  if (after) out.push({m: lengthM, label: label(sides?.after), solid: true});
   return out;
 }
 
@@ -589,6 +605,61 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : null;
   };
 
+  // --- start/finish wrap (thread 27 #377) ------------------------------------
+  const sides = new Map(
+    lapRefs.map(r => [r.lapId, lapNeighbours(laps, r.lapId)]),
+  );
+  const refSides = ref ? sides.get(ref.id)! : null;
+  const neighbourTrace = (side: Side | undefined) =>
+    side?.kind === 'lap' ? traces.get(side.lapId) : undefined;
+  // The time diff across the seam compares each lap's neighbour with the
+  // reference's neighbour, shifted so the line is continuous at the seam.
+  const diffWrap = (lapId: string, which: 'before' | 'after') => {
+    const own = diffs.get(lapId);
+    const t = neighbourTrace(sides.get(lapId)?.[which]);
+    const rt = refSides ? neighbourTrace(refSides[which]) : undefined;
+    if (!own || !t || !rt) return undefined;
+    const d = timeDiffS(t, rt);
+    const n = d.length;
+    const distanceM: number[] = [];
+    const values: number[] = [];
+    if (which === 'before') {
+      const shift = own[0] - d[n - 1];
+      for (let i = 0; i < n; i++) {
+        const m = i * stepM - lengthM;
+        if (m >= -WRAP_M && m < 0) {
+          distanceM.push(m);
+          values.push(d[i] + shift);
+        }
+      }
+    } else {
+      const shift = own[own.length - 1] - d[0];
+      for (let i = 1; i < n; i++) {
+        const m = i * stepM + lengthM;
+        if (m <= lengthM + WRAP_M) {
+          distanceM.push(m);
+          values.push(d[i] + shift);
+        }
+      }
+    }
+    return {distanceM, values};
+  };
+  const wrapOf = (ch: ChannelId, lapId: string) => {
+    if (ch === 'timeDiff')
+      return {
+        before: diffWrap(lapId, 'before'),
+        after: diffWrap(lapId, 'after'),
+      };
+    const k = CHANNELS[ch].native;
+    const side = sides.get(lapId);
+    const prev = neighbourTrace(side?.before);
+    const next = neighbourTrace(side?.after);
+    return {
+      before: k && prev ? tailBefore(prev.samples[k], lengthM) : undefined,
+      after: k && next ? headAfter(next.samples[k], lengthM) : undefined,
+    };
+  };
+
   const charts: ChartModel[] = (input.charts ?? DEFAULT_CHARTS).map(chs => {
     const lines: ChartLine[] = [];
     chs.forEach((ch, overlay) => {
@@ -601,6 +672,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           overlay,
           values: raw,
           samples: samplesOf(ch, r.lapId),
+          ...(windowed ? wrapOf(ch, r.lapId) : {}),
         });
       }
     });
@@ -821,7 +893,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
             .flatMap(s => (s.parts.length ? s.parts : [s]))
             .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
             .map(c => ({m: c.apexM, label: `C${c.n} apex`})),
-          ...lineMarks(refTrace, cursorM, win, lengthM),
+          ...lineMarks(refTrace, cursorM, win, lengthM, refSides),
         ]
       : [],
     pending: selected.filter(l => !traces.has(l.id)).length,

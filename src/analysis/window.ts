@@ -25,9 +25,15 @@ export const DISTANCE_STEPS_M = [50, 100, 200, 400];
 export const DEFAULT_WINDOW = {time: 2, distance: 200};
 
 // Elapsed time on the reference at a distance (linear between grid points).
+// Before the line or past the lap's end it extends at the first or last
+// step's pace, so the neighbour-lap wrap has a place on the time axis.
 export function timeAtDistance(ref: TimedGrid, m: number): number {
   const last = ref.distanceM.length - 1;
-  const x = Math.max(0, Math.min(last, m / ref.stepM));
+  const ts = ref.timeS;
+  if (m < 0) return ts[0] + (m / ref.stepM) * (ts[1] - ts[0]);
+  if (m > last * ref.stepM)
+    return ts[last] + (m / ref.stepM - last) * (ts[last] - ts[last - 1]);
+  const x = m / ref.stepM;
   const i = Math.min(last - 1, Math.floor(x));
   const f = x - i;
   return ref.timeS[i] + (ref.timeS[i + 1] - ref.timeS[i]) * f;

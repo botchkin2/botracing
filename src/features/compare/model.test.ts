@@ -96,6 +96,49 @@ const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
 const build = (s = sel()) =>
   buildCompareModel({session, laps, traces, band: null, map, selection: s});
 
+describe('start/finish wrap', () => {
+  const at = (lapIds: string[], cursorM: number) =>
+    buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({laps: lapIds, cursorM}),
+      charts: [['speed'], ['timeDiff']],
+      window: {mode: 'distance', size: 200},
+    });
+
+  it('draws the previous lap before the line and the next after the end', () => {
+    // a, b, c are laps 1, 2, 3 of one stint.
+    const m = at(['b', 'c'], 0);
+    const speedB = m.charts[0].lines.find(l => l.lapId === 'b')!;
+    expect(speedB.before!.distanceM.every(d => d < 0 && d >= -500)).toBe(true);
+    expect(speedB.before!.values[0]).toBeCloseTo(180);
+    expect(speedB.after!.distanceM.every(d => d > 1000)).toBe(true);
+    expect(speedB.after!.values[0]).toBeCloseTo(181);
+    expect(m.apexMarks).toContainEqual({m: 0, label: 'S/F', solid: true});
+  });
+
+  it('keeps the time diff continuous at the seam', () => {
+    const m = at(['b', 'c'], 0);
+    const tdC = m.charts[1].lines.find(l => l.lapId === 'c')!;
+    // Continuous: the last wrapped value meets the lap's value at 0 m.
+    expect(tdC.before!.values.at(-1)).toBeCloseTo(tdC.values[0], 1);
+  });
+
+  it('leaves the first lap empty before the line, and says why', () => {
+    const m = at(['a', 'b'], 0);
+    const speedA = m.charts[0].lines.find(l => l.lapId === 'a')!;
+    expect(speedA.before).toBeUndefined();
+    expect(m.apexMarks).toContainEqual({
+      m: 0,
+      label: 'S/F · start',
+      solid: true,
+    });
+  });
+});
+
 describe('buildCompareModel', () => {
   it('names the reference and signs each chip against it', () => {
     const m = build();
