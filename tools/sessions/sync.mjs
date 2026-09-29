@@ -29,7 +29,12 @@ import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
-import {analysisVersion, analyzeSession, loadRecording} from './analyze.mjs';
+import {
+  analysisVersion,
+  analyzeSession,
+  loadRecording,
+  trackMapVersion,
+} from './analyze.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -202,12 +207,21 @@ function slugId(sim, name) {
 // The track's corner map, kept once per track layout so corner numbers stay
 // put from session to session. Local copy first, then the store.
 const trackMaps = new Map();
+// Maps an older mapVersion replaced, kept to show before and after.
+const replacedMaps = new Map();
 async function trackMapFor(trackId, store) {
   if (trackMaps.has(trackId)) return trackMaps.get(trackId);
   if (trackId === rebuildTrack) return null;
   const path = resolve(work, 'tracks', `${trackId}.json`);
   let map = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
   if (!map && store) map = await store.getTrack(trackId);
+  // A map from an older mapVersion is no map: the session rebuilds it. Say so
+  // here, not only inside the analysis, so a parallel sync runs that track
+  // one session at a time and exactly one session builds the new map.
+  if (map && map.mapVersion !== trackMapVersion) {
+    replacedMaps.set(trackId, map);
+    map = null;
+  }
   trackMaps.set(trackId, map);
   return map;
 }
@@ -549,6 +563,12 @@ async function runPool(todo, store, state, eventWindows) {
       building.delete(trackId);
       changed();
       for (const line of r.lines) log(line);
+      // Corner numbers must stay stable across a rebuild; show the replaced
+      // map next to the new one so a renumbering is seen, not found later.
+      if (r.track && replacedMaps.has(trackId)) {
+        log(`  corners before: ${mapSummary(replacedMaps.get(trackId))}`);
+        log(`  corners after:  ${mapSummary(r.track)}`);
+      }
       if (r.ok) {
         done++;
         if (!local) {
@@ -588,6 +608,13 @@ function ask(worker, message) {
     worker.once('error', onError);
     worker.postMessage(message);
   });
+}
+
+// A corner map in one line: each section, its parts' apex distances.
+function mapSummary(map) {
+  return map.corners
+    .map(c => `S${c.n} [${(c.parts ?? [c]).map(p => p.apexM).join(' ')}]`)
+    .join(' ');
 }
 
 // One session, built and stored. Its log lines come back together, so

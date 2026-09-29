@@ -27,7 +27,7 @@ import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 3;
+export const analysisVersion = 4;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -597,11 +597,18 @@ function cornerFacts(rec, lap, corners, flags) {
     // The slowest recorded sample between turn-in and exit (speed is logged
     // at 100 Hz, every tick), at its own distance; then the brake point
     // before it and the first full throttle after it, before the next corner.
-    let minTick = tickAt(c.turnInM);
+    const turnInTick = tickAt(c.turnInM);
     const exitTick = tickAt(c.exitM);
-    for (let i = minTick; i <= exitTick; i++) {
+    let minTick = turnInTick;
+    for (let i = turnInTick; i <= exitTick; i++) {
       if (s.speed_kmh[i] < s.speed_kmh[minTick]) minTick = i;
     }
+    // Slowest on the window's edge: the car was still slowing at turn-in or
+    // already slower at the exit, so the minimum is the boundary's, not the
+    // corner's (pitlane #645). The speed at the map's apex is the corner fact
+    // that holds either way.
+    const minAtEdge = minTick - turnInTick <= 1 || exitTick - minTick <= 1;
+    const apexTick = tickAt(c.apexM);
     // Brake and full-throttle points from the real pedal samples.
     const nextTick = e1 == null ? lap.i1 : tickAt(e1 * GRID_M);
     const entryTick = tickAt(e0 * GRID_M);
@@ -625,6 +632,8 @@ function cornerFacts(rec, lap, corners, flags) {
       offTrackSec: 0,
       minSpeedKmh: round(s.speed_kmh[minTick], 1),
       minSpeedAtM: round(distAt(minTick), 1),
+      minSpeedAtEdge: minAtEdge,
+      apexSpeedKmh: round(s.speed_kmh[apexTick], 1),
       brakeAtM: brake && round(brake.atM, 1),
       brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
       fullThrottleAtM: full && round(full.atM, 1),
