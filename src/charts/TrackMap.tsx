@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path, Text as SvgText} from 'react-native-svg';
 
+import {placeBadges} from '@/src/analysis/badgePlace';
 import {keepClear} from '@/src/analysis/labelPlace';
 import {
   nearestVertexDistance,
@@ -59,6 +60,9 @@ const CORNER_FONT = 8.5;
 const SF_HALF = 11;
 const SF_W = 2.5;
 const SF_LABEL_OFFSET = 24;
+// Centre gap the "S/F" label keeps from a badge: half the label's width
+// plus a large badge's radius and a little air.
+const SF_CLEAR = 22;
 
 /** Numbered corner circles that select a corner, instead of C labels. */
 export type CornerBadges = {
@@ -107,9 +111,13 @@ export function TrackMap({
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
+    // Badges sit outside the line: leave them room inside the box.
+    const pad = badges
+      ? BADGE[badges.size].offset + BADGE[badges.size].d / 2 + 2
+      : PAD;
     const scale = Math.min(
-      (width - 2 * PAD) / (maxX - minX || 1),
-      (height - 2 * PAD) / (maxY - minY || 1),
+      (width - 2 * pad) / (maxX - minX || 1),
+      (height - 2 * pad) / (maxY - minY || 1),
     );
     const offX = (width - (maxX - minX) * scale) / 2;
     const offY = (height - (maxY - minY) * scale) / 2;
@@ -117,7 +125,7 @@ export function TrackMap({
       x: offX + (p.x - minX) * scale,
       y: height - (offY + (p.y - minY) * scale),
     });
-  }, [lines, width, height]);
+  }, [lines, width, height, badges?.size]);
 
   const toPath = (pts: MapPoint[]) =>
     fit
@@ -203,19 +211,38 @@ export function TrackMap({
     2,
   ).map(i => candidates[i]);
   const sectionLabels = kept.filter(l => l.kind === 'section');
+  const badgeSpec = badges ? BADGE[badges.size] : null;
+  const badgeAt = badgeSpec
+    ? placeBadges(
+        marks.corners.map(c => [
+          off(c.anchor, -badgeSpec.offset),
+          off(c.anchor, -badgeSpec.offset - badgeSpec.d),
+          off(c.anchor, badgeSpec.offset),
+          off(c.anchor, badgeSpec.offset + badgeSpec.d),
+        ]),
+        {width, height, d: badgeSpec.d},
+      )
+    : [];
   // S/F sits outside the loop unless that runs off the map; then inside.
+  // S/F sits outside the loop unless that runs off the map or onto a
+  // corner badge; then inside, then further out.
   const sfLabel = startFinish
     ? (() => {
-        const out = off(startFinish, -SF_LABEL_OFFSET);
-        const fits =
-          out.x > PAD &&
-          out.x < width - PAD &&
-          out.y > PAD &&
-          out.y < height - PAD;
-        return {
-          anchor: startFinish,
-          ...(fits ? out : off(startFinish, SF_LABEL_OFFSET)),
-        };
+        const clearOfBadges = (p: MapPoint) =>
+          badgeAt.every(q => Math.hypot(p.x - q.x, p.y - q.y) > SF_CLEAR);
+        const onMap = (p: MapPoint) =>
+          p.x > PAD && p.x < width - PAD && p.y > PAD && p.y < height - PAD;
+        const options = [
+          off(startFinish, -SF_LABEL_OFFSET),
+          off(startFinish, SF_LABEL_OFFSET),
+          off(startFinish, -SF_LABEL_OFFSET * 1.8),
+          off(startFinish, SF_LABEL_OFFSET * 1.8),
+        ];
+        const at =
+          options.find(p => onMap(p) && clearOfBadges(p)) ??
+          options.find(onMap) ??
+          options[0];
+        return {anchor: startFinish, ...at};
       })()
     : null;
 
@@ -351,9 +378,10 @@ export function TrackMap({
           </>
         )}
         {badges &&
-          marks.corners.map(c => {
-            const b = BADGE[badges.size];
-            const at = off(c.anchor, -b.offset);
+          badgeSpec &&
+          marks.corners.map((c, i) => {
+            const b = badgeSpec;
+            const at = badgeAt[i];
             const on = c.n === badges.selected;
             return (
               <G key={`b${c.n}`}>
@@ -403,8 +431,8 @@ export function TrackMap({
         />
       ))}
       {badges &&
-        marks.corners.map(c => {
-          const at = off(c.anchor, -BADGE[badges.size].offset);
+        marks.corners.map((c, i) => {
+          const at = badgeAt[i];
           return (
             <Pressable
               key={`bhit${c.n}`}
