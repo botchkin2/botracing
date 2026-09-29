@@ -18,6 +18,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   offTrackS: 0,
   hadImpact: false,
   sections: [],
+  recordingId: 'r1',
   ...over,
 });
 
@@ -65,6 +66,27 @@ describe('lapNeighbours', () => {
   });
 });
 
+describe('breaks inside a stint', () => {
+  it('a new recording file is not contiguous', () => {
+    const l = [lap(1), lap(2, {recordingId: 'r2'})];
+    expect(lapNeighbours(l, 'L2').before).toEqual({
+      kind: 'none',
+      label: 'new file',
+    });
+    expect(lapNeighbours(l, 'L1').after).toEqual({
+      kind: 'none',
+      label: 'new file',
+    });
+  });
+  it('a partial previous lap has no tail', () => {
+    const l = [lap(1, {partial: true}), lap(2)];
+    expect(lapNeighbours(l, 'L2').before).toEqual({
+      kind: 'none',
+      label: 'partial',
+    });
+  });
+});
+
 describe('tail and head', () => {
   const s = {distanceM: [0, 100, 3600, 3900, 3999], values: [1, 2, 3, 4, 5]};
   it('places the tail before the line', () => {
@@ -72,6 +94,10 @@ describe('tail and head', () => {
       distanceM: [-400, -100, -1],
       values: [3, 4, 5],
     });
+  });
+  it('places the tail by the lap own length', () => {
+    expect(tailBefore(s, 3999).distanceM).toEqual([-399, -99, 0]);
+    expect(tailBefore(s, 3999).values).toEqual([3, 4, 5]);
   });
   it('places the head after the end', () => {
     expect(headAfter(s, 4000)).toEqual({distanceM: [4100], values: [2]});

@@ -113,7 +113,7 @@ describe('start/finish wrap', () => {
     // a, b, c are laps 1, 2, 3 of one stint.
     const m = at(['b', 'c'], 0);
     const speedB = m.charts[0].lines.find(l => l.lapId === 'b')!;
-    expect(speedB.before!.distanceM.every(d => d < 0 && d >= -500)).toBe(true);
+    expect(speedB.before!.distanceM.every(d => d <= 0 && d >= -500)).toBe(true);
     expect(speedB.before!.values[0]).toBeCloseTo(180);
     expect(speedB.after!.distanceM.every(d => d > 1000)).toBe(true);
     expect(speedB.after!.values[0]).toBeCloseTo(181);

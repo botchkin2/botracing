@@ -10,7 +10,7 @@ import {type Lap} from '@/src/data/sessions';
 
 export type Side =
   | {kind: 'lap'; lapId: string}
-  | {kind: 'none'; label: 'pit' | 'start' | 'end'};
+  | {kind: 'none'; label: 'pit' | 'start' | 'end' | 'new file' | 'partial'};
 
 export type Neighbours = {before: Side; after: Side};
 
@@ -27,28 +27,48 @@ export function lapNeighbours(laps: Lap[], lapId: string): Neighbours {
     };
   const prev = byIndex.get(lap.lapIndex - 1);
   const next = byIndex.get(lap.lapIndex + 1);
+  // A new recording file between two laps is a reset or a server drop:
+  // the car did not drive from one into the other (pitlane, #70).
+  const otherFile = (o: Lap) =>
+    o.recordingId != null &&
+    lap.recordingId != null &&
+    o.recordingId !== lap.recordingId;
   const before: Side =
     lap.pitOut || (prev && (prev.pitIn || prev.stint !== lap.stint))
       ? {kind: 'none', label: 'pit'}
-      : prev
-      ? {kind: 'lap', lapId: prev.id}
-      : {kind: 'none', label: 'start'};
+      : !prev
+      ? {kind: 'none', label: 'start'}
+      : otherFile(prev)
+      ? {kind: 'none', label: 'new file'}
+      : // A partial lap did not reach the line, so it has no tail there.
+      prev.partial
+      ? {kind: 'none', label: 'partial'}
+      : {kind: 'lap', lapId: prev.id};
   const after: Side =
     lap.pitIn || (next && (next.pitOut || next.stint !== lap.stint))
       ? {kind: 'none', label: 'pit'}
-      : next
-      ? {kind: 'lap', lapId: next.id}
-      : {kind: 'none', label: 'end'};
+      : !next
+      ? {kind: 'none', label: 'end'}
+      : otherFile(next)
+      ? {kind: 'none', label: 'new file'}
+      : {kind: 'lap', lapId: next.id};
   return {before, after};
 }
 
-/** A neighbour's last WRAP_M metres, placed before the line (negative m). */
-export function tailBefore(s: NativeSamples, lengthM: number): NativeSamples {
+/**
+ * A neighbour's last WRAP_M metres, placed before the line (negative m).
+ * `ownLengthM` is that lap's own distance at its last sample, so a lap a few
+ * metres longer or shorter still meets the line at 0 (pitlane, #70).
+ */
+export function tailBefore(
+  s: NativeSamples,
+  ownLengthM: number,
+): NativeSamples {
   const distanceM: number[] = [];
   const values: number[] = [];
   for (let i = 0; i < s.distanceM.length; i++) {
-    const m = s.distanceM[i] - lengthM;
-    if (m >= -WRAP_M && m < 0) {
+    const m = s.distanceM[i] - ownLengthM;
+    if (m >= -WRAP_M && m <= 0) {
       distanceM.push(m);
       values.push(s.values[i]);
     }

@@ -655,7 +655,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const prev = neighbourTrace(side?.before);
     const next = neighbourTrace(side?.after);
     return {
-      before: k && prev ? tailBefore(prev.samples[k], lengthM) : undefined,
+      before:
+        k && prev
+          ? tailBefore(
+              prev.samples[k],
+              prev.samples.speedKph.distanceM.at(-1) ?? lengthM,
+            )
+          : undefined,
       after: k && next ? headAfter(next.samples[k], lengthM) : undefined,
     };
   };
