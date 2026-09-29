@@ -515,6 +515,16 @@ function cachedDiff(lap: GridTrace, ref: GridTrace): number[] {
   return cached(byRef, ref, () => timeDiffS(lap, ref));
 }
 
+// Each lap's own time diff, and its wrap, are kept the same way: the charts
+// cache their lines by array identity (charts/chunkPaths.ts), so a new array
+// every frame would rebuild them every frame. A lap's official time is
+// fixed by its trace, so the pair of traces is the whole key.
+const ownDiffCache = new WeakMap<object, WeakMap<object, number[]>>();
+const wrapCache = {
+  before: new WeakMap<object, NativeSamples>(),
+  after: new WeakMap<object, NativeSamples>(),
+};
+
 export function buildCompareModel(input: CompareInputs): CompareModel {
   const {session, laps, traces, band, map, selection} = input;
   const byId = new Map(laps.map(l => [l.id, l]));
@@ -594,14 +604,17 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       const t = traces.get(r.lapId);
       if (!t) continue;
       const lapS = byId.get(r.lapId)?.timeS;
+      const byRef = cached(ownDiffCache, t, () => new WeakMap());
       diffs.set(
         r.lapId,
-        timeDiffS(
-          t,
-          refTrace,
-          lapS != null && ref.timeS != null
-            ? {lapS, refS: ref.timeS}
-            : undefined,
+        cached(byRef, refTrace, () =>
+          timeDiffS(
+            t,
+            refTrace,
+            lapS != null && ref.timeS != null
+              ? {lapS, refS: ref.timeS}
+              : undefined,
+          ),
         ),
       );
     }
@@ -643,7 +656,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const t = neighbourTrace(sides.get(lapId)?.[which]);
     const rt = refSides ? neighbourTrace(refSides[which]) : undefined;
     if (!own || !t || !rt) return undefined;
-    const d = cachedDiff(t, rt);
+    return cached(wrapCache[which], own, () =>
+      shiftedWrap(own, cachedDiff(t, rt), which),
+    );
+  };
+  const shiftedWrap = (
+    own: number[],
+    d: number[],
+    which: 'before' | 'after',
+  ): NativeSamples => {
     const n = d.length;
     const distanceM: number[] = [];
     const values: number[] = [];
