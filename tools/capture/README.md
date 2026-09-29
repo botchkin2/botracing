@@ -32,6 +32,8 @@ The recorder waits for the game, records each session, and idles between. One in
 - `field-NNNN.parquet`: one row per car per scoring update, plus `update` (the update's index in the chunk) and `et` (session clock).
 - `session-NNNN.parquet`: one row per scoring update: flags, weather, phase.
 
+Chunks are written with byte-stream-split (zstd) on numbers, and the doubles the game only fills with float32 values (`FLOAT32_PLAYER`, `FLOAT32_FIELD` in `columns.py`) are stored as float32 when that is bit-exact for the chunk. Both are lossless: read back as double, every value equals the game's. A race is about 5.9 MB/min, down from 9.4. The raw archive is never decimated; slow channels are downsampled by what the uploader derives (pit-wall thread 30, #765).
+
 Every row has `wall_ms` (UTC epoch ms): the poll time, so up to ~4 ms after the game wrote the frame. Use it to match captures to the `.duckdb` and the trace-log event, and use the game's clocks (`mElapsedTime`, `et`) for ordering and anything finer.
 
 `meta.json` also counts `suspectFrames`: player frames whose speed or position jumps more than physics allows since the previous frame. Each frame is copied twice and kept only when both copies match, so this should stay near 0; the count is how we find out.

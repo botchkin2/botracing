@@ -176,3 +176,21 @@ def test_meta_maps_car_ids_to_models(lay, game, tmp_path):
     meta = json.loads((cap / "meta.json").read_text())
     # Written with the first chunk; car 0 has no model and is left out.
     assert meta["vehicleModels"] == {"1": "Porsche 911 GT3 R", "2": "Porsche 911 GT3 R"}
+
+
+def test_chunks_use_narrow_types(lay, game, tmp_path):
+    """Chunks carry the narrowed types and text still round-trips (values: test_columns)."""
+    import pyarrow as pa
+
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 1.5)
+    game.running = False
+    rec.tick(now + 10_000)
+    (cap,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    player = pq.read_table(sorted(cap.glob("player-*.parquet"))[0])
+    assert player.schema.field("mPos_x").type == pa.float32()
+    assert player.schema.field("mElapsedTime").type == pa.float64()
+    field = pq.read_table(sorted(cap.glob("field-*.parquet"))[0])
+    assert field.schema.field("mLapDist").type == pa.float32()
+    assert field.schema.field("et").type == pa.float64()
+    assert field["mVehicleName"].to_pylist()[0]  # text still round-trips

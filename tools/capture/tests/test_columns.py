@@ -20,3 +20,18 @@ def test_columns_names_and_values(lay):
 def test_dtype_matches_ctypes_size(lay):
     for t in (lay.telem, lay.vehicle, lay.scoring):
         assert columns.dtype_of(t).itemsize == __import__("ctypes").sizeof(t)
+
+
+def test_narrow_keeps_only_exact_float32():
+    import numpy as np
+
+    exact = np.array([0.5, -3.25, 1e6])
+    inexact = np.array([0.1, 0.2, 0.3])  # not representable as float32
+    out = columns.narrow(
+        {"mPos_x": exact, "mLocalVel_x": inexact, "mElapsedTime": exact}, columns.FLOAT32_PLAYER
+    )
+    assert out["mPos_x"].dtype == np.float32
+    assert out["mLocalVel_x"].dtype == np.float64  # listed, but would lose bits
+    assert out["mElapsedTime"].dtype == np.float64  # not listed
+    assert np.array_equal(out["mPos_x"].astype(np.float64), exact)
+
