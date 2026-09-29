@@ -70,6 +70,24 @@ def test_garbage_layout_is_refused(lay, game, tmp_path):
     assert not [p for p in tmp_path.iterdir() if p.is_dir()]
 
 
+def test_one_odd_car_name_is_recorded(lay, game, tmp_path):
+    game.obj.scoring.vehScoringInfo[2].mVehicleName = "Škoda #7".encode("latin-1", "replace")
+    rec = make(lay, game, tmp_path)
+    drive(rec, game, 0, 1)
+    assert status(tmp_path)["state"] == "recording"
+
+
+def test_a_refused_session_is_checked_again(lay, game, tmp_path):
+    good = bytes(game.obj.scoring.vehScoringInfo[2].mVehicleName)
+    game.obj.scoring.vehScoringInfo[2].mVehicleName = b""
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 1)
+    assert status(tmp_path)["state"] == "refused"
+    game.obj.scoring.vehScoringInfo[2].mVehicleName = good
+    drive(rec, game, now, 12)
+    assert status(tmp_path)["state"] == "recording"
+
+
 def test_implausible_player_removes_the_capture(lay, game, tmp_path):
     for w in game.obj.telemetry.telemInfo[1].mWheel:
         w.mBrakeTemp = 90_000.0

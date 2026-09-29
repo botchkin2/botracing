@@ -36,6 +36,9 @@ GAME_CHECK_MS = 5_000
 # No scoring update this long: the session is over. Long enough that a pause
 # or a garage wait with the clock frozen stays in one capture.
 SESSION_GONE_MS = 10 * 60_000
+# A refused session is checked again after this, so a glitch while the game
+# loads the field recovers instead of losing the whole session.
+REFUSE_RETRY_MS = 10_000
 STATUS_MS = 30_000
 RECOUNT_MS = 5 * 60_000  # recount disk use while idle: the uploader prunes old captures
 # A frame is suspect when speed changes faster than this between frames
@@ -56,6 +59,7 @@ class Recorder:
         self.capture = None
         self.key = None
         self.refused_key = None
+        self.refused_at = 0
         self.player_ok = None
         self.last_scoring_et = None
         self.last_scoring_ms = 0
@@ -138,6 +142,7 @@ class Recorder:
         self.capture = None
         self.key = None
         self.refused_key = key
+        self.refused_at = now
         self.set_status(now, state="refused", layoutOk=False, layoutReason=reason, sessionDir=None)
 
     # The loop ---------------------------------------------------------------
@@ -199,7 +204,11 @@ class Recorder:
         if self.capture and (key != self.key or restarted):
             self._close_capture(now)
         if self.capture is None:
-            if key == self.refused_key and not restarted:
+            if (
+                key == self.refused_key
+                and not restarted
+                and now - self.refused_at < REFUSE_RETRY_MS
+            ):
                 return
             ok, reason = sanity.check_scoring(self.layout, info_raw, vehicles_raw, n)
             if not ok:
