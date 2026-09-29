@@ -54,6 +54,9 @@ const folder = arg(
 const ownerId = arg('--owner', process.env.LAP_OWNER || 'botkin');
 const since = arg('--since', '');
 const only = arg('--only', '');
+// Session ids to leave alone this pass: the watcher's failed sessions still
+// waiting on their backoff.
+const skipIds = new Set(arg('--skip', '').split(',').filter(Boolean));
 const local = flag('--local');
 const force = flag('--force');
 const quietMin = Number(arg('--quiet-min', '3'));
@@ -565,9 +568,14 @@ async function main() {
 
   // Newest first: recent sessions matter most, and a long backfill fills in
   // the past last.
-  const todo = [...sessions]
+  let todo = [...sessions]
     .reverse()
     .filter(s => force || local || state.sessions[s.id] !== s.fingerprint);
+  const waiting = todo.filter(s => skipIds.has(s.id));
+  if (waiting.length) {
+    log(`${waiting.length} session(s) waiting on a retry: skipped`);
+    todo = todo.filter(s => !skipIds.has(s.id));
+  }
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   const {done, failed} = await runPool(todo, store, state, eventWindows);

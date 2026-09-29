@@ -60,6 +60,7 @@ const STATE_LABEL: Record<Uploader['state'], string> = {
   'waiting-for-game': 'Waiting for LMU',
   'in-game': 'In game',
   syncing: 'Syncing',
+  retrying: 'Retrying',
   error: 'Error',
 };
 
@@ -72,6 +73,13 @@ export function formatAgo(thenMs: number, nowMs: number): string {
   const h = Math.floor(m / 60);
   if (h < 48) return `${h} h`;
   return `${Math.floor(h / 24)} days`;
+}
+
+/** Local 24-hour clock, "14:05". */
+export function formatClock(ms: number): string {
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
 /** Bytes as "5.0 GB", "830 MB". */
@@ -87,8 +95,13 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
     const a = formatAgo(t, nowMs);
     return a === 'just now' ? a : `${a} ago`;
   };
+  // A failed session waiting on its backoff says when it tries again.
+  const stateText =
+    u.state === 'retrying' && u.retryAt != null
+      ? `Retrying at ${formatClock(u.retryAt)}`
+      : STATE_LABEL[u.state];
   const status = seen
-    ? `${STATE_LABEL[u.state]} · seen ${ago(u.lastSeenAt!)}`
+    ? `${stateText} · seen ${ago(u.lastSeenAt!)}`
     : u.lastSeenAt == null
     ? 'Not seen yet'
     : `Not seen for ${formatAgo(u.lastSeenAt, nowMs)}`;

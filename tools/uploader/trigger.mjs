@@ -18,8 +18,11 @@ export function retryDelayMin(failuresInRow) {
 }
 
 // Run when the game is not running, and telemetry changed since the last
-// clean sync started, the analysis version changed, or a failed sync is due
-// its retry.
+// sync started, the analysis version changed, or a failed session is due its
+// retry. retryAtMs is a whole-run failure (the sync crashed, so nothing is
+// known to be done) and blocks everything until it passes; sessionRetryAtMs
+// is the earliest per-session retry (retries.mjs) and only adds a reason to
+// run, because the failing sessions are skipped, not the rest.
 export function decide({
   versionChanged = false,
   gameRunning,
@@ -27,18 +30,21 @@ export function decide({
   newestMtimeMs,
   lastRunAtMs,
   retryAtMs = null,
+  sessionRetryAtMs = null,
   nowMs,
 }) {
   if (gameRunning) return {run: false, reason: 'game running'};
   if (newestMtimeMs == null) return {run: false, reason: 'no telemetry'};
-  // A failed sync waits for its retry time whatever else is pending: the
-  // version is recorded only by a clean sync, so after a bump one session
-  // that always fails would otherwise rerun every tick (scrutineer #671).
+  // A crashed sync records neither the version nor the run time, so it waits
+  // for its retry time whatever else is pending, or a bump would rerun it
+  // every tick (scrutineer #671).
   if (retryAtMs != null) {
     return nowMs < retryAtMs
       ? {run: false, reason: 'retry later'}
       : {run: true, reason: 'retry'};
   }
+  if (sessionRetryAtMs != null && nowMs >= sessionRetryAtMs)
+    return {run: true, reason: 'retry'};
   // A new analysisVersion means every stored session is out of date: sync
   // them all once, the same way as new telemetry (never in game).
   if (versionChanged) return {run: true, reason: 'new analysis version'};

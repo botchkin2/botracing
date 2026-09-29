@@ -84,3 +84,11 @@ test('progress reaches the doc, and a step forward forces a write', () => {
   assert.deepEqual(at(12).progress, {done: 12, total: 300});
   assert.notEqual(beatKey(at(12)), beatKey(at(13)));
 });
+
+test('a pending retry shows its time, and changes the beat key', () => {
+  const retryAtMs = Date.parse('2026-09-29T10:30:00Z');
+  const doc = heartbeatDoc({...input, state: 'retrying', retryAtMs});
+  assert.equal(doc.retryAt, '2026-09-29T10:30:00.000Z');
+  assert.equal(heartbeatDoc(input).retryAt, null);
+  assert.notEqual(beatKey(doc), beatKey(heartbeatDoc(input)));
+});

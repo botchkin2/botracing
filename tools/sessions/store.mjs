@@ -17,6 +17,7 @@ import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
 import {fieldAfterSync} from './field.mjs';
+import {withNetRetry} from './netRetry.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -62,16 +63,18 @@ export function connect() {
 }
 
 async function putFile(bucket, localPath, dest, contentType) {
-  await bucket.upload(localPath, {
-    destination: dest,
-    resumable: false,
-    metadata: {contentType, cacheControl: 'private, max-age=31536000'},
-  });
+  await withNetRetry(() =>
+    bucket.upload(localPath, {
+      destination: dest,
+      resumable: false,
+      metadata: {contentType, cacheControl: 'private, max-age=31536000'},
+    }),
+  );
 }
 
 async function sameAsRemote(bucket, localPath, dest) {
   try {
-    const [meta] = await bucket.file(dest).getMetadata();
+    const [meta] = await withNetRetry(() => bucket.file(dest).getMetadata());
     const local = createHash('md5')
       .update(readFileSync(localPath))
       .digest('base64');
@@ -83,16 +86,17 @@ async function sameAsRemote(bucket, localPath, dest) {
 }
 
 async function putGzip(bucket, dest, text, contentType) {
-  await bucket
-    .file(dest)
-    .save(gzipSync(Buffer.from(text, 'utf8'), {level: 9}), {
+  const body = gzipSync(Buffer.from(text, 'utf8'), {level: 9});
+  await withNetRetry(() =>
+    bucket.file(dest).save(body, {
       resumable: false,
       metadata: {
         contentType,
         contentEncoding: 'gzip',
         cacheControl: 'private, max-age=31536000',
       },
-    });
+    }),
+  );
 }
 
 // A track's stored corner map, or null.

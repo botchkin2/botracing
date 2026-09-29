@@ -22,6 +22,7 @@ const rig = (over: Partial<Uploader> = {}): Uploader => ({
   lastUploadAt: NOW - 30 * min,
   lastSessionId: 'bc1d5cd65e511410',
   queue: 2,
+  retryAt: null,
   sessionsDone: 14,
   lastError: null,
   disk: {captureBytes: 5.04e9, freeBytes: 2.1e11},
@@ -49,6 +50,14 @@ describe('uploaderCard', () => {
       'Recorder recording · LMU 1.2',
     ]);
     expect(c.recorderWarning).toBeNull();
+  });
+
+  it('says when a failed session is tried again, not error', () => {
+    const c = uploaderCard(
+      rig({state: 'retrying', retryAt: NOW + 30 * min}),
+      NOW,
+    );
+    expect(c.status).toMatch(/^Retrying at \d{2}:\d{2} · seen 2 min ago$/);
   });
 
   it('is grey past 10 min, and says how long, never red', () => {

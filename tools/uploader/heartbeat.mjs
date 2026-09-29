@@ -35,6 +35,7 @@ export function heartbeatDoc({
   progress,
   freeBytes,
   recorder,
+  retryAtMs = null,
   nowMs,
 }) {
   return {
@@ -49,6 +50,8 @@ export function heartbeatDoc({
     queue,
     // done/total of the sync running now, else null.
     progress: progress ?? null,
+    // When the earliest failed session is tried again, or null with none.
+    retryAt: retryAtMs != null ? new Date(retryAtMs).toISOString() : null,
     sessionsDone: watch.sessionsDone ?? 0,
     lastError: watch.lastError
       ? {...watch.lastError, message: scrub(watch.lastError.message)}
@@ -82,6 +85,7 @@ export function beatKey(doc) {
     doc.queue,
     doc.progress?.done,
     doc.progress?.total,
+    doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
   ]);
