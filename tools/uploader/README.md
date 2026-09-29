@@ -7,7 +7,7 @@ Syncs new LMU sessions to the lap app by itself, and reports its status to the a
 - `heartbeat.mjs`: the `uploaders/{hostId}` doc. The endpoint is public, so the id is a hash of the machine name, the name shown is `label` from `config.json` (`{"label": "Race PC"}`), and errors are one line with user folders scrubbed. (`GET /api/lmu/uploaders`, docs/API.md), written on each change and at least every 5 minutes. It copies the recorder's `%LOCALAPPDATA%\lap-capture\status.json` (tools/capture) into `recorder`; older than 2 minutes reads as `not-running`.
 - `install.ps1`: registers the `LapUploader` logon task (headless, one instance). Botkin runs it once.
 
-Local files, in `%LOCALAPPDATA%\lap-uploader\`: `watch.log` (every sync's output; rotated at 5 MB), `state.json` (last sync, retry time), `config.json` (optional). One instance holds the named pipe `\.\pipe\lap-uploader-watch`; Windows frees it when the process ends.
+Local files, in `%LOCALAPPDATA%\lap-uploader\`: `watch.log` (every sync's output; rotated at 5 MB), `state.json` (last sync, retry time), `config.json` (optional). One instance holds the named pipe `\\.\pipe\lap-uploader-watch`; Windows frees it when the process ends.
 
 Needs what `sync.mjs` needs: `npm ci --prefix functions` and `gcloud auth application-default login`.
 
