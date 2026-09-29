@@ -223,7 +223,6 @@ export function TrackMap({
         {width, height, d: badgeSpec.d},
       )
     : [];
-  // S/F sits outside the loop unless that runs off the map; then inside.
   // S/F sits outside the loop unless that runs off the map or onto a
   // corner badge; then inside, then further out.
   const sfLabel = startFinish
@@ -385,6 +384,21 @@ export function TrackMap({
             const on = c.n === badges.selected;
             return (
               <G key={`b${c.n}`}>
+                {/* A badge moved off its usual spot keeps a thin line to
+                    its corner, so the number still points at the place. */}
+                {Math.hypot(
+                  at.x - off(c.anchor, -b.offset).x,
+                  at.y - off(c.anchor, -b.offset).y,
+                ) > 1 && (
+                  <Line
+                    x1={fit(c.anchor.at).x}
+                    y1={fit(c.anchor.at).y}
+                    x2={at.x}
+                    y2={at.y}
+                    stroke={color.median}
+                    strokeWidth={1}
+                  />
+                )}
                 <Circle
                   cx={at.x}
                   cy={at.y}

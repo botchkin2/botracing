@@ -41,4 +41,18 @@ describe('placeBadges', () => {
     const [a] = placeBadges([[{x: -30, y: 50}]], box);
     expect(a).toEqual({x: 11, y: 50});
   });
+
+  it('takes the least-overlapping spot when every spot overlaps', () => {
+    const [, b] = placeBadges(
+      [
+        [{x: 50, y: 50}],
+        [
+          {x: 52, y: 50},
+          {x: 62, y: 50},
+        ],
+      ],
+      box,
+    );
+    expect(b).toEqual({x: 62, y: 50});
+  });
 });
