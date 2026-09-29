@@ -40,7 +40,7 @@ const MAP_MIN_LAPS = 8;
 // The shape of a stored corner map. A map from an older version (before
 // sections, say) is rebuilt by the next session with enough clean laps,
 // instead of being reused forever.
-export const trackMapVersion = 3;
+export const trackMapVersion = 4;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
 const wanted = [
@@ -594,21 +594,20 @@ function cornerFacts(rec, lap, corners, flags) {
     const segTime = last
       ? lap.lapTime - grid.time[e0] + grid.time[entries[0]]
       : grid.time[e1] - grid.time[e0];
-    // Min speed between turn-in and exit, the brake point before it, and
-    // the first full throttle after it, before the next corner.
-    const t0 = at(c.turnInM);
-    const t1 = at(c.exitM);
-    let minAt = t0;
-    for (let g = t0; g <= t1; g++) {
-      if (grid.speed[g] < grid.speed[minAt]) minAt = g;
+    // The slowest recorded sample between turn-in and exit (speed is logged
+    // at 100 Hz, every tick), at its own distance; then the brake point
+    // before it and the first full throttle after it, before the next corner.
+    let minTick = tickAt(c.turnInM);
+    const exitTick = tickAt(c.exitM);
+    for (let i = minTick; i <= exitTick; i++) {
+      if (s.speed_kmh[i] < s.speed_kmh[minTick]) minTick = i;
     }
     // Brake and full-throttle points from the real pedal samples.
-    const minTick = tickAt(minAt * GRID_M);
     const nextTick = e1 == null ? lap.i1 : tickAt(e1 * GRID_M);
     const entryTick = tickAt(e0 * GRID_M);
     const brake = brakeStart(
       s.brake_pct,
-      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, tickAt(t1 * GRID_M)),
+      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, exitTick),
       distAt,
       entryTick,
     );
@@ -624,7 +623,8 @@ function cornerFacts(rec, lap, corners, flags) {
       segTime: round(segTime, 3),
       localYellowSec: 0,
       offTrackSec: 0,
-      minSpeedKmh: round(grid.speed[minAt], 1),
+      minSpeedKmh: round(s.speed_kmh[minTick], 1),
+      minSpeedAtM: round(distAt(minTick), 1),
       brakeAtM: brake && round(brake.atM, 1),
       brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
       fullThrottleAtM: full && round(full.atM, 1),

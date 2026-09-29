@@ -312,9 +312,13 @@ export function findTrackCorners(
   let prevEnd = 0;
   for (const r of split) {
     let peak = 0;
+    let peakAt = r.s;
     let apex = r.s;
     for (let k = r.s; k <= r.e; k++) {
-      if (Math.abs(c[k]) > peak) peak = Math.abs(c[k]);
+      if (Math.abs(c[k]) > peak) {
+        peak = Math.abs(c[k]);
+        peakAt = k;
+      }
     }
     let minSpeed = Infinity;
     for (let k = r.s; k <= r.e; k++) {
@@ -323,6 +327,11 @@ export function findTrackCorners(
         apex = k;
       }
     }
+    // A corner taken while still accelerating, or flat, is slowest at its
+    // turn-in or exit, which is not its apex; there the apex is the point of
+    // tightest turn. (Road Atlanta map v3: 4 of 11 corners had their apex on
+    // an edge, at the entry or the exit.)
+    if (apex - r.s <= 1 || r.e - apex <= 1) apex = peakAt;
     // Entry: the last brake or lift before turn-in, if there is one close by.
     // Never look back into the previous corner.
     const from = Math.max(prevEnd, r.s - Math.round(o.lookBackM / p.stepM));
