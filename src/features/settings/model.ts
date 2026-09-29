@@ -36,10 +36,6 @@ export type SettingsModel = {
 };
 
 const SEEN_MS = 10 * 60_000;
-// The recorder writes its status every few seconds; older than this, it is
-// not running whatever its last state said (sector, #63).
-const RECORDER_STALE_MS = 2 * 60_000;
-
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
@@ -52,12 +48,10 @@ const RECORDER_LABEL: Record<string, string> = {
   refused: 'stopped',
 };
 
-function recorderState(
-  r: NonNullable<Uploader['recorder']>,
-  nowMs: number,
-): string {
-  if (r.updatedAt != null && nowMs - r.updatedAt > RECORDER_STALE_MS)
-    return 'not running';
+// The uploader judges the recorder's staleness when it writes the heartbeat
+// (state 'not-running'), and the heartbeat is only rewritten every few
+// minutes, so the app trusts the state (scrutineer and kerb, #663/#666).
+function recorderState(r: NonNullable<Uploader['recorder']>): string {
   return RECORDER_LABEL[r.state] ?? r.state;
 }
 
@@ -113,7 +107,7 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
         )} free`
       : '',
     u.recorder && u.recorder.layoutOk
-      ? `Recorder ${recorderState(u.recorder, nowMs)}${
+      ? `Recorder ${recorderState(u.recorder)}${
           u.recorder.gameVersion ? ` · LMU ${u.recorder.gameVersion}` : ''
         }`
       : '',

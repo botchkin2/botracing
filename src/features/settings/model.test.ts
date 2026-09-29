@@ -111,7 +111,7 @@ describe('recorder freshness', () => {
     expect(c.lines).toContain('Recorder waiting for LMU');
   });
 
-  it('a recorder that stopped reporting reads as not running', () => {
+  it('trusts the state the uploader wrote, however old updatedAt is', () => {
     const c = uploaderCard(
       rig({
         recorder: {
@@ -120,12 +120,29 @@ describe('recorder freshness', () => {
           layoutOk: true,
           layoutReason: null,
           lastChunkAt: null,
-          updatedAt: NOW - 5 * min,
+          updatedAt: NOW - 4 * min,
         },
       }),
       NOW,
     );
-    expect(c.lines).toContain('Recorder not running · LMU 1.2');
+    expect(c.lines).toContain('Recorder recording · LMU 1.2');
+  });
+
+  it("the uploader's not-running state reads as not running", () => {
+    const c = uploaderCard(
+      rig({
+        recorder: {
+          state: 'not-running',
+          gameVersion: null,
+          layoutOk: true,
+          layoutReason: null,
+          lastChunkAt: null,
+          updatedAt: NOW - 10 * min,
+        },
+      }),
+      NOW,
+    );
+    expect(c.lines).toContain('Recorder not running');
   });
 });
 
