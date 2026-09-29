@@ -128,7 +128,7 @@ describe('buildTrackModel', () => {
       refTrace: squareTrace(),
       selectedCorner: 3,
     });
-    expect(m.corners.map(g => g.title)).toEqual([null, 'S2 · C2–C3', null]);
+    expect(m.corners.map(g => g.title)).toEqual([null, 'S2 · T2–T3', null]);
     expect(m.corners[0].rows[0]).toMatchObject({
       n: 1,
       name: null,
@@ -136,7 +136,7 @@ describe('buildTrackModel', () => {
       dist: '100 m',
     });
     expect(m.corners[1].rows.map(r => r.selected)).toEqual([false, true]);
-    expect(m.selection).toEqual({n: 3, label: 'C3 · 205 m'});
+    expect(m.selection).toEqual({n: 3, label: 'T3 · 205 m'});
     expect(m.facts.find(f => f.label === 'Turns')?.value).toBe('4');
     expect(m.map?.real).toBe(false);
     expect(m.map?.note).toMatch(/driven line/);

@@ -15,7 +15,7 @@ import {
   followProject,
   followScale,
 } from '@/src/analysis/followView';
-import {fonts, type as typeScale, useTheme} from '@/src/design';
+import {fonts, type as typeScale, useTheme, turnLabel} from '@/src/design';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
 // The road, each lap's line and the brake ticks are world-space paths built
@@ -127,7 +127,7 @@ export function FollowMap({
               fill={color.mapCornerLabel}
               fontFamily={fonts.monoMedium}
               fontSize={8.5}>
-              {`C${c.n}`}
+              {turnLabel(c.n)}
             </SvgText>
           );
         })}

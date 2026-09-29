@@ -91,7 +91,7 @@ describe('buildStintVsStint', () => {
   it('one row per corner part, stint 2 minus stint 1', () => {
     expect(m.title).toBe('Stint 2 vs Stint 1');
     expect(m.rows).toHaveLength(11);
-    expect(m.rows[0]).toMatchObject({label: 'C1', dist: '100 m'});
+    expect(m.rows[0]).toMatchObject({label: 'T1', dist: '100 m'});
   });
 
   it('bars scale to the largest difference; Σ is the sum', () => {
@@ -114,7 +114,7 @@ describe('buildStintVsStint', () => {
 
   it('numbers corners by position when the map does not match', () => {
     expect(buildStintVsStint(laps, null)!.rows[10]).toMatchObject({
-      label: 'C11',
+      label: 'T11',
       dist: null,
     });
   });
