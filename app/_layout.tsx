@@ -34,6 +34,7 @@ import {
   cornerHref,
   parseSelection,
   sessionHref,
+  sessionsHref,
   settingsHref,
   tracksHref,
 } from '@/src/nav/routes';
@@ -200,6 +201,7 @@ function ChromeBar({
   ];
   return (
     <AppChrome
+      onHome={() => router.navigate(sessionsHref())}
       tabs={tabs}
       active={tab}
       context={context}

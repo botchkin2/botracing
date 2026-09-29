@@ -40,8 +40,11 @@ const SEEN_MS = 10 * 60_000;
 // not running whatever its last state said (sector, #63).
 const RECORDER_STALE_MS = 2 * 60_000;
 
+// States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
+  'no-game': 'waiting for LMU',
+  waiting: 'waiting for LMU',
   'waiting-for-game': 'waiting for LMU',
   idle: 'idle',
   'not-running': 'not running',

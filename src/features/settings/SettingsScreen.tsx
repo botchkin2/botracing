@@ -37,7 +37,9 @@ export function SettingsScreen() {
         {paddingTop: insets.top + space.lg, width},
       ]}>
       <View style={styles.header}>
-        {!layout.isDesktop && (
+        {/* Only the >=1280 workspace has the chrome with a way out; every
+            narrower layout needs its own back link. */}
+        {!layout.isWide && (
           <Pressable
             accessibilityRole='link'
             hitSlop={space.md}

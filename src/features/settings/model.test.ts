@@ -94,6 +94,23 @@ describe('uploaderCard', () => {
 });
 
 describe('recorder freshness', () => {
+  it('a fresh recorder with no game running reads as waiting for LMU', () => {
+    const c = uploaderCard(
+      rig({
+        recorder: {
+          state: 'no-game',
+          gameVersion: null,
+          layoutOk: true,
+          layoutReason: null,
+          lastChunkAt: null,
+          updatedAt: NOW - 20_000,
+        },
+      }),
+      NOW,
+    );
+    expect(c.lines).toContain('Recorder waiting for LMU');
+  });
+
   it('a recorder that stopped reporting reads as not running', () => {
     const c = uploaderCard(
       rig({

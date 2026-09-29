@@ -26,7 +26,6 @@ export function SessionsScreen() {
   // A list reads badly at 1200 pt; cap it on desktop.
   const contentWidth = Math.min(layout.contentWidth, LIST_MAX_WIDTH);
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   return (
     <View
