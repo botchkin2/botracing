@@ -50,3 +50,22 @@ test('a kill that fails because the sync just exited does not throw', async () =
   guard.cancel();
   assert.equal(guard.stopped(), true);
 });
+
+test('a game check that throws is retried, not fatal', async () => {
+  let calls = 0;
+  const killed = [];
+  const guard = stopWhenGameStarts(
+    {pid: 9},
+    {
+      gameRunning: () => {
+        if (++calls === 1) throw new Error('tasklist failed');
+        return true;
+      },
+      kill: pid => killed.push(pid),
+      everyMs: 5,
+    },
+  );
+  await wait(40);
+  guard.cancel();
+  assert.deepEqual(killed, [9]);
+});

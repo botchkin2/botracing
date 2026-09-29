@@ -12,17 +12,17 @@ export function stopWhenGameStarts(
   {gameRunning, kill, everyMs = GAME_CHECK_SEC * 1000},
 ) {
   let stopped = false;
+  // This runs in a timer, outside any try: a throw here would end the
+  // watcher itself (scrutineer #671, pitlane #686). A failed check just waits
+  // for the next one; a failed kill means the sync had already exited.
   const timer = setInterval(() => {
-    if (stopped || !gameRunning()) return;
-    stopped = true;
-    clearInterval(timer);
-    // The sync may exit between the check and the kill (taskkill then fails
-    // with "not found"). This runs in a timer, outside any try, and a throw
-    // here would end the watcher itself (scrutineer #671).
     try {
+      if (stopped || !gameRunning()) return;
+      stopped = true;
+      clearInterval(timer);
       kill(child.pid);
     } catch {
-      // Already gone: nothing left to stop.
+      // Check again next time, or already gone.
     }
   }, everyMs);
   return {stopped: () => stopped, cancel: () => clearInterval(timer)};
