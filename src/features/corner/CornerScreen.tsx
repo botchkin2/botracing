@@ -396,7 +396,9 @@ function CornerView({
       contentContainerStyle={[
         styles.col,
         top,
-        {width: layout.contentWidth, alignSelf: 'center'},
+        // col pads by space.xl; contentWidth is the inside, so charts and
+        // strips sized to it fit instead of overflowing past the gutter.
+        {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
       ]}>
       {header}
       {measures}
