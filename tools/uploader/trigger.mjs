@@ -18,8 +18,10 @@ export function retryDelayMin(failuresInRow) {
 }
 
 // Run when the game is not running, and telemetry changed since the last
-// clean sync started, or a failed one is due its retry.
+// clean sync started, the analysis version changed, or a failed sync is due
+// its retry.
 export function decide({
+  versionChanged = false,
   gameRunning,
   wasRunning,
   newestMtimeMs,
@@ -29,6 +31,9 @@ export function decide({
 }) {
   if (gameRunning) return {run: false, reason: 'game running'};
   if (newestMtimeMs == null) return {run: false, reason: 'no telemetry'};
+  // A new analysisVersion means every stored session is out of date: sync
+  // them all once, the same way as new telemetry (never in game).
+  if (versionChanged) return {run: true, reason: 'new analysis version'};
   if (retryAtMs != null) {
     return nowMs < retryAtMs
       ? {run: false, reason: 'retry later'}

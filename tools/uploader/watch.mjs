@@ -32,6 +32,7 @@ import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
 import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
@@ -230,6 +231,8 @@ async function main() {
         newestMtimeMs: recs?.newestMtimeMs ?? null,
         lastRunAtMs: watch.lastRunAtMs ?? null,
         retryAtMs: watch.retryAtMs ?? null,
+        // First run with this code, or a merge that bumped it.
+        versionChanged: watch.analysisVersion !== analysisVersion,
         nowMs: Date.now(),
       });
       wasRunning = running;
@@ -258,6 +261,7 @@ async function main() {
           };
         } else {
           watch.lastRunAtMs = startedMs;
+          watch.analysisVersion = analysisVersion;
           watch.retryAtMs = null;
           watch.failuresInRow = 0;
           watch.lastError = null;

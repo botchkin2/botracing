@@ -51,3 +51,16 @@ test('retries back off: 30 min, then doubling, capped at 8 h', () => {
     [30, 60, 120, 240, 480, 480, 480],
   );
 });
+
+test('a new analysis version resyncs once, never in game', () => {
+  const same = {...base, lastRunAtMs: 100 * MIN};
+  assert.equal(decide(same).run, false);
+  assert.deepEqual(decide({...same, versionChanged: true}), {
+    run: true,
+    reason: 'new analysis version',
+  });
+  assert.equal(
+    decide({...same, versionChanged: true, gameRunning: true}).run,
+    false,
+  );
+});
