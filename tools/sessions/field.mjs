@@ -240,3 +240,15 @@ export function fieldFor(root, session, recs) {
     },
   };
 }
+
+// What the session keeps after a sync. A sync that found no field (captures
+// pruned after 7 days, a sync from a shell that can't see the capture folder,
+// a failed clock check) keeps the stored one instead of wiping it; only a new
+// field that joined and passed the clock check replaces it (scrutineer #693).
+// Returns {field, upload, deletePath}.
+export function fieldAfterSync(fresh, stored) {
+  if (!fresh) return {field: stored ?? null, upload: false, deletePath: null};
+  const deletePath =
+    stored?.path && stored.path !== fresh.path ? stored.path : null;
+  return {field: fresh, upload: true, deletePath};
+}

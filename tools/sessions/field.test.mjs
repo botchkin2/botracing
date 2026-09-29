@@ -10,6 +10,7 @@ import {
   capturesFor,
   encode,
   fieldFor,
+  fieldAfterSync,
   modelOf,
   undelta,
 } from './field.mjs';
@@ -201,3 +202,31 @@ test(
     assert.match(off.reason, /clocks disagree/);
   },
 );
+
+test('fieldAfterSync: no new field keeps the stored one; a new one replaces it', () => {
+  const stored = {path: 'field/o/s/aaaaaaaaaaaa.json.gz', hash: 'aaaaaaaaaaaa'};
+  const fresh = {path: 'field/o/s/bbbbbbbbbbbb.json.gz', hash: 'bbbbbbbbbbbb'};
+  // Captures pruned, folder not visible, or clock check failed: nothing lost.
+  assert.deepEqual(fieldAfterSync(null, stored), {
+    field: stored,
+    upload: false,
+    deletePath: null,
+  });
+  assert.deepEqual(fieldAfterSync(null, null), {
+    field: null,
+    upload: false,
+    deletePath: null,
+  });
+  // A new field: upload it, and delete the file it replaces.
+  assert.deepEqual(fieldAfterSync(fresh, stored), {
+    field: fresh,
+    upload: true,
+    deletePath: stored.path,
+  });
+  // The same content again: same path, nothing to delete.
+  assert.deepEqual(fieldAfterSync(stored, stored), {
+    field: stored,
+    upload: true,
+    deletePath: null,
+  });
+});

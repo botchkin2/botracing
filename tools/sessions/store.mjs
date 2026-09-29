@@ -16,6 +16,7 @@ import {createRequire} from 'node:module';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
+import {fieldAfterSync} from './field.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -179,17 +180,23 @@ export async function upload(out, {log = () => {}} = {}) {
       'application/json',
     );
   }
-  // The field file is named by its content. Note the one this session pointed
-  // at before, so a rewrite doesn't leave it orphaned in the bucket.
+  // The field: a new one replaces the stored one (and its file goes after the
+  // doc points at the new one); no new one keeps what is stored (field.mjs).
   const before = await db.collection('sessions').doc(session.id).get();
-  const oldFieldPath = before.exists ? before.get('field.path') : null;
-  if (out.fieldText) {
+  const kept = fieldAfterSync(
+    session.field,
+    before.exists ? before.get('field') ?? null : null,
+  );
+  session.field = kept.field;
+  if (kept.upload) {
     await putGzip(
       bucket,
       session.field.path,
       out.fieldText,
       'application/json',
     );
+  } else if (kept.field) {
+    log('  field: kept the stored one');
   }
 
   const writer = db.bulkWriter();
@@ -223,8 +230,8 @@ export async function upload(out, {log = () => {}} = {}) {
   await writer.close();
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.
-  if (oldFieldPath && oldFieldPath !== session.field?.path) {
-    await bucket.file(oldFieldPath).delete({ignoreNotFound: true});
+  if (kept.deletePath) {
+    await bucket.file(kept.deletePath).delete({ignoreNotFound: true});
   }
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${

@@ -262,9 +262,14 @@ export async function readBand(id: string): Promise<any | null> {
 // Every car in the session at 5 Hz (tools/sessions/field.mjs), as the stored
 // gzip bytes. Not inflated here: a race-hour is ~12 MB of JSON, and the client
 // decompresses it anyway (the route sends Content-Encoding: gzip).
-export async function readFieldGzip(id: string): Promise<Buffer | null> {
+// With a hash, only that version: a stale URL gets a 404, not other content.
+export async function readFieldGzip(
+  id: string,
+  hash?: string,
+): Promise<Buffer | null> {
   const session = await readSession(id);
   if (!session?.field?.path) return null;
+  if (hash && session.field.hash !== hash) return null;
   try {
     const [body] = await admin
       .storage()

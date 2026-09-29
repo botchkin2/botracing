@@ -386,11 +386,11 @@ function build(s, trackMap, eventWindows) {
   // Named by its content, so the route can cache it as immutable: a resync
   // that changes the field writes a new file (pitlane #680).
   const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
-  const fieldPath = fieldText
-    ? `field/${ownerId}/${s.id}/${createHash('sha1')
-        .update(fieldText)
-        .digest('hex')
-        .slice(0, 12)}.json.gz`
+  const fieldHash = fieldText
+    ? createHash('sha1').update(fieldText).digest('hex').slice(0, 12)
+    : null;
+  const fieldPath = fieldHash
+    ? `field/${ownerId}/${s.id}/${fieldHash}.json.gz`
     : null;
   const session = plain({
     id: s.id,
@@ -424,7 +424,9 @@ function build(s, trackMap, eventWindows) {
           laps: a.band.laps,
         }
       : null,
-    field: fieldPath ? {path: fieldPath, ...fieldOut.meta} : null,
+    field: fieldPath
+      ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
+      : null,
     lapTable: laps.map(lap => ({
       id: lap.id,
       lapNumber: lap.lapNumber,
