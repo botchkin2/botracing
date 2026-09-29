@@ -10,7 +10,7 @@ How recorded sessions are kept. The decision and its reasons are in the pit-wall
 | Chart trace for one lap                                      | `gs://botracing-61-lmu/traces/{ownerId}/{lapId}/v2.csv.gz`                                           | Fetched only for laps being overlaid                                                                    |
 | Full recording archive                                       | `gs://botracing-61-lmu/archive/{sim}/{sessionId}/{recordingId}/samples.parquet` and `events.parquet` | Our own sim-neutral copy of every channel, so analysis can be recomputed later                          |
 | Consistency band                                             | `gs://botracing-61-lmu/bands/{ownerId}/{sessionId}/v1.json.gz`                                       | Median and p10/p90 of speed, throttle, brake on a 5 m grid                                              |
-| Field (every car, 5 Hz)                                      | `gs://botracing-61-lmu/field/{ownerId}/{sessionId}/v1.json.gz`                                       | From the local live capture (`tools/capture`), joined at sync time. No names. About 2 MB per race-hour. |
+| Field (every car, 5 Hz)                                      | `gs://botracing-61-lmu/field/{ownerId}/{sessionId}/{hash}.json.gz`                                   | From the local live capture (`tools/capture`), joined at sync time. No names. About 2 MB per race-hour. |
 
 The raw `.duckdb` from LMU is never uploaded.
 
@@ -76,4 +76,6 @@ Rules and indexes deploy with functions on merge to main (`firebase deploy --onl
 
 When the recorder (`tools/capture`) was running, `sync.mjs` joins its captures to the session (`tools/sessions/field.mjs`). A capture joins when its time window overlaps the session's and its track matches (the scoring name, or the recording's venue or layout). It is then aligned on the session clock: field `et` and the `.duckdb` GPS Time are the same clock. The alignment is checked: the player car's lap distance must agree between the two sources to within 20 m (median). If it doesn't (a restart or rejoin reset the clock), the session gets `field: null` and the sync logs why.
 
-The session doc then has `field: {path, hz, cars, durationS, captures, alignM}`. `captures` lists the capture folder names; the uploader's pruner treats a capture listed there as uploaded. The file carries no driver names or car numbers, because the API is public and the session's `eventId` would name every car in one lookup. The names stay in the local capture.
+A capture the recorder never closed (no `endUtc`: crash, kill, power) ends at its last chunk, so it cannot join a later session on the same track. Cars are labelled with the model the recorder read from each car's telemetry slot (`meta.vehicleModels`), never the entry name, which carries the car number.
+
+The session doc then has `field: {path, hz, cars, durationS, captures, alignM}`. The file name is a hash of its content; a rewrite deletes the file it replaces. `captures` lists the capture folder names; the uploader's pruner treats a capture listed there as uploaded. The file carries no driver names or car numbers, because the API is public and the session's `eventId` would name every car in one lookup. The names stay in the local capture.

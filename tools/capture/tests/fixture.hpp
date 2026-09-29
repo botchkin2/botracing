@@ -40,6 +40,7 @@ struct TelemInfoV01
   unsigned char mDentSeverity[8];
   Klass mVehicleClass;
   bool mABSActive, mTCActive;
+  char mVehicleModel[30];
   TelemWheelV01 mWheel[4];
 };
 

@@ -42,4 +42,4 @@ The recorder runs at below-normal priority so it always yields to the game, the 
 
 `status.json` in the root: `{state: no-game | waiting | recording | refused | stopped, gameVersion, layoutOk, layoutReason, lastChunkAt, sessionDir, captureBytes, pid, updatedAt}`. It is rewritten on change and every 30 s, so a stale `updatedAt` means the recorder is not running. The uploader copies it into its heartbeat.
 
-Raw captures stay on this PC. Nothing here deletes them yet; retention is Botkin's call (telemetry-research/notes/retention.md).
+Raw captures stay on this PC, including other drivers' names in the field chunks: the uploader never sends names, car numbers or entry names, and the uploader deletes captures after 7 days once they have been uploaded (pit-wall thread 30, #491).

@@ -383,6 +383,15 @@ function build(s, trackMap, eventWindows) {
     },
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
   );
+  // Named by its content, so the route can cache it as immutable: a resync
+  // that changes the field writes a new file (pitlane #680).
+  const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
+  const fieldPath = fieldText
+    ? `field/${ownerId}/${s.id}/${createHash('sha1')
+        .update(fieldText)
+        .digest('hex')
+        .slice(0, 12)}.json.gz`
+    : null;
   const session = plain({
     id: s.id,
     ownerId,
@@ -415,9 +424,7 @@ function build(s, trackMap, eventWindows) {
           laps: a.band.laps,
         }
       : null,
-    field: fieldOut.field
-      ? {path: `field/${ownerId}/${s.id}/v1.json.gz`, ...fieldOut.meta}
-      : null,
+    field: fieldPath ? {path: fieldPath, ...fieldOut.meta} : null,
     lapTable: laps.map(lap => ({
       id: lap.id,
       lapNumber: lap.lapNumber,
@@ -440,7 +447,7 @@ function build(s, trackMap, eventWindows) {
     recordings,
     laps,
     band: a.band,
-    field: fieldOut.field,
+    fieldText,
     fieldReason: fieldOut.reason,
     track: trackDoc,
     traces,
@@ -462,8 +469,7 @@ function writeLocal(out) {
   writeFileSync(resolve(dir, 'laps.json'), JSON.stringify(out.laps, null, 2));
   if (out.band)
     writeFileSync(resolve(dir, 'band.json'), JSON.stringify(out.band));
-  if (out.field)
-    writeFileSync(resolve(dir, 'field.json'), JSON.stringify(out.field));
+  if (out.fieldText) writeFileSync(resolve(dir, 'field.json'), out.fieldText);
   if (out.track)
     writeFileSync(
       resolve(dir, 'track.json'),

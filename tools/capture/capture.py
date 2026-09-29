@@ -71,6 +71,9 @@ class Capture:
             "headerHash": layout.hash,
             "layoutBytes": layout.size,
             "suspectFrames": 0,
+            # Car id -> model, from the telemetry slots (the field upload
+            # labels cars with this, never with the entry name).
+            "vehicleModels": {},
             **meta,
         }
         write_json(self.dir / "meta.json", self.meta)
@@ -127,6 +130,8 @@ class Capture:
             _write_table(path, cols)
             written += path.stat().st_size
         self.meta["chunks"] = n + 1
+        # Rewritten per chunk, so a capture cut short still has its car models.
+        write_json(self.dir / "meta.json", self.meta)
         self.bytes += written
         self.chunk_started_ms = ms if ms is not None else utc_ms()
         self._reset()

@@ -28,6 +28,7 @@ class Game:
         for i in range(cars):
             v = self.obj.scoring.vehScoringInfo[i]
             v.mVehicleName = f"Car {i}".encode()
+            v.mID = i
             v.mPlace = i + 1
             v.mLapDist = 100.0 * i
             v.mVehicleClass = b"GT3"
@@ -36,6 +37,9 @@ class Game:
         t.activeVehicles = cars
         t.playerHasVehicle = True
         t.playerVehicleIdx = 1
+        for i in range(cars):
+            t.telemInfo[i].mID = i
+            t.telemInfo[i].mVehicleModel = b"Porsche 911 GT3 R" if i else b""
         p = t.telemInfo[1]
         p.mVehicleName = b"Car 1"
         p.mTrackName = b"Road Atlanta"

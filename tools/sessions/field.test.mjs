@@ -5,12 +5,20 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {run, sqlPath} from './duck.mjs';
-import {alignment, capturesFor, encode, fieldFor, undelta} from './field.mjs';
+import {
+  alignment,
+  capturesFor,
+  encode,
+  fieldFor,
+  modelOf,
+  undelta,
+} from './field.mjs';
 
-const cap = (name, track, start, end) => ({
+const cap = (name, track, start, end, last = end) => ({
   name,
   meta: {track, startUtc: start, endUtc: end},
   files: [],
+  lastMs: Date.parse(last),
 });
 
 test('capturesFor: overlap and either track name', () => {
@@ -21,7 +29,14 @@ test('capturesFor: overlap and either track name', () => {
       '2026-09-26T03:00:00Z',
       '2026-09-26T03:30:00Z',
     ),
-    cap('b', 'Michelin Raceway Road Atlanta', '2026-09-26T03:00:00Z', null),
+    // Cut short: no endUtc, last chunk at 03:40.
+    cap(
+      'b',
+      'Michelin Raceway Road Atlanta',
+      '2026-09-26T03:00:00Z',
+      null,
+      '2026-09-26T03:40:00Z',
+    ),
     cap(
       'c',
       'Daytona International Speedway Road Course',
@@ -41,12 +56,29 @@ test('capturesFor: overlap and either track name', () => {
     capturesFor(all, session).map(c => c.name),
     ['a'],
   );
-  // Cut short (no endUtc): still open.
+  // A cut-short capture joins the session it was recording...
   const atlanta = {...session, tracks: ['Michelin Raceway Road Atlanta']};
   assert.deepEqual(
     capturesFor(all, atlanta).map(c => c.name),
     ['b'],
   );
+  // ...and not one on the same track weeks later (scrutineer #682).
+  const later = {
+    tracks: ['Michelin Raceway Road Atlanta'],
+    startMs: Date.parse('2026-10-20T03:00:00Z'),
+    endMs: Date.parse('2026-10-20T04:00:00Z'),
+  };
+  assert.deepEqual(capturesFor(all, later), []);
+});
+
+test('modelOf: the telemetry model only, never anything with a car number', () => {
+  const models = {1: 'Porsche 911 GT3 R', 2: 'Iron Dames #85', 3: ' '};
+  assert.equal(modelOf(models, 1), 'Porsche 911 GT3 R');
+  assert.equal(modelOf(models, '1'), 'Porsche 911 GT3 R');
+  assert.equal(modelOf(models, 2), null);
+  assert.equal(modelOf(models, 3), null);
+  assert.equal(modelOf(models, 4), null);
+  assert.equal(modelOf(undefined, 1), null);
 });
 
 test('alignment: median player gap, wrap-aware at the line', () => {
@@ -123,6 +155,7 @@ test(
         track: 'Michelin Raceway Road Atlanta',
         startUtc: '2026-09-26T00:38:00Z',
         endUtc: '2026-09-26T01:40:00Z',
+        vehicleModels: {1: 'Porsche 911 GT3 R'},
       }),
     );
     // Two cars for 60 s at 5 Hz; the player (id 1) runs 40 m/s from lap distance 0.
@@ -131,7 +164,7 @@ test(
       `COPY (SELECT 1000 + u * 0.2 AS et, u AS "update", id AS mID, id = 1 AS mIsPlayer, ` +
         `id AS mPlace, 0 AS mTotalLaps, (u * 0.2 * 40 + (id - 1) * 30) AS mLapDist, 0.5 AS mPathLateral, ` +
         `u * 1.0 AS mPos_x, -u * 1.0 AS mPos_z, false AS mInPits, 0 AS mFlag, ` +
-        `CASE WHEN id = 1 THEN 'Porsche' ELSE 'Oreca' END AS mVehicleName, ` +
+        `CASE WHEN id = 1 THEN '911GT3R Custom Team 2025 #397' ELSE 'Iron Dames #85' END AS mVehicleName, ` +
         `CASE WHEN id = 1 THEN 'GT3' ELSE 'LMP2' END AS mVehicleClass, 'Somebody' AS mDriverName ` +
         `FROM range(300) r(u), (VALUES (1), (2)) c(id)) TO ${sqlPath(
           join(dir, 'field-0000.parquet'),
@@ -153,6 +186,12 @@ test(
     ]);
     assert.equal(good.field.cars[0].player, true);
     assert.equal(JSON.stringify(good.field).includes('Somebody'), false);
+    // Model from the recorder's map; the car without one gets null, never its entry name.
+    assert.deepEqual(
+      good.field.cars.map(c => c.vehicle),
+      ['Porsche 911 GT3 R', null],
+    );
+    assert.equal(/#\d/.test(JSON.stringify(good.field)), false);
 
     // The same capture against a recording whose clock is 5 s off: refused.
     const off = fieldFor(root, session, [

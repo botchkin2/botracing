@@ -210,6 +210,21 @@ class Recorder:
             self._open_capture(now, info, key)
         self.capture.add_scoring(info_raw, vehicles_raw, n, et, now)
         self._last_field = (info_raw, vehicles_raw, n)
+        self._note_models(vehicles_raw, n)
+
+    def _note_models(self, vehicles_raw, n):
+        """Look up car models once per new car id, from the telemetry slots."""
+        known = self.capture.meta["vehicleModels"]
+        size = len(vehicles_raw) // n if n else 0
+        id_at = self.layout.vehicle.mID.offset
+        ids = {
+            struct.unpack_from("<i", vehicles_raw, i * size + id_at)[0] for i in range(n)
+        }
+        if all(str(i) in known for i in ids):
+            return
+        for car_id, model in self.reader.vehicle_models().items():
+            if model and car_id in ids:
+                known[str(car_id)] = model
 
     def _player(self, now):
         clock = self.reader.player_clock()

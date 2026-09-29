@@ -89,6 +89,22 @@ class Reader:
     def game_version(self):
         return struct.unpack_from("<i", self.view, self.layout.offsets["gameVersion"])[0]
 
+    def vehicle_models(self):
+        """{car id: model} from every active telemetry slot.
+
+        The model ("Porsche 911 GT3 R"), unlike the scoring vehicle name,
+        which is the entry name with the car number in it.
+        """
+        o = self.layout.offsets
+        t = self.layout.telem
+        out = {}
+        for i in range(self.view[o["activeVehicles"]]):
+            slot = o["telemInfo"] + i * self.telem_size
+            car_id = struct.unpack_from("<i", self.view, slot + t.mID.offset)[0]
+            raw = self._read(slot + t.mVehicleModel.offset, t.mVehicleModel.size)
+            out[car_id] = bytes(raw).split(b"\0", 1)[0].decode("latin-1").strip()
+        return out
+
     def player_clock(self):
         """(slot offset, elapsed time) of the player's telemetry, or None."""
         o = self.layout.offsets

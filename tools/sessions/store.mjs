@@ -5,7 +5,7 @@
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/events.parquet
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v2.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
-//   gs://BUCKET/field/{ownerId}/{sessionId}/v1.json.gz  (every car, 5 Hz; field.mjs)
+//   gs://BUCKET/field/{ownerId}/{sessionId}/{contentHash}.json.gz  (every car, 5 Hz; field.mjs)
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)
 import {existsSync, readFileSync} from 'node:fs';
@@ -179,11 +179,15 @@ export async function upload(out, {log = () => {}} = {}) {
       'application/json',
     );
   }
-  if (out.field) {
+  // The field file is named by its content. Note the one this session pointed
+  // at before, so a rewrite doesn't leave it orphaned in the bucket.
+  const before = await db.collection('sessions').doc(session.id).get();
+  const oldFieldPath = before.exists ? before.get('field.path') : null;
+  if (out.fieldText) {
     await putGzip(
       bucket,
       session.field.path,
-      JSON.stringify(out.field),
+      out.fieldText,
       'application/json',
     );
   }
@@ -217,6 +221,11 @@ export async function upload(out, {log = () => {}} = {}) {
     }
   }
   await writer.close();
+  // Only after the session points at the new file: a phone still holding the
+  // old URL gets a 404 and refetches the session.
+  if (oldFieldPath && oldFieldPath !== session.field?.path) {
+    await bucket.file(oldFieldPath).delete({ignoreNotFound: true});
+  }
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${
       out.laps.length

@@ -149,3 +149,12 @@ def test_field_rows_keep_car_text(lay, game, tmp_path):
     field = pq.read_table(sorted(cap.glob("field-*.parquet"))[0]).to_pydict()
     assert field["mVehicleName"][:3] == ["Car 0", "Car 1", "Car 2"]
     assert "mVehicleClass" in field and "mDriverName" in field
+
+
+def test_meta_maps_car_ids_to_models(lay, game, tmp_path):
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 1.5)
+    (cap,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    meta = json.loads((cap / "meta.json").read_text())
+    # Written with the first chunk; car 0 has no model and is left out.
+    assert meta["vehicleModels"] == {"1": "Porsche 911 GT3 R", "2": "Porsche 911 GT3 R"}

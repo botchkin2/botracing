@@ -10,7 +10,7 @@
 // What uploads carries no names: cars are an index per session, with class,
 // vehicle and whether it is the player. Car numbers plus the public event id
 // would name every driver in one lookup (#626, #627).
-import {existsSync, readdirSync, readFileSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, rows, sqlPath} from './duck.mjs';
 
@@ -33,7 +33,9 @@ export function listCaptures(root) {
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
-      if (files.length) out.push({name, meta, files});
+      // When it last wrote a chunk: the end of a capture that was cut short.
+      const lastMs = Math.max(0, ...files.map(f => statSync(f).mtimeMs));
+      if (files.length) out.push({name, meta, files, lastMs});
     } catch {
       // A capture being written or cut short mid-write: skip it this run.
     }
@@ -44,15 +46,24 @@ export function listCaptures(root) {
 // Captures on one of these track names whose time overlaps [startMs, endMs].
 // The recorder has the scoring name ("Daytona International Speedway Road
 // Course"); the .duckdb has a venue and a layout name, so both are tried.
-// A capture cut short has no endUtc and counts as still open; the session's
-// clock window and the alignment check keep a wrong one out.
+// A capture cut short (crash, kill, power) has no endUtc; it ends at its last
+// chunk. Treating it as open would join it to every later session on the
+// track, and the session clock restarts near zero each time (scrutineer #682).
 export function capturesFor(captures, {tracks, startMs, endMs}) {
   return captures.filter(c => {
     if (!tracks.includes(c.meta.track)) return false;
     const from = Date.parse(c.meta.startUtc);
-    const to = c.meta.endUtc ? Date.parse(c.meta.endUtc) : Infinity;
+    const to = c.meta.endUtc ? Date.parse(c.meta.endUtc) : c.lastMs;
     return from <= endMs && to >= startMs;
   });
+}
+
+// A car's model for the upload, or null. Only the telemetry model name the
+// recorder mapped per car id, never the entry name (which carries the car
+// number, and on custom entries sometimes a person's name: #680, #681).
+export function modelOf(models, id) {
+  const model = String(models?.[id] ?? '').trim();
+  return model && !/#\d/.test(model) ? model : null;
 }
 
 // Wrap-aware distance between two lap positions on a lap of length L.
@@ -160,7 +171,7 @@ export function undelta(values) {
   return values.map(d => (d === null ? null : (last += d)));
 }
 
-function readRows(files, fromEt, toEt) {
+function readRows(files, models, fromEt, toEt) {
   const src = `read_parquet([${files.map(sqlPath).join(', ')}])`;
   const where = `WHERE et BETWEEN ${fromEt} AND ${toEt}`;
   const c = columns(
@@ -171,12 +182,12 @@ function readRows(files, fromEt, toEt) {
   );
   const cars = rows(
     ':memory:',
-    `SELECT mID AS id, any_value(mVehicleClass) AS class, any_value(mVehicleName) AS vehicle, ` +
+    `SELECT mID AS id, any_value(mVehicleClass) AS class, ` +
       `bool_or(mIsPlayer) AS player, min(et) AS first FROM ${src} ${where} GROUP BY mID ORDER BY first, mID`,
   ).map(row => ({
     id: Number(row.id),
     class: row.class || '',
-    vehicle: row.vehicle || '',
+    vehicle: modelOf(models, row.id),
     player: row.player === 'true',
   }));
   return {c, cars};
@@ -189,8 +200,13 @@ export function fieldFor(root, session, recs) {
   if (!found.length) return {field: null, reason: 'no capture'};
   const fromEt = Math.min(...recs.map(r => r.t[0])) - PAD_S;
   const toEt = Math.max(...recs.map(r => r.t[r.t.length - 1])) + PAD_S;
+  const models = Object.assign(
+    {},
+    ...found.map(f => f.meta.vehicleModels || {}),
+  );
   const {c, cars} = readRows(
     found.flatMap(f => f.files),
+    models,
     fromEt,
     toEt,
   );
