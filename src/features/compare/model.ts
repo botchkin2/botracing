@@ -155,8 +155,43 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   },
 };
 
-/** Default chart set: [Time diff] [Speed] [Throttle + Brake] [Steering] [Gear]. */
+/** Default chart set: [Time diff] [Speed] [Pedals] [Gear]. */
 export const DEFAULT_CHARTS: ChannelId[][] = PRESETS[0].charts;
+
+/**
+ * The pedals chart (round 3 R4a): throttle line and brake fill share the top
+ * of the plot, steering sits in its own band under them, all on one time axis.
+ * Heights are the handoff's 96 (pedals) + 8 (gap) + 36 (steering) of 140.
+ */
+export const PEDALS_CHART: ChannelId[] = ['throttle', 'brake', 'steering'];
+const PEDALS_H = 140;
+const PEDALS_TOP_FRAC = 96 / PEDALS_H;
+const STEER_BAND_FRAC = 36 / PEDALS_H;
+
+export function isPedalsChart(chs: ChannelId[]): boolean {
+  return (
+    chs.length === PEDALS_CHART.length &&
+    PEDALS_CHART.every(c => chs.includes(c))
+  );
+}
+
+/**
+ * y domains that place both kinds in one plot: pedals (fixed −4..104) in the
+ * top fraction, steering (±m, symmetric) in the bottom band, so the zero
+ * line of the band is its own. A value's y is linear in its domain, so a
+ * domain wider than the data leaves the rest of the plot empty for the other.
+ */
+export function pedalsDomains(steerM: number): {
+  pedal: [number, number];
+  steer: [number, number];
+} {
+  const pedalSpan = 108 / PEDALS_TOP_FRAC;
+  const g = STEER_BAND_FRAC;
+  return {
+    pedal: [104 - pedalSpan, 104],
+    steer: [-steerM, (steerM * (2 - g)) / g],
+  };
+}
 
 export type LapRef = {
   lapId: string;
@@ -209,6 +244,8 @@ export type ChartModel = {
   band: {low: number[]; high: number[]} | null;
   /** The channel whose 0 gets a line (time diff, else steering), if any. */
   zeroLine: ChannelId | null;
+  /** Throttle, brake and steering drawn together (see PEDALS_CHART). */
+  pedals: boolean;
   valueRows: ChartValueRow[];
 };
 
@@ -749,6 +786,14 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         CHANNELS[ch].ySnap,
       );
     }
+    const pedals = isPedalsChart(chs);
+    if (pedals) {
+      const steerM = Math.abs(domains.steering?.[1] ?? 5);
+      const d = pedalsDomains(steerM);
+      domains.throttle = d.pedal;
+      domains.brake = d.pedal;
+      domains.steering = d.steer;
+    }
     const single = chs.length === 1 ? chs[0] : null;
     const bandFor =
       band && single && ['speed', 'throttle', 'brake'].includes(single)
@@ -758,36 +803,41 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           ? band.throttlePct
           : band.brakePct
         : null;
-    const explainer =
-      chs.length === 1
-        ? CHANNELS[chs[0]].explainer
-        : chs.every(c => CHANNELS[c].kind === CHANNELS[chs[0]].kind)
-        ? `${chs
-            .map(
-              (c, i) =>
-                `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
-            )
-            .join(', ')}. Same scale.`
-        : `${chs
-            .map(
-              (c, i) =>
-                `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
-            )
-            .join(', ')}. Each channel keeps its own scale.`;
+    const explainer = pedals
+      ? 'Line = throttle, filled area = brake, both 0–100%. Bottom band = steering, % of full lock.'
+      : chs.length === 1
+      ? CHANNELS[chs[0]].explainer
+      : chs.every(c => CHANNELS[c].kind === CHANNELS[chs[0]].kind)
+      ? `${chs
+          .map(
+            (c, i) =>
+              `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
+          )
+          .join(', ')}. Same scale.`
+      : `${chs
+          .map(
+            (c, i) =>
+              `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
+          )
+          .join(', ')}. Each channel keeps its own scale.`;
     return {
       key: chs.join('+'),
       channels: chs,
       title: chs.map(c => CHANNELS[c].label).join(' + '),
       explainer,
-      height:
-        Math.max(...chs.map(c => CHANNELS[c].height)) +
-        (chs.length > 1 ? 14 : 0),
-      desktopHeight: Math.max(...chs.map(c => CHANNELS[c].desktopHeight)),
+      height: pedals
+        ? PEDALS_H
+        : Math.max(...chs.map(c => CHANNELS[c].height)) +
+          (chs.length > 1 ? 14 : 0),
+      desktopHeight: pedals
+        ? PEDALS_H
+        : Math.max(...chs.map(c => CHANNELS[c].desktopHeight)),
       lines,
       domains,
       band: bandFor ? {low: bandFor.p10, high: bandFor.p90} : null,
       // Time diff: the reference. Steering: straight ahead, so left and
       // right lock read at a glance (Botkin, thread 26 #385).
+      pedals,
       zeroLine: chs.includes('timeDiff')
         ? 'timeDiff'
         : chs.includes('steering')

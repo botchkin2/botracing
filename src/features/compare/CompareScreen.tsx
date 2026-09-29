@@ -138,8 +138,8 @@ function CompareView({
   const router = useRouter();
   const prefs = useComparePrefs();
   const [editing, setEditing] = useState(false);
-  // Phone: chart tabs, overlay pills and the explainer sit behind the
-  // Charts row until opened (round 3, pit-wall thread 27 #766).
+  // Phone, One chart view: chart tabs, overlay pills and the explainer sit
+  // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
 
@@ -445,7 +445,7 @@ function CompareView({
         styles.chartsBar,
         {backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
-      {layout.isDesktop ? (
+      {layout.isDesktop || !oneChart ? (
         <Text variant='label' tone='textMuted'>
           Charts
         </Text>
@@ -570,7 +570,7 @@ function CompareView({
     <View style={styles.charts}>
       {chartsBar}
       {oneChartTabs}
-      {(layout.isDesktop || chartsOpen) && (
+      {(!oneChart || chartsOpen) && (
         <Explainer>
           {windowed
             ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below. Lines join the recorded samples; their positions come from integrated speed.'
