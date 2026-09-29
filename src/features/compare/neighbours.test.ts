@@ -71,11 +71,11 @@ describe('breaks inside a stint', () => {
     const l = [lap(1), lap(2, {recordingId: 'r2'})];
     expect(lapNeighbours(l, 'L2').before).toEqual({
       kind: 'none',
-      label: 'new file',
+      label: 'break',
     });
     expect(lapNeighbours(l, 'L1').after).toEqual({
       kind: 'none',
-      label: 'new file',
+      label: 'break',
     });
   });
   it('a partial previous lap has no tail', () => {

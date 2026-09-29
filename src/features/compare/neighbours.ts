@@ -10,7 +10,7 @@ import {type Lap} from '@/src/data/sessions';
 
 export type Side =
   | {kind: 'lap'; lapId: string}
-  | {kind: 'none'; label: 'pit' | 'start' | 'end' | 'new file' | 'partial'};
+  | {kind: 'none'; label: 'pit' | 'start' | 'end' | 'break' | 'partial'};
 
 export type Neighbours = {before: Side; after: Side};
 
@@ -39,7 +39,7 @@ export function lapNeighbours(laps: Lap[], lapId: string): Neighbours {
       : !prev
       ? {kind: 'none', label: 'start'}
       : otherFile(prev)
-      ? {kind: 'none', label: 'new file'}
+      ? {kind: 'none', label: 'break'}
       : // A partial lap did not reach the line, so it has no tail there.
       prev.partial
       ? {kind: 'none', label: 'partial'}
@@ -50,7 +50,7 @@ export function lapNeighbours(laps: Lap[], lapId: string): Neighbours {
       : !next
       ? {kind: 'none', label: 'end'}
       : otherFile(next)
-      ? {kind: 'none', label: 'new file'}
+      ? {kind: 'none', label: 'break'}
       : {kind: 'lap', lapId: next.id};
   return {before, after};
 }
