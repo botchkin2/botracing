@@ -391,7 +391,7 @@ function CompareView({
           </Text>
         ))}
         <Text variant='dataSmall' tone='textFaint'>
-          km/h
+          {model.position.speedUnit}
         </Text>
       </View>
     </View>

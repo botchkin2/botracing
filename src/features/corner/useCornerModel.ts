@@ -8,6 +8,7 @@ import {
   useSessionMap,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
+import {useUnits} from '@/src/state/unitPrefs';
 
 import {
   buildCornerModel,
@@ -65,6 +66,7 @@ export function useCornerModel(
     return out;
   }, [traceIds, grids]);
 
+  const units = useUnits();
   const error = [session, laps, map].find(q => q.isError)?.error;
   return useMemo((): CornerResult => {
     if (error)
@@ -82,6 +84,7 @@ export function useCornerModel(
       lapIds,
       hl: selection.hl,
       corner,
+      units,
     });
     return model
       ? {state: 'ready', model, lapIds}
@@ -96,5 +99,6 @@ export function useCornerModel(
     lapIds,
     selection.hl,
     corner,
+    units,
   ]);
 }

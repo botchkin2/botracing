@@ -9,6 +9,7 @@ import {
   trackCorners,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
+import {useUnits} from '@/src/state/unitPrefs';
 
 import {
   buildCompareModel,
@@ -69,6 +70,7 @@ export function useCompareModel(
     [map.data, traces, knownIds],
   );
 
+  const units = useUnits();
   const error = [session, laps].find(q => q.isError)?.error;
   return useMemo(() => {
     if (error)
@@ -89,6 +91,7 @@ export function useCompareModel(
         charts,
         window,
         followGeometry,
+        units,
       }),
     };
   }, [
@@ -103,5 +106,6 @@ export function useCompareModel(
     charts,
     window,
     followGeometry,
+    units,
   ]);
 }

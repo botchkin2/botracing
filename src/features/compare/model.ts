@@ -13,6 +13,10 @@ import {
 } from '@/src/data/sessions';
 import {
   formatDistance,
+  formatSpeed,
+  METRIC,
+  speedUnit,
+  type Units,
   formatGap,
   formatLapTime,
   lapMode,
@@ -136,6 +140,16 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
 /** Default chart set: [Time diff] [Speed] [Throttle + Brake] [Steering] [Gear]. */
 export const DEFAULT_CHARTS: ChannelId[][] = PRESETS[0].charts;
 
+/** A channel's unit label in the chosen display units. */
+export function channelUnit(ch: ChannelId, units: Units): string {
+  return ch === 'speed' ? speedUnit(units) : CHANNELS[ch].unit;
+}
+
+/** A channel value as display text in the chosen units. */
+export function formatChannel(ch: ChannelId, v: number, units: Units): string {
+  return ch === 'speed' ? formatSpeed(v, units) : CHANNELS[ch].format(v);
+}
+
 export type LapRef = {
   lapId: string;
   label: string;
@@ -218,7 +232,10 @@ export type CompareModel = {
   chips: Chip[];
   manyChip: string | null;
   map: MapModel | null;
+  /** Display units the model's texts use. */
+  units: Units;
   position: {
+    speedUnit: string;
     place: string;
     distance: string;
     speeds: {
@@ -284,6 +301,7 @@ export function valuesAt(
   readouts: Readout[],
   stepM: number,
   m: number,
+  units: Units = METRIC,
 ): {
   channel: ChannelId;
   label: string;
@@ -299,7 +317,7 @@ export function valuesAt(
   return CHANNEL_IDS.map(ch => ({
     channel: ch,
     label: CHANNELS[ch].label,
-    unit: CHANNELS[ch].unit,
+    unit: channelUnit(ch, units),
     values: readouts.map(r => {
       const a = r.channels[ch];
       const v = a.length ? a[Math.min(a.length - 1, i)] : null;
@@ -307,7 +325,7 @@ export function valuesAt(
         lapId: r.lapId,
         selIndex: r.selIndex,
         highlighted: r.highlighted,
-        text: v == null ? '—' : CHANNELS[ch].format(v),
+        text: v == null ? '—' : formatChannel(ch, v, units),
       };
     }),
   }));
@@ -323,6 +341,8 @@ export type CompareInputs = {
   selection: CompareSelection;
   charts?: ChannelId[][];
   window?: ChartWindow;
+  /** Display units; stored data stays metric. */
+  units?: Units;
   /** Follow geometry for this selection, built once per selection. */
   followGeometry?: FollowGeometry | null;
 };
@@ -457,6 +477,7 @@ export function followPlace(sections: MapSection[], cursorM: number): string {
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
   const {session, laps, traces, band, map, selection} = input;
+  const units = input.units ?? METRIC;
   const byId = new Map(laps.map(l => [l.id, l]));
   const selected = selection.laps
     .map(id => byId.get(id))
@@ -625,7 +646,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       valueRows: chs.map((ch, overlay) => ({
         channel: ch,
         label: CHANNELS[ch].label,
-        unit: CHANNELS[ch].unit,
+        unit: channelUnit(ch, units),
         overlay,
         values: keyRefs.map(r => {
           const v = at(valuesOf(ch, r.lapId));
@@ -633,7 +654,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
             lapId: r.lapId,
             selIndex: r.selIndex,
             highlighted: r.highlighted,
-            text: v == null ? '—' : CHANNELS[ch].format(v),
+            text: v == null ? '—' : formatChannel(ch, v, units),
           };
         }),
       })),
@@ -752,16 +773,18 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     chips,
     manyChip,
     map: mapModel,
+    units,
     position: {
+      speedUnit: speedUnit(units),
       place: cornerPlace(map?.sections ?? [], cursorM),
-      distance: formatDistance(cursorM),
+      distance: formatDistance(cursorM, units),
       speeds: keyRefs.map(r => {
         const v = at(traces.get(r.lapId)?.speedKph ?? null);
         return {
           lapId: r.lapId,
           selIndex: r.selIndex,
           highlighted: r.highlighted,
-          text: v == null ? '—' : v.toFixed(0),
+          text: v == null ? '—' : formatSpeed(v, units),
         };
       }),
     },

@@ -8,7 +8,18 @@ import {
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
-import {formatDistance, formatGap, lapMode, type LapMode} from '@/src/design';
+import {
+  distanceUnit,
+  distanceValue,
+  formatDistance,
+  formatGap,
+  lapMode,
+  type LapMode,
+  METRIC,
+  speedUnit,
+  speedValue,
+  type Units,
+} from '@/src/design';
 
 // Corner screen view model (handoff §4, D3), per single corner (C1..Cn).
 // Every lap doc carries facts per corner (sections' parts): time from the
@@ -27,17 +38,15 @@ export type Measure = 'time' | 'brake' | 'minSpeed' | 'throttle';
 export const MEASURES: {
   id: Measure;
   label: string;
-  unit: string;
   /** For the gap color and sort: which direction is better. */
   better: 'lower' | 'higher';
 }[] = [
-  {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
-  {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
-  {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
+  {id: 'time', label: 'Time in corner', better: 'lower'},
+  {id: 'brake', label: 'Brake point', better: 'lower'},
+  {id: 'minSpeed', label: 'Min speed', better: 'higher'},
   {
     id: 'throttle',
     label: 'Full throttle',
-    unit: 'm after apex',
     better: 'lower',
   },
 ];
@@ -87,6 +96,8 @@ export type ZoomLine = {
 
 export type CornerModel = {
   corner: number;
+  /** "km/h" or "mph", for the speed chart label. */
+  speedUnit: string;
   /** The section this corner belongs to (Compare opens sections). */
   sectionN: number;
   corners: number[];
@@ -123,12 +134,31 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
 }
 
-const fmt: Record<Measure, (v: number) => string> = {
-  time: v => v.toFixed(3),
-  brake: v => `${Math.round(v)}`,
-  minSpeed: v => `${Math.round(v)}`,
-  throttle: v => `${Math.round(v)}`,
-};
+/** A measure's stored (metric) value in the display units. */
+function displayValue(m: Measure, v: number, units: Units): number {
+  if (m === 'minSpeed') return speedValue(v, units);
+  if (m === 'brake' || m === 'throttle') return distanceValue(v, units);
+  return v;
+}
+
+function formatsFor(units: Units): Record<Measure, (v: number) => string> {
+  const whole = (m: Measure) => (v: number) =>
+    `${Math.round(displayValue(m, v, units))}`;
+  return {
+    time: v => v.toFixed(3),
+    brake: whole('brake'),
+    minSpeed: whole('minSpeed'),
+    throttle: whole('throttle'),
+  };
+}
+
+/** A measure's unit label in the display units. */
+export function measureUnit(m: Measure, units: Units): string {
+  if (m === 'minSpeed') return speedUnit(units);
+  if (m === 'brake') return `${distanceUnit(units)} before apex`;
+  if (m === 'throttle') return `${distanceUnit(units)} after apex`;
+  return 's';
+}
 
 /** Laps shown in Corner: the selection, or every comparable lap when asked. */
 export function cornerLapIds(
@@ -151,13 +181,17 @@ export function cornerLapIds(
 export function cornerExplainer(
   sec: {entryM: number; apexM: number; exitM: number},
   nextEntry: {entryM: number},
+  units: Units = METRIC,
 ): string {
-  const apex = formatDistance(sec.apexM);
-  const next = `the next corner's entry (${formatDistance(nextEntry.entryM)})`;
+  const apex = formatDistance(sec.apexM, units);
+  const next = `the next corner's entry (${formatDistance(
+    nextEntry.entryM,
+    units,
+  )})`;
   const span =
     sec.apexM === sec.entryM
       ? `this corner's entry, which is also its apex (${apex}), to ${next}`
-      : `this corner's entry (${formatDistance(sec.entryM)}) to ${next}`;
+      : `this corner's entry (${formatDistance(sec.entryM, units)}) to ${next}`;
   const apexRef = sec.apexM === sec.entryM ? 'the apex' : `the apex (${apex})`;
   const edge =
     sec.apexM === sec.exitM && sec.apexM !== sec.entryM
@@ -175,8 +209,12 @@ export function buildCornerModel(input: {
   lapIds: string[];
   hl: string | null;
   corner: number;
+  /** Display units; stored data stays metric. */
+  units?: Units;
 }): CornerModel | null {
   const {session, laps, map, band, traces, lapIds, corner} = input;
+  const units = input.units ?? METRIC;
+  const fmt = formatsFor(units);
   const all = trackCorners(map);
   const idx = all.findIndex(c => c.n === corner);
   if (idx < 0) return null;
@@ -220,7 +258,7 @@ export function buildCornerModel(input: {
                 : m.id === 'time'
                 ? formatGap(d)
                 : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(
-                    Math.round(d),
+                    Math.round(displayValue(m.id, d, units)),
                   )}`,
             better: d != null && (m.better === 'lower' ? d < 0 : d > 0),
           },
@@ -266,7 +304,7 @@ export function buildCornerModel(input: {
           return {
             measure: m.id,
             label: m.label,
-            unit: m.unit,
+            unit: measureUnit(m.id, units),
             summary: vals.length
               ? `med ${fmt[m.id](quantile(vals, 0.5))} · p10–90 ${fmt[m.id](
                   quantile(vals, 0.1),
@@ -282,7 +320,11 @@ export function buildCornerModel(input: {
 
   const hlRow = rows.find(r => r.highlighted) ?? null;
   const highlightLine = hlRow
-    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${hlRow.cells.brake.value} m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${hlRow.cells.throttle.value} m`
+    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${
+        hlRow.cells.brake.value
+      } ${distanceUnit(units)} · min ${hlRow.cells.minSpeed.value} ${speedUnit(
+        units,
+      )} · full throttle ${hlRow.cells.throttle.value} ${distanceUnit(units)}`
     : null;
 
   const keyIds = new Set([ref?.id, hl].filter(Boolean) as string[]);
@@ -313,7 +355,7 @@ export function buildCornerModel(input: {
     corners: ns,
     title: `Corner ${corner}`,
     subtitle: [
-      formatDistance(sec.apexM),
+      formatDistance(sec.apexM, units),
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
       ref ? `compared with L${ref.lapIndex}` : null,
@@ -321,7 +363,8 @@ export function buildCornerModel(input: {
       .filter(Boolean)
       .join(' · '),
     mode,
-    explainer: cornerExplainer(sec, nextSec),
+    explainer: cornerExplainer(sec, nextSec, units),
+    speedUnit: speedUnit(units),
     rows,
     strips,
     highlightLine,

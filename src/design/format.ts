@@ -1,3 +1,5 @@
+import {distanceUnit, distanceValue, METRIC, type Units} from '@/src/analysis/units';
+
 // Number formats from the design handoff ("Units and formats"). Inputs are
 // raw numbers in the unit named by the parameter; output is display text.
 
@@ -21,7 +23,9 @@ export function formatCornerGap(deltaS: number): string {
   return formatGap(deltaS, 2).replace(/^([+−±])0\./, '$1.');
 }
 
-/** "2,150 m" */
-export function formatDistance(distanceM: number): string {
-  return `${Math.round(distanceM).toLocaleString('en-US')} m`;
+/** "2,150 m", or "7,054 ft" in feet. */
+export function formatDistance(distanceM: number, u: Units = METRIC): string {
+  return `${Math.round(distanceValue(distanceM, u)).toLocaleString(
+    'en-US',
+  )} ${distanceUnit(u)}`;
 }

@@ -10,13 +10,14 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref} from '@/src/nav/routes';
-import {Text} from '@/src/ui';
+import {useUnitPrefs} from '@/src/state/unitPrefs';
+import {Segment, Text} from '@/src/ui';
 
 import {type UploaderCard, useSettingsModel} from './model';
 
 // Settings (handoff v2 M5): the uploader card per sim PC, then the app
-// version. Theme, pairing and offline data are not on the list (decision
-// 2026-09-28-claude-design-v2); units come in their own PR.
+// display units, then the app version. Theme, pairing and offline data are
+// not on the list (decision 2026-09-28-claude-design-v2).
 
 const MAX_WIDTH = 560;
 
@@ -28,6 +29,7 @@ export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const width = Math.min(layout.contentWidth, MAX_WIDTH);
   const u = model.uploaders;
+  const units = useUnitPrefs();
 
   return (
     <ScrollView
@@ -77,6 +79,35 @@ export function SettingsScreen() {
       )}
       {u.state === 'ready' &&
         u.cards.map(c => <Card key={c.hostId} card={c} />)}
+
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Units
+      </Text>
+      <Text variant='dataSmall' tone='textMuted'>
+        Display only; stored data stays metric.
+      </Text>
+      <View style={styles.unitRow}>
+        <Text style={styles.unitLabel}>Speed</Text>
+        <Segment
+          options={[
+            {value: 'kmh', label: 'km/h'},
+            {value: 'mph', label: 'mph'},
+          ]}
+          value={units.speed}
+          onChange={units.setSpeed}
+        />
+      </View>
+      <View style={styles.unitRow}>
+        <Text style={styles.unitLabel}>Distance</Text>
+        <Segment
+          options={[
+            {value: 'm', label: 'm'},
+            {value: 'ft', label: 'ft'},
+          ]}
+          value={units.distance}
+          onChange={units.setDistance}
+        />
+      </View>
 
       <Text variant='label' tone='textMuted' style={styles.section}>
         About
@@ -175,6 +206,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   dot: {width: 8, height: 8, borderRadius: 4},
+  unitRow: {flexDirection: 'row', alignItems: 'center', gap: space.md},
+  unitLabel: {width: 80},
   // Neutral, never amber or red (handoff v2 M3: status banners).
   notice: {
     marginTop: space.sm,

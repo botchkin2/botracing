@@ -78,7 +78,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
   const centreW = Math.max(480, layout.width - LEFT_W - RIGHT_W - space.xl * 2);
   const readAt = hoverM ?? p.cursorM;
-  const values = valuesAt(model.readouts, model.stepM, readAt);
+  const values = valuesAt(model.readouts, model.stepM, readAt, model.units);
   const hoverValues =
     hoverM == null
       ? undefined
@@ -362,7 +362,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
         )}
         <View style={styles.section}>
           <Text variant='label' tone='textMuted'>
-            {hoverM != null ? 'Hover' : 'Cursor'} · {formatDistance(readAt)}
+            {hoverM != null ? 'Hover' : 'Cursor'} ·{' '}
+            {formatDistance(readAt, model.units)}
           </Text>
           <View style={styles.table}>
             {values.map(row => (
@@ -424,7 +425,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   variant='dataSmall'
                   tone='textMuted'
                   style={styles.sectionHead}>
-                  S{n} · {formatDistance(model.sectionEntryM[n] ?? 0)}
+                  S{n} ·{' '}
+                  {formatDistance(model.sectionEntryM[n] ?? 0, model.units)}
                 </Text>
                 {model.grid!.rows.map(r => {
                   const d = r.cells[i];
