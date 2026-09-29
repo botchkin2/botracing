@@ -2,7 +2,22 @@
 # https://github.com/firebase/firebase-tools
 
 name: Deploy to Firebase Hosting on PR
-on: pull_request
+# Only PRs that change what the web app serves get a preview; tools-only PRs
+# (uploader, recorder, CI) skip it.
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'src/**'
+      - 'assets/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'app.json'
+      - 'app.config.*'
+      - 'firebase.json'
+      - 'metro.config.js'
+      - 'babel.config.js'
 permissions:
   checks: write
   contents: read
@@ -15,6 +30,8 @@ jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
+    # A healthy preview takes ~3 min; a hung deploy shouldn't block for hours.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,10 +41,6 @@ jobs:
       - run: npm run build
         env:
           GARAGE61_API_TOKEN: ${{ secrets.GARAGE61_API_TOKEN }}
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-      - name: Install functions dependencies
-        run: cd functions && npm install
       - name: Deploy to Firebase Hosting preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
