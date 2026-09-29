@@ -1,0 +1,13 @@
+[project]
+name = "lap-capture"
+version = "0.1.0"
+description = "Records LMU shared memory (player car and the field) to local Parquet chunks."
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.1", "pyarrow>=18"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
