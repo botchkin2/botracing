@@ -64,3 +64,12 @@ test('a new analysis version resyncs once, never in game', () => {
     false,
   );
 });
+
+test('after a version bump, a failing sync still waits for its retry', () => {
+  const failing = {...base, versionChanged: true, retryAtMs: 130 * MIN};
+  assert.deepEqual(decide({...failing, nowMs: 101 * MIN}), {
+    run: false,
+    reason: 'retry later',
+  });
+  assert.equal(decide({...failing, nowMs: 131 * MIN}).run, true);
+});

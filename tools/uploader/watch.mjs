@@ -253,19 +253,23 @@ async function main() {
         const startedMs = Date.now();
         await beat('syncing');
         const r = await runSync();
-        if (r.stoppedForGame) {
-          // Not a failure: nothing to retry or report. The trigger still
-          // holds (new telemetry, new version), so it runs again once LMU
-          // exits, and redoes only what this pass had not stored.
-          log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
-          wasRunning = true;
-          await beat('in-game');
-          continue;
-        }
+        // A stopped sync never prints its closing "done N" line, but each
+        // session's block is printed only once it is stored or has failed.
+        if (r.stoppedForGame) r.done = r.sessions.length - r.failedIds.length;
         if (r.done) {
           watch.lastUploadAt = new Date().toISOString();
           watch.lastSessionId = r.sessions[0] ?? watch.lastSessionId;
           watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+        }
+        if (r.stoppedForGame) {
+          // Not a failure: nothing to retry or report. The trigger still
+          // holds (new telemetry, new version), so it runs again once LMU
+          // exits, and redoes only what this pass had not stored.
+          save();
+          log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
+          wasRunning = true;
+          await beat('in-game');
+          continue;
         }
         // A failed session is retried later. sync.mjs redoes only what is not
         // stored yet, so a retry costs just the failures.

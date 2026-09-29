@@ -16,7 +16,14 @@ export function stopWhenGameStarts(
     if (stopped || !gameRunning()) return;
     stopped = true;
     clearInterval(timer);
-    kill(child.pid);
+    // The sync may exit between the check and the kill (taskkill then fails
+    // with "not found"). This runs in a timer, outside any try, and a throw
+    // here would end the watcher itself (scrutineer #671).
+    try {
+      kill(child.pid);
+    } catch {
+      // Already gone: nothing left to stop.
+    }
   }, everyMs);
   return {stopped: () => stopped, cancel: () => clearInterval(timer)};
 }

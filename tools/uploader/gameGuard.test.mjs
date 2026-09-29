@@ -34,3 +34,19 @@ test('leaves the sync alone while the game stays closed', async () => {
   assert.deepEqual(killed, []);
   assert.equal(guard.stopped(), false);
 });
+
+test('a kill that fails because the sync just exited does not throw', async () => {
+  const guard = stopWhenGameStarts(
+    {pid: 7},
+    {
+      gameRunning: () => true,
+      kill: () => {
+        throw new Error('taskkill: process 7 not found (exit 128)');
+      },
+      everyMs: 5,
+    },
+  );
+  await wait(30);
+  guard.cancel();
+  assert.equal(guard.stopped(), true);
+});
