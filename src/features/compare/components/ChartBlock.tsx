@@ -25,6 +25,9 @@ export type LapStyle = (
 ) => {color: string; width: number; opacity: number; key: boolean};
 
 const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
+// Round 3 R4a: brake fill at 16%, steering as a 1.2 pt line.
+const BRAKE_FILL = 0.16;
+const STEER_WIDTH = 1.2;
 
 /** One chart: header with values at the cursor, the explainer, the traces. */
 export function ChartBlock({
@@ -78,9 +81,14 @@ export function ChartBlock({
         before: l.before,
         after: l.after,
         color: s.color,
-        width: s.width,
+        width:
+          chart.pedals && l.channel === 'steering'
+            ? Math.min(s.width, STEER_WIDTH)
+            : s.width,
         opacity: s.opacity,
-        dash: OVERLAY_DASH[l.overlay],
+        // Pedals: no dashes; brake is a fill, steering a thin line.
+        dash: chart.pedals ? undefined : OVERLAY_DASH[l.overlay],
+        fill: chart.pedals && l.channel === 'brake' ? BRAKE_FILL : undefined,
         domain: chart.domains[l.channel],
         rank: drawRank(l),
         stepped: l.channel === 'gear',
@@ -132,7 +140,9 @@ export function ChartBlock({
                   y2={3}
                   stroke={color.textMuted}
                   strokeWidth={1.5}
-                  strokeDasharray={OVERLAY_DASH[r.overlay]}
+                  strokeDasharray={
+                    chart.pedals ? undefined : OVERLAY_DASH[r.overlay]
+                  }
                 />
               </Svg>
               <Text variant='dataSmall' tone='textMuted'>
