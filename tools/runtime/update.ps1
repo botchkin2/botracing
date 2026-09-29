@@ -16,15 +16,62 @@ function Invoke-Checked([string]$what, [scriptblock]$command) {
 # resetting it or reinstalling its packages under them could break a loaded
 # module mid-sync or split a capture mid-race (sector, pitlane #554/#556).
 # If it isn't safe, change nothing and say so.
-$running = @(Get-ScheduledTask -TaskName 'Lap*' -ErrorAction SilentlyContinue |
-  Where-Object State -eq 'Running')
-if ($running) {
+# What runs is found by process command line, not by task state: a task
+# whose top process (conhost) was stopped reads Ready while the node or
+# python under it keeps running the old code and holds the one-instance
+# lock (grid, thread 30 #580).
+$scripts = @{
+  'LapUploader' = 'tools\uploader\watch.mjs'
+  'LapRecorder' = 'tools\capture\recorder.py'
+}
+function Get-LapProcesses {
+  $all = Get-CimInstance Win32_Process
+  $roots = @($all | Where-Object {
+    $cmd = $_.CommandLine
+    $_.Name -in 'node.exe', 'python.exe', 'uv.exe', 'conhost.exe' -and
+      $cmd -and ($scripts.Values | Where-Object { $cmd -like "*$_*" })
+  })
+  # Their children too: the sync under the watcher, python under uv.
+  $ids = [System.Collections.Generic.HashSet[int]]::new()
+  $queue = [System.Collections.Generic.Queue[int]]::new()
+  foreach ($p in $roots) { [void]$ids.Add($p.ProcessId); $queue.Enqueue($p.ProcessId) }
+  while ($queue.Count) {
+    $parent = $queue.Dequeue()
+    foreach ($c in $all | Where-Object ParentProcessId -eq $parent) {
+      if ($ids.Add($c.ProcessId)) { $queue.Enqueue($c.ProcessId) }
+    }
+  }
+  $all | Where-Object { $ids.Contains($_.ProcessId) }
+}
+function Stop-LapTasks([string[]]$names) {
+  foreach ($name in $names) {
+    Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+  }
+  foreach ($p in Get-LapProcesses) {
+    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+  $deadline = (Get-Date).AddSeconds(15)
+  while (Get-LapProcesses) {
+    if ((Get-Date) -gt $deadline) { throw 'Lap processes did not stop; not updating.' }
+    Start-Sleep -Milliseconds 300
+  }
+}
+
+$procs = @(Get-LapProcesses)
+# Restart what was running, by task or by an orphaned process.
+$restart = @($scripts.Keys | Where-Object {
+  $name = $_
+  $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+  ($task -and $task.State -eq 'Running') -or
+    ($task -and ($procs | Where-Object { $_.CommandLine -like "*$($scripts[$name])*" }))
+})
+if ($procs) {
   if (Get-Process -Name 'Le Mans Ultimate' -ErrorAction SilentlyContinue) {
     throw 'LMU is running; not updating. Run this again after the session.'
   }
-  $syncing = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-    Where-Object { $_.CommandLine -like '*tools\sessions\sync.mjs*' }
-  if ($syncing) { throw 'A sync is running; not updating. Run this again when it ends.' }
+  if ($procs | Where-Object { $_.CommandLine -like '*tools\sessions\sync.mjs*' }) {
+    throw 'A sync is running; not updating. Run this again when it ends.'
+  }
 }
 # Nobody should work in the clone, but never discard what someone left there.
 if (Test-Path (Join-Path $Runtime '.git')) {
@@ -33,7 +80,7 @@ if (Test-Path (Join-Path $Runtime '.git')) {
     throw "$Runtime has local changes; not updating. Look at them, then clean it:`n$dirty"
   }
 }
-foreach ($task in $running) { Stop-ScheduledTask -TaskName $task.TaskName }
+Stop-LapTasks $restart
 try {
   $origin = (git -C $PSScriptRoot remote get-url origin).Trim()
   if (-not (Test-Path (Join-Path $Runtime '.git'))) {
@@ -65,6 +112,6 @@ try {
 }
 finally {
   # Whatever happened, the tasks that were running run again.
-  foreach ($task in $running) { Start-ScheduledTask -TaskName $task.TaskName }
+  foreach ($name in $restart) { Start-ScheduledTask -TaskName $name }
 }
 $Runtime
