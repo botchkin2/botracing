@@ -1,7 +1,7 @@
 // GET /sessions/{id}/field/{hash} (docs/API.md): the raw file → Field.
 // Raw shapes stop here. A file that does not match throws, naming the field
 // that was wrong, instead of returning a field with holes.
-import {type Field, type FieldCar, undelta} from '@/src/analysis/field';
+import {ABSENT, type Field, type FieldCar} from '@/src/analysis/field';
 
 export type FieldPointer = {
   hash: string;
@@ -30,34 +30,88 @@ function fail(what: string): never {
   throw new Error(`field: ${what}`);
 }
 
-function numberOrNull(v: unknown, what: string): number | null {
-  if (v === null) return null;
-  if (typeof v !== 'number' || !isFinite(v)) fail(`${what} is not a number`);
-  return v;
+// Decodes one car's row of one channel in a single pass: checks each value,
+// sums the deltas and scales, straight into a typed array. `absent` marks a
+// null (the encoder's "car not there"; the running sum carries on past it).
+function decodeRow(
+  row: unknown,
+  what: string,
+  updates: number,
+  out: {[i: number]: number; length: number},
+  absent: number,
+  unit: number,
+  deltaEncoded: boolean,
+): void {
+  if (!Array.isArray(row) || row.length !== updates)
+    fail(`${what} needs ${updates} updates`);
+  let sum = 0;
+  for (let u = 0; u < updates; u++) {
+    const v: unknown = row[u];
+    if (v === null) {
+      out[u] = absent;
+    } else if (typeof v === 'number' && isFinite(v)) {
+      if (deltaEncoded) {
+        sum += v;
+        out[u] = sum * unit;
+      } else {
+        out[u] = v;
+      }
+    } else {
+      fail(`${what}[${u}] is not a number`);
+    }
+  }
 }
 
-function column(
-  raw: Record<string, unknown>,
-  key: string,
-  cars: number,
-  updates: number,
-): (number | null)[][] {
+function rowsOf(raw: Record<string, unknown>, key: string, cars: number) {
   const rows = raw[key];
   if (!Array.isArray(rows) || rows.length !== cars)
     fail(`${key} needs one array per car (${cars})`);
-  return rows.map((row: unknown, car) => {
-    if (!Array.isArray(row) || row.length !== updates)
-      fail(`${key}[${car}] needs ${updates} updates`);
-    return (row as unknown[]).map((v, u) =>
-      numberOrNull(v, `${key}[${car}][${u}]`),
-    );
-  });
+  return rows as unknown[];
+}
+
+function floatChannel(
+  raw: Record<string, unknown>,
+  key: string,
+  car: number,
+  cars: number,
+  updates: number,
+  unit: number,
+): Float32Array {
+  const out = new Float32Array(updates);
+  decodeRow(
+    rowsOf(raw, key, cars)[car],
+    `${key}[${car}]`,
+    updates,
+    out,
+    NaN,
+    unit,
+    true,
+  );
+  return out;
+}
+
+function intChannel<T extends Int16Array | Int8Array>(
+  raw: Record<string, unknown>,
+  key: string,
+  car: number,
+  cars: number,
+  updates: number,
+  out: T,
+): T {
+  decodeRow(
+    rowsOf(raw, key, cars)[car],
+    `${key}[${car}]`,
+    updates,
+    out,
+    ABSENT,
+    1,
+    false,
+  );
+  return out;
 }
 
 const DM = 0.1;
 const CRAD = 0.01;
-const scaled = (values: (number | null)[], unit: number) =>
-  values.map(v => (v === null ? null : v * unit));
 
 export function toField(rawInput: unknown): Field {
   const raw = obj(rawInput);
@@ -73,18 +127,14 @@ export function toField(rawInput: unknown): Field {
   const carDocs = raw.cars;
   if (!Array.isArray(carDocs)) fail('cars is missing');
   const n = carDocs.length;
+  const hasYaw = raw.yawCrad !== undefined;
 
-  const lapDist = column(raw, 'lapDistDm', n, updates);
-  const lateral = column(raw, 'pathLateralDm', n, updates);
-  const x = column(raw, 'xDm', n, updates);
-  const z = column(raw, 'zDm', n, updates);
-  const yaw =
-    raw.yawCrad === undefined ? null : column(raw, 'yawCrad', n, updates);
-  const place = column(raw, 'place', n, updates);
-  const laps = column(raw, 'laps', n, updates);
-  const pits = column(raw, 'inPits', n, updates);
-  const flag = column(raw, 'flag', n, updates);
-
+  const timeS = new Float64Array(updates);
+  for (let u = 0; u < updates; u++) {
+    const d: unknown = tDs[u];
+    if (typeof d !== 'number') fail(`tDs[${u}] is not a number`);
+    timeS[u] = d / 10;
+  }
   const cars: FieldCar[] = carDocs.map((doc: unknown, car) => {
     const c = obj(doc);
     return {
@@ -92,25 +142,32 @@ export function toField(rawInput: unknown): Field {
       carClass: typeof c.class === 'string' ? c.class : '',
       vehicle: typeof c.vehicle === 'string' ? c.vehicle : null,
       player: c.player === true,
-      lapDistM: scaled(undelta(lapDist[car]), DM),
-      pathLateralM: scaled(undelta(lateral[car]), DM),
-      xM: scaled(undelta(x[car]), DM),
-      zM: scaled(undelta(z[car]), DM),
-      yawRad: yaw ? scaled(undelta(yaw[car]), CRAD) : null,
-      place: place[car],
-      lapsDone: laps[car],
-      inPits: pits[car].map(v => (v === null ? null : v === 1)),
-      flag: flag[car],
+      lapDistM: floatChannel(raw, 'lapDistDm', car, n, updates, DM),
+      pathLateralM: floatChannel(raw, 'pathLateralDm', car, n, updates, DM),
+      xM: floatChannel(raw, 'xDm', car, n, updates, DM),
+      zM: floatChannel(raw, 'zDm', car, n, updates, DM),
+      yawRad: hasYaw
+        ? floatChannel(raw, 'yawCrad', car, n, updates, CRAD)
+        : null,
+      place: intChannel(raw, 'place', car, n, updates, new Int16Array(updates)),
+      lapsDone: intChannel(
+        raw,
+        'laps',
+        car,
+        n,
+        updates,
+        new Int16Array(updates),
+      ),
+      inPits: intChannel(
+        raw,
+        'inPits',
+        car,
+        n,
+        updates,
+        new Int8Array(updates),
+      ),
+      flag: intChannel(raw, 'flag', car, n, updates, new Int16Array(updates)),
     };
   });
-  return {
-    version,
-    hz,
-    startEtS: et0,
-    timeS: tDs.map((d: unknown, u) => {
-      if (typeof d !== 'number') fail(`tDs[${u}] is not a number`);
-      return d / 10;
-    }),
-    cars,
-  };
+  return {version, hz, startEtS: et0, timeS, cars};
 }

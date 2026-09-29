@@ -5,6 +5,17 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
+/**
+ * Marks "car absent at this update" in the integer channels. Real values are
+ * never negative (place from 1, laps and flag from 0, inPits 0 or 1). The
+ * float channels use NaN for the same thing: test with `Number.isNaN`.
+ */
+export const ABSENT = -1;
+
+// Typed arrays, not number[]: an hour of 62 cars is about 10 million values,
+// and plain arrays of boxed numbers would hold the phone at several hundred
+// MB (camber, pit wall thread 30 #807). Float32 keeps decimetre positions to
+// about a millimetre across a 10 km track.
 export interface FieldCar {
   /** Index in the file; stable within one session only. */
   index: number;
@@ -14,25 +25,26 @@ export interface FieldCar {
   vehicle: string | null;
   /** The uploader's own car. Exactly one per field. */
   player: boolean;
-  /** Distance along the lap, metres. Null where the car was absent. */
-  lapDistM: (number | null)[];
+  /** Distance along the lap, metres. NaN where the car was absent. */
+  lapDistM: Float32Array;
   /** Offset from the track's path, metres. */
-  pathLateralM: (number | null)[];
+  pathLateralM: Float32Array;
   /** The sim's world coordinates, metres (not the trace Lat/Lon). */
-  xM: (number | null)[];
-  zM: (number | null)[];
+  xM: Float32Array;
+  zM: Float32Array;
   /**
    * Heading, radians, wrapped to ±π: 0 along +z, π/2 along +x (the direction
    * of atan2(Δx, Δz)). Null for files before v2, which carry none.
    */
-  yawRad: (number | null)[] | null;
-  /** Overall race position at each update. */
-  place: (number | null)[];
+  yawRad: Float32Array | null;
+  /** Overall race position at each update; ABSENT where the car was. */
+  place: Int16Array;
   /** Laps completed. */
-  lapsDone: (number | null)[];
-  inPits: (boolean | null)[];
+  lapsDone: Int16Array;
+  /** 1 in the pits, 0 out; ABSENT where the car was absent. */
+  inPits: Int8Array;
   /** The car's flag state (LMU's `mFlag`; 6 is a blue flag). */
-  flag: (number | null)[];
+  flag: Int16Array;
 }
 
 export interface Field {
@@ -42,30 +54,15 @@ export interface Field {
   /** Session clock at the first update, seconds. */
   startEtS: number;
   /** Seconds from the first update, one per update. */
-  timeS: number[];
+  timeS: Float64Array;
   cars: FieldCar[];
-}
-
-/** Inverse of the upload's delta step: running sums, nulls kept as nulls. */
-export function undelta(deltas: (number | null)[]): (number | null)[] {
-  let sum = 0;
-  const out: (number | null)[] = [];
-  for (const d of deltas) {
-    if (d === null) {
-      out.push(null);
-    } else {
-      sum += d;
-      out.push(sum);
-    }
-  }
-  return out;
 }
 
 /**
  * The update nearest to `timeS`, clamped to the ends; -1 for an empty field.
  * `times` is ascending (Field.timeS).
  */
-export function updateAt(times: number[], timeS: number): number {
+export function updateAt(times: ArrayLike<number>, timeS: number): number {
   if (times.length === 0) return -1;
   let lo = 0;
   let hi = times.length - 1;
