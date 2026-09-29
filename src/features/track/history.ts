@@ -55,7 +55,7 @@ export function buildHistory(sessions: SessionSummary[]): HistoryModel | null {
     byCar.set(s.car, list);
   }
 
-  const bests: HistoryBest[] = [];
+  const bests: (HistoryBest & {timeS: number})[] = [];
   for (const [car, list] of byCar) {
     let best: SessionSummary | null = null;
     for (const s of list) {
@@ -71,9 +71,10 @@ export function buildHistory(sessions: SessionSummary[]): HistoryModel | null {
       carClass: best.carClass,
       date: formatDate(best.startedAt),
       time: formatLapTime(best.bestTimeS),
+      timeS: best.bestTimeS,
     });
   }
-  bests.sort((a, b) => a.time.localeCompare(b.time));
+  bests.sort((a, b) => a.timeS - b.timeS);
 
   const cars = [...byCar.entries()]
     .map(([car, list]) => ({
@@ -88,7 +89,7 @@ export function buildHistory(sessions: SessionSummary[]): HistoryModel | null {
       {label: 'Laps', value: String(laps)},
       {label: 'Last driven', value: formatDate(newestFirst[0].startedAt)},
     ],
-    bests,
+    bests: bests.map(({timeS: _, ...b}) => b),
     cars: cars.map(c => {
       const label = carLabel(c.car);
       return {

@@ -66,11 +66,16 @@ function toSummary(raw: unknown): TrackSummary | null {
   };
 }
 
+// OSM also names bike-only chicanes ("Motorcycle Turn 12" at Road Atlanta),
+// which the cars never drive; they must not name a car corner.
+const NOT_A_CAR_CORNER = /motorcycle|moto|bike/i;
+
 function toNamedPoints(raw: unknown): NamedPoint[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap(p => {
     const x = obj(p);
     const name = str(x.name);
+    if (name && NOT_A_CAR_CORNER.test(name)) return [];
     const lat = num(x.lat);
     const lon = num(x.lon);
     return name && lat != null && lon != null ? [{name, lat, lon}] : [];

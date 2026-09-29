@@ -86,8 +86,7 @@ export function referenceSession(
   sessions: SessionSummary[],
 ): SessionSummary | null {
   const newest = (list: SessionSummary[]) =>
-    [...list].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ??
-    null;
+    [...list].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ?? null;
   const timed = sessions.filter(s => s.bestLapId != null);
   return (
     newest(

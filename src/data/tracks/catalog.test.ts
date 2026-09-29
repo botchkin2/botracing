@@ -27,6 +27,16 @@ describe('toTrackInfo', () => {
   });
 });
 
+it('drops motorcycle-only corner names', () => {
+  const t = toTrackInfo('a', {
+    osmNames: [
+      {name: 'Motorcycle Turn 12', lat: 1, lon: 1},
+      {name: 'Turn 12', lat: 1, lon: 1},
+    ],
+  });
+  expect(t.osmNames.map(n => n.name)).toEqual(['Turn 12']);
+});
+
 describe('the bundled catalog', () => {
   it('has the Wikipedia attribution on every summary', () => {
     const spa = trackInfo('lmu-circuit_de_spa_francorchamps');

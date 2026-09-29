@@ -203,6 +203,21 @@ export function TrackMap({
     2,
   ).map(i => candidates[i]);
   const sectionLabels = kept.filter(l => l.kind === 'section');
+  // S/F sits outside the loop unless that runs off the map; then inside.
+  const sfLabel = startFinish
+    ? (() => {
+        const out = off(startFinish, -SF_LABEL_OFFSET);
+        const fits =
+          out.x > PAD &&
+          out.x < width - PAD &&
+          out.y > PAD &&
+          out.y < height - PAD;
+        return {
+          anchor: startFinish,
+          ...(fits ? out : off(startFinish, SF_LABEL_OFFSET)),
+        };
+      })()
+    : null;
 
   return (
     <View style={{width, height}}>
@@ -314,19 +329,19 @@ export function TrackMap({
               {textOf(l)}
             </SvgText>
           ))}
-        {startFinish && (
+        {sfLabel && (
           <>
             <Line
-              x1={off(startFinish, SF_HALF).x}
-              y1={off(startFinish, SF_HALF).y}
-              x2={off(startFinish, -SF_HALF).x}
-              y2={off(startFinish, -SF_HALF).y}
+              x1={off(sfLabel.anchor, SF_HALF).x}
+              y1={off(sfLabel.anchor, SF_HALF).y}
+              x2={off(sfLabel.anchor, -SF_HALF).x}
+              y2={off(sfLabel.anchor, -SF_HALF).y}
               stroke={color.text}
               strokeWidth={SF_W}
             />
             <SvgText
-              x={off(startFinish, -SF_LABEL_OFFSET).x}
-              y={off(startFinish, -SF_LABEL_OFFSET).y + 3.5}
+              x={sfLabel.x}
+              y={sfLabel.y + 3.5}
               textAnchor='middle'
               fill={color.mapLabel}
               fontFamily={fonts.monoBold}
