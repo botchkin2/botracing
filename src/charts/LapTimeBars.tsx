@@ -236,8 +236,8 @@ const styles = StyleSheet.create({hitRow: {flexDirection: 'row'}});
 const LABEL_ROW = 10;
 // A pit this many laps before a stint boundary is named by its label.
 const NEAR_LAPS = 3;
-// Mono 9 pt glyphs are ~5.6 pt wide.
-const LABEL_CHAR_W = 5.6;
+// Mono 9 pt glyphs are 0.6 em, 5.4 pt wide.
+const LABEL_CHAR_W = 5.4;
 
 type TopLabel = {key: string; x: number; text: string; color: string};
 
