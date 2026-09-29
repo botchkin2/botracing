@@ -32,8 +32,10 @@ import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
+import {stopWhenGameStarts} from './gameGuard.mjs';
 import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
@@ -160,7 +162,18 @@ function runSync() {
     };
     child.stdout.setEncoding('utf8').on('data', onData);
     child.stderr.setEncoding('utf8').on('data', onData);
-    child.on('close', code => done({...result, code}));
+    // The whole tree: the sync and the DuckDB processes it runs.
+    const guard = stopWhenGameStarts(child, {
+      gameRunning,
+      kill: pid =>
+        execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+          windowsHide: true,
+        }),
+    });
+    child.on('close', code => {
+      guard.cancel();
+      done({...result, code, stoppedForGame: guard.stopped()});
+    });
   });
 }
 
@@ -230,6 +243,8 @@ async function main() {
         newestMtimeMs: recs?.newestMtimeMs ?? null,
         lastRunAtMs: watch.lastRunAtMs ?? null,
         retryAtMs: watch.retryAtMs ?? null,
+        // First run with this code, or a merge that bumped it.
+        versionChanged: watch.analysisVersion !== analysisVersion,
         nowMs: Date.now(),
       });
       wasRunning = running;
@@ -238,10 +253,23 @@ async function main() {
         const startedMs = Date.now();
         await beat('syncing');
         const r = await runSync();
+        // A stopped sync never prints its closing "done N" line, but each
+        // session's block is printed only once it is stored or has failed.
+        if (r.stoppedForGame) r.done = r.sessions.length - r.failedIds.length;
         if (r.done) {
           watch.lastUploadAt = new Date().toISOString();
           watch.lastSessionId = r.sessions[0] ?? watch.lastSessionId;
           watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+        }
+        if (r.stoppedForGame) {
+          // Not a failure: nothing to retry or report. The trigger still
+          // holds (new telemetry, new version), so it runs again once LMU
+          // exits, and redoes only what this pass had not stored.
+          save();
+          log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
+          wasRunning = true;
+          await beat('in-game');
+          continue;
         }
         // A failed session is retried later. sync.mjs redoes only what is not
         // stored yet, so a retry costs just the failures.
@@ -258,6 +286,7 @@ async function main() {
           };
         } else {
           watch.lastRunAtMs = startedMs;
+          watch.analysisVersion = analysisVersion;
           watch.retryAtMs = null;
           watch.failuresInRow = 0;
           watch.lastError = null;

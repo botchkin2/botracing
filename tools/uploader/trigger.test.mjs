@@ -51,3 +51,25 @@ test('retries back off: 30 min, then doubling, capped at 8 h', () => {
     [30, 60, 120, 240, 480, 480, 480],
   );
 });
+
+test('a new analysis version resyncs once, never in game', () => {
+  const same = {...base, lastRunAtMs: 100 * MIN};
+  assert.equal(decide(same).run, false);
+  assert.deepEqual(decide({...same, versionChanged: true}), {
+    run: true,
+    reason: 'new analysis version',
+  });
+  assert.equal(
+    decide({...same, versionChanged: true, gameRunning: true}).run,
+    false,
+  );
+});
+
+test('after a version bump, a failing sync still waits for its retry', () => {
+  const failing = {...base, versionChanged: true, retryAtMs: 130 * MIN};
+  assert.deepEqual(decide({...failing, nowMs: 101 * MIN}), {
+    run: false,
+    reason: 'retry later',
+  });
+  assert.equal(decide({...failing, nowMs: 131 * MIN}).run, true);
+});
