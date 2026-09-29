@@ -1,3 +1,5 @@
+import {describe, expect, it} from '@jest/globals';
+
 import {ABSENT, type Field, type FieldCar} from './field';
 import {playerAt, timeAtLapDistance} from './raceClock';
 
