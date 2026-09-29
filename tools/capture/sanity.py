@@ -13,7 +13,9 @@ from columns import text
 
 
 def _printable(value):
-    return bool(value) and all(32 <= ord(c) < 127 for c in value)
+    # Any printable text: entry names can carry non-ASCII letters (latin-1 from
+    # the game), and a wrong layout reads control bytes, not letters.
+    return bool(value) and value.isprintable()
 
 
 def check_scoring(layout, info_raw, vehicles_raw, n):
@@ -27,14 +29,21 @@ def check_scoring(layout, info_raw, vehicles_raw, n):
     if not (math.isfinite(info.mCurrentET) and 0 <= info.mCurrentET < 1e6):
         return False, f"session clock {info.mCurrentET}"
     size = len(vehicles_raw) // n
+    bad_names = []
     for i in range(n):
         car = layout.vehicle.from_buffer_copy(vehicles_raw[i * size : (i + 1) * size])
-        if not _printable(text(car.mVehicleName)):
-            return False, f"car {i} name is not text"
+        name = text(car.mVehicleName)
+        if not _printable(name):
+            bad_names.append(f"car {i} {name!r}")
         if not 0 <= car.mPlace <= layout.max_vehicles:
             return False, f"car {i} place {car.mPlace}"
         if not (math.isfinite(car.mLapDist) and -1000 < car.mLapDist < 100_000):
             return False, f"car {i} lap distance {car.mLapDist}"
+    # A wrong layout garbles every name; one odd or still-blank name while a
+    # 58-car field loads does not (2026-09-29 Daytona: "car 30 name is not text"
+    # refused the whole race). Refuse only when more than a quarter are bad.
+    if len(bad_names) * 4 > n:
+        return False, f"{len(bad_names)} of {n} car names are not text: {bad_names[0]}"
     return True, ""
 
 
