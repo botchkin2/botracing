@@ -24,6 +24,7 @@ import {
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
+import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
 export const analysisVersion = 3;
@@ -710,6 +711,11 @@ function traceCsv(rec, lap) {
   return lines.join('\n');
 }
 
+function startsInPits(rec) {
+  const first = rec.events.in_pits?.[0];
+  return Boolean(first && first.v === 1 && first.t - rec.s.t[0] < 1);
+}
+
 // recs: loaded recordings of one session, in time order.
 // trackMap: the track's stored corners ({lengthM, corners}), or null to find
 // them on this session. The map used is returned, so the caller can keep it.
@@ -718,22 +724,39 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   // A stint starts with a new recording or with the lap that leaves the pits,
   // but never while the current stint has no timed lap yet. That keeps the
   // grid or formation run from becoming a stint of its own.
+  // Why each stint started: 'session', 'pit', 'reset' or 'gap' (fileChange.mjs,
+  // for a new file), or 'pit' for leaving the pits. The lap a reset cut short
+  // is tagged endedInReset and the next file's first lap afterReset, even
+  // when no new stint opens.
   let stint = 0;
   let stintTimed = false;
-  const openStint = () => {
+  const stintStartReason = new Map();
+  const openStint = reason => {
     if (stint === 0 || stintTimed) {
       stint++;
       stintTimed = false;
+      stintStartReason.set(stint, reason);
     }
   };
   const flags = recs.map(rec => flagIntervals(rec.events));
   recs.forEach((rec, r) => {
     const pits = pitIntervals(rec.events.in_pits);
-    openStint();
+    const before = laps[laps.length - 1];
+    const prev = recs[r - 1];
+    const change = fileChange({
+      lastLap: before ?? null,
+      gapS: prev ? rec.s.t[0] - prev.s.t[prev.s.t.length - 1] : null,
+      startsInPits: startsInPits(rec),
+    });
+    const reset = change === 'reset';
+    if (reset) before.endedInReset = true;
+    openStint(change);
     let first = true;
     for (const seg of segments(rec)) {
       const lap = analyzeLap(rec, seg, pits, flags[r]);
-      if (!first && lap.pitOut) openStint();
+      lap.endedInReset = false;
+      lap.afterReset = first && reset;
+      if (!first && lap.pitOut) openStint('pit');
       first = false;
       if (lap.timed && !lap.partial) stintTimed = true;
       lap.stint = stint;
@@ -914,6 +937,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
         const c = st.laps.filter(l => l.comparable).map(l => l.lapTime);
         return {
           n: st.n,
+          startReason: stintStartReason.get(st.n),
           firstLap: st.laps[0].lapNumber,
           lastLap: st.laps[st.laps.length - 1].lapNumber,
           laps: st.laps.length,
