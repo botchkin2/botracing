@@ -243,9 +243,18 @@ export function TraceChart({
           return s.stepped ? steppedPath(pts) : monotonePath(pts);
         };
         // The neighbour laps either side of the line (the S/F wrap).
+        // They sit outside the lap, where the window's metre range is clipped
+        // (time mode), so they are drawn whole: at most 500 m each side.
+        const wholePath = (ns: NativeSamples) => {
+          const pts: Pt[] = ns.distanceM.map((m, k) => [
+            xOfM(m),
+            ys(ns.values[k]),
+          ]);
+          return s.stepped ? steppedPath(pts) : monotonePath(pts);
+        };
         const wraps = [s.before, s.after]
           .filter((ns): ns is NativeSamples => ns != null)
-          .map(samplePath);
+          .map(wholePath);
         if (s.samples) return {...s, d: samplePath(s.samples), wraps};
         const last = Math.min(to, s.values.length - 1);
         const stride = Math.max(1, Math.floor(pointsPerPt));
