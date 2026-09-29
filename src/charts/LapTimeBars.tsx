@@ -62,33 +62,49 @@ export function LapTimeBars({
   const axis = {...typeScale.axis, fontSize: 9};
   // STINT, PIT and RESET labels share the top rows; one that would run into
   // the label before it drops a row (freeze, thread 32: laps 32–34).
-  // A reset that opens a stint is one boundary with one label; pits on
-  // neighbouring laps (in-lap, out-lap) share one PIT label.
+  // Each stint label says why the stint started: a reset or a pit within
+  // NEAR_LAPS before it folds into it ("STINT 5 · PIT"), and loses its own
+  // text; the lines stay. Other resets and pits keep a short label.
   const resetSet = new Set(resets);
-  const stintAt = new Map(stintBreaks.map(b => [b.afterIndex, b.label]));
-  const pitLabels = pits.filter(i => !pits.includes(i - 1));
-  const topLabels = placeTopLabels([
-    ...stintBreaks.map(b => ({
-      key: `s-${b.label}`,
-      x: (b.afterIndex + 1) * slot + 3,
-      text: resetSet.has(b.afterIndex) ? `${b.label} · RESET` : b.label,
-      color: resetSet.has(b.afterIndex) ? color.textMuted : color.textFaint,
-    })),
-    ...pitLabels.map(i => ({
-      key: `p-${i}`,
-      x: xOf(i) + barW / 2 + 3,
-      text: 'PIT',
-      color: color.accentInk,
-    })),
-    ...resets
-      .filter(i => !stintAt.has(i))
-      .map(i => ({
-        key: `r-${i}`,
-        x: xOf(i) + barW + 3.8,
-        text: 'RESET',
-        color: color.textMuted,
+  // Within NEAR_LAPS either side of a stint boundary (the mid-stint reset
+  // at L19/L20 sits one lap after "STINT 3 · RESET").
+  const near = (i: number) =>
+    stintBreaks.some(b => Math.abs(b.afterIndex - i) < NEAR_LAPS);
+  const why = (afterIndex: number) =>
+    resetSet.has(afterIndex)
+      ? 'RESET'
+      : pits.some(i => afterIndex >= i && afterIndex - i < NEAR_LAPS)
+      ? 'PIT'
+      : null;
+  const pitLabels = pits.filter(i => !pits.includes(i - 1) && !near(i));
+  const topLabels = placeTopLabels(
+    [
+      ...stintBreaks.map(b => {
+        const w = why(b.afterIndex);
+        return {
+          key: `s-${b.label}`,
+          x: (b.afterIndex + 1) * slot + 3,
+          text: w ? `${b.label} · ${w}` : b.label,
+          color: w === 'PIT' ? color.accentInk : color.textMuted,
+        };
+      }),
+      ...pitLabels.map(i => ({
+        key: `p-${i}`,
+        x: xOf(i) + barW / 2 + 3,
+        text: 'PIT',
+        color: color.accentInk,
       })),
-  ]);
+      ...resets
+        .filter(i => !near(i))
+        .map(i => ({
+          key: `r-${i}`,
+          x: xOf(i) + barW + 3.8,
+          text: 'RESET',
+          color: color.textMuted,
+        })),
+    ],
+    plotW,
+  );
 
   return (
     <View style={{width, height: height + AXIS_H}}>
@@ -153,6 +169,7 @@ export function LapTimeBars({
           <SvgText
             key={l.key}
             x={l.x}
+            textAnchor={l.anchor}
             y={9 + l.row * LABEL_ROW}
             fill={l.color}
             fontFamily={axis.fontFamily}
@@ -241,20 +258,36 @@ export function LapTimeBars({
 const styles = StyleSheet.create({hitRow: {flexDirection: 'row'}});
 
 const LABEL_ROW = 10;
+// A reset or pit this close to a stint boundary is named by its label.
+const NEAR_LAPS = 3;
 // Mono 9 pt glyphs are ~5.6 pt wide.
 const LABEL_CHAR_W = 5.6;
 
 type TopLabel = {key: string; x: number; text: string; color: string};
 
-/** Left to right, each label takes the first row where it clears the last. */
-function placeTopLabels(labels: TopLabel[]): (TopLabel & {row: number})[] {
+/**
+ * Left to right, each label takes the first row where it clears the last.
+ * One that would run past maxX is drawn right-aligned, ending at its line.
+ */
+function placeTopLabels(
+  labels: TopLabel[],
+  maxX: number,
+): (TopLabel & {row: number; anchor: 'start' | 'end'})[] {
   const rowEnds: number[] = [];
   return [...labels]
     .sort((a, b) => a.x - b.x)
     .map(l => {
-      let row = rowEnds.findIndex(end => end + 4 <= l.x);
+      const w = l.text.length * LABEL_CHAR_W;
+      const flip = l.x + w > maxX;
+      const left = flip ? l.x - 6 - w : l.x;
+      let row = rowEnds.findIndex(end => end + 4 <= left);
       if (row < 0) row = rowEnds.length;
-      rowEnds[row] = l.x + l.text.length * LABEL_CHAR_W;
-      return {...l, row};
+      rowEnds[row] = left + w;
+      return {
+        ...l,
+        x: flip ? l.x - 6 : l.x,
+        row,
+        anchor: flip ? 'end' : 'start',
+      };
     });
 }
