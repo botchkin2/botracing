@@ -23,8 +23,7 @@
         "source": "/api/garage61/**",
         "function": {
           "functionId": "garage61Proxy",
-          "region": "us-central1",
-          "pinTag": true
+          "region": "us-central1"
         }
       },
       {
