@@ -402,7 +402,14 @@ function build(s, trackMap, eventWindows) {
     recordingIds: s.files.map(f => f.id),
     ...a.summary,
     bestLapId: a.best ? lapId(a.best) : null,
-    consistency: a.consistency,
+    // The analysis names laps by index; the stored docs use lap ids.
+    consistency: {
+      ...a.consistency,
+      stints: a.consistency.stints.map(st => ({
+        ...st,
+        lapIds: st.lapIds.map(i => laps[Number(i)].id),
+      })),
+    },
     // Where the corners came from: the track's stored map, a new stored map
     // made from this session, or a map of this session's own (not stored:
     // too few clean laps, or the stored map does not fit).
