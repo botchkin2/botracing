@@ -267,7 +267,9 @@ async function main() {
           // One write in flight at a time; the next block catches up.
           if (beating) return;
           beating = true;
-          beat('syncing').finally(() => (beating = false));
+          beat('syncing')
+            .catch(error => log(`progress beat failed: ${String(error)}`))
+            .finally(() => (beating = false));
         });
         progress = null;
         // A stopped sync never prints its closing "done N" line, but each
