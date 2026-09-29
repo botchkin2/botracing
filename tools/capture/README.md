@@ -10,7 +10,7 @@ uv run --project tools/capture --group dev pytest tools/capture        # tests
 
 The recorder waits for the game, records each session, and idles between. One instance per user.
 
-`install.ps1` registers it as the `LapRecorder` logon task (headless, below-normal priority), next to `LapUploader`. It runs from the main checkout, so keep that on main.
+`install.ps1` registers it as the `LapRecorder` logon task (headless, below-normal priority), next to `LapUploader`. It registers from the checkout it lives in; the runtime clone (tools/runtime, pit-wall thread 30) is where it should run from.
 
 ## Files
 
