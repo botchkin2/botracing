@@ -2,7 +2,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {decide} from './trigger.mjs';
-import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
+import {
+  newSyncResult,
+  progressOf,
+  queueCount,
+  readSyncLine,
+} from './syncOutput.mjs';
 
 const run = lines => lines.reduce(readSyncLine, newSyncResult());
 
@@ -53,4 +58,19 @@ test('a session that fails once is queued, and retried on the next pass', () => 
     queueCount({pendingFiles: 0, failedSessions: again.failedIds}),
     0,
   );
+});
+
+test('progress is done/total once sync.mjs says how many, null before', () => {
+  assert.equal(progressOf(newSyncResult()), null);
+  const r = newSyncResult();
+  readSyncLine(r, '557 recordings in 300 sessions (C:Telemetry)');
+  assert.equal(progressOf(r), null);
+  readSyncLine(r, 'to do 3');
+  assert.deepEqual(progressOf(r), {done: 0, total: 3});
+  readSyncLine(r, 'aaaaaaaaaaaaaaaa 2026-09-28T20:00 Race       Road Atlanta | 911 | 1 file(s)');
+  readSyncLine(r, '  22 laps, 20 comparable, best 80.1');
+  assert.deepEqual(progressOf(r), {done: 1, total: 3});
+  readSyncLine(r, 'bbbbbbbbbbbbbbbb 2026-09-28T19:00 Practice   Road Atlanta | 911 | 2 file(s)');
+  readSyncLine(r, '  failed: Error: upload timed out');
+  assert.deepEqual(progressOf(r), {done: 2, total: 3});
 });

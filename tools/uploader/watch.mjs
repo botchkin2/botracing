@@ -36,7 +36,12 @@ import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
-import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
+import {
+  newSyncResult,
+  progressOf,
+  queueCount,
+  readSyncLine,
+} from './syncOutput.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -140,7 +145,7 @@ function version() {
 // the session ids and the closing "done N, failed M" line feed the heartbeat.
 // sync.mjs skips files written in the last 3 minutes in case the game is
 // still writing them; the game is closed here, so nothing is.
-function runSync() {
+function runSync(onProgress) {
   return new Promise(done => {
     const args = [syncScript, '--quiet-min', '0', ...syncArgs];
     const child = spawn(process.execPath, args, {windowsHide: true});
@@ -158,6 +163,8 @@ function runSync() {
       for (const line of lines) {
         log(`  sync | ${line}`);
         readSyncLine(result, line);
+        if (/^(to do \d+$|[0-9a-f]{16} )/.test(line))
+          onProgress(progressOf(result));
       }
     };
     child.stdout.setEncoding('utf8').on('data', onData);
@@ -194,6 +201,7 @@ async function main() {
   let wasRunning = false;
   let lastKey = '';
   let lastBeatMs = 0;
+  let progress = null;
   log(`start ${hostId} ${ver}, telemetry ${telemetry}`);
 
   const beat = async state => {
@@ -212,6 +220,7 @@ async function main() {
       lmuFound: recs != null,
       state,
       watch,
+      progress,
       queue: queueCount({
         pendingFiles: recs?.newer ?? 0,
         failedSessions: watch.failedSessions,
@@ -252,7 +261,17 @@ async function main() {
         log(`sync: ${plan.reason}`);
         const startedMs = Date.now();
         await beat('syncing');
-        const r = await runSync();
+        let beating = false;
+        const r = await runSync(p => {
+          progress = p;
+          // One write in flight at a time; the next block catches up.
+          if (beating) return;
+          beating = true;
+          beat('syncing')
+            .catch(error => log(`progress beat failed: ${String(error)}`))
+            .finally(() => (beating = false));
+        });
+        progress = null;
         // A stopped sync never prints its closing "done N" line, but each
         // session's block is printed only once it is stored or has failed.
         if (r.stoppedForGame) r.done = r.sessions.length - r.failedIds.length;
