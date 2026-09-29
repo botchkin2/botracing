@@ -80,8 +80,9 @@ if (Test-Path (Join-Path $Runtime '.git')) {
     throw "$Runtime has local changes; not updating. Look at them, then clean it:`n$dirty"
   }
 }
-Stop-LapTasks $restart
 try {
+  # Inside the try: if the stop times out, finally still restarts the tasks.
+  Stop-LapTasks $restart
   $origin = (git -C $PSScriptRoot remote get-url origin).Trim()
   if (-not (Test-Path (Join-Path $Runtime '.git'))) {
     Invoke-Checked 'git clone' { git clone --quiet $origin $Runtime }
