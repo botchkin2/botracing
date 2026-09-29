@@ -1,0 +1,65 @@
+import {describe, expect, it} from '@jest/globals';
+
+import {toUploader} from './adapters';
+
+describe('toUploader', () => {
+  it('reads a full heartbeat, times as ISO or epoch ms', () => {
+    const u = toUploader({
+      hostId: 'rig',
+      label: 'Race PC',
+      version: '0.3.1',
+      lmuFound: true,
+      state: 'syncing',
+      lastSeenAt: '2026-09-28T20:00:00Z',
+      lastUploadAt: 1790000000000,
+      lastSessionId: 'bc1d',
+      queue: 2,
+      sessionsDone: 14,
+      lastError: {
+        at: '2026-09-28T19:00:00Z',
+        message: 'EBUSY',
+        path: 'D:/capture',
+      },
+      disk: {captureBytes: 5e9, freeBytes: 2e11},
+      recorder: {
+        state: 'refused',
+        gameVersion: 1234,
+        layoutOk: false,
+        layoutReason: 'x',
+      },
+    });
+    expect(u.recorder).toEqual({
+      state: 'refused',
+      gameVersion: '1234',
+      layoutOk: false,
+      layoutReason: 'x',
+      lastChunkAt: null,
+      updatedAt: null,
+    });
+    expect(u.lastSeenAt).toBe(Date.parse('2026-09-28T20:00:00Z'));
+    expect(u.lastUploadAt).toBe(1790000000000);
+    expect(u.state).toBe('syncing');
+    expect(u.host).toBe('Race PC');
+    expect(u.lastError?.path).toBe('D:/capture');
+    expect(u.disk?.captureBytes).toBe(5e9);
+  });
+
+  it('defaults what is missing, and unknown states to idle', () => {
+    const u = toUploader({id: 'rig', state: 'dancing'});
+    expect(u).toMatchObject({
+      hostId: 'rig',
+      host: 'rig',
+      state: 'idle',
+      lmuFound: false,
+      lastSeenAt: null,
+      queue: 0,
+      lastError: null,
+      disk: null,
+      recorder: null,
+    });
+  });
+
+  it('throws without a host id', () => {
+    expect(() => toUploader({host: 'x'})).toThrow('hostId');
+  });
+});
