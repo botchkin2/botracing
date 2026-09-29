@@ -23,6 +23,7 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -87,9 +88,14 @@ function readState() {
   return JSON.parse(readFileSync(statePath, 'utf8'));
 }
 
+// Written to a temp file and renamed over the old one, so a sync killed
+// mid-write (the watcher stops it when LMU starts) never leaves a truncated
+// state.json behind (pitlane #667).
 function saveState(state) {
   mkdirSync(work, {recursive: true});
-  writeFileSync(statePath, JSON.stringify(state));
+  const tmp = `${statePath}.tmp`;
+  writeFileSync(tmp, JSON.stringify(state));
+  renameSync(tmp, statePath);
 }
 
 function log(line) {
