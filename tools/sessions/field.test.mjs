@@ -113,6 +113,9 @@ test('encode: per-car deltas round-trip, gaps are null, no names', () => {
     pathLateral: [-1.2, 0.5, -1.1, -1, 0.4],
     x: [1, 2, 3, 4, 5],
     z: [-1, -2, -3, -4, -5],
+    // Heading 0 (along +z), +π/2 (along +x), just short of π; car 3 ends just past -π.
+    oriX: [0, 0, 1, 0.001, -0.001],
+    oriZ: [-1, -1, 0, 1, 1],
     place: [1, 2, 1, 1, 2],
     laps: [3, 3, 3, 3, 3],
     inPits: [0, 0, 0, 0, 1],
@@ -130,6 +133,10 @@ test('encode: per-car deltas round-trip, gaps are null, no names', () => {
   ]);
   assert.deepEqual(undelta(out.lapDistDm[0]), [1000, 1105, 1210]);
   assert.deepEqual(undelta(out.lapDistDm[1]), [500, null, 600]);
+  assert.equal(out.v, 2);
+  assert.deepEqual(undelta(out.yawCrad[0]), [0, 157, 314]);
+  // Car 3 ends just past the wrap, so it reads as about -π.
+  assert.deepEqual(undelta(out.yawCrad[1]), [0, null, -314]);
   assert.deepEqual(out.inPits[1], [0, null, 1]);
   assert.equal(JSON.stringify(out).includes('name'), false);
 });
@@ -164,7 +171,7 @@ test(
       ':memory:',
       `COPY (SELECT 1000 + u * 0.2 AS et, u AS "update", id AS mID, id = 1 AS mIsPlayer, ` +
         `id AS mPlace, 0 AS mTotalLaps, (u * 0.2 * 40 + (id - 1) * 30) AS mLapDist, 0.5 AS mPathLateral, ` +
-        `u * 1.0 AS mPos_x, -u * 1.0 AS mPos_z, false AS mInPits, 0 AS mFlag, ` +
+        `u * 1.0 AS mPos_x, -u * 1.0 AS mPos_z, 0.0 AS mOri_2_x, -1.0 AS mOri_2_z, false AS mInPits, 0 AS mFlag, ` +
         `CASE WHEN id = 1 THEN '911GT3R Custom Team 2025 #397' ELSE 'Iron Dames #85' END AS mVehicleName, ` +
         `CASE WHEN id = 1 THEN 'GT3' ELSE 'LMP2' END AS mVehicleClass, 'Somebody' AS mDriverName ` +
         `FROM range(300) r(u), (VALUES (1), (2)) c(id)) TO ${sqlPath(
