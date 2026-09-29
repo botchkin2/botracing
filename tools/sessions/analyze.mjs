@@ -27,7 +27,7 @@ import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 5;
+export const analysisVersion = 6;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
