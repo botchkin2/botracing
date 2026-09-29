@@ -33,6 +33,7 @@ export function LapTimeBars({
   medianLabel,
   stintBreaks,
   pits,
+  resets = [],
   onPressBar,
 }: {
   width: number;
@@ -44,6 +45,8 @@ export function LapTimeBars({
   stintBreaks: {afterIndex: number; label: string}[];
   /** Bar indexes (0-based) of pit-in laps. */
   pits: number[];
+  /** Bar indexes (0-based) of laps a reset to the garage cut short. */
+  resets?: number[];
   onPressBar: (key: string) => void;
 }) {
   const {color} = useTheme();
@@ -57,6 +60,28 @@ export function LapTimeBars({
   const yOf = (d: number) => mid - (d / rangeS) * half;
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
   const axis = {...typeScale.axis, fontSize: 9};
+  // STINT, PIT and RESET labels share the top rows; one that would run into
+  // the label before it drops a row (freeze, thread 32: laps 32–34).
+  const topLabels = placeTopLabels([
+    ...stintBreaks.map(b => ({
+      key: `s-${b.label}`,
+      x: (b.afterIndex + 1) * slot + 3,
+      text: b.label,
+      color: color.textFaint,
+    })),
+    ...pits.map(i => ({
+      key: `p-${i}`,
+      x: xOf(i) + barW / 2 + 3,
+      text: 'PIT',
+      color: color.accentInk,
+    })),
+    ...resets.map(i => ({
+      key: `r-${i}`,
+      x: xOf(i) + barW + 3.8,
+      text: 'RESET',
+      color: color.textMuted,
+    })),
+  ]);
 
   return (
     <View style={{width, height: height + AXIS_H}}>
@@ -64,24 +89,15 @@ export function LapTimeBars({
         {stintBreaks.map(b => {
           const x = (b.afterIndex + 1) * slot;
           return (
-            <G key={b.label}>
-              <Line
-                x1={x}
-                x2={x}
-                y1={0}
-                y2={height}
-                stroke={color.lineHeader}
-                strokeWidth={1}
-              />
-              <SvgText
-                x={x + 3}
-                y={9}
-                fill={color.textFaint}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
-                {b.label}
-              </SvgText>
-            </G>
+            <Line
+              key={b.label}
+              x1={x}
+              x2={x}
+              y1={0}
+              y2={height}
+              stroke={color.lineHeader}
+              strokeWidth={1}
+            />
           );
         })}
         <Line
@@ -96,27 +112,45 @@ export function LapTimeBars({
         {pits.map(i => {
           const x = xOf(i) + barW / 2;
           return (
-            <G key={`pit-${i}`}>
-              <Line
-                x1={x}
-                x2={x}
-                y1={TOP_PAD}
-                y2={height}
-                stroke={color.accent}
-                strokeWidth={1}
-                strokeDasharray={dash.pit}
-              />
-              <SvgText
-                x={x + 3}
-                y={TOP_PAD + 8}
-                fill={color.accentInk}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
-                PIT
-              </SvgText>
-            </G>
+            <Line
+              key={`pit-${i}`}
+              x1={x}
+              x2={x}
+              y1={TOP_PAD}
+              y2={height}
+              stroke={color.accent}
+              strokeWidth={1}
+              strokeDasharray={dash.pit}
+            />
           );
         })}
+        {/* A reset is not a pit stop: grey, long dashes, at the lap's end. */}
+        {resets.map(i => {
+          const x = xOf(i) + barW + 0.8;
+          return (
+            <Line
+              key={`reset-${i}`}
+              x1={x}
+              x2={x}
+              y1={TOP_PAD}
+              y2={height}
+              stroke={color.textMuted}
+              strokeWidth={1}
+              strokeDasharray={dash.mark}
+            />
+          );
+        })}
+        {topLabels.map(l => (
+          <SvgText
+            key={l.key}
+            x={l.x}
+            y={9 + l.row * LABEL_ROW}
+            fill={l.color}
+            fontFamily={axis.fontFamily}
+            fontSize={axis.fontSize}>
+            {l.text}
+          </SvgText>
+        ))}
         {bars.map((b, i) => {
           const x = xOf(i);
           if (b.excluded) {
@@ -196,3 +230,22 @@ export function LapTimeBars({
 }
 
 const styles = StyleSheet.create({hitRow: {flexDirection: 'row'}});
+
+const LABEL_ROW = 10;
+// Mono 9 pt glyphs are ~5.6 pt wide.
+const LABEL_CHAR_W = 5.6;
+
+type TopLabel = {key: string; x: number; text: string; color: string};
+
+/** Left to right, each label takes the first row where it clears the last. */
+function placeTopLabels(labels: TopLabel[]): (TopLabel & {row: number})[] {
+  const rowEnds: number[] = [];
+  return [...labels]
+    .sort((a, b) => a.x - b.x)
+    .map(l => {
+      let row = rowEnds.findIndex(end => end + 4 <= l.x);
+      if (row < 0) row = rowEnds.length;
+      rowEnds[row] = l.x + l.text.length * LABEL_CHAR_W;
+      return {...l, row};
+    });
+}
