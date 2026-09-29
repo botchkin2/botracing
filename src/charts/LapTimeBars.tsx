@@ -62,21 +62,17 @@ export function LapTimeBars({
   const axis = {...typeScale.axis, fontSize: 9};
   // STINT, PIT and RESET labels share the top rows; one that would run into
   // the label before it drops a row (freeze, thread 32: laps 32–34).
-  // Each stint label says why the stint started: a reset or a pit within
-  // NEAR_LAPS before it folds into it ("STINT 5 · PIT"), and loses its own
-  // text; the lines stay. Other resets and pits keep a short label.
+  // Each stint label says why the stint started: the lap before it was cut
+  // short by a reset, or a pit within NEAR_LAPS before it ("STINT 5 · PIT").
+  // That pit's own text folds in (its lines stay).
   const resetSet = new Set(resets);
-  // Within NEAR_LAPS either side of a stint boundary (the mid-stint reset
-  // at L19/L20 sits one lap after "STINT 3 · RESET").
-  const near = (i: number) =>
-    stintBreaks.some(b => Math.abs(b.afterIndex - i) < NEAR_LAPS);
+  const pitBefore = (afterIndex: number) =>
+    pits.some(i => afterIndex >= i && afterIndex - i < NEAR_LAPS);
   const why = (afterIndex: number) =>
-    resetSet.has(afterIndex)
-      ? 'RESET'
-      : pits.some(i => afterIndex >= i && afterIndex - i < NEAR_LAPS)
-      ? 'PIT'
-      : null;
-  const pitLabels = pits.filter(i => !pits.includes(i - 1) && !near(i));
+    resetSet.has(afterIndex) ? 'RESET' : pitBefore(afterIndex) ? 'PIT' : null;
+  const pitNearStint = (i: number) =>
+    stintBreaks.some(b => b.afterIndex >= i && b.afterIndex - i < NEAR_LAPS);
+  const pitLabels = pits.filter(i => !pits.includes(i - 1) && !pitNearStint(i));
   const topLabels = placeTopLabels(
     [
       ...stintBreaks.map(b => {
@@ -94,37 +90,33 @@ export function LapTimeBars({
         text: 'PIT',
         color: color.accentInk,
       })),
-      ...resets
-        .filter(i => !near(i))
-        .map(i => ({
-          key: `r-${i}`,
-          x: xOf(i) + barW + 3.8,
-          text: 'RESET',
-          color: color.textMuted,
-        })),
     ],
-    plotW,
+    // Labels may use the median gutter; only past the chart edge do they
+    // flip to end at their line.
+    width,
   );
 
   return (
     <View style={{width, height: height + AXIS_H}}>
       <Svg width={width} height={height + AXIS_H}>
-        {stintBreaks
-          .filter(b => !resetSet.has(b.afterIndex))
-          .map(b => {
-            const x = (b.afterIndex + 1) * slot;
-            return (
-              <Line
-                key={b.label}
-                x1={x}
-                x2={x}
-                y1={0}
-                y2={height}
-                stroke={color.lineHeader}
-                strokeWidth={1}
-              />
-            );
-          })}
+        {/* A stint a reset opened: grey long dashes, not the plain rule.
+            A reset inside a stint gets no line, only its tag (Botkin #609). */}
+        {stintBreaks.map(b => {
+          const x = (b.afterIndex + 1) * slot;
+          const reset = resetSet.has(b.afterIndex);
+          return (
+            <Line
+              key={b.label}
+              x1={x}
+              x2={x}
+              y1={0}
+              y2={height}
+              stroke={reset ? color.textMuted : color.lineHeader}
+              strokeWidth={1}
+              strokeDasharray={reset ? dash.mark : undefined}
+            />
+          );
+        })}
         <Line
           x1={0}
           x2={width}
@@ -146,22 +138,6 @@ export function LapTimeBars({
               stroke={color.accent}
               strokeWidth={1}
               strokeDasharray={dash.pit}
-            />
-          );
-        })}
-        {/* A reset is not a pit stop: grey, long dashes, at the lap's end. */}
-        {resets.map(i => {
-          const x = xOf(i) + barW + 0.8;
-          return (
-            <Line
-              key={`reset-${i}`}
-              x1={x}
-              x2={x}
-              y1={TOP_PAD}
-              y2={height}
-              stroke={color.textMuted}
-              strokeWidth={1}
-              strokeDasharray={dash.mark}
             />
           );
         })}
@@ -258,7 +234,7 @@ export function LapTimeBars({
 const styles = StyleSheet.create({hitRow: {flexDirection: 'row'}});
 
 const LABEL_ROW = 10;
-// A reset or pit this close to a stint boundary is named by its label.
+// A pit this many laps before a stint boundary is named by its label.
 const NEAR_LAPS = 3;
 // Mono 9 pt glyphs are ~5.6 pt wide.
 const LABEL_CHAR_W = 5.6;
