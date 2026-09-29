@@ -67,10 +67,12 @@ class Capture:
             "chunks": 0,
             "headerHash": layout.hash,
             "layoutBytes": layout.size,
+            "suspectFrames": 0,
             **meta,
         }
         write_json(self.dir / "meta.json", self.meta)
         self.chunk_started_ms = self.start_ms
+        self.bytes = 0
         self._reset()
 
     def _reset(self):
@@ -121,15 +123,17 @@ class Capture:
             _write_table(path, cols)
             written += path.stat().st_size
         self.meta["chunks"] = n + 1
+        self.bytes += written
         self.chunk_started_ms = ms if ms is not None else utc_ms()
         self._reset()
         return written
 
     def close(self, ms=None):
-        """Flush and mark the capture finished."""
-        self.flush(ms)
+        """Flush and mark the capture finished. Returns bytes written."""
+        written = self.flush(ms)
         self.meta["endUtc"] = iso(ms if ms is not None else utc_ms())
         write_json(self.dir / "meta.json", self.meta)
+        return written
 
 
 def dir_bytes(root):

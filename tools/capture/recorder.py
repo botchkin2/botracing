@@ -8,13 +8,17 @@ idles between. One instance per user. status.json in the root says what it is
 doing, for the uploader's heartbeat (pit-wall thread 30):
   {state: no-game | waiting | recording | refused | stopped, gameVersion,
    layoutOk, layoutReason, lastChunkAt, sessionDir, captureBytes, pid, updatedAt}
+sessionDir is the capture's folder name, relative to the root: the heartbeat
+is served without sign-in, so no user paths leave the PC.
 """
 
 import argparse
 import ctypes as C
+import math
 import os
 import shutil
 import signal
+import struct
 import sys
 import time
 from pathlib import Path
@@ -29,8 +33,16 @@ POLL_S = 0.004  # 250 Hz: every 100 Hz telemetry frame, at a few microseconds ea
 IDLE_S = 0.5
 NO_GAME_S = 5.0
 GAME_CHECK_MS = 5_000
-SESSION_GONE_MS = 30_000  # no scoring update this long: the session is over
+# No scoring update this long: the session is over. Long enough that a pause
+# or a garage wait with the clock frozen stays in one capture.
+SESSION_GONE_MS = 10 * 60_000
 STATUS_MS = 30_000
+RECOUNT_MS = 5 * 60_000  # recount disk use while idle: the uploader prunes old captures
+# A frame is suspect when speed changes faster than this between frames
+# (m/s per s, about 20 g) or the car moves further than speed allows. Counted,
+# not dropped: the first sessions tell us how often reads tear.
+SUSPECT_ACCEL = 200.0
+BELOW_NORMAL_PRIORITY_CLASS = 0x4000
 
 
 class Recorder:
@@ -50,6 +62,13 @@ class Recorder:
         self.last_player_et = None
         self.last_game_check = -GAME_CHECK_MS
         self._last_field = None
+        self._prev_motion = None  # (et, speed, x, y, z) of the last player frame
+        t = layout.telem
+        self._motion_at = (
+            t.mElapsedTime.offset,
+            t.mLocalVel.offset,
+            t.mPos.offset,
+        )
         self.status = {
             "state": "no-game",
             "gameVersion": None,
@@ -61,6 +80,8 @@ class Recorder:
             "pid": os.getpid(),
         }
         self.status_written = -STATUS_MS
+        self.recounted = -RECOUNT_MS
+        self.status["captureBytes"] = dir_bytes(self.root) if self.root.exists() else 0
 
     # Status -----------------------------------------------------------------
 
@@ -69,9 +90,18 @@ class Recorder:
         self.status.update(fields)
         if changed or now - self.status_written >= STATUS_MS:
             self.root.mkdir(parents=True, exist_ok=True)
-            self.status["captureBytes"] = dir_bytes(self.root)
             write_json(self.root / "status.json", {**self.status, "updatedAt": iso(now)})
             self.status_written = now
+
+    def _recount(self, now):
+        """Walk the capture root for its size. Only while no capture is open:
+        the walk grows with every capture kept, and must not stall recording."""
+        if now - self.recounted >= RECOUNT_MS:
+            self.recounted = now
+            self.status["captureBytes"] = dir_bytes(self.root)
+
+    def _add_bytes(self, n):
+        self.status["captureBytes"] += n
 
     # Captures ---------------------------------------------------------------
 
@@ -91,17 +121,19 @@ class Recorder:
         )
         self.key = key
         self.player_ok = None
-        self.set_status(now, state="recording", sessionDir=str(self.capture.dir))
+        self._prev_motion = None
+        self.set_status(now, state="recording", sessionDir=self.capture.dir.name)
 
     def _close_capture(self, now):
         if self.capture:
-            self.capture.close(now)
+            self._add_bytes(self.capture.close(now))
             self.set_status(now, lastChunkAt=iso(now))
         self.capture = None
         self.key = None
 
     def _refuse(self, now, key, reason):
         if self.capture:
+            self._add_bytes(-self.capture.bytes)
             shutil.rmtree(self.capture.dir, ignore_errors=True)
         self.capture = None
         self.key = None
@@ -119,6 +151,7 @@ class Recorder:
                 if self.reader:
                     self.reader.close()
                     self.reader = None
+                self._recount(now)
                 self.set_status(now, state="no-game")
                 return NO_GAME_S
         if self.reader is None:
@@ -140,11 +173,12 @@ class Recorder:
             self._player(now)
         if self.capture:
             if self.capture.due(now, self.chunk_ms):
-                self.capture.flush(now)
+                self._add_bytes(self.capture.flush(now))
                 self.set_status(now, lastChunkAt=iso(now))
             else:
                 self.set_status(now)
             return POLL_S
+        self._recount(now)
         if self.status["state"] not in ("refused",):
             self.set_status(now, state="waiting")
         else:
@@ -191,7 +225,25 @@ class Recorder:
             if self.player_ok is False:
                 self._refuse(now, self.key, reason)
                 return
+        if self._suspect(raw):
+            self.capture.meta["suspectFrames"] += 1
         self.capture.add_player(raw, now)
+
+    def _suspect(self, raw):
+        """Does this frame break physical continuity with the previous one?"""
+        et_at, vel_at, pos_at = self._motion_at
+        et = struct.unpack_from("<d", raw, et_at)[0]
+        vx, vy, vz = struct.unpack_from("<3d", raw, vel_at)
+        x, y, z = struct.unpack_from("<3d", raw, pos_at)
+        speed = math.sqrt(vx * vx + vy * vy + vz * vz)
+        prev, self._prev_motion = self._prev_motion, (et, speed, x, y, z)
+        if prev is None:
+            return False
+        dt = et - prev[0]
+        if not 0 < dt < 0.1:
+            return False  # a pause or a reset, not a torn read
+        moved = math.dist((x, y, z), prev[2:])
+        return abs(speed - prev[1]) / dt > SUSPECT_ACCEL or moved > max(speed, prev[1]) * dt * 2 + 1
 
 
 def _single_instance():
@@ -213,6 +265,10 @@ def main():
     if not _single_instance():
         print("another recorder is running", file=sys.stderr)
         return 0
+    if hasattr(C, "WinDLL"):
+        # Always yield to the game, the VR compositor and SimHub.
+        k32 = C.WinDLL("kernel32")
+        k32.SetPriorityClass(k32.GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS)
     layout = layout_mod.load(args.header_dir)
     rec = Recorder(
         layout,

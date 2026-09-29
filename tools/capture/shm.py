@@ -7,8 +7,10 @@ OpenFileMappingW first.
 No lock and no frame events. LMU's lock is shared with the game's writer, and
 a reader holding it stalls the game; its frame events may be auto-reset, in
 which case waiting on them would take frames from other tools (SimHub,
-CrewChief). Instead each copy is bracketed by two reads of the struct's clock,
-and a copy the game wrote into meanwhile is read again.
+CrewChief). The header has no update counters either, and the clock sits at
+the front of each struct, so a clock check alone can pass a half-written
+frame. Each frame is copied twice and kept only when both copies are
+identical (2 KB, a few microseconds).
 """
 
 import ctypes as C
@@ -68,6 +70,9 @@ class Reader:
     def _open(self):
         if not mapping_exists():
             raise OSError("LMU_Data is not there (game not running)")
+        # If the game exits between the check above and this line, Python
+        # creates an empty mapping under the game's name. The window is
+        # microseconds, and the next game check closes it.
         # Raises if the game's mapping is smaller than the header says.
         return mmap.mmap(-1, self.layout.size, tagname=MAPPING, access=mmap.ACCESS_READ)
 
@@ -98,12 +103,10 @@ class Reader:
             clock = self.player_clock()
             if clock is None:
                 return None
-            slot, before = clock
+            slot = clock[0]
             raw = self._read(slot, self.telem_size)
-            after = self._f64(slot + self.telem_et)
-            copied = struct.unpack_from("<d", raw, self.telem_et)[0]
-            if before == after == copied:
-                return raw, before
+            if raw == self._read(slot, self.telem_size):
+                return raw, struct.unpack_from("<d", raw, self.telem_et)[0]
         return None
 
     def scoring_clock(self):
@@ -113,14 +116,13 @@ class Reader:
         """(raw ScoringInfo, raw vehicles, vehicle count, ET), or None."""
         o = self.layout.offsets
         for _ in range(RETRIES):
-            before = self.scoring_clock()
             info = self._read(o["scoringInfo"], self.scoring_size)
             n = struct.unpack_from("<i", info, self.num_vehicles)[0]
             if not 0 <= n <= self.layout.max_vehicles:
                 return None
-            vehicles = self._read(o["vehScoringInfo"], n * self.veh_size)
-            after = self.scoring_clock()
-            copied = struct.unpack_from("<d", info, self.scoring_et)[0]
-            if before == after == copied:
-                return info, vehicles, n, before
+            span = n * self.veh_size
+            vehicles = self._read(o["vehScoringInfo"], span)
+            same = info == self._read(o["scoringInfo"], self.scoring_size)
+            if same and vehicles == self._read(o["vehScoringInfo"], span):
+                return info, vehicles, n, struct.unpack_from("<d", info, self.scoring_et)[0]
         return None

@@ -30,7 +30,13 @@ LMU needs **Settings → Gameplay → Enable Plugins** (the shared memory is a p
 - `field-NNNN.parquet`: one row per car per scoring update, plus `update` (the update's index in the chunk) and `et` (session clock).
 - `session-NNNN.parquet`: one row per scoring update: flags, weather, phase.
 
-Every row has `wall_ms` (UTC epoch ms), for joining with the `.duckdb` and the trace-log event.
+Every row has `wall_ms` (UTC epoch ms): the poll time, so up to ~4 ms after the game wrote the frame. Use it to match captures to the `.duckdb` and the trace-log event, and use the game's clocks (`mElapsedTime`, `et`) for ordering and anything finer.
+
+`meta.json` also counts `suspectFrames`: player frames whose speed or position jumps more than physics allows since the previous frame. Each frame is copied twice and kept only when both copies match, so this should stay near 0; the count is how we find out.
+
+A pause, or a garage wait with the clock stopped, stays in one capture for up to 10 minutes. After that, or on a new session, a restart or the game closing, the capture ends and the next one starts a new folder. The uploader should expect several captures for one game session.
+
+The recorder runs at below-normal priority so it always yields to the game, the VR compositor and SimHub.
 
 `status.json` in the root: `{state: no-game | waiting | recording | refused | stopped, gameVersion, layoutOk, layoutReason, lastChunkAt, sessionDir, captureBytes, pid, updatedAt}`. It is rewritten on change and every 30 s, so a stale `updatedAt` means the recorder is not running. The uploader copies it into its heartbeat.
 

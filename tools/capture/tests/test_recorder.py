@@ -96,3 +96,45 @@ def test_new_session_starts_a_new_capture(lay, game, tmp_path):
     drive(rec, game, now + 1000, 0.5)
     caps = sorted(p.name for p in tmp_path.iterdir() if p.is_dir())
     assert len(caps) == 2 and caps[1].endswith("_11")
+
+
+def test_status_paths_are_relative_and_bytes_add_up(lay, game, tmp_path):
+    rec = make(lay, game, tmp_path)
+    drive(rec, game, 0, 1.5)
+    s = status(tmp_path)
+    (cap,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    assert s["sessionDir"] == cap.name
+    on_disk = sum(p.stat().st_size for p in cap.glob("*.parquet"))
+    assert s["captureBytes"] == on_disk > 0
+
+
+def test_a_jump_counts_as_suspect(lay, game, tmp_path):
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 0.3)
+    game.obj.telemetry.telemInfo[1].mPos.x += 500.0  # 500 m in one 10 ms frame
+    now = drive(rec, game, now, 0.1)
+    assert rec.capture.meta["suspectFrames"] == 1
+
+
+class Tearing(bytearray):
+    """A view whose first slice of `size` bytes comes back half-written."""
+
+    def __init__(self, data, size):
+        super().__init__(data)
+        self.size, self.torn = size, 1
+
+    def __getitem__(self, key):
+        out = super().__getitem__(key)
+        if isinstance(key, slice) and len(out) == self.size and self.torn:
+            self.torn -= 1
+            return bytes(len(out) // 2) + out[len(out) // 2 :]
+        return out
+
+
+def test_a_torn_copy_is_read_again(lay, game):
+    import ctypes as C
+
+    view = Tearing(game.view, C.sizeof(lay.telem))
+    raw, et = shm.Reader(lay, view=view).player()
+    assert raw == bytes(game.obj.telemetry.telemInfo[1])
+    assert view.torn == 0
