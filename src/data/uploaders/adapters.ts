@@ -4,7 +4,7 @@
 export type UploaderState =
   | 'idle'
   | 'waiting-for-game'
-  | 'recording'
+  | 'in-game'
   | 'syncing'
   | 'error';
 
@@ -41,7 +41,7 @@ export type UploadersResponse = {items: unknown[]};
 const STATES: readonly UploaderState[] = [
   'idle',
   'waiting-for-game',
-  'recording',
+  'in-game',
   'syncing',
   'error',
 ];
@@ -71,7 +71,8 @@ export function toUploader(raw: unknown): Uploader {
   const rec = x.recorder == null ? null : obj(x.recorder);
   return {
     hostId,
-    host: str(x.host) ?? hostId,
+    // A label from the uploader's config ("Race PC"); hostId is a hash.
+    host: str(x.label) ?? hostId,
     version: str(x.version) ?? '',
     lmuFound: x.lmuFound === true,
     state: STATES.includes(state as UploaderState)
