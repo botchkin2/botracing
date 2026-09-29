@@ -1,0 +1,46 @@
+// Run: node --test tools/uploader/
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {decide} from './trigger.mjs';
+
+const MIN = 60 * 1000;
+const base = {
+  gameRunning: false,
+  wasRunning: false,
+  newestMtimeMs: 100 * MIN,
+  lastRunAtMs: 50 * MIN,
+  nowMs: 101 * MIN,
+};
+
+test('runs when the game exits after writing telemetry', () => {
+  assert.deepEqual(decide({...base, wasRunning: true}), {
+    run: true,
+    reason: 'game exited',
+  });
+});
+
+test('runs on new telemetry with no game, e.g. at logon after a crash', () => {
+  assert.equal(decide({...base, lastRunAtMs: null}).run, true);
+});
+
+test('does nothing when nothing changed since the last sync', () => {
+  assert.equal(decide({...base, lastRunAtMs: 100 * MIN}).run, false);
+  assert.equal(decide({...base, newestMtimeMs: null}).run, false);
+});
+
+test('never syncs while the game runs, however long it is quiet', () => {
+  assert.equal(
+    decide({...base, gameRunning: true, wasRunning: true, nowMs: 500 * MIN})
+      .run,
+    false,
+  );
+});
+
+test('a failed sync waits for its retry time, then runs again with nothing new', () => {
+  const failed = {...base, lastRunAtMs: 200 * MIN, retryAtMs: 230 * MIN};
+  assert.equal(decide({...failed, nowMs: 210 * MIN}).run, false);
+  assert.deepEqual(decide({...failed, nowMs: 231 * MIN}), {
+    run: true,
+    reason: 'retry',
+  });
+});

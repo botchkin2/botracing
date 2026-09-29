@@ -4,6 +4,7 @@ import {existsSync, readFileSync} from 'fs';
 import {join} from 'path';
 import {
   listLaps,
+  listUploaders,
   listTracks,
   readTrace,
   readTrackMap,
@@ -107,6 +108,10 @@ export const lmuApi = onRequest(async (req, res) => {
   try {
     // API v2, shaped for the redesigned screens (Sessions, Session, Compare,
     // Corner). Straight from the store, no legacy lap shape.
+    if (/\/uploaders$/.test(path)) {
+      res.status(200).json({items: await listUploaders()});
+      return;
+    }
     if (/\/sessions$/.test(path)) {
       const age = Number(req.query.age);
       const items = await listSessions({

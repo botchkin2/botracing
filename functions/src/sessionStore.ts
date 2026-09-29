@@ -102,6 +102,12 @@ export async function storeHasSessions(): Promise<boolean> {
   return !snap.empty;
 }
 
+// Status of each PC uploader (tools/uploader/heartbeat.mjs writes them).
+export async function listUploaders(): Promise<any[]> {
+  const snap = await admin.firestore().collection('uploaders').get();
+  return snap.docs.map(doc => ({hostId: doc.id, ...doc.data()}));
+}
+
 // Tracks the owner has driven, for the track picker.
 export async function listTracks(): Promise<any[]> {
   const byId = new Map<number, any>();
