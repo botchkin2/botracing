@@ -28,7 +28,11 @@ export type Uploader = {
     state: string;
     gameVersion: string | null;
     layoutOk: boolean;
+    /** Why the recorder refused to write, when it did. */
+    layoutReason: string | null;
     lastChunkAt: number | null;
+    /** When the recorder last wrote its status (freshness). */
+    updatedAt: number | null;
   } | null;
 };
 
@@ -94,9 +98,14 @@ export function toUploader(raw: unknown): Uploader {
     recorder: rec
       ? {
           state: str(rec.state) ?? 'idle',
-          gameVersion: str(rec.gameVersion),
+          // The game reports its version as a number.
+          gameVersion:
+            str(rec.gameVersion) ??
+            (num(rec.gameVersion) != null ? String(rec.gameVersion) : null),
           layoutOk: rec.layoutOk !== false,
+          layoutReason: str(rec.layoutReason),
           lastChunkAt: time(rec.lastChunkAt),
+          updatedAt: time(rec.updatedAt),
         }
       : null,
   };

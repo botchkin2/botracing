@@ -21,13 +21,20 @@ describe('toUploader', () => {
         path: 'D:/capture',
       },
       disk: {captureBytes: 5e9, freeBytes: 2e11},
-      recorder: {state: 'recording', gameVersion: '1.2.3', layoutOk: false},
+      recorder: {
+        state: 'refused',
+        gameVersion: 1234,
+        layoutOk: false,
+        layoutReason: 'x',
+      },
     });
     expect(u.recorder).toEqual({
-      state: 'recording',
-      gameVersion: '1.2.3',
+      state: 'refused',
+      gameVersion: '1234',
       layoutOk: false,
+      layoutReason: 'x',
       lastChunkAt: null,
+      updatedAt: null,
     });
     expect(u.lastSeenAt).toBe(Date.parse('2026-09-28T20:00:00Z'));
     expect(u.lastUploadAt).toBe(1790000000000);
