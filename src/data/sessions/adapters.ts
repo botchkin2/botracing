@@ -158,6 +158,9 @@ export type Lap = {
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
+  /** The lap a reset to the garage cut short (tools/sessions/fileChange,
+   *  PR #68); absent before the resync, read as false. */
+  endedInReset: boolean;
   offTrackS: number;
   /** Contact on this lap. LMU records a flag, not a magnitude. */
   hadImpact: boolean;
@@ -201,6 +204,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     reasons: Array.isArray(raw.reasons) ? raw.reasons.map(r => str(r)) : [],
     pitIn: raw.pitIn === true,
     pitOut: raw.pitOut === true,
+    endedInReset: raw.endedInReset === true,
     partial: raw.partial === true || raw.incomplete === true,
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,

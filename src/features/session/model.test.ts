@@ -57,6 +57,17 @@ describe('buildSessionModel', () => {
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });
 
+  it('a lap cut short by a reset reads RESET, and marks the chart', () => {
+    const raw = fixture.laps.map((l, i) =>
+      i === 12 ? {...l, partial: true, endedInReset: true} : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    const codes = lapRow(r, 'L13').tags.map(t => t.code);
+    expect(codes).toContain('RESET');
+    expect(codes).not.toContain('PART');
+    expect(r.chart?.resets).toEqual([13]);
+  });
+
   it('tags pit, partial, slow, off-track and best laps', () => {
     expect(lapRow(m, 'L17').tags.map(t => t.code)).toContain('IN');
     expect(lapRow(m, 'L18').tags.map(t => t.code)).toContain('OUT');

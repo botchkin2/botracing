@@ -38,7 +38,7 @@ const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
+  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
 
 export type {Selection} from './model';
 
@@ -187,6 +187,7 @@ function SessionView({
             label: b.label,
           }))}
           pits={model.chart.pits.map(i => i - 1)}
+          resets={model.chart.resets.map(i => i - 1)}
           onPressBar={id => highlight(id, true)}
         />
       </View>
