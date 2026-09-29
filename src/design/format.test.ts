@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   formatCornerGap,
   formatDistance,
+  formatLength,
   formatGap,
   formatLapTime,
 } from './format';
@@ -21,5 +22,11 @@ describe('format', () => {
   });
   it('distance', () => {
     expect(formatDistance(2150.4)).toBe('2,150 m');
+  });
+});
+
+describe('formatLength', () => {
+  it('gives km and miles to the metre', () => {
+    expect(formatLength(5891)).toEqual({km: '5.891 km', mi: '3.660 mi'});
   });
 });

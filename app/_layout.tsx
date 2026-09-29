@@ -13,6 +13,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import 'react-native-reanimated';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
+import {trackInfo} from '@/src/data/tracks';
 import {
   firstCornerOf,
   trackCorners,
@@ -34,6 +35,7 @@ import {
   parseSelection,
   sessionHref,
   settingsHref,
+  tracksHref,
 } from '@/src/nav/routes';
 import {AppChrome, type ChromeTab, Text, type WorkspaceTab} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
@@ -101,6 +103,16 @@ function activeTab(pathname: string): WorkspaceTab | null {
 function DesktopChrome() {
   const pathname = usePathname();
   const {id} = useGlobalSearchParams<{id?: string}>();
+  if (pathname === '/tracks' || pathname.startsWith('/track/')) {
+    const layout = id ? trackInfo(id)?.layout : null;
+    return (
+      <ChromeBar
+        sessionId={null}
+        tab='tracks'
+        context={layout ? `LMU · ${layout}` : 'LMU'}
+      />
+    );
+  }
   const sessionId = activeTab(pathname) ? id : undefined;
   return sessionId ? (
     <SessionChrome sessionId={sessionId} tab={activeTab(pathname)} />
@@ -179,6 +191,11 @@ function ChromeBar({
       onPress: sessionId
         ? () => router.navigate(cornerHref(sessionId, cornerN, sel))
         : undefined,
+    },
+    {
+      key: 'tracks',
+      label: 'Tracks',
+      onPress: () => router.navigate(tracksHref()),
     },
   ];
   return (

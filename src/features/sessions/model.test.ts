@@ -9,6 +9,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   trackId: 'portimao',
   track: 'Michelin Raceway Road Atlanta',
   car: 'Manthey DK Engineering 2026 #91:LM',
+  carClass: 'GT3',
   sessionType: 'R',
   startedAt: '2026-09-27T21:40:00',
   lapCount: 42,
@@ -18,6 +19,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   bestLapId: null,
   series: null,
   eventId: null,
+  cornerMapSource: 'stored',
   updatedAt: '2026-09-27T23:00:00Z',
   ...over,
 });

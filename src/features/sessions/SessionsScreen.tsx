@@ -9,7 +9,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
-import {sessionHref, settingsHref} from '@/src/nav/routes';
+import {sessionHref, settingsHref, tracksHref} from '@/src/nav/routes';
 import {Badge, Button, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
@@ -20,6 +20,7 @@ const LIST_MAX_WIDTH = 760;
 
 export function SessionsScreen() {
   const model = useSessionsModel();
+  const router = useRouter();
   const {color} = useTheme();
   const layout = useLayout();
   // A list reads badly at 1200 pt; cap it on desktop.
@@ -35,6 +36,15 @@ export function SessionsScreen() {
       <View style={[styles.column, {width: contentWidth}]}>
         <View style={styles.header}>
           <Text variant='display'>Sessions</Text>
+          <Pressable
+            accessibilityRole='link'
+            onPress={() => router.push(tracksHref())}
+            hitSlop={space.md}
+            style={styles.tracksLink}>
+            <Text variant='body' tone='accentInk'>
+              Tracks ›
+            </Text>
+          </Pressable>
           {/* Sim/track/car filter picker comes with the filter work; label only for now. */}
           <View style={[styles.picker, {borderColor: color.lineStrong}]}>
             <Text variant='dataStrong'>LMU · all tracks ▾</Text>
@@ -203,6 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
+  tracksLink: {marginLeft: 'auto', marginRight: space.lg},
   picker: {
     height: size.chip,
     paddingHorizontal: space.md,

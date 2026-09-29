@@ -184,6 +184,7 @@ const SESSION_LIST_FIELDS = [
   'medianLapTime',
   'stdevLapTime',
   'bestLapId',
+  'trackMapSource',
   'stints',
   'series',
   'eventId',

@@ -87,6 +87,8 @@ export type TrayModel = {
 export type SessionScreenModel = {
   title: string;
   subtitle: string;
+  /** For the link to the layout's Track page. */
+  trackId: string;
   facts: Fact[];
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
@@ -309,6 +311,7 @@ export function buildSessionModel(
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
   return {
+    trackId: session.trackId,
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
       session.track,
     )}`,

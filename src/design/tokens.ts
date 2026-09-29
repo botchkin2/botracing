@@ -198,6 +198,9 @@ export const type = {
     textTransform: 'uppercase' as const,
   },
   axis: {fontFamily: fonts.monoMedium, fontSize: 9.5, ...tabular},
+  // Track page (Track page handoff): the layout name and the fact values.
+  pageTitle: {fontFamily: fonts.sansBold, fontSize: 22, lineHeight: 25},
+  factValue: {fontFamily: fonts.monoMedium, fontSize: 15, ...tabular},
   // Map attribution, 9 pt (handoff v2 M1).
   attribution: {fontFamily: fonts.sans, fontSize: 9},
 } as const;
@@ -240,6 +243,15 @@ export const size = {
   distRow: 30,
   divergeHalf: 84,
   divergeRow: 21,
+  // Track page (Track page handoff T1 and 05): map heights, the desktop
+  // columns 780 | 300 | 360, corner rows, the trend strip.
+  trackMapPhone: 262,
+  trackMapDesk: 600,
+  trackColMap: 780,
+  trackColCorners: 300,
+  trackColHistory: 360,
+  cornerRowDesk: 30,
+  trendHeight: 70,
 } as const;
 export const chartHeight = {
   compare: {

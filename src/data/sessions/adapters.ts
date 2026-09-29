@@ -10,6 +10,8 @@ export type SessionSummary = {
   trackId: string;
   track: string;
   car: string;
+  /** LMU's class for the car ("GT3", "Hyper"); empty when not recorded. */
+  carClass: string;
   sessionType: SessionType;
   startedAt: string;
   lapCount: number;
@@ -19,6 +21,12 @@ export type SessionSummary = {
   bestLapId: string | null;
   series: string | null;
   eventId: string | null;
+  /**
+   * Where the session's corners came from: the track's stored map
+   * ('stored', or 'new' when this session created it), or a map of its own
+   * ('session') that other screens and sessions do not share.
+   */
+  cornerMapSource: 'stored' | 'new' | 'session' | null;
   updatedAt: string;
 };
 
@@ -31,6 +39,9 @@ const str = (v: unknown, fallback = ''): string =>
 const num = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
 
+const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+
 /** Track and car arrive as {name, ...} objects. */
 const name = (v: unknown): string =>
   typeof v === 'string'
@@ -38,6 +49,10 @@ const name = (v: unknown): string =>
     : v && typeof v === 'object' && 'name' in v
     ? str((v as {name: unknown}).name)
     : '';
+
+function toCornerMapSource(v: unknown): SessionSummary['cornerMapSource'] {
+  return v === 'stored' || v === 'new' || v === 'session' ? v : null;
+}
 
 function toSessionType(v: unknown): SessionType {
   const t = str(v).toLowerCase();
@@ -53,6 +68,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     trackId: str(raw.trackId),
     track: name(raw.track),
     car: name(raw.car),
+    carClass: str(obj(raw.car).class),
     sessionType: toSessionType(raw.sessionType),
     startedAt: str(raw.startedAt),
     lapCount: num(raw.lapCount) ?? 0,
@@ -62,6 +78,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     bestLapId: str(raw.bestLapId) || null,
     series: str(raw.series) || null,
     eventId: str(raw.eventId) || null,
+    cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),
   };
 }
@@ -87,9 +104,6 @@ export type SessionDetail = SessionSummary & {
   trackVariant: string;
   stints: Stint[];
 };
-
-const obj = (v: unknown): Record<string, unknown> =>
-  v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];

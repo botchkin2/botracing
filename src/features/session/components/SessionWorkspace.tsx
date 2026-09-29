@@ -1,7 +1,16 @@
 import {type ReactNode, useEffect, useRef} from 'react';
-import {FlatList, Platform, ScrollView, StyleSheet, View} from 'react-native';
+import {useRouter} from 'expo-router';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import {size, space, useLayout, useTheme} from '@/src/design';
+import {trackHref} from '@/src/nav/routes';
 import {Explainer, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
@@ -51,6 +60,7 @@ export function SessionWorkspace({
   tagKey: string;
 }) {
   const {color} = useTheme();
+  const router = useRouter();
   const layout = useLayout();
   const listRef = useRef<FlatList<RowModel>>(null);
   // layout.width already excludes the rail (the route's ContentInset).
@@ -87,9 +97,25 @@ export function SessionWorkspace({
             <Text variant='display' style={styles.title} numberOfLines={1}>
               {model.title}
             </Text>
-            <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
-              {model.subtitle}
-            </Text>
+            <View style={styles.subRow}>
+              <Text
+                variant='dataSmall'
+                tone='textMuted'
+                numberOfLines={1}
+                style={styles.subtitle}>
+                {model.subtitle}
+              </Text>
+              {model.trackId ? (
+                <Pressable
+                  accessibilityRole='link'
+                  onPress={() => router.push(trackHref(model.trackId))}
+                  hitSlop={space.md}>
+                  <Text variant='dataSmall' tone='accentInk'>
+                    Track page ›
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
           <View style={styles.facts}>
             {model.facts.map(f => (
@@ -203,6 +229,8 @@ const styles = StyleSheet.create({
   },
   titleBlock: {flexShrink: 1, gap: space.xxs},
   title: {fontSize: 22},
+  subRow: {flexDirection: 'row', alignItems: 'center', gap: space.md},
+  subtitle: {flexShrink: 1},
   facts: {marginLeft: 'auto', flexDirection: 'row', gap: space.xxl},
   factValue: {fontSize: 15},
   chart: {paddingHorizontal: PAD_X, paddingTop: space.lg, gap: space.xs},

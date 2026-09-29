@@ -1,6 +1,6 @@
 import {useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {Circle, Line, Path, Text as SvgText} from 'react-native-svg';
+import Svg, {Circle, G, Line, Path, Text as SvgText} from 'react-native-svg';
 
 import {keepClear} from '@/src/analysis/labelPlace';
 import {
@@ -54,6 +54,18 @@ const HIT = 44;
 const MONO_EM = 0.62;
 const SECTION_FONT = 10;
 const CORNER_FONT = 8.5;
+// Track page badges and start/finish (Track page handoff T1/05): 20 pt
+// circles 22 pt outside the line on desktop, 17 pt and 15 pt on the phone.
+const SF_HALF = 11;
+const SF_W = 2.5;
+const SF_LABEL_OFFSET = 24;
+
+/** Numbered corner circles that select a corner, instead of C labels. */
+export type CornerBadges = {
+  size: 'small' | 'large';
+  selected: number | null;
+  onPress: (n: number) => void;
+};
 
 export function TrackMap({
   width,
@@ -65,6 +77,8 @@ export function TrackMap({
   marks,
   openSection,
   onPressSection,
+  badges,
+  startFinish,
 }: {
   width: number;
   height: number;
@@ -77,6 +91,9 @@ export function TrackMap({
   marks: MapMarks;
   openSection: number | null;
   onPressSection: (n: number) => void;
+  badges?: CornerBadges;
+  /** A tick across the line at start/finish, labelled S/F outside it. */
+  startFinish?: MapAnchor | null;
 }) {
   const {color} = useTheme();
 
@@ -166,7 +183,10 @@ export function TrackMap({
     // Corner and PIT labels that would sit on another part of the track
     // (two straights side by side) are left out; section labels stay, since
     // they are the tap targets.
-  ].filter(bandClear);
+  ]
+    // Badges draw every corner themselves.
+    .filter(l => !(badges && l.kind === 'corner'))
+    .filter(bandClear);
   const textOf = (l: Label) =>
     l.kind === 'section' ? `S${l.n}` : l.kind === 'corner' ? `C${l.n}` : 'PIT';
   const kept = keepClear(
@@ -183,6 +203,21 @@ export function TrackMap({
     2,
   ).map(i => candidates[i]);
   const sectionLabels = kept.filter(l => l.kind === 'section');
+  // S/F sits outside the loop unless that runs off the map; then inside.
+  const sfLabel = startFinish
+    ? (() => {
+        const out = off(startFinish, -SF_LABEL_OFFSET);
+        const fits =
+          out.x > PAD &&
+          out.x < width - PAD &&
+          out.y > PAD &&
+          out.y < height - PAD;
+        return {
+          anchor: startFinish,
+          ...(fits ? out : off(startFinish, SF_LABEL_OFFSET)),
+        };
+      })()
+    : null;
 
   return (
     <View style={{width, height}}>
@@ -294,6 +329,54 @@ export function TrackMap({
               {textOf(l)}
             </SvgText>
           ))}
+        {sfLabel && (
+          <>
+            <Line
+              x1={off(sfLabel.anchor, SF_HALF).x}
+              y1={off(sfLabel.anchor, SF_HALF).y}
+              x2={off(sfLabel.anchor, -SF_HALF).x}
+              y2={off(sfLabel.anchor, -SF_HALF).y}
+              stroke={color.text}
+              strokeWidth={SF_W}
+            />
+            <SvgText
+              x={sfLabel.x}
+              y={sfLabel.y + 3.5}
+              textAnchor='middle'
+              fill={color.mapLabel}
+              fontFamily={fonts.monoBold}
+              fontSize={SECTION_FONT}>
+              S/F
+            </SvgText>
+          </>
+        )}
+        {badges &&
+          marks.corners.map(c => {
+            const b = BADGE[badges.size];
+            const at = off(c.anchor, -b.offset);
+            const on = c.n === badges.selected;
+            return (
+              <G key={`b${c.n}`}>
+                <Circle
+                  cx={at.x}
+                  cy={at.y}
+                  r={b.d / 2 - 0.5}
+                  fill={on ? color.accent : color.surfaceRaised}
+                  stroke={on ? color.accent : color.median}
+                  strokeWidth={1}
+                />
+                <SvgText
+                  x={at.x}
+                  y={at.y + b.font * 0.36}
+                  textAnchor='middle'
+                  fill={on ? color.bg : color.mapLabel}
+                  fontFamily={fonts.monoBold}
+                  fontSize={b.font}>
+                  {String(c.n)}
+                </SvgText>
+              </G>
+            );
+          })}
         {dots.map(d => {
           const q = fit(d.at);
           return (
@@ -319,9 +402,28 @@ export function TrackMap({
           style={[styles.hit, {left: s.at.x - HIT / 2, top: s.at.y - HIT / 2}]}
         />
       ))}
+      {badges &&
+        marks.corners.map(c => {
+          const at = off(c.anchor, -BADGE[badges.size].offset);
+          return (
+            <Pressable
+              key={`bhit${c.n}`}
+              accessibilityRole='button'
+              accessibilityLabel={`Corner ${c.n}`}
+              accessibilityState={{selected: c.n === badges.selected}}
+              onPress={() => badges.onPress(c.n)}
+              style={[styles.hit, {left: at.x - HIT / 2, top: at.y - HIT / 2}]}
+            />
+          );
+        })}
     </View>
   );
 }
+
+const BADGE = {
+  large: {d: 20, offset: 22, font: 10},
+  small: {d: 17, offset: 15, font: 9},
+};
 
 const styles = StyleSheet.create({
   hit: {position: 'absolute', width: HIT, height: HIT},
