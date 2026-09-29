@@ -138,6 +138,9 @@ function CompareView({
   const router = useRouter();
   const prefs = useComparePrefs();
   const [editing, setEditing] = useState(false);
+  // Phone: chart tabs, overlay pills and the explainer sit behind the
+  // Charts row until opened (round 3, pit-wall thread 27 #766).
+  const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
 
   const count = selection.laps.length;
@@ -442,9 +445,21 @@ function CompareView({
         styles.chartsBar,
         {backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
-      <Text variant='label' tone='textMuted'>
-        Charts
-      </Text>
+      {layout.isDesktop ? (
+        <Text variant='label' tone='textMuted'>
+          Charts
+        </Text>
+      ) : (
+        <Pressable
+          accessibilityRole='button'
+          accessibilityState={{expanded: chartsOpen}}
+          hitSlop={space.md}
+          onPress={() => setChartsOpen(o => !o)}>
+          <Text variant='label' tone='textMuted'>
+            {chartsOpen ? 'Charts ▾' : 'Charts ▸'}
+          </Text>
+        </Pressable>
+      )}
       {!layout.isDesktop && (
         <Segment
           options={[
@@ -469,7 +484,7 @@ function CompareView({
     </View>
   );
 
-  const oneChartTabs = oneChart && focusedChart && (
+  const oneChartTabs = oneChart && chartsOpen && focusedChart && (
     <View style={styles.oneTabs}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.chipsRow}>
@@ -555,11 +570,13 @@ function CompareView({
     <View style={styles.charts}>
       {chartsBar}
       {oneChartTabs}
-      <Explainer>
-        {windowed
-          ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below. Lines join the recorded samples; their positions come from integrated speed.'
-          : 'Drag any chart to move through the lap. The cursor, map dots and values follow it.'}
-      </Explainer>
+      {(layout.isDesktop || chartsOpen) && (
+        <Explainer>
+          {windowed
+            ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below. Lines join the recorded samples; their positions come from integrated speed.'
+            : 'Drag any chart to move through the lap. The cursor, map dots and values follow it.'}
+        </Explainer>
+      )}
       {chartList}
     </View>
   );
