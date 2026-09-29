@@ -34,7 +34,8 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
-import {RETRY_MIN, decide} from './trigger.mjs';
+import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
+import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const syncScript = resolve(here, '../sessions/sync.mjs');
@@ -146,7 +147,7 @@ function runSync() {
     } catch {
       // Priority is a courtesy; the sync still runs.
     }
-    const result = {sessions: [], done: 0, failed: 0, errors: []};
+    const result = newSyncResult();
     let buffer = '';
     const onData = chunk => {
       buffer += chunk;
@@ -154,11 +155,7 @@ function runSync() {
       buffer = lines.pop();
       for (const line of lines) {
         log(`  sync | ${line}`);
-        const session = line.match(/^([0-9a-f]{16}) /);
-        if (session) result.sessions.push(session[1]);
-        if (/^\s+failed: /.test(line)) result.errors.push(line.trim());
-        const end = line.match(/^done (\d+), failed (\d+)/);
-        if (end) [result.done, result.failed] = [+end[1], +end[2]];
+        readSyncLine(result, line);
       }
     };
     child.stdout.setEncoding('utf8').on('data', onData);
@@ -202,7 +199,10 @@ async function main() {
       lmuFound: recs != null,
       state,
       watch,
-      queue: recs?.newer ?? 0,
+      queue: queueCount({
+        pendingFiles: recs?.newer ?? 0,
+        failedSessions: watch.failedSessions,
+      }),
       freeBytes,
       recorder: readJson(recorderStatus, null),
       nowMs: Date.now(),
@@ -245,8 +245,12 @@ async function main() {
         }
         // A failed session is retried later. sync.mjs redoes only what is not
         // stored yet, so a retry costs just the failures.
+        // Every sync retries all failures, so this pass's list replaces the last.
+        watch.failedSessions = r.failedIds;
         if (r.failed || r.code) {
-          watch.retryAtMs = Date.now() + RETRY_MIN * 60 * 1000;
+          watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
+          watch.retryAtMs =
+            Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
           watch.lastError = {
             at: new Date().toISOString(),
             message: r.errors[0] ?? `sync exited with code ${r.code}`,
@@ -255,6 +259,7 @@ async function main() {
         } else {
           watch.lastRunAtMs = startedMs;
           watch.retryAtMs = null;
+          watch.failuresInRow = 0;
           watch.lastError = null;
         }
         save();
