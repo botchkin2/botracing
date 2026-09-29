@@ -1,0 +1,161 @@
+// Run: node --test tools/sessions/fieldTags.test.mjs
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {encode} from './field.mjs';
+import {decodeField, lapFieldFacts} from './fieldTags.mjs';
+
+const DT = 0.2;
+const cars = [
+  {id: 0, class: 'GT3', vehicle: 'A', player: true},
+  {id: 1, class: 'GT3', vehicle: 'B', player: false},
+  {id: 2, class: 'GT3', vehicle: 'C', player: false},
+  // Parked far away: only makes the lap 4000 m long for the wrap maths.
+  {id: 3, class: 'GT3', vehicle: 'D', player: false},
+];
+
+// rows(u) -> {0: {lapDist, lane, flag, inPits}, 1: ...} for update u.
+function build(n, rows) {
+  const r = {
+    et: [], id: [], lapDist: [], pathLateral: [], x: [], z: [],
+    place: [], laps: [], inPits: [], flag: [],
+  };
+  for (let u = 0; u < n; u++) {
+    const now = rows(u);
+    for (const c of cars) {
+      const v = now[c.id];
+      if (!v) continue;
+      r.et.push(10 + u * DT);
+      r.id.push(c.id);
+      r.lapDist.push(v.lapDist);
+      r.pathLateral.push(v.lane ?? 0);
+      r.x.push(0);
+      r.z.push(0);
+      r.place.push(c.id + 1);
+      r.laps.push(1);
+      r.inPits.push(v.inPits ? 1 : 0);
+      r.flag.push(v.flag ?? 0);
+    }
+  }
+  return encode(r, cars);
+}
+const V = 250 / 3.6; // player speed, m/s
+const me = u => ({lapDist: 100 + u * V * DT, lane: 0});
+const far = {lapDist: 4000, lane: 30};
+const all = {from: 0, to: 1e9};
+
+test('decodeField gives metres and null where a car is absent', () => {
+  const f = build(3, u => ({0: me(u), 3: far, ...(u === 1 ? {1: me(u)} : {})}));
+  const d = decodeField(f);
+  assert.equal(d.cars[1].lapDistM[0], null);
+  assert.equal(d.cars[1].lapDistM[1], Math.round(me(1).lapDist * 10) / 10);
+  assert.equal(d.etS[2], 10.4);
+});
+
+test('draft: a car 20 m ahead in the lane above 200 km/h, counted from the second update', () => {
+  const f = build(20, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist + 20, lane: 1.5},
+    3: far,
+  }));
+  const [t] = lapFieldFacts(f, [all]);
+  assert.equal(t.draftS, 3.8); // 19 updates with a speed
+  assert.equal(t.trafficAheadS, 3.8); // 20 / 69 m/s = 0.29 s; no speed at update 0
+  assert.equal(t.trafficBehindS, 0);
+});
+
+test('draft: not in the lane, too far, or too slow', () => {
+  const at = (gap, lane, speedKmh) => {
+    const v = speedKmh / 3.6;
+    const f = build(10, u => ({
+      0: {lapDist: 100 + u * v * DT, lane: 0},
+      1: {lapDist: 100 + u * v * DT + gap, lane},
+      3: far,
+    }));
+    return lapFieldFacts(f, [all])[0];
+  };
+  assert.equal(at(20, 3, 250).draftS, 0); // next lane
+  assert.equal(at(35, 0, 250).draftS, 0); // past 30 m
+  assert.equal(at(20, 0, 150).draftS, 0); // below 200 km/h
+  assert.equal(at(30, 0, 250).draftS, 1.8); // 30 m counts
+  // 35 m at 250 km/h is still traffic (0.5 s) though not draft.
+  assert.equal(at(35, 0, 250).trafficAheadS, 1.8);
+});
+
+test('traffic behind and the 1 s edge', () => {
+  const f = build(10, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist - V * 1.5, lane: 0}, // 1.5 s behind
+    2: {lapDist: me(u).lapDist - V * 0.5, lane: 0}, // 0.5 s behind
+    3: far,
+  }));
+  const [t] = lapFieldFacts(f, [all]);
+  assert.equal(t.trafficBehindS, 1.8); // nearest car is 0.5 s back
+  assert.equal(t.trafficAheadS, 0);
+});
+
+test('passes: made and suffered, per lap window, cars in the pits ignored', () => {
+  // Car 1 starts 30 m behind and is 30 m ahead 3 s later (suffered, update 15).
+  // Car 2 starts 30 m ahead, then drops back through the player (made).
+  const f = build(40, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist - 30 + u * 4, lane: 3},
+    2: {lapDist: me(u).lapDist + 30 - Math.max(0, u - 20) * 4, lane: 3},
+    3: far,
+  }));
+  const whole = lapFieldFacts(f, [all])[0];
+  assert.equal(whole.passesSuffered, 1);
+  assert.equal(whole.passesMade, 1);
+  const halves = lapFieldFacts(f, [
+    {from: 0, to: 10 + 20 * DT},
+    {from: 10 + 20 * DT, to: 1e9},
+  ]);
+  assert.deepEqual(
+    halves.map(h => [h.passesSuffered, h.passesMade]),
+    [[1, 0], [0, 1]],
+  );
+  const pit = build(40, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist - 30 + u * 4, lane: 3, inPits: true},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(pit, [all])[0].passesSuffered, 0);
+});
+
+test('blue flag seconds, and windows are [from, to)', () => {
+  const f = build(30, u => ({
+    0: {...me(u), flag: u >= 5 && u < 15 ? 6 : 0},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(f, [all])[0].blueFlagS, 2);
+  const [a, b] = lapFieldFacts(f, [
+    {from: 10, to: 10 + 10 * DT},
+    {from: 10 + 10 * DT, to: 1e9},
+  ]);
+  assert.equal(a.blueFlagS, 1); // updates 5-9
+  assert.equal(b.blueFlagS, 1); // updates 10-14
+});
+
+test('no player car in the field: nulls', () => {
+  const noPlayer = build(5, u => ({1: me(u), 3: far}));
+  noPlayer.cars[0].player = false;
+  assert.deepEqual(lapFieldFacts(noPlayer, [all, all]), [null, null]);
+});
+
+test('a gap that rounds to exactly zero is not a second pass', () => {
+  // Car 1 runs alongside for two updates (0.0 m), then ahead: one pass.
+  const gaps = [-0.4, -0.2, 0, 0, 0.2, 0.4, 0.6];
+  const f = build(gaps.length, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist + gaps[u], lane: 3},
+    3: far,
+  }));
+  const [t] = lapFieldFacts(f, [all]);
+  assert.equal(t.passesSuffered, 1);
+  assert.equal(t.passesMade, 0);
+});
+
+test('extra columns in the field change nothing (read by name)', () => {
+  const f = build(5, u => ({0: me(u), 1: {lapDist: me(u).lapDist + 20, lane: 0}, 3: far}));
+  const withYaw = {...f, v: 2, yawDeg: f.cars.map(() => new Array(5).fill(1))};
+  assert.deepEqual(lapFieldFacts(withYaw, [all]), lapFieldFacts(f, [all]));
+});
