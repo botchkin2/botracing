@@ -1,0 +1,25 @@
+:root{
+  --space-1:2px;
+  --space-2:4px;
+  --space-3:6px;
+  --space-4:8px;
+  --space-5:12px;
+  --space-6:16px;
+  --space-7:24px;
+  --space-8:32px;
+  --radius-xs:2px;
+  --radius-sm:3px;
+  --radius-md:6px;
+  --radius-sheet:10px;
+  --radius-full:999px;
+  --stroke-key:2.3px;
+  --stroke-lap:1.5px;
+  --stroke-tinted:1.2px;
+  --stroke-muted:1px;
+  --row-lap:32px;
+  --row-session:54px;
+  --row-chip:28px;
+  --control-lg:40px;
+  --tap-min:44px;
+  --content-phone:358px;
+}
