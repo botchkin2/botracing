@@ -18,6 +18,7 @@ import {
 import {
   lapColors,
   lapStroke,
+  stroke,
   radius,
   space,
   useLayout,
@@ -38,6 +39,7 @@ import {
   sortRows,
   type ZoomLine,
 } from './model';
+import {MAX_ON_LAPS, toggleLap} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
 
 export type {CornerSelection} from './model';
@@ -48,7 +50,6 @@ const DESK_H = {speed: 226, brake: 122, throttle: 122};
 const DESK_LEFT_W = 600;
 const DESK_RIGHT_W = 840;
 const BRAKE_MAP_H = 210;
-const DOT_GREY = '#6b737c';
 
 export function CornerScreen({
   sessionId,
@@ -97,6 +98,7 @@ export function CornerScreen({
       sessionId={sessionId}
       model={result.model}
       lapIds={result.lapIds}
+      keyLapIds={result.keyLapIds}
       selection={selection}
       allComparable={allComparable}
       onAllComparable={setAllComparable}
@@ -109,6 +111,7 @@ function CornerView({
   sessionId,
   model,
   lapIds,
+  keyLapIds,
   selection,
   allComparable,
   onAllComparable,
@@ -117,6 +120,7 @@ function CornerView({
   sessionId: string;
   model: CornerModel;
   lapIds: string[];
+  keyLapIds: string[];
   selection: CornerSelection;
   allComparable: boolean;
   onAllComparable: (on: boolean) => void;
@@ -131,11 +135,44 @@ function CornerView({
     dir: 'asc',
   });
 
+  const [notice, setNotice] = useState<string | null>(null);
   const count = lapIds.length;
-  const lapColor = (selIndex: number, highlighted: boolean) =>
-    lapStroke(scheme, selIndex, count, highlighted).color;
+  // A lap that is on has its own lap colour everywhere on the screen; the
+  // rest keep the tinted or grey style of their mode.
+  const lapStyle = (
+    onIndex: number | null,
+    selIndex: number,
+    highlighted: boolean,
+  ) =>
+    onIndex != null
+      ? {
+          color: lapColors[scheme][onIndex],
+          width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
+          opacity: 1,
+        }
+      : lapStroke(scheme, Math.max(1, selIndex), count, false);
+  const lapColor = (
+    onIndex: number | null,
+    selIndex: number,
+    highlighted: boolean,
+  ) => lapStyle(onIndex, selIndex, highlighted).color;
   const highlight = (lapId: string) =>
     onSelectionChange({...selection, hl: lapId});
+  // With every comparable lap drawn, a dot tap turns that lap on or off
+  // (thread 27 #624); the laps on are the URL's `laps`, as in Compare.
+  const toggle = (lapId: string) => {
+    const r = toggleLap(keyLapIds, lapId);
+    if (r.kind === 'full')
+      return setNotice(
+        `${MAX_ON_LAPS - 1} laps on besides the reference. Tap one off first.`,
+      );
+    if (r.kind === 'reference')
+      return setNotice('The reference stays on. Change it in Compare.');
+    setNotice(null);
+    onSelectionChange({...selection, laps: r.laps});
+  };
+  const canToggle = allComparable && model.strips != null;
+  const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
   const go = (n: number) =>
     router.replace(
       cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
@@ -194,6 +231,34 @@ function CornerView({
 
   const measures = (
     <View style={styles.gap}>
+      {model.strips ? (
+        <View style={styles.gap}>
+          <Text variant='explainer' tone='textMuted'>
+            {canToggle
+              ? 'Coloured dots are the laps on; grey dots are the other comparable laps. Tap a dot to turn that lap on or off.'
+              : 'Coloured dots are the laps on; grey dots are the other laps. Tap a dot to highlight it.'}
+          </Text>
+          {canToggle && selection.laps.length >= 2 ? (
+            <View style={styles.row}>
+              <Chip
+                label='Reset to reference + best'
+                onPress={() => {
+                  setNotice(null);
+                  onSelectionChange({
+                    ...selection,
+                    laps: selection.laps.slice(0, 1),
+                  });
+                }}
+              />
+            </View>
+          ) : null}
+          {notice ? (
+            <Text variant='dataSmall' tone='textSecondary'>
+              {notice}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {model.strips
         ? model.strips.map(s => (
             <View key={s.measure} style={styles.gap}>
@@ -209,26 +274,57 @@ function CornerView({
                   {s.summary}
                 </Text>
               </View>
-              <DotStrip
-                width={layout.isWide ? 440 : layout.contentWidth}
-                min={s.min}
-                max={s.max}
-                flipped={s.flipped}
-                dots={s.dots.map(d => ({
-                  key: d.lapId,
-                  value: d.value,
-                  color: d.isRef
-                    ? lapColors[scheme][0]
-                    : d.highlighted
-                    ? lapColors[scheme][1]
-                    : DOT_GREY,
-                  r: d.isRef || d.highlighted ? 4.2 : 2.8,
-                  opacity: d.isRef || d.highlighted ? 1 : 0.55,
-                  stack: d.stack,
-                  top: d.isRef || d.highlighted,
-                }))}
-                onPressDot={highlight}
-              />
+              {s.keyValues.length > 0 ? (
+                <View style={styles.wrap}>
+                  {s.keyValues.map(k => (
+                    <Text
+                      key={k.onIndex}
+                      variant='dataSmall'
+                      style={{color: lapColors[scheme][k.onIndex]}}>
+                      {k.text}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+              {s.empty ? (
+                <Text variant='dataSmall' tone='textFaint'>
+                  No lap has a {s.label.toLowerCase()} in this corner.
+                </Text>
+              ) : (
+                <DotStrip
+                  width={layout.isWide ? 440 : layout.contentWidth}
+                  min={s.min}
+                  max={s.max}
+                  flipped={s.flipped}
+                  band={s.band}
+                  coincidentWithin={s.coincidentWithin}
+                  minLabel={s.minLabel}
+                  maxLabel={s.maxLabel}
+                  resolution={s.resolution}
+                  leftWord={s.leftWord}
+                  rightWord={s.rightWord}
+                  dots={s.dots.map(d => {
+                    const on = d.onIndex != null;
+                    return {
+                      key: d.lapId,
+                      value: d.value,
+                      color: on
+                        ? lapColors[scheme][d.onIndex as number]
+                        : color.barNeutral,
+                      r: on ? 4.2 : 2.8,
+                      opacity: on ? 1 : d.flagged ? 0.25 : 0.55,
+                      top: on,
+                    };
+                  })}
+                  onPressDot={canToggle ? toggle : highlight}
+                  pressLabel={id => {
+                    const r = rowOf.get(id);
+                    const name = r ? r.label : id;
+                    if (!canToggle) return `Highlight ${name}`;
+                    return `${name}: turn ${r?.onIndex != null ? 'off' : 'on'}`;
+                  }}
+                />
+              )}
             </View>
           ))
         : null}
@@ -262,12 +358,7 @@ function CornerView({
   const tracesW = layout.isWide ? DESK_RIGHT_W - 40 : layout.contentWidth;
   const h = layout.isWide ? DESK_H : PHONE_H;
   const traces = (
-    <ZoomTraces
-      model={model}
-      width={tracesW}
-      heights={h}
-      lapStyle={(i, hl) => lapStroke(scheme, i, count, hl)}
-    />
+    <ZoomTraces model={model} width={tracesW} heights={h} lapStyle={lapStyle} />
   );
 
   const top = {paddingTop: insets.top + space.lg};
@@ -280,10 +371,7 @@ function CornerView({
           contentContainerStyle={[styles.col, top]}>
           {header}
           {model.brakeMap && (
-            <BrakeMapPanel
-              map={model.brakeMap}
-              lapColor={(i, hl) => lapStroke(scheme, i, count, hl).color}
-            />
+            <BrakeMapPanel map={model.brakeMap} lapColor={lapColor} />
           )}
           {measures}
         </ScrollView>
@@ -324,7 +412,11 @@ function CornerTable({
   sortable: boolean;
   sort: {by: Measure; dir: 'asc' | 'desc'};
   onSort: (by: Measure) => void;
-  lapColor: (selIndex: number, highlighted: boolean) => string;
+  lapColor: (
+    onIndex: number | null,
+    selIndex: number,
+    highlighted: boolean,
+  ) => string;
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
@@ -372,7 +464,13 @@ function CornerTable({
               <View
                 style={[
                   styles.bar,
-                  {backgroundColor: lapColor(r.selIndex, r.highlighted)},
+                  {
+                    backgroundColor: lapColor(
+                      r.onIndex,
+                      r.selIndex,
+                      r.highlighted,
+                    ),
+                  },
                 ]}
               />
               <Text variant='dataStrong'>{r.label}</Text>
@@ -420,10 +518,14 @@ function BrakeMapPanel({
   lapColor,
 }: {
   map: BrakeMapModel;
-  lapColor: (selIndex: number, highlighted: boolean) => string;
+  lapColor: (
+    onIndex: number | null,
+    selIndex: number,
+    highlighted: boolean,
+  ) => string;
 }) {
   const {color} = useTheme();
-  const isKey = (p: BrakeMapPoint) => p.isRef || p.highlighted;
+  const isKey = (p: BrakeMapPoint) => p.onIndex != null;
   const marker = (
     p: BrakeMapPoint,
     shape: BrakeMapMarker['shape'],
@@ -432,7 +534,9 @@ function BrakeMapPanel({
     at: p.at,
     shape,
     size: shape === 'circle' ? (isKey(p) ? 4.8 : 2.8) : isKey(p) ? 6 : 4,
-    color: isKey(p) ? lapColor(p.selIndex, p.highlighted) : color.barNeutral,
+    color: isKey(p)
+      ? lapColor(p.onIndex, p.selIndex, p.highlighted)
+      : color.barNeutral,
     opacity: isKey(p) ? 1 : 0.55,
   });
   // Key laps last, so they sit on top of the grey spread.
@@ -455,8 +559,7 @@ function BrakeMapPanel({
       />
       <Explainer>
         Circles are brake points and squares are full-throttle points, placed on
-        the reference lap’s line at that distance. The reference and the
-        highlighted lap are in colour.
+        the reference lap’s line at that distance. The laps on are in colour.
       </Explainer>
     </View>
   );
@@ -472,16 +575,18 @@ function ZoomTraces({
   width: number;
   heights: {speed: number; brake: number; throttle: number};
   lapStyle: (
+    onIndex: number | null,
     selIndex: number,
     highlighted: boolean,
   ) => {color: string; width: number; opacity: number};
 }) {
   const {zoom} = model;
-  const rank = (l: ZoomLine) => (l.selIndex === 0 ? 2 : l.highlighted ? 1 : 0);
+  const rank = (l: ZoomLine) =>
+    l.onIndex === 0 ? 2 : l.onIndex != null ? 1 : 0;
   const lines = [...zoom.lines].sort((a, b) => rank(a) - rank(b));
   const series = (pick: (l: ZoomLine) => number[]) =>
     lines.map(l => {
-      const s = lapStyle(l.selIndex, l.highlighted);
+      const s = lapStyle(l.onIndex, l.selIndex, l.highlighted);
       return {
         key: l.lapId,
         values: pick(l),
@@ -496,7 +601,7 @@ function ZoomTraces({
       .filter(l => l.key && at(l) != null)
       .map(l => ({
         m: at(l) as number,
-        color: lapStyle(l.selIndex, l.highlighted).color,
+        color: lapStyle(l.onIndex, l.selIndex, l.highlighted).color,
       }));
   const speedDomain = domainIn(
     lines.map(l => l.speedKph),
