@@ -14,8 +14,8 @@ import {
   cornerLapIds,
   type CornerModel,
   type CornerSelection,
-  traceIdsFor,
 } from './model';
+import {keyLapIds as keyLapsOf} from './keyLaps';
 
 const GRID_STEP_M = 5;
 
@@ -24,7 +24,13 @@ export type CornerResult =
   | {state: 'error'; message: string}
   /** noMap: the track has no corner map yet; else this corner doesn't exist. */
   | {state: 'missing'; noMap: boolean}
-  | {state: 'ready'; model: CornerModel; lapIds: string[]};
+  | {
+      state: 'ready';
+      model: CornerModel;
+      lapIds: string[];
+      /** Laps on, reference first: what a strip tap toggles. */
+      keyLapIds: string[];
+    };
 
 export function useCornerModel(
   sessionId: string,
@@ -49,10 +55,18 @@ export function useCornerModel(
         : [],
     [laps.data, selection, allComparable, session.data?.bestLapId],
   );
-  // With many laps only the key laps' traces load; the rest show as dots.
+  // Only the laps on load traces; the rest show as dots.
+  const bestLapId = session.data?.bestLapId ?? null;
   const traceIds = useMemo(
-    () => traceIdsFor(lapIds, selection.hl),
-    [lapIds, selection.hl],
+    () =>
+      keyLapsOf({
+        lapIds,
+        selected: selection.laps,
+        hl: selection.hl,
+        bestLapId,
+        individual: lapIds.length < 7,
+      }),
+    [lapIds, selection.laps, selection.hl, bestLapId],
   );
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
   const grids = useLapTraces(traceIds, {lengthM, stepM: GRID_STEP_M});
@@ -80,11 +94,12 @@ export function useCornerModel(
       band: band.data ?? null,
       traces,
       lapIds,
+      keyLapIds: traceIds,
       hl: selection.hl,
       corner,
     });
     return model
-      ? {state: 'ready', model, lapIds}
+      ? {state: 'ready', model, lapIds, keyLapIds: traceIds}
       : {state: 'missing', noMap: map.data.sections.length === 0};
   }, [
     error,
@@ -94,6 +109,7 @@ export function useCornerModel(
     band.data,
     traces,
     lapIds,
+    traceIds,
     selection.hl,
     corner,
   ]);

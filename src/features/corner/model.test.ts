@@ -11,7 +11,6 @@ import {
   buildCornerModel,
   cornerLapIds,
   sortRows,
-  traceIdsFor,
   buildBrakeMap,
   cornerExplainer,
 } from './model';
@@ -84,6 +83,7 @@ const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
     band: null,
     traces: new Map(),
     lapIds,
+    keyLapIds: lapIds.length < 7 ? lapIds : [lapIds[0], hl ?? lapIds[1]],
     hl,
     corner,
   })!;
@@ -174,11 +174,12 @@ describe('strips at 20+ laps', () => {
     band: null,
     traces: new Map(),
     lapIds: many.map(l => l.id),
+    keyLapIds: ['m0', 'm3'],
     hl: 'm3',
     corner: 3,
   })!;
 
-  it('four strips with summary; brake axis flipped', () => {
+  it('four strips with summary; brake axis in track order', () => {
     expect(m.strips!.map(s => s.measure)).toEqual([
       'time',
       'brake',
@@ -189,9 +190,13 @@ describe('strips at 20+ laps', () => {
     expect(m.strips![0].summary).toMatch(/^med 10\.200 · p10–90 /);
   });
 
-  it('equal values stack alternately', () => {
-    const throttle = m.strips![3].dots.map(d => d.stack);
-    expect(throttle.slice(0, 5)).toEqual([0, 1, -1, 2, -2]);
+  it('colours the laps on and gives their values beside the title', () => {
+    const on = m.strips![0].dots.filter(d => d.onIndex != null);
+    expect(on.map(d => [d.lapId, d.onIndex])).toEqual([
+      ['m0', 0],
+      ['m3', 1],
+    ]);
+    expect(m.strips![0].keyValues.map(k => k.onIndex)).toEqual([0, 1]);
   });
 });
 
@@ -214,12 +219,6 @@ describe('lap choice', () => {
       'a',
       'c',
     ]);
-  });
-
-  it('traces for every lap when few, key laps only when many', () => {
-    expect(traceIdsFor(['a', 'b', 'c'], null)).toEqual(['a', 'b', 'c']);
-    const ids = Array.from({length: 8}, (_, i) => `l${i}`);
-    expect(traceIdsFor(ids, 'l5')).toEqual(['l0', 'l5']);
   });
 
   it('sorts by a measure', () => {

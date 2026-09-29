@@ -10,6 +10,8 @@ import {
 } from '@/src/data/sessions';
 import {formatDistance, formatGap, lapMode, type LapMode} from '@/src/design';
 
+import {buildStrips, type StripModel} from './strips';
+
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
 // corner's entry to the next corner's entry, brake point, minimum speed and
@@ -48,34 +50,17 @@ export type CornerRow = {
   selIndex: number;
   isRef: boolean;
   highlighted: boolean;
+  /** Colour slot when the lap is on (0 = reference), else null. */
+  onIndex: number | null;
   values: Record<Measure, number | null>;
   cells: Record<Measure, {value: string; gap: string | null; better: boolean}>;
-};
-
-export type Strip = {
-  measure: Measure;
-  label: string;
-  unit: string;
-  summary: string;
-  min: number;
-  max: number;
-  /** Brake point: left means earlier (further before the apex). */
-  flipped: boolean;
-  dots: {
-    lapId: string;
-    value: number;
-    selIndex: number;
-    isRef: boolean;
-    highlighted: boolean;
-    /** Stack offset for equal values: 0, +1, −1, +2, … (× 5 pt). */
-    stack: number;
-  }[];
 };
 
 export type ZoomLine = {
   lapId: string;
   selIndex: number;
   highlighted: boolean;
+  onIndex: number | null;
   key: boolean;
   speedKph: number[];
   brakePct: number[];
@@ -95,7 +80,7 @@ export type CornerModel = {
   mode: LapMode;
   explainer: string;
   rows: CornerRow[];
-  strips: Strip[] | null;
+  strips: StripModel[] | null;
   highlightLine: string | null;
   zoom: {
     windowM: [number, number];
@@ -114,14 +99,6 @@ export type CornerModel = {
 export const ZOOM_BEFORE_M = 250;
 export const ZOOM_AFTER_M = 150;
 const STRIP_MODE_FROM = 20;
-
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return NaN;
-  const i = (sorted.length - 1) * q;
-  const lo = Math.floor(i);
-  const hi = Math.ceil(i);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
-}
 
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
@@ -173,10 +150,13 @@ export function buildCornerModel(input: {
   band: SessionBand | null;
   traces: Map<string, GridTrace>;
   lapIds: string[];
+  /** Laps on, in colour order (keyLaps.ts). */
+  keyLapIds: string[];
   hl: string | null;
   corner: number;
 }): CornerModel | null {
   const {session, laps, map, band, traces, lapIds, corner} = input;
+  const onIndexOf = new Map(input.keyLapIds.map((id, i) => [id, i]));
   const all = trackCorners(map);
   const idx = all.findIndex(c => c.n === corner);
   if (idx < 0) return null;
@@ -233,51 +213,33 @@ export function buildCornerModel(input: {
       selIndex: i,
       isRef: i === 0,
       highlighted: l.id === hl,
+      onIndex: onIndexOf.get(l.id) ?? null,
       values,
       cells,
     };
   });
 
-  const strips: Strip[] | null =
+  const strips: StripModel[] | null =
     selected.length >= STRIP_MODE_FROM
-      ? MEASURES.map(m => {
-          const vals = rows
-            .map(r => r.values[m.id])
-            .filter((v): v is number => v != null)
-            .sort((a, b) => a - b);
-          const seen = new Map<string, number>();
-          const dots = rows.flatMap(r => {
-            const v = r.values[m.id];
-            if (v == null) return [];
-            const k = fmt[m.id](v);
-            const n = seen.get(k) ?? 0;
-            seen.set(k, n + 1);
-            return [
-              {
-                lapId: r.lapId,
-                value: v,
-                selIndex: r.selIndex,
-                isRef: r.isRef,
-                highlighted: r.highlighted,
-                stack: n === 0 ? 0 : n % 2 ? Math.ceil(n / 2) : -n / 2,
-              },
-            ];
-          });
-          return {
-            measure: m.id,
-            label: m.label,
-            unit: m.unit,
-            summary: vals.length
-              ? `med ${fmt[m.id](quantile(vals, 0.5))} · p10–90 ${fmt[m.id](
-                  quantile(vals, 0.1),
-                )}–${fmt[m.id](quantile(vals, 0.9))}`
-              : '—',
-            min: vals[0] ?? 0,
-            max: vals[vals.length - 1] ?? 1,
-            flipped: m.id === 'brake',
-            dots,
-          };
-        })
+      ? buildStrips(
+          rows.map(r => {
+            const f = lapCornerFacts(byId.get(r.lapId) as Lap, sec);
+            return {
+              lapId: r.lapId,
+              label: r.label,
+              onIndex: r.onIndex,
+              timeS: r.values.time,
+              brakeM: r.values.brake,
+              minSpeedKph: r.values.minSpeed,
+              minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
+              throttleAtEdge: f?.fullThrottleAtEdge ?? false,
+              apexSpeedKph: f?.apexSpeedKph ?? null,
+              throttleM: r.values.throttle,
+              brakeResM: f?.brakeAtResM ?? null,
+              throttleResM: f?.fullThrottleAtResM ?? null,
+            };
+          }),
+        )
       : null;
 
   const hlRow = rows.find(r => r.highlighted) ?? null;
@@ -285,7 +247,6 @@ export function buildCornerModel(input: {
     ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${hlRow.cells.brake.value} m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${hlRow.cells.throttle.value} m`
     : null;
 
-  const keyIds = new Set([ref?.id, hl].filter(Boolean) as string[]);
   const lines: ZoomLine[] = rows.flatMap(r => {
     const t = traces.get(r.lapId);
     if (!t) return [];
@@ -295,7 +256,8 @@ export function buildCornerModel(input: {
         lapId: r.lapId,
         selIndex: r.selIndex,
         highlighted: r.highlighted,
-        key: keyIds.has(r.lapId) || mode === 'individual',
+        onIndex: r.onIndex,
+        key: r.onIndex != null,
         speedKph: t.speedKph,
         brakePct: t.brakePct,
         throttlePct: t.throttlePct,
@@ -345,13 +307,6 @@ export function buildCornerModel(input: {
   };
 }
 
-/** Which laps need traces: all in individual mode, else the key laps only. */
-export function traceIdsFor(lapIds: string[], hl: string | null): string[] {
-  if (lapIds.length < 7) return lapIds;
-  const ids = [lapIds[0], hl ?? lapIds[1]].filter(Boolean) as string[];
-  return [...new Set(ids)];
-}
-
 /** Sorted rows for the desktop table. */
 export function sortRows(
   rows: CornerRow[],
@@ -380,6 +335,7 @@ export type BrakeMapPoint = {
   selIndex: number;
   isRef: boolean;
   highlighted: boolean;
+  onIndex: number | null;
   at: {x: number; y: number};
 };
 
@@ -428,6 +384,7 @@ export function buildBrakeMap(
           selIndex: r.selIndex,
           isRef: r.isRef,
           highlighted: r.highlighted,
+          onIndex: r.onIndex,
           at: at(m),
         },
       ];
