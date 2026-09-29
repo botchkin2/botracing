@@ -96,8 +96,6 @@ export type ZoomLine = {
 
 export type CornerModel = {
   corner: number;
-  /** "km/h" or "mph", for the speed chart label. */
-  speedUnit: string;
   /** The section this corner belongs to (Compare opens sections). */
   sectionN: number;
   corners: number[];
@@ -364,7 +362,6 @@ export function buildCornerModel(input: {
       .join(' · '),
     mode,
     explainer: cornerExplainer(sec, nextSec, units),
-    speedUnit: speedUnit(units),
     rows,
     strips,
     highlightLine,

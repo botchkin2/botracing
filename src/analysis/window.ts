@@ -94,9 +94,14 @@ export function timeGridStepM(
   win: number,
   widthPt: number,
 ): number {
+  return gridStepM(timeSpanM(ref, win), widthPt);
+}
+
+// Metres a time window covers at the lap's average speed.
+export function timeSpanM(ref: TimedGrid, win: number): number {
   const lapS = ref.timeS[ref.timeS.length - 1] || 1;
   const lengthM = ref.distanceM[ref.distanceM.length - 1];
-  return gridStepM((lengthM / lapS) * win, widthPt);
+  return (lengthM / lapS) * win;
 }
 
 // Moves the cursor for a drag of dx points over a chart `widthPt` wide. The

@@ -518,7 +518,7 @@ function ZoomTraces({
   return (
     <View style={styles.gap}>
       <Text variant='label' tone='textMuted'>
-        Speed {model.speedUnit}
+        Speed km/h
       </Text>
       <TraceChart
         {...common}

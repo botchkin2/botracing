@@ -1,3 +1,10 @@
+import {
+  distanceUnit,
+  distanceValue,
+  METRIC,
+  type Units,
+} from '@/src/analysis/units';
+
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -8,7 +15,7 @@ import {
   gridStepM,
   timeAtDistance,
   timeAtIndex,
-  timeGridStepM,
+  timeSpanM,
   type TimedGrid,
 } from '@/src/analysis/window';
 import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
@@ -90,6 +97,7 @@ export function TraceChart({
   cursorM,
   marks = [],
   gridOriginM,
+  units = METRIC,
   onScrub,
   onPan,
   onPanStart,
@@ -119,6 +127,8 @@ export function TraceChart({
    * labelled "−200 m", "+100 m"; the origin itself carries no tick label.
    */
   gridOriginM?: number;
+  /** Display units for the distance ticks; the data stays in metres. */
+  units?: Units;
   onScrub?: (distanceM: number) => void;
   /** Drag in points since the last call; when set, dragging pans. */
   onPan?: (dxPt: number) => void;
@@ -215,25 +225,29 @@ export function TraceChart({
     return `${d}Z`;
   }, [band, from, to, width, height, startM, endM, domainT, tRef, t0, t1]);
 
-  // Apex-relative grids use the handoff's fixed 100 m ticks.
+  // Gridlines fall on nice steps in the display unit (m or ft), placed in
+  // metres. Apex-relative grids use the handoff's fixed 100 m (or 250 ft).
+  const perM = distanceValue(1, units);
   const step =
     gridOriginM != null
-      ? 100
-      : tRef
-      ? timeGridStepM(tRef, spanS, width)
-      : gridStepM(spanM, width);
+      ? units.distance === 'ft'
+        ? 250
+        : 100
+      : gridStepM((tRef ? timeSpanM(tRef, spanS) : spanM) * perM, width);
   const gridMs: number[] = [];
-  const origin = gridOriginM ?? 0;
+  const origin = (gridOriginM ?? 0) * perM;
   for (
-    let m = origin + Math.ceil((startM - origin) / step) * step;
-    m <= endM;
-    m += step
+    let d = origin + Math.ceil((startM * perM - origin) / step) * step;
+    d <= endM * perM;
+    d += step
   )
-    if (m >= 0) gridMs.push(m);
+    if (d >= 0) gridMs.push(d / perM);
   const tickLabel = (m: number) => {
-    if (gridOriginM == null) return `${Math.round(m)}`;
-    const d = Math.round(m - gridOriginM);
-    return d === 0 ? '' : `${d > 0 ? '+' : '−'}${Math.abs(d)} m`;
+    if (gridOriginM == null) return `${Math.round(m * perM)}`;
+    const d = Math.round((m - gridOriginM) * perM);
+    return d === 0
+      ? ''
+      : `${d > 0 ? '+' : '−'}${Math.abs(d)} ${distanceUnit(units)}`;
   };
 
   // PanResponder reads its handlers once; keep the latest props in a ref.
