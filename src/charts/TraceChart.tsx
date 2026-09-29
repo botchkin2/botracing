@@ -245,16 +245,33 @@ export function TraceChart({
         // The neighbour laps either side of the line (the S/F wrap).
         // They sit outside the lap, where the window's metre range is clipped
         // (time mode), so they are drawn whole: at most 500 m each side.
-        const wholePath = (ns: NativeSamples) => {
-          const pts: Pt[] = ns.distanceM.map((m, k) => [
-            xOfM(m),
-            ys(ns.values[k]),
-          ]);
+        // Only the part on screen: a side that does not reach the window
+        // draws nothing (freeze #634), so playback away from the line pays
+        // nothing for the wrap.
+        const visiblePath = (ns: NativeSamples) => {
+          // Distances ascend, so the on-screen samples are one index range;
+          // keep one either side so the line runs to the edges.
+          let lo = -1;
+          let hi = -1;
+          for (let k = 0; k < ns.distanceM.length; k++) {
+            const x = xOfM(ns.distanceM[k]);
+            if (x >= 0 && x <= width) {
+              if (lo < 0) lo = k;
+              hi = k;
+            }
+          }
+          if (lo < 0) return null;
+          const from = Math.max(0, lo - 1);
+          const to = Math.min(ns.distanceM.length - 1, hi + 1);
+          const pts: Pt[] = [];
+          for (let k = from; k <= to; k++)
+            pts.push([xOfM(ns.distanceM[k]), ys(ns.values[k])]);
           return s.stepped ? steppedPath(pts) : monotonePath(pts);
         };
         const wraps = [s.before, s.after]
           .filter((ns): ns is NativeSamples => ns != null)
-          .map(wholePath);
+          .map(visiblePath)
+          .filter((d): d is string => d != null);
         if (s.samples) return {...s, d: samplePath(s.samples), wraps};
         const last = Math.min(to, s.values.length - 1);
         const stride = Math.max(1, Math.floor(pointsPerPt));
