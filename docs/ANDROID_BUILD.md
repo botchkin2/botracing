@@ -65,6 +65,10 @@ npx expo run:android --variant release
 
 The APK is built locally and installed directly to your phone via adb.
 
+## ABIs
+
+Builds target arm64-v8a only (`expo-build-properties` in app.json), which is enough for a Pixel phone and roughly quarters the native C++ compile time. x86 emulators and 32-bit ARM devices will not run these builds; add the ABIs back to `buildArchs` if you need them.
+
 ## Troubleshooting
 
 ### Long Paths on Windows
