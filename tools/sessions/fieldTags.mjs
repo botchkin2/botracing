@@ -81,7 +81,8 @@ export function lapFieldFacts(field, windows) {
   if (me < 0) return windows.map(() => null);
   const dt = 1 / field.hz;
   let L = 0;
-  for (const c of cars) for (const d of c.lapDistM) if (d !== null && d > L) L = d;
+  for (const c of cars)
+    for (const d of c.lapDistM) if (d !== null && d > L) L = d;
   const out = windows.map(EMPTY);
   const windowAt = et => windows.findIndex(w => et >= w.from && et < w.to);
 
@@ -134,12 +135,21 @@ export function lapFieldFacts(field, windows) {
     if (gapAhead / speed < TRAFFIC_S) f.trafficAheadS += dt;
     if (gapBehind / speed < TRAFFIC_S) f.trafficBehindS += dt;
     if (p.flag[u] === BLUE_FLAG) f.blueFlagS += dt;
-    if (gapAhead <= DRAFT_MAX_GAP_M && vMs !== null && vMs * 3.6 > DRAFT_MIN_KMH) {
+    if (
+      gapAhead <= DRAFT_MAX_GAP_M &&
+      vMs !== null &&
+      vMs * 3.6 > DRAFT_MIN_KMH
+    ) {
       f.draftS += dt;
     }
   }
   for (const f of out) {
-    for (const k of ['draftS', 'trafficAheadS', 'trafficBehindS', 'blueFlagS']) {
+    for (const k of [
+      'draftS',
+      'trafficAheadS',
+      'trafficBehindS',
+      'blueFlagS',
+    ]) {
       f[k] = round1(f[k]);
     }
   }

@@ -16,8 +16,18 @@ const cars = [
 // rows(u) -> {0: {lapDist, lane, flag, inPits}, 1: ...} for update u.
 function build(n, rows) {
   const r = {
-    et: [], id: [], lapDist: [], pathLateral: [], x: [], z: [],
-    place: [], laps: [], inPits: [], flag: [],
+    et: [],
+    id: [],
+    lapDist: [],
+    pathLateral: [],
+    x: [],
+    z: [],
+    oriX: [],
+    oriZ: [],
+    place: [],
+    laps: [],
+    inPits: [],
+    flag: [],
   };
   for (let u = 0; u < n; u++) {
     const now = rows(u);
@@ -30,6 +40,8 @@ function build(n, rows) {
       r.pathLateral.push(v.lane ?? 0);
       r.x.push(0);
       r.z.push(0);
+      r.oriX.push(0);
+      r.oriZ.push(1);
       r.place.push(c.id + 1);
       r.laps.push(1);
       r.inPits.push(v.inPits ? 1 : 0);
@@ -111,7 +123,10 @@ test('passes: made and suffered, per lap window, cars in the pits ignored', () =
   ]);
   assert.deepEqual(
     halves.map(h => [h.passesSuffered, h.passesMade]),
-    [[1, 0], [0, 1]],
+    [
+      [1, 0],
+      [0, 1],
+    ],
   );
   const pit = build(40, u => ({
     0: me(u),
@@ -155,7 +170,16 @@ test('a gap that rounds to exactly zero is not a second pass', () => {
 });
 
 test('extra columns in the field change nothing (read by name)', () => {
-  const f = build(5, u => ({0: me(u), 1: {lapDist: me(u).lapDist + 20, lane: 0}, 3: far}));
-  const withYaw = {...f, v: 2, yawDeg: f.cars.map(() => new Array(5).fill(1))};
+  const f = build(5, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist + 20, lane: 0},
+    3: far,
+  }));
+  const withYaw = {
+    ...f,
+    v: 3,
+    yawCrad: f.cars.map(() => new Array(5).fill(1)),
+    extra: 1,
+  };
   assert.deepEqual(lapFieldFacts(withYaw, [all]), lapFieldFacts(f, [all]));
 });
