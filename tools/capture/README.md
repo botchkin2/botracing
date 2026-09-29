@@ -8,7 +8,9 @@ uv run --project tools/capture tools/capture/recorder.py --root D:\x  # elsewher
 uv run --project tools/capture --group dev pytest tools/capture        # tests
 ```
 
-LMU needs **Settings → Gameplay → Enable Plugins** (the shared memory is a plugin). The recorder waits for the game, records each session, and idles between. One instance per user.
+The recorder waits for the game, records each session, and idles between. One instance per user.
+
+`install.ps1` registers it as the `LapRecorder` logon task (headless, below-normal priority), next to `LapUploader`. It runs from the runtime clone (`tools/runtime`), never from the main checkout.
 
 ## Files
 
