@@ -57,11 +57,25 @@ describe('playTicker', () => {
       () => ({ref, rate: 2, move: s.move}),
       () => t,
     );
-    t = 500;
+    t = 200;
     tick();
     s.commit();
-    // 0.5 s at 2x = 1 s = 50 m: 990 -> 1040 -> 40 m into the next lap.
-    expect(s.get()).toBeCloseTo(40);
+    // 0.2 s at 2x = 0.4 s = 20 m: 990 -> 1010 -> 10 m into the next lap.
+    expect(s.get()).toBeCloseTo(10);
+  });
+
+  it('caps one step, so a resume from the background does not jump', () => {
+    const s = fakeState(100);
+    let t = 0;
+    const tick = playTicker(
+      () => ({ref, rate: 1, move: s.move}),
+      () => t,
+    );
+    t = 30_000;
+    tick();
+    s.commit();
+    // Capped at 0.25 s = 12.5 m, not 30 s = 1.5 laps.
+    expect(s.get()).toBeCloseTo(112.5);
   });
 
   it('does nothing without a reference lap', () => {

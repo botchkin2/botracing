@@ -8,6 +8,10 @@ import type {Dispatch, SetStateAction} from 'react';
 
 import {playStep, type TimedGrid} from '@/src/analysis/window';
 
+/** Longest step one tick may take, so a resume after the app was in the
+ * background doesn't jump the cursor laps ahead. */
+export const MAX_STEP_S = 0.25;
+
 export interface PlayInputs {
   ref: TimedGrid | null;
   rate: number;
@@ -22,7 +26,7 @@ export function playTicker(
   let last = clock();
   return () => {
     const now = clock();
-    const dtS = (now - last) / 1000;
+    const dtS = Math.min(MAX_STEP_S, (now - last) / 1000);
     last = now;
     const {ref, rate, move} = read();
     if (ref) move(c => playStep(ref, c, dtS, rate));
