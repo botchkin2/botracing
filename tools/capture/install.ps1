@@ -18,7 +18,7 @@ $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew `
   -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries `
   -DontStopIfGoingOnBatteries -Priority 7 `
-  -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+  -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'LapRecorder' -Action $action `
   -Trigger $trigger -Settings $settings -Force `
   -Description 'Records LMU shared memory to local Parquet (tools/capture).' | Out-Null

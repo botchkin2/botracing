@@ -115,4 +115,28 @@ finally {
   # Whatever happened, the tasks that were running run again.
   foreach ($name in $restart) { Start-ScheduledTask -TaskName $name }
 }
+
+# Starting a task does not prove it stayed up: LapRecorder once sat at Ready
+# with no python a minute after an update (apex, thread 30 #741). Look again
+# after a minute, retry a dead task once, and fail loudly if it stays dead.
+function Test-TaskChildAlive([string]$name) {
+  # The node/python child, not the conhost wrapper, which can outlive it.
+  [bool](Get-LapProcesses | Where-Object {
+    $_.Name -in 'node.exe', 'python.exe' -and $_.CommandLine -like "*$($scripts[$name])*"
+  })
+}
+if ($restart) {
+  Start-Sleep -Seconds 60
+  $dead = @($restart | Where-Object { -not (Test-TaskChildAlive $_) })
+  foreach ($name in $dead) {
+    Write-Warning "$name is not running 60 s after the update; starting it again."
+    Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    Start-ScheduledTask -TaskName $name
+  }
+  if ($dead) {
+    Start-Sleep -Seconds 30
+    $stillDead = @($dead | Where-Object { -not (Test-TaskChildAlive $_) })
+    if ($stillDead) { throw "Not running after the update and a retry: $($stillDead -join ', ')" }
+  }
+}
 $Runtime

@@ -17,6 +17,8 @@ import ctypes as C
 import mmap
 import struct
 
+from columns import decode_text
+
 MAPPING = "LMU_Data"
 HOLD_EVENT = b"LMU_Data_HoldEvent"
 SYNCHRONIZE = 0x00100000
@@ -102,7 +104,7 @@ class Reader:
             slot = o["telemInfo"] + i * self.telem_size
             car_id = struct.unpack_from("<i", self.view, slot + t.mID.offset)[0]
             raw = self._read(slot + t.mVehicleModel.offset, t.mVehicleModel.size)
-            out[car_id] = bytes(raw).split(b"\0", 1)[0].decode("latin-1").strip()
+            out[car_id] = decode_text(bytes(raw)).strip()
         return out
 
     def player_clock(self):

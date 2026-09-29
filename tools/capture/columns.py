@@ -85,11 +85,25 @@ def columns(raw, ctype, text_fields=()):
     _flatten("", arr, out)
     for name in (n for n in text_fields if n in arr.dtype.names):
         out[name] = np.array(
-            [bytes(v).split(b"\0", 1)[0].decode("latin-1") for v in arr[name]], dtype=object
+            [decode_text(bytes(v)) for v in arr[name]], dtype=object
         )
     return out
 
 
+def decode_text(raw):
+    """A NUL-terminated char buffer as text.
+
+    LMU writes UTF-8 (2026-09-29 Daytona capture: c3 b3 for an accented o, c3 81
+    for a capital A-acute); latin-1 is the fallback for bytes that are not valid
+    UTF-8, so a garbled layout still shows its bytes.
+    """
+    body = raw.split(b"\0", 1)[0]
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError:
+        return body.decode("latin-1")
+
+
 def text(field):
     """A fixed char field as text."""
-    return bytes(field).split(b"\0", 1)[0].decode("latin-1")
+    return decode_text(bytes(field))

@@ -34,7 +34,8 @@ def check_scoring(layout, info_raw, vehicles_raw, n):
         car = layout.vehicle.from_buffer_copy(vehicles_raw[i * size : (i + 1) * size])
         name = text(car.mVehicleName)
         if not _printable(name):
-            bad_names.append(f"car {i} {name!r}")
+            # Hex of the raw bytes: the next refusal shows the encoding.
+            bad_names.append(f"car {i} {name!r} bytes {bytes(car.mVehicleName)[:32].hex(' ')}")
         if not 0 <= car.mPlace <= layout.max_vehicles:
             return False, f"car {i} place {car.mPlace}"
         if not (math.isfinite(car.mLapDist) and -1000 < car.mLapDist < 100_000):
