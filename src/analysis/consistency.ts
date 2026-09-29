@@ -196,12 +196,44 @@ export interface CornerResult {
   split: CornerSplit | null;
 }
 
+// Every stint in the session, whether or not any of its laps are in the
+// selection (a stint with none reads laps: 0 and why, instead of vanishing
+// from the stints table). Numbers only, never a verdict.
 export interface StintResult {
   n: number;
+  // Why the stint started (the uploader's startReason), when known.
+  startReason: StintStart | null;
+  firstLap: number | null;
+  lastLap: number | null;
+  // Every lap of the stint, selected or not, in driving order.
+  lapIds: string[];
+  // Laps of this stint in the selection, and why there are none.
   laps: number;
+  emptyReason: 'no-laps-selected' | null;
   trendPerLap: number;
+  // 95% interval of the fitted slope (Sen's rank interval on the same
+  // pairwise slopes as the Theil-Sen fit), s/lap. Null below
+  // TREND_INTERVAL_MIN_LAPS selected laps. It is the raw fit's interval, so
+  // it can straddle 0 while trendPerLap reads 0 (the fit was not beyond the
+  // noise).
+  trendPerLapLow: number | null;
+  trendPerLapHigh: number | null;
+  // Robust sigma of lap time around the stint's own trend, s.
+  spreadS: number | null;
   medianLapTime: number | null;
 }
+
+export type StintStart = 'session' | 'pit' | 'reset' | 'gap';
+
+// A stint as the session knows it, for listing the ones with no selected laps.
+export interface StintInfo {
+  n: number;
+  startReason?: StintStart | null;
+  // Every lap of the stint, in driving order.
+  laps: {id: string; lapNumber: number}[];
+}
+
+export const TREND_INTERVAL_MIN_LAPS = 5;
 
 export interface Summary {
   laps: number;
@@ -459,9 +491,12 @@ function fitTrend(
 
 // Analyze exactly the laps given. The caller picks them: normalRacing() for
 // the default view, or whatever the driver selected.
+// sessionStints: every stint of the session, so the result lists those
+// with no selected laps too. Without it, only stints with selected laps.
 export function analyzeConsistency(
   selected: LapFacts[],
   t: Thresholds = defaultThresholds,
+  sessionStints: StintInfo[] = [],
 ): Consistency {
   const laps = [...selected].sort(
     (a, b) => a.stint - b.stint || a.stintLap - b.stintLap,
@@ -481,13 +516,49 @@ export function analyzeConsistency(
       t,
     );
     own.forEach(l => expected.set(l.id, intercept + slope * l.stintLap));
+    const interval = slopeInterval(
+      own.map(l => l.stintLap),
+      ys,
+    );
+    const info = sessionStints.find(st => st.n === n);
     stints.push({
       n,
+      startReason: info?.startReason ?? null,
+      firstLap: info?.laps[0]?.lapNumber ?? own[0].lapNumber,
+      lastLap:
+        info?.laps[info.laps.length - 1]?.lapNumber ??
+        own[own.length - 1].lapNumber,
+      lapIds: info ? info.laps.map(l => l.id) : own.map(l => l.id),
       laps: own.length,
+      emptyReason: null,
       trendPerLap: round(slope, 3) ?? 0,
+      trendPerLapLow: round(interval?.low ?? null, 3),
+      trendPerLapHigh: round(interval?.high ?? null, 3),
+      spreadS: round(
+        robustSigma(own.map(l => l.lapTime - expected.get(l.id)!)),
+        3,
+      ),
       medianLapTime: round(median(ys), 3),
     });
   }
+  for (const info of sessionStints) {
+    if (stints.some(st => st.n === info.n)) continue;
+    stints.push({
+      n: info.n,
+      startReason: info.startReason ?? null,
+      firstLap: info.laps[0]?.lapNumber ?? null,
+      lastLap: info.laps[info.laps.length - 1]?.lapNumber ?? null,
+      lapIds: info.laps.map(l => l.id),
+      laps: 0,
+      emptyReason: 'no-laps-selected',
+      trendPerLap: 0,
+      trendPerLapLow: null,
+      trendPerLapHigh: null,
+      spreadS: null,
+      medianLapTime: null,
+    });
+  }
+  stints.sort((a, b) => a.n - b.n);
   const residual = (l: LapFacts) => l.lapTime - expected.get(l.id)!;
   const lapSigma = robustSigma(laps.map(residual)) ?? 0;
 
@@ -794,6 +865,42 @@ function theilSen(xs: number[], ys: number[]): number {
     }
   }
   return median(slopes) ?? 0;
+}
+
+// Sen's 95% interval for the Theil-Sen slope (Gilbert 1987, sec. 16.5).
+// With N sorted pairwise slopes and C = 1.96 * sqrt(n(n-1)(2n+5)/18) (the
+// variance of Kendall's S, no tie correction), the limits are the slopes of
+// rank M1 = (N - C)/2 and M2 + 1 = (N + C)/2 + 1, counting from 1. Ranks
+// that fall between two slopes are taken outward (floor M1, ceil M2 + 1), so
+// both limits sit the same number of slopes from their end and the interval
+// never claims more than 95%. Distribution-free, like the fit. It assumes
+// the laps are independent; outliers are already out of the selection.
+export function senRanks(n: number, count: number): [number, number] {
+  const c = 1.96 * Math.sqrt((n * (n - 1) * (2 * n + 5)) / 18);
+  const m1 = (count - c) / 2;
+  const m2 = (count + c) / 2;
+  // 0-based indexes of ranks floor(M1) and ceil(M2 + 1), kept inside [0, N-1].
+  const low = Math.max(0, Math.floor(m1) - 1);
+  const high = Math.min(count - 1, Math.ceil(m2));
+  return [low, high];
+}
+
+export function slopeInterval(
+  xs: number[],
+  ys: number[],
+): {low: number; high: number} | null {
+  const n = xs.length;
+  if (n < TREND_INTERVAL_MIN_LAPS) return null;
+  const slopes: number[] = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (xs[j] !== xs[i]) slopes.push((ys[j] - ys[i]) / (xs[j] - xs[i]));
+    }
+  }
+  if (slopes.length === 0) return null;
+  slopes.sort((x, y) => x - y);
+  const [low, high] = senRanks(n, slopes.length);
+  return {low: slopes[low], high: slopes[high]};
 }
 
 function robustSigma(list: number[]): number | null {

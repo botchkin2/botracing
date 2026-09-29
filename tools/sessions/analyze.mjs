@@ -27,7 +27,7 @@ import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 4;
+export const analysisVersion = 5;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -896,8 +896,26 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     return lapFacts(String(i), lap);
   });
   const {reasons: excluded, damage} = selectNormalRacing(facts);
+  // Every stint of the session, so one with no normal-racing laps still
+  // shows up (laps: 0 and why). Lap ids here are indexes into laps; the
+  // uploader swaps in the stored lap ids.
+  const sessionStints = [];
+  laps.forEach((lap, i) => {
+    let st = sessionStints[sessionStints.length - 1];
+    if (!st || st.n !== lap.stint) {
+      st = {
+        n: lap.stint,
+        startReason: stintStartReason.get(lap.stint),
+        laps: [],
+      };
+      sessionStints.push(st);
+    }
+    st.laps.push({id: String(i), lapNumber: lap.lapNumber});
+  });
   const consistency = analyzeConsistency(
     facts.filter(f => excluded.get(f.id).length === 0),
+    undefined,
+    sessionStints,
   );
   const byId = new Map(consistency.laps.map(r => [r.id, r]));
   facts.forEach((f, i) => {
