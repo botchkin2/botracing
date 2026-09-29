@@ -6,6 +6,7 @@ export type UploaderState =
   | 'waiting-for-game'
   | 'in-game'
   | 'syncing'
+  | 'retrying'
   | 'error';
 
 export type Uploader = {
@@ -19,6 +20,8 @@ export type Uploader = {
   lastUploadAt: number | null;
   lastSessionId: string | null;
   queue: number;
+  /** Epoch ms the earliest failed session is tried again; null with none. */
+  retryAt: number | null;
   sessionsDone: number;
   lastError: {at: number | null; message: string; path: string | null} | null;
   disk: {captureBytes: number; freeBytes: number} | null;
@@ -43,6 +46,7 @@ const STATES: readonly UploaderState[] = [
   'waiting-for-game',
   'in-game',
   'syncing',
+  'retrying',
   'error',
 ];
 
@@ -82,6 +86,7 @@ export function toUploader(raw: unknown): Uploader {
     lastUploadAt: time(x.lastUploadAt),
     lastSessionId: str(x.lastSessionId),
     queue: num(x.queue) ?? 0,
+    retryAt: time(x.retryAt),
     sessionsDone: num(x.sessionsDone) ?? 0,
     lastError: err
       ? {

@@ -59,6 +59,17 @@ describe('toUploader', () => {
     });
   });
 
+  it('reads the retry time and the retrying state', () => {
+    const u = toUploader({
+      id: 'rig',
+      state: 'retrying',
+      retryAt: '2026-09-28T21:30:00Z',
+    });
+    expect(u.state).toBe('retrying');
+    expect(u.retryAt).toBe(Date.parse('2026-09-28T21:30:00Z'));
+    expect(toUploader({id: 'rig'}).retryAt).toBeNull();
+  });
+
   it('throws without a host id', () => {
     expect(() => toUploader({host: 'x'})).toThrow('hostId');
   });

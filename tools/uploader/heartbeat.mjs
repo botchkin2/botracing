@@ -35,6 +35,7 @@ export function heartbeatDoc({
   progress,
   freeBytes,
   recorder,
+  retryAtMs = null,
   nowMs,
 }) {
   return {
@@ -49,6 +50,8 @@ export function heartbeatDoc({
     queue,
     // done/total of the sync running now, else null.
     progress: progress ?? null,
+    // When the earliest failed session is tried again, or null with none.
+    retryAt: retryAtMs != null ? new Date(retryAtMs).toISOString() : null,
     sessionsDone: watch.sessionsDone ?? 0,
     lastError: watch.lastError
       ? {...watch.lastError, message: scrub(watch.lastError.message)}
@@ -72,6 +75,16 @@ function recorderBlock(status, nowMs) {
   };
 }
 
+// The state between syncs. A crash is an error. In game comes before
+// retrying: nothing is retried while LMU runs, so a stale retry time would
+// mislead (camber #780). After that, failed sessions on a backoff are
+// 'retrying' (the app shows when), not an error.
+export function idleState({crashed, gameRunning, retryPending}) {
+  if (crashed) return 'error';
+  if (gameRunning) return 'in-game';
+  return retryPending ? 'retrying' : 'waiting-for-game';
+}
+
 // What changed enough to write now rather than at the next 5-minute beat.
 export function beatKey(doc) {
   return JSON.stringify([
@@ -82,6 +95,7 @@ export function beatKey(doc) {
     doc.queue,
     doc.progress?.done,
     doc.progress?.total,
+    doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
   ]);

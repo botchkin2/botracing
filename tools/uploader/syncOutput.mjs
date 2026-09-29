@@ -11,6 +11,8 @@ export function newSyncResult() {
     failed: 0,
     errors: [],
     total: null,
+    // The closing "done N, failed M" line was read: the sync ran to its end.
+    finished: false,
   };
 }
 
@@ -25,7 +27,10 @@ export function readSyncLine(result, line) {
     if (id && !result.failedIds.includes(id)) result.failedIds.push(id);
   }
   const end = line.match(/^done (\d+), failed (\d+)/);
-  if (end) [result.done, result.failed] = [+end[1], +end[2]];
+  if (end) {
+    [result.done, result.failed] = [+end[1], +end[2]];
+    result.finished = true;
+  }
   return result;
 }
 

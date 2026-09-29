@@ -1,7 +1,13 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {beatKey, heartbeatDoc, hostIdOf, scrub} from './heartbeat.mjs';
+import {
+  beatKey,
+  heartbeatDoc,
+  hostIdOf,
+  idleState,
+  scrub,
+} from './heartbeat.mjs';
 
 const nowMs = Date.parse('2026-09-29T10:00:00Z');
 const input = {
@@ -83,4 +89,23 @@ test('progress reaches the doc, and a step forward forces a write', () => {
     heartbeatDoc({...input, state: 'syncing', progress: {done, total: 300}});
   assert.deepEqual(at(12).progress, {done: 12, total: 300});
   assert.notEqual(beatKey(at(12)), beatKey(at(13)));
+});
+
+test('a pending retry shows its time, and changes the beat key', () => {
+  const retryAtMs = Date.parse('2026-09-29T10:30:00Z');
+  const doc = heartbeatDoc({...input, state: 'retrying', retryAtMs});
+  assert.equal(doc.retryAt, '2026-09-29T10:30:00.000Z');
+  assert.equal(heartbeatDoc(input).retryAt, null);
+  assert.notEqual(beatKey(doc), beatKey(heartbeatDoc(input)));
+});
+
+test('idle state: crash, then in game, then retrying, then waiting', () => {
+  const s = {crashed: false, gameRunning: false, retryPending: false};
+  assert.equal(idleState(s), 'waiting-for-game');
+  assert.equal(idleState({...s, retryPending: true}), 'retrying');
+  assert.equal(
+    idleState({...s, retryPending: true, gameRunning: true}),
+    'in-game',
+  );
+  assert.equal(idleState({...s, retryPending: true, crashed: true}), 'error');
 });

@@ -65,7 +65,25 @@ test('a new analysis version resyncs once, never in game', () => {
   );
 });
 
-test('after a version bump, a failing sync still waits for its retry', () => {
+test('a failed session waiting on its backoff does not hold back new work', () => {
+  const waiting = {...base, sessionRetryAtMs: 130 * MIN};
+  // A version bump and new telemetry both still run; the failing session is
+  // skipped by sync.mjs --skip, not by holding the whole run.
+  assert.equal(decide({...waiting, versionChanged: true}).run, true);
+  assert.deepEqual(decide({...waiting, lastRunAtMs: 50 * MIN}), {
+    run: true,
+    reason: 'new telemetry',
+  });
+  // With nothing else new, only the retry time itself brings a run.
+  const quiet = {...waiting, lastRunAtMs: 100 * MIN};
+  assert.equal(decide(quiet).run, false);
+  assert.deepEqual(decide({...quiet, nowMs: 131 * MIN}), {
+    run: true,
+    reason: 'retry',
+  });
+});
+
+test('after a crash, the whole run waits for its retry, version bump or not', () => {
   const failing = {...base, versionChanged: true, retryAtMs: 130 * MIN};
   assert.deepEqual(decide({...failing, nowMs: 101 * MIN}), {
     run: false,

@@ -34,7 +34,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
-import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
+import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {
   newSyncResult,
@@ -42,6 +42,7 @@ import {
   queueCount,
   readSyncLine,
 } from './syncOutput.mjs';
+import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -145,9 +146,10 @@ function version() {
 // the session ids and the closing "done N, failed M" line feed the heartbeat.
 // sync.mjs skips files written in the last 3 minutes in case the game is
 // still writing them; the game is closed here, so nothing is.
-function runSync(onProgress) {
+function runSync(onProgress, skipIds) {
   return new Promise(done => {
     const args = [syncScript, '--quiet-min', '0', ...syncArgs];
+    if (skipIds.length) args.push('--skip', skipIds.join(','));
     const child = spawn(process.execPath, args, {windowsHide: true});
     try {
       setPriority(child.pid, constants.priority.PRIORITY_BELOW_NORMAL);
@@ -197,6 +199,9 @@ async function main() {
   const ver = version();
   const {label = 'Race PC'} = readJson(resolve(home, 'config.json'), {});
   const watch = readJson(statePath, {});
+  // Failed sessions and their backoff (retries.mjs); older state had a list.
+  watch.retries ??= {};
+  delete watch.failedSessions;
   const save = () => writeFileSync(statePath, JSON.stringify(watch));
   let wasRunning = false;
   let lastKey = '';
@@ -223,10 +228,11 @@ async function main() {
       progress,
       queue: queueCount({
         pendingFiles: recs?.newer ?? 0,
-        failedSessions: watch.failedSessions,
+        failedSessions: Object.keys(watch.retries),
       }),
       freeBytes,
       recorder: readJson(recorderStatus, null),
+      retryAtMs: earliestRetryMs(watch.retries),
       nowMs: Date.now(),
     });
     const key = beatKey(doc);
@@ -252,6 +258,7 @@ async function main() {
         newestMtimeMs: recs?.newestMtimeMs ?? null,
         lastRunAtMs: watch.lastRunAtMs ?? null,
         retryAtMs: watch.retryAtMs ?? null,
+        sessionRetryAtMs: earliestRetryMs(watch.retries),
         // First run with this code, or a merge that bumped it.
         versionChanged: watch.analysisVersion !== analysisVersion,
         nowMs: Date.now(),
@@ -260,6 +267,7 @@ async function main() {
       if (plan.run) {
         log(`sync: ${plan.reason}`);
         const startedMs = Date.now();
+        const skippedIds = waitingIds(watch.retries, startedMs);
         await beat('syncing');
         let beating = false;
         const r = await runSync(p => {
@@ -270,7 +278,7 @@ async function main() {
           beat('syncing')
             .catch(error => log(`progress beat failed: ${String(error)}`))
             .finally(() => (beating = false));
-        });
+        }, skippedIds);
         progress = null;
         // A stopped sync never prints its closing "done N" line, but each
         // session's block is printed only once it is stored or has failed.
@@ -290,11 +298,13 @@ async function main() {
           await beat('in-game');
           continue;
         }
-        // A failed session is retried later. sync.mjs redoes only what is not
-        // stored yet, so a retry costs just the failures.
-        // Every sync retries all failures, so this pass's list replaces the last.
-        watch.failedSessions = r.failedIds;
-        if (r.failed || r.code) {
+        // Each failed session waits on its own backoff and is skipped until
+        // then; everything else is done, so the run and the version count as
+        // done. sync.mjs exits 1 on any failed session, so only its closing
+        // line tells a finished pass from a crash: a sync that died part way
+        // (even after a failed block) leaves sessions unreached, so it waits
+        // as a whole and records neither run time nor version.
+        if (!r.finished) {
           watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
           watch.retryAtMs =
             Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
@@ -304,17 +314,33 @@ async function main() {
             path: 'lap-uploader/watch.log',
           };
         } else {
+          watch.retries = nextRetries({
+            retries: watch.retries,
+            failedIds: r.failedIds,
+            skippedIds,
+            nowMs: Date.now(),
+          });
           watch.lastRunAtMs = startedMs;
           watch.analysisVersion = analysisVersion;
           watch.retryAtMs = null;
           watch.failuresInRow = 0;
-          watch.lastError = null;
+          watch.lastError = r.failedIds.length
+            ? {
+                at: new Date().toISOString(),
+                message: r.errors[0],
+                path: 'lap-uploader/watch.log',
+              }
+            : null;
         }
         save();
         log(`sync: done ${r.done}, failed ${r.failed}, exit ${r.code}`);
       }
       await beat(
-        watch.lastError ? 'error' : running ? 'in-game' : 'waiting-for-game',
+        idleState({
+          crashed: watch.retryAtMs != null,
+          gameRunning: running,
+          retryPending: earliestRetryMs(watch.retries) != null,
+        }),
       );
     } catch (error) {
       log(`tick failed: ${String(error.stack || error)}`);
