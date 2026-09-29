@@ -21,6 +21,8 @@ import {
 import {buildFollowGeometry} from './followModel';
 import {mapPlacer} from './mapPlace';
 
+import {lapNeighbours, WRAP_M} from './neighbours';
+
 // Same 5 m grid as the stored band, so band and laps line up point for point.
 const GRID_STEP_M = 5;
 
@@ -46,15 +48,32 @@ export function useCompareModel(
     const ids = new Set(laps.data?.map(l => l.id));
     return selection.laps.filter(id => ids.has(id));
   }, [laps.data, selection.laps]);
-  const grids = useLapTraces(knownIds, {lengthM, stepM: GRID_STEP_M});
+  // The S/F wrap needs each lap's contiguous neighbours, but only while the
+  // window is near the line (thread 27 #377). Compare opens at 0 m, so that
+  // is usually at once; each trace is cached by lap id either way.
+  const nearLine =
+    window?.size != null &&
+    lengthM > 0 &&
+    (selection.cursorM < WRAP_M || selection.cursorM > lengthM - WRAP_M);
+  const fetchIds = useMemo(() => {
+    if (!nearLine || !laps.data) return knownIds;
+    const extra = knownIds.flatMap(id => {
+      const n = lapNeighbours(laps.data!, id);
+      return [n.before, n.after].flatMap(s =>
+        s.kind === 'lap' ? [s.lapId] : [],
+      );
+    });
+    return [...new Set([...knownIds, ...extra])];
+  }, [nearLine, laps.data, knownIds]);
+  const grids = useLapTraces(fetchIds, {lengthM, stepM: GRID_STEP_M});
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
-    knownIds.forEach((id, i) => {
+    fetchIds.forEach((id, i) => {
       const g = grids[i];
       if (g) out.set(id, g);
     });
     return out;
-  }, [knownIds, grids]);
+  }, [fetchIds, grids]);
 
   // Follow's lines, band and inset only change with the selection, so build
   // them here once rather than on every cursor move (CODE_STANDARDS §6).

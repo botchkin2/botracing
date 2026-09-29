@@ -75,6 +75,8 @@ export function ChartBlock({
         key: `${l.channel}-${l.lapId}`,
         values: l.values,
         samples: l.samples,
+        before: l.before,
+        after: l.after,
         color: s.color,
         width: s.width,
         opacity: s.opacity,

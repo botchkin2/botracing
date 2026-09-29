@@ -141,6 +141,9 @@ export type Lap = {
   pitIn: boolean;
   pitOut: boolean;
   partial: boolean;
+  /** The recording file the lap came from; a new file mid-stint is a reset
+   *  or a server drop, not a continuous run. */
+  recordingId: string | null;
   offTrackS: number;
   /** Contact on this lap. LMU records a flag, not a magnitude. */
   hadImpact: boolean;
@@ -176,6 +179,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
   return items.map((raw, i) => ({
     id: str(raw.id),
     lapIndex: i + 1,
+    recordingId: str(raw.recordingId) || null,
     timeS: raw.timed === false ? null : num(raw.lapTime),
     sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
     stint: num(raw.stint) ?? 1,

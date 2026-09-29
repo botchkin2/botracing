@@ -20,6 +20,14 @@ const ref: TimedGrid = (() => {
   return {stepM: 5, distanceM, timeS};
 })();
 
+describe('timeAtDistance past the lap', () => {
+  it('extends at the first and last step pace', () => {
+    // First 500 m at 50 m/s, the rest at 25 m/s; 1000 m lap ends at 30 s.
+    expect(timeAtDistance(ref, -100)).toBeCloseTo(-2);
+    expect(timeAtDistance(ref, 1100)).toBeCloseTo(34);
+  });
+});
+
 describe('time <-> distance on the reference', () => {
   it('round-trips', () => {
     expect(timeAtDistance(ref, 250)).toBeCloseTo(5);

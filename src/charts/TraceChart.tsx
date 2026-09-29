@@ -44,11 +44,16 @@ export type TraceSeries = {
   stepped?: boolean;
   /** Recorded samples: drawn instead of `values` when given. */
   samples?: NativeSamples;
+  /** Neighbour laps before the line and after the end, drawn dimmed. */
+  before?: NativeSamples;
+  after?: NativeSamples;
 };
 
 export type TraceBand = {low: number[]; high: number[]};
 
 const Y_PAD = 3;
+// Neighbour laps across the line are context, not the selected lap.
+const WRAP_OPACITY = 0.4;
 const AXIS_H = 12;
 // Labels closer than this to the right edge are dropped (handoff).
 const LABEL_EDGE_PT = 34;
@@ -226,17 +231,31 @@ export function TraceChart({
     () =>
       series.map((s, si) => {
         const ys = yFor(seriesDomainsT[si] ?? domainT);
-        if (s.samples) {
-          // Recorded samples in the window; at whole-lap zoom, the extremes
-          // per point, so every drawn vertex is still a real sample.
-          let w = sliceSamples(s.samples, startM, endM);
+        // Recorded samples in the window; at whole-lap zoom, the extremes
+        // per point, so every drawn vertex is still a real sample.
+        const samplePath = (ns: NativeSamples) => {
+          let w = sliceSamples(ns, startM, endM);
           if (w.distanceM.length > width * 2) w = thinSamples(w, spanM / width);
           const pts: Pt[] = w.distanceM.map((m, k) => [
             xOfM(m),
             ys(w.values[k]),
           ]);
-          return {...s, d: s.stepped ? steppedPath(pts) : monotonePath(pts)};
-        }
+          return s.stepped ? steppedPath(pts) : monotonePath(pts);
+        };
+        // The neighbour laps either side of the line (the S/F wrap).
+        // They sit outside the lap, where the window's metre range is clipped
+        // (time mode), so they are drawn whole: at most 500 m each side.
+        const wholePath = (ns: NativeSamples) => {
+          const pts: Pt[] = ns.distanceM.map((m, k) => [
+            xOfM(m),
+            ys(ns.values[k]),
+          ]);
+          return s.stepped ? steppedPath(pts) : monotonePath(pts);
+        };
+        const wraps = [s.before, s.after]
+          .filter((ns): ns is NativeSamples => ns != null)
+          .map(wholePath);
+        if (s.samples) return {...s, d: samplePath(s.samples), wraps};
         const last = Math.min(to, s.values.length - 1);
         const stride = Math.max(1, Math.floor(pointsPerPt));
         const pts: Pt[] = [];
@@ -252,7 +271,7 @@ export function TraceChart({
                   `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`,
               )
               .join('');
-        return {...s, d};
+        return {...s, d, wraps};
       }),
     [
       series,
@@ -426,6 +445,20 @@ export function TraceChart({
             stroke={color.median}
             strokeWidth={stroke.mark}
           />
+        )}
+        {paths.flatMap(p =>
+          p.wraps.map((d, i) => (
+            <Path
+              key={`${p.key}-wrap${i}`}
+              d={d}
+              stroke={p.color}
+              strokeWidth={p.width}
+              strokeOpacity={p.opacity * WRAP_OPACITY}
+              strokeDasharray={p.dash}
+              strokeLinejoin='round'
+              fill='none'
+            />
+          )),
         )}
         {paths.map(p => (
           <Path
