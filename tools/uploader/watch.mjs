@@ -43,6 +43,8 @@ const home = resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
+// sync.mjs's default work folder and its record of files already described.
+const syncStatePath = resolve(local, 'lap-sessions', 'state.json');
 const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
 const GAME_EXE = 'Le Mans Ultimate.exe';
 const LOCK_PIPE = String.raw`\\.\pipe\lap-uploader-watch`;
@@ -94,18 +96,27 @@ function gameRunning() {
   return out.includes(GAME_EXE);
 }
 
-// Recordings, newest change time, and how many changed since a time.
+// Recordings, the newest change time, and how many still need a sync: changed
+// since the last clean sync, or on a fresh watcher, not yet in sync.mjs's own
+// state (its file list, same size and time). Counting every file on a fresh
+// install made the queue read 557 for sessions long uploaded (apex #553).
 function recordings(sinceMs) {
   if (!existsSync(telemetry)) return null;
+  const known =
+    sinceMs == null ? readJson(syncStatePath, {}).files ?? {} : null;
   let newestMtimeMs = null;
   let newer = 0;
   for (const name of readdirSync(telemetry)) {
     const path = resolve(telemetry, name);
     if (!lmu.isRecording(path)) continue;
-    const {mtimeMs} = statSync(path);
+    const {mtimeMs, size} = statSync(path);
     if (newestMtimeMs == null || mtimeMs > newestMtimeMs)
       newestMtimeMs = mtimeMs;
-    if (sinceMs == null || mtimeMs > sinceMs) newer++;
+    const seen = known?.[name];
+    const pending = known
+      ? !(seen && seen.size === size && seen.mtimeMs === mtimeMs)
+      : mtimeMs > sinceMs;
+    if (pending) newer++;
   }
   return {newestMtimeMs, newer};
 }
