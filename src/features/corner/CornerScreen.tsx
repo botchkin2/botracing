@@ -274,6 +274,11 @@ function CornerView({
                   {s.summary}
                 </Text>
               </View>
+              {s.note ? (
+                <Text variant='explainer' tone='textMuted'>
+                  {s.note}
+                </Text>
+              ) : null}
               {s.keyValues.length > 0 ? (
                 <View style={styles.wrap}>
                   {s.keyValues.map(k => (

@@ -232,6 +232,7 @@ export function buildCornerModel(input: {
               brakeM: r.values.brake,
               minSpeedKph: r.values.minSpeed,
               minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
+              throttleAtEdge: f?.fullThrottleAtEdge ?? false,
               apexSpeedKph: f?.apexSpeedKph ?? null,
               throttleM: r.values.throttle,
               brakeResM: f?.brakeAtResM ?? null,

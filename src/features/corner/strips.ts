@@ -24,6 +24,8 @@ export type StripLap = {
   minSpeedKph: number | null;
   /** Min speed sat on the corner's edge: a boundary value, not the corner's. */
   minSpeedAtEdge: boolean;
+  /** Full throttle at the search edge: flat through, not a real point. */
+  throttleAtEdge: boolean;
   apexSpeedKph: number | null;
   /** Metres after the apex. */
   throttleM: number | null;
@@ -35,7 +37,7 @@ export type StripDot = {
   lapId: string;
   value: number;
   onIndex: number | null;
-  /** Min speed at the corner's edge: drawn grey, not as a real minimum. */
+  /** A boundary value (min speed or full throttle at the edge): drawn grey. */
   flagged: boolean;
 };
 
@@ -59,6 +61,8 @@ export type StripModel = {
   summary: string;
   /** No lap has this measure here (a corner taken without braking). */
   empty: boolean;
+  /** Shown under the title when most laps hit the boundary. */
+  note: string | null;
   /** The on laps' values, for the line beside the title. */
   keyValues: {onIndex: number; text: string}[];
   dots: StripDot[];
@@ -179,7 +183,9 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
       lapId: l.lapId,
       value: v,
       onIndex: l.onIndex,
-      flagged: spec.measure === 'minSpeed' && l.minSpeedAtEdge,
+      flagged:
+        (spec.measure === 'minSpeed' && l.minSpeedAtEdge) ||
+        (spec.measure === 'throttle' && l.throttleAtEdge),
     });
   }
   const vals = dots.map(d => d.value).sort((a, b) => a - b);
@@ -226,6 +232,12 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
       : '',
     keyValues,
     empty: dots.length === 0,
+    note:
+      spec.measure === 'throttle' &&
+      dots.length > 0 &&
+      dots.filter(d => d.flagged).length / dots.length > EDGE_SHARE_FOR_APEX
+        ? 'Flat through this turn on most laps: their full-throttle point is where the search starts, not a real point.'
+        : null,
     dots,
   };
 }

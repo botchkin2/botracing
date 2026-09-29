@@ -10,6 +10,7 @@ const lap = (i: number, over: Partial<StripLap> = {}): StripLap => ({
   brakeM: 100 + i,
   minSpeedKph: 90 + i,
   minSpeedAtEdge: false,
+  throttleAtEdge: false,
   apexSpeedKph: 95 + i,
   throttleM: 50 + i,
   brakeResM: 1.2,
@@ -78,5 +79,15 @@ describe('a measure no lap has', () => {
     const [, brake] = buildStrips([0, 1, 2].map(i => lap(i, {brakeM: null})));
     expect(brake.empty).toBe(true);
     expect(brake.dots).toEqual([]);
+  });
+});
+
+describe('full throttle at the edge', () => {
+  it('greys edge laps and notes when most laps are flat through', () => {
+    const laps = [0, 1, 2].map(i => lap(i, {throttleAtEdge: i > 0}));
+    const throttle = buildStrips(laps)[3];
+    expect(throttle.dots.map(d => d.flagged)).toEqual([false, true, true]);
+    expect(throttle.note).toMatch(/^Flat through this turn/);
+    expect(buildStrips([lap(0)])[3].note).toBeNull();
   });
 });

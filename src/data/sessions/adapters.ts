@@ -179,6 +179,8 @@ export type CornerFacts = {
   fullThrottleAtResM: number | null;
   /** The minimum fell on the corner's edge (#82): a boundary value. */
   minSpeedAtEdge: boolean;
+  /** Full throttle fell on the search's start edge: flat through the turn. */
+  fullThrottleAtEdge: boolean;
   /** Speed at the apex sample, km/h (#82). */
   apexSpeedKph: number | null;
   offTrackS: number;
@@ -196,6 +198,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
     brakeAtResM: num(x.brakeAtResM),
     fullThrottleAtResM: num(x.fullThrottleAtResM),
     minSpeedAtEdge: x.minSpeedAtEdge === true,
+    fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
   };
