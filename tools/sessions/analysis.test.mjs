@@ -354,3 +354,35 @@ test('braked corners with only a short run between them are one section', () => 
     [2, 1],
   );
 });
+
+test('the apex is the slowest point, or the tightest one when that is an edge', () => {
+  const p = track([
+    {length: 400, brakeLast: 80},
+    {length: 150, radius: 60, left: true},
+    {length: 400},
+  ]);
+  const [s0, s1] = [400 / 5 + 1, 550 / 5];
+  // A slow corner: slowest in its middle, so that is the apex.
+  const dip = {
+    ...p,
+    speedKmh: p.speedKmh.map((v, i) =>
+      i >= s0 && i <= s1 ? 100 + Math.abs(i - 95) : v,
+    ),
+  };
+  const [slow] = findTrackCorners(dip);
+  assert.ok(Math.abs(slow.apexM - 475) <= 10, `slow apex ${slow.apexM}`);
+  // Accelerating through it: slowest at turn-in, so the apex is where it
+  // turns tightest, inside the corner and not on its edge.
+  const rising = {
+    ...p,
+    // Rising from well before the corner to well after it.
+    speedKmh: p.speedKmh.map((v, i) =>
+      i >= 60 && i <= 130 ? 80 + (i - 60) * 2 : v,
+    ),
+  };
+  const [fast] = findTrackCorners(rising);
+  assert.ok(
+    fast.apexM - fast.turnInM > 5 && fast.exitM - fast.apexM > 5,
+    `apex ${fast.apexM} in ${fast.turnInM}-${fast.exitM}`,
+  );
+});
