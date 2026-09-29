@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
-import {playerAt, timeAtLapDistance} from './raceClock';
+import {raceClock} from './raceClock';
 
 const HZ = 5;
 
@@ -57,29 +57,40 @@ function player(
   return c;
 }
 
+// A parked second car at 100 m gives the field its lap length, as the other
+// cars do in a real field.
 function field(car: FieldCar, updates: number): Field {
+  const marker: FieldCar = {
+    ...car,
+    index: 1,
+    player: false,
+    lapDistM: new Float32Array(updates).fill(100),
+  };
   return {
     version: 2,
     hz: HZ,
     startEtS: 0,
     timeS: Float64Array.from({length: updates}, (_, u) => u / HZ),
-    cars: [car],
+    cars: [car, marker],
   };
 }
 
-describe('playerAt', () => {
+describe('raceClock.playerAt', () => {
   it('gives the lap number and distance at the nearest update', () => {
     const f = field(player(30, {from: 20, lap0: 3}), 30);
     // Update 9 is 110 m in: lap 4, 10 m.
-    expect(playerAt(f, 9 / HZ)).toEqual({lapNumber: 4, distanceM: 10});
-    expect(playerAt(f, 0)).toEqual({lapNumber: 3, distanceM: 20});
+    expect(raceClock(f).playerAt(9 / HZ)).toEqual({
+      lapNumber: 4,
+      distanceM: 10,
+    });
+    expect(raceClock(f).playerAt(0)).toEqual({lapNumber: 3, distanceM: 20});
   });
 
   it('is null with no player or while the player is absent', () => {
     const noPlayer = field({...player(5), player: false}, 5);
-    expect(playerAt(noPlayer, 0)).toBeNull();
+    expect(raceClock(noPlayer).playerAt(0)).toBeNull();
     const gone = field(player(5, {absent: [2]}), 5);
-    expect(playerAt(gone, 2 / HZ)).toBeNull();
+    expect(raceClock(gone).playerAt(2 / HZ)).toBeNull();
   });
 
   it('keeps the lap right when the counter bumps an update late or early', () => {
@@ -87,45 +98,52 @@ describe('playerAt', () => {
     const late = field(player(14, {bump: 'late'}), 14);
     const early = field(player(14, {bump: 'early'}), 14);
     for (const f of [late, early]) {
-      expect(playerAt(f, 9 / HZ)?.lapNumber).toBe(0); // 90 m into lap 0
-      expect(playerAt(f, 10 / HZ)?.lapNumber).toBe(1); // 0 m into lap 1
-      expect(playerAt(f, 11 / HZ)?.lapNumber).toBe(1);
+      expect(raceClock(f).playerAt(9 / HZ)?.lapNumber).toBe(0); // 90 m into lap 0
+      expect(raceClock(f).playerAt(10 / HZ)?.lapNumber).toBe(1); // 0 m into lap 1
+      expect(raceClock(f).playerAt(11 / HZ)?.lapNumber).toBe(1);
     }
   });
 });
 
-describe('timeAtLapDistance', () => {
+describe('raceClock.timeAtLapDistance', () => {
   const f = field(player(30, {from: 20, lap0: 3}), 30);
 
   it('finds the moment, interpolating between updates', () => {
     // Lap 4: 10 m at update 9, 20 m at update 10, so 15 m is at 9.5.
-    expect(timeAtLapDistance(f, 4, 15)).toBeCloseTo(9.5 / HZ, 6);
-    expect(timeAtLapDistance(f, 3, 50)).toBeCloseTo(3 / HZ, 6);
+    expect(raceClock(f).timeAtLapDistance(4, 15)).toBeCloseTo(9.5 / HZ, 6);
+    expect(raceClock(f).timeAtLapDistance(3, 50)).toBeCloseTo(3 / HZ, 6);
   });
 
   it('returns the first sample of the lap for a distance before it', () => {
     // Lap 4 starts at update 8 (0 m); asking before its first sample is 0 m.
-    expect(timeAtLapDistance(f, 4, 0)).toBeCloseTo(8 / HZ, 6);
+    expect(raceClock(f).timeAtLapDistance(4, 0)).toBeCloseTo(8 / HZ, 6);
+  });
+
+  it('interpolates from the last sample of the lap before, across the line', () => {
+    // Starting 25 m in: lap 4's first sample is 5 m at update 8, the update
+    // before is 95 m on lap 3. 2 m into lap 4 is 7 of the 10 m between them.
+    const g = field(player(30, {from: 25, lap0: 3}), 30);
+    expect(raceClock(g).timeAtLapDistance(4, 2)).toBeCloseTo((7 + 0.7) / HZ, 6);
   });
 
   it('is null for a lap not driven or a distance the lap never reached', () => {
-    expect(timeAtLapDistance(f, 1, 10)).toBeNull();
+    expect(raceClock(f).timeAtLapDistance(1, 10)).toBeNull();
     // Lap 3 ends at 90 m (update 7); lap 6 has only 10 m at the last update.
-    expect(timeAtLapDistance(f, 3, 95)).toBeNull();
-    expect(timeAtLapDistance(f, 6, 50)).toBeNull();
+    expect(raceClock(f).timeAtLapDistance(3, 95)).toBeNull();
+    expect(raceClock(f).timeAtLapDistance(6, 50)).toBeNull();
   });
 
   it('does not interpolate across an absent stretch', () => {
     const gap = field(player(20, {absent: [4, 5]}), 20);
     // Lap 0: 30 m at update 3, absent at 4-5, 60 m at update 6. 45 m is in
     // the gap: the first sample at or past it is update 6, not a blend.
-    expect(timeAtLapDistance(gap, 0, 45)).toBeCloseTo(6 / HZ, 6);
+    expect(raceClock(gap).timeAtLapDistance(0, 45)).toBeCloseTo(6 / HZ, 6);
   });
 
   it('round-trips with playerAt', () => {
-    const at = playerAt(f, 12 / HZ);
+    const at = raceClock(f).playerAt(12 / HZ);
     expect(at).not.toBeNull();
-    const t = timeAtLapDistance(f, at!.lapNumber, at!.distanceM);
+    const t = raceClock(f).timeAtLapDistance(at!.lapNumber, at!.distanceM);
     expect(t).toBeCloseTo(12 / HZ, 6);
   });
 });
