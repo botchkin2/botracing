@@ -35,6 +35,7 @@ import {fileURLToPath} from 'node:url';
 import {analysisVersion} from '../sessions/analyze.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
+import {stopWhenGameStarts} from './gameGuard.mjs';
 import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
@@ -161,7 +162,18 @@ function runSync() {
     };
     child.stdout.setEncoding('utf8').on('data', onData);
     child.stderr.setEncoding('utf8').on('data', onData);
-    child.on('close', code => done({...result, code}));
+    // The whole tree: the sync and the DuckDB processes it runs.
+    const guard = stopWhenGameStarts(child, {
+      gameRunning,
+      kill: pid =>
+        execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+          windowsHide: true,
+        }),
+    });
+    child.on('close', code => {
+      guard.cancel();
+      done({...result, code, stoppedForGame: guard.stopped()});
+    });
   });
 }
 
@@ -241,6 +253,15 @@ async function main() {
         const startedMs = Date.now();
         await beat('syncing');
         const r = await runSync();
+        if (r.stoppedForGame) {
+          // Not a failure: nothing to retry or report. The trigger still
+          // holds (new telemetry, new version), so it runs again once LMU
+          // exits, and redoes only what this pass had not stored.
+          log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
+          wasRunning = true;
+          await beat('in-game');
+          continue;
+        }
         if (r.done) {
           watch.lastUploadAt = new Date().toISOString();
           watch.lastSessionId = r.sessions[0] ?? watch.lastSessionId;
