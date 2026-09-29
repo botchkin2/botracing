@@ -5,6 +5,7 @@
 //   gs://BUCKET/archive/{sim}/{sessionId}/{recordingId}/events.parquet
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v2.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
+//   gs://BUCKET/field/{ownerId}/{sessionId}/{contentHash}.json.gz  (every car, 5 Hz; field.mjs)
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)
 import {existsSync, readFileSync} from 'node:fs';
@@ -15,6 +16,7 @@ import {createRequire} from 'node:module';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {gzipSync} from 'node:zlib';
+import {fieldAfterSync} from './field.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -178,6 +180,24 @@ export async function upload(out, {log = () => {}} = {}) {
       'application/json',
     );
   }
+  // The field: a new one replaces the stored one (and its file goes after the
+  // doc points at the new one); no new one keeps what is stored (field.mjs).
+  const before = await db.collection('sessions').doc(session.id).get();
+  const kept = fieldAfterSync(
+    session.field,
+    before.exists ? before.get('field') ?? null : null,
+  );
+  session.field = kept.field;
+  if (kept.upload) {
+    await putGzip(
+      bucket,
+      session.field.path,
+      out.fieldText,
+      'application/json',
+    );
+  } else if (kept.field) {
+    log('  field: kept the stored one');
+  }
 
   const writer = db.bulkWriter();
   for (const rec of out.recordings)
@@ -208,6 +228,11 @@ export async function upload(out, {log = () => {}} = {}) {
     }
   }
   await writer.close();
+  // Only after the session points at the new file: a phone still holding the
+  // old URL gets a 404 and refetches the session.
+  if (kept.deletePath) {
+    await bucket.file(kept.deletePath).delete({ignoreNotFound: true});
+  }
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${
       out.laps.length

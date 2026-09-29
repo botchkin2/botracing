@@ -24,6 +24,9 @@ import pyarrow.parquet as pq
 from columns import columns
 
 VERSION = 1
+# Text kept per field row: which car is which. Driver names stay on this PC;
+# the uploader does not send them (pit-wall thread 30, #626).
+FIELD_TEXT = ("mVehicleName", "mVehicleClass", "mDriverName")
 
 
 def utc_ms():
@@ -68,6 +71,9 @@ class Capture:
             "headerHash": layout.hash,
             "layoutBytes": layout.size,
             "suspectFrames": 0,
+            # Car id -> model, from the telemetry slots (the field upload
+            # labels cars with this, never with the entry name).
+            "vehicleModels": {},
             **meta,
         }
         write_json(self.dir / "meta.json", self.meta)
@@ -118,11 +124,14 @@ class Capture:
             if not raw:
                 continue
             cols = {k: np.asarray(v) for k, v in extra.items()}
-            cols.update(columns(bytes(raw), ctype))
+            text = FIELD_TEXT if name == "field" else ()
+            cols.update(columns(bytes(raw), ctype, text))
             path = self.dir / f"{name}-{n:04d}.parquet"
             _write_table(path, cols)
             written += path.stat().st_size
         self.meta["chunks"] = n + 1
+        # Rewritten per chunk, so a capture cut short still has its car models.
+        write_json(self.dir / "meta.json", self.meta)
         self.bytes += written
         self.chunk_started_ms = ms if ms is not None else utc_ms()
         self._reset()

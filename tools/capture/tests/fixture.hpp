@@ -40,16 +40,19 @@ struct TelemInfoV01
   unsigned char mDentSeverity[8];
   Klass mVehicleClass;
   bool mABSActive, mTCActive;
+  char mVehicleModel[30];
   TelemWheelV01 mWheel[4];
 };
 
 struct VehicleScoringInfoV01
 {
   long mID;
+  char mDriverName[32];
   char mVehicleName[64];
   unsigned char mPlace;
   double mLapDist;
   signed char mSector;
+  char mVehicleClass[32];
 };
 
 struct ScoringInfoV01

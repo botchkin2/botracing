@@ -12,6 +12,7 @@ import {
   readSession,
   readSessionLaps,
   readBand,
+  readFieldGzip,
   storeHasSessions,
 } from './sessionStore';
 
@@ -119,6 +120,27 @@ export const lmuApi = onRequest(async (req, res) => {
         trackId: req.query.track ? String(req.query.track) : undefined,
       });
       res.status(200).json({items, total: items.length});
+      return;
+    }
+    const field = path.match(
+      /\/sessions\/([0-9a-f]{16})\/field(?:\/([0-9a-f]{12}))?$/,
+    );
+    if (field) {
+      const [, id, hash] = field;
+      const gz = await readFieldGzip(id, hash);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // The stored gzip as-is. Under /field/{hash} the content can never
+      // change (a new field has a new hash); plain /field must revalidate.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set(
+        'Cache-Control',
+        hash ? 'private, max-age=31536000, immutable' : 'private, no-cache',
+      );
+      res.status(200).send(gz);
       return;
     }
     const v2 = path.match(/\/sessions\/([0-9a-f]{16})(?:\/(laps|band|map))?$/);

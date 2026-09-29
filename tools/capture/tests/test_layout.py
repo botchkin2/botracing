@@ -13,7 +13,7 @@ def test_fixture_layout(lay):
     assert lay.telem.mWheel.offset % 4 == 0
     # enum class : uint8_t is one byte; two bools on one line are two fields.
     names = [n for n, _ in lay.telem._fields_]
-    assert names[-4:] == ["mVehicleClass", "mABSActive", "mTCActive", "mWheel"]
+    assert names[-5:] == ["mVehicleClass", "mABSActive", "mTCActive", "mVehicleModel", "mWheel"]
     assert C.sizeof(dict(lay.telem._fields_)["mVehicleClass"]) == 1
     # Pointers are 8 bytes; the enum-sized array resolves to SME_MAX = 2.
     assert C.sizeof(lay.struct("SharedMemoryGeneric")) == 2 * 4 + 4 + 4
