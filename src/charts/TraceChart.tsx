@@ -172,6 +172,10 @@ export function TraceChart({
         height,
         built[0],
         built[1],
+        // Stride and thinning follow from these: a longer lap joining the
+        // selection changes mPerPx (scrutineer, #80).
+        mPerPx,
+        stepM,
       ].join('|'),
       uOfM,
       uOfIndex: i => (tRef ? timeAtIndex(tRef, i) : i * stepM),

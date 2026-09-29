@@ -177,8 +177,11 @@ export function buildChunk(
 
 // Built chunks, per source (its samples or values array) and frame key. A
 // source keeps the chunks of its last few frames: y ranges change at section
-// boundaries and may change back.
+// boundaries and may change back. Within a frame it keeps the chunks it drew
+// last, not the whole lap: a lap of path strings for every line is megabytes
+// on a phone (scrutineer, #80).
 const KEEP_FRAMES = 4;
+const KEEP_CHUNKS = 6;
 const ids = new WeakMap<object, number>();
 let nextId = 1;
 /** A stable number for an object, for frame keys (e.g. the reference lap). */
@@ -206,7 +209,13 @@ export function chunkPath(
     frames.set(frame.key, (chunks = new Map()));
   }
   let d = chunks.get(k);
-  if (d == null) chunks.set(k, (d = buildChunk(src, frame, k)));
+  if (d == null) {
+    // Oldest first (insertion order); playback moves one way, so the oldest
+    // chunk is the one furthest behind.
+    if (chunks.size >= KEEP_CHUNKS)
+      chunks.delete(chunks.keys().next().value as number);
+    chunks.set(k, (d = buildChunk(src, frame, k)));
+  }
   return d;
 }
 

@@ -98,4 +98,16 @@ describe('chunkPath', () => {
     expect(b).toBe(a);
     expect(chunkPath(src, {...f, key: 'other', y: v => v}, 1)).not.toBe(a);
   });
+
+  it('keeps only the latest chunks per frame, not the whole lap', () => {
+    const src = {values: [], samples};
+    const f = frame(100, {key: 'cap'});
+    const first = chunkPath(src, f, 0);
+    for (let k = 1; k <= 10; k++) chunkPath(src, f, k);
+    // Chunk 0 was evicted: asking again rebuilds it (a new mapping shows).
+    expect(chunkPath(src, {...f, y: v => v}, 0)).not.toBe(first);
+    // A recent chunk is still cached.
+    const nine = chunkPath(src, f, 9);
+    expect(chunkPath(src, {...f, y: v => v}, 9)).toBe(nine);
+  });
 });
