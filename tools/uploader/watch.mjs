@@ -35,7 +35,7 @@ import {fileURLToPath} from 'node:url';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf} from './heartbeat.mjs';
 import {newSyncResult, queueCount, readSyncLine} from './syncOutput.mjs';
-import {RETRY_MIN, decide} from './trigger.mjs';
+import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const syncScript = resolve(here, '../sessions/sync.mjs');
@@ -248,7 +248,9 @@ async function main() {
         // Every sync retries all failures, so this pass's list replaces the last.
         watch.failedSessions = r.failedIds;
         if (r.failed || r.code) {
-          watch.retryAtMs = Date.now() + RETRY_MIN * 60 * 1000;
+          watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
+          watch.retryAtMs =
+            Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
           watch.lastError = {
             at: new Date().toISOString(),
             message: r.errors[0] ?? `sync exited with code ${r.code}`,
@@ -257,6 +259,7 @@ async function main() {
         } else {
           watch.lastRunAtMs = startedMs;
           watch.retryAtMs = null;
+          watch.failuresInRow = 0;
           watch.lastError = null;
         }
         save();

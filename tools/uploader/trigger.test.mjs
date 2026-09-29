@@ -1,7 +1,7 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {decide} from './trigger.mjs';
+import {decide, retryDelayMin} from './trigger.mjs';
 
 const MIN = 60 * 1000;
 const base = {
@@ -43,4 +43,11 @@ test('a failed sync waits for its retry time, then runs again with nothing new',
     run: true,
     reason: 'retry',
   });
+});
+
+test('retries back off: 30 min, then doubling, capped at 8 h', () => {
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6, 9].map(retryDelayMin),
+    [30, 60, 120, 240, 480, 480, 480],
+  );
 });

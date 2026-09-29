@@ -4,8 +4,18 @@
 // garage can cost VR frames, and frame time beats upload latency (apex,
 // thread 30 #489).
 
-// After a sync with failures, try again this much later, not every tick.
+// After a sync with failures, try again 30 min later, doubling after each
+// failure in a row up to 8 h, so a session that always fails does not
+// run the sync every half hour forever (pitlane #578).
 export const RETRY_MIN = 30;
+export const RETRY_MAX_MIN = 8 * 60;
+
+export function retryDelayMin(failuresInRow) {
+  return Math.min(
+    RETRY_MAX_MIN,
+    RETRY_MIN * 2 ** Math.max(0, failuresInRow - 1),
+  );
+}
 
 // Run when the game is not running, and telemetry changed since the last
 // clean sync started, or a failed one is due its retry.
