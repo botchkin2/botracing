@@ -3,7 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {type GridTrace} from '@/src/analysis/resample';
 
 import {buildFollowGeometry, buildFollowView} from './followModel';
-import {type MapPlacer} from './mapPlace';
+import {type MapPlacer} from '@/src/data/sessions';
 
 // A straight 1000 m lap heading east on a 5 m grid; "lat/lon" hold metres so
 // the placer is the identity. Brake goes on at 500 m.
