@@ -41,6 +41,11 @@ const dark = {
   // Handoff v2 M5: the uploader's "connected" dot. Its own token, not
   // `faster`, which means a signed gain.
   statusConnected: '#65e287',
+  // Round 3 R1f: other cars only (dots, radar blocks, class bars), never a
+  // line or a number. From oklch(0.62 0.20 25), (0.66 0.14 250), (0.73 0.16 48).
+  classHypercar: '#e64343',
+  classLmp2: '#4697e4',
+  classGt3: '#f68443',
   // Desktop chrome and rail (handoff "Desktop", D1).
   chrome: '#0b0d10',
   tabActive: '#1b1f24',
