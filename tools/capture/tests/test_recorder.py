@@ -3,6 +3,7 @@ import json
 import pyarrow.parquet as pq
 
 import shm
+from columns import decode_text
 from recorder import Recorder
 
 
@@ -71,7 +72,21 @@ def test_garbage_layout_is_refused(lay, game, tmp_path):
 
 
 def test_one_odd_car_name_is_recorded(lay, game, tmp_path):
-    game.obj.scoring.vehScoringInfo[2].mVehicleName = "Škoda #7".encode("latin-1", "replace")
+    game.obj.scoring.vehScoringInfo[2].mVehicleName = "Škoda #7".encode("utf-8")
+    rec = make(lay, game, tmp_path)
+    drive(rec, game, 0, 1)
+    assert status(tmp_path)["state"] == "recording"
+
+
+def test_names_decode_as_utf8_with_latin1_fallback():
+    assert decode_text("S\u00e9bastien Buemi".encode("utf-8") + bytes([0]) + b"junk") == "S\u00e9bastien Buemi"
+    assert decode_text("\u00c1".encode("utf-8")) == "\u00c1"  # c3 81: a C1 byte if read as latin-1
+    assert decode_text(bytes([67, 97, 102, 233])) == "Caf\u00e9"  # not valid UTF-8: latin-1
+
+
+def test_utf8_names_do_not_refuse_the_layout(lay, game, tmp_path):
+    for i in range(2, 6):
+        game.obj.scoring.vehScoringInfo[i].mVehicleName = "Sebastián Álvarez".encode("utf-8")
     rec = make(lay, game, tmp_path)
     drive(rec, game, 0, 1)
     assert status(tmp_path)["state"] == "recording"
