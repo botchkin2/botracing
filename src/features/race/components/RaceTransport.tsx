@@ -2,10 +2,14 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {PLAY_RATES, type PlayRate} from '@/src/state/comparePrefs';
 import {Segment, Text} from '@/src/ui';
 
+import {RACE_RATES, type RaceRate} from '../clock';
+
 const ICON = 16;
+
+// ".25×" not "0.25×": seven rates have to fit a phone.
+const rateLabel = (r: RaceRate) => `${r < 1 ? String(r).slice(1) : r}×`;
 
 /** Play or pause, the rates 0.25x to 2x, and the race clock (handoff R1a). */
 export function RaceTransport({
@@ -16,11 +20,11 @@ export function RaceTransport({
   onRate,
 }: {
   playing: boolean;
-  rate: PlayRate;
+  rate: RaceRate;
   /** "21:23.4": race time, mono. */
   clock: string;
   onToggle: () => void;
-  onRate: (rate: PlayRate) => void;
+  onRate: (rate: RaceRate) => void;
 }) {
   const {color} = useTheme();
   return (
@@ -48,9 +52,9 @@ export function RaceTransport({
         {clock}
       </Text>
       <Segment
-        options={PLAY_RATES.map(r => ({value: String(r), label: `${r}×`}))}
+        options={RACE_RATES.map(r => ({value: String(r), label: rateLabel(r)}))}
         value={String(rate)}
-        onChange={v => onRate(Number(v) as PlayRate)}
+        onChange={v => onRate(Number(v) as RaceRate)}
       />
     </View>
   );
@@ -59,7 +63,9 @@ export function RaceTransport({
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
+    rowGap: space.md,
     gap: space.lg,
     paddingHorizontal: size.gutter,
     paddingVertical: space.md,

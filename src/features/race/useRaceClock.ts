@@ -1,16 +1,14 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 
-import {PLAY_RATES, type PlayRate} from '@/src/state/comparePrefs';
-
-import {stepClock} from './clock';
+import {type RaceRate, stepClock} from './clock';
 
 export type RaceTimer = {
   timeS: number;
   playing: boolean;
-  rate: PlayRate;
+  rate: RaceRate;
   setTimeS: (timeS: number) => void;
   toggle: () => void;
-  setRate: (rate: PlayRate) => void;
+  setRate: (rate: RaceRate) => void;
 };
 
 /**
@@ -21,7 +19,7 @@ export type RaceTimer = {
 export function useRaceClock(endS: number, startS = 0): RaceTimer {
   const [timeS, setTimeS] = useState(startS);
   const [playing, setPlaying] = useState(false);
-  const [rate, setRate] = useState<PlayRate>(1);
+  const [rate, setRate] = useState<RaceRate>(1);
   const rateRef = useRef(rate);
   useEffect(() => {
     rateRef.current = rate;
@@ -54,5 +52,3 @@ export function useRaceClock(endS: number, startS = 0): RaceTimer {
 
   return {timeS, playing, rate, setTimeS, toggle, setRate};
 }
-
-export {PLAY_RATES};
