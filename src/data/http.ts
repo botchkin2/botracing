@@ -13,7 +13,10 @@ export const apiBaseUrl: string =
     : PRODUCTION_API);
 
 export class HttpError extends Error {
-  constructor(readonly status: number, readonly path: string) {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+  ) {
     super(`GET ${path} → ${status}`);
   }
 }
@@ -21,8 +24,9 @@ export class HttpError extends Error {
 export async function getJson<T>(
   path: string,
   signal?: AbortSignal,
+  init?: Pick<RequestInit, 'cache'>,
 ): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {signal});
+  const response = await fetch(`${apiBaseUrl}${path}`, {...init, signal});
   if (!response.ok) throw new HttpError(response.status, path);
   return (await response.json()) as T;
 }
