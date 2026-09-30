@@ -56,6 +56,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.md,
   },
-  dot: {width: 7, height: 7, borderRadius: 4, flex: 0},
+  dot: {width: 7, height: 7, borderRadius: 4, flexShrink: 0},
   text: {flex: 1},
 });
