@@ -21,6 +21,11 @@ export interface RawTrace {
   gear: number[];
   lat: number[];
   lon: number[];
+  // Metres from the game's centre path, positive right, and the track edge on
+  // the car's side (same sign). Absent in a trace written before analysis
+  // version 9; NaN where nothing was recorded.
+  pathLateralM?: number[];
+  trackEdgeM?: number[];
 }
 
 // Channels drawn from their real samples (see nativeSamples.ts).
@@ -29,7 +34,9 @@ export type NativeChannel =
   | 'throttlePct'
   | 'brakePct'
   | 'steeringPct'
-  | 'gear';
+  | 'gear'
+  | 'pathLateralM'
+  | 'trackEdgeM';
 
 export interface GridTrace {
   stepM: number;
@@ -159,6 +166,9 @@ export function resampleTrace(
       brakePct: native(raw.brakePct),
       steeringPct: native(raw.steeringPct),
       gear: native(raw.gear),
+      // Empty when the trace has no such column (an older upload).
+      pathLateralM: native(raw.pathLateralM ?? []),
+      trackEdgeM: native(raw.trackEdgeM ?? []),
     },
   };
 }
