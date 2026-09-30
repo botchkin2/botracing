@@ -592,6 +592,8 @@ function BrakeMapPanel({
         width={DESK_LEFT_W - 40}
         height={BRAKE_MAP_H}
         centreline={map.centreline}
+        stretch={map.stretch}
+        neighbours={map.neighbours}
         apex={map.apex}
         ticks={map.ticks}
         markers={markers}
@@ -638,7 +640,17 @@ function ZoomTraces({
         opacity: s.opacity,
       };
     });
-  const apex = [{m: zoom.apexM, label: 'Apex', solid: true}];
+  const apex = [
+    {m: zoom.apexM, label: 'Apex', solid: true},
+    // Neighbouring corners' apexes: faint, named, so their braking in the
+    // window is not taken for this turn's.
+    ...zoom.neighbours.map(n => ({m: n.apexM, label: `${n.label} apex`})),
+  ];
+  const caption = (
+    <Text variant='dataSmall' tone='textMuted'>
+      {zoom.caption}
+    </Text>
+  );
   const pointMarks = (at: (l: ZoomLine) => number | null) =>
     lines
       .filter(l => l.key && at(l) != null)
@@ -657,6 +669,8 @@ function ZoomTraces({
     windowM: zoom.windowM,
     cursorM: -1,
     gridOriginM: zoom.apexM,
+    stretchM: [zoom.stretch.fromM, zoom.stretch.toM] as [number, number],
+    dimM: zoom.dimmed,
   };
   if (lines.length === 0)
     return (
@@ -668,6 +682,7 @@ function ZoomTraces({
             onRetry={onRetry}
           />
         )}
+        {caption}
         <Text variant='label' tone='textMuted'>
           Speed km/h
         </Text>
@@ -691,6 +706,7 @@ function ZoomTraces({
           onRetry={onRetry}
         />
       )}
+      {caption}
       <Text variant='label' tone='textMuted'>
         Speed km/h
       </Text>
