@@ -1,11 +1,12 @@
 import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
+import {type Box} from '@/src/analysis/carLabels';
 import {type Radar as RadarData} from '@/src/analysis/radar';
 import {type MapCar, Radar, TrackMap} from '@/src/charts';
 import {type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Segment, Text} from '@/src/ui';
 
 import {type RaceDot} from '../model';
 import {classColor} from './classColor';
@@ -16,6 +17,17 @@ const RADIUS = {hypercar: 4.2, lmp2: 3.7, gt3: 3.2, other: 3.2};
 const YOU_RADIUS = 4.6;
 const PHONE_SCALE = 0.8;
 const DESKTOP_SCALE = 1.15;
+
+export type LabelMode = 'off' | 'pos';
+const LABEL_OPTIONS = [
+  {value: 'off', label: 'Off'},
+  {value: 'pos', label: 'Pos'},
+] as const;
+// The control's and the attribution's rough boxes, for label placement.
+const LABEL_CONTROL_W = 100;
+const LABEL_CONTROL_H = 32;
+const ATTRIBUTION_W = 190;
+const ATTRIBUTION_H = 12;
 
 const NO_MARKS = {boundaries: [], sections: [], corners: []};
 
@@ -34,6 +46,8 @@ export function RaceMap({
   showCars,
   attribution,
   radar,
+  labels,
+  onLabels,
   onPressCar,
 }: {
   width: number;
@@ -53,6 +67,9 @@ export function RaceMap({
     data: RadarData | null;
     sampleLabel?: string;
   } | null;
+  /** Car labels on the map: off, or the class position (R1e). */
+  labels: LabelMode;
+  onLabels: (mode: LabelMode) => void;
   onPressCar: (index: number) => void;
 }) {
   const {color} = useTheme();
@@ -77,10 +94,37 @@ export function RaceMap({
             state: d.state === 'garage' ? 'running' : d.state,
             you: d.player,
             focused: d.focused,
+            label: labels === 'pos' ? d.label : undefined,
+            labelRank: d.labelRank,
           }))
         : [],
-    [showCars, dots, placed, color, scale],
+    [showCars, dots, placed, color, scale, labels],
   );
+  // Labels keep off the control, the radar inset and the attribution.
+  const avoid = useMemo<Box[]>(() => {
+    const boxes: Box[] = [
+      {
+        x: space.sm,
+        y: space.sm,
+        width: LABEL_CONTROL_W,
+        height: LABEL_CONTROL_H,
+      },
+      {
+        x: width - 2 - ATTRIBUTION_W - space.md,
+        y: height - 2 - ATTRIBUTION_H - space.xs,
+        width: ATTRIBUTION_W,
+        height: ATTRIBUTION_H,
+      },
+    ];
+    if (radar)
+      boxes.push({
+        x: width - 2 - space.sm - radar.width,
+        y: space.sm,
+        width: radar.width,
+        height: radar.height,
+      });
+    return boxes;
+  }, [width, height, radar]);
   return (
     <View
       style={[
@@ -103,8 +147,12 @@ export function RaceMap({
         openSection={null}
         onPressSection={noop}
         cars={cars}
+        avoidLabels={avoid}
         onPressCar={key => onPressCar(Number(key))}
       />
+      <View style={styles.control}>
+        <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
+      </View>
       {radar ? (
         <View style={styles.radar}>
           <Radar
@@ -130,6 +178,7 @@ function noop() {}
 
 const styles = StyleSheet.create({
   frame: {borderWidth: 1, borderRadius: radius.md, overflow: 'hidden'},
+  control: {position: 'absolute', top: space.sm, left: space.sm},
   radar: {position: 'absolute', top: space.sm, right: space.sm},
   credit: {position: 'absolute', right: space.md, bottom: space.xs},
 });

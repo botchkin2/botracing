@@ -13,7 +13,7 @@ import {EmptyState, Skeleton, StatusBanner, Text} from '@/src/ui';
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
-import {RaceMap} from './components/RaceMap';
+import {type LabelMode, RaceMap} from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {Scrubber} from './components/Scrubber';
 import {
@@ -217,6 +217,9 @@ function RaceView({
   };
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
+  // R1e: per view; the design's third mode (car number) needs numbers the
+  // field upload does not carry.
+  const [labels, setLabels] = useState<LabelMode>('pos');
 
   // Playing interpolates between the 5 Hz updates; paused rests on a real one.
   const snap = !clock.playing;
@@ -289,6 +292,8 @@ function RaceView({
             ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
             : undefined,
         }}
+        labels={labels}
+        onLabels={setLabels}
         onPressCar={toggleFocus}
       />
       {rows.focusLabel ? (
