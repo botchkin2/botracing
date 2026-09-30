@@ -38,6 +38,13 @@ import {
   loadRecording,
   trackMapVersion,
 } from './analyze.mjs';
+import {
+  buildCornerSlices,
+  GRID_STEP_M,
+  SLICE_AFTER_M,
+  SLICE_BEFORE_M,
+  SLICE_FORMAT,
+} from './cornerSlices.mjs';
 import {fieldFor} from './field.mjs';
 import {lapFieldFacts} from './fieldTags.mjs';
 
@@ -430,6 +437,17 @@ function build(s, trackMap, eventWindows) {
     });
   });
 
+  // Every lap's window around every corner, one file per corner
+  // (cornerSlices.mjs). Named by content like the field, so a resync never
+  // serves a stale cached slice.
+  const slices = buildCornerSlices(
+    a.laps.map(lap => ({id: lapId(lap), csv: () => a.trace(lap)})),
+    a.trackMap,
+  );
+  const slicePrefix = slices
+    ? `slices/${ownerId}/${s.id}/${slices.hash}`
+    : null;
+
   // Named by its content, so the route can cache it as immutable: a resync
   // that changes the field writes a new file (pitlane #680).
   const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
@@ -484,6 +502,19 @@ function build(s, trackMap, eventWindows) {
     field: fieldPath
       ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
       : null,
+    // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
+    // with a file at {prefix}/c{n}.json.gz, and the window they cover.
+    slices: slices
+      ? {
+          format: SLICE_FORMAT,
+          hash: slices.hash,
+          prefix: slicePrefix,
+          corners: slices.corners,
+          beforeM: SLICE_BEFORE_M,
+          afterM: SLICE_AFTER_M,
+          stepM: GRID_STEP_M,
+        }
+      : null,
     lapTable: laps.map(lap => ({
       id: lap.id,
       lapNumber: lap.lapNumber,
@@ -508,6 +539,7 @@ function build(s, trackMap, eventWindows) {
     laps,
     band: a.band,
     fieldText,
+    slices,
     fieldReason: fieldOut.reason,
     track: trackDoc,
     traces,
@@ -530,6 +562,11 @@ function writeLocal(out) {
   if (out.band)
     writeFileSync(resolve(dir, 'band.json'), JSON.stringify(out.band));
   if (out.fieldText) writeFileSync(resolve(dir, 'field.json'), out.fieldText);
+  if (out.slices) {
+    mkdirSync(resolve(dir, 'slices'), {recursive: true});
+    for (const f of out.slices.files)
+      writeFileSync(resolve(dir, 'slices', `c${f.n}.json`), f.text);
+  }
   if (out.track)
     writeFileSync(
       resolve(dir, 'track.json'),

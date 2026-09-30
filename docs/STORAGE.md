@@ -10,6 +10,7 @@ How recorded sessions are kept. The decision and its reasons are in the pit-wall
 | Chart trace for one lap                                      | `gs://botracing-61-lmu/traces/{ownerId}/{lapId}/v2.csv.gz`                                           | Fetched only for laps being overlaid                                                                    |
 | Full recording archive                                       | `gs://botracing-61-lmu/archive/{sim}/{sessionId}/{recordingId}/samples.parquet` and `events.parquet` | Our own sim-neutral copy of every channel, so analysis can be recomputed later                          |
 | Consistency band                                             | `gs://botracing-61-lmu/bands/{ownerId}/{sessionId}/v1.json.gz`                                       | Median and p10/p90 of speed, throttle, brake on a 5 m grid                                              |
+| Corner slices (every lap around each corner) | `gs://botracing-61-lmu/slices/{ownerId}/{sessionId}/{hash}/c{n}.json.gz` | The Corner screen draws every lap without fetching whole-lap CSVs. One small file per corner; the folder is named by content, so a resync never serves a stale slice |
 | Field (every car, 5 Hz)                                      | `gs://botracing-61-lmu/field/{ownerId}/{sessionId}/{hash}.json.gz`                                   | From the local live capture (`tools/capture`), joined at sync time. No names. About 2 MB per race-hour. |
 
 The raw `.duckdb` from LMU is never uploaded.
@@ -71,6 +72,14 @@ Firestore docs cap at 1 MiB. Anything per-sample goes in the bucket.
 - The best laps for an owner at a track in a car.
 
 Rules and indexes deploy with functions on merge to main (`firebase deploy --only functions,firestore`).
+
+## Corner slices
+
+`tools/sessions/cornerSlices.mjs` cuts, for every lap and every corner of the track map (parts count as corners), the window apex-300 m to apex+200 m out of the lap's trace and writes one file per corner: `slices/{ownerId}/{sessionId}/{hash}/c{n}.json.gz`. The session doc has `slices: {format, hash, prefix, corners, beforeM, afterM, stepM}`. The hash is over the files' content; a sync writes the new folder, then deletes the session's other slice folders after the doc points at the new one. Format and route: `docs/API.md`.
+
+What a slice holds is what the app draws from the lap's CSV today, produced by the same code (`src/analysis/traceCsv.ts` and `resample.ts`, run by the uploader): every channel's **recorded samples** at their own distances (slower channels are not held or repeated), plus time, latitude and longitude on the 5 m grid. Values keep the CSV's own precision, distances are millimetres, and every array is integer deltas. Measured on the Road Atlanta 44-lap race (11 corners): 104 to 180 KB gzipped per corner, 1.6 MB for the whole race, against about 0.55 MB per lap when the app fetched the CSVs.
+
+Limits: the window is clipped at the start/finish line (a corner within 300 m of the line has a shorter window, as the per-lap CSV path always did); the file lists every lap the session has, including pit and partial laps; a trace from before analysis version 9 has no lateral samples.
 
 ## Field
 

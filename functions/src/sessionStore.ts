@@ -283,6 +283,32 @@ export async function readFieldGzip(
   }
 }
 
+// Every lap's window around one corner (tools/sessions/cornerSlices.mjs), as
+// the stored gzip bytes. Small (~80 KB for a 44-lap race), and named by
+// content: with a hash, only that version, so a stale URL gets a 404 and a
+// resync never serves an old slice from cache.
+export async function readCornerSlicesGzip(
+  id: string,
+  corner: number,
+  hash?: string,
+): Promise<Buffer | null> {
+  const session = await readSession(id);
+  const slices = session?.slices;
+  if (!slices?.prefix || !slices.corners?.includes(corner)) return null;
+  if (hash && slices.hash !== hash) return null;
+  try {
+    const [body] = await admin
+      .storage()
+      .bucket(BUCKET)
+      .file(`${slices.prefix}/c${corner}.json.gz`)
+      .download({decompress: false});
+    return body;
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
 // The track a session was driven on: its corner map (sections, from
 // src/analysis/corners.ts), and when a real-map fit exists (tools/track-fit),
 // the georef that places the recording's coordinates on the real world plus
