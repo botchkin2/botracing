@@ -71,7 +71,7 @@ export function DotStrip({
   const rows = useMemo(
     () =>
       stackDots(
-        dots.map(d => ({x: x(d.value), value: d.value})),
+        dots.map(d => ({x: x(d.value), value: d.value, priority: d.top})),
         Math.max(...dots.map(d => d.r * 2), 1),
         coincidentWithin,
       ),

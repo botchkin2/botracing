@@ -11,6 +11,11 @@ export interface StackInput {
   /** Screen x, points. */
   x: number;
   value: number;
+  /**
+   * Placed before the others, so it takes the line and the rest stack around
+   * it: the laps that are on, never buried in a column of grey dots.
+   */
+  priority?: boolean;
 }
 
 /** Row per dot, in input order: 0 on the line, ±1, ±2 … above and below. */
@@ -19,7 +24,13 @@ export function stackDots(
   diameterPt: number,
   coincidentWithin: number,
 ): number[] {
-  const order = dots.map((_, i) => i).sort((a, b) => dots[a].x - dots[b].x);
+  const order = dots
+    .map((_, i) => i)
+    .sort(
+      (a, b) =>
+        Number(!!dots[b].priority) - Number(!!dots[a].priority) ||
+        dots[a].x - dots[b].x,
+    );
   const rows = new Array<number>(dots.length).fill(0);
   const placed: {x: number; value: number; row: number}[] = [];
   for (const i of order) {
