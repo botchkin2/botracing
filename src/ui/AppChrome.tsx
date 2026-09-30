@@ -4,7 +4,11 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {AppMark} from './AppMark';
+import {hitFor} from './hitArea';
 import {Text} from './Text';
+
+// 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
+export const MARK_SLOP = (size.hit - size.logo) / 2;
 
 export type WorkspaceTab = 'session' | 'compare' | 'race' | 'corner' | 'tracks';
 
@@ -47,7 +51,7 @@ export function AppChrome({
         accessibilityLabel='Sessions'
         disabled={!onHome}
         onPress={onHome}
-        hitSlop={space.sm}>
+        {...hitFor(MARK_SLOP, MARK_SLOP)}>
         <AppMark />
       </Pressable>
       <View style={styles.tabs} accessibilityRole='tablist'>

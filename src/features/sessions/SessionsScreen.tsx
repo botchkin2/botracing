@@ -15,13 +15,15 @@ import {
   settingsHref,
   tracksHref,
 } from '@/src/nav/routes';
-import {AppMark, Badge, Button, Text} from '@/src/ui';
+import {AppMark, Badge, Button, hitFor, MARK_SLOP, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
 
 // Columns from the handoff: badge | track · car | laps | best | median.
 const COL = {badge: 24, laps: 30, time: 64};
 const LIST_MAX_WIDTH = 760;
+
+const markHit = hitFor(MARK_SLOP, MARK_SLOP);
 
 export function SessionsScreen() {
   const model = useSessionsModel();
@@ -46,7 +48,8 @@ export function SessionsScreen() {
               accessibilityRole='link'
               accessibilityLabel='Sessions'
               onPress={() => router.navigate(sessionsHref())}
-              style={styles.mark}>
+              hitSlop={markHit.hitSlop}
+              style={[markHit.style, styles.mark]}>
               <AppMark />
             </Pressable>
           )}
@@ -244,7 +247,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
-  mark: {marginRight: space.md},
+  // The 44 pt hit box takes back its own growth: net gap to the title = space.md.
+  mark: {marginRight: space.md - MARK_SLOP},
   tracksLink: {marginLeft: 'auto', marginRight: space.lg},
   headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
   picker: {
