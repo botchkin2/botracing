@@ -8,7 +8,7 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {MapZoomButtons, Segment, Text} from '@/src/ui';
+import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
 
 import {type MapModel} from '../model';
 import {type LapStyle} from './ChartBlock';
@@ -124,6 +124,11 @@ export function MapPanel({
           }))}
           inset={f.geometry.inset}
           corners={f.geometry.corners}
+          scaleX={
+            zoomControls
+              ? MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm
+              : undefined
+          }
         />
       ) : (
         <TrackMap
