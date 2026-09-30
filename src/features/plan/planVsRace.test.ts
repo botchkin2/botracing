@@ -137,6 +137,7 @@ describe('one stop, one number', () => {
       added: {fuelL: 50, vePct: 38},
       inPitS: 81,
       lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+      tyres: null,
     },
   });
   const laps = [

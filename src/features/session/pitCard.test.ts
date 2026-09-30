@@ -1,0 +1,340 @@
+import {describe, expect, it} from '@jest/globals';
+
+import type {Lap, PitStop} from '@/src/data/sessions';
+import {toLaps} from '@/src/data/sessions/adapters';
+
+import fixture from './__fixtures__/roadAtlantaRace.json';
+import {buildPitCard, type PitCardSession, sessionHasVe} from './pitCard';
+
+const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
+  ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
+  id: `l${lapIndex}`,
+  lapIndex,
+  stint: 1,
+  timeS: 90,
+  partial: false,
+  reasons: [],
+  fuel: null,
+  pitStop: null,
+  pitOut: false,
+  newTyres: false,
+  ...over,
+});
+
+const fuel = (over: Partial<NonNullable<Lap['fuel']>> = {}) => ({
+  startL: 45,
+  endL: 40,
+  usedL: 5,
+  addedL: 0,
+  veStartPct: 68,
+  veEndPct: 60,
+  veUsedPct: 8,
+  veAddedPct: 0,
+  lapsLeftFuel: 8,
+  lapsLeftVe: 7.5,
+  green: true,
+  ...over,
+});
+
+const stop = (over: Partial<PitStop> = {}): PitStop => ({
+  atEntry: {fuelL: 9.4, vePct: 4},
+  added: {fuelL: 40.1, vePct: 62},
+  inPitS: 51.2,
+  lapsLeftAtEntry: {fuel: 2.6, ve: 1.1},
+  tyres: {changed: true, wheels: ['FL', 'FR', 'RL', 'RR']},
+  ...over,
+});
+
+const session = (over: Partial<PitCardSession> = {}): PitCardSession => ({
+  carClass: 'GT3',
+  stints: [
+    {n: 1, medianVePct: 3.5},
+    {n: 2, medianVePct: 3.5},
+    {n: 3, medianVePct: 3.5},
+  ] as PitCardSession['stints'],
+  ...over,
+});
+
+// L1 from the grid (the service before the start), L2 to L5 flying, a stop
+// entered on L6, L7 out lap, L8 flying with new tyres showing, L9 the last
+// whole lap.
+const oneStop = [
+  lap(1, {
+    fuel: fuel({startL: 30, addedL: 15, veStartPct: 45, veAddedPct: 23}),
+    pitStop: stop({
+      atEntry: {fuelL: 30, vePct: 45},
+      added: {fuelL: 15, vePct: 23},
+    }),
+  }),
+  lap(2, {fuel: fuel()}),
+  lap(3, {fuel: fuel()}),
+  lap(4, {fuel: fuel()}),
+  lap(5, {fuel: fuel()}),
+  lap(6, {fuel: fuel(), pitStop: stop(), pitIn: true}),
+  lap(7, {pitOut: true, stint: 2, fuel: fuel()}),
+  lap(8, {stint: 2, newTyres: true, fuel: fuel()}),
+  lap(9, {
+    stint: 2,
+    fuel: fuel({endL: 3.7, veEndPct: 4, lapsLeftFuel: 1.5, lapsLeftVe: 1.1}),
+  }),
+];
+
+describe('buildPitCard', () => {
+  it('has no card outside a race, or without a whole lap to end on', () => {
+    expect(buildPitCard('P', oneStop, session())).toBeNull();
+    expect(buildPitCard('Q', oneStop, session())).toBeNull();
+    expect(buildPitCard('R', [lap(1), lap(2)], session())).toBeNull();
+  });
+
+  describe('a stop', () => {
+    const card = buildPitCard('R', oneStop, session());
+
+    it('is one full-width column, and the service before the start is not a stop', () => {
+      expect(card?.kind).toBe('stops');
+      if (card?.kind !== 'stops') return;
+      expect(card.layout).toBe('one');
+      expect(card.columns).toHaveLength(1);
+      expect(card.columns[0].title).toBe('Stop');
+      expect(card.columns[0].after).toBe('after L6');
+    });
+
+    it('reads what was left, what was added, VE out, the lane and the tyres', () => {
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      const c = card.columns[0];
+      expect(c.inTank).toEqual({value: '9.4 L', note: '4 % VE · 1.1 laps'});
+      expect(c.added).toEqual({value: '+40.1 L', note: '+62 % VE'});
+      // 4 + 62 = 66 % out, at the next stint's 3.5 %/lap.
+      expect(c.veOut).toEqual({
+        value: '66 %',
+        note: '18.9 laps',
+        leftPct: 4,
+        addedPct: 62,
+      });
+      expect(c.lane).toEqual({
+        value: '51.2 s',
+        note: 'refuel 11.8 s',
+        laneS: 51.2,
+        refuelS: 40.1 / 3.4,
+      });
+      expect(c.tyres).toBe('All four new');
+    });
+
+    it('ends on the last whole lap, and the balance closes on the printed numbers', () => {
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      expect(card.end).toEqual({
+        title: 'End of L9',
+        spare: '3.7 L / 4 % VE (1.1 laps)',
+        // 9.4 + 40.1 - 3.7 = 45.8 L used after.
+        last: '+40.1 L · used 45.8 L after · 3.7 L left',
+      });
+      expect(card.refuelScope).toBe(
+        'refuel at 3.4 L/s · GT3, measured on 5 stops',
+      );
+      expect(card.hasVe).toBe(true);
+      expect(card.key).toEqual([
+        'VE out: what was left (dark) and what the stop added (light), of a full load.',
+        'Pit lane: the time in the lane, with the refuelling inside it (dark).',
+      ]);
+    });
+  });
+
+  it('two stops are two columns, three or more scroll with fixed width columns', () => {
+    const twoStops = [
+      ...oneStop.slice(0, 8),
+      lap(8, {stint: 2, fuel: fuel(), pitStop: stop(), pitIn: true}),
+      lap(9, {stint: 3, pitOut: true, fuel: fuel()}),
+      lap(10, {
+        stint: 3,
+        fuel: fuel({
+          endL: 3.7,
+          veEndPct: 4,
+          lapsLeftFuel: 1.5,
+          lapsLeftVe: 1.1,
+        }),
+      }),
+    ];
+    const two = buildPitCard('R', twoStops, session());
+    if (two?.kind !== 'stops') throw new Error('not a stops card');
+    expect(two.layout).toBe('two');
+    expect(two.columns.map(c => c.title)).toEqual(['Stop 1', 'Stop 2']);
+    expect(two.columns.map(c => c.after)).toEqual(['after L6', 'after L8']);
+    const three = buildPitCard(
+      'R',
+      [
+        ...twoStops.slice(0, 9),
+        lap(10, {stint: 3, fuel: fuel(), pitStop: stop(), pitIn: true}),
+        lap(11, {
+          stint: 4,
+          fuel: fuel({
+            endL: 3.7,
+            veEndPct: 4,
+            lapsLeftFuel: 1.5,
+            lapsLeftVe: 1.1,
+          }),
+        }),
+      ],
+      session(),
+    );
+    if (three?.kind !== 'stops') throw new Error('not a stops card');
+    expect(three.layout).toBe('scroll');
+    expect(three.columns).toHaveLength(3);
+  });
+
+  it('a drive-through says nothing was added and has no refuel time', () => {
+    const laps = oneStop.map(l =>
+      l.id === 'l6'
+        ? {
+            ...l,
+            pitStop: stop({
+              added: {fuelL: 0, vePct: 0},
+              lapsLeftAtEntry: {fuel: 2.6, ve: 1.1},
+            }),
+          }
+        : l,
+    );
+    const card = buildPitCard('R', laps, session());
+    if (card?.kind !== 'stops') throw new Error('not a stops card');
+    expect(card.columns[0].added).toEqual({
+      value: '+0.0 L',
+      note: 'nothing added',
+    });
+    expect(card.columns[0].lane?.refuelS).toBeNull();
+    expect(card.columns[0].lane?.note).toBeNull();
+    expect(card.key[1]).toBe('Pit lane: the time in the lane.');
+    expect(card.refuelScope).toBeNull();
+  });
+
+  it('a class the rate is not measured on has the lane time alone, never a guess', () => {
+    const card = buildPitCard('R', oneStop, session({carClass: 'LMP2'}));
+    if (card?.kind !== 'stops') throw new Error('not a stops card');
+    expect(card.columns[0].lane).toEqual({
+      value: '51.2 s',
+      note: null,
+      laneS: 51.2,
+      refuelS: null,
+    });
+    expect(card.refuelScope).toBeNull();
+  });
+
+  it('says which tyres changed in the card wording, and nothing before the wear step is seen', () => {
+    const tyres = (t: NonNullable<PitStop['tyres']> | null) => {
+      const laps = oneStop.map(l =>
+        l.id === 'l6' ? {...l, pitStop: stop({tyres: t})} : l,
+      );
+      const card = buildPitCard('R', laps, session());
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      return card.columns[0].tyres;
+    };
+    expect(tyres({changed: false, wheels: []})).toBe('Not changed');
+    expect(tyres({changed: true, wheels: ['FL', 'FR']})).toBe('Fronts new');
+    expect(tyres({changed: true, wheels: ['FR']})).toBe('FR only');
+    expect(tyres(null)).toBeNull();
+  });
+
+  it('a session ending in the pits has no lane time and no tyres yet', () => {
+    const laps = [
+      ...oneStop.slice(0, 5),
+      lap(6, {
+        fuel: fuel({endL: 3.7, veEndPct: 4}),
+        pitStop: stop({inPitS: null, tyres: null}),
+        pitIn: true,
+      }),
+    ];
+    // No lap follows the stop, so the last whole lap is the pit-in lap itself.
+    const card = buildPitCard('R', laps, session());
+    if (card?.kind !== 'stops') throw new Error('not a stops card');
+    expect(card.columns[0].lane).toBeNull();
+    expect(card.columns[0].tyres).toBeNull();
+  });
+
+  describe('fuel only: a session with no Virtual Energy stored', () => {
+    const noVe = (l: Lap): Lap => ({
+      ...l,
+      fuel: l.fuel
+        ? {
+            ...l.fuel,
+            veStartPct: null,
+            veEndPct: null,
+            veUsedPct: null,
+            veAddedPct: null,
+            lapsLeftVe: null,
+          }
+        : null,
+      pitStop: l.pitStop
+        ? {
+            ...l.pitStop,
+            atEntry: {...l.pitStop.atEntry, vePct: null},
+            added: {...l.pitStop.added, vePct: null},
+            lapsLeftAtEntry: {...l.pitStop.lapsLeftAtEntry, ve: null},
+          }
+        : null,
+    });
+    const laps = oneStop.map(noVe);
+
+    it('is chosen from the stored channel, whatever the class', () => {
+      expect(sessionHasVe(oneStop)).toBe(true);
+      expect(sessionHasVe(laps)).toBe(false);
+    });
+
+    it('removes VE: no bar, no VE line, litres only, and the lane time still stands', () => {
+      const card = buildPitCard('R', laps, session({carClass: 'LMP2'}));
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      expect(card.hasVe).toBe(false);
+      const c = card.columns[0];
+      expect(c.veOut).toBeNull();
+      expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps'});
+      expect(c.added).toEqual({value: '+40.1 L', note: null});
+      expect(c.lane?.value).toBe('51.2 s');
+      expect(card.key).toEqual(['Pit lane: the time in the lane.']);
+      expect(card.end?.spare).toBe('3.7 L (1.5 laps)');
+    });
+  });
+
+  describe('no stop: the Fuel card', () => {
+    const noStop = [
+      lap(1, {
+        fuel: fuel({startL: 45, veStartPct: 68, usedL: 2.3, veUsedPct: 3.6}),
+      }),
+      lap(2, {fuel: fuel()}),
+      lap(3, {
+        fuel: fuel({
+          endL: 3.7,
+          veEndPct: 4,
+          lapsLeftFuel: 1.5,
+          lapsLeftVe: 1.1,
+        }),
+      }),
+    ];
+
+    it('says what was in the car, what was used and what was left on the last whole lap', () => {
+      const card = buildPitCard('R', noStop, session());
+      if (card?.kind !== 'fuel') throw new Error('not the fuel card');
+      expect(card.start).toEqual({
+        value: '45.0 L / 68 % VE',
+        note: 'loaded before L1',
+      });
+      // 45.0 - 3.7 = 41.3 L; 68 - 4 = 64 % VE; over the 3 laps.
+      expect(card.used).toEqual({
+        value: '41.3 L / 64 % VE',
+        note: '13.77 L/lap · 21.33 %/lap · over 3 laps',
+      });
+      expect(card.end.title).toBe('End of L3');
+      expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps)');
+      expect(card.end.usedShare).toBeCloseTo(41.3 / 45, 5);
+    });
+
+    it('counts fuel put in before the start as loaded, and says so', () => {
+      const laps = [
+        lap(1, {
+          fuel: fuel({startL: 30, addedL: 15, veStartPct: 45, veAddedPct: 23}),
+        }),
+        ...noStop.slice(1),
+      ];
+      const card = buildPitCard('R', laps, session());
+      if (card?.kind !== 'fuel') throw new Error('not the fuel card');
+      expect(card.start.note).toBe('+15.0 L added on L1');
+      // 30 + 15 - 3.7 = 41.3 L.
+      expect(card.used.value).toBe('41.3 L / 64 % VE');
+    });
+  });
+});
