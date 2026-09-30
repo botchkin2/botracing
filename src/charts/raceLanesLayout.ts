@@ -35,6 +35,38 @@ export function timeAtX(x: number, window: Span, laneWidth: number): number {
   return window.fromS + f * (window.toS - window.fromS);
 }
 
+export interface ScrubInputs {
+  window: Span;
+  laneWidth: number;
+  labelWidth: number;
+  onScrub: (timeS: number) => void;
+}
+
+/**
+ * A drag on the lanes. The zoomed windows follow the playhead, so the window
+ * moves under the finger as the playhead moves; mapping each move through the
+ * moved window makes the playhead run away (camber, pit-wall thread 27 #970).
+ * The window at the start of the drag is the one every move of that drag is
+ * mapped through. `read` returns the latest inputs (a ref in the component).
+ */
+export function laneScrubber(read: () => ScrubInputs) {
+  let frozen: Span | null = null;
+  const move = (x: number) => {
+    const p = read();
+    p.onScrub(timeAtX(x - p.labelWidth, frozen ?? p.window, p.laneWidth));
+  };
+  return {
+    start(x: number) {
+      frozen = read().window;
+      move(x);
+    },
+    move,
+    end() {
+      frozen = null;
+    },
+  };
+}
+
 export function lanesLayout({
   lanes,
   window,

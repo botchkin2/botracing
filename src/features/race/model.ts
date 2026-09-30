@@ -33,6 +33,21 @@ export function classKey(carClass: string): ClassKey {
   return 'other';
 }
 
+// LMU names a car's model with its class on the end ("Porsche 911 GT3 R
+// LMGT3", "Chevrolet Corvette Z06 LMGT3.", "... AMR LMGT" cut at 30 characters),
+// and the class is shown beside it. One place strips it for display.
+const CLASS_SUFFIX = /\s+(LMGT3?|LMH|LMP2|LMDH|GTE|GT3)\.?$/i;
+
+/** A car's model as shown: the class suffix off, "Unknown car" when there is none. */
+export function displayModel(vehicle: string | null): string {
+  // In the middle ("Ferrari 296 LMGT3 Evo") LMU's class code is the car's GT3.
+  const name = (vehicle ?? '')
+    .trim()
+    .replace(CLASS_SUFFIX, '')
+    .replace(/\bLMGT3\b/g, 'GT3');
+  return name === '' ? 'Unknown car' : name;
+}
+
 export type RaceRow = {
   index: number;
   key: ClassKey;
@@ -99,7 +114,7 @@ function rowOf(car: RaceCar, focus: number | null): RaceRow {
     index: car.index,
     key: classKey(car.carClass),
     position: garage ? '' : String(car.classPlace),
-    model: car.vehicle ?? 'Unknown car',
+    model: displayModel(car.vehicle),
     gap: garage ? '—' : car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '',
     status:
       car.state === 'running' && car.pits > 0
@@ -119,7 +134,7 @@ function byRun(a: RaceCar, b: RaceCar): number {
 }
 
 function focusText(car: RaceCar): string {
-  const parts = [car.vehicle ?? 'Unknown car'];
+  const parts = [displayModel(car.vehicle)];
   if (car.state === 'garage') {
     parts.push('in the garage');
   } else {
@@ -202,7 +217,7 @@ export function buildRaceModel(input: {
     filter,
     carCount: cars.length,
     you: you
-      ? {key: classKey(you.carClass), model: you.vehicle ?? 'Unknown car'}
+      ? {key: classKey(you.carClass), model: displayModel(you.vehicle)}
       : null,
   };
 }

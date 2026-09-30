@@ -12,5 +12,5 @@ Never `git push` to `main`. Every push to `main` builds and deploys. App changes
 
 ## Seeing your change with live data
 
-Run `npx expo start --web --port <any free port>` in your worktree. Over plain http, `src/data/http.ts` calls the production API directly, and the API accepts any `http://localhost:<port>` origin and every PR preview channel, so you need no proxy. For the final check, use the PR preview (the github-actions comment has its URL).
+Don't run Metro (`expo start`) or any other local dev server. Botkin has to approve every start and restart, and a long-lived server breaks when worktrees change. Check locally with `npx tsc --noEmit` and `npx jest` (both allowlisted). For anything visual, push the branch and use the PR preview: the github-actions comment has its URL, it talks to the production API, and it is what the reviewer and apex check too. Push early (a draft PR is fine) and repush to update. Only if the preview can't show what you need, ask apex first.
 
