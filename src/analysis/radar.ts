@@ -44,6 +44,8 @@ export interface RadarCar {
   sideM: number;
   /** Heading relative to the player's, radians in (−π, π]; 0 = same way. */
   relYawRad: number;
+  /** Overlapping yours lengthwise and within the side-bar distance: alongside. */
+  alongside: 'left' | 'right' | null;
   lengthM: number;
   widthM: number;
   /** 0..1: the range-edge fade times the pit dimming. */
@@ -106,20 +108,23 @@ export function radarAt(
     const lengthM = LENGTH_M[cls];
     // A car in the pit lane alongside on pit entry or exit is not a car to
     // look for on track, so it does not light the bars.
-    if (
+    const alongside =
       car.inPits[at] !== 1 &&
       Math.abs(forwardM) < (lengthM + PLAYER_LENGTH_M) / 2 &&
       Math.abs(sideM) < SIDE_BAR_M
-    ) {
-      if (sideM < 0) leftLit = true;
-      else rightLit = true;
-    }
+        ? sideM < 0
+          ? 'left'
+          : 'right'
+        : null;
+    if (alongside === 'left') leftLit = true;
+    if (alongside === 'right') rightLit = true;
     cars.push({
       index: car.index,
       cls,
       forwardM,
       sideM,
       relYawRad: placed.relYawRad,
+      alongside,
       lengthM,
       widthM: CAR_WIDTH_M,
       opacity,
