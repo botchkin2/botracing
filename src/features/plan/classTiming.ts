@@ -1,4 +1,4 @@
-import {type ClassKey} from '@/src/analysis/carClass';
+import {type PaceClass} from '@/src/analysis/classLaps';
 import {formatLapTime} from '@/src/design';
 
 import {lapName} from './planCards';
@@ -21,7 +21,7 @@ const MAX_PASSES = 20;
 export type ClassSession = {
   kind: 'race' | 'practice';
   /** Per class: the median green lap of its cars in that session, and how many laps it rests on. */
-  byClass: Partial<Record<ClassKey, {medianS: number; laps: number}>>;
+  byClass: Partial<Record<PaceClass, {medianS: number; laps: number}>>;
 };
 
 export type ClassTimingInput = {
@@ -30,7 +30,7 @@ export type ClassTimingInput = {
   /** His own class. */
   mine: {
     /** Null when his sessions carry no class. */
-    key: ClassKey | null;
+    key: PaceClass | null;
     /** As LMU writes it ("LMGT3"); shown on the card. */
     name: string;
     /** The plan's median green lap; null without green laps. */
@@ -52,7 +52,7 @@ export type Pass = {
 };
 
 export type FasterClass = {
-  key: ClassKey;
+  key: PaceClass;
   label: string;
   /** Null when fewer than MIN_CLASS_SESSIONS sessions saw the class. */
   estimate: {
@@ -95,14 +95,15 @@ export const NO_LAPS_TEXT =
   'Class timing needs green laps of yours here to set the gain against.';
 export const NO_FASTER_TEXT = 'No faster class was recorded at this track.';
 
-const LABELS: Record<ClassKey, string> = {
+const LABELS: Record<PaceClass, string> = {
   hypercar: 'Hypercar',
   lmp2: 'LMP2',
   gt3: 'GT3',
+  gte: 'GTE',
   other: 'Other',
 };
 // The fastest first, as the classes line up on a track.
-const ORDER: ClassKey[] = ['hypercar', 'lmp2', 'gt3'];
+const ORDER: PaceClass[] = ['hypercar', 'lmp2', 'gte', 'gt3'];
 
 function median(values: number[]): number {
   const v = [...values].sort((a, b) => a - b);
@@ -122,7 +123,7 @@ type Pooled = {
 };
 
 /** The median of the per-session medians: one long race does not outweigh the rest. */
-function pool(sessions: ClassSession[], key: ClassKey): Pooled | null {
+function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
   const seen = sessions.flatMap(s => {
     const c = s.byClass[key];
     return c ? [{kind: s.kind, ...c}] : [];
