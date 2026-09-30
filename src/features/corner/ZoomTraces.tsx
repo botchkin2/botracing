@@ -4,7 +4,7 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {lapColors, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
-import {Skeleton, Text, TraceRetryBanner} from '@/src/ui';
+import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
 
 import {type CornerModel, type ZoomLine} from './model';
 import {type ReadoutChart, readoutsAt} from './readouts';
@@ -152,6 +152,12 @@ export function ZoomTraces({
             failed={load.failed}
             othersShow={false}
             onRetry={onRetry}
+          />
+        )}
+        {load.kind === 'needsResync' && (
+          <StatusBanner
+            dot='idle'
+            text='Corner traces need this session to be synced again.'
           />
         )}
         {caption}

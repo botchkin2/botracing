@@ -8,6 +8,7 @@ import {
   useSessionMap,
 } from '@/src/data/sessions';
 import {
+  sliceLoad,
   sliceReachesApex,
   sliceToGridTrace,
   type TraceLoad,
@@ -94,12 +95,16 @@ export function useCornerModel(
         out.set(lap.id, sliceToGridTrace(lap, slices.data));
     return out;
   }, [slices.data]);
-  const traceLoad = useMemo((): TraceLoad => {
-    if (lapIds.length === 0) return {kind: 'idle'};
-    if (slices.isError || (session.data && !hasFile))
-      return {kind: 'failed', failed: lapIds.length};
-    return slices.data ? {kind: 'ready'} : {kind: 'loading'};
-  }, [lapIds.length, slices.isError, slices.data, session.data, hasFile]);
+  const traceLoad = useMemo(
+    (): TraceLoad =>
+      sliceLoad({
+        lapCount: lapIds.length,
+        sessionKnown: session.data != null,
+        hasFile,
+        status: slices.status,
+      }),
+    [lapIds.length, session.data, hasFile, slices.status],
+  );
   const retryTraces = useCallback(() => {
     void refetchSlices();
   }, [refetchSlices]);

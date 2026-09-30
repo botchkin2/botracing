@@ -16,6 +16,11 @@ import {type GridTrace} from '@/src/analysis/resample';
  * `samples` are the recorded samples themselves; the window holds one sample
  * either side, so the two agree up to the file's rounding (docs/STORAGE.md).
  *
+ * The held ends are not data: they are safe only while every window the
+ * screen draws sits inside the slice window, which cornerWindows.ts
+ * guarantees (the slice takes the wider of them). A view wider than those
+ * windows would draw flat lines there.
+ *
  * Not in a slice, so empty here: gear (Corner does not draw it).
  */
 export function sliceToGridTrace(
