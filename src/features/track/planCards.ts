@@ -28,27 +28,35 @@ function median(values: number[]): number {
   return (v[Math.floor(mid)] + v[Math.ceil(mid)]) / 2;
 }
 
-/** The newest race in the combo (sessions come newest first), as one line. */
+/**
+ * The newest race in the combo (sessions come newest first), by date only. A
+ * lap count would be a third number beside the pit card's and the plan's
+ * (`lapCount` includes the formation and cool-down laps), so none is printed.
+ */
 export function lastRaceLine(combo: Combo): string {
   const race = combo.sessions.find(s => s.sessionType === 'R');
   if (!race) return NO_RACE;
-  const date = formatDate(race.startedAt);
-  const laps = race.lapCount;
-  return `Last race ${date} · ${laps} ${laps === 1 ? 'lap' : 'laps'}`;
+  return `Last race ${formatDate(race.startedAt)}`;
 }
+
+/** VE needs this many of the counted laps carrying it (the plan's threshold). */
+export const MIN_VE_LAPS = 3;
 
 /**
  * The per-lap use the plan starts from: the median over the laps the plan
- * counts. VE is left out when none of them carries it (a session without the
- * channel), never printed as 0 or a dash.
+ * counts, with how many that is. VE is left out unless at least MIN_VE_LAPS of
+ * them carry it (a session without the channel), never printed as 0 or a dash;
+ * when fewer laps carry VE than fuel it gets its own n.
  */
 export function perLapUseLine(laps: GreenLap[]): string | null {
   if (laps.length === 0) return null;
-  const fuel = median(laps.map(l => l.fuelL));
+  const fuel = `Fuel ${median(laps.map(l => l.fuelL)).toFixed(2)} L/lap`;
   const ve = laps.flatMap(l => (l.vePct == null ? [] : [l.vePct]));
-  const parts = [`Fuel ${fuel.toFixed(2)} L/lap`];
-  if (ve.length > 0) parts.push(`VE ${median(ve).toFixed(2)} %/lap`);
-  return `${parts.join(' · ')} (n = ${laps.length})`;
+  if (ve.length < MIN_VE_LAPS) return `${fuel} (n = ${laps.length})`;
+  const veText = `VE ${median(ve).toFixed(2)} %/lap`;
+  return ve.length === laps.length
+    ? `${fuel} · ${veText} (n = ${laps.length})`
+    : `${fuel} (n = ${laps.length}) · ${veText} (n = ${ve.length})`;
 }
 
 export function planCardModel(combo: Combo, laps: GreenLap[]): PlanCardModel {

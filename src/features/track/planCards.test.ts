@@ -41,7 +41,7 @@ const lap = (fuelL: number, vePct: number | null): GreenLap => ({
 const combo = (sessions: SessionSummary[]) => planCombos(sessions)[0];
 
 describe('lastRaceLine', () => {
-  it('names the newest race and its laps, skipping a newer practice', () => {
+  it('names the newest race by date, skipping a newer practice, with no lap count', () => {
     const c = combo([
       session('p', '2026-09-29T20:00:00Z', {
         sessionType: 'P',
@@ -50,20 +50,12 @@ describe('lastRaceLine', () => {
       session('r1', '2026-09-28T20:00:00Z', {lapCount: 72}),
       session('r0', '2026-09-20T20:00:00Z', {lapCount: 10}),
     ]);
-    expect(lastRaceLine(c)).toMatch(/^Last race \d{2} \w{3,4} 2026 · 72 laps$/);
+    expect(lastRaceLine(c)).toMatch(/^Last race d{2} w{3,4} 2026$/);
   });
 
   it('says so when the car has only practice here', () => {
     const c = combo([session('p', '2026-09-29T20:00:00Z', {sessionType: 'P'})]);
     expect(lastRaceLine(c)).toBe('No race here yet');
-  });
-
-  it('one lap reads singular', () => {
-    expect(
-      lastRaceLine(
-        combo([session('r', '2026-09-28T20:00:00Z', {lapCount: 1})]),
-      ),
-    ).toMatch(/ · 1 lap$/);
   });
 });
 
@@ -80,10 +72,18 @@ describe('perLapUseLine', () => {
     );
   });
 
-  it('takes VE from the laps that have it', () => {
-    expect(perLapUseLine([lap(2.3, 3.0), lap(2.5, null), lap(2.4, 4.0)])).toBe(
-      'Fuel 2.40 L/lap · VE 3.50 %/lap (n = 3)',
+  it('shows VE only from three laps that carry it, with its own n when fewer than fuel', () => {
+    expect(perLapUseLine([lap(2.3, 3.0), lap(2.5, 3.2), lap(2.4, null)])).toBe(
+      'Fuel 2.40 L/lap (n = 3)',
     );
+    expect(
+      perLapUseLine([
+        lap(2.3, 3.0),
+        lap(2.5, 4.0),
+        lap(2.6, 3.5),
+        lap(2.4, null),
+      ]),
+    ).toBe('Fuel 2.45 L/lap (n = 4) · VE 3.50 %/lap (n = 3)');
   });
 
   it('is null without laps', () => {
@@ -94,9 +94,9 @@ describe('perLapUseLine', () => {
 describe('planCardModel', () => {
   it('carries the combo key and car for the link', () => {
     const c = combo([session('r', '2026-09-28T20:00:00Z')]);
-    const m = planCardModel(c, [lap(2.3, 3.4)]);
+    const m = planCardModel(c, [lap(2.3, 3.4), lap(2.3, 3.4), lap(2.3, 3.4)]);
     expect(m.key).toBe(c.key);
     expect(m.car).toBe(c.car);
-    expect(m.use).toBe('Fuel 2.30 L/lap · VE 3.40 %/lap (n = 1)');
+    expect(m.use).toBe('Fuel 2.30 L/lap · VE 3.40 %/lap (n = 3)');
   });
 });
