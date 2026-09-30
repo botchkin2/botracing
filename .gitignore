@@ -93,7 +93,6 @@ yarn-error.log
 *.vsix
 
 
-/sample_data
 
 # Firebase
 .firebase/

@@ -1,11 +1,4 @@
-# Firebase Functions Configuration
-# The Garage 61 API token is now configured server-side in Firebase Functions
-# No client-side configuration is needed for authentication
-
-# --- Local development (optional) ---
-# To test against the Firebase Functions emulator instead of production, create .env.local with:
-# EXPO_PUBLIC_GARAGE61_API_BASE=http://localhost:5001/YOUR_PROJECT_ID/us-central1/garage61Proxy/api/garage61
-# Replace YOUR_PROJECT_ID with your Firebase project ID (see .firebaserc). Restart Expo after changing.
-
-# If you need to configure anything else, contact the development team
-# All API calls now go through Firebase proxy functions
+# The app needs no client-side configuration.
+# The API is same-origin (Firebase Hosting rewrites /api/** to the functions), and any
+# localhost port is accepted by the API, so no proxy or EXPO_PUBLIC_* variable is needed
+# for local development (pit-wall thread 1, #864/#868).
