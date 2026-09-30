@@ -662,7 +662,7 @@ function ZoomTraces({
         {load.kind === 'failed' && (
           <TraceRetryBanner
             failed={load.failed}
-            othersShow={load.kind === 'partial'}
+            othersShow={false}
             onRetry={onRetry}
           />
         )}
