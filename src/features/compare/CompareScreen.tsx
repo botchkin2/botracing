@@ -347,6 +347,8 @@ function CompareView({
     </Text>
   );
 
+  // The last compared lap stays: removing it would snap back to the default.
+  const onlyCompared = selection.laps.length <= 2;
   const chipItems = (
     <>
       {model.chips.map(c => (
@@ -386,11 +388,16 @@ function CompareView({
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
+                  accessibilityState={{disabled: onlyCompared}}
+                  disabled={onlyCompared}
                   {...removeHit}
                   onPress={() =>
                     onSelectionChange(removeLap(selection, c.lapId))
                   }>
-                  <Text variant='dataSmall' tone='textFaint'>
+                  <Text
+                    variant='dataSmall'
+                    tone='textFaint'
+                    style={onlyCompared ? styles.removeOff : undefined}>
                     ×
                   </Text>
                 </Pressable>
@@ -799,6 +806,7 @@ const styles = StyleSheet.create({
   header: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   refRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
+  removeOff: {opacity: 0.3},
   chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   chipsWrap: {

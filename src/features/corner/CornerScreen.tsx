@@ -164,6 +164,8 @@ function CornerView({
   });
 
   const [notice, setNotice] = useState<string | null>(null);
+  // Phone: the lap table is one tap away, the strips stay the first read.
+  const [tableOpen, setTableOpen] = useState(false);
   const stripsHelp = useHowToRead('the dot strips', STRIPS_HELP);
   const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
@@ -373,7 +375,16 @@ function CornerView({
             </View>
           ))
         : null}
-      {(!model.strips || layout.isWide) && (
+      {model.strips && !layout.isWide && (
+        <View style={styles.row}>
+          <Chip
+            label={`${tableOpen ? '▴' : '▾'} Laps · ${model.rows.length}`}
+            selected={tableOpen}
+            onPress={() => setTableOpen(o => !o)}
+          />
+        </View>
+      )}
+      {(!model.strips || layout.isWide || tableOpen) && (
         <CornerTable
           rows={
             layout.isWide ? sortRows(model.rows, sort.by, sort.dir) : model.rows
@@ -427,7 +438,11 @@ function CornerView({
           contentContainerStyle={[styles.col, top]}>
           {header}
           {model.brakeMap && (
-            <BrakeMapPanel map={model.brakeMap} lapColor={lapColor} />
+            <BrakeMapPanel
+              map={model.brakeMap}
+              width={DESK_LEFT_W - 2 * space.xl}
+              lapColor={lapColor}
+            />
           )}
           {measures}
         </ScrollView>
@@ -452,6 +467,13 @@ function CornerView({
         {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
       ]}>
       {header}
+      {model.brakeMap && (
+        <BrakeMapPanel
+          map={model.brakeMap}
+          width={layout.contentWidth}
+          lapColor={lapColor}
+        />
+      )}
       {measures}
       {traces}
     </ScrollView>
@@ -573,9 +595,11 @@ function CornerTable({
 // 55%); full-throttle points are squares (6 pt key, 4 pt others).
 function BrakeMapPanel({
   map,
+  width,
   lapColor,
 }: {
   map: BrakeMapModel;
+  width: number;
   lapColor: (
     onIndex: number | null,
     selIndex: number,
@@ -608,7 +632,7 @@ function BrakeMapPanel({
         Where each lap braked
       </Text>
       <BrakeMap
-        width={DESK_LEFT_W - 40}
+        width={width}
         height={BRAKE_MAP_H}
         centreline={map.centreline}
         stretch={map.stretch}

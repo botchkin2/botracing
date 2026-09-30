@@ -172,11 +172,20 @@ export function CompareWorkspace(p: WorkspaceProps) {
             {!c.isRef && (
               <Pressable
                 accessibilityLabel={`Remove ${c.label}`}
+                accessibilityState={{disabled: selection.laps.length <= 2}}
+                disabled={selection.laps.length <= 2}
                 hitSlop={space.sm}
                 onPress={() =>
                   p.onSelectionChange(removeLap(selection, c.lapId))
                 }>
-                <Text tone='textFaint'>×</Text>
+                {/* The last compared lap stays: removing it snaps back to the default. */}
+                <Text
+                  tone='textFaint'
+                  style={
+                    selection.laps.length <= 2 ? styles.removeOff : undefined
+                  }>
+                  ×
+                </Text>
               </Pressable>
             )}
           </Pressable>
@@ -543,6 +552,7 @@ function overviewDomain(model: CompareModel): [number, number] {
 }
 
 const styles = StyleSheet.create({
+  removeOff: {opacity: 0.3},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
