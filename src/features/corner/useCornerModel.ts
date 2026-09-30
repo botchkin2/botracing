@@ -8,6 +8,7 @@ import {
   useSessionMap,
 } from '@/src/data/sessions';
 import {
+  sliceReachesApex,
   sliceToGridTrace,
   type TraceLoad,
   useCornerSlices,
@@ -89,7 +90,8 @@ export function useCornerModel(
     const out = new Map<string, GridTrace>();
     if (!slices.data) return out;
     for (const lap of slices.data.laps)
-      out.set(lap.id, sliceToGridTrace(lap, slices.data));
+      if (sliceReachesApex(lap, slices.data))
+        out.set(lap.id, sliceToGridTrace(lap, slices.data));
     return out;
   }, [slices.data]);
   const traceLoad = useMemo((): TraceLoad => {

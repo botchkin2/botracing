@@ -1,42 +1,42 @@
 import {
-  gridFromSamples,
   type CornerSlices,
+  gridFromSamples,
   type SliceLap,
 } from '@/src/analysis/cornerSlices';
 import {type GridTrace} from '@/src/analysis/resample';
 
 /**
  * One lap's slice as the GridTrace the Corner screen already draws from: the
- * same fields on the same 5 m grid over the whole lap, with values inside the
- * slice's window and NaN outside it (no sample was kept there, and the screen
- * only reads its own window). Grid channels are rebuilt from the recorded
- * samples the way `resampleTrace` builds them, and `samples` are the recorded
- * samples themselves; the window holds one sample either side, so the two
- * agree up to the file's rounding (docs/STORAGE.md).
+ * same fields on the same 5 m grid over the whole lap. Inside the slice's
+ * window the values are the lap's; beyond it the end values are held flat,
+ * as `resampleTrace` holds a lap's ends, because the line builder needs a
+ * number at every grid point (a NaN there voids the whole chunk of path it
+ * falls in) and the screen only looks inside its own window. Grid channels are
+ * rebuilt from the recorded samples the way `resampleTrace` builds them, and
+ * `samples` are the recorded samples themselves; the window holds one sample
+ * either side, so the two agree up to the file's rounding (docs/STORAGE.md).
  *
  * Not in a slice, so empty here: gear (Corner does not draw it).
  */
 export function sliceToGridTrace(
   lap: SliceLap,
-  slices: Pick<CornerSlices, 'stepM' | 'lengthM' | 'windowM'>,
+  slices: Pick<CornerSlices, 'stepM' | 'lengthM'>,
 ): GridTrace {
-  const {stepM, lengthM, windowM} = slices;
+  const {stepM, lengthM} = slices;
   const n = Math.floor(lengthM / stepM) + 1;
   const distanceM = Array.from({length: n}, (_, i) => i * stepM);
   const blank = () => distanceM.map(() => NaN);
-  const first = Math.ceil(windowM[0] / stepM);
-  const last = Math.min(n - 1, Math.floor(windowM[1] / stepM));
-  const windowXs = distanceM.slice(first, last + 1);
-  const placed = (values: number[], at: number) => {
-    const out = blank();
-    values.forEach((v, k) => {
-      if (at + k < n) out[at + k] = v;
-    });
-    return out;
-  };
   const rebuilt = (samples: SliceLap['samples'][keyof SliceLap['samples']]) =>
-    placed(gridFromSamples(samples, windowXs), first);
+    gridFromSamples(samples, distanceM);
+  // Values known on the grid from `gridFromM`; the ends held either side.
   const at = Math.round(lap.gridFromM / stepM);
+  const held = (values: number[]) => {
+    if (values.length === 0) return blank();
+    return distanceM.map((_, i) => {
+      const k = Math.min(values.length - 1, Math.max(0, i - at));
+      return values[k];
+    });
+  };
   const empty = {distanceM: [], values: []};
   return {
     stepM,
@@ -46,9 +46,9 @@ export function sliceToGridTrace(
     brakePct: rebuilt(lap.samples.brakePct),
     steeringPct: rebuilt(lap.samples.steeringPct),
     gear: blank(),
-    lat: lap.lat.length > 0 ? placed(lap.lat, at) : blank(),
-    lon: lap.lon.length > 0 ? placed(lap.lon, at) : blank(),
-    timeS: placed(lap.timeS, at),
+    lat: held(lap.lat),
+    lon: held(lap.lon),
+    timeS: held(lap.timeS),
     samples: {
       speedKph: lap.samples.speedKph,
       throttlePct: lap.samples.throttlePct,
@@ -59,4 +59,20 @@ export function sliceToGridTrace(
       trackEdgeM: lap.samples.trackEdgeM,
     },
   };
+}
+
+/**
+ * Whether the lap's samples reach the corner: a lap that never got there (an
+ * out lap from the pits keeps one stray sample far along the track) has
+ * nothing to draw, and holding that sample flat across the window would draw
+ * a line that was never driven.
+ */
+export function sliceReachesApex(
+  lap: SliceLap,
+  slices: Pick<CornerSlices, 'apexM'>,
+): boolean {
+  const d = lap.samples.speedKph.distanceM;
+  return (
+    d.length >= 2 && d[0] <= slices.apexM && d[d.length - 1] >= slices.apexM
+  );
 }
