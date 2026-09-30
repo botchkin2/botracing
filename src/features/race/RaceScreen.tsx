@@ -28,6 +28,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
+import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
@@ -237,11 +238,14 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
-  const cars = useMemo(() => carsAt(prep, shownS, snap), [prep, shownS, snap]);
+  const cars = useMemo(
+    () => markPitLane(carsAt(prep, shownS, snap), placer),
+    [prep, shownS, snap, placer],
+  );
   // Rows change with the sample, not with every frame.
   const sampleCars = useMemo(
-    () => carsAt(prep, times[Math.max(0, u)] ?? 0, true),
-    [prep, times, u],
+    () => markPitLane(carsAt(prep, times[Math.max(0, u)] ?? 0, true), placer),
+    [prep, times, u, placer],
   );
   const filter = wanted ?? defaultFilter(sampleCars);
   const rows = useMemo(
