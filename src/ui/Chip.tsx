@@ -13,6 +13,7 @@ export function Chip({
   dashed,
   leading,
   trailing,
+  minWidth,
   onPress,
 }: {
   label: string;
@@ -20,6 +21,8 @@ export function Chip({
   dashed?: boolean;
   leading?: ReactNode;
   trailing?: ReactNode;
+  /** Wide enough to be a 44 pt target when the label is one glyph. */
+  minWidth?: number;
   onPress?: () => void;
 }) {
   const {color} = useTheme();
@@ -34,6 +37,8 @@ export function Chip({
         style={[
           styles.chip,
           {
+            minWidth,
+            justifyContent: 'center',
             backgroundColor: selected ? color.accentTint : color.surfaceRaised,
             borderColor: selected ? color.accent : color.lineStrong,
             borderStyle: dashed ? 'dashed' : 'solid',

@@ -38,6 +38,7 @@ import {
   Button,
   Chip,
   Explainer,
+  hitFor,
   Segment,
   Skeleton,
   StatusBanner,
@@ -70,6 +71,9 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+// The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
+// ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
+const removeHit = hitFor({left: 28, right: space.md}, 15);
 // Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
 const KEY_STEP_M = 5;
 const KEY_STEP_SHIFT_M = 50;
@@ -349,7 +353,7 @@ function CompareView({
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
-                  hitSlop={space.md}
+                  {...removeHit}
                   onPress={() =>
                     onSelectionChange(removeLap(selection, c.lapId))
                   }>

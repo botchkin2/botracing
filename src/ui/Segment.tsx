@@ -55,6 +55,8 @@ const styles = StyleSheet.create({
   },
   option: {
     height: size.chip - 2,
+    minWidth: size.hit,
+    alignItems: 'center',
     borderRadius: radius.xs,
     paddingHorizontal: space.md,
     justifyContent: 'center',

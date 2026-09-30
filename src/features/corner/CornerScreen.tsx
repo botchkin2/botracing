@@ -21,6 +21,7 @@ import {
   lapStroke,
   stroke,
   radius,
+  size,
   space,
   useLayout,
   useTheme,
@@ -223,10 +224,10 @@ function CornerView({
         </Pressable>
         <View style={styles.flex} />
         {model.prev != null && (
-          <Chip label='‹' onPress={() => go(model.prev!)} />
+          <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
         )}
         {model.next != null && (
-          <Chip label='›' onPress={() => go(model.next!)} />
+          <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
         )}
       </View>
       <Text variant='display'>{model.title}</Text>
