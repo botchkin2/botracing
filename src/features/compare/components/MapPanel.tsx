@@ -37,6 +37,7 @@ export function MapPanel({
   lapStyle,
   onPressSection,
   zoomControls = false,
+  baseSpanM,
 }: {
   width: number;
   height: number;
@@ -47,6 +48,8 @@ export function MapPanel({
   onPressSection: (n: number) => void;
   /** − / + on the Follow map: desktop only, where they can be pointer targets. */
   zoomControls?: boolean;
+  /** Follow's visible span at zoom 1x, in metres; else it follows the chart window. */
+  baseSpanM?: number;
 }) {
   const prefs = useComparePrefs();
   const mode = prefs.mapMode;
@@ -109,7 +112,7 @@ export function MapPanel({
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
-          visibleM={f.visibleM * MAP_ZOOMS[zoom]}
+          visibleM={(baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom]}
           band={f.geometry.band}
           bandFaded={f.geometry.bandFaded}
           lines={followLines}

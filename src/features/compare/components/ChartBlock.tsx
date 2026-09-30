@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
@@ -48,6 +48,9 @@ export function ChartBlock({
   onHover,
   hoverValues,
   editor,
+  plotFirst,
+  overlay,
+  extraHelp,
 }: {
   chart: ChartModel;
   width: number;
@@ -69,6 +72,16 @@ export function ChartBlock({
   hoverValues?: Partial<Record<ChannelId, ChartValueRow['values']>>;
   /** Desktop: the header is its own editor (× per channel, + overlay). */
   editor?: {onToggle: (ch: ChannelId) => void};
+  /**
+   * Phone: the plot sits right under the title, and the values per channel and
+   * the explainer come below it (Botkin watches the lines, not the numbers;
+   * pit-wall thread 41 #1178).
+   */
+  plotFirst?: boolean;
+  /** Drawn over the plot's top right corner (the radar on the phone). */
+  overlay?: ReactNode;
+  /** Lines added to this chart's "?" (what the overlay is). */
+  extraHelp?: readonly string[];
 }) {
   const {color} = useTheme();
   // Other laps first, so the highlighted lap and the reference draw on top.
@@ -97,7 +110,10 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
-  const help = useHowToRead(chart.title, chartHelp(chart.channels));
+  const help = useHowToRead(chart.title, [
+    ...chartHelp(chart.channels),
+    ...(extraHelp ?? []),
+  ]);
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -115,81 +131,70 @@ export function ChartBlock({
     </View>
   );
 
-  return (
-    <View style={styles.block}>
-      {chart.valueRows.length === 1 && !editor ? (
-        <View style={styles.headerRow}>
-          <Text variant='label' tone='textMuted'>
-            {chart.valueRows[0].label}
+  const titleRow = (
+    <View style={styles.titleRow}>
+      <Text variant='label' tone='textMuted'>
+        {chart.title}
+      </Text>
+      {help.button}
+    </View>
+  );
+  const valueRows = (
+    <>
+      {chart.valueRows.map(r => (
+        <View key={r.channel} style={styles.overlayRow}>
+          <LegendSwatch
+            kind={
+              chart.pedals && r.channel === 'brake'
+                ? 'fill'
+                : chart.pedals && r.channel === 'steering'
+                ? 'band'
+                : 'line'
+            }
+            dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
+            color={color.textMuted}
+          />
+          <Text variant='dataSmall' tone='textMuted'>
+            {r.label} {r.unit}
           </Text>
-          <Text variant='dataSmall' tone='textFaint'>
-            {chart.valueRows[0].unit}
-          </Text>
-          {valueTexts(chart.valueRows[0])}
-          <View style={styles.help}>{help.button}</View>
-        </View>
-      ) : (
-        <View>
-          <View style={styles.titleRow}>
-            <Text variant='label' tone='textMuted'>
-              {chart.title}
-            </Text>
-            {help.button}
-          </View>
-          {chart.valueRows.map(r => (
-            <View key={r.channel} style={styles.overlayRow}>
-              <LegendSwatch
-                kind={
-                  chart.pedals && r.channel === 'brake'
-                    ? 'fill'
-                    : chart.pedals && r.channel === 'steering'
-                    ? 'band'
-                    : 'line'
-                }
-                dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
-                color={color.textMuted}
-              />
-              <Text variant='dataSmall' tone='textMuted'>
-                {r.label} {r.unit}
+          {editor && (
+            <Pressable
+              accessibilityLabel={`Remove ${r.label}`}
+              hitSlop={space.sm}
+              onPress={() => editor.onToggle(r.channel)}>
+              <Text variant='dataSmall' tone='textFaint'>
+                ×
               </Text>
-              {editor && (
-                <Pressable
-                  accessibilityLabel={`Remove ${r.label}`}
-                  hitSlop={space.sm}
-                  onPress={() => editor.onToggle(r.channel)}>
-                  <Text variant='dataSmall' tone='textFaint'>
-                    ×
-                  </Text>
-                </Pressable>
-              )}
-              {valueTexts(r)}
-            </View>
-          ))}
-          {editor && chart.channels.length < MAX_OVERLAY && (
-            <View style={styles.pills}>
-              <Chip
-                dashed
-                label='+ overlay'
-                selected={pillsOpen}
-                onPress={() => setPillsOpen(o => !o)}
-              />
-              {pillsOpen &&
-                CHANNEL_IDS.filter(c => !chart.channels.includes(c)).map(c => (
-                  <Chip
-                    key={c}
-                    label={CHANNELS[c].label}
-                    onPress={() => {
-                      editor.onToggle(c);
-                      setPillsOpen(false);
-                    }}
-                  />
-                ))}
-            </View>
+            </Pressable>
           )}
+          {valueTexts(r)}
+        </View>
+      ))}
+      {editor && chart.channels.length < MAX_OVERLAY && (
+        <View style={styles.pills}>
+          <Chip
+            dashed
+            label='+ overlay'
+            selected={pillsOpen}
+            onPress={() => setPillsOpen(o => !o)}
+          />
+          {pillsOpen &&
+            CHANNEL_IDS.filter(c => !chart.channels.includes(c)).map(c => (
+              <Chip
+                key={c}
+                label={CHANNELS[c].label}
+                onPress={() => {
+                  editor.onToggle(c);
+                  setPillsOpen(false);
+                }}
+              />
+            ))}
         </View>
       )}
-      {help.panel}
-      <Explainer>{chart.explainer}</Explainer>
+    </>
+  );
+  const plot = (
+    <View>
       <TraceChart
         width={width}
         height={height}
@@ -209,6 +214,43 @@ export function ChartBlock({
         hoverM={hoverM}
         onHover={onHover}
       />
+      {overlay}
+    </View>
+  );
+
+  if (plotFirst)
+    return (
+      <View style={styles.block}>
+        {titleRow}
+        {help.panel}
+        {plot}
+        <View>{valueRows}</View>
+        <Explainer>{chart.explainer}</Explainer>
+      </View>
+    );
+
+  return (
+    <View style={styles.block}>
+      {chart.valueRows.length === 1 && !editor ? (
+        <View style={styles.headerRow}>
+          <Text variant='label' tone='textMuted'>
+            {chart.valueRows[0].label}
+          </Text>
+          <Text variant='dataSmall' tone='textFaint'>
+            {chart.valueRows[0].unit}
+          </Text>
+          {valueTexts(chart.valueRows[0])}
+          <View style={styles.help}>{help.button}</View>
+        </View>
+      ) : (
+        <View>
+          {titleRow}
+          {valueRows}
+        </View>
+      )}
+      {help.panel}
+      <Explainer>{chart.explainer}</Explainer>
+      {plot}
     </View>
   );
 }
