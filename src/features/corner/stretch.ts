@@ -9,10 +9,10 @@ import {formatDistance, turnLabel} from '@/src/design';
 // this corner's entry to the next corner's entry. Orientation only: no
 // judgement about the driving.
 
+/** A stretch of track in the window's own distance frame: fromM < toM, and
+ *  either may lie outside the window (or below 0, just before the line). */
 export type CornerStretch = {
   fromM: number;
-  /** The next corner's entry. Smaller than fromM when the stretch crosses the
-   *  start/finish line: it then runs to the end of the window. */
   toM: number;
 };
 
@@ -47,8 +47,12 @@ export function cornerView(
   const corner = corners[index];
   if (!corner) return null;
   const next = corners[(index + 1) % corners.length];
-  const stretch = {fromM: corner.entryM, toM: next.entryM};
   const [startM, endM] = windowM;
+  const stretch = inWindowFrame(
+    {fromM: corner.entryM, toM: next.entryM},
+    windowM,
+    lengthM,
+  );
   const neighbours: NeighbourApex[] = [];
   for (const c of corners) {
     if (c.n === corner.n) continue;
@@ -68,9 +72,10 @@ export function cornerView(
   return {
     stretch,
     neighbours,
+    // The caption keeps lap metres ("4,050 → 300 m"), what the lap doc says.
     caption: viewCaption(
       turnLabel(corner.n, corner.official),
-      stretch,
+      {fromM: corner.entryM, toM: next.entryM},
       neighbours,
     ),
   };
@@ -102,18 +107,35 @@ function plain(m: number): string {
 }
 
 /**
- * The parts of a window outside the stretch, as [from, to] ranges to dim.
- * A stretch that crosses the start/finish line (toM < fromM) runs to the end
- * of the window.
+ * The stretch as it sits in the window's frame. A stretch that runs over the
+ * start/finish line (its end is a smaller lap distance than its start) is
+ * unrolled by one lap, then moved by -L, 0 or +L, whichever lands it in the
+ * window (a corner whose entry is before the line and apex after it, seen
+ * from its own apex, sits at negative distances).
  */
+export function inWindowFrame(
+  lap: CornerStretch,
+  windowM: [number, number],
+  lengthM: number,
+): CornerStretch {
+  const fromM = lap.fromM;
+  const toM = lap.toM < lap.fromM && lengthM > 0 ? lap.toM + lengthM : lap.toM;
+  if (lengthM <= 0) return {fromM, toM};
+  const [startM, endM] = windowM;
+  for (const shift of [0, -lengthM, lengthM])
+    if (toM + shift > startM && fromM + shift < endM)
+      return {fromM: fromM + shift, toM: toM + shift};
+  return {fromM, toM};
+}
+
+/** The parts of a window outside the stretch, as [from, to] ranges to dim. */
 export function dimmedRanges(
   windowM: [number, number],
   stretch: CornerStretch,
 ): [number, number][] {
   const [startM, endM] = windowM;
-  const toM = stretch.toM < stretch.fromM ? endM : stretch.toM;
   const out: [number, number][] = [];
   if (stretch.fromM > startM) out.push([startM, Math.min(stretch.fromM, endM)]);
-  if (toM < endM) out.push([Math.max(toM, startM), endM]);
+  if (stretch.toM < endM) out.push([Math.max(stretch.toM, startM), endM]);
   return out.filter(([a, b]) => b > a);
 }

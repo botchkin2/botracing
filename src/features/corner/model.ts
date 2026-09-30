@@ -457,12 +457,8 @@ export function buildBrakeMap(
   // The stretch as indices into the centreline (one point per grid step).
   let stretch: [number, number] | null = null;
   if (view) {
-    const toM =
-      view.stretch.toM < view.stretch.fromM
-        ? apexM + MAP_AFTER_M
-        : view.stretch.toM;
     const a = Math.max(from, gridIndex(refTrace, view.stretch.fromM));
-    const b = Math.min(to, gridIndex(refTrace, toM));
+    const b = Math.min(to, gridIndex(refTrace, view.stretch.toM));
     if (b > a) stretch = [a - from, b - from];
   }
   return {

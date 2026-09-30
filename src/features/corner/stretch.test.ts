@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type TrackCorner} from '@/src/data/sessions';
 
-import {cornerView, dimmedRanges, viewCaption} from './stretch';
+import {cornerView, dimmedRanges, inWindowFrame, viewCaption} from './stretch';
 
 const corner = (
   n: number,
@@ -114,13 +114,40 @@ describe('dimmedRanges', () => {
     ]);
   });
 
-  it('a stretch across the start/finish line runs to the end of the window', () => {
-    expect(dimmedRanges([4800, 5200], {fromM: 4900, toM: 300})).toEqual([
-      [4800, 4900],
-    ]);
-  });
-
   it('dims nothing when the stretch covers the window', () => {
     expect(dimmedRanges([3700, 3800], {fromM: 3665, toM: 3860})).toEqual([]);
+  });
+});
+
+describe('the stretch across the start/finish line', () => {
+  const L = 4079;
+
+  it('a corner entered before the line with its apex after it is lit in its own window (camber #942)', () => {
+    // Entry 4,050, apex 60, next entry 300: the window around the apex is
+    // [-190, 210] and the stretch sits at -29 -> 300.
+    const cs = [corner(1, 4050, 60), corner(2, 300, 350)];
+    const v = cornerView(cs, 0, [60 - 250, 60 + 150], L)!;
+    expect(v.stretch).toEqual({fromM: 4050 - L, toM: 300});
+    expect(dimmedRanges([-190, 210], v.stretch)).toEqual([[-190, -29]]);
+    // The caption stays in lap metres.
+    expect(v.caption).toContain('Shaded: T1 · 4,050 → 300 m');
+  });
+
+  it('a corner before the line whose next entry is after it runs on to toM + L', () => {
+    const cs = [corner(1, 3900, 3950), corner(2, 120, 200)];
+    const v = cornerView(cs, 0, [3700, 4100], L)!;
+    expect(v.stretch).toEqual({fromM: 3900, toM: 120 + L});
+    expect(dimmedRanges([3700, 4100], v.stretch)).toEqual([[3700, 3900]]);
+  });
+
+  it('an ordinary stretch is left where it is', () => {
+    expect(inWindowFrame({fromM: 3665, toM: 3860}, [3550, 3950], L)).toEqual({
+      fromM: 3665,
+      toM: 3860,
+    });
+    expect(inWindowFrame({fromM: 3665, toM: 3860}, [3550, 3950], 0)).toEqual({
+      fromM: 3665,
+      toM: 3860,
+    });
   });
 });
