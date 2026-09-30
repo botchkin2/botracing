@@ -79,20 +79,30 @@ describe('toClassLaps', () => {
     p10S: 96.25,
     p90S: 102.58,
   };
-  it('reads the classes it has and skips a malformed one', () => {
-    expect(toClassLaps({hypercar: stats, gt3: {cars: 2}, other: 'x'})).toEqual({
-      hypercar: stats,
-    });
+  it('reads the kind and the classes it has, skipping a malformed one', () => {
+    expect(
+      toClassLaps({
+        version: 1,
+        kind: 'practice',
+        classes: {hypercar: stats, gt3: {cars: 2}, other: 'x'},
+      }),
+    ).toEqual({kind: 'practice', classes: {hypercar: stats}});
   });
-  it('is null without a field or from an older uploader', () => {
+  it('keeps an empty doc as no classes, and reads nothing without a kind', () => {
+    expect(toClassLaps({version: 1, kind: 'qualify', classes: null})).toEqual({
+      kind: 'qualify',
+      classes: null,
+    });
+    expect(toClassLaps({classes: {gt3: stats}})).toBeNull();
     expect(toClassLaps(undefined)).toBeNull();
     expect(toClassLaps(null)).toBeNull();
-    expect(toClassLaps({})).toBeNull();
   });
   it('rides on the session detail', () => {
-    expect(
-      toSessionDetail({...raw, classLaps: {lmp2: stats}}).classLaps,
-    ).toEqual({lmp2: stats});
+    const doc = {version: 1, kind: 'race', classes: {lmp2: stats}};
+    expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
+      kind: 'race',
+      classes: {lmp2: stats},
+    });
     expect(toSessionDetail(raw).classLaps).toBeNull();
   });
 });

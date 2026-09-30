@@ -1,8 +1,7 @@
 export type {TrackSurface} from '@/src/analysis/trackSurface';
 export type {
   BandChannel,
-  ClassLapStats,
-  ClassLaps,
+  SessionClassLaps,
   CornerFacts,
   Lap,
   LapFuel,

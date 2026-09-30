@@ -1,4 +1,9 @@
-import {type ClassKey} from '@/src/analysis/carClass';
+import {
+  type ClassLaps,
+  type ClassLapsKind,
+  type ClassLapStats,
+  type PaceClass,
+} from '@/src/analysis/classLaps';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -164,45 +169,50 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
 }
 
 /**
- * One class's green laps in a race, from the field (tools/sessions/classLaps.mjs,
- * analysis version 17): the pace of the other cars, not only yours.
+ * Session doc `classLaps` (src/analysis/classLaps.ts, analysis version 17):
+ * the pace of every class in this session's field. `kind` is the session kind
+ * the numbers were computed for; `classes` is null when no class had enough
+ * laps, and always for qualifying.
  */
-export type ClassLapStats = {
-  cars: number;
-  laps: number;
-  medianS: number;
-  p10S: number;
-  p90S: number;
+export type SessionClassLaps = {
+  kind: ClassLapsKind;
+  classes: ClassLaps | null;
 };
-export type ClassLaps = Partial<Record<ClassKey, ClassLapStats>>;
 
-const CLASS_KEYS: ClassKey[] = ['hypercar', 'lmp2', 'gt3', 'other'];
+const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
+
+function toClassStats(v: unknown): ClassLapStats | null {
+  const x = obj(v);
+  const [cars, laps, medianS, p10S, p90S] = [
+    num(x.cars),
+    num(x.laps),
+    num(x.medianS),
+    num(x.p10S),
+    num(x.p90S),
+  ];
+  if (
+    cars == null ||
+    laps == null ||
+    medianS == null ||
+    p10S == null ||
+    p90S == null
+  )
+    return null;
+  return {cars, laps, medianS, p10S, p90S};
+}
 
 /** Null when the session has no field or the uploader is older than version 17. */
-export function toClassLaps(v: unknown): ClassLaps | null {
+export function toClassLaps(v: unknown): SessionClassLaps | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
-  const out: ClassLaps = {};
-  for (const key of CLASS_KEYS) {
-    const c = obj(x[key]);
-    const [cars, laps, medianS, p10S, p90S] = [
-      num(c.cars),
-      num(c.laps),
-      num(c.medianS),
-      num(c.p10S),
-      num(c.p90S),
-    ];
-    if (
-      cars == null ||
-      laps == null ||
-      medianS == null ||
-      p10S == null ||
-      p90S == null
-    )
-      continue;
-    out[key] = {cars, laps, medianS, p10S, p90S};
+  const kind = x.kind;
+  if (kind !== 'race' && kind !== 'practice' && kind !== 'qualify') return null;
+  const classes: ClassLaps = {};
+  for (const key of PACE_CLASSES) {
+    const stats = toClassStats(obj(x.classes)[key]);
+    if (stats) classes[key] = stats;
   }
-  return Object.keys(out).length > 0 ? out : null;
+  return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
 }
 
 export type SessionDetail = SessionSummary & {
@@ -213,7 +223,7 @@ export type SessionDetail = SessionSummary & {
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
   /** Every class's lap times in this race, or null without a field. */
-  classLaps: ClassLaps | null;
+  classLaps: SessionClassLaps | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
