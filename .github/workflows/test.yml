@@ -1,0 +1,41 @@
+# Tests on every PR (no path filter), so "merge on green" means the tests
+# passed, not only that the app built. The preview workflow only builds.
+name: Tests
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: tests-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install
+      - name: Types
+        run: npx tsc --noEmit
+      - name: App tests
+        run: npx jest
+      - name: Uploader and session tools
+        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # The writer tests read every column back with the DuckDB CLI (#140).
+      - name: DuckDB CLI
+        run: |
+          curl -sSL -o duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.4.2/duckdb_cli-linux-amd64.zip
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+          echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
+      - name: Recorder tests
+        working-directory: tools/capture
+        run: uv run --group dev pytest -q
