@@ -89,6 +89,13 @@ export function isRecording(path) {
   return path.toLowerCase().endsWith('.duckdb');
 }
 
+// Bump this whenever describe() computes something differently or adds a field:
+// the uploader re-describes every file whose cached result carries another
+// version (describeCache.mjs). 1: before versions existed; 2: the fuel setup's
+// LMP2 gallons string and flat-0 VE (#144), which never reached files described
+// earlier.
+export const describeVersion = 2;
+
 // Metadata, channels, and events of one recording, without reading samples.
 export function describe(path) {
   const meta = {};
