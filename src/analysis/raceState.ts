@@ -55,7 +55,7 @@ export interface RacePrep {
   /** Speed from the car's own movement between updates, km/h; NaN without a previous update. */
   speedKmh: Float32Array[];
   /** Consecutive updates under STOPPED_KMH, ending at each update. */
-  slowRun: Int16Array[];
+  slowRun: Int32Array[];
   /** Pit entries so far. */
   pits: Int16Array[];
   /** First update the car is on the map; the length of the field if never. */
@@ -72,13 +72,13 @@ export function prepareRace(field: Field): RacePrep {
   }
   const progressM: Float32Array[] = [];
   const speedKmh: Float32Array[] = [];
-  const slowRun: Int16Array[] = [];
+  const slowRun: Int32Array[] = [];
   const pits: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
   field.cars.forEach((c, i) => {
     const prog = new Float32Array(n).fill(NaN);
     const speed = new Float32Array(n).fill(NaN);
-    const slow = new Int16Array(n);
+    const slow = new Int32Array(n);
     const pit = new Int16Array(n);
     let lastDist = NaN;
     let lastProg = NaN;
@@ -93,7 +93,11 @@ export function prepareRace(field: Field): RacePrep {
       }
       if (firstSeen[i] === n) firstSeen[i] = u;
       if (Number.isNaN(lastProg)) {
-        prog[u] = c.lapsDone[u] * trackM + d;
+        // First sight. A car still behind the start line on the first lap can
+        // report a distance near the lap's end (or a negative one, as LMU
+        // does on the grid): it is behind the line, not a lap ahead.
+        const behindLine = c.lapsDone[u] === 0 && d > trackM * 0.75;
+        prog[u] = behindLine ? d - trackM : c.lapsDone[u] * trackM + d;
       } else {
         let step = d - lastDist;
         if (step < -trackM / 2) step += trackM;
@@ -142,8 +146,11 @@ function stateOf(prep: RacePrep, car: number, u: number): CarState {
   return 'running';
 }
 
-// When a car's progress first reached `progressM`, by linear interpolation
-// between updates, looking no later than update `upTo`; null if it had not.
+// When a car's progress reached `progressM`, by linear interpolation between
+// updates, looking no later than update `upTo`; null if it had not. Scans back
+// from `upTo`: the car being asked about passed that spot recently, so this is
+// a few hundred steps however long the race has run. Progress only goes
+// backwards on a spin or a reset; the latest crossing is the one that counts.
 function timeAtProgress(
   prep: RacePrep,
   car: number,
@@ -152,19 +159,21 @@ function timeAtProgress(
 ): number | null {
   const prog = prep.progressM[car];
   const times = prep.field.timeS;
-  let prev = -1;
-  for (let u = 0; u <= upTo; u++) {
+  let after = -1; // the earliest update seen at or past progressM
+  for (let u = upTo; u >= 0; u--) {
     const p = prog[u];
     if (Number.isNaN(p)) continue;
     if (p >= progressM) {
-      if (prev < 0) return times[u];
-      const span = p - prog[prev];
-      const f = span > 0 ? (progressM - prog[prev]) / span : 1;
-      return times[prev] + f * (times[u] - times[prev]);
+      after = u;
+      continue;
     }
-    prev = u;
+    if (after < 0) return null; // the car is behind it now
+    const span = prog[after] - p;
+    const f = span > 0 ? (progressM - p) / span : 1;
+    return times[u] + f * (times[after] - times[u]);
   }
-  return null;
+  // Never below it: it was already there when first seen.
+  return after < 0 ? null : times[after];
 }
 
 const wrapPi = (a: number) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));

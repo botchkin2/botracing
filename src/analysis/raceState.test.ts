@@ -136,6 +136,52 @@ describe('carsAt', () => {
     expect(cars[1].gapS).toBeCloseTo(3 / HZ, 5);
   });
 
+  it('a grid that straddles the line: the car behind it is not a lap ahead', () => {
+    // Both on lap 0 at the first update: one 10 m behind the 1000 m line
+    // (distance 990), one 30 m past it. Same speed, 10 m per update. Update
+    // 10: the car ahead was at the follower's spot (-10 m) before it was seen,
+    // and at 90 m (where the follower is now) at update 6.
+    const f = field(20, [
+      car(0, 'GT3', 20, u => ({d: 30 + u * 10, place: 1}), true),
+      car(1, 'GT3', 20, u => ({
+        d: (990 + u * 10) % 1000,
+        laps: u >= 1 ? 1 : 0,
+        place: 2,
+      })),
+    ]);
+    const [, b] = at(f, 10 / HZ);
+    expect(b.gapS).toBeCloseTo(4 / HZ, 5);
+  });
+
+  it('stays quick and right late in a long race', () => {
+    // 3 hours at 5 Hz, two cars 10 s apart, one lap of 5,000 m per 100 s.
+    const n = 3 * 3600 * HZ;
+    const d = (u: number, lag: number) => ((u / HZ - lag) * 50) % 5000;
+    const lap = (u: number, lag: number) =>
+      Math.floor(((u / HZ - lag) * 50) / 5000);
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({d: d(u, 0), laps: lap(u, 0), place: 1}), true),
+      car(1, 'GT3', n, u => ({
+        d: Math.max(0, d(u, 10)),
+        laps: Math.max(0, lap(u, 10)),
+        place: 2,
+      })),
+    ]);
+    const prep = prepareRace(f);
+    const start = Date.now();
+    const cars = carsAt(prep, (n - 100) / HZ, true);
+    expect(Date.now() - start).toBeLessThan(100);
+    expect(cars[1].gapS).toBeCloseTo(10, 1);
+  });
+
+  it('stays stopped past 32,767 updates', () => {
+    const n = 40000;
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({d: u < 3 ? u * 10 : 30}), true),
+    ]);
+    expect(at(f, (n - 1) / HZ)[0].state).toBe('stopped');
+  });
+
   it('snaps to the nearest sample when paused and blends while playing', () => {
     const f = field(4, [car(0, 'GT3', 4, u => ({d: u * 10}), true)]);
     // 0.3 s is between updates 1 (0.2 s) and 2 (0.4 s).
