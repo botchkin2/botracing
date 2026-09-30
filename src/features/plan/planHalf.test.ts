@@ -2,7 +2,9 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type GreenLap, planRace, type RaceFacts} from '@/src/analysis/fuelPlan';
 
-import {type ActualStop, buildPlanHalf} from './planHalf';
+import type {ActualStop} from '@/src/features/session/pitCard';
+
+import {buildPlanHalf} from './planHalf';
 import {raceRules} from './planVsRace';
 
 const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
@@ -39,6 +41,11 @@ const actual = (lapIndex: number, vePct = 4): ActualStop => ({
 });
 const end = {fuelL: 3.7, vePct: 4, lapsLeft: 1.1};
 
+const USE = [
+  {k: 'Fuel a lap', p: '2.40 L', a: '2.40 L'},
+  {k: 'VE a lap', p: '3.5 %', a: '3.5 %'},
+];
+
 function half(
   over: Partial<RaceFacts> = {},
   stops: ActualStop[] = [],
@@ -73,6 +80,7 @@ describe('buildPlanHalf', () => {
       {k: 'In', p: '2 % VE (0.6 laps)', a: '4 % VE (1.1 laps)'},
       // 5 laps after the last planned stop.
       {k: 'Spare', p: '83 % VE (23.6 laps)', a: '4 % VE (1.1 laps)'},
+      ...USE,
     ]);
   });
 
@@ -99,6 +107,7 @@ describe('buildPlanHalf', () => {
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
     expect(h.rows).toEqual([
       {k: 'Spare', p: '27 % VE (7.6 laps)', a: '4 % VE (1.1 laps)'},
+      ...USE,
     ]);
   });
 
@@ -117,6 +126,22 @@ describe('buildPlanHalf', () => {
       a: '6.2 L (2.0 laps)',
     });
     expect(JSON.stringify(h.rows)).not.toMatch(/VE/);
+    // The use a lap is the fuel's alone.
+    expect(h.rows.at(-1)).toEqual({k: 'Fuel a lap', p: '2.40 L', a: '2.40 L'});
+  });
+
+  it('puts the use a lap the plan is built on beside this race’s own, with no verdict', () => {
+    const h = half({ownUse: {fuelL: 2.6, vePct: 3.8}});
+    expect(h.rows.slice(-2)).toEqual([
+      {k: 'Fuel a lap', p: '2.40 L', a: '2.60 L'},
+      {k: 'VE a lap', p: '3.5 %', a: '3.8 %'},
+    ]);
+    // Under three green laps the race has no median of its own: no row, not a made-up one.
+    expect(
+      half({ownUse: {fuelL: null, vePct: null}}).rows.some(r =>
+        /a lap/.test(r.k),
+      ),
+    ).toBe(false);
   });
 
   it('says why there is no plan instead of inventing one', () => {

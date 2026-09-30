@@ -119,6 +119,13 @@ describe('buildPitCard', () => {
       expect(c.tyres).toBe('All four new');
     });
 
+    it('says the same lap in the column and in what the plan half compares with', () => {
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      expect(card.columns[0].after).toBe('after L6');
+      expect(card.actual.stops.map(s => s.lapIndex)).toEqual([6]);
+      expect(card.actual.end).toEqual({fuelL: 3.7, vePct: 4, lapsLeft: 1.1});
+    });
+
     it('ends on the last whole lap, and the balance closes on the printed numbers', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       expect(card.end).toEqual({
@@ -132,8 +139,8 @@ describe('buildPitCard', () => {
       );
       expect(card.hasVe).toBe(true);
       expect(card.key).toEqual([
-        'VE out: what was left (dark) and what the stop added (light), of a full load.',
-        'Pit lane: the time in the lane, with the refuelling inside it (dark).',
+        'VE out: what was left (bright) and what the stop added (dim), of a full load.',
+        'Pit lane: the time in the lane, with the refuelling inside it (bright).',
       ]);
     });
   });

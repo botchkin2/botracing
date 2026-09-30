@@ -4,7 +4,7 @@ import {toLaps} from '@/src/data/sessions/adapters';
 import type {Lap} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
-import {buildPitReview} from './pitReview';
+import {endingLap} from './pitReview';
 import {raceFacts} from './raceFacts';
 
 const base = toLaps([fixture.laps[0]])[0];
@@ -84,7 +84,7 @@ describe('raceFacts', () => {
     ];
     expect(raceFacts(session(), 'k', untimedEnd)?.raceLaps).toBe(5);
     // The same lap the pit card ends on.
-    expect(buildPitReview('R', untimedEnd)?.end?.title).toBe('End of L6');
+    expect(endingLap(untimedEnd)?.lapIndex).toBe(6);
   });
 
   it('takes the fill limit, the start fuel and the race’s own median use', () => {

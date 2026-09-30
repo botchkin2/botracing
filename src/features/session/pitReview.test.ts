@@ -1,10 +1,10 @@
 import {describe, expect, it} from '@jest/globals';
 
+import type {Lap} from '@/src/data/sessions';
 import {toLaps} from '@/src/data/sessions/adapters';
-import {type Lap, type PitStop} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
-import {buildPitReview, tyresText} from './pitReview';
+import {endingLap, racePitLaps, tyresText} from './pitReview';
 
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
@@ -12,8 +12,11 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   lapIndex,
   timeS: 90,
   partial: false,
+  reasons: [],
   fuel: null,
   pitStop: null,
+  pitIn: false,
+  pitOut: false,
   newTyres: false,
   ...over,
 });
@@ -23,8 +26,8 @@ const stop = {
   added: {fuelL: 50, vePct: 38},
   inPitS: 81,
   lapsLeftAtEntry: {fuel: 3.6, ve: 0},
-  tyres: {changed: true, wheels: ['FL', 'FR', 'RL', 'RR']},
-} satisfies PitStop;
+  tyres: null,
+};
 const fuelEnd = (endL: number, veEndPct: number) => ({
   startL: 0,
   endL,
@@ -40,9 +43,9 @@ const fuelEnd = (endL: number, veEndPct: number) => ({
 });
 
 // L1 from the grid (with the service before the start), L2-L3 flying, a stop
-// on L4 that changed all four tyres, L5 the out lap, L6 the last whole lap.
+// on L4, L5 out, L6 the last whole lap.
 const race = [
-  lap(1, {pitStop: {...stop, added: {fuelL: 4, vePct: 0}, tyres: null}}),
+  lap(1, {pitStop: {...stop, added: {fuelL: 4, vePct: 0}}, pitOut: true}),
   lap(2),
   lap(3),
   lap(4, {pitStop: stop, pitIn: true}),
@@ -50,16 +53,15 @@ const race = [
   lap(6, {fuel: fuelEnd(13.1, 5)}),
 ];
 
-describe('buildPitReview', () => {
-  it('has no review outside a race, or without a stop', () => {
-    expect(buildPitReview('P', race)).toBeNull();
-    expect(buildPitReview('Q', race)).toBeNull();
-    expect(buildPitReview('R', [lap(1), lap(2)])).toBeNull();
+describe('racePitLaps', () => {
+  it('has no stops outside a race', () => {
+    expect(racePitLaps('P', race)).toEqual([]);
+    expect(racePitLaps('Q', race)).toEqual([]);
+    expect(racePitLaps('R', [lap(1), lap(2)])).toEqual([]);
   });
 
   it('leaves out the service before the start', () => {
-    const r = buildPitReview('R', race)!;
-    expect(r.stops.map(s => s.title)).toEqual(['L4 · Stop 1 of 1']);
+    expect(racePitLaps('R', race).map(l => l.lapIndex)).toEqual([4]);
   });
 
   it('keeps a stop on the first lap when that lap ends in the pit lane', () => {
@@ -69,98 +71,25 @@ describe('buildPitReview', () => {
       lap(2, {pitOut: true}),
       lap(3, {fuel: fuelEnd(13.1, 5)}),
     ];
-    expect(buildPitReview('R', first)!.stops.map(s => s.title)).toEqual([
-      'L1 · Stop 1 of 1',
-    ]);
+    expect(racePitLaps('R', first).map(l => l.lapIndex)).toEqual([1]);
   });
 
-  it('gives a stop its tank, laps, fill, lane time and tyres', () => {
-    expect(buildPitReview('R', race)!.stops[0].lines).toEqual([
-      'In the tank: 12.9 L · 0 % VE',
-      '3.6 laps of fuel · 0.0 laps of VE at the median',
-      'Added: +50.0 L · +38 % VE',
-      'In the lane: 81 s',
-      'Tyres: all four',
-    ]);
-  });
-
-  it('says which tyres the stop changed, from the stop itself', () => {
-    const at = (tyres: PitStop['tyres']) =>
-      buildPitReview(
-        'R',
-        race.map(l =>
-          l.lapIndex === 4 ? {...l, pitStop: {...stop, tyres}} : l,
-        ),
-      )!.stops[0].lines;
-    expect(at({changed: true, wheels: ['FR']})).toContain('Tyres: FR only');
-    expect(at({changed: true, wheels: ['FL', 'FR']})).toContain(
-      'Tyres: fronts',
-    );
-    expect(at({changed: false, wheels: []})).toContain('Tyres: not changed');
-    // An older analysis, or no wear channel: nothing said, not "not changed".
-    expect(at(null).join()).not.toContain('Tyres');
-  });
-
-  it('reads the tyres of a stop on the last lap of the session', () => {
-    // Silverstone 06-09: the session ended in the pits after the jump.
-    const last = [
-      ...race.slice(0, 3),
-      lap(4, {
-        pitStop: {...stop, tyres: {changed: true, wheels: ['RL']}},
-        pitIn: true,
-      }),
+  it('lists several stops in driving order', () => {
+    const two = [
+      ...race.slice(0, 5),
+      lap(6, {pitStop: stop, pitIn: true}),
+      lap(7),
     ];
-    expect(buildPitReview('R', last)!.stops[0].lines).toContain(
-      'Tyres: RL only',
-    );
+    expect(racePitLaps('R', two).map(l => l.lapIndex)).toEqual([4, 6]);
   });
 
-  it('reads a stop that added nothing as a drive-through', () => {
-    const drive = race.map(l =>
-      l.lapIndex === 4
-        ? {...l, pitStop: {...stop, added: {fuelL: 0, vePct: 0}}}
-        : l,
-    );
-    const lines = buildPitReview('R', drive)!.stops[0].lines;
-    expect(lines).toContain('Drive-through: nothing added');
-    expect(lines.join()).not.toContain('Added');
+  it('finds none on the stored Road Atlanta laps, which carry no stop', () => {
+    expect(racePitLaps('R', toLaps(fixture.laps))).toEqual([]);
   });
+});
 
-  it('closes the balance at the end: in + added - used after = left', () => {
-    const {end} = buildPitReview('R', race)!;
-    expect(end?.title).toBe('End of L6');
-    expect(end?.lines[0]).toBe(
-      'Fuel: 12.9 L in + 50.0 L added at the last stop · 49.8 L used after · 13.1 L left (3.7 laps at the median)',
-    );
-    expect(end?.lines[1]).toBe(
-      'VE: 0 % in + 38 % added at the last stop · 33 % used after · 5 % left (1.2 laps at the median)',
-    );
-  });
-
-  it('rounds first, so the printed sum closes', () => {
-    // Unrounded 0.5 + 37.5 - 4.5 = 33.5 would print 34; as printed it is
-    // 1 + 38 - 5 = 34 with 38 and 5 shown, and litres 12.94 + 49.96 - 13.06.
-    const laps = race.map(l =>
-      l.lapIndex === 4
-        ? {
-            ...l,
-            pitStop: {
-              ...stop,
-              atEntry: {fuelL: 12.94, vePct: 0.5},
-              added: {fuelL: 49.96, vePct: 37.5},
-            },
-          }
-        : l.lapIndex === 6
-        ? {...l, fuel: fuelEnd(13.06, 4.5)}
-        : l,
-    );
-    const {end} = buildPitReview('R', laps)!;
-    // 12.9 + 50.0 - 13.1 = 49.8, and 1 + 38 - 5 = 34.
-    expect(end?.lines[0]).toContain('49.8 L used after');
-    expect(end?.lines[1]).toContain('34 % used after');
-  });
-
-  it('ends on the last whole lap, timed or not, and not on a cut-short lap after it', () => {
+describe('endingLap', () => {
+  it('is the last whole lap, timed or not, and not a cut-short lap after it', () => {
     const cool = [
       ...race,
       lap(7, {
@@ -170,7 +99,7 @@ describe('buildPitReview', () => {
         fuel: fuelEnd(3, 1),
       }),
     ];
-    expect(buildPitReview('R', cool)!.end?.title).toBe('End of L6');
+    expect(endingLap(cool)?.lapIndex).toBe(6);
     // The game stops timing the last laps of a race (Sarthe 09-21: L21-L23),
     // and the app's `partial` also carries its "incomplete" flag on them, so
     // only the uploader's 'partial' reason marks a cut-short lap (#160).
@@ -189,21 +118,11 @@ describe('buildPitReview', () => {
         fuel: fuelEnd(2.5, 0),
       }),
     ];
-    expect(buildPitReview('R', untimed)!.end?.title).toBe('End of L6');
+    expect(endingLap(untimed)?.lapIndex).toBe(6);
   });
 
-  it('numbers several stops', () => {
-    const two = [...race.slice(0, 5), lap(6, {pitStop: stop}), lap(7)];
-    expect(buildPitReview('R', two)!.stops.map(s => s.title)).toEqual([
-      'L4 · Stop 1 of 2',
-      'L6 · Stop 2 of 2',
-    ]);
-  });
-});
-
-describe('on the Road Atlanta race', () => {
-  it('is left out when the stored laps carry no stop', () => {
-    expect(buildPitReview('R', toLaps(fixture.laps))).toBeNull();
+  it('is null when no lap has a fuel level', () => {
+    expect(endingLap([lap(1), lap(2)])).toBeNull();
   });
 });
 

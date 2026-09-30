@@ -57,9 +57,29 @@ export type PitCardEnd = {
   last: string | null;
 };
 
+/** What the race did at one stop, in numbers, for the plan half's Actual column. */
+export type ActualStop = {
+  lapIndex: number;
+  fuelL: number | null;
+  vePct: number | null;
+  /** The tighter meter's laps at the stint median, as the card shows. */
+  lapsLeft: number | null;
+};
+
+export type ActualEnd = {
+  fuelL: number | null;
+  vePct: number | null;
+  lapsLeft: number | null;
+};
+
+/** The race's side of "Plan vs what happened". */
+export type PitActual = {stops: ActualStop[]; end: ActualEnd | null};
+
 /** The card for a race with no stop. */
 export type FuelCard = {
   kind: 'fuel';
+  actual: PitActual;
+  hasVe: boolean;
   title: string;
   start: Cell;
   used: Cell;
@@ -68,6 +88,7 @@ export type FuelCard = {
 
 export type StopsCard = {
   kind: 'stops';
+  actual: PitActual;
   /** One column full width, two side by side, three or more fixed width and scrolling. */
   layout: 'one' | 'two' | 'scroll';
   columns: PitColumn[];
@@ -256,6 +277,15 @@ function fuelCard(
   const perLapVe = usedVe != null && n > 0 ? usedVe / n : null;
   return {
     kind: 'fuel',
+    hasVe,
+    actual: {
+      stops: [],
+      end: {
+        fuelL: f.endL,
+        vePct: hasVe ? f.veEndPct : null,
+        lapsLeft: lapsLeft({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe}),
+      },
+    },
     title: 'Fuel',
     start: {
       value: join(
@@ -317,6 +347,24 @@ export function buildPitCard(
   const anyRefuel = columns.some(c => c.lane?.refuelS != null);
   return {
     kind: 'stops',
+    actual: {
+      stops: pitLaps.map(l => {
+        const stop = l.pitStop as PitStop;
+        return {
+          lapIndex: l.lapIndex,
+          fuelL: stop.atEntry.fuelL,
+          vePct: hasVe ? stop.atEntry.vePct : null,
+          lapsLeft: lapsLeft(stop.lapsLeftAtEntry),
+        };
+      }),
+      end: f
+        ? {
+            fuelL: f.endL,
+            vePct: hasVe ? f.veEndPct : null,
+            lapsLeft: lapsLeft({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe}),
+          }
+        : null,
+    },
     layout:
       columns.length === 1 ? 'one' : columns.length === 2 ? 'two' : 'scroll',
     columns,
@@ -329,9 +377,9 @@ export function buildPitCard(
       : null,
     key: [
       hasVe &&
-        'VE out: what was left (dark) and what the stop added (light), of a full load.',
+        'VE out: what was left (bright) and what the stop added (dim), of a full load.',
       anyRefuel
-        ? 'Pit lane: the time in the lane, with the refuelling inside it (dark).'
+        ? 'Pit lane: the time in the lane, with the refuelling inside it (bright).'
         : 'Pit lane: the time in the lane.',
     ].filter((l): l is string => Boolean(l)),
     refuelScope: anyRefuel ? scope : null,

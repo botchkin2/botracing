@@ -9,6 +9,8 @@
 // the laps a stint burns times that use. They are labelled "at the median use".
 import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
+import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
+
 import {dateOf, plural, type PlanBasis} from './planVsRace';
 
 export type PlanHalfRow = {k: string; p: string; a: string};
@@ -17,21 +19,6 @@ export type PlanHalf = {
   /** "Plan = ..." or the reason there is no plan. */
   desc: string;
   rows: PlanHalfRow[];
-};
-
-/** What the race did at one stop and at the end, in the meter shown. */
-export type ActualStop = {
-  lapIndex: number;
-  fuelL: number | null;
-  vePct: number | null;
-  /** The tighter meter's laps at the stint median, as the card shows. */
-  lapsLeft: number | null;
-};
-
-export type ActualEnd = {
-  fuelL: number | null;
-  vePct: number | null;
-  lapsLeft: number | null;
 };
 
 const MISSING = '—';
@@ -134,6 +121,23 @@ export function buildPlanHalf(input: {
         : MISSING,
     });
   }
+  // The use a lap the plan is built on, against this race's own median.
+  const own = [
+    perLapRow(
+      'Fuel a lap',
+      plan.perLap.fuel?.median ?? null,
+      facts.ownUse.fuelL,
+      v => `${v.toFixed(2)} L`,
+    ),
+    hasVe
+      ? perLapRow(
+          'VE a lap',
+          plan.perLap.ve?.median ?? null,
+          facts.ownUse.vePct,
+          v => `${v.toFixed(1)} %`,
+        )
+      : null,
+  ].filter((r): r is PlanHalfRow => r != null);
   // What the last stint leaves at the flag; with no stop, the one load.
   const lastStop = stopLaps.length > 0 ? stopLaps[stopLaps.length - 1] : null;
   const burnedAfter =
@@ -143,5 +147,24 @@ export function buildPlanHalf(input: {
     p: planned(hasVe, capacity, use, burnedAfter),
     a: end ? left(hasVe, end, end.lapsLeft) : MISSING,
   });
+  rows.push(...own);
   return {desc, rows};
 }
+
+function perLapRow(
+  k: string,
+  planned: number | null,
+  own: number | null,
+  fmt: (v: number) => string,
+): PlanHalfRow | null {
+  if (planned == null || own == null) return null;
+  return {k, p: fmt(planned), a: fmt(own)};
+}
+
+// Behind the "?" on the plan half (thread 33 #1119), one sentence a line.
+export const PLAN_HALF_HELP: readonly string[] = [
+  'The planner was given only laps from before this race, at this race’s fill limit and its length in laps, the formation lap not counted.',
+  'Plan cells are at the median use per lap, the Plan screen’s own number: what the load leaves before each planned stop and at the flag.',
+  'Laps are named as in the lap table: L1 is the formation lap, and a stop is on the lap the pit lane is entered.',
+  'Stops are lined up by order; a stop only one side made reads “—” on the other.',
+];

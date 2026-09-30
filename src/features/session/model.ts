@@ -13,7 +13,7 @@ import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {raceFacts} from './raceFacts';
-import {buildPitReview, type PitReview} from './pitReview';
+import {buildPitCard, type PitCard} from './pitCard';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -118,7 +118,7 @@ export type SessionScreenModel = {
   detail: DetailModel | null;
   tray: TrayModel | null;
   /** Races with a stop only. */
-  pitReview: PitReview | null;
+  pitCard: PitCard | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -444,7 +444,7 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
-    pitReview: buildPitReview(session.sessionType, laps),
+    pitCard: buildPitCard(session.sessionType, laps, session),
     fuelUse: buildFuelUseCard(session, laps),
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
