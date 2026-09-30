@@ -209,6 +209,15 @@ function CornerView({
       cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
     );
 
+  const cornerChips = model.corners.map(({n, label}) => (
+    <Chip
+      key={n}
+      label={label}
+      selected={n === model.corner}
+      onPress={() => go(n)}
+    />
+  ));
+
   const header = (
     <View style={styles.gap}>
       <View style={styles.row}>
@@ -241,15 +250,18 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      <View style={styles.wrap}>
-        {model.corners.map(({n, label}) => (
-          <Chip
-            key={n}
-            label={label}
-            selected={n === model.corner}
-            onPress={() => go(n)}
-          />
-        ))}
+      {layout.isWide ? (
+        <View style={styles.wrap}>{cornerChips}</View>
+      ) : (
+        // One line that scrolls sideways: 25 corners wrapped to four rows.
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}>
+          {cornerChips}
+        </ScrollView>
+      )}
+      <View style={styles.row}>
         <Chip
           label={
             allComparable ? '✓ All comparable laps' : '+ All comparable laps'
@@ -659,6 +671,8 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Desktop: two columns bounded to the viewport, each scrolling on its own.
   columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
+  // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
+  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   wrap: {
     flexDirection: 'row',

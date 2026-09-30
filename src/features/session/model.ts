@@ -44,8 +44,6 @@ export type Bar = {
 
 export type ChartModel = {
   bars: Bar[];
-  /** The median comparable lap, the zero line of the bars. */
-  medianS: number;
   /** Lap index after which a new stint starts. */
   stintBreaks: {afterLap: number; label: string}[];
   /** Lap index of each pit-in lap. */
@@ -267,7 +265,6 @@ export function buildSessionModel(
     comparable.length === 0 || median == null
       ? null
       : {
-          medianS: median,
           bars: laps.map(l => ({
             lapId: l.id,
             lapIndex: l.lapIndex,

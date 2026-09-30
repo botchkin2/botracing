@@ -19,7 +19,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {LapTimeBars} from '@/src/charts';
 import {
-  formatLapTime,
   hitBox,
   lapStroke,
   radius,
@@ -219,7 +218,7 @@ function SessionView({
           height={CHART_H}
           bars={bars}
           rangeS={BAR_CLAMP_S}
-          medianLabel={`median ${formatLapTime(model.chart.medianS)}`}
+          medianLabel='median'
           stintBreaks={model.chart.stintBreaks.map(b => ({
             afterIndex: b.afterLap - 1,
             label: b.label,
