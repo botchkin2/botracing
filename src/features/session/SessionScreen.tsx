@@ -153,6 +153,7 @@ function SessionView({
         deltaS: b.deltaS,
         excluded: !b.comparable,
         highlighted: b.highlighted,
+        hollow: b.hollow,
         fill:
           b.selIndex != null
             ? colorOf(b.selIndex)
@@ -188,6 +189,13 @@ function SessionView({
           }))}
           pits={model.chart.pits.map(i => i - 1)}
           resets={model.chart.resets.map(i => i - 1)}
+          rails={
+            model.chart.rails && {
+              tow: model.chart.rails.tow.map(i => i - 1),
+              tick: model.chart.rails.tick.map(i => i - 1),
+              pit: model.chart.rails.pit.map(i => i - 1),
+            }
+          }
           onPressBar={id => highlight(id, true)}
         />
       </View>
@@ -386,7 +394,15 @@ const styles = StyleSheet.create({
   },
   block: {gap: space.xs},
   title: {fontSize: 22, marginTop: space.sm},
-  facts: {flexDirection: 'row', gap: space.xxl, marginTop: space.md},
+  // Wraps: a fifth fact ("Best without TOW or TRAF") does not fit beside the
+  // four at 375 pt.
+  facts: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.xxl,
+    rowGap: space.sm,
+    marginTop: space.md,
+  },
   factValue: {fontSize: 14},
   section: {marginTop: space.xl, gap: space.xs},
   card: {

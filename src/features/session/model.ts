@@ -8,6 +8,8 @@ import {
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
+import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
+
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
 // not decided here; `selIndex` (0 = reference) picks the lap color.
@@ -28,6 +30,8 @@ export type Bar = {
   /** Median minus lap time, clamped to ±BAR_CLAMP_S. Up (positive) = faster. */
   deltaS: number;
   best: boolean;
+  /** Towed for TOW_HOLLOW_S or more: drawn as an outline (R3c). */
+  hollow: boolean;
   selIndex: number | null;
   highlighted: boolean;
 };
@@ -42,6 +46,11 @@ export type ChartModel = {
   pits: number[];
   /** Lap index of each lap a reset to the garage cut short. */
   resets: number[];
+  /**
+   * Lap indexes for the rails under the chart (R3c); null when the session
+   * has no field, so no rail claims a clean race.
+   */
+  rails: {tow: number[]; tick: number[]; pit: number[]} | null;
 };
 
 export type Tag = {code: string; best?: boolean};
@@ -119,7 +128,8 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
     tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
   if (lap.hadImpact) tags.push({code: 'HIT'});
-  return tags;
+  tags.push(...trafficTags(lap.traffic));
+  return orderTags(tags);
 }
 
 /** Off-track time a comparable lap may carry (handoff exclusion copy). */
@@ -220,6 +230,7 @@ export function buildSessionModel(
                 ? clamp(median - l.timeS, BAR_CLAMP_S)
                 : 0,
             best: l.id === session.bestLapId,
+            hollow: lapTraffic(l.traffic).hollow,
             selIndex: selIndexOf(l.id),
             highlighted: l.id === selection.hl,
           })),
@@ -228,6 +239,17 @@ export function buildSessionModel(
             .map(l => ({afterLap: l.lapIndex - 1, label: `STINT ${l.stint}`})),
           pits: laps.filter(l => l.pitIn).map(l => l.lapIndex),
           resets: laps.filter(l => l.endedInReset).map(l => l.lapIndex),
+          rails: laps.some(l => l.traffic)
+            ? {
+                tow: laps
+                  .filter(l => lapTraffic(l.traffic).towed)
+                  .map(l => l.lapIndex),
+                tick: laps
+                  .filter(l => lapTraffic(l.traffic).tick)
+                  .map(l => l.lapIndex),
+                pit: laps.filter(l => l.pitIn || l.pitOut).map(l => l.lapIndex),
+              }
+            : null,
         };
 
   const noComparable =
@@ -320,6 +342,17 @@ export function buildSessionModel(
     : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
+  const clean = bestWithoutTow(laps, session.bestLapId);
+  const cleanBestFact: Fact[] = clean
+    ? [
+        {
+          label: 'Best without TOW or TRAF',
+          value: `${lapLabel(clean.lap)} ${timeOrDash(
+            clean.lap.timeS,
+          )} · ${formatGap(clean.behindS, 3)} s`,
+        },
+      ]
+    : [];
   return {
     trackId: session.trackId,
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
@@ -346,6 +379,7 @@ export function buildSessionModel(
         best: true,
       },
       {label: 'Median', value: timeOrDash(median)},
+      ...cleanBestFact,
     ],
     chart,
     noComparable,
