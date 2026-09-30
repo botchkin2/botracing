@@ -1,4 +1,10 @@
 import {toLocalMetres} from '@/src/analysis/geo';
+import {
+  MAP_AFTER_M,
+  MAP_BEFORE_M,
+  ZOOM_AFTER_M,
+  ZOOM_BEFORE_M,
+} from '@/src/analysis/cornerWindows';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 import {
   type Lap,
@@ -130,9 +136,9 @@ export type CornerModel = {
   next: number | null;
 };
 
-// Zoomed traces: 250 m before the apex to 150 m after (handoff §4).
-export const ZOOM_BEFORE_M = 250;
-export const ZOOM_AFTER_M = 150;
+// The windows live in src/analysis/cornerWindows.ts, where the uploader's
+// slice files read them too.
+export {ZOOM_AFTER_M, ZOOM_BEFORE_M};
 // Strips start where the table's individual lap colours end (lapMode: 7+ laps),
 // so a 16-lap race gets them; below that the table shows every lap.
 const STRIP_MODE_FROM = 7;
@@ -437,9 +443,7 @@ export function sortRows(
 
 // --- braking map (desktop D3) -------------------------------------------------
 
-// Zoomed track: 350 m before the apex to 200 m after (handoff D3).
-export const MAP_BEFORE_M = 350;
-export const MAP_AFTER_M = 200;
+export {MAP_AFTER_M, MAP_BEFORE_M};
 const MAP_TICKS_M = [-300, -200, -100, 100];
 
 export type BrakeMapPoint = {
