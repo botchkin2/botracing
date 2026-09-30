@@ -50,7 +50,7 @@ describe('lastRaceLine', () => {
       session('r1', '2026-09-28T20:00:00Z', {lapCount: 72}),
       session('r0', '2026-09-20T20:00:00Z', {lapCount: 10}),
     ]);
-    expect(lastRaceLine(c)).toMatch(/^Last race d{2} w{3,4} 2026$/);
+    expect(lastRaceLine(c)).toMatch(/^Last race \d{2} \w{3,4} 2026$/);
   });
 
   it('says so when the car has only practice here', () => {
