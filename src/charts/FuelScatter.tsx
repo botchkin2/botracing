@@ -14,7 +14,7 @@ export type ScatterTick = {v: number; label: string};
 
 const PAD_L = 44;
 const PAD_R = 12;
-const PAD_T = 10;
+const PAD_T = 18;
 const PAD_B = 32;
 const DOT_R = 3;
 const MEDIAN_R = 6;
@@ -29,6 +29,7 @@ export function FuelScatter({
   xTicks,
   yTicks,
   xTitle,
+  yTitle,
 }: {
   width: number;
   height: number;
@@ -40,6 +41,7 @@ export function FuelScatter({
   xTicks: ScatterTick[];
   yTicks: ScatterTick[];
   xTitle: string;
+  yTitle: string;
 }) {
   const {color} = useTheme();
   const axis = typeScale.axis;
@@ -102,6 +104,14 @@ export function FuelScatter({
           fontFamily={axis.fontFamily}
           fontSize={axis.fontSize}>
           {xTitle}
+        </SvgText>
+        <SvgText
+          x={PAD_L}
+          y={10}
+          fill={color.textFaint}
+          fontFamily={axis.fontFamily}
+          fontSize={axis.fontSize}>
+          {yTitle}
         </SvgText>
         {points.map(p =>
           p.hollow ? (

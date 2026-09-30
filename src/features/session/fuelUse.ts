@@ -86,11 +86,9 @@ export function buildFuelUse(
   laps: Lap[],
 ): FuelUse | null {
   if (session.sessionType !== 'P') return null;
-  const limitL =
-    session.fuel?.fillLimitL ??
-    session.fuel?.startL ??
-    session.fuel?.tankL ??
-    null;
+  // Only the fill limit is a limit: a practice that started part-full has a
+  // start level, and the tank is not what the event allows (camber, #158).
+  const limitL = session.fuel?.fillLimitL ?? null;
 
   const usable = laps.filter(
     l =>
@@ -255,7 +253,7 @@ export function verdictText(fu: FuelUse): string {
 export function limitText(fu: FuelUse): string {
   return fu.limitL != null
     ? `Loads use the ${fu.limitL.toFixed(0)} L limit of this session.`
-    : '';
+    : 'No fill limit on record for this session, so no load in laps of fuel.';
 }
 
 export type ScatterTick = {v: number; label: string};
@@ -343,12 +341,15 @@ export function planLinkText(
   planLimitL: number | null,
 ): string {
   const laps = `${greenLaps} green lap${greenLaps === 1 ? '' : 's'}`;
-  if (planLimitL != null && !planMatchesLimit(sessionLimitL, planLimitL))
-    return `This session ran at the ${
-      sessionLimitL?.toFixed(0) ?? '?'
-    } L limit; your ${planLabel} plan uses ${planLimitL.toFixed(
+  if (planLimitL != null && !planMatchesLimit(sessionLimitL, planLimitL)) {
+    const ran =
+      sessionLimitL != null
+        ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
+        : 'This session has no fill limit on record';
+    return `${ran}; your ${planLabel} plan uses ${planLimitL.toFixed(
       0,
     )} L, so these ${laps} are not in it ›`;
+  }
   return `These ${laps} feed your ${planLabel} plan ›`;
 }
 

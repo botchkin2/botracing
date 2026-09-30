@@ -7,6 +7,8 @@ import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
   buildFuelUse,
   fuelUseRows,
+  limitText,
+  planLinkText,
   planMatchesLimit,
   raceLaps,
   verdictText,
@@ -142,6 +144,26 @@ describe('buildFuelUse', () => {
     expect(buildFuelUse(session(), laps)!.verdict.kind).toBe('one-stint');
   });
 
+  it('does not read start fuel or the tank as a fill limit (Sarthe qualifying, 31.8 L)', () => {
+    const fu = buildFuelUse(
+      session({
+        fuel: {
+          startL: 31.8,
+          fillLimitL: null,
+          tankL: 75,
+          litresPerVePct: null,
+          litresPerVePctStop: null,
+        },
+      }),
+      stintOf(1, [2.4, 2.41, 2.39, 2.4]),
+    )!;
+    expect(fu.limitL).toBeNull();
+    expect(fu.stints[0].loadLaps.fuel).toBeNull();
+    // 100 % VE is the full load whatever the start.
+    expect(fu.stints[0].loadLaps.ve).not.toBeNull();
+    expect(limitText(fu)).toContain('No fill limit on record');
+  });
+
   it('has no load in laps of fuel without a fill limit on record', () => {
     const fu = buildFuelUse(
       session({fuel: null}),
@@ -176,5 +198,19 @@ describe('the plan line', () => {
     expect(planMatchesLimit(75, 79)).toBe(false);
     expect(planMatchesLimit(null, 75)).toBe(false);
     expect(planMatchesLimit(75, null)).toBe(false);
+  });
+});
+
+describe('planLinkText', () => {
+  it('says the laps feed the plan, or why they do not', () => {
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toContain(
+      'These 12 green laps feed your Road Atlanta · 911 GT3 R plan',
+    );
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toContain(
+      'This session ran at the 75 L limit; your Road Atlanta · 911 GT3 R plan uses 79 L, so these 12 green laps are not in it',
+    );
+    expect(planLinkText(12, 'X', null, 79)).toContain(
+      'has no fill limit on record',
+    );
   });
 });

@@ -19,6 +19,7 @@ import {
 import {type FuelUseCardModel} from '../model';
 
 const X_TITLE = 'Fuel used per lap, L (the axis does not start at zero)';
+const Y_TITLE = 'Lap time, faster ↑';
 const SCATTER_H = 190;
 
 /**
@@ -74,6 +75,7 @@ export function FuelUseCard({
         xTicks={scatter.xTicks}
         yTicks={scatter.yTicks}
         xTitle={X_TITLE}
+        yTitle={Y_TITLE}
       />
       {rows.map(r => (
         <View key={r.key} style={[styles.row, {borderColor: color.line}]}>
