@@ -39,6 +39,7 @@ import {
 import {CarsAround} from './components/CarsAround';
 import {PANEL_DIVIDER_W, PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
+import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
   CHANNELS,
@@ -231,17 +232,12 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   </Text>
                 )}
                 {r.selIndex !== 0 && (
-                  <Pressable
-                    accessibilityRole='button'
-                    accessibilityLabel={`Set ${r.label} as the reference`}
-                    hitSlop={space.sm}
+                  <RefAction
+                    label={`Set ${r.label} as the reference`}
                     onPress={() =>
                       p.onSelectionChange(setReference(selection, r.lapId))
-                    }>
-                    <Text variant='dataSmall' tone='accentInk'>
-                      Ref
-                    </Text>
-                  </Pressable>
+                    }
+                  />
                 )}
               </Pressable>
             ))}
