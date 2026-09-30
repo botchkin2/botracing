@@ -177,6 +177,12 @@ describe('veRatioOf', () => {
     expect(veRatioOf(laps)).toBeCloseTo(0.7);
   });
 
+  it('needs three green laps with fuel and VE', () => {
+    const one = lap({fuel: fuel({usedL: 3.5, veUsedPct: 5})});
+    expect(veRatioOf([one, one])).toBeNull();
+    expect(veRatioOf([one, one, one])).toBeCloseTo(0.7);
+  });
+
   it('is null without a green lap that has fuel and VE', () => {
     expect(veRatioOf([])).toBeNull();
     expect(veRatioOf([lap({fuel: fuel({veUsedPct: null})})])).toBeNull();

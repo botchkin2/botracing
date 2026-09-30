@@ -2,6 +2,7 @@ import {
   type FuelPlan,
   type Load,
   type LoadToFinish,
+  MIN_GREEN_LAPS,
   type GreenLap,
   type Option,
   type PlanRules,
@@ -99,7 +100,8 @@ export function veRatioOf(laps: Lap[]): number | null {
     if (f?.green && f.usedL != null && f.usedL > 0 && f.veUsedPct)
       ratios.push(f.usedL / f.veUsedPct);
   }
-  if (ratios.length === 0) return null;
+  // Fewer than three green laps is not a median worth dividing by.
+  if (ratios.length < MIN_GREEN_LAPS) return null;
   ratios.sort((a, b) => a - b);
   const mid = ratios.length >> 1;
   return ratios.length % 2 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;

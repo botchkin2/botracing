@@ -280,13 +280,24 @@ describe('drop one stop', () => {
     expect((p.dropStop!.compare as {n: number}).n).toBe(0);
   });
 
-  it('carries the formation lap into the saving', () => {
+  it('shares the formation lap out with the race laps', () => {
     const d = planRace(
       rules({lengthLaps: 45, formationLap: true}),
       laps(10, 3.5, 5),
     ).dropStop!;
-    // The first of two stints burns 23 + 1 laps of use.
-    expect(d.fuelPerLapL).toBeCloseTo(84 / 24);
+    // 45 laps + the formation lap on 2 loads: 23 laps of use per load.
+    expect(d.fuelPerLapL).toBeCloseTo(84 / 23);
+  });
+
+  it('65 laps and a formation lap on two loads is 33 laps of use per load', () => {
+    // Apex's case (thread 35 #1032): 66 laps of use on 2 loads = 33 each, so
+    // 100 L allows 100 / 33 = 3.03 L a lap, not 100 / 34.
+    const d = planRace(
+      rules({lengthLaps: 65, fuelL: 100, formationLap: true}),
+      laps(10, 3.5, 3),
+    ).dropStop!;
+    expect(d.targetStops).toBe(1);
+    expect(d.fuelPerLapL).toBeCloseTo(100 / 33);
   });
 
   it('has nothing to drop past the mandatory stops', () => {

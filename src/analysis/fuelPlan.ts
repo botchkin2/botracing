@@ -292,9 +292,12 @@ function dropStopFor(
 ): DropStop | null {
   const targetStops = stops - 1;
   if (targetStops < rules.mandatoryStops || targetStops < 0) return null;
-  const stintLaps = Math.ceil(raceLaps / (targetStops + 1));
-  // The first stint also carries the formation lap.
-  const burnLaps = stintLaps + (rules.formationLap ? 1 : 0);
+  // The formation lap is a lap of use taken from the first load, so it is
+  // shared out with the race laps: 65 laps + formation on 2 loads is 33 laps
+  // of use per load (not 32.5 + 1).
+  const burnLaps = Math.ceil(
+    (raceLaps + (rules.formationLap ? 1 : 0)) / (targetStops + 1),
+  );
   const fuelPerLapL = fuel ? rules.fuelL / burnLaps : null;
   const vePerLapPct = ve ? rules.vePct / burnLaps : null;
   const saveFuelL =
