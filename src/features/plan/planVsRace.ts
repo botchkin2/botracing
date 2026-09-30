@@ -44,11 +44,11 @@ const MONTHS = [
   'Dec',
 ];
 // By hand: the month names of toLocaleDateString differ between engines.
-const dateOf = (iso: string) => {
+export const dateOf = (iso: string) => {
   const d = new Date(iso);
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 };
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function changeLine(
   name: string,
