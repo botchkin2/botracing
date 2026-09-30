@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
+import {type Field} from '@/src/analysis/field';
 import {TraceChart} from '@/src/charts';
 import {
   cornerCell,
@@ -25,6 +26,7 @@ import {
 } from '@/src/state/comparePrefs';
 import {Checkbox, Chip, Explainer, Segment, Text} from '@/src/ui';
 
+import {CarsAround} from './components/CarsAround';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
@@ -52,6 +54,8 @@ const OVERVIEW_H = 58;
 
 export type WorkspaceProps = {
   sessionId: string;
+  /** Every car at 5 Hz, once loaded; the radar panel needs it. */
+  field?: Field;
   model: CompareModel;
   selection: CompareSelection;
   cursorM: number;
@@ -358,6 +362,13 @@ export function CompareWorkspace(p: WorkspaceProps) {
             openSection={selection.corner ?? null}
             lapStyle={lapStyle}
             onPressSection={p.onOpenSection}
+          />
+        )}
+        {p.field && model.playing?.lapNumber != null && (
+          <CarsAround
+            field={p.field}
+            lapNumber={model.playing.lapNumber}
+            cursorM={p.cursorM}
           />
         )}
         <View style={styles.section}>

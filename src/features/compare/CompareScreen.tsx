@@ -608,6 +608,7 @@ function CompareView({
     return (
       <CompareWorkspace
         sessionId={sessionId}
+        field={field}
         model={model}
         selection={selection}
         cursorM={cursorM}
