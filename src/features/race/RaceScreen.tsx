@@ -318,8 +318,9 @@ function RaceView({
       view,
       band: placer.outline.length > 0 ? outlineUse.used : [line],
       bandFaded: outlineUse.unused,
+      fellBack: focus !== null && chased.index !== focus,
     };
-  }, [chased, placer, outlineUse, line]);
+  }, [chased, focus, placer, outlineUse, line]);
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],

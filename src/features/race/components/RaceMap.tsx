@@ -53,6 +53,8 @@ export type RaceFollow = {
   view: Omit<FollowView, 'width' | 'height'>;
   band: {x: number; y: number}[][];
   bandFaded: {x: number; y: number}[][];
+  /** A car is focused but cannot be chased (garage, no heading): this is you. */
+  fellBack: boolean;
 };
 
 /**
@@ -226,6 +228,15 @@ export function RaceMap({
         ) : null}
         <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
       </View>
+      {following && follow.fellBack ? (
+        <View
+          style={[styles.fellBack, {backgroundColor: color.surfaceOverlay}]}
+          pointerEvents='none'>
+          <Text variant='dataSmall' tone='textSecondary'>
+            Following you
+          </Text>
+        </View>
+      ) : null}
       {following ? (
         <MapZoomButtons
           canOut={zoom < MAP_ZOOMS.length - 1}
@@ -265,6 +276,14 @@ const styles = StyleSheet.create({
     left: space.sm,
     alignItems: 'flex-start',
     gap: space.xs,
+  },
+  fellBack: {
+    position: 'absolute',
+    bottom: space.xs,
+    alignSelf: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: space.xs,
+    paddingVertical: 2,
   },
   radar: {position: 'absolute', top: space.sm, right: space.sm},
   credit: {position: 'absolute', right: space.md, bottom: space.xs},
