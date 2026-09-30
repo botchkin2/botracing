@@ -1,7 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {planRace, type GreenLap} from '@/src/analysis/fuelPlan';
-import {type Lap, type LapFuel, type SessionSummary} from '@/src/data/sessions';
+import {
+  type Lap,
+  type LapFuel,
+  type SessionFuel,
+  type SessionSummary,
+} from '@/src/data/sessions';
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
@@ -38,6 +43,15 @@ const session = (
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
+  ...over,
+});
+
+const sessionFuel = (over: Partial<SessionFuel> = {}): SessionFuel => ({
+  startL: null,
+  fillLimitL: null,
+  tankL: null,
+  litresPerVePct: null,
+  litresPerVePctStop: null,
   ...over,
 });
 
@@ -253,7 +267,7 @@ describe('veRatioFor', () => {
 
 describe('rulesFor', () => {
   const length = {kind: 'min' as const, value: 60};
-  const last = {startL: 89, fillLimitL: 84, tankL: 115};
+  const last = sessionFuel({startL: 89, fillLimitL: 84, tankL: 115});
 
   it('uses the preset fuel first, then fill limit, start fuel and tank', () => {
     const preset = newPreset(
@@ -270,17 +284,29 @@ describe('rulesFor', () => {
     });
     // No setup recorded: what he started with there, not the tank ceiling.
     expect(
-      rulesFor(null, length, {startL: 100, fillLimitL: null, tankL: 117}),
+      rulesFor(
+        null,
+        length,
+        sessionFuel({startL: 100, fillLimitL: null, tankL: 117}),
+      ),
     ).toMatchObject({fuelSource: 'start fuel', rules: {fuelL: 100}});
     expect(
-      rulesFor(null, length, {startL: null, fillLimitL: null, tankL: 117}),
+      rulesFor(
+        null,
+        length,
+        sessionFuel({startL: null, fillLimitL: null, tankL: 117}),
+      ),
     ).toMatchObject({fuelSource: 'tank', rules: {fuelL: 117}});
   });
 
   it('cannot plan without any fuel', () => {
     expect(rulesFor(null, length, null)).toBeNull();
     expect(
-      rulesFor(null, length, {startL: null, fillLimitL: null, tankL: null}),
+      rulesFor(
+        null,
+        length,
+        sessionFuel({startL: null, fillLimitL: null, tankL: null}),
+      ),
     ).toBeNull();
   });
 
@@ -386,7 +412,7 @@ describe('planView', () => {
     const short = rulesFor(
       null,
       {kind: 'laps', value: 10},
-      {startL: 84, fillLimitL: 84, tankL: null},
+      sessionFuel({startL: 84, fillLimitL: 84, tankL: null}),
     )!;
     const v = planView(null, short, planRace(short.rules, history), {
       since: null,
@@ -443,7 +469,7 @@ describe('planView', () => {
     const noLimits = rulesFor(
       null,
       {kind: 'laps', value: 45},
-      {startL: 84, fillLimitL: 84, tankL: null},
+      sessionFuel({startL: 84, fillLimitL: 84, tankL: null}),
     )!;
     const v = planView(null, noLimits, planRace(noLimits.rules, history), {
       since: null,

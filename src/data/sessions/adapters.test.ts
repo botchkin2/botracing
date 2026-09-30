@@ -68,11 +68,23 @@ describe('fuel facts', () => {
       ...raw,
       fuel: {startL: 84, fillLimitL: 84, tankL: 115},
     });
-    expect(d.fuel).toEqual({startL: 84, fillLimitL: 84, tankL: 115});
+    expect(d.fuel).toEqual({
+      startL: 84,
+      fillLimitL: 84,
+      tankL: 115,
+      litresPerVePct: null,
+      litresPerVePctStop: null,
+    });
+    expect(
+      toSessionDetail({
+        ...raw,
+        fuel: {startL: 84, litresPerVePct: 0.81, litresPerVePctStop: 0.8},
+      }).fuel,
+    ).toMatchObject({litresPerVePct: 0.81, litresPerVePctStop: 0.8});
     // A recording without a setup string: the limits are null, the start stays.
     expect(
       toSessionDetail({...raw, fuel: {startL: 100, fillLimitL: null}}).fuel,
-    ).toEqual({startL: 100, fillLimitL: null, tankL: null});
+    ).toMatchObject({startL: 100, fillLimitL: null, tankL: null});
   });
 
   it('reads a lap fuel, null when the lap has none', () => {

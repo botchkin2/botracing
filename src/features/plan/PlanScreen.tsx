@@ -93,7 +93,10 @@ export function PlanScreen() {
   // session there (VE % per lap depends on the load; thread 35 #1004).
   const measured = history.map((s, i) => ({
     startedAt: s.startedAt,
-    ratio: lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null,
+    // The uploader's value first (analysisVersion 11), else measured here.
+    ratio:
+      sessionDetails.details[i]?.fuel?.litresPerVePct ??
+      (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
     fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
   }));
   const ratio = veRatioFor(preset, measured);

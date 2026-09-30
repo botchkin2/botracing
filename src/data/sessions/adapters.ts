@@ -113,6 +113,14 @@ export type SessionFuel = {
   startL: number | null;
   fillLimitL: number | null;
   tankL: number | null;
+  /**
+   * Litres of fuel one % of VE is worth here: the median over green laps of
+   * used litres per used % (it depends on the fill limit and is not in the
+   * setup), and the same from what was added at the stops as a cross-check.
+   * Null on sessions analysed before analysisVersion 11.
+   */
+  litresPerVePct: number | null;
+  litresPerVePctStop: number | null;
 };
 
 function toSessionFuel(v: unknown): SessionFuel | null {
@@ -122,6 +130,8 @@ function toSessionFuel(v: unknown): SessionFuel | null {
     startL: num(x.startL),
     fillLimitL: num(x.fillLimitL),
     tankL: num(x.tankL),
+    litresPerVePct: num(x.litresPerVePct),
+    litresPerVePctStop: num(x.litresPerVePctStop),
   };
 }
 
