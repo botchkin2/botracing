@@ -10,6 +10,7 @@ import {
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
+  driftRowOf,
   greenLapsOf,
   HISTORY_SESSIONS,
   historySessions,
@@ -17,6 +18,7 @@ import {
   parseNumber,
   planView,
   rulesFor,
+  sessionLimitL,
   veRatioFor,
   veRatioOf,
 } from './model';
@@ -147,9 +149,28 @@ describe('planCombos', () => {
       session(`s${i}`, `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00Z`),
     );
     const [combo] = planCombos(many);
-    const ids = historySessions(combo).map(s => s.id);
+    const limits = combo.sessions.map(() => 75);
+    const ids = historySessions(combo, limits, 75).map(s => s.id);
     expect(ids).toHaveLength(HISTORY_SESSIONS);
     expect(ids[0]).toBe(`s${HISTORY_SESSIONS + 2}`);
+  });
+
+  // Barcelona 2026-08 (thread 36 #1095): the fill limit moved from 79 L to 75 L.
+  it('keeps only sessions at the rules fill limit, never an unknown one', () => {
+    const [combo] = planCombos([
+      session('old', '2026-04-01T10:00:00Z'),
+      session('other', '2026-08-01T10:00:00Z'),
+      session('loading', '2026-08-05T10:00:00Z'),
+      session('none', '2026-08-06T10:00:00Z'),
+      session('new', '2026-08-13T10:00:00Z'),
+    ]);
+    // combo.sessions is newest first: new, none, loading, other, old.
+    const limits = [75, null, undefined, 79, 79];
+    expect(historySessions(combo, limits, 75).map(s => s.id)).toEqual(['new']);
+    expect(historySessions(combo, limits, 79).map(s => s.id)).toEqual([
+      'other',
+      'old',
+    ]);
   });
 });
 
@@ -361,6 +382,7 @@ describe('planView', () => {
     ratio,
     lastRatio: 0.7,
     ratioLoadsL: [84],
+    drift: null,
   });
 
   it('names the rules and flags a preset that differs from the last session', () => {
@@ -422,6 +444,7 @@ describe('planView', () => {
       ratio: null,
       lastRatio: null,
       ratioLoadsL: [],
+      drift: null,
     });
     expect(v.cards.some(c => c.key === 'stops')).toBe(false);
     const load = v.cards.find(c => c.key === 'load')!;
@@ -441,6 +464,7 @@ describe('planView', () => {
       ratio: null,
       lastRatio: 0.81,
       ratioLoadsL: [84, 100],
+      drift: null,
     });
     expect(v.cards[0].rows[1].note).toBe(
       'no VE: none of your sessions ran 60 L (they ran 84, 100 L) and the ratio follows the load; type it into the preset',
@@ -461,6 +485,7 @@ describe('planView', () => {
       ratio: {perPctL: 0.6, source: {kind: 'preset'}},
       lastRatio: 0.7,
       ratioLoadsL: [84],
+      drift: null,
     });
     expect(v.stale).toBe(
       'L per 1 % VE: preset 0.600  ·  last session there 0.700',
@@ -479,6 +504,7 @@ describe('planView', () => {
       ratio: null,
       lastRatio: null,
       ratioLoadsL: [],
+      drift: null,
     });
     expect(v.stale).toBeNull();
     expect(v.rulesLine).toBe('Rules: last race here (84 L fill limit)');
@@ -492,6 +518,7 @@ describe('planView', () => {
       ratio: null,
       lastRatio: null,
       ratioLoadsL: [],
+      drift: null,
     });
     expect(empty.cards[0].rows[0].value).toBe('no data');
     expect(empty.cards.some(c => c.key === 'dropStop')).toBe(false);
@@ -508,5 +535,75 @@ describe('parseNumber', () => {
   it('refuses empty, zero, negative and text', () => {
     for (const bad of ['', ' ', '0', '-3', 'abc', '1e999', '7.7.7'])
       expect(parseNumber(bad)).toBeNull();
+  });
+});
+
+describe('sessionLimitL', () => {
+  it('reads the limit as rulesFor does: limit, else start fuel, else tank', () => {
+    const f = (o: Partial<SessionFuel>) => ({
+      startL: null,
+      fillLimitL: null,
+      tankL: null,
+      litresPerVePct: null,
+      litresPerVePctStop: null,
+      ...o,
+    });
+    expect(sessionLimitL(f({fillLimitL: 75, startL: 60, tankL: 117}))).toBe(75);
+    expect(sessionLimitL(f({startL: 60, tankL: 117}))).toBe(60);
+    expect(sessionLimitL(f({tankL: 117}))).toBe(117);
+    expect(sessionLimitL(f({}))).toBeNull();
+    expect(sessionLimitL(null)).toBeNull();
+  });
+});
+
+describe('driftRowOf', () => {
+  it('names both meters and how much history the plan kept', () => {
+    const row = driftRowOf({
+      fuelL: {newest: 2.88, history: 2.31},
+      vePct: {newest: 4.3, history: 3.33},
+      direction: 'more',
+      applied: true,
+      keptSessions: 3,
+      keptLaps: 15,
+      droppedSessions: 21,
+    });
+    expect(row.label).toBe('Newest session');
+    expect(row.value).toBe(
+      '2.88 L a lap against 2.31 L\n4.30 %/lap against 3.33 %',
+    );
+    expect(row.note).toBe(
+      'not in line with your 23 other sessions: the plan uses the 15 laps of the 3 sessions since the change',
+    );
+  });
+
+  it('leaves out a meter that did not move', () => {
+    const row = driftRowOf({
+      fuelL: null,
+      vePct: {newest: 4.3, history: 3.33},
+      direction: 'more',
+      applied: true,
+      keptSessions: 1,
+      keptLaps: 6,
+      droppedSessions: 1,
+    });
+    expect(row.value).toBe('4.30 %/lap against 3.33 %');
+    expect(row.note).toContain('1 other session:');
+    expect(row.note).toContain('the 6 laps of the 1 session since');
+  });
+
+  it('says a lower session is not used, and what switches it', () => {
+    const row = driftRowOf({
+      fuelL: {newest: 2.1, history: 2.4},
+      vePct: null,
+      direction: 'less',
+      applied: false,
+      keptSessions: 5,
+      keptLaps: 80,
+      droppedSessions: 0,
+    });
+    expect(row.value).toBe('2.10 L a lap against 2.40 L');
+    expect(row.note).toBe(
+      'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
+    );
   });
 });

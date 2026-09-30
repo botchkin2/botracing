@@ -3,6 +3,7 @@ import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {sinceChange} from '@/src/analysis/fuelHistory';
 import {planRace} from '@/src/analysis/fuelPlan';
 import {
   useSession,
@@ -33,6 +34,7 @@ import {
 import {
   greenLapsOf,
   historySessions,
+  sessionLimitL,
   parseNumber,
   planCombos,
   planView,
@@ -74,11 +76,13 @@ export function PlanScreen() {
   const shownCombos = showAll
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
-  const history = useMemo(() => (combo ? historySessions(combo) : []), [combo]);
-  const ids = useMemo(() => history.map(s => s.id), [history]);
-  const lapsOf = useSessionsLaps(ids);
-  const sessionDetails = useSessionsDetail(ids);
-  const last = useSession(ids[0] ?? '');
+  // The fill limit of every session there, to keep the ones at the rules' limit.
+  const allIds = useMemo(
+    () => (combo ? combo.sessions.map(s => s.id) : []),
+    [combo],
+  );
+  const allDetails = useSessionsDetail(allIds);
+  const last = useSession(allIds[0] ?? '');
   const lastFuel = last.data?.fuel ?? null;
 
   const presets = useFuelPresets(s => s.presets);
@@ -88,6 +92,18 @@ export function PlanScreen() {
   const preset = presets.find(p => p.id === activeId) ?? null;
   const [editing, setEditing] = useState<'new' | 'edit' | null>(null);
   const [lengthText, setLengthText] = useState(String(length.value));
+
+  const rules = rulesFor(preset, length, lastFuel);
+  const wantedL = rules?.rules.fuelL ?? null;
+  const detailsPending = allDetails.details.some(d => d === undefined);
+  const limitsL = allDetails.details.map(d =>
+    d === undefined ? undefined : sessionLimitL(d.fuel),
+  );
+  const history =
+    combo && wantedL != null ? historySessions(combo, limitsL, wantedL) : [];
+  const ids = history.map(s => s.id);
+  const lapsOf = useSessionsLaps(ids);
+  const sessionDetails = useSessionsDetail(ids);
 
   // The litres one VE % is worth: the preset's, else measured in the newest
   // session there (VE % per lap depends on the load; thread 35 #1004).
@@ -100,20 +116,28 @@ export function PlanScreen() {
     fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
   }));
   const ratio = veRatioFor(preset, measured);
-  const greenLaps = history.flatMap((s, i) => {
-    const laps = lapsOf.laps[i];
-    return laps ? greenLapsOf(s.id, laps, ratio ? ratio.perPctL : null) : [];
-  });
-  const rules = rulesFor(preset, length, lastFuel);
+  const perSession = history.map((s, i) => ({
+    id: s.id,
+    laps: lapsOf.laps[i]
+      ? greenLapsOf(s.id, lapsOf.laps[i], ratio ? ratio.perPctL : null)
+      : [],
+  }));
+  // Laps from before a jump in use are left out (thread 36 #1102).
+  const chosen = sinceChange(perSession);
+  const greenLaps = chosen.laps;
+  const usedSessions = history.filter(s => chosen.sessionIds.includes(s.id));
   const plan = rules ? planRace(rules.rules, greenLaps) : null;
   const view =
     rules && plan
       ? planView(preset, rules, plan, {
           since:
-            history.length > 0 ? history[history.length - 1].startedAt : null,
+            usedSessions.length > 0
+              ? usedSessions[usedSessions.length - 1].startedAt
+              : null,
           lastFillLimitL: lastFuel?.fillLimitL ?? null,
           ratio,
           lastRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
+          drift: chosen.drift,
           ratioLoadsL: [
             ...new Set(
               measured
@@ -279,7 +303,12 @@ export function PlanScreen() {
               ) : null}
             </Section>
 
-            {lapsOf.pending ? (
+            {detailsPending ? (
+              <StatusBanner
+                dot='waiting'
+                text='Checking the fill limit of your sessions here.'
+              />
+            ) : lapsOf.pending ? (
               <StatusBanner
                 dot='waiting'
                 text={`Loading the laps of ${history.length} ${
@@ -300,8 +329,16 @@ export function PlanScreen() {
               />
             ) : view && plan && plan.history.laps === 0 && !lapsOf.pending ? (
               <EmptyState
-                title='No fuel data for this combination yet'
-                body='Fuel use is added to sessions when they are analysed. It arrives with the next resync of your history.'
+                title={
+                  history.length === 0 && !detailsPending
+                    ? `No sessions here at ${rules.rules.fuelL} L`
+                    : 'No fuel data for this combination yet'
+                }
+                body={
+                  history.length === 0 && !detailsPending
+                    ? 'The plan uses only sessions at the fill limit of these rules, because a balance-of-performance change moves fuel use. A session that started part-full is not counted either. Change the max fuel, or drive here at this limit.'
+                    : 'Fuel use is added to sessions when they are analysed. It arrives with the next resync of your history.'
+                }
               />
             ) : view ? (
               <>
