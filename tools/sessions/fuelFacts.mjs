@@ -185,6 +185,31 @@ export function markGreen(laps) {
   for (const lap of laps) if (lap.fuel) lap.fuel.green = isGreen(lap);
 }
 
+/**
+ * Litres of fuel per 1 % of Virtual Energy, the number that turns VE into
+ * fuel and back (camber, thread 35 #1004/#1013). It depends on the fill limit
+ * (0.68 at 75 L, 0.81 at 84 L, 0.98 at 100 L), is steady within a session
+ * (spread 0.02) and is not in the car setup, so it is measured:
+ *  - `drive`: the median over green laps of litres used per % VE used, the
+ *    one consumption follows;
+ *  - `stop`: litres added over % VE added at the pit stops, a cross-check
+ *    about 2 % away from the drive value (Road Atlanta 0.694 against 0.678).
+ * Either is null without the laps or stops to measure it. Stops that added
+ * under 1 % VE are left out: a top-up of a few ticks is all rounding.
+ */
+export function litresPerVePct(laps) {
+  const drive = laps
+    .filter(l => l.fuel?.green && l.fuel.usedL > 0 && l.fuel.veUsedPct > 0)
+    .map(l => l.fuel.usedL / l.fuel.veUsedPct);
+  const stop = laps
+    .filter(l => l.pitStop?.added.fuelL > 0 && l.pitStop.added.vePct >= 1)
+    .map(l => l.pitStop.added.fuelL / l.pitStop.added.vePct);
+  return {
+    drive: drive.length ? round(median(drive), 3) : null,
+    stop: stop.length ? round(median(stop), 3) : null,
+  };
+}
+
 /** Laps a level lasts at a median use (whole and part); null without one. */
 export function lapsLeft(level, medianUse) {
   if (!Number.isFinite(level) || !medianUse || medianUse <= 0) return null;
