@@ -14,7 +14,7 @@ const CHANNEL_HELP: Record<ChannelId, string> = {
   brake:
     'Brake: pedal position, 0–100 %, drawn as a filled area. The fill starts where the pedal was first pressed; its height is how hard, its width how long, and the slope down how quickly it was released.',
   steering:
-    'Steering: the band at the bottom, in % of full lock (100 % is the wheel turned as far as it goes), with 0 straight ahead. A second bump inside one corner is a correction.',
+    'Steering: the band at the bottom, in % of full lock (100 % is the wheel turned as far as it goes), with 0 straight ahead. A second bump inside one corner is a second change of steering angle.',
   gear: 'Gear: the gear selected. Each step is a shift.',
 };
 
@@ -26,7 +26,7 @@ export function chartHelp(channels: readonly ChannelId[]): string[] {
 /** The radar docked beside a chart (round 3 R2b). */
 export const RADAR_HELP: readonly string[] = [
   "This lap's car is at the centre, pointing up; the view turns with it.",
-  'The rings are 10 m and 20 m from that car.',
+  'The lines across are every 10 m ahead of and behind that car, out to the radar’s range.',
   'A bar on the edge means a car is alongside.',
   'The clock is the race time of the sample shown.',
 ];
