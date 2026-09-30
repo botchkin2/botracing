@@ -1,10 +1,10 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {toLaps} from '@/src/data/sessions/adapters';
-import type {Lap} from '@/src/data/sessions';
+import {toLaps} from './adapters';
+import type {Lap} from './adapters';
 
-import fixture from './__fixtures__/roadAtlantaRace.json';
-import {buildPitReview} from './pitReview';
+import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
+import {buildPitReview} from '@/src/features/session/pitReview';
 import {raceFacts} from './raceFacts';
 
 const base = toLaps([fixture.laps[0]])[0];

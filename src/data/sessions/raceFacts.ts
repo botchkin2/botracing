@@ -1,9 +1,34 @@
-// The race's side of "plan vs what happened" (pit-wall thread 42): what the
-// planner is compared with. Pure.
+// Facts about a race read straight off its laps, shared by the Session screen
+// (pit stops card, plan vs what happened) and the Plan screen ("your last race
+// here"). Pure.
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
-import type {Lap, SessionDetail} from '@/src/data/sessions';
 
-import {endingLap, racePitLaps} from './pitReview';
+import type {Lap, SessionDetail, SessionType} from './adapters';
+
+/**
+ * The lap the race ends on: the last one that was not cut short and has a
+ * fuel level. `Lap.partial` also carries the game's "incomplete" flag, which
+ * LMU sets on the untimed last laps of a race (Le Mans 09-21: L21-L23), so
+ * the test is the uploader's own "partial" reason, not that flag (#160).
+ */
+export function endingLap(laps: Lap[]): Lap | null {
+  return (
+    [...laps]
+      .reverse()
+      .find(l => !l.reasons.includes('partial') && l.fuel?.endL != null) ?? null
+  );
+}
+
+/**
+ * The stops of a race, in driving order. A stop on the first lap of the
+ * session is the service before the start, not a stop, and is left out
+ * (camber, thread 36 #1117). Practice and qualifying have none.
+ */
+export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
+  if (sessionType !== 'R') return [];
+  const first = laps.length > 0 ? laps[0].lapIndex : 0;
+  return laps.filter(l => l.pitStop !== null && l.lapIndex !== first);
+}
 
 const MIN_OWN_LAPS = 3;
 
@@ -28,6 +53,7 @@ export function raceFacts(
   if (session.sessionType !== 'R') return null;
   const ending = endingLap(laps);
   if (!ending) return null;
+  const endFuel = ending.fuel;
   const green = laps.filter(l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0);
   return {
     planKey,
@@ -42,6 +68,11 @@ export function raceFacts(
           .map(l => l.fuel!.veUsedPct)
           .filter((v): v is number => v != null && v > 0),
       ),
+    },
+    end: {
+      lapIndex: ending.lapIndex,
+      fuelL: endFuel?.endL ?? null,
+      vePct: endFuel?.veEndPct ?? null,
     },
     stops: racePitLaps(session.sessionType, laps).map(l => ({
       lapIndex: l.lapIndex,

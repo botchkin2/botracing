@@ -3,7 +3,6 @@ import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {planRace} from '@/src/analysis/fuelPlan';
 import {useSessions} from '@/src/data/sessions';
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref} from '@/src/nav/routes';
@@ -25,9 +24,9 @@ import {
   Text,
 } from '@/src/ui';
 
-import {parseNumber, planCombos, planView, rulesFor} from './model';
+import {parseNumber, planCombos} from './model';
 import {RulesEditor} from './RulesEditor';
-import {usePlanHistory, usePlanLimits} from './usePlanHistory';
+import {usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
 const RECENT_COMBOS = 6;
@@ -63,43 +62,16 @@ export function PlanScreen() {
   const shownCombos = showAll
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
-  // The fill limit of every session there, to keep the ones at the rules' limit.
-  const {lastFuel, pending: detailsPending, limitsL} = usePlanLimits(combo);
+  const data = usePlanData(combo);
+  const {preset, length, rules, view, plan, hist, limits} = data;
+  const {lastFuel, pending: detailsPending} = limits;
+  const {history, lapsOf, measured} = hist;
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
-  const length = useFuelPresets(s => s.length);
   const {save, remove, select, setLength} = useFuelPresets.getState();
-  const preset = presets.find(p => p.id === activeId) ?? null;
   const [editing, setEditing] = useState<'new' | 'edit' | null>(null);
   const [lengthText, setLengthText] = useState(String(length.value));
-
-  const rules = rulesFor(preset, length, lastFuel);
-  const wantedL = rules?.rules.fuelL ?? null;
-  const {history, lapsOf, measured, ratio, chosen, usedSessions} =
-    usePlanHistory(combo, limitsL, wantedL, preset);
-  const greenLaps = chosen.laps;
-  const plan = rules ? planRace(rules.rules, greenLaps) : null;
-  const view =
-    rules && plan
-      ? planView(preset, rules, plan, {
-          since:
-            usedSessions.length > 0
-              ? usedSessions[usedSessions.length - 1].startedAt
-              : null,
-          lastFillLimitL: lastFuel?.fillLimitL ?? null,
-          ratio,
-          lastRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
-          drift: chosen.drift,
-          ratioLoadsL: [
-            ...new Set(
-              measured
-                .filter(m => m.ratio != null && m.fillLimitL != null)
-                .map(m => m.fillLimitL as number),
-            ),
-          ],
-        })
-      : null;
 
   const width = Math.min(layout.contentWidth, PLAN_MAX_W);
   return (
