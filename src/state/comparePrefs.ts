@@ -57,9 +57,13 @@ export type PlayRate = (typeof PLAY_RATES)[number];
 /** Compare map panel (handoff v2 M1). Satellite comes later. */
 export type MapMode = 'follow' | 'track';
 
-/** Follow map zoom steps: close, as the window sets it, wide. */
-export const MAP_ZOOMS = [0.6, 1, 1.7] as const;
-export type MapZoom = 0 | 1 | 2;
+/**
+ * Follow map zoom steps, as multiples of the base span: close, the base, wider,
+ * widest. The base is 120 m on the phone and in Race, so the steps read
+ * 60 / 120 / 250 / 500 m (round 5, item 6; they were 0.6 / 1 / 1.7).
+ */
+export const MAP_ZOOMS = [0.5, 1, 250 / 120, 500 / 120] as const;
+export type MapZoom = 0 | 1 | 2 | 3;
 
 /** The desktop right column's width, points: the user drags it within this. */
 export const RIGHT_W_MIN = 280;

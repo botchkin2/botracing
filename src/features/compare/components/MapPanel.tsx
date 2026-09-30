@@ -8,7 +8,13 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
+import {
+  MAP_ZOOM_BUTTONS_W,
+  MAP_ZOOM_LABEL_W,
+  MapZoomButtons,
+  Segment,
+  Text,
+} from '@/src/ui';
 
 import {type MapModel} from '../model';
 import {type LapStyle} from './ChartBlock';
@@ -126,7 +132,7 @@ export function MapPanel({
           corners={f.geometry.corners}
           scaleX={
             zoomControls
-              ? MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm
+              ? MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W + 2 * space.xs + space.sm
               : undefined
           }
         />
@@ -164,6 +170,9 @@ export function MapPanel({
           canIn={zoom > 0}
           onOut={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
           onIn={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
+          rangeLabel={`${Math.round(
+            (baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom],
+          )} m`}
         />
       )}
       {/* Track only: Follow has its inset in this corner. */}
