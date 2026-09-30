@@ -53,7 +53,10 @@ const RADAR_DESKTOP = {width: 150, height: 226};
 // Skeleton height, and the least the desktop map is given on a short window.
 const DESKTOP_MAP_H = 520;
 const MAP_MIN_H = 240;
-const DESKTOP_SIDE_W = 380;
+// The leaderboard's right column from 1280 (round 5, item 5); from 900 to 1279
+// it goes below the lanes instead, at this height.
+const DESKTOP_SIDE_W = 320;
+const BOARD_BELOW_H = 260;
 
 // Copy from handoff R4c, verbatim where it is drawn.
 const NO_FIELD_TITLE = 'No field data for this session';
@@ -445,8 +448,15 @@ function RaceView({
           <RaceLegend />
           {lanesBlock}
           {controls}
+          {layout.isWide ? null : (
+            <View style={[styles.boardBelow, {borderColor: color.line}]}>
+              {board}
+            </View>
+          )}
         </View>
-        <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+        {layout.isWide ? (
+          <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+        ) : null}
       </View>
     );
   }
@@ -499,6 +509,7 @@ const styles = StyleSheet.create({
   // The map's own box; the map is drawn to its measured size.
   mapFill: {flex: 1, minHeight: MAP_MIN_H},
   side: {width: DESKTOP_SIDE_W, borderLeftWidth: 1},
+  boardBelow: {height: BOARD_BELOW_H, borderTopWidth: 1},
   chip: {
     position: 'absolute',
     left: space.md,

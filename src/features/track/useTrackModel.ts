@@ -4,6 +4,8 @@ import {useSessionMap, useSessions} from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
 import {layoutsOf, trackInfo} from '@/src/data/tracks';
 
+import {type Combo, planCombos} from '../plan/model';
+
 import {buildTrackModel, referenceSession, type TrackModel} from './model';
 
 // Every session ever driven here, not the Sessions list's recent window.
@@ -16,6 +18,8 @@ export type TrackScreenState =
   | {
       kind: 'ready';
       model: TrackModel;
+      /** One per car driven on this layout, for the Plan block. */
+      plans: Combo[];
       refSessionId: string | null;
       /** The map is still on its way (its session, map or best lap). */
       mapLoading: boolean;
@@ -46,6 +50,7 @@ export function useTrackModel(
     return {
       kind: 'ready',
       refSessionId: ref?.id ?? null,
+      plans: planCombos(sessions.data?.items ?? []),
       mapLoading: ref != null && (map.isPending || refTrace == null),
       attribution: map.data?.attribution ?? null,
       model: buildTrackModel({
