@@ -309,6 +309,31 @@ export async function readCornerSlicesGzip(
   }
 }
 
+// The track's measured surface (tools/sessions/surface.mjs, src/analysis/
+// trackSurface.ts): the stored gzip as is, per 10 m bin sums the app turns into
+// the centre path and edges. It grows as sessions are folded in, so it is
+// always revalidated. Null when the track has none yet.
+export async function readSurfaceGzip(sessionId: string): Promise<Buffer | null> {
+  const db = admin.firestore();
+  const session = await db.collection('sessions').doc(sessionId).get();
+  const trackId = session.get('trackId');
+  if (!session.exists || !trackId) return null;
+  const track = await db.collection('tracks').doc(trackId).get();
+  const path = track.get('surface.path');
+  if (!path) return null;
+  try {
+    const [body] = await admin
+      .storage()
+      .bucket(BUCKET)
+      .file(path)
+      .download({decompress: false});
+    return body;
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
 // The track a session was driven on: its corner map (sections, from
 // src/analysis/corners.ts), and when a real-map fit exists (tools/track-fit),
 // the georef that places the recording's coordinates on the real world plus

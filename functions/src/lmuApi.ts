@@ -13,6 +13,7 @@ import {
   readSessionLaps,
   readBand,
   readCornerSlicesGzip,
+  readSurfaceGzip,
   readFieldGzip,
   storeHasSessions,
 } from './sessionStore';
@@ -163,6 +164,20 @@ export const lmuApi = onRequest(async (req, res) => {
         'Cache-Control',
         hash ? 'private, max-age=31536000, immutable' : 'private, no-cache',
       );
+      res.status(200).send(gz);
+      return;
+    }
+    const surface = path.match(/\/sessions\/([0-9a-f]{16})\/surface$/);
+    if (surface) {
+      const gz = await readSurfaceGzip(surface[1]);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // The stored gzip as is; it changes whenever a session is folded in.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set('Cache-Control', 'private, no-cache');
       res.status(200).send(gz);
       return;
     }
