@@ -5,7 +5,6 @@ import {
   type LoadToFinish,
   MIN_GREEN_LAPS,
   type GreenLap,
-  type Option,
   type PlanRules,
   presetMismatch,
 } from '@/src/analysis/fuelPlan';
@@ -194,9 +193,36 @@ export function greenLapsOf(
       vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
       lapTimeS: l.timeS,
       sessionId,
+      veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
     });
   }
   return out;
+}
+
+/**
+ * Whether the plan has no VE to show: enough green laps for a median, and
+ * fewer than the planner's minimum of them recorded VE themselves. Chosen from
+ * the data, never from the car class, so a mixed history (Barcelona: March laps
+ * without VE, August with) reads right (camber, thread 43 #1243). With too few
+ * laps for a median at all, nothing is known about VE either way, so it is not
+ * fuel-only: both meters read "no data" (apex, #1309).
+ */
+export function fuelOnly(laps: GreenLap[]): boolean {
+  return (
+    laps.length >= MIN_GREEN_LAPS &&
+    laps.filter(l => l.veMeasured).length < MIN_GREEN_LAPS
+  );
+}
+
+/**
+ * The track+car the plan opens on: the newest one with enough comparable laps
+ * for a median, so it does not open on a car driven for one lap when others
+ * have hundreds. The chips still list them all. Falls back to the newest.
+ */
+export function defaultCombo(combos: Combo[]): Combo | null {
+  const enough = (c: Combo) =>
+    c.sessions.reduce((n, s) => n + s.comparableCount, 0) >= MIN_GREEN_LAPS;
+  return combos.find(enough) ?? combos[0] ?? null;
 }
 
 /** A typed number: positive and finite, else null (empty, "7.", "abc", 0). */
@@ -280,50 +306,12 @@ export type PlanView = {
 const NL = String.fromCharCode(10);
 const l2 = (v: number) => `${v.toFixed(2)} L`;
 const pct2 = (v: number) => `${v.toFixed(2)} %`;
-const pct0 = (v: number) => `${Math.round(v)} %`;
 
 function usageText(
   u: {median: number; p10: number; p90: number},
   fmt: (v: number) => string,
 ): string {
   return `${fmt(u.median)}  (${fmt(u.p10)} to ${fmt(u.p90)})`;
-}
-
-function stintText(o: Option): string {
-  const s = o.stint;
-  if (s.laps == null) return 'no data';
-  const parts = [
-    s.fuelLaps != null ? `fuel ${s.fuelLaps}` : null,
-    s.veLaps != null ? `VE ${s.veLaps}` : null,
-  ].filter(Boolean);
-  const limit =
-    s.limitedBy === 'fuel' ? 'fuel' : s.limitedBy === 've' ? 'VE' : null;
-  return `${s.laps} laps${
-    limit ? ` (${limit} runs out first)` : ''
-  }  ·  ${parts.join(', ')}`;
-}
-
-function stopsText(o: Option): string {
-  if (o.stops == null) return 'no data';
-  if (o.stops === 0) return 'no stop';
-  const fuelStops = o.stopLaps.length;
-  const after = fuelStops > 0 ? `  ·  after lap ${o.stopLaps.join(', ')}` : '';
-  const anyLap =
-    o.anyLapStops > 0 ? `  ·  ${o.anyLapStops} more mandatory, any lap` : '';
-  return `${o.stops} ${o.stops === 1 ? 'stop' : 'stops'}${after}${anyLap}`;
-}
-
-function evenText(o: Option): string | null {
-  const e = o.even;
-  // With no stop there is nothing to split.
-  if (!e || !o.stops) return null;
-  const load = [
-    e.fuelL != null ? l2(e.fuelL) : null,
-    e.vePct != null ? pct2(e.vePct) : null,
-  ]
-    .filter(Boolean)
-    .join(', ');
-  return `${e.laps} laps each${load ? `  ·  ${load}` : ''}`;
 }
 
 function ratioNote(
@@ -501,72 +489,18 @@ export function planView(
       },
       {
         label: 'From',
-        value: `${plan.history.laps} laps in ${plan.history.sessions} ${
+        value: `${plan.history.laps} ${
+          plan.history.laps === 1 ? 'lap' : 'laps'
+        } in ${plan.history.sessions} ${
           plan.history.sessions === 1 ? 'session' : 'sessions'
         }${since}`,
       },
     ],
   });
 
-  const load = `${r.fuelL} L, ${pct0(r.vePct)} VE${
-    r.formationLap ? ', formation lap burnt from the first stint' : ''
-  }`;
-  cards.push({
-    key: 'tank',
-    title: 'Per tank',
-    explainer:
-      'Laps one load lasts at your median use, and at your heavy laps (p90), from fuel and from Virtual Energy separately. The smaller one is the stint.',
-    rows: [
-      {label: 'Start load', value: load},
-      {label: 'At median use', value: stintText(plan.atMedian)},
-      {label: 'At p90 use', value: stintText(plan.atP90)},
-    ],
-  });
-
-  const race = plan.raceLaps;
-  cards.push({
-    key: 'race',
-    title: 'Race',
-    explainer:
-      'A timed race runs to the first line crossing after the time is up, and the flag falls on the overall leader, so a slower class can get one lap fewer.',
-    rows: [
-      {
-        label: r.lengthLaps != null ? 'Length' : `${r.lengthMin} min`,
-        value: race
-          ? `${race.estimate} laps${
-              race.oneFewer != null
-                ? `  (${race.oneFewer} if the leader finishes first)`
-                : ''
-            }`
-          : 'no data',
-        note:
-          race && r.lengthMin != null ? 'at your median lap time' : undefined,
-      },
-    ],
-  });
-
-  if (plan.loadToFinish) {
-    cards.push(loadCard(plan.loadToFinish, r));
-  } else {
-    const stopRows: Row[] = [
-      {label: 'At median use', value: stopsText(plan.atMedian)},
-      {label: 'At p90 use', value: stopsText(plan.atP90)},
-    ];
-    const evenM = evenText(plan.atMedian);
-    if (evenM)
-      stopRows.push({
-        label: 'Equal stints',
-        value: evenM,
-        note: 'at median use',
-      });
-    cards.push({
-      key: 'stops',
-      title: 'Stops',
-      explainer:
-        'Full-tank strategy: run each stint until the meter that runs out first is empty, then stop. Equal stints spreads the same number of stops evenly.',
-      rows: stopRows,
-    });
-  }
+  // A race that fits one load reads the Stops card the other way round; every
+  // other race's Race, Per tank and Stops cards are typed (`planCards.ts`).
+  if (plan.loadToFinish) cards.push(loadCard(plan.loadToFinish, r));
 
   const d = plan.dropStop;
   if (d) {

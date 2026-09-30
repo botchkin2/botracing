@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -22,7 +23,7 @@ import Svg, {Line} from 'react-native-svg';
 import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
-import {useSession} from '@/src/data/sessions';
+import {useSession, useSessionLaps} from '@/src/data/sessions';
 import {hitBox, lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
@@ -58,6 +59,7 @@ import {
   type CompareSelection,
   makeReference,
   removeLap,
+  withDefaultLaps,
 } from './model';
 import {type PlayInputs, playTicker} from './playback';
 import {useCompareModel} from './useCompareModel';
@@ -86,13 +88,21 @@ const CURSOR_SETTLE_MS = 400;
 
 export function CompareScreen({
   sessionId,
-  selection,
+  selection: urlSelection,
   onSelectionChange,
 }: {
   sessionId: string;
   selection: CompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
+  // A URL with no laps opens on the best lap and the fastest other one.
+  const sessionDoc = useSession(sessionId);
+  const sessionLaps = useSessionLaps(sessionId);
+  const bestLapId = sessionDoc.data?.bestLapId ?? null;
+  const selection = useMemo(
+    () => withDefaultLaps(urlSelection, sessionLaps.data, bestLapId),
+    [urlSelection, sessionLaps.data, bestLapId],
+  );
   // The cursor moves on every drag and playback frame, so it lives here,
   // not in the URL.
   const [cursorM, setCursorM] = useState(selection.cursorM);

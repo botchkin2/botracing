@@ -1,12 +1,19 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {planRace} from '@/src/analysis/fuelPlan';
 import {useSessions} from '@/src/data/sessions';
-import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
-import {sessionsHref} from '@/src/nav/routes';
+import {
+  formatDate,
+  hitBox,
+  radius,
+  size,
+  space,
+  useLayout,
+  useTheme,
+} from '@/src/design';
+import {sessionHref, sessionsHref} from '@/src/nav/routes';
 import {
   freshId,
   type FuelPreset,
@@ -25,9 +32,13 @@ import {
   Text,
 } from '@/src/ui';
 
-import {parseNumber, planCombos, planView, rulesFor} from './model';
+import {RaceCardView} from './components/RaceCardView';
+import {StopsCardView} from './components/StopsCardView';
+import {TankCardView} from './components/TankCardView';
+import {lastRaceLine} from './lastRace';
+import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {RulesEditor} from './RulesEditor';
-import {usePlanHistory, usePlanLimits} from './usePlanHistory';
+import {useLastRaceHere, usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
 const RECENT_COMBOS = 6;
@@ -58,48 +69,49 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [showAll, setShowAll] = useState(false);
-  const combo = combos.find(c => c.key === comboKey) ?? combos[0] ?? null;
+  const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
   // The latest few, and the one picked even if it is older.
   const shownCombos = showAll
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
-  // The fill limit of every session there, to keep the ones at the rules' limit.
-  const {lastFuel, pending: detailsPending, limitsL} = usePlanLimits(combo);
+  const data = usePlanData(combo);
+  const {preset, length, rules, view, plan, hist, limits} = data;
+  const {lastFuel, pending: detailsPending} = limits;
+  const {history, lapsOf, measured} = hist;
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
-  const length = useFuelPresets(s => s.length);
   const {save, remove, select, setLength} = useFuelPresets.getState();
-  const preset = presets.find(p => p.id === activeId) ?? null;
   const [editing, setEditing] = useState<'new' | 'edit' | null>(null);
-  const [lengthText, setLengthText] = useState(String(length.value));
+  // The length as typed, while it is being typed; else the length in force.
+  const [draft, setDraft] = useState<{key: string; text: string} | null>(null);
+  const lengthText =
+    draft && draft.key === combo?.key ? draft.text : String(length.value);
 
-  const rules = rulesFor(preset, length, lastFuel);
-  const wantedL = rules?.rules.fuelL ?? null;
-  const {history, lapsOf, measured, ratio, chosen, usedSessions} =
-    usePlanHistory(combo, limitsL, wantedL, preset);
-  const greenLaps = chosen.laps;
-  const plan = rules ? planRace(rules.rules, greenLaps) : null;
-  const view =
-    rules && plan
-      ? planView(preset, rules, plan, {
-          since:
-            usedSessions.length > 0
-              ? usedSessions[usedSessions.length - 1].startedAt
-              : null,
-          lastFillLimitL: lastFuel?.fillLimitL ?? null,
-          ratio,
-          lastRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
-          drift: chosen.drift,
-          ratioLoadsL: [
-            ...new Set(
-              measured
-                .filter(m => m.ratio != null && m.fillLimitL != null)
-                .map(m => m.fillLimitL as number),
-            ),
-          ],
-        })
-      : null;
+  // The newest race here fills the race length in laps, until a rule set is in
+  // force or the length is typed: a saved preset is never overwritten silently.
+  const lastRace = useLastRaceHere(combo);
+  const [typedFor, setTypedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!combo || !lastRace || preset || typedFor === combo.key) return;
+    const {value, kind} = useFuelPresets.getState().length;
+    if (kind === 'laps' && value === lastRace.raceLaps) return;
+    useFuelPresets
+      .getState()
+      .setLength({kind: 'laps', value: lastRace.raceLaps});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combo?.key, lastRace?.sessionId, preset?.id]);
+  const prefillLine = !lastRace
+    ? null
+    : preset
+    ? 'Length and rules are from the rule set ' +
+      preset.name +
+      ', not from this race.'
+    : typedFor === combo?.key
+    ? 'Length is typed here; the fill limit is from this race.'
+    : 'Length and fill limit below are prefilled from it: ' +
+      lastRace.raceLaps +
+      ' racing laps, the formation lap not counted.';
 
   const width = Math.min(layout.contentWidth, PLAN_MAX_W);
   return (
@@ -157,18 +169,49 @@ export function PlanScreen() {
               </View>
             </Section>
 
+            {lastRace ? (
+              <Section title='Your last race here'>
+                <View style={styles.lastRace}>
+                  <View style={styles.lastText}>
+                    <Text variant='dataSmall' tone='textSecondary'>
+                      {formatDate(lastRace.startedAt) +
+                        ' · ' +
+                        lastRaceLine(lastRace)}
+                    </Text>
+                    {prefillLine ? (
+                      <Text variant='dataSmall' tone='textMuted'>
+                        {prefillLine}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    accessibilityRole='link'
+                    onPress={() => router.push(sessionHref(lastRace.sessionId))}
+                    style={hitBox.link}>
+                    <Text variant='bodyStrong' tone='accentInk'>
+                      Session →
+                    </Text>
+                  </Pressable>
+                </View>
+              </Section>
+            ) : null}
+
             <Section title='Race length'>
               <View style={styles.lengthRow}>
                 <Segment
                   options={LENGTH_KINDS}
                   value={length.kind}
-                  onChange={kind => setLength({kind, value: length.value})}
+                  onChange={kind => {
+                    setTypedFor(combo.key);
+                    setLength({kind, value: length.value});
+                  }}
                 />
                 <NumberField
                   label={length.kind === 'min' ? 'Minutes' : 'Laps'}
                   value={lengthText}
                   onChange={text => {
-                    setLengthText(text);
+                    setDraft({key: combo.key, text});
+                    setTypedFor(combo.key);
                     const value = parseNumber(text);
                     if (value != null) setLength({kind: length.kind, value});
                   }}
@@ -193,7 +236,7 @@ export function PlanScreen() {
                     selected={p.id === activeId}
                     onPress={() => {
                       select(p.id);
-                      setLengthText(String(p.length.value));
+                      setDraft(null);
                       setEditing(null);
                     }}
                   />
@@ -295,33 +338,39 @@ export function PlanScreen() {
               />
             ) : view ? (
               <>
-                {view.cards.map(card => (
-                  <Section key={card.key} title={card.title}>
-                    <View
-                      style={[
-                        styles.card,
-                        {
-                          backgroundColor: color.surface,
-                          borderColor: color.lineHeader,
-                        },
-                      ]}>
-                      {card.rows.map((row, i) => (
-                        <View key={i} style={styles.rowBox}>
-                          <Text variant='label' tone='textMuted'>
-                            {row.label}
-                          </Text>
-                          <Text variant='data'>{row.value}</Text>
-                          {row.note ? (
-                            <Text variant='dataSmall' tone='textMuted'>
-                              {row.note}
-                            </Text>
-                          ) : null}
-                        </View>
-                      ))}
-                    </View>
-                    <Explainer>{card.explainer}</Explainer>
-                  </Section>
-                ))}
+                {data.cards ? (
+                  <>
+                    <PlanCard title='Race'>
+                      <RaceCardView card={data.cards.race} />
+                    </PlanCard>
+                    <PlanCard
+                      title='Per tank'
+                      explainer={
+                        data.fuelOnly
+                          ? TANK_EXPLAINER_FUEL_ONLY
+                          : TANK_EXPLAINER
+                      }>
+                      <TankCardView card={data.cards.tank} />
+                    </PlanCard>
+                  </>
+                ) : null}
+                {plan?.loadToFinish ? (
+                  view.cards
+                    .filter(c => c.key === 'load')
+                    .map(card => <RowsCard key={card.key} card={card} />)
+                ) : data.cards ? (
+                  <PlanCard title='Stops' explainer={STOPS_EXPLAINER}>
+                    <StopsCardView
+                      card={data.cards.stops}
+                      carClass={combo.sessions[0]?.carClass ?? ''}
+                    />
+                  </PlanCard>
+                ) : null}
+                {['dropStop', 'perLap'].flatMap(key =>
+                  view.cards
+                    .filter(c => c.key === key)
+                    .map(card => <RowsCard key={card.key} card={card} />),
+                )}
                 <Explainer>{view.footnote}</Explainer>
               </>
             ) : null}
@@ -329,6 +378,59 @@ export function PlanScreen() {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+const TANK_EXPLAINER =
+  'Laps one full load lasts. Bar = median use per lap, notch = p90 use. The shorter meter sets the stint length.';
+const TANK_EXPLAINER_FUEL_ONLY =
+  'Laps one full load lasts. Bar = median use per lap, notch = p90 use. This car has no VE; fuel sets the stint length.';
+const STOPS_EXPLAINER =
+  'Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.';
+
+/** A card: the title, the content in a surface box, and the explainer under it. */
+function PlanCard({
+  title,
+  explainer,
+  children,
+}: {
+  title: string;
+  explainer?: string;
+  children: React.ReactNode;
+}) {
+  const {color} = useTheme();
+  return (
+    <Section title={title}>
+      <View
+        style={[
+          styles.card,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        {children}
+      </View>
+      {explainer ? <Explainer>{explainer}</Explainer> : null}
+    </Section>
+  );
+}
+
+/** A card of label / value / note rows, as `planView` gives them. */
+function RowsCard({card}: {card: PlanView['cards'][number]}) {
+  return (
+    <PlanCard title={card.title} explainer={card.explainer}>
+      {card.rows.map((row, i) => (
+        <View key={i} style={styles.rowBox}>
+          <Text variant='label' tone='textMuted'>
+            {row.label}
+          </Text>
+          <Text variant='data'>{row.value}</Text>
+          {row.note ? (
+            <Text variant='dataSmall' tone='textMuted'>
+              {row.note}
+            </Text>
+          ) : null}
+        </View>
+      ))}
+    </PlanCard>
   );
 }
 
@@ -373,4 +475,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   rowBox: {gap: space.xs},
+  lastRace: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.lg,
+  },
+  lastText: {flex: 1, gap: space.xxs},
 });

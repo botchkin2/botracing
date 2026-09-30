@@ -23,6 +23,11 @@ export interface GreenLap {
   vePct: number | null;
   lapTimeS: number;
   sessionId: string;
+  /**
+   * Whether this lap's own VE use was recorded (its `veUsedPct`), as opposed to
+   * `vePct` being fuel over the ratio. Unset counts as not measured.
+   */
+  veMeasured?: boolean;
 }
 
 /** What the race itself gives the comparison. */
@@ -40,6 +45,8 @@ export interface RaceFacts {
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
   stops: {lapIndex: number; fuelL: number | null; vePct: number | null}[];
+  /** The tank at the end of the last whole lap; the lap is the app's lap number. */
+  end: {lapIndex: number; fuelL: number | null; vePct: number | null} | null;
 }
 
 export interface PlanRules {

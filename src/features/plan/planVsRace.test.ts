@@ -6,7 +6,7 @@ import {toLaps} from '@/src/data/sessions/adapters';
 import type {Lap} from '@/src/data/sessions';
 import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
 import {buildPitReview} from '@/src/features/session/pitReview';
-import {raceFacts} from '@/src/features/session/raceFacts';
+import {raceFacts} from '@/src/data/sessions';
 
 import {buildPlanVsRace, raceRules} from './planVsRace';
 
@@ -18,6 +18,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   raceLaps: 30,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
+  end: {lapIndex: 30, fuelL: 13.1, vePct: 5},
   ...over,
 });
 
@@ -137,7 +138,7 @@ describe('one stop, one number', () => {
       added: {fuelL: 50, vePct: 38},
       inPitS: 81,
       lapsLeftAtEntry: {fuel: 3.6, ve: 0},
-    tyres: null,
+      tyres: null,
     },
   });
   const laps = [

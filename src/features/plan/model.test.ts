@@ -10,7 +10,10 @@ import {
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
+  type Combo,
+  defaultCombo,
   driftRowOf,
+  fuelOnly,
   greenLapsOf,
   HISTORY_SESSIONS,
   historySessions,
@@ -190,8 +193,23 @@ describe('greenLapsOf', () => {
     );
     // 3.5 L at 0.7 L per 1 % is 5 % VE.
     expect(out).toEqual([
-      {fuelL: 3.5, vePct: 5, lapTimeS: 110, sessionId: 's1'},
+      {
+        fuelL: 3.5,
+        vePct: 5,
+        lapTimeS: 110,
+        sessionId: 's1',
+        veMeasured: true,
+      },
     ]);
+  });
+
+  it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
+    const out = greenLapsOf(
+      's1',
+      [lap({fuel: fuel({veUsedPct: null})}), lap()],
+      0.7,
+    );
+    expect(out.map(l => l.veMeasured)).toEqual([false, true]);
   });
 
   it('keeps the fuel and drops the VE without a ratio', () => {
@@ -393,29 +411,16 @@ describe('planView', () => {
     );
   });
 
-  it('prints the five cards in order', () => {
-    expect(view.cards.map(c => c.key)).toEqual([
-      'perLap',
-      'tank',
-      'race',
-      'stops',
-      'dropStop',
-    ]);
+  it('prints the row cards that are left: Per green lap and To drop a stop', () => {
+    // Race, Per tank and Stops are typed cards now (planCards.test.ts).
+    expect(view.cards.map(c => c.key)).toEqual(['perLap', 'dropStop']);
     const perLap = view.cards[0].rows;
     expect(perLap[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
     expect(perLap[3].value).toContain('10 laps in 2 sessions, since ');
   });
 
-  it('names the limiting meter in the tank card', () => {
-    const rows = view.cards[1].rows;
-    expect(rows[1].value).toContain('20 laps (VE runs out first)');
-    expect(rows[1].value).toContain('fuel 24, VE 20');
-  });
-
-  it('prints stops with their laps and the drop-one-stop line', () => {
-    const stops = view.cards[3].rows;
-    expect(stops[0].value).toBe('2 stops  ·  after lap 20, 40');
-    const drop = view.cards[4].rows;
+  it('prints the drop-one-stop line', () => {
+    const drop = view.cards[1].rows;
     expect(drop[0].label).toBe('1 stop');
     // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop.
     expect(drop[0].value).toContain(
@@ -605,5 +610,65 @@ describe('driftRowOf', () => {
     expect(row.note).toBe(
       'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
     );
+  });
+});
+
+describe('fuelOnly', () => {
+  const lap = (veMeasured: boolean): GreenLap => ({
+    fuelL: 2.4,
+    vePct: 3.5,
+    lapTimeS: 90,
+    sessionId: 's',
+    veMeasured,
+  });
+
+  it('is fuel-only when there are laps for a median and fewer than 3 carry VE of their own', () => {
+    expect(fuelOnly([lap(false), lap(false), lap(false), lap(false)])).toBe(
+      true,
+    );
+    expect(fuelOnly([lap(true), lap(true), lap(false), lap(false)])).toBe(true);
+  });
+
+  it('is not fuel-only with too few laps for a median: nothing is known about VE (a Hypercar driven for one lap)', () => {
+    expect(fuelOnly([])).toBe(false);
+    expect(fuelOnly([lap(false)])).toBe(false);
+    expect(fuelOnly([lap(false), lap(false)])).toBe(false);
+  });
+
+  it('is not fuel-only from 3 laps with VE, however many have none (Barcelona: March without VE, August with)', () => {
+    const mixed = [
+      ...Array.from({length: 20}, () => lap(false)),
+      ...Array.from({length: 3}, () => lap(true)),
+    ];
+    expect(fuelOnly(mixed)).toBe(false);
+  });
+});
+
+describe('defaultCombo', () => {
+  const combo = (key: string, comparable: number[]): Combo => ({
+    key,
+    trackId: 't',
+    track: 't',
+    label: key,
+    car: 'c',
+    sessions: comparable.map((n, i) => ({
+      ...session(`${key}${i}`, '2026-09-20T10:00:00Z'),
+      comparableCount: n,
+    })),
+  });
+
+  it('opens on the newest track and car with enough laps for a median, not one driven for a lap', () => {
+    const combos = [combo('cadillac', [1]), combo('porsche', [12, 30])];
+    expect(defaultCombo(combos)?.key).toBe('porsche');
+  });
+
+  it('counts the laps across a combo’s sessions', () => {
+    expect(defaultCombo([combo('a', [1, 1, 1])])?.key).toBe('a');
+    expect(defaultCombo([combo('a', [1]), combo('b', [2, 1])])?.key).toBe('b');
+  });
+
+  it('falls back to the newest when none has enough, and to null with none', () => {
+    expect(defaultCombo([combo('a', [1]), combo('b', [0])])?.key).toBe('a');
+    expect(defaultCombo([])).toBeNull();
   });
 });
