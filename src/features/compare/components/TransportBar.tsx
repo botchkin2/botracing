@@ -7,7 +7,7 @@ import {
   type PlayRate,
   type WindowStep,
 } from '@/src/state/comparePrefs';
-import {Segment, Text} from '@/src/ui';
+import {hitFor, Segment, Text} from '@/src/ui';
 
 import {type WindowMode} from '@/src/analysis/window';
 
@@ -95,17 +95,22 @@ export function TransportBar({
         accessibilityRole='button'
         accessibilityLabel={playing ? 'Pause' : 'Play'}
         onPress={onPlay}
-        style={[styles.play, {backgroundColor: color.accent}]}>
-        <Svg width={14} height={14} viewBox='0 0 14 14'>
-          {playing ? (
-            <>
-              <Rect x={2} y={1} width={3.5} height={12} fill={color.bg} />
-              <Rect x={8.5} y={1} width={3.5} height={12} fill={color.bg} />
-            </>
-          ) : (
-            <Path d='M3 1 L13 7 L3 13 Z' fill={color.bg} />
-          )}
-        </Svg>
+        {...hitFor(
+          (size.hit - size.transport) / 2,
+          (size.hit - size.transport) / 2,
+        )}>
+        <View style={[styles.play, {backgroundColor: color.accent}]}>
+          <Svg width={14} height={14} viewBox='0 0 14 14'>
+            {playing ? (
+              <>
+                <Rect x={2} y={1} width={3.5} height={12} fill={color.bg} />
+                <Rect x={8.5} y={1} width={3.5} height={12} fill={color.bg} />
+              </>
+            ) : (
+              <Path d='M3 1 L13 7 L3 13 Z' fill={color.bg} />
+            )}
+          </Svg>
+        </View>
       </Pressable>
       <Segment
         options={PLAY_RATES.map(r => ({value: String(r), label: `${r}×`}))}

@@ -23,7 +23,7 @@ import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {useSession} from '@/src/data/sessions';
-import {lapStroke, space, useLayout, useTheme} from '@/src/design';
+import {hitBox, lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
   CHANNEL_IDS,
@@ -38,6 +38,7 @@ import {
   Button,
   Chip,
   Explainer,
+  hitFor,
   Segment,
   Skeleton,
   StatusBanner,
@@ -70,6 +71,9 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+// The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
+// ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
+const removeHit = hitFor({left: 28, right: space.md}, 15);
 // Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
 const KEY_STEP_M = 5;
 const KEY_STEP_SHIFT_M = 50;
@@ -276,6 +280,7 @@ function CompareView({
     <View style={styles.header}>
       <Pressable
         accessibilityRole='link'
+        style={hitBox.link}
         hitSlop={space.md}
         onPress={() =>
           router.navigate(sessionHref(sessionId, {laps: selection.laps}))
@@ -290,6 +295,7 @@ function CompareView({
       {!layout.isDesktop && (
         <Pressable
           accessibilityRole='button'
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() => prefs.setMapShown(!prefs.mapShown)}>
           <Text variant='dataStrong' tone='accentInk'>
@@ -347,7 +353,7 @@ function CompareView({
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
-                  hitSlop={space.md}
+                  {...removeHit}
                   onPress={() =>
                     onSelectionChange(removeLap(selection, c.lapId))
                   }>
@@ -482,6 +488,7 @@ function CompareView({
         <Pressable
           accessibilityRole='button'
           accessibilityState={{expanded: chartsOpen}}
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() => setChartsOpen(o => !o)}>
           <Text variant='label' tone='textMuted'>
@@ -751,8 +758,15 @@ const styles = StyleSheet.create({
   desktop: {flex: 1, flexDirection: 'row', gap: space.xxl, alignSelf: 'center'},
   header: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   refRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.xs},
-  chipsWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
+  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   swatch: {width: 10, height: 3},
   positionRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   values: {

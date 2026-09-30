@@ -229,6 +229,21 @@ export const space = {
   xxxl: 32,
 } as const;
 export const radius = {xs: 2, sm: 3, md: 6, sheet: 10} as const;
+/**
+ * Real 44 pt boxes for text links and small icons. `hitSlop` alone is not
+ * enough: react-native-web ignores it, and the phone build is often the web
+ * one (375 pt budget pass, thread 27).
+ */
+export const hitBox = {
+  link: {minHeight: 44, justifyContent: 'center'},
+  icon: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+} as const;
+
 export const size = {
   screenWidth: 390,
   gutter: 16,

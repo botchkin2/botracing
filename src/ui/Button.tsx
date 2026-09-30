@@ -1,7 +1,8 @@
-import {Pressable, StyleSheet} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
+import {hitFor} from './hitArea';
 import {Text} from './Text';
 
 export type ButtonKind = 'primary' | 'outline' | 'tertiary';
@@ -20,33 +21,39 @@ export function Button({
   const {color} = useTheme();
   const fill = kind === 'primary' ? color.accent : 'transparent';
   const border = kind === 'outline' ? color.lineStrong : fill;
+  const slop =
+    (size.hit - (kind === 'tertiary' ? size.chip : size.transport)) / 2;
   return (
     <Pressable
       accessibilityRole='button'
       onPress={onPress}
       disabled={disabled}
-      hitSlop={space.sm}
-      style={({pressed}) => [
-        styles.base,
-        kind === 'tertiary' && styles.tertiary,
-        {
-          backgroundColor: fill,
-          borderColor: border,
-          opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
-        },
-      ]}>
-      <Text
-        variant='bodyStrong'
-        style={{
-          color:
-            kind === 'primary'
-              ? color.bg
-              : kind === 'tertiary'
-              ? color.accentInk
-              : color.text,
-        }}>
-        {label}
-      </Text>
+      {...hitFor(0, slop)}>
+      {({pressed}) => (
+        <View
+          style={[
+            styles.base,
+            kind === 'tertiary' && styles.tertiary,
+            {
+              backgroundColor: fill,
+              borderColor: border,
+              opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
+            },
+          ]}>
+          <Text
+            variant='bodyStrong'
+            style={{
+              color:
+                kind === 'primary'
+                  ? color.bg
+                  : kind === 'tertiary'
+                  ? color.accentInk
+                  : color.text,
+            }}>
+            {label}
+          </Text>
+        </View>
+      )}
     </Pressable>
   );
 }

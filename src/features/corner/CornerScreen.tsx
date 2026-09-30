@@ -16,10 +16,12 @@ import {
   TraceChart,
 } from '@/src/charts';
 import {
+  hitBox,
   lapColors,
   lapStroke,
   stroke,
   radius,
+  size,
   space,
   useLayout,
   useTheme,
@@ -205,6 +207,7 @@ function CornerView({
       <View style={styles.row}>
         <Pressable
           accessibilityRole='link'
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() =>
             router.navigate(
@@ -221,10 +224,10 @@ function CornerView({
         </Pressable>
         <View style={styles.flex} />
         {model.prev != null && (
-          <Chip label='‹' onPress={() => go(model.prev!)} />
+          <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
         )}
         {model.next != null && (
-          <Chip label='›' onPress={() => go(model.next!)} />
+          <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
         )}
       </View>
       <Text variant='display'>{model.title}</Text>
@@ -756,7 +759,13 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Desktop: two columns bounded to the viewport, each scrolling on its own.
   columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
-  wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  wrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',

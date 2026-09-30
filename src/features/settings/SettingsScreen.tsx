@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {radius, space, useLayout, useTheme} from '@/src/design';
+import {hitBox, radius, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref} from '@/src/nav/routes';
 import {Text} from '@/src/ui';
 
@@ -42,6 +42,7 @@ export function SettingsScreen() {
         {!layout.isWide && (
           <Pressable
             accessibilityRole='link'
+            style={hitBox.link}
             hitSlop={space.md}
             onPress={() => router.navigate(sessionsHref())}>
             <Text variant='bodyStrong' tone='accentInk'>
