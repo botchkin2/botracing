@@ -9,14 +9,26 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
-import {sessionHref, settingsHref, tracksHref} from '@/src/nav/routes';
-import {Badge, Button, Text} from '@/src/ui';
+import {
+  sessionHref,
+  sessionsHref,
+  settingsHref,
+  tracksHref,
+} from '@/src/nav/routes';
+import {AppMark, Badge, Button, hitFor, MARK_SLOP, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
 
 // Columns from the handoff: badge | track · car | laps | best | median.
 const COL = {badge: 24, laps: 30, time: 64};
 const LIST_MAX_WIDTH = 760;
+
+const markHit = hitFor(MARK_SLOP, MARK_SLOP);
+// Web grows the box with padding, so the margin takes it back; native only has
+// hitSlop, which takes no layout space, so the plain gap stays.
+const markGap = {
+  marginRight: markHit.style ? space.md - MARK_SLOP : space.md,
+};
 
 export function SessionsScreen() {
   const model = useSessionsModel();
@@ -35,6 +47,17 @@ export function SessionsScreen() {
       ]}>
       <View style={[styles.column, {width: contentWidth}]}>
         <View style={styles.header}>
+          {/* The desktop chrome carries the mark. */}
+          {!layout.isWide && (
+            <Pressable
+              accessibilityRole='link'
+              accessibilityLabel='Sessions'
+              onPress={() => router.navigate(sessionsHref())}
+              hitSlop={markHit.hitSlop}
+              style={[markHit.style, markGap]}>
+              <AppMark />
+            </Pressable>
+          )}
           <Text variant='display'>Sessions</Text>
           <Pressable
             accessibilityRole='link'
