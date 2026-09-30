@@ -4,6 +4,8 @@
 import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
 import {formatLapTime} from '@/src/design';
 
+import {pitWindows} from './pitWindow';
+
 /** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
 export const lapName = (racingLap: number) => `L${racingLap + 1}`;
 
@@ -53,8 +55,17 @@ export type StopRow = {
   refuel: {litres: number; toFinish: boolean}[];
 };
 
+export type StopWindow = {
+  stop: number;
+  /** Lap names the stop can come after, earliest to latest ("L18" to "L28"). */
+  earliest: string;
+  latest: string;
+};
+
 export type StopsCard = {
   full: StopRow | null;
+  /** The pit window of each fuel stop of the full-tank plan; empty with no stop. */
+  windows: StopWindow[];
   equal: StopRow | null;
   /** What the formation lap takes from the first stint; null without one. */
   formation: {fuelL: number | null; vePct: number | null} | null;
@@ -189,7 +200,7 @@ function stopsCard(
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
   if (laps == null || med.stops == null)
-    return {full: null, equal: null, formation: null};
+    return {full: null, equal: null, windows: [], formation: null};
   const fuelStops = med.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
   let full: StopRow | null = null;
@@ -235,9 +246,20 @@ function stopsCard(
       ratioPerPctL,
     );
   }
+  const windows =
+    med.firstStint.laps != null && med.stint.laps != null
+      ? pitWindows(med.firstStint.laps, med.stint.laps, laps, fuelStops).map(
+          w => ({
+            stop: w.stop,
+            earliest: lapName(w.earliest),
+            latest: lapName(w.latest),
+          }),
+        )
+      : [];
   return {
     full,
     equal,
+    windows,
     formation: rules.formationLap
       ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
       : null,

@@ -67,6 +67,22 @@ export function StopsCardView({
         </Text>
       </View>
       {card.full ? row(card.full, true) : null}
+      {card.windows.length > 0 ? (
+        <View style={[styles.row, {borderColor: color.line}]}>
+          <Text variant='label' tone='textMuted'>
+            Pit window
+          </Text>
+          {card.windows.map(w => (
+            <Text key={w.stop} variant='dataStrong' tone='textSecondary'>
+              {`Stop ${w.stop}: after ${w.earliest} to ${w.latest}`}
+            </Text>
+          ))}
+          <Text variant='dataSmall' tone='textMuted'>
+            Earliest: the laps after it still fit in full tanks. Latest: the lap
+            the tank runs out, the earlier stops as late as they can be.
+          </Text>
+        </View>
+      ) : null}
       {card.equal ? row(card.equal, false) : null}
       {formation.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted'>
