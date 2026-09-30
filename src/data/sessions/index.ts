@@ -25,6 +25,7 @@ export {
   useSessionLaps,
   useSessionMap,
   useSessions,
+  useSessionsDetail,
   useSessionsLaps,
 } from './queries';
 export {

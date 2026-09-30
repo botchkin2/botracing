@@ -4,7 +4,12 @@ import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {planRace} from '@/src/analysis/fuelPlan';
-import {useSession, useSessions, useSessionsLaps} from '@/src/data/sessions';
+import {
+  useSession,
+  useSessions,
+  useSessionsDetail,
+  useSessionsLaps,
+} from '@/src/data/sessions';
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref} from '@/src/nav/routes';
 import {
@@ -72,6 +77,7 @@ export function PlanScreen() {
   const history = useMemo(() => (combo ? historySessions(combo) : []), [combo]);
   const ids = useMemo(() => history.map(s => s.id), [history]);
   const lapsOf = useSessionsLaps(ids);
+  const sessionDetails = useSessionsDetail(ids);
   const last = useSession(ids[0] ?? '');
   const lastFuel = last.data?.fuel ?? null;
 
@@ -87,7 +93,11 @@ export function PlanScreen() {
   // session there (VE % per lap depends on the load; thread 35 #1004).
   const measured = history.map((s, i) => ({
     startedAt: s.startedAt,
-    ratio: lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null,
+    // The uploader's value first (analysisVersion 11), else measured here.
+    ratio:
+      sessionDetails.details[i]?.fuel?.litresPerVePct ??
+      (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
+    fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
   }));
   const ratio = veRatioFor(preset, measured);
   const greenLaps = history.flatMap((s, i) => {
@@ -104,6 +114,13 @@ export function PlanScreen() {
           lastFillLimitL: lastFuel?.fillLimitL ?? null,
           ratio,
           lastRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
+          ratioLoadsL: [
+            ...new Set(
+              measured
+                .filter(m => m.ratio != null && m.fillLimitL != null)
+                .map(m => m.fillLimitL as number),
+            ),
+          ],
         })
       : null;
 
