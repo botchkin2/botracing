@@ -32,6 +32,7 @@ import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
+import {reusableInfo} from './describeCache.mjs';
 import {
   analysisVersion,
   analyzeSession,
@@ -143,14 +144,9 @@ function scan(state) {
       continue;
     }
     const known = state.files[name];
-    // An info described before it carried the fuel setup is described again.
-    let info =
-      known &&
-      known.size === stat.size &&
-      known.mtimeMs === stat.mtimeMs &&
-      known.info?.fuelSetup !== undefined
-        ? known.info
-        : null;
+    // A cached result is reused only for an unchanged file described by this
+    // version of describe(); otherwise the file is described again.
+    let info = reusableInfo(known, stat, adapter.describeVersion);
     if (!info) {
       try {
         info = adapter.describe(path);
@@ -158,7 +154,12 @@ function scan(state) {
         log(`skip ${name}: ${String(error.message).split('\n')[0]}`);
         continue;
       }
-      state.files[name] = {size: stat.size, mtimeMs: stat.mtimeMs, info};
+      state.files[name] = {
+        size: stat.size,
+        mtimeMs: stat.mtimeMs,
+        describeVersion: adapter.describeVersion,
+        info,
+      };
     }
     if (!info.recordedAt || info.endT - info.startT < MIN_RECORDING_SEC) {
       continue;
