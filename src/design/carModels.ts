@@ -28,10 +28,17 @@ const ENTRIES: {
   {pattern: /^United Autosports/i, model: MCLAREN, team: 'United'},
 ];
 
+const SERIES_SUFFIX = /:[A-Za-z0-9]+$/;
+
 /** "Manthey DK Engineering 2026 #91:LM" → {model: "Porsche 911 GT3 R", shortModel: "911 GT3 R", entry: "Manthey #91"}. */
 export function carLabel(entryName: string): CarLabel {
   const match = ENTRIES.find(e => e.pattern.test(entryName));
-  if (!match) return {model: entryName, shortModel: entryName, entry: null};
+  if (!match) {
+    // An entry the table does not know shows its own name, without the series
+    // suffix LMU appends (":LM", ":ELMS", ":WEC").
+    const name = entryName.replace(SERIES_SUFFIX, '');
+    return {model: name, shortModel: name, entry: null};
+  }
   const number = entryName.match(/#(\d+)/)?.[1];
   return {
     ...match.model,
