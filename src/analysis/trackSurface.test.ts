@@ -234,6 +234,53 @@ describe('dropOsmInsideSurface', () => {
     expect(Math.min(...r.kept[0].map(p => p.y))).toBeGreaterThan(8);
   });
 
+  it('fades a road way running beside the measured road (outside it, within 15 m)', () => {
+    // Half-width is 6, plus the 3 m margin: 12 m from the centre is outside
+    // the surface but beside it.
+    const [r] = dropOsmInsideSurface(
+      [{id: 5, kind: 'track', points: road(12)}],
+      g,
+    );
+    expect(r.droppedM).toBe(0);
+    expect(r.kept).toEqual([]);
+    expect(r.faded).toHaveLength(1);
+  });
+
+  it('a way beyond 15 m is neither dropped nor faded', () => {
+    const [r] = dropOsmInsideSurface(
+      [{id: 6, kind: 'track', points: road(30)}],
+      g,
+    );
+    expect(r.faded).toEqual([]);
+    expect(r.kept).toHaveLength(1);
+  });
+
+  it('splits a way that leaves the road into dropped, faded and kept stretches', () => {
+    const way = [
+      {x: 0, y: 0},
+      {x: 300, y: 0},
+      {x: 300, y: 200},
+    ];
+    const [r] = dropOsmInsideSurface([{id: 7, kind: 'track', points: way}], g);
+    expect(r.droppedM).toBeGreaterThan(290);
+    expect(r.faded.length).toBeGreaterThan(0);
+    expect(r.kept.length).toBeGreaterThan(0);
+    // Each stretch starts at the point before it, so they meet: the faded
+    // part runs from the surface edge to 15 m, the kept part on from there.
+    for (const p of r.faded.flat()) expect(p.y).toBeLessThanOrEqual(20);
+    expect(Math.max(...r.faded.flat().map(p => p.y))).toBeGreaterThan(9);
+    expect(Math.min(...r.kept.flat().map(p => p.y))).toBeGreaterThan(9);
+  });
+
+  it('a service way beside the road is left exactly as it was', () => {
+    const [r] = dropOsmInsideSurface(
+      [{id: 8, kind: 'service', points: road(12)}],
+      g,
+    );
+    expect(r.faded).toEqual([]);
+    expect(r.kept).toEqual([road(12)]);
+  });
+
   it('keeps every way when nothing is measured', () => {
     const none = surfaceGeometry(emptySurface(LENGTH_M));
     const [r] = dropOsmInsideSurface(

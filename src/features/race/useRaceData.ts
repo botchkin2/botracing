@@ -11,6 +11,7 @@ import {
   useSession,
   useSessionLaps,
   useSessionMap,
+  useSessionSurface,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
@@ -45,6 +46,8 @@ export type RaceData =
       /** Median metres from the player to the line, for the notice. */
       matchM: number | null;
       attribution: string | null;
+      /** The measured road is still on its way: the map holds its place. */
+      roadPending: boolean;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -52,6 +55,7 @@ export function useRaceData(sessionId: string): RaceData {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const map = useSessionMap(sessionId);
+  const surface = useSessionSurface(sessionId);
   const detail = session.data;
   const hash = detail?.field?.hash ?? null;
   const field = useField(sessionId, hash);
@@ -68,7 +72,10 @@ export function useRaceData(sessionId: string): RaceData {
     () => (field.data ? raceClock(field.data) : null),
     [field.data],
   );
-  const placer = useMemo(() => mapPlacer(map.data ?? null), [map.data]);
+  const placer = useMemo(
+    () => mapPlacer(map.data ?? null, surface.data ?? null),
+    [map.data, surface.data],
+  );
   const noBestLap = detail != null && !detail.bestLapId;
   const line = useMemo(() => {
     if (refTrace && refTrace.lat.length > 2) {
@@ -123,5 +130,6 @@ export function useRaceData(sessionId: string): RaceData {
     matches: worldMatches(matchM),
     matchM,
     attribution: map.data?.attribution ?? null,
+    roadPending: surface.isPending,
   };
 }

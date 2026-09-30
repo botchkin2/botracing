@@ -6,6 +6,7 @@ import {
   useSessionBand,
   useSessionLaps,
   useSessionMap,
+  useSessionSurface,
   mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
@@ -47,6 +48,7 @@ export function useCompareModel(
   const laps = useSessionLaps(sessionId);
   const band = useSessionBand(sessionId);
   const map = useSessionMap(sessionId);
+  const surface = useSessionSurface(sessionId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
   // Fetch traces only for ids this session has; a hand-edited URL with
   // unknown ids would otherwise fire a 404 per id.
@@ -75,11 +77,7 @@ export function useCompareModel(
     traces: grids,
     load: traceLoad,
     retry: retryTraces,
-  } = useLapTraceLoad(
-    fetchIds,
-    {lengthM, stepM: GRID_STEP_M},
-    knownIds.length,
-  );
+  } = useLapTraceLoad(fetchIds, {lengthM, stepM: GRID_STEP_M}, knownIds.length);
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     fetchIds.forEach((id, i) => {
@@ -94,12 +92,12 @@ export function useCompareModel(
   const followGeometry = useMemo(
     () =>
       buildFollowGeometry(
-        mapPlacer(map.data ?? null),
+        mapPlacer(map.data ?? null, surface.data ?? null),
         traces,
         knownIds,
         map.data ? trackCorners(map.data) : [],
       ),
-    [map.data, traces, knownIds],
+    [map.data, surface.data, traces, knownIds],
   );
 
   // Stable functions, so they can sit in the memo's dependencies.
@@ -127,6 +125,8 @@ export function useCompareModel(
         traces,
         band: band.data ?? null,
         map: map.data ?? null,
+        surface: surface.data ?? null,
+        surfacePending: surface.isPending,
         selection,
         charts,
         window,
@@ -139,6 +139,8 @@ export function useCompareModel(
     laps.data,
     map.isPending,
     map.data,
+    surface.data,
+    surface.isPending,
     band.data,
     traces,
     selection,

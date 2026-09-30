@@ -44,8 +44,6 @@ export type Bar = {
 
 export type ChartModel = {
   bars: Bar[];
-  /** The one-line explainer under the chart label (handoff copy). */
-  explainer: string;
   /** Lap index after which a new stint starts. */
   stintBreaks: {afterLap: number; label: string}[];
   /** Lap index of each pit-in lap. */
@@ -267,11 +265,6 @@ export function buildSessionModel(
     comparable.length === 0 || median == null
       ? null
       : {
-          explainer: `Each bar is one lap. Up = faster than the median (${formatLapTime(
-            median,
-          )}), down = slower; bars stop at ±${BAR_CLAMP_S.toFixed(
-            1,
-          )} s. Outlined stubs at the bottom are excluded laps. Tap a bar to find it in the table.`,
           bars: laps.map(l => ({
             lapId: l.id,
             lapIndex: l.lapIndex,

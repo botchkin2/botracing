@@ -1,10 +1,12 @@
 import {cornerTurn, type CornerTurn} from '@/src/analysis/cornerShape';
+import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {matchCornerNames} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
 import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
 import {
   mapPlacer,
+  measuredCentreLines,
   type SessionSummary,
   type TrackMapData,
   type Xy,
@@ -65,6 +67,8 @@ export type TrackInputs = {
   layouts: TrackInfo[];
   sessions: SessionSummary[];
   map: TrackMapData | null;
+  /** The track's measured road, when it has one. */
+  surface?: TrackSurface | null;
   /** Best lap of the newest session drawn on the stored corner map. */
   refTrace: GridTrace | null;
   selectedCorner: number | null;
@@ -104,7 +108,8 @@ export function referenceSession(
 export function buildTrackModel(input: TrackInputs): TrackModel {
   const {info, map, refTrace, selectedCorner} = input;
   const sessionName = input.sessions[0]?.track;
-  const shape = map && refTrace ? placeLine(map, refTrace) : null;
+  const shape =
+    map && refTrace ? placeLine(map, input.surface ?? null, refTrace) : null;
 
   const names = new Map<number, string>();
   const turns = new Map<number, string>();
@@ -234,10 +239,11 @@ function gridIndex(t: GridTrace, m: number): number {
 
 function placeLine(
   map: TrackMapData,
+  surface: TrackSurface | null,
   t: GridTrace,
 ): {line: Xy[]; model: TrackMapModel} | null {
   if (t.lat.length < 3) return null;
-  const placer = mapPlacer(map);
+  const placer = mapPlacer(map, surface);
   const line = placer.place(t, 0, t.lat.length - 1, 1);
   const split = placer.outlineUse(t);
   const pointAt = (m: number) => line[gridIndex(t, m)];
@@ -250,7 +256,7 @@ function placeLine(
     line,
     model: {
       real: placer.real,
-      outline: split.used,
+      outline: [...measuredCentreLines(placer.measured), ...split.used],
       outlineFaded: split.unused,
       pitLane: placer.pitLane,
       line,

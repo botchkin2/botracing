@@ -209,7 +209,6 @@ function SessionView({
           {barsHelp.button}
         </View>
         {barsHelp.panel}
-        <Explainer>{model.chart.explainer}</Explainer>
         <LapTimeBars
           width={width}
           height={CHART_H}

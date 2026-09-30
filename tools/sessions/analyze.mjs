@@ -41,7 +41,10 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 // 11: litres per 1 % VE on the session's fuel block.
 // 13: per-corner slices of every lap's trace (cornerSlices.mjs).
 // 14: the slices reach 350 m before the apex, for the braking map.
-export const analysisVersion = 15;
+// 15: per-wheel tyre changes on each pit stop (#165).
+// 16: forces a resync after the describe cache learned versions: files described
+//     before #144 kept their old fuel setup (an LMP2 fill limit of 1980 L).
+export const analysisVersion = 16;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;

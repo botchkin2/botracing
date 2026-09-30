@@ -238,6 +238,9 @@ export const space = {
   xxl: 24,
   xxxl: 32,
 } as const;
+/** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
+export const disabledOpacity = 0.4;
+
 export const radius = {xs: 2, sm: 3, md: 6, sheet: 10} as const;
 /**
  * Real 44 pt boxes for text links and small icons. `hitSlop` alone is not
@@ -271,6 +274,9 @@ export const size = {
   gridCell: 24,
   // The one fixed line under Corner's full-throttle strip (round 5, item 7).
   stripNote: 24,
+  // Sheet (Edit charts, Rules): bottom sheet top margin on the phone, side sheet width on desktop.
+  sheetTop: 120,
+  sheetSideWidth: 380,
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,

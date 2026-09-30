@@ -13,6 +13,7 @@ import {
   space,
   useLayout,
   useTheme,
+  disabledOpacity,
 } from '@/src/design';
 import {
   addChart,
@@ -48,6 +49,7 @@ import {
   type CompareSelection,
   drawRank,
   makeReference,
+  canRemoveLap,
   removeLap,
   setReference,
   toggleCompared,
@@ -172,11 +174,22 @@ export function CompareWorkspace(p: WorkspaceProps) {
             {!c.isRef && (
               <Pressable
                 accessibilityLabel={`Remove ${c.label}`}
+                accessibilityState={{
+                  disabled: !canRemoveLap(selection, c.lapId),
+                }}
+                disabled={!canRemoveLap(selection, c.lapId)}
                 hitSlop={space.sm}
                 onPress={() =>
                   p.onSelectionChange(removeLap(selection, c.lapId))
                 }>
-                <Text tone='textFaint'>×</Text>
+                {/* The last compared lap stays: removing it snaps back to the default. */}
+                <Text
+                  tone='textFaint'
+                  style={
+                    selection.laps.length <= 2 ? styles.removeOff : undefined
+                  }>
+                  ×
+                </Text>
               </Pressable>
             )}
           </Pressable>
@@ -543,6 +556,7 @@ function overviewDomain(model: CompareModel): [number, number] {
 }
 
 const styles = StyleSheet.create({
+  removeOff: {opacity: disabledOpacity},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},

@@ -200,11 +200,27 @@ async function fromApi(base, trackFilter, outDir) {
   }
 }
 
-async function fromStore(trackFilter, dry) {
-  const {connect, bucketName} = await import('./store.mjs');
-  const {db, bucket} = connect();
-  const trackDocs = trackFilter
-    ? [await db.collection('tracks').doc(trackFilter).get()]
+/**
+ * Folds the sessions not yet in each track's surface, from Firestore and the
+ * bucket, and writes the artifact and the track's pointer. `trackIds` limits
+ * it to those tracks (sync.mjs passes the ones it just uploaded); null does
+ * every track. `dry` reports and writes nothing. It is idempotent: with no
+ * new session a track is left as it is. `connectStore` is for tests.
+ */
+export async function foldSurfaces({
+  trackIds = null,
+  dry = false,
+  log = console.log,
+  connectStore = async () => {
+    const store = await import('./store.mjs');
+    return {...store.connect(), bucketName: store.bucketName};
+  },
+} = {}) {
+  const {db, bucket, bucketName} = await connectStore();
+  const trackDocs = trackIds
+    ? await Promise.all(
+        trackIds.map(id => db.collection('tracks').doc(id).get()),
+      )
     : (await db.collection('tracks').get()).docs;
   for (const doc of trackDocs) {
     if (!doc.exists) continue;
@@ -257,7 +273,7 @@ async function fromStore(trackFilter, dry) {
       track.lengthM,
       input,
     );
-    console.log(
+    log(
       `${trackId}: +${sessionsAdded} sessions, +${lapsAdded} laps${
         replaced ? ' (track length changed: rebuilt)' : ''
       }, ${surface.sessions.length} sessions in all`,
@@ -284,7 +300,7 @@ async function fromStore(trackFilter, dry) {
           updatedAt: new Date().toISOString(),
         },
       });
-    console.log(
+    log(
       `  wrote gs://${bucketName}/${surfacePath(trackId)} (${gz.length} bytes)`,
     );
   }
@@ -300,6 +316,9 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
   if (arg('--api')) {
     await fromApi(arg('--api'), track, arg('--out') ?? 'surface-out');
   } else {
-    await fromStore(track, process.argv.includes('--dry'));
+    await foldSurfaces({
+      trackIds: track ? [track] : null,
+      dry: process.argv.includes('--dry'),
+    });
   }
 }

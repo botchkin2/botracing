@@ -5,7 +5,7 @@ import {
 } from '@/src/analysis/followView';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 
-import {type MapPlacer, type Xy} from '@/src/data/sessions';
+import {type MapPlacer, type MeasuredRun, type Xy} from '@/src/data/sessions';
 
 // The Follow map's data (handoff v2 M1b), in two parts so playback stays
 // cheap: geometry that only changes with the selection (built once, drawn
@@ -14,6 +14,8 @@ import {type MapPlacer, type Xy} from '@/src/data/sessions';
 export type FollowGeometry = {
   /** Road centrelines: the OSM outline, or the first lap's driven line. */
   band: Xy[][];
+  /** The measured road (the game's own edges), drawn over the band; empty without one. */
+  surface: MeasuredRun[];
   /** Outline stretches the reference lap does not use; empty without an outline. */
   bandFaded: Xy[][];
   /** Each lap's whole line at full grid resolution, by lap id. */
@@ -81,7 +83,11 @@ export function buildFollowGeometry(
   }
   const split = placer.outlineUse(ref);
   return {
-    band: placer.outline.length > 0 ? split.used : [whole(ref, 1)],
+    band:
+      placer.outline.length > 0 || placer.measured.length > 0
+        ? split.used
+        : [whole(ref, 1)],
+    surface: placer.measured,
     bandFaded: split.unused,
     lines,
     brakeTicks,

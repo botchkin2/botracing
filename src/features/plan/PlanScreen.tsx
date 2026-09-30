@@ -14,14 +14,8 @@ import {
   useTheme,
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
+import {useFuelPresets} from '@/src/state/fuelPresets';
 import {
-  freshId,
-  type FuelPreset,
-  newPreset,
-  useFuelPresets,
-} from '@/src/state/fuelPresets';
-import {
-  Button,
   Chip,
   EmptyState,
   Explainer,
@@ -33,11 +27,11 @@ import {
 } from '@/src/ui';
 
 import {RaceCardView} from './components/RaceCardView';
+import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
-import {RulesEditor} from './RulesEditor';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
@@ -82,7 +76,7 @@ export function PlanScreen() {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const {save, remove, select, setLength} = useFuelPresets.getState();
-  const [editing, setEditing] = useState<'new' | 'edit' | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   // The length as typed, while it is being typed; else the length in force.
   const [draft, setDraft] = useState<{key: string; text: string} | null>(null);
   const lengthText =
@@ -212,81 +206,36 @@ export function PlanScreen() {
             <Section title='Event rules'>
               <View style={styles.chips}>
                 <Chip
-                  label='No limits'
-                  selected={preset == null}
-                  onPress={() => {
-                    select(null);
-                    setEditing(null);
-                  }}
+                  label={
+                    'Rules: ' + (preset ? preset.name : 'No limits') + ' ▾'
+                  }
+                  onPress={() => setRulesOpen(true)}
                 />
-                {presets.map(p => (
-                  <Chip
-                    key={p.id}
-                    label={p.name}
-                    selected={p.id === activeId}
-                    onPress={() => {
-                      select(p.id);
-                      setDraft(null);
-                      setEditing(null);
-                    }}
-                  />
-                ))}
-                <Chip label='+ New' dashed onPress={() => setEditing('new')} />
               </View>
-              {view ? (
-                <Text variant='dataSmall' tone='textSecondary'>
-                  {view.rulesLine}
-                </Text>
-              ) : null}
               {view?.stale ? (
                 <StatusBanner
                   dot='idle'
                   text={`This preset may be stale: ${view.stale}.`}
                 />
               ) : null}
-              {preset && editing == null ? (
-                <View style={styles.actions}>
-                  <Button
-                    label='Edit'
-                    kind='outline'
-                    onPress={() => setEditing('edit')}
-                  />
-                  <Button
-                    label='Delete'
-                    kind='tertiary'
-                    onPress={() => remove(preset.id)}
-                  />
-                </View>
-              ) : null}
-              {editing ? (
-                <RulesEditor
-                  key={editing === 'edit' && preset ? preset.id : 'new'}
-                  preset={editing === 'edit' ? preset : null}
-                  lastFillLimitL={lastFuel?.fillLimitL ?? null}
-                  lastVeRatio={
-                    measured.find(m => m.ratio != null)?.ratio ?? null
-                  }
-                  onCancel={() => setEditing(null)}
-                  onSave={fields => {
-                    const base: FuelPreset =
-                      editing === 'edit' && preset
-                        ? preset
-                        : newPreset(
-                            fields.name,
-                            {},
-                            freshId(presets, presets.length + 1),
-                            new Date().toISOString(),
-                          );
-                    save({
-                      ...base,
-                      ...fields,
-                      length,
-                      savedAt: new Date().toISOString(),
-                    });
-                    setEditing(null);
-                  }}
-                />
-              ) : null}
+              <RulesSheet
+                visible={rulesOpen}
+                onClose={() => setRulesOpen(false)}
+                presets={presets}
+                activeId={activeId}
+                preset={preset}
+                rulesLine={view?.rulesLine ?? null}
+                stale={view?.stale ?? null}
+                length={length}
+                lastFillLimitL={lastFuel?.fillLimitL ?? null}
+                lastVeRatio={measured.find(m => m.ratio != null)?.ratio ?? null}
+                onSelect={id => {
+                  select(id);
+                  setDraft(null);
+                }}
+                onSave={save}
+                onRemove={remove}
+              />
             </Section>
 
             {detailsPending ? (

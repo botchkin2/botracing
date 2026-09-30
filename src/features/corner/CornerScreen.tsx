@@ -165,6 +165,8 @@ function CornerView({
   });
 
   const [notice, setNotice] = useState<string | null>(null);
+  // Phone: the lap table is one tap away, the strips stay the first read.
+  const [tableOpen, setTableOpen] = useState(false);
   const stripsHelp = useHowToRead('the dot strips', STRIPS_HELP);
   const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
@@ -208,6 +210,15 @@ function CornerView({
       cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
     );
 
+  const cornerChips = model.corners.map(({n, label}) => (
+    <Chip
+      key={n}
+      label={label}
+      selected={n === model.corner}
+      onPress={() => go(n)}
+    />
+  ));
+
   const header = (
     <View style={styles.gap}>
       <View style={styles.row}>
@@ -241,15 +252,18 @@ function CornerView({
         {model.subtitle}
       </Text>
       {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
-      <View style={styles.wrap}>
-        {model.corners.map(({n, label}) => (
-          <Chip
-            key={n}
-            label={label}
-            selected={n === model.corner}
-            onPress={() => go(n)}
-          />
-        ))}
+      {layout.isWide ? (
+        <View style={styles.wrap}>{cornerChips}</View>
+      ) : (
+        // One line that scrolls sideways: 25 corners wrapped to four rows.
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}>
+          {cornerChips}
+        </ScrollView>
+      )}
+      <View style={styles.row}>
         <Chip
           label={
             allComparable ? '✓ All comparable laps' : '+ All comparable laps'
@@ -375,7 +389,16 @@ function CornerView({
             </View>
           ))
         : null}
-      {(!model.strips || layout.isWide) && (
+      {model.strips && !layout.isWide && (
+        <View style={styles.row}>
+          <Chip
+            label={`Laps · ${model.rows.length} ${tableOpen ? '▴' : '▾'}`}
+            selected={tableOpen}
+            onPress={() => setTableOpen(o => !o)}
+          />
+        </View>
+      )}
+      {(!model.strips || layout.isWide || tableOpen) && (
         <CornerTable
           rows={
             layout.isWide ? sortRows(model.rows, sort.by, sort.dir) : model.rows
@@ -429,7 +452,11 @@ function CornerView({
           contentContainerStyle={[styles.col, top]}>
           {header}
           {model.brakeMap && (
-            <BrakeMapPanel map={model.brakeMap} lapColor={lapColor} />
+            <BrakeMapPanel
+              map={model.brakeMap}
+              width={DESK_LEFT_W - 2 * space.xl}
+              lapColor={lapColor}
+            />
           )}
           {measures}
         </ScrollView>
@@ -454,6 +481,13 @@ function CornerView({
         {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
       ]}>
       {header}
+      {model.brakeMap && (
+        <BrakeMapPanel
+          map={model.brakeMap}
+          width={layout.contentWidth}
+          lapColor={lapColor}
+        />
+      )}
       {measures}
       {traces}
     </ScrollView>
@@ -575,9 +609,11 @@ function CornerTable({
 // 55%); full-throttle points are squares (6 pt key, 4 pt others).
 function BrakeMapPanel({
   map,
+  width,
   lapColor,
 }: {
   map: BrakeMapModel;
+  width: number;
   lapColor: (
     onIndex: number | null,
     selIndex: number,
@@ -610,7 +646,7 @@ function BrakeMapPanel({
         Where each lap braked
       </Text>
       <BrakeMap
-        width={DESK_LEFT_W - 40}
+        width={width}
         height={BRAKE_MAP_H}
         centreline={map.centreline}
         stretch={map.stretch}
@@ -637,6 +673,8 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Desktop: two columns bounded to the viewport, each scrolling on its own.
   columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
+  // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
+  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   wrap: {
     flexDirection: 'row',
