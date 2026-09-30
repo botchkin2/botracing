@@ -5,6 +5,7 @@ import {
   MIN_GREEN_LAPS,
   fillLapsLeft,
   fuelSetup,
+  neverLeavesZero,
   isGreen,
   lapFuel,
   litresPerVePct,
@@ -220,8 +221,30 @@ test('the fill limit and tank come from the CarSetup, null when it is empty', ()
     fillLimitL: null,
     tankL: 117,
   });
+  // Daytona LMP2 (2026-09-30, start fuel 75.0 L): gallons, and maxValue 71 is a
+  // slider step count. 1980 L and a 71 L tank would be wrong.
+  assert.deepEqual(
+    fuelSetup(setup({stringValue: '19.8gal (0.0 laps)', maxValue: 71})),
+    {fillLimitL: 75, tankL: null},
+  );
+  assert.deepEqual(fuelSetup(setup({stringValue: 'N/A', maxValue: 1})), {
+    fillLimitL: null,
+    tankL: null,
+  });
   assert.deepEqual(fuelSetup('not json'), {fillLimitL: null, tankL: null});
   assert.deepEqual(fuelSetup(undefined), {fillLimitL: null, tankL: null});
+});
+
+test('a channel counts as none only when it never leaves 0', () => {
+  assert.equal(neverLeavesZero(new Float64Array([0, 0, 0])), true);
+  // An LMP2's Virtual Energy: flat 0 all race.
+  assert.equal(neverLeavesZero(new Float64Array(17801)), true);
+  // A GT3 that never left the garage: constant, but not 0.
+  assert.equal(neverLeavesZero(new Float64Array([100, 100])), false);
+  assert.equal(neverLeavesZero(new Float64Array([0, 0.5])), false);
+  assert.equal(neverLeavesZero(new Float64Array([0, NaN])), false);
+  assert.equal(neverLeavesZero(new Float64Array([])), false);
+  assert.equal(neverLeavesZero(undefined), false);
 });
 
 test('every lap with fuel says whether its use counts as green', () => {

@@ -237,21 +237,39 @@ export function fillLapsLeft(laps, stintMedians) {
   }
 }
 
+const LITRES_PER_US_GALLON = 3.785411784;
+
+/**
+ * True when a channel is recorded but never leaves 0. An LMP2 still logs
+ * Virtual Energy (and SoC, Regen Rate) as a flat 0, which is "this car has
+ * none", not "0 % left" (tonight's Daytona LMP2 race, thread 39 #1072). Any
+ * other constant, or a NaN, does not count: a GT3 that never left the garage
+ * holds a constant VE that is not 0.
+ */
+export function neverLeavesZero(values) {
+  if (!values || values.length === 0) return false;
+  for (let i = 0; i < values.length; i++) if (values[i] !== 0) return false;
+  return true;
+}
+
 /**
  * The fill limit and physical tank from the recording's CarSetup JSON.
  *
- * VM_FUEL_LEVEL.stringValue is the fill limit in litres divided by 100, not a
- * fraction of the tank (camber and apex, thread 34 #983/#986): the Proton at
- * Silverstone has stringValue 0.89 and maxValue 115 and started at 89.0 L, so
- * a fraction of the tank would say 102 L; the Manthey at Daytona has 1.00 and
- * maxValue 117 and started at 100 L, not 117. VE 100 % is that full load.
- * maxValue is the tank in litres when the event allows it, else the limit
- * itself (75 at Road Atlanta). Both are null when the setup is missing or
- * empty (the 2026-09-29 Daytona Manthey files).
+ * GT3 form: VM_FUEL_LEVEL.stringValue is a bare number, the fill limit in
+ * litres divided by 100, not a fraction of the tank (camber and apex, thread
+ * 34 #983/#986): the Proton at Silverstone has stringValue 0.89 and maxValue
+ * 115 and started at 89.0 L, so a fraction of the tank would say 102 L; the
+ * Manthey at Daytona has 1.00 and maxValue 117 and started at 100 L, not 117.
+ * VE 100 % is that full load. maxValue is the tank in litres when the event
+ * allows it, else the limit itself (75 at Road Atlanta).
  *
- * Every recording in the Telemetry folder is a GT3 (468 files, one class),
- * so a Hypercar or an LMP2 is unchecked: if one shows a start fuel that is
- * not stringValue x 100, this is the place to look.
+ * LMP2 form (Daytona 2026-09-30, thread 39 #1070): stringValue is gallons and
+ * the game's laps estimate, '19.8gal (0.0 laps)' = 74.95 L, and the car
+ * started at 75.0 L. maxValue (71) is a slider step count there, not litres,
+ * so the tank is unknown.
+ *
+ * Anything else, or a missing setup, gives null for both; an empty string
+ * (the 2026-09-29 Daytona Manthey files) keeps the tank. A Hypercar's string is unchecked.
  */
 export function fuelSetup(setupJson) {
   let level = null;
@@ -260,13 +278,26 @@ export function fuelSetup(setupJson) {
   } catch {
     // No usable setup: both stay null.
   }
-  const fraction = parseFloat(level?.stringValue);
+  const text = String(level?.stringValue ?? '').trim();
+  const bare = /^\d*\.?\d+$/.test(text) ? parseFloat(text) : NaN;
+  const gallons = text.match(/^(\d*\.?\d+)gal(?:\s|$)/)?.[1];
   const tank = Number(level?.maxValue);
+  if (bare > 0) {
+    return {
+      fillLimitL: round(bare * 100, 1),
+      tankL: Number.isFinite(tank) && tank > 0 ? tank : null,
+    };
+  }
+  if (gallons !== undefined && parseFloat(gallons) > 0) {
+    return {
+      fillLimitL: round(parseFloat(gallons) * LITRES_PER_US_GALLON, 1),
+      tankL: null,
+    };
+  }
+  // An empty string is a GT3 with no limit recorded: its maxValue is still
+  // litres. Any other string is a form nobody has checked.
   return {
-    fillLimitL:
-      Number.isFinite(fraction) && fraction > 0
-        ? round(fraction * 100, 1)
-        : null,
-    tankL: Number.isFinite(tank) && tank > 0 ? tank : null,
+    fillLimitL: null,
+    tankL: text === '' && Number.isFinite(tank) && tank > 0 ? tank : null,
   };
 }
