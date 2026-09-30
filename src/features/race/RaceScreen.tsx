@@ -1,6 +1,6 @@
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {carsAt} from '@/src/analysis/raceState';
@@ -8,7 +8,7 @@ import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
-import {Button, Text} from '@/src/ui';
+import {EmptyState, Skeleton, StatusBanner, Text} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
@@ -43,6 +43,15 @@ const DESKTOP_SIDE_W = 380;
 const NO_FIELD_TITLE = 'No field data for this session';
 const NO_FIELD_BODY =
   'Other cars are recorded for sessions from 28 Sep 2026 on. Your laps and traces work as before.';
+
+// Handoff R4c, drawn here; no download progress or timeout is measured, so
+// the byte counts and "after 30 s" of the handoff copy are left out.
+const FIELD_LOADING_TEXT =
+  'Loading field data. Your laps and traces already work.';
+const FIELD_ERROR_TEXT =
+  'Field data didn’t load. Your laps and traces still work.';
+const SKELETON_ROWS = 8;
+const DESKTOP_NOTICE_W = 1060;
 
 // Compare's cursor settles this long after the clock stops, like Compare's own.
 const SETTLE_MS = 400;
@@ -115,21 +124,14 @@ function RaceShell({
 }
 
 // Every state that is not the race: loading, no data, failed (R4c). Neutral
-// wording, never amber or red.
+// wording, never amber or red. The banner says what is happening; the frames
+// under it hold the map's and the leaderboard's real sizes so nothing moves
+// when the field arrives.
 function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
-  const {color} = useTheme();
-  if (data.kind === 'loading' || data.kind === 'field-loading') {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={color.accent} />
-        {data.kind === 'field-loading' ? (
-          <Text variant='body' tone='textMuted' style={styles.noticeText}>
-            Loading field data. Your laps and traces already work.
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
+  const layout = useLayout();
+  const width = layout.isDesktop
+    ? Math.min(layout.contentWidth, DESKTOP_NOTICE_W)
+    : layout.contentWidth;
   if (data.kind === 'error') {
     return (
       <View style={styles.center}>
@@ -137,22 +139,34 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
-  if (data.kind === 'field-error') {
+  if (data.kind === 'no-field') {
     return (
       <View style={styles.center}>
-        <Text variant='body' tone='textMuted' style={styles.noticeText}>
-          Field data didn’t load. Your laps and traces still work.
-        </Text>
-        <Button label='Retry' kind='outline' onPress={data.retry} />
+        <EmptyState title={NO_FIELD_TITLE} body={NO_FIELD_BODY} />
+      </View>
+    );
+  }
+  if (data.kind === 'field-error') {
+    return (
+      <View style={[styles.notice, {width}]}>
+        <StatusBanner
+          dot='idle'
+          text={FIELD_ERROR_TEXT}
+          actionLabel='Retry'
+          onAction={data.retry}
+        />
       </View>
     );
   }
   return (
-    <View style={styles.center}>
-      <Text variant='bodyStrong'>{NO_FIELD_TITLE}</Text>
-      <Text variant='body' tone='textMuted' style={styles.noticeText}>
-        {NO_FIELD_BODY}
-      </Text>
+    <View style={[styles.notice, {width}]}>
+      {data.kind === 'field-loading' ? (
+        <StatusBanner dot='waiting' text={FIELD_LOADING_TEXT} />
+      ) : null}
+      <Skeleton height={layout.isDesktop ? DESKTOP_MAP_H : PHONE_MAP_H} />
+      {Array.from({length: SKELETON_ROWS}, (_, i) => (
+        <Skeleton key={i} height={size.lapRow} />
+      ))}
     </View>
   );
 }
@@ -382,7 +396,7 @@ const styles = StyleSheet.create({
     gap: space.lg,
     padding: size.gutter,
   },
-  noticeText: {textAlign: 'center'},
+  notice: {alignSelf: 'center', gap: space.sm, paddingTop: space.lg},
   phoneTop: {paddingHorizontal: size.gutter, gap: space.md},
   desktop: {
     flex: 1,
