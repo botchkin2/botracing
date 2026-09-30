@@ -96,7 +96,8 @@ export type RaceModel = {
 // R1d: what replaces the pit count when it is not "running".
 const STATUS: Record<CarState, string> = {
   running: '',
-  pit: 'PIT',
+  // In the pit lane now; the stops so far are the number (round 5, item 5).
+  pit: 'IN',
   stopped: 'STOP',
   off: 'OFF',
   garage: 'GAR',
@@ -198,7 +199,9 @@ export function buildRaceModel(input: {
     const inClass = cars.filter(c => classKey(c.carClass) === k).sort(byRun);
     return {
       title:
-        filter === 'all' ? `${CLASS_TITLE[k]} · ${inClass.length} CARS` : null,
+        filter === 'all'
+          ? `${CLASS_TITLE[k]} · ${inClass.length} CARS`
+          : `Class · ${CLASS_TITLE[k]}`,
       rows: inClass.map(c => rowOf(c, focus)),
     };
   });

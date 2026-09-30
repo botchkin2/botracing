@@ -2,8 +2,12 @@ import {type FollowView, headingRad} from '@/src/analysis/followView';
 import {type RaceCar} from '@/src/analysis/raceState';
 import {type MapPlacer} from '@/src/data/sessions';
 
-/** Track length that fills the map's height at zoom 1x: the desktop Follow default (pit-wall thread 27 #1041). */
-export const RACE_FOLLOW_M = 300;
+/**
+ * Track length that fills the map's height at zoom 1x: 120 m, the same start
+ * as Compare on the phone (round 5, item 5; it was 300 m, pit-wall thread 27
+ * #1041). The − / + steps are 0.6, 1 and 1.7 of it.
+ */
+export const RACE_FOLLOW_M = 120;
 
 // How far ahead of the car the heading is measured. The car's yaw is a
 // direction in game-world axes; placing a point this far along it through the
@@ -20,10 +24,9 @@ export function followCar(
   focus: number | null,
 ): RaceCar | null {
   const usable = (c: RaceCar | undefined) =>
-    c !== undefined && c.state !== 'garage' && c.headingRad !== null
-      ? c
-      : null;
-  const focused = focus == null ? null : usable(cars.find(c => c.index === focus));
+    c !== undefined && c.state !== 'garage' && c.headingRad !== null ? c : null;
+  const focused =
+    focus == null ? null : usable(cars.find(c => c.index === focus));
   return focused ?? usable(cars.find(c => c.player));
 }
 
