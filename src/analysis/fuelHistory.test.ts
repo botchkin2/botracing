@@ -38,6 +38,8 @@ describe('sinceChange', () => {
     expect(out.drift).toEqual({
       fuelL: {newest: 2.88, history: 2.31},
       vePct: {newest: 4.3, history: 3.33},
+      direction: 'more',
+      applied: true,
       keptSessions: 2,
       keptLaps: 11,
       droppedSessions: 3,
@@ -70,6 +72,61 @@ describe('sinceChange', () => {
     expect(at(2.22).drift?.fuelL).toEqual({newest: 2.22, history: 2});
     expect(at(1.82).drift).toBeNull();
     expect(at(1.78).drift?.fuelL).toEqual({newest: 1.78, history: 2});
+    expect(at(1.78).drift?.direction).toBe('less');
+  });
+
+  // Botkin tries fuel saving in practice (thread 36 #1006, camber #1137): one
+  // session at -12 % must not shorten the history and lengthen the stints.
+  describe('a lower newest session', () => {
+    const saving = (id: string, n = 6) => session(id, n, 2.1, 3.0);
+    const usual = [session('a', 30, 2.4, 3.4), session('b', 40, 2.4, 3.4)];
+
+    it('keeps the whole history and only reports the row', () => {
+      const out = sinceChange([saving('s1'), ...usual]);
+      expect(out.sessionIds).toEqual(['s1', 'a', 'b']);
+      expect(out.laps).toHaveLength(76);
+      expect(out.drift).toMatchObject({
+        direction: 'less',
+        applied: false,
+        fuelL: {newest: 2.1, history: 2.4},
+        keptSessions: 3,
+        droppedSessions: 0,
+      });
+    });
+
+    it('switches once two sessions in a row agree on the lower figure', () => {
+      const out = sinceChange([saving('s2', 5), saving('s1'), ...usual]);
+      expect(out.sessionIds).toEqual(['s2', 's1']);
+      expect(out.drift).toMatchObject({
+        direction: 'less',
+        applied: true,
+        keptSessions: 2,
+        droppedSessions: 2,
+      });
+    });
+
+    it('does not switch when the second session is back to normal', () => {
+      const out = sinceChange([saving('s2'), usual[0], usual[1]]);
+      expect(out.drift?.applied).toBe(false);
+      expect(out.sessionIds).toEqual(['s2', 'a', 'b']);
+    });
+
+    it('does not switch when the second lower session is a different level', () => {
+      const out = sinceChange([
+        saving('s2'),
+        session('s1', 6, 1.7, 2.4),
+        ...usual,
+      ]);
+      expect(out.drift?.applied).toBe(false);
+    });
+  });
+
+  it('a mix of one meter higher and one lower counts as higher', () => {
+    const out = sinceChange([
+      session('n', 6, 2.9, 3.0),
+      session('a', 30, 2.4, 3.4),
+    ]);
+    expect(out.drift).toMatchObject({direction: 'more', applied: true});
   });
 
   it('judges on the newest session that has enough laps', () => {

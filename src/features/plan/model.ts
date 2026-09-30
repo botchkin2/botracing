@@ -407,17 +407,16 @@ export function driftRowOf(d: HistoryDrift): Row {
         )} %`
       : null,
   ].filter(Boolean);
-  return {
-    label: 'Newest session',
-    value: `${meters.join(NL)}`,
-    note: `not in line with your ${
-      d.droppedSessions + d.keptSessions - 1
-    } other ${
-      d.droppedSessions + d.keptSessions - 1 === 1 ? 'session' : 'sessions'
-    }: the plan uses the ${d.keptLaps} laps of the ${d.keptSessions} ${
-      d.keptSessions === 1 ? 'session' : 'sessions'
-    } since the change`,
-  };
+  const others = d.droppedSessions + d.keptSessions - 1;
+  const of = `${others} other ${others === 1 ? 'session' : 'sessions'}`;
+  const note = d.applied
+    ? `not in line with your ${of}: the plan uses the ${
+        d.keptLaps
+      } laps of the ${d.keptSessions} ${
+        d.keptSessions === 1 ? 'session' : 'sessions'
+      } since the change`
+    : `lower than your ${of}, and not used for the plan: it switches once a second session in a row agrees`;
+  return {label: 'Newest session', value: meters.join(NL), note};
 }
 
 function lapTime(s: number): string {

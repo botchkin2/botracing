@@ -561,6 +561,8 @@ describe('driftRowOf', () => {
     const row = driftRowOf({
       fuelL: {newest: 2.88, history: 2.31},
       vePct: {newest: 4.3, history: 3.33},
+      direction: 'more',
+      applied: true,
       keptSessions: 3,
       keptLaps: 15,
       droppedSessions: 21,
@@ -578,6 +580,8 @@ describe('driftRowOf', () => {
     const row = driftRowOf({
       fuelL: null,
       vePct: {newest: 4.3, history: 3.33},
+      direction: 'more',
+      applied: true,
       keptSessions: 1,
       keptLaps: 6,
       droppedSessions: 1,
@@ -585,5 +589,21 @@ describe('driftRowOf', () => {
     expect(row.value).toBe('4.30 %/lap against 3.33 %');
     expect(row.note).toContain('1 other session:');
     expect(row.note).toContain('the 6 laps of the 1 session since');
+  });
+
+  it('says a lower session is not used, and what switches it', () => {
+    const row = driftRowOf({
+      fuelL: {newest: 2.1, history: 2.4},
+      vePct: null,
+      direction: 'less',
+      applied: false,
+      keptSessions: 5,
+      keptLaps: 80,
+      droppedSessions: 0,
+    });
+    expect(row.value).toBe('2.10 L a lap against 2.40 L');
+    expect(row.note).toBe(
+      'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
+    );
   });
 });

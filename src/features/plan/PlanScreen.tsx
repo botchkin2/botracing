@@ -336,7 +336,7 @@ export function PlanScreen() {
                 }
                 body={
                   history.length === 0 && !detailsPending
-                    ? 'The plan uses only sessions at the fill limit of these rules, because a balance-of-performance change moves fuel use. Change the max fuel, or drive here at this limit.'
+                    ? 'The plan uses only sessions at the fill limit of these rules, because a balance-of-performance change moves fuel use. A session that started part-full is not counted either. Change the max fuel, or drive here at this limit.'
                     : 'Fuel use is added to sessions when they are analysed. It arrives with the next resync of your history.'
                 }
               />
