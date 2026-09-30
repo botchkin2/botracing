@@ -60,6 +60,19 @@ export function useSessionsLaps(ids: string[]) {
   });
 }
 
+/** The detail docs of several sessions at once, with the keys of `useSession`. */
+export function useSessionsDetail(ids: string[]) {
+  return useQueries({
+    queries: ids.map(id => ({
+      queryKey: sessionKeys.detail(id),
+      queryFn: ({signal}: {signal: AbortSignal}) => fetchSession(id, signal),
+      staleTime: DETAIL_STALE_MS,
+      retry: retryUnlessClientError,
+    })),
+    combine: results => ({details: results.map(r => r.data)}),
+  });
+}
+
 export function useSessionBand(id: string) {
   return useQuery({
     queryKey: sessionKeys.band(id),

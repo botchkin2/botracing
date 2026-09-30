@@ -117,14 +117,30 @@ export type VeRatio = {
 /**
  * The ratio to plan with: the preset's if it sets one, else the newest history
  * session that has one. `sessions` is newest first, as `historySessions` gives.
+ *
+ * The ratio follows the fill limit (0.68 L per % at 75 L, 0.81 at 84), so when
+ * a preset sets its own max fuel the session must have run that load (within
+ * 0.5 L), or VE per lap would come out ~16 % off for a 75 L event judged on an
+ * 84 L one (camber, thread 35 #1046). With no preset max fuel the rules start
+ * from the last session's own limit, so its ratio is the right one.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
-  sessions: {startedAt: string; ratio: number | null}[],
+  sessions: {
+    startedAt: string;
+    ratio: number | null;
+    fillLimitL: number | null;
+  }[],
 ): VeRatio | null {
   if (preset?.veRatio != null)
     return {perPctL: preset.veRatio, source: {kind: 'preset'}};
-  const last = sessions.find(s => s.ratio != null);
+  const wanted = preset?.fuelL ?? null;
+  const last = sessions.find(
+    s =>
+      s.ratio != null &&
+      (wanted == null ||
+        (s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5)),
+  );
   return last
     ? {
         perPctL: last.ratio as number,
@@ -284,8 +300,17 @@ function evenText(o: Option): string | null {
   return `${e.laps} laps each${load ? `  ·  ${load}` : ''}`;
 }
 
-function ratioNote(ratio: VeRatio | null): string {
-  if (!ratio) return 'no VE ratio yet: no green lap with both fuel and VE';
+function ratioNote(
+  ratio: VeRatio | null,
+  fuelL: number,
+  loadsL: number[],
+): string {
+  if (!ratio)
+    return loadsL.length > 0
+      ? `no VE: none of your sessions ran ${fuelL} L (they ran ${loadsL.join(
+          ', ',
+        )} L) and the ratio follows the load; type it into the preset`
+      : 'no VE ratio yet: no green lap with both fuel and VE';
   const src =
     ratio.source.kind === 'preset'
       ? 'from the preset'
@@ -353,6 +378,8 @@ export function planView(
     /** The VE ratio in use, and the last session's for comparison. */
     ratio: VeRatio | null;
     lastRatio: number | null;
+    /** The fill limits of the history sessions that have a ratio, for the note. */
+    ratioLoadsL: number[];
   },
 ): PlanView {
   const r = rules.rules;
@@ -403,7 +430,7 @@ export function planView(
       {
         label: 'Virtual Energy',
         value: ve ? usageText(ve, pct2) : 'no data',
-        note: ratioNote(history.ratio),
+        note: ratioNote(history.ratio, r.fuelL, history.ratioLoadsL),
       },
       {
         label: 'Lap time',
