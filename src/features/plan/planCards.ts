@@ -44,8 +44,13 @@ export type StopRow = {
   stintLaps: number[];
   /** VE used in each stint, % of the full load; empty for a fuel-only plan. */
   vePerStint: number[];
-  /** Litres each stop refuels: what the stint before it used. One per stop. */
-  refuelL: number[];
+  /**
+   * Litres each stop adds, one per stop. A middle stop refills to full, which
+   * is what the stint before it used. The last stop adds only enough to
+   * finish at the median use, `toFinish`, or it would print the over-fill
+   * the backtest found (Road Atlanta 09-24: 41.9 L added for 3 laps).
+   */
+  refuel: {litres: number; toFinish: boolean}[];
 };
 
 export type StopsCard = {
@@ -141,11 +146,17 @@ function stopRow(
         : stintLaps.map((_, i) =>
             Math.min(rules.vePct, (stintLaps[i] + extra(i)) * vePerLap),
           ),
-    // A stop refuels what the stint before it used; the last stint has no stop after it.
-    refuelL: stintLaps
-      .slice(0, -1)
-      .map((_, i) => fuelOf(i))
-      .filter((v): v is number => v != null),
+    // A stop refills what the stint before it used; the last one is capped at
+    // what the remaining laps need.
+    refuel: stintLaps.slice(0, -1).flatMap((_, i, stops): StopRow['refuel'] => {
+      const toFull = fuelOf(i);
+      if (toFull == null || fuelPerLap == null) return [];
+      const last = i === stops.length - 1;
+      const need = stintLaps[i + 1] * fuelPerLap;
+      return last && need < toFull
+        ? [{litres: need, toFinish: true}]
+        : [{litres: toFull, toFinish: false}];
+    }),
   };
 }
 

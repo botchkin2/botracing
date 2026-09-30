@@ -62,9 +62,14 @@ describe('buildPlanCards', () => {
     expect(full.stintLaps).toEqual([27, 28, 17]);
     // The first stint also burns the formation lap: (27 + 1) x 3.5 = 98.
     expect(full.vePerStint.map(Math.round)).toEqual([98, 98, 60]);
-    // Two stops: what stint 1 (27 + formation) and stint 2 (28) used.
-    expect(full.refuelL.map(v => Math.round(v * 10) / 10)).toEqual([
-      66.6, 66.6,
+    // Two stops. Stop 1 refills what stint 1 (27 + formation) used. Stop 2
+    // would refill 28 laps' worth, but the last stint is 17 laps, so it adds
+    // only what those 17 need (17 x 2.38 = 40.5 L): enough to finish.
+    expect(
+      full.refuel.map(r => [Math.round(r.litres * 10) / 10, r.toFinish]),
+    ).toEqual([
+      [66.6, false],
+      [40.5, true],
     ]);
   });
 
