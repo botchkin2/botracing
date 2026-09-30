@@ -18,6 +18,12 @@ import {
 } from '@/src/design';
 
 import {buildStrips, type StripModel} from './strips';
+import {
+  type CornerStretch,
+  cornerView,
+  dimmedRanges,
+  type NeighbourApex,
+} from './stretch';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
@@ -96,6 +102,12 @@ export type CornerModel = {
     lines: ZoomLine[];
     band: {speed: [number[], number[]]} | null;
     stepM: number;
+    /** This turn's own stretch, the ranges outside it to dim, the neighbouring
+     *  apexes in the window, and the caption that says so (stretch.ts). */
+    stretch: CornerStretch;
+    dimmed: [number, number][];
+    neighbours: NeighbourApex[];
+    caption: string;
   };
   /** Desktop braking map; null until the reference lap's trace loads. */
   brakeMap: BrakeMapModel | null;
@@ -298,6 +310,18 @@ export function buildCornerModel(input: {
   });
 
   const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
+  const zoomWindow: [number, number] = [
+    sec.apexM - ZOOM_BEFORE_M,
+    sec.apexM + ZOOM_AFTER_M,
+  ];
+  const view = cornerView(all, idx, zoomWindow, map.lengthM);
+  if (!view) return null;
+  const mapView = cornerView(
+    all,
+    idx,
+    [sec.apexM - MAP_BEFORE_M, sec.apexM + MAP_AFTER_M],
+    map.lengthM,
+  );
 
   return {
     corner,
@@ -318,7 +342,7 @@ export function buildCornerModel(input: {
     strips,
     highlightLine,
     zoom: {
-      windowM: [sec.apexM - ZOOM_BEFORE_M, sec.apexM + ZOOM_AFTER_M],
+      windowM: zoomWindow,
       apexM: sec.apexM,
       lines,
       band:
@@ -326,11 +350,16 @@ export function buildCornerModel(input: {
           ? {speed: [band.speedKph.p10, band.speedKph.p90]}
           : null,
       stepM: band?.stepM ?? traces.values().next().value?.stepM ?? 5,
+      stretch: view.stretch,
+      dimmed: dimmedRanges(zoomWindow, view.stretch),
+      neighbours: view.neighbours,
+      caption: view.caption,
     },
     brakeMap: buildBrakeMap(
       rows,
       ref ? traces.get(ref.id) : undefined,
       sec.apexM,
+      mapView,
     ),
     prev: chips[(idx - 1 + chips.length) % chips.length]?.n ?? null,
     next: chips[(idx + 1) % chips.length]?.n ?? null,
@@ -372,6 +401,11 @@ export type BrakeMapPoint = {
 export type BrakeMapModel = {
   /** The reference lap's line through the corner, metres east/north. */
   centreline: {x: number; y: number}[];
+  /** The part of the line that is this turn's own stretch: first and last
+   *  point index into `centreline`. Null when no stretch falls in the map. */
+  stretch: [number, number] | null;
+  /** Neighbouring apexes on the map, named. */
+  neighbours: {label: string; at: {x: number; y: number}}[];
   apex: {x: number; y: number};
   ticks: {label: string; at: {x: number; y: number}}[];
   brakes: BrakeMapPoint[];
@@ -387,6 +421,7 @@ export function buildBrakeMap(
   rows: CornerRow[],
   refTrace: GridTrace | undefined,
   apexM: number,
+  view: {stretch: CornerStretch; neighbours: NeighbourApex[]} | null = null,
 ): BrakeMapModel | null {
   if (!refTrace || refTrace.lat.length === 0) return null;
   const from = gridIndex(refTrace, apexM - MAP_BEFORE_M);
@@ -419,8 +454,20 @@ export function buildBrakeMap(
         },
       ];
     });
+  // The stretch as indices into the centreline (one point per grid step).
+  let stretch: [number, number] | null = null;
+  if (view) {
+    const a = Math.max(from, gridIndex(refTrace, view.stretch.fromM));
+    const b = Math.min(to, gridIndex(refTrace, view.stretch.toM));
+    if (b > a) stretch = [a - from, b - from];
+  }
   return {
     centreline,
+    stretch,
+    neighbours: (view?.neighbours ?? []).map(n => ({
+      label: `${n.label} apex`,
+      at: at(n.apexM),
+    })),
     apex: at(apexM),
     ticks: MAP_TICKS_M.map(d => ({
       label: `${d > 0 ? '+' : '−'}${Math.abs(d)} m`,

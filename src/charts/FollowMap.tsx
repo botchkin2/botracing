@@ -70,6 +70,7 @@ export function FollowMap({
   headingRad,
   visibleM,
   band,
+  bandFaded,
   lines,
   ticks,
   dots,
@@ -83,6 +84,8 @@ export function FollowMap({
   visibleM: number;
   /** Road centrelines (OSM outline, or the reference's driven line). */
   band: FollowXy[][];
+  /** Outline stretches the lap does not use; drawn under the band, quietly. */
+  bandFaded?: FollowXy[][];
   /** Drawn in order; put key laps last so they sit on top. Keep stable. */
   lines: FollowLine[];
   /** Keep stable, like lines. */
@@ -107,11 +110,13 @@ export function FollowMap({
         <G transform={`matrix(${followMatrix(view).join(' ')})`}>
           <World
             band={band}
+            bandFaded={bandFaded}
             lines={lines}
             ticks={ticks}
             edgeM={EDGE_W / sc}
             edge={color.followEdge}
             fill={color.trackFill}
+            faded={color.outlineFaded}
           />
         </G>
         {corners.map(c => {
@@ -172,27 +177,46 @@ export function FollowMap({
 // so it scales with the view; lines and ticks keep their point widths.
 const World = memo(function World({
   band,
+  bandFaded,
   lines,
   ticks,
   edgeM,
   edge,
   fill,
+  faded,
 }: {
   band: FollowXy[][];
+  bandFaded?: FollowXy[][];
   lines: FollowLine[];
   ticks: FollowTicks[];
   /** Edge width in metres at the current zoom. */
   edgeM: number;
   edge: string;
   fill: string;
+  faded: string;
 }) {
   const bandPaths = useMemo(() => band.map(b => pathOf(b)), [band]);
+  const fadedPaths = useMemo(
+    () => (bandFaded ?? []).map(b => pathOf(b)),
+    [bandFaded],
+  );
   const linePaths = useMemo(
     () => lines.map(l => ({...l, d: pathOf(l.points)})),
     [lines],
   );
   return (
     <>
+      {fadedPaths.map((d, i) => (
+        <Path
+          key={`x${i}`}
+          d={d}
+          stroke={faded}
+          strokeWidth={ROAD_M}
+          strokeLinejoin='round'
+          strokeLinecap='round'
+          fill='none'
+        />
+      ))}
       {/* Edge colour under a slightly narrower fill: a road with edges. */}
       {bandPaths.map((d, i) => (
         <Path

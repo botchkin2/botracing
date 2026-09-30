@@ -21,11 +21,15 @@ export type BrakeMapMarker = {
 
 const PAD = 22;
 const BAND_W = 16;
+// The track band outside this turn's stretch.
+const DIM_OPACITY = 0.45;
 
 export function BrakeMap({
   width,
   height,
   centreline,
+  stretch,
+  neighbours,
   apex,
   ticks,
   markers,
@@ -33,6 +37,11 @@ export function BrakeMap({
   width: number;
   height: number;
   centreline: Xy[];
+  /** First and last centreline index of this turn's own stretch, if any. The
+   *  rest of the line is dimmed. */
+  stretch?: [number, number] | null;
+  /** Neighbouring apexes, named ("T9 apex"). */
+  neighbours?: {label: string; at: Xy}[];
   apex: Xy;
   ticks: {label: string; at: Xy}[];
   /** Drawn in order; put key laps last so they sit on top. */
@@ -74,12 +83,17 @@ export function BrakeMap({
     };
   }, [centreline, width, height]);
 
-  const d = centreline
-    .map((p, i) => {
-      const q = fit(p);
-      return `${i ? 'L' : 'M'}${q.x.toFixed(1)},${q.y.toFixed(1)}`;
-    })
-    .join('');
+  const pathOf = (points: Xy[]) =>
+    points
+      .map((p, i) => {
+        const q = fit(p);
+        return `${i ? 'L' : 'M'}${q.x.toFixed(1)},${q.y.toFixed(1)}`;
+      })
+      .join('');
+  const d = pathOf(centreline);
+  const own = stretch
+    ? pathOf(centreline.slice(stretch[0], stretch[1] + 1))
+    : null;
   const a = fit(apex);
   const label = {
     fill: color.textFaint,
@@ -95,8 +109,19 @@ export function BrakeMap({
         strokeWidth={BAND_W}
         strokeLinecap='round'
         strokeLinejoin='round'
+        strokeOpacity={own ? DIM_OPACITY : 1}
         fill='none'
       />
+      {own && (
+        <Path
+          d={own}
+          stroke={color.accentTint}
+          strokeWidth={BAND_W}
+          strokeLinecap='butt'
+          strokeLinejoin='round'
+          fill='none'
+        />
+      )}
       <Path
         d={d}
         stroke={color.textFaint}
@@ -111,6 +136,17 @@ export function BrakeMap({
             <Circle cx={p.x} cy={p.y} r={1.5} fill={color.textFaint} />
             <SvgText {...label} x={p.x + BAND_W / 2 + 2} y={p.y - 2}>
               {t.label}
+            </SvgText>
+          </G>
+        );
+      })}
+      {(neighbours ?? []).map(n => {
+        const p = fit(n.at);
+        return (
+          <G key={n.label}>
+            <Circle cx={p.x} cy={p.y} r={1.5} fill={color.textFaint} />
+            <SvgText {...label} x={p.x + BAND_W / 2 + 2} y={p.y - 2}>
+              {n.label}
             </SvgText>
           </G>
         );

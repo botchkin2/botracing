@@ -29,3 +29,23 @@ describe('parseTraceCsv', () => {
     expect(t.speedKph[1]).toBeCloseTo(224.3, 1);
   });
 });
+
+describe('lateral position (analysis version 9)', () => {
+  const V9 = `Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt,PathLateral,TrackEdge
+62.2833,0.000000,60.000083,0.000115,0.0000,1.0000,8336.0,0.0270,5,0,3.41,5.75
+62.3056,0.000137,,,,,8334.0,-0.1000,5,0,,`;
+
+  it('reads lateral and edge in metres, signed, empty as no sample', () => {
+    const t = parseTraceCsv(V9);
+    expect(t.pathLateralM).toEqual([3.41, NaN]);
+    expect(t.trackEdgeM?.[0]).toBe(5.75);
+    expect(t.trackEdgeM?.[1]).toBeNaN();
+  });
+
+  it('a trace from before version 9 has no lateral arrays, and still parses', () => {
+    const t = parseTraceCsv(CSV);
+    expect(t.pathLateralM).toBeUndefined();
+    expect(t.trackEdgeM).toBeUndefined();
+    expect(t.brakePct[1]).toBe(25);
+  });
+});

@@ -2,7 +2,7 @@
 
 Working notes for adding Le Mans Ultimate laps to this app. Written 2026-09-25 from this PC. Nothing here is committed as a decision until we start the work.
 
-> **Status, 2026-09-30:** these are the original planning notes. The Garage 61 client, the old `tools/lmu-sync` extractor and the `sample_data/` files described below were deleted; laps now reach the app through the sessions uploader (`tools/sessions`, `tools/uploader`) and the LMU API in `functions/`. Read `docs/API.md` and `tools/uploader/README.md` for how it works today. What follows is kept for the LMU file findings.
+> **Status, 2026-09-30:** these are the original planning notes. The Garage 61 client and its proxy (`garage61Proxy`, the OAuth handlers and the `/api/garage61/**` rewrite), the old `tools/lmu-sync` extractor and the `sample_data/` files described below were deleted; laps now reach the app through the sessions uploader (`tools/sessions`, `tools/uploader`) and the LMU API in `functions/`. Read `docs/API.md` and `tools/uploader/README.md` for how it works today. What follows is kept for the LMU file findings.
 
 ## This machine
 

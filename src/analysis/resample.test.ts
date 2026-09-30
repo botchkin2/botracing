@@ -60,6 +60,27 @@ describe('resampleTrace', () => {
     expect(g.samples.speedKph.values.length).toBe(raw.speedKph.length);
   });
 
+  it('keeps lateral position and the edge as recorded samples, signed', () => {
+    const raw = constantLap(180);
+    // Lateral logged on every tenth row (10 Hz beside a 100 Hz trace).
+    raw.pathLateralM = raw.lapDistPct.map((_, i) =>
+      i % 10 ? NaN : i / 10 - 3,
+    );
+    raw.trackEdgeM = raw.lapDistPct.map((_, i) => (i % 10 ? NaN : -6.25));
+    const g = resampleTrace(raw, 1000, 5, 100);
+    const lateral = g.samples.pathLateralM;
+    expect(lateral.values.length).toBe(Math.ceil(raw.lapDistPct.length / 10));
+    expect(lateral.values[0]).toBe(-3);
+    expect(lateral.values[2]).toBe(-1);
+    expect(new Set(g.samples.trackEdgeM.values)).toEqual(new Set([-6.25]));
+  });
+
+  it('a trace without lateral has no lateral samples', () => {
+    const g = resampleTrace(constantLap(180), 1000, 5);
+    expect(g.samples.pathLateralM).toEqual({distanceM: [], values: []});
+    expect(g.samples.trackEdgeM).toEqual({distanceM: [], values: []});
+  });
+
   it('steps discrete channels instead of blending them', () => {
     const g = resampleTrace(constantLap(180), 1000, 5);
     expect(new Set(g.gear)).toEqual(new Set([3, 4]));

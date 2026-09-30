@@ -28,6 +28,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
+import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
@@ -51,7 +52,6 @@ const FIELD_LOADING_TEXT =
 const FIELD_ERROR_TEXT =
   'Field data didn’t load. Your laps and traces still work.';
 const SKELETON_ROWS = 8;
-const DESKTOP_NOTICE_W = 1060;
 
 // Compare's cursor settles this long after the clock stops, like Compare's own.
 const SETTLE_MS = 400;
@@ -129,9 +129,7 @@ function RaceShell({
 // when the field arrives.
 function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
   const layout = useLayout();
-  const width = layout.isDesktop
-    ? Math.min(layout.contentWidth, DESKTOP_NOTICE_W)
-    : layout.contentWidth;
+  const width = layout.contentWidth;
   if (data.kind === 'error') {
     return (
       <View style={styles.center}>
@@ -158,15 +156,30 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
+  const rows = Array.from({length: SKELETON_ROWS}, (_, i) => (
+    <Skeleton key={i} height={size.lapRow} />
+  ));
   return (
     <View style={[styles.notice, {width}]}>
       {data.kind === 'field-loading' ? (
         <StatusBanner dot='waiting' text={FIELD_LOADING_TEXT} />
       ) : null}
-      <Skeleton height={layout.isDesktop ? DESKTOP_MAP_H : PHONE_MAP_H} />
-      {Array.from({length: SKELETON_ROWS}, (_, i) => (
-        <Skeleton key={i} height={size.lapRow} />
-      ))}
+      {layout.isDesktop ? (
+        // Two columns like the desktop Race screen: the map, then the board.
+        <View style={styles.noticeColumns}>
+          <View style={styles.fill}>
+            <Skeleton height={DESKTOP_MAP_H} />
+          </View>
+          <View style={[styles.noticeBoard, {width: DESKTOP_SIDE_W}]}>
+            {rows}
+          </View>
+        </View>
+      ) : (
+        <>
+          <Skeleton height={PHONE_MAP_H} />
+          {rows}
+        </>
+      )}
     </View>
   );
 }
@@ -182,7 +195,7 @@ function RaceView({
 }) {
   const {color} = useTheme();
   const layout = useLayout();
-  const {prep, placer, line} = data;
+  const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
   const endS = times.length > 0 ? times[times.length - 1] : 0;
   // Opens on Compare's cursor when the URL has one.
@@ -225,11 +238,14 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
-  const cars = useMemo(() => carsAt(prep, shownS, snap), [prep, shownS, snap]);
+  const cars = useMemo(
+    () => markPitLane(carsAt(prep, shownS, snap), placer),
+    [prep, shownS, snap, placer],
+  );
   // Rows change with the sample, not with every frame.
   const sampleCars = useMemo(
-    () => carsAt(prep, times[Math.max(0, u)] ?? 0, true),
-    [prep, times, u],
+    () => markPitLane(carsAt(prep, times[Math.max(0, u)] ?? 0, true), placer),
+    [prep, times, u, placer],
   );
   const filter = wanted ?? defaultFilter(sampleCars);
   const rows = useMemo(
@@ -280,6 +296,7 @@ function RaceView({
         desktop={desktop}
         placer={placer}
         line={line}
+        outlineUse={outlineUse}
         dots={dots}
         showCars={data.matches}
         attribution={data.attribution}
@@ -397,6 +414,8 @@ const styles = StyleSheet.create({
     padding: size.gutter,
   },
   notice: {alignSelf: 'center', gap: space.sm, paddingTop: space.lg},
+  noticeColumns: {flexDirection: 'row', gap: space.xl},
+  noticeBoard: {gap: space.sm},
   phoneTop: {paddingHorizontal: size.gutter, gap: space.md},
   desktop: {
     flex: 1,

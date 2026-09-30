@@ -59,6 +59,8 @@ export type TraceBand = {low: number[]; high: number[]};
 const Y_PAD = 3;
 // Neighbour laps across the line are context, not the selected lap.
 const WRAP_OPACITY = 0.4;
+// How much the background covers what is outside a shaded stretch.
+const DIM_OPACITY = 0.6;
 const AXIS_H = 12;
 // Labels closer than this to the right edge are dropped (handoff).
 const LABEL_EDGE_PT = 34;
@@ -82,6 +84,8 @@ export function TraceChart({
   cursorM,
   marks = [],
   gridOriginM,
+  stretchM,
+  dimM,
   onScrub,
   onPan,
   onPanStart,
@@ -111,6 +115,10 @@ export function TraceChart({
    * labelled "−200 m", "+100 m"; the origin itself carries no tick label.
    */
   gridOriginM?: number;
+  /** A stretch of the window to tint (Corner: this turn's own stretch). */
+  stretchM?: [number, number];
+  /** Ranges of the window to dim over the traces (outside that stretch). */
+  dimM?: [number, number][];
   onScrub?: (distanceM: number) => void;
   /** Drag in points since the last call; when set, dragging pans. */
   onPan?: (dxPt: number) => void;
@@ -139,6 +147,7 @@ export function TraceChart({
   const xOfM = tRef
     ? (m: number) => ((timeAtDistance(tRef, m) - t0) / spanS) * width
     : (m: number) => ((m - startM) / spanM) * width;
+  const xClamp = (m: number) => Math.min(width, Math.max(0, xOfM(m)));
   const mOfX = (px: number) =>
     tRef
       ? distanceAtTime(tRef, t0 + (px / width) * spanS)
@@ -308,6 +317,15 @@ export function TraceChart({
       // Web: a mouse drag pans; without this it also selects the axis text.
       style={[styles.noSelect, {width, height: height + AXIS_H}]}>
       <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
+        {stretchM && (
+          <Rect
+            x={xClamp(stretchM[0])}
+            y={0}
+            width={Math.max(0, xClamp(stretchM[1]) - xClamp(stretchM[0]))}
+            height={height}
+            fill={color.accentTint}
+          />
+        )}
         {gridMs.map(m => {
           const gx = xOfM(m);
           return (
@@ -420,6 +438,17 @@ export function TraceChart({
               />
             ))}
           </G>
+        ))}
+        {dimM?.map(([a, b]) => (
+          <Rect
+            key={`dim${a}`}
+            x={xClamp(a)}
+            y={0}
+            width={Math.max(0, xClamp(b) - xClamp(a))}
+            height={height}
+            fill={color.bg}
+            fillOpacity={DIM_OPACITY}
+          />
         ))}
         {hx != null && hx >= 0 && hx <= width && (
           <Line

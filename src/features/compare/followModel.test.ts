@@ -27,6 +27,8 @@ function straight(offsetY = 0): GridTrace {
       brakePct: {distanceM, values: distanceM.map(() => 0)},
       steeringPct: {distanceM, values: distanceM.map(() => 0)},
       gear: {distanceM, values: distanceM.map(() => 6)},
+      pathLateralM: {distanceM: [], values: []},
+      trackEdgeM: {distanceM: [], values: []},
     },
   };
 }
@@ -40,6 +42,7 @@ const placer: MapPlacer = {
     return out;
   },
   placeWorld: points => points.map(p => ({x: p.x, y: p.z})),
+  outlineUse: () => ({used: [], unused: []}),
   outline: [],
   pitLane: [],
 };

@@ -264,7 +264,9 @@ export type CornerGridModel = {
 export type MapModel = {
   /** Drawn on the OSM outline (fit good), or on the driven line. */
   realMap: boolean;
+  /** Outline stretches the reference lap runs along, and the rest (drawn quietly). */
   outline: {x: number; y: number}[][];
+  outlineFaded: {x: number; y: number}[][];
   pitLane: {x: number; y: number}[][];
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
@@ -940,9 +942,11 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       return placer.place(t, i, i, 1)[0];
     };
     const followGeometry = input.followGeometry ?? null;
+    const split = placer.outlineUse(refTrace);
     mapModel = {
       realMap: placer.real,
-      outline: placer.outline,
+      outline: split.used,
+      outlineFaded: split.unused,
       pitLane: placer.pitLane,
       marks: buildTrackMarks(map?.sections ?? [], lengthM, m =>
         pointAt(refTrace, m),

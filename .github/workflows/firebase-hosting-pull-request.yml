@@ -44,8 +44,6 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: npm run build
-        env:
-          GARAGE61_API_TOKEN: ${{ secrets.GARAGE61_API_TOKEN }}
       - name: Deploy to Firebase Hosting preview
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

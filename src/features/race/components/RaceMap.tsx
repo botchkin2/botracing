@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Box} from '@/src/analysis/carLabels';
+import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type Radar as RadarData} from '@/src/analysis/radar';
 import {type MapCar, Radar, TrackMap} from '@/src/charts';
 import {type MapPlacer} from '@/src/data/sessions';
@@ -41,6 +42,7 @@ export function RaceMap({
   height,
   desktop,
   placer,
+  outlineUse,
   line,
   dots,
   showCars,
@@ -54,6 +56,8 @@ export function RaceMap({
   height: number;
   desktop: boolean;
   placer: MapPlacer;
+  /** The outline split by the reference lap: used ways, and the rest (quiet). */
+  outlineUse: OutlineUse;
   line: {x: number; y: number}[];
   dots: RaceDot[];
   /** False when the cars do not match the drawn track (see worldMatch). */
@@ -139,7 +143,8 @@ export function RaceMap({
       <TrackMap
         width={width - 2}
         height={height - 2}
-        outline={placer.outline}
+        outline={outlineUse.used}
+        outlineFaded={outlineUse.unused}
         pitLane={placer.pitLane}
         lines={lines}
         dots={[]}

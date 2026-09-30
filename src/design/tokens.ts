@@ -30,6 +30,9 @@ const dark = {
   // Handoff v2 W1: the road inside OSM edges, and the edges (Track mode).
   trackFill: '#1a1d22',
   trackEdge: '#343a42',
+  // Outline stretches the driven line does not use (Daytona's oval, infield
+  // loops): quieter than the road fill, still visible on the map surface.
+  outlineFaded: '#171a1e',
   // Handoff v2 M1b: Follow mode's thin road edges.
   followEdge: '#4d555d',
   // Handoff v2 M1a: section boundary ticks, S labels, corner and PIT labels.
@@ -85,6 +88,7 @@ const light: ColorTokens = {
   track: '#d5d9dd',
   trackFill: '#eef0f2',
   trackEdge: '#b9bec3',
+  outlineFaded: '#e3e5e8',
   // Not in the handoff for light; the Track edge is the nearest (feedback log).
   followEdge: '#b9bec3',
   sectionTick: '#737a82',
