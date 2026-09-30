@@ -130,7 +130,7 @@ function RaceShell({
           {title}
         </Text>
       </View>
-      {!layout.isWide && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       {data.kind === 'ready' ? (
         <RaceView
           data={data}

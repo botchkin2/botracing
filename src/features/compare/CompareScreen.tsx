@@ -322,7 +322,7 @@ function CompareView({
     </View>
   );
 
-  const header = layout.isWide ? (
+  const header = layout.isDesktop ? (
     headerRow
   ) : (
     <View>

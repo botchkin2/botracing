@@ -269,7 +269,7 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isWide && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'

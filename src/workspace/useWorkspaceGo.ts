@@ -17,6 +17,23 @@ import {
 import {type TabName, tabTarget} from '@/src/nav/tabTarget';
 
 /**
+ * The corner the Corner tab opens: the open corner, else the open section's
+ * first corner, else T1. `used` is false in the last case, so the desktop tab
+ * can read plain "Corner" until a corner has been used.
+ */
+export function useCornerTarget(
+  sessionId: string | null,
+  tab: SessionTab | null,
+): {n: number; used: boolean} {
+  const {c, n} = useGlobalSearchParams<{c?: string; n?: string}>();
+  const map = useSessionMap(sessionId ?? '');
+  if (tab === 'corner' && n) return {n: Number(n), used: true};
+  const fromSection =
+    map.data && c ? firstCornerOf(trackCorners(map.data), Number(c)) : null;
+  return {n: fromSection ?? 1, used: fromSection != null};
+}
+
+/**
  * One `go` for the desktop bar and the phone bars, so switching keeps the lap
  * selection and lands on the same places.
  */
@@ -28,20 +45,8 @@ export function useWorkspaceGo(
   const router = useRouter();
   // Only the lap selection travels between tabs; corner and cursor belong
   // to the workspace that set them.
-  const {laps, hl, c, n} = useGlobalSearchParams<{
-    laps?: string;
-    hl?: string;
-    c?: string;
-    n?: string;
-  }>();
-  const map = useSessionMap(sessionId ?? '');
-  // Corner tab: the open corner, else the open section's first corner, else C1.
-  const cornerN =
-    tab === 'corner' && n
-      ? Number(n)
-      : (map.data && c
-          ? firstCornerOf(trackCorners(map.data), Number(c))
-          : null) ?? 1;
+  const {laps, hl} = useGlobalSearchParams<{laps?: string; hl?: string}>();
+  const cornerN = useCornerTarget(sessionId, tab).n;
   const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
   const sel = {laps: lapIds, hl: hlId};
   return (name: TabName) => {

@@ -240,7 +240,7 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isWide && <SessionNav sessionId={sessionId} />}
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       <View style={styles.wrap}>
         {model.corners.map(({n, label}) => (
           <Chip

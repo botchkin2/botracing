@@ -274,8 +274,11 @@ export const size = {
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,
-  // Desktop workspace (handoff "Desktop", D1): 48 pt chrome, 280 | centre | 340.
-  chromeBar: 48,
+  // Desktop workspace (handoff "Desktop", D1): 44 pt chrome, 280 | centre | 340.
+  chromeBar: 44,
+  // The open-session box and its × (round 6 frame 1).
+  chromeBox: 34,
+  chromeClose: 28,
   railWidth: 280,
   sidePanelWidth: 340,
   railBadge: 20,
