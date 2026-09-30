@@ -10,6 +10,7 @@
 // Everything else keeps a slug of the LMU name so nothing is thrown away.
 import {basename} from 'node:path';
 import {rows, run, sqlPath} from './duck.mjs';
+import {fuelSetup} from './fuelFacts.mjs';
 
 export {eventFor, readEventWindows} from './lmuEvents.mjs';
 
@@ -91,8 +92,10 @@ export function isRecording(path) {
 // Metadata, channels, and events of one recording, without reading samples.
 export function describe(path) {
   const meta = {};
+  let setupJson = null;
   for (const row of rows(path, 'SELECT key, value FROM metadata')) {
-    if (row.key !== 'CarSetup') meta[row.key] = row.value;
+    if (row.key === 'CarSetup') setupJson = row.value;
+    else meta[row.key] = row.value;
   }
   const tableColumns = {};
   for (const row of rows(
@@ -140,6 +143,8 @@ export function describe(path) {
     layout: meta.TrackLayout || meta.TrackName || '',
     car: meta.CarName || 'Unknown car',
     carClass: meta.CarClass || '',
+    // The fuel fill limit and tank from the car setup (fuelFacts.mjs).
+    fuelSetup: fuelSetup(setupJson),
     weather: meta.WeatherConditions || '',
     baseHz: base.hz,
     ticks: Number(span.n),
