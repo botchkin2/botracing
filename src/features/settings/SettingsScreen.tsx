@@ -1,15 +1,7 @@
-import {useRouter} from 'expo-router';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {hitBox, radius, space, useLayout, useTheme} from '@/src/design';
-import {sessionsHref} from '@/src/nav/routes';
+import {radius, space, useLayout, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type UploaderCard, useSettingsModel} from './model';
@@ -24,7 +16,6 @@ export function SettingsScreen() {
   const model = useSettingsModel();
   const {color} = useTheme();
   const layout = useLayout();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const width = Math.min(layout.contentWidth, MAX_WIDTH);
   const u = model.uploaders;
@@ -37,19 +28,6 @@ export function SettingsScreen() {
         {paddingTop: insets.top + space.lg, width},
       ]}>
       <View style={styles.header}>
-        {/* Only the >=1280 workspace has the chrome with a way out; every
-            narrower layout needs its own back link. */}
-        {!layout.isWide && (
-          <Pressable
-            accessibilityRole='link'
-            style={hitBox.link}
-            hitSlop={space.md}
-            onPress={() => router.navigate(sessionsHref())}>
-            <Text variant='bodyStrong' tone='accentInk'>
-              ‹ Sessions
-            </Text>
-          </Pressable>
-        )}
         <Text variant='display'>Settings</Text>
       </View>
 

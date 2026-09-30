@@ -19,12 +19,7 @@ import {
 import 'react-native-reanimated';
 
 import {trackInfo} from '@/src/data/tracks';
-import {
-  firstCornerOf,
-  trackCorners,
-  useSession,
-  useSessionMap,
-} from '@/src/data/sessions';
+import {useSession, useSessions} from '@/src/data/sessions';
 import {
   ThemeProvider as AppThemeProvider,
   carLabel,
@@ -35,31 +30,19 @@ import {
   useTheme,
 } from '@/src/design';
 import {
-  compareHref,
-  cornerHref,
-  raceHref,
-  parseSelection,
-  sessionHref,
-  sessionsHref,
-  settingsHref,
-  planHref,
-  tracksHref,
-} from '@/src/nav/routes';
-import {
   destinationOf,
   type Destination,
   type SessionTab,
   sessionTabOf,
 } from '@/src/nav/activeTab';
-import {tabTarget, type TabName} from '@/src/nav/tabTarget';
-import {
-  AppChrome,
-  BottomBar,
-  type ChromeTab,
-  SessionTabs,
-  Text,
-} from '@/src/ui';
+import {sessionsHref, settingsHref} from '@/src/nav/routes';
+import {AppChrome, BottomBar, type ChromeTab, Text} from '@/src/ui';
+import {planCombos} from '@/src/features/plan/model';
+import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 import {queryClient} from '@/src/utils/queryClient';
+
+// Same window the Plan screen reads, so the two agree on the combos.
+const PLAN_HISTORY_DAYS = 3650;
 
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
@@ -119,8 +102,16 @@ function Navigation() {
 function DesktopChrome() {
   const pathname = usePathname();
   const {id} = useGlobalSearchParams<{id?: string}>();
+  const planCombo = usePlanCombo(pathname, id);
   if (pathname === '/plan') {
-    return <ChromeBar sessionId={null} tab='plan' context='LMU' />;
+    return (
+      <ChromeBar
+        sessionId={null}
+        tab='plan'
+        context='LMU'
+        planCombo={planCombo}
+      />
+    );
   }
   if (pathname === '/tracks' || pathname.startsWith('/track/')) {
     const layout = id ? trackInfo(id)?.layout : null;
@@ -134,9 +125,18 @@ function DesktopChrome() {
   }
   const sessionId = sessionTabOf(pathname) ? id : undefined;
   return sessionId ? (
-    <SessionChrome sessionId={sessionId} tab={sessionTabOf(pathname)} />
+    <SessionChrome
+      sessionId={sessionId}
+      tab={sessionTabOf(pathname)}
+      planCombo={planCombo}
+    />
   ) : (
-    <ChromeBar sessionId={null} tab={null} context='LMU' />
+    <ChromeBar
+      sessionId={null}
+      tab={null}
+      context='LMU'
+      planCombo={planCombo}
+    />
   );
 }
 
@@ -144,9 +144,11 @@ function DesktopChrome() {
 function SessionChrome({
   sessionId,
   tab,
+  planCombo,
 }: {
   sessionId: string;
   tab: SessionTab | 'plan' | null;
+  planCombo?: string;
 }) {
   const {data} = useSession(sessionId);
   const context = data
@@ -158,54 +160,14 @@ function SessionChrome({
         .filter(Boolean)
         .join(' · ')
     : 'LMU';
-  return <ChromeBar sessionId={sessionId} tab={tab} context={context} />;
-}
-
-/**
- * One `go` for the desktop bar and the phone bars, so switching keeps the lap
- * selection and lands on the same places.
- */
-function useWorkspaceGo(sessionId: string | null, tab: SessionTab | null) {
-  const router = useRouter();
-  // Only the lap selection travels between tabs; corner and cursor belong
-  // to the workspace that set them.
-  const {laps, hl, c, n} = useGlobalSearchParams<{
-    laps?: string;
-    hl?: string;
-    c?: string;
-    n?: string;
-  }>();
-  const map = useSessionMap(sessionId ?? '');
-  // Corner tab: the open corner, else the open section's first corner, else C1.
-  const cornerN =
-    tab === 'corner' && n
-      ? Number(n)
-      : (map.data && c
-          ? firstCornerOf(trackCorners(map.data), Number(c))
-          : null) ?? 1;
-  const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
-  const sel = {laps: lapIds, hl: hlId};
-  return (name: TabName) => {
-    const target = tabTarget(name, sessionId);
-    switch (target.kind) {
-      case 'sessions':
-        return router.navigate(sessionsHref());
-      case 'tracks':
-        return router.navigate(tracksHref());
-      case 'plan':
-        return router.navigate(planHref());
-      case 'settings':
-        return router.navigate(settingsHref());
-      case 'session':
-        return router.navigate(sessionHref(target.sessionId, sel));
-      case 'compare':
-        return router.navigate(compareHref(target.sessionId, sel));
-      case 'race':
-        return router.navigate(raceHref(target.sessionId, sel));
-      case 'corner':
-        return router.navigate(cornerHref(target.sessionId, cornerN, sel));
-    }
-  };
+  return (
+    <ChromeBar
+      sessionId={sessionId}
+      tab={tab}
+      context={context}
+      planCombo={planCombo}
+    />
+  );
 }
 
 const DESTINATIONS = [
@@ -214,42 +176,40 @@ const DESTINATIONS = [
   {key: 'settings', label: 'Settings'},
 ] as const;
 
-const SESSION_TABS = [
-  {key: 'session', label: 'Laps'},
-  {key: 'compare', label: 'Compare'},
-  {key: 'corner', label: 'Corner'},
-  {key: 'race', label: 'Race'},
-] as const;
+/**
+ * The Plan link's combo: the open session's track and car, or the first car
+ * driven at the open Track page's layout. Elsewhere undefined, so Plan opens on
+ * its own default (the combo driven last).
+ */
+function usePlanCombo(pathname: string, id: string | undefined) {
+  const inSession = sessionTabOf(pathname) != null && id != null;
+  const onTrack = pathname.startsWith('/track/') && id != null;
+  const session = useSession(id ?? '', inSession);
+  const sessions = useSessions({ageDays: PLAN_HISTORY_DAYS}, onTrack);
+  if (inSession && session.data) {
+    return `${session.data.trackId}|${carLabel(session.data.car).model}`;
+  }
+  if (onTrack) {
+    return planCombos(sessions.data?.items ?? []).find(c => c.trackId === id)
+      ?.key;
+  }
+  return undefined;
+}
 
 /**
  * Phone navigation (below the desktop chrome width): the three destinations
- * that work without a session in a bottom bar, and inside a session a
- * Laps / Compare / Corner / Race row above the screen. Each bar takes its
- * safe-area inset, so the screens between them see none.
+ * that work without a session in a bottom bar. The Laps / Compare / Corner /
+ * Race row belongs under each session screen's title (`SessionNav`). The bar
+ * takes the bottom safe-area inset, so the screens above it see none.
  */
 function PhoneFrame({children}: {children: ReactNode}) {
   const pathname = usePathname();
   const {id} = useGlobalSearchParams<{id?: string}>();
   const insets = useSafeAreaInsets();
-  const tab = sessionTabOf(pathname);
-  const sessionId = tab ? id ?? null : null;
-  const go = useWorkspaceGo(sessionId, tab);
-  const {data} = useSession(sessionId ?? '');
-  // The Race view is only for race sessions; while the session loads the
-  // row shows the three that always apply.
-  const items =
-    data?.sessionType === 'R'
-      ? SESSION_TABS
-      : SESSION_TABS.filter(t => t.key !== 'race');
-  const inner = {...insets, top: tab ? 0 : insets.top, bottom: 0};
+  const go = useWorkspaceGo(null, null, usePlanCombo(pathname, id));
   return (
     <View style={styles.root}>
-      {tab && (
-        <View style={{paddingTop: insets.top}}>
-          <SessionTabs items={items} active={tab} onSelect={go} />
-        </View>
-      )}
-      <SafeAreaInsetsContext.Provider value={inner}>
+      <SafeAreaInsetsContext.Provider value={{...insets, bottom: 0}}>
         <View style={styles.root}>{children}</View>
       </SafeAreaInsetsContext.Provider>
       <BottomBar<Destination>
@@ -266,13 +226,15 @@ function ChromeBar({
   sessionId,
   tab,
   context,
+  planCombo,
 }: {
   sessionId: string | null;
   tab: SessionTab | 'plan' | null;
   context: string;
+  planCombo?: string;
 }) {
   const router = useRouter();
-  const go = useWorkspaceGo(sessionId, tab === 'plan' ? null : tab);
+  const go = useWorkspaceGo(sessionId, tab === 'plan' ? null : tab, planCombo);
   const tabs: ChromeTab[] = [
     {key: 'session', label: 'Session', onPress: () => go('session')},
     {key: 'compare', label: 'Compare', onPress: () => go('compare')},

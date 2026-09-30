@@ -15,8 +15,9 @@ import {type SessionFilter, sessionKeys} from './keys';
 // while; the list refreshes sooner to pick up new uploads.
 const DETAIL_STALE_MS = 5 * 60_000;
 
-export function useSessions(filter: SessionFilter = {}) {
+export function useSessions(filter: SessionFilter = {}, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: sessionKeys.list(filter),
     queryFn: ({signal}) => fetchSessions(filter, signal),
     staleTime: 60_000,
@@ -24,8 +25,10 @@ export function useSessions(filter: SessionFilter = {}) {
   });
 }
 
-export function useSession(id: string) {
+/** `enabled` false skips the fetch, for callers that only sometimes have an id. */
+export function useSession(id: string, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: sessionKeys.detail(id),
     queryFn: ({signal}) => fetchSession(id, signal),
     staleTime: DETAIL_STALE_MS,

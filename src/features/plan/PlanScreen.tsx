@@ -13,7 +13,7 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
-import {sessionHref, sessionsHref} from '@/src/nav/routes';
+import {sessionHref} from '@/src/nav/routes';
 import {
   freshId,
   type FuelPreset,
@@ -122,16 +122,6 @@ export function PlanScreen() {
         {paddingTop: insets.top, paddingBottom: insets.bottom + space.xxl},
       ]}>
       <View style={[styles.column, {width}]}>
-        {!layout.isWide ? (
-          <Pressable
-            accessibilityRole='link'
-            onPress={() => router.navigate(sessionsHref())}
-            style={hitBox.link}>
-            <Text variant='bodyStrong' tone='accentInk'>
-              ‹ Sessions
-            </Text>
-          </Pressable>
-        ) : null}
         <View style={styles.head}>
           <Text variant='display'>Plan</Text>
           <Explainer>

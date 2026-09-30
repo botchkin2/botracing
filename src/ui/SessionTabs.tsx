@@ -33,7 +33,7 @@ export function SessionTabs<T extends string>({
             accessibilityState={{selected: on}}
             onPress={() => onSelect(item.key)}
             style={[styles.option, on && {backgroundColor: color.accentTint}]}>
-            <Text variant='dataStrong' tone={on ? 'accentInk' : 'textMuted'}>
+            <Text variant='bodyStrong' tone={on ? 'accentInk' : 'textMuted'}>
               {item.label}
             </Text>
           </Pressable>

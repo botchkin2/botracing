@@ -27,6 +27,7 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
+import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
 import {Explainer, Text, useHowToRead} from '@/src/ui';
 
@@ -268,6 +269,7 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      {!layout.isWide && <SessionNav sessionId={sessionId} />}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'
