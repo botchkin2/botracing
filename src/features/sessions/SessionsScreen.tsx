@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {radius, size, space, useLayout, useTheme} from '@/src/design';
+import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref, settingsHref, tracksHref} from '@/src/nav/routes';
 import {Badge, Button, Text} from '@/src/ui';
 
@@ -40,7 +40,7 @@ export function SessionsScreen() {
             accessibilityRole='link'
             onPress={() => router.push(tracksHref())}
             hitSlop={space.md}
-            style={styles.tracksLink}>
+            style={[hitBox.link, styles.tracksLink]}>
             <Text variant='body' tone='accentInk'>
               Tracks ›
             </Text>
@@ -57,6 +57,7 @@ export function SessionsScreen() {
                 accessibilityRole='link'
                 accessibilityLabel='Settings'
                 hitSlop={space.md}
+                style={hitBox.icon}
                 onPress={() => router.push(settingsHref())}>
                 <Text variant='title' tone='textMuted'>
                   ⚙

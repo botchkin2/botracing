@@ -23,7 +23,8 @@ describe('buildTracksModel', () => {
       ],
     );
     expect(rows.map(r => r.name)).toEqual(['Bravo', 'Charlie', 'Alpha']);
-    expect(rows[1].driven).toMatch(/^2 sessions · /);
+    expect(rows[1].driven?.sessions).toBe('2 sessions');
+    expect(rows[1].driven?.lastDate).toMatch(/2026/);
     expect(rows[2]).toMatchObject({driven: null, place: 'Here, Italy'});
   });
 });

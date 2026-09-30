@@ -68,9 +68,14 @@ export function TracksScreen() {
               </Text>
             </View>
             {r.driven ? (
-              <Text variant='dataSmall' tone='textSecondary'>
-                {r.driven}
-              </Text>
+              <View style={styles.driven}>
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {r.driven.sessions}
+                </Text>
+                <Text variant='dataSmall' tone='textMuted'>
+                  {r.driven.lastDate}
+                </Text>
+              </View>
             ) : null}
             <Text variant='body' tone='textFaint'>
               ›
@@ -100,4 +105,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   rowText: {flex: 1, minWidth: 0},
+  driven: {alignItems: 'flex-end'},
 });

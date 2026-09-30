@@ -23,7 +23,7 @@ import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {useSession} from '@/src/data/sessions';
-import {lapStroke, space, useLayout, useTheme} from '@/src/design';
+import {hitBox, lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
   CHANNEL_IDS,
@@ -276,6 +276,7 @@ function CompareView({
     <View style={styles.header}>
       <Pressable
         accessibilityRole='link'
+        style={hitBox.link}
         hitSlop={space.md}
         onPress={() =>
           router.navigate(sessionHref(sessionId, {laps: selection.laps}))
@@ -290,6 +291,7 @@ function CompareView({
       {!layout.isDesktop && (
         <Pressable
           accessibilityRole='button'
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() => prefs.setMapShown(!prefs.mapShown)}>
           <Text variant='dataStrong' tone='accentInk'>
@@ -482,6 +484,7 @@ function CompareView({
         <Pressable
           accessibilityRole='button'
           accessibilityState={{expanded: chartsOpen}}
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() => setChartsOpen(o => !o)}>
           <Text variant='label' tone='textMuted'>

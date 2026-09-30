@@ -10,8 +10,8 @@ export type TracksRow = {
   trackId: string;
   name: string;
   place: string;
-  /** "14 sessions · 21 Sep 2026", or null when never driven. */
-  driven: string | null;
+  /** "14 sessions" over "21 Sep 2026" (two lines, so the name keeps the width), or null when never driven. */
+  driven: {sessions: string; lastDate: string} | null;
 };
 
 export function buildTracksModel(
@@ -34,9 +34,10 @@ export function buildTracksModel(
         name: t.layout,
         place: [t.place, t.country].filter(Boolean).join(', '),
         driven: h
-          ? `${h.count} session${h.count === 1 ? '' : 's'} · ${formatDate(
-              h.lastAt,
-            )}`
+          ? {
+              sessions: `${h.count} session${h.count === 1 ? '' : 's'}`,
+              lastDate: formatDate(h.lastAt),
+            }
           : null,
       },
     };

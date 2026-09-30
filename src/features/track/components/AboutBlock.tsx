@@ -1,6 +1,6 @@
 import {Linking, Pressable, StyleSheet, View} from 'react-native';
 
-import {size, space} from '@/src/design';
+import {hitBox, size, space} from '@/src/design';
 import {Text} from '@/src/ui';
 
 // About (handoff T1/05): the Wikipedia lead, with its CC BY-SA 4.0 credit
@@ -23,6 +23,7 @@ export function AboutBlock({
         <Pressable
           accessibilityRole='link'
           onPress={() => Linking.openURL(about.url)}
+          style={hitBox.link}
           hitSlop={space.md}>
           <Text variant='body' tone='accentInk'>
             Read more →

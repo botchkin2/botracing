@@ -16,6 +16,7 @@ import {
   TraceChart,
 } from '@/src/charts';
 import {
+  hitBox,
   lapColors,
   lapStroke,
   stroke,
@@ -206,6 +207,7 @@ function CornerView({
       <View style={styles.row}>
         <Pressable
           accessibilityRole='link'
+          style={hitBox.link}
           hitSlop={space.md}
           onPress={() =>
             router.navigate(
