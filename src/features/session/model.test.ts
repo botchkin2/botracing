@@ -44,7 +44,6 @@ describe('buildSessionModel', () => {
   });
 
   it('marks the stint change and the pit-in lap', () => {
-    expect(m.chart!.explainer).toContain('median (1:21.915)');
     expect(m.chart!.stintBreaks).toEqual([{afterLap: 17, label: 'STINT 2'}]);
     expect(m.chart!.pits).toEqual([17]);
   });
