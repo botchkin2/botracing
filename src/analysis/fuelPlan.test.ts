@@ -245,9 +245,11 @@ describe('drop one stop', () => {
 
   it('says no data when he has too few laps that used that little', () => {
     const p = planRace(base, laps(10, 3.5, 5));
+    // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop.
     expect(p.dropStop!.compare).toEqual({
       n: 0,
-      lowestFuelL: 3.5,
+      atMost: {fuelL: null, vePct: 100 / 23},
+      lowestFuelL: null,
       lowestVePct: 5,
     });
   });
@@ -258,9 +260,18 @@ describe('drop one stop', () => {
     const d = planRace(base, [...slow, ...normal]).dropStop!;
     expect(d.compare).toEqual({
       n: MIN_COMPARE_LAPS,
+      atMost: {fuelL: null, vePct: 100 / 23},
       medianLapTimeS: 112,
       allMedianLapTimeS: 110,
     });
+  });
+
+  it('filters by the meter that has to drop, not the one that would reach', () => {
+    // Fuel use is above the fuel figure but fuel is not the limit; VE is low.
+    const heavyFuelLowVe = laps(6, 3.9, 4.0, 111);
+    const d = planRace(base, [...heavyFuelLowVe, ...laps(6, 3.4, 5)]).dropStop!;
+    expect(d.saveFuelL! > 0).toBe(false);
+    expect((d.compare as {n: number}).n).toBe(6);
   });
 
   it('counts only laps under both limits', () => {
@@ -269,13 +280,24 @@ describe('drop one stop', () => {
     expect((p.dropStop!.compare as {n: number}).n).toBe(0);
   });
 
-  it('carries the formation lap into the saving', () => {
+  it('shares the formation lap out with the race laps', () => {
     const d = planRace(
       rules({lengthLaps: 45, formationLap: true}),
       laps(10, 3.5, 5),
     ).dropStop!;
-    // The first of two stints burns 23 + 1 laps of use.
-    expect(d.fuelPerLapL).toBeCloseTo(84 / 24);
+    // 45 laps + the formation lap on 2 loads: 23 laps of use per load.
+    expect(d.fuelPerLapL).toBeCloseTo(84 / 23);
+  });
+
+  it('65 laps and a formation lap on two loads is 33 laps of use per load', () => {
+    // Apex's case (thread 35 #1032): 66 laps of use on 2 loads = 33 each, so
+    // 100 L allows 100 / 33 = 3.03 L a lap, not 100 / 34.
+    const d = planRace(
+      rules({lengthLaps: 65, fuelL: 100, formationLap: true}),
+      laps(10, 3.5, 3),
+    ).dropStop!;
+    expect(d.targetStops).toBe(1);
+    expect(d.fuelPerLapL).toBeCloseTo(100 / 33);
   });
 
   it('has nothing to drop past the mandatory stops', () => {
@@ -317,5 +339,89 @@ describe('presetMismatch', () => {
     expect(presetMismatch(84, 84)).toBeNull();
     expect(presetMismatch(84, 84.2)).toBeNull();
     expect(presetMismatch(84, null)).toBeNull();
+  });
+});
+
+describe('load to finish', () => {
+  // 40 min at 110 s is 22 laps, 21 if the leader finishes first. History: a
+  // median of 3.5 L and 3 % VE a lap, and heavier laps (p90) at 4.2 L and 3.6 %.
+  const history = [...laps(7, 3.5, 3), ...laps(3, 4.2, 3.6)];
+  const sprint = rules({
+    lengthLaps: null,
+    lengthMin: 40,
+    fuelL: 100,
+    formationLap: true,
+  });
+
+  it('is absent when the race needs a stop', () => {
+    expect(planRace(rules({lengthLaps: 60}), history).loadToFinish).toBeNull();
+  });
+
+  it('gives the load for the race laps and one fewer, with the formation lap', () => {
+    const p = planRace(sprint, history);
+    expect(p.raceLaps).toEqual({estimate: 22, oneFewer: 21});
+    const [own, fewer] = p.loadToFinish!;
+    expect(own.laps).toBe(22);
+    // 22 laps + the formation lap at 3.5 L and 5 %.
+    expect(own.atMedian.fuelL).toBeCloseTo(23 * 3.5);
+    expect(own.atMedian.vePct).toBeCloseTo(23 * 3);
+    expect(fewer.laps).toBe(21);
+    expect(fewer.atMedian.fuelL).toBeCloseTo(22 * 3.5);
+  });
+
+  it('names the meter closer to its cap', () => {
+    const [own] = planRace(sprint, history).loadToFinish!;
+    // 80.5 L of 100 L is 0.805 of the cap; 69 % VE of 100 % is 0.69.
+    expect(own.atMedian.limitedBy).toBe('fuel');
+    expect(own.atMedian.fits).toBe(true);
+    // The p90 laps would need 96.6 L: still under, but close.
+    expect(own.atP90.fuelL).toBeCloseTo(23 * 4.2);
+    expect(own.atP90.fits).toBe(true);
+  });
+
+  it('shows what is left on the p90 load when he runs the median', () => {
+    const [own] = planRace(sprint, history).loadToFinish!;
+    const fuelLeft = 23 * 4.2 - 23 * 3.5;
+    expect(own.leftAtMedian.fuelL).toBeCloseTo(fuelLeft);
+    expect(own.leftAtMedian.fuelLaps).toBeCloseTo(fuelLeft / 3.5);
+  });
+
+  it('fits under the caps when the rules give room', () => {
+    const p = planRace(
+      rules({
+        lengthLaps: 10,
+        fuelL: 84,
+        vePct: 100,
+        formationLap: false,
+      }),
+      history,
+    );
+    expect(p.atMedian.stops).toBe(0);
+    const [only] = p.loadToFinish!;
+    expect(only.atMedian).toMatchObject({
+      fuelL: 35,
+      vePct: 30,
+      fits: true,
+      limitedBy: 'fuel',
+    });
+    expect(p.loadToFinish).toHaveLength(1);
+  });
+
+  it('works from fuel alone without a VE channel', () => {
+    const p = planRace(
+      rules({lengthLaps: 10, formationLap: false}),
+      laps(10, 3.5, null),
+    );
+    const [only] = p.loadToFinish!;
+    expect(only.atMedian).toMatchObject({
+      fuelL: 35,
+      vePct: null,
+      limitedBy: null,
+    });
+    expect(only.leftAtMedian.vePct).toBeNull();
+  });
+
+  it('is absent without any history', () => {
+    expect(planRace(sprint, []).loadToFinish).toBeNull();
   });
 });

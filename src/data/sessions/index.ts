@@ -6,12 +6,12 @@ export type {
   LapReason,
   LapTraffic,
   PitStop,
-  SessionFuel,
   MapCorner,
   MapSection,
   SectionFacts,
   SessionBand,
   SessionDetail,
+  SessionFuel,
   SessionSummary,
   SessionType,
   Stint,
@@ -25,6 +25,7 @@ export {
   useSessionLaps,
   useSessionMap,
   useSessions,
+  useSessionsLaps,
 } from './queries';
 export {
   firstCornerOf,

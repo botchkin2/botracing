@@ -103,10 +103,47 @@ export interface DropStop {
   compare:
     | {
         n: number;
+        /** The limits the laps were filtered by; null for a meter that is not the limit. */
+        atMost: {fuelL: number | null; vePct: number | null};
         medianLapTimeS: number;
         allMedianLapTimeS: number;
       }
-    | {n: number; lowestFuelL: number | null; lowestVePct: number | null};
+    | {
+        n: number;
+        atMost: {fuelL: number | null; vePct: number | null};
+        lowestFuelL: number | null;
+        lowestVePct: number | null;
+      };
+}
+
+/** What one use-per-lap assumption needs to finish a race in a single load. */
+export interface Load {
+  /** Litres, and VE % of the full load; null without that meter's history. */
+  fuelL: number | null;
+  vePct: number | null;
+  /** The meter that is closer to its cap (fuel to the max fuel, VE to the start VE). */
+  limitedBy: Limit | null;
+  /** Whether both fit under the caps the rules give. */
+  fits: boolean;
+}
+
+/**
+ * A race that fits one load, read the other way round (Botkin, thread 35
+ * #1015): the load it takes at the median and at the p90 use, and what would be
+ * left at the flag if the p90 load were carried and he ran the median.
+ */
+export interface LoadToFinish {
+  /** Race laps this row is for, the formation lap not counted. */
+  laps: number;
+  atMedian: Load;
+  atP90: Load;
+  /** Left at the flag on the p90 load when he runs the median; null without a fuel or VE median. */
+  leftAtMedian: {
+    fuelL: number | null;
+    fuelLaps: number | null;
+    vePct: number | null;
+    veLaps: number | null;
+  };
 }
 
 export interface FuelPlan {
@@ -123,6 +160,11 @@ export interface FuelPlan {
   atP90: Option;
   /** One fewer stop, from the median use; null when there is none to drop. */
   dropStop: DropStop | null;
+  /**
+   * Only when the race fits one load at the median use: one row per race-lap
+   * count (own estimate, and one fewer when the flag can fall early).
+   */
+  loadToFinish: LoadToFinish[] | null;
 }
 
 function quantile(sorted: number[], q: number): number {
@@ -250,24 +292,37 @@ function dropStopFor(
 ): DropStop | null {
   const targetStops = stops - 1;
   if (targetStops < rules.mandatoryStops || targetStops < 0) return null;
-  const stintLaps = Math.ceil(raceLaps / (targetStops + 1));
-  // The first stint also carries the formation lap.
-  const burnLaps = stintLaps + (rules.formationLap ? 1 : 0);
+  // The formation lap is a lap of use taken from the first load, so it is
+  // shared out with the race laps: 65 laps + formation on 2 loads is 33 laps
+  // of use per load (not 32.5 + 1).
+  const burnLaps = Math.ceil(
+    (raceLaps + (rules.formationLap ? 1 : 0)) / (targetStops + 1),
+  );
   const fuelPerLapL = fuel ? rules.fuelL / burnLaps : null;
   const vePerLapPct = ve ? rules.vePct / burnLaps : null;
   const saveFuelL =
     fuel && fuelPerLapL != null ? fuel.median - fuelPerLapL : null;
   const saveVePct = ve && vePerLapPct != null ? ve.median - vePerLapPct : null;
+  // Only a meter that has to use less counts: one that would still reach at
+  // today's median is not the limit, and filtering laps by it would prove
+  // nothing. (Apex, thread 35 #1003.)
+  const needFuel = saveFuelL != null && saveFuelL > 0;
+  const needVe = saveVePct != null && saveVePct > 0;
+  const atMost = {
+    fuelL: needFuel ? fuelPerLapL : null,
+    vePct: needVe ? vePerLapPct : null,
+  };
   const below = history.filter(
     l =>
-      (fuelPerLapL == null || l.fuelL <= fuelPerLapL) &&
-      (vePerLapPct == null || (l.vePct != null && l.vePct <= vePerLapPct)),
+      (atMost.fuelL == null || l.fuelL <= atMost.fuelL) &&
+      (atMost.vePct == null || (l.vePct != null && l.vePct <= atMost.vePct)),
   );
   const times = history.map(l => l.lapTimeS).sort((a, b) => a - b);
   const compare =
     below.length >= MIN_COMPARE_LAPS && times.length > 0
       ? {
           n: below.length,
+          atMost,
           medianLapTimeS: quantile(
             below.map(l => l.lapTimeS).sort((a, b) => a - b),
             0.5,
@@ -276,8 +331,9 @@ function dropStopFor(
         }
       : {
           n: below.length,
-          lowestFuelL: fuel ? fuel.p10 : null,
-          lowestVePct: ve ? ve.p10 : null,
+          atMost,
+          lowestFuelL: needFuel && fuel ? fuel.p10 : null,
+          lowestVePct: needVe && ve ? ve.p10 : null,
         };
   return {
     targetStops,
@@ -297,6 +353,69 @@ const NO_OPTION: Option = none(
   {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
   {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
 );
+
+function loadFor(
+  rules: PlanRules,
+  laps: number,
+  fuelPerLap: number | null,
+  vePerLap: number | null,
+): Load {
+  // The formation lap burns a lap of both before the race starts.
+  const burn = laps + (rules.formationLap ? 1 : 0);
+  const fuelL = fuelPerLap == null ? null : burn * fuelPerLap;
+  const vePct = vePerLap == null ? null : burn * vePerLap;
+  const fuelShare = fuelL == null ? null : fuelL / rules.fuelL;
+  const veShare = vePct == null ? null : vePct / rules.vePct;
+  const limitedBy: Limit | null =
+    fuelShare != null && veShare != null && fuelShare !== veShare
+      ? fuelShare > veShare
+        ? 'fuel'
+        : 've'
+      : null;
+  return {
+    fuelL,
+    vePct,
+    limitedBy,
+    fits:
+      (fuelShare == null || fuelShare <= 1) &&
+      (veShare == null || veShare <= 1),
+  };
+}
+
+function loadToFinishFor(
+  rules: PlanRules,
+  laps: number,
+  fuel: Usage | null,
+  ve: Usage | null,
+): LoadToFinish {
+  const atMedian = loadFor(
+    rules,
+    laps,
+    fuel ? fuel.median : null,
+    ve ? ve.median : null,
+  );
+  const atP90 = loadFor(
+    rules,
+    laps,
+    fuel ? fuel.p90 : null,
+    ve ? ve.p90 : null,
+  );
+  const left = (p90: number | null, median: number | null) =>
+    p90 == null || median == null ? null : p90 - median;
+  const fuelLeft = left(atP90.fuelL, atMedian.fuelL);
+  const veLeft = left(atP90.vePct, atMedian.vePct);
+  return {
+    laps,
+    atMedian,
+    atP90,
+    leftAtMedian: {
+      fuelL: fuelLeft,
+      fuelLaps: fuelLeft != null && fuel ? fuelLeft / fuel.median : null,
+      vePct: veLeft,
+      veLaps: veLeft != null && ve ? veLeft / ve.median : null,
+    },
+  };
+}
 
 export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
@@ -331,6 +450,13 @@ export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
       ? dropStopFor(rules, laps, atMedian.stops, fuel, ve, history)
       : null;
 
+  const loadToFinish =
+    raceLaps != null && atMedian.stops === 0 && (fuel != null || ve != null)
+      ? [raceLaps.estimate, raceLaps.oneFewer]
+          .filter((n): n is number => n != null && n > 0)
+          .map(n => loadToFinishFor(rules, n, fuel, ve))
+      : null;
+
   return {
     history: {
       laps: history.length,
@@ -341,6 +467,7 @@ export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
     atMedian,
     atP90,
     dropStop,
+    loadToFinish,
   };
 }
 

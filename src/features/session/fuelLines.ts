@@ -28,9 +28,10 @@ export function pitLine(stop: PitStop): string | null {
   const added = stop.added.fuelL;
   const time = stop.inPitS != null ? ` · ${stop.inPitS.toFixed(0)} s` : '';
   if (added == null) return `${head}${time}`;
-  // "+0.0 L" for a drive-through or a penalty: 'no fuel added' is 36 pt longer
-  // than the 343 pt phone row allows next to the laps and the time.
-  return `${head} · +${litres(added)}${time}`;
+  // A stop that took none (a drive-through or a penalty) says so.
+  return `${head} · ${
+    added > 0 ? `+${litres(added)}` : 'no fuel added'
+  }${time}`;
 }
 
 /**

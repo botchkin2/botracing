@@ -102,8 +102,8 @@ export type Stint = {
    */
   trendSPerLap: number | null;
   /**
-   * Fuel and Virtual Energy per green lap (tools/sessions/fuelFacts.mjs):
-   * the median and spread over `greenLaps` laps, null under 3.
+   * Fuel and Virtual Energy per green lap (tools/sessions/fuelFacts.mjs): the
+   * median and spread over `greenLaps` laps, null under 3.
    */
   greenLaps: number;
   medianFuelL: number | null;
@@ -112,21 +112,16 @@ export type Stint = {
   veSpreadPct: number | null;
 };
 
-/** The session's fuel: what it started with and the event's limits. */
+/**
+ * Session doc `fuel` (tools/sessions/fuelFacts.mjs): what he started with and
+ * the limits from the car setup. fillLimitL is litres of fuel the event let
+ * him load (VE 100 % is that full load); tankL is the physical tank. Both are
+ * null when the recording had no setup string.
+ */
 export type SessionFuel = {
   startL: number | null;
-  /** The most fuel the event lets the car take; VE 100 % is this full load. */
   fillLimitL: number | null;
-  /** The physical tank, when the setup says. */
   tankL: number | null;
-};
-
-export type SessionDetail = SessionSummary & {
-  trackVariant: string;
-  stints: Stint[];
-  /** The stored field of every car (src/data/field), or null without one. */
-  field: FieldPointer | null;
-  fuel: SessionFuel | null;
 };
 
 function toSessionFuel(v: unknown): SessionFuel | null {
@@ -138,6 +133,15 @@ function toSessionFuel(v: unknown): SessionFuel | null {
     tankL: num(x.tankL),
   };
 }
+
+export type SessionDetail = SessionSummary & {
+  trackVariant: string;
+  /** Null on sessions analysed before the fuel facts. */
+  fuel: SessionFuel | null;
+  stints: Stint[];
+  /** The stored field of every car (src/data/field), or null without one. */
+  field: FieldPointer | null;
+};
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
@@ -212,16 +216,18 @@ export type Lap = {
   sections: SectionFacts[];
   /** The cars around the player on this lap; null when the session has no field. */
   traffic: LapTraffic | null;
-  /** Fuel and Virtual Energy on the lap; null without the channels. */
+  /** Null on laps analysed before the fuel facts, or without the channels. */
   fuel: LapFuel | null;
   /** The pit stop entered on this lap, if any. */
   pitStop: PitStop | null;
 };
 
 /**
- * Lap doc `fuel` (tools/sessions/fuelFacts.mjs). Used is start minus end plus
- * what was added in the pits. Laps left is the end level over the stint's
- * median use, null without a median (under 3 green laps).
+ * Lap doc `fuel` (tools/sessions/fuelFacts.mjs). used = start - end + added in
+ * the pits, so a lap with a stop is not negative. `green` is the uploader's
+ * clean-lap rule (timed, whole, not the first lap, no pit in or out, no
+ * full-course yellow, not cut short by a reset): the same laps its stint
+ * medians use.
  */
 export type LapFuel = {
   startL: number | null;
@@ -232,6 +238,7 @@ export type LapFuel = {
   veEndPct: number | null;
   veUsedPct: number | null;
   veAddedPct: number | null;
+  /** The end level over the stint's median use; null without a median. */
   lapsLeftFuel: number | null;
   lapsLeftVe: number | null;
   green: boolean;
@@ -305,7 +312,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
 
-function toFuel(v: unknown): LapFuel | null {
+function toLapFuel(v: unknown): LapFuel | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
   return {
@@ -378,7 +385,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       ).map(toCornerFacts),
     })),
     traffic: toTraffic(raw.traffic),
-    fuel: toFuel(raw.fuel),
+    fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
   }));
 }

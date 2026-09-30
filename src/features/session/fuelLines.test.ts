@@ -19,9 +19,9 @@ describe('pitLine', () => {
     );
   });
 
-  it('a stop with nothing added reads +0.0 L, short enough for the phone row', () => {
+  it('a stop with nothing added is named as it is', () => {
     expect(pitLine({...stop, added: {fuelL: 0, vePct: 0}})).toBe(
-      'Pit: 33.3 L / 40 % VE left (11.1 laps) · +0.0 L · 91 s',
+      'Pit: 33.3 L / 40 % VE left (11.1 laps) · no fuel added · 91 s',
     );
   });
 
