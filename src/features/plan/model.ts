@@ -1,5 +1,7 @@
 import {
   type FuelPlan,
+  type Load,
+  type LoadToFinish,
   type GreenLap,
   type Option,
   type PlanRules,
@@ -11,7 +13,12 @@ import {
   type SessionSummary,
 } from '@/src/data/sessions';
 import {trackInfo} from '@/src/data/tracks';
-import {carLabel, formatDate, formatLapTime} from '@/src/design';
+import {
+  carLabel,
+  formatDate,
+  formatLapTime,
+  shortTrackName,
+} from '@/src/design';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
 // The pre-race planner screen's model (pit wall thread 35): which track+car
@@ -25,6 +32,8 @@ export type Combo = {
   key: string;
   trackId: string;
   track: string;
+  /** For the chip: short track name, the layout if two share it, and the car. */
+  label: string;
   /** Car model, not livery: fuel use follows the car. */
   car: string;
   /** Newest first. */
@@ -43,6 +52,7 @@ export function planCombos(sessions: SessionSummary[]): Combo[] {
       trackId: s.trackId,
       // The layout, so two Silverstones are told apart.
       track: trackInfo(s.trackId)?.layout ?? s.track,
+      label: '',
       car,
       sessions: [],
     };
@@ -50,6 +60,19 @@ export function planCombos(sessions: SessionSummary[]): Combo[] {
     byKey.set(key, combo);
   }
   const combos = [...byKey.values()];
+  // Two layouts of one circuit (Silverstone ELMS and WEC) share a short name.
+  const shortOf = (c: Combo) => shortTrackName(c.sessions[0].track);
+  for (const c of combos) {
+    const twins = combos.filter(
+      o => o !== c && shortOf(o) === shortOf(c) && o.car === c.car,
+    );
+    const layout = c.track.includes(' - ')
+      ? c.track.slice(c.track.lastIndexOf(' - ') + 3)
+      : c.track;
+    c.label = `${shortOf(c)}${twins.length > 0 ? ` ${layout}` : ''} · ${
+      carLabel(c.sessions[0].car).shortModel
+    }`;
+  }
   for (const c of combos)
     c.sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return combos.sort((a, b) =>
@@ -62,8 +85,61 @@ export function historySessions(combo: Combo): SessionSummary[] {
   return combo.sessions.slice(0, HISTORY_SESSIONS);
 }
 
-/** Clean laps of one session, as the planner reads them. */
-export function greenLapsOf(sessionId: string, laps: Lap[]): GreenLap[] {
+/**
+ * Litres of fuel one % of Virtual Energy is worth in this session: the median
+ * of usedL / veUsedPct over its green laps. VE % per lap depends on the load
+ * (thread 35 #1004: 0.68 L per % at 75 L, 0.81 at 84, 0.98 at 100), so the
+ * history is kept in litres and turned into VE with the ratio of the event
+ * being planned. Null without a green lap that has both.
+ */
+export function veRatioOf(laps: Lap[]): number | null {
+  const ratios: number[] = [];
+  for (const l of laps) {
+    const f = l.fuel;
+    if (f?.green && f.usedL != null && f.usedL > 0 && f.veUsedPct)
+      ratios.push(f.usedL / f.veUsedPct);
+  }
+  if (ratios.length === 0) return null;
+  ratios.sort((a, b) => a - b);
+  const mid = ratios.length >> 1;
+  return ratios.length % 2 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;
+}
+
+export type VeRatio = {
+  /** Litres of fuel per 1 % VE. */
+  perPctL: number;
+  /** Where it came from: the preset, or the last session there on this date. */
+  source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
+};
+
+/**
+ * The ratio to plan with: the preset's if it sets one, else the newest history
+ * session that has one. `sessions` is newest first, as `historySessions` gives.
+ */
+export function veRatioFor(
+  preset: FuelPreset | null,
+  sessions: {startedAt: string; ratio: number | null}[],
+): VeRatio | null {
+  if (preset?.veRatio != null)
+    return {perPctL: preset.veRatio, source: {kind: 'preset'}};
+  const last = sessions.find(s => s.ratio != null);
+  return last
+    ? {
+        perPctL: last.ratio as number,
+        source: {kind: 'session', startedAt: last.startedAt},
+      }
+    : null;
+}
+
+/**
+ * Clean laps of one session, as the planner reads them: fuel in litres, and
+ * VE % as those litres over the ratio (null without one).
+ */
+export function greenLapsOf(
+  sessionId: string,
+  laps: Lap[],
+  ratio: number | null,
+): GreenLap[] {
   const out: GreenLap[] = [];
   for (const l of laps) {
     const f = l.fuel;
@@ -71,7 +147,7 @@ export function greenLapsOf(sessionId: string, laps: Lap[]): GreenLap[] {
       continue;
     out.push({
       fuelL: f.usedL,
-      vePct: f.veUsedPct != null && f.veUsedPct > 0 ? f.veUsedPct : null,
+      vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
       lapTimeS: l.timeS,
       sessionId,
     });
@@ -91,12 +167,15 @@ export type FuelSource = 'preset' | 'fill limit' | 'tank' | 'start fuel';
 export type Rules = {
   rules: PlanRules;
   fuelSource: FuelSource;
+  /** The last session there, for the rules line. */
+  last: SessionFuel | null;
 };
 
 /**
  * The rules to plan with. Max fuel is the preset's, else the fill limit of
- * his last session at this track and car, else the tank, else what he started
- * with; null when none is known and he has to type it.
+ * his last session at this track and car, else what he started with there
+ * (the fill limit when the setup was not recorded), else the tank, which is
+ * only the ceiling; null when none is known and he has to type it.
  */
 export function rulesFor(
   preset: FuelPreset | null,
@@ -110,16 +189,17 @@ export function rulesFor(
   } else if (last?.fillLimitL != null) {
     fuelL = last.fillLimitL;
     fuelSource = 'fill limit';
-  } else if (last?.tankL != null) {
-    fuelL = last.tankL;
-    fuelSource = 'tank';
   } else if (last?.startL != null) {
     fuelL = last.startL;
     fuelSource = 'start fuel';
+  } else if (last?.tankL != null) {
+    fuelL = last.tankL;
+    fuelSource = 'tank';
   }
   if (fuelL == null) return null;
   return {
     fuelSource,
+    last,
     rules: {
       name: preset ? preset.name : 'No limits',
       lengthLaps: length.kind === 'laps' ? length.value : null,
@@ -153,6 +233,7 @@ export type PlanView = {
   footnote: string;
 };
 
+const NL = String.fromCharCode(10);
 const l2 = (v: number) => `${v.toFixed(2)} L`;
 const pct2 = (v: number) => `${v.toFixed(2)} %`;
 const pct0 = (v: number) => `${Math.round(v)} %`;
@@ -201,6 +282,61 @@ function evenText(o: Option): string | null {
   return `${e.laps} laps each${load ? `  ·  ${load}` : ''}`;
 }
 
+function ratioNote(ratio: VeRatio | null): string {
+  if (!ratio) return 'no VE ratio yet: no green lap with both fuel and VE';
+  const src =
+    ratio.source.kind === 'preset'
+      ? 'from the preset'
+      : `measured in the session of ${formatDate(ratio.source.startedAt)}`;
+  return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
+}
+
+function loadText(l: Load): string {
+  const parts = [
+    l.fuelL != null ? l2(l.fuelL) : null,
+    l.vePct != null ? pct2(l.vePct) : null,
+  ].filter(Boolean);
+  const limit =
+    l.limitedBy === 'fuel' ? 'fuel' : l.limitedBy === 've' ? 'VE' : null;
+  return `${parts.join('  ·  ')}${
+    limit ? `  (${limit} closer to its cap)` : ''
+  }${l.fits ? '' : '  (over the rules)'}`;
+}
+
+/** A race that fits one load, read the other way round (thread 35 #1015). */
+function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
+  const out: Row[] = [];
+  for (const row of rows) {
+    const lapsText = `${row.laps} laps${
+      r.formationLap ? ' + formation lap' : ''
+    }`;
+    out.push({label: `${lapsText}, median use`, value: loadText(row.atMedian)});
+    const left = row.leftAtMedian;
+    const leftParts = [
+      left.fuelL != null && left.fuelLaps != null
+        ? `${l2(left.fuelL)} = ${left.fuelLaps.toFixed(1)} laps of fuel`
+        : null,
+      left.vePct != null && left.veLaps != null
+        ? `${pct2(left.vePct)} = ${left.veLaps.toFixed(1)} laps of VE`
+        : null,
+    ].filter(Boolean);
+    out.push({
+      label: `${lapsText}, p90 use`,
+      value: loadText(row.atP90),
+      note: leftParts.length
+        ? `at the median you would finish with ${leftParts.join(' and ')} left`
+        : undefined,
+    });
+  }
+  return {
+    key: 'load',
+    title: 'Load to finish',
+    explainer:
+      'The race fits one load, so this is the Stops table read the other way: what the laps need at your median and at your heavy laps (p90), with the formation lap. The note says what is left if you carried the p90 load and ran the median. A number, not advice about what to load.',
+    rows: out,
+  };
+}
+
 function lapTime(s: number): string {
   return formatLapTime(s);
 }
@@ -209,24 +345,44 @@ export function planView(
   preset: FuelPreset | null,
   rules: Rules,
   plan: FuelPlan,
-  history: {since: string | null; lastFillLimitL: number | null},
+  history: {
+    since: string | null;
+    lastFillLimitL: number | null;
+    /** The VE ratio in use, and the last session's for comparison. */
+    ratio: VeRatio | null;
+    lastRatio: number | null;
+  },
 ): PlanView {
   const r = rules.rules;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
-    : `Rules: No limits (${
+    : `Rules: last race here (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'
           : rules.fuelSource === 'tank'
           ? 'tank'
           : 'start fuel'
-      } ${r.fuelL} L, 100 % VE)`;
+      }${
+        rules.fuelSource !== 'tank' && rules.last?.tankL != null
+          ? `, ${rules.last.tankL} L tank`
+          : ''
+      })`;
   const mismatch = preset
     ? presetMismatch(r.fuelL, history.lastFillLimitL)
     : null;
-  const stale = mismatch
-    ? `preset ${mismatch.presetL} L  ·  last session there ${mismatch.lastL} L`
+  const fuelStale = mismatch
+    ? `max fuel: preset ${mismatch.presetL} L  ·  last session there ${mismatch.lastL} L`
     : null;
+  // A preset ratio that differs from what the last session measured.
+  const ratioStale =
+    preset?.veRatio != null &&
+    history.lastRatio != null &&
+    Math.abs(preset.veRatio - history.lastRatio) / history.lastRatio > 0.03
+      ? `L per 1 % VE: preset ${preset.veRatio.toFixed(
+          3,
+        )}  ·  last session there ${history.lastRatio.toFixed(3)}`
+      : null;
+  const stale = [fuelStale, ratioStale].filter(Boolean).join(' · ') || null;
 
   const cards: Card[] = [];
   const {fuel, ve, lapTimeS} = plan.perLap;
@@ -242,7 +398,11 @@ export function planView(
         value: fuel ? usageText(fuel, l2) : 'no data',
         note: fuel ? undefined : 'Needs 3 green laps',
       },
-      {label: 'Virtual Energy', value: ve ? usageText(ve, pct2) : 'no data'},
+      {
+        label: 'Virtual Energy',
+        value: ve ? usageText(ve, pct2) : 'no data',
+        note: ratioNote(history.ratio),
+      },
       {
         label: 'Lap time',
         value: lapTimeS
@@ -297,62 +457,94 @@ export function planView(
     ],
   });
 
-  const stopRows: Row[] = [
-    {label: 'At median use', value: stopsText(plan.atMedian)},
-    {label: 'At p90 use', value: stopsText(plan.atP90)},
-  ];
-  const evenM = evenText(plan.atMedian);
-  if (evenM)
-    stopRows.push({label: 'Equal stints', value: evenM, note: 'at median use'});
-  cards.push({
-    key: 'stops',
-    title: 'Stops',
-    explainer:
-      'Full-tank strategy: run each stint until the meter that runs out first is empty, then stop. Equal stints spreads the same number of stops evenly.',
-    rows: stopRows,
-  });
+  if (plan.loadToFinish) {
+    cards.push(loadCard(plan.loadToFinish, r));
+  } else {
+    const stopRows: Row[] = [
+      {label: 'At median use', value: stopsText(plan.atMedian)},
+      {label: 'At p90 use', value: stopsText(plan.atP90)},
+    ];
+    const evenM = evenText(plan.atMedian);
+    if (evenM)
+      stopRows.push({
+        label: 'Equal stints',
+        value: evenM,
+        note: 'at median use',
+      });
+    cards.push({
+      key: 'stops',
+      title: 'Stops',
+      explainer:
+        'Full-tank strategy: run each stint until the meter that runs out first is empty, then stop. Equal stints spreads the same number of stops evenly.',
+      rows: stopRows,
+    });
+  }
 
   const d = plan.dropStop;
   if (d) {
+    const stopWord = d.targetStops === 1 ? 'stop' : 'stops';
+    // Only the meter that has to use less gets the saving; one that would
+    // still reach is said to be no limit (apex, thread 35 #1003).
+    const meterLine = (
+      name: string,
+      perLap: number | null,
+      save: number | null,
+      savePctOfMedian: number | null,
+      fmt: (v: number) => string,
+    ): string | null => {
+      if (perLap == null || save == null) return null;
+      if (save <= 0)
+        return `${name}: not the limit (${fmt(
+          perLap,
+        )} a lap would still reach)`;
+      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}, ${(
+        savePctOfMedian ?? 0
+      ).toFixed(1)} % less than your median)`;
+    };
     const rows: Row[] = [
       {
-        label: `${d.targetStops} ${d.targetStops === 1 ? 'stop' : 'stops'}`,
+        label: `${d.targetStops} ${stopWord}`,
         value: [
-          d.fuelPerLapL != null && d.saveFuelL != null && d.saveFuelPct != null
-            ? `at most ${l2(d.fuelPerLapL)} a lap  (${l2(
-                d.saveFuelL,
-              )}, ${d.saveFuelPct.toFixed(1)} % less than your median)`
-            : null,
-          d.vePerLapPct != null &&
-          d.saveVePct != null &&
-          d.saveVePctOfMedian != null
-            ? `at most ${pct2(d.vePerLapPct)} a lap  (${pct2(
-                d.saveVePct,
-              )}, ${d.saveVePctOfMedian.toFixed(1)} % less than your median)`
-            : null,
+          meterLine('Fuel', d.fuelPerLapL, d.saveFuelL, d.saveFuelPct, l2),
+          meterLine(
+            'VE',
+            d.vePerLapPct,
+            d.saveVePct,
+            d.saveVePctOfMedian,
+            pct2,
+          ),
         ]
           .filter(Boolean)
-          .join('\n'),
+          .join(NL),
       },
     ];
     const c = d.compare;
+    const limits = [
+      c.atMost.fuelL != null ? `<= ${l2(c.atMost.fuelL)}` : null,
+      c.atMost.vePct != null ? `<= ${pct2(c.atMost.vePct)} VE` : null,
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    const label = limits ? `Your laps at ${limits}` : 'Your laps';
     rows.push(
       'medianLapTimeS' in c
         ? {
-            label: 'Your laps that used that little',
+            label,
             value: `median ${lapTime(c.medianLapTimeS)}  (n = ${c.n})`,
             note: `all green laps: ${lapTime(c.allMedianLapTimeS)}`,
           }
         : {
-            label: 'Your laps that used that little',
-            value: 'no data',
-            note: `${
-              c.n
-            } of your laps used that little; your lowest tenth used ${
-              c.lowestFuelL != null ? l2(c.lowestFuelL) : ''
-            }${c.lowestFuelL != null && c.lowestVePct != null ? ' and ' : ''}${
-              c.lowestVePct != null ? pct2(c.lowestVePct) : ''
-            }`,
+            label,
+            value: `no data  (n = ${c.n})`,
+            note:
+              c.lowestFuelL != null || c.lowestVePct != null
+                ? `your lowest tenth used ${[
+                    c.lowestFuelL != null ? l2(c.lowestFuelL) : null,
+                    c.lowestVePct != null ? pct2(c.lowestVePct) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' and ')}`
+                : undefined,
           },
     );
     cards.push({

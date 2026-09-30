@@ -18,6 +18,7 @@ describe('newPreset', () => {
       length: DEFAULT_LENGTH,
       fuelL: null,
       vePct: 100,
+      veRatio: null,
       formationLap: true,
       mandatoryStops: 0,
       savedAt: at,

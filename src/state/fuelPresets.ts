@@ -17,6 +17,11 @@ export type FuelPreset = {
   fuelL: number | null;
   /** VE at the start, % of the full load. */
   vePct: number;
+  /**
+   * Litres of fuel one % of VE is worth at this event (an event/BoP value);
+   * null uses the last session's measured ratio.
+   */
+  veRatio: number | null;
   formationLap: boolean;
   mandatoryStops: number;
   /** ISO date the rules were saved, for "set 09-26". */
@@ -37,6 +42,7 @@ export function newPreset(
     length: over.length ?? DEFAULT_LENGTH,
     fuelL: over.fuelL ?? null,
     vePct: over.vePct ?? 100,
+    veRatio: over.veRatio ?? null,
     formationLap: over.formationLap ?? true,
     mandatoryStops: over.mandatoryStops ?? 0,
     savedAt,

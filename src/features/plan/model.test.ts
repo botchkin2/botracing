@@ -12,6 +12,8 @@ import {
   parseNumber,
   planView,
   rulesFor,
+  veRatioFor,
+  veRatioOf,
 } from './model';
 
 const session = (
@@ -97,6 +99,25 @@ describe('planCombos', () => {
     ]);
   });
 
+  it('labels a chip with the short track and car, and the layout when two share a name', () => {
+    const [plain] = planCombos([session('a', '2026-09-01T10:00:00Z')]);
+    expect(plain.label).toBe('Daytona · 911 GT3 R');
+    const two = planCombos([
+      session('a', '2026-09-01T10:00:00Z', {
+        trackId: 'lmu-silverstone_grand_prix_circuit_elms',
+        track: 'Silverstone Circuit',
+      }),
+      session('b', '2026-09-02T10:00:00Z', {
+        trackId: 'lmu-silverstone_grand_prix_circuit_wec',
+        track: 'Silverstone Circuit',
+      }),
+    ]);
+    expect(two.map(c => c.label)).toEqual([
+      'Silverstone WEC · 911 GT3 R',
+      'Silverstone ELMS · 911 GT3 R',
+    ]);
+  });
+
   it('skips sessions without laps and other sims', () => {
     const combos = planCombos([
       session('a', '2026-09-01T10:00:00Z', {lapCount: 0}),
@@ -117,27 +138,81 @@ describe('planCombos', () => {
 });
 
 describe('greenLapsOf', () => {
-  it('keeps green timed laps with a positive use', () => {
-    const out = greenLapsOf('s1', [
-      lap(),
-      lap({fuel: fuel({green: false})}),
-      lap({timeS: null}),
-      lap({fuel: null}),
-      lap({fuel: fuel({usedL: 0})}),
-      lap({fuel: fuel({usedL: null})}),
-    ]);
+  it('keeps green timed laps with a positive use, VE from the ratio', () => {
+    const out = greenLapsOf(
+      's1',
+      [
+        lap(),
+        lap({fuel: fuel({green: false})}),
+        lap({timeS: null}),
+        lap({fuel: null}),
+        lap({fuel: fuel({usedL: 0})}),
+        lap({fuel: fuel({usedL: null})}),
+      ],
+      0.7,
+    );
+    // 3.5 L at 0.7 L per 1 % is 5 % VE.
     expect(out).toEqual([
       {fuelL: 3.5, vePct: 5, lapTimeS: 110, sessionId: 's1'},
     ]);
   });
 
-  it('drops a VE of zero or none, keeping the fuel', () => {
-    const out = greenLapsOf('s1', [
-      lap({fuel: fuel({veUsedPct: null})}),
-      lap({fuel: fuel({veUsedPct: 0})}),
+  it('keeps the fuel and drops the VE without a ratio', () => {
+    const out = greenLapsOf('s1', [lap(), lap()], null);
+    expect(out.map(l => [l.fuelL, l.vePct])).toEqual([
+      [3.5, null],
+      [3.5, null],
     ]);
-    expect(out.map(l => l.vePct)).toEqual([null, null]);
-    expect(out).toHaveLength(2);
+  });
+});
+
+describe('veRatioOf', () => {
+  it('is the median litres per 1 % VE over the green laps', () => {
+    const laps = [
+      lap({fuel: fuel({usedL: 3.5, veUsedPct: 5})}), // 0.7
+      lap({fuel: fuel({usedL: 3.6, veUsedPct: 5})}), // 0.72
+      lap({fuel: fuel({usedL: 3.4, veUsedPct: 5})}), // 0.68
+      lap({fuel: fuel({usedL: 9, veUsedPct: 5, green: false})}),
+    ];
+    expect(veRatioOf(laps)).toBeCloseTo(0.7);
+  });
+
+  it('is null without a green lap that has fuel and VE', () => {
+    expect(veRatioOf([])).toBeNull();
+    expect(veRatioOf([lap({fuel: fuel({veUsedPct: null})})])).toBeNull();
+    expect(veRatioOf([lap({fuel: null})])).toBeNull();
+  });
+});
+
+describe('veRatioFor', () => {
+  const sessions = [
+    {startedAt: '2026-09-29T10:00:00Z', ratio: null},
+    {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81},
+    {startedAt: '2026-09-10T10:00:00Z', ratio: 0.98},
+  ];
+
+  it('takes the newest session that has one, with its date', () => {
+    expect(veRatioFor(null, sessions)).toEqual({
+      perPctL: 0.81,
+      source: {kind: 'session', startedAt: '2026-09-20T10:00:00Z'},
+    });
+  });
+
+  it('prefers the preset ratio', () => {
+    const preset = newPreset(
+      'X',
+      {veRatio: 0.68},
+      'p1',
+      '2026-09-26T00:00:00Z',
+    );
+    expect(veRatioFor(preset, sessions)).toEqual({
+      perPctL: 0.68,
+      source: {kind: 'preset'},
+    });
+  });
+
+  it('is null with neither', () => {
+    expect(veRatioFor(null, [{startedAt: 'x', ratio: null}])).toBeNull();
   });
 });
 
@@ -145,7 +220,7 @@ describe('rulesFor', () => {
   const length = {kind: 'min' as const, value: 60};
   const last = {startL: 89, fillLimitL: 84, tankL: 115};
 
-  it('uses the preset fuel first, then fill limit, tank and start fuel', () => {
+  it('uses the preset fuel first, then fill limit, start fuel and tank', () => {
     const preset = newPreset(
       'Endurance',
       {fuelL: 75},
@@ -158,12 +233,13 @@ describe('rulesFor', () => {
       fuelSource: 'fill limit',
       rules: {fuelL: 84},
     });
+    // No setup recorded: what he started with there, not the tank ceiling.
     expect(
-      rulesFor(null, length, {startL: 89, fillLimitL: null, tankL: 115}),
-    ).toMatchObject({fuelSource: 'tank', rules: {fuelL: 115}});
+      rulesFor(null, length, {startL: 100, fillLimitL: null, tankL: 117}),
+    ).toMatchObject({fuelSource: 'start fuel', rules: {fuelL: 100}});
     expect(
-      rulesFor(null, length, {startL: 89, fillLimitL: null, tankL: null}),
-    ).toMatchObject({fuelSource: 'start fuel', rules: {fuelL: 89}});
+      rulesFor(null, length, {startL: null, fillLimitL: null, tankL: 117}),
+    ).toMatchObject({fuelSource: 'tank', rules: {fuelL: 117}});
   });
 
   it('cannot plan without any fuel', () => {
@@ -212,15 +288,23 @@ describe('planView', () => {
     '2026-09-26T00:00:00Z',
   );
   const rules = rulesFor(preset, preset.length, null)!;
+  const ratio = {
+    perPctL: 0.7,
+    source: {kind: 'session' as const, startedAt: '2026-09-20T10:00:00Z'},
+  };
   const view = planView(preset, rules, planRace(rules.rules, history), {
     since: '2026-09-01T10:00:00Z',
     lastFillLimitL: 75,
+    ratio,
+    lastRatio: 0.7,
   });
 
   it('names the rules and flags a preset that differs from the last session', () => {
     expect(view.rulesLine).toContain('Endurance 75 % fuel');
     expect(view.rulesLine).toContain('set ');
-    expect(view.stale).toBe('preset 84 L  ·  last session there 75 L');
+    expect(view.stale).toBe(
+      'max fuel: preset 84 L  ·  last session there 75 L',
+    );
   });
 
   it('prints the five cards in order', () => {
@@ -247,10 +331,22 @@ describe('planView', () => {
     expect(stops[0].value).toBe('2 stops  ·  after lap 20, 40');
     const drop = view.cards[4].rows;
     expect(drop[0].label).toBe('1 stop');
-    expect(drop[1].value).toBe('no data');
+    // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop.
+    expect(drop[0].value).toContain(
+      'Fuel: not the limit (3.65 L a lap would still reach)',
+    );
+    expect(drop[0].value).toContain('VE: at most 4.35 % a lap');
+    expect(drop[1].label).toBe('Your laps at <= 4.35 % VE');
+    expect(drop[1].value).toBe('no data  (n = 0)');
   });
 
-  it('has no equal-stints row when the race needs no stop', () => {
+  it('shows where the VE ratio came from', () => {
+    const note = view.cards[0].rows[1].note;
+    expect(note).toContain('0.700 L per 1 % VE');
+    expect(note).toContain('measured in the session of ');
+  });
+
+  it('reads a race that needs no stop as a load to finish', () => {
     const short = rulesFor(
       null,
       {kind: 'laps', value: 10},
@@ -259,13 +355,35 @@ describe('planView', () => {
     const v = planView(null, short, planRace(short.rules, history), {
       since: null,
       lastFillLimitL: null,
+      ratio: null,
+      lastRatio: null,
     });
-    const stops = v.cards.find(c => c.key === 'stops')!;
-    expect(stops.rows.map(r => r.label)).toEqual([
-      'At median use',
-      'At p90 use',
-    ]);
-    expect(stops.rows[0].value).toBe('no stop');
+    expect(v.cards.some(c => c.key === 'stops')).toBe(false);
+    const load = v.cards.find(c => c.key === 'load')!;
+    // 10 laps + the formation lap at 3.5 L and 5 %: 38.50 L, 55.00 % VE.
+    expect(load.rows[0].label).toBe('10 laps + formation lap, median use');
+    expect(load.rows[0].value).toContain('38.50 L');
+    expect(load.rows[0].value).toContain('55.00 %');
+    expect(load.rows[1].label).toContain('p90 use');
+  });
+
+  it('flags a preset ratio that differs from the last session', () => {
+    const withRatio = newPreset(
+      'X',
+      {fuelL: 84, veRatio: 0.6},
+      'p1',
+      '2026-09-26T00:00:00Z',
+    );
+    const r = rulesFor(withRatio, withRatio.length, null)!;
+    const v = planView(withRatio, r, planRace(r.rules, history), {
+      since: null,
+      lastFillLimitL: 84,
+      ratio: {perPctL: 0.6, source: {kind: 'preset'}},
+      lastRatio: 0.7,
+    });
+    expect(v.stale).toBe(
+      'L per 1 % VE: preset 0.600  ·  last session there 0.700',
+    );
   });
 
   it('leaves the stale line out for no limits', () => {
@@ -277,9 +395,11 @@ describe('planView', () => {
     const v = planView(null, noLimits, planRace(noLimits.rules, history), {
       since: null,
       lastFillLimitL: 84,
+      ratio: null,
+      lastRatio: null,
     });
     expect(v.stale).toBeNull();
-    expect(v.rulesLine).toContain('No limits');
+    expect(v.rulesLine).toBe('Rules: last race here (84 L fill limit)');
     expect(v.footnote).toContain('tyres');
   });
 
@@ -287,6 +407,8 @@ describe('planView', () => {
     const empty = planView(preset, rules, planRace(rules.rules, []), {
       since: null,
       lastFillLimitL: null,
+      ratio: null,
+      lastRatio: null,
     });
     expect(empty.cards[0].rows[0].value).toBe('no data');
     expect(empty.cards.some(c => c.key === 'dropStop')).toBe(false);

@@ -32,6 +32,8 @@ import {
   planCombos,
   planView,
   rulesFor,
+  veRatioFor,
+  veRatioOf,
 } from './model';
 import {RulesEditor} from './RulesEditor';
 
@@ -81,14 +83,17 @@ export function PlanScreen() {
   const [editing, setEditing] = useState<'new' | 'edit' | null>(null);
   const [lengthText, setLengthText] = useState(String(length.value));
 
-  const greenLaps = useMemo(
-    () =>
-      history.flatMap((s, i) => {
-        const laps = lapsOf.laps[i];
-        return laps ? greenLapsOf(s.id, laps) : [];
-      }),
-    [history, lapsOf.laps],
-  );
+  // The litres one VE % is worth: the preset's, else measured in the newest
+  // session there (VE % per lap depends on the load; thread 35 #1004).
+  const measured = history.map((s, i) => ({
+    startedAt: s.startedAt,
+    ratio: lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null,
+  }));
+  const ratio = veRatioFor(preset, measured);
+  const greenLaps = history.flatMap((s, i) => {
+    const laps = lapsOf.laps[i];
+    return laps ? greenLapsOf(s.id, laps, ratio ? ratio.perPctL : null) : [];
+  });
   const rules = rulesFor(preset, length, lastFuel);
   const plan = rules ? planRace(rules.rules, greenLaps) : null;
   const view =
@@ -97,6 +102,8 @@ export function PlanScreen() {
           since:
             history.length > 0 ? history[history.length - 1].startedAt : null,
           lastFillLimitL: lastFuel?.fillLimitL ?? null,
+          ratio,
+          lastRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
         })
       : null;
 
@@ -141,7 +148,7 @@ export function PlanScreen() {
                 {shownCombos.map(c => (
                   <Chip
                     key={c.key}
-                    label={`${c.track} · ${c.car}`}
+                    label={c.label}
                     selected={c.key === combo.key}
                     onPress={() => setComboKey(c.key)}
                   />
@@ -229,6 +236,9 @@ export function PlanScreen() {
                   key={editing === 'edit' && preset ? preset.id : 'new'}
                   preset={editing === 'edit' ? preset : null}
                   lastFillLimitL={lastFuel?.fillLimitL ?? null}
+                  lastVeRatio={
+                    measured.find(m => m.ratio != null)?.ratio ?? null
+                  }
                   onCancel={() => setEditing(null)}
                   onSave={fields => {
                     const base: FuelPreset =

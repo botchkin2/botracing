@@ -12,6 +12,7 @@ type Draft = {
   name: string;
   fuel: string;
   ve: string;
+  ratio: string;
   stops: string;
   formationLap: boolean;
 };
@@ -21,6 +22,7 @@ function draftOf(preset: FuelPreset | null): Draft {
     name: preset?.name ?? '',
     fuel: preset?.fuelL != null ? String(preset.fuelL) : '',
     ve: String(preset?.vePct ?? 100),
+    ratio: preset?.veRatio != null ? String(preset.veRatio) : '',
     stops: String(preset?.mandatoryStops ?? 0),
     formationLap: preset?.formationLap ?? true,
   };
@@ -35,16 +37,19 @@ function draftOf(preset: FuelPreset | null): Draft {
 export function RulesEditor({
   preset,
   lastFillLimitL,
+  lastVeRatio,
   onSave,
   onCancel,
 }: {
   /** The preset being edited, or null for a new one. */
   preset: FuelPreset | null;
   lastFillLimitL: number | null;
+  /** Litres per 1 % VE measured in the last session there. */
+  lastVeRatio: number | null;
   onSave: (
     fields: Pick<
       FuelPreset,
-      'name' | 'fuelL' | 'vePct' | 'mandatoryStops' | 'formationLap'
+      'name' | 'fuelL' | 'vePct' | 'veRatio' | 'mandatoryStops' | 'formationLap'
     >,
   ) => void;
   onCancel: () => void;
@@ -53,12 +58,14 @@ export function RulesEditor({
   const [draft, setDraft] = useState(() => draftOf(preset));
   const fuel = draft.fuel.trim() === '' ? null : parseNumber(draft.fuel);
   const ve = parseNumber(draft.ve);
+  const ratio = draft.ratio.trim() === '' ? null : parseNumber(draft.ratio);
   const stops = draft.stops.trim() === '' ? 0 : Number(draft.stops);
   const valid =
     draft.name.trim() !== '' &&
     (draft.fuel.trim() === '' || fuel != null) &&
     ve != null &&
     ve <= 100 &&
+    (draft.ratio.trim() === '' || ratio != null) &&
     Number.isInteger(stops) &&
     stops >= 0;
   return (
@@ -109,6 +116,19 @@ export function RulesEditor({
       </View>
       <View style={styles.row}>
         <NumberField
+          label='L per 1 % VE'
+          unit='L'
+          decimal
+          value={draft.ratio}
+          placeholder={
+            lastVeRatio != null ? lastVeRatio.toFixed(3) : 'measured'
+          }
+          onChange={ratioText => setDraft(d => ({...d, ratio: ratioText}))}
+        />
+        <View style={styles.field} />
+      </View>
+      <View style={styles.row}>
+        <NumberField
           label='Mandatory stops'
           value={draft.stops}
           onChange={stopsText => setDraft(d => ({...d, stops: stopsText}))}
@@ -141,6 +161,7 @@ export function RulesEditor({
               name: draft.name.trim(),
               fuelL: fuel,
               vePct: ve ?? 100,
+              veRatio: ratio,
               mandatoryStops: stops,
               formationLap: draft.formationLap,
             })
