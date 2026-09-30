@@ -28,10 +28,10 @@ export function pitLine(stop: PitStop): string | null {
   const added = stop.added.fuelL;
   const time = stop.inPitS != null ? ` · ${stop.inPitS.toFixed(0)} s` : '';
   if (added == null) return `${head}${time}`;
-  // A stop that took none (a drive-through or a penalty) says so.
-  return `${head} · ${
-    added > 0 ? `+${litres(added)}` : 'no fuel added'
-  }${time}`;
+  // "+0.0 L" for a stop that took none (a drive-through or a penalty): the same
+  // length as "+33.2 L", where 'no fuel added' was cut off on the phone row
+  // (measured at 375 pt, apex #1084).
+  return `${head} · +${litres(added)}${time}`;
 }
 
 /**
