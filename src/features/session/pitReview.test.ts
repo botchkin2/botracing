@@ -82,6 +82,28 @@ describe('buildPitReview', () => {
     expect(last.stops[0].lines.join()).not.toContain('Tyres');
   });
 
+  it('finds the wear jump on the lap after the out lap (Silverstone 09-16)', () => {
+    // Pit-in L4, out lap L5 (no jump yet), flag on L6.
+    const late = [
+      ...race.slice(0, 4),
+      lap(5, {pitOut: true}),
+      lap(6, {newTyres: true, fuel: fuelEnd(13.1, 5)}),
+    ];
+    expect(buildPitReview('R', late)!.stops[0].lines).toContain(
+      'Tyres changed',
+    );
+    // A jump two laps into the next stint is not this stop's.
+    const far = [
+      ...race.slice(0, 4),
+      lap(5, {pitOut: true}),
+      lap(6),
+      lap(7, {newTyres: true}),
+    ];
+    expect(buildPitReview('R', far)!.stops[0].lines).toContain(
+      'Tyres not changed',
+    );
+  });
+
   it('reads a stop that added nothing as a drive-through', () => {
     const drive = race.map(l =>
       l.lapIndex === 4
