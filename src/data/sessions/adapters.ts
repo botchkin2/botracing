@@ -281,6 +281,15 @@ export type LapFuel = {
   green: boolean;
 };
 
+export type Wheel = 'FL' | 'FR' | 'RL' | 'RR';
+const WHEELS: readonly Wheel[] = ['FL', 'FR', 'RL', 'RR'];
+
+/**
+ * The wheels whose wear reading stepped up inside the stop (tools/sessions/
+ * fuelFacts.mjs): a new tyre on each. `wheels` is empty when none changed.
+ */
+export type PitTyres = {changed: boolean; wheels: Wheel[]};
+
 /** A pit stop: what was left at pit entry, what was added, how long. */
 export type PitStop = {
   atEntry: {fuelL: number | null; vePct: number | null};
@@ -288,6 +297,8 @@ export type PitStop = {
   added: {fuelL: number | null; vePct: number | null};
   inPitS: number | null;
   lapsLeftAtEntry: {fuel: number | null; ve: number | null};
+  /** Null on sessions analysed before analysisVersion 15, or without a wear channel. */
+  tyres: PitTyres | null;
 };
 
 /**
@@ -367,6 +378,14 @@ function toLapFuel(v: unknown): LapFuel | null {
   };
 }
 
+function toPitTyres(v: unknown): PitTyres | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const list = Array.isArray(x.wheels) ? x.wheels : [];
+  const wheels = WHEELS.filter(w => list.includes(w));
+  return {changed: x.changed === true && wheels.length > 0, wheels};
+}
+
 function toPitStop(v: unknown): PitStop | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
@@ -378,6 +397,7 @@ function toPitStop(v: unknown): PitStop | null {
     added: {fuelL: num(added.fuelL), vePct: num(added.vePct)},
     inPitS: num(x.inPitS),
     lapsLeftAtEntry: {fuel: num(left.fuel), ve: num(left.ve)},
+    tyres: toPitTyres(x.tyres),
   };
 }
 

@@ -91,6 +91,56 @@ export function lapFuel(s, i0, i1, pits) {
   };
 }
 
+// A wheel's wear reading rising by more than this within TYRE_STEP_S is a new
+// tyre (pit-wall thread 38, grip #1103: full sets and single wheels alike jump
+// to 100, dead-sensor wheels from 0). Real wear only falls, and the session
+// start's garage exit steps 100 to 98, a fall.
+export const TYRE_JUMP_PCT = 5;
+// The wear channel is 10 Hz and the analysis draws a straight line between its
+// real samples, so the step is spread over about 0.1 s of ticks (Silverstone
+// 09-16: 89.8 to 100 is 1 % a tick), never one tick. Look back this far.
+const TYRE_STEP_S = 0.25;
+const WHEELS = [
+  ['FL', 'tyres_wear_fl'],
+  ['FR', 'tyres_wear_fr'],
+  ['RL', 'tyres_wear_rl'],
+  ['RR', 'tyres_wear_rr'],
+];
+// The wear reading updates a moment after the pit window opens or closes
+// (grip aligned on 1 s either side).
+const TYRE_MARGIN_S = 1;
+
+/**
+ * Which wheels got a new tyre in the pit window [a, b] (b may be Infinity):
+ * those whose wear reading rises by more than TYRE_JUMP_PCT within
+ * TYRE_STEP_S inside it. Null when the recording has no wear channel.
+ * The compound event is not used: it only fires for a full set.
+ */
+export function tyreChange(s, a, b) {
+  const channels = WHEELS.filter(([, key]) => s[key]);
+  if (channels.length === 0) return null;
+  const lo = Math.max(1, firstIndexAtOrAfter(s.t, a - TYRE_MARGIN_S));
+  const hi = Math.min(
+    s.t.length - 1,
+    b === Infinity
+      ? s.t.length - 1
+      : firstIndexAtOrAfter(s.t, b + TYRE_MARGIN_S),
+  );
+  const wheels = [];
+  for (const [name, key] of channels) {
+    const wear = s[key];
+    let j = lo - 1;
+    for (let i = lo; i <= hi; i++) {
+      while (s.t[j] < s.t[i] - TYRE_STEP_S) j++;
+      if (wear[i] - wear[j] > TYRE_JUMP_PCT) {
+        wheels.push(name);
+        break;
+      }
+    }
+  }
+  return {changed: wheels.length > 0, wheels};
+}
+
 /**
  * The pit stop entered during the lap's time window (startT, endT] (its
  * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
@@ -122,6 +172,7 @@ export function lapPitStop(s, startT, endT, pits) {
       vePct: added(s.virtual_energy_pct, 2),
     },
     inPitS: b === Infinity ? null : round(b - a, 1),
+    tyres: tyreChange(s, a, b),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},
   };

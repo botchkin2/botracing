@@ -6,6 +6,7 @@ export type {
   LapReason,
   LapTraffic,
   PitStop,
+  PitTyres,
   MapCorner,
   MapSection,
   SectionFacts,
@@ -18,6 +19,7 @@ export type {
   Stint,
   TrackMapData,
   TrackMapQuality,
+  Wheel,
 } from './adapters';
 export {type SessionFilter, sessionKeys} from './keys';
 export {
