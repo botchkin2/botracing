@@ -9,10 +9,14 @@ const BAR_H = 8;
 const NOTCH_W = 2;
 const NOTCH_H = 16;
 
-/** Round up to the next 10 laps, so the scale ends on a number. */
+/** The tick step in laps: 10, or 20 on a long scale. */
+const stepFor = (most: number) => (most > 60 ? 20 : 10);
+
+/** Round up to a whole tick, so the scale ends on a number. */
 function scaleMax(meters: TankMeter[]): number {
   const most = Math.max(...meters.map(m => m.lapsP90 ?? m.lapsMedian), 10);
-  return Math.ceil(most / 10) * 10;
+  const step = stepFor(most);
+  return Math.ceil(most / step) * step;
 }
 
 /**
@@ -110,7 +114,7 @@ function Meter({
 
 function Scale({max}: {max: number}) {
   // Ticks on round laps: every 10, or every 20 on a long scale.
-  const step = max > 60 ? 20 : 10;
+  const step = stepFor(max);
   const ticks = Array.from(
     {length: Math.floor(max / step) + 1},
     (_, i) => i * step,
