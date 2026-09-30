@@ -96,6 +96,7 @@ const map = (): TrackMapData => ({
   quality: 'poor',
   georef: null,
   outline: [],
+  outlineKinds: [],
   pitLane: [],
   attribution: null,
 });

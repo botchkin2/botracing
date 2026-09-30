@@ -264,6 +264,12 @@ export type CornerGridModel = {
 };
 
 export type MapModel = {
+  /**
+   * The measured road is still on its way (a hit, none, or a failure all end
+   * the wait): the panel holds its place instead of drawing OSM and then
+   * reshaping the road under the cursor.
+   */
+  roadPending: boolean;
   /** Drawn on the OSM outline (fit good), or on the driven line. */
   realMap: boolean;
   /** Outline stretches the reference lap runs along, and the rest (drawn quietly). */
@@ -404,6 +410,8 @@ export type CompareInputs = {
   map: TrackMapData | null;
   /** The track's measured road, when it has one. */
   surface?: TrackSurface | null;
+  /** The surface request has not settled: the road is held back (see MapModel.roadPending). */
+  surfacePending?: boolean;
   selection: CompareSelection;
   charts?: ChannelId[][];
   window?: ChartWindow;
@@ -957,6 +965,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const followGeometry = input.followGeometry ?? null;
     const split = placer.outlineUse(refTrace);
     mapModel = {
+      roadPending: input.surfacePending ?? false,
       realMap: placer.real,
       // The measured road first (a thin band in Track), then the OSM outside it.
       outline: [...measuredCentreLines(placer.measured), ...split.used],

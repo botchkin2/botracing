@@ -8,7 +8,13 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
+import {
+  MAP_ZOOM_BUTTONS_W,
+  MapZoomButtons,
+  Segment,
+  Skeleton,
+  Text,
+} from '@/src/ui';
 
 import {type MapModel} from '../model';
 import {type LapStyle} from './ChartBlock';
@@ -104,6 +110,13 @@ export function MapPanel({
     [geometry, shownKey, lapStyle],
   );
 
+  if (map.roadPending) {
+    return (
+      <View style={[styles.box, {backgroundColor: color.surface}]}>
+        <Skeleton height={height} />
+      </View>
+    );
+  }
   return (
     <View style={[styles.box, {backgroundColor: color.surface}]}>
       {mode === 'follow' && f ? (

@@ -509,10 +509,28 @@ export type TrackMapData = {
   } | null;
   /** OSM track lines as [lon, lat] pairs; pit lanes excluded. */
   outline: [number, number][][];
+  /** The OSM kind of each outline line, in the same order ('track', or another road kind). */
+  outlineKinds: string[];
   /** OSM pit lane lines as [lon, lat] pairs. */
   pitLane: [number, number][][];
   attribution: string | null;
 };
+
+// The kind of each LineString lineStrings returns for the same filter, in the
+// same order, so a line can be told from another by what the mapper called it.
+function lineKinds(
+  features: unknown[],
+  wanted: (kind: unknown) => boolean,
+): string[] {
+  return features
+    .map(obj)
+    .filter(ft => wanted(obj(ft.properties).kind))
+    .filter(ft => {
+      const geom = obj(ft.geometry);
+      return geom.type === 'LineString' && Array.isArray(geom.coordinates);
+    })
+    .map(ft => str(obj(ft.properties).kind));
+}
 
 // GeoJSON LineStrings of the kinds wanted, as [lon, lat] pairs.
 function lineStrings(
@@ -576,6 +594,7 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
           }
         : null,
     outline: lineStrings(features, kind => kind !== 'pit'),
+    outlineKinds: lineKinds(features, kind => kind !== 'pit'),
     pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
   };

@@ -46,6 +46,8 @@ export type RaceData =
       /** Median metres from the player to the line, for the notice. */
       matchM: number | null;
       attribution: string | null;
+      /** The measured road is still on its way: the map holds its place. */
+      roadPending: boolean;
     };
 
 /** Gathers the Race screen's inputs; `carsAt` and the model do the rest. */
@@ -128,5 +130,6 @@ export function useRaceData(sessionId: string): RaceData {
     matches: worldMatches(matchM),
     matchM,
     attribution: map.data?.attribution ?? null,
+    roadPending: surface.isPending,
   };
 }

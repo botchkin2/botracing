@@ -20,6 +20,7 @@ function map(georef: TrackMapData['georef'], quality: 'good' | 'poor') {
     quality,
     georef,
     outline: [],
+    outlineKinds: [],
     pitLane: [],
     attribution: null,
   } satisfies TrackMapData;
@@ -139,6 +140,7 @@ describe('mapPlacer with a measured surface', () => {
       [lonLat(0, 2), lonLat(1000, 2)],
       [lonLat(0, 60), lonLat(1000, 60)],
     ],
+    outlineKinds: ['track', 'track'],
     pitLane: [[lonLat(0, 4), lonLat(1000, 4)]],
   });
 
@@ -160,6 +162,23 @@ describe('mapPlacer with a measured surface', () => {
     expect(placer.outline).toHaveLength(1);
     expect(Math.abs(placer.outline[0][0].y - 60)).toBeLessThan(0.5);
     expect(placer.pitLane).toHaveLength(1);
+  });
+
+  it('keeps a service road inside the measured road: only racing-layout roads are replaced', () => {
+    const m = withOsm();
+    m.outline.push([lonLat(0, 1), lonLat(1000, 1)]);
+    m.outlineKinds.push('service');
+    const placer = mapPlacer(m, surface);
+    // The road way (y = 2) is gone; the far way and the service road stay.
+    expect(placer.outline).toHaveLength(2);
+    expect(placer.outline.some(l => Math.abs(l[0].y - 1) < 0.5)).toBe(true);
+    expect(placer.outline.some(l => Math.abs(l[0].y - 60) < 0.5)).toBe(true);
+  });
+
+  it('a way of unknown kind is never dropped', () => {
+    const m = withOsm();
+    m.outlineKinds = ['', ''];
+    expect(mapPlacer(m, surface).outline).toHaveLength(2);
   });
 
   it('without a surface nothing changes', () => {

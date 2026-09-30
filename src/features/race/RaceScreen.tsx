@@ -336,7 +336,9 @@ function RaceView({
       } ${CLASS_TITLE[rows.you.key]}`
     : `${rows.carCount} cars · ${rows.classes.length} classes`;
 
-  const map = (
+  const map = data.roadPending ? (
+    <Skeleton height={mapH} />
+  ) : (
     <View>
       <RaceMap
         width={mapW}

@@ -51,7 +51,9 @@ export function useTrackModel(
     return {
       kind: 'ready',
       refSessionId: ref?.id ?? null,
-      mapLoading: ref != null && (map.isPending || refTrace == null),
+      // The road is held back until the surface settles, like the map itself.
+      mapLoading:
+        ref != null && (map.isPending || refTrace == null || surface.isPending),
       attribution: map.data?.attribution ?? null,
       model: buildTrackModel({
         trackId,

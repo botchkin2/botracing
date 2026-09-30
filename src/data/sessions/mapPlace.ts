@@ -116,7 +116,13 @@ export function mapPlacer(
   const outline =
     measured.length > 0 && osm.length > 0
       ? dropOsmInsideSurface(
-          osm.map((points, i) => ({id: i, kind: 'track', points})),
+          // Only racing-layout roads can be replaced; a service or access road
+          // keeps whatever kind the map gave it and is never dropped.
+          osm.map((points, i) => ({
+            id: i,
+            kind: map?.outlineKinds?.[i] ?? 'unknown',
+            points,
+          })),
           {
             runs: measured.map(m => ({...m, fromM: 0})) as SurfaceRun[],
             halfWidthM: surfaceHalfWidth(surface),
