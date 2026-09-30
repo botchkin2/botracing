@@ -4,13 +4,13 @@ import {
   useSessions,
 } from '@/src/data/sessions';
 import {carLabel, shortTrackName} from '@/src/design';
+import {planComboKey} from '@/src/nav/routes';
 
 // Same window the Plan screen reads, so the two agree on what was driven last.
 const PLAN_HISTORY_DAYS = 3650;
 
-/** The Plan screen's key for a track and car (see features/plan/model). */
 const comboKey = (s: Pick<SessionSummary, 'trackId' | 'car'>) =>
-  `${s.trackId}|${carLabel(s.car).model}`;
+  planComboKey(s.trackId, carLabel(s.car).model);
 
 /** "Le Mans · 911 GT3 R", the same words as the Plan chip. */
 const comboPair = (s: Pick<SessionSummary, 'track' | 'car'>) =>

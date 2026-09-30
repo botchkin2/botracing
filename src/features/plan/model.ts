@@ -20,6 +20,7 @@ import {
   formatLapTime,
   shortTrackName,
 } from '@/src/design';
+import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
 // The pre-race planner screen's model (pit wall thread 35): which track+car
@@ -47,7 +48,7 @@ export function planCombos(sessions: SessionSummary[]): Combo[] {
   for (const s of sessions) {
     if (s.sim !== 'lmu' || s.lapCount === 0) continue;
     const car = carLabel(s.car).model;
-    const key = `${s.trackId}|${car}`;
+    const key = planComboKey(s.trackId, car);
     const combo = byKey.get(key) ?? {
       key,
       trackId: s.trackId,

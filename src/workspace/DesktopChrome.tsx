@@ -23,6 +23,23 @@ import {AppChrome, type ChromeSession, type ChromeTab} from '@/src/ui';
 import {usePlanCombo} from './usePlanCombo';
 import {useCornerTarget, useWorkspaceGo} from './useWorkspaceGo';
 
+type Kept = {
+  id: string;
+  laps?: string;
+  hl?: string;
+  /** The last corner used in this session, for the "Corner T5" tab. */
+  corner: number | null;
+};
+
+const sameKept = (a: Kept | null, b: Kept | null) =>
+  a === b ||
+  (a != null &&
+    b != null &&
+    a.id === b.id &&
+    a.laps === b.laps &&
+    a.hl === b.hl &&
+    a.corner === b.corner);
+
 /**
  * The desktop bar (≥900), fed from the URL: the open session and its lap
  * selection become the box, so switching tabs keeps context.
@@ -39,28 +56,48 @@ export function DesktopChrome() {
   const {isWide} = useLayout();
   const tab = sessionTabOf(pathname);
   const openId = tab ? id ?? null : null;
-  // Plan and Settings keep the session box so one click goes back; any other
-  // page forgets the session.
-  const [kept, setKept] = useState<string | null>(null);
+  // Plan and Settings keep the session box, its laps and its corner so one
+  // click goes back; any other page forgets the session. Derived from the
+  // route while rendering, not in an effect: no extra paint.
   const keeps = pathname === '/plan' || pathname === '/settings';
-  const sessionId = openId ?? (keeps ? kept : null);
-  // Derived from the route while rendering, not in an effect: no extra paint.
-  if (sessionId !== kept) setKept(sessionId);
+  const [kept, setKept] = useState<Kept | null>(null);
+  const sessionId = openId ?? (keeps ? kept?.id ?? null : null);
+  const urlCorner = useCornerTarget(sessionId, tab);
+  const current: Kept | null = openId
+    ? {
+        id: openId,
+        laps,
+        hl,
+        corner: urlCorner.used
+          ? urlCorner.n
+          : kept?.id === openId
+          ? kept.corner
+          : null,
+      }
+    : keeps
+    ? kept
+    : null;
+  if (!sameKept(current, kept)) setKept(current);
+  const selection = openId ? {laps, hl} : {laps: kept?.laps, hl: kept?.hl};
+  const cornerN = current?.corner ?? null;
   const plan = usePlanCombo(
     sessionId,
     pathname.startsWith('/track/') ? id ?? null : null,
     true,
   );
-  const go = useWorkspaceGo(sessionId, tab, plan.key);
+  const go = useWorkspaceGo(sessionId, tab, {
+    planCombo: plan.key,
+    cornerN: cornerN ?? undefined,
+    selection,
+  });
   const {data: session} = useSession(sessionId ?? '', sessionId != null);
   const lapData = useSessionLaps(sessionId ?? '');
   const map = useSessionMap(sessionId ?? '');
-  const corner = useCornerTarget(sessionId, tab);
 
   let box: ChromeSession<SessionTab> | null = null;
   if (sessionId && session) {
     const car = carLabel(session.car);
-    const {laps: lapIds} = parseSelection({laps, hl});
+    const {laps: lapIds} = parseSelection(selection);
     const lapRows = lapIds.flatMap((lapId, i) => {
       const lap = lapData.data?.find(l => l.id === lapId);
       return lap
@@ -72,14 +109,15 @@ export function DesktopChrome() {
           ]
         : [];
     });
-    const cornerLabel = corner.used
-      ? `Corner T${turnNumber(
-          corner.n,
-          map.data
-            ? trackCorners(map.data).find(c => c.n === corner.n)?.official
-            : undefined,
-        )}`
-      : 'Corner';
+    const cornerLabel =
+      cornerN != null
+        ? `Corner T${turnNumber(
+            cornerN ?? 1,
+            map.data
+              ? trackCorners(map.data).find(c => c.n === cornerN)?.official
+              : undefined,
+          )}`
+        : 'Corner';
     const tabs: ChromeTab<SessionTab>[] = [
       {key: 'session', label: 'Laps'},
       {key: 'compare', label: 'Compare'},

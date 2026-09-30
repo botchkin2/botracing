@@ -10,6 +10,7 @@ import {
   useSessionLaps,
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
+import {planComboKey} from '@/src/nav/routes';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
@@ -136,7 +137,7 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return `${session.trackId}|${carLabel(session.car).model}`;
+  return planComboKey(session.trackId, carLabel(session.car).model);
 }
 
 function buildFuelUseCard(

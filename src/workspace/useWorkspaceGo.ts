@@ -40,14 +40,21 @@ export function useCornerTarget(
 export function useWorkspaceGo(
   sessionId: string | null,
   tab: SessionTab | null,
-  planCombo?: string,
+  opts: {
+    planCombo?: string;
+    /** The corner the Corner tab opens, when the caller remembers one. */
+    cornerN?: number;
+    /** The lap selection to carry, when the URL no longer holds it. */
+    selection?: {laps?: string; hl?: string};
+  } = {},
 ) {
   const router = useRouter();
   // Only the lap selection travels between tabs; corner and cursor belong
   // to the workspace that set them.
-  const {laps, hl} = useGlobalSearchParams<{laps?: string; hl?: string}>();
-  const cornerN = useCornerTarget(sessionId, tab).n;
-  const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
+  const params = useGlobalSearchParams<{laps?: string; hl?: string}>();
+  const urlCorner = useCornerTarget(sessionId, tab).n;
+  const cornerN = opts.cornerN ?? urlCorner;
+  const {laps: lapIds, hl: hlId} = parseSelection(opts.selection ?? params);
   const sel = {laps: lapIds, hl: hlId};
   return (name: TabName) => {
     const target = tabTarget(name, sessionId);
@@ -57,7 +64,7 @@ export function useWorkspaceGo(
       case 'tracks':
         return router.navigate(tracksHref());
       case 'plan':
-        return router.navigate(planHref(planCombo));
+        return router.navigate(planHref(opts.planCombo));
       case 'settings':
         return router.navigate(settingsHref());
       case 'session':
