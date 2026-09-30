@@ -34,4 +34,16 @@ describe('stackDots', () => {
       ),
     ).toEqual([0, 1]);
   });
+
+  it('puts priority dots on the line and stacks the rest around them', () => {
+    // Four dots on one point; the last is the lap that is on.
+    const dots = [0, 1, 2, 3].map(i => ({
+      x: 50,
+      value: 7,
+      priority: i === 3,
+    }));
+    const rows = stackDots(dots, 6, 0);
+    expect(rows[3]).toBe(0);
+    expect(rows.slice(0, 3).sort()).toEqual([-1, 1, 2]);
+  });
 });
