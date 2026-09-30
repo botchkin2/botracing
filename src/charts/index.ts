@@ -7,6 +7,7 @@ export * from './TrackStrip';
 export * from './DotStrip';
 export * from './BrakeMap';
 export * from './FollowMap';
+export * from './FuelScatter';
 export * from './trackMarks';
 export * from './Radar';
 export * from './RaceLanes';

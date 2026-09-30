@@ -1,4 +1,4 @@
-import {useRouter} from 'expo-router';
+import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -69,7 +69,9 @@ export function PlanScreen() {
     () => planCombos(sessions.data?.items ?? []),
     [sessions.data],
   );
-  const [comboKey, setComboKey] = useState<string | null>(null);
+  // A link from a session opens the plan on its track and car.
+  const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
+  const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [showAll, setShowAll] = useState(false);
   const combo = combos.find(c => c.key === comboKey) ?? combos[0] ?? null;
   // The latest few, and the one picked even if it is older.
