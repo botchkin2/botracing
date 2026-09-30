@@ -301,12 +301,12 @@ function CornerView({
                 <Text variant='dataSmall' tone='textMuted'>
                   {s.summary}
                 </Text>
+                {s.flatNote ? (
+                  <Text variant='dataSmall' tone='textMuted'>
+                    {s.flatNote}
+                  </Text>
+                ) : null}
               </View>
-              {s.note ? (
-                <Text variant='explainer' tone='textMuted'>
-                  {s.note}
-                </Text>
-              ) : null}
               {s.keyValues.length > 0 ? (
                 <View style={styles.wrap}>
                   {s.keyValues.map(k => (
@@ -319,7 +319,7 @@ function CornerView({
                   ))}
                 </View>
               ) : null}
-              {s.empty ? (
+              {s.empty && s.flatNote ? null : s.empty ? (
                 <Text variant='dataSmall' tone='textFaint'>
                   No lap has a {s.label.toLowerCase()} in this corner.
                 </Text>

@@ -82,12 +82,47 @@ describe('a measure no lap has', () => {
   });
 });
 
-describe('full throttle at the edge', () => {
-  it('greys edge laps and notes when most laps are flat through', () => {
-    const laps = [0, 1, 2].map(i => lap(i, {throttleAtEdge: i > 0}));
+describe('flat laps on the full-throttle strip', () => {
+  // A flat lap has no full-throttle point: the model gives it throttleM null.
+  const flat = (i: number, over: Partial<StripLap> = {}) =>
+    lap(i, {throttleAtEdge: true, throttleM: null, ...over});
+
+  it('leaves flat laps off the strip and counts them beside it', () => {
+    const laps = [lap(0), lap(1), flat(2), flat(3), lap(4)];
     const throttle = buildStrips(laps)[3];
-    expect(throttle.dots.map(d => d.flagged)).toEqual([false, true, true]);
-    expect(throttle.note).toMatch(/^Flat through this turn/);
-    expect(buildStrips([lap(0)])[3].note).toBeNull();
+    expect(throttle.dots.map(d => d.lapId)).toEqual(['l0', 'l1', 'l4']);
+    expect(throttle.dots.every(d => !d.flagged)).toBe(true);
+    expect(throttle.flatNote).toBe('flat throughout: 2 laps');
+    // The band is over the laps that have a point.
+    expect(throttle.band?.p50).toBe(51);
+  });
+
+  it('one flat lap reads singular; none reads nothing', () => {
+    expect(buildStrips([lap(0), flat(1)])[3].flatNote).toBe(
+      'flat throughout: 1 lap',
+    );
+    expect(buildStrips([lap(0), lap(1)])[3].flatNote).toBeNull();
+  });
+
+  it('every lap flat: empty strip with the count, no scale', () => {
+    const throttle = buildStrips([flat(0), flat(1), flat(2)])[3];
+    expect(throttle.empty).toBe(true);
+    expect(throttle.dots).toEqual([]);
+    expect(throttle.flatNote).toBe('flat throughout: 3 laps');
+  });
+
+  it('an on lap that is flat says so beside the title', () => {
+    const throttle = buildStrips([
+      lap(0, {onIndex: 0}),
+      flat(1, {onIndex: 1}),
+    ])[3];
+    expect(throttle.keyValues.map(k => k.text)).toEqual(['L0 50', 'L1 flat']);
+  });
+
+  it('other strips are not touched by a flat throttle lap', () => {
+    const [time, brake] = buildStrips([lap(0), flat(1)]);
+    expect(time.dots).toHaveLength(2);
+    expect(brake.dots).toHaveLength(2);
+    expect(time.flatNote).toBeNull();
   });
 });

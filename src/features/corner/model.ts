@@ -137,6 +137,9 @@ export const ZOOM_AFTER_M = 150;
 // so a 16-lap race gets them; below that the table shows every lap.
 const STRIP_MODE_FROM = 7;
 
+/** A table cell for a lap that is flat through the turn. */
+export const FLAT = 'flat';
+
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
   brake: v => `${Math.round(v)}`,
@@ -234,10 +237,16 @@ export function buildCornerModel(input: {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
       minSpeed: f?.minSpeedKph ?? null,
+      // A lap that is flat through the turn has no full-throttle point: the
+      // search's start is not a point on the lap (cell: "flat", not a number).
       throttle:
-        f?.fullThrottleAtM == null ? null : f.fullThrottleAtM - sec.apexM,
+        f?.fullThrottleAtM == null || f.fullThrottleAtEdge
+          ? null
+          : f.fullThrottleAtM - sec.apexM,
     };
   };
+  const isFlat = (l: Lap) =>
+    lapCornerFacts(l, sec)?.fullThrottleAtEdge === true;
   const refValues = ref ? valuesOf(ref) : null;
 
   const rows: CornerRow[] = selected.map((l, i) => {
@@ -250,7 +259,12 @@ export function buildCornerModel(input: {
         return [
           m.id,
           {
-            value: v == null ? '—' : fmt[m.id](v),
+            value:
+              v != null
+                ? fmt[m.id](v)
+                : m.id === 'throttle' && isFlat(l)
+                ? FLAT
+                : '—',
             gap:
               d == null
                 ? null
@@ -301,7 +315,13 @@ export function buildCornerModel(input: {
 
   const hlRow = rows.find(r => r.highlighted) ?? null;
   const highlightLine = hlRow
-    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${hlRow.cells.brake.value} m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${hlRow.cells.throttle.value} m`
+    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${
+        hlRow.cells.brake.value
+      } m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${
+        hlRow.cells.throttle.value === FLAT
+          ? FLAT
+          : `${hlRow.cells.throttle.value} m`
+      }`
     : null;
 
   const zoomWindow: [number, number] = [
@@ -338,7 +358,9 @@ export function buildCornerModel(input: {
         steeringPct: t.steeringPct,
         samples: t.samples,
         brakeAtM: f?.brakeAtM ?? null,
-        fullThrottleAtM: f?.fullThrottleAtM ?? null,
+        fullThrottleAtM: f?.fullThrottleAtEdge
+          ? null
+          : f?.fullThrottleAtM ?? null,
       },
     ];
   });
