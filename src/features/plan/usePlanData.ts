@@ -49,7 +49,10 @@ export function usePlanData(combo: Combo | null) {
           ],
         })
       : null;
-  const cards = rules && plan ? buildPlanCards(plan, rules.rules, noVe) : null;
+  const cards =
+    rules && plan
+      ? buildPlanCards(plan, rules.rules, noVe, hist.ratio?.perPctL ?? null)
+      : null;
   return {
     preset,
     length,

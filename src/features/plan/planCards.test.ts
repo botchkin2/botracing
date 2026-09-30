@@ -21,6 +21,8 @@ const lap = (fuelL: number, vePct: number | null): GreenLap => ({
   lapTimeS: 101.2,
   sessionId: 's',
 });
+// Litres of fuel one % of VE is worth here: 2.38 L / 3.5 %.
+const RATIO = 0.68;
 const history = (withVe = true): GreenLap[] =>
   Array.from({length: 12}, () => lap(2.38, withVe ? 3.5 : null));
 
@@ -32,7 +34,7 @@ describe('lapName', () => {
 });
 
 describe('buildPlanCards', () => {
-  const cards = buildPlanCards(planRace(rules, history()), rules, false);
+  const cards = buildPlanCards(planRace(rules, history()), rules, false, RATIO);
 
   it('the Race card: laps from the median lap time, the full-tank stops and the arithmetic', () => {
     expect(cards.race.laps).toBe(72);
@@ -63,14 +65,43 @@ describe('buildPlanCards', () => {
     // The first stint also burns the formation lap: (27 + 1) x 3.5 = 98.
     expect(full.vePerStint.map(Math.round)).toEqual([98, 98, 60]);
     // Two stops. Stop 1 refills what stint 1 (27 + formation) used. Stop 2
-    // would refill 28 laps' worth, but the last stint is 17 laps, so it adds
-    // only what those 17 need (17 x 2.38 = 40.5 L): enough to finish.
+    // adds only what the last 17 laps need: VE is the limit here. Stint 2 used
+    // 28 x 3.5 = 98 % VE, so 2 % is left, and 17 x 3.5 = 59.5 % needs 57.5 %
+    // more, x 0.68 L per % = 39.1 L; the fuel need (17 x 2.38 = 40.46 L less
+    // the 33.4 L still in the tank) is only 7.1 L, so VE wins. Capped at the
+    // refill (66.6 L), and marked as enough to finish.
     expect(
       full.refuel.map(r => [Math.round(r.litres * 10) / 10, r.toFinish]),
     ).toEqual([
       [66.6, false],
-      [40.5, true],
+      [39.1, true],
     ]);
+  });
+
+  it('with fuel as the only meter the last stop adds what the remaining laps need, not a full refill', () => {
+    const fuelOnlyPlan = planRace(rules, history(false));
+    const c = buildPlanCards(fuelOnlyPlan, rules, true);
+    const full = c.stops.full!;
+    // Fuel alone: 41 laps in the first stint (and the formation lap), then the
+    // last 31: 31 x 2.38 = 73.7 L, less than the 99.96 L the first stint used
+    // (the tank is nearly empty on arrival), so it adds 73.7 L, enough to
+    // finish, not a full refill.
+    expect(full.stintLaps).toEqual([41, 31]);
+    expect(full.refuel).toEqual([
+      // 31 x 2.38 = 73.78 L, less the 0.04 L still in the tank.
+      {litres: expect.closeTo(31 * 2.38 - 0.04, 5), toFinish: true},
+    ]);
+  });
+
+  it('a short last stint on fuel alone subtracts what is still in the tank', () => {
+    const long: PlanRules = {...rules, lengthMin: null, lengthLaps: 50};
+    const c = buildPlanCards(planRace(long, history(false)), long, true);
+    const full = c.stops.full!;
+    // Stint 1 is 41 laps, the last is 9: 9 x 2.38 = 21.4 L needed, and after
+    // 42 x 2.38 = 100 L used the tank holds 0 L, so the need is the whole 21.4 L.
+    expect(full.stintLaps).toEqual([41, 9]);
+    expect(full.refuel[0].toFinish).toBe(true);
+    expect(full.refuel[0].litres).toBeCloseTo(9 * 2.38, 1);
   });
 
   it('the Stops card: equal stints second, over the same race', () => {

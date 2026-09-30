@@ -130,6 +130,7 @@ function stopRow(
   formation: boolean,
   rules: PlanRules,
   fuelOnly: boolean,
+  ratioPerPctL: number | null,
 ): StopRow {
   const extra = (i: number) => (i === 0 && formation ? 1 : 0);
   const fuelOf = (i: number) =>
@@ -146,14 +147,29 @@ function stopRow(
         : stintLaps.map((_, i) =>
             Math.min(rules.vePct, (stintLaps[i] + extra(i)) * vePerLap),
           ),
-    // A stop refills what the stint before it used; the last one is capped at
-    // what the remaining laps need.
+    // A stop refills what the stint before it used. The last one adds only
+    // what it takes to finish: the larger of the fuel the remaining laps need
+    // less what is still in the tank, and, when VE is the limit, the VE they
+    // need less what is left, in litres through the ratio; both capped at the
+    // refill (camber, #168).
     refuel: stintLaps.slice(0, -1).flatMap((_, i, stops): StopRow['refuel'] => {
       const toFull = fuelOf(i);
       if (toFull == null || fuelPerLap == null) return [];
-      const last = i === stops.length - 1;
-      const need = stintLaps[i + 1] * fuelPerLap;
-      return last && need < toFull
+      if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
+      const remaining = stintLaps[i + 1];
+      const fuelLeft = Math.max(0, rules.fuelL - toFull);
+      const fuelNeed = Math.max(0, remaining * fuelPerLap - fuelLeft);
+      let veNeedL = 0;
+      if (vePerLap != null && !fuelOnly && ratioPerPctL != null) {
+        const veUsed = Math.min(
+          rules.vePct,
+          (stintLaps[i] + extra(i)) * vePerLap,
+        );
+        const veLeft = Math.max(0, rules.vePct - veUsed);
+        veNeedL = Math.max(0, remaining * vePerLap - veLeft) * ratioPerPctL;
+      }
+      const need = Math.max(fuelNeed, veNeedL);
+      return need < toFull
         ? [{litres: need, toFinish: true}]
         : [{litres: toFull, toFinish: false}];
     }),
@@ -164,6 +180,7 @@ function stopsCard(
   plan: FuelPlan,
   rules: PlanRules,
   fuelOnly: boolean,
+  ratioPerPctL: number | null,
 ): StopsCard {
   const med = plan.atMedian;
   const laps = plan.raceLaps?.estimate ?? null;
@@ -187,6 +204,7 @@ function stopsCard(
       rules.formationLap,
       rules,
       fuelOnly,
+      ratioPerPctL,
     );
   }
   // Equal stints: the same number of stops, spread evenly.
@@ -211,6 +229,7 @@ function stopsCard(
       rules.formationLap,
       rules,
       fuelOnly,
+      ratioPerPctL,
     );
   }
   return {full, equal};
@@ -227,10 +246,12 @@ export function buildPlanCards(
   plan: FuelPlan,
   rules: PlanRules,
   fuelOnly: boolean,
+  /** Litres of fuel one % of VE is worth here; null without VE. */
+  ratioPerPctL: number | null = null,
 ): PlanCards {
   return {
     race: raceCard(plan, rules),
     tank: tankCard(plan, rules, fuelOnly),
-    stops: stopsCard(plan, rules, fuelOnly),
+    stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL),
   };
 }
