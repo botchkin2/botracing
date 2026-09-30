@@ -12,38 +12,6 @@ export const PIT_REVIEW_HELP: readonly string[] = [
   'The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.',
 ];
 
-/**
- * The lap the race ends on: the last one that was not cut short and has a
- * fuel level. `Lap.partial` also carries the game's "incomplete" flag, which
- * LMU sets on the untimed last laps of a race (Le Mans 09-21: L21-L23), so
- * the test is the uploader's own "partial" reason, not that flag (#160).
- */
-export function endingLap(laps: Lap[]): Lap | null {
-  return (
-    [...laps]
-      .reverse()
-      .find(l => !l.reasons.includes('partial') && l.fuel?.endL != null) ?? null
-  );
-}
-
-/**
- * The stops of a race, in driving order. The service before the start is not
- * a stop and is left out (camber, thread 36 #1117). Practice and qualifying
- * have none.
- */
-export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
-  if (sessionType !== 'R') return [];
-  const first = laps.length > 0 ? laps[0].lapIndex : 0;
-  // The service before the start is a window on the first lap that the car
-  // leaves (an out lap, `pitOut`), before any timed lap. A stop on the first
-  // lap is a real one when the lap ends in the pit lane (`pitIn`): Road
-  // Atlanta 09-25 changed the FL on L1, 87 s, after a 267 s lap (camber,
-  // thread 43 #1279).
-  return laps.filter(
-    l => l.pitStop !== null && (l.lapIndex !== first || l.pitIn),
-  );
-}
-
 const PAIRS: [string, Wheel[]][] = [
   ['fronts', ['FL', 'FR']],
   ['rears', ['RL', 'RR']],

@@ -3,6 +3,7 @@ import {useMemo} from 'react';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
 import {
+  raceFacts,
   type Lap,
   type SessionDetail,
   useSession,
@@ -12,7 +13,6 @@ import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
-import {raceFacts} from './raceFacts';
 import {buildPitCard, type PitCard} from './pitCard';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 

@@ -78,7 +78,11 @@ const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
-const removeHit = hitFor({left: 28, right: space.md}, 15);
+const removeHit = hitFor({left: 14, right: space.md}, 15);
+// The "Ref" beside it: the chip's tap makes the reference too, but nothing said
+// so (Botkin, thread 43 #1267); this says it. 14 pt either side keeps the two
+// targets from overlapping.
+const refHit = hitFor({left: 14, right: 14}, 15);
 // Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
 const KEY_STEP_M = 5;
 const KEY_STEP_SHIFT_M = 50;
@@ -331,6 +335,11 @@ function CompareView({
       </Text>
     </View>
   );
+  const referenceHint = (
+    <Text variant='dataSmall' tone='textFaint'>
+      REF · tap another lap’s Ref to change
+    </Text>
+  );
 
   const chipItems = (
     <>
@@ -355,6 +364,19 @@ function CompareView({
                 tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}>
                 {c.delta}
               </Text>
+              {!c.isRef && (
+                <Pressable
+                  accessibilityRole='button'
+                  accessibilityLabel={`Make ${c.label} the reference`}
+                  {...refHit}
+                  onPress={() =>
+                    onSelectionChange(makeReference(selection, c.lapId))
+                  }>
+                  <Text variant='dataSmall' tone='accentInk'>
+                    Ref
+                  </Text>
+                </Pressable>
+              )}
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
@@ -691,6 +713,7 @@ function CompareView({
           <ScrollView style={{width: sideW}} contentContainerStyle={styles.col}>
             {header}
             {reference}
+            {referenceHint}
             {chips}
             {map}
             {position}
@@ -714,6 +737,7 @@ function CompareView({
         ]}>
         {header}
         {reference}
+        {referenceHint}
         {chips}
         {map}
         {position}

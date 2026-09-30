@@ -17,6 +17,7 @@ import {
   type CompareSelection,
   makeReference,
   removeLap,
+  setReference,
   toggleCompared,
   valuesAt,
 } from './model';
@@ -368,6 +369,15 @@ describe('many laps', () => {
 describe('selection edits', () => {
   it('making a lap the reference moves it first', () => {
     expect(makeReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+  });
+  it('setting a lap as the reference adds it first when it is not compared', () => {
+    // 'x' is in All laps but not in the comparison.
+    const out = setReference(sel(), 'x');
+    expect(out.laps).toEqual(['x', 'a', 'b', 'c']);
+    // A compared lap just moves; the old reference stays as an ordinary lap.
+    expect(setReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+    // The reference itself: nothing changes.
+    expect(setReference(sel(), 'a')).toEqual(sel());
   });
   it('the reference cannot be removed', () => {
     expect(removeLap(sel(), 'a')).toEqual(sel());

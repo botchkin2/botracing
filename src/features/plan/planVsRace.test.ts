@@ -12,6 +12,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   raceLaps: 30,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
+  end: {lapIndex: 30, fuelL: 13.1, vePct: 5},
   ...over,
 });
 

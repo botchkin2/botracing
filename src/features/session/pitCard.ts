@@ -8,6 +8,7 @@
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
 import {refuelS, refuelScope} from '@/src/analysis/refuel';
+import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {
   Lap,
   PitStop,
@@ -15,7 +16,7 @@ import type {
   SessionType,
 } from '@/src/data/sessions';
 
-import {endingLap, racePitLaps, tyresText} from './pitReview';
+import {tyresText} from './pitReview';
 
 /** A bold value and a muted line under it. */
 export type Cell = {value: string; note: string | null};

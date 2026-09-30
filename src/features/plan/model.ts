@@ -194,9 +194,20 @@ export function greenLapsOf(
       vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
       lapTimeS: l.timeS,
       sessionId,
+      veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
     });
   }
   return out;
+}
+
+/**
+ * Whether the plan has no VE to show: fewer than the planner's minimum of the
+ * green laps it was built from recorded VE themselves. Chosen from the data,
+ * never from the car class, so a mixed history (Barcelona: March laps without
+ * VE, August with) reads right (camber, thread 43 #1243).
+ */
+export function fuelOnly(laps: GreenLap[]): boolean {
+  return laps.filter(l => l.veMeasured).length < MIN_GREEN_LAPS;
 }
 
 /** A typed number: positive and finite, else null (empty, "7.", "abc", 0). */

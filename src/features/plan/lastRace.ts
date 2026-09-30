@@ -1,0 +1,45 @@
+// "Your last race here" (round 5, frame 1; pit-wall thread 43): the newest race
+// at a track and car, as data. The Plan screen prints it under the chips and
+// the Track page's Plan card reads its date and length. Pure.
+import type {RaceFacts} from '@/src/analysis/fuelPlan';
+
+import {lapName} from './planCards';
+
+export type LastRace = {
+  sessionId: string;
+  startedAt: string;
+  /** Racing laps driven, the formation lap not counted. */
+  raceLaps: number;
+  /** One per stop, by the lap the pit lane was entered ("L24"), and what was left at entry. */
+  stops: {lap: string; fuelL: number | null; vePct: number | null}[];
+  /** The tank at the end of the last whole lap ("L72"); null without a fuel level. */
+  end: {lap: string; fuelL: number | null; vePct: number | null} | null;
+};
+
+/** The race's facts as the Plan screen shows them; the stop and end laps are the app's lap names. */
+export function lastRaceOf(
+  sessionId: string,
+  facts: RaceFacts | null,
+): LastRace | null {
+  if (!facts) return null;
+  return {
+    sessionId,
+    startedAt: facts.startedAt,
+    raceLaps: facts.raceLaps,
+    stops: facts.stops.map(s => ({
+      lap: `L${s.lapIndex}`,
+      fuelL: s.fuelL,
+      vePct: s.vePct,
+    })),
+    end: facts.end
+      ? {
+          lap: `L${facts.end.lapIndex}`,
+          fuelL: facts.end.fuelL,
+          vePct: facts.end.vePct,
+        }
+      : null,
+  };
+}
+
+// lapName is re-exported for the screens that print a planned lap next to this.
+export {lapName};
