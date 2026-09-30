@@ -29,6 +29,7 @@ import {
   fillLapsLeft,
   lapFuel,
   lapPitStop,
+  litresPerVePct,
   markGreen,
   stintFuel,
 } from './fuelFacts.mjs';
@@ -36,7 +37,8 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
-export const analysisVersion = 10;
+// 11: litres per 1 % VE on the session's fuel block.
+export const analysisVersion = 11;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -1001,6 +1003,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   fillLapsLeft(laps, stintMedians);
   markGreen(laps);
   const firstFuel = laps.find(l => l.fuel?.startL != null);
+  const ratio = litresPerVePct(laps);
 
   return {
     laps,
@@ -1009,6 +1012,9 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
       startL: firstFuel?.fuel.startL ?? null,
       fillLimitL: recs[0].recording.fuelSetup?.fillLimitL ?? null,
       tankL: recs[0].recording.fuelSetup?.tankL ?? null,
+      // Litres per 1 % of Virtual Energy, measured (fuelFacts.mjs).
+      litresPerVePct: ratio.drive,
+      litresPerVePctStop: ratio.stop,
     },
     trackMap: map,
     newTrackMap,
