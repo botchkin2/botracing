@@ -2,6 +2,12 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type GreenLap, planRace, type RaceFacts} from '@/src/analysis/fuelPlan';
 
+import {toLaps} from '@/src/data/sessions/adapters';
+import type {Lap} from '@/src/data/sessions';
+import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
+import {buildPitReview} from '@/src/features/session/pitReview';
+import {raceFacts} from '@/src/features/session/raceFacts';
+
 import {buildPlanVsRace, raceRules} from './planVsRace';
 
 const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
@@ -11,7 +17,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   startL: 75,
   raceLaps: 30,
   ownUse: {fuelL: 2.4, vePct: 3.5},
-  stops: [{afterLap: 19, fuelL: 12.9, vePct: 0}],
+  stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
   ...over,
 });
 
@@ -54,10 +60,8 @@ describe('buildPlanVsRace', () => {
     const {lines} = build();
     expect(lines[0]).toContain('Planned from 12 green laps in 2 sessions');
     expect(lines[0]).toContain('at the 75 L limit, since 15 Sep, for 30 laps.');
-    expect(lines[1]).toMatch(/^Planned: 1 stop\. The load reaches lap \d+/);
-    expect(lines[2]).toBe(
-      'Race: 1 stop, after lap 19 with 0 % VE and 12.9 L left.',
-    );
+    expect(lines[1]).toMatch(/^Planned: 1 stop\. The load reaches L\d+/);
+    expect(lines[2]).toBe('Race: 1 stop, at L19 with 0 % VE and 12.9 L left.');
     expect(lines[3]).toMatch(/^Fuel a lap: 2\.40 L planned, 2\.40 L this race/);
   });
 
@@ -99,5 +103,76 @@ describe('buildPlanVsRace', () => {
   it('has no second person: data is the subject', () => {
     const all = build().lines.join(' ');
     expect(all).not.toMatch(/\byou\b|\byour\b/i);
+  });
+});
+
+describe('one stop, one number', () => {
+  // The pit stops card and this block name a stop with the same lap (camber, #160).
+  const base = toLaps([fixture.laps[0]])[0];
+  const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
+    ...base,
+    id: `l${lapIndex}`,
+    lapIndex,
+    partial: false,
+    timeS: 90,
+    pitStop: null,
+    fuel: {
+      startL: 0,
+      endL: 40,
+      usedL: 2.4,
+      addedL: 0,
+      veStartPct: 0,
+      veEndPct: 0,
+      veUsedPct: 3.5,
+      veAddedPct: 0,
+      lapsLeftFuel: null,
+      lapsLeftVe: null,
+      green: true,
+    },
+    ...over,
+  });
+  const stopLap = lap(14, {
+    pitStop: {
+      atEntry: {fuelL: 12.9, vePct: 0},
+      added: {fuelL: 50, vePct: 38},
+      inPitS: 81,
+      lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+    },
+  });
+  const laps = [
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(n => lap(n)),
+    stopLap,
+    lap(15),
+    lap(16),
+  ];
+  const session = {
+    sessionType: 'R' as const,
+    startedAt: '2026-09-26T00:38:00Z',
+    fuel: {
+      startL: 75,
+      fillLimitL: 75,
+      tankL: 75,
+      litresPerVePct: null,
+      litresPerVePctStop: null,
+    },
+  };
+
+  it('titles the stop L14 on the card and says L14 in the block', () => {
+    const card = buildPitReview('R', laps)!;
+    const f = raceFacts(session, 'k', laps)!;
+    expect(card.stops[0].title).toBe('L14 · Stop 1 of 1');
+    const block = buildPlanVsRace(f, planRace(raceRules(f)!, history()), basis);
+    expect(block.lines.join(' ')).toContain('Race: 1 stop, at L14 with');
+  });
+
+  it('names the planned stop in the same numbering: racing lap n is L(n + 1)', () => {
+    const f = raceFacts(session, 'k', laps)!;
+    // Heavy use, so the 15-lap race needs a stop.
+    const plan = planRace(raceRules(f)!, history(5));
+    const reached = plan.atMedian.stopLaps[0];
+    const line = buildPlanVsRace(f, plan, basis).lines.find(l =>
+      l.startsWith('Planned: 1 stop'),
+    );
+    expect(line).toContain(`The load reaches L${reached + 1}`);
   });
 });

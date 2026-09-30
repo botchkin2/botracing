@@ -108,8 +108,10 @@ export function buildPlanVsRace(
         'Planned: no stop; one load covers the race at the median use.',
       );
     } else {
+      // The planner counts racing laps from 1 after the formation lap; the app
+      // numbers laps from the formation lap as L1, so racing lap n is L(n+1).
       const at = (o: typeof med) =>
-        o.stopLaps.length ? o.stopLaps.join(', ') : null;
+        o.stopLaps.length ? o.stopLaps.map(n => `L${n + 1}`).join(', ') : null;
       const limited =
         med.firstStint.limitedBy != null
           ? ` (${
@@ -117,10 +119,10 @@ export function buildPlanVsRace(
             } runs out first)`
           : '';
       lines.push(
-        `Planned: ${plural(med.stops, 'stop')}. The load reaches lap ${at(
+        `Planned: ${plural(med.stops, 'stop')}. The load reaches ${at(
           med,
         )} at the median use${
-          at(p90) ? `, lap ${at(p90)} at the p90 use` : ''
+          at(p90) ? `, ${at(p90)} at the p90 use` : ''
         }${limited}.`,
       );
     }
@@ -135,7 +137,7 @@ export function buildPlanVsRace(
               s.vePct != null && `${pct(s.vePct)} VE`,
               s.fuelL != null && `${litres(s.fuelL)} left`,
             ].filter(Boolean);
-            return `after lap ${s.afterLap}${
+            return `at L${s.lapIndex}${
               left.length ? ` with ${left.join(' and ')}` : ''
             }`;
           })
@@ -162,6 +164,7 @@ export function buildPlanVsRace(
 
 export const PLAN_VS_RACE_HELP: readonly string[] = [
   'The planner was given only laps from before this race, at this race’s fill limit, and this race’s length in laps, the formation lap not counted.',
+  'Laps are named as in the lap table: L1 is the formation lap, and the stop is on the lap the pit lane is entered.',
   'The planned stop laps are the last lap the load reaches at that use, not a prediction of when a stop happens.',
   'Fuel and VE a lap are the median over green laps: the history’s, and this race’s own.',
 ];

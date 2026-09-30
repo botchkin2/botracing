@@ -38,7 +38,8 @@ export interface RaceFacts {
   raceLaps: number;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
-  stops: {afterLap: number; fuelL: number | null; vePct: number | null}[];
+  /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
+  stops: {lapIndex: number; fuelL: number | null; vePct: number | null}[];
 }
 
 export interface PlanRules {

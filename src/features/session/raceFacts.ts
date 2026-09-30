@@ -46,7 +46,7 @@ export function raceFacts(
       ),
     },
     stops: racePitLaps(session.sessionType, laps).map(l => ({
-      afterLap: l.lapIndex - 1,
+      lapIndex: l.lapIndex,
       fuelL: l.pitStop!.atEntry.fuelL,
       vePct: l.pitStop!.atEntry.vePct,
     })),

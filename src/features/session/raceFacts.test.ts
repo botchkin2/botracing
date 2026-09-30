@@ -68,9 +68,9 @@ describe('raceFacts', () => {
     expect(raceFacts(session(), 'k', laps)?.raceLaps).toBe(5);
   });
 
-  it('gives the stops as laps after which they happen, and the fuel left at entry', () => {
+  it('gives each stop as its pit-in lap number, and the fuel left at entry', () => {
     expect(raceFacts(session(), 'k', laps)?.stops).toEqual([
-      {afterLap: 4, fuelL: 12.9, vePct: 0},
+      {lapIndex: 5, fuelL: 12.9, vePct: 0},
     ]);
   });
 
