@@ -41,6 +41,7 @@ export function SessionWorkspace({
   chart,
   detail,
   tray,
+  pit,
   renderRow,
   tagKey,
 }: {
@@ -56,6 +57,8 @@ export function SessionWorkspace({
   chart: (width: number) => ReactNode;
   detail: ReactNode;
   tray: ReactNode;
+  /** The race pit review, under the stints; null for other sessions. */
+  pit: ReactNode;
   renderRow: (row: RowModel, width: number) => ReactNode;
   tagKey: string;
 }) {
@@ -167,6 +170,7 @@ export function SessionWorkspace({
             colorOf={colorOf}
             onHighlight={onHighlight}
           />
+          {pit}
           {detail ?? (
             <Explainer>
               Click a bar, a row or a dot to see that lap, and tick laps to
