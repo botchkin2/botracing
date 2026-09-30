@@ -297,6 +297,16 @@ export const size = {
   trackColHistory: 360,
   cornerRowDesk: 30,
   trendHeight: 70,
+  // Pit stops card (round 5 item 3): the pinned key column, a stop column at
+  // three or more stops, the bar height, and the row heights the key column
+  // and the stop columns share so they line up across the sideways scroll.
+  pitKey: 64,
+  pitCol: 118,
+  pitBar: 6,
+  pitHeadRow: 44,
+  pitRow: 52,
+  pitBarRow: 60,
+  pitPlanKey: 56,
 } as const;
 export const chartHeight = {
   compare: {

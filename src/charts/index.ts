@@ -12,3 +12,4 @@ export * from './trackMarks';
 export * from './Radar';
 export * from './RaceLanes';
 export * from './raceLanesLayout';
+export * from './SplitBar';
