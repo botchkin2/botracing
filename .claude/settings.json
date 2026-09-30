@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs board *)",
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs inbox *)",
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs read *)",
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs watch *)",
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs list *)",
+      "Bash(node C:/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs search *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs board *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs inbox *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs read *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs watch *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs list *)",
+      "Bash(node /c/Users/Botkin/Projects/pit-wall/tools/pitwall.mjs search *)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx jest)",
+      "Bash(npx jest *)",
+      "Bash(npx prettier --check *)",
+      "Bash(uv run --group dev pytest*)",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__Claude_Browser__find",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__read_network_requests",
+      "mcp__Claude_Browser__tabs_context"
+    ]
+  }
+}
