@@ -3,7 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {type RaceCar} from '@/src/analysis/raceState';
 import {mapPlacer, type MapPlacer} from '@/src/data/sessions';
 
-import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
+import {followCar, followViewFor} from './followTarget';
 
 function car(over: Partial<RaceCar>): RaceCar {
   return {
@@ -66,11 +66,7 @@ describe('followViewFor', () => {
   });
 
   it('yaw a quarter turn is +x, east, heading 0 on the map', () => {
-    const v = followViewFor(
-      placer,
-      car({headingRad: Math.PI / 2}),
-      RACE_FOLLOW_M,
-    );
+    const v = followViewFor(placer, car({headingRad: Math.PI / 2}), 120);
     expect(v?.headingRad).toBeCloseTo(0, 3);
   });
 

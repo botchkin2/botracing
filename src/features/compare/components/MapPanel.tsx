@@ -4,7 +4,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {FollowMap, TrackMap} from '@/src/charts';
 import {radius, space, useTheme} from '@/src/design';
 import {
-  MAP_ZOOMS,
+  FOLLOW_SPANS_M,
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
@@ -43,7 +43,6 @@ export function MapPanel({
   lapStyle,
   onPressSection,
   zoomControls = false,
-  baseSpanM,
 }: {
   width: number;
   height: number;
@@ -54,14 +53,12 @@ export function MapPanel({
   onPressSection: (n: number) => void;
   /** − / + on the Follow map: desktop only, where they can be pointer targets. */
   zoomControls?: boolean;
-  /** Follow's visible span at zoom 1x, in metres; else it follows the chart window. */
-  baseSpanM?: number;
 }) {
   const prefs = useComparePrefs();
   const mode = prefs.mapMode;
   // A stored zoom outside the steps (a hand-edited or old save) reads as 1×.
   const zoom: MapZoom =
-    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
+    FOLLOW_SPANS_M[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
   const noteShown = !map.realMap && !prefs.poorMapNoteSeen.includes(sessionId);
   const {color} = useTheme();
   const styled = (r: {
@@ -118,7 +115,7 @@ export function MapPanel({
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
-          visibleM={(baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom]}
+          visibleM={FOLLOW_SPANS_M[zoom]}
           band={f.geometry.band}
           bandFaded={f.geometry.bandFaded}
           lines={followLines}
@@ -166,13 +163,11 @@ export function MapPanel({
       </View>
       {zoomControls && mode === 'follow' && f && (
         <MapZoomButtons
-          canOut={zoom < MAP_ZOOMS.length - 1}
+          canOut={zoom < FOLLOW_SPANS_M.length - 1}
           canIn={zoom > 0}
           onOut={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
           onIn={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
-          rangeLabel={`${Math.round(
-            (baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom],
-          )} m`}
+          rangeLabel={`${FOLLOW_SPANS_M[zoom]} m`}
         />
       )}
       {/* Track only: Follow has its inset in this corner. */}

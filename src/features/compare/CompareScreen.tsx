@@ -67,10 +67,6 @@ export type {CompareSelection} from './model';
 
 // Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
 const MAP_H = 220;
-// The phone's Follow map shows a corner with its run-in and exit, not four
-// turns: its own base span, then the shared zoom steps around it (Botkin,
-// pit-wall thread 41 #1178). Desktop follows the chart window.
-const PHONE_FOLLOW_M = 120;
 const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
@@ -427,7 +423,6 @@ function CompareView({
         lapStyle={lapStyle}
         onPressSection={openCorner}
         zoomControls
-        baseSpanM={layout.isDesktop ? undefined : PHONE_FOLLOW_M}
       />
     ) : (
       <TrackStrip

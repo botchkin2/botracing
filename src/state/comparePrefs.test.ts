@@ -4,11 +4,12 @@ import {
   addChart,
   type ChartSet,
   clampRightW,
-  MAP_ZOOMS,
+  FOLLOW_SPANS_M,
   moveChart,
   removeChart,
   stepWindow,
   toggleChannel,
+  useComparePrefs,
   windowSize,
 } from './comparePrefs';
 
@@ -61,17 +62,8 @@ describe('right panel width', () => {
 });
 
 describe('map zoom steps', () => {
-  it('has four steps, close to wide, with the base in the second', () => {
-    expect(MAP_ZOOMS).toHaveLength(4);
-    expect(MAP_ZOOMS[1]).toBe(1);
-    expect(MAP_ZOOMS[0]).toBeLessThan(MAP_ZOOMS[1]);
-    expect(MAP_ZOOMS[2]).toBeGreaterThan(MAP_ZOOMS[1]);
-    expect(MAP_ZOOMS[3]).toBeGreaterThan(MAP_ZOOMS[2]);
-  });
-
-  it('reads 60 / 120 / 250 / 500 m from the 120 m base', () => {
-    expect(MAP_ZOOMS.map(z => Math.round(120 * z))).toEqual([
-      60, 120, 250, 500,
-    ]);
+  it('are the spans in metres, close to wide, 120 m the default', () => {
+    expect([...FOLLOW_SPANS_M]).toEqual([60, 120, 250, 500]);
+    expect(FOLLOW_SPANS_M[useComparePrefs.getState().mapZoom]).toBe(120);
   });
 });
