@@ -3,6 +3,7 @@ export type {
   CornerFacts,
   Lap,
   LapReason,
+  LapTraffic,
   MapCorner,
   MapSection,
   SectionFacts,
