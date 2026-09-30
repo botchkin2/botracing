@@ -152,6 +152,9 @@ export type Lap = {
   id: string;
   /** Position in driving order, from 1. Lap numbers restart per recording. */
   lapIndex: number;
+  /** The game's laps-completed count when the lap began (0 is the first
+   *  lap of a race); matches Field's lap counter. Null on old lap docs. */
+  lapNumber: number | null;
   timeS: number | null;
   sectorsS: (number | null)[];
   stint: number;
@@ -171,6 +174,29 @@ export type Lap = {
   hadImpact: boolean;
   /** Per-section facts in track order, precomputed by the uploader. */
   sections: SectionFacts[];
+  /** The cars around the player on this lap; null when the session has no field. */
+  traffic: LapTraffic | null;
+};
+
+/**
+ * Lap doc `traffic` (tools/sessions/fieldTags.mjs), seconds and counts from
+ * the field, never a verdict. Draft: within 30 m behind a car in the same
+ * lane above 200 km/h. Traffic: a car within 1 s on the road. Passes and
+ * battle count the player's class; the All counts take every car.
+ */
+export type LapTraffic = {
+  draftS: number;
+  trafficAheadS: number;
+  trafficBehindS: number;
+  /** Seconds the player had the blue flag. */
+  blueFlagS: number;
+  /** Own-class passes on the road, made and suffered; includes lapped and lapping cars of the same class, so not a place change. */
+  passesMade: number;
+  passesSuffered: number;
+  passesMadeAll: number;
+  passesSufferedAll: number;
+  /** Seconds within 1 s of a car of the player's class, ahead or behind. */
+  battleS: number;
 };
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
@@ -211,10 +237,27 @@ function toCornerFacts(raw: unknown): CornerFacts {
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
 
+function toTraffic(v: unknown): LapTraffic | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  return {
+    draftS: num(x.draftS) ?? 0,
+    trafficAheadS: num(x.trafficAheadS) ?? 0,
+    trafficBehindS: num(x.trafficBehindS) ?? 0,
+    blueFlagS: num(x.blueFlagS) ?? 0,
+    passesMade: num(x.passesMade) ?? 0,
+    passesSuffered: num(x.passesSuffered) ?? 0,
+    passesMadeAll: num(x.passesMadeAll) ?? 0,
+    passesSufferedAll: num(x.passesSufferedAll) ?? 0,
+    battleS: num(x.battleS) ?? 0,
+  };
+}
+
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
   return items.map((raw, i) => ({
     id: str(raw.id),
     lapIndex: i + 1,
+    lapNumber: num(raw.lapNumber),
     recordingId: str(raw.recordingId) || null,
     timeS: raw.timed === false ? null : num(raw.lapTime),
     sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
@@ -234,6 +277,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
         : []
       ).map(toCornerFacts),
     })),
+    traffic: toTraffic(raw.traffic),
   }));
 }
 

@@ -21,6 +21,8 @@ import Svg, {Line} from 'react-native-svg';
 
 import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
+import {useField} from '@/src/data/field';
+import {useSession} from '@/src/data/sessions';
 import {lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
@@ -45,6 +47,7 @@ import {
 
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
+import {RADAR_DOCK_W, RadarDock} from './components/RadarDock';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
 import {
@@ -160,6 +163,9 @@ function CompareView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const prefs = useComparePrefs();
+  // The field of every car (round 3): loads after the traces, never blocks them.
+  const session = useSession(sessionId);
+  const field = useField(sessionId, session.data?.field?.hash ?? null).data;
   const [editing, setEditing] = useState(false);
   // Phone, One chart view: chart tabs, overlay pills and the explainer sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
@@ -561,23 +567,31 @@ function CompareView({
         </View>
       ),
   );
+  // Phone: the radar docks beside the speed chart, or beside the one chart
+  // shown (R2b). The lap it follows is the playing one; without field data
+  // for that lap the chart keeps the full width.
+  const dockLap = model.playing?.lapNumber ?? null;
+  const dockOn = !layout.isDesktop && field != null && dockLap != null;
+  const dockedChart = (c: (typeof model.charts)[number], h: number) => {
+    const docked = dockOn && (oneChart || c.channels.includes('speed'));
+    const chartW = mainW - RADAR_DOCK_W - space.md;
+    return docked ? (
+      <View key={c.key} style={styles.docked}>
+        {/* Fixed width: the explainer's long line must wrap, not push the radar out. */}
+        <View style={{width: chartW}}>
+          <ChartBlock chart={c} {...chartProps(h)} width={chartW} />
+        </View>
+        <RadarDock field={field} lapNumber={dockLap} cursorM={cursorM} />
+      </View>
+    ) : (
+      <ChartBlock key={c.key} chart={c} {...chartProps(h)} />
+    );
+  };
   const chartList = noTraces
     ? skeletons
     : oneChart
-    ? focusedChart && (
-        <ChartBlock
-          key={focusedChart.key}
-          chart={focusedChart}
-          {...chartProps(ONE_CHART_H)}
-        />
-      )
-    : model.charts.map(c => (
-        <ChartBlock
-          key={c.key}
-          chart={c}
-          {...chartProps(c.height * heightScale)}
-        />
-      ));
+    ? focusedChart && dockedChart(focusedChart, ONE_CHART_H)
+    : model.charts.map(c => dockedChart(c, c.height * heightScale));
 
   const spanLabel =
     windowSizeValue == null
@@ -760,4 +774,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   oneTabs: {gap: space.xs},
+  docked: {flexDirection: 'row', gap: space.md},
 });

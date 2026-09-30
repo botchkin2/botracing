@@ -7,6 +7,7 @@ import {headAfter, lapNeighbours, tailBefore} from './neighbours';
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   id: `L${lapIndex}`,
   lapIndex,
+  lapNumber: lapIndex - 1,
   timeS: 80,
   sectorsS: [],
   stint: 1,

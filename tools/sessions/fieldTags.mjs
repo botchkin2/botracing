@@ -43,12 +43,14 @@ export const DRAFT_MIN_KMH = 200;
 const round1 = v => Math.round(v * 10) / 10;
 
 // The field back to numbers: {etS[], cars: [{player, lapDistM[], laneM[],
-// inPits[], flag[]}]} with null where a car was absent from an update.
+// inPits[], flag[], carClass}]} with null where a car was absent from an
+// update.
 export function decodeField(field) {
   const etS = field.tDs.map(d => field.et0 + d / 10);
   const unit = grid => undelta(grid).map(v => (v === null ? null : v / 10));
   const cars = field.cars.map((c, i) => ({
     player: c.player,
+    carClass: c.class,
     lapDistM: unit(field.lapDistDm[i]),
     laneM: unit(field.pathLateralDm[i]),
     inPits: field.inPits[i],
@@ -68,8 +70,16 @@ const EMPTY = () => ({
   trafficAheadS: 0,
   trafficBehindS: 0,
   blueFlagS: 0,
+  // Passes on the road with cars of the player's class (lapped ones too, so
+  // not a place change): a Hypercar lapping a GT3 is not counted. The All
+  // counts take every car.
   passesMade: 0,
   passesSuffered: 0,
+  passesMadeAll: 0,
+  passesSufferedAll: 0,
+  // Seconds within TRAFFIC_S of a car of the player's class, ahead or behind,
+  // in any lane (side by side counts).
+  battleS: 0,
 });
 
 // windows: [{from, to}] on the session clock (seconds, `from` inclusive).
@@ -106,18 +116,23 @@ export function lapFieldFacts(field, windows) {
     const vMs = speedMs(p, u);
     let gapAhead = Infinity;
     let gapBehind = Infinity;
+    let battleGapM = Infinity;
     const gapNow = new Map();
     for (let j = 0; j < cars.length; j++) {
       const c = cars[j];
       if (j === me || c.lapDistM[u] === null || c.inPits[u]) continue;
       const g = ahead(here, c.lapDistM[u], L);
+      const sameClass = c.carClass === p.carClass;
+      if (sameClass) battleGapM = Math.min(battleGapM, Math.abs(g));
       if (Math.abs(g) < PASS_WINDOW_M) {
         gapNow.set(j, g);
         const before = prevGap.get(j);
         // Strictly across zero: a gap that rounds to exactly 0 m (decimetre
         // positions) is neither side, so it is not a second pass.
         if (before !== undefined && before * g < 0 && w >= 0) {
-          out[w][before > 0 ? 'passesMade' : 'passesSuffered']++;
+          const made = before > 0;
+          out[w][made ? 'passesMadeAll' : 'passesSufferedAll']++;
+          if (sameClass) out[w][made ? 'passesMade' : 'passesSuffered']++;
         }
         if (g === 0 && before !== undefined) gapNow.set(j, before);
       }
@@ -134,6 +149,7 @@ export function lapFieldFacts(field, windows) {
     const speed = Math.max(vMs ?? 0, MIN_SPEED_MS);
     if (gapAhead / speed < TRAFFIC_S) f.trafficAheadS += dt;
     if (gapBehind / speed < TRAFFIC_S) f.trafficBehindS += dt;
+    if (battleGapM / speed < TRAFFIC_S) f.battleS += dt;
     if (p.flag[u] === BLUE_FLAG) f.blueFlagS += dt;
     if (
       gapAhead <= DRAFT_MAX_GAP_M &&
@@ -149,6 +165,7 @@ export function lapFieldFacts(field, windows) {
       'trafficAheadS',
       'trafficBehindS',
       'blueFlagS',
+      'battleS',
     ]) {
       f[k] = round1(f[k]);
     }
