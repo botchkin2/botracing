@@ -1,3 +1,4 @@
+import {classKey, type ClassKey} from '@/src/analysis/carClass';
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 import {formatRaceGap} from '@/src/design';
 
@@ -5,7 +6,8 @@ import {formatRaceGap} from '@/src/design';
 // at one moment. Pure: `RaceScreen` gathers the field and the clock, this
 // turns cars into what is drawn.
 
-export type ClassKey = 'hypercar' | 'lmp2' | 'gt3' | 'other';
+export type {ClassKey};
+export {classKey};
 export type ClassFilter = 'all' | ClassKey;
 
 // Field order, top of the leaderboard down.
@@ -23,15 +25,6 @@ export const CLASS_SHORT: Record<ClassKey, string> = {
   gt3: 'GT3',
   other: 'Other',
 };
-
-/** LMU's class strings ("Hyper", "LMP2", "GT3") to the three the design colours. */
-export function classKey(carClass: string): ClassKey {
-  const c = carClass.toLowerCase();
-  if (c.startsWith('hyper')) return 'hypercar';
-  if (c.startsWith('lmp2')) return 'lmp2';
-  if (c.startsWith('gt3') || c.includes('gte')) return 'gt3';
-  return 'other';
-}
 
 // LMU names a car's model with its class on the end ("Porsche 911 GT3 R
 // LMGT3", "Chevrolet Corvette Z06 LMGT3.", "... AMR LMGT" cut at 30 characters),

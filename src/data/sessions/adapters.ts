@@ -1,3 +1,4 @@
+import {type ClassKey} from '@/src/analysis/carClass';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -162,6 +163,48 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
   return {hash: x.hash, corners};
 }
 
+/**
+ * One class's green laps in a race, from the field (tools/sessions/classLaps.mjs,
+ * analysis version 17): the pace of the other cars, not only yours.
+ */
+export type ClassLapStats = {
+  cars: number;
+  laps: number;
+  medianS: number;
+  p10S: number;
+  p90S: number;
+};
+export type ClassLaps = Partial<Record<ClassKey, ClassLapStats>>;
+
+const CLASS_KEYS: ClassKey[] = ['hypercar', 'lmp2', 'gt3', 'other'];
+
+/** Null when the session has no field or the uploader is older than version 17. */
+export function toClassLaps(v: unknown): ClassLaps | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const out: ClassLaps = {};
+  for (const key of CLASS_KEYS) {
+    const c = obj(x[key]);
+    const [cars, laps, medianS, p10S, p90S] = [
+      num(c.cars),
+      num(c.laps),
+      num(c.medianS),
+      num(c.p10S),
+      num(c.p90S),
+    ];
+    if (
+      cars == null ||
+      laps == null ||
+      medianS == null ||
+      p10S == null ||
+      p90S == null
+    )
+      continue;
+    out[key] = {cars, laps, medianS, p10S, p90S};
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Null on sessions analysed before the fuel facts. */
@@ -169,6 +212,8 @@ export type SessionDetail = SessionSummary & {
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
+  /** Every class's lap times in this race, or null without a field. */
+  classLaps: ClassLaps | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
@@ -187,6 +232,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    classLaps: toClassLaps(raw.classLaps),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {

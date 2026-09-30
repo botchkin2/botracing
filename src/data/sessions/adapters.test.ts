@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
+  toClassLaps,
   toLaps,
   toSessionDetail,
   toSessionSummary,
@@ -67,6 +68,32 @@ describe('toSessionDetail', () => {
       consistency: {stints: [{n: 2, trendPerLap: 0.042}]},
     });
     expect(d.stints.map(s => s.trendSPerLap)).toEqual([null, 0.042]);
+  });
+});
+
+describe('toClassLaps', () => {
+  const stats = {
+    cars: 18,
+    laps: 108,
+    medianS: 96.94,
+    p10S: 96.25,
+    p90S: 102.58,
+  };
+  it('reads the classes it has and skips a malformed one', () => {
+    expect(toClassLaps({hypercar: stats, gt3: {cars: 2}, other: 'x'})).toEqual({
+      hypercar: stats,
+    });
+  });
+  it('is null without a field or from an older uploader', () => {
+    expect(toClassLaps(undefined)).toBeNull();
+    expect(toClassLaps(null)).toBeNull();
+    expect(toClassLaps({})).toBeNull();
+  });
+  it('rides on the session detail', () => {
+    expect(
+      toSessionDetail({...raw, classLaps: {lmp2: stats}}).classLaps,
+    ).toEqual({lmp2: stats});
+    expect(toSessionDetail(raw).classLaps).toBeNull();
   });
 });
 
