@@ -2,14 +2,14 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Field} from '@/src/analysis/field';
-import {type RadarClass} from '@/src/analysis/radar';
+import {RADAR_RANGE_M, type RadarClass} from '@/src/analysis/radar';
 import {raceClock} from '@/src/analysis/raceClock';
 import {Radar} from '@/src/charts';
 import {space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {aroundYouRows} from '../aroundYou';
-import {RADAR_RANGE_M, radarAtCursor} from '../radarModel';
+import {radarAtCursor} from '../radarModel';
 
 // Desktop side column (round 3 R2c): the radar at 150 × 226 and, beside it,
 // the cars in it, nearest first.

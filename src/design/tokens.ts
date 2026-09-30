@@ -48,6 +48,8 @@ const dark = {
   gridNeutral: '#1b1f24',
   // Round 3 R1f: other cars only (dots, radar blocks, class bars), never a
   // line or a number. From oklch(0.62 0.20 25), (0.66 0.14 250), (0.73 0.16 48).
+  // Round 3 R2: the radar drawn over the race map (rgba(13,15,18,.9)).
+  radarInset: 'rgba(13,15,18,0.9)',
   classHypercar: '#e64343',
   classLmp2: '#4697e4',
   classGt3: '#f68443',

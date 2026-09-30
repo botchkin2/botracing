@@ -22,6 +22,7 @@ export function Radar({
   rangeM,
   radar,
   sampleLabel,
+  inset,
 }: {
   width: number;
   height: number;
@@ -31,6 +32,8 @@ export function Radar({
   radar: RadarData | null;
   /** The 5 Hz sample time, printed bottom right ("21:23.4"). */
   sampleLabel?: string;
+  /** Drawn over a map: a translucent background instead of the surface. */
+  inset?: boolean;
 }) {
   const {color, lapColors} = useTheme();
   const pxPerM = height / (2 * rangeM);
@@ -56,7 +59,7 @@ export function Radar({
         width={width - 1}
         height={height - 1}
         rx={3}
-        fill={color.surface}
+        fill={inset ? color.radarInset : color.surface}
         stroke={color.lineStrong}
       />
       {ticks.flatMap(m =>

@@ -7,6 +7,8 @@
 
 import {ABSENT, type Field, type FieldCar} from './field';
 
+/** Metres shown ahead of and behind you (R2: 20–50, default 30). */
+export const RADAR_RANGE_M = 30;
 /** The player's own block: 2 × 4.6 m (R2). */
 export const PLAYER_LENGTH_M = 4.6;
 export const CAR_WIDTH_M = 2;

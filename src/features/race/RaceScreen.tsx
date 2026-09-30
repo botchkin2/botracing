@@ -5,6 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {carsAt} from '@/src/analysis/raceState';
 import {updateAt} from '@/src/analysis/field';
+import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {Button, Text} from '@/src/ui';
@@ -32,6 +33,9 @@ import {type RaceData, useRaceData} from './useRaceData';
 
 // Handoff R1a: map 358 x 260 on the phone, R1b: 1020 x 520 in a 1060 column.
 const PHONE_MAP_H = 260;
+// R1a / R1b: the radar inset over the map, top right.
+const RADAR_PHONE = {width: 72, height: 108};
+const RADAR_DESKTOP = {width: 150, height: 226};
 const DESKTOP_MAP_H = 520;
 const DESKTOP_SIDE_W = 380;
 
@@ -220,7 +224,24 @@ function RaceView({
     [cars, filter, focus],
   );
 
+  // The radar shows the 5 Hz sample at or before the clock, even while the
+  // map interpolates (R2).
+  const radarU = updateAt(
+    times,
+    Math.floor(shownS * prep.field.hz) / prep.field.hz,
+  );
   const desktop = layout.isDesktop;
+  const radarSize = desktop ? RADAR_DESKTOP : RADAR_PHONE;
+  const radarData = useMemo(
+    () =>
+      radarAt(
+        prep.field,
+        radarU,
+        RADAR_RANGE_M,
+        (RADAR_RANGE_M * radarSize.width) / radarSize.height,
+      ),
+    [prep, radarU, radarSize],
+  );
   const mapW = desktop
     ? layout.contentWidth - DESKTOP_SIDE_W - size.gutter
     : layout.contentWidth;
@@ -245,6 +266,15 @@ function RaceView({
         dots={dots}
         showCars={data.matches}
         attribution={data.attribution}
+        radar={{
+          ...radarSize,
+          rangeM: RADAR_RANGE_M,
+          data: radarData,
+          // The sample time is printed on the large sizes only (R2).
+          sampleLabel: desktop
+            ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
+            : undefined,
+        }}
         onPressCar={toggleFocus}
       />
       {rows.focusLabel ? (
