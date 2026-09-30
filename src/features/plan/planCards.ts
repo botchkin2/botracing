@@ -4,7 +4,7 @@
 import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
 import {formatLapTime} from '@/src/design';
 
-import {pitWindows} from './pitWindow';
+import {pitWindows} from '@/src/analysis/pitWindow';
 
 /** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
 export const lapName = (racingLap: number) => `L${racingLap + 1}`;
@@ -60,6 +60,8 @@ export type StopWindow = {
   /** Lap names the stop can come after, earliest to latest ("L18" to "L28"). */
   earliest: string;
   latest: string;
+  /** Laps after the previous stop by which this one must come; null for the first. */
+  within: number | null;
 };
 
 export type StopsCard = {
@@ -253,6 +255,7 @@ function stopsCard(
             stop: w.stop,
             earliest: lapName(w.earliest),
             latest: lapName(w.latest),
+            within: w.withinLaps,
           }),
         )
       : [];

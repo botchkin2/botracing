@@ -74,12 +74,19 @@ export function StopsCardView({
           </Text>
           {card.windows.map(w => (
             <Text key={w.stop} variant='dataStrong' tone='textSecondary'>
-              {`Stop ${w.stop}: after ${w.earliest} to ${w.latest}`}
+              {`Stop ${w.stop}: after ${w.earliest} to ${w.latest}${
+                w.within != null
+                  ? `, within ${w.within} laps of stop ${w.stop - 1}`
+                  : ''
+              }`}
             </Text>
           ))}
           <Text variant='dataSmall' tone='textMuted'>
-            Earliest: the laps after it still fit in full tanks. Latest: the lap
-            the tank runs out, the earlier stops as late as they can be.
+            At the median use, with no reserve. Earliest: the laps after it
+            still fit in full tanks. Latest: the lap the tank runs out, the
+            earlier stops as late as they can be. Each stop after the first must
+            also come within a tank of the one before. A mandatory stop that
+            refuels makes the real window wider.
           </Text>
         </View>
       ) : null}

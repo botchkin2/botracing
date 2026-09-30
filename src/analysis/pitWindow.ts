@@ -1,7 +1,9 @@
 // The pit window (Botkin, pit-wall thread 44 #1379): for each stop of the
 // full-tank plan, the earliest and the latest lap it can be taken and still
 // reach the flag, with the other stops free to move. A range, not a
-// recommendation. Pure; laps are racing laps, named by the caller ("after L18").
+// recommendation, at the median use and with no reserve. Pure; laps are racing
+// laps, named by the caller ("after L18"). Stops that only a rule asks for
+// (mandatory, refuelling) are not counted, so the real windows are wider.
 
 export type PitWindow = {
   /** 1-based stop number. */
@@ -10,6 +12,12 @@ export type PitWindow = {
   earliest: number;
   /** The latest: the lap the tank runs out. */
   latest: number;
+  /**
+   * From the second stop on, the stop must also come within this many laps of
+   * the one before it (a full tank): the ends are not independent choices.
+   * Null for the first stop.
+   */
+  withinLaps: number | null;
 };
 
 /**
@@ -39,7 +47,7 @@ export function pitWindows(
     // Each stint is at least a lap, so stop k cannot come before lap k.
     const earliest = Math.max(k, raceLaps - (stops - k + 1) * stintLaps);
     if (earliest > latest) return [];
-    out.push({stop: k, earliest, latest});
+    out.push({stop: k, earliest, latest, withinLaps: k > 1 ? stintLaps : null});
   }
   return out;
 }
