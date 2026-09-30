@@ -1,10 +1,13 @@
 // Run: node --test tools/sessions/surface.test.mjs
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {Buffer} from 'node:buffer';
+import {gzipSync} from 'node:zlib';
 import {fromLocalMetres, LMU_FAKE_ORIGIN} from '../../src/analysis/geo.ts';
 import {surfaceGeometry} from '../../src/analysis/trackSurface.ts';
 import {
   buildSurface,
+  foldSurfaces,
   gzipSurface,
   parseSurface,
   sessionsToFold,
@@ -180,4 +183,159 @@ test('the stored file round-trips and stays small', () => {
   assert.equal(back.bins.length, surface.bins.length);
   assert.ok(Math.abs(back.bins[7].sx - surface.bins[7].sx) < 0.001);
   assert.ok(gz.length < 20000);
+});
+
+// --- the fold from the store ------------------------------------------------
+
+// A small in-memory Firestore and bucket: only what foldSurfaces reads and writes.
+function fakeStore({tracks, sessions, laps, files}) {
+  const written = [];
+  const downloads = [];
+  const notFound = () => Object.assign(new Error('not found'), {code: 404});
+  const snapshot = docs => ({
+    docs: docs.map(([id, data]) => ({id, data: () => data, exists: true})),
+  });
+  const db = {
+    collection: name => ({
+      doc: id => ({
+        get: async () => {
+          const data = tracks[id];
+          return {id, exists: data != null, data: () => data};
+        },
+        update: async patch => {
+          written.push({track: id, patch});
+          Object.assign(tracks[id], patch);
+        },
+      }),
+      get: async () => snapshot(Object.entries(tracks)),
+      where: (field, _op, value) => ({
+        get: async () =>
+          snapshot(
+            name === 'sessions'
+              ? Object.entries(sessions).filter(([, s]) => s[field] === value)
+              : Object.entries(laps).filter(([, l]) => l[field] === value),
+          ),
+      }),
+    }),
+  };
+  const bucket = {
+    file: path => ({
+      download: async () => {
+        downloads.push(path);
+        if (!(path in files)) throw notFound();
+        return [files[path]];
+      },
+      save: async body => {
+        files[path] = body;
+        written.push({file: path});
+      },
+    }),
+  };
+  return {
+    db,
+    bucket,
+    bucketName: 'test-bucket',
+    written,
+    downloads,
+    tracks,
+    sessions,
+    laps,
+    files,
+  };
+}
+
+const ARTIFACT = 'surface/trackA/v1.json.gz';
+
+// One more session with two laps in the fake store.
+function addSessionTo(store, id) {
+  store.sessions[id] = {trackId: 'trackA'};
+  for (const n of [1, 2]) {
+    const lapId = `${id}-lap${n}`;
+    store.laps[lapId] = {
+      sessionId: id,
+      timed: true,
+      comparable: true,
+      trace: {path: `traces/${lapId}.csv.gz`},
+    };
+    store.files[`traces/${lapId}.csv.gz`] = gzipSync(
+      Buffer.from(csv({pl: n === 1 ? -2 : 3, edge: n === 1 ? -6 : 6})),
+    );
+  }
+}
+
+function storeWith(sessionIds) {
+  const tracks = {trackA: {lengthM: LENGTH_M}};
+  const sessions = {};
+  const laps = {};
+  const files = {};
+  for (const id of sessionIds) {
+    sessions[id] = {trackId: 'trackA'};
+    for (const n of [1, 2]) {
+      const lapId = `${id}-lap${n}`;
+      laps[lapId] = {
+        sessionId: id,
+        timed: true,
+        comparable: true,
+        trace: {path: `traces/${lapId}.csv.gz`},
+      };
+      files[`traces/${lapId}.csv.gz`] = gzipSync(
+        Buffer.from(csv({pl: n === 1 ? -2 : 3, edge: n === 1 ? -6 : 6})),
+      );
+    }
+  }
+  return fakeStore({tracks, sessions, laps, files});
+}
+
+test('foldSurfaces writes the artifact and the pointer, then adds only what is new', async () => {
+  const store = storeWith(['s1', 's2']);
+  const lines = [];
+  const connectStore = async () => store;
+  const read = async () =>
+    parseSurface((await store.bucket.file(ARTIFACT).download())[0]);
+
+  await foldSurfaces({log: l => lines.push(l), connectStore});
+  assert.ok(lines[0].startsWith('trackA: +2 sessions, +4 laps'));
+  assert.deepEqual((await read()).sessions, ['s1', 's2']);
+  assert.equal(store.tracks.trackA.surface.sessions, 2);
+  assert.equal(store.written.filter(w => w.file).length, 1);
+
+  // Nothing new: no trace is read and nothing is written.
+  store.downloads.length = 0;
+  store.written.length = 0;
+  await foldSurfaces({log: l => lines.push(l), connectStore});
+  assert.ok(lines.at(-1).startsWith('trackA: +0 sessions'));
+  assert.deepEqual(store.written, []);
+  assert.equal(store.downloads.filter(p => p.startsWith('traces/')).length, 0);
+
+  // A third session arrives: only its laps are read, and it is added.
+  addSessionTo(store, 's3');
+  store.downloads.length = 0;
+  await foldSurfaces({log: l => lines.push(l), connectStore});
+  assert.equal(lines.at(-2), 'trackA: +1 sessions, +2 laps, 3 sessions in all');
+  assert.deepEqual(
+    store.downloads.filter(p => p.startsWith('traces/')).sort(),
+    ['traces/s3-lap1.csv.gz', 'traces/s3-lap2.csv.gz'],
+  );
+  assert.deepEqual((await read()).sessions, ['s1', 's2', 's3']);
+});
+
+test('foldSurfaces on named tracks leaves the others alone, and a dry run writes nothing', async () => {
+  const store = storeWith(['s1']);
+  store.tracks.trackB = {lengthM: LENGTH_M};
+  const lines = [];
+  await foldSurfaces({
+    trackIds: ['trackB'],
+    log: l => lines.push(l),
+    connectStore: async () => store,
+  });
+  assert.ok(lines[0].startsWith('trackB: +0 sessions'));
+  assert.deepEqual(store.written, []);
+  await foldSurfaces({
+    trackIds: ['trackA'],
+    dry: true,
+    log: l => lines.push(l),
+    connectStore: async () => store,
+  });
+  assert.ok(lines.at(-1).startsWith('trackA: +1 sessions'));
+  assert.deepEqual(store.written, []);
 });

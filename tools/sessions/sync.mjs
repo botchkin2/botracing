@@ -639,13 +639,34 @@ async function main() {
   }
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
-  const {done, failed} = await runPool(todo, store, state, eventWindows);
+  const {done, failed, tracks} = await runPool(
+    todo,
+    store,
+    state,
+    eventWindows,
+  );
   log(
     `done ${done}, failed ${failed}, unchanged ${
       sessions.length - done - failed
     }`,
   );
   if (failed) process.exitCode = 1;
+  if (!local && tracks.size > 0) await foldSurfaceAfterSync([...tracks]);
+}
+
+// The tracks just uploaded get their new sessions folded into the measured
+// surface (tools/sessions/surface.mjs, pit-wall thread 40), so it never needs
+// a hand-run. It reads what was just stored and skips sessions already
+// folded. It is after the closing "done" line, and a failure is a log line the
+// watcher does not read as a failed session: the sync itself succeeded.
+async function foldSurfaceAfterSync(trackIds) {
+  try {
+    const {foldSurfaces} = await import('./surface.mjs');
+    await foldSurfaces({trackIds, log});
+  } catch (error) {
+    const message = String(error?.message ?? error).split(/\r?\n/)[0];
+    log(`surface: not updated: ${message}`);
+  }
 }
 
 const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
@@ -656,6 +677,7 @@ const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
 async function runPool(todo, store, state, eventWindows) {
   let done = 0;
   let failed = 0;
+  const tracks = new Set();
   const building = new Set();
   const waiting = [];
   const changed = () => waiting.splice(0).forEach(wake => wake());
@@ -693,6 +715,7 @@ async function runPool(todo, store, state, eventWindows) {
       }
       if (r.ok) {
         done++;
+        tracks.add(trackId);
         if (!local) {
           state.sessions[s.id] = s.fingerprint;
           saveState(state);
@@ -713,7 +736,7 @@ async function runPool(todo, store, state, eventWindows) {
   // Every worker died: what is left was not attempted, and is not unchanged.
   if (todo.length)
     log(`${todo.length} session(s) not attempted: no workers left`);
-  return {done, failed: failed + todo.length};
+  return {done, failed: failed + todo.length, tracks};
 }
 
 function ask(worker, message) {
