@@ -530,7 +530,7 @@ export function followPlace(sections: MapSection[], cursorM: number): string {
   for (const s of sections)
     for (const c of s.parts.length > 0 ? s.parts : [s])
       if (cursorM >= c.entryM && cursorM <= c.exitM)
-        return `${place} · ${turnLabel(c.n)} apex`;
+        return `${place} · ${turnLabel(c.n, c.official)} apex`;
   return place;
 }
 
@@ -1006,7 +1006,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           ...(map?.sections ?? [])
             .flatMap(s => (s.parts.length ? s.parts : [s]))
             .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
-            .map(c => ({m: c.apexM, label: `${turnLabel(c.n)} apex`})),
+            .map(c => ({
+              m: c.apexM,
+              label: `${turnLabel(c.n, c.official)} apex`,
+            })),
           ...lineMarks(refTrace, cursorM, win, lengthM, refSides),
         ]
       : [],

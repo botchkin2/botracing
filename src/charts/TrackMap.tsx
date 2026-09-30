@@ -9,7 +9,7 @@ import {
   offsetFromLine,
   signedArea2,
 } from '@/src/analysis/loopSide';
-import {fonts, useTheme, turnLabel} from '@/src/design';
+import {fonts, useTheme, turnLabel, turnNumber} from '@/src/design';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
 // the track has a good fit, else the driven line as a plain band; each lap's
@@ -35,7 +35,7 @@ export type MapAnchor = {at: MapPoint; prev: MapPoint; next: MapPoint};
 export type MapMarks = {
   boundaries: MapAnchor[];
   sections: {n: number; anchor: MapAnchor}[];
-  corners: {n: number; anchor: MapAnchor}[];
+  corners: {n: number; official?: string; anchor: MapAnchor}[];
 };
 
 const PAD = 14;
@@ -172,7 +172,12 @@ export function TrackMap({
     );
   // Labels in priority order: sections, then corners, then PIT. Any that
   // would overlap one before it is left out (tight corners at phone size).
-  type Label = {kind: 'section' | 'corner' | 'pit'; n: number; at: MapPoint};
+  type Label = {
+    kind: 'section' | 'corner' | 'pit';
+    n: number;
+    official?: string;
+    at: MapPoint;
+  };
   const bandClear = (l: Label) =>
     l.kind === 'section' ||
     nearestVertexDistance(l.at, refScreen) > BAND_EDGE_W / 2 + CORNER_FONT / 2;
@@ -185,6 +190,7 @@ export function TrackMap({
     ...marks.corners.map(c => ({
       kind: 'corner' as const,
       n: c.n,
+      official: c.official,
       at: off(c.anchor, -CORNER_OFFSET),
     })),
     ...(real && pitAt ? [{kind: 'pit' as const, n: 0, at: pitAt}] : []),
@@ -199,7 +205,7 @@ export function TrackMap({
     l.kind === 'section'
       ? `S${l.n}`
       : l.kind === 'corner'
-      ? turnLabel(l.n)
+      ? turnLabel(l.n, l.official)
       : 'PIT';
   const kept = keepClear(
     candidates.map(l => {
@@ -404,7 +410,7 @@ export function TrackMap({
                   fill={on ? color.bg : color.mapLabel}
                   fontFamily={fonts.monoBold}
                   fontSize={b.font}>
-                  {String(c.n)}
+                  {turnNumber(c.n, c.official)}
                 </SvgText>
               </G>
             );
@@ -441,7 +447,7 @@ export function TrackMap({
             <Pressable
               key={`bhit${c.n}`}
               accessibilityRole='button'
-              accessibilityLabel={`Turn ${c.n}`}
+              accessibilityLabel={turnLabel(c.n, c.official)}
               accessibilityState={{selected: c.n === badges.selected}}
               onPress={() => badges.onPress(c.n)}
               style={[styles.hit, {left: at.x - HIT / 2, top: at.y - HIT / 2}]}

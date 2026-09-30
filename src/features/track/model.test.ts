@@ -33,6 +33,7 @@ const info = (over: Partial<TrackInfo> = {}): TrackInfo => ({
   layout: 'Test Ring GP',
   location: 'Test Ring',
   lengthM: 4000,
+  turnLabels: {},
   openedYear: null,
   country: 'Belgium',
   countryCode: 'BE',

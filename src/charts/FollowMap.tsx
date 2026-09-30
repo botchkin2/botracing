@@ -91,7 +91,7 @@ export function FollowMap({
   /** Whole reference lap, for the inset. */
   inset: FollowXy[];
   /** Corner numbers, placed inside each apex (world metres). */
-  corners: {n: number; at: FollowXy}[];
+  corners: {n: number; official?: string; at: FollowXy}[];
 }) {
   const {color} = useTheme();
   const view = {centre, headingRad, visibleM, width, height};
@@ -127,7 +127,7 @@ export function FollowMap({
               fill={color.mapCornerLabel}
               fontFamily={fonts.monoMedium}
               fontSize={8.5}>
-              {turnLabel(c.n)}
+              {turnLabel(c.n, c.official)}
             </SvgText>
           );
         })}

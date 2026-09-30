@@ -70,7 +70,7 @@ export type StintVsStintModel = {
   total: string;
 };
 
-export type CornerRef = {n: number; apexM: number};
+export type CornerRef = {n: number; official?: string; apexM: number};
 
 const dash = '—';
 
@@ -202,7 +202,9 @@ export function buildStintVsStint(
     explainer: `Median segment time per corner over comparable laps, stint ${b.n} minus stint ${a.n}, in seconds. Left and green = stint ${b.n} faster; right and red = slower.`,
     rows: raw.map(r => ({
       key: String(r.i),
-      label: turnLabel(named ? named[r.i].n : r.i + 1),
+      label: named
+        ? turnLabel(named[r.i].n, named[r.i].official)
+        : turnLabel(r.i + 1),
       dist: named ? formatDistance(named[r.i].apexM) : null,
       deltaS: r.deltaS,
       frac: Math.abs(r.deltaS) / maxAbs,

@@ -96,8 +96,11 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
     return a === 'just now' ? a : `${a} ago`;
   };
   // A failed session waiting on its backoff says when it tries again.
+  // A resync in progress says how far it is; neutral text, no colour.
   const stateText =
-    u.state === 'retrying' && u.retryAt != null
+    u.progress != null
+      ? `Re-analysing ${u.progress.done} / ${u.progress.total}`
+      : u.state === 'retrying' && u.retryAt != null
       ? `Retrying at ${formatClock(u.retryAt)}`
       : STATE_LABEL[u.state];
   const status = seen
