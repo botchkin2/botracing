@@ -10,7 +10,7 @@ import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {
-  MAP_ZOOMS,
+  FOLLOW_SPANS_M,
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
@@ -39,7 +39,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
-import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
+import {followCar, followViewFor} from './followTarget';
 import {markPitLane} from './pitLaneState';
 import {RACE_HELP} from './raceHelp';
 import {useRaceClock} from './useRaceClock';
@@ -53,7 +53,10 @@ const RADAR_DESKTOP = {width: 150, height: 226};
 // Skeleton height, and the least the desktop map is given on a short window.
 const DESKTOP_MAP_H = 520;
 const MAP_MIN_H = 240;
-const DESKTOP_SIDE_W = 380;
+// The leaderboard's right column from 1280 (round 5, item 5); from 900 to 1279
+// it goes below the lanes instead, at this height.
+const DESKTOP_SIDE_W = 320;
+const BOARD_BELOW_H = 260;
 
 // Copy from handoff R4c, verbatim where it is drawn.
 const NO_FIELD_TITLE = 'No field data for this session';
@@ -260,7 +263,7 @@ function RaceView({
   // zoom outside the steps (a hand-edited or old save) reads as 1x.
   const prefs = useComparePrefs();
   const mapZoom: MapZoom =
-    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
+    FOLLOW_SPANS_M[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
 
   // Playing interpolates between the 5 Hz updates; paused rests on a real one.
   const snap = !clock.playing;
@@ -314,7 +317,7 @@ function RaceView({
   const chased = data.matches ? followCar(cars, focus) : null;
   const follow = useMemo<RaceFollow | null>(() => {
     if (!chased) return null;
-    const view = followViewFor(placer, chased, RACE_FOLLOW_M);
+    const view = followViewFor(placer, chased, FOLLOW_SPANS_M[mapZoom]);
     if (!view) return null;
     return {
       view,
@@ -325,7 +328,7 @@ function RaceView({
       bandFaded: outlineUse.unused,
       fellBack: focus !== null && chased.index !== focus,
     };
-  }, [chased, focus, placer, outlineUse, line]);
+  }, [chased, focus, placer, outlineUse, line, mapZoom]);
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
@@ -450,8 +453,15 @@ function RaceView({
           <RaceLegend />
           {lanesBlock}
           {controls}
+          {layout.isWide ? null : (
+            <View style={[styles.boardBelow, {borderColor: color.line}]}>
+              {board}
+            </View>
+          )}
         </View>
-        <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+        {layout.isWide ? (
+          <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+        ) : null}
       </View>
     );
   }
@@ -504,6 +514,7 @@ const styles = StyleSheet.create({
   // The map's own box; the map is drawn to its measured size.
   mapFill: {flex: 1, minHeight: MAP_MIN_H},
   side: {width: DESKTOP_SIDE_W, borderLeftWidth: 1},
+  boardBelow: {height: BOARD_BELOW_H, borderTopWidth: 1},
   chip: {
     position: 'absolute',
     left: space.md,

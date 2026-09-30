@@ -10,6 +10,7 @@ import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
+  defaultLapIds,
   firstCornerOf,
   type Lap,
   type SessionBand,
@@ -1126,6 +1127,21 @@ export const drawRank = (r: {selIndex: number; highlighted: boolean}) =>
 
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
+/**
+ * A URL with no laps opens on the session's default laps (the best lap as
+ * reference plus the fastest other comparable one), so Compare is never an
+ * empty reference with no chips. Laps the URL names are kept as given, and
+ * nothing changes while the session's laps are still loading.
+ */
+export function withDefaultLaps(
+  sel: CompareSelection,
+  laps: Lap[] | undefined,
+  bestLapId: string | null,
+): CompareSelection {
+  if (sel.laps.length > 0 || !laps) return sel;
+  return {...sel, laps: defaultLapIds(laps, bestLapId)};
+}
+
 export function makeReference(
   sel: CompareSelection,
   lapId: string,
@@ -1137,6 +1153,22 @@ export function makeReference(
     laps: [lapId, ...sel.laps.filter(id => id !== lapId)],
     hl: sel.hl === lapId ? prev : sel.hl,
   };
+}
+
+/**
+ * Makes a lap the reference in one step, adding it to the comparison first
+ * when it is not there (a lap from All laps). The old reference stays in the
+ * comparison as an ordinary lap.
+ */
+export function setReference(
+  sel: CompareSelection,
+  lapId: string,
+): CompareSelection {
+  if (sel.laps[0] === lapId) return sel;
+  const added = sel.laps.includes(lapId)
+    ? sel
+    : {...sel, laps: [...sel.laps, lapId]};
+  return makeReference(added, lapId);
 }
 
 export function removeLap(

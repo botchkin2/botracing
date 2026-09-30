@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
+import {type Lap} from '@/src/data/sessions';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
   toLaps,
@@ -17,8 +18,10 @@ import {
   type CompareSelection,
   makeReference,
   removeLap,
+  setReference,
   toggleCompared,
   valuesAt,
+  withDefaultLaps,
 } from './model';
 
 const LENGTH_M = 1000;
@@ -365,9 +368,69 @@ describe('many laps', () => {
   });
 });
 
+describe('a URL with no laps', () => {
+  const lap = (id: string, timeS: number | null, comparable = true) =>
+    ({id, timeS, comparable} as unknown as Lap);
+  const laps = [
+    lap('a', 92.4),
+    lap('b', 91.1),
+    lap('c', 91.9),
+    lap('d', 90.0, false),
+  ];
+
+  it('opens on the best lap and the fastest other comparable lap', () => {
+    const out = withDefaultLaps(sel({laps: []}), laps, 'b');
+    expect(out.laps).toEqual(['b', 'c']);
+    // The rest of the selection is untouched.
+    expect(out.cursorM).toBe(600);
+  });
+
+  it('takes the fastest comparable lap when the best lap is not there', () => {
+    expect(withDefaultLaps(sel({laps: []}), laps, null).laps).toEqual([
+      'b',
+      'c',
+    ]);
+    expect(withDefaultLaps(sel({laps: []}), laps, 'gone').laps).toEqual([
+      'b',
+      'c',
+    ]);
+  });
+
+  it('keeps the laps the URL names, and waits while the laps load', () => {
+    expect(withDefaultLaps(sel({laps: ['c', 'a']}), laps, 'b').laps).toEqual([
+      'c',
+      'a',
+    ]);
+    const empty = sel({laps: []});
+    expect(withDefaultLaps(empty, undefined, 'b')).toBe(empty);
+  });
+
+  it('one comparable lap is the reference alone; none stays empty', () => {
+    expect(
+      withDefaultLaps(
+        sel({laps: []}),
+        [lap('a', 90), lap('x', 95, false)],
+        null,
+      ).laps,
+    ).toEqual(['a']);
+    expect(
+      withDefaultLaps(sel({laps: []}), [lap('x', 95, false)], null).laps,
+    ).toEqual([]);
+  });
+});
+
 describe('selection edits', () => {
   it('making a lap the reference moves it first', () => {
     expect(makeReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+  });
+  it('setting a lap as the reference adds it first when it is not compared', () => {
+    // 'x' is in All laps but not in the comparison.
+    const out = setReference(sel(), 'x');
+    expect(out.laps).toEqual(['x', 'a', 'b', 'c']);
+    // A compared lap just moves; the old reference stays as an ordinary lap.
+    expect(setReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+    // The reference itself: nothing changes.
+    expect(setReference(sel(), 'a')).toEqual(sel());
   });
   it('the reference cannot be removed', () => {
     expect(removeLap(sel(), 'a')).toEqual(sel());

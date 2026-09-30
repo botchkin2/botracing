@@ -2,9 +2,6 @@ import {type FollowView, headingRad} from '@/src/analysis/followView';
 import {type RaceCar} from '@/src/analysis/raceState';
 import {type MapPlacer} from '@/src/data/sessions';
 
-/** Track length that fills the map's height at zoom 1x: the desktop Follow default (pit-wall thread 27 #1041). */
-export const RACE_FOLLOW_M = 300;
-
 // How far ahead of the car the heading is measured. The car's yaw is a
 // direction in game-world axes; placing a point this far along it through the
 // map's own projection and georef gives the direction on the map, so the

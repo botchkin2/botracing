@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -22,7 +23,7 @@ import Svg, {Line} from 'react-native-svg';
 import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
-import {useSession} from '@/src/data/sessions';
+import {useSession, useSessionLaps} from '@/src/data/sessions';
 import {hitBox, lapStroke, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
@@ -58,6 +59,7 @@ import {
   type CompareSelection,
   makeReference,
   removeLap,
+  withDefaultLaps,
 } from './model';
 import {type PlayInputs, playTicker} from './playback';
 import {useCompareModel} from './useCompareModel';
@@ -67,10 +69,6 @@ export type {CompareSelection} from './model';
 
 // Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
 const MAP_H = 220;
-// The phone's Follow map shows a corner with its run-in and exit, not four
-// turns: its own base span, then the shared zoom steps around it (Botkin,
-// pit-wall thread 41 #1178). Desktop follows the chart window.
-const PHONE_FOLLOW_M = 120;
 const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
@@ -78,7 +76,11 @@ const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
-const removeHit = hitFor({left: 28, right: space.md}, 15);
+const removeHit = hitFor({left: 14, right: space.md}, 15);
+// The "Ref" beside it: the chip's tap makes the reference too, but nothing said
+// so (Botkin, thread 43 #1267); this says it. 14 pt either side keeps the two
+// targets from overlapping.
+const refHit = hitFor({left: 14, right: 14}, 15);
 // Keyboard: ←/→ step the cursor 5 m, Shift 50 m.
 const KEY_STEP_M = 5;
 const KEY_STEP_SHIFT_M = 50;
@@ -86,13 +88,21 @@ const CURSOR_SETTLE_MS = 400;
 
 export function CompareScreen({
   sessionId,
-  selection,
+  selection: urlSelection,
   onSelectionChange,
 }: {
   sessionId: string;
   selection: CompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
+  // A URL with no laps opens on the best lap and the fastest other one.
+  const sessionDoc = useSession(sessionId);
+  const sessionLaps = useSessionLaps(sessionId);
+  const bestLapId = sessionDoc.data?.bestLapId ?? null;
+  const selection = useMemo(
+    () => withDefaultLaps(urlSelection, sessionLaps.data, bestLapId),
+    [urlSelection, sessionLaps.data, bestLapId],
+  );
   // The cursor moves on every drag and playback frame, so it lives here,
   // not in the URL.
   const [cursorM, setCursorM] = useState(selection.cursorM);
@@ -331,6 +341,11 @@ function CompareView({
       </Text>
     </View>
   );
+  const referenceHint = (
+    <Text variant='dataSmall' tone='textFaint'>
+      REF · tap another lap’s Ref to change
+    </Text>
+  );
 
   const chipItems = (
     <>
@@ -355,6 +370,19 @@ function CompareView({
                 tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}>
                 {c.delta}
               </Text>
+              {!c.isRef && (
+                <Pressable
+                  accessibilityRole='button'
+                  accessibilityLabel={`Make ${c.label} the reference`}
+                  {...refHit}
+                  onPress={() =>
+                    onSelectionChange(makeReference(selection, c.lapId))
+                  }>
+                  <Text variant='dataSmall' tone='accentInk'>
+                    Ref
+                  </Text>
+                </Pressable>
+              )}
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
@@ -405,7 +433,6 @@ function CompareView({
         lapStyle={lapStyle}
         onPressSection={openCorner}
         zoomControls
-        baseSpanM={layout.isDesktop ? undefined : PHONE_FOLLOW_M}
       />
     ) : (
       <TrackStrip
@@ -573,14 +600,22 @@ function CompareView({
   // one; without field data for that lap the chart has no radar.
   const dockLap = model.playing?.lapNumber ?? null;
   const overlayOn = !layout.isDesktop && field != null && dockLap != null;
-  const phoneChart = (c: (typeof model.charts)[number], h: number) => {
+  // The last chart keeps its values and explainer above the plot (the chart
+  // header), so nothing sits between the plot and the Follow map under it
+  // (round 5, item 6); the others are plot first, numbers below (thread 41
+  // #1178).
+  const phoneChart = (
+    c: (typeof model.charts)[number],
+    h: number,
+    last: boolean,
+  ) => {
     const radar = overlayOn && (oneChart || c.channels.includes('speed'));
     return (
       <ChartBlock
         key={c.key}
         chart={c}
         {...chartProps(h)}
-        plotFirst={!layout.isDesktop}
+        plotFirst={!layout.isDesktop && !last}
         overlay={
           radar ? (
             <RadarOverlay field={field} lapNumber={dockLap} cursorM={cursorM} />
@@ -593,8 +628,10 @@ function CompareView({
   const chartList = noTraces
     ? skeletons
     : oneChart
-    ? focusedChart && phoneChart(focusedChart, ONE_CHART_H)
-    : model.charts.map(c => phoneChart(c, c.height * heightScale));
+    ? focusedChart && phoneChart(focusedChart, ONE_CHART_H, true)
+    : model.charts.map((c, i) =>
+        phoneChart(c, c.height * heightScale, i === model.charts.length - 1),
+      );
 
   const spanLabel =
     windowSizeValue == null
@@ -691,6 +728,7 @@ function CompareView({
           <ScrollView style={{width: sideW}} contentContainerStyle={styles.col}>
             {header}
             {reference}
+            {referenceHint}
             {chips}
             {map}
             {position}
@@ -714,11 +752,17 @@ function CompareView({
         ]}>
         {header}
         {reference}
+        {referenceHint}
         {chips}
-        {map}
+        {/* The plot ends and the Follow map starts on the next pixel, so the
+            eye moves from the trace to the car without crossing anything
+            (round 5, item 6). */}
+        <View style={styles.plotMap}>
+          {charts}
+          {map}
+        </View>
         {position}
         {grid}
-        {charts}
       </ScrollView>
       <View style={{paddingBottom: insets.bottom}}>{transport}</View>
       {editor}
@@ -767,6 +811,7 @@ const styles = StyleSheet.create({
   positionRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   section: {gap: space.xs, marginTop: space.sm},
   charts: {gap: space.lg, marginTop: space.sm},
+  plotMap: {gap: 0},
   skeleton: {gap: space.xs},
   banner: {alignSelf: 'stretch', paddingHorizontal: space.xl},
   chartsBar: {

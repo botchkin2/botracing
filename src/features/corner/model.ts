@@ -7,6 +7,7 @@ import {
 } from '@/src/analysis/cornerWindows';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 import {
+  defaultLapIds,
   type Lap,
   lapCornerFacts,
   type SessionBand,
@@ -167,29 +168,12 @@ export function cornerLapIds(
 ): string[] {
   if (!allComparable) {
     if (selection.laps.length > 0) return selection.laps;
-    return defaultCornerLaps(laps, bestLapId);
+    return defaultLapIds(laps, bestLapId);
   }
   // With nothing selected, the session's best lap is the reference.
   const ref = selection.laps[0] ?? bestLapId ?? undefined;
   const rest = laps.filter(l => l.comparable && l.id !== ref).map(l => l.id);
   return ref ? [ref, ...rest] : rest;
-}
-
-/**
- * Nothing selected and no URL laps: the best lap as reference plus the
- * fastest other comparable lap, so the screen never waits on an empty list.
- */
-function defaultCornerLaps(laps: Lap[], bestLapId: string | null): string[] {
-  const comparable = laps.filter(l => l.comparable && l.timeS != null);
-  const ref =
-    bestLapId && laps.some(l => l.id === bestLapId)
-      ? bestLapId
-      : comparable.slice().sort((a, b) => a.timeS! - b.timeS!)[0]?.id;
-  if (!ref) return [];
-  const second = comparable
-    .filter(l => l.id !== ref)
-    .sort((a, b) => a.timeS! - b.timeS!)[0];
-  return second ? [ref, second.id] : [ref];
 }
 
 /**

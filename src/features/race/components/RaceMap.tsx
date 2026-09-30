@@ -8,8 +8,14 @@ import {type Radar as RadarData} from '@/src/analysis/radar';
 import {FollowMap, type MapCar, Radar, TrackMap} from '@/src/charts';
 import {measuredCentreLines, type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
-import {MAP_ZOOMS, type MapZoom} from '@/src/state/comparePrefs';
-import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
+import {FOLLOW_SPANS_M, type MapZoom} from '@/src/state/comparePrefs';
+import {
+  MAP_ZOOM_BUTTONS_W,
+  MAP_ZOOM_LABEL_W,
+  MapZoomButtons,
+  Segment,
+  Text,
+} from '@/src/ui';
 
 import {type RaceDot} from '../model';
 import {classColor} from './classColor';
@@ -109,7 +115,7 @@ export function RaceMap({
   /** Null hides the switch: the file has no headings, or nothing to chase. */
   onMode: ((mode: MapMode) => void) | null;
   follow: RaceFollow | null;
-  /** Index into MAP_ZOOMS; the Follow map's zoom. */
+  /** Index into FOLLOW_SPANS_M; the Follow map's zoom. */
   zoom: MapZoom;
   onZoom: (zoom: MapZoom) => void;
 }) {
@@ -162,7 +168,7 @@ export function RaceMap({
       boxes.push({
         x: space.xs,
         y: height - 2 - space.xs - ZOOM_BUTTON_H,
-        width: MAP_ZOOM_BUTTONS_W,
+        width: MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W,
         height: ZOOM_BUTTON_H,
       });
     if (radar)
@@ -191,7 +197,7 @@ export function RaceMap({
           height={height - 2}
           centre={follow.view.centre}
           headingRad={follow.view.headingRad}
-          visibleM={follow.view.visibleM * MAP_ZOOMS[zoom]}
+          visibleM={follow.view.visibleM}
           band={follow.band}
           bandFaded={follow.bandFaded}
           surface={placer.measured}
@@ -204,7 +210,9 @@ export function RaceMap({
           cars={cars}
           avoidLabels={avoid}
           onPressCar={key => onPressCar(Number(key))}
-          scaleX={MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm}
+          scaleX={
+            MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W + 2 * space.xs + space.sm
+          }
         />
       ) : (
         <TrackMap
@@ -243,10 +251,11 @@ export function RaceMap({
       ) : null}
       {following ? (
         <MapZoomButtons
-          canOut={zoom < MAP_ZOOMS.length - 1}
+          canOut={zoom < FOLLOW_SPANS_M.length - 1}
           canIn={zoom > 0}
           onOut={() => onZoom((zoom + 1) as MapZoom)}
           onIn={() => onZoom((zoom - 1) as MapZoom)}
+          rangeLabel={`${FOLLOW_SPANS_M[zoom]} m`}
         />
       ) : null}
       {radar ? (
