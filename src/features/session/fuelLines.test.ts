@@ -19,9 +19,9 @@ describe('pitLine', () => {
     );
   });
 
-  it('a stop with nothing added is named as it is', () => {
+  it('a stop with nothing added reads +0.0 L, short enough for the phone row', () => {
     expect(pitLine({...stop, added: {fuelL: 0, vePct: 0}})).toBe(
-      'Pit: 33.3 L / 40 % VE left (11.1 laps) · no fuel added · 91 s',
+      'Pit: 33.3 L / 40 % VE left (11.1 laps) · +0.0 L · 91 s',
     );
   });
 
@@ -92,7 +92,14 @@ describe('lapFuelLines', () => {
 
   it('a lap with a stop adds its length and what it took on', () => {
     expect(lapFuelLines(lap({pitStop: stop})).at(-1)).toBe(
-      'Stop 91 s in the pits · +41.7 L / +60.1 % VE',
+      'Stop 91 s in the pits · +41.7 L · +60.1 % VE',
+    );
+  });
+
+  it('a stop still in progress or with an unknown VE is not hidden or made up', () => {
+    const open = {...stop, inPitS: null, added: {fuelL: 41.72, vePct: null}};
+    expect(lapFuelLines(lap({pitStop: open})).at(-1)).toBe(
+      'Stop in the pits · +41.7 L',
     );
   });
 

@@ -28,9 +28,9 @@ export function pitLine(stop: PitStop): string | null {
   const added = stop.added.fuelL;
   const time = stop.inPitS != null ? ` · ${stop.inPitS.toFixed(0)} s` : '';
   if (added == null) return `${head}${time}`;
-  return `${head} · ${
-    added > 0 ? `+${litres(added)}` : 'no fuel added'
-  }${time}`;
+  // "+0.0 L" for a drive-through or a penalty: 'no fuel added' is 36 pt longer
+  // than the 343 pt phone row allows next to the laps and the time.
+  return `${head} · +${litres(added)}${time}`;
 }
 
 /**
@@ -79,15 +79,18 @@ export function lapFuelLines(lap: Lap): string[] {
     line('VE', f.veUsedPct, '%', f.veEndPct, f.lapsLeftVe, 1),
   ];
   const stop = lap.pitStop;
-  if (stop && stop.inPitS != null) {
+  if (stop) {
+    const {fuelL, vePct} = stop.added;
     out.push(
-      `Stop ${stop.inPitS.toFixed(0)} s in the pits${
-        stop.added.fuelL != null && stop.added.fuelL > 0
-          ? ` · +${stop.added.fuelL.toFixed(1)} L / +${(
-              stop.added.vePct ?? 0
-            ).toFixed(1)} % VE`
-          : ' · no fuel added'
-      }`,
+      [
+        `Stop${
+          stop.inPitS != null ? ` ${stop.inPitS.toFixed(0)} s` : ''
+        } in the pits`,
+        fuelL != null && `+${fuelL.toFixed(1)} L`,
+        vePct != null && `+${vePct.toFixed(1)} % VE`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
     );
   }
   return out.filter((l): l is string => l != null);
