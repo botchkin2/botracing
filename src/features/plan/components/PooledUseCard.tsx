@@ -1,21 +1,19 @@
 import {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {planRace} from '@/src/analysis/fuelPlan';
 import {FuelScatter} from '@/src/charts';
 import {useSessions} from '@/src/data/sessions';
 import {space} from '@/src/design';
-import {useFuelPresets} from '@/src/state/fuelPresets';
 import {Explainer, Segment, Skeleton, Text, useHowToRead} from '@/src/ui';
 
-import {planCombos, rulesFor} from '../model';
+import {planCombos} from '../model';
 import {
   POOLED_USE_HELP,
   pooledUse,
   thresholdOf,
   type UseMeasure,
 } from '../pooledUse';
-import {usePlanHistory, usePlanLimits} from '../usePlanHistory';
+import {usePlanData} from '../usePlanData';
 
 // Every session he has driven, like the Plan screen's.
 const ALL_TIME_DAYS = 3650;
@@ -51,29 +49,18 @@ export function PooledUseCard({
       null,
     [sessions.data, planKey],
   );
-  const {lastFuel, pending, limitsL} = usePlanLimits(combo);
-  const presets = useFuelPresets(s => s.presets);
-  const activeId = useFuelPresets(s => s.activeId);
-  const length = useFuelPresets(s => s.length);
-  const preset = presets.find(p => p.id === activeId) ?? null;
-  const rules = rulesFor(preset, length, lastFuel);
-  const hist = usePlanHistory(
-    combo,
-    limitsL,
-    rules?.rules.fuelL ?? null,
-    preset,
-  );
-  const laps = hist.chosen.laps;
-  const drop = useMemo(
-    () =>
-      rules && laps.length > 0 ? planRace(rules.rules, laps).dropStop : null,
-    [rules, laps],
-  );
-  const loading =
-    sessions.isPending || pending || (rules != null && hist.lapsOf.pending);
+  // The Plan screen's own data, so the dots are the laps the plan is built from.
+  const {limits, hist, greenLaps, plan} = usePlanData(combo);
+  const loading = sessions.isPending || limits.pending || hist.lapsOf.pending;
   const chart = useMemo(
-    () => pooledUse(laps, sessionId, measure, thresholdOf(drop, measure)),
-    [laps, sessionId, measure, drop],
+    () =>
+      pooledUse(
+        greenLaps,
+        sessionId,
+        measure,
+        thresholdOf(plan?.dropStop ?? null, measure),
+      ),
+    [greenLaps, sessionId, measure, plan],
   );
   return (
     <View style={styles.card}>
@@ -95,7 +82,6 @@ export function PooledUseCard({
             width={width}
             height={SCATTER_H}
             points={chart.points}
-            medians={[]}
             xDomain={chart.xDomain}
             yDomain={chart.yDomain}
             xTicks={chart.xTicks}

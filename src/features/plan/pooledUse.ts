@@ -14,7 +14,6 @@ export type PooledUse = {
     key: string;
     x: number;
     y: number;
-    hollow: boolean;
     muted: boolean;
   }[];
   xDomain: [number, number];
@@ -88,7 +87,6 @@ export function pooledUse(
             key: String(i),
             x,
             y: l.lapTimeS,
-            hollow: false,
             muted: l.sessionId !== sessionId,
           },
         ];

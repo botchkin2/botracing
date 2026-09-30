@@ -240,6 +240,8 @@ export const space = {
 } as const;
 /** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
 export const disabledOpacity = 0.4;
+// Scatter dots: this session's laps, and earlier sessions' laps beside them.
+export const dotOpacity = {current: 0.7, earlier: 0.3} as const;
 
 export const radius = {xs: 2, sm: 3, md: 6, sheet: 10} as const;
 /**

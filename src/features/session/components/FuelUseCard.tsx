@@ -64,20 +64,21 @@ export function FuelUseCard({
       {rows.map(r => (
         <View key={r.key} style={[styles.row, {borderColor: color.line}]}>
           <Text variant='bodyStrong'>{r.title}</Text>
-          {r.lines.map((line, i) => (
+          {r.lines.map(line => (
             <Text key={line} variant='dataSmall' tone='textSecondary'>
               {line}
-              {i === r.lines.length - 1 && r.counts && inPlan ? (
-                <Text
-                  variant='dataSmall'
-                  tone='accentInk'
-                  accessibilityRole='link'
-                  onPress={() => router.push(planHref(card.planKey))}>
-                  {' · in Plan →'}
-                </Text>
-              ) : null}
             </Text>
           ))}
+          {r.counts && inPlan ? (
+            <Pressable
+              accessibilityRole='link'
+              onPress={() => router.push(planHref(card.planKey))}
+              style={styles.link}>
+              <Text variant='dataSmall' tone='accentInk'>
+                in Plan →
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       ))}
       {limit ? (

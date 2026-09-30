@@ -22,7 +22,7 @@ export type FuelUsePoint = {
   stint: number;
   fuelL: number;
   timeS: number;
-  /** In a slipstream for TOW_HOLLOW_S or more: drawn hollow, out of the medians. */
+  /** In a slipstream for TOW_HOLLOW_S or more: out of the medians. */
   towed: boolean;
 };
 
@@ -188,8 +188,8 @@ export function planMatchesLimit(
 
 // Behind the "?" on the Fuel use card, one sentence a line.
 export const FUEL_USE_HELP: readonly string[] = [
-  'Each dot is a green lap: fuel used against lap time, from the recorded fuel level.',
-  'A hollow dot is a lap with 5 s or more in a slipstream, which uses less fuel and runs faster; it is left out of the medians.',
+  'A stint’s use is measured from the recorded fuel level over its green laps.',
+  'A lap with 5 s or more in a slipstream is counted as towed: it uses less fuel and runs faster, so it is left out of the medians.',
   'A stint gets a median use, and its spread (the middle half of its laps), from 4 laps or more.',
   'One load is the fill limit, or 100 % VE, over the stint’s median use per lap.',
 ];

@@ -1,22 +1,25 @@
 import {View} from 'react-native';
 import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
 
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {
+  dash,
+  dotOpacity,
+  stroke,
+  type as typeScale,
+  useTheme,
+} from '@/src/design';
 
 // Fuel used per lap against lap time (practice view, pit-wall thread 36). Pure
 // props in, SVG out. Dots are neutral: colour has one meaning each, and lap
-// colours mean laps, so a stint is told by its label at its median. Faster is
-// up, as on the lap-time chart. The x axis does not start at zero.
+// colours mean laps. Faster is up, as on the lap-time chart. The x axis does not start at zero.
 
 export type ScatterPoint = {
   key: string;
   x: number;
   y: number;
-  hollow: boolean;
   /** An earlier session's lap: drawn fainter than this session's. */
   muted?: boolean;
 };
-export type ScatterMedian = {key: string; label: string; x: number; y: number};
 export type ScatterTick = {v: number; label: string};
 
 const PAD_L = 56;
@@ -24,13 +27,11 @@ const PAD_R = 12;
 const PAD_T = 18;
 const PAD_B = 32;
 const DOT_R = 3;
-const MEDIAN_R = 6;
 
 export function FuelScatter({
   width,
   height,
   points,
-  medians,
   xDomain,
   yDomain,
   xTicks,
@@ -42,7 +43,6 @@ export function FuelScatter({
   width: number;
   height: number;
   points: ScatterPoint[];
-  medians: ScatterMedian[];
   xDomain: [number, number];
   /** Lap time in seconds; larger is slower and is drawn lower. */
   yDomain: [number, number];
@@ -123,28 +123,16 @@ export function FuelScatter({
           fontSize={axis.fontSize}>
           {yTitle}
         </SvgText>
-        {points.map(p =>
-          p.hollow ? (
-            <Circle
-              key={p.key}
-              cx={xOf(p.x)}
-              cy={yOf(p.y)}
-              r={DOT_R}
-              fill='none'
-              stroke={color.textSecondary}
-              strokeWidth={1}
-            />
-          ) : (
-            <Circle
-              key={p.key}
-              cx={xOf(p.x)}
-              cy={yOf(p.y)}
-              r={DOT_R}
-              fill={color.textSecondary}
-              fillOpacity={p.muted ? 0.3 : 0.7}
-            />
-          ),
-        )}
+        {points.map(p => (
+          <Circle
+            key={p.key}
+            cx={xOf(p.x)}
+            cy={yOf(p.y)}
+            r={DOT_R}
+            fill={color.textSecondary}
+            fillOpacity={p.muted ? dotOpacity.earlier : dotOpacity.current}
+          />
+        ))}
         {refX ? (
           <G>
             <Line
@@ -167,26 +155,6 @@ export function FuelScatter({
             </SvgText>
           </G>
         ) : null}
-        {medians.map(m => (
-          <G key={m.key}>
-            <Circle
-              cx={xOf(m.x)}
-              cy={yOf(m.y)}
-              r={MEDIAN_R}
-              fill='none'
-              stroke={color.text}
-              strokeWidth={1.5}
-            />
-            <SvgText
-              x={xOf(m.x) + MEDIAN_R + 3}
-              y={yOf(m.y) - MEDIAN_R}
-              fill={color.text}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
-              {m.label}
-            </SvgText>
-          </G>
-        ))}
       </Svg>
     </View>
   );
