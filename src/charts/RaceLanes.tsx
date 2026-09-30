@@ -5,7 +5,7 @@ import Svg, {G, Line, Polygon, Rect, Text as SvgText} from 'react-native-svg';
 import type {RaceLanes as RaceLanesModel, Span} from '@/src/analysis/raceLanes';
 import {stroke, type as typeScale, useTheme} from '@/src/design';
 
-import {lanesLayout, timeAtX} from './raceLanesLayout';
+import {laneScrubber, lanesLayout} from './raceLanesLayout';
 
 // The YOUR RACE lanes (handoff round 3 §R1a/R1b): five lanes over the race,
 // lap gridlines with labels, the playhead. Props in, SVG out: the window, the
@@ -54,20 +54,19 @@ export function RaceLanes({
   useEffect(() => {
     latest.current = {window, laneWidth, labelWidth, onScrub};
   });
-  const scrubTo = (locationX: number) => {
-    const p = latest.current;
-    p.onScrub(timeAtX(locationX - p.labelWidth, p.window, p.laneWidth));
-  };
   // The ref is read only inside gesture callbacks, never during render.
   // eslint-disable-next-line react-hooks/refs
-  const [responder] = useState(() =>
-    PanResponder.create({
+  const [responder] = useState(() => {
+    const scrub = laneScrubber(() => latest.current);
+    return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > Math.abs(g.dy),
-      onPanResponderGrant: e => scrubTo(e.nativeEvent.locationX),
-      onPanResponderMove: e => scrubTo(e.nativeEvent.locationX),
-    }),
-  );
+      onPanResponderGrant: e => scrub.start(e.nativeEvent.locationX),
+      onPanResponderMove: e => scrub.move(e.nativeEvent.locationX),
+      onPanResponderRelease: scrub.end,
+      onPanResponderTerminate: scrub.end,
+    });
+  });
 
   const playheadX =
     playheadS >= window.fromS && playheadS <= window.toS
