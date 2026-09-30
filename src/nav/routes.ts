@@ -67,6 +67,8 @@ export const cornerHref = (
 
 export const tracksHref = (): Href => ({pathname: '/tracks', params: {}});
 
+export const planHref = (): Href => ({pathname: '/plan', params: {}});
+
 /** A layout's Track page, with an optional selected corner. */
 export const trackHref = (
   trackId: string,

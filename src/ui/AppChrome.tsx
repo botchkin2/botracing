@@ -10,7 +10,13 @@ import {Text} from './Text';
 // 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
 export const MARK_SLOP = (size.hit - size.logo) / 2;
 
-export type WorkspaceTab = 'session' | 'compare' | 'race' | 'corner' | 'tracks';
+export type WorkspaceTab =
+  | 'session'
+  | 'compare'
+  | 'race'
+  | 'corner'
+  | 'plan'
+  | 'tracks';
 
 export type ChromeTab = {
   key: WorkspaceTab;
