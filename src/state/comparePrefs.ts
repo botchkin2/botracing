@@ -57,6 +57,17 @@ export type PlayRate = (typeof PLAY_RATES)[number];
 /** Compare map panel (handoff v2 M1). Satellite comes later. */
 export type MapMode = 'follow' | 'track';
 
+/** Follow map zoom steps: close, as the window sets it, wide. */
+export const MAP_ZOOMS = [0.6, 1, 1.7] as const;
+export type MapZoom = 0 | 1 | 2;
+
+/** The desktop right column's width, points: the user drags it within this. */
+export const RIGHT_W_MIN = 280;
+export const RIGHT_W_MAX = 520;
+export const RIGHT_W_DEFAULT = 360;
+export const clampRightW = (w: number) =>
+  Math.round(Math.min(RIGHT_W_MAX, Math.max(RIGHT_W_MIN, w)));
+
 type ComparePrefs = {
   charts: ChartSet;
   view: CompareView;
@@ -64,6 +75,9 @@ type ComparePrefs = {
   focused: number;
   mapShown: boolean;
   mapMode: MapMode;
+  /** Index into MAP_ZOOMS. */
+  mapZoom: MapZoom;
+  rightW: number;
   /** Sessions whose "no reliable outline" note was dismissed. */
   poorMapNoteSeen: string[];
   windowMode: WindowMode;
@@ -77,6 +91,8 @@ type Actions = {
   setFocused: (i: number) => void;
   setMapShown: (shown: boolean) => void;
   setMapMode: (mode: MapMode) => void;
+  setMapZoom: (zoom: MapZoom) => void;
+  setRightW: (width: number) => void;
   dismissPoorMapNote: (sessionId: string) => void;
   setWindowMode: (mode: WindowMode) => void;
   setWindowStep: (step: WindowStep) => void;
@@ -91,6 +107,8 @@ const defaults: ComparePrefs = {
   focused: 2,
   mapShown: true,
   mapMode: 'follow',
+  mapZoom: 1,
+  rightW: RIGHT_W_DEFAULT,
   poorMapNoteSeen: [],
   windowMode: 'time',
   windowStep: TIME_STEPS_S.indexOf(DEFAULT_WINDOW.time),
@@ -107,6 +125,8 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
       setFocused: focused => set({focused}),
       setMapShown: mapShown => set({mapShown}),
       setMapMode: mapMode => set({mapMode}),
+      setMapZoom: mapZoom => set({mapZoom}),
+      setRightW: width => set({rightW: clampRightW(width)}),
       // Keep the last 50: enough to never nag, small to persist.
       dismissPoorMapNote: sessionId =>
         set(s => ({
@@ -137,6 +157,8 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
         focused: s.focused,
         mapShown: s.mapShown,
         mapMode: s.mapMode,
+        mapZoom: s.mapZoom,
+        rightW: s.rightW,
         poorMapNoteSeen: s.poorMapNoteSeen,
         windowMode: s.windowMode,
         windowStep: s.windowStep,

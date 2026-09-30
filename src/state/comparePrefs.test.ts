@@ -3,6 +3,8 @@ import {describe, expect, it} from '@jest/globals';
 import {
   addChart,
   type ChartSet,
+  clampRightW,
+  MAP_ZOOMS,
   moveChart,
   removeChart,
   stepWindow,
@@ -47,5 +49,22 @@ describe('window stepper', () => {
     expect(stepWindow('time', 'lap', -1)).toBe(3);
     expect(stepWindow('time', 0, -1)).toBe(0);
     expect(windowSize('time', 'lap')).toBeNull();
+  });
+});
+
+describe('right panel width', () => {
+  it('stays within 280-520 and whole points', () => {
+    expect(clampRightW(100)).toBe(280);
+    expect(clampRightW(9999)).toBe(520);
+    expect(clampRightW(360.4)).toBe(360);
+  });
+});
+
+describe('map zoom steps', () => {
+  it('has three steps, close to wide, with the window setting in the middle', () => {
+    expect(MAP_ZOOMS).toHaveLength(3);
+    expect(MAP_ZOOMS[1]).toBe(1);
+    expect(MAP_ZOOMS[0]).toBeLessThan(MAP_ZOOMS[1]);
+    expect(MAP_ZOOMS[2]).toBeGreaterThan(MAP_ZOOMS[1]);
   });
 });

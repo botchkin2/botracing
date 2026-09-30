@@ -17,9 +17,11 @@ import {
 import {
   addChart,
   CHANNEL_IDS,
+  clampRightW,
   PLAY_RATES,
   type PlayRate,
   PRESETS,
+  RIGHT_W_MIN,
   stepWindow,
   toggleChannel,
   useComparePrefs,
@@ -35,6 +37,7 @@ import {
 } from '@/src/ui';
 
 import {CarsAround} from './components/CarsAround';
+import {PANEL_DIVIDER_W, PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
@@ -55,9 +58,10 @@ import {
 // as the phone; this only arranges them.
 
 const LEFT_W = 260;
-const RIGHT_W = 360;
-const MAP_W = 320;
-const MAP_H = 220;
+// The charts never get narrower than this, whatever the right column asks.
+const MIN_CENTRE_W = 480;
+// The map is the column's width minus its padding, in D2's 320 : 220 shape.
+const MAP_ASPECT = 220 / 320;
 const OVERVIEW_H = 58;
 
 export type WorkspaceProps = {
@@ -90,7 +94,20 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const {model, selection, lapStyle} = p;
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
-  const centreW = Math.max(480, layout.width - LEFT_W - RIGHT_W - space.xl * 2);
+  // The right column's width: while dragging the live value, else the saved
+  // one, read through the clamp (a stored width can be stale or hand-edited)
+  // and kept from squeezing the charts below MIN_CENTRE_W on a narrow window.
+  const [dragW, setDragW] = useState<number | null>(null);
+  const maxRightW = Math.max(
+    RIGHT_W_MIN,
+    layout.width - LEFT_W - MIN_CENTRE_W - PANEL_DIVIDER_W - space.xl * 2,
+  );
+  const rightW = Math.min(clampRightW(dragW ?? prefs.rightW), maxRightW);
+  const mapW = rightW - space.xl * 2;
+  const centreW = Math.max(
+    MIN_CENTRE_W,
+    layout.width - LEFT_W - rightW - PANEL_DIVIDER_W - space.xl * 2,
+  );
   const readAt = hoverM ?? p.cursorM;
   const values = valuesAt(model.readouts, model.stepM, readAt);
   const hoverValues =
@@ -367,14 +384,23 @@ export function CompareWorkspace(p: WorkspaceProps) {
         </ScrollView>
       </View>
 
+      <PanelDivider
+        width={rightW}
+        onResize={setDragW}
+        onCommit={w => {
+          prefs.setRightW(w);
+          setDragW(null);
+        }}
+      />
       {/* --- right: map, values, time per section ---------------------------- */}
       <ScrollView
-        style={[styles.right, {borderColor: color.lineHeader}]}
+        style={[styles.right, {width: rightW, borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
         {model.map && (
           <MapPanel
-            width={MAP_W}
-            height={MAP_H}
+            zoomControls
+            width={mapW}
+            height={Math.round(mapW * MAP_ASPECT)}
             map={model.map}
             sessionId={p.sessionId}
             openSection={selection.corner ?? null}
@@ -495,7 +521,7 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
   left: {width: LEFT_W, flexGrow: 0, borderRightWidth: 1},
-  right: {width: RIGHT_W, flexGrow: 0, borderLeftWidth: 1},
+  right: {flexGrow: 0},
   centre: {flex: 1},
   gapTop: {marginTop: space.lg},
   lapRow: {

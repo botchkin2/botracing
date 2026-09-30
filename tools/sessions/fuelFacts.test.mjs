@@ -1,0 +1,239 @@
+// Run: node --test tools/sessions/fuelFacts.test.mjs
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {
+  MIN_GREEN_LAPS,
+  fillLapsLeft,
+  fuelSetup,
+  isGreen,
+  lapFuel,
+  markGreen,
+  lapPitStop,
+  lapsLeft,
+  stintFuel,
+} from './fuelFacts.mjs';
+
+// A recording at 10 Hz for 400 s. Fuel falls 0.05 L/s (3 L a minute); between
+// 200 s and 220 s the car is in the pits and takes on 2 L/s for 10 s (+20 L).
+// VE falls 0.06 %/s and is refilled at 3 %/s in the same window (+30 %).
+function recording({stopAt = 200, service = true} = {}) {
+  const n = 4001;
+  const t = Float64Array.from({length: n}, (_, i) => i / 10);
+  const fuel = new Float64Array(n);
+  const ve = new Float64Array(n);
+  let f = 80;
+  let v = 100;
+  for (let i = 0; i < n; i++) {
+    const inPit = t[i] >= stopAt && t[i] <= stopAt + 20;
+    const filling = service && t[i] > stopAt + 5 && t[i] <= stopAt + 15;
+    if (i > 0) {
+      if (!inPit) {
+        f -= 0.005;
+        v -= 0.006;
+      }
+      if (filling) {
+        f += 0.2;
+        v += 0.3;
+      }
+    }
+    fuel[i] = f;
+    ve[i] = v;
+  }
+  return {t, fuel_l: fuel, virtual_energy_pct: ve};
+}
+const pits = [[200, 220]];
+const tick = (_s, sec) => Math.round(sec * 10);
+
+test('a steady lap: used is start minus end, nothing added', () => {
+  const s = recording();
+  const lap = lapFuel(s, tick(s, 0), tick(s, 100), pits);
+  assert.equal(lap.usedL, 5);
+  assert.equal(lap.addedL, 0);
+  assert.equal(lap.veUsedPct, 6);
+  assert.equal(lap.startL, 80);
+  assert.equal(lap.endL, 75);
+});
+
+test('a lap with a stop adds the refuel back instead of reading negative', () => {
+  const s = recording();
+  const lap = lapFuel(s, tick(s, 150), tick(s, 300), pits);
+  // 150 s of driving at 0.05 L/s is 7.5 L; the stop adds 20 L.
+  assert.equal(lap.addedL, 20);
+  assert.equal(lap.veAddedPct, 30);
+  // Driving 50 s before the stop and 80 s after: 130 s at 0.05 L/s is 6.5 L,
+  // not the -13.5 L the raw start minus end would read.
+  assert.ok(Math.abs(lap.usedL - 6.5) < 0.02, `usedL ${lap.usedL}`);
+  assert.ok(Math.abs(lap.veUsedPct - 7.8) < 0.02, `veUsedPct ${lap.veUsedPct}`);
+  assert.ok(lap.startL - lap.endL < 0);
+});
+
+test('missing channels give nulls, not zeros', () => {
+  const s = recording();
+  const onlyFuel = lapFuel({t: s.t, fuel_l: s.fuel_l}, 0, 1000, pits);
+  assert.equal(onlyFuel.veUsedPct, null);
+  assert.equal(onlyFuel.usedL, 5);
+  assert.equal(lapFuel({t: s.t}, 0, 1000, pits), null);
+});
+
+test('a stop: fuel and VE at entry, what was added, how long in the pits', () => {
+  const s = recording();
+  const stop = lapPitStop(s, 150, 300, pits);
+  // 200 s of driving at 0.05 L/s from 80 L, and 100 % at 0.06 %/s.
+  assert.ok(
+    Math.abs(stop.atEntry.fuelL - 70) < 0.02,
+    `fuel ${stop.atEntry.fuelL}`,
+  );
+  assert.ok(
+    Math.abs(stop.atEntry.vePct - 88) < 0.02,
+    `ve ${stop.atEntry.vePct}`,
+  );
+  assert.equal(stop.added.fuelL, 20);
+  assert.equal(stop.added.vePct, 30);
+  assert.equal(stop.inPitS, 20);
+});
+
+test('a lap without a pit entry has no stop', () => {
+  const s = recording();
+  assert.equal(lapPitStop(s, 0, 100, pits), null);
+});
+
+test('a pit window in the first 30 s is the drive off the grid, not a stop', () => {
+  const s = recording();
+  assert.equal(lapPitStop(s, 0, 100, [[7, 11]]), null);
+});
+
+test('a stop with no service has added 0: a drive-through or a penalty', () => {
+  const s = recording({service: false});
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.equal(stop.added.fuelL, 0);
+  assert.equal(stop.added.vePct, 0);
+});
+
+test('a stop still in progress when the recording ends has no duration', () => {
+  const s = recording();
+  const stop = lapPitStop(s, 150, 300, [[200, Infinity]]);
+  assert.equal(stop.inPitS, null);
+});
+
+const lap = (over = {}) => ({
+  timed: true,
+  partial: false,
+  start: false,
+  pitIn: false,
+  pitOut: false,
+  endedInReset: false,
+  afterReset: false,
+  courseYellowSec: 0,
+  ...over,
+});
+
+test('green laps: timed, whole, not the first lap, no pit in or out, no full-course yellow, no reset', () => {
+  assert.equal(isGreen(lap()), true);
+  for (const bad of [
+    {timed: false},
+    {partial: true},
+    {start: true},
+    {pitIn: true},
+    {pitOut: true},
+    {endedInReset: true},
+    {afterReset: true},
+    {courseYellowSec: 12},
+  ]) {
+    assert.equal(isGreen(lap(bad)), false, JSON.stringify(bad));
+  }
+});
+
+const withFuel = (usedL, veUsedPct, over = {}) =>
+  lap({fuel: {usedL, veUsedPct}, ...over});
+
+test('a stint median needs 3 green laps; fewer gives none, never a borrowed one', () => {
+  assert.equal(MIN_GREEN_LAPS, 3);
+  const two = stintFuel([withFuel(7.6, 9.3), withFuel(7.7, 9.4)]);
+  assert.equal(two.greenLaps, 2);
+  assert.equal(two.medianFuelL, null);
+  assert.equal(two.medianVePct, null);
+  const three = stintFuel([
+    withFuel(7.6, 9.3),
+    withFuel(7.7, 9.4),
+    withFuel(7.5, 9.2),
+    withFuel(20, 30, {pitIn: true}), // not green: left out
+  ]);
+  assert.equal(three.greenLaps, 3);
+  assert.equal(three.medianFuelL, 7.6);
+  assert.equal(three.medianVePct, 9.3);
+  assert.equal(three.fuelSpreadL, 0.1);
+});
+
+test("laps left at the median, per lap and per stop, from the lap's own stint", () => {
+  const laps = [
+    {stint: 1, fuel: {endL: 38, veEndPct: 46.5}, pitStop: null},
+    {
+      stint: 1,
+      fuel: {endL: 7.6, veEndPct: 9.3},
+      pitStop: {atEntry: {fuelL: 2.1, vePct: 4}},
+    },
+    // A stint with no median: nothing shown.
+    {stint: 2, fuel: {endL: 60, veEndPct: 90}, pitStop: null},
+  ];
+  fillLapsLeft(
+    laps,
+    new Map([
+      [1, {medianFuelL: 7.6, medianVePct: 9.3}],
+      [2, {medianFuelL: null, medianVePct: null}],
+    ]),
+  );
+  assert.equal(laps[0].fuel.lapsLeftFuel, 5);
+  assert.equal(laps[0].fuel.lapsLeftVe, 5);
+  assert.equal(laps[1].pitStop.lapsLeftAtEntry.fuel, 0.3);
+  assert.equal(laps[1].pitStop.lapsLeftAtEntry.ve, 0.4);
+  assert.equal(laps[2].fuel.lapsLeftFuel, null);
+  assert.equal(lapsLeft(10, 0), null);
+  assert.equal(lapsLeft(NaN, 3), null);
+});
+
+test('the fill limit and tank come from the CarSetup, null when it is empty', () => {
+  const setup = level => JSON.stringify({VM_FUEL_LEVEL: level});
+  // Road Atlanta: the event caps the fill at the tank (real setup, 2026-09-26).
+  assert.deepEqual(fuelSetup(setup({stringValue: '0.75', maxValue: 75})), {
+    fillLimitL: 75,
+    tankL: 75,
+  });
+  // Silverstone, the Proton (start fuel 89.0 L): a 115 L tank, 89 L to fill.
+  // A fraction of the tank would say 102 L.
+  assert.deepEqual(fuelSetup(setup({stringValue: '0.89', maxValue: 115})), {
+    fillLimitL: 89,
+    tankL: 115,
+  });
+  // Daytona, the Manthey (start fuel 100 L): a 117 L tank, 100 L to fill.
+  assert.deepEqual(fuelSetup(setup({stringValue: '1.00', maxValue: 117})), {
+    fillLimitL: 100,
+    tankL: 117,
+  });
+  // Sarthe: 84 L to fill, a 117 L tank.
+  assert.deepEqual(fuelSetup(setup({stringValue: '0.84', maxValue: 117})), {
+    fillLimitL: 84,
+    tankL: 117,
+  });
+  // The 2026-09-29 Daytona Manthey files: empty strings.
+  assert.deepEqual(fuelSetup(setup({stringValue: '', maxValue: 117})), {
+    fillLimitL: null,
+    tankL: 117,
+  });
+  assert.deepEqual(fuelSetup('not json'), {fillLimitL: null, tankL: null});
+  assert.deepEqual(fuelSetup(undefined), {fillLimitL: null, tankL: null});
+});
+
+test('every lap with fuel says whether its use counts as green', () => {
+  const laps = [
+    {timed: true, fuel: {green: false}},
+    {timed: true, pitIn: true, fuel: {green: true}},
+    {timed: true, start: true, fuel: {}},
+    {timed: true, courseYellowSec: 4, fuel: {}},
+    {timed: true}, // no fuel channels: untouched
+  ];
+  markGreen(laps);
+  assert.deepEqual(
+    laps.map(l => l.fuel?.green),
+    [true, false, false, false, undefined],
+  );
+});
