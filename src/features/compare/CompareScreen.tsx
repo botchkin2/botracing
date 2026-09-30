@@ -48,8 +48,8 @@ import {
 
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
-import {DockedChart} from './components/DockedChart';
-import {RADAR_DOCK_W} from './components/RadarDock';
+import {RadarOverlay} from './components/RadarOverlay';
+import {RADAR_HELP} from './chartHelp';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
 import {
@@ -67,6 +67,10 @@ export type {CompareSelection} from './model';
 
 // Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
 const MAP_H = 220;
+// The phone's Follow map shows a corner with its run-in and exit, not four
+// turns: its own base span, then the shared zoom steps around it (Botkin,
+// pit-wall thread 41 #1178). Desktop follows the chart window.
+const PHONE_FOLLOW_M = 120;
 const DESKTOP_SIDE_W = 360;
 const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
@@ -400,6 +404,8 @@ function CompareView({
         openSection={selection.corner ?? null}
         lapStyle={lapStyle}
         onPressSection={openCorner}
+        zoomControls
+        baseSpanM={layout.isDesktop ? undefined : PHONE_FOLLOW_M}
       />
     ) : (
       <TrackStrip
@@ -562,32 +568,33 @@ function CompareView({
         </View>
       ),
   );
-  // Phone: the radar docks beside the speed chart, or beside the one chart
-  // shown (R2b). The lap it follows is the playing one; without field data
-  // for that lap the chart keeps the full width.
+  // Phone: plot first, and the radar over the speed chart, or over the one
+  // chart shown, while a car is in range. The lap it follows is the playing
+  // one; without field data for that lap the chart has no radar.
   const dockLap = model.playing?.lapNumber ?? null;
-  const dockOn = !layout.isDesktop && field != null && dockLap != null;
-  const dockedChart = (c: (typeof model.charts)[number], h: number) => {
-    const docked = dockOn && (oneChart || c.channels.includes('speed'));
-    const chartW = mainW - RADAR_DOCK_W - space.md;
-    return docked ? (
-      <DockedChart
+  const overlayOn = !layout.isDesktop && field != null && dockLap != null;
+  const phoneChart = (c: (typeof model.charts)[number], h: number) => {
+    const radar = overlayOn && (oneChart || c.channels.includes('speed'));
+    return (
+      <ChartBlock
         key={c.key}
-        chart={<ChartBlock chart={c} {...chartProps(h)} width={chartW} />}
-        chartW={chartW}
-        field={field}
-        lapNumber={dockLap}
-        cursorM={cursorM}
+        chart={c}
+        {...chartProps(h)}
+        plotFirst={!layout.isDesktop}
+        overlay={
+          radar ? (
+            <RadarOverlay field={field} lapNumber={dockLap} cursorM={cursorM} />
+          ) : undefined
+        }
+        extraHelp={radar ? RADAR_HELP : undefined}
       />
-    ) : (
-      <ChartBlock key={c.key} chart={c} {...chartProps(h)} />
     );
   };
   const chartList = noTraces
     ? skeletons
     : oneChart
-    ? focusedChart && dockedChart(focusedChart, ONE_CHART_H)
-    : model.charts.map(c => dockedChart(c, c.height * heightScale));
+    ? focusedChart && phoneChart(focusedChart, ONE_CHART_H)
+    : model.charts.map(c => phoneChart(c, c.height * heightScale));
 
   const spanLabel =
     windowSizeValue == null

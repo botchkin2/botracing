@@ -23,6 +23,7 @@ export function Radar({
   radar,
   sampleLabel,
   inset,
+  overlay,
 }: {
   width: number;
   height: number;
@@ -34,6 +35,8 @@ export function Radar({
   sampleLabel?: string;
   /** Drawn over a map: a translucent background instead of the surface. */
   inset?: boolean;
+  /** Drawn over a chart: a lighter translucent background than `inset`. */
+  overlay?: boolean;
 }) {
   const {color, lapColors} = useTheme();
   const pxPerM = height / (2 * rangeM);
@@ -59,7 +62,9 @@ export function Radar({
         width={width - 1}
         height={height - 1}
         rx={3}
-        fill={inset ? color.radarInset : color.surface}
+        fill={
+          overlay ? color.radarOverlay : inset ? color.radarInset : color.surface
+        }
         stroke={color.lineStrong}
       />
       {ticks.flatMap(m =>

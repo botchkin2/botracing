@@ -4,7 +4,7 @@ import {type Field, type FieldCar} from '@/src/analysis/field';
 
 import {raceClock} from '@/src/analysis/raceClock';
 
-import {radarAtCursor, raceClockLabel} from './radarModel';
+import {radarAtCursor, radarHasCars, raceClockLabel} from './radarModel';
 
 // A player driving north at 50 m/s, 5 Hz, from 0 m; one car 10 m ahead and
 // 3 m right, all on lap 2 (the game's laps-completed count).
@@ -59,6 +59,28 @@ describe('radarAtCursor', () => {
   it('is null for a lap the field does not cover', () => {
     expect(radarAtCursor(f, clock, 5, 300, 98, 148)).toBeNull();
     expect(radarAtCursor(f, clock, 2, 9000, 98, 148)).toBeNull();
+  });
+});
+
+describe('radarHasCars', () => {
+  const clock = raceClock(build());
+
+  it('is true with a car in range', () => {
+    const v = radarAtCursor(build(), clock, 2, 300, 72, 108);
+    expect(radarHasCars(v)).toBe(true);
+  });
+
+  it('is false with nobody in range, and where the field does not cover the lap', () => {
+    // The same field with the other car 500 m ahead: out of the 30 m range.
+    const far = build();
+    far.cars[1].zM = far.cars[1].zM.map(z => z + 500);
+    expect(
+      radarHasCars(radarAtCursor(far, raceClock(far), 2, 300, 72, 108)),
+    ).toBe(false);
+    expect(radarHasCars(radarAtCursor(build(), clock, 5, 300, 72, 108))).toBe(
+      false,
+    );
+    expect(radarHasCars(null)).toBe(false);
   });
 });
 

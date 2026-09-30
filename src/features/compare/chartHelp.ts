@@ -23,10 +23,10 @@ export function chartHelp(channels: readonly ChannelId[]): string[] {
   return channels.map(c => CHANNEL_HELP[c]);
 }
 
-/** The radar docked beside a chart (round 3 R2b). */
+/** The radar over a chart on the phone: no clock, it is too small to print one. */
 export const RADAR_HELP: readonly string[] = [
+  'The radar over the chart shows only while a car is in range of this lap’s car.',
   "This lap's car is at the centre, pointing up; the view turns with it.",
   'The lines across are every 10 m ahead of and behind that car, out to the radar’s range.',
   'A bar on the edge means a car is alongside.',
-  'The clock is the race time of the sample shown.',
 ];

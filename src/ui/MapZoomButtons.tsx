@@ -7,12 +7,14 @@ import {Text} from './Text';
 
 const BUTTON = 28;
 /** Width of the pair, for what is drawn beside them (the scale bar). */
-export const MAP_ZOOM_BUTTONS_W = 2 * BUTTON + space.xs;
+// The gap is what lets each button grow 44 pt wide without overlapping the
+// other (hitFor: at most half the gap).
+const GAP = size.hit - BUTTON;
+export const MAP_ZOOM_BUTTONS_W = 2 * BUTTON + GAP;
 
 /**
  * "−" and "+" over a Follow map, bottom left. The caller owns the zoom steps.
- * Half the gap between the two is all one may grow sideways (hitFor), so the
- * height carries the 44 pt.
+ * Each button is 28 pt drawn and 44 pt to hit both ways.
  */
 export function MapZoomButtons({
   canOut,
@@ -55,7 +57,7 @@ function ZoomButton({
   onPress: () => void;
 }) {
   const {color} = useTheme();
-  const hit = hitFor(space.xs / 2, (size.hit - BUTTON) / 2);
+  const hit = hitFor(GAP / 2, (size.hit - BUTTON) / 2);
   return (
     <Pressable
       accessibilityRole='button'
@@ -86,7 +88,7 @@ const styles = StyleSheet.create({
     left: space.xs,
     bottom: space.xs,
     flexDirection: 'row',
-    gap: space.xs,
+    gap: GAP,
   },
   button: {
     width: BUTTON,

@@ -41,3 +41,8 @@ export function radarAtCursor(
     sampleLabel: raceClockLabel(field.timeS[at]),
   };
 }
+
+/** Whether the radar has anything to show: at least one car in range. */
+export function radarHasCars(view: RadarView | null): view is RadarView {
+  return view !== null && view.radar !== null && view.radar.cars.length > 0;
+}

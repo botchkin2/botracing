@@ -8,7 +8,7 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {MapZoomButtons, Segment, Text} from '@/src/ui';
+import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
 
 import {type MapModel} from '../model';
 import {type LapStyle} from './ChartBlock';
@@ -37,6 +37,7 @@ export function MapPanel({
   lapStyle,
   onPressSection,
   zoomControls = false,
+  baseSpanM,
 }: {
   width: number;
   height: number;
@@ -47,6 +48,8 @@ export function MapPanel({
   onPressSection: (n: number) => void;
   /** − / + on the Follow map: desktop only, where they can be pointer targets. */
   zoomControls?: boolean;
+  /** Follow's visible span at zoom 1x, in metres; else it follows the chart window. */
+  baseSpanM?: number;
 }) {
   const prefs = useComparePrefs();
   const mode = prefs.mapMode;
@@ -109,7 +112,7 @@ export function MapPanel({
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
-          visibleM={f.visibleM * MAP_ZOOMS[zoom]}
+          visibleM={(baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom]}
           band={f.geometry.band}
           bandFaded={f.geometry.bandFaded}
           lines={followLines}
@@ -121,6 +124,11 @@ export function MapPanel({
           }))}
           inset={f.geometry.inset}
           corners={f.geometry.corners}
+          scaleX={
+            zoomControls
+              ? MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm
+              : undefined
+          }
         />
       ) : (
         <TrackMap
