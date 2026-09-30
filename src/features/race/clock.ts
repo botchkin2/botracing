@@ -1,6 +1,13 @@
 // The Race screen's clock (handoff R1): race time in seconds from the first
 // field update. Pure: `useRaceClock` drives it from animation frames.
 
+/**
+ * Playback rates. A race is 15 to 60 minutes, so Race goes to 16x where Compare
+ * (a lap of a few seconds at a time) stops at 2x (Botkin, pit-wall thread 27 #917).
+ */
+export const RACE_RATES = [0.25, 0.5, 1, 2, 4, 8, 16] as const;
+export type RaceRate = (typeof RACE_RATES)[number];
+
 /** Longest step one tick may take, so a resume after the app was in the
  * background does not jump the race ahead (same cap as Compare's playback). */
 export const MAX_STEP_S = 0.25;

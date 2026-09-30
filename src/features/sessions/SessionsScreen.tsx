@@ -11,7 +11,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {
   sessionHref,
-  planHref,
   sessionsHref,
   settingsHref,
   tracksHref,
@@ -60,6 +59,15 @@ export function SessionsScreen() {
             </Pressable>
           )}
           <Text variant='display'>Sessions</Text>
+          <Pressable
+            accessibilityRole='link'
+            onPress={() => router.push(tracksHref())}
+            hitSlop={space.md}
+            style={[hitBox.link, styles.tracksLink]}>
+            <Text variant='body' tone='accentInk'>
+              Tracks ›
+            </Text>
+          </Pressable>
           {/* Sim/track/car filter picker comes with the filter work; label only for now. */}
           <View style={styles.headerRight}>
             <View style={[styles.picker, {borderColor: color.lineStrong}]}>
@@ -80,26 +88,6 @@ export function SessionsScreen() {
               </Pressable>
             )}
           </View>
-        </View>
-        <View style={styles.links}>
-          <Pressable
-            accessibilityRole='link'
-            onPress={() => router.push(planHref())}
-            hitSlop={space.md}
-            style={hitBox.link}>
-            <Text variant='body' tone='accentInk'>
-              Plan ›
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole='link'
-            onPress={() => router.push(tracksHref())}
-            hitSlop={space.md}
-            style={hitBox.link}>
-            <Text variant='body' tone='accentInk'>
-              Tracks ›
-            </Text>
-          </Pressable>
         </View>
       </View>
 
@@ -264,7 +252,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
-  links: {flexDirection: 'row', gap: space.xl},
+  tracksLink: {marginLeft: 'auto', marginRight: space.lg},
   headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
   picker: {
     height: size.chip,

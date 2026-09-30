@@ -1,7 +1,7 @@
 import {useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {FollowMap, TrackMap} from '@/src/charts';
+import {FollowMap, MapZoomButtons, TrackMap} from '@/src/charts';
 import {radius, space, useTheme} from '@/src/design';
 import {
   MAP_ZOOMS,
@@ -151,20 +151,11 @@ export function MapPanel({
         )}
       </View>
       {zoomControls && mode === 'follow' && f && (
-        <View style={styles.zoom}>
-          <ZoomButton
-            label='−'
-            hint='Zoom the map out'
-            disabled={zoom === 2}
-            onPress={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
-          />
-          <ZoomButton
-            label='+'
-            hint='Zoom the map in'
-            disabled={zoom === 0}
-            onPress={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
-          />
-        </View>
+        <MapZoomButtons
+          zoom={zoom}
+          steps={MAP_ZOOMS.length}
+          onZoom={z => prefs.setMapZoom(z as MapZoom)}
+        />
       )}
       {/* Track only: Follow has its inset in this corner. */}
       {mode === 'track' && (
@@ -207,55 +198,7 @@ export function MapPanel({
   );
 }
 
-function ZoomButton({
-  label,
-  hint,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  hint: string;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  const {color} = useTheme();
-  return (
-    <Pressable
-      accessibilityRole='button'
-      accessibilityLabel={hint}
-      accessibilityState={{disabled}}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={space.sm}
-      style={[
-        styles.zoomButton,
-        {
-          borderColor: color.lineStrong,
-          backgroundColor: color.surfaceOverlay,
-          opacity: disabled ? 0.4 : 1,
-        },
-      ]}>
-      <Text variant='dataStrong'>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  zoom: {
-    position: 'absolute',
-    left: space.xs,
-    bottom: space.xs,
-    flexDirection: 'row',
-    gap: space.xs,
-  },
-  zoomButton: {
-    width: 28,
-    height: 28,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   box: {borderRadius: radius.md, overflow: 'hidden'},
   topLeft: {
     position: 'absolute',

@@ -22,19 +22,6 @@ The recorder waits for the game, records each session, and idles between. One in
 | `capture.py`  | One capture folder: `meta.json` and 60 s Parquet chunks.                                                                                                  |
 | `columns.py`  | Raw struct bytes to named columns, one numpy decode per chunk.                                                                                            |
 | `recorder.py` | The loop and `status.json`.                                                                                                                               |
-| `reencode.py` | Rewrites a capture's chunks that DuckDB cannot read, losslessly (see below). |
-| `duckdb_cli.py` | Runs the DuckDB CLI, the uploader's reader, so tests and `reencode.py` check readability the way the uploader reads. |
-
-## Repair
-
-Chunks written with byte-stream-split on integer columns (between #95 and its fix, pit-wall thread 30 #1028) cannot be read by DuckDB. With the recorder and the uploader idle:
-
-```
-uv run --project tools/capture tools/capture/reencode.py "%LOCALAPPDATA%\lap-capture\<capture folder>"
-uv run --project tools/capture tools/capture/reencode.py --all
-```
-
-Each chunk is rewritten beside itself, read back and compared value for value (schema, row count, every column), checked in DuckDB, then replaces the original atomically. A chunk DuckDB already reads is skipped, so a second run changes nothing; a chunk that fails is reported and left as it was (exit code 1).
 
 ## Output
 

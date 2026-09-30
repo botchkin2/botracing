@@ -103,32 +103,8 @@ export type Stint = {
   trendSPerLap: number | null;
 };
 
-/**
- * Session doc `fuel` (tools/sessions/fuelFacts.mjs): what he started with and
- * the limits from the car setup. fillLimitL is litres of fuel the event let
- * him load (VE 100 % is that full load); tankL is the physical tank. Both are
- * null when the recording had no setup string.
- */
-export type SessionFuel = {
-  startL: number | null;
-  fillLimitL: number | null;
-  tankL: number | null;
-};
-
-function toSessionFuel(v: unknown): SessionFuel | null {
-  if (v == null || typeof v !== 'object') return null;
-  const x = obj(v);
-  return {
-    startL: num(x.startL),
-    fillLimitL: num(x.fillLimitL),
-    tankL: num(x.tankL),
-  };
-}
-
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
-  /** Null on sessions analysed before the fuel facts. */
-  fuel: SessionFuel | null;
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
@@ -147,7 +123,6 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
-    fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {
       const x = obj(s);
       return {
@@ -202,27 +177,6 @@ export type Lap = {
   sections: SectionFacts[];
   /** The cars around the player on this lap; null when the session has no field. */
   traffic: LapTraffic | null;
-  /** Null on laps analysed before the fuel facts, or without the channels. */
-  fuel: LapFuel | null;
-};
-
-/**
- * Lap doc `fuel` (tools/sessions/fuelFacts.mjs). used = start - end + added in
- * the pits, so a lap with a stop is not negative. `green` is the uploader's
- * clean-lap rule (timed, whole, not the first lap, no pit in or out, no
- * full-course yellow, not cut short by a reset): the same laps its stint
- * medians use.
- */
-export type LapFuel = {
-  startL: number | null;
-  endL: number | null;
-  usedL: number | null;
-  addedL: number | null;
-  veStartPct: number | null;
-  veEndPct: number | null;
-  veUsedPct: number | null;
-  veAddedPct: number | null;
-  green: boolean;
 };
 
 /**
@@ -284,22 +238,6 @@ function toCornerFacts(raw: unknown): CornerFacts {
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
 
-function toLapFuel(v: unknown): LapFuel | null {
-  if (v == null || typeof v !== 'object') return null;
-  const x = obj(v);
-  return {
-    startL: num(x.startL),
-    endL: num(x.endL),
-    usedL: num(x.usedL),
-    addedL: num(x.addedL),
-    veStartPct: num(x.veStartPct),
-    veEndPct: num(x.veEndPct),
-    veUsedPct: num(x.veUsedPct),
-    veAddedPct: num(x.veAddedPct),
-    green: x.green === true,
-  };
-}
-
 function toTraffic(v: unknown): LapTraffic | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
@@ -341,7 +279,6 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       ).map(toCornerFacts),
     })),
     traffic: toTraffic(raw.traffic),
-    fuel: toLapFuel(raw.fuel),
   }));
 }
 

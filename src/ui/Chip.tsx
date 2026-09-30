@@ -26,14 +26,13 @@ export function Chip({
   onPress?: () => void;
 }) {
   const {color} = useTheme();
-  const hit = hitFor(space.sm / 2, (size.hit - size.chip) / 2);
+  const slop = (size.hit - size.chip) / 2;
   return (
     <Pressable
       accessibilityRole='button'
       accessibilityState={{selected}}
       onPress={onPress}
-      hitSlop={hit.hitSlop}
-      style={[hit.style, styles.fit]}>
+      {...hitFor(space.sm / 2, slop)}>
       <View
         style={[
           styles.chip,
@@ -46,21 +45,15 @@ export function Chip({
           },
         ]}>
         {leading}
-        <Text variant='dataStrong' numberOfLines={1} style={styles.label}>
-          {label}
-        </Text>
+        <Text variant='dataStrong'>{label}</Text>
         {trailing}
       </View>
     </Pressable>
   );
 }
 
-// A label longer than the row is cut with an ellipsis, not drawn off screen.
 const styles = StyleSheet.create({
-  fit: {maxWidth: '100%'},
-  label: {flexShrink: 1},
   chip: {
-    maxWidth: '100%',
     height: size.chip,
     paddingHorizontal: space.md,
     borderRadius: radius.sm,

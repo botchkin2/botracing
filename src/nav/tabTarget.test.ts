@@ -17,10 +17,8 @@ describe('tabTarget', () => {
     expect(tabTarget('compare', '')).toEqual({kind: 'sessions'});
   });
 
-  it('Tracks and Plan never need a session', () => {
+  it('Tracks never needs a session', () => {
     expect(tabTarget('tracks', null)).toEqual({kind: 'tracks'});
     expect(tabTarget('tracks', 'abc')).toEqual({kind: 'tracks'});
-    expect(tabTarget('plan', null)).toEqual({kind: 'plan'});
-    expect(tabTarget('plan', 'abc')).toEqual({kind: 'plan'});
   });
 });

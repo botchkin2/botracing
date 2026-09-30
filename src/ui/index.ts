@@ -7,7 +7,6 @@ export * from './Chip';
 export * from './EmptyState';
 export * from './Explainer';
 export * from './hitArea';
-export * from './NumberField';
 export * from './Segment';
 export * from './Skeleton';
 export * from './StatusBanner';

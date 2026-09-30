@@ -1,4 +1,4 @@
-import {useQueries, useQuery} from '@tanstack/react-query';
+import {useQuery} from '@tanstack/react-query';
 
 import {retryUnlessClientError} from '../http';
 
@@ -39,24 +39,6 @@ export function useSessionLaps(id: string) {
     queryFn: ({signal}) => fetchSessionLaps(id, signal),
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
-  });
-}
-
-/** The laps of several sessions at once, with the same keys as `useSessionLaps`. */
-export function useSessionsLaps(ids: string[]) {
-  return useQueries({
-    queries: ids.map(id => ({
-      queryKey: sessionKeys.laps(id),
-      queryFn: ({signal}: {signal: AbortSignal}) =>
-        fetchSessionLaps(id, signal),
-      staleTime: DETAIL_STALE_MS,
-      retry: retryUnlessClientError,
-    })),
-    combine: results => ({
-      laps: results.map(r => r.data),
-      pending: results.some(r => r.isPending),
-      failed: results.filter(r => r.isError).length,
-    }),
   });
 }
 
