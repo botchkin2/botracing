@@ -35,6 +35,7 @@ import {
 } from '@/src/ui';
 
 import {CarsAround} from './components/CarsAround';
+import {PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
@@ -55,9 +56,9 @@ import {
 // as the phone; this only arranges them.
 
 const LEFT_W = 260;
-const RIGHT_W = 360;
-const MAP_W = 320;
-const MAP_H = 220;
+const PANEL_DIVIDER_W = 10;
+// The map is the column's width minus its padding, in D2's 320 : 220 shape.
+const MAP_ASPECT = 220 / 320;
 const OVERVIEW_H = 58;
 
 export type WorkspaceProps = {
@@ -90,7 +91,12 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const {model, selection, lapStyle} = p;
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
-  const centreW = Math.max(480, layout.width - LEFT_W - RIGHT_W - space.xl * 2);
+  const rightW = prefs.rightW;
+  const mapW = rightW - space.xl * 2;
+  const centreW = Math.max(
+    480,
+    layout.width - LEFT_W - rightW - PANEL_DIVIDER_W - space.xl * 2,
+  );
   const readAt = hoverM ?? p.cursorM;
   const values = valuesAt(model.readouts, model.stepM, readAt);
   const hoverValues =
@@ -367,14 +373,15 @@ export function CompareWorkspace(p: WorkspaceProps) {
         </ScrollView>
       </View>
 
+      <PanelDivider width={rightW} onResize={prefs.setRightW} />
       {/* --- right: map, values, time per section ---------------------------- */}
       <ScrollView
-        style={[styles.right, {borderColor: color.lineHeader}]}
+        style={[styles.right, {width: rightW, borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
         {model.map && (
           <MapPanel
-            width={MAP_W}
-            height={MAP_H}
+            width={mapW}
+            height={Math.round(mapW * MAP_ASPECT)}
             map={model.map}
             sessionId={p.sessionId}
             openSection={selection.corner ?? null}
@@ -495,7 +502,7 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
   left: {width: LEFT_W, flexGrow: 0, borderRightWidth: 1},
-  right: {width: RIGHT_W, flexGrow: 0, borderLeftWidth: 1},
+  right: {flexGrow: 0},
   centre: {flex: 1},
   gapTop: {marginTop: space.lg},
   lapRow: {

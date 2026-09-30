@@ -3,7 +3,11 @@ import {Pressable, StyleSheet, View} from 'react-native';
 
 import {FollowMap, TrackMap} from '@/src/charts';
 import {radius, space, useTheme} from '@/src/design';
-import {useComparePrefs} from '@/src/state/comparePrefs';
+import {
+  MAP_ZOOMS,
+  type MapZoom,
+  useComparePrefs,
+} from '@/src/state/comparePrefs';
 import {Segment, Text} from '@/src/ui';
 
 import {type MapModel} from '../model';
@@ -99,7 +103,7 @@ export function MapPanel({
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
-          visibleM={f.visibleM}
+          visibleM={f.visibleM * MAP_ZOOMS[prefs.mapZoom]}
           band={f.geometry.band}
           lines={followLines}
           ticks={followTicks}
@@ -138,6 +142,22 @@ export function MapPanel({
           </View>
         )}
       </View>
+      {mode === 'follow' && f && (
+        <View style={styles.zoom}>
+          <ZoomButton
+            label='−'
+            hint='Zoom the map out'
+            disabled={prefs.mapZoom === 2}
+            onPress={() => prefs.setMapZoom((prefs.mapZoom + 1) as MapZoom)}
+          />
+          <ZoomButton
+            label='+'
+            hint='Zoom the map in'
+            disabled={prefs.mapZoom === 0}
+            onPress={() => prefs.setMapZoom((prefs.mapZoom - 1) as MapZoom)}
+          />
+        </View>
+      )}
       {/* Track only: Follow has its inset in this corner. */}
       {mode === 'track' && (
         <View
@@ -179,7 +199,55 @@ export function MapPanel({
   );
 }
 
+function ZoomButton({
+  label,
+  hint,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  hint: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const {color} = useTheme();
+  return (
+    <Pressable
+      accessibilityRole='button'
+      accessibilityLabel={hint}
+      accessibilityState={{disabled}}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={space.sm}
+      style={[
+        styles.zoomButton,
+        {
+          borderColor: color.lineStrong,
+          backgroundColor: color.surfaceOverlay,
+          opacity: disabled ? 0.4 : 1,
+        },
+      ]}>
+      <Text variant='dataStrong'>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  zoom: {
+    position: 'absolute',
+    left: space.xs,
+    bottom: space.xs,
+    flexDirection: 'row',
+    gap: space.xs,
+  },
+  zoomButton: {
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   box: {borderRadius: radius.md, overflow: 'hidden'},
   topLeft: {
     position: 'absolute',
