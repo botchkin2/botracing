@@ -11,7 +11,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {
   sessionHref,
-  planHref,
   sessionsHref,
   settingsHref,
   tracksHref,
@@ -65,32 +64,9 @@ export function SessionsScreen() {
             <View style={[styles.picker, {borderColor: color.lineStrong}]}>
               <Text variant='dataStrong'>LMU · all tracks ▾</Text>
             </View>
-            {/* Handoff v2 M5: Settings opens from the Sessions header on the
-                phone; desktop has it in the chrome. */}
-            {!layout.isWide && (
-              <Pressable
-                accessibilityRole='link'
-                accessibilityLabel='Settings'
-                hitSlop={space.md}
-                style={hitBox.icon}
-                onPress={() => router.push(settingsHref())}>
-                <Text variant='title' tone='textMuted'>
-                  ⚙
-                </Text>
-              </Pressable>
-            )}
           </View>
         </View>
         <View style={styles.links}>
-          <Pressable
-            accessibilityRole='link'
-            onPress={() => router.push(planHref())}
-            hitSlop={space.md}
-            style={hitBox.link}>
-            <Text variant='body' tone='accentInk'>
-              Plan ›
-            </Text>
-          </Pressable>
           <Pressable
             accessibilityRole='link'
             onPress={() => router.push(tracksHref())}

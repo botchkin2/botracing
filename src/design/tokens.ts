@@ -263,6 +263,8 @@ export const size = {
   chip: 28,
   transport: 40,
   hit: 44,
+  // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
+  bottomBar: 52,
   checkbox: 16,
   // The "?" that opens a chart's how-to-read lines (thread 33 #1119).
   helpMark: 20,

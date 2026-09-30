@@ -1,6 +1,7 @@
 export * from './AppChrome';
 export * from './AppMark';
 export * from './Badge';
+export * from './BottomBar';
 export * from './Button';
 export * from './Checkbox';
 export * from './Chip';
@@ -11,6 +12,7 @@ export * from './HowToRead';
 export * from './MapZoomButtons';
 export * from './NumberField';
 export * from './Segment';
+export * from './SessionTabs';
 export * from './Skeleton';
 export * from './StatusBanner';
 export * from './TraceRetryBanner';

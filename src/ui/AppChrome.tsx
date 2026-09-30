@@ -15,8 +15,7 @@ export type WorkspaceTab =
   | 'compare'
   | 'race'
   | 'corner'
-  | 'plan'
-  | 'tracks';
+  | 'plan';
 
 export type ChromeTab = {
   key: WorkspaceTab;
