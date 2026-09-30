@@ -22,7 +22,7 @@ export type FuelUsePoint = {
   stint: number;
   fuelL: number;
   timeS: number;
-  /** In a slipstream for TOW_HOLLOW_S or more: drawn hollow, out of the medians. */
+  /** In a slipstream for TOW_HOLLOW_S or more: out of the medians. */
   towed: boolean;
 };
 
@@ -188,15 +188,21 @@ export function planMatchesLimit(
 
 // Behind the "?" on the Fuel use card, one sentence a line.
 export const FUEL_USE_HELP: readonly string[] = [
-  'Each dot is a green lap: fuel used against lap time, from the recorded fuel level.',
-  'A hollow dot is a lap with 5 s or more in a slipstream, which uses less fuel and runs faster; it is left out of the medians.',
+  'A stint’s use is measured from the recorded fuel level over its green laps.',
+  'A lap with 5 s or more in a slipstream is counted as towed: it uses less fuel and runs faster, so it is left out of the medians.',
   'A stint gets a median use, and its spread (the middle half of its laps), from 4 laps or more.',
   'One load is the fill limit, or 100 % VE, over the stint’s median use per lap.',
 ];
 
 const litres = (v: number, digits = 2) => `${v.toFixed(digits)} L`;
 
-export type FuelUseRow = {key: string; title: string; lines: string[]};
+export type FuelUseRow = {
+  key: string;
+  title: string;
+  lines: string[];
+  /** The stint has green laps, which are in the plan's history when its rules run at this fill limit. */
+  counts: boolean;
+};
 
 /** One row per stint, as text. */
 export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
@@ -209,6 +215,7 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
         key: String(s.n),
         title,
         lines: [`Under ${MIN_STINT_LAPS} laps: no median`],
+        counts: s.laps > 0,
       };
     const use = [
       `${litres(s.medianFuelL)}/lap${
@@ -228,6 +235,7 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
         use.join(' · '),
         ...(load.length ? [`One load: ${load.join(' · ')}`] : []),
       ],
+      counts: s.laps > 0,
     };
   });
 }
@@ -254,79 +262,6 @@ export function limitText(fu: FuelUse): string {
   return fu.limitL != null
     ? `Loads use the ${fu.limitL.toFixed(0)} L limit of this session.`
     : 'No fill limit on record for this session, so no load in laps of fuel.';
-}
-
-export type ScatterTick = {v: number; label: string};
-
-export type FuelScatter = {
-  points: {key: string; x: number; y: number; hollow: boolean}[];
-  /** One mark per stint with a median: its use and its lap time. */
-  medians: {key: string; label: string; x: number; y: number}[];
-  xDomain: [number, number];
-  /** Lap time, seconds; the chart draws faster at the top. */
-  yDomain: [number, number];
-  xTicks: ScatterTick[];
-  yTicks: ScatterTick[];
-};
-
-/** A range widened a tenth each side, and at least `minSpan` wide, so a single value still has a frame. */
-function padded(values: number[], minSpan: number): [number, number] {
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const span = Math.max(hi - lo, minSpan);
-  const mid = (lo + hi) / 2;
-  return [mid - span * 0.6, mid + span * 0.6];
-}
-
-function ticksOf(
-  [lo, hi]: [number, number],
-  count: number,
-  label: (v: number) => string,
-): ScatterTick[] {
-  return Array.from({length: count}, (_, i) => {
-    const v = lo + ((hi - lo) * i) / (count - 1);
-    return {v, label: label(v)};
-  });
-}
-
-/** The scatter's data and axes. The x axis does not start at zero; the card says so. */
-export function fuelScatter(fu: FuelUse): FuelScatter {
-  const xDomain = padded(
-    fu.points.map(p => p.fuelL),
-    0.1,
-  );
-  const yDomain = padded(
-    fu.points.map(p => p.timeS),
-    1,
-  );
-  return {
-    points: fu.points.map(p => ({
-      key: p.lapId,
-      x: p.fuelL,
-      y: p.timeS,
-      hollow: p.towed,
-    })),
-    // Marked only when the stints differ: otherwise nothing is emphasised.
-    medians:
-      fu.verdict.kind === 'differs'
-        ? fu.stints.flatMap(s =>
-            s.medianFuelL != null && s.medianTimeS != null
-              ? [
-                  {
-                    key: String(s.n),
-                    label: `S${s.n}`,
-                    x: s.medianFuelL,
-                    y: s.medianTimeS,
-                  },
-                ]
-              : [],
-          )
-        : [],
-    xDomain,
-    yDomain,
-    xTicks: ticksOf(xDomain, 3, v => v.toFixed(2)),
-    yTicks: ticksOf(yDomain, 3, v => formatLapTime(v)),
-  };
 }
 
 /**

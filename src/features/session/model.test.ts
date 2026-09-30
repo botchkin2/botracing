@@ -221,6 +221,7 @@ describe('fuel and Virtual Energy rows', () => {
       kind: 'note',
       key: expect.stringContaining('-pit'),
       text: 'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+      pitLapIndex: 17,
     });
   });
 

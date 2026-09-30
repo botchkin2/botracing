@@ -83,7 +83,13 @@ export type StintRowModel = {
 };
 
 /** A line of text under a stint header or a pit lap: same height as a lap row. */
-export type NoteRowModel = {kind: 'note'; key: string; text: string};
+export type NoteRowModel = {
+  kind: 'note';
+  key: string;
+  text: string;
+  /** Set on a pit line: the lap the pit lane was entered, which the Pit stops card names its column by. */
+  pitLapIndex?: number;
+};
 
 export type RowModel = LapRowModel | StintRowModel | NoteRowModel;
 
@@ -358,7 +364,12 @@ export function buildSessionModel(
       });
       const stopNote = l.pitStop ? pitLine(l.pitStop) : null;
       if (stopNote)
-        rows.push({kind: 'note', key: `${l.id}-pit`, text: stopNote});
+        rows.push({
+          kind: 'note',
+          key: `${l.id}-pit`,
+          text: stopNote,
+          pitLapIndex: l.lapIndex,
+        });
     }
   }
 
