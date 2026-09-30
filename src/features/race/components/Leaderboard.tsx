@@ -120,7 +120,6 @@ const Row = memo(function Row({
       accessibilityLabel={`${row.model}, ${where}`}
       accessibilityState={{selected: row.focused}}
       onPress={() => onFocus(row.index)}
-      hitSlop={{top: (size.hit - height) / 2, bottom: (size.hit - height) / 2}}
       style={[
         styles.row,
         {height},
