@@ -108,6 +108,16 @@ export function defaultFilter(cars: RaceCar[]): ClassFilter {
   return you ? classKey(you.carClass) : 'all';
 }
 
+/**
+ * The gap to the class leader: "+3.412", "+1:04.2" from a minute, "+1 lap" once
+ * the car is a whole lap of distance behind ("+2 laps"), "" for the leader.
+ */
+export function gapText(car: RaceCar): string {
+  if (car.lapsDown > 0)
+    return `+${car.lapsDown} ${car.lapsDown === 1 ? 'lap' : 'laps'}`;
+  return car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '';
+}
+
 function rowOf(car: RaceCar, focus: number | null): RaceRow {
   const garage = car.state === 'garage';
   return {
@@ -115,7 +125,7 @@ function rowOf(car: RaceCar, focus: number | null): RaceRow {
     key: classKey(car.carClass),
     position: garage ? '' : String(car.classPlace),
     model: displayModel(car.vehicle),
-    gap: garage ? '—' : car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '',
+    gap: garage ? '—' : gapText(car),
     status:
       car.state === 'running' && car.pits > 0
         ? String(car.pits)
@@ -139,7 +149,8 @@ function focusText(car: RaceCar): string {
     parts.push('in the garage');
   } else {
     parts.push(`${CLASS_TITLE[classKey(car.carClass)]} P${car.classPlace}`);
-    if (car.gapS) parts.push(formatRaceGap(car.gapS));
+    const gap = gapText(car);
+    if (gap) parts.push(gap);
   }
   return parts.join(' · ');
 }

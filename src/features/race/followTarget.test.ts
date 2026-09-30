@@ -23,6 +23,7 @@ function car(over: Partial<RaceCar>): RaceCar {
     pits: 0,
     gapS: null,
     intervalS: null,
+    lapsDown: 0,
     ...over,
   };
 }

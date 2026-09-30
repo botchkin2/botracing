@@ -77,28 +77,65 @@ export function cornerView(
       turnLabel(corner.n, corner.official),
       {fromM: corner.entryM, toM: next.entryM},
       neighbours,
+      overlappingLabels(corners, corner, lengthM),
     ),
   };
 }
 
 /**
- * "Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m". Says what
- * is shown and nothing else. The labels are the chips' (official ones where a
- * track has them).
+ * "Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m · T8 and T9
+ * overlap here". Says what is shown and nothing else. The labels are the
+ * chips' (official ones where a track has them). `overlapping` are the other
+ * corners whose entry-to-exit span shares track with this one's (the Bus
+ * Stop), so the overlap is named instead of left for the reader to puzzle out.
  */
 export function viewCaption(
   label: string,
   stretch: CornerStretch,
   neighbours: {label: string; lapM: number}[],
+  overlapping: string[] = [],
 ): string {
   const range = `${plain(stretch.fromM)} → ${plain(stretch.toM)} m`;
   const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
   return [
     `Shaded: ${label} · ${range}`,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
+    overlapping.length > 0 ? overlapSentence([label, ...overlapping]) : null,
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+// "T8 and T9 overlap here", "T8, T9 and T10 overlap here".
+function overlapSentence(labels: string[]): string {
+  const head = labels.slice(0, -1).join(', ');
+  return `${head} and ${labels[labels.length - 1]} overlap here`;
+}
+
+/**
+ * Labels of the other corners whose entry-to-exit span shares track with this
+ * corner's, on the lap or across the start/finish line.
+ */
+export function overlappingLabels(
+  corners: TrackCorner[],
+  corner: TrackCorner,
+  lengthM: number,
+): string[] {
+  const shifts = lengthM > 0 ? [0, -lengthM, lengthM] : [0];
+  // A corner that runs over the line has its exit at a smaller distance than
+  // its entry: unroll it by one lap, as inWindowFrame does.
+  const spanOf = (c: TrackCorner): [number, number] => [
+    c.entryM,
+    c.exitM < c.entryM && lengthM > 0 ? c.exitM + lengthM : c.exitM,
+  ];
+  const [fromM, toM] = spanOf(corner);
+  return corners
+    .filter(c => c.n !== corner.n)
+    .filter(c => {
+      const [a, b] = spanOf(c);
+      return shifts.some(shift => a + shift < toM && fromM < b + shift);
+    })
+    .map(c => turnLabel(c.n, c.official));
 }
 
 // formatDistance adds the unit; the range prints one "m" after both numbers.

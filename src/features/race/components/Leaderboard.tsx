@@ -69,8 +69,12 @@ export const Leaderboard = memo(function Leaderboard({
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>
           Car
         </Text>
-        <Text variant='tableHeader' tone='textMuted' style={styles.gap}>
-          Gap
+        <Text
+          variant='tableHeader'
+          tone='textMuted'
+          numberOfLines={2}
+          style={styles.gap}>
+          Gap (to class leader)
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.status}>
           Pit

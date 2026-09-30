@@ -2,7 +2,13 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type TrackCorner} from '@/src/data/sessions';
 
-import {cornerView, dimmedRanges, inWindowFrame, viewCaption} from './stretch';
+import {
+  cornerView,
+  dimmedRanges,
+  inWindowFrame,
+  overlappingLabels,
+  viewCaption,
+} from './stretch';
 
 const corner = (
   n: number,
@@ -47,6 +53,42 @@ describe('viewCaption', () => {
     );
     expect(viewCaption('T5', {fromM: 1000, toM: 1500}, [])).toBe(
       'Shaded: T5 · 1,000 → 1,500 m',
+    );
+  });
+});
+
+describe('overlap', () => {
+  // Entry-to-exit spans that share track: the Bus Stop.
+  const busStop = [
+    {...corner(8, 3665, 3800), exitM: 3900},
+    {...corner(9, 3860, 3925), exitM: 3990},
+    corner(10, 4400, 4500),
+  ];
+
+  it('names the corners whose entry-to-exit span shares track', () => {
+    expect(overlappingLabels(busStop, busStop[0], 5000)).toEqual(['T9']);
+    expect(overlappingLabels(busStop, busStop[1], 5000)).toEqual(['T8']);
+    expect(overlappingLabels(busStop, busStop[2], 5000)).toEqual([]);
+  });
+
+  it('sees an overlap across the start/finish line', () => {
+    const c = [
+      {...corner(1, 4950, 20), exitM: 60},
+      {...corner(2, 40, 90), exitM: 150},
+      {...corner(3, 4900, 4990), exitM: 4990},
+    ];
+    expect(overlappingLabels(c, c[0], 5000)).toEqual(['T2', 'T3']);
+  });
+
+  it('puts the overlap in the caption, and only when there is one', () => {
+    expect(viewCaption('T8', {fromM: 3665, toM: 3860}, [], ['T9'])).toBe(
+      'Shaded: T8 · 3,665 → 3,860 m · T8 and T9 overlap here',
+    );
+    expect(
+      viewCaption('T8', {fromM: 3665, toM: 3860}, [], ['T9', 'T10']),
+    ).toContain('T8, T9 and T10 overlap here');
+    expect(cornerView(busStop, 0, [3550, 3950], 5000)!.caption).toBe(
+      'Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m · T8 and T9 overlap here',
     );
   });
 });

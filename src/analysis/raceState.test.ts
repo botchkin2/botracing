@@ -115,6 +115,18 @@ describe('carsAt', () => {
     expect(c.intervalS).toBeCloseTo(3 / HZ, 6);
   });
 
+  it('a car a whole lap of distance behind the class leader is laps down, not just a time gap', () => {
+    // The leader is on lap 2 (one done), the second car is on lap 1 and the
+    // third is a car length behind the leader on the same lap.
+    const f = field(10, [
+      car(0, 'GT3', 10, u => ({d: 500 + u * 50, laps: 1, place: 1})),
+      car(1, 'GT3', 10, u => ({d: 300 + u * 50, laps: 0, place: 2})),
+      car(2, 'GT3', 10, u => ({d: 480 + u * 50, laps: 1, place: 3})),
+    ]);
+    const [a, b, c] = at(f, 5 / HZ);
+    expect([a.lapsDown, b.lapsDown, c.lapsDown]).toEqual([0, 1, 0]);
+  });
+
   it('keeps counting across the start line', () => {
     // Lap length 1000: the leader crosses the line, the follower 30 m later.
     const f = field(12, [

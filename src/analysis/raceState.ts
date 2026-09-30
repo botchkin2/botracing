@@ -44,6 +44,11 @@ export interface RaceCar {
   gapS: number | null;
   /** Seconds behind the car ahead in its class; null for the leader and in the garage. */
   intervalS: number | null;
+  /**
+   * Whole laps behind the class leader's progress (a lapped car), 0 for the
+   * leader, in the garage or where the progress is unknown.
+   */
+  lapsDown: number;
 }
 
 /** Per-car series computed once per field, so `carsAt` stays cheap per frame. */
@@ -237,6 +242,7 @@ export function carsAt(
       pits: prep.pits[i][u],
       gapS: orNull(st.gapS[i]),
       intervalS: orNull(st.intervalS[i]),
+      lapsDown: st.lapsDown[i],
     });
   });
   return cars;
@@ -256,6 +262,7 @@ interface Standings {
   classPlace: Int16Array;
   gapS: Float32Array;
   intervalS: Float32Array;
+  lapsDown: Int16Array;
 }
 const lastStandings = new WeakMap<RacePrep, Standings>();
 
@@ -269,6 +276,7 @@ function standingsAt(prep: RacePrep, u: number): Standings {
     classPlace: new Int16Array(n),
     gapS: new Float32Array(n).fill(NaN),
     intervalS: new Float32Array(n).fill(NaN),
+    lapsDown: new Int16Array(n),
   };
   const nowS = field.timeS[u];
   const byClass = new Map<string, number[]>();
@@ -291,6 +299,11 @@ function standingsAt(prep: RacePrep, u: number): Standings {
       if (tLeader !== null) out.gapS[i] = Math.max(0, nowS - tLeader);
       const tAhead = timeAtProgress(prep, list[k - 1], p, u);
       if (tAhead !== null) out.intervalS[i] = Math.max(0, nowS - tAhead);
+      // Whole laps of distance behind the leader: a lapped car's time gap is
+      // real time, so it is the distance that says it is a lap down.
+      const behindM = prep.progressM[list[0]][u] - p;
+      if (prep.trackM > 0 && behindM >= prep.trackM)
+        out.lapsDown[i] = Math.floor(behindM / prep.trackM);
     });
   }
   lastStandings.set(prep, out);
