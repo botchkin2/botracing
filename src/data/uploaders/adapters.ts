@@ -72,7 +72,8 @@ function toProgress(v: unknown): Uploader['progress'] {
   const p = obj(v);
   const done = num(p.done);
   const total = num(p.total);
-  return done != null && total != null && total > 0 ? {done, total} : null;
+  // A finished resync (done = total) is not in progress; drop a stale one.
+  return done != null && total != null && done < total ? {done, total} : null;
 }
 
 export function toUploader(raw: unknown): Uploader {

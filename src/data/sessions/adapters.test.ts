@@ -68,11 +68,11 @@ describe('toTrackMap official turn labels', () => {
     toTrackMap({lengthM: 1000, corners, ...extra});
 
   it('carries the official label where tracks.json has one, and only there', () => {
-    // Road Atlanta: the app's corners 9, 10 and 11 are T10a, T10b and T12.
+    // Road Atlanta: the app's 7 and 8 are two parts of T7; 9, 10 and 11 are T10a, T10b and T12.
     const m = toTrackMap({
       trackId: 'lmu-michelin_raceway_road_atlanta',
       lengthM: 4000,
-      corners: [1, 9, 10, 11].map(n => ({
+      corners: [1, 7, 8, 9, 10, 11].map(n => ({
         n,
         entryM: n * 100,
         apexM: n * 100 + 50,
@@ -82,12 +82,16 @@ describe('toTrackMap official turn labels', () => {
     });
     expect(m.sections.map(s => s.official)).toEqual([
       undefined,
+      'T7 entry',
+      'T7',
       'T10a',
       'T10b',
       'T12',
     ]);
     expect(trackCorners(m).map(c => c.official)).toEqual([
       undefined,
+      'T7 entry',
+      'T7',
       'T10a',
       'T10b',
       'T12',

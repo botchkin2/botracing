@@ -68,6 +68,10 @@ describe('toUploader', () => {
     expect(
       toUploader({id: 'rig', progress: {done: 0, total: 0}}).progress,
     ).toBeNull();
+    // A finished resync left behind is not "in progress".
+    expect(
+      toUploader({id: 'rig', progress: {done: 364, total: 364}}).progress,
+    ).toBeNull();
   });
 
   it('reads the retry time and the retrying state', () => {

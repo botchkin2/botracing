@@ -1025,6 +1025,8 @@
   "location": "Michelin Raceway Road Atlanta",
   "lengthM": 4082,
   "turnLabels": {
+   "7": "T7 entry",
+   "8": "T7",
    "9": "T10a",
    "10": "T10b",
    "11": "T12"
