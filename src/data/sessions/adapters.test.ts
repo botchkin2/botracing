@@ -51,6 +51,15 @@ describe('toSessionDetail', () => {
     expect(d.field?.hash).toBe('abc123def456');
   });
 
+  it('carries the corner slices pointer, null before the resync', () => {
+    expect(toSessionDetail(raw).slices).toBeNull();
+    const d = toSessionDetail({
+      ...raw,
+      slices: {hash: 'a1b2c3d4e5f6', corners: [1, 2, 4, 'x'], format: 1},
+    });
+    expect(d.slices).toEqual({hash: 'a1b2c3d4e5f6', corners: [1, 2, 4]});
+  });
+
   it('takes the stint trend from consistency.stints, null when absent', () => {
     const d = toSessionDetail({
       ...raw,

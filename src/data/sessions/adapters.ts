@@ -144,6 +144,23 @@ function toSessionFuel(v: unknown): SessionFuel | null {
   };
 }
 
+/** The session doc's `slices` block (tools/sessions/cornerSlices.mjs). */
+export type SlicePointer = {
+  /** Names the files; under it a slice never changes (docs/API.md). */
+  hash: string;
+  /** Corner numbers that have a file. */
+  corners: number[];
+};
+
+function toSlicePointer(raw: unknown): SlicePointer | null {
+  const x = obj(raw);
+  if (typeof x.hash !== 'string' || x.hash === '') return null;
+  const corners = Array.isArray(x.corners)
+    ? x.corners.filter((n): n is number => typeof n === 'number')
+    : [];
+  return {hash: x.hash, corners};
+}
+
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Null on sessions analysed before the fuel facts. */
@@ -151,6 +168,9 @@ export type SessionDetail = SessionSummary & {
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
+  /** The per-corner trace slices the uploader wrote (analysis version 13 and
+   *  later), or null for a session not yet resynced. */
+  slices: SlicePointer | null;
 };
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
@@ -166,6 +186,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {
       const x = obj(s);
