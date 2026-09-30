@@ -100,10 +100,10 @@ describe('addLap and surfaceGeometry', () => {
 
   it('bins without a lap split the road into runs', () => {
     const s = emptySurface(LENGTH_M);
-    addLap(s, lap(0, -6, [0, 300]));
+    addLap(s, lap(0, -6, [50, 350]));
     addLap(s, lap(0, -6, [600, 1000]));
     const g = surfaceGeometry(s);
-    expect(g.runs.map(r => r.fromM)).toEqual([0, 600]);
+    expect(g.runs.map(r => r.fromM)).toEqual([50, 600]);
     expect(g.coverage.bins).toBe(70);
   });
 
@@ -113,6 +113,45 @@ describe('addLap and surfaceGeometry', () => {
     addLap(s, lap(0, -6, [0, 500]));
     const g = surfaceGeometry(s, 2);
     expect(g.coverage.bins).toBe(50);
+  });
+});
+
+describe('the edges and the start/finish line', () => {
+  it('a TrackEdge of exactly 0 is not an edge', () => {
+    const s = emptySurface(LENGTH_M);
+    addLap(s, lap(0, 0));
+    const g = surfaceGeometry(s);
+    expect(g.coverage).toEqual({bins: 100, both: 0, oneEdge: 0, centreOnly: 1});
+    expect(s.bins.every(b => b.nL === 0 && b.nR === 0)).toBe(true);
+  });
+
+  it('a road that crosses the line is one run, in lap order from its start', () => {
+    const s = emptySurface(LENGTH_M);
+    addLap(s, lap(0, -6, [0, 200]));
+    addLap(s, lap(0, -6, [800, 1000]));
+    const g = surfaceGeometry(s);
+    expect(g.runs).toHaveLength(1);
+    expect(g.runs[0].fromM).toBe(800);
+    expect(g.runs[0].centre).toHaveLength(40);
+    // 800..1000 m, then 0..200 m: x runs up, then jumps back to the start.
+    expect(g.runs[0].centre[19].x).toBeGreaterThan(990);
+    expect(g.runs[0].centre[20].x).toBeLessThan(10);
+    expect(g.runs[0].closed).toBe(false);
+  });
+
+  it('a lap measured everywhere is one closed run', () => {
+    const s = emptySurface(LENGTH_M);
+    addLap(s, lap(0, -6));
+    const g = surfaceGeometry(s);
+    expect(g.runs).toHaveLength(1);
+    expect(g.runs[0].closed).toBe(true);
+  });
+
+  it('two separate stretches that do not touch the ends stay two runs', () => {
+    const s = emptySurface(LENGTH_M);
+    addLap(s, lap(0, -6, [100, 300]));
+    addLap(s, lap(0, -6, [500, 700]));
+    expect(surfaceGeometry(s).runs).toHaveLength(2);
   });
 });
 

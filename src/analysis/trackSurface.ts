@@ -131,7 +131,9 @@ export function addLap(s: TrackSurface, lap: SurfaceLap): void {
       seenC.add(b);
       bin.laps += 1;
     }
-    if (Math.abs(te) > MAX_EDGE_M) continue;
+    // 0 is not a side (the game never writes it: 0 of 71,513 samples on Road
+    // Atlanta and Daytona), so it would only pull an edge onto the centre.
+    if (te === 0 || Math.abs(te) > MAX_EDGE_M) continue;
     if (te < 0) {
       bin.nL += 1;
       bin.sL += te;
@@ -166,7 +168,7 @@ export function addSession(
 }
 
 export interface SurfaceGeometry {
-  /** Runs of consecutive bins with a centre; each run is one drawable road. */
+  /** Runs of consecutive bins with a centre; each run is one drawable road. A run that crosses the start/finish line is joined into one. */
   runs: SurfaceRun[];
   /** Half the measured width: median over bins with both edges; null when none. */
   halfWidthM: number | null;
@@ -183,6 +185,8 @@ export interface SurfaceRun {
   rightDashed: (Pt | null)[];
   /** Metres along the lap where the run starts. */
   fromM: number;
+  /** Every bin is measured: the road is a loop, the last bin joins the first. */
+  closed: boolean;
 }
 
 /** Shares of the bins with a centre, by what was measured. */
@@ -239,6 +243,17 @@ export function surfaceGeometry(
     while (i < s.bins.length && has[i]) i += 1;
     runs.push(buildRun(s, centre as (Pt | null)[], from, i, minLaps, half));
   }
+  // A road that crosses the start/finish line is one road, not two: the last
+  // run continues into the first (the line has no seam at bin 0).
+  if (runs.length > 1 && has[0] && has[has.length - 1]) {
+    const first = runs.shift() as SurfaceRun;
+    const last = runs[runs.length - 1];
+    last.centre.push(...first.centre);
+    last.left.push(...first.left);
+    last.right.push(...first.right);
+    last.leftDashed.push(...first.leftDashed);
+    last.rightDashed.push(...first.rightDashed);
+  } else if (runs.length === 1 && has.every(Boolean)) runs[0].closed = true;
   return {
     runs,
     halfWidthM: half,
@@ -266,6 +281,7 @@ function buildRun(
     leftDashed: [],
     rightDashed: [],
     fromM: from * s.stepM,
+    closed: false,
   };
   for (let i = from; i < to; i++) {
     const c = centre[i] as Pt;
