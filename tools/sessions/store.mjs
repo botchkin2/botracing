@@ -9,6 +9,7 @@
 //   gs://BUCKET/slices/{ownerId}/{sessionId}/{contentHash}/c{n}.json.gz  (every lap around corner n; cornerSlices.mjs)
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)
+//   gs://BUCKET/surface/{trackId}/v1.json.gz  (measured track surface; surface.mjs, not written by sync)
 import {existsSync, readFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {dirname, resolve} from 'node:path';
