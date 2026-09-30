@@ -1,7 +1,7 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {hitArea, Text} from '@/src/ui';
+import {hitFor, Text} from '@/src/ui';
 
 // "Layouts in the game" (handoff T1): the current layout is inverted; a
 // tap opens that layout's Track page. Long names truncate.
@@ -13,7 +13,7 @@ export function LayoutChips({
   onOpen: (trackId: string) => void;
 }) {
   const {color} = useTheme();
-  const slop = (size.hit - size.chip) / 2;
+  const hit = hitFor(0, (size.hit - size.chip) / 2);
   if (layouts.length === 0) return null;
   return (
     <View style={styles.block}>
@@ -28,8 +28,8 @@ export function LayoutChips({
             accessibilityState={{selected: l.current}}
             disabled={l.current}
             onPress={() => onOpen(l.trackId)}
-            hitSlop={slop}
-            style={[hitArea(0, slop), styles.hit]}>
+            hitSlop={hit.hitSlop}
+            style={[hit.style, styles.hit]}>
             <View
               style={[
                 styles.chip,
@@ -53,7 +53,13 @@ export function LayoutChips({
 
 const styles = StyleSheet.create({
   block: {gap: space.sm},
-  row: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   hit: {maxWidth: '100%'},
   chip: {
     height: size.chip,

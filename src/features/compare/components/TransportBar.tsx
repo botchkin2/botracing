@@ -7,7 +7,7 @@ import {
   type PlayRate,
   type WindowStep,
 } from '@/src/state/comparePrefs';
-import {hitArea, Segment, Text} from '@/src/ui';
+import {hitFor, Segment, Text} from '@/src/ui';
 
 import {type WindowMode} from '@/src/analysis/window';
 
@@ -95,7 +95,7 @@ export function TransportBar({
         accessibilityRole='button'
         accessibilityLabel={playing ? 'Pause' : 'Play'}
         onPress={onPlay}
-        style={hitArea(
+        {...hitFor(
           (size.hit - size.transport) / 2,
           (size.hit - size.transport) / 2,
         )}>

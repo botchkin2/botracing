@@ -1,16 +1,26 @@
-import {type ViewStyle} from 'react-native';
+import {type Insets, Platform, type ViewStyle} from 'react-native';
 
 /**
- * A Pressable's outer style that makes its hit area `x` / `y` pt larger on
- * each side without moving anything: padding out, margin back in. Put the
- * visible box inside. react-native-web ignores `hitSlop`, so this is what
- * gives the phone-sized web build its 44 pt targets (thread 27, 375 pt pass).
+ * Props that make a Pressable's hit area `x` / `y` pt larger on each side.
+ * Native uses `hitSlop`. react-native-web ignores it, so on web the Pressable
+ * grows with padding and takes the same amount back as margin, and the visible
+ * box goes inside it. Never both: that would double the growth.
+ *
+ * Neighbours: the growth must not exceed half the gap to the next control, or
+ * a tap near the edge lands on the later sibling (camber, thread 27 #866).
  */
-export function hitArea(x: number, y: number): ViewStyle {
+export function hitFor(
+  x: number,
+  y: number,
+): {style?: ViewStyle; hitSlop?: Insets} {
+  if (Platform.OS !== 'web')
+    return {hitSlop: {top: y, bottom: y, left: x, right: x}};
   return {
-    paddingHorizontal: x,
-    paddingVertical: y,
-    marginHorizontal: -x,
-    marginVertical: -y,
+    style: {
+      paddingHorizontal: x,
+      paddingVertical: y,
+      marginHorizontal: -x,
+      marginVertical: -y,
+    },
   };
 }

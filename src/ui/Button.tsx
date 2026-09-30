@@ -2,7 +2,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
-import {hitArea} from './hitArea';
+import {hitFor} from './hitArea';
 import {Text} from './Text';
 
 export type ButtonKind = 'primary' | 'outline' | 'tertiary';
@@ -28,8 +28,7 @@ export function Button({
       accessibilityRole='button'
       onPress={onPress}
       disabled={disabled}
-      hitSlop={slop}
-      style={hitArea(0, slop)}>
+      {...hitFor(0, slop)}>
       {({pressed}) => (
         <View
           style={[

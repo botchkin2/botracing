@@ -3,7 +3,7 @@ import Svg, {Path} from 'react-native-svg';
 
 import {radius, size, useTheme} from '@/src/design';
 
-import {hitArea} from './hitArea';
+import {hitFor} from './hitArea';
 
 // 44 pt wide, but only as tall as a 32 pt lap row: taller would overlap the
 // rows above and below (design call in thread 27).
@@ -30,8 +30,7 @@ export function Checkbox({
       accessibilityState={{checked}}
       accessibilityLabel={label}
       onPress={onToggle}
-      hitSlop={(size.hit - size.checkbox) / 2}
-      style={hitArea(WIDTH_SLOP, HEIGHT_SLOP)}>
+      {...hitFor(WIDTH_SLOP, HEIGHT_SLOP)}>
       <View
         style={[
           styles.box,

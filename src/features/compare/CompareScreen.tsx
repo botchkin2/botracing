@@ -754,8 +754,15 @@ const styles = StyleSheet.create({
   desktop: {flex: 1, flexDirection: 'row', gap: space.xxl, alignSelf: 'center'},
   header: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   refRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.xs},
-  chipsWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
+  chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   swatch: {width: 10, height: 3},
   positionRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   values: {

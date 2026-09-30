@@ -3,7 +3,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
-import {hitArea} from './hitArea';
+import {hitFor} from './hitArea';
 import {Text} from './Text';
 
 /** 28 pt chip, 44 pt hit area. `selected` uses the accent border and tint. */
@@ -29,8 +29,7 @@ export function Chip({
       accessibilityRole='button'
       accessibilityState={{selected}}
       onPress={onPress}
-      hitSlop={slop}
-      style={hitArea(slop, slop)}>
+      {...hitFor(space.sm / 2, slop)}>
       <View
         style={[
           styles.chip,

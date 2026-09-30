@@ -758,7 +758,13 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Desktop: two columns bounded to the viewport, each scrolling on its own.
   columns: {flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden'},
-  wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: space.sm},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  wrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
