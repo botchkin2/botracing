@@ -39,7 +39,7 @@ const fuelEnd = (endL: number, veEndPct: number) => ({
 });
 
 // L1 from the grid (with the service before the start), L2-L3 flying, a stop
-// on L4, L5 on new tyres, L6 the last timed lap.
+// on L4, L5 on new tyres, L6 the last whole lap.
 const race = [
   lap(1, {pitStop: {...stop, added: {fuelL: 4, vePct: 0}}}),
   lap(2),
@@ -72,7 +72,9 @@ describe('buildPitReview', () => {
   });
 
   it('says tyres not changed when the next lap has no wear jump, and nothing when there is no next lap', () => {
-    const next = race.map(l => (l.lapIndex === 5 ? {...l, newTyres: false} : l));
+    const next = race.map(l =>
+      l.lapIndex === 5 ? {...l, newTyres: false} : l,
+    );
     expect(buildPitReview('R', next)!.stops[0].lines).toContain(
       'Tyres not changed',
     );
@@ -125,12 +127,19 @@ describe('buildPitReview', () => {
     expect(end?.lines[1]).toContain('34 % used after');
   });
 
-  it('ends on the last timed lap, not a cool-down lap', () => {
+  it('ends on the last whole lap, timed or not, and not on a cut-short lap after it', () => {
     const cool = [
       ...race,
       lap(7, {timeS: null, partial: true, fuel: fuelEnd(3, 1)}),
     ];
     expect(buildPitReview('R', cool)!.end?.title).toBe('End of L6');
+    // The game stops timing the last laps of a race (Sarthe 09-21: L21-L23 are
+    // untimed but whole); the flag lap is the last whole one.
+    const untimed = [
+      ...race.slice(0, 5),
+      lap(6, {timeS: null, fuel: fuelEnd(2.6, 0)}),
+    ];
+    expect(buildPitReview('R', untimed)!.end?.title).toBe('End of L6');
   });
 
   it('numbers several stops', () => {

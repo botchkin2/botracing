@@ -8,13 +8,13 @@ export type PitStopReview = {key: string; title: string; lines: string[]};
 
 export type PitReview = {
   stops: PitStopReview[];
-  /** Null when no timed lap has a fuel level to end on. */
+  /** Null when no whole lap has a fuel level to end on. */
   end: {title: string; lines: string[]} | null;
   explainer: string;
 };
 
 export const PIT_REVIEW_EXPLAINER =
-  'Each stop: what was in the tank at pit entry, what the stop added and the time in the lane. Laps are at the stint’s median use per green lap. Tyres changed means the average tyre wear reading jumped after the stop. The end row is the last timed lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.';
+  'Each stop: what was in the tank at pit entry, what the stop added and the time in the lane. Laps are at the stint’s median use per green lap. Tyres changed means the average tyre wear reading jumped after the stop. The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -83,9 +83,11 @@ function endLine(
   if (inTank == null || added == null)
     return `${name}: ${fmt(left)} left${tail}`;
   const used = round(round(inTank) + round(added) - round(left));
-  return `${name}: ${fmt(inTank)} in + ${fmt(added)} added at the last stop · ${fmt(
-    used,
-  )} used after · ${fmt(left)} left${tail}`;
+  return `${name}: ${fmt(inTank)} in + ${fmt(
+    added,
+  )} added at the last stop · ${fmt(used)} used after · ${fmt(
+    left,
+  )} left${tail}`;
 }
 
 /** Null for anything but a race with at least one stop. */
@@ -108,7 +110,7 @@ export function buildPitReview(
   const last = pitLaps[pitLaps.length - 1].pitStop as PitStop;
   const ending = [...laps]
     .reverse()
-    .find(l => l.timeS != null && !l.partial && l.fuel?.endL != null);
+    .find(l => !l.partial && l.fuel?.endL != null);
   const f = ending?.fuel;
   const lines = f
     ? [
@@ -134,7 +136,10 @@ export function buildPitReview(
     : [];
   return {
     stops,
-    end: ending && lines.length ? {title: `End of L${ending.lapIndex}`, lines} : null,
+    end:
+      ending && lines.length
+        ? {title: `End of L${ending.lapIndex}`, lines}
+        : null,
     explainer: PIT_REVIEW_EXPLAINER,
   };
 }
