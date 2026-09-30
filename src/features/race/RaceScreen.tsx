@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
@@ -15,7 +16,7 @@ import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
 import {type LabelMode, RaceMap} from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
-import {Scrubber} from './components/Scrubber';
+import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
   CLASS_TITLE,
@@ -227,6 +228,12 @@ function RaceView({
     touched.current = true;
     clock.toggle();
   };
+  // Built once per field, like the clock: it walks every update and car.
+  const lanes = useMemo(
+    () => raceLanes(prep.field, data.clock),
+    [prep.field, data.clock],
+  );
+  const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
   // R1e: per view; the design's third mode (car number) needs numbers the
@@ -334,20 +341,25 @@ function RaceView({
       ) : null}
     </View>
   );
+  const lanesBlock = (
+    <RaceLanesBlock
+      lanes={lanes}
+      zoom={zoom}
+      onZoom={setZoom}
+      playheadS={shownS}
+      width={mapW}
+      desktop={desktop}
+      onScrub={scrub}
+    />
+  );
   const controls = (
-    <>
-      <Scrubber
-        value={endS > 0 ? clock.timeS / endS : 0}
-        onChange={v => scrub(v * endS)}
-      />
-      <RaceTransport
-        playing={clock.playing}
-        rate={clock.rate}
-        clock={clockLabel(shownS)}
-        onToggle={toggle}
-        onRate={clock.setRate}
-      />
-    </>
+    <RaceTransport
+      playing={clock.playing}
+      rate={clock.rate}
+      clock={clockLabel(shownS)}
+      onToggle={toggle}
+      onRate={clock.setRate}
+    />
   );
   const board = (
     <Leaderboard
@@ -369,6 +381,7 @@ function RaceView({
           </Text>
           {map}
           <RaceLegend />
+          {lanesBlock}
           {controls}
         </View>
         <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
@@ -385,6 +398,7 @@ function RaceView({
         <RaceLegend />
       </View>
       {board}
+      <View style={styles.phoneLanes}>{lanesBlock}</View>
       {controls}
     </View>
   );
@@ -412,6 +426,7 @@ const styles = StyleSheet.create({
   notice: {alignSelf: 'center', gap: space.sm, paddingTop: space.lg},
   noticeColumns: {flexDirection: 'row', gap: space.xl},
   noticeBoard: {gap: space.sm},
+  phoneLanes: {paddingHorizontal: size.gutter, paddingTop: space.md},
   phoneTop: {paddingHorizontal: size.gutter, gap: space.md},
   desktop: {
     flex: 1,

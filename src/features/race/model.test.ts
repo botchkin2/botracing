@@ -2,7 +2,13 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 
-import {buildRaceModel, classKey, defaultFilter, labelRank} from './model';
+import {
+  buildRaceModel,
+  classKey,
+  defaultFilter,
+  displayModel,
+  labelRank,
+} from './model';
 
 function car(
   index: number,
@@ -45,6 +51,37 @@ describe('classKey', () => {
     expect(
       ['Hyper', 'LMP2', 'GT3', 'LMGT3', 'GTE', '', 'Odd'].map(classKey),
     ).toEqual(['hypercar', 'lmp2', 'gt3', 'other', 'gt3', 'other', 'other']);
+  });
+});
+
+describe('displayModel', () => {
+  it('drops the class LMU puts on the end of a model name', () => {
+    expect(
+      [
+        'Porsche 911 GT3 R LMGT3',
+        'Chevrolet Corvette Z06 LMGT3.',
+        'Aston Martin Vantage AMR LMGT',
+        'BMW M4 LMGT3',
+        'Toyota TR010 LMH',
+        'Cadillac V-Series.R',
+        'Ferrari 296 LMGT3 Evo',
+        'Porsche 911 GT3 R',
+      ].map(displayModel),
+    ).toEqual([
+      'Porsche 911 GT3 R',
+      'Chevrolet Corvette Z06',
+      'Aston Martin Vantage AMR',
+      'BMW M4',
+      'Toyota TR010',
+      'Cadillac V-Series.R',
+      'Ferrari 296 GT3 Evo',
+      'Porsche 911 GT3 R',
+    ]);
+  });
+
+  it('says Unknown car with no name', () => {
+    expect(displayModel(null)).toBe('Unknown car');
+    expect(displayModel('  ')).toBe('Unknown car');
   });
 });
 
