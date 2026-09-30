@@ -182,6 +182,7 @@ describe('buildFuelUse', () => {
         '2.40 L/lap (spread 0.00) · 3.5 % VE/lap · 1:21.500',
         'One load: 31.3 laps of fuel · 28.3 laps of VE',
       ],
+      counts: true,
     });
   });
 });

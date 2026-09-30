@@ -11,6 +11,7 @@ import {
   SessionScreen,
 } from '@/src/features/session/SessionScreen';
 import {PitPlanHalf} from '@/src/features/plan/components/PitPlanHalf';
+import {PooledUseCard} from '@/src/features/plan/components/PooledUseCard';
 import {useSessionsModel} from '@/src/features/sessions/model';
 
 // The URL owns the selection: ?laps=ref,a,b&hl=lapId (docs/ARCHITECTURE.md).
@@ -34,6 +35,9 @@ export default function SessionRoute() {
       // Another feature's card, composed here: features do not import each other.
       renderPlanHalf={(card, facts) => (
         <PitPlanHalf card={card} facts={facts} />
+      )}
+      renderPooledUse={(planKey, width) => (
+        <PooledUseCard planKey={planKey} sessionId={params.id} width={width} />
       )}
       onSelectionChange={next =>
         router.setParams({
