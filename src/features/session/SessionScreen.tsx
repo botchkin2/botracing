@@ -28,6 +28,7 @@ import {
   LapRow,
   LapTableHeader,
   ROW_H,
+  NoteRow,
   StintRow,
 } from './components/LapTableRow';
 import {
@@ -311,7 +312,9 @@ function SessionView({
   );
 
   const renderRow = (item: RowModel, width: number, wide = false) =>
-    item.kind === 'stint' ? (
+    item.kind === 'note' ? (
+      <NoteRow row={item} width={width} wide={wide} />
+    ) : item.kind === 'stint' ? (
       <StintRow
         row={item}
         width={width}

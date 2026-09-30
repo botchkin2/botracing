@@ -101,6 +101,24 @@ export type Stint = {
    * uploader did not store one for this stint.
    */
   trendSPerLap: number | null;
+  /**
+   * Fuel and Virtual Energy per green lap (tools/sessions/fuelFacts.mjs):
+   * the median and spread over `greenLaps` laps, null under 3.
+   */
+  greenLaps: number;
+  medianFuelL: number | null;
+  fuelSpreadL: number | null;
+  medianVePct: number | null;
+  veSpreadPct: number | null;
+};
+
+/** The session's fuel: what it started with and the event's limits. */
+export type SessionFuel = {
+  startL: number | null;
+  /** The most fuel the event lets the car take; VE 100 % is this full load. */
+  fillLimitL: number | null;
+  /** The physical tank, when the setup says. */
+  tankL: number | null;
 };
 
 export type SessionDetail = SessionSummary & {
@@ -108,7 +126,18 @@ export type SessionDetail = SessionSummary & {
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
+  fuel: SessionFuel | null;
 };
+
+function toSessionFuel(v: unknown): SessionFuel | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  return {
+    startL: num(x.startL),
+    fillLimitL: num(x.fillLimitL),
+    tankL: num(x.tankL),
+  };
+}
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
@@ -123,6 +152,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {
       const x = obj(s);
       return {
@@ -133,6 +163,11 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
         medianTimeS: num(x.medianLapTime),
         stdevS: num(x.stdevLapTime),
         trendSPerLap: trendByStint.get(num(x.n) ?? 0) ?? null,
+        greenLaps: num(x.greenLaps) ?? 0,
+        medianFuelL: num(x.medianFuelL),
+        fuelSpreadL: num(x.fuelSpreadL),
+        medianVePct: num(x.medianVePct),
+        veSpreadPct: num(x.veSpreadPct),
       };
     }),
   };
@@ -177,6 +212,38 @@ export type Lap = {
   sections: SectionFacts[];
   /** The cars around the player on this lap; null when the session has no field. */
   traffic: LapTraffic | null;
+  /** Fuel and Virtual Energy on the lap; null without the channels. */
+  fuel: LapFuel | null;
+  /** The pit stop entered on this lap, if any. */
+  pitStop: PitStop | null;
+};
+
+/**
+ * Lap doc `fuel` (tools/sessions/fuelFacts.mjs). Used is start minus end plus
+ * what was added in the pits. Laps left is the end level over the stint's
+ * median use, null without a median (under 3 green laps).
+ */
+export type LapFuel = {
+  startL: number | null;
+  endL: number | null;
+  usedL: number | null;
+  addedL: number | null;
+  veStartPct: number | null;
+  veEndPct: number | null;
+  veUsedPct: number | null;
+  veAddedPct: number | null;
+  lapsLeftFuel: number | null;
+  lapsLeftVe: number | null;
+  green: boolean;
+};
+
+/** A pit stop: what was left at pit entry, what was added, how long. */
+export type PitStop = {
+  atEntry: {fuelL: number | null; vePct: number | null};
+  /** 0 for a drive-through or a penalty. */
+  added: {fuelL: number | null; vePct: number | null};
+  inPitS: number | null;
+  lapsLeftAtEntry: {fuel: number | null; ve: number | null};
 };
 
 /**
@@ -238,6 +305,38 @@ function toCornerFacts(raw: unknown): CornerFacts {
 
 export type SessionLapsResponse = {items: Record<string, unknown>[]};
 
+function toFuel(v: unknown): LapFuel | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  return {
+    startL: num(x.startL),
+    endL: num(x.endL),
+    usedL: num(x.usedL),
+    addedL: num(x.addedL),
+    veStartPct: num(x.veStartPct),
+    veEndPct: num(x.veEndPct),
+    veUsedPct: num(x.veUsedPct),
+    veAddedPct: num(x.veAddedPct),
+    lapsLeftFuel: num(x.lapsLeftFuel),
+    lapsLeftVe: num(x.lapsLeftVe),
+    green: x.green === true,
+  };
+}
+
+function toPitStop(v: unknown): PitStop | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const at = obj(x.atEntry);
+  const added = obj(x.added);
+  const left = obj(x.lapsLeftAtEntry);
+  return {
+    atEntry: {fuelL: num(at.fuelL), vePct: num(at.vePct)},
+    added: {fuelL: num(added.fuelL), vePct: num(added.vePct)},
+    inPitS: num(x.inPitS),
+    lapsLeftAtEntry: {fuel: num(left.fuel), ve: num(left.ve)},
+  };
+}
+
 function toTraffic(v: unknown): LapTraffic | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
@@ -279,6 +378,8 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       ).map(toCornerFacts),
     })),
     traffic: toTraffic(raw.traffic),
+    fuel: toFuel(raw.fuel),
+    pitStop: toPitStop(raw.pitStop),
   }));
 }
 

@@ -174,3 +174,79 @@ describe('traffic tags, rails and the clean best', () => {
     expect(lapRow(plain, 'L21').tags.map(t => t.code)).toEqual(['BEST']);
   });
 });
+
+describe('fuel and Virtual Energy rows', () => {
+  const fuel = (over: Record<string, unknown> = {}) => ({
+    startL: 40,
+    endL: 37.6,
+    usedL: 2.4,
+    addedL: 0,
+    veStartPct: 50,
+    veEndPct: 46.4,
+    veUsedPct: 3.6,
+    veAddedPct: 0,
+    lapsLeftFuel: 15.7,
+    lapsLeftVe: 12.9,
+    green: true,
+    ...over,
+  });
+  // Lap index 16 is the pit-in lap of this race (L17): give it a stop.
+  const raw = fixture.laps.map((l, i) => ({
+    ...l,
+    fuel: fuel(i === 0 ? {startL: 75} : {}),
+    pitStop:
+      i === 16
+        ? {
+            atEntry: {fuelL: 33.31, vePct: 39.9},
+            added: {fuelL: 41.72, vePct: 60.1},
+            inPitS: 90.5,
+            lapsLeftAtEntry: {fuel: 13.9, ve: 11.1},
+          }
+        : null,
+  }));
+  const withFuel = toSessionDetail({
+    ...fixture.session,
+    fuel: {startL: 75, fillLimitL: 75, tankL: 75},
+    stints: (fixture.session.stints as Record<string, unknown>[]).map(s => ({
+      ...s,
+      greenLaps: 15,
+      medianFuelL: 2.4,
+      medianVePct: 3.6,
+    })),
+  });
+  const m = buildSessionModel(withFuel, toLaps(raw), none);
+
+  it('the pit-in lap has its line under it: what was left, in laps, and what was added', () => {
+    const i = m.rows.findIndex(r => r.kind === 'lap' && r.label === 'L17');
+    expect(m.rows[i + 1]).toEqual({
+      kind: 'note',
+      key: expect.stringContaining('-pit'),
+      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+    });
+  });
+
+  it('each stint gets its start against the limit and its median use', () => {
+    const i = m.rows.findIndex(r => r.kind === 'stint');
+    expect(m.rows[i + 1]).toMatchObject({
+      kind: 'note',
+      text: 'Fuel 2.40 L/lap · VE 3.6 %/lap (n = 15)',
+    });
+  });
+
+  it("the detail panel has the lap's fuel and VE lines", () => {
+    const d = buildSessionModel(withFuel, toLaps(raw), {
+      laps: [],
+      hl: toLaps(raw)[16].id,
+    }).detail!;
+    expect(d.fuel[0]).toMatch(/^Fuel 2\.40 L used/);
+    expect(d.fuel.at(-1)).toMatch(/^Stop 91 s in the pits/);
+  });
+
+  it('a session without fuel data has no fuel rows', () => {
+    const plain = buildSessionModel(session, laps, none);
+    expect(plain.rows.filter(r => r.kind === 'note')).toEqual([]);
+    expect(
+      buildSessionModel(session, laps, {laps: [], hl: laps[0].id}).detail!.fuel,
+    ).toEqual([]);
+  });
+});

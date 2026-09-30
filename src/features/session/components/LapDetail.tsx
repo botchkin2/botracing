@@ -36,6 +36,11 @@ export function LapDetail({
         tone={detail.excluded ? 'accentInk' : 'textSecondary'}>
         {detail.status}
       </Text>
+      {detail.fuel.map(line => (
+        <Text key={line} variant='dataSmall' tone='textSecondary'>
+          {line}
+        </Text>
+      ))}
       {detail.why && (
         <Text variant='explainer' tone='textMuted'>
           {detail.why}
