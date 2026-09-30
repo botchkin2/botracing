@@ -17,7 +17,9 @@ import {
   turnNumber,
 } from '@/src/design';
 
+import {deltaFromEntry} from './deltaFromEntry';
 import {buildStrips, type StripModel} from './strips';
+import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
   type CornerStretch,
   cornerView,
@@ -71,6 +73,8 @@ export type CornerRow = {
 
 export type ZoomLine = {
   lapId: string;
+  /** "L5", as the table shows it. */
+  label: string;
   selIndex: number;
   highlighted: boolean;
   onIndex: number | null;
@@ -78,6 +82,14 @@ export type ZoomLine = {
   speedKph: number[];
   brakePct: number[];
   throttlePct: number[];
+  /** Seconds behind the reference, zero at this turn's entry (desktop). */
+  deltaS: number[];
+  /** Steering, % of lock, on the grid (desktop). */
+  steeringPct: number[];
+  /** Every channel's recorded samples: what the desktop charts draw and
+   *  the readouts take their nearest value from. Lateral and edge are empty
+   *  for a trace uploaded before analysis version 9. */
+  samples: GridTrace['samples'];
   /** Absolute distances of this lap's brake and full-throttle points. */
   brakeAtM: number | null;
   fullThrottleAtM: number | null;
@@ -105,6 +117,9 @@ export type CornerModel = {
     /** This turn's own stretch, the ranges outside it to dim, the neighbouring
      *  apexes in the window, and the caption that says so (stretch.ts). */
     stretch: CornerStretch;
+    /** The track edges seen by the laps in the window, per side (racing-line
+     *  chart). Empty without lateral data. */
+    edges: {right: EdgeRun[]; left: EdgeRun[]};
     dimmed: [number, number][];
     neighbours: NeighbourApex[];
     caption: string;
@@ -289,27 +304,6 @@ export function buildCornerModel(input: {
     ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${hlRow.cells.brake.value} m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${hlRow.cells.throttle.value} m`
     : null;
 
-  const lines: ZoomLine[] = rows.flatMap(r => {
-    const t = traces.get(r.lapId);
-    if (!t) return [];
-    const f = lapCornerFacts(byId.get(r.lapId)!, sec);
-    return [
-      {
-        lapId: r.lapId,
-        selIndex: r.selIndex,
-        highlighted: r.highlighted,
-        onIndex: r.onIndex,
-        key: r.onIndex != null,
-        speedKph: t.speedKph,
-        brakePct: t.brakePct,
-        throttlePct: t.throttlePct,
-        brakeAtM: f?.brakeAtM ?? null,
-        fullThrottleAtM: f?.fullThrottleAtM ?? null,
-      },
-    ];
-  });
-
-  const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
   const zoomWindow: [number, number] = [
     sec.apexM - ZOOM_BEFORE_M,
     sec.apexM + ZOOM_AFTER_M,
@@ -323,6 +317,33 @@ export function buildCornerModel(input: {
     map.lengthM,
   );
 
+  const refTrace = ref ? traces.get(ref.id) : undefined;
+  const lines: ZoomLine[] = rows.flatMap(r => {
+    const t = traces.get(r.lapId);
+    if (!t) return [];
+    const f = lapCornerFacts(byId.get(r.lapId)!, sec);
+    return [
+      {
+        lapId: r.lapId,
+        label: r.label,
+        selIndex: r.selIndex,
+        highlighted: r.highlighted,
+        onIndex: r.onIndex,
+        key: r.onIndex != null,
+        speedKph: t.speedKph,
+        brakePct: t.brakePct,
+        throttlePct: t.throttlePct,
+        // Zero at the turn's entry; the stretch is in the window's frame.
+        deltaS: deltaFromEntry(t, refTrace, view.stretch.fromM),
+        steeringPct: t.steeringPct,
+        samples: t.samples,
+        brakeAtM: f?.brakeAtM ?? null,
+        fullThrottleAtM: f?.fullThrottleAtM ?? null,
+      },
+    ];
+  });
+
+  const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
   return {
     corner,
     sectionN: sec.sectionN,
@@ -351,6 +372,11 @@ export function buildCornerModel(input: {
           : null,
       stepM: band?.stepM ?? traces.values().next().value?.stepM ?? 5,
       stretch: view.stretch,
+      edges: edgeRuns(
+        lines.map(l => l.samples.trackEdgeM),
+        zoomWindow[0],
+        zoomWindow[1],
+      ),
       dimmed: dimmedRanges(zoomWindow, view.stretch),
       neighbours: view.neighbours,
       caption: view.caption,
