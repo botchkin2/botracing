@@ -1,6 +1,7 @@
 export * from './CornerGrid';
 export * from './LapTimeBars';
 export * from './TraceChart';
+export * from './CarDots';
 export * from './TrackMap';
 export * from './TrackStrip';
 export * from './DotStrip';
