@@ -9,6 +9,7 @@ import {
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
+import {buildPitReview, type PitReview} from './pitReview';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -112,6 +113,8 @@ export type SessionScreenModel = {
   rows: RowModel[];
   detail: DetailModel | null;
   tray: TrayModel | null;
+  /** Races with a stop only. */
+  pitReview: PitReview | null;
 };
 
 export const BAR_CLAMP_S = 1.5;
@@ -399,6 +402,7 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
+    pitReview: buildPitReview(session.sessionType, laps),
   };
 }
 

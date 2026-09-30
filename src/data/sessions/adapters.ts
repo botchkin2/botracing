@@ -230,6 +230,12 @@ export type Lap = {
   fuel: LapFuel | null;
   /** The pit stop entered on this lap, if any. */
   pitStop: PitStop | null;
+  /**
+   * The average tyre wear reading at the start of this lap jumped up from the
+   * lap before (tools/sessions/analyze.mjs): a set, or a wheel replaced alone.
+   * Never says which wheels.
+   */
+  newTyres: boolean;
 };
 
 /**
@@ -397,6 +403,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     traffic: toTraffic(raw.traffic),
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
+    newTyres: raw.newTyres === true,
   }));
 }
 

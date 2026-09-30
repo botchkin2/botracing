@@ -23,6 +23,7 @@ import {Explainer, Segment, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
+import {PitReviewCard} from './components/PitReviewCard';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -289,6 +290,12 @@ function SessionView({
 
       {chartBlock(tableW)}
 
+      {model.pitReview && (
+        <View style={styles.section}>
+          <PitReviewCard review={model.pitReview} />
+        </View>
+      )}
+
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
           <LapDetail detail={model.detail} onAction={detailAction} />
@@ -351,6 +358,7 @@ function SessionView({
           )
         }
         tray={tray}
+        pit={model.pitReview && <PitReviewCard review={model.pitReview} />}
         renderRow={(row, width) => renderRow(row, width, true)}
         tagKey={TAG_KEY}
       />
