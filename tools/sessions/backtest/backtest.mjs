@@ -2,7 +2,8 @@
 // (src/analysis/fuelPlan.ts) would have said from earlier laps, against what happened.
 //
 //   node tools/sessions/backtest/backtest.mjs [hist.json] [rows.json]
-//   LASTN=8 SAMELIMIT=1 node ...   history limited to the last N sessions / the same fill limit
+//   LASTN=8 SAMELIMIT=1 DRIFT=1 node ...   history limited to the last N sessions / the same
+//   fill limit / the laps since a jump in use (src/analysis/fuelHistory.ts, what the Plan screen does)
 //
 // Rules given to the planner: the fill limit, VE 100 %, a formation lap, and the
 // laps he actually drove: so this tests the load maths, not minutes to laps.
@@ -10,6 +11,7 @@
 import {readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {sinceChange} from '../../../src/analysis/fuelHistory.ts';
 import {planRace} from '../../../src/analysis/fuelPlan.ts';
 
 const histPath = process.argv[2] || join(tmpdir(), 'fuel-backtest-hist.json');
@@ -62,7 +64,14 @@ for (const r of races) {
       h => (h.fillLimitL ?? h.tankL) === (r.fillLimitL ?? r.tankL),
     );
   if (LASTN) prior = prior.filter(h => greenLaps(h).length > 0).slice(-LASTN);
-  const earlier = prior.flatMap(greenLaps);
+  let earlier = prior.flatMap(greenLaps);
+  if (process.env.DRIFT) {
+    // The screen reads its sessions newest first.
+    const sessions = [...prior]
+      .reverse()
+      .map(h => ({id: h.name, laps: greenLaps(h)}));
+    earlier = sinceChange(sessions).laps;
+  }
   const totalLaps = r.laps.length - 1; // lap 0 is the formation/out lap
   const rules = {
     name: r.name,

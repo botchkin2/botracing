@@ -1,3 +1,4 @@
+import {type HistoryDrift, sameLimit} from '@/src/analysis/fuelHistory';
 import {
   type FuelPlan,
   type Load,
@@ -81,9 +82,34 @@ export function planCombos(sessions: SessionSummary[]): Combo[] {
   );
 }
 
-/** The sessions whose laps feed the plan. */
-export function historySessions(combo: Combo): SessionSummary[] {
-  return combo.sessions.slice(0, HISTORY_SESSIONS);
+/**
+ * The fill limit a session ran at, in the order `rulesFor` reads it: the
+ * setup's limit, else what he started with, else the tank. Null when the
+ * session doc has no fuel facts.
+ */
+export function sessionLimitL(fuel: SessionFuel | null): number | null {
+  return fuel?.fillLimitL ?? fuel?.startL ?? fuel?.tankL ?? null;
+}
+
+/**
+ * The sessions whose laps feed the plan: the newest few at the fill limit of
+ * the rules. A balance-of-performance change moves fuel per lap (Barcelona
+ * 2026-08: 2.31 L a lap at a 79 L limit, 2.88 L at 75 L), and history from the
+ * other limit plans the old car (pit wall thread 36 #1095, #1102).
+ * `limitsL` lines up with `combo.sessions`; undefined is a session doc still
+ * loading, and null one with no limit on record: neither is used.
+ */
+export function historySessions(
+  combo: Combo,
+  limitsL: (number | null | undefined)[],
+  wantedL: number,
+): SessionSummary[] {
+  return combo.sessions
+    .filter((_, i) => {
+      const limit = limitsL[i];
+      return limit != null && sameLimit(limit, wantedL);
+    })
+    .slice(0, HISTORY_SESSIONS);
 }
 
 /**
@@ -364,6 +390,36 @@ function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
   };
 }
 
+/**
+ * The newest session against the older ones, when its use per lap has moved
+ * more than the drift threshold: the plan then uses the laps since the change.
+ */
+export function driftRowOf(d: HistoryDrift): Row {
+  const meters = [
+    d.fuelL
+      ? `${d.fuelL.newest.toFixed(2)} L a lap against ${d.fuelL.history.toFixed(
+          2,
+        )} L`
+      : null,
+    d.vePct
+      ? `${d.vePct.newest.toFixed(2)} %/lap against ${d.vePct.history.toFixed(
+          2,
+        )} %`
+      : null,
+  ].filter(Boolean);
+  return {
+    label: 'Newest session',
+    value: `${meters.join(NL)}`,
+    note: `not in line with your ${
+      d.droppedSessions + d.keptSessions - 1
+    } other ${
+      d.droppedSessions + d.keptSessions - 1 === 1 ? 'session' : 'sessions'
+    }: the plan uses the ${d.keptLaps} laps of the ${d.keptSessions} ${
+      d.keptSessions === 1 ? 'session' : 'sessions'
+    } since the change`,
+  };
+}
+
 function lapTime(s: number): string {
   return formatLapTime(s);
 }
@@ -380,6 +436,8 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
+    /** Set when the newest session's use has moved away from the older ones. */
+    drift: HistoryDrift | null;
   },
 ): PlanView {
   const r = rules.rules;
@@ -416,12 +474,14 @@ export function planView(
   const cards: Card[] = [];
   const {fuel, ve, lapTimeS} = plan.perLap;
   const since = history.since ? `, since ${formatDate(history.since)}` : '';
+  const driftRow = history.drift ? driftRowOf(history.drift) : null;
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
     explainer:
-      'Your clean laps at this track and car: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets.',
+      'Your clean laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets.',
     rows: [
+      ...(driftRow ? [driftRow] : []),
       {
         label: 'Fuel',
         value: fuel ? usageText(fuel, l2) : 'no data',
