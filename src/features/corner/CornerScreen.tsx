@@ -301,12 +301,12 @@ function CornerView({
                 <Text variant='dataSmall' tone='textMuted'>
                   {s.summary}
                 </Text>
-                {s.flatNote ? (
-                  <Text variant='dataSmall' tone='textMuted'>
-                    {s.flatNote}
-                  </Text>
-                ) : null}
               </View>
+              {s.flatNote ? (
+                <Text variant='dataSmall' tone='textFaint'>
+                  {s.flatNote}
+                </Text>
+              ) : null}
               {s.keyValues.length > 0 ? (
                 <View style={styles.wrap}>
                   {s.keyValues.map(k => (
