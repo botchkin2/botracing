@@ -56,6 +56,8 @@ export type StopRow = {
 export type StopsCard = {
   full: StopRow | null;
   equal: StopRow | null;
+  /** What the formation lap takes from the first stint; null without one. */
+  formation: {fuelL: number | null; vePct: number | null} | null;
 };
 
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -186,7 +188,8 @@ function stopsCard(
   const laps = plan.raceLaps?.estimate ?? null;
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
-  if (laps == null || med.stops == null) return {full: null, equal: null};
+  if (laps == null || med.stops == null)
+    return {full: null, equal: null, formation: null};
   const fuelStops = med.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
   let full: StopRow | null = null;
@@ -232,7 +235,13 @@ function stopsCard(
       ratioPerPctL,
     );
   }
-  return {full, equal};
+  return {
+    full,
+    equal,
+    formation: rules.formationLap
+      ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
+      : null,
+  };
 }
 
 export type PlanCards = {
