@@ -86,9 +86,8 @@ Before deploying new features:
 ## 🔗 Related Files
 
 - `PERFORMANCE_TIPS.md` - Comprehensive troubleshooting guide
-- `src/utils/api.ts` - API client with deduplication
-- `src/hooks/useApiQueries.ts` - React Query hooks
-- `src/components/` - Optimized components
+- `docs/REACT_QUERY.md` - React Query keys and caching
+- `src/data/` - API client, keys, query hooks and adapters per resource
 
 ---
 

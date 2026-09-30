@@ -115,7 +115,7 @@ Playback uses a **sliding window**: each frame advances position, effectively re
 4. **Play / pause**
    Play: run a single `setInterval` (or `requestAnimationFrame` on web) that advances position and calls the update that may or may not move the window. Pause: clear the interval. No need for extra data structures; the same full lap array and a (position, startIdx, endIdx) view is enough.
 
-**Implemented in**: `MultiLapTimeSeriesChart` — `positionRef`, `lastWindowRef`, and `updateVisibleData` only call `setVisibleData` when `startIdx`/`endIdx` change.
+**Implemented in**: the Compare charts (`src/charts/TraceChart.tsx`, `chunkPaths.ts`), which slice by index and move by a transform instead of re-rendering per tick (CODE_STANDARDS §6).
 
 ---
 

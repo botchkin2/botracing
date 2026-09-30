@@ -2,6 +2,8 @@
 
 Working notes for adding Le Mans Ultimate laps to this app. Written 2026-09-25 from this PC. Nothing here is committed as a decision until we start the work.
 
+> **Status, 2026-09-30:** these are the original planning notes. The Garage 61 client, the old `tools/lmu-sync` extractor and the `sample_data/` files described below were deleted; laps now reach the app through the sessions uploader (`tools/sessions`, `tools/uploader`) and the LMU API in `functions/`. Read `docs/API.md` and `tools/uploader/README.md` for how it works today. What follows is kept for the LMU file findings.
+
 ## This machine
 
 | Thing                  | Where                                                                        |
@@ -22,11 +24,11 @@ Delta's `.delta` files are a private format and live inside the app's version fo
 
 The phone never talks to Garage 61 directly. It calls Firebase Hosting (`botracing-61`), which rewrites `/api/garage61/**` to the `garage61Proxy` Cloud Function (Node 22, `us-central1`). That function holds the OAuth session and forwards to `https://garage61.net/api/v1`.
 
-A lap list comes from `GET /laps`. A lap's traces come from `GET /laps/{lapId}/csv`. The parser in `src/utils/dataProcessing.ts` needs these columns:
+_Removed 2026-09-30: the Garage 61 lap list and its CSV parser (`src/utils/dataProcessing.ts`) no longer exist. The column facts below are how that export looked._
 
 `LapDistPct, Lat, Lon, Brake, Throttle, RPM, SteeringWheelAngle, Speed, Gear`
 
-`sample_data/sample_lap.csv` is a real Garage 61 export (Road Atlanta). From the first rows:
+The old sample export (Road Atlanta, deleted) showed:
 
 - `Speed` is meters per second (about 63 m/s in 5th gear, not km/h).
 - `Throttle` and `Brake` are 0 to 1.
@@ -146,21 +148,11 @@ Botkin set the order. Detail and the open question on upload timing are in `pit-
 
 ## Try it
 
-`app/lmu-try.tsx` loads `sample_data/lmu/stint.json`. The menu item is **LMU try**. That file is one Road Atlanta practice (5 laps, including the pit lap, the grass laps, and the short partial at the end) plus the best lap from a practice two days earlier, stored at 400 points per lap. The JSON is about 100 KB.
-
-On the screen, press Play or drag the bar. The white line is the same spot on every trace and on the map. Delta is seconds lost against the fastest lap currently turned on. A red dot on the map, and a red mark under the speed trace, is a wheel on grass, dirt, or gravel at that point. Tap laps and channels on and off, and switch the drawn detail between 400, 200, 100, and 50 points. The stored file does not change. That is the knob for phone frame cost. `--points` on the extractor is the knob for what would later sit in Firestore.
-
-Regenerate from any recording:
-
-```
-npm run lmu:extract -- --file "...\UserData\Telemetry\some_stint.duckdb" --reference-file "...\other.duckdb" --points 400
-```
-
-Speed in this file is km/h. Throttle and brake are 0–1. Steer is percent of lock. The best lap in the sample is 81.060 and stays on the asphalt the whole way. The 81.725 and 83.445 laps each leave the asphalt for a short stretch, about 10 of the 400 points, not the whole lap. Official LMU track-limit points are not in the recording. This mark is the wheel surface instead.
+_Removed 2026-09-30: the `LMU try` screen, its `sample_data/lmu/stint.json` and `npm run lmu:extract` were replaced by the sessions uploader and the real Session, Compare and Corner screens._
 
 ## Execution plan
 
-1. **Read one stint locally.** `tools/lmu-sync` opens one `.duckdb` and prints every lap segment, with duration, pit tag, and left-asphalt tag. No upload.
+1. **Read one stint locally.** _(Done, then replaced by `tools/sessions`.)_ Open one `.duckdb` and print every lap segment, with duration, pit tag, and left-asphalt tag. No upload.
 2. **Write laps the phone can mix.** Downsample every lap onto lap distance. Save one local JSON per lap, plus a stint record that lists those lap ids and the best timed lap. Load two laps from different files into the compare screen, including a pit lap and an untimed lap.
 3. **Remember what was uploaded.** A local ledger of path, size, and modified time. Skip a file the game still has open.
 4. **Upload through the new function.** Write `lmuStints` and `lmuLaps`. Deploy by merging to `main`. Set the sync token with `firebase functions:secrets:set` once.

@@ -23,17 +23,6 @@ Animated.timing(fadeAnim, {
 }).start();
 ```
 
-## 📐 Dimension Handling
-
-```typescript
-// Use the polyfill for web compatibility
-import {Dimensions} from '@/utils/dimensionsPolyfill';
-
-// ✅ Web-safe dimension usage
-const {width, height} = Dimensions.get('window');
-const isMobile = width < 768;
-```
-
 ## 🌐 Web-Specific Optimizations
 
 ```typescript
@@ -47,24 +36,6 @@ if (Platform.OS === 'web') {
 // ✅ Use web-appropriate loading strategies
 const isWeb = Platform.OS === 'web';
 // Adjust chunk sizes, caching, etc. for web
-```
-
-## 🔧 Build Configuration
-
-```javascript
-// webpack.config.js
-module.exports = {
-  resolve: {
-    alias: {
-      'react-native$': 'react-native-web',
-      // Dimension polyfill
-      'react-native/Libraries/Utilities/Dimensions': path.resolve(
-        __dirname,
-        'src/utils/dimensionsPolyfill.js',
-      ),
-    },
-  },
-};
 ```
 
 ## 🚨 Web-Specific Issues to Watch
