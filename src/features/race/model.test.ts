@@ -33,6 +33,7 @@ function car(
     pits: 0,
     gapS: classPlace === 1 ? 0 : classPlace * 1.5,
     intervalS: null,
+    lapsDown: 0,
     ...extra,
   };
 }
@@ -138,6 +139,18 @@ describe('buildRaceModel', () => {
       });
       expect(m.groups[0].rows[0].status).toBe(codes[i]);
     });
+  });
+
+  it('a lapped car reads +1 lap, then +2 laps, whatever its time gap', () => {
+    const m = buildRaceModel({
+      cars: [
+        car(0, 'GT3', 2, {gapS: 130, lapsDown: 1}),
+        car(1, 'GT3', 3, {gapS: 250, lapsDown: 2}),
+      ],
+      filter: 'all',
+      focus: null,
+    });
+    expect(m.groups[0].rows.map(r => r.gap)).toEqual(['+1 lap', '+2 laps']);
   });
 
   it('a gap over a minute reads m:ss.s', () => {

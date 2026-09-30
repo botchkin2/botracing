@@ -164,7 +164,7 @@ describe('buildCompareModel', () => {
   it('builds the default chart set with time diff on a zero line', () => {
     const m = build();
     expect(m.charts.map(c => c.title)).toEqual([
-      'Time diff',
+      'Time diff vs L1',
       'Speed',
       'Throttle + Brake + Steering',
       'Gear',
@@ -259,7 +259,11 @@ describe('chart window', () => {
     const l2 = td.lines.find(l => l.label === 'L2')!;
     const whole = build().charts[0].lines.find(l => l.label === 'L2')!;
     expect(l2.values).toEqual(whole.values);
-    expect(Number(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    expect(parseFloat(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    // The readout says seconds, and the label names the reference lap.
+    expect(td.valueRows[0].values[1].text).toMatch(/ s$/);
+    expect(td.valueRows[0].label).toBe('Time diff vs L1');
+    expect(td.valueRows[0].unit).toBe('');
     expect(td.explainer).toMatch(/^Running gap to the reference/);
   });
 
@@ -311,7 +315,7 @@ describe('desktop pieces', () => {
       'Gear',
     ]);
     expect(rows[1].values.map(v => v.text)).toEqual(['180', '176', '181']);
-    expect(rows[0].values[0].text).toBe('±0.000');
+    expect(rows[0].values[0].text).toBe('±0.000 s');
   });
 
   it('overview has the whole-lap time diff per lap; section entries', () => {

@@ -291,12 +291,6 @@ export type CompareModel = {
   position: {
     place: string;
     distance: string;
-    speeds: {
-      lapId: string;
-      selIndex: number;
-      highlighted: boolean;
-      text: string;
-    }[];
   };
   grid: CornerGridModel | null;
   charts: ChartModel[];
@@ -351,6 +345,15 @@ export type Readout = {
   samples: Partial<Record<ChannelId, NativeSamples>>;
 };
 
+// A cursor readout carries its unit where the channel has none beside it: the
+// time diff's "−0.412" is seconds ("−0.412 s"), and its label names the
+// reference (slick #936.3, camber #937).
+function readoutText(ch: ChannelId, v: number): string {
+  return ch === 'timeDiff'
+    ? `${CHANNELS[ch].format(v)} ${CHANNELS[ch].unit}`
+    : CHANNELS[ch].format(v);
+}
+
 /** Values table rows (desktop): each channel × each key lap at a distance. */
 export function valuesAt(
   readouts: Readout[],
@@ -384,7 +387,7 @@ export function valuesAt(
         lapId: r.lapId,
         selIndex: r.selIndex,
         highlighted: r.highlighted,
-        text: v == null ? '—' : CHANNELS[ch].format(v),
+        text: v == null ? '—' : readoutText(ch, v),
       };
     }),
   }));
@@ -582,6 +585,11 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : selected[1]?.id ?? null;
 
   const playing = selected.find(l => l.id === hlId) ?? ref ?? null;
+  // The time diff's label names the lap it is measured against.
+  const labelOf = (ch: ChannelId) =>
+    ch === 'timeDiff' && ref
+      ? `${CHANNELS[ch].label} vs L${ref.lapIndex}`
+      : CHANNELS[ch].label;
 
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
@@ -829,7 +837,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     return {
       key: chs.join('+'),
       channels: chs,
-      title: chs.map(c => CHANNELS[c].label).join(' + '),
+      title: chs.map(labelOf).join(' + '),
       explainer,
       height: pedals
         ? PEDALS_H
@@ -851,8 +859,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         : null,
       valueRows: chs.map((ch, overlay) => ({
         channel: ch,
-        label: CHANNELS[ch].label,
-        unit: CHANNELS[ch].unit,
+        label: labelOf(ch),
+        // The readout text carries the time diff's unit.
+        unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
         overlay,
         values: keyRefs.map(r => {
           const v = readAt(ch, r.lapId, cursorM);
@@ -860,7 +869,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
             lapId: r.lapId,
             selIndex: r.selIndex,
             highlighted: r.highlighted,
-            text: v == null ? '—' : CHANNELS[ch].format(v),
+            text: v == null ? '—' : readoutText(ch, v),
           };
         }),
       })),
@@ -985,15 +994,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     position: {
       place: cornerPlace(map?.sections ?? [], cursorM),
       distance: formatDistance(cursorM),
-      speeds: keyRefs.map(r => {
-        const v = readAt('speed', r.lapId, cursorM);
-        return {
-          lapId: r.lapId,
-          selIndex: r.selIndex,
-          highlighted: r.highlighted,
-          text: v == null ? '—' : v.toFixed(0),
-        };
-      }),
     },
     grid,
     charts,

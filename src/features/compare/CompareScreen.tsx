@@ -421,19 +421,6 @@ function CompareView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.position.distance}
       </Text>
-      <View style={styles.values}>
-        {model.position.speeds.map(s => (
-          <Text
-            key={s.lapId}
-            variant='dataStrong'
-            style={{color: lapStyle(s.selIndex, s.highlighted).color}}>
-            {s.text}
-          </Text>
-        ))}
-        <Text variant='dataSmall' tone='textFaint'>
-          km/h
-        </Text>
-      </View>
     </View>
   );
 
@@ -769,12 +756,6 @@ const styles = StyleSheet.create({
   },
   swatch: {width: 10, height: 3},
   positionRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
-  values: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.md,
-  },
   section: {gap: space.xs, marginTop: space.sm},
   charts: {gap: space.lg, marginTop: space.sm},
   skeleton: {gap: space.xs},
