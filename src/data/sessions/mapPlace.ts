@@ -69,7 +69,11 @@ export type MapPlacer = {
 
 // One split per (track map, lap): the Compare model is rebuilt on every cursor
 // move and would otherwise redo it each time.
-const outlineUseCache = new WeakMap<TrackMapData, Map<string, OutlineUse>>();
+const NO_SURFACE = {};
+const outlineUseCache = new WeakMap<
+  TrackMapData,
+  WeakMap<object, Map<string, OutlineUse>>
+>();
 
 /** Two laps of a track never share their first sample and length. */
 function traceKey(t: GridTrace): string {
@@ -113,7 +117,7 @@ export function mapPlacer(
   const measured = measuredRuns(surface, placeXy);
   // OSM road ways inside the measured road are replaced by it; pit lanes are
   // a separate list and never touched.
-  const outline =
+  const dropped =
     measured.length > 0 && osm.length > 0
       ? dropOsmInsideSurface(
           // Only racing-layout roads can be replaced; a service or access road
@@ -128,8 +132,11 @@ export function mapPlacer(
             halfWidthM: surfaceHalfWidth(surface),
             coverage: {bins: 0, both: 0, oneEdge: 0, centreOnly: 0},
           },
-        ).flatMap(w => w.kept)
-      : osm;
+        )
+      : null;
+  const outline = dropped ? dropped.flatMap(w => w.kept) : osm;
+  // Stretches of another road right beside the measured one: drawn faded.
+  const nearMeasured = dropped ? dropped.flatMap(w => w.faded) : [];
   return {
     measured,
     real: georef != null,
@@ -139,15 +146,24 @@ export function mapPlacer(
     pitLane: georef ? toMetres(map!.pitLane) : [],
     outlineUse: trace => {
       if (!georef || map == null) return {used: [], unused: []};
+      // The outline depends on the surface too (what it replaced is gone), so
+      // the same map with and without one is cached apart.
+      const perSurface = outlineUseCache.get(map) ?? new WeakMap();
+      outlineUseCache.set(map, perSurface);
+      const perTrace =
+        perSurface.get(surface ?? NO_SURFACE) ?? new Map<string, OutlineUse>();
+      perSurface.set(surface ?? NO_SURFACE, perTrace);
       const key = traceKey(trace);
-      const perMap = outlineUseCache.get(map) ?? new Map<string, OutlineUse>();
-      outlineUseCache.set(map, perMap);
-      const known = perMap.get(key);
+      const known = perTrace.get(key);
       if (known) return known;
       const driven = place(trace, 0, trace.lat.length - 1, 1);
       const split = splitOutline(outline, driven);
-      perMap.set(key, split);
-      return split;
+      const result = {
+        used: split.used,
+        unused: [...split.unused, ...nearMeasured],
+      };
+      perTrace.set(key, result);
+      return result;
     },
   };
 }

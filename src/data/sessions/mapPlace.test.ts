@@ -175,6 +175,35 @@ describe('mapPlacer with a measured surface', () => {
     expect(placer.outline.some(l => Math.abs(l[0].y - 60) < 0.5)).toBe(true);
   });
 
+  it('another road beside the measured one is drawn faded, not at full strength', () => {
+    const m = withOsm();
+    // A way 12 m from the centre: outside the measured road, beside it.
+    m.outline.push([lonLat(0, 12), lonLat(1000, 12)]);
+    m.outlineKinds.push('track');
+    const placer = mapPlacer(m, surface);
+    const trace = {
+      lat: [LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat],
+      lon: [0, 0.005, 0.01],
+    } as never;
+    // The road it runs beside is not in `used`; the faded list has it.
+    const use = placer.outlineUse(trace);
+    expect(use.used.every(l => Math.abs(l[0].y - 12) > 1)).toBe(true);
+    expect(use.unused.some(l => Math.abs(l[0].y - 12) < 1)).toBe(true);
+  });
+
+  it('the split is cached apart for the same map with and without a surface', () => {
+    const m = withOsm();
+    const trace = {
+      lat: [LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat],
+      lon: [0, 0.005, 0.01],
+    } as never;
+    const before = mapPlacer(m, null).outlineUse(trace);
+    const after = mapPlacer(m, surface).outlineUse(trace);
+    // Without the surface the road way at y = 2 is used; with it, gone.
+    expect(before.used.some(l => Math.abs(l[0].y - 2) < 0.5)).toBe(true);
+    expect(after.used.some(l => Math.abs(l[0].y - 2) < 0.5)).toBe(false);
+  });
+
   it('a way of unknown kind is never dropped', () => {
     const m = withOsm();
     m.outlineKinds = ['', ''];
