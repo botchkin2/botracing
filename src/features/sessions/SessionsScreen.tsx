@@ -24,6 +24,11 @@ const COL = {badge: 24, laps: 30, time: 64};
 const LIST_MAX_WIDTH = 760;
 
 const markHit = hitFor(MARK_SLOP, MARK_SLOP);
+// Web grows the box with padding, so the margin takes it back; native only has
+// hitSlop, which takes no layout space, so the plain gap stays.
+const markGap = {
+  marginRight: markHit.style ? space.md - MARK_SLOP : space.md,
+};
 
 export function SessionsScreen() {
   const model = useSessionsModel();
@@ -49,7 +54,7 @@ export function SessionsScreen() {
               accessibilityLabel='Sessions'
               onPress={() => router.navigate(sessionsHref())}
               hitSlop={markHit.hitSlop}
-              style={[markHit.style, styles.mark]}>
+              style={[markHit.style, markGap]}>
               <AppMark />
             </Pressable>
           )}
@@ -247,8 +252,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
-  // The 44 pt hit box takes back its own growth: net gap to the title = space.md.
-  mark: {marginRight: space.md - MARK_SLOP},
   tracksLink: {marginLeft: 'auto', marginRight: space.lg},
   headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
   picker: {
