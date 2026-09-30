@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 
-import {buildRaceModel, classKey, defaultFilter} from './model';
+import {buildRaceModel, classKey, defaultFilter, labelRank} from './model';
 
 function car(
   index: number,
@@ -155,5 +155,34 @@ describe('defaultFilter', () => {
   it('is your class, else All', () => {
     expect(defaultFilter(field)).toBe('gt3');
     expect(defaultFilter(field.map(c => ({...c, player: false})))).toBe('all');
+  });
+});
+
+describe('labelRank', () => {
+  const you = car(3, 'GT3', 5, {player: true});
+  it('ranks focused, you, near you in class, class leaders, then the rest', () => {
+    const ranks = {
+      focused: labelRank(car(9, 'GT3', 12), you, 9),
+      you: labelRank(you, you, null),
+      near: labelRank(car(6, 'GT3', 8), you, null),
+      leader: labelRank(car(2, 'LMP2', 1), you, null),
+      rest: labelRank(car(7, 'GT3', 9), you, null),
+    };
+    expect(ranks.focused).toBeLessThan(ranks.you);
+    expect(ranks.you).toBeLessThan(ranks.near);
+    expect(ranks.near).toBeLessThan(ranks.leader);
+    expect(ranks.leader).toBeLessThan(ranks.rest);
+  });
+
+  it('breaks ties by overall place', () => {
+    const a = labelRank(car(6, 'GT3', 9), you, null);
+    const b = labelRank(car(7, 'GT3', 10), you, null);
+    expect(a).toBeLessThan(b);
+  });
+
+  it('is a plain order with no player: leaders first', () => {
+    expect(labelRank(car(1, 'GT3', 1), undefined, null)).toBeLessThan(
+      labelRank(car(0, 'GT3', 2), undefined, null),
+    );
   });
 });

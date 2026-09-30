@@ -58,6 +58,10 @@ export type RaceDot = {
   focused: boolean;
   xM: number;
   zM: number;
+  /** The car's class position, for the map label (R1e). */
+  label: string;
+  /** Label priority, lower first (R1e); see labelRank. */
+  labelRank: number;
 };
 
 export type RaceModel = {
@@ -125,6 +129,31 @@ function focusText(car: RaceCar): string {
   return parts.join(' · ');
 }
 
+/**
+ * Who gets a map label first (R1e): the focused car, you, the cars within
+ * three places of you in your class, the class leaders, then the field in
+ * overall order. The tier is the thousands, the overall place breaks ties.
+ */
+export function labelRank(
+  car: RaceCar,
+  you: RaceCar | undefined,
+  focus: number | null,
+): number {
+  const tier =
+    car.index === focus
+      ? 0
+      : car.player
+      ? 1
+      : you &&
+        classKey(car.carClass) === classKey(you.carClass) &&
+        Math.abs(car.classPlace - you.classPlace) <= 3
+      ? 2
+      : car.classPlace === 1
+      ? 3
+      : 4;
+  return tier * 1000 + car.place;
+}
+
 export function buildRaceModel(input: {
   cars: RaceCar[];
   filter: ClassFilter;
@@ -147,6 +176,7 @@ export function buildRaceModel(input: {
       rows: inClass.map(c => rowOf(c, focus)),
     };
   });
+  const youCar = cars.find(c => c.player);
   const dot = (c: RaceCar): RaceDot => ({
     index: c.index,
     key: classKey(c.carClass),
@@ -155,6 +185,8 @@ export function buildRaceModel(input: {
     focused: c.index === focus,
     xM: c.xM,
     zM: c.zM,
+    label: String(c.classPlace),
+    labelRank: labelRank(c, youCar, focus),
   });
   // A car in the garage is not on the map (R1d).
   const onMap = cars.filter(c => c.state !== 'garage');

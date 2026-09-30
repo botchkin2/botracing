@@ -3,6 +3,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path, Text as SvgText} from 'react-native-svg';
 
 import {placeBadges} from '@/src/analysis/badgePlace';
+import {type Box} from '@/src/analysis/carLabels';
 import {keepClear} from '@/src/analysis/labelPlace';
 import {
   nearestVertexDistance,
@@ -86,6 +87,7 @@ export function TrackMap({
   badges,
   startFinish,
   cars,
+  avoidLabels,
   onPressCar,
 }: {
   width: number;
@@ -104,6 +106,8 @@ export function TrackMap({
   startFinish?: MapAnchor | null;
   /** Every car of a race, in the same metres as `lines`; drawn over the labels. */
   cars?: MapCar[];
+  /** Boxes (map points, top left) car labels keep clear of: controls, insets. */
+  avoidLabels?: Box[];
   onPressCar?: (key: string) => void;
 }) {
   const {color} = useTheme();
@@ -422,7 +426,13 @@ export function TrackMap({
               </G>
             );
           })}
-        {cars && <CarDots cars={cars.map(c => ({...c, at: fit(c.at)}))} />}
+        {cars && (
+          <CarDots
+            cars={cars.map(c => ({...c, at: fit(c.at)}))}
+            avoid={avoidLabels}
+            bounds={{width, height}}
+          />
+        )}
         {dots.map(d => {
           const q = fit(d.at);
           return (
