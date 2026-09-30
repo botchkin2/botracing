@@ -41,6 +41,11 @@ const dark = {
   // Handoff v2 M5: the uploader's "connected" dot. Its own token, not
   // `faster`, which means a signed gain.
   statusConnected: '#65e287',
+  // Round 3 R4c StatusBanner dots and Skeleton fill (tokens/colors.css).
+  // idle is the neutral dot: a failed load is never amber or red.
+  statusIdle: '#5b636b',
+  statusWaiting: '#fea92f',
+  gridNeutral: '#1b1f24',
   // Round 3 R1f: other cars only (dots, radar blocks, class bars), never a
   // line or a number. From oklch(0.62 0.20 25), (0.66 0.14 250), (0.73 0.16 48).
   classHypercar: '#e64343',

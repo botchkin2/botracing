@@ -7,7 +7,7 @@ import {
   useSessionLaps,
   useSessionMap,
 } from '@/src/data/sessions';
-import {useLapTraces} from '@/src/data/traces';
+import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCornerModel,
@@ -21,7 +21,7 @@ const GRID_STEP_M = 5;
 
 export type CornerResult =
   | {state: 'loading'}
-  | {state: 'error'; message: string}
+  | {state: 'error'; message: string; retry: () => void}
   /** noMap: the track has no corner map yet; else this corner doesn't exist. */
   | {state: 'missing'; noMap: boolean}
   /** The session has no comparable lap to show. */
@@ -32,6 +32,8 @@ export type CornerResult =
       lapIds: string[];
       /** Laps on, reference first: what a strip tap toggles. */
       keyLapIds: string[];
+      traceLoad: TraceLoad;
+      retryTraces: () => void;
     };
 
 export function useCornerModel(
@@ -71,7 +73,11 @@ export function useCornerModel(
     [lapIds, selection.laps, selection.hl, bestLapId],
   );
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
-  const grids = useLapTraces(traceIds, {lengthM, stepM: GRID_STEP_M});
+  const {
+    traces: grids,
+    load: traceLoad,
+    retry: retryTraces,
+  } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M});
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     traceIds.forEach((id, i) => {
@@ -81,12 +87,21 @@ export function useCornerModel(
     return out;
   }, [traceIds, grids]);
 
+  // Stable functions, so they can sit in the memo's dependencies.
+  const {refetch: refetchSession} = session;
+  const {refetch: refetchLaps} = laps;
+  const {refetch: refetchMap} = map;
   const error = [session, laps, map].find(q => q.isError)?.error;
   return useMemo((): CornerResult => {
     if (error)
       return {
         state: 'error',
         message: error instanceof Error ? error.message : String(error),
+        retry: () => {
+          void refetchSession();
+          void refetchLaps();
+          void refetchMap();
+        },
       };
     if (!session.data || !laps.data || !map.data) return {state: 'loading'};
     if (lapIds.length === 0) return {state: 'noLaps'};
@@ -102,7 +117,14 @@ export function useCornerModel(
       corner,
     });
     return model
-      ? {state: 'ready', model, lapIds, keyLapIds: traceIds}
+      ? {
+          state: 'ready',
+          model,
+          lapIds,
+          keyLapIds: traceIds,
+          traceLoad,
+          retryTraces,
+        }
       : {state: 'missing', noMap: map.data.sections.length === 0};
   }, [
     error,
@@ -115,5 +137,10 @@ export function useCornerModel(
     traceIds,
     selection.hl,
     corner,
+    traceLoad,
+    retryTraces,
+    refetchSession,
+    refetchLaps,
+    refetchMap,
   ]);
 }

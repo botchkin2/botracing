@@ -24,7 +24,15 @@ import {
   toggleChannel,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {Checkbox, Chip, Explainer, Segment, Text} from '@/src/ui';
+import {type TraceLoad} from '@/src/data/traces';
+import {
+  Checkbox,
+  Chip,
+  Explainer,
+  Segment,
+  Text,
+  TraceRetryBanner,
+} from '@/src/ui';
 
 import {CarsAround} from './components/CarsAround';
 import {MapPanel} from './components/MapPanel';
@@ -70,6 +78,8 @@ export type WorkspaceProps = {
   onPause: () => void;
   onSelectionChange: (next: CompareSelection) => void;
   onOpenSection: (n: number) => void;
+  traceLoad: TraceLoad;
+  onRetryTraces: () => void;
 };
 
 export function CompareWorkspace(p: WorkspaceProps) {
@@ -268,6 +278,14 @@ export function CompareWorkspace(p: WorkspaceProps) {
         </View>
 
         <ScrollView contentContainerStyle={styles.col}>
+          {(p.traceLoad.kind === 'failed' ||
+            p.traceLoad.kind === 'partial') && (
+            <TraceRetryBanner
+              failed={p.traceLoad.failed}
+              othersShow={p.traceLoad.kind === 'partial'}
+              onRetry={p.onRetryTraces}
+            />
+          )}
           <View style={styles.section}>
             <Text variant='label' tone='textMuted'>
               Whole lap

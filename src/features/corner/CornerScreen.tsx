@@ -26,7 +26,15 @@ import {
   turnLabel,
 } from '@/src/design';
 import {compareHref, cornerHref} from '@/src/nav/routes';
-import {Chip, Explainer, Text} from '@/src/ui';
+import {type TraceLoad} from '@/src/data/traces';
+import {
+  Chip,
+  Explainer,
+  Skeleton,
+  StatusBanner,
+  Text,
+  TraceRetryBanner,
+} from '@/src/ui';
 
 import {
   type BrakeMapModel,
@@ -82,15 +90,22 @@ export function CornerScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'error' ? (
+          <View style={styles.banner}>
+            <StatusBanner
+              dot='idle'
+              text={`Couldn’t load this session: ${result.message}`}
+              actionLabel='Retry'
+              onAction={result.retry}
+            />
+          </View>
         ) : (
           <Text tone='textMuted'>
             {result.state === 'noLaps'
               ? 'No comparable laps in this session.'
-              : result.state === 'missing'
-              ? result.noMap
-                ? 'No corner map for this track yet.'
-                : `No corner ${corner} on this track.`
-              : `Couldn’t load: ${result.message}`}
+              : result.noMap
+              ? 'No corner map for this track yet.'
+              : `No corner ${corner} on this track.`}
           </Text>
         )}
       </View>
@@ -101,6 +116,8 @@ export function CornerScreen({
       model={result.model}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
+      traceLoad={result.traceLoad}
+      onRetryTraces={result.retryTraces}
       selection={selection}
       allComparable={allComparable}
       onAllComparable={setAllComparable}
@@ -114,6 +131,8 @@ function CornerView({
   model,
   lapIds,
   keyLapIds,
+  traceLoad,
+  onRetryTraces,
   selection,
   allComparable,
   onAllComparable,
@@ -123,6 +142,8 @@ function CornerView({
   model: CornerModel;
   lapIds: string[];
   keyLapIds: string[];
+  traceLoad: TraceLoad;
+  onRetryTraces: () => void;
   selection: CornerSelection;
   allComparable: boolean;
   onAllComparable: (on: boolean) => void;
@@ -365,7 +386,14 @@ function CornerView({
   const tracesW = layout.isWide ? DESK_RIGHT_W - 40 : layout.contentWidth;
   const h = layout.isWide ? DESK_H : PHONE_H;
   const traces = (
-    <ZoomTraces model={model} width={tracesW} heights={h} lapStyle={lapStyle} />
+    <ZoomTraces
+      model={model}
+      width={tracesW}
+      heights={h}
+      lapStyle={lapStyle}
+      load={traceLoad}
+      onRetry={onRetryTraces}
+    />
   );
 
   const top = {paddingTop: insets.top + space.lg};
@@ -579,10 +607,14 @@ function ZoomTraces({
   width,
   heights,
   lapStyle,
+  load,
+  onRetry,
 }: {
   model: CornerModel;
   width: number;
   heights: {speed: number; brake: number; throttle: number};
+  load: TraceLoad;
+  onRetry: () => void;
   lapStyle: (
     onIndex: number | null,
     selIndex: number,
@@ -626,12 +658,37 @@ function ZoomTraces({
   };
   if (lines.length === 0)
     return (
-      <Text variant='dataSmall' tone='textFaint'>
-        Loading traces…
-      </Text>
+      <View style={styles.gap}>
+        {load.kind === 'failed' && (
+          <TraceRetryBanner
+            failed={load.failed}
+            othersShow={false}
+            onRetry={onRetry}
+          />
+        )}
+        <Text variant='label' tone='textMuted'>
+          Speed km/h
+        </Text>
+        <Skeleton height={heights.speed} />
+        <Text variant='label' tone='textMuted'>
+          Brake %
+        </Text>
+        <Skeleton height={heights.brake} />
+        <Text variant='label' tone='textMuted'>
+          Throttle %
+        </Text>
+        <Skeleton height={heights.throttle} />
+      </View>
     );
   return (
     <View style={styles.gap}>
+      {load.kind === 'partial' && (
+        <TraceRetryBanner
+          failed={load.failed}
+          othersShow={load.kind === 'partial'}
+          onRetry={onRetry}
+        />
+      )}
       <Text variant='label' tone='textMuted'>
         Speed km/h
       </Text>
@@ -693,6 +750,7 @@ function domainIn(
 const styles = StyleSheet.create({
   screen: {flex: 1},
   center: {alignItems: 'center', justifyContent: 'center'},
+  banner: {alignSelf: 'stretch', paddingHorizontal: space.xl},
   flex: {flex: 1},
   col: {gap: space.lg, padding: space.xl, paddingBottom: space.xxxl},
   gap: {gap: space.xs},

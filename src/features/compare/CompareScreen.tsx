@@ -33,7 +33,17 @@ import {
   useComparePrefs,
   windowSize,
 } from '@/src/state/comparePrefs';
-import {Button, Chip, Explainer, Segment, Text} from '@/src/ui';
+import {type TraceLoad} from '@/src/data/traces';
+import {
+  Button,
+  Chip,
+  Explainer,
+  Segment,
+  Skeleton,
+  StatusBanner,
+  Text,
+  TraceRetryBanner,
+} from '@/src/ui';
 
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
@@ -99,7 +109,14 @@ export function CompareScreen({
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
         ) : (
-          <Text tone='textMuted'>Couldn’t load: {result.message}</Text>
+          <View style={styles.banner}>
+            <StatusBanner
+              dot='idle'
+              text={`Couldn’t load this session: ${result.message}`}
+              actionLabel='Retry'
+              onAction={result.retry}
+            />
+          </View>
         )}
       </View>
     );
@@ -107,6 +124,8 @@ export function CompareScreen({
     <CompareView
       sessionId={sessionId}
       model={result.model}
+      traceLoad={result.traceLoad}
+      onRetryTraces={result.retryTraces}
       selection={selection}
       cursorM={cursorM}
       windowSizeValue={size}
@@ -119,6 +138,8 @@ export function CompareScreen({
 function CompareView({
   sessionId,
   model,
+  traceLoad,
+  onRetryTraces,
   selection,
   cursorM,
   windowSizeValue,
@@ -127,6 +148,8 @@ function CompareView({
 }: {
   sessionId: string;
   model: CompareModel;
+  traceLoad: TraceLoad;
+  onRetryTraces: () => void;
   selection: CompareSelection;
   cursorM: number;
   /** Seconds or metres; null = whole lap. */
@@ -528,6 +551,22 @@ function CompareView({
     </View>
   );
 
+  // No trace yet: the chart frames at their real heights, so nothing moves
+  // when the lines arrive (round 3 R4c).
+  const noTraces = traceLoad.kind === 'loading' || traceLoad.kind === 'failed';
+  const skeletons = (oneChart ? [focusedChart] : model.charts).map(
+    c =>
+      c && (
+        <View key={c.key} style={styles.skeleton}>
+          <Text variant='label' tone='textMuted'>
+            {c.title}
+          </Text>
+          <Skeleton
+            height={Math.round(oneChart ? ONE_CHART_H : c.height * heightScale)}
+          />
+        </View>
+      ),
+  );
   // Phone: the radar docks beside the speed chart, or beside the one chart
   // shown (R2b). The lap it follows is the playing one; without field data
   // for that lap the chart keeps the full width.
@@ -548,7 +587,9 @@ function CompareView({
       <ChartBlock key={c.key} chart={c} {...chartProps(h)} />
     );
   };
-  const chartList = oneChart
+  const chartList = noTraces
+    ? skeletons
+    : oneChart
     ? focusedChart && dockedChart(focusedChart, ONE_CHART_H)
     : model.charts.map(c => dockedChart(c, c.height * heightScale));
 
@@ -584,6 +625,13 @@ function CompareView({
     <View style={styles.charts}>
       {chartsBar}
       {oneChartTabs}
+      {(traceLoad.kind === 'failed' || traceLoad.kind === 'partial') && (
+        <TraceRetryBanner
+          failed={traceLoad.failed}
+          othersShow={traceLoad.kind === 'partial'}
+          onRetry={onRetryTraces}
+        />
+      )}
       {(!oneChart || chartsOpen) && (
         <Explainer>
           {windowed
@@ -627,6 +675,8 @@ function CompareView({
         onPause={() => setPlaying(false)}
         onSelectionChange={onSelectionChange}
         onOpenSection={openCorner}
+        traceLoad={traceLoad}
+        onRetryTraces={onRetryTraces}
       />
     );
 
@@ -713,6 +763,8 @@ const styles = StyleSheet.create({
   },
   section: {gap: space.xs, marginTop: space.sm},
   charts: {gap: space.lg, marginTop: space.sm},
+  skeleton: {gap: space.xs},
+  banner: {alignSelf: 'stretch', paddingHorizontal: space.xl},
   chartsBar: {
     flexDirection: 'row',
     alignItems: 'center',
