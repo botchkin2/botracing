@@ -10,7 +10,7 @@ import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {
-  MAP_ZOOMS,
+  FOLLOW_SPANS_M,
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
@@ -39,7 +39,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
-import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
+import {followCar, followViewFor} from './followTarget';
 import {markPitLane} from './pitLaneState';
 import {RACE_HELP} from './raceHelp';
 import {useRaceClock} from './useRaceClock';
@@ -263,7 +263,7 @@ function RaceView({
   // zoom outside the steps (a hand-edited or old save) reads as 1x.
   const prefs = useComparePrefs();
   const mapZoom: MapZoom =
-    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
+    FOLLOW_SPANS_M[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
 
   // Playing interpolates between the 5 Hz updates; paused rests on a real one.
   const snap = !clock.playing;
@@ -317,7 +317,7 @@ function RaceView({
   const chased = data.matches ? followCar(cars, focus) : null;
   const follow = useMemo<RaceFollow | null>(() => {
     if (!chased) return null;
-    const view = followViewFor(placer, chased, RACE_FOLLOW_M);
+    const view = followViewFor(placer, chased, FOLLOW_SPANS_M[mapZoom]);
     if (!view) return null;
     return {
       view,
@@ -325,7 +325,7 @@ function RaceView({
       bandFaded: outlineUse.unused,
       fellBack: focus !== null && chased.index !== focus,
     };
-  }, [chased, focus, placer, outlineUse, line]);
+  }, [chased, focus, placer, outlineUse, line, mapZoom]);
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
