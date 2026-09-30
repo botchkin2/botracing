@@ -40,7 +40,8 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
 // 11: litres per 1 % VE on the session's fuel block.
 // 13: per-corner slices of every lap's trace (cornerSlices.mjs).
-export const analysisVersion = 13;
+// 14: the slices reach 350 m before the apex, for the braking map.
+export const analysisVersion = 14;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
