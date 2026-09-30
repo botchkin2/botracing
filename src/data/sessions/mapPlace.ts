@@ -7,6 +7,12 @@ import {
 } from '@/src/analysis/geo';
 import {splitOutline, type OutlineUse} from '@/src/analysis/outlineUse';
 import {type GridTrace} from '@/src/analysis/resample';
+import {
+  dropOsmInsideSurface,
+  surfaceGeometry,
+  type SurfaceRun,
+  type TrackSurface,
+} from '@/src/analysis/trackSurface';
 import {type TrackMapData} from './adapters';
 
 // Where map points go: on the real (OSM) map when the track's fit is good,
@@ -14,6 +20,19 @@ import {type TrackMapData} from './adapters';
 // Follow) and the Track page.
 
 export type Xy = {x: number; y: number};
+
+/** One stretch of the measured road, in map metres (see MapPlacer.measured). */
+export type MeasuredRun = {
+  centre: Xy[];
+  /** Measured edges per bin, null where the bin has none. */
+  left: (Xy | null)[];
+  right: (Xy | null)[];
+  /** The unmeasured side at the track's median half-width: drawn dashed. */
+  leftDashed: (Xy | null)[];
+  rightDashed: (Xy | null)[];
+  /** Every bin is measured: the road is a loop. */
+  closed: boolean;
+};
 
 export type MapPlacer = {
   real: boolean;
@@ -25,8 +44,18 @@ export type MapPlacer = {
    * where a lap driven through it would be drawn.
    */
   placeWorld: (points: {x: number; z: number}[]) => Xy[];
-  /** OSM track lines in map metres; empty unless real. */
+  /**
+   * OSM track lines in map metres; empty unless real. Where the track has a
+   * measured surface the parts of these lines inside it are already gone: the
+   * measured road replaces them (src/analysis/trackSurface.ts).
+   */
   outline: Xy[][];
+  /**
+   * The track's measured road (the game's own centre path and asphalt
+   * edges), in map metres; empty when the track has none. Drawn in place of
+   * the OSM it replaces.
+   */
+  measured: MeasuredRun[];
   /** OSM pit lane lines in map metres; empty unless real. */
   pitLane: Xy[][];
   /**
@@ -47,7 +76,10 @@ function traceKey(t: GridTrace): string {
   return `${t.lat.length}:${t.lat[0]}:${t.lon[0]}`;
 }
 
-export function mapPlacer(map: TrackMapData | null): MapPlacer {
+export function mapPlacer(
+  map: TrackMapData | null,
+  surface: TrackSurface | null = null,
+): MapPlacer {
   const georef =
     map != null && canDrawOnRealMap(map.quality, map.georef)
       ? map.georef
@@ -59,6 +91,13 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
     lines.map(line =>
       line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
     );
+  const placeWorld: MapPlacer['placeWorld'] = points => {
+    const pts = points.map(p =>
+      fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
+    );
+    const placed = georef ? applyGeoref(pts, georef) : pts;
+    return placed.map(p => toLocalMetres(p, origin));
+  };
   const place: MapPlacer['place'] = (t, from, to, stride) => {
     const pts = [];
     for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
@@ -66,17 +105,30 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
     const placed = georef ? applyGeoref(pts, georef) : pts;
     return placed.map(p => toLocalMetres(p, origin));
   };
-  const outline = georef ? toMetres(map!.outline) : [];
+  const osm = georef ? toMetres(map!.outline) : [];
+  // The surface is in the game's world metres, placed like a car: the same
+  // projection and georef as a trace.
+  const placeXy = (pts: {x: number; y: number}[]) =>
+    placeWorld(pts.map(p => ({x: p.x, z: p.y})));
+  const measured = measuredRuns(surface, placeXy);
+  // OSM road ways inside the measured road are replaced by it; pit lanes are
+  // a separate list and never touched.
+  const outline =
+    measured.length > 0 && osm.length > 0
+      ? dropOsmInsideSurface(
+          osm.map((points, i) => ({id: i, kind: 'track', points})),
+          {
+            runs: measured.map(m => ({...m, fromM: 0})) as SurfaceRun[],
+            halfWidthM: surfaceHalfWidth(surface),
+            coverage: {bins: 0, both: 0, oneEdge: 0, centreOnly: 0},
+          },
+        ).flatMap(w => w.kept)
+      : osm;
   return {
+    measured,
     real: georef != null,
     place,
-    placeWorld: points => {
-      const pts = points.map(p =>
-        fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
-      );
-      const placed = georef ? applyGeoref(pts, georef) : pts;
-      return placed.map(p => toLocalMetres(p, origin));
-    },
+    placeWorld,
     outline,
     pitLane: georef ? toMetres(map!.pitLane) : [],
     outlineUse: trace => {
@@ -92,4 +144,39 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
       return split;
     },
   };
+}
+
+function surfaceHalfWidth(surface: TrackSurface | null): number {
+  return surface ? surfaceGeometry(surface).halfWidthM ?? 0 : 0;
+}
+
+/** The surface's runs, every point placed; empty without one. */
+function measuredRuns(
+  surface: TrackSurface | null,
+  placeXy: (pts: Xy[]) => Xy[],
+): MeasuredRun[] {
+  if (!surface) return [];
+  const placeAll = (pts: (Xy | null)[]): (Xy | null)[] => {
+    const at = placeXy(pts.flatMap(p => (p ? [p] : [])));
+    let i = 0;
+    return pts.map(p => (p ? at[i++] : null));
+  };
+  return surfaceGeometry(surface).runs.map(run => ({
+    centre: placeXy(run.centre),
+    left: placeAll(run.left),
+    right: placeAll(run.right),
+    leftDashed: placeAll(run.leftDashed),
+    rightDashed: placeAll(run.rightDashed),
+    closed: run.closed,
+  }));
+}
+
+/**
+ * The measured road's centre lines, for a map that draws the road as one thin
+ * band (TrackMap): a loop is closed back to its first point.
+ */
+export function measuredCentreLines(runs: MeasuredRun[]): Xy[][] {
+  return runs.map(r =>
+    r.closed && r.centre.length > 0 ? [...r.centre, r.centre[0]] : r.centre,
+  );
 }

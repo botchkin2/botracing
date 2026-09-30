@@ -20,10 +20,9 @@ export function followCar(
   focus: number | null,
 ): RaceCar | null {
   const usable = (c: RaceCar | undefined) =>
-    c !== undefined && c.state !== 'garage' && c.headingRad !== null
-      ? c
-      : null;
-  const focused = focus == null ? null : usable(cars.find(c => c.index === focus));
+    c !== undefined && c.state !== 'garage' && c.headingRad !== null ? c : null;
+  const focused =
+    focus == null ? null : usable(cars.find(c => c.index === focus));
   return focused ?? usable(cars.find(c => c.player));
 }
 

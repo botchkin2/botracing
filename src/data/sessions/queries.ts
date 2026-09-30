@@ -8,6 +8,7 @@ import {
   fetchSessionLaps,
   fetchSessionMap,
   fetchSessions,
+  fetchSessionSurface,
 } from './client';
 import {type SessionFilter, sessionKeys} from './keys';
 
@@ -87,6 +88,22 @@ export function useSessionMap(id: string) {
     queryKey: sessionKeys.map(id),
     queryFn: ({signal}) => fetchSessionMap(id, signal),
     // The chrome asks with no session open; don't fetch then.
+    enabled: id !== '',
+    staleTime: DETAIL_STALE_MS,
+    retry: retryUnlessClientError,
+  });
+}
+
+/**
+ * The track's measured surface; data is null until the track has one. The
+ * file grows as sessions are folded in, so it is refetched on the same
+ * schedule as a session's detail. A failed request is the same as none: the
+ * map draws as it did before.
+ */
+export function useSessionSurface(id: string) {
+  return useQuery({
+    queryKey: sessionKeys.surface(id),
+    queryFn: ({signal}) => fetchSessionSurface(id, signal),
     enabled: id !== '',
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,

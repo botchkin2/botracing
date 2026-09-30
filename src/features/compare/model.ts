@@ -1,4 +1,5 @@
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
+import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {
   type GridTrace,
   gridIndex,
@@ -15,6 +16,7 @@ import {
   type SessionDetail,
   type MapSection,
   mapPlacer,
+  measuredCentreLines,
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
@@ -400,6 +402,8 @@ export type CompareInputs = {
   traces: Map<string, GridTrace>;
   band: SessionBand | null;
   map: TrackMapData | null;
+  /** The track's measured road, when it has one. */
+  surface?: TrackSurface | null;
   selection: CompareSelection;
   charts?: ChannelId[][];
   window?: ChartWindow;
@@ -937,7 +941,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // --- map --------------------------------------------------------------------
   let mapModel: MapModel | null = null;
   if (refTrace) {
-    const placer = mapPlacer(map);
+    const placer = mapPlacer(map, input.surface ?? null);
     const project = (t: GridTrace, stride: number) =>
       placer.place(t, 0, t.lat.length - 1, stride);
     const shown = lapRefs.filter(r => r.key || mode !== 'grey');
@@ -954,7 +958,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const split = placer.outlineUse(refTrace);
     mapModel = {
       realMap: placer.real,
-      outline: split.used,
+      // The measured road first (a thin band in Track), then the OSM outside it.
+      outline: [...measuredCentreLines(placer.measured), ...split.used],
       outlineFaded: split.unused,
       pitLane: placer.pitLane,
       marks: buildTrackMarks(map?.sections ?? [], lengthM, m =>

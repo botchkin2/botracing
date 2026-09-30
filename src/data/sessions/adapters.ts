@@ -1,4 +1,5 @@
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
+import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
 
 // API v2 session shapes (functions/src/sessionStore.ts returns raw Firestore
@@ -577,5 +578,49 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
     outline: lineStrings(features, kind => kind !== 'pit'),
     pitLane: lineStrings(features, kind => kind === 'pit'),
     attribution: str(raw.attribution) || null,
+  };
+}
+
+/**
+ * The track's measured surface (GET /sessions/{id}/surface, written by
+ * tools/sessions/surface.mjs): per 10 m bin sums the app turns into the centre
+ * path and edges (src/analysis/trackSurface.ts). Null for a file that is not
+ * this format or whose bins are not numbers, so a bad file draws nothing
+ * rather than something wrong.
+ */
+export function toTrackSurface(
+  raw: Record<string, unknown>,
+): TrackSurface | null {
+  const stepM = num(raw.stepM);
+  const lengthM = num(raw.lengthM);
+  if (raw.v !== 1 || stepM == null || lengthM == null || stepM <= 0)
+    return null;
+  if (!Array.isArray(raw.bins)) return null;
+  const bins: TrackSurface['bins'] = [];
+  for (const b of raw.bins) {
+    const o = obj(b);
+    const f = (k: string) => num(o[k]);
+    const values = {
+      laps: f('laps'),
+      n: f('n'),
+      sx: f('sx'),
+      sy: f('sy'),
+      lapsL: f('lapsL'),
+      nL: f('nL'),
+      sL: f('sL'),
+      lapsR: f('lapsR'),
+      nR: f('nR'),
+      sR: f('sR'),
+    };
+    if (Object.values(values).some(v => v == null)) return null;
+    bins.push(values as TrackSurface['bins'][number]);
+  }
+  if (bins.length !== Math.ceil(lengthM / stepM)) return null;
+  return {
+    v: 1,
+    stepM,
+    lengthM,
+    sessions: Array.isArray(raw.sessions) ? raw.sessions.map(String) : [],
+    bins,
   };
 }

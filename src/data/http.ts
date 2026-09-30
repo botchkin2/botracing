@@ -13,10 +13,7 @@ export const apiBaseUrl: string =
     : PRODUCTION_API);
 
 export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly path: string,
-  ) {
+  constructor(readonly status: number, readonly path: string) {
     super(`GET ${path} → ${status}`);
   }
 }

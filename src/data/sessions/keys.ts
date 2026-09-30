@@ -9,4 +9,5 @@ export const sessionKeys = {
   laps: (id: string) => [...sessionKeys.all, 'laps', id] as const,
   band: (id: string) => [...sessionKeys.all, 'band', id] as const,
   map: (id: string) => [...sessionKeys.all, 'map', id] as const,
+  surface: (id: string) => [...sessionKeys.all, 'surface', id] as const,
 };

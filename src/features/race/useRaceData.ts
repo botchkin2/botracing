@@ -11,6 +11,7 @@ import {
   useSession,
   useSessionLaps,
   useSessionMap,
+  useSessionSurface,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
@@ -52,6 +53,7 @@ export function useRaceData(sessionId: string): RaceData {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const map = useSessionMap(sessionId);
+  const surface = useSessionSurface(sessionId);
   const detail = session.data;
   const hash = detail?.field?.hash ?? null;
   const field = useField(sessionId, hash);
@@ -68,7 +70,10 @@ export function useRaceData(sessionId: string): RaceData {
     () => (field.data ? raceClock(field.data) : null),
     [field.data],
   );
-  const placer = useMemo(() => mapPlacer(map.data ?? null), [map.data]);
+  const placer = useMemo(
+    () => mapPlacer(map.data ?? null, surface.data ?? null),
+    [map.data, surface.data],
+  );
   const noBestLap = detail != null && !detail.bestLapId;
   const line = useMemo(() => {
     if (refTrace && refTrace.lat.length > 2) {

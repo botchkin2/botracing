@@ -115,6 +115,7 @@ export function MapPanel({
           visibleM={(baseSpanM ?? f.visibleM) * MAP_ZOOMS[zoom]}
           band={f.geometry.band}
           bandFaded={f.geometry.bandFaded}
+          surface={f.geometry.surface}
           lines={followLines}
           ticks={followTicks}
           dots={map.dots.map(d => ({

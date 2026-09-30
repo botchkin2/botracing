@@ -1,3 +1,4 @@
+export type {TrackSurface} from '@/src/analysis/trackSurface';
 export type {
   BandChannel,
   CornerFacts,
@@ -27,6 +28,7 @@ export {
   useSessionBand,
   useSessionLaps,
   useSessionMap,
+  useSessionSurface,
   useSessions,
   useSessionsDetail,
   useSessionsLaps,
@@ -38,4 +40,10 @@ export {
   type TrackCorner,
   trackCorners,
 } from './corners';
-export {type MapPlacer, mapPlacer, type Xy} from './mapPlace';
+export {
+  type MapPlacer,
+  mapPlacer,
+  measuredCentreLines,
+  type MeasuredRun,
+  type Xy,
+} from './mapPlace';
