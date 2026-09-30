@@ -1,8 +1,8 @@
 import {describe, expect, it} from '@jest/globals';
 
-import type {RaceLanes} from '@/src/analysis/raceLanes';
+import {laneWindow, type RaceLanes} from '@/src/analysis/raceLanes';
 
-import {lanesLayout, timeAtX} from './raceLanesLayout';
+import {laneScrubber, lanesLayout, timeAtX} from './raceLanesLayout';
 
 const lanes: RaceLanes = {
   durationS: 1000,
@@ -89,5 +89,52 @@ describe('timeAtX', () => {
     expect(timeAtX(100, w, 200)).toBe(200);
     expect(timeAtX(-5, w, 200)).toBe(100);
     expect(timeAtX(999, w, 200)).toBe(300);
+  });
+});
+
+describe('laneScrubber', () => {
+  // The 3-lap window (300 s) follows the playhead, as on the Race screen.
+  function drag() {
+    let playhead = 500;
+    const seen: number[] = [];
+    const scrub = laneScrubber(() => ({
+      window: laneWindow('l3', playhead, lanes),
+      laneWidth: 200,
+      labelWidth: 44,
+      onScrub: t => {
+        playhead = t;
+        seen.push(t);
+      },
+    }));
+    return {scrub, seen, playhead: () => playhead};
+  }
+
+  it('maps every move of a drag through the window it started in', () => {
+    const {scrub, seen} = drag();
+    scrub.start(44 + 100); // the middle of [350, 650]
+    scrub.move(44 + 150); // 3/4 of the way
+    scrub.move(44 + 150); // the finger has not moved: neither has the playhead
+    scrub.move(44 + 150);
+    expect(seen).toEqual([500, 575, 575, 575]);
+  });
+
+  it('without the freeze the playhead would run away (what the window does to a move)', () => {
+    let playhead = 500;
+    const seen: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const window = laneWindow('l3', playhead, lanes);
+      playhead = timeAtX(150, window, 200);
+      seen.push(playhead);
+    }
+    expect(seen[2]).toBeGreaterThan(seen[0]); // 575, 650, 725
+  });
+
+  it('maps through the new window once the drag has ended', () => {
+    const {scrub, seen} = drag();
+    scrub.start(44 + 100);
+    scrub.move(44 + 150); // playhead 575, window now [425, 725]
+    scrub.end();
+    scrub.start(44 + 100); // the middle of the new window
+    expect(seen.at(-1)).toBe(575);
   });
 });

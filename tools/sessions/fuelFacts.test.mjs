@@ -7,6 +7,7 @@ import {
   fuelSetup,
   isGreen,
   lapFuel,
+  litresPerVePct,
   markGreen,
   lapPitStop,
   lapsLeft,
@@ -236,4 +237,31 @@ test('every lap with fuel says whether its use counts as green', () => {
     laps.map(l => l.fuel?.green),
     [true, false, false, false, undefined],
   );
+});
+
+test('litres per 1 % VE: the drive median over green laps, and the stops as a cross-check', () => {
+  const green = (usedL, veUsedPct) => ({
+    timed: true,
+    fuel: {green: true, usedL, veUsedPct},
+  });
+  const laps = [
+    green(2.4, 3.6),
+    green(2.44, 3.6),
+    green(2.36, 3.5),
+    // Not green: a pit lap's use is left out.
+    {timed: true, fuel: {green: false, usedL: 9, veUsedPct: 30}},
+    // A stop: 41.72 L for 60.1 % VE (Road Atlanta 09-26).
+    {
+      timed: true,
+      fuel: {green: false, usedL: 2, veUsedPct: 3},
+      pitStop: {added: {fuelL: 41.72, vePct: 60.1}},
+    },
+    // A stop that added nothing, and one under 1 % VE: left out.
+    {timed: true, pitStop: {added: {fuelL: 0, vePct: 0}}},
+    {timed: true, pitStop: {added: {fuelL: 0.3, vePct: 0.4}}},
+  ];
+  const r = litresPerVePct(laps);
+  assert.equal(r.drive, 0.674); // median of 0.667, 0.674, 0.678
+  assert.equal(r.stop, 0.694);
+  assert.deepEqual(litresPerVePct([]), {drive: null, stop: null});
 });
