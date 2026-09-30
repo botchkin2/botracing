@@ -109,7 +109,12 @@ function Meter({
 }
 
 function Scale({max}: {max: number}) {
-  const ticks = [0, max / 3, (2 * max) / 3, max].map(Math.round);
+  // Ticks on round laps: every 10, or every 20 on a long scale.
+  const step = max > 60 ? 20 : 10;
+  const ticks = Array.from(
+    {length: Math.floor(max / step) + 1},
+    (_, i) => i * step,
+  );
   return (
     <View style={styles.scale}>
       {ticks.map((t, i) => (
