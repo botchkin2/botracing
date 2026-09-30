@@ -266,6 +266,8 @@ export const size = {
   // The "?" that opens a chart's how-to-read lines (thread 33 #1119).
   helpMark: 20,
   gridCell: 24,
+  // The one fixed line under Corner's full-throttle strip (round 5, item 7).
+  stripNote: 24,
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,
