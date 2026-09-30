@@ -183,3 +183,53 @@ test('extra columns in the field change nothing (read by name)', () => {
   };
   assert.deepEqual(lapFieldFacts(withYaw, [all]), lapFieldFacts(f, [all]));
 });
+
+// A Hypercar lapping a GT3 is not a lost place: passes count the player's
+// class, the All counts take every car (apex, pit wall thread 27 #820).
+test('passes and battle are class-aware; the All counts are not', () => {
+  const was = cars[1].class;
+  cars[1].class = 'Hyper';
+  try {
+    // Car 1 (Hyper) starts 30 m behind and passes; car 2 (GT3) starts 30 m
+    // ahead and drops back through the player.
+    const f = build(40, u => ({
+      0: me(u),
+      1: {lapDist: me(u).lapDist - 30 + u * 4, lane: 3},
+      2: {lapDist: me(u).lapDist + 30 - Math.max(0, u - 20) * 4, lane: 3},
+      3: far,
+    }));
+    const [t] = lapFieldFacts(f, [all]);
+    assert.equal(t.passesSuffered, 0); // the Hyper's pass is not a lost place
+    assert.equal(t.passesSufferedAll, 1);
+    assert.equal(t.passesMade, 1);
+    assert.equal(t.passesMadeAll, 1);
+  } finally {
+    cars[1].class = was;
+  }
+});
+
+test('battleS: seconds within 1 s of a same-class car, either side, any lane', () => {
+  // Car 1 (GT3) 0.5 s ahead in the next lane; car 2 (Hyper) 0.5 s behind.
+  const was = cars[2].class;
+  cars[2].class = 'Hyper';
+  try {
+    const f = build(10, u => ({
+      0: me(u),
+      1: {lapDist: me(u).lapDist + V * 0.5, lane: 5},
+      2: {lapDist: me(u).lapDist - V * 0.5, lane: 0},
+      3: far,
+    }));
+    const [t] = lapFieldFacts(f, [all]);
+    assert.equal(t.battleS, 1.8); // 9 updates with a speed, counted once each
+    assert.equal(t.trafficAheadS, 0); // next lane: not traffic on the line
+    // Only a car of another class near: no battle.
+    const other = build(10, u => ({
+      0: me(u),
+      2: {lapDist: me(u).lapDist - V * 0.5, lane: 0},
+      3: far,
+    }));
+    assert.equal(lapFieldFacts(other, [all])[0].battleS, 0);
+  } finally {
+    cars[2].class = was;
+  }
+});

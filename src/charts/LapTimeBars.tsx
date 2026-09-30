@@ -15,6 +15,8 @@ export type LapBar = {
   deltaS: number;
   excluded: boolean;
   fill: string;
+  /** Drawn as a 1 pt outline in `fill` instead of a solid bar (a towed lap). */
+  hollow?: boolean;
   highlighted: boolean;
 };
 
@@ -24,6 +26,9 @@ const AXIS_H = 14;
 const TOP_PAD = 12;
 // Right gutter for the median label, so bars never sit under it.
 const GUTTER_W = 40;
+// The rails under the axis: one row each for TOW, TRAF and PIT.
+const RAIL_ROW_H = 11;
+const RAIL_MARK_H = 4;
 
 export function LapTimeBars({
   width,
@@ -34,6 +39,7 @@ export function LapTimeBars({
   stintBreaks,
   pits,
   resets = [],
+  rails = null,
   onPressBar,
 }: {
   width: number;
@@ -47,6 +53,12 @@ export function LapTimeBars({
   pits: number[];
   /** Bar indexes (0-based) of laps a reset to the garage cut short. */
   resets?: number[];
+  /**
+   * Bar indexes (0-based) for the rails below the axis (R3c): a block per
+   * towed lap, a tick per held-up or blue-flagged lap, amber for pit laps.
+   * Null draws no rails.
+   */
+  rails?: {tow: number[]; tick: number[]; pit: number[]} | null;
   onPressBar: (key: string) => void;
 }) {
   const {color} = useTheme();
@@ -60,6 +72,8 @@ export function LapTimeBars({
   const yOf = (d: number) => mid - (d / rangeS) * half;
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
   const axis = {...typeScale.axis, fontSize: 9};
+  const railsH = rails ? RAIL_ROW_H * 3 + 2 : 0;
+  const totalH = height + AXIS_H + railsH;
   // STINT, PIT and RESET labels share the top rows; one that would run into
   // the label before it drops a row (freeze, thread 32: laps 32–34).
   // Each stint label says why the stint started: the lap before it was cut
@@ -97,8 +111,8 @@ export function LapTimeBars({
   );
 
   return (
-    <View style={{width, height: height + AXIS_H}}>
-      <Svg width={width} height={height + AXIS_H}>
+    <View style={{width, height: totalH}}>
+      <Svg width={width} height={totalH}>
         {/* A stint a reset opened: grey long dashes, not the plain rule.
             A reset inside a stint gets no line, only its tag (Botkin #609). */}
         {stintBreaks.map(b => {
@@ -185,7 +199,19 @@ export function LapTimeBars({
                   strokeWidth={1.5}
                 />
               )}
-              <Rect x={x} y={y} width={barW} height={h} fill={b.fill} />
+              {b.hollow ? (
+                <Rect
+                  x={x + 0.5}
+                  y={y + 0.5}
+                  width={Math.max(0.5, barW - 1)}
+                  height={Math.max(0.5, h - 1)}
+                  fill='none'
+                  stroke={b.fill}
+                  strokeWidth={1}
+                />
+              ) : (
+                <Rect x={x} y={y} width={barW} height={h} fill={b.fill} />
+              )}
             </G>
           );
         })}
@@ -212,6 +238,34 @@ export function LapTimeBars({
             </SvgText>
           ) : null,
         )}
+        {rails &&
+          RAIL_ROWS.map((row, r) => {
+            const top = height + AXIS_H + 2 + r * RAIL_ROW_H;
+            const laps = rails[row.key];
+            return (
+              <G key={row.key}>
+                {laps.map(lapIndex => (
+                  <Rect
+                    key={lapIndex}
+                    x={xOf(lapIndex - 1)}
+                    y={top + (RAIL_ROW_H - RAIL_MARK_H) / 2}
+                    width={barW}
+                    height={RAIL_MARK_H}
+                    fill={railColor(row.key, color)}
+                  />
+                ))}
+                <SvgText
+                  x={width}
+                  y={top + RAIL_ROW_H - 1}
+                  textAnchor='end'
+                  fill={color.textFaint}
+                  fontFamily={axis.fontFamily}
+                  fontSize={axis.fontSize}>
+                  {row.label}
+                </SvgText>
+              </G>
+            );
+          })}
       </Svg>
       {/* Hit targets: full-height columns, so thin bars are still tappable. */}
       <View style={StyleSheet.absoluteFill}>
@@ -232,6 +286,23 @@ export function LapTimeBars({
 }
 
 const styles = StyleSheet.create({hitRow: {flexDirection: 'row'}});
+
+const RAIL_ROWS = [
+  {key: 'tow', label: 'TOW'},
+  {key: 'tick', label: 'TRAF'},
+  {key: 'pit', label: 'PIT'},
+] as const;
+
+// Same meaning as the tags: towed is the text colour (white on dark), a held
+// or blue-flagged lap the muted grey, pit laps the pit amber.
+function railColor(
+  key: 'tow' | 'tick' | 'pit',
+  color: ReturnType<typeof useTheme>['color'],
+): string {
+  if (key === 'tow') return color.text;
+  if (key === 'tick') return color.textMuted;
+  return color.accent;
+}
 
 const LABEL_ROW = 10;
 // A pit this many laps before a stint boundary is named by its label.

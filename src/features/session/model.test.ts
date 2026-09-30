@@ -122,3 +122,55 @@ describe('selection', () => {
     expect(m.tray!.label).toBe('L21 ref + 3 laps');
   });
 });
+
+describe('traffic tags, rails and the clean best', () => {
+  const traffic = (over: Record<string, number>) => ({
+    draftS: 0,
+    trafficAheadS: 0,
+    trafficBehindS: 0,
+    blueFlagS: 0,
+    passesMade: 0,
+    passesSuffered: 0,
+    passesMadeAll: 0,
+    passesSufferedAll: 0,
+    battleS: 0,
+    ...over,
+  });
+  // L21 is the best lap: tow it for 6.1 s. L9 is clean; L10 is held up.
+  const raw = fixture.laps.map((l, i) => ({
+    ...l,
+    traffic:
+      i === 20
+        ? traffic({draftS: 6.1})
+        : i === 9
+        ? traffic({trafficAheadS: 5})
+        : traffic({}),
+  }));
+  const m = buildSessionModel(session, toLaps(raw), none);
+
+  it('a towed best lap shows TOW first, then BEST', () => {
+    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual(['TOW 6.1', 'BEST']);
+    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF');
+  });
+
+  it('hollow bars and rails come from the traffic facts', () => {
+    expect(m.chart!.bars.find(b => b.lapIndex === 21)!.hollow).toBe(true);
+    expect(m.chart!.bars.find(b => b.lapIndex === 5)!.hollow).toBe(false);
+    expect(m.chart!.rails).toEqual({tow: [21], tick: [10], pit: [17, 18]});
+  });
+
+  it('adds the best lap without TOW or TRAF and how far behind it is', () => {
+    const fact = m.facts.find(f => f.label === 'Best without TOW or TRAF')!;
+    expect(fact.value).toMatch(/^L\d+ \d:\d\d\.\d{3} · \+\d\.\d{3} s$/);
+  });
+
+  it('a session without a field gets no traffic tags, rails or fact', () => {
+    const plain = buildSessionModel(session, laps, none);
+    expect(plain.chart!.rails).toBeNull();
+    expect(plain.chart!.bars.every(b => !b.hollow)).toBe(true);
+    expect(plain.facts.map(f => f.label)).not.toContain(
+      'Best without TOW or TRAF',
+    );
+    expect(lapRow(plain, 'L21').tags.map(t => t.code)).toEqual(['BEST']);
+  });
+});
