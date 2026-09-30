@@ -1,7 +1,8 @@
 import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {type MapCar, TrackMap} from '@/src/charts';
+import {type Radar as RadarData} from '@/src/analysis/radar';
+import {type MapCar, Radar, TrackMap} from '@/src/charts';
 import {type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
@@ -32,6 +33,7 @@ export function RaceMap({
   dots,
   showCars,
   attribution,
+  radar,
   onPressCar,
 }: {
   width: number;
@@ -43,6 +45,14 @@ export function RaceMap({
   /** False when the cars do not match the drawn track (see worldMatch). */
   showCars: boolean;
   attribution: string | null;
+  /** The cars-around-you inset (R2), top right; null hides it. */
+  radar: {
+    width: number;
+    height: number;
+    rangeM: number;
+    data: RadarData | null;
+    sampleLabel?: string;
+  } | null;
   onPressCar: (index: number) => void;
 }) {
   const {color} = useTheme();
@@ -95,6 +105,18 @@ export function RaceMap({
         cars={cars}
         onPressCar={key => onPressCar(Number(key))}
       />
+      {radar ? (
+        <View style={styles.radar}>
+          <Radar
+            inset
+            width={radar.width}
+            height={radar.height}
+            rangeM={radar.rangeM}
+            radar={radar.data}
+            sampleLabel={radar.sampleLabel}
+          />
+        </View>
+      ) : null}
       {attribution && placer.real ? (
         <Text variant='attribution' tone='textFaint' style={styles.credit}>
           {attribution}
@@ -108,5 +130,6 @@ function noop() {}
 
 const styles = StyleSheet.create({
   frame: {borderWidth: 1, borderRadius: radius.md, overflow: 'hidden'},
+  radar: {position: 'absolute', top: space.sm, right: space.sm},
   credit: {position: 'absolute', right: space.md, bottom: space.xs},
 });

@@ -1,13 +1,10 @@
 import {type Field, updateAt} from '@/src/analysis/field';
-import {type Radar, radarAt} from '@/src/analysis/radar';
+import {type Radar, RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {type RaceClock} from '@/src/analysis/raceClock';
 
 // The field radar's inputs from Compare's cursor (round 3 R2b): the playing
 // lap's number and the cursor distance give a race time; the radar draws the
 // 5 Hz sample at or before it, even while the map and charts interpolate.
-
-/** Metres shown ahead of and behind you (R2: 20–50, default 30). */
-export const RADAR_RANGE_M = 30;
 
 export interface RadarView {
   radar: Radar | null;

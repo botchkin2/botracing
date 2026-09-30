@@ -2,9 +2,10 @@ import {useMemo} from 'react';
 
 import {type Field} from '@/src/analysis/field';
 import {raceClock} from '@/src/analysis/raceClock';
+import {RADAR_RANGE_M} from '@/src/analysis/radar';
 import {Radar} from '@/src/charts';
 
-import {RADAR_RANGE_M, radarAtCursor} from '../radarModel';
+import {radarAtCursor} from '../radarModel';
 
 /** Docked beside a chart on the phone (round 3 R2b): 98 × 148. */
 export const RADAR_DOCK_W = 98;
