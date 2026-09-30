@@ -57,9 +57,14 @@ export type PlayRate = (typeof PLAY_RATES)[number];
 /** Compare map panel (handoff v2 M1). Satellite comes later. */
 export type MapMode = 'follow' | 'track';
 
-/** Follow map zoom steps: close, as the window sets it, wide. */
-export const MAP_ZOOMS = [0.6, 1, 1.7] as const;
-export type MapZoom = 0 | 1 | 2;
+/**
+ * The Follow map's visible span at each zoom step, in metres: the phone, Race
+ * and desktop Compare all read 60 / 120 / 250 / 500 (round 5, item 6; they
+ * were 0.6 / 1 / 1.7 times a base that differed by screen, camber #1304). The
+ * saved zoom is an index into this, default 1 = 120 m.
+ */
+export const FOLLOW_SPANS_M = [60, 120, 250, 500] as const;
+export type MapZoom = 0 | 1 | 2 | 3;
 
 /** The desktop right column's width, points: the user drags it within this. */
 export const RIGHT_W_MIN = 280;
@@ -75,7 +80,7 @@ type ComparePrefs = {
   focused: number;
   mapShown: boolean;
   mapMode: MapMode;
-  /** Index into MAP_ZOOMS. */
+  /** Index into FOLLOW_SPANS_M. */
   mapZoom: MapZoom;
   rightW: number;
   /** Sessions whose "no reliable outline" note was dismissed. */

@@ -55,7 +55,8 @@ const dark = {
   radarInset: 'rgba(13,15,18,0.9)',
   // The radar over a Compare chart on the phone: the plot shows through
   // (Botkin, pit-wall thread 41 #1178: about 40 %).
-  radarOverlay: 'rgba(13,15,18,0.4)',
+  // 72 % so the traces show through, no shadow (round 5, item 6).
+  radarOverlay: 'rgba(13,15,18,0.72)',
   classHypercar: '#e64343',
   classLmp2: '#4697e4',
   classGt3: '#f68443',

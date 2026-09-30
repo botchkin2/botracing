@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
+import {type Lap} from '@/src/data/sessions';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
   toLaps,
@@ -20,6 +21,7 @@ import {
   setReference,
   toggleCompared,
   valuesAt,
+  withDefaultLaps,
 } from './model';
 
 const LENGTH_M = 1000;
@@ -363,6 +365,57 @@ describe('many laps', () => {
   it('grid shows the median row plus the highlighted lap', () => {
     expect(m.grid!.rows.map(r => r.label)).toEqual(['MED', 'L4']);
     expect(m.grid!.rows[0].cells[0]).toBeCloseTo(0.4);
+  });
+});
+
+describe('a URL with no laps', () => {
+  const lap = (id: string, timeS: number | null, comparable = true) =>
+    ({id, timeS, comparable} as unknown as Lap);
+  const laps = [
+    lap('a', 92.4),
+    lap('b', 91.1),
+    lap('c', 91.9),
+    lap('d', 90.0, false),
+  ];
+
+  it('opens on the best lap and the fastest other comparable lap', () => {
+    const out = withDefaultLaps(sel({laps: []}), laps, 'b');
+    expect(out.laps).toEqual(['b', 'c']);
+    // The rest of the selection is untouched.
+    expect(out.cursorM).toBe(600);
+  });
+
+  it('takes the fastest comparable lap when the best lap is not there', () => {
+    expect(withDefaultLaps(sel({laps: []}), laps, null).laps).toEqual([
+      'b',
+      'c',
+    ]);
+    expect(withDefaultLaps(sel({laps: []}), laps, 'gone').laps).toEqual([
+      'b',
+      'c',
+    ]);
+  });
+
+  it('keeps the laps the URL names, and waits while the laps load', () => {
+    expect(withDefaultLaps(sel({laps: ['c', 'a']}), laps, 'b').laps).toEqual([
+      'c',
+      'a',
+    ]);
+    const empty = sel({laps: []});
+    expect(withDefaultLaps(empty, undefined, 'b')).toBe(empty);
+  });
+
+  it('one comparable lap is the reference alone; none stays empty', () => {
+    expect(
+      withDefaultLaps(
+        sel({laps: []}),
+        [lap('a', 90), lap('x', 95, false)],
+        null,
+      ).laps,
+    ).toEqual(['a']);
+    expect(
+      withDefaultLaps(sel({laps: []}), [lap('x', 95, false)], null).laps,
+    ).toEqual([]);
   });
 });
 

@@ -39,4 +39,5 @@ export {
   trackCorners,
 } from './corners';
 export {type MapPlacer, mapPlacer, type Xy} from './mapPlace';
+export {defaultLapIds} from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';
