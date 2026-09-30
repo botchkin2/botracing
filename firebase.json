@@ -67,6 +67,24 @@
             "value": "private"
           }
         ]
+      },
+      {
+        "source": "/api/lmu/sessions/*/field",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/api/lmu/sessions/*/field/*",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, max-age=31536000, immutable"
+          }
+        ]
       }
     ]
   }
