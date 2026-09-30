@@ -1,4 +1,6 @@
-import {getJson} from '../http';
+import {type TrackSurface} from '@/src/analysis/trackSurface';
+
+import {getJson, HttpError} from '../http';
 
 import {
   type Lap,
@@ -11,6 +13,7 @@ import {
   toLaps,
   toSessionBand,
   toTrackMap,
+  toTrackSurface,
   toSessionDetail,
   toSessionSummary,
 } from './adapters';
@@ -75,4 +78,22 @@ export async function fetchSessionMap(
       signal,
     ),
   );
+}
+
+/** The track's measured surface, or null when it has none yet (404) or the file is not usable. */
+export async function fetchSessionSurface(
+  id: string,
+  signal?: AbortSignal,
+): Promise<TrackSurface | null> {
+  try {
+    return toTrackSurface(
+      await getJson<Record<string, unknown>>(
+        `/sessions/${encodeURIComponent(id)}/surface`,
+        signal,
+      ),
+    );
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 404) return null;
+    throw error;
+  }
 }

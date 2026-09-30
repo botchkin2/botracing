@@ -63,7 +63,11 @@ export function Radar({
         height={height - 1}
         rx={3}
         fill={
-          overlay ? color.radarOverlay : inset ? color.radarInset : color.surface
+          overlay
+            ? color.radarOverlay
+            : inset
+            ? color.radarInset
+            : color.surface
         }
         stroke={color.lineStrong}
       />

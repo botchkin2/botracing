@@ -321,7 +321,10 @@ function RaceView({
     if (!view) return null;
     return {
       view,
-      band: placer.outline.length > 0 ? outlineUse.used : [line],
+      band:
+        placer.outline.length > 0 || placer.measured.length > 0
+          ? outlineUse.used
+          : [line],
       bandFaded: outlineUse.unused,
       fellBack: focus !== null && chased.index !== focus,
     };
@@ -336,7 +339,9 @@ function RaceView({
       } ${CLASS_TITLE[rows.you.key]}`
     : `${rows.carCount} cars · ${rows.classes.length} classes`;
 
-  const map = (
+  const map = data.roadPending ? (
+    <Skeleton height={mapH} />
+  ) : (
     <View>
       <RaceMap
         width={mapW}

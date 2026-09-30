@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {fromLocalMetres, LMU_FAKE_ORIGIN} from '@/src/analysis/geo';
+import {addLap, emptySurface} from '@/src/analysis/trackSurface';
 
 import {type TrackMapData} from './adapters';
 import {mapPlacer} from './mapPlace';
@@ -19,6 +20,7 @@ function map(georef: TrackMapData['georef'], quality: 'good' | 'poor') {
     quality,
     georef,
     outline: [],
+    outlineKinds: [],
     pitLane: [],
     attribution: null,
   } satisfies TrackMapData;
@@ -80,5 +82,144 @@ describe('mapPlacer.placeWorld', () => {
     const p = placer.placeWorld([{x: 100, z: 0}])[0];
     expect(p.x).toBeCloseTo(100, 3);
     expect(p.y).toBeCloseTo(0, 3);
+  });
+});
+
+describe('mapPlacer with a measured surface', () => {
+  // A 1,000 m straight east along y = 0 in the game's world metres; a car at
+  // lateral 3 m drove it (south of the centre), edges at -6 and +6.
+  const surface = (() => {
+    const s = emptySurface(1000);
+    const lap = {
+      distM: [] as number[],
+      x: [] as number[],
+      y: [] as number[],
+      pathLateralM: [] as number[],
+      trackEdgeM: [] as number[],
+    };
+    for (const [pl, te] of [
+      [-2, -6],
+      [3, 6],
+    ]) {
+      const l = {
+        ...lap,
+        distM: [],
+        x: [],
+        y: [],
+        pathLateralM: [],
+        trackEdgeM: [],
+      } as typeof lap;
+      for (let d = 0; d < 1000; d += 5) {
+        l.distM.push(d);
+        l.x.push(d);
+        l.y.push(-pl);
+        l.pathLateralM.push(pl);
+        l.trackEdgeM.push(te);
+      }
+      addLap(s, l);
+    }
+    return s;
+  })();
+
+  // With a georef of 0 degrees and the fake origin as its origin, OSM lines
+  // in [lon, lat] land on the same metres as the world.
+  const georef = {
+    rotationDeg: 0,
+    mirror: 1,
+    originLat: LMU_FAKE_ORIGIN.lat,
+    originLon: LMU_FAKE_ORIGIN.lon,
+  };
+  const lonLat = (x: number, y: number): [number, number] => {
+    const p = fromLocalMetres({x, y}, LMU_FAKE_ORIGIN);
+    return [p.lon, p.lat];
+  };
+  const withOsm = (): TrackMapData => ({
+    ...map(georef, 'good'),
+    // One road way on top of the measured road, one 60 m away.
+    outline: [
+      [lonLat(0, 2), lonLat(1000, 2)],
+      [lonLat(0, 60), lonLat(1000, 60)],
+    ],
+    outlineKinds: ['track', 'track'],
+    pitLane: [[lonLat(0, 4), lonLat(1000, 4)]],
+  });
+
+  it('places the measured road like a car: centre on the line, edges across it', () => {
+    const placer = mapPlacer(withOsm(), surface);
+    expect(placer.measured).toHaveLength(1);
+    const run = placer.measured[0];
+    expect(run.closed).toBe(true);
+    for (const c of run.centre) expect(Math.abs(c.y)).toBeLessThan(0.05);
+    // Travelling east, the right edge (+6) is south, the left north.
+    expect(run.right[20]?.y).toBeCloseTo(-6, 1);
+    expect(run.left[20]?.y).toBeCloseTo(6, 1);
+    const viaWorld = placer.placeWorld([{x: run.centre[20].x, z: 0}])[0];
+    expect(viaWorld.x).toBeCloseTo(run.centre[20].x, 3);
+  });
+
+  it('drops the OSM road inside the measured road, keeps the far one and the pit lane', () => {
+    const placer = mapPlacer(withOsm(), surface);
+    expect(placer.outline).toHaveLength(1);
+    expect(Math.abs(placer.outline[0][0].y - 60)).toBeLessThan(0.5);
+    expect(placer.pitLane).toHaveLength(1);
+  });
+
+  it('keeps a service road inside the measured road: only racing-layout roads are replaced', () => {
+    const m = withOsm();
+    m.outline.push([lonLat(0, 1), lonLat(1000, 1)]);
+    m.outlineKinds.push('service');
+    const placer = mapPlacer(m, surface);
+    // The road way (y = 2) is gone; the far way and the service road stay.
+    expect(placer.outline).toHaveLength(2);
+    expect(placer.outline.some(l => Math.abs(l[0].y - 1) < 0.5)).toBe(true);
+    expect(placer.outline.some(l => Math.abs(l[0].y - 60) < 0.5)).toBe(true);
+  });
+
+  it('another road beside the measured one is drawn faded, not at full strength', () => {
+    const m = withOsm();
+    // A way 12 m from the centre: outside the measured road, beside it.
+    m.outline.push([lonLat(0, 12), lonLat(1000, 12)]);
+    m.outlineKinds.push('track');
+    const placer = mapPlacer(m, surface);
+    const trace = {
+      lat: [LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat],
+      lon: [0, 0.005, 0.01],
+    } as never;
+    // The road it runs beside is not in `used`; the faded list has it.
+    const use = placer.outlineUse(trace);
+    expect(use.used.every(l => Math.abs(l[0].y - 12) > 1)).toBe(true);
+    expect(use.unused.some(l => Math.abs(l[0].y - 12) < 1)).toBe(true);
+  });
+
+  it('the split is cached apart for the same map with and without a surface', () => {
+    const m = withOsm();
+    const trace = {
+      lat: [LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat, LMU_FAKE_ORIGIN.lat],
+      lon: [0, 0.005, 0.01],
+    } as never;
+    const before = mapPlacer(m, null).outlineUse(trace);
+    const after = mapPlacer(m, surface).outlineUse(trace);
+    // Without the surface the road way at y = 2 is used; with it, gone.
+    expect(before.used.some(l => Math.abs(l[0].y - 2) < 0.5)).toBe(true);
+    expect(after.used.some(l => Math.abs(l[0].y - 2) < 0.5)).toBe(false);
+  });
+
+  it('a way of unknown kind is never dropped', () => {
+    const m = withOsm();
+    m.outlineKinds = ['', ''];
+    expect(mapPlacer(m, surface).outline).toHaveLength(2);
+  });
+
+  it('without a surface nothing changes', () => {
+    const placer = mapPlacer(withOsm());
+    expect(placer.measured).toEqual([]);
+    expect(placer.outline).toHaveLength(2);
+  });
+
+  it('a track with no fit still places the measured road, as the driven line would be', () => {
+    const placer = mapPlacer(null, surface);
+    expect(placer.real).toBe(false);
+    expect(placer.measured[0].centre[10].x).toBeCloseTo(102.5, 1);
+    expect(Math.abs(placer.measured[0].centre[10].y)).toBeLessThan(0.05);
   });
 });

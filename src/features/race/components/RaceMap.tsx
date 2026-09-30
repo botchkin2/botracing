@@ -6,7 +6,7 @@ import {type FollowView} from '@/src/analysis/followView';
 import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type Radar as RadarData} from '@/src/analysis/radar';
 import {FollowMap, type MapCar, Radar, TrackMap} from '@/src/charts';
-import {type MapPlacer} from '@/src/data/sessions';
+import {measuredCentreLines, type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
 import {FOLLOW_SPANS_M, type MapZoom} from '@/src/state/comparePrefs';
 import {
@@ -200,6 +200,7 @@ export function RaceMap({
           visibleM={follow.view.visibleM}
           band={follow.band}
           bandFaded={follow.bandFaded}
+          surface={placer.measured}
           lines={NO_FOLLOW_LINES}
           ticks={NO_FOLLOW_TICKS}
           dots={NO_FOLLOW_DOTS}
@@ -217,7 +218,10 @@ export function RaceMap({
         <TrackMap
           width={width - 2}
           height={height - 2}
-          outline={outlineUse.used}
+          outline={[
+            ...measuredCentreLines(placer.measured),
+            ...outlineUse.used,
+          ]}
           outlineFaded={outlineUse.unused}
           pitLane={placer.pitLane}
           lines={lines}

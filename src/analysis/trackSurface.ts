@@ -315,8 +315,14 @@ export interface OsmWay {
 export interface OsmSplit {
   id: string | number;
   kind: string;
-  /** Stretches outside the measured surface, kept as before. */
+  /** Stretches well away from the measured road, kept as before. */
   kept: Pt[][];
+  /**
+   * Stretches close to the measured road but outside it (within FADE_REACH_M
+   * of its centre): another road running beside it, not the track, so a map
+   * draws them at low contrast. Empty for a way that is not a plain road.
+   */
+  faded: Pt[][];
   /** Length inside the measured surface, replaced by it. */
   droppedM: number;
 }
@@ -325,6 +331,12 @@ export interface OsmSplit {
 const OSM_STEP_M = 4;
 /** Slack beyond the measured half-width: fit noise and the road's shoulders. */
 export const DROP_MARGIN_M = 3;
+/**
+ * Another road this close to the measured centre is drawn faded: it is not the
+ * track, and at full strength it reads as one (Road Atlanta T6, where the
+ * Club Course fork runs beside the road). Beyond it a way is what it was.
+ */
+export const FADE_REACH_M = 15;
 
 /**
  * Drops the parts of racing-layout OSM roads that lie inside the measured
@@ -345,7 +357,9 @@ export function dropOsmInsideSurface(
       segs.push([run.centre[i - 1], run.centre[i]]);
     }
   }
-  const inside = (p: Pt): boolean => {
+  // Distance to the nearest stretch of the measured centre.
+  const distance = (p: Pt): number => {
+    let best = Infinity;
     for (const [a, b] of segs) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -354,31 +368,54 @@ export function dropOsmInsideSurface(
         0,
         Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2),
       );
-      if (Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy) <= reach)
-        return true;
+      best = Math.min(best, Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy));
     }
-    return false;
+    return best;
   };
   return ways.map(w => {
     if (w.kind !== 'track' || g.halfWidthM == null || segs.length === 0) {
-      return {id: w.id, kind: w.kind, kept: [w.points], droppedM: 0};
+      return {
+        id: w.id,
+        kind: w.kind,
+        kept: [w.points],
+        faded: [],
+        droppedM: 0,
+      };
     }
     const pts = densify(w.points);
     const kept: Pt[][] = [];
+    const faded: Pt[][] = [];
+    // The stretch being collected and which of the three it is.
     let cur: Pt[] = [];
+    let curClass: 'far' | 'near' | 'inside' | null = null;
     let dropped = 0;
     let prev: Pt | null = null;
+    const flush = () => {
+      if (cur.length > 1) {
+        if (curClass === 'far') kept.push(cur);
+        if (curClass === 'near') faded.push(cur);
+      }
+      cur = [];
+    };
     for (const p of pts) {
       const from: Pt | null = prev;
       prev = p;
-      if (inside(p)) {
-        if (from) dropped += Math.hypot(p.x - from.x, p.y - from.y);
-        if (cur.length > 1) kept.push(cur);
-        cur = [];
-      } else cur.push(p);
+      const d = distance(p);
+      const klass = d <= reach ? 'inside' : d <= FADE_REACH_M ? 'near' : 'far';
+      if (klass === 'inside' && from) {
+        dropped += Math.hypot(p.x - from.x, p.y - from.y);
+      }
+      if (klass !== curClass) {
+        flush();
+        curClass = klass;
+        // A stretch starts at the point before it, so neighbouring stretches
+        // meet with no gap and a one-point stretch still has a length.
+        if (klass !== 'inside' && from) cur.push(from);
+      }
+      if (klass !== 'inside') cur.push(p);
     }
-    if (cur.length > 1) kept.push(cur);
-    return {id: w.id, kind: w.kind, kept, droppedM: dropped};
+    flush();
+    return {id: w.id, kind: w.kind, kept, faded, droppedM: dropped};
   });
 }
 

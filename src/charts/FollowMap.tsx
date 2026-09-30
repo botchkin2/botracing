@@ -18,6 +18,8 @@ import {
 } from '@/src/analysis/followView';
 import {fonts, type as typeScale, useTheme, turnLabel} from '@/src/design';
 
+import {MeasuredRoad, type MeasuredRunView} from './MeasuredRoad';
+
 import {CarDots, type MapCar} from './CarDots';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
@@ -79,6 +81,7 @@ export function FollowMap({
   visibleM,
   band,
   bandFaded,
+  surface,
   lines,
   ticks,
   dots,
@@ -98,6 +101,8 @@ export function FollowMap({
   band: FollowXy[][];
   /** Outline stretches the lap does not use; drawn under the band, quietly. */
   bandFaded?: FollowXy[][];
+  /** The measured road (the game's own edges), drawn over the band. */
+  surface?: MeasuredRunView[];
   /** Drawn in order; put key laps last so they sit on top. Keep stable. */
   lines: FollowLine[];
   /** Keep stable, like lines. */
@@ -147,6 +152,7 @@ export function FollowMap({
           <World
             band={band}
             bandFaded={bandFaded}
+            surface={surface}
             lines={lines}
             ticks={ticks}
             edgeM={EDGE_W / sc}
@@ -238,6 +244,7 @@ export function FollowMap({
 const World = memo(function World({
   band,
   bandFaded,
+  surface,
   lines,
   ticks,
   edgeM,
@@ -247,6 +254,7 @@ const World = memo(function World({
 }: {
   band: FollowXy[][];
   bandFaded?: FollowXy[][];
+  surface?: MeasuredRunView[];
   lines: FollowLine[];
   ticks: FollowTicks[];
   /** Edge width in metres at the current zoom. */
@@ -300,6 +308,9 @@ const World = memo(function World({
           fill='none'
         />
       ))}
+      {surface && surface.length > 0 ? (
+        <MeasuredRoad runs={surface} fill={fill} edge={edge} />
+      ) : null}
       {linePaths.map(l => (
         <Path
           key={l.key}

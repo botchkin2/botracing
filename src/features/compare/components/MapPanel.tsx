@@ -13,6 +13,7 @@ import {
   MAP_ZOOM_LABEL_W,
   MapZoomButtons,
   Segment,
+  Skeleton,
   Text,
 } from '@/src/ui';
 
@@ -107,6 +108,13 @@ export function MapPanel({
     [geometry, shownKey, lapStyle],
   );
 
+  if (map.roadPending) {
+    return (
+      <View style={[styles.box, {backgroundColor: color.surface}]}>
+        <Skeleton height={height} />
+      </View>
+    );
+  }
   return (
     <View style={[styles.box, {backgroundColor: color.surface}]}>
       {mode === 'follow' && f ? (
@@ -118,6 +126,7 @@ export function MapPanel({
           visibleM={FOLLOW_SPANS_M[zoom]}
           band={f.geometry.band}
           bandFaded={f.geometry.bandFaded}
+          surface={f.geometry.surface}
           lines={followLines}
           ticks={followTicks}
           dots={map.dots.map(d => ({
