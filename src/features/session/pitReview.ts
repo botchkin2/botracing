@@ -57,7 +57,14 @@ export function endingLap(laps: Lap[]): Lap | null {
 export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   if (sessionType !== 'R') return [];
   const first = laps.length > 0 ? laps[0].lapIndex : 0;
-  return laps.filter(l => l.pitStop !== null && l.lapIndex !== first);
+  // The service before the start is a window on the first lap that the car
+  // leaves (an out lap, `pitOut`), before any timed lap. A stop on the first
+  // lap is a real one when the lap ends in the pit lane (`pitIn`): Road
+  // Atlanta 09-25 changed the FL on L1, 87 s, after a 267 s lap (camber,
+  // thread 43 #1279).
+  return laps.filter(
+    l => l.pitStop !== null && (l.lapIndex !== first || l.pitIn),
+  );
 }
 
 const PAIRS: [string, Wheel[]][] = [

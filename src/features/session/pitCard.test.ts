@@ -138,6 +138,37 @@ describe('buildPitCard', () => {
     });
   });
 
+  it('a stop on the first lap is a stop when the lap ends in the lane, and the garage service is not', () => {
+    const lap1Stop = [
+      lap(1, {
+        pitStop: stop({tyres: {changed: true, wheels: ['FL']}}),
+        pitIn: true,
+        fuel: fuel(),
+      }),
+      lap(2, {pitOut: true, stint: 2, fuel: fuel()}),
+      lap(3, {
+        stint: 2,
+        fuel: fuel({
+          endL: 3.7,
+          veEndPct: 4,
+          lapsLeftFuel: 1.5,
+          lapsLeftVe: 1.1,
+        }),
+      }),
+    ];
+    const card = buildPitCard('R', lap1Stop, session());
+    if (card?.kind !== 'stops') throw new Error('not a stops card');
+    expect(card.columns.map(c => [c.after, c.tyres])).toEqual([
+      ['after L1', 'FL only'],
+    ]);
+    // The same stop on an out lap that does not end in the lane is the service before the start.
+    const service = [
+      {...lap1Stop[0], pitIn: false, pitOut: true},
+      ...lap1Stop.slice(1),
+    ];
+    expect(buildPitCard('R', service, session())?.kind).toBe('fuel');
+  });
+
   it('two stops are two columns, three or more scroll with fixed width columns', () => {
     const twoStops = [
       ...oneStop.slice(0, 8),

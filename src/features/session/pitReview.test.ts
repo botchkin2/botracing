@@ -62,6 +62,18 @@ describe('buildPitReview', () => {
     expect(r.stops.map(s => s.title)).toEqual(['L4 · Stop 1 of 1']);
   });
 
+  it('keeps a stop on the first lap when that lap ends in the pit lane', () => {
+    // Road Atlanta 09-25: L1 is 267 s, ends in the lane, the FL is changed.
+    const first = [
+      lap(1, {pitStop: stop, pitIn: true}),
+      lap(2, {pitOut: true}),
+      lap(3, {fuel: fuelEnd(13.1, 5)}),
+    ];
+    expect(buildPitReview('R', first)!.stops.map(s => s.title)).toEqual([
+      'L1 · Stop 1 of 1',
+    ]);
+  });
+
   it('gives a stop its tank, laps, fill, lane time and tyres', () => {
     expect(buildPitReview('R', race)!.stops[0].lines).toEqual([
       'In the tank: 12.9 L · 0 % VE',
