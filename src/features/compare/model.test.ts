@@ -17,6 +17,7 @@ import {
   followPlace,
   type CompareSelection,
   makeReference,
+  canRemoveLap,
   removeLap,
   setReference,
   toggleCompared,
@@ -435,6 +436,12 @@ describe('selection edits', () => {
   it('the reference cannot be removed', () => {
     expect(removeLap(sel(), 'a')).toEqual(sel());
     expect(removeLap(sel(), 'b').laps).toEqual(['a', 'c']);
+  });
+  it('the last compared lap stays', () => {
+    expect(canRemoveLap(sel(), 'a')).toBe(false);
+    expect(canRemoveLap(sel(), 'b')).toBe(true);
+    const two = {...sel(), laps: ['a', 'b']};
+    expect(canRemoveLap(two, 'b')).toBe(false);
   });
 });
 

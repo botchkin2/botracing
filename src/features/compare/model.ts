@@ -1171,6 +1171,11 @@ export function setReference(
   return makeReference(added, lapId);
 }
 
+/** The reference never goes, and neither does the last compared lap: removing it snaps the selection back to the default. */
+export function canRemoveLap(sel: CompareSelection, lapId: string): boolean {
+  return sel.laps[0] !== lapId && sel.laps.length > 2;
+}
+
 export function removeLap(
   sel: CompareSelection,
   lapId: string,
