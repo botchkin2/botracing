@@ -7,7 +7,7 @@ The Race screen (round 3, handoff R1): every car on the track as a dot, a leader
 - `useRaceClock.ts` + `clock.ts`: race time, play/pause, rates; playback steps by wall time, paused rests on a real 5 Hz sample.
 - `selectionClock.ts`: Compare's cursor (lap + metres in the URL) to race time and back, via `analysis/raceClock`.
 - `model.ts`: pure. Cars at a moment (`analysis/raceState`) to leaderboard groups, dots and the focus label.
-- `components/`: `RaceMap` (over `charts/TrackMap`), `Leaderboard`, `RaceTransport`, `RaceLegend`, `Scrubber`.
+- `components/`: `RaceMap` (over `charts/TrackMap`), `Leaderboard`, `RaceTransport`, `RaceLegend`, `RaceLanesBlock`.
 
-Not here: the YOUR RACE lanes (`analysis/raceLanes`, next), the radar (`charts/Radar`), field decoding (`data/field`).
+Not here: the lane model (`analysis/raceLanes`) and chart (`charts/RaceLanes`), the radar (`charts/Radar`), field decoding (`data/field`).
 Imports: anything under `src/` except another feature. Only `app/` routes import this folder.
