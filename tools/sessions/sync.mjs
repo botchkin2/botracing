@@ -136,8 +136,12 @@ function scan(state) {
       continue;
     }
     const known = state.files[name];
+    // An info described before it carried the fuel setup is described again.
     let info =
-      known && known.size === stat.size && known.mtimeMs === stat.mtimeMs
+      known &&
+      known.size === stat.size &&
+      known.mtimeMs === stat.mtimeMs &&
+      known.info?.fuelSetup !== undefined
         ? known.info
         : null;
     if (!info) {
@@ -408,6 +412,11 @@ function build(s, trackMap, eventWindows) {
       compound: lap.compound,
       wetness: lap.wetness,
       corners: lap.corners || [],
+      // Fuel and Virtual Energy used on the lap, added back across a stop
+      // (fuelFacts.mjs), and the pit stop entered during it; null without
+      // the channels or a stop.
+      fuel: lap.fuel,
+      pitStop: lap.pitStop,
       // Cars around the player, seconds and counts (fieldTags.mjs); null
       // when the session has no field.
       traffic: tags?.[k] ?? null,
@@ -461,6 +470,9 @@ function build(s, trackMap, eventWindows) {
     // too few clean laps, or the stored map does not fit).
     trackMapSource: a.trackMapSource,
     trackMapMismatch: a.trackMapMismatch,
+    // Start fuel, the fill limit and the tank in litres (fuelFacts.mjs); the
+    // limit and tank are null when the car setup is missing.
+    fuel: a.fuel,
     band: a.band
       ? {
           path: `bands/${ownerId}/${s.id}/v1.json.gz`,

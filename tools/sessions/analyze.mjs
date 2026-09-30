@@ -25,10 +25,18 @@ import {
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
+import {
+  fillLapsLeft,
+  lapFuel,
+  lapPitStop,
+  markGreen,
+  stintFuel,
+} from './fuelFacts.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
-export const analysisVersion = 9;
+// 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
+export const analysisVersion = 10;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -56,6 +64,9 @@ const wanted = [
   'lon_deg',
   'path_lateral_m',
   'track_edge_m',
+  // Fuel in litres and Virtual Energy in %, 20 Hz (fuelFacts.mjs).
+  'fuel_l',
+  'virtual_energy_pct',
   // Not neutral names yet: LMU's. Another sim without them gets no tyre
   // conditions, and the cold-tyre rule simply does not fire.
   // The driver's pedal before the car's electronics; see pedalPoints.mjs.
@@ -409,6 +420,18 @@ function analyzeLap(rec, seg, pits, flags) {
       seg.end,
       timed ? gameLapTime : null,
     ),
+    // Fuel and VE used on the lap (added back across a pit stop), and the
+    // stop entered during it; null when the recording has no such channel.
+    // Read over the lap's whole time window, not its trimmed ticks (which
+    // stop where the lap distance resets, often at the pit entry), so
+    // consecutive laps tile with no fuel unaccounted for.
+    fuel: lapFuel(
+      s,
+      idxAt(s.t, seg.start),
+      Math.min(idxAt(s.t, seg.end), s.t.length - 1),
+      pits,
+    ),
+    pitStop: lapPitStop(s, seg.start, seg.end, pits),
     distanceM: round(dist[dist.length - 1], 1),
     ...topSpeed(s, i0, i1, dist),
   };
@@ -972,9 +995,21 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     st.laps.push(lap);
   }
 
+  // Per stint: the median use per green lap, then every lap's and stop's
+  // laps left at that median.
+  const stintMedians = new Map(stints.map(st => [st.n, stintFuel(st.laps)]));
+  fillLapsLeft(laps, stintMedians);
+  markGreen(laps);
+  const firstFuel = laps.find(l => l.fuel?.startL != null);
+
   return {
     laps,
     best,
+    fuel: {
+      startL: firstFuel?.fuel.startL ?? null,
+      fillLimitL: recs[0].recording.fuelSetup?.fillLimitL ?? null,
+      tankL: recs[0].recording.fuelSetup?.tankL ?? null,
+    },
     trackMap: map,
     newTrackMap,
     trackMapSource,
@@ -1008,6 +1043,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
           bestLapTime: c.length ? round(Math.min(...c), 3) : null,
           medianLapTime: round(median(c), 3),
           stdevLapTime: round(stdev(c), 3),
+          ...stintMedians.get(st.n),
         };
       }),
     },
