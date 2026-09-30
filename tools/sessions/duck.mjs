@@ -10,7 +10,6 @@ function findDuckdb() {
   const candidates = [
     process.env.DUCKDB,
     resolve(here, 'duckdb.exe'),
-    resolve(here, '../lmu-sync/duckdb.exe'),
     'C:\\Users\\Botkin\\AppData\\Local\\Temp\\duckdb-cli\\duckdb.exe',
   ].filter(Boolean);
   const found = candidates.find(candidate => existsSync(candidate));
@@ -28,7 +27,16 @@ export function run(db, query, {readonly = true} = {}) {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 1024,
   });
-  if (result.error) throw result.error;
+  if (result.error) {
+    if (result.error.code === 'ENOENT')
+      throw new Error(
+        `DuckDB CLI not found (tried "${duckdb}"). Put duckdb.exe at ${resolve(
+          here,
+          'duckdb.exe',
+        )}, set DUCKDB to its path, or install it from https://duckdb.org/docs/installation/ (tools/runtime/update.ps1 copies one into lap-runtime).`,
+      );
+    throw result.error;
+  }
   if (result.status !== 0) {
     throw new Error(
       (result.stderr || result.stdout || 'duckdb failed').slice(0, 800),

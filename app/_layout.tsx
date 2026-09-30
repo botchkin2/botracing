@@ -32,6 +32,7 @@ import {
 import {
   compareHref,
   cornerHref,
+  raceHref,
   parseSelection,
   sessionHref,
   sessionsHref,
@@ -94,6 +95,7 @@ function Navigation() {
 function activeTab(pathname: string): WorkspaceTab | null {
   if (!pathname.startsWith('/session/')) return null;
   if (pathname.includes('/compare')) return 'compare';
+  if (pathname.includes('/race')) return 'race';
   if (pathname.includes('/corner/')) return 'corner';
   return 'session';
 }
@@ -183,6 +185,8 @@ function ChromeBar({
         return router.navigate(sessionHref(target.sessionId, sel));
       case 'compare':
         return router.navigate(compareHref(target.sessionId, sel));
+      case 'race':
+        return router.navigate(raceHref(target.sessionId, sel));
       case 'corner':
         return router.navigate(cornerHref(target.sessionId, cornerN, sel));
     }
@@ -190,6 +194,7 @@ function ChromeBar({
   const tabs: ChromeTab[] = [
     {key: 'session', label: 'Session', onPress: () => go('session')},
     {key: 'compare', label: 'Compare', onPress: () => go('compare')},
+    {key: 'race', label: 'Race', onPress: () => go('race')},
     {key: 'corner', label: 'Corner', onPress: () => go('corner')},
     {key: 'tracks', label: 'Tracks', onPress: () => go('tracks')},
   ];

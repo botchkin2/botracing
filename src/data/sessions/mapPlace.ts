@@ -1,6 +1,7 @@
 import {
   applyGeoref,
   canDrawOnRealMap,
+  fromLocalMetres,
   LMU_FAKE_ORIGIN,
   toLocalMetres,
 } from '@/src/analysis/geo';
@@ -17,6 +18,12 @@ export type MapPlacer = {
   real: boolean;
   /** Samples from..to (inclusive) of a trace, every stride, in map metres. */
   place: (t: GridTrace, from: number, to: number, stride: number) => Xy[];
+  /**
+   * Game-world points (x east, z north, metres) in map metres: the same
+   * projection and georef as a trace's Lat/Lon, so a car from the field lands
+   * where a lap driven through it would be drawn.
+   */
+  placeWorld: (points: {x: number; z: number}[]) => Xy[];
   /** OSM track lines in map metres; empty unless real. */
   outline: Xy[][];
   /** OSM pit lane lines in map metres; empty unless real. */
@@ -41,6 +48,13 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
       const pts = [];
       for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
         pts.push({lat: t.lat[i], lon: t.lon[i]});
+      const placed = georef ? applyGeoref(pts, georef) : pts;
+      return placed.map(p => toLocalMetres(p, origin));
+    },
+    placeWorld: points => {
+      const pts = points.map(p =>
+        fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
+      );
       const placed = georef ? applyGeoref(pts, georef) : pts;
       return placed.map(p => toLocalMetres(p, origin));
     },

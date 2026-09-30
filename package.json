@@ -16,9 +16,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate-icons": "node scripts/generate-icons.js",
-    "lmu:extract": "node tools/lmu-sync/extract.mjs",
-    "lmu:batch": "node tools/lmu-sync/batch.mjs",
-    "lmu:upload": "node tools/lmu-sync/upload.mjs",
     "sessions:sync": "node tools/sessions/sync.mjs"
   },
   "dependencies": {
@@ -27,13 +24,11 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@tanstack/react-query": "^5.104.0",
-    "axios": "^1.20.0",
     "babel-preset-expo": "~57.0.0",
     "expo": "~57.0.9",
     "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.19",
     "expo-dev-client": "~57.0.19",
-    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",

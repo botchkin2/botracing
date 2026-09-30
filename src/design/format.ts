@@ -16,6 +16,16 @@ export function formatGap(deltaS: number, decimals = 3): string {
   return `${sign}${Math.abs(deltaS).toFixed(decimals)}`;
 }
 
+/**
+ * A race gap behind a car: "+3.412" under a minute, "+1:04.2" from a minute
+ * (a lapped car's gap is real time, so it can be minutes).
+ */
+export function formatRaceGap(gapS: number): string {
+  if (gapS < 60) return `+${gapS.toFixed(3)}`;
+  const minutes = Math.floor(gapS / 60);
+  return `+${minutes}:${(gapS - minutes * 60).toFixed(1).padStart(4, '0')}`;
+}
+
 /** Corner grid: 2 decimals, no leading zero: "+.21", "−1.04". */
 export function formatCornerGap(deltaS: number): string {
   return formatGap(deltaS, 2).replace(/^([+−±])0\./, '$1.');

@@ -11,6 +11,8 @@ import {
 } from '@/src/analysis/loopSide';
 import {fonts, useTheme, turnLabel, turnNumber} from '@/src/design';
 
+import {CarDots, type MapCar} from './CarDots';
+
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
 // the track has a good fit, else the driven line as a plain band; each lap's
 // line; section boundary ticks, S labels inside the loop and corner numbers
@@ -83,6 +85,8 @@ export function TrackMap({
   onPressSection,
   badges,
   startFinish,
+  cars,
+  onPressCar,
 }: {
   width: number;
   height: number;
@@ -98,6 +102,9 @@ export function TrackMap({
   badges?: CornerBadges;
   /** A tick across the line at start/finish, labelled S/F outside it. */
   startFinish?: MapAnchor | null;
+  /** Every car of a race, in the same metres as `lines`; drawn over the labels. */
+  cars?: MapCar[];
+  onPressCar?: (key: string) => void;
 }) {
   const {color} = useTheme();
 
@@ -415,6 +422,7 @@ export function TrackMap({
               </G>
             );
           })}
+        {cars && <CarDots cars={cars.map(c => ({...c, at: fit(c.at)}))} />}
         {dots.map(d => {
           const q = fit(d.at);
           return (
@@ -440,6 +448,30 @@ export function TrackMap({
           style={[styles.hit, {left: s.at.x - HIT / 2, top: s.at.y - HIT / 2}]}
         />
       ))}
+      {/* One press target over the map, not one per car: the cars move every
+          frame, and 60 Pressables re-rendering per frame cost more than the
+          drawing. The nearest car within a finger's reach is the one pressed. */}
+      {onPressCar && cars && cars.length > 0 && (
+        <Pressable
+          accessibilityRole='button'
+          accessibilityLabel='Cars on the map'
+          onPress={e => {
+            const {locationX: x, locationY: y} = e.nativeEvent;
+            let best: string | null = null;
+            let bestD = HIT / 2;
+            for (const c of cars) {
+              const q = fit(c.at);
+              const d = Math.hypot(q.x - x, q.y - y);
+              if (d < bestD) {
+                bestD = d;
+                best = c.key;
+              }
+            }
+            if (best !== null) onPressCar(best);
+          }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {badges &&
         marks.corners.map((c, i) => {
           const at = badgeAt[i];

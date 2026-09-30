@@ -44,6 +44,14 @@ export const compareHref = (
   params: {id: sessionId, ...selectionParams(sel)},
 });
 
+export const raceHref = (
+  sessionId: string,
+  sel: LapSelectionParams = {},
+): Href => ({
+  pathname: '/session/[id]/race',
+  params: {id: sessionId, ...selectionParams(sel)},
+});
+
 export const cornerHref = (
   sessionId: string,
   corner: number,
