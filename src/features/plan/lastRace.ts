@@ -3,8 +3,6 @@
 // the Track page's Plan card reads its date and length. Pure.
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
-import {lapName} from './planCards';
-
 export type LastRace = {
   sessionId: string;
   startedAt: string;
@@ -41,5 +39,28 @@ export function lastRaceOf(
   };
 }
 
-// lapName is re-exported for the screens that print a planned lap next to this.
-export {lapName};
+/**
+ * The one line under "Your last race here": laps, the stops by the lap the
+ * pit lane was entered (as the pit stops card names them), and what was left
+ * at the end of the last whole lap. VE is left out of a fuel-only race.
+ * "72 laps · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73"
+ */
+export function lastRaceLine(race: LastRace): string {
+  const stops =
+    race.stops.length === 0
+      ? 'no stop'
+      : `${race.stops.length} ${
+          race.stops.length === 1 ? 'stop' : 'stops'
+        } at ${race.stops.map(s => s.lap).join(', ')}`;
+  const left = race.end
+    ? [
+        race.end.fuelL != null && `${race.end.fuelL.toFixed(1)} L`,
+        race.end.vePct != null && `${Math.round(race.end.vePct)} % VE`,
+      ].filter(Boolean)
+    : [];
+  const end =
+    race.end && left.length > 0
+      ? ` · ${left.join(' / ')} left at the end of ${race.end.lap}`
+      : '';
+  return `${race.raceLaps} laps · ${stops}${end}`;
+}

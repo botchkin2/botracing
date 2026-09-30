@@ -409,29 +409,16 @@ describe('planView', () => {
     );
   });
 
-  it('prints the five cards in order', () => {
-    expect(view.cards.map(c => c.key)).toEqual([
-      'perLap',
-      'tank',
-      'race',
-      'stops',
-      'dropStop',
-    ]);
+  it('prints the row cards that are left: Per green lap and To drop a stop', () => {
+    // Race, Per tank and Stops are typed cards now (planCards.test.ts).
+    expect(view.cards.map(c => c.key)).toEqual(['perLap', 'dropStop']);
     const perLap = view.cards[0].rows;
     expect(perLap[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
     expect(perLap[3].value).toContain('10 laps in 2 sessions, since ');
   });
 
-  it('names the limiting meter in the tank card', () => {
-    const rows = view.cards[1].rows;
-    expect(rows[1].value).toContain('20 laps (VE runs out first)');
-    expect(rows[1].value).toContain('fuel 24, VE 20');
-  });
-
-  it('prints stops with their laps and the drop-one-stop line', () => {
-    const stops = view.cards[3].rows;
-    expect(stops[0].value).toBe('2 stops  ·  after lap 20, 40');
-    const drop = view.cards[4].rows;
+  it('prints the drop-one-stop line', () => {
+    const drop = view.cards[1].rows;
     expect(drop[0].label).toBe('1 stop');
     // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop.
     expect(drop[0].value).toContain(

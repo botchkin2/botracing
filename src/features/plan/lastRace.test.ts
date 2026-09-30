@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
-import {lastRaceOf} from './lastRace';
+import {lastRaceLine, lastRaceOf} from './lastRace';
 
 const facts: RaceFacts = {
   planKey: 't|c',
@@ -40,5 +40,31 @@ describe('lastRaceOf', () => {
     const bare = lastRaceOf('s1', {...facts, stops: [], end: null})!;
     expect(bare.stops).toEqual([]);
     expect(bare.end).toBeNull();
+  });
+});
+
+describe('lastRaceLine', () => {
+  const race = lastRaceOf('s1', facts)!;
+
+  it('reads laps, stops by their pit-in lap, and what was left at the end', () => {
+    expect(lastRaceLine(race)).toBe(
+      '72 laps · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
+    );
+  });
+
+  it('reads a race with no stop, and a fuel-only end without VE', () => {
+    const one = {...race, stops: [race.stops[0]]};
+    expect(lastRaceLine(one)).toContain('1 stop at L25');
+    expect(lastRaceLine({...race, stops: []})).toContain('no stop');
+    const fuelOnly = {...race, end: {lap: 'L73', fuelL: 4.9, vePct: null}};
+    expect(lastRaceLine(fuelOnly)).toBe(
+      '72 laps · 2 stops at L25, L49 · 4.9 L left at the end of L73',
+    );
+  });
+
+  it('leaves the end out when there is no fuel level', () => {
+    expect(lastRaceLine({...race, end: null})).toBe(
+      '72 laps · 2 stops at L25, L49',
+    );
   });
 });
