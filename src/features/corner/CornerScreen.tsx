@@ -378,7 +378,7 @@ function CornerView({
       {model.strips && !layout.isWide && (
         <View style={styles.row}>
           <Chip
-            label={`${tableOpen ? '▴' : '▾'} Laps · ${model.rows.length}`}
+            label={`Laps · ${model.rows.length} ${tableOpen ? '▴' : '▾'}`}
             selected={tableOpen}
             onPress={() => setTableOpen(o => !o)}
           />

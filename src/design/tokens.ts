@@ -238,6 +238,9 @@ export const space = {
   xxl: 24,
   xxxl: 32,
 } as const;
+/** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
+export const disabledOpacity = 0.4;
+
 export const radius = {xs: 2, sm: 3, md: 6, sheet: 10} as const;
 /**
  * Real 44 pt boxes for text links and small icons. `hitSlop` alone is not

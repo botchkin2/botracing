@@ -24,7 +24,14 @@ import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {useSession, useSessionLaps} from '@/src/data/sessions';
-import {hitBox, lapStroke, space, useLayout, useTheme} from '@/src/design';
+import {
+  disabledOpacity,
+  hitBox,
+  lapStroke,
+  space,
+  useLayout,
+  useTheme,
+} from '@/src/design';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
   CHANNEL_IDS,
@@ -58,6 +65,7 @@ import {
   type CompareModel,
   type CompareSelection,
   makeReference,
+  canRemoveLap,
   removeLap,
   withDefaultLaps,
 } from './model';
@@ -347,8 +355,6 @@ function CompareView({
     </Text>
   );
 
-  // The last compared lap stays: removing it would snap back to the default.
-  const onlyCompared = selection.laps.length <= 2;
   const chipItems = (
     <>
       {model.chips.map(c => (
@@ -388,8 +394,10 @@ function CompareView({
               {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
-                  accessibilityState={{disabled: onlyCompared}}
-                  disabled={onlyCompared}
+                  accessibilityState={{
+                    disabled: !canRemoveLap(selection, c.lapId),
+                  }}
+                  disabled={!canRemoveLap(selection, c.lapId)}
                   {...removeHit}
                   onPress={() =>
                     onSelectionChange(removeLap(selection, c.lapId))
@@ -397,7 +405,11 @@ function CompareView({
                   <Text
                     variant='dataSmall'
                     tone='textFaint'
-                    style={onlyCompared ? styles.removeOff : undefined}>
+                    style={
+                      canRemoveLap(selection, c.lapId)
+                        ? undefined
+                        : styles.removeOff
+                    }>
                     ×
                   </Text>
                 </Pressable>
@@ -806,7 +818,7 @@ const styles = StyleSheet.create({
   header: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   refRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   // Vertical padding = the chips' 8 pt hit growth, or the scroll view clips it.
-  removeOff: {opacity: 0.3},
+  removeOff: {opacity: disabledOpacity},
   chipsRow: {flexDirection: 'row', gap: space.sm, paddingVertical: space.md},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   chipsWrap: {
