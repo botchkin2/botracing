@@ -9,6 +9,7 @@ import {
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
+import {buildFuelUse, type FuelUse} from './fuelUse';
 import {buildPitReview, type PitReview} from './pitReview';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 
@@ -115,7 +116,38 @@ export type SessionScreenModel = {
   tray: TrayModel | null;
   /** Races with a stop only. */
   pitReview: PitReview | null;
+  /** Practice with green laps only. */
+  fuelUse: FuelUseCardModel | null;
 };
+
+/** The practice fuel card: the numbers, and the plan they belong to. */
+export type FuelUseCardModel = {
+  fuelUse: FuelUse;
+  /** A Plan combo key (track|car), to open the plan on this session's track and car. */
+  planKey: string;
+  /** "Road Atlanta · 911 GT3 R". */
+  planLabel: string;
+  /** Green laps the plan can read from this session. */
+  greenLaps: number;
+};
+
+function buildFuelUseCard(
+  session: SessionDetail,
+  laps: Lap[],
+): FuelUseCardModel | null {
+  const fuelUse = buildFuelUse(session, laps);
+  if (!fuelUse) return null;
+  const car = carLabel(session.car);
+  return {
+    fuelUse,
+    // The same key the Plan screen builds for its track+car choices.
+    planKey: `${session.trackId}|${car.model}`,
+    planLabel: `${shortTrackName(session.track)} · ${car.shortModel}`,
+    greenLaps: laps.filter(
+      l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0 && l.timeS != null,
+    ).length,
+  };
+}
 
 export const BAR_CLAMP_S = 1.5;
 
@@ -403,6 +435,7 @@ export function buildSessionModel(
     detail,
     tray,
     pitReview: buildPitReview(session.sessionType, laps),
+    fuelUse: buildFuelUseCard(session, laps),
   };
 }
 

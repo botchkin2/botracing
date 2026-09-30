@@ -14,6 +14,7 @@ import {
   hitBox,
   lapStroke,
   radius,
+  size,
   space,
   useLayout,
   useTheme,
@@ -23,6 +24,7 @@ import {Explainer, Segment, Text, useHowToRead} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
+import {FuelUseCard} from './components/FuelUseCard';
 import {PitReviewCard} from './components/PitReviewCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
@@ -302,6 +304,12 @@ function SessionView({
         </View>
       )}
 
+      {model.fuelUse && (
+        <View style={styles.section}>
+          <FuelUseCard card={model.fuelUse} width={tableW} />
+        </View>
+      )}
+
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
           <LapDetail detail={model.detail} onAction={detailAction} />
@@ -364,7 +372,17 @@ function SessionView({
           )
         }
         tray={tray}
-        pit={model.pitReview && <PitReviewCard review={model.pitReview} />}
+        cards={
+          <>
+            {model.pitReview && <PitReviewCard review={model.pitReview} />}
+            {model.fuelUse && (
+              <FuelUseCard
+                card={model.fuelUse}
+                width={size.sidePanelWidth - 2 * space.xl}
+              />
+            )}
+          </>
+        }
         renderRow={(row, width) => renderRow(row, width, true)}
         tagKey={TAG_KEY}
       />

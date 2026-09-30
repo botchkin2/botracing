@@ -41,7 +41,7 @@ export function SessionWorkspace({
   chart,
   detail,
   tray,
-  pit,
+  cards,
   renderRow,
   tagKey,
 }: {
@@ -57,8 +57,8 @@ export function SessionWorkspace({
   chart: (width: number) => ReactNode;
   detail: ReactNode;
   tray: ReactNode;
-  /** The race pit review, under the stints; null for other sessions. */
-  pit: ReactNode;
+  /** The race pit review or the practice fuel card, under the stints; null for other sessions. */
+  cards: ReactNode;
   renderRow: (row: RowModel, width: number) => ReactNode;
   tagKey: string;
 }) {
@@ -169,7 +169,7 @@ export function SessionWorkspace({
             selection={selection}
             colorOf={colorOf}
             onHighlight={onHighlight}
-            pit={pit}
+            cards={cards}
           />
           {detail ?? (
             <Explainer>
@@ -197,21 +197,21 @@ function SidePanels({
   selection,
   colorOf,
   onHighlight,
-  pit,
+  cards,
 }: {
   sessionId: string;
   selection: Selection;
   colorOf: (selIndex: number) => string;
   onHighlight: (lapId: string) => void;
   /** Drawn right under the stints table. */
-  pit: ReactNode;
+  cards: ReactNode;
 }) {
   const desk = useSessionDesktopModel(sessionId, selection);
   if (!desk) return null;
   return (
     <>
       {desk.stints.length > 0 && <StintsPanel rows={desk.stints} />}
-      {pit}
+      {cards}
       {desk.distribution && (
         <LapDistribution
           model={desk.distribution}

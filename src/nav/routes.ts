@@ -67,7 +67,11 @@ export const cornerHref = (
 
 export const tracksHref = (): Href => ({pathname: '/tracks', params: {}});
 
-export const planHref = (): Href => ({pathname: '/plan', params: {}});
+/** The planner, optionally opened on one track+car (a Plan combo key). */
+export const planHref = (combo?: string): Href => ({
+  pathname: '/plan',
+  params: combo ? {combo} : {},
+});
 
 /** A layout's Track page, with an optional selected corner. */
 export const trackHref = (

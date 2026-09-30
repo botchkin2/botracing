@@ -4,12 +4,21 @@ import {
   compareHref,
   cornerHref,
   parseSelection,
+  planHref,
   raceHref,
   sessionHref,
   trackHref,
 } from './routes';
 
 describe('routes', () => {
+  it('opens the plan on a track and car, or on its own', () => {
+    expect(planHref()).toEqual({pathname: '/plan', params: {}});
+    expect(planHref('t1|911 GT3 R')).toEqual({
+      pathname: '/plan',
+      params: {combo: 't1|911 GT3 R'},
+    });
+  });
+
   it('carries the selection in params, reference first', () => {
     expect(sessionHref('s1', {laps: ['a', 'b'], hl: 'b'})).toEqual({
       pathname: '/session/[id]',
