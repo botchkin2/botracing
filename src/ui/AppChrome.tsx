@@ -3,6 +3,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
+import {AppMark} from './AppMark';
 import {Text} from './Text';
 
 export type WorkspaceTab = 'session' | 'compare' | 'corner' | 'tracks';
@@ -10,7 +11,8 @@ export type WorkspaceTab = 'session' | 'compare' | 'corner' | 'tracks';
 export type ChromeTab = {
   key: WorkspaceTab;
   label: string;
-  /** Absent when the tab has nowhere to go yet (no open session, no route). */
+  /** Absent only when the tab has no route at all. With no open session a
+   * tab still goes somewhere (Sessions, round 3 N2), so it is never disabled. */
   onPress?: () => void;
 };
 
@@ -46,7 +48,7 @@ export function AppChrome({
         disabled={!onHome}
         onPress={onHome}
         hitSlop={space.sm}>
-        <View style={[styles.logo, {backgroundColor: color.text}]} />
+        <AppMark />
       </Pressable>
       <View style={styles.tabs} accessibilityRole='tablist'>
         {tabs.map(tab => {
@@ -95,7 +97,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     borderBottomWidth: 1,
   },
-  logo: {width: size.logo, height: size.logo, borderRadius: radius.sm},
   tabs: {flexDirection: 'row', gap: space.xxs},
   tab: {
     paddingHorizontal: space.lg,

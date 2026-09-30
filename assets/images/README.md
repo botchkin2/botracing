@@ -1,43 +1,19 @@
-# Lap Analysis – Logo & Favicon
+# Lap Analysis: app mark and icons
 
-Racing lap + data analysis theme. Colors match `RacingTheme`: **#00d4ff** (electric blue), **#00ff88** (racing green), **#0a0a0a** (background).
+The mark is "Trace" (round 3 N1a, `docs/design_handoff_round3_field/README.md`): a lap trace over a zero line with the cursor in amber. It is drawn in the app by `src/ui/AppMark.tsx` (from tokens); the SVGs here are the sources for the PNGs.
 
-## Files
+| File                                                               | Purpose                                                           |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `app-mark.svg`                                                     | Bordered rounded square: web favicon, splash.                     |
+| `app-icon.svg`                                                     | Full-bleed `#15181c`, no border: `icon.png` (iOS and store icon). |
+| `app-icon-foreground.svg`                                          | Android adaptive foreground (glyph only, on the background PNG).  |
+| `app-icon-monochrome.svg`                                          | Android themed icon (white glyph).                                |
+| `icon.png`, `favicon.png`, `splash-icon.png`, `android-icon-*.png` | Generated. Referenced in `app.json`.                              |
 
-| File                 | Purpose                                                                  |
-| -------------------- | ------------------------------------------------------------------------ |
-| `logo-source.svg`    | Main logo (track loop + data line). Use for app icon, splash, marketing. |
-| `favicon-source.svg` | Simplified version for small favicons (32×32).                           |
-| `icon.png`           | App icon (1024×1024). Referenced in `app.json`.                          |
-| `favicon.png`        | Web favicon (48×48). Referenced in `app.json` for web.                   |
-
-## Generating PNGs from SVG
-
-**Option A – Script (recommended)**
+## Regenerate
 
 ```bash
-npm install sharp --save-dev
 node scripts/generate-icons.js
 ```
 
-This creates `favicon.png`, `icon.png`, `splash-icon.png`, and `android-icon-foreground.png` in this folder.
-
-**Option B – Manual**
-
-1. Open `logo-source.svg` in a browser or design tool (Figma, Inkscape, etc.).
-2. Export as PNG:
-   - **favicon.png**: 48×48
-   - **icon.png**: 1024×1024
-   - **splash-icon.png**: 200×200 (or 1024 and let Expo scale)
-
-Then place the files in `assets/images/` so `app.json` paths resolve.
-
-## Android adaptive icons
-
-`app.json` also references:
-
-- `android-icon-foreground.png` (1024×1024; center 66% is visible)
-- `android-icon-background.png` (1024×1024; solid or simple shape)
-- `android-icon-monochrome.png` (1024×1024; single color for themed icons)
-
-You can use the same logo for foreground. For background use a solid color (e.g. `#0a0a0a` or `#E6F4FE` to match current config). Generate monochrome by opening the SVG and exporting with one color (e.g. white or #00d4ff).
+Needs `sharp` (already a dev dependency). Edit the SVGs, not the PNGs.

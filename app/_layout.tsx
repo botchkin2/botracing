@@ -38,6 +38,7 @@ import {
   settingsHref,
   tracksHref,
 } from '@/src/nav/routes';
+import {tabTarget, type TabName} from '@/src/nav/tabTarget';
 import {AppChrome, type ChromeTab, Text, type WorkspaceTab} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 
@@ -171,33 +172,26 @@ function ChromeBar({
           : null) ?? 1;
   const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
   const sel = {laps: lapIds, hl: hlId};
+  const go = (name: TabName) => {
+    const target = tabTarget(name, sessionId);
+    switch (target.kind) {
+      case 'sessions':
+        return router.navigate(sessionsHref());
+      case 'tracks':
+        return router.navigate(tracksHref());
+      case 'session':
+        return router.navigate(sessionHref(target.sessionId, sel));
+      case 'compare':
+        return router.navigate(compareHref(target.sessionId, sel));
+      case 'corner':
+        return router.navigate(cornerHref(target.sessionId, cornerN, sel));
+    }
+  };
   const tabs: ChromeTab[] = [
-    {
-      key: 'session',
-      label: 'Session',
-      onPress: sessionId
-        ? () => router.navigate(sessionHref(sessionId, sel))
-        : undefined,
-    },
-    {
-      key: 'compare',
-      label: 'Compare',
-      onPress: sessionId
-        ? () => router.navigate(compareHref(sessionId, sel))
-        : undefined,
-    },
-    {
-      key: 'corner',
-      label: 'Corner',
-      onPress: sessionId
-        ? () => router.navigate(cornerHref(sessionId, cornerN, sel))
-        : undefined,
-    },
-    {
-      key: 'tracks',
-      label: 'Tracks',
-      onPress: () => router.navigate(tracksHref()),
-    },
+    {key: 'session', label: 'Session', onPress: () => go('session')},
+    {key: 'compare', label: 'Compare', onPress: () => go('compare')},
+    {key: 'corner', label: 'Corner', onPress: () => go('corner')},
+    {key: 'tracks', label: 'Tracks', onPress: () => go('tracks')},
   ];
   return (
     <AppChrome

@@ -9,8 +9,13 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
-import {sessionHref, settingsHref, tracksHref} from '@/src/nav/routes';
-import {Badge, Button, Text} from '@/src/ui';
+import {
+  sessionHref,
+  sessionsHref,
+  settingsHref,
+  tracksHref,
+} from '@/src/nav/routes';
+import {AppMark, Badge, Button, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
 
@@ -35,6 +40,16 @@ export function SessionsScreen() {
       ]}>
       <View style={[styles.column, {width: contentWidth}]}>
         <View style={styles.header}>
+          {/* The desktop chrome carries the mark. */}
+          {!layout.isWide && (
+            <Pressable
+              accessibilityRole='link'
+              accessibilityLabel='Sessions'
+              onPress={() => router.navigate(sessionsHref())}
+              style={styles.mark}>
+              <AppMark />
+            </Pressable>
+          )}
           <Text variant='display'>Sessions</Text>
           <Pressable
             accessibilityRole='link'
@@ -229,6 +244,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
+  mark: {marginRight: space.md},
   tracksLink: {marginLeft: 'auto', marginRight: space.lg},
   headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
   picker: {
