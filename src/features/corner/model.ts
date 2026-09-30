@@ -137,6 +137,14 @@ export const ZOOM_AFTER_M = 150;
 // so a 16-lap race gets them; below that the table shows every lap.
 const STRIP_MODE_FROM = 7;
 
+/**
+ * A table cell for a lap already at full throttle at the slowest sample: the
+ * analyzer's fullThrottleAtEdge. That is a flat turn, but also a lap that
+ * lifted before it and was back on the throttle by the minimum, so the
+ * wording says what was measured, not "flat".
+ */
+export const AT_MIN = 'at min';
+
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
   brake: v => `${Math.round(v)}`,
@@ -234,10 +242,16 @@ export function buildCornerModel(input: {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
       minSpeed: f?.minSpeedKph ?? null,
+      // Already at full throttle at the slowest sample: no full-throttle point,
+      // the search's start is not a point on the lap.
       throttle:
-        f?.fullThrottleAtM == null ? null : f.fullThrottleAtM - sec.apexM,
+        f?.fullThrottleAtM == null || f.fullThrottleAtEdge
+          ? null
+          : f.fullThrottleAtM - sec.apexM,
     };
   };
+  const isAtMin = (l: Lap) =>
+    lapCornerFacts(l, sec)?.fullThrottleAtEdge === true;
   const refValues = ref ? valuesOf(ref) : null;
 
   const rows: CornerRow[] = selected.map((l, i) => {
@@ -250,7 +264,12 @@ export function buildCornerModel(input: {
         return [
           m.id,
           {
-            value: v == null ? '—' : fmt[m.id](v),
+            value:
+              v != null
+                ? fmt[m.id](v)
+                : m.id === 'throttle' && isAtMin(l)
+                ? AT_MIN
+                : '—',
             gap:
               d == null
                 ? null
@@ -301,7 +320,13 @@ export function buildCornerModel(input: {
 
   const hlRow = rows.find(r => r.highlighted) ?? null;
   const highlightLine = hlRow
-    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${hlRow.cells.brake.value} m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${hlRow.cells.throttle.value} m`
+    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${
+        hlRow.cells.brake.value
+      } m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${
+        hlRow.cells.throttle.value === AT_MIN
+          ? 'at the slowest point'
+          : `${hlRow.cells.throttle.value} m`
+      }`
     : null;
 
   const zoomWindow: [number, number] = [
@@ -338,7 +363,9 @@ export function buildCornerModel(input: {
         steeringPct: t.steeringPct,
         samples: t.samples,
         brakeAtM: f?.brakeAtM ?? null,
-        fullThrottleAtM: f?.fullThrottleAtM ?? null,
+        fullThrottleAtM: f?.fullThrottleAtEdge
+          ? null
+          : f?.fullThrottleAtM ?? null,
       },
     ];
   });

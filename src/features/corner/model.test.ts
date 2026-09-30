@@ -46,7 +46,12 @@ const map = toTrackMap({
 
 // C3 facts per lap: time, brake at (absolute m), min speed, full throttle at.
 // The section's own facts are deliberately different: Corner must read C3.
-const lap = (id: string, c3: [number, number, number, number], ok = true) => ({
+const lap = (
+  id: string,
+  c3: [number, number, number, number],
+  ok = true,
+  flat = false,
+) => ({
   id,
   lapTime: 20,
   comparable: ok,
@@ -63,6 +68,7 @@ const lap = (id: string, c3: [number, number, number, number], ok = true) => ({
           brakeAtM: c3[1],
           minSpeedKmh: c3[2],
           fullThrottleAtM: c3[3],
+          fullThrottleAtEdge: flat,
         },
       ],
     },
@@ -101,6 +107,40 @@ describe('cornerExplainer', () => {
     expect(
       cornerExplainer({entryM: 500, apexM: 560, exitM: 600}, {entryM: 600}),
     ).toContain('before the apex (560 m)');
+  });
+});
+
+describe('a lap at full throttle by the slowest point', () => {
+  const flatLaps = toLaps([
+    lap('a', [9.8, 460, 110, 650]),
+    lap('f', [10.1, 450, 106, 590], true, true),
+  ]);
+  const model = buildCornerModel({
+    session,
+    laps: flatLaps,
+    map,
+    band: null,
+    traces: new Map(),
+    lapIds: ['a', 'f'],
+    keyLapIds: ['a', 'f'],
+    hl: 'f',
+    corner: 3,
+  })!;
+
+  it('has no full-throttle value: the cell says at min, the value is null', () => {
+    expect(model.rows[1].values.throttle).toBeNull();
+    expect(model.rows[1].cells.throttle).toEqual({
+      value: 'at min',
+      gap: null,
+      better: false,
+    });
+    expect(model.rows[0].cells.throttle.value).toBe('10');
+  });
+
+  it('the highlight line says so, not a distance', () => {
+    expect(model.highlightLine).toBe(
+      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle at the slowest point',
+    );
   });
 });
 
