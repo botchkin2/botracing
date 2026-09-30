@@ -25,11 +25,14 @@ export function PitCard({
   card,
   width,
   plan,
+  focusLapIndex,
 }: {
   card: PitCardModel;
   /** The width the card may use, in points. */
   width: number;
   plan?: ReactNode;
+  /** The stop a pit row in the lap table pointed at: its column is marked. */
+  focusLapIndex?: number | null;
 }) {
   const {color} = useTheme();
   const help = useHowToRead('the pit stops', PIT_REVIEW_HELP);
@@ -50,7 +53,11 @@ export function PitCard({
       {card.kind === 'fuel' ? (
         <FuelBody card={card} width={width} />
       ) : (
-        <StopsBody card={card} width={width} />
+        <StopsBody
+          card={card}
+          width={width}
+          focusLapIndex={focusLapIndex ?? null}
+        />
       )}
       {plan ? (
         <View style={[styles.plan, {borderColor: color.lineStrong}]}>
@@ -101,7 +108,15 @@ function FuelBody({card, width}: {card: FuelCard; width: number}) {
   );
 }
 
-function StopsBody({card, width}: {card: StopsCard; width: number}) {
+function StopsBody({
+  card,
+  width,
+  focusLapIndex,
+}: {
+  card: StopsCard;
+  width: number;
+  focusLapIndex: number | null;
+}) {
   const {color} = useTheme();
   const scroll = card.layout === 'scroll';
   const colW = scroll
@@ -184,6 +199,7 @@ function StopsBody({card, width}: {card: StopsCard; width: number}) {
         scroll ? {width: size.pitCol} : styles.flexCol,
         styles.col,
         {borderColor: color.line},
+        c.lapIndex === focusLapIndex && {backgroundColor: color.surfaceRaised},
       ]}>
       {rows.map(r => (
         <View

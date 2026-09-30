@@ -278,7 +278,8 @@ export const size = {
   // Desktop workspace (handoff "Desktop", D1): 48 pt chrome, 280 | centre | 340.
   chromeBar: 48,
   railWidth: 280,
-  sidePanelWidth: 340,
+  // Session's right column: the Pit stops card fits three columns at 400 (round 5, item 8).
+  sidePanelWidth: 400,
   railBadge: 20,
   railBar: 3,
   logo: 18,

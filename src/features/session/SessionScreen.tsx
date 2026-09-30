@@ -46,6 +46,7 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
+  type NoteRowModel,
   type RowModel,
   type Selection,
   type SessionScreenModel,
@@ -153,6 +154,11 @@ function SessionView({
 
   // Desktop workspace: a bar or dot tap scrolls its row into view.
   const [wideScrollTo, setWideScrollTo] = useState<string | null>(null);
+  // A pit row tapped on desktop: the Pit stops card marks that stop's column.
+  const [pitFocus, setPitFocus] = useState<{
+    lapIndex: number;
+    at: number;
+  } | null>(null);
 
   const highlight = (lapId: string, scroll: boolean) => {
     if (scroll && layout.isWide) setWideScrollTo(lapId);
@@ -355,9 +361,21 @@ function SessionView({
     />
   );
 
+  const pitRowPress = (row: NoteRowModel, wide: boolean) => {
+    const lapIndex = row.pitLapIndex;
+    if (!wide || lapIndex == null || model.pitCard?.kind !== 'stops')
+      return undefined;
+    return () => setPitFocus({lapIndex, at: Date.now()});
+  };
+
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
-      <NoteRow row={item} width={width} wide={wide} />
+      <NoteRow
+        row={item}
+        width={width}
+        wide={wide}
+        onPress={pitRowPress(item, wide)}
+      />
     ) : item.kind === 'stint' ? (
       <StintRow
         row={item}
@@ -401,6 +419,7 @@ function SessionView({
               <PitCard
                 card={model.pitCard}
                 width={size.sidePanelWidth - 2 * space.xl}
+                focusLapIndex={pitFocus?.lapIndex ?? null}
                 plan={
                   model.planVsRace && renderPlanHalf
                     ? renderPlanHalf(model.pitCard, model.planVsRace)
@@ -418,6 +437,7 @@ function SessionView({
         }
         renderRow={(row, width) => renderRow(row, width, true)}
         tagKey={TAG_KEY}
+        pitFocus={pitFocus}
       />
     );
 
