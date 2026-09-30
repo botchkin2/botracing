@@ -1125,6 +1125,22 @@ export function makeReference(
   };
 }
 
+/**
+ * Makes a lap the reference in one step, adding it to the comparison first
+ * when it is not there (a lap from All laps). The old reference stays in the
+ * comparison as an ordinary lap.
+ */
+export function setReference(
+  sel: CompareSelection,
+  lapId: string,
+): CompareSelection {
+  if (sel.laps[0] === lapId) return sel;
+  const added = sel.laps.includes(lapId)
+    ? sel
+    : {...sel, laps: [...sel.laps, lapId]};
+  return makeReference(added, lapId);
+}
+
 export function removeLap(
   sel: CompareSelection,
   lapId: string,

@@ -48,6 +48,7 @@ import {
   drawRank,
   makeReference,
   removeLap,
+  setReference,
   toggleCompared,
   valuesAt,
 } from './model';
@@ -156,6 +157,19 @@ export function CompareWorkspace(p: WorkspaceProps) {
             </Text>
             {!c.isRef && (
               <Pressable
+                accessibilityRole='button'
+                accessibilityLabel={`Make ${c.label} the reference`}
+                hitSlop={space.sm}
+                onPress={() =>
+                  p.onSelectionChange(makeReference(selection, c.lapId))
+                }>
+                <Text variant='dataSmall' tone='accentInk'>
+                  Ref
+                </Text>
+              </Pressable>
+            )}
+            {!c.isRef && (
+              <Pressable
                 accessibilityLabel={`Remove ${c.label}`}
                 hitSlop={space.sm}
                 onPress={() =>
@@ -167,6 +181,9 @@ export function CompareWorkspace(p: WorkspaceProps) {
           </Pressable>
         ))}
         {model.manyChip && <Chip label={model.manyChip} dashed />}
+        <Text variant='dataSmall' tone='textFaint'>
+          REF · tap another lap’s Ref to change
+        </Text>
         <Text variant='label' tone='textMuted' style={styles.gapTop}>
           All laps
         </Text>
@@ -212,6 +229,19 @@ export function CompareWorkspace(p: WorkspaceProps) {
                     tone={r.tag === 'BEST' ? 'best' : 'textFaint'}>
                     {r.tag}
                   </Text>
+                )}
+                {r.selIndex !== 0 && (
+                  <Pressable
+                    accessibilityRole='button'
+                    accessibilityLabel={`Set ${r.label} as the reference`}
+                    hitSlop={space.sm}
+                    onPress={() =>
+                      p.onSelectionChange(setReference(selection, r.lapId))
+                    }>
+                    <Text variant='dataSmall' tone='accentInk'>
+                      Ref
+                    </Text>
+                  </Pressable>
                 )}
               </Pressable>
             ))}
