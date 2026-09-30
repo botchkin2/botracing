@@ -4,6 +4,7 @@ import {
   type GreenLap,
   MIN_COMPARE_LAPS,
   planRace,
+  presetMismatch,
   type PlanRules,
   usage,
 } from './fuelPlan';
@@ -268,5 +269,17 @@ describe('a real case', () => {
     });
     expect(p.atMedian.stops).toBe(2);
     expect(p.atMedian.stopLaps).toEqual([28, 56]);
+  });
+});
+
+describe('presetMismatch', () => {
+  it('shows both numbers when the preset is not what he last ran', () => {
+    expect(presetMismatch(75, 84)).toEqual({presetL: 75, lastL: 84});
+  });
+
+  it('is quiet when they agree, or when there is no last session', () => {
+    expect(presetMismatch(84, 84)).toBeNull();
+    expect(presetMismatch(84, 84.2)).toBeNull();
+    expect(presetMismatch(84, null)).toBeNull();
   });
 });

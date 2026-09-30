@@ -309,3 +309,18 @@ export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
     dropStop,
   };
 }
+
+/**
+ * A preset is "may be stale" when its max fuel is not what he last ran at the
+ * track and car (`fillLimitL` from that session's setup). Both numbers come
+ * back so the screen can show them; the planner never switches presets itself.
+ */
+export function presetMismatch(
+  presetFuelL: number,
+  lastFillLimitL: number | null,
+): {presetL: number; lastL: number} | null {
+  if (lastFillLimitL == null) return null;
+  return Math.abs(presetFuelL - lastFillLimitL) > 0.5
+    ? {presetL: presetFuelL, lastL: lastFillLimitL}
+    : null;
+}
