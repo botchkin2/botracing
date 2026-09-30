@@ -9,7 +9,7 @@ import {
   mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
-import {useLapTraces} from '@/src/data/traces';
+import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareModel,
@@ -28,8 +28,14 @@ const GRID_STEP_M = 5;
 
 export type CompareResult =
   | {state: 'loading'}
-  | {state: 'error'; message: string}
-  | {state: 'ready'; model: CompareModel};
+  | {state: 'error'; message: string; retry: () => void}
+  | {
+      state: 'ready';
+      model: CompareModel;
+      /** The selected laps' traces, for skeletons and the retry banner. */
+      traceLoad: TraceLoad;
+      retryTraces: () => void;
+    };
 
 export function useCompareModel(
   sessionId: string,
@@ -65,7 +71,15 @@ export function useCompareModel(
     });
     return [...new Set([...knownIds, ...extra])];
   }, [nearLine, laps.data, knownIds]);
-  const grids = useLapTraces(fetchIds, {lengthM, stepM: GRID_STEP_M});
+  const {
+    traces: grids,
+    load: traceLoad,
+    retry: retryTraces,
+  } = useLapTraceLoad(
+    fetchIds,
+    {lengthM, stepM: GRID_STEP_M},
+    knownIds.length,
+  );
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     fetchIds.forEach((id, i) => {
@@ -88,16 +102,25 @@ export function useCompareModel(
     [map.data, traces, knownIds],
   );
 
+  // Stable functions, so they can sit in the memo's dependencies.
+  const {refetch: refetchSession} = session;
+  const {refetch: refetchLaps} = laps;
   const error = [session, laps].find(q => q.isError)?.error;
   return useMemo(() => {
     if (error)
       return {
         state: 'error',
         message: error instanceof Error ? error.message : String(error),
+        retry: () => {
+          void refetchSession();
+          void refetchLaps();
+        },
       };
     if (!session.data || !laps.data || map.isPending) return {state: 'loading'};
     return {
       state: 'ready',
+      traceLoad,
+      retryTraces,
       model: buildCompareModel({
         session: session.data,
         laps: laps.data,
@@ -122,5 +145,9 @@ export function useCompareModel(
     charts,
     window,
     followGeometry,
+    traceLoad,
+    retryTraces,
+    refetchSession,
+    refetchLaps,
   ]);
 }

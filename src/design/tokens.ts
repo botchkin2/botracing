@@ -41,6 +41,11 @@ const dark = {
   // Handoff v2 M5: the uploader's "connected" dot. Its own token, not
   // `faster`, which means a signed gain.
   statusConnected: '#65e287',
+  // Round 3 R4c StatusBanner dots and Skeleton fill (tokens/colors.css).
+  // idle is the neutral dot: a failed load is never amber or red.
+  statusIdle: '#5b636b',
+  statusWaiting: '#fea92f',
+  gridNeutral: '#1b1f24',
   // Desktop chrome and rail (handoff "Desktop", D1).
   chrome: '#0b0d10',
   tabActive: '#1b1f24',
