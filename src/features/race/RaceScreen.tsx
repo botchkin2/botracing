@@ -9,12 +9,22 @@ import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
+import {
+  MAP_ZOOMS,
+  type MapZoom,
+  useComparePrefs,
+} from '@/src/state/comparePrefs';
 import {EmptyState, Skeleton, StatusBanner, Text} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
-import {type LabelMode, RaceMap} from './components/RaceMap';
+import {
+  type LabelMode,
+  type MapMode,
+  RaceMap,
+  type RaceFollow,
+} from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
@@ -29,6 +39,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
+import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -242,6 +253,12 @@ function RaceView({
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
+  const [mapMode, setMapMode] = useState<MapMode>('track');
+  // Compare's Follow zoom, so the two chase views keep one setting. A stored
+  // zoom outside the steps (a hand-edited or old save) reads as 1x.
+  const prefs = useComparePrefs();
+  const mapZoom: MapZoom =
+    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
 
   // Playing interpolates between the 5 Hz updates; paused rests on a real one.
   const snap = !clock.playing;
@@ -290,6 +307,19 @@ function RaceView({
   const [mapBox, setMapBox] = useState({width: 0, height: 0});
   const mapW = desktop ? mapBox.width : layout.contentWidth;
   const mapH = desktop ? mapBox.height : PHONE_MAP_H;
+  // Follow chases the focused car, else you; a file without headings (before
+  // v2) or a car off the map has nothing to chase, so the switch is hidden.
+  const chased = data.matches ? followCar(cars, focus) : null;
+  const follow = useMemo<RaceFollow | null>(() => {
+    if (!chased) return null;
+    const view = followViewFor(placer, chased, RACE_FOLLOW_M);
+    if (!view) return null;
+    return {
+      view,
+      band: placer.outline.length > 0 ? outlineUse.used : [line],
+      bandFaded: outlineUse.unused,
+    };
+  }, [chased, placer, outlineUse, line]);
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
@@ -324,6 +354,11 @@ function RaceView({
         labels={labels}
         onLabels={setLabels}
         onPressCar={toggleFocus}
+        mode={mapMode}
+        onMode={follow ? setMapMode : null}
+        follow={follow}
+        zoom={mapZoom}
+        onZoom={prefs.setMapZoom}
       />
       {rows.focusLabel ? (
         <Pressable

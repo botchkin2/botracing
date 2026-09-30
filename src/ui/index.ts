@@ -7,6 +7,7 @@ export * from './Chip';
 export * from './EmptyState';
 export * from './Explainer';
 export * from './hitArea';
+export * from './MapZoomButtons';
 export * from './NumberField';
 export * from './Segment';
 export * from './Skeleton';

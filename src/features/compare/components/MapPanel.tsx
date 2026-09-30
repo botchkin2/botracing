@@ -8,7 +8,7 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {Segment, Text} from '@/src/ui';
+import {MapZoomButtons, Segment, Text} from '@/src/ui';
 
 import {type MapModel} from '../model';
 import {type LapStyle} from './ChartBlock';
@@ -151,20 +151,12 @@ export function MapPanel({
         )}
       </View>
       {zoomControls && mode === 'follow' && f && (
-        <View style={styles.zoom}>
-          <ZoomButton
-            label='−'
-            hint='Zoom the map out'
-            disabled={zoom === 2}
-            onPress={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
-          />
-          <ZoomButton
-            label='+'
-            hint='Zoom the map in'
-            disabled={zoom === 0}
-            onPress={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
-          />
-        </View>
+        <MapZoomButtons
+          canOut={zoom < MAP_ZOOMS.length - 1}
+          canIn={zoom > 0}
+          onOut={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
+          onIn={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
+        />
       )}
       {/* Track only: Follow has its inset in this corner. */}
       {mode === 'track' && (
@@ -207,55 +199,7 @@ export function MapPanel({
   );
 }
 
-function ZoomButton({
-  label,
-  hint,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  hint: string;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  const {color} = useTheme();
-  return (
-    <Pressable
-      accessibilityRole='button'
-      accessibilityLabel={hint}
-      accessibilityState={{disabled}}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={space.sm}
-      style={[
-        styles.zoomButton,
-        {
-          borderColor: color.lineStrong,
-          backgroundColor: color.surfaceOverlay,
-          opacity: disabled ? 0.4 : 1,
-        },
-      ]}>
-      <Text variant='dataStrong'>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  zoom: {
-    position: 'absolute',
-    left: space.xs,
-    bottom: space.xs,
-    flexDirection: 'row',
-    gap: space.xs,
-  },
-  zoomButton: {
-    width: 28,
-    height: 28,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   box: {borderRadius: radius.md, overflow: 'hidden'},
   topLeft: {
     position: 'absolute',
