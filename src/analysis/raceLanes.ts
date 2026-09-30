@@ -8,6 +8,9 @@
 // checks the lane totals against those facts, so the lanes and the tags
 // cannot drift. Spans are runs of consecutive 5 Hz updates; each update counts
 // for one update length, as in the facts.
+//
+// `raceLanes` is O(updates x cars) and allocates per update: build it once per
+// field (like `raceClock`), when the Race tab opens, and keep the result.
 import type {Field} from './field';
 import type {RaceClock} from './raceClock';
 
@@ -30,8 +33,14 @@ export interface Span {
 export interface RaceLanes {
   /** Race time of the last update plus one update, seconds. */
   durationS: number;
-  /** Race time each of the player's laps starts; index i is lap i + 1. */
-  lapStartsS: number[];
+  /**
+   * Race time each of the player's laps starts, with its lap number (from 1).
+   * A lap the clock cannot place (in the pits across the line, or a lap the
+   * field starts partway into) is left out, so a later lap keeps its number.
+   */
+  lapStarts: {lap: number; timeS: number}[];
+  /** The median lap length in seconds, or null with fewer than 3 laps. */
+  typicalLapS: number | null;
   pit: Span[];
   tow: Span[];
   battle: Span[];
@@ -43,7 +52,8 @@ export interface RaceLanes {
 
 const EMPTY: RaceLanes = {
   durationS: 0,
-  lapStartsS: [],
+  lapStarts: [],
+  typicalLapS: null,
   pit: [],
   tow: [],
   battle: [],
@@ -142,17 +152,18 @@ export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
     blueOn = isBlue;
   }
 
-  const lapStartsS: number[] = [];
+  const lapStarts: RaceLanes['lapStarts'] = [];
   let lastLap = 0;
   for (const lap of player.lapsDone) if (lap > lastLap) lastLap = lap;
   for (let lap = 0; lap <= lastLap; lap++) {
     const t = clock.timeAtLapDistance(lap, 0);
-    if (t !== null) lapStartsS.push(t);
+    if (t !== null) lapStarts.push({lap: lap + 1, timeS: t});
   }
 
   return {
     durationS: field.timeS[n - 1] + dtS,
-    lapStartsS,
+    lapStarts,
+    typicalLapS: typicalLapS(lapStarts),
     pit: spansOf(pit, field.timeS, dtS),
     tow: spansOf(tow, field.timeS, dtS),
     battle: spansOf(battle, field.timeS, dtS),
@@ -161,27 +172,41 @@ export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
   };
 }
 
+// Whole laps only: a gap across a lap the clock could not place is two laps
+// long, not one.
+function typicalLapS(starts: RaceLanes['lapStarts']): number | null {
+  const gaps: number[] = [];
+  for (let i = 1; i < starts.length; i++) {
+    if (starts[i].lap === starts[i - 1].lap + 1)
+      gaps.push(starts[i].timeS - starts[i - 1].timeS);
+  }
+  if (gaps.length < 2) return null;
+  gaps.sort((a, b) => a - b);
+  return gaps[gaps.length >> 1];
+}
+
 export type LaneZoom = 'race' | 'l10' | 'l3';
 
-// Widths of the zoomed windows, R3: 10 laps is 1,080 s, 3 laps 325 s.
-const ZOOM_S: Record<LaneZoom, number | null> = {
-  race: null,
-  l10: 1080,
-  l3: 325,
-};
+// The zoomed windows are 10 and 3 laps: that many median laps of this race,
+// so "10 laps" is 10 laps at Le Mans as well as at Daytona. With fewer than
+// 3 laps to measure, R3's Daytona GT3 values (1,080 s and 325 s).
+const ZOOM_LAPS = {l10: 10, l3: 3} as const;
+const FALLBACK_S = {l10: 1080, l3: 325} as const;
 
 /**
- * The window the lanes show: the whole race, or a fixed width centred on the
+ * The window the lanes show: the whole race, or 10 or 3 laps centred on the
  * playhead and clamped to the race, so it never shows time before the start
  * or after the end.
  */
 export function laneWindow(
   zoom: LaneZoom,
   playheadS: number,
-  durationS: number,
+  lanes: Pick<RaceLanes, 'durationS' | 'typicalLapS'>,
 ): Span {
-  const width = ZOOM_S[zoom];
-  if (width === null || width >= durationS) return {fromS: 0, toS: durationS};
+  const {durationS, typicalLapS: lapS} = lanes;
+  if (zoom === 'race') return {fromS: 0, toS: durationS};
+  const width = lapS === null ? FALLBACK_S[zoom] : lapS * ZOOM_LAPS[zoom];
+  if (width >= durationS) return {fromS: 0, toS: durationS};
   const from = Math.min(Math.max(playheadS - width / 2, 0), durationS - width);
   return {fromS: from, toS: from + width};
 }

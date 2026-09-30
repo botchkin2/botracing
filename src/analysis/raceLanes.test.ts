@@ -74,7 +74,12 @@ describe('raceLanes', () => {
     const lanes = raceLanes(f, clock);
     expect(lanes.pit).toEqual([{fromS: 1, toS: 2}]);
     expect(lanes.durationS).toBeCloseTo(4);
-    expect(lanes.lapStartsS).toEqual([0, 90, 180]);
+    expect(lanes.lapStarts).toEqual([
+      {lap: 1, timeS: 0},
+      {lap: 2, timeS: 90},
+      {lap: 3, timeS: 180},
+    ]);
+    expect(lanes.typicalLapS).toBe(90);
   });
 
   it('a tow is a car within 30 m ahead in the lane above 200 km/h, from the second update', () => {
@@ -142,20 +147,52 @@ describe('raceLanes', () => {
 });
 
 describe('laneWindow', () => {
-  it('race is the whole race; zoomed windows are centred and clamped', () => {
-    expect(laneWindow('race', 500, 3000)).toEqual({fromS: 0, toS: 3000});
-    expect(laneWindow('l10', 1500, 3000)).toEqual({fromS: 960, toS: 2040});
-    expect(laneWindow('l3', 100, 3000)).toEqual({fromS: 0, toS: 325});
-    expect(laneWindow('l3', 2990, 3000)).toEqual({fromS: 2675, toS: 3000});
+  const race = {durationS: 3000, typicalLapS: 108};
+
+  it('race is the whole race; zoomed windows are 10 or 3 median laps, centred and clamped', () => {
+    expect(laneWindow('race', 500, race)).toEqual({fromS: 0, toS: 3000});
+    expect(laneWindow('l10', 1500, race)).toEqual({fromS: 960, toS: 2040});
+    expect(laneWindow('l3', 100, race)).toEqual({fromS: 0, toS: 324});
+    expect(laneWindow('l3', 2990, race)).toEqual({fromS: 2676, toS: 3000});
+  });
+
+  it('10 laps is 10 laps at any track: a 210 s lap gives a 2,100 s window', () => {
+    const w = laneWindow('l10', 3000, {durationS: 6000, typicalLapS: 210});
+    expect(w.toS - w.fromS).toBe(2100);
+  });
+
+  it('with no lap length to measure, the Daytona GT3 values', () => {
+    const w = laneWindow('l10', 1500, {durationS: 3000, typicalLapS: null});
+    expect(w.toS - w.fromS).toBe(1080);
   });
 
   it('a race shorter than the window shows all of it', () => {
-    expect(laneWindow('l10', 100, 900)).toEqual({fromS: 0, toS: 900});
+    expect(laneWindow('l10', 100, {durationS: 900, typicalLapS: 108})).toEqual({
+      fromS: 0,
+      toS: 900,
+    });
   });
 
   it('labels every 5, 2 or 1 laps', () => {
     expect(['race', 'l10', 'l3'].map(z => lapLabelEvery(z as never))).toEqual([
       5, 2, 1,
     ]);
+  });
+});
+
+describe('lap starts', () => {
+  it('a lap the clock cannot place is left out and later laps keep their numbers', () => {
+    const f = field(20, [me({laps: u => Math.floor(u / 7)}), far]);
+    const skipsLap1: RaceClock = {
+      playerAt: () => null,
+      timeAtLapDistance: lap => (lap === 1 ? null : lap * 90),
+    };
+    const lanes = raceLanes(f, skipsLap1);
+    expect(lanes.lapStarts).toEqual([
+      {lap: 1, timeS: 0},
+      {lap: 3, timeS: 180},
+    ]);
+    // A gap across the missing lap is two laps long: no median from one gap.
+    expect(lanes.typicalLapS).toBeNull();
   });
 });

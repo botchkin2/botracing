@@ -79,11 +79,10 @@ export function lanesLayout({
               .map(p => ({x: xOf(p.timeS), made: p.made}))
           : [],
     })),
-    lapLines: lanes.lapStartsS
-      .map((t, i) => ({t, lap: i + 1}))
-      .filter(l => inside(l.t))
+    lapLines: lanes.lapStarts
+      .filter(l => inside(l.timeS))
       .map(l => ({
-        x: xOf(l.t),
+        x: xOf(l.timeS),
         label: l.lap % lapLabelEvery === 0 ? `${l.lap}` : null,
       })),
     height: LANE_ORDER.length * laneHeight,

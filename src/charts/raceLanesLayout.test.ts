@@ -6,7 +6,11 @@ import {lanesLayout, timeAtX} from './raceLanesLayout';
 
 const lanes: RaceLanes = {
   durationS: 1000,
-  lapStartsS: [0, 100, 200, 300, 400, 500],
+  lapStarts: [0, 100, 200, 300, 400, 500].map((timeS, i) => ({
+    lap: i + 1,
+    timeS,
+  })),
+  typicalLapS: 100,
   pit: [{fromS: 90, toS: 120}],
   tow: [
     {fromS: 10, toS: 20},
