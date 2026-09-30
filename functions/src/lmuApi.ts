@@ -12,6 +12,7 @@ import {
   readSession,
   readSessionLaps,
   readBand,
+  readCornerSlicesGzip,
   readFieldGzip,
   storeHasSessions,
 } from './sessionStore';
@@ -136,6 +137,26 @@ export const lmuApi = onRequest(async (req, res) => {
       }
       // The stored gzip as-is. Under /field/{hash} the content can never
       // change (a new field has a new hash); plain /field must revalidate.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set(
+        'Cache-Control',
+        hash ? 'private, max-age=31536000, immutable' : 'private, no-cache',
+      );
+      res.status(200).send(gz);
+      return;
+    }
+    const slices = path.match(
+      /\/sessions\/([0-9a-f]{16})\/corners\/(\d{1,3})\/laps(?:\/([0-9a-f]{12}))?$/,
+    );
+    if (slices) {
+      const [, id, corner, hash] = slices;
+      const gz = await readCornerSlicesGzip(id, Number(corner), hash);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // Same caching as /field: under /laps/{hash} the bytes never change.
       res.set('Content-Type', 'application/json');
       res.set('Content-Encoding', 'gzip');
       res.set(

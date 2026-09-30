@@ -6,6 +6,7 @@
 //   gs://BUCKET/traces/{ownerId}/{lapId}/v2.csv.gz
 //   gs://BUCKET/bands/{ownerId}/{sessionId}/v1.json.gz
 //   gs://BUCKET/field/{ownerId}/{sessionId}/{contentHash}.json.gz  (every car, 5 Hz; field.mjs)
+//   gs://BUCKET/slices/{ownerId}/{sessionId}/{contentHash}/c{n}.json.gz  (every lap around corner n; cornerSlices.mjs)
 //   Firestore recordings/{recordingId}, sessions/{sessionId}, laps/{lapId},
 //             tracks/{trackId} (the corner map)
 import {existsSync, readFileSync} from 'node:fs';
@@ -184,6 +185,22 @@ export async function upload(out, {log = () => {}} = {}) {
       'application/json',
     );
   }
+  // Corner slices: one file per corner under a content-hash folder, so a
+  // resync that changes them writes a new folder and the old one goes after
+  // the session doc points at the new (below).
+  if (out.slices) {
+    await Promise.all(
+      out.slices.files.map(f =>
+        putGzip(
+          bucket,
+          `${session.slices.prefix}/c${f.n}.json.gz`,
+          f.text,
+          'application/json',
+        ),
+      ),
+    );
+    log(`  slices ${out.slices.files.length} corners`);
+  }
   // The field: a new one replaces the stored one (and its file goes after the
   // doc points at the new one); no new one keeps what is stored (field.mjs).
   const before = await db.collection('sessions').doc(session.id).get();
@@ -236,6 +253,16 @@ export async function upload(out, {log = () => {}} = {}) {
   // old URL gets a 404 and refetches the session.
   if (kept.deletePath) {
     await bucket.file(kept.deletePath).delete({ignoreNotFound: true});
+  }
+  // Slice folders of earlier syncs: everything under this session's slices
+  // except the current hash.
+  const [old] = await bucket.getFiles({
+    prefix: `slices/${session.ownerId}/${session.id}/`,
+  });
+  const current = session.slices ? `${session.slices.prefix}/` : null;
+  for (const f of old) {
+    if (!current || !f.name.startsWith(current))
+      await f.delete({ignoreNotFound: true});
   }
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${
