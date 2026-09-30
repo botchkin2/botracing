@@ -7,6 +7,9 @@ import {type RawTrace} from '@/src/analysis/resample';
 // not radians (docs/LMU_SYNC_NOTES.md), so steering is shown as % of lock.
 // A channel logged slower than the file (Lat, Lon, Brake, Throttle) is empty
 // on rows where it recorded nothing; those parse as NaN, "no sample".
+// PathLateral and TrackEdge (analysis version 9) are metres, positive right of
+// the game's centre path; TrackEdge is the edge on the car's side and has the
+// lateral's sign. A trace uploaded before that has no such columns.
 export function parseTraceCsv(csv: string): RawTrace {
   const lines = csv.trim().split(/\r?\n/);
   const header = lines[0].split(',');
@@ -25,6 +28,10 @@ export function parseTraceCsv(csv: string): RawTrace {
     steer: col('SteeringWheelAngle'),
     gear: col('Gear'),
   };
+  // Optional columns: -1 when the file predates them.
+  const optional = (name: string) => header.indexOf(name);
+  const lateralAt = optional('PathLateral');
+  const edgeAt = optional('TrackEdge');
   const out: RawTrace = {
     lapDistPct: [],
     speedKph: [],
@@ -34,6 +41,8 @@ export function parseTraceCsv(csv: string): RawTrace {
     gear: [],
     lat: [],
     lon: [],
+    ...(lateralAt >= 0 ? {pathLateralM: []} : {}),
+    ...(edgeAt >= 0 ? {trackEdgeM: []} : {}),
   };
   for (let i = 1; i < lines.length; i++) {
     const cells = lines[i].split(',');
@@ -46,6 +55,8 @@ export function parseTraceCsv(csv: string): RawTrace {
     out.gear.push(Number(v[c.gear]));
     out.lat.push(Number(v[c.lat]));
     out.lon.push(Number(v[c.lon]));
+    out.pathLateralM?.push(Number(v[lateralAt]));
+    out.trackEdgeM?.push(Number(v[edgeAt]));
   }
   return out;
 }

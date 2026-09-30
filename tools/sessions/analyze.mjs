@@ -27,7 +27,8 @@ import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
-export const analysisVersion = 8;
+// 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
+export const analysisVersion = 9;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -697,7 +698,7 @@ function cornerFacts(rec, lap, corners, flags) {
 // file (pedals at 50 Hz, position at 10 Hz) is written only on the ticks
 // where it recorded a sample and left empty in between, so the app never
 // reads a blended value as if it had been recorded.
-function traceCsv(rec, lap) {
+export function traceCsv(rec, lap) {
   const {s, events} = rec;
   const recorded = name => {
     if (!s[name]) return null;
@@ -711,12 +712,14 @@ function traceCsv(rec, lap) {
     lon_deg: recorded('lon_deg'),
     brake_pct: recorded('brake_pct'),
     throttle_pct: recorded('throttle_pct'),
+    path_lateral_m: recorded('path_lateral_m'),
+    track_edge_m: recorded('track_edge_m'),
   };
   const gears = events.gear || [];
   let gi = -1;
   const total = lap.dist[lap.dist.length - 1] || 1;
   const lines = [
-    'Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt',
+    'Speed,LapDistPct,Lat,Lon,Brake,Throttle,RPM,SteeringWheelAngle,Gear,OffAsphalt,PathLateral,TrackEdge',
   ];
   for (let i = lap.i0; i <= lap.i1; i++) {
     while (gi + 1 < gears.length && gears[gi + 1].t <= s.t[i]) gi++;
@@ -725,6 +728,14 @@ function traceCsv(rec, lap) {
       arr ? (arr[i] * scale).toFixed(digits) : '0';
     const sample = (name, scale, digits) =>
       real[name] && !real[name][k] ? '' : num(s[name], scale, digits);
+    // Lateral position and the edge on the car's side, in metres from the
+    // game's centre path (positive right, measured on Road Atlanta; the edge
+    // has the lateral's sign). Empty where nothing was recorded, and on a
+    // recording without the channel: never a zero that reads as "on the path".
+    const metres = name =>
+      !s[name] || (real[name] && !real[name][k]) || !Number.isFinite(s[name][i])
+        ? ''
+        : s[name][i].toFixed(2);
     lines.push(
       [
         num(s.speed_kmh, 1 / 3.6, 4),
@@ -737,6 +748,8 @@ function traceCsv(rec, lap) {
         num(s.steer_pct, 0.01, 4),
         gi >= 0 ? gears[gi].v : 0,
         lap.off[k],
+        metres('path_lateral_m'),
+        metres('track_edge_m'),
       ].join(','),
     );
   }
