@@ -11,6 +11,7 @@ import {
   litresPerVePct,
   markGreen,
   lapPitStop,
+  tyreChange,
   lapsLeft,
   stintFuel,
 } from './fuelFacts.mjs';
@@ -287,4 +288,105 @@ test('litres per 1 % VE: the drive median over green laps, and the stops as a cr
   assert.equal(r.drive, 0.674); // median of 0.667, 0.674, 0.678
   assert.equal(r.stop, 0.694);
   assert.deepEqual(litresPerVePct([]), {drive: null, stop: null});
+});
+
+// Tyre wear at 100 Hz for 400 s, the way the analysis holds a 10 Hz channel:
+// a straight line between real samples, so a step up is spread over 0.1 s of
+// ticks (Silverstone 09-16: 89.8 to 100 is about 1 % a tick, not 10).
+function wearRecording(steps = [], {wheels = ['fl', 'fr', 'rl', 'rr']} = {}) {
+  const n = 40000;
+  const s = {t: Float64Array.from({length: n}, (_, i) => i / 100)};
+  for (const w of wheels) {
+    const wear = new Float64Array(n);
+    // Real wear only falls, about 1 % a minute.
+    for (let i = 0; i < n; i++) wear[i] = 90 - i / 6000;
+    for (const step of steps.filter(x => x.wheel === w)) {
+      const at = Math.round(step.at * 100);
+      for (let i = at; i < n; i++) {
+        const k = Math.min(1, (i - at) / 10);
+        wear[i] = step.from + (step.to - step.from) * k;
+      }
+    }
+    s[`tyres_wear_${w}`] = wear;
+  }
+  return s;
+}
+
+test('a full set: every wheel steps up to 100 inside the pit window', () => {
+  const s = wearRecording(
+    ['fl', 'fr', 'rl', 'rr'].map(wheel => ({
+      wheel,
+      at: 205,
+      from: 88,
+      to: 100,
+    })),
+  );
+  assert.deepEqual(tyreChange(s, 200, 220), {
+    changed: true,
+    wheels: ['FL', 'FR', 'RL', 'RR'],
+  });
+});
+
+test('single wheels: a healthy one replaced alone, and a dead sensor read as 0', () => {
+  const healthy = wearRecording([{wheel: 'rl', at: 205, from: 84, to: 100}]);
+  assert.deepEqual(tyreChange(healthy, 200, 220), {
+    changed: true,
+    wheels: ['RL'],
+  });
+  // Daytona 09-29: FR read 0.0, then 100 at the stop.
+  const dead = wearRecording([
+    {wheel: 'fr', at: 150, from: 90, to: 0},
+    {wheel: 'fr', at: 208, from: 0, to: 100},
+  ]);
+  assert.deepEqual(tyreChange(dead, 200, 220), {changed: true, wheels: ['FR']});
+});
+
+test('no change: wear that only falls, and a fall inside the window', () => {
+  assert.deepEqual(tyreChange(wearRecording(), 200, 220), {
+    changed: false,
+    wheels: [],
+  });
+  // The garage exit at a session start steps 100 to 98 on all four.
+  const fall = wearRecording(
+    ['fl', 'fr', 'rl', 'rr'].flatMap(wheel => [
+      {wheel, at: 50, from: 88, to: 100},
+      {wheel, at: 205, from: 100, to: 98},
+    ]),
+  );
+  assert.equal(tyreChange(fall, 200, 220).changed, false);
+});
+
+test('a step just outside the window and its margin is not this stop', () => {
+  const s = wearRecording([{wheel: 'fl', at: 300, from: 88, to: 100}]);
+  assert.equal(tyreChange(s, 200, 220).changed, false);
+  // Within the one second the reading lags the window: counted.
+  const lag = wearRecording([{wheel: 'fl', at: 220.5, from: 88, to: 100}]);
+  assert.deepEqual(tyreChange(lag, 200, 220), {changed: true, wheels: ['FL']});
+});
+
+test('a session that ends in the pits still gets its tyres (Silverstone 06-09)', () => {
+  const s = wearRecording([{wheel: 'rl', at: 390, from: 0, to: 100}]);
+  assert.deepEqual(tyreChange(s, 380, Infinity), {
+    changed: true,
+    wheels: ['RL'],
+  });
+});
+
+test('no wear channel: unknown, not "not changed"', () => {
+  const s = wearRecording([], {wheels: []});
+  assert.equal(tyreChange(s, 200, 220), null);
+  // Some wheels only: judged on those.
+  const some = wearRecording([{wheel: 'fl', at: 205, from: 88, to: 100}], {
+    wheels: ['fl', 'fr'],
+  });
+  assert.deepEqual(tyreChange(some, 200, 220), {changed: true, wheels: ['FL']});
+});
+
+test('a stop carries its tyres', () => {
+  const s = {
+    ...recording(),
+    ...wearRecording([{wheel: 'fr', at: 205, from: 88, to: 100}]),
+  };
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.deepEqual(stop.tyres, {changed: true, wheels: ['FR']});
 });

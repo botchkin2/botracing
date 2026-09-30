@@ -10,6 +10,7 @@ const stop: PitStop = {
   added: {fuelL: 41.72, vePct: 60.1},
   inPitS: 90.5,
   lapsLeftAtEntry: {fuel: 13.9, ve: 11.1},
+  tyres: null,
 };
 
 describe('pitLine', () => {

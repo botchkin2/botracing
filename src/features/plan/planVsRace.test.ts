@@ -137,6 +137,7 @@ describe('one stop, one number', () => {
       added: {fuelL: 50, vePct: 38},
       inPitS: 81,
       lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+    tyres: null,
     },
   });
   const laps = [
@@ -174,5 +175,56 @@ describe('one stop, one number', () => {
       l.startsWith('Planned: 1 stop'),
     );
     expect(line).toContain(`The load reaches L${reached + 1}`);
+  });
+});
+
+describe('the use check and the stop laps read cleanly', () => {
+  it('says ±0 % when the change rounds to zero, not a signed zero', () => {
+    const {lines} = build({ownUse: {fuelL: 2.401, vePct: 3.5}});
+    expect(lines.join(' ')).toContain('(±0 %)');
+    expect(lines.join(' ')).not.toContain('−0');
+  });
+
+  // Same use every lap: the median and the p90 stop on the same laps.
+  const flat = (): GreenLap[] =>
+    Array.from({length: 12}, () => ({
+      fuelL: 5,
+      vePct: 5 / 0.686,
+      lapTimeS: 81,
+      sessionId: 's',
+    }));
+  // Half the laps at 4 L, half at 6 L: the p90 use is heavier than the median.
+  const mixed = (): GreenLap[] =>
+    Array.from({length: 12}, (_, i) => ({
+      fuelL: i % 2 ? 6 : 4,
+      vePct: (i % 2 ? 6 : 4) / 0.686,
+      lapTimeS: 81,
+      sessionId: 's',
+    }));
+  const planned = (h: GreenLap[]) => {
+    const f = facts({raceLaps: 30});
+    const plan = planRace(raceRules(f)!, h);
+    const line = buildPlanVsRace(f, plan, basis).lines.find(l =>
+      l.startsWith('Planned:'),
+    )!;
+    return {plan, line};
+  };
+
+  // 5 L and 7.29 % VE a lap on a 75 L / 100 % load, formation lap burnt: VE
+  // gives 12 laps in the first stint (racing lap 12 = L13), then 13 more (L26).
+  it('prints one list when the median and p90 use stop on the same laps', () => {
+    const {plan, line} = planned(flat());
+    expect(plan.atMedian.stopLaps).toEqual(plan.atP90.stopLaps);
+    expect(line).toBe(
+      'Planned: 2 stops. The load reaches L13, L26 at the median and p90 use (VE runs out first).',
+    );
+  });
+
+  it('prints both lists when the heavy laps stop earlier', () => {
+    const {plan, line} = planned(mixed());
+    expect(plan.atMedian.stopLaps).not.toEqual(plan.atP90.stopLaps);
+    expect(line).toMatch(
+      /^Planned: \d stops?\. The load reaches (L\d+(, L\d+)*) at the median use, (L\d+(, L\d+)*) at the p90 use/,
+    );
   });
 });

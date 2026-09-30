@@ -308,11 +308,6 @@ function CornerView({
                   {s.summary}
                 </Text>
               </View>
-              {s.flatNote ? (
-                <Text variant='dataSmall' tone='textFaint'>
-                  {s.flatNote}
-                </Text>
-              ) : null}
               {s.keyValues.length > 0 ? (
                 <View style={styles.wrap}>
                   {s.keyValues.map(k => (
@@ -364,6 +359,17 @@ function CornerView({
                   }}
                 />
               )}
+              {s.measure === 'throttle' ? (
+                // One fixed line, so the strip does not jump when the count
+                // appears or goes (round 5, item 7).
+                <View style={styles.stripNote}>
+                  {s.flatNote ? (
+                    <Text variant='dataSmall' tone='textFaint'>
+                      {s.flatNote}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           ))
         : null}
@@ -648,4 +654,5 @@ const styles = StyleSheet.create({
   cellCol: {flex: 1},
   right: {textAlign: 'right'},
   bar: {width: 3, height: 14, borderRadius: radius.xs},
+  stripNote: {minHeight: size.stripNote, justifyContent: 'center'},
 });

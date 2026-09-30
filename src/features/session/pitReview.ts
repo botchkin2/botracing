@@ -2,7 +2,13 @@
 // the end, from the fuel facts the uploader already stores on each lap
 // (tools/sessions/fuelFacts.mjs). Pure. Numbers, units and what they were
 // measured against, never advice (CODE_STANDARDS §7).
-import type {Lap, PitStop, SessionType} from '@/src/data/sessions';
+import type {
+  Lap,
+  PitStop,
+  PitTyres,
+  SessionType,
+  Wheel,
+} from '@/src/data/sessions';
 
 export type PitStopReview = {key: string; title: string; lines: string[]};
 
@@ -17,7 +23,7 @@ export type PitReview = {
 export const PIT_REVIEW_HELP: readonly string[] = [
   'Each stop: what was in the tank at pit entry, what the stop added and the time in the lane.',
   'Laps are at the stint’s median use per green lap.',
-  'Tyres changed means the average tyre wear reading jumped after the stop.',
+  'Tyres: the wheels whose wear reading stepped up by more than 5 % during the stop.',
   'The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.',
 ];
 
@@ -34,29 +40,51 @@ const lapsOf = (v: number) => `${v.toFixed(1)} laps`;
  * session is the service before the start, not a stop, and is left out
  * (camber, thread 36 #1117). Practice and qualifying have no review.
  */
+/**
+ * The lap the race ends on: the last one that was not cut short and has a
+ * fuel level. `Lap.partial` also carries the game's "incomplete" flag, which
+ * LMU sets on the untimed last laps of a race (Le Mans 09-21: L21-L23), so
+ * the test is the uploader's own "partial" reason, not that flag (#160).
+ */
+export function endingLap(laps: Lap[]): Lap | null {
+  return (
+    [...laps]
+      .reverse()
+      .find(l => !l.reasons.includes('partial') && l.fuel?.endL != null) ?? null
+  );
+}
+
 export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   if (sessionType !== 'R') return [];
   const first = laps.length > 0 ? laps[0].lapIndex : 0;
   return laps.filter(l => l.pitStop !== null && l.lapIndex !== first);
 }
 
+const PAIRS: [string, Wheel[]][] = [
+  ['fronts', ['FL', 'FR']],
+  ['rears', ['RL', 'RR']],
+  ['lefts', ['FL', 'RL']],
+  ['rights', ['FR', 'RR']],
+];
+
 /**
- * Whether the tyres were changed at the stop entered on laps[index], from the
- * uploader's wear-jump flag. The flag lands on the first lap that starts after
- * the wear reading has updated, which is the lap after the out lap (Silverstone
- * 09-16: pit-in L14, out lap L15, flag on L16), so look through the out lap
- * and the first lap after it. Null when the session ends before that.
+ * Which tyres were changed, from the wheels the uploader saw step up inside
+ * the pit window (thread 38, #1113): "all four", "fronts", "FR only", "FL and
+ * RR". Single wheels are real (a flat replaced alone) and not "new tyres".
  */
-function tyresChanged(laps: Lap[], index: number): boolean | null {
-  let changed = false;
-  for (let j = index + 1; j < laps.length; j++) {
-    changed = changed || laps[j].newTyres;
-    if (!laps[j].pitOut) return changed;
-  }
-  return changed ? true : null;
+export function tyresText(tyres: PitTyres): string {
+  const w = tyres.wheels;
+  if (!tyres.changed || w.length === 0) return 'not changed';
+  if (w.length === 4) return 'all four';
+  if (w.length === 1) return `${w[0]} only`;
+  const pair = PAIRS.find(
+    ([, p]) => p.length === w.length && p.every(x => w.includes(x)),
+  );
+  if (pair) return pair[0];
+  return `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
 }
 
-function stopLines(stop: PitStop, tyres: boolean | null): string[] {
+function stopLines(stop: PitStop): string[] {
   const {fuelL, vePct} = stop.atEntry;
   const inTank = [
     fuelL != null && litres(fuelL),
@@ -82,7 +110,7 @@ function stopLines(stop: PitStop, tyres: boolean | null): string[] {
         .join(' · ')}`,
     );
   if (stop.inPitS != null) out.push(`In the lane: ${stop.inPitS.toFixed(0)} s`);
-  if (tyres != null) out.push(tyres ? 'Tyres changed' : 'Tyres not changed');
+  if (stop.tyres != null) out.push(`Tyres: ${tyresText(stop.tyres)}`);
   return out;
 }
 
@@ -122,21 +150,12 @@ export function buildPitReview(
     return {
       key: lap.id,
       title: `L${lap.lapIndex} · Stop ${i + 1} of ${pitLaps.length}`,
-      // Unknown (null) on the last lap: the session ended in the pits.
-      lines: stopLines(
-        lap.pitStop as PitStop,
-        tyresChanged(
-          laps,
-          laps.findIndex(l => l.id === lap.id),
-        ),
-      ),
+      lines: stopLines(lap.pitStop as PitStop),
     };
   });
 
   const last = pitLaps[pitLaps.length - 1].pitStop as PitStop;
-  const ending = [...laps]
-    .reverse()
-    .find(l => !l.partial && l.fuel?.endL != null);
+  const ending = endingLap(laps);
   const f = ending?.fuel;
   const lines = f
     ? [
