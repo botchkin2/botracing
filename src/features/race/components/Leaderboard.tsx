@@ -65,16 +65,15 @@ export const Leaderboard = memo(function Leaderboard({
           onChange={onFilter}
         />
       </View>
+      <Text variant='explainer' tone='textFaint' style={styles.key}>
+        Gap: to the class leader
+      </Text>
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>
           Car
         </Text>
-        <Text
-          variant='tableHeader'
-          tone='textMuted'
-          numberOfLines={2}
-          style={styles.gap}>
-          Gap (to class leader)
+        <Text variant='tableHeader' tone='textMuted' style={styles.gap}>
+          Gap
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.status}>
           Pit
@@ -178,6 +177,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
     borderBottomWidth: 1,
   },
+  key: {paddingHorizontal: size.gutter, paddingBottom: space.xs},
   groupTitle: {paddingHorizontal: size.gutter, paddingVertical: space.xs},
   row: {
     flexDirection: 'row',
