@@ -2,6 +2,7 @@ export type {
   BandChannel,
   CornerFacts,
   Lap,
+  LapFuel,
   LapReason,
   LapTraffic,
   MapCorner,
@@ -9,6 +10,7 @@ export type {
   SectionFacts,
   SessionBand,
   SessionDetail,
+  SessionFuel,
   SessionSummary,
   SessionType,
   Stint,
@@ -22,6 +24,7 @@ export {
   useSessionLaps,
   useSessionMap,
   useSessions,
+  useSessionsLaps,
 } from './queries';
 export {
   firstCornerOf,

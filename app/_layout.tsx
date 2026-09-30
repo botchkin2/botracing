@@ -37,6 +37,7 @@ import {
   sessionHref,
   sessionsHref,
   settingsHref,
+  planHref,
   tracksHref,
 } from '@/src/nav/routes';
 import {tabTarget, type TabName} from '@/src/nav/tabTarget';
@@ -107,6 +108,9 @@ function activeTab(pathname: string): WorkspaceTab | null {
 function DesktopChrome() {
   const pathname = usePathname();
   const {id} = useGlobalSearchParams<{id?: string}>();
+  if (pathname === '/plan') {
+    return <ChromeBar sessionId={null} tab='plan' context='LMU' />;
+  }
   if (pathname === '/tracks' || pathname.startsWith('/track/')) {
     const layout = id ? trackInfo(id)?.layout : null;
     return (
@@ -181,6 +185,8 @@ function ChromeBar({
         return router.navigate(sessionsHref());
       case 'tracks':
         return router.navigate(tracksHref());
+      case 'plan':
+        return router.navigate(planHref());
       case 'session':
         return router.navigate(sessionHref(target.sessionId, sel));
       case 'compare':
@@ -196,6 +202,7 @@ function ChromeBar({
     {key: 'compare', label: 'Compare', onPress: () => go('compare')},
     {key: 'race', label: 'Race', onPress: () => go('race')},
     {key: 'corner', label: 'Corner', onPress: () => go('corner')},
+    {key: 'plan', label: 'Plan', onPress: () => go('plan')},
     {key: 'tracks', label: 'Tracks', onPress: () => go('tracks')},
   ];
   return (

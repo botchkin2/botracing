@@ -1,6 +1,11 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {toSessionDetail, toSessionSummary, toTrackMap} from './adapters';
+import {
+  toLaps,
+  toSessionDetail,
+  toSessionSummary,
+  toTrackMap,
+} from './adapters';
 import {trackCorners} from './corners';
 
 // Shape as served by GET /api/lmu/sessions on 2026-09-27.
@@ -53,6 +58,52 @@ describe('toSessionDetail', () => {
       consistency: {stints: [{n: 2, trendPerLap: 0.042}]},
     });
     expect(d.stints.map(s => s.trendSPerLap)).toEqual([null, 0.042]);
+  });
+});
+
+describe('fuel facts', () => {
+  it('reads the session fuel, null on an older session doc', () => {
+    expect(toSessionDetail(raw).fuel).toBeNull();
+    const d = toSessionDetail({
+      ...raw,
+      fuel: {startL: 84, fillLimitL: 84, tankL: 115},
+    });
+    expect(d.fuel).toEqual({startL: 84, fillLimitL: 84, tankL: 115});
+    // A recording without a setup string: the limits are null, the start stays.
+    expect(
+      toSessionDetail({...raw, fuel: {startL: 100, fillLimitL: null}}).fuel,
+    ).toEqual({startL: 100, fillLimitL: null, tankL: null});
+  });
+
+  it('reads a lap fuel, null when the lap has none', () => {
+    const [plain, withFuel] = toLaps([
+      {id: 'a'},
+      {
+        id: 'b',
+        fuel: {
+          startL: 40,
+          endL: 37.6,
+          usedL: 2.4,
+          addedL: 0,
+          veStartPct: 50,
+          veEndPct: 46.4,
+          veUsedPct: 3.6,
+          veAddedPct: 0,
+          green: true,
+        },
+      },
+    ]);
+    expect(plain.fuel).toBeNull();
+    expect(withFuel.fuel).toMatchObject({
+      usedL: 2.4,
+      veUsedPct: 3.6,
+      green: true,
+    });
+  });
+
+  it('reads a lap that is not green as not green', () => {
+    const [lap] = toLaps([{id: 'a', fuel: {usedL: 2.4, veUsedPct: null}}]);
+    expect(lap.fuel).toMatchObject({usedL: 2.4, veUsedPct: null, green: false});
   });
 });
 
