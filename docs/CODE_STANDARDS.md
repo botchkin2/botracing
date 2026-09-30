@@ -65,6 +65,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 - No advice, verdicts, scores, grades or "work on X" text anywhere. Show numbers, their units, the reference they are measured against, and how they were computed.
 - Every chart and table carries its one-line explainer, copied verbatim from the handoff. If you change what a chart computes, update the explainer in the same PR.
+- A chart's "?" (`useHowToRead` in `src/ui`) opens 2–4 lines under it: what a mark is, how it is measured, what direction means, with the data as the subject and never the driver ("Above zero this lap is behind the reference", not "you are losing time"). It stores nothing, opens closed, and has no hover. The copy lives in a pure `*Help.ts` next to the feature, and its test bans advice and second-person words.
 - Every summary number can be traced to the laps it came from.
 
 ## 8. Tests

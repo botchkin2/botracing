@@ -26,7 +26,7 @@ export function chartHelp(channels: readonly ChannelId[]): string[] {
 /** The radar docked beside a chart (round 3 R2b). */
 export const RADAR_HELP: readonly string[] = [
   "This lap's car is at the centre, pointing up; the view turns with it.",
-  'The rings are 10 m and 20 m from your car.',
+  'The rings are 10 m and 20 m from that car.',
   'A bar on the edge means a car is alongside.',
   'The clock is the race time of the sample shown.',
 ];

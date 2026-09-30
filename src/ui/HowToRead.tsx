@@ -42,7 +42,10 @@ function HelpMark({
 }) {
   const {color} = useTheme();
   // A 20 pt mark inside a 44 pt target.
-  const hit = hitFor((size.hit - size.helpMark) / 2, (size.hit - size.helpMark) / 2);
+  const hit = hitFor(
+    (size.hit - size.helpMark) / 2,
+    (size.hit - size.helpMark) / 2,
+  );
   return (
     <Pressable
       accessibilityRole='button'
