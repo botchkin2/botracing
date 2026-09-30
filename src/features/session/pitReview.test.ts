@@ -102,6 +102,29 @@ describe('buildPitReview', () => {
     );
   });
 
+  it('rounds first, so the printed sum closes', () => {
+    // Unrounded 0.5 + 37.5 - 4.5 = 33.5 would print 34; as printed it is
+    // 1 + 38 - 5 = 34 with 38 and 5 shown, and litres 12.94 + 49.96 - 13.06.
+    const laps = race.map(l =>
+      l.lapIndex === 4
+        ? {
+            ...l,
+            pitStop: {
+              ...stop,
+              atEntry: {fuelL: 12.94, vePct: 0.5},
+              added: {fuelL: 49.96, vePct: 37.5},
+            },
+          }
+        : l.lapIndex === 6
+        ? {...l, fuel: fuelEnd(13.06, 4.5)}
+        : l,
+    );
+    const {end} = buildPitReview('R', laps)!;
+    // 12.9 + 50.0 - 13.1 = 49.8, and 1 + 38 - 5 = 34.
+    expect(end?.lines[0]).toContain('49.8 L used after');
+    expect(end?.lines[1]).toContain('34 % used after');
+  });
+
   it('ends on the last timed lap, not a cool-down lap', () => {
     const cool = [
       ...race,

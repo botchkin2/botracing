@@ -18,6 +18,10 @@ export const PIT_REVIEW_EXPLAINER =
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
+// The printed numbers, so the balance can be computed from them and close on
+// the page (camber, #147).
+const round1 = (v: number) => Math.round(v * 10) / 10;
+const round0 = (v: number) => Math.round(v);
 const lapsOf = (v: number) => `${v.toFixed(1)} laps`;
 
 /**
@@ -63,8 +67,8 @@ function stopLines(stop: PitStop, tyres: boolean | null): string[] {
 
 // "Fuel: 12.9 L in + 50.0 L added at the last stop · 49.8 L used after ·
 // 13.1 L left". The level at the end is measured; what the laps after the
-// stop used is the tank's own balance (in + added - left), so the three
-// numbers close.
+// stop used is the tank's own balance, taken from the rounded numbers as
+// printed so the line closes.
 function endLine(
   name: string,
   inTank: number | null,
@@ -72,13 +76,15 @@ function endLine(
   left: number | null,
   lapsLeft: number | null,
   fmt: (v: number) => string,
+  round: (v: number) => number,
 ): string | null {
   if (left == null) return null;
   const tail = lapsLeft != null ? ` (${lapsOf(lapsLeft)} at the median)` : '';
   if (inTank == null || added == null)
     return `${name}: ${fmt(left)} left${tail}`;
+  const used = round(round(inTank) + round(added) - round(left));
   return `${name}: ${fmt(inTank)} in + ${fmt(added)} added at the last stop · ${fmt(
-    inTank + added - left,
+    used,
   )} used after · ${fmt(left)} left${tail}`;
 }
 
@@ -113,6 +119,7 @@ export function buildPitReview(
           f.endL,
           f.lapsLeftFuel,
           litres,
+          round1,
         ),
         endLine(
           'VE',
@@ -121,6 +128,7 @@ export function buildPitReview(
           f.veEndPct,
           f.lapsLeftVe,
           pct,
+          round0,
         ),
       ].filter((l): l is string => l != null)
     : [];
