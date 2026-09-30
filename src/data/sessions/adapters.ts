@@ -152,6 +152,9 @@ export type Lap = {
   id: string;
   /** Position in driving order, from 1. Lap numbers restart per recording. */
   lapIndex: number;
+  /** The game's laps-completed count when the lap began (0 is the first
+   *  lap of a race); matches Field's lap counter. Null on old lap docs. */
+  lapNumber: number | null;
   timeS: number | null;
   sectorsS: (number | null)[];
   stint: number;
@@ -215,6 +218,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
   return items.map((raw, i) => ({
     id: str(raw.id),
     lapIndex: i + 1,
+    lapNumber: num(raw.lapNumber),
     recordingId: str(raw.recordingId) || null,
     timeS: raw.timed === false ? null : num(raw.lapTime),
     sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
