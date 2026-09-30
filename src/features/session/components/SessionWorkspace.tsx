@@ -169,8 +169,8 @@ export function SessionWorkspace({
             selection={selection}
             colorOf={colorOf}
             onHighlight={onHighlight}
+            pit={pit}
           />
-          {pit}
           {detail ?? (
             <Explainer>
               Click a bar, a row or a dot to see that lap, and tick laps to
@@ -197,17 +197,21 @@ function SidePanels({
   selection,
   colorOf,
   onHighlight,
+  pit,
 }: {
   sessionId: string;
   selection: Selection;
   colorOf: (selIndex: number) => string;
   onHighlight: (lapId: string) => void;
+  /** Drawn right under the stints table. */
+  pit: ReactNode;
 }) {
   const desk = useSessionDesktopModel(sessionId, selection);
   if (!desk) return null;
   return (
     <>
       {desk.stints.length > 0 && <StintsPanel rows={desk.stints} />}
+      {pit}
       {desk.distribution && (
         <LapDistribution
           model={desk.distribution}
