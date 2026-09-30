@@ -50,6 +50,17 @@ describe('carLabel', () => {
     expect(carLabel(name)).toEqual({model, shortModel, entry});
   });
 
+  it('drops the series suffix from an entry the table does not know (Hypercar, LMP2)', () => {
+    expect(carLabel('Cadillac WTR 2026 #101:LM')).toEqual({
+      model: 'Cadillac WTR 2026 #101',
+      shortModel: 'Cadillac WTR 2026 #101',
+      entry: null,
+    });
+    expect(carLabel('CrowdStrike Racing by APR 2026 #4:WEC').model).toBe(
+      'CrowdStrike Racing by APR 2026 #4',
+    );
+  });
+
   it('falls back to the raw name', () => {
     expect(carLabel('Unknown Car #1')).toEqual({
       model: 'Unknown Car #1',
