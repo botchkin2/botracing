@@ -33,7 +33,8 @@ import {Explainer, Segment, Text, useHowToRead} from '@/src/ui';
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
 import {FuelUseCard} from './components/FuelUseCard';
-import {PitReviewCard} from './components/PitReviewCard';
+import {PitCard} from './components/PitCard';
+import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -71,13 +72,13 @@ export function SessionScreen({
   sessionId,
   selection,
   onSelectionChange,
-  renderPlanVsRace,
+  renderPlanHalf,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
-  /** The planner against this race: another feature's card, put here by the route. */
-  renderPlanVsRace?: (facts: RaceFacts) => ReactNode;
+  /** The planner against this race: another feature's half of the card, put here by the route. */
+  renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
 }) {
   const result = useSessionScreenModel(sessionId, selection);
   const {color} = useTheme();
@@ -107,7 +108,7 @@ export function SessionScreen({
       model={result.model}
       selection={selection}
       onSelectionChange={onSelectionChange}
-      renderPlanVsRace={renderPlanVsRace}
+      renderPlanHalf={renderPlanHalf}
     />
   );
 }
@@ -117,13 +118,13 @@ function SessionView({
   model,
   selection,
   onSelectionChange,
-  renderPlanVsRace,
+  renderPlanHalf,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
-  renderPlanVsRace?: (facts: RaceFacts) => ReactNode;
+  renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -312,14 +313,18 @@ function SessionView({
 
       {chartBlock(tableW)}
 
-      {model.pitReview && (
+      {model.pitCard && (
         <View style={styles.section}>
-          <PitReviewCard review={model.pitReview} />
+          <PitCard
+            card={model.pitCard}
+            width={tableW}
+            plan={
+              model.planVsRace && renderPlanHalf
+                ? renderPlanHalf(model.pitCard, model.planVsRace)
+                : null
+            }
+          />
         </View>
-      )}
-
-      {model.planVsRace && renderPlanVsRace && (
-        <View style={styles.section}>{renderPlanVsRace(model.planVsRace)}</View>
       )}
 
       {model.fuelUse && (
@@ -392,8 +397,17 @@ function SessionView({
         tray={tray}
         cards={
           <>
-            {model.pitReview && <PitReviewCard review={model.pitReview} />}
-            {model.planVsRace && renderPlanVsRace?.(model.planVsRace)}
+            {model.pitCard && (
+              <PitCard
+                card={model.pitCard}
+                width={size.sidePanelWidth - 2 * space.xl}
+                plan={
+                  model.planVsRace && renderPlanHalf
+                    ? renderPlanHalf(model.pitCard, model.planVsRace)
+                    : null
+                }
+              />
+            )}
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

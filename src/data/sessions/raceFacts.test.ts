@@ -4,8 +4,7 @@ import {toLaps} from './adapters';
 import type {Lap} from './adapters';
 
 import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
-import {buildPitReview} from '@/src/features/session/pitReview';
-import {raceFacts} from './raceFacts';
+import {endingLap, raceFacts, racePitLaps} from './raceFacts';
 
 const base = toLaps([fixture.laps[0]])[0];
 const session = (type: 'R' | 'P' = 'R') => ({
@@ -54,7 +53,7 @@ describe('raceFacts', () => {
         added: {fuelL: 50, vePct: 38},
         inPitS: 81,
         lapsLeftAtEntry: {fuel: 3.6, ve: 0},
-      tyres: null,
+        tyres: null,
       },
     }),
     lap(6),
@@ -84,7 +83,7 @@ describe('raceFacts', () => {
     ];
     expect(raceFacts(session(), 'k', untimedEnd)?.raceLaps).toBe(5);
     // The same lap the pit card ends on.
-    expect(buildPitReview('R', untimedEnd)?.end?.title).toBe('End of L6');
+    expect(endingLap(untimedEnd)?.lapIndex).toBe(6);
   });
 
   it('takes the fill limit, the start fuel and the race’s own median use', () => {
@@ -104,5 +103,64 @@ describe('raceFacts', () => {
     expect(
       raceFacts(session(), 'k', laps.slice(0, 2))?.ownUse.fuelL,
     ).toBeNull();
+  });
+});
+
+describe('racePitLaps', () => {
+  const stopOf = {
+    atEntry: {fuelL: 12.9, vePct: 0},
+    added: {fuelL: 50, vePct: 38},
+    inPitS: 81,
+    lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+    tyres: null,
+  };
+  // L1 from the grid (with the service before the start), L2-L3 flying, a
+  // stop on L4, L5 out, L6 the last whole lap.
+  const race = [
+    lap(1, {pitStop: {...stopOf, added: {fuelL: 4, vePct: 0}}, pitOut: true}),
+    lap(2),
+    lap(3),
+    lap(4, {pitStop: stopOf, pitIn: true}),
+    lap(5, {pitOut: true}),
+    lap(6),
+  ];
+
+  it('has no stops outside a race', () => {
+    expect(racePitLaps('P', race)).toEqual([]);
+    expect(racePitLaps('Q', race)).toEqual([]);
+    expect(racePitLaps('R', [lap(1), lap(2)])).toEqual([]);
+  });
+
+  it('leaves out the service before the start', () => {
+    expect(racePitLaps('R', race).map(l => l.lapIndex)).toEqual([4]);
+  });
+
+  it('keeps a stop on the first lap when that lap ends in the pit lane', () => {
+    // Road Atlanta 09-25: L1 is 267 s, ends in the lane, the FL is changed.
+    const first = [
+      lap(1, {pitStop: stopOf, pitIn: true}),
+      lap(2, {pitOut: true}),
+      lap(3),
+    ];
+    expect(racePitLaps('R', first).map(l => l.lapIndex)).toEqual([1]);
+  });
+
+  it('lists several stops in driving order', () => {
+    const two = [
+      ...race.slice(0, 5),
+      lap(6, {pitStop: stopOf, pitIn: true}),
+      lap(7),
+    ];
+    expect(racePitLaps('R', two).map(l => l.lapIndex)).toEqual([4, 6]);
+  });
+
+  it('finds none on the stored Road Atlanta laps, which carry no stop', () => {
+    expect(racePitLaps('R', toLaps(fixture.laps))).toEqual([]);
+  });
+});
+
+describe('endingLap', () => {
+  it('is null when no lap has a fuel level', () => {
+    expect(endingLap([lap(1, {fuel: null}), lap(2, {fuel: null})])).toBeNull();
   });
 });

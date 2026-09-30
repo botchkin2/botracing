@@ -55,7 +55,8 @@ const dark = {
   radarInset: 'rgba(13,15,18,0.9)',
   // The radar over a Compare chart on the phone: the plot shows through
   // (Botkin, pit-wall thread 41 #1178: about 40 %).
-  radarOverlay: 'rgba(13,15,18,0.4)',
+  // 72 % so the traces show through, no shadow (round 5, item 6).
+  radarOverlay: 'rgba(13,15,18,0.72)',
   classHypercar: '#e64343',
   classLmp2: '#4697e4',
   classGt3: '#f68443',
@@ -293,6 +294,16 @@ export const size = {
   trackColHistory: 360,
   cornerRowDesk: 30,
   trendHeight: 70,
+  // Pit stops card (round 5 item 3): the pinned key column, a stop column at
+  // three or more stops, the bar height, and the row heights the key column
+  // and the stop columns share so they line up across the sideways scroll.
+  pitKey: 64,
+  pitCol: 118,
+  pitBar: 6,
+  pitHeadRow: 44,
+  pitRow: 52,
+  pitBarRow: 60,
+  pitPlanKey: 56,
 } as const;
 export const chartHeight = {
   compare: {
