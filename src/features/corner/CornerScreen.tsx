@@ -9,12 +9,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {
-  BrakeMap,
-  type BrakeMapMarker,
-  DotStrip,
-  TraceChart,
-} from '@/src/charts';
+import {BrakeMap, type BrakeMapMarker, DotStrip} from '@/src/charts';
 import {
   hitBox,
   lapColors,
@@ -28,14 +23,7 @@ import {
 } from '@/src/design';
 import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
-import {
-  Chip,
-  Explainer,
-  Skeleton,
-  StatusBanner,
-  Text,
-  TraceRetryBanner,
-} from '@/src/ui';
+import {Chip, Explainer, StatusBanner, Text} from '@/src/ui';
 
 import {
   type BrakeMapModel,
@@ -46,18 +34,33 @@ import {
   type Measure,
   MEASURES,
   sortRows,
-  type ZoomLine,
 } from './model';
 import {MAX_ON_LAPS, toggleLap} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
+import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
 
 export type {CornerSelection} from './model';
 
 // Zoomed trace heights: phone (handoff §4) and desktop (D3).
-const PHONE_H = {speed: 96, brake: 52, throttle: 52};
-const DESK_H = {speed: 226, brake: 122, throttle: 122};
+const PHONE_H: ZoomHeights = {
+  speed: 96,
+  brake: 52,
+  throttle: 52,
+  delta: 0,
+  steering: 0,
+  line: 0,
+};
+// Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
+// has to sit in a scrolling column, so the pedals are shorter than before.
+const DESK_H: ZoomHeights = {
+  speed: 180,
+  brake: 100,
+  throttle: 100,
+  delta: 100,
+  steering: 60,
+  line: 130,
+};
 const DESK_LEFT_W = 600;
-const DESK_RIGHT_W = 840;
 const BRAKE_MAP_H = 210;
 
 export function CornerScreen({
@@ -385,13 +388,17 @@ function CornerView({
     </View>
   );
 
-  const tracesW = layout.isWide ? DESK_RIGHT_W - 40 : layout.contentWidth;
+  // Desktop: the charts take all the width the left column leaves.
+  const tracesW = layout.isWide
+    ? layout.width - DESK_LEFT_W - 2 * space.xl
+    : layout.contentWidth;
   const h = layout.isWide ? DESK_H : PHONE_H;
   const traces = (
     <ZoomTraces
       model={model}
       width={tracesW}
       heights={h}
+      desktop={layout.isWide}
       lapStyle={lapStyle}
       load={traceLoad}
       onRetry={onRetryTraces}
@@ -413,7 +420,7 @@ function CornerView({
           {measures}
         </ScrollView>
         <ScrollView
-          style={{width: DESK_RIGHT_W, flexGrow: 0}}
+          style={styles.flex}
           contentContainerStyle={[styles.col, top]}>
           {model.highlightLine && (
             <Text variant='dataStrong'>{model.highlightLine}</Text>
@@ -604,165 +611,6 @@ function BrakeMapPanel({
       </Explainer>
     </View>
   );
-}
-
-function ZoomTraces({
-  model,
-  width,
-  heights,
-  lapStyle,
-  load,
-  onRetry,
-}: {
-  model: CornerModel;
-  width: number;
-  heights: {speed: number; brake: number; throttle: number};
-  load: TraceLoad;
-  onRetry: () => void;
-  lapStyle: (
-    onIndex: number | null,
-    selIndex: number,
-    highlighted: boolean,
-  ) => {color: string; width: number; opacity: number};
-}) {
-  const {zoom} = model;
-  const rank = (l: ZoomLine) =>
-    l.onIndex === 0 ? 2 : l.onIndex != null ? 1 : 0;
-  const lines = [...zoom.lines].sort((a, b) => rank(a) - rank(b));
-  const series = (pick: (l: ZoomLine) => number[]) =>
-    lines.map(l => {
-      const s = lapStyle(l.onIndex, l.selIndex, l.highlighted);
-      return {
-        key: l.lapId,
-        values: pick(l),
-        color: s.color,
-        width: s.width,
-        opacity: s.opacity,
-      };
-    });
-  const apex = [
-    {m: zoom.apexM, label: 'Apex', solid: true},
-    // Neighbouring corners' apexes: faint, named, so their braking in the
-    // window is not taken for this turn's.
-    ...zoom.neighbours.map(n => ({m: n.apexM, label: `${n.label} apex`})),
-  ];
-  const caption = (
-    <Text variant='dataSmall' tone='textMuted'>
-      {zoom.caption}
-    </Text>
-  );
-  const pointMarks = (at: (l: ZoomLine) => number | null) =>
-    lines
-      .filter(l => l.key && at(l) != null)
-      .map(l => ({
-        m: at(l) as number,
-        color: lapStyle(l.onIndex, l.selIndex, l.highlighted).color,
-      }));
-  const speedDomain = domainIn(
-    lines.map(l => l.speedKph),
-    zoom.windowM,
-    zoom.stepM,
-  );
-  const common = {
-    width,
-    stepM: zoom.stepM,
-    windowM: zoom.windowM,
-    cursorM: -1,
-    gridOriginM: zoom.apexM,
-    stretchM: [zoom.stretch.fromM, zoom.stretch.toM] as [number, number],
-    dimM: zoom.dimmed,
-  };
-  if (lines.length === 0)
-    return (
-      <View style={styles.gap}>
-        {load.kind === 'failed' && (
-          <TraceRetryBanner
-            failed={load.failed}
-            othersShow={false}
-            onRetry={onRetry}
-          />
-        )}
-        {caption}
-        <Text variant='label' tone='textMuted'>
-          Speed km/h
-        </Text>
-        <Skeleton height={heights.speed} />
-        <Text variant='label' tone='textMuted'>
-          Brake %
-        </Text>
-        <Skeleton height={heights.brake} />
-        <Text variant='label' tone='textMuted'>
-          Throttle %
-        </Text>
-        <Skeleton height={heights.throttle} />
-      </View>
-    );
-  return (
-    <View style={styles.gap}>
-      {load.kind === 'partial' && (
-        <TraceRetryBanner
-          failed={load.failed}
-          othersShow={load.kind === 'partial'}
-          onRetry={onRetry}
-        />
-      )}
-      {caption}
-      <Text variant='label' tone='textMuted'>
-        Speed km/h
-      </Text>
-      <TraceChart
-        {...common}
-        height={heights.speed}
-        domain={speedDomain}
-        series={series(l => l.speedKph)}
-        band={
-          zoom.band
-            ? {low: zoom.band.speed[0], high: zoom.band.speed[1]}
-            : undefined
-        }
-        marks={apex}
-      />
-      <Text variant='label' tone='textMuted'>
-        Brake %
-      </Text>
-      <TraceChart
-        {...common}
-        height={heights.brake}
-        domain={[-4, 104]}
-        series={series(l => l.brakePct)}
-        marks={[...apex, ...pointMarks(l => l.brakeAtM)]}
-      />
-      <Text variant='label' tone='textMuted'>
-        Throttle %
-      </Text>
-      <TraceChart
-        {...common}
-        height={heights.throttle}
-        domain={[-4, 104]}
-        series={series(l => l.throttlePct)}
-        marks={[...apex, ...pointMarks(l => l.fullThrottleAtM)]}
-      />
-    </View>
-  );
-}
-
-function domainIn(
-  arrays: number[][],
-  [a, b]: [number, number],
-  stepM: number,
-): [number, number] {
-  let lo = Infinity;
-  let hi = -Infinity;
-  const from = Math.max(0, Math.floor(a / stepM));
-  const to = Math.ceil(b / stepM);
-  for (const arr of arrays)
-    for (let i = from; i <= Math.min(to, arr.length - 1); i++) {
-      lo = Math.min(lo, arr[i]);
-      hi = Math.max(hi, arr[i]);
-    }
-  if (!Number.isFinite(lo)) return [0, 1];
-  const pad = (hi - lo) * 0.06 || 1;
-  return [lo - pad, hi + pad];
 }
 
 const styles = StyleSheet.create({
