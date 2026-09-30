@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {keyLapIds, MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {extraTraceLapIds, keyLapIds, MAX_ON_LAPS, toggleLap} from './keyLaps';
 
 const many = Array.from({length: 25}, (_, i) => `l${i}`);
 
@@ -62,5 +62,44 @@ describe('toggleLap', () => {
   it('stops at the palette size', () => {
     const full = Array.from({length: MAX_ON_LAPS}, (_, i) => `x${i}`);
     expect(toggleLap(full, 'y')).toEqual({kind: 'full'});
+  });
+});
+
+describe('extraTraceLapIds', () => {
+  const laps = [
+    {id: 'ref', timeS: 100},
+    {id: 'a', timeS: 100.4},
+    {id: 'b', timeS: 99.5},
+    {id: 'c', timeS: 103},
+    {id: 'd', timeS: 98},
+    {id: 'none', timeS: null},
+  ];
+  const lapIds = laps.map(l => l.id);
+
+  it('takes the nearest laps to the reference by time, nearest first, never the laps on or untimed', () => {
+    expect(
+      extraTraceLapIds({lapIds, keyLapIds: ['ref', 'd'], laps, max: 2}),
+    ).toEqual(['a', 'b']);
+    expect(extraTraceLapIds({lapIds, keyLapIds: ['ref'], laps})).toEqual([
+      'a',
+      'b',
+      'd',
+      'c',
+    ]);
+  });
+
+  it('is empty without a timed reference', () => {
+    expect(extraTraceLapIds({lapIds, keyLapIds: ['none'], laps})).toEqual([]);
+  });
+
+  it('caps at 12 by default', () => {
+    const many = Array.from({length: 40}, (_, i) => ({
+      id: `l${i}`,
+      timeS: 100 + i * 0.1,
+    }));
+    const ids = many.map(l => l.id);
+    expect(
+      extraTraceLapIds({lapIds: ids, keyLapIds: ['l0'], laps: many}),
+    ).toHaveLength(12);
   });
 });

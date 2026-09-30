@@ -15,7 +15,7 @@ import {
   type CornerModel,
   type CornerSelection,
 } from './model';
-import {keyLapIds as keyLapsOf} from './keyLaps';
+import {extraTraceLapIds, keyLapIds as keyLapsOf} from './keyLaps';
 
 const GRID_STEP_M = 5;
 
@@ -78,14 +78,37 @@ export function useCornerModel(
     load: traceLoad,
     retry: retryTraces,
   } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M});
+  // The laps on draw first; only then are the nearest laps by time fetched,
+  // to draw dim behind them. Leaving the screen drops the observers, and the
+  // fetches abort with them.
+  const keysDrawn = traceIds.length > 0 && traceIds.every((_, i) => grids[i]);
+  const extraIds = useMemo(
+    () =>
+      keysDrawn && laps.data
+        ? extraTraceLapIds({
+            lapIds,
+            keyLapIds: traceIds,
+            laps: laps.data,
+          })
+        : [],
+    [keysDrawn, laps.data, lapIds, traceIds],
+  );
+  const {traces: extraGrids} = useLapTraceLoad(extraIds, {
+    lengthM,
+    stepM: GRID_STEP_M,
+  });
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     traceIds.forEach((id, i) => {
       const g = grids[i];
       if (g) out.set(id, g);
     });
+    extraIds.forEach((id, i) => {
+      const g = extraGrids[i];
+      if (g) out.set(id, g);
+    });
     return out;
-  }, [traceIds, grids]);
+  }, [traceIds, grids, extraIds, extraGrids]);
 
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = session;

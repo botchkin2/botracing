@@ -49,6 +49,7 @@ import {
   type ZoomLine,
 } from './model';
 import {MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {lapsShownText, noBrakeIn} from './traceFacts';
 import {useCornerModel} from './useCornerModel';
 
 export type {CornerSelection} from './model';
@@ -646,10 +647,23 @@ function ZoomTraces({
     // window is not taken for this turn's.
     ...zoom.neighbours.map(n => ({m: n.apexM, label: `${n.label} apex`})),
   ];
+  const shownText = lapsShownText(lines.length, model.rows.length);
   const caption = (
-    <Text variant='dataSmall' tone='textMuted'>
-      {zoom.caption}
-    </Text>
+    <View style={styles.gap}>
+      <Text variant='dataSmall' tone='textMuted'>
+        {zoom.caption}
+      </Text>
+      {shownText && (
+        <Text variant='dataSmall' tone='textMuted'>
+          {shownText}
+        </Text>
+      )}
+    </View>
+  );
+  const noBrake = noBrakeIn(
+    lines.map(l => l.brakePct),
+    zoom.windowM,
+    zoom.stepM,
   );
   const pointMarks = (at: (l: ZoomLine) => number | null) =>
     lines
@@ -723,7 +737,7 @@ function ZoomTraces({
         marks={apex}
       />
       <Text variant='label' tone='textMuted'>
-        Brake %
+        Brake %{noBrake ? ' · no brake in this corner' : ''}
       </Text>
       <TraceChart
         {...common}
