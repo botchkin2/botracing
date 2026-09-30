@@ -1,5 +1,11 @@
 import {useEffect, useRef, useState} from 'react';
-import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
+import {
+  PanResponder,
+  Platform,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from 'react-native';
 
 import {useTheme} from '@/src/design';
 
@@ -12,6 +18,13 @@ export const PANEL_DIVIDER_W = 10;
 // react-native-web applies `cursor` to any view; RN's types only know it on
 // some.
 const RESIZE_CURSOR = {cursor: 'col-resize'} as unknown as ViewStyle;
+
+// Web: a mouse drag across the charts would select their text (the labels
+// turn blue). Selection is off for the page while the handle is held.
+function holdSelection(hold: boolean) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.body.style.userSelect = hold ? 'none' : '';
+}
 
 export function PanelDivider({
   width,
@@ -41,6 +54,7 @@ export function PanelDivider({
       onPanResponderGrant: () => {
         start.current = latest.current.width;
         last.current = start.current;
+        holdSelection(true);
         setActive(true);
       },
       onPanResponderMove: (_, g) => {
@@ -48,10 +62,12 @@ export function PanelDivider({
         latest.current.onResize(last.current);
       },
       onPanResponderRelease: () => {
+        holdSelection(false);
         setActive(false);
         latest.current.onCommit(last.current);
       },
       onPanResponderTerminate: () => {
+        holdSelection(false);
         setActive(false);
         latest.current.onCommit(last.current);
       },
