@@ -128,6 +128,28 @@ describe('fuel facts', () => {
   });
 });
 
+describe('pit stop tyres', () => {
+  const stopWith = (tyres: unknown) =>
+    toLaps([{id: 'a', pitStop: {tyres}}])[0].pitStop;
+  it('reads the wheels of a stop, in car order, dropping unknown names', () => {
+    expect(
+      stopWith({changed: true, wheels: ['RR', 'FL', 'XX']})?.tyres,
+    ).toEqual({changed: true, wheels: ['FL', 'RR']});
+    expect(stopWith({changed: false, wheels: []})?.tyres).toEqual({
+      changed: false,
+      wheels: [],
+    });
+  });
+  it('is null before analysisVersion 15, and never changed without a wheel', () => {
+    expect(stopWith(undefined)?.tyres).toBeNull();
+    expect(stopWith('yes')?.tyres).toBeNull();
+    expect(stopWith({changed: true, wheels: []})?.tyres).toEqual({
+      changed: false,
+      wheels: [],
+    });
+  });
+});
+
 describe('toTrackMap official turn labels', () => {
   const corners = [1, 2].map(n => ({
     n,
