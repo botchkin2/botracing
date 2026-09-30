@@ -11,6 +11,7 @@ export * from './HowToRead';
 export * from './MapZoomButtons';
 export * from './NumberField';
 export * from './Segment';
+export * from './Sheet';
 export * from './Skeleton';
 export * from './StatusBanner';
 export * from './TraceRetryBanner';
