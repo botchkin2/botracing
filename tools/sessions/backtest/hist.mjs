@@ -59,9 +59,29 @@ for (const name of files) {
       "select value from metadata where key='CarSetup'",
     )[0];
     const setup = fuelSetup(setupRow?.value);
-    const t0 = Number(rows(f, 'select min(value) v from "GPS Time"')[0].v);
+    const span = rows(
+      f,
+      'select min(value) a, max(value) b from "GPS Time"',
+    )[0];
+    const t0 = Number(span.a);
     const fuel = columns(f, 'select value from "Fuel Level"').value;
     const ve = columns(f, 'select value from "Virtual Energy"').value;
+    // idx() below puts Fuel Level and Virtual Energy on one 20 Hz clock that
+    // starts at GPS Time's first sample. True of every GT3 file and the LMP2
+    // (17,801 samples of each over 890 s); a file at another rate must fail
+    // here, not be read at the wrong times (camber, #145).
+    const expected = (Number(span.b) - t0) * 20;
+    for (const [name, values] of [
+      ['Fuel Level', fuel],
+      ['Virtual Energy', ve],
+    ]) {
+      if (Math.abs(values.length - expected) > expected * 0.01 + 20)
+        throw new Error(
+          `${name} has ${values.length} samples, not ~${Math.round(
+            expected,
+          )} at 20 Hz`,
+        );
+    }
     const lap = columns(f, 'select ts, value from "Lap"');
     const pit = columns(f, 'select ts, value from "In Pits"');
     const wins = [];
