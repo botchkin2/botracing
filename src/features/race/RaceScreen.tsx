@@ -194,7 +194,7 @@ function RaceView({
 }) {
   const {color} = useTheme();
   const layout = useLayout();
-  const {prep, placer, line} = data;
+  const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
   const endS = times.length > 0 ? times[times.length - 1] : 0;
   // Opens on Compare's cursor when the URL has one.
@@ -292,6 +292,7 @@ function RaceView({
         desktop={desktop}
         placer={placer}
         line={line}
+        outlineUse={outlineUse}
         dots={dots}
         showCars={data.matches}
         attribution={data.attribution}
