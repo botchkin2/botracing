@@ -18,7 +18,8 @@ export const TOW_HOLLOW_S = 5;
  * session without a field) gives none. TRAF reads trafficAheadS (a car within
  * 1 s ahead) without R3's slower-pace and 160 km/h conditions. BLUE is the
  * seconds with the blue flag, where R3 counts faster cars that passed. PASS
- * and BTL are the player's class only.
+ * and BTL are the player's class only, on the road: a lapped car of that
+ * class counts, so PASS is not a place change.
  */
 export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   if (!traffic) return [];

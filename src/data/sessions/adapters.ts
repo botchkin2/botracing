@@ -190,7 +190,7 @@ export type LapTraffic = {
   trafficBehindS: number;
   /** Seconds the player had the blue flag. */
   blueFlagS: number;
-  /** Places made and lost to cars of the player's class. */
+  /** Own-class passes on the road, made and suffered; includes lapped and lapping cars of the same class, so not a place change. */
   passesMade: number;
   passesSuffered: number;
   passesMadeAll: number;

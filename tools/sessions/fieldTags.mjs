@@ -70,8 +70,9 @@ const EMPTY = () => ({
   trafficAheadS: 0,
   trafficBehindS: 0,
   blueFlagS: 0,
-  // Places made and lost to cars of the player's class: a Hypercar lapping a
-  // GT3 is not a lost place. The All counts take every car.
+  // Passes on the road with cars of the player's class (lapped ones too, so
+  // not a place change): a Hypercar lapping a GT3 is not counted. The All
+  // counts take every car.
   passesMade: 0,
   passesSuffered: 0,
   passesMadeAll: 0,
