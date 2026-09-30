@@ -51,7 +51,6 @@ const FIELD_LOADING_TEXT =
 const FIELD_ERROR_TEXT =
   'Field data didn’t load. Your laps and traces still work.';
 const SKELETON_ROWS = 8;
-const DESKTOP_NOTICE_W = 1060;
 
 // Compare's cursor settles this long after the clock stops, like Compare's own.
 const SETTLE_MS = 400;
@@ -129,9 +128,7 @@ function RaceShell({
 // when the field arrives.
 function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
   const layout = useLayout();
-  const width = layout.isDesktop
-    ? Math.min(layout.contentWidth, DESKTOP_NOTICE_W)
-    : layout.contentWidth;
+  const width = layout.contentWidth;
   if (data.kind === 'error') {
     return (
       <View style={styles.center}>
@@ -158,15 +155,30 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
+  const rows = Array.from({length: SKELETON_ROWS}, (_, i) => (
+    <Skeleton key={i} height={size.lapRow} />
+  ));
   return (
     <View style={[styles.notice, {width}]}>
       {data.kind === 'field-loading' ? (
         <StatusBanner dot='waiting' text={FIELD_LOADING_TEXT} />
       ) : null}
-      <Skeleton height={layout.isDesktop ? DESKTOP_MAP_H : PHONE_MAP_H} />
-      {Array.from({length: SKELETON_ROWS}, (_, i) => (
-        <Skeleton key={i} height={size.lapRow} />
-      ))}
+      {layout.isDesktop ? (
+        // Two columns like the desktop Race screen: the map, then the board.
+        <View style={styles.noticeColumns}>
+          <View style={styles.fill}>
+            <Skeleton height={DESKTOP_MAP_H} />
+          </View>
+          <View style={[styles.noticeBoard, {width: DESKTOP_SIDE_W}]}>
+            {rows}
+          </View>
+        </View>
+      ) : (
+        <>
+          <Skeleton height={PHONE_MAP_H} />
+          {rows}
+        </>
+      )}
     </View>
   );
 }
@@ -397,6 +409,8 @@ const styles = StyleSheet.create({
     padding: size.gutter,
   },
   notice: {alignSelf: 'center', gap: space.sm, paddingTop: space.lg},
+  noticeColumns: {flexDirection: 'row', gap: space.xl},
+  noticeBoard: {gap: space.sm},
   phoneTop: {paddingHorizontal: size.gutter, gap: space.md},
   desktop: {
     flex: 1,
