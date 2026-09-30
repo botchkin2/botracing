@@ -99,10 +99,10 @@ describe('buildRaceModel', () => {
     expect(m.carCount).toBe(6);
   });
 
-  it('a class filter shows that class alone, no header, garage last', () => {
+  it('a class filter shows that class alone under a Class header, garage last', () => {
     const m = buildRaceModel({cars: field, filter: 'gt3', focus: null});
     expect(m.groups).toHaveLength(1);
-    expect(m.groups[0].title).toBeNull();
+    expect(m.groups[0].title).toBe('Class · GT3');
     expect(m.groups[0].rows.map(r => r.index)).toEqual([4, 3, 5]);
   });
 
@@ -130,7 +130,7 @@ describe('buildRaceModel', () => {
       state: 'garage',
     });
     const states = ['pit', 'stopped', 'off'] as const;
-    const codes = ['PIT', 'STOP', 'OFF'];
+    const codes = ['IN', 'STOP', 'OFF'];
     states.forEach((s, i) => {
       const m = buildRaceModel({
         cars: [car(0, 'GT3', 1, {state: s, pits: 2})],

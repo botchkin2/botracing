@@ -9,7 +9,13 @@ import {FollowMap, type MapCar, Radar, TrackMap} from '@/src/charts';
 import {type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
 import {MAP_ZOOMS, type MapZoom} from '@/src/state/comparePrefs';
-import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
+import {
+  MAP_ZOOM_BUTTONS_W,
+  MAP_ZOOM_LABEL_W,
+  MapZoomButtons,
+  Segment,
+  Text,
+} from '@/src/ui';
 
 import {type RaceDot} from '../model';
 import {classColor} from './classColor';
@@ -162,7 +168,7 @@ export function RaceMap({
       boxes.push({
         x: space.xs,
         y: height - 2 - space.xs - ZOOM_BUTTON_H,
-        width: MAP_ZOOM_BUTTONS_W,
+        width: MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W,
         height: ZOOM_BUTTON_H,
       });
     if (radar)
@@ -203,7 +209,9 @@ export function RaceMap({
           cars={cars}
           avoidLabels={avoid}
           onPressCar={key => onPressCar(Number(key))}
-          scaleX={MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm}
+          scaleX={
+            MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W + 2 * space.xs + space.sm
+          }
         />
       ) : (
         <TrackMap
@@ -243,6 +251,7 @@ export function RaceMap({
           canIn={zoom > 0}
           onOut={() => onZoom((zoom + 1) as MapZoom)}
           onIn={() => onZoom((zoom - 1) as MapZoom)}
+          rangeLabel={`${Math.round(follow.view.visibleM * MAP_ZOOMS[zoom])} m`}
         />
       ) : null}
       {radar ? (

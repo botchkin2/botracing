@@ -66,7 +66,8 @@ export const Leaderboard = memo(function Leaderboard({
         />
       </View>
       <Text variant='explainer' tone='textFaint' style={styles.key}>
-        Gap: to the class leader
+        At the playback position. Gap = to the class leader. PIT = stops so far;
+        IN = in the pit lane now.
       </Text>
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>

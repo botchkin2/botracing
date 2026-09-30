@@ -11,6 +11,8 @@ const BUTTON = 28;
 // other (hitFor: at most half the gap).
 const GAP = size.hit - BUTTON;
 export const MAP_ZOOM_BUTTONS_W = 2 * BUTTON + GAP;
+/** Room for the range between the buttons ("120 m"), when the caller gives one. */
+export const MAP_ZOOM_LABEL_W = 48;
 
 /**
  * "−" and "+" over a Follow map, bottom left. The caller owns the zoom steps.
@@ -21,11 +23,14 @@ export function MapZoomButtons({
   canIn,
   onOut,
   onIn,
+  rangeLabel,
 }: {
   canOut: boolean;
   canIn: boolean;
   onOut: () => void;
   onIn: () => void;
+  /** The distance across the view, between the buttons: "120 m". */
+  rangeLabel?: string;
 }) {
   return (
     <View style={styles.row}>
@@ -35,6 +40,13 @@ export function MapZoomButtons({
         disabled={!canOut}
         onPress={onOut}
       />
+      {rangeLabel ? (
+        <View style={styles.range}>
+          <Text variant='dataSmall' tone='textSecondary'>
+            {rangeLabel}
+          </Text>
+        </View>
+      ) : null}
       <ZoomButton
         label='+'
         hint='Zoom the map in'
@@ -89,6 +101,12 @@ const styles = StyleSheet.create({
     bottom: space.xs,
     flexDirection: 'row',
     gap: GAP,
+  },
+  range: {
+    width: MAP_ZOOM_LABEL_W,
+    height: BUTTON,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   button: {
     width: BUTTON,
