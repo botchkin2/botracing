@@ -24,7 +24,7 @@ export type StripLap = {
   minSpeedKph: number | null;
   /** Min speed sat on the corner's edge: a boundary value, not the corner's. */
   minSpeedAtEdge: boolean;
-  /** Flat through the turn: no full-throttle point (throttleM is null). */
+  /** Already at full throttle at the slowest sample: no point (throttleM is null). */
   throttleAtEdge: boolean;
   apexSpeedKph: number | null;
   /** Metres after the apex. */
@@ -61,7 +61,7 @@ export type StripModel = {
   summary: string;
   /** No lap has this measure here (a corner taken without braking). */
   empty: boolean;
-  /** Beside the title: "flat throughout: 30 laps", the laps left off this strip. */
+  /** Beside the title: "full throttle by the slowest point: 30 laps", the laps left off. */
   flatNote: string | null;
   /** The on laps' values, for the line beside the title. */
   keyValues: {onIndex: number; text: string}[];
@@ -186,7 +186,8 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
       flagged: spec.measure === 'minSpeed' && l.minSpeedAtEdge,
     });
   }
-  // Only the full-throttle measure has flat laps; they are left off the strip.
+  // Laps already at full throttle at the slowest sample have no point on the
+  // full-throttle strip; they are left off it and counted.
   const isFlat = (l: StripLap) =>
     spec.measure === 'throttle' && l.throttleAtEdge;
   const flatLaps = laps.filter(isFlat).length;
@@ -212,7 +213,7 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     .map(l => ({
       onIndex: l.onIndex as number,
       text: `${l.label} ${
-        spec.value(l) == null ? 'flat' : spec.fmt(spec.value(l) as number)
+        spec.value(l) == null ? 'at min' : spec.fmt(spec.value(l) as number)
       }`,
     }));
   const flat = flatLaps;
@@ -239,7 +240,9 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     empty: dots.length === 0,
     flatNote:
       flat > 0
-        ? `flat throughout: ${flat} ${flat === 1 ? 'lap' : 'laps'}`
+        ? `full throttle by the slowest point: ${flat} ${
+            flat === 1 ? 'lap' : 'laps'
+          }`
         : null,
     dots,
   };

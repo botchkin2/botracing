@@ -110,7 +110,7 @@ describe('cornerExplainer', () => {
   });
 });
 
-describe('a lap that is flat through the turn', () => {
+describe('a lap at full throttle by the slowest point', () => {
   const flatLaps = toLaps([
     lap('a', [9.8, 460, 110, 650]),
     lap('f', [10.1, 450, 106, 590], true, true),
@@ -127,19 +127,19 @@ describe('a lap that is flat through the turn', () => {
     corner: 3,
   })!;
 
-  it('has no full-throttle value: the cell says flat, the value is null', () => {
+  it('has no full-throttle value: the cell says at min, the value is null', () => {
     expect(model.rows[1].values.throttle).toBeNull();
     expect(model.rows[1].cells.throttle).toEqual({
-      value: 'flat',
+      value: 'at min',
       gap: null,
       better: false,
     });
     expect(model.rows[0].cells.throttle.value).toBe('10');
   });
 
-  it('the highlight line says flat, not a distance', () => {
+  it('the highlight line says so, not a distance', () => {
     expect(model.highlightLine).toBe(
-      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle flat',
+      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle at the slowest point',
     );
   });
 });

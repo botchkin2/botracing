@@ -82,7 +82,7 @@ describe('a measure no lap has', () => {
   });
 });
 
-describe('flat laps on the full-throttle strip', () => {
+describe('laps at full throttle by the slowest point', () => {
   // A flat lap has no full-throttle point: the model gives it throttleM null.
   const flat = (i: number, over: Partial<StripLap> = {}) =>
     lap(i, {throttleAtEdge: true, throttleM: null, ...over});
@@ -92,14 +92,16 @@ describe('flat laps on the full-throttle strip', () => {
     const throttle = buildStrips(laps)[3];
     expect(throttle.dots.map(d => d.lapId)).toEqual(['l0', 'l1', 'l4']);
     expect(throttle.dots.every(d => !d.flagged)).toBe(true);
-    expect(throttle.flatNote).toBe('flat throughout: 2 laps');
+    expect(throttle.flatNote).toBe(
+      'full throttle by the slowest point: 2 laps',
+    );
     // The band is over the laps that have a point.
     expect(throttle.band?.p50).toBe(51);
   });
 
   it('one flat lap reads singular; none reads nothing', () => {
     expect(buildStrips([lap(0), flat(1)])[3].flatNote).toBe(
-      'flat throughout: 1 lap',
+      'full throttle by the slowest point: 1 lap',
     );
     expect(buildStrips([lap(0), lap(1)])[3].flatNote).toBeNull();
   });
@@ -108,7 +110,9 @@ describe('flat laps on the full-throttle strip', () => {
     const throttle = buildStrips([flat(0), flat(1), flat(2)])[3];
     expect(throttle.empty).toBe(true);
     expect(throttle.dots).toEqual([]);
-    expect(throttle.flatNote).toBe('flat throughout: 3 laps');
+    expect(throttle.flatNote).toBe(
+      'full throttle by the slowest point: 3 laps',
+    );
   });
 
   it('an on lap that is flat says so beside the title', () => {
@@ -116,7 +120,7 @@ describe('flat laps on the full-throttle strip', () => {
       lap(0, {onIndex: 0}),
       flat(1, {onIndex: 1}),
     ])[3];
-    expect(throttle.keyValues.map(k => k.text)).toEqual(['L0 50', 'L1 flat']);
+    expect(throttle.keyValues.map(k => k.text)).toEqual(['L0 50', 'L1 at min']);
   });
 
   it('other strips are not touched by a flat throttle lap', () => {
