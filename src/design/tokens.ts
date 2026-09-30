@@ -269,6 +269,9 @@ export const size = {
   gridCell: 24,
   // The one fixed line under Corner's full-throttle strip (round 5, item 7).
   stripNote: 24,
+  // Sheet (Edit charts, Rules): bottom sheet top margin on the phone, side sheet width on desktop.
+  sheetTop: 120,
+  sheetSideWidth: 380,
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,
