@@ -19,11 +19,12 @@ import {
   useTheme,
 } from '@/src/design';
 import {compareHref, raceHref, sessionsHref, trackHref} from '@/src/nav/routes';
-import {Explainer, Segment, Text} from '@/src/ui';
+import {Explainer, Segment, Text, useHowToRead} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
 import {PitReviewCard} from './components/PitReviewCard';
+import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -113,6 +114,7 @@ function SessionView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const listRef = useRef<FlatList<RowModel>>(null);
+  const barsHelp = useHowToRead('the lap times', LAP_BARS_HELP);
   const headerHeight = useRef(0);
   // A bar tap highlights a lap, which can open the detail panel and change
   // the header height; scroll once that render has laid out.
@@ -187,9 +189,13 @@ function SessionView({
   const chartBlock = (width: number) =>
     model.chart ? (
       <View style={styles.section}>
-        <Text variant='label' tone='textMuted'>
-          Lap times
-        </Text>
+        <View style={styles.titleRow}>
+          <Text variant='label' tone='textMuted'>
+            Lap times
+          </Text>
+          {barsHelp.button}
+        </View>
+        {barsHelp.panel}
         <Explainer>{model.chart.explainer}</Explainer>
         <LapTimeBars
           width={width}
@@ -441,6 +447,7 @@ const styles = StyleSheet.create({
   },
   factValue: {fontSize: 14},
   section: {marginTop: space.xl, gap: space.xs},
+  titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   card: {
     marginTop: space.xl,
     padding: space.xl,

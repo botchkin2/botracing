@@ -14,7 +14,7 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {EmptyState, Skeleton, StatusBanner, Text} from '@/src/ui';
+import {EmptyState, Skeleton, StatusBanner, Text, useHowToRead} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
@@ -41,6 +41,7 @@ import {
 } from './selectionClock';
 import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
 import {markPitLane} from './pitLaneState';
+import {RACE_HELP} from './raceHelp';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
@@ -208,6 +209,7 @@ function RaceView({
   onSelectionChange: (patch: SelectionPatch) => void;
 }) {
   const {color} = useTheme();
+  const help = useHowToRead('the race', RACE_HELP);
   const layout = useLayout();
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
@@ -423,9 +425,13 @@ function RaceView({
         <View
           style={styles.mapColumn}
           onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
-          <Text variant='dataSmall' tone='textMuted'>
-            {sub}
-          </Text>
+          <View style={styles.subRow}>
+            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+              {sub}
+            </Text>
+            {help.button}
+          </View>
+          {help.panel}
           <View
             style={styles.mapFill}
             onLayout={e =>
@@ -447,9 +453,13 @@ function RaceView({
   return (
     <View style={styles.fill}>
       <View style={styles.phoneTop}>
-        <Text variant='dataSmall' tone='textMuted'>
-          {sub}
-        </Text>
+        <View style={styles.subRow}>
+          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+            {sub}
+          </Text>
+          {help.button}
+        </View>
+        {help.panel}
         {map}
         <RaceLegend />
       </View>
@@ -501,4 +511,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   matchNote: {marginTop: space.xs},
+  subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
+  flexFill: {flex: 1},
 });

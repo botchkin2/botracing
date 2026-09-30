@@ -13,8 +13,13 @@ export type PitReview = {
   explainer: string;
 };
 
-export const PIT_REVIEW_EXPLAINER =
-  'Each stop: what was in the tank at pit entry, what the stop added and the time in the lane. Laps are at the stint’s median use per green lap. Tyres changed means the average tyre wear reading jumped after the stop. The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.';
+// Behind the "?" on the Pit stops card (thread 33 #1119), one sentence a line.
+export const PIT_REVIEW_HELP: readonly string[] = [
+  'Each stop: what was in the tank at pit entry, what the stop added and the time in the lane.',
+  'Laps are at the stint’s median use per green lap.',
+  'Tyres changed means the average tyre wear reading jumped after the stop.',
+  'The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.',
+];
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -161,6 +166,6 @@ export function buildPitReview(
       ending && lines.length
         ? {title: `End of L${ending.lapIndex}`, lines}
         : null,
-    explainer: PIT_REVIEW_EXPLAINER,
+    explainer: PIT_REVIEW_HELP.join(' '),
   };
 }

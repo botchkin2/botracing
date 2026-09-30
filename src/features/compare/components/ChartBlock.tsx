@@ -9,7 +9,7 @@ import {
   type ChannelId,
   MAX_OVERLAY,
 } from '@/src/state/comparePrefs';
-import {Chip, Explainer, Text} from '@/src/ui';
+import {Chip, Explainer, Text, useHowToRead} from '@/src/ui';
 
 import {
   CHANNELS,
@@ -18,6 +18,7 @@ import {
   type ChartValueRow,
   drawRank,
 } from '../model';
+import {chartHelp} from '../chartHelp';
 
 export type LapStyle = (
   selIndex: number,
@@ -96,6 +97,7 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
+  const help = useHowToRead(chart.title, chartHelp(chart.channels));
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -124,12 +126,16 @@ export function ChartBlock({
             {chart.valueRows[0].unit}
           </Text>
           {valueTexts(chart.valueRows[0])}
+          <View style={styles.help}>{help.button}</View>
         </View>
       ) : (
         <View>
-          <Text variant='label' tone='textMuted'>
-            {chart.title}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text variant='label' tone='textMuted'>
+              {chart.title}
+            </Text>
+            {help.button}
+          </View>
           {chart.valueRows.map(r => (
             <View key={r.channel} style={styles.overlayRow}>
               <LegendSwatch
@@ -182,6 +188,7 @@ export function ChartBlock({
           )}
         </View>
       )}
+      {help.panel}
       <Explainer>{chart.explainer}</Explainer>
       <TraceChart
         width={width}
@@ -241,6 +248,9 @@ function LegendSwatch({
 const styles = StyleSheet.create({
   block: {gap: space.xxs},
   headerRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
+  titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
+  // Pushed to the header's far edge; the values wrap before it.
+  help: {marginLeft: 'auto', alignSelf: 'center'},
   overlayRow: {
     height: 17,
     flexDirection: 'row',

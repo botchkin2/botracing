@@ -23,7 +23,7 @@ import {
 } from '@/src/design';
 import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
-import {Chip, Explainer, StatusBanner, Text} from '@/src/ui';
+import {Chip, Explainer, StatusBanner, Text, useHowToRead} from '@/src/ui';
 
 import {
   type BrakeMapModel,
@@ -36,6 +36,7 @@ import {
   sortRows,
 } from './model';
 import {MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {STRIPS_HELP} from './stripsHelp';
 import {useCornerModel} from './useCornerModel';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
 
@@ -163,6 +164,7 @@ function CornerView({
   });
 
   const [notice, setNotice] = useState<string | null>(null);
+  const stripsHelp = useHowToRead('the dot strips', STRIPS_HELP);
   const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
@@ -261,11 +263,15 @@ function CornerView({
     <View style={styles.gap}>
       {model.strips ? (
         <View style={styles.gap}>
-          <Text variant='explainer' tone='textMuted'>
-            {canToggle
-              ? 'Coloured dots are the laps on; grey dots are the other comparable laps. Tap a dot to turn that lap on or off.'
-              : 'Coloured dots are the laps on; grey dots are the other laps. Tap a dot to highlight it.'}
-          </Text>
+          <View style={styles.row}>
+            <Text variant='explainer' tone='textMuted' style={styles.flex}>
+              {canToggle
+                ? 'Coloured dots are the laps on; grey dots are the other comparable laps. Tap a dot to turn that lap on or off.'
+                : 'Coloured dots are the laps on; grey dots are the other laps. Tap a dot to highlight it.'}
+            </Text>
+            {stripsHelp.button}
+          </View>
+          {stripsHelp.panel}
           {canToggle && selection.laps.length >= 2 ? (
             <View style={styles.row}>
               <Chip

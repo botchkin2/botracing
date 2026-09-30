@@ -260,6 +260,8 @@ export const size = {
   transport: 40,
   hit: 44,
   checkbox: 16,
+  // The "?" that opens a chart's how-to-read lines (thread 33 #1119).
+  helpMark: 20,
   gridCell: 24,
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,

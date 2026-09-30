@@ -1,9 +1,9 @@
 import {StyleSheet, View} from 'react-native';
 
 import {space, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text, useHowToRead} from '@/src/ui';
 
-import {type PitReview} from '../pitReview';
+import {PIT_REVIEW_HELP, type PitReview} from '../pitReview';
 
 /**
  * The race pit review: one block per stop, then the end of the race. Each
@@ -12,6 +12,7 @@ import {type PitReview} from '../pitReview';
  */
 export function PitReviewCard({review}: {review: PitReview}) {
   const {color} = useTheme();
+  const help = useHowToRead('the pit stops', PIT_REVIEW_HELP);
   const block = (key: string, title: string, lines: string[]) => (
     <View key={key} style={[styles.block, {borderColor: color.line}]}>
       <Text variant='bodyStrong'>{title}</Text>
@@ -24,8 +25,11 @@ export function PitReviewCard({review}: {review: PitReview}) {
   );
   return (
     <View style={styles.card}>
-      <Text variant='label'>Pit stops</Text>
-      <Explainer>{review.explainer}</Explainer>
+      <View style={styles.title}>
+        <Text variant='label'>Pit stops</Text>
+        {help.button}
+      </View>
+      {help.panel}
       {review.stops.map(s => block(s.key, s.title, s.lines))}
       {review.end && block('end', review.end.title, review.end.lines)}
     </View>
@@ -34,6 +38,7 @@ export function PitReviewCard({review}: {review: PitReview}) {
 
 const styles = StyleSheet.create({
   card: {gap: space.xs},
+  title: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   block: {
     gap: space.xxs,
     paddingVertical: space.md,

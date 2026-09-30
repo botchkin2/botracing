@@ -1,4 +1,5 @@
-import {useMemo} from 'react';
+import {type ReactNode, useMemo} from 'react';
+import {View} from 'react-native';
 
 import {type Field} from '@/src/analysis/field';
 import {raceClock} from '@/src/analysis/raceClock';
@@ -16,10 +17,13 @@ export function RadarDock({
   field,
   lapNumber,
   cursorM,
+  footer,
 }: {
   field: Field;
   lapNumber: number;
   cursorM: number;
+  /** Under the radar, only when there is one to show (the "?"). */
+  footer?: ReactNode;
 }) {
   // Built once per field: it scans every update.
   const clock = useMemo(() => raceClock(field), [field]);
@@ -33,12 +37,15 @@ export function RadarDock({
   );
   if (!view) return null;
   return (
-    <Radar
-      width={RADAR_DOCK_W}
-      height={RADAR_DOCK_H}
-      rangeM={RADAR_RANGE_M}
-      radar={view.radar}
-      sampleLabel={view.sampleLabel}
-    />
+    <View style={{width: RADAR_DOCK_W, alignItems: 'center'}}>
+      <Radar
+        width={RADAR_DOCK_W}
+        height={RADAR_DOCK_H}
+        rangeM={RADAR_RANGE_M}
+        radar={view.radar}
+        sampleLabel={view.sampleLabel}
+      />
+      {footer}
+    </View>
   );
 }
