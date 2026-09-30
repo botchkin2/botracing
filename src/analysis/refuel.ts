@@ -18,7 +18,9 @@ export const REFUEL_MEASURED_STOPS = 5;
 
 /** Whether the rate is known for this car class (the session's `car.class`). */
 export function refuelMeasured(carClass: string): boolean {
-  return REFUEL_MEASURED_CLASSES.includes(carClass);
+  // Trimmed and case-blind, as the radar matches a class.
+  const wanted = carClass.trim().toLowerCase();
+  return REFUEL_MEASURED_CLASSES.some(c => c.toLowerCase() === wanted);
 }
 
 /**

@@ -8,6 +8,9 @@ describe('refuel', () => {
     expect(refuelMeasured('LMP2')).toBe(false);
     expect(refuelMeasured('Hyper')).toBe(false);
     expect(refuelMeasured('')).toBe(false);
+    // Trimmed and case-blind.
+    expect(refuelMeasured(' gt3 ')).toBe(true);
+    expect(refuelS(34, 'gt3')).toBeCloseTo(10, 5);
   });
 
   it('is litres over the rate: the frame’s +33.2 L is 9.8 s and +50.0 L is 14.7 s', () => {
