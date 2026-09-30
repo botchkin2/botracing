@@ -39,6 +39,7 @@ const placer: MapPlacer = {
       out.push({x: t.lon[i], y: t.lat[i]});
     return out;
   },
+  placeWorld: points => points.map(p => ({x: p.x, y: p.z})),
   outline: [],
   pitLane: [],
 };

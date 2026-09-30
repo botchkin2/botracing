@@ -18,8 +18,8 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
-import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
-import {Explainer, Text} from '@/src/ui';
+import {compareHref, raceHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {Explainer, Segment, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -48,6 +48,11 @@ const TAG_KEY =
   'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
 
 export type {Selection} from './model';
+
+const LAPS_RACE = [
+  {value: 'laps', label: 'Laps'},
+  {value: 'race', label: 'Race'},
+] as const;
 
 export function SessionScreen({
   sessionId,
@@ -243,6 +248,17 @@ function SessionView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      {/* Race is a segment next to Laps on the phone (round 3 R1a); at desktop
+          widths it is a chrome tab. */}
+      {!layout.isDesktop && (
+        <Segment
+          options={LAPS_RACE}
+          value='laps'
+          onChange={() =>
+            router.navigate(raceHref(sessionId, {laps: selection.laps}))
+          }
+        />
+      )}
       {model.trackId ? (
         <Pressable
           accessibilityRole='link'

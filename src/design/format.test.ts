@@ -6,6 +6,7 @@ import {
   formatLength,
   formatGap,
   formatLapTime,
+  formatRaceGap,
   turnLabel,
   turnNumber,
 } from './format';
@@ -44,5 +45,15 @@ describe('format', () => {
 describe('formatLength', () => {
   it('gives km and miles to the metre', () => {
     expect(formatLength(5891)).toEqual({km: '5.891 km', mi: '3.660 mi'});
+  });
+});
+
+describe('formatRaceGap', () => {
+  it('gives seconds under a minute and m:ss.s from a minute', () => {
+    expect(formatRaceGap(3.412)).toBe('+3.412');
+    expect(formatRaceGap(0)).toBe('+0.000');
+    expect(formatRaceGap(59.9994)).toBe('+59.999');
+    expect(formatRaceGap(64.2)).toBe('+1:04.2');
+    expect(formatRaceGap(600)).toBe('+10:00.0');
   });
 });

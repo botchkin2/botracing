@@ -4,6 +4,7 @@ import {
   compareHref,
   cornerHref,
   parseSelection,
+  raceHref,
   sessionHref,
   trackHref,
 } from './routes';
@@ -17,6 +18,13 @@ describe('routes', () => {
     expect(compareHref('s1', {laps: ['a'], cursorM: 2186.4})).toEqual({
       pathname: '/session/[id]/compare',
       params: {id: 's1', laps: 'a', t: '2186'},
+    });
+  });
+
+  it('race is a session tab that carries the selection', () => {
+    expect(raceHref('s1', {laps: ['a'], hl: 'a', cursorM: 100})).toEqual({
+      pathname: '/session/[id]/race',
+      params: {id: 's1', laps: 'a', hl: 'a', t: '100'},
     });
   });
 

@@ -5,7 +5,7 @@ import {radius, size, space, useTheme} from '@/src/design';
 
 import {Text} from './Text';
 
-export type WorkspaceTab = 'session' | 'compare' | 'corner' | 'tracks';
+export type WorkspaceTab = 'session' | 'compare' | 'race' | 'corner' | 'tracks';
 
 export type ChromeTab = {
   key: WorkspaceTab;
