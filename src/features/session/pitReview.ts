@@ -35,6 +35,22 @@ function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   return laps.filter(l => l.pitStop !== null && l.lapIndex !== first);
 }
 
+/**
+ * Whether the tyres were changed at the stop entered on laps[index], from the
+ * uploader's wear-jump flag. The flag lands on the first lap that starts after
+ * the wear reading has updated, which is the lap after the out lap (Silverstone
+ * 09-16: pit-in L14, out lap L15, flag on L16), so look through the out lap
+ * and the first lap after it. Null when the session ends before that.
+ */
+function tyresChanged(laps: Lap[], index: number): boolean | null {
+  let changed = false;
+  for (let j = index + 1; j < laps.length; j++) {
+    changed = changed || laps[j].newTyres;
+    if (!laps[j].pitOut) return changed;
+  }
+  return changed ? true : null;
+}
+
 function stopLines(stop: PitStop, tyres: boolean | null): string[] {
   const {fuelL, vePct} = stop.atEntry;
   const inTank = [
@@ -98,12 +114,17 @@ export function buildPitReview(
   const pitLaps = racePitLaps(sessionType, laps);
   if (pitLaps.length === 0) return null;
   const stops = pitLaps.map((lap, i): PitStopReview => {
-    const next = laps[laps.findIndex(l => l.id === lap.id) + 1];
     return {
       key: lap.id,
       title: `L${lap.lapIndex} · Stop ${i + 1} of ${pitLaps.length}`,
       // Unknown (null) on the last lap: the session ended in the pits.
-      lines: stopLines(lap.pitStop as PitStop, next ? next.newTyres : null),
+      lines: stopLines(
+        lap.pitStop as PitStop,
+        tyresChanged(
+          laps,
+          laps.findIndex(l => l.id === lap.id),
+        ),
+      ),
     };
   });
 
