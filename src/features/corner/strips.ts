@@ -240,8 +240,8 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     empty: dots.length === 0,
     flatNote:
       flat > 0
-        ? `full throttle by the slowest point: ${flat} ${
-            flat === 1 ? 'lap' : 'laps'
+        ? `Full throttle by the slowest point: ${flat} of ${laps.length} ${
+            laps.length === 1 ? 'lap' : 'laps'
           }`
         : null,
     dots,
