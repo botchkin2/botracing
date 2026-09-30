@@ -211,22 +211,33 @@ function statsOf(kept: {car: number; t: number}[]): ClassLapStats | null {
   };
 }
 
-function keptLaps(
+export function keptLaps(
   list: {car: number; t: number}[],
   kind: ClassLapsKind,
 ): {car: number; t: number}[] {
-  const median = rank(
-    list.map(l => l.t).sort((a, b) => a - b),
-    0.5,
-  );
+  const sorted = (xs: number[]) => xs.sort((a, b) => a - b);
+  const best = new Map<number, number>();
+  for (const l of list)
+    best.set(l.car, Math.min(best.get(l.car) ?? Infinity, l.t));
+  // What the floor is measured against. A race is mostly push laps, so its
+  // median is the pace. Practice is half cool-downs and setup runs, which
+  // lift the median to about 1.10x the real pace and would put the floor on
+  // top of real push laps; the median of the cars' bests does not move with
+  // them (one car's false short best cannot move a median either).
+  const anchor =
+    kind === 'race'
+      ? rank(sorted(list.map(l => l.t)), 0.5)
+      : rank(sorted([...best.values()]), 0.5);
   // The physical floor first: a false short lap must not become a car's
   // "best" and shrink the practice window around it.
-  const real = list.filter(l => l.t >= FAST_CUT * median);
-  if (kind === 'race') return real.filter(l => l.t <= SLOW_CUT * median);
-  const best = new Map<number, number>();
+  const real = list.filter(l => l.t >= FAST_CUT * anchor);
+  if (kind === 'race') return real.filter(l => l.t <= SLOW_CUT * anchor);
+  const realBest = new Map<number, number>();
   for (const l of real)
-    best.set(l.car, Math.min(best.get(l.car) ?? Infinity, l.t));
-  return real.filter(l => l.t <= PRACTICE_WINDOW * (best.get(l.car) as number));
+    realBest.set(l.car, Math.min(realBest.get(l.car) ?? Infinity, l.t));
+  return real.filter(
+    l => l.t <= PRACTICE_WINDOW * (realBest.get(l.car) as number),
+  );
 }
 
 /**

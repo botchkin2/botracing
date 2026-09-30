@@ -6,6 +6,7 @@ import {
   classLaps,
   classLapsCurrent,
   classLapsDoc,
+  keptLaps,
   type EncodedField,
   paceClass,
   sessionKind,
@@ -332,5 +333,22 @@ describe('classLapsCurrent', () => {
         'Qualify',
       ),
     ).toBe(true);
+  });
+});
+
+describe('keptLaps, practice floor', () => {
+  // Two cars, each with 2 push laps at 100 s and 4 cool-down or setup laps at
+  // 130 s: the median of all laps is 130 s, and a floor of 0.95x that (123.5 s)
+  // would throw the push laps away.
+  const laps = [0, 1].flatMap(car => [
+    ...[100, 100, 130, 130, 130, 130].map(t => ({car, t})),
+  ]);
+  it('keeps the push laps, anchored on the cars bests', () => {
+    const kept = keptLaps(laps, 'practice');
+    expect(kept.map(l => l.t)).toEqual([100, 100, 100, 100]);
+  });
+  it('a race keeps its usual median anchor', () => {
+    const race = [100, 101, 102, 130, 99].map(t => ({car: 0, t}));
+    expect(keptLaps(race, 'race').map(l => l.t)).toEqual([100, 101, 102, 99]);
   });
 });
