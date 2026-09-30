@@ -24,10 +24,20 @@ export function formatCornerGap(deltaS: number): string {
 /**
  * A corner's display label: "T8". Corners are numbered by this app from its
  * own corner map, so they can differ from a circuit's official turn numbers
- * (Botkin, pit-wall thread 27 #689).
+ * (Botkin, pit-wall thread 27 #689); where tracks.json carries the official
+ * label ("T10a"), pass it as `official` and it replaces the app's number
+ * (pitlane, #690 option b).
  */
-export function turnLabel(n: number): string {
-  return `T${n}`;
+export function turnLabel(n: number, official?: string): string {
+  return official ?? `T${n}`;
+}
+
+/**
+ * The label without its "T" and any words after it, for badges and number
+ * columns: "8", "10a" ("T7 entry" is "7").
+ */
+export function turnNumber(n: number, official?: string): string {
+  return turnLabel(n, official).replace(/^T/, '').split(' ')[0];
 }
 
 /** "2,150 m" */

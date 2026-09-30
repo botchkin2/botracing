@@ -22,9 +22,12 @@ export type TrackCorner = MapCorner & {
 export function trackCorners(map: TrackMapData): TrackCorner[] {
   return map.sections.flatMap((s, si) => {
     const parts = s.parts.length ? s.parts : null;
-    const ns = (parts ?? [s]).map(c => c.n);
-    const range =
-      ns.length > 1 ? `T${ns[0]}–T${ns[ns.length - 1]}` : `T${ns[0]}`;
+    const cs = parts ?? [s];
+    // Same rule as design/format turnLabel; data does not import design.
+    const name = (c: MapCorner) => c.official ?? `T${c.n}`;
+    const first = name(cs[0]);
+    const last = name(cs[cs.length - 1]);
+    const range = cs.length > 1 ? `${first}–${last}` : first;
     const sectionLabel = `S${s.n} (${range})`;
     return (parts ?? [s]).map((c, pi) => ({
       ...c,

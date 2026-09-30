@@ -21,7 +21,7 @@ export type FollowGeometry = {
   /** The first lap's whole line, thinned, for the inset. */
   inset: Xy[];
   /** Corner numbers, 10.5 m inside each apex (the prototype's offset). */
-  corners: {n: number; at: Xy}[];
+  corners: {n: number; official?: string; at: Xy}[];
 };
 
 export type FollowView = {centre: Xy; headingRad: number; visibleM: number};
@@ -50,7 +50,7 @@ export function buildFollowGeometry(
   placer: MapPlacer,
   traces: Map<string, GridTrace>,
   lapIds: string[],
-  corners: {n: number; apexM: number}[],
+  corners: {n: number; official?: string; apexM: number}[],
 ): FollowGeometry | null {
   const ref = traces.get(lapIds[0]);
   if (!ref) return null;
@@ -93,6 +93,7 @@ export function buildFollowGeometry(
       const side = turn >= 0 ? 1 : -1;
       return {
         n: c.n,
+        official: c.official,
         at: {
           x: at.x - Math.sin(h) * CORNER_INSIDE_M * side,
           y: at.y + Math.cos(h) * CORNER_INSIDE_M * side,

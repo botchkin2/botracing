@@ -113,7 +113,11 @@ describe('buildCornerModel (per single corner)', () => {
       '640 m · in S2 (T2–T3) · 3 laps · compared with L1',
     );
     expect(m.sectionN).toBe(2);
-    expect(m.corners).toEqual([1, 2, 3]);
+    expect(m.corners).toEqual([
+      {n: 1, label: 'T1'},
+      {n: 2, label: 'T2'},
+      {n: 3, label: 'T3'},
+    ]);
     expect(m.prev).toBe(2);
     expect(m.next).toBe(1);
   });

@@ -20,6 +20,8 @@ export type Uploader = {
   lastUploadAt: number | null;
   lastSessionId: string | null;
   queue: number;
+  /** Sessions done of total during a resync (uploader heartbeat, #90); null otherwise. */
+  progress: {done: number; total: number} | null;
   /** Epoch ms the earliest failed session is tried again; null with none. */
   retryAt: number | null;
   sessionsDone: number;
@@ -65,6 +67,15 @@ const time = (v: unknown): number | null => {
   return null;
 };
 
+function toProgress(v: unknown): Uploader['progress'] {
+  if (v == null) return null;
+  const p = obj(v);
+  const done = num(p.done);
+  const total = num(p.total);
+  // A finished resync (done = total) is not in progress; drop a stale one.
+  return done != null && total != null && done < total ? {done, total} : null;
+}
+
 export function toUploader(raw: unknown): Uploader {
   const x = obj(raw);
   const hostId = str(x.hostId) ?? str(x.id);
@@ -86,6 +97,7 @@ export function toUploader(raw: unknown): Uploader {
     lastUploadAt: time(x.lastUploadAt),
     lastSessionId: str(x.lastSessionId),
     queue: num(x.queue) ?? 0,
+    progress: toProgress(x.progress),
     retryAt: time(x.retryAt),
     sessionsDone: num(x.sessionsDone) ?? 0,
     lastError: err

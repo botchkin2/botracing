@@ -8,7 +8,14 @@ import {
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
-import {formatDistance, formatGap, lapMode, type LapMode} from '@/src/design';
+import {
+  formatDistance,
+  formatGap,
+  lapMode,
+  type LapMode,
+  turnLabel,
+  turnNumber,
+} from '@/src/design';
 
 import {buildStrips, type StripModel} from './strips';
 
@@ -74,7 +81,8 @@ export type CornerModel = {
   corner: number;
   /** The section this corner belongs to (Compare opens sections). */
   sectionN: number;
-  corners: number[];
+  /** Every corner, for the chips: its number and display label. */
+  corners: {n: number; label: string}[];
   title: string;
   subtitle: string;
   mode: LapMode;
@@ -289,13 +297,13 @@ export function buildCornerModel(input: {
     ];
   });
 
-  const ns = all.map(c => c.n);
+  const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
 
   return {
     corner,
     sectionN: sec.sectionN,
-    corners: ns,
-    title: `Turn ${corner}`,
+    corners: chips,
+    title: `Turn ${turnNumber(corner, sec.official)}`,
     subtitle: [
       formatDistance(sec.apexM),
       `in ${sec.sectionLabel}`,
@@ -324,8 +332,8 @@ export function buildCornerModel(input: {
       ref ? traces.get(ref.id) : undefined,
       sec.apexM,
     ),
-    prev: ns[(idx - 1 + ns.length) % ns.length] ?? null,
-    next: ns[(idx + 1) % ns.length] ?? null,
+    prev: chips[(idx - 1 + chips.length) % chips.length]?.n ?? null,
+    next: chips[(idx + 1) % chips.length]?.n ?? null,
   };
 }
 

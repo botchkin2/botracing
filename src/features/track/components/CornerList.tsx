@@ -1,6 +1,6 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {size, space, useTheme, turnLabel} from '@/src/design';
+import {size, space, useTheme, turnLabel, turnNumber} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type TrackCornerGroup} from '../model';
@@ -56,7 +56,9 @@ export function CornerList({
               key={r.n}
               accessibilityRole='button'
               accessibilityState={{selected: r.selected}}
-              accessibilityLabel={`Turn ${r.n}${r.name ? `, ${r.name}` : ''}`}
+              accessibilityLabel={`${turnLabel(r.n, r.official ?? undefined)}${
+                r.name ? `, ${r.name}` : ''
+              }`}
               onPress={() => onToggle(r.n)}
               style={({pressed}) => [
                 styles.row,
@@ -71,14 +73,14 @@ export function CornerList({
                   !r.selected && {backgroundColor: color.surfaceRaised},
               ]}>
               <Text variant='dataStrong' style={styles.no}>
-                {r.n}
+                {turnNumber(r.n, r.official ?? undefined)}
               </Text>
               <Text
                 variant={compact ? 'body' : 'body'}
                 tone={r.name ? 'text' : 'textMuted'}
                 numberOfLines={1}
                 style={styles.name}>
-                {r.name ?? turnLabel(r.n)}
+                {r.name ?? turnLabel(r.n, r.official ?? undefined)}
               </Text>
               <Text variant='dataSmall' tone='textMuted' style={styles.dir}>
                 {r.turn ?? ''}

@@ -24,7 +24,6 @@ import {
   space,
   useLayout,
   useTheme,
-  turnLabel,
 } from '@/src/design';
 import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
@@ -235,10 +234,10 @@ function CornerView({
         {model.subtitle}
       </Text>
       <View style={styles.wrap}>
-        {model.corners.map(n => (
+        {model.corners.map(({n, label}) => (
           <Chip
             key={n}
-            label={turnLabel(n)}
+            label={label}
             selected={n === model.corner}
             onPress={() => go(n)}
           />

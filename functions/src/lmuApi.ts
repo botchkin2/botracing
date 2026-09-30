@@ -22,16 +22,18 @@ if (!admin.apps.length) {
 
 const BUCKET = 'botracing-61-lmu';
 
+// The API is read-only and public, so any local dev server (any port) and any
+// PR preview channel may read it. Seats kept building proxies because only
+// three localhost ports were allowed.
+const ALLOWED_ORIGIN =
+  /^(https:\/\/botracing-61(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
+
 function allowCors(req: any, res: any) {
   const origin = req.headers.origin;
-  const allowed = [
-    'https://botracing-61.web.app',
-    'https://botracing-61.firebaseapp.com',
-    'http://localhost:8080',
-    'http://localhost:8081',
-    'http://localhost:19006',
-  ];
-  const allowOrigin = origin && allowed.includes(origin) ? origin : allowed[0];
+  const allowOrigin =
+    typeof origin === 'string' && ALLOWED_ORIGIN.test(origin)
+      ? origin
+      : 'https://botracing-61.web.app';
   res.set('Access-Control-Allow-Origin', allowOrigin);
   res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
