@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/tokens/colors.css">
+<link rel="stylesheet" href="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/tokens/typography.css">
+<link rel="stylesheet" href="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/styles.css">
+<script src="_ds/lap-analysis-design-system-6954cc75-4ea9-438c-8fa9-a360f0411bd4/_ds_bundle.js"></script>
+<style>html,body{margin:0;background:#07080a;color:#e4e7ea}a{color:oklch(0.80 0.16 70)}a:hover{color:#f2f4f6}</style>
+</helmet>
+<div style="padding:40px 44px 96px;font-family:var(--font-sans);color:var(--text);display:flex;flex-direction:column;gap:64px">
+
+<header style="display:flex;flex-direction:column;gap:8px;max-width:900px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Round 5 · corrected frames · follows <a href="Round 4 Review.dc.html">round 4</a></div>
+<h1 style="margin:0;font:600 34px/1.1 var(--font-sans)">Plan connected to the app, fuel-only cars, and the data fixes</h1>
+<p style="margin:0;font:400 15px/1.5 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">The screenshots did not come through again, so figures are still synthetic (Portimão, 2 h) and Compare on the phone is drawn from your description. Everything listed under “Keep” in your notes is unchanged unless it appears below.</p>
+</header>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">1</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Plan v2: opens on the last race, full-tank stops first</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">phone · To drop a stop and Per green lap unchanged from round 4</span></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+
+<div data-screen-label="1 Plan v2" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);position:relative">
+<div style="height:48px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--line-strong)"><span style="font:var(--type-title)">Plan</span></div>
+<div style="padding:12px 16px 24px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">Portimão ▾</span>
+<span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">911 GT3 R ▾</span>
+<span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">Rules: ELMS 2 h ▾</span>
+</div>
+<div style="padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Your last race here</span><span style="margin-left:auto;font:var(--type-data);color:var(--text-muted)">27 Sep</span></div>
+<div style="font:var(--type-data)">72 laps · 2 stops after L24, L48 · <span style="white-space:nowrap">4.9 L / 3 % VE left</span> at the end of L72</div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:var(--type-explainer);color:var(--text-muted)">Length, rules and fill limit below are prefilled from it.</span><span style="flex:none;min-height:32px;display:flex;align-items:center;font:500 13px var(--font-sans);color:var(--accent-ink)">Session →</span></div>
+</div>
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Length</span>
+<x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ lenOpts }}" value="{{ len }}" on-change="{{ setLen }}" size="sm" hint-size="130px,28px"></x-import>
+<div style="margin-left:auto;display:flex;align-items:center;border:1px solid var(--control-border);border-radius:3px;height:32px"><span style="width:32px;text-align:center;font:500 14px var(--font-mono);color:var(--text-secondary)">−</span><span style="padding:0 8px;font:var(--type-data-strong)">120 min</span><span style="width:32px;text-align:center;font:500 14px var(--font-mono);color:var(--text-secondary)">+</span></div>
+</div>
+
+<div style="padding:12px;background:var(--surface-raised);border-radius:6px;display:flex;flex-direction:column;gap:8px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Race</div>
+<div style="display:flex;gap:28px;align-items:baseline">
+<div style="white-space:nowrap"><span style="font:600 28px/1 var(--font-mono)">72</span><span style="font:500 13px var(--font-mono);color:var(--text-secondary)"> laps</span></div>
+<div style="white-space:nowrap"><span style="font:600 28px/1 var(--font-mono)">2</span><span style="font:500 13px var(--font-mono);color:var(--text-secondary)"> stops</span></div>
+<div style="font:var(--type-data);color:var(--text-secondary)">after L27, L55</div>
+</div>
+<div style="font:var(--type-explainer);color:var(--text-secondary)">At your median lap, 1:41.2: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. 71 if the leader finishes first. Stop laps are the full-tank strategy.</div>
+</div>
+
+<div style="padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Per tank</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Laps one full load lasts. Bar = median use per lap, notch = p90 use. The shorter meter sets the stint length.</div></div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 14px var(--font-sans)">VE</span><span style="flex:none;white-space:nowrap;font:600 9.5px var(--font-mono);letter-spacing:.06em;padding:2px 5px;border:1px solid var(--text);border-radius:2px">RUNS OUT FIRST</span><span style="margin-left:auto;flex:none;white-space:nowrap;font:var(--type-data-strong)">28.6 laps</span></div>
+<div style="position:relative;height:10px;background:var(--chart-track-fill);border-radius:2px"><div style="position:absolute;left:0;top:0;bottom:0;width:63.6%;background:var(--text);border-radius:2px"></div><div style="position:absolute;left:61.3%;top:-3px;bottom:-3px;width:2px;background:var(--bg)"></div></div>
+<div style="display:flex;font:var(--type-data);font-size:10.5px;color:var(--text-muted)"><span>100 % ÷ 3.50 %/lap</span><span style="margin-left:auto">p90 27.6 laps</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 14px var(--font-sans);color:var(--text-secondary)">Fuel</span><span style="margin-left:auto;flex:none;white-space:nowrap;font:var(--type-data-strong);color:var(--text-secondary)">42.0 laps</span></div>
+<div style="position:relative;height:10px;background:var(--chart-track-fill);border-radius:2px"><div style="position:absolute;left:0;top:0;bottom:0;width:93.3%;background:var(--text-faint);border-radius:2px"></div><div style="position:absolute;left:90.2%;top:-3px;bottom:-3px;width:2px;background:var(--bg)"></div></div>
+<div style="display:flex;font:var(--type-data);font-size:10.5px;color:var(--text-muted)"><span>100 L ÷ 2.38 L/lap</span><span style="margin-left:auto">p90 40.6 laps</span></div>
+</div>
+</div>
+
+<div style="padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:8px">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Stops</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.</div></div>
+<div style="display:grid;grid-template-columns:88px 1fr 1fr;gap:0 8px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--line-strong)"><span></span><span>Stop after</span><span>Stint laps</span></div>
+<div style="display:grid;grid-template-columns:88px 1fr 1fr;gap:0 8px;height:28px;align-items:center;border-bottom:1px solid var(--line)"><span style="font:600 13px var(--font-sans)">Full tank</span><span style="font:var(--type-data-strong)">L27 · L55</span><span style="font:var(--type-data)">27 + 28 + 17</span></div>
+<div style="display:grid;grid-template-columns:88px 1fr 1fr;gap:0 8px;height:28px;align-items:center"><span style="font:500 13px var(--font-sans);color:var(--text-secondary)">Equal stints</span><span style="font:var(--type-data);color:var(--text-secondary)">L24 · L48</span><span style="font:var(--type-data);color:var(--text-secondary)">24 + 24 + 24</span></div>
+<div style="font:var(--type-explainer);color:var(--text-muted)">Stint 1 includes the formation lap: 2.0 % VE, 0.9 L. Refuelling runs at 3.4 L/s (GT3, measured on 5 stops).</div>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;top:812px;border-top:1px dashed var(--accent);pointer-events:none"><span style="position:absolute;left:6px;top:-16px;font:500 9.5px var(--font-mono);color:var(--accent)">812 pt</span></div>
+</div>
+
+<div style="width:400px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>“Your last race here” sits directly under the track and car chips because it depends on them. It gives the recorded result on one line and links back to that session. If there is no race at this track in this car, the block is omitted.</li>
+<li>That block also states that the inputs are prefilled from it, so a changed length or rule set is visible as a change.</li>
+<li>Stops leads with the full-tank row at full ink; equal stints follow in secondary ink as the comparison. The Race card quotes the full-tank stop laps.</li>
+<li>The measured refuel rate goes in the Stops key, with its scope (GT3, 5 stops). For LMP2 and Hypercar it is left out until measured.</li>
+<li>Race and Per tank still sit above the 812 pt fold. The last-race block costs 84 pt, which comes out of the rules grid; the rules now live only in the chip and its sheet.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">2</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Fuel-only state: cars without Virtual Energy</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">LMP2 · Oreca 07 · one phone, three places</span></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+<div data-screen-label="2 Fuel-only" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column">
+<div style="padding:10px 16px 4px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-faint)">Plan · Per tank</div>
+<div style="margin:0 8px 12px;padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Per tank</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Laps one full load lasts. Bar = median use per lap, notch = p90 use. This car has no VE; fuel sets the stint length.</div></div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:600 14px var(--font-sans)">Fuel</span><span style="margin-left:auto;flex:none;white-space:nowrap;font:var(--type-data-strong)">24.0 laps</span></div>
+<div style="position:relative;height:10px;background:var(--chart-track-fill);border-radius:2px"><div style="position:absolute;left:0;top:0;bottom:0;width:80%;background:var(--text);border-radius:2px"></div><div style="position:absolute;left:77%;top:-3px;bottom:-3px;width:2px;background:var(--bg)"></div></div>
+<div style="display:flex;font:var(--type-data);font-size:10.5px;color:var(--text-muted)"><span>75 L ÷ 3.12 L/lap</span><span style="margin-left:auto">p90 23.1 laps</span></div>
+</div>
+<div style="display:flex;justify-content:space-between;font:var(--type-axis);color:var(--text-faint);border-top:1px solid var(--line-strong);padding-top:4px"><span>0</span><span>10</span><span>20</span><span>30 laps</span></div>
+</div>
+<div style="padding:4px 16px 4px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-faint)">Session · lap table</div>
+<x-import component-from-global-scope="DesignSystem_6954cc.LapRow" label="L22" time="1:36.804" gap="+1.202" sectors="{{ secIn }}" tags="{{ tagIn }}" compact="{{ true }}" hint-size="100%,32px"></x-import>
+<div style="height:24px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface);overflow:hidden"><span style="flex:none;font:600 9.5px var(--font-mono);letter-spacing:.06em;color:var(--accent);border:1px solid var(--accent);border-radius:2px;padding:1px 4px">PIT</span><span style="font:400 10.5px var(--font-mono);color:var(--text-secondary);white-space:nowrap">6.2 L left (2.0 laps) · +58.0 L · 44 s</span></div>
+<x-import component-from-global-scope="DesignSystem_6954cc.StintHeader" title="Stint 2 · L23–L44" stats="22 laps · median 1:35.6 · spread 0.44 s" hint-size="100%,44px"></x-import>
+<div style="height:20px;display:flex;align-items:center;padding:0 16px;font:400 10.5px var(--font-mono);color:var(--text-muted);white-space:nowrap;border-bottom:1px solid var(--line)">Fuel 3.12 L/lap (n = 19)</div>
+<div style="padding:12px 16px 4px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-faint)">Session · Pit stops</div>
+<div style="margin:0 8px 16px;padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:3px">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 14px var(--font-sans)">Stop 1</span><span style="font:var(--type-data);color:var(--text-muted)">after L22</span></div>
+<div style="display:grid;grid-template-columns:72px 1fr;gap:3px 8px;align-items:baseline">
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">In</span><span style="font:var(--type-data)">6.2 L (2.0 laps)</span>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Added</span><span style="font:var(--type-data)">+58.0 L</span>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Pit lane</span><span style="font:var(--type-data)">44.0 s</span>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Tyres</span><span style="font:var(--type-data)">Changed</span>
+</div>
+</div>
+</div>
+<div style="width:400px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>Absent VE removes things. It is never shown as 0 %, “—” or a disabled column: no VE bar, no “RUNS OUT FIRST” box, no VE column in Stops or To drop a stop, no “1 % VE” or Max VE in the rules.</li>
+<li>With one meter, the Fuel bar goes to full ink, and the explainer says why there is no comparison (“This car has no VE”).</li>
+<li>Session: the stint line is just “Fuel 3.12 L/lap (n = 19)” and the pit note drops the “/ n % VE” part. Same fixed heights as the VE state.</li>
+<li>Pit stops: IN and ADDED show litres only. No refuel split for LMP2 until the rate is measured; the pit-lane time stands alone.</li>
+<li>Rule: the VE state is chosen per session from whether the channel is stored. Nothing is decided by car class, so a future car with VE works without a code change.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">3</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Pit stops card after a race: plan vs what happened</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">refuel at 3.4 L/s · tyres changed / not changed · End of L72</span></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Demo</span><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ nStopOpts }}" value="{{ nStops }}" on-change="{{ setNStops }}" size="sm" hint-size="220px,28px"></x-import></div>
+<div data-screen-label="3 Pit stops v2" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);padding:16px 8px;box-sizing:border-box">
+<div style="padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px">
+
+<sc-if value="{{ pz.zero }}" hint-placeholder-val="{{ false }}">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Fuel</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">No stops. What was in the car at the start, what was used, and what was left.</div></div>
+<div style="display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">Start</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font:var(--type-data-strong)">45.0 L · 68 % VE</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">loaded before L1</span></div></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0;border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">Used</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font:var(--type-data-strong)">41.3 L · 64 % VE</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">2.29 L/lap · 3.56 %/lap over 18 laps</span></div></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">End of L18</span><div style="display:flex;flex-direction:column;gap:4px"><span style="font:var(--type-data-strong)">3.7 L / 4 % VE (1.1 laps)</span><div style="display:flex;height:8px;border-radius:2px;overflow:hidden;gap:1px"><div style="flex:41.3;background:var(--text-faint)"></div><div style="flex:3.7;background:var(--text)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">grey = used · white = left</span></div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pz.multi }}" hint-placeholder-val="{{ true }}">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Pit stops</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Per stop: what was left on the way in, what was added, time in the pit lane with refuelling split out, and tyres.</div></div>
+<div style="overflow-x:auto;margin:0 -12px;padding:0 12px">
+<div style="display:grid;grid-template-columns:{{ pz.grid }};column-gap:12px;min-width:min-content">
+<span style="position:sticky;left:0;background:var(--surface);border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)"></span>
+<sc-for list="{{ pz.cols }}" as="c"><div style="padding:8px 0 6px;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);display:flex;flex-direction:column;gap:1px"><span style="font:600 14px var(--font-sans)">{{ c.n }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.lap }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">In</span><sc-for list="{{ pz.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.inv }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.inm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">Added</span><sc-for list="{{ pz.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.ad }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.adm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">VE out</span><sc-for list="{{ pz.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><div style="display:flex;height:8px;background:var(--chart-track-fill);border-radius:2px;overflow:hidden;gap:1px;margin-top:3px"><div style="width:{{ c.tl }};background:var(--text)"></div><div style="width:{{ c.ta }};background:var(--text-faint)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.tt }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">Pit lane</span><sc-for list="{{ pz.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.pl }}</span><div style="display:flex;height:6px;width:{{ c.plw }};background:var(--text-faint);border-radius:2px;overflow:hidden"><div style="width:{{ c.rfw }};background:var(--text)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.plm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);border-bottom:none">Tyres</span><sc-for list="{{ pz.cols }}" as="c"><div style="padding:7px 0;display:flex"><span style="font:var(--type-data-strong);color:{{ c.tyc }}">{{ c.ty }}</span></div></sc-for>
+</div>
+</div>
+<div style="font:400 10.5px/1.4 var(--font-mono);color:var(--text-muted)">{{ pz.key }}</div>
+<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line-strong)">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">{{ pz.endLabel }}</span><span style="font:var(--type-explainer);color:var(--text-muted)">the last whole lap</span></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;align-items:baseline"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Spare</span><span style="font:var(--type-data-strong)">{{ pz.spare }}</span></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;align-items:baseline"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Last stop</span><span style="font:var(--type-data)">{{ pz.last }}</span></div>
+<div style="display:flex;height:8px;border-radius:2px;overflow:hidden;margin-left:76px;gap:1px"><div style="flex:{{ pz.used }};background:var(--text-faint)"></div><div style="flex:{{ pz.left }};background:var(--text)"></div></div>
+</div>
+</sc-if>
+
+<div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--text-faint)">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Plan vs what happened</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">{{ pz.planDesc }}</div></div>
+<div style="display:grid;grid-template-columns:64px 1fr 1fr;gap:0 12px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--line-strong)"><span></span><span>Plan</span><span>Actual</span></div>
+<sc-for list="{{ pz.pva }}" as="r" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:64px 1fr 1fr;gap:0 12px;min-height:24px;align-items:center;border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">{{ r.k }}</span><span style="font:var(--type-data);color:var(--text-secondary)">{{ r.p }}</span><span style="font:var(--type-data)">{{ r.a }}</span></div></sc-for>
+</div>
+</div>
+</div>
+</div>
+<div style="width:400px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>Refuel is computed from litres added ÷ 3.4 L/s: +33.2 L → 9.8 s, +50.0 L → 14.7 s. The line prints the rate, so the number is not mistaken for a measurement.</li>
+<li>Count-aware. 0 stops: the card becomes “Fuel”, covering start, used and end of the last lap, and the plan half compares it with Load to finish. 1 stop: a single full-width column, so the bars get the whole width. 2 stops: two columns. 3 or more: fixed 118 pt columns that scroll sideways, with the key column pinned.</li>
+<li>Stops are columns, so the same measure sits side by side and scans across. Each cell has a bold primary value (litres, seconds) with its secondary value muted below it.</li>
+<li>Two small to-scale bars carry the shape: VE out (left + added) and pit lane (refuel inside the lane time). They are neutral inks only, keyed once under the table.</li>
+<li>Tyres read “Changed” or “Not changed”. When per-wheel data ships, the same row carries “Fronts new” with no layout change.</li>
+<li>The end row is “End of L72 · the last whole lap”.</li>
+<li>Plan vs what happened is the lower half of the same card, separated by a stronger rule. It uses the same key column, with Plan in secondary ink and Actual at full ink, row for row: stop laps, what was left at each entry, and the spare.</li>
+<li>The plan is rebuilt from the laps recorded before the race, so it is the plan he could have seen that morning. The explainer says so and gives n.</li>
+<li>No difference column and no colour. The two values sit side by side and the reader compares them.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">4</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Track page and practice: where the plan’s data comes from</h2></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+<div data-screen-label="4 Track page" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column">
+<div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line-strong)"><span style="font:500 14px var(--font-sans);color:var(--text-secondary)">‹</span><span style="font:var(--type-title)">Portimão</span><span style="font:var(--type-data);color:var(--text-muted)">4,650 m</span></div>
+<div style="padding:12px 16px 4px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Plan</span><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">One per car driven here. Opens prefilled from the last race here in that car.</div></div>
+<sc-for list="{{ trackPlans }}" as="p" hint-placeholder-count="2">
+<div style="margin:6px 8px 0;padding:10px 12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:3px">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:600 14px var(--font-sans)">{{ p.car }}</span><span style="margin-left:auto;flex:none;min-height:32px;display:flex;align-items:center;font:500 13px var(--font-sans);color:var(--accent-ink)">Plan →</span></div>
+<div style="font:var(--type-data);color:var(--text-secondary)">{{ p.last }}</div>
+<div style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ p.use }}</div>
+</div>
+</sc-for>
+<div style="padding:16px 16px 4px;font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Sessions here</div>
+<div style="height:120px;margin:0 16px 16px;border:1px dashed var(--line-strong);border-radius:6px;display:flex;align-items:center;justify-content:center;font:var(--type-explainer);color:var(--text-faint)">session list, unchanged</div>
+</div>
+
+<div data-screen-label="4 Practice fuel view" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column">
+<div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line-strong)"><span style="font:500 14px var(--font-sans);color:var(--text-secondary)">‹</span><span style="font:var(--type-title)">Practice · Portimão</span><span style="font:var(--type-data);color:var(--text-muted)">29 Sep</span></div>
+<x-import component-from-global-scope="DesignSystem_6954cc.StintHeader" title="Run 2 · L8–L19" stats="12 laps · median 1:41.4 · spread 0.52 s" hint-size="100%,44px"></x-import>
+<div style="height:20px;display:flex;align-items:center;padding:0 16px;font:400 10.5px var(--font-mono);color:var(--text-muted);white-space:nowrap;border-bottom:1px solid var(--line)"><span>Fuel 2.34 L/lap · VE 3.44 %/lap (n = 12) ·&nbsp;</span><span style="color:var(--accent-ink)">in Plan →</span></div>
+<div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px"><span style="flex:none;white-space:nowrap;font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Use and lap time</span><span style="margin-left:auto"></span><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ meterOpts }}" value="{{ meter }}" on-change="{{ setMeter }}" size="sm" hint-size="100px,28px"></x-import></div>
+<div style="font:var(--type-explainer);color:var(--text-muted)">One dot per green lap at Portimão in the 911 GT3 R, all sessions. Right = more used per lap. Up = faster lap.</div>
+<div style="position:relative;width:343px;height:210px"><svg width="343" height="210" style="display:block;overflow:visible">
+<rect x="34" y="0" width="309" height="186" fill="var(--chart-plot)"></rect>
+<sc-for list="{{ sc.gy }}" as="g"><line x1="34" x2="343" y1="{{ g.y }}" y2="{{ g.y }}" stroke="var(--chart-gridline)"></line></sc-for>
+<line x1="{{ sc.th.x }}" x2="{{ sc.th.x }}" y1="0" y2="186" stroke="var(--chart-zero)" stroke-dasharray="3 3"></line>
+<sc-for list="{{ sc.old }}" as="p"><circle cx="{{ p.x }}" cy="{{ p.y }}" r="2.5" fill="var(--lap-muted)"></circle></sc-for>
+<sc-for list="{{ sc.cur }}" as="p"><circle cx="{{ p.x }}" cy="{{ p.y }}" r="3" fill="var(--text)"></circle></sc-for>
+</svg><sc-for list="{{ sc.gy }}" as="g"><span style="position:absolute;right:313px;top:{{ g.py }};transform:translateY(-50%);font:500 9px var(--font-mono);color:var(--text-faint);white-space:nowrap">{{ g.t }}</span></sc-for><sc-for list="{{ sc.gx }}" as="g"><span style="position:absolute;left:{{ g.px }};top:192px;transform:translateX(-50%);font:500 9px var(--font-mono);color:var(--text-faint);white-space:nowrap">{{ g.t }}</span></sc-for><span style="position:absolute;left:{{ sc.th.px }};top:2px;padding-left:4px;font:500 9px var(--font-mono);color:var(--text-secondary);white-space:nowrap">{{ sc.th.t }}</span></div>
+<div style="font:400 10.5px var(--font-mono);color:var(--text-muted)">{{ sc.key }}</div>
+</div>
+</div>
+
+<div style="width:380px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>Track page: the Plan block sits above the session list, one card per car. Each card gives the last race and the per-lap use the plan will start from, with n, so he can see what it is built on before opening it.</li>
+<li>Practice stint lines end with “in Plan →”. It links to the plan for this track and car, and says in two words that these laps count.</li>
+<li>Use and lap time: a plain scatter with Fuel / VE as a switch. This session’s laps are at full ink and earlier sessions are muted. Up = faster, matching the lap-time bars.</li>
+<li>The one reference line is the plan’s “to drop a stop” threshold, labelled with where it comes from. It connects fuel-saving runs to the plan without saying whether a lap is good.</li>
+<li>Tapping a dot highlights that lap in the table (amber row), as the lap-time bars do.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">5</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Race desktop v2: class leaderboard, no Satellite, 10 m radar</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">1440 × 900 · Track/Follow and lane zoom are live</span></div>
+<div data-screen-label="5 Race desktop v2" style="width:1440px;height:900px;background:var(--bg);display:flex;flex-direction:column;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5)">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 18px;border-bottom:1px solid var(--line-strong);background:var(--surface)">
+<div style="width:18px;height:18px;border-radius:3px;background:var(--text)"></div>
+<div style="display:flex;gap:2px;align-items:center"><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Sessions</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Session</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Compare</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Corner</span><span style="padding:6px 12px;border-radius:3px;background:var(--surface-overlay);font:600 13px var(--font-sans)">Race</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Plan</span></div>
+<span style="font:500 11.5px var(--font-mono);padding:5px 9px;border:1px solid var(--line-strong);border-radius:3px">Portimão · 911 GT3 R · Race ▾</span>
+<span style="margin-left:auto;font:500 12.5px var(--font-sans);color:var(--text-secondary)">Settings</span>
+</div>
+<div style="flex:1;min-height:0;display:grid;grid-template-columns:1120px 320px">
+<div style="display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line-strong)">
+<div style="flex:none;display:flex;align-items:baseline;gap:16px;padding:12px 20px">
+<span style="font:var(--type-display)">Race · Portimão</span><span style="font:var(--type-data);color:var(--text-muted)">Porsche 911 GT3 R · Manthey #91 · 72 laps · 2 h</span>
+<span style="margin-left:auto;font:var(--type-data-strong)">L37 · 1:00:41</span>
+</div>
+<div style="flex:none;height:470px;position:relative;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+<x-import component-from-global-scope="DesignSystem_6954cc.TrackMap" width="{{ 1120 }}" height="{{ 470 }}" outline="{{ dmap.outline }}" pit="{{ dmap.pit }}" cars="{{ dmap.cars }}" section-ticks="{{ dmap.sectionTicks }}" section-labels="{{ dmap.sectionLabels }}" quality="good" mode="{{ mode }}" hint-size="1120px,470px"></x-import>
+<div style="position:absolute;left:8px;top:8px;min-width:200px;height:24px;background:var(--surface)"></div>
+<div style="position:absolute;left:8px;top:6px"><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ modeOpts }}" value="{{ mode }}" on-change="{{ setMode }}" size="sm" hint-size="130px,28px"></x-import></div>
+<sc-if value="{{ isFollow }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:20px;bottom:16px;display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:3px;background:var(--surface-overlay);height:40px"><span onClick="{{ zoomOut }}" style="width:44px;text-align:center;font:500 16px var(--font-mono);cursor:pointer">−</span><span style="padding:0 6px;font:var(--type-data-strong)">{{ rangeLabel }}</span><span onClick="{{ zoomIn }}" style="width:44px;text-align:center;font:500 16px var(--font-mono);cursor:pointer">+</span></div></sc-if>
+<div style="position:absolute;right:20px;bottom:28px;width:130px;padding:8px;background:var(--surface-overlay);border:1px solid var(--line-strong);border-radius:6px;box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;justify-content:space-between"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Radar</span><span style="font:var(--type-axis);color:var(--text-muted)">30 m</span></div>
+<svg viewBox="0 0 114 150" width="114" height="150" style="display:block"><sc-for list="{{ radarLines }}" as="l"><line x1="0" x2="114" y1="{{ l.y }}" y2="{{ l.y }}" stroke="{{ l.c }}"></line></sc-for><text x="112" y="48" text-anchor="end" fill="var(--text-faint)" style="font:500 9px var(--font-mono)">10 m</text><rect x="52" y="64" width="10" height="22" rx="2" fill="var(--accent)"></rect><rect x="66" y="22" width="10" height="22" rx="2" fill="var(--text-secondary)"></rect><rect x="38" y="108" width="10" height="22" rx="2" fill="var(--text-secondary)"></rect></svg>
+<div style="font:var(--type-axis);color:var(--text-muted);line-height:1.35">Lines every 10 m ahead and behind. Up = direction of travel.</div>
+</div>
+</div>
+<div style="flex:none;padding:12px 20px 10px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:12px"><span style="white-space:nowrap;font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Your race</span><span style="font:var(--type-explainer);color:var(--text-muted)">Each lane marks where that condition held. Amber line = playback position.</span><span style="margin-left:auto"></span><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ zoomOpts }}" value="{{ zoom }}" on-change="{{ setZoom }}" size="sm" hint-size="200px,28px"></x-import></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:4px 12px">
+<sc-for list="{{ lanes.rows }}" as="r" hint-placeholder-count="5">
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);color:var(--text-secondary);height:16px;display:flex;align-items:center">{{ r.k }}</span>
+<div style="position:relative;height:16px;background:var(--chart-plot);border-radius:2px"><sc-for list="{{ r.segs }}" as="g"><div style="position:absolute;top:3px;bottom:3px;left:{{ g.l }};width:{{ g.w }};background:{{ g.c }};border-radius:1px"></div></sc-for><sc-for list="{{ r.marks }}" as="m"><div style="position:absolute;top:1px;bottom:1px;left:{{ m.l }};width:2px;background:var(--text)"></div></sc-for><div style="position:absolute;top:-2px;bottom:-2px;left:{{ lanes.cur }};width:1.5px;background:var(--accent)"></div></div>
+</sc-for>
+<span></span>
+<div style="position:relative;height:12px"><sc-for list="{{ lanes.ticks }}" as="t"><span style="position:absolute;left:{{ t.l }};transform:translateX(-50%);font:var(--type-axis);color:var(--text-faint)">{{ t.t }}</span></sc-for></div>
+</div>
+<div style="font:400 10.5px var(--font-mono);color:var(--text-muted)">Other cars are recorded at 5 Hz; the map and radar move them smoothly between samples.</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;min-height:0">
+<div style="padding:14px 16px 8px"><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Class · LMGT3</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.</div></div>
+<div style="display:grid;grid-template-columns:28px 1fr 78px 30px;gap:0 8px;padding:5px 16px;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)"><span>Pos</span><span>Car</span><span style="text-align:right">Gap</span><span style="text-align:right">Pit</span></div>
+<div style="flex:1;min-height:0;overflow-y:auto">
+<sc-for list="{{ board }}" as="b" hint-placeholder-count="12"><div style="display:grid;grid-template-columns:28px 1fr 78px 30px;gap:0 8px;align-items:center;height:32px;padding:0 16px;border-bottom:1px solid var(--line);background:{{ b.bg }};box-shadow:{{ b.sh }};font:var(--type-data)" style-hover="background:var(--surface-raised)"><span style="color:var(--text-secondary)">{{ b.pos }}</span><span style="font:500 13px var(--font-sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.car }}</span><span style="text-align:right">{{ b.gap }}</span><span style="text-align:right;color:{{ b.pc }}">{{ b.pit }}</span></div></sc-for>
+</div>
+</div>
+</div>
+<div style="flex:none;border-top:1px solid var(--line-strong)"><x-import component-from-global-scope="DesignSystem_6954cc.Transport" playing="{{ playing }}" on-play="{{ togglePlay }}" rates="{{ rates }}" rate="{{ rate }}" on-rate="{{ setRate }}" hint-size="100%,56px"></x-import></div>
+</div>
+<div style="width:900px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px 32px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>At 1280 and wider, the leaderboard takes a 320 pt right column at full height and the map shrinks to fit the rest. At 900–1279, the leaderboard goes below the lanes.</li>
+<li>Your row is the selected row: an amber inset bar with the amber tint. Clicking another row selects that car as the radar and TOW/BATTLE reference. That behaviour is a proposal.</li>
+<li>Gap is to the class leader, in s with three decimals; a lapped car reads “+1 lap”. PIT counts stops, and shows an amber IN while the car is in the lane.</li>
+<li>Satellite is gone. On this frame it is covered by an overlay; the real fix is in TrackMap, which should add the Satellite segment only when satellite is true.</li>
+<li>Radar: no rings. Horizontal lines every 10 m ahead and behind, with the ±30 m range at the frame edge. The 5 Hz note sits in the lane key, once.</li>
+<li>Follow zoom is − / + with the range between them, starting at 120 m, the same as Compare on the phone.</li>
+</ul>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">6</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Compare on the phone, as rebuilt</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">plot and map together · radar only when a car is near · toggle the radar to see both states</span></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+<div data-screen-label="6 Compare phone" style="width:375px;height:812px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line-strong)"><span style="font:500 14px var(--font-sans);color:var(--text-secondary)">‹</span><span style="font:var(--type-title)">Compare</span><span style="font:var(--type-data);color:var(--text-muted)">vs L16</span></div>
+<div style="flex:none;display:flex;gap:6px;padding:8px 16px;overflow:hidden">
+<x-import component-from-global-scope="DesignSystem_6954cc.LapChip" label="L16" color="var(--lap-ref)" is-ref="{{ true }}" hint-size="70px,28px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.LapChip" label="L22" color="var(--lap-1)" delta="+0.084" delta-tone="slower" hint-size="110px,28px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.LapChip" label="L9" color="var(--lap-2)" delta="−0.041" delta-tone="faster" hint-size="110px,28px"></x-import>
+</div>
+<div style="flex:none;padding:0 16px;position:relative">
+<x-import component-from-global-scope="DesignSystem_6954cc.ChartHeader" label="Delta" unit="s" description="Running gap to L16. Line rising = losing time." values="{{ deltaVals }}" hint-size="100%,40px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.TraceChart" width="{{ 343 }}" height="{{ 80 }}" traces="{{ deltaTraces }}" y-min="{{ -0.12 }}" y-max="{{ 0.12 }}" zero="{{ 0 }}" gridlines="{{ grid }}" cursor="{{ cursor }}" hint-size="343px,80px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.ChartHeader" label="Speed" unit="km/h" description="Speed along the lap. Higher = faster." values="{{ liveVals }}" hint-size="100%,40px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.TraceChart" width="{{ 343 }}" height="{{ 120 }}" traces="{{ speedTraces }}" y-min="{{ 100 }}" y-max="{{ 245 }}" gridlines="{{ grid }}" cursor="{{ cursor }}" hint-size="343px,150px"></x-import>
+<sc-if value="{{ radarOn }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;right:20px;top:160px;width:74px;padding:5px;background:color-mix(in oklch, var(--bg) 72%, transparent);border:1px solid var(--line-strong);border-radius:6px"><div style="font:var(--type-axis);color:var(--text-muted);margin-bottom:3px">RADAR 30 m</div><svg viewBox="0 0 114 150" width="62" height="82" style="display:block"><sc-for list="{{ radarLines }}" as="l"><line x1="0" x2="114" y1="{{ l.y }}" y2="{{ l.y }}" stroke="{{ l.c }}"></line></sc-for><rect x="52" y="64" width="10" height="22" rx="2" fill="var(--accent)"></rect><rect x="66" y="30" width="10" height="22" rx="2" fill="var(--text-secondary)"></rect></svg></div></sc-if>
+</div>
+<div style="flex:1;min-height:0;position:relative;overflow:hidden;border-top:1px solid var(--line)">
+<x-import component-from-global-scope="DesignSystem_6954cc.TrackMap" width="{{ 375 }}" height="{{ 395 }}" outline="{{ fmap.outline }}" pit="{{ fmap.pit }}" cars="{{ fmap.cars }}" section-ticks="{{ fmap.sectionTicks }}" section-labels="{{ fmap.sectionLabels }}" quality="good" mode="follow" hint-size="375px,300px"></x-import>
+<div style="position:absolute;left:8px;top:8px;min-width:200px;height:24px;background:var(--surface)"></div>
+<div style="position:absolute;left:8px;top:6px"><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ modeOpts }}" value="follow" size="sm" hint-size="130px,28px"></x-import></div>
+<div style="position:absolute;left:8px;bottom:22px;display:flex;align-items:center;border:1px solid var(--line-strong);border-radius:3px;background:var(--surface-overlay);height:40px"><span onClick="{{ zoomOut }}" style="width:44px;text-align:center;font:500 16px var(--font-mono);cursor:pointer">−</span><span style="padding:0 4px;font:var(--type-data-strong)">{{ rangeLabel }}</span><span onClick="{{ zoomIn }}" style="width:44px;text-align:center;font:500 16px var(--font-mono);cursor:pointer">+</span></div>
+</div>
+<div style="flex:none;border-top:1px solid var(--line-strong)"><x-import component-from-global-scope="DesignSystem_6954cc.Transport" playing="{{ playing }}" on-play="{{ togglePlay }}" rates="{{ frates }}" rate="{{ rate }}" on-rate="{{ setRate }}" hint-size="100%,56px"></x-import></div>
+</div>
+<div style="width:400px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Demo</span><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ radarOpts }}" value="{{ radarState }}" on-change="{{ setRadar }}" size="sm" hint-size="220px,28px"></x-import></div>
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted);margin-top:6px">Review of the new build</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>The plot and the map touch, with no gap: the chart ends and the Follow map starts on the next pixel, so the eye moves between the trace and the car without crossing anything.</li>
+<li>The live values stay in the chart header (one value per lap, in lap colour), as the ChartHeader already does. No separate table between the plot and the map.</li>
+<li>Radar overlay: top-right of the plot, 72 % background so the traces show through, no shadow (it is not a floating control). Top-right is where speed traces are usually flat.</li>
+<li>When a car leaves the 30 m range, the overlay goes away without a fade; motion stays near zero.</li>
+<li>Follow − / + at 44 pt each, starting at 120 m. The steps 60 / 120 / 250 / 500 m are a proposal.</li>
+<li>The Transport keeps four rates at 375.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">7</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Corner fixes: throttle strip, steering, sampling text</h2></div>
+<div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+<div data-screen-label="7 Corner fixes" style="width:375px;background:var(--bg);border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5);display:flex;flex-direction:column">
+<div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line-strong)"><span style="font:500 14px var(--font-sans);color:var(--text-secondary)">‹</span><span style="font:var(--type-title)">T5</span><span style="font:var(--type-data);color:var(--text-muted)">38 laps · vs L16</span></div>
+<div style="padding:12px 16px 4px;border-bottom:1px solid var(--line)">
+<x-import component-from-global-scope="DesignSystem_6954cc.DotStrip" label="Full throttle after apex" unit="m" values="{{ thrDots }}" width="{{ 343 }}" hint-size="100%,60px"></x-import>
+<div style="height:24px;display:flex;align-items:center;font:400 10.5px var(--font-mono);color:var(--text-secondary)">Full throttle by the slowest point: 27 of 38 laps</div>
+</div>
+<div style="padding:12px 16px;border-bottom:1px solid var(--line)">
+<x-import component-from-global-scope="DesignSystem_6954cc.ChartHeader" label="Steering" unit="%" description="Steering, % of full lock." hint-size="100%,32px"></x-import>
+<x-import component-from-global-scope="DesignSystem_6954cc.TraceChart" width="{{ 343 }}" height="{{ 40 }}" traces="{{ steerTraces }}" y-min="{{ -5 }}" y-max="{{ 70 }}" gridlines="{{ grid }}" cursor="{{ cursor }}" hint-size="343px,40px"></x-import>
+</div>
+<div style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:flex-start"><div style="flex:1;min-width:0"><x-import component-from-global-scope="DesignSystem_6954cc.ChartHeader" label="Speed" unit="km/h" description="Speed through T5. Higher = faster." hint-size="100%,32px"></x-import></div><div style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin-top:-10px;margin-right:-12px"><span style="width:20px;height:20px;box-sizing:border-box;border-radius:3px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center;font:600 11px var(--font-mono)">?</span></div></div>
+<div style="padding:10px 12px;background:var(--surface-raised);border-radius:6px;display:grid;grid-template-columns:76px 1fr;gap:6px 10px;align-items:baseline">
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">What</span><span style="font:var(--type-explainer)">Car speed along the corner, one line per lap.</span>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Measured</span><span style="font:var(--type-explainer)">Game telemetry at 100 Hz, drawn at its recorded samples. Laps are aligned on a 5 m position grid.</span>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Direction</span><span style="font:var(--type-explainer)">Higher = faster. The lowest point of each line is its minimum speed.</span>
+</div>
+</div>
+</div>
+<div style="width:400px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>Throttle stays a DotStrip of the measurement: metres after the apex to full throttle. Laps already flat at the slowest point drop out, and their count takes one fixed 24 pt line under the strip.</li>
+<li>The live line reads “27 laps”. This version keeps the denominator (“27 of 38 laps”) and puts “Laps already flat at the slowest point are not plotted” in the DotStrip explainer, so the missing dots are explained.</li>
+<li>Cells stay only for “No brake in this corner”, as in round 4.</li>
+<li>Steering: “Steering, % of full lock”, with no direction wording until the sign is measured.</li>
+<li>MEASURED lines state each channel’s own rate: pedals 50 Hz, speed and steering 100 Hz, position 10 Hz, 5 m grid.</li>
+</ul>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font:600 12px var(--font-mono);color:var(--text-muted);border:1px solid var(--line-strong);border-radius:3px;padding:1px 6px">8</span><h2 style="margin:0;font:600 22px/1.2 var(--font-sans)">Desktop: Plan and Session with fuel</h2><span style="font:400 13px var(--font-sans);color:var(--text-muted)">1440 × 900 · Race desktop is item 5; Corner column is in round 4</span></div>
+
+<div data-screen-label="8 Plan desktop" style="width:1440px;height:900px;background:var(--bg);display:flex;flex-direction:column;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5)">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 18px;border-bottom:1px solid var(--line-strong);background:var(--surface)"><div style="width:18px;height:18px;border-radius:3px;background:var(--text)"></div><div style="display:flex;gap:2px;align-items:center"><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Sessions</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Session</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Compare</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Corner</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Race</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;border-radius:3px;background:var(--surface-overlay);font:600 13px var(--font-sans)">Plan</span></div><span style="margin-left:auto;font:500 12.5px var(--font-sans);color:var(--text-secondary)">Settings</span></div>
+<div style="flex:1;min-height:0;display:grid;grid-template-columns:320px minmax(0,1fr) 380px">
+<div style="border-right:1px solid var(--line-strong);background:var(--surface);padding:16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
+<div style="font:var(--type-display)">Plan</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">Portimão ▾</span><span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">911 GT3 R ▾</span></div>
+<div style="padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:4px;background:var(--bg)"><div style="display:flex;align-items:baseline"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Your last race here</span><span style="margin-left:auto;font:var(--type-data);color:var(--text-muted)">27 Sep</span></div><div style="font:var(--type-data)">72 laps · 2 stops after L24, L48</div><div style="font:var(--type-data)"><span style="white-space:nowrap">4.9 L / 3 % VE left</span> at the end of L72</div><div style="display:flex;align-items:center;justify-content:space-between"><span style="font:var(--type-explainer);color:var(--text-muted)">Inputs below are prefilled from it.</span><span style="font:500 13px var(--font-sans);color:var(--accent-ink)">Session →</span></div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Length</span><div style="display:flex;align-items:center;gap:10px"><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ lenOpts }}" value="{{ len }}" on-change="{{ setLen }}" size="sm" hint-size="130px,28px"></x-import><div style="margin-left:auto;display:flex;align-items:center;border:1px solid var(--control-border);border-radius:3px;height:32px"><span style="width:32px;text-align:center;font:500 14px var(--font-mono);color:var(--text-secondary)">−</span><span style="padding:0 8px;font:var(--type-data-strong)">120 min</span><span style="width:32px;text-align:center;font:500 14px var(--font-mono);color:var(--text-secondary)">+</span></div></div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Rules</span><span style="margin-left:auto"><span style="height:28px;display:flex;align-items:center;padding:0 9px;border:1px solid var(--control-border);border-radius:3px;font:500 11.5px var(--font-mono)">ELMS 2 h ▾</span></span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px"><div><div style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Max fuel</div><div style="font:var(--type-data)">100 L</div></div><div><div style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Max VE</div><div style="font:var(--type-data)">100 %</div></div><div><div style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">1 % VE</div><div style="font:var(--type-data)">0.90 L</div></div><div><div style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Mandatory</div><div style="font:var(--type-data)">0 stops</div></div><div><div style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Formation</div><div style="font:var(--type-data)">1 lap</div></div></div><span style="font:500 12.5px var(--font-sans);color:var(--text-secondary)">Edit rules ›</span></div>
+</div>
+<div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
+<div style="padding:14px;background:var(--surface-raised);border-radius:6px;display:flex;flex-direction:column;gap:10px"><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Race</div><div style="display:flex;gap:28px;align-items:baseline;flex-wrap:wrap"><div style="white-space:nowrap"><span style="font:600 34px/1 var(--font-mono)">72</span><span style="font:500 14px var(--font-mono);color:var(--text-secondary)"> laps</span></div><div style="white-space:nowrap"><span style="font:600 34px/1 var(--font-mono)">2</span><span style="font:500 14px var(--font-mono);color:var(--text-secondary)"> stops</span></div><div style="font:var(--type-data-strong);color:var(--text-secondary)">after L27, L55</div></div><div style="font:var(--type-explainer);color:var(--text-muted);color:var(--text-secondary)">At your median lap, 1:41.2: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. 71 if the leader finishes first. Stop laps are the full-tank strategy.</div></div>
+<div style="padding:14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px"><div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Per tank</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Laps one full load lasts. Bar = median use, notch = p90. The shorter meter sets the stint.</div></div>
+<div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:8px"><span style="font:600 14px var(--font-sans)">VE</span><span style="flex:none;white-space:nowrap;font:600 9.5px var(--font-mono);letter-spacing:.06em;padding:2px 5px;border:1px solid var(--text);border-radius:2px">RUNS OUT FIRST</span><span style="margin-left:auto;white-space:nowrap;font:var(--type-data-strong)">28.6 laps</span></div><div style="position:relative;height:10px;background:var(--chart-track-fill);border-radius:2px"><div style="position:absolute;left:0;top:0;bottom:0;width:63.6%;background:var(--text);border-radius:2px"></div><div style="position:absolute;left:61.3%;top:-3px;bottom:-3px;width:2px;background:var(--bg)"></div></div><div style="display:flex;font:var(--type-data);font-size:10.5px;color:var(--text-muted)"><span>100 % ÷ 3.50 %/lap</span><span style="margin-left:auto">p90 27.6 laps</span></div></div>
+<div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:8px"><span style="font:600 14px var(--font-sans);color:var(--text-secondary)">Fuel</span><span style="margin-left:auto;white-space:nowrap;font:var(--type-data-strong);color:var(--text-secondary)">42.0 laps</span></div><div style="position:relative;height:10px;background:var(--chart-track-fill);border-radius:2px"><div style="position:absolute;left:0;top:0;bottom:0;width:93.3%;background:var(--text-faint);border-radius:2px"></div><div style="position:absolute;left:90.2%;top:-3px;bottom:-3px;width:2px;background:var(--bg)"></div></div><div style="display:flex;font:var(--type-data);font-size:10.5px;color:var(--text-muted)"><span>100 L ÷ 2.38 L/lap</span><span style="margin-left:auto">p90 40.6 laps</span></div></div></div>
+</div>
+<div style="padding:14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px"><div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Stops</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison. Refuelling runs at 3.4 L/s (GT3, measured on 5 stops).</div></div>
+<div style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr;gap:0 12px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--line-strong)"><span></span><span>Stop after</span><span>Stint laps</span><span>VE per stint</span><span>Refuel per stop</span></div>
+<div style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr;gap:0 12px;height:30px;align-items:center;border-bottom:1px solid var(--line);font:var(--type-data)"><span style="font:600 13px var(--font-sans)">Full tank</span><span style="font:var(--type-data-strong)">L27 · L55</span><span>27 + 28 + 17</span><span>100 · 98 · 60 %</span><span>26.5 s · 25.9 s</span></div>
+<div style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr;gap:0 12px;height:30px;align-items:center;font:var(--type-data);color:var(--text-secondary)"><span style="font:500 13px var(--font-sans)">Equal stints</span><span>L24 · L48</span><span>24 + 24 + 24</span><span>86 · 84 · 84 %</span><span>22.2 s · 22.2 s</span></div>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
+<div style="padding:14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px"><div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">To drop a stop</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Use per lap that fits 72 laps and the formation lap into 2 loads, and your green laps at or under it.</div></div><div style="display:grid;grid-template-columns:48px 1fr 1fr;gap:4px 8px;font:var(--type-data);align-items:baseline"><span></span><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Needed</span><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Your laps at it</span><span style="font:600 13px var(--font-sans)">VE</span><span style="font:var(--type-data-strong)">≤ 2.75 %/lap</span><span>0 of 25</span><span style="font:600 13px var(--font-sans);color:var(--text-secondary)">Fuel</span><span style="color:var(--text-secondary)">≤ 2.76 L/lap</span><span style="color:var(--text-secondary)">25 of 25</span></div></div>
+<div style="padding:14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px"><div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Per green lap</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">The inputs to every card. n = 25 laps · 3 sessions · 12–27 Sep.</div></div><div style="display:grid;grid-template-columns:56px 1fr 1fr;gap:4px 8px;font:var(--type-data);align-items:baseline"><span></span><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Median</span><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">p10–p90</span><span style="font:600 13px var(--font-sans)">Fuel</span><span>2.38 L</span><span style="color:var(--text-secondary)">2.31–2.46 L</span><span style="font:600 13px var(--font-sans)">VE</span><span>3.50 %</span><span style="color:var(--text-secondary)">3.41–3.62 %</span><span style="font:600 13px var(--font-sans)">Lap</span><span>1:41.2</span><span style="color:var(--text-secondary)">1:40.6–1:42.0</span></div></div>
+</div>
+</div>
+<div style="border-left:1px solid var(--line-strong);overflow-y:auto">
+<div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px"><span style="flex:none;white-space:nowrap;font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Use and lap time</span><span style="margin-left:auto"></span><x-import component-from-global-scope="DesignSystem_6954cc.SegmentedControl" options="{{ meterOpts }}" value="{{ meter }}" on-change="{{ setMeter }}" size="sm" hint-size="100px,28px"></x-import></div>
+<div style="font:var(--type-explainer);color:var(--text-muted)">Practice and race green laps here in this car. Right = more used per lap. Up = faster lap.</div>
+<div style="position:relative;width:343px;height:210px"><svg width="343" height="210" style="display:block;overflow:visible">
+<rect x="34" y="0" width="309" height="186" fill="var(--chart-plot)"></rect>
+<sc-for list="{{ sc.gy }}" as="g"><line x1="34" x2="343" y1="{{ g.y }}" y2="{{ g.y }}" stroke="var(--chart-gridline)"></line></sc-for>
+<line x1="{{ sc.th.x }}" x2="{{ sc.th.x }}" y1="0" y2="186" stroke="var(--chart-zero)" stroke-dasharray="3 3"></line>
+<sc-for list="{{ sc.old }}" as="p"><circle cx="{{ p.x }}" cy="{{ p.y }}" r="2.5" fill="var(--lap-muted)"></circle></sc-for>
+<sc-for list="{{ sc.cur }}" as="p"><circle cx="{{ p.x }}" cy="{{ p.y }}" r="3" fill="var(--text)"></circle></sc-for>
+</svg><sc-for list="{{ sc.gy }}" as="g"><span style="position:absolute;right:313px;top:{{ g.py }};transform:translateY(-50%);font:500 9px var(--font-mono);color:var(--text-faint);white-space:nowrap">{{ g.t }}</span></sc-for><sc-for list="{{ sc.gx }}" as="g"><span style="position:absolute;left:{{ g.px }};top:192px;transform:translateX(-50%);font:500 9px var(--font-mono);color:var(--text-faint);white-space:nowrap">{{ g.t }}</span></sc-for><span style="position:absolute;left:{{ sc.th.px }};top:2px;padding-left:4px;font:500 9px var(--font-mono);color:var(--text-secondary);white-space:nowrap">{{ sc.th.t }}</span></div>
+<div style="font:400 10.5px var(--font-mono);color:var(--text-muted)">{{ sc.key }}</div>
+</div>
+</div>
+</div>
+</div>
+
+<div data-screen-label="8 Session desktop" style="width:1440px;height:900px;background:var(--bg);display:flex;flex-direction:column;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line-strong),0 30px 80px rgba(0,0,0,.5)">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:16px;padding:0 18px;border-bottom:1px solid var(--line-strong);background:var(--surface)"><div style="width:18px;height:18px;border-radius:3px;background:var(--text)"></div><div style="display:flex;gap:2px;align-items:center"><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Sessions</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;border-radius:3px;background:var(--surface-overlay);font:600 13px var(--font-sans)">Session</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Compare</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Corner</span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Race</span><span style="width:1px;height:18px;background:var(--line-strong);margin:0 6px"></span><span style="padding:6px 12px;font:500 13px var(--font-sans);color:var(--text-muted)">Plan</span></div><span style="font:500 11.5px var(--font-mono);padding:5px 9px;border:1px solid var(--line-strong);border-radius:3px">Portimão · 911 GT3 R · Race ▾</span><span style="margin-left:auto;font:500 12.5px var(--font-sans);color:var(--text-secondary)">Settings</span></div>
+<div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px">
+<div style="display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line-strong)">
+<div style="flex:none;display:flex;align-items:baseline;gap:16px;padding:14px 20px 10px;border-bottom:1px solid var(--line-strong)"><span style="font:var(--type-display)">Race · Portimão</span><span style="font:var(--type-data);color:var(--text-muted)">Porsche 911 GT3 R · Manthey #91 · 27 Sep · 72 laps</span></div>
+<div style="flex:1;min-height:0;overflow-y:auto">
+<sc-for list="{{ dRows }}" as="r" hint-placeholder-count="20">
+<sc-if value="{{ r.hdr }}"><x-import component-from-global-scope="DesignSystem_6954cc.StintHeader" title="{{ r.title }}" stats="{{ r.stats }}" hint-size="100%,44px"></x-import><div style="height:20px;display:flex;align-items:center;padding:0 16px;font:400 10.5px var(--font-mono);color:var(--text-muted);white-space:nowrap;border-bottom:1px solid var(--line)">{{ r.fuel }}</div></sc-if>
+<sc-if value="{{ r.lap }}"><x-import component-from-global-scope="DesignSystem_6954cc.LapRow" label="{{ r.label }}" time="{{ r.time }}" gap="{{ r.gap }}" sectors="{{ r.sectors }}" tags="{{ r.tags }}" hint-size="100%,32px"></x-import></sc-if>
+<sc-if value="{{ r.pit }}"><div style="height:24px;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--surface)"><span style="flex:none;font:600 9.5px var(--font-mono);letter-spacing:.06em;color:var(--accent);border:1px solid var(--accent);border-radius:2px;padding:1px 4px">PIT</span><span style="font:400 10.5px var(--font-mono);color:var(--text-secondary);white-space:nowrap">{{ r.text }}</span><span style="margin-left:auto;font:500 12px var(--font-sans);color:var(--text-secondary)">Pit stops ›</span></div></sc-if>
+</sc-for>
+</div>
+</div>
+<div style="overflow-y:auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px">
+<div style="padding:12px;background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;gap:10px">
+
+<sc-if value="{{ pzD.zero }}" hint-placeholder-val="{{ false }}">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Fuel</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">No stops. What was in the car at the start, what was used, and what was left.</div></div>
+<div style="display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">Start</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font:var(--type-data-strong)">45.0 L · 68 % VE</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">loaded before L1</span></div></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0;border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">Used</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font:var(--type-data-strong)">41.3 L · 64 % VE</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">2.29 L/lap · 3.56 %/lap over 18 laps</span></div></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;padding:7px 0"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-top:3px">End of L18</span><div style="display:flex;flex-direction:column;gap:4px"><span style="font:var(--type-data-strong)">3.7 L / 4 % VE (1.1 laps)</span><div style="display:flex;height:8px;border-radius:2px;overflow:hidden;gap:1px"><div style="flex:41.3;background:var(--text-faint)"></div><div style="flex:3.7;background:var(--text)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">grey = used · white = left</span></div></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pzD.multi }}" hint-placeholder-val="{{ true }}">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Pit stops</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">Per stop: what was left on the way in, what was added, time in the pit lane with refuelling split out, and tyres.</div></div>
+<div style="overflow-x:auto;margin:0 -12px;padding:0 12px">
+<div style="display:grid;grid-template-columns:{{ pzD.grid }};column-gap:12px;min-width:min-content">
+<span style="background:var(--surface);border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong)"></span>
+<sc-for list="{{ pzD.cols }}" as="c"><div style="padding:8px 0 6px;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);display:flex;flex-direction:column;gap:1px"><span style="font:600 14px var(--font-sans)">{{ c.n }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.lap }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">In</span><sc-for list="{{ pzD.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.inv }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.inm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">Added</span><sc-for list="{{ pzD.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.ad }}</span><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.adm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">VE out</span><sc-for list="{{ pzD.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><div style="display:flex;height:8px;background:var(--chart-track-fill);border-radius:2px;overflow:hidden;gap:1px;margin-top:3px"><div style="width:{{ c.tl }};background:var(--text)"></div><div style="width:{{ c.ta }};background:var(--text-faint)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.tt }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);">Pit lane</span><sc-for list="{{ pzD.cols }}" as="c"><div style="padding:7px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px"><span style="font:var(--type-data-strong)">{{ c.pl }}</span><div style="display:flex;height:6px;width:{{ c.plw }};background:var(--text-faint);border-radius:2px;overflow:hidden"><div style="width:{{ c.rfw }};background:var(--text)"></div></div><span style="font:var(--type-data);font-size:10.5px;color:var(--text-muted)">{{ c.plm }}</span></div></sc-for>
+<span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding:10px 0 7px;border-bottom:1px solid var(--line);position:sticky;left:0;background:var(--surface);border-bottom:none">Tyres</span><sc-for list="{{ pzD.cols }}" as="c"><div style="padding:7px 0;display:flex"><span style="font:var(--type-data-strong);color:{{ c.tyc }}">{{ c.ty }}</span></div></sc-for>
+</div>
+</div>
+<div style="font:400 10.5px/1.4 var(--font-mono);color:var(--text-muted)">{{ pzD.key }}</div>
+<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line-strong)">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">{{ pzD.endLabel }}</span><span style="font:var(--type-explainer);color:var(--text-muted)">the last whole lap</span></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;align-items:baseline"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Spare</span><span style="font:var(--type-data-strong)">{{ pzD.spare }}</span></div>
+<div style="display:grid;grid-template-columns:64px 1fr;gap:0 12px;align-items:baseline"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">Last stop</span><span style="font:var(--type-data)">{{ pzD.last }}</span></div>
+<div style="display:flex;height:8px;border-radius:2px;overflow:hidden;margin-left:76px;gap:1px"><div style="flex:{{ pzD.used }};background:var(--text-faint)"></div><div style="flex:{{ pzD.left }};background:var(--text)"></div></div>
+</div>
+</sc-if>
+
+<div style="display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--text-faint)">
+<div><div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase">Plan vs what happened</div><div style="font:var(--type-explainer);color:var(--text-muted);margin-top:2px">{{ pzD.planDesc }}</div></div>
+<div style="display:grid;grid-template-columns:64px 1fr 1fr;gap:0 12px;font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted);padding-bottom:4px;border-bottom:1px solid var(--line-strong)"><span></span><span>Plan</span><span>Actual</span></div>
+<sc-for list="{{ pzD.pva }}" as="r" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:64px 1fr 1fr;gap:0 12px;min-height:24px;align-items:center;border-bottom:1px solid var(--line)"><span style="font:var(--type-column);letter-spacing:var(--tracking-column);text-transform:uppercase;color:var(--text-muted)">{{ r.k }}</span><span style="font:var(--type-data);color:var(--text-secondary)">{{ r.p }}</span><span style="font:var(--type-data)">{{ r.a }}</span></div></sc-for>
+</div>
+</div>
+</div>
+</div>
+
+<div style="width:900px;display:flex;flex-direction:column;gap:10px">
+<div style="font:var(--type-label);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-muted)">Decisions</div>
+<ul style="margin:0;padding-left:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px 32px;font:400 13.5px/1.45 var(--font-sans);color:var(--text-secondary);text-wrap:pretty">
+<li>Plan desktop is three columns: inputs on the left (with the last race and the full rules visible), the answer in the middle in the same card order as the phone, and the practice “Use and lap time” chart on the right. The data the plan is built from sits beside it.</li>
+<li>With the width available, Stops gains VE per stint and refuel time per stop (litres ÷ 3.4 L/s). Race and Per tank sit side by side, so the answer and the limit read together.</li>
+<li>Session desktop: the lap table carries the stint fuel lines and pit note rows at the same fixed heights as the phone. Each pit row links to the card on the right.</li>
+<li>The Pit stops card moves to a 400 pt right column, pinned beside the table, so the stops and the laps around them are visible together. The same 0 / 1 / 2 / 3+ rules apply (the demo switch in item 3 drives this frame too).</li>
+<li>At 900–1279, the right column drops below the table, as with Stints in D1.</li>
+<li>Track page and Compare on desktop are not drawn: Track takes the Plan block per car above its session list, and Compare is D2 unchanged.</li>
+</ul>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { nStops: '2 stops', zoom: 'Race', mode: 'track', rate: '1×', playing: false, ri: 1, len: 'Minutes', meter: 'VE', radarState: 'Car within 30 m' };
+
+  wpts() {
+    if (this._w) return this._w;
+    const p = [], n = 360;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2, r = 1 + 0.26 * Math.sin(2 * a + 0.6) + 0.13 * Math.cos(3 * a) + 0.06 * Math.sin(5 * a + 1);
+      p.push([Math.cos(a) * r * 1.5, Math.sin(a) * r * 0.8]);
+    }
+    return (this._w = p);
+  }
+
+  geo(w, h, follow, m) {
+    const W = this.wpts(), n = W.length;
+    const xs = W.map(q => q[0]), ys = W.map(q => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const sc = Math.min((w - 96) / (x1 - x0), (h - 72) / (y1 - y0));
+    let P = W.map(q => [(q[0] - (x0 + x1) / 2) * sc + w / 2, (q[1] - (y0 + y1) / 2) * sc + h / 2]);
+    const k = 130;
+    if (follow) {
+      const p = P[k], a1 = P[k + 1], a0 = P[k - 1];
+      const hd = Math.atan2(a1[1] - a0[1], a1[0] - a0[0]), a = -hd - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+      P = P.map(q => { const dx = (q[0] - p[0]) * m, dy = (q[1] - p[1]) * m; return [dx * c - dy * s + w / 2, dx * s + dy * c + h * 0.66]; });
+    }
+    const cx = P.reduce((t, q) => t + q[0], 0) / n, cy = P.reduce((t, q) => t + q[1], 0) / n;
+    const nrm = i => {
+      const a = P[(i + 1) % n], b = P[(i - 1 + n) % n]; let nx = -(a[1] - b[1]), ny = a[0] - b[0];
+      const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L; const p = P[i];
+      if (nx * (cx - p[0]) + ny * (cy - p[1]) < 0) { nx = -nx; ny = -ny; }
+      return [nx, ny];
+    };
+    const f = v => v.toFixed(1), d = pts => 'M' + pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L');
+    const tk = follow ? 16 : 10, lo = follow ? 34 : 26;
+    const sectionTicks = [0, 72, 144, 216, 288].map(i => { const p = P[i], [nx, ny] = nrm(i); return { x1: p[0] - nx * tk, y1: p[1] - ny * tk, x2: p[0] + nx * tk, y2: p[1] + ny * tk }; });
+    const sectionLabels = [36, 108, 180, 252, 324].map((i, j) => { const p = P[i], [nx, ny] = nrm(i); return { x: p[0] + nx * lo, y: p[1] + ny * lo, label: 'S' + (j + 1) }; });
+    const pi = []; for (let i = 348; i < n + 16; i++) pi.push(i % n);
+    const pit = d(pi.map(i => { const p = P[i], [nx, ny] = nrm(i); return [p[0] + nx * 12, p[1] + ny * 12]; }));
+    const car = (i, color, r) => ({ x: P[(i + n) % n][0], y: P[(i + n) % n][1], color, r });
+    const mu = 'var(--text-muted)';
+    return { outline: d(P) + 'Z', pit, sectionTicks, sectionLabels, cars: [car(k - 90, mu, 3.5), car(k + 44, mu, 3.5), car(k + 4, mu, 3.5), car(k - 3, mu, 3.5), car(k, 'var(--accent)', 5.5)] };
+  }
+
+  lanes(zoom) {
+    const cur = 36.4, T = 72;
+    const [w0, w1] = zoom === 'Race' ? [0, T] : zoom === '10 laps' ? [cur - 5, cur + 5] : [cur - 1.5, cur + 1.5];
+    const pc = v => (v - w0) / (w1 - w0) * 100;
+    const tow = [[3, 6], [15, 17], [60, 62]];
+    for (let l = 32; l < 39; l++) tow.push([l + 0.05, l + 0.18], [l + 0.55, l + 0.63], [l + 0.8, l + 0.9]);
+    const neu = 'var(--text-secondary)';
+    const def = [
+      { k: 'PIT', c: 'var(--accent)', segs: [[24.7, 25.25], [48.7, 49.28]] },
+      { k: 'TOW', c: neu, segs: tow },
+      { k: 'BATTLE', c: neu, segs: [[2, 8], [31, 39.2]] },
+      { k: 'BLUE', c: neu, segs: [[12, 12.3], [27, 27.2], [36.1, 36.3], [44, 44.4], [57, 57.2]] },
+      { k: 'PASS', marks: [8.4, 21.7, 36.25, 39.6, 52.1] }
+    ];
+    const rows = def.map(r => ({
+      k: r.k,
+      segs: (r.segs || []).filter(s => s[1] > w0 && s[0] < w1).map(s => { const a = Math.max(pc(s[0]), 0), b = Math.min(pc(s[1]), 100); return { l: a + '%', w: Math.max(b - a, 0.2) + '%', c: r.c }; }),
+      marks: (r.marks || []).filter(m => m >= w0 && m <= w1).map(m => ({ l: pc(m) + '%' }))
+    }));
+    const step = zoom === 'Race' ? 12 : 1, ticks = [];
+    for (let t = Math.ceil(w0 / step) * step; t <= w1; t += step) if (t > 0) ticks.push({ l: pc(t) + '%', t: 'L' + t });
+    return { rows, cur: pc(cur) + '%', ticks };
+  }
+
+  traces() {
+    if (this._tr) return this._tr;
+    const N = 161, xs = [...Array(N)].map((_, i) => i / (N - 1));
+    const g = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
+    const sp = (b, m) => xs.map(x => 238 - 126 * g(x, 0.47 + b * 0.6, 0.17) + m * g(x, 0.47, 0.12));
+    const st = m => xs.map(x => (58 + m * 0.6) * g(x, 0.47, 0.13));
+    const L = [['var(--lap-1)', 0.012, -4, 1.5], ['var(--lap-2)', -0.018, 3, 1.5], ['var(--lap-ref)', 0, 0, 2.3]];
+    return (this._tr = {
+      speed: L.map(([c, b, m, w]) => ({ values: sp(b, m), color: c, width: w })),
+      steer: L.map(([c, b, m, w]) => ({ values: st(m), color: c, width: w })),
+      delta: L.map(([c, b, m, w]) => { const s = sp(b, m), r = sp(0, 0); let acc = 0; return { values: s.map((v, i) => { if (i) acc += 2.625 / (v / 3.6) - 2.625 / (r[i] / 3.6); return acc; }), color: c, width: w }; })
+    });
+  }
+
+  scatter(meter) {
+    let s = 17; const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    const nrm = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+    const ve = meter === 'VE';
+    const [x0, x1] = ve ? [2.6, 3.9] : [1.8, 2.8];
+    const [y0, y1] = [100.2, 103.2];
+    const X = v => 34 + (v - x0) / (x1 - x0) * 309, Y = t => (t - y0) / (y1 - y0) * 186;
+    const pts = [...Array(46)].map((_, i) => { const v = 3.45 + nrm() * 0.28 - (i >= 34 ? 0.25 : 0); const t = 101.2 - (v - 3.45) * 1.9 + nrm() * 0.35; return { v: ve ? v : v * 0.68, t, cur: i >= 34 }; });
+    const P = p => ({ x: X(p.v).toFixed(1), y: Y(p.t).toFixed(1) });
+    const gy = [100.5, 101.5, 102.5].map(t => ({ y: Y(t), py: Y(t) + 'px', t: '1:' + (t - 60).toFixed(1) }));
+    const gx = (ve ? [2.75, 3.0, 3.25, 3.5, 3.75] : [2.0, 2.2, 2.4, 2.6]).map(v => ({ x: X(v), px: X(v) + 'px', t: v.toFixed(2) }));
+    const thv = ve ? 2.75 : 1.87;
+    return {
+      old: pts.filter(p => !p.cur).map(P), cur: pts.filter(p => p.cur).map(P), gy, gx,
+      th: { x: X(thv), px: X(thv) + 'px', t: 'Plan: to drop a stop ≤ ' + thv.toFixed(2) + (ve ? ' %/lap' : ' L/lap') },
+      key: (ve ? 'x: VE %/lap' : 'x: fuel L/lap') + ' · y: lap time · white = this session (12) · grey = earlier (34)'
+    };
+  }
+
+  pits(n) {
+    const col = (n, lap, inv, inm, ad, adm, tl, ta, tt, tot, rf, ty) => ({ n, lap, inv, inm, ad, adm, tl: tl + '%', ta: ta + '%', tt, pl: tot.toFixed(1) + ' s', plw: (tot / 60 * 100) + '%', rfw: (rf / tot * 100) + '%', plm: 'refuel ' + rf.toFixed(1) + ' s', ty, tyc: ty === 'Changed' ? 'var(--text)' : 'var(--text-secondary)' });
+    const key = 'VE out: white = left on the way in, grey = added. Pit lane: to scale (60 s = full width), white = refuel at 3.4 L/s.';
+    if (n === '0 stops') return { zero: true, multi: false, planDesc: 'Plan = Load to finish for this race (30 min, 18 laps), from the 25 green laps recorded before 20 Sep.', pva: [
+      { k: 'Fuel load', p: '43.7–45.2 L', a: '45.0 L' }, { k: 'VE load', p: '65.0–67.2 %', a: '68 %' }, { k: 'Spare', p: '1.3 L at median', a: '3.7 L (1.1 laps)' } ] };
+    if (n === '1 stop') return { zero: false, multi: true, grid: '64px minmax(0,1fr)', key, endLabel: 'End of L36', spare: '3.1 L / 3 % VE (0.9 laps)', last: '+40.1 L · used 37.0 L after · 3.1 L left', used: 37.0, left: 3.1,
+      cols: [col('Stop 1', 'after L18', '9.4 L', '4 % VE · 1.1 laps', '+40.1 L', '+62 % VE', 4, 62, '66 % · 18.9 laps', 51.2, 11.8, 'Not changed')],
+      planDesc: 'Plan = full-tank strategy for this race’s rules (ELMS 1 h) and length (36 laps), from the 25 green laps recorded before 20 Sep.',
+      pva: [{ k: 'Stop 1', p: 'after L28', a: 'after L18' }, { k: 'In', p: '0 % VE (0.0 laps)', a: '4 % VE (1.1 laps)' }, { k: 'Spare', p: '72 % VE (20.6 laps)', a: '3 % VE (0.9 laps)' }] };
+    const two = [col('Stop 1', 'after L24', '8.1 L', '3 % VE · 0.7 laps', '+33.2 L', '+81 % VE', 3, 81, '84 % · 24.0 laps', 55, 9.8, 'Changed'), col('Stop 2', 'after L48', '6.6 L', '4 % VE · 1.1 laps', '+50.0 L', '+82 % VE', 4, 82, '86 % · 24.6 laps', 47.1, 14.7, 'Not changed')];
+    const base = { zero: false, multi: true, key, endLabel: 'End of L72', spare: '4.9 L / 3 % VE (0.9 laps)', last: '+50.0 L · used 45.1 L after · 4.9 L left', used: 45.1, left: 4.9, planDesc: 'Plan = full-tank strategy for this race’s rules (ELMS 2 h) and length (72 laps), from the 25 green laps you had recorded before 27 Sep.',
+      pva: [{ k: 'Stop 1', p: 'after L27', a: 'after L24' }, { k: 'In', p: '0 % VE (0.0 laps)', a: '3 % VE (0.7 laps)' }, { k: 'Stop 2', p: 'after L55', a: 'after L48' }, { k: 'In', p: '2 % VE (0.6 laps)', a: '4 % VE (1.1 laps)' }, { k: 'Spare', p: '40 % VE (11.4 laps)', a: '3 % VE (0.9 laps)' }] };
+    if (n === '2 stops') return { ...base, grid: '64px repeat(2, minmax(0,1fr))', cols: two };
+    return { ...base, grid: '64px repeat(3, 118px)', endLabel: 'End of L107', key: key + ' Swipe for more stops; the key column stays.', cols: [...two, col('Stop 3', 'after L81', '7.3 L', '3 % VE · 0.9 laps', '+49.6 L', '+84 % VE', 3, 84, '87 % · 24.9 laps', 58.4, 14.6, 'Changed')],
+      planDesc: 'Plan = full-tank strategy for this race’s rules (ELMS 3 h) and length (107 laps), from the 25 green laps recorded before the race.',
+      pva: [...base.pva.slice(0, 4), { k: 'Stop 3', p: 'after L83', a: 'after L81' }, { k: 'In', p: '3 % VE (0.9 laps)', a: '3 % VE (0.9 laps)' }, { k: 'Spare', p: '14 % VE (4.0 laps)', a: '4 % VE (1.1 laps)' }] };
+  }
+
+  renderVals() {
+    const S = this.state, t = this.traces(), set = k => v => this.setState({ [k]: v });
+    const ranges = [60, 120, 250, 500], mult = { 60: 11, 120: 7, 250: 4, 500: 2.2 };
+    const rm = ranges[S.ri];
+    let ds = 5; const rnd = () => { ds = (ds * 16807) % 2147483647; return (ds - 1) / 2147483646; };
+    const thrDots = [...Array(11)].map((_, i) => ({ v: 38 + rnd() * 46, kind: i === 3 ? 'ref' : 'other', id: i }));
+    const radarLines = [-30, -20, -10, 0, 10, 20, 30].map(m => ({ y: 75 - m * 2.4, c: m === 0 ? 'var(--line-strong)' : Math.abs(m) === 30 ? 'var(--line-strong)' : 'var(--chart-gridline)' }));
+    const cars = [['1', 'M4 GT3 · #31', 'Leader', '2', 0], ['2', 'Vantage AMR · #27', '+3.182', '2', 0], ['3', '296 GT3 · #55', '+8.940', '2', 0], ['4', '911 GT3 R · #91', '+14.215', '1', 1], ['5', 'Huracán · #60', '+14.883', '1', 0], ['6', 'RC F GT3 · #87', '+22.410', 'IN', 0], ['7', 'Z06 GT3.R · #81', '+29.057', '1', 0], ['8', 'Mustang GT3 · #88', '+41.736', '1', 0], ['9', '720S GT3 · #59', '+55.120', '1', 0], ['10', 'M4 GT3 · #46', '+1:08.44', '1', 0], ['11', '911 GT3 R · #92', '+1 lap', '2', 0], ['12', 'Vantage AMR · #23', '+1 lap', '1', 0]];
+    return {
+      lenOpts: ['Minutes', 'Laps'], len: S.len, setLen: set('len'),
+      secIn: [{ value: '31.4' }, { value: '36.2' }, { value: '29.2' }], tagIn: ['IN'],
+      pzD: this.pits(S.nStops),
+      dRows: (() => { const sec = a => a.map(v => ({ value: v })); const lap = (n, t, g, s, tags) => ({ lap: true, label: 'L' + n, time: t, gap: g, sectors: sec(s), tags: tags || [] }); const out = [{ hdr: true, title: 'Stint 1 · L1–L24', stats: '24 laps · median 1:41.1 · spread 0.36 s', fuel: 'Fuel 2.37 L/lap · VE 3.5 %/lap (n = 22)' }];
+        const T = ['1:41.106', '1:40.988', '1:41.244', '1:41.061', '1:41.320', '1:41.172', '1:41.009', '1:41.388'];
+        for (let i = 17; i <= 23; i++) out.push(lap(i, T[i % 8], i % 2 ? '+0.062' : '−0.041', ['33.2', '38.4', '29.5']));
+        out.push(lap(24, '1:44.902', '+3.702', ['33.4', '38.6', '32.9'], ['IN']));
+        out.push({ pit: true, text: '8.1 L / 3 % VE left (0.7 laps) · +33.2 L · 55 s' });
+        out.push({ hdr: true, title: 'Stint 2 · L25–L48', stats: '24 laps · median 1:41.3 · spread 0.38 s', fuel: 'Fuel 2.38 L/lap · VE 3.5 %/lap (n = 21)' });
+        out.push(lap(25, '2:17.540', '+36.34', ['66.8', '39.1', '31.6'], ['OUT']));
+        for (let i = 26; i <= 36; i++) out.push(lap(i, T[i % 8], i % 3 ? '+0.118' : '−0.074', ['33.2', '38.5', '29.5']));
+        return out; })(),
+      nStopOpts: ['0 stops', '1 stop', '2 stops', '3 stops'], nStops: S.nStops, setNStops: set('nStops'), pz: this.pits(S.nStops),
+      stops: [
+        { name: 'Stop 1', lap: 'after L24', rows: [{ k: 'In', v: '8.1 L / 3 % VE (0.7 laps)' }, { k: 'Added', v: '+33.2 L · +81 % VE' }, { k: 'Pit lane', v: '55.0 s · refuel 9.8 s at 3.4 L/s' }, { k: 'Tyres', v: 'Changed' }] },
+        { name: 'Stop 2', lap: 'after L48', rows: [{ k: 'In', v: '6.6 L / 4 % VE (1.1 laps)' }, { k: 'Added', v: '+50.0 L · +82 % VE' }, { k: 'Pit lane', v: '47.1 s · refuel 14.7 s at 3.4 L/s' }, { k: 'Tyres', v: 'Not changed' }] }
+      ],
+      pva: [
+        { k: 'Stop 1', p: 'after L27', a: 'after L24' },
+        { k: 'In', p: '0 % VE (0.0 laps)', a: '3 % VE (0.7 laps)' },
+        { k: 'Stop 2', p: 'after L55', a: 'after L48' },
+        { k: 'In', p: '2 % VE (0.6 laps)', a: '4 % VE (1.1 laps)' },
+        { k: 'Spare', p: '40 % VE (11.4 laps)', a: '3 % VE (0.9 laps)' }
+      ],
+      trackPlans: [
+        { car: 'Porsche 911 GT3 R', last: 'Last race 27 Sep · 2 h · ELMS 2 h · fill 100 %', use: 'Starts from 2.38 L/lap · 3.50 %/lap VE (n = 25)' },
+        { car: 'Oreca 07', last: 'Last race 12 Sep · 4 h · ELMS 4 h · fill 75 L', use: 'Starts from 3.12 L/lap, no VE (n = 41)' }
+      ],
+      meterOpts: ['VE', 'Fuel'], meter: S.meter, setMeter: set('meter'), sc: this.scatter(S.meter),
+      dmap: this.geo(1120, 470, S.mode === 'follow', mult[rm]),
+      fmap: this.geo(375, 395, true, mult[rm]),
+      mode: S.mode, isFollow: S.mode === 'follow', setMode: set('mode'),
+      modeOpts: [{ value: 'follow', label: 'Follow' }, { value: 'track', label: 'Track' }],
+      rangeLabel: rm + ' m', zoomIn: () => this.setState({ ri: Math.max(0, S.ri - 1) }), zoomOut: () => this.setState({ ri: Math.min(3, S.ri + 1) }),
+      zoomOpts: ['Race', '10 laps', '3 laps'], zoom: S.zoom, setZoom: set('zoom'), lanes: this.lanes(S.zoom),
+      radarLines,
+      board: cars.map(c => ({ pos: c[0], car: c[1], gap: c[2], pit: c[3], pc: c[3] === 'IN' ? 'var(--accent)' : 'var(--text-secondary)', bg: c[4] ? 'var(--accent-tint)' : 'transparent', sh: c[4] ? 'inset 3px 0 0 var(--accent)' : 'none' })),
+      rates: ['0.25×', '0.5×', '1×', '2×', '4×', '8×', '16×'], frates: ['0.25×', '1×', '4×', '16×'], rate: S.rate, setRate: set('rate'),
+      playing: S.playing, togglePlay: () => this.setState({ playing: !S.playing }),
+      speedTraces: t.speed, steerTraces: t.steer, grid: [100 / 420, 200 / 420, 300 / 420, 400 / 420], cursor: 0.47,
+      live: [
+        { l: 'L16', c: 'var(--lap-ref)', d: '0.000', dc: 'var(--text-secondary)', s: '112', b: '38 %', t: '0 %' },
+        { l: 'L22', c: 'var(--lap-1)', d: '+0.084', dc: 'var(--text-secondary)', s: '108', b: '41 %', t: '0 %' },
+        { l: 'L9', c: 'var(--lap-2)', d: '−0.041', dc: 'var(--text-secondary)', s: '115', b: '22 %', t: '12 %' }
+      ],
+      deltaTraces: t.delta, deltaVals: [{ color: 'var(--lap-ref)', text: '0.000' }, { color: 'var(--lap-1)', text: '+0.084' }, { color: 'var(--lap-2)', text: '−0.041' }],
+      liveVals: [{ color: 'var(--lap-ref)', text: '112' }, { color: 'var(--lap-1)', text: '108' }, { color: 'var(--lap-2)', text: '115' }],
+      radarOpts: ['Car within 30 m', 'No car near'], radarState: S.radarState, setRadar: set('radarState'), radarOn: S.radarState === 'Car within 30 m',
+      thrDots
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,423 @@
+
+Round 5 · corrected frames · follows 
+round 4
+Plan connected to the app, fuel-only cars, and the data fixes
+The screenshots did not come through again, so figures are still synthetic (Portimão, 2 h) and Compare on the phone is drawn from your description. Everything listed under “Keep” in your notes is unchanged unless it appears below.
+1
+Plan v2: opens on the last race, full-tank stops first
+phone · To drop a stop and Per green lap unchanged from round 4
+Plan
+Portimão ▾
+911 GT3 R ▾
+Rules: ELMS 2 h ▾
+Your last race here
+27 Sep
+72 laps · 2 stops after L24, L48 · 
+4.9 L / 3 % VE left
+ at the end of L72
+Length, rules and fill limit below are prefilled from it.
+Session →
+Length
+−
+120 min
++
+Race
+72
+ laps
+2
+ stops
+after L27, L55
+At your median lap, 1:41.2: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. 71 if the leader finishes first. Stop laps are the full-tank strategy.
+Per tank
+Laps one full load lasts. Bar = median use per lap, notch = p90 use. The shorter meter sets the stint length.
+VE
+RUNS OUT FIRST
+28.6 laps
+100 % ÷ 3.50 %/lap
+p90 27.6 laps
+Fuel
+42.0 laps
+100 L ÷ 2.38 L/lap
+p90 40.6 laps
+Stops
+Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.
+Stop after
+Stint laps
+Full tank
+L27 · L55
+27 + 28 + 17
+Equal stints
+L24 · L48
+24 + 24 + 24
+Stint 1 includes the formation lap: 2.0 % VE, 0.9 L. Refuelling runs at 3.4 L/s (GT3, measured on 5 stops).
+812 pt
+Decisions
+“Your last race here” sits directly under the track and car chips because it depends on them. It gives the recorded result on one line and links back to that session. If there is no race at this track in this car, the block is omitted.
+That block also states that the inputs are prefilled from it, so a changed length or rule set is visible as a change.
+Stops leads with the full-tank row at full ink; equal stints follow in secondary ink as the comparison. The Race card quotes the full-tank stop laps.
+The measured refuel rate goes in the Stops key, with its scope (GT3, 5 stops). For LMP2 and Hypercar it is left out until measured.
+Race and Per tank still sit above the 812 pt fold. The last-race block costs 84 pt, which comes out of the rules grid; the rules now live only in the chip and its sheet.
+2
+Fuel-only state: cars without Virtual Energy
+LMP2 · Oreca 07 · one phone, three places
+Plan · Per tank
+Per tank
+Laps one full load lasts. Bar = median use per lap, notch = p90 use. This car has no VE; fuel sets the stint length.
+Fuel
+24.0 laps
+75 L ÷ 3.12 L/lap
+p90 23.1 laps
+0
+10
+20
+30 laps
+Session · lap table
+PIT
+6.2 L left (2.0 laps) · +58.0 L · 44 s
+Fuel 3.12 L/lap (n = 19)
+Session · Pit stops
+Stop 1
+after L22
+In
+6.2 L (2.0 laps)
+Added
++58.0 L
+Pit lane
+44.0 s
+Tyres
+Changed
+Decisions
+Absent VE removes things. It is never shown as 0 %, “—” or a disabled column: no VE bar, no “RUNS OUT FIRST” box, no VE column in Stops or To drop a stop, no “1 % VE” or Max VE in the rules.
+With one meter, the Fuel bar goes to full ink, and the explainer says why there is no comparison (“This car has no VE”).
+Session: the stint line is just “Fuel 3.12 L/lap (n = 19)” and the pit note drops the “/ n % VE” part. Same fixed heights as the VE state.
+Pit stops: IN and ADDED show litres only. No refuel split for LMP2 until the rate is measured; the pit-lane time stands alone.
+Rule: the VE state is chosen per session from whether the channel is stored. Nothing is decided by car class, so a future car with VE works without a code change.
+3
+Pit stops card after a race: plan vs what happened
+refuel at 3.4 L/s · tyres changed / not changed · End of L72
+Demo
+Fuel
+No stops. What was in the car at the start, what was used, and what was left.
+Start
+45.0 L · 68 % VE
+loaded before L1
+Used
+41.3 L · 64 % VE
+2.29 L/lap · 3.56 %/lap over 18 laps
+End of L18
+3.7 L / 4 % VE (1.1 laps)
+grey = used · white = left
+Pit stops
+Per stop: what was left on the way in, what was added, time in the pit lane with refuelling split out, and tyres.
+{{ c.n }}
+{{ c.lap }}
+In
+{{ c.inv }}
+{{ c.inm }}
+Added
+{{ c.ad }}
+{{ c.adm }}
+VE out
+{{ c.tt }}
+Pit lane
+{{ c.pl }}
+{{ c.plm }}
+Tyres
+{{ c.ty }}
+{{ pz.key }}
+{{ pz.endLabel }}
+the last whole lap
+Spare
+{{ pz.spare }}
+Last stop
+{{ pz.last }}
+Plan vs what happened
+{{ pz.planDesc }}
+Plan
+Actual
+{{ r.k }}
+{{ r.p }}
+{{ r.a }}
+Decisions
+Refuel is computed from litres added ÷ 3.4 L/s: +33.2 L → 9.8 s, +50.0 L → 14.7 s. The line prints the rate, so the number is not mistaken for a measurement.
+Count-aware. 0 stops: the card becomes “Fuel”, covering start, used and end of the last lap, and the plan half compares it with Load to finish. 1 stop: a single full-width column, so the bars get the whole width. 2 stops: two columns. 3 or more: fixed 118 pt columns that scroll sideways, with the key column pinned.
+Stops are columns, so the same measure sits side by side and scans across. Each cell has a bold primary value (litres, seconds) with its secondary value muted below it.
+Two small to-scale bars carry the shape: VE out (left + added) and pit lane (refuel inside the lane time). They are neutral inks only, keyed once under the table.
+Tyres read “Changed” or “Not changed”. When per-wheel data ships, the same row carries “Fronts new” with no layout change.
+The end row is “End of L72 · the last whole lap”.
+Plan vs what happened is the lower half of the same card, separated by a stronger rule. It uses the same key column, with Plan in secondary ink and Actual at full ink, row for row: stop laps, what was left at each entry, and the spare.
+The plan is rebuilt from the laps recorded before the race, so it is the plan he could have seen that morning. The explainer says so and gives n.
+No difference column and no colour. The two values sit side by side and the reader compares them.
+4
+Track page and practice: where the plan’s data comes from
+‹
+Portimão
+4,650 m
+Plan
+One per car driven here. Opens prefilled from the last race here in that car.
+{{ p.car }}
+Plan →
+{{ p.last }}
+{{ p.use }}
+Sessions here
+session list, unchanged
+‹
+Practice · Portimão
+29 Sep
+Fuel 2.34 L/lap · VE 3.44 %/lap (n = 12) · 
+in Plan →
+Use and lap time
+One dot per green lap at Portimão in the 911 GT3 R, all sessions. Right = more used per lap. Up = faster lap.
+{{ g.t }}
+{{ g.t }}
+{{ sc.th.t }}
+{{ sc.key }}
+Decisions
+Track page: the Plan block sits above the session list, one card per car. Each card gives the last race and the per-lap use the plan will start from, with n, so he can see what it is built on before opening it.
+Practice stint lines end with “in Plan →”. It links to the plan for this track and car, and says in two words that these laps count.
+Use and lap time: a plain scatter with Fuel / VE as a switch. This session’s laps are at full ink and earlier sessions are muted. Up = faster, matching the lap-time bars.
+The one reference line is the plan’s “to drop a stop” threshold, labelled with where it comes from. It connects fuel-saving runs to the plan without saying whether a lap is good.
+Tapping a dot highlights that lap in the table (amber row), as the lap-time bars do.
+5
+Race desktop v2: class leaderboard, no Satellite, 10 m radar
+1440 × 900 · Track/Follow and lane zoom are live
+Sessions
+Session
+Compare
+Corner
+Race
+Plan
+Portimão · 911 GT3 R · Race ▾
+Settings
+Race · Portimão
+Porsche 911 GT3 R · Manthey #91 · 72 laps · 2 h
+L37 · 1:00:41
+−
+{{ rangeLabel }}
++
+Radar
+30 m
+10 m
+Lines every 10 m ahead and behind. Up = direction of travel.
+Your race
+Each lane marks where that condition held. Amber line = playback position.
+{{ r.k }}
+{{ t.t }}
+Other cars are recorded at 5 Hz; the map and radar move them smoothly between samples.
+Class · LMGT3
+At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.
+Pos
+Car
+Gap
+Pit
+{{ b.pos }}
+{{ b.car }}
+{{ b.gap }}
+{{ b.pit }}
+Decisions
+At 1280 and wider, the leaderboard takes a 320 pt right column at full height and the map shrinks to fit the rest. At 900–1279, the leaderboard goes below the lanes.
+Your row is the selected row: an amber inset bar with the amber tint. Clicking another row selects that car as the radar and TOW/BATTLE reference. That behaviour is a proposal.
+Gap is to the class leader, in s with three decimals; a lapped car reads “+1 lap”. PIT counts stops, and shows an amber IN while the car is in the lane.
+Satellite is gone. On this frame it is covered by an overlay; the real fix is in TrackMap, which should add the Satellite segment only when satellite is true.
+Radar: no rings. Horizontal lines every 10 m ahead and behind, with the ±30 m range at the frame edge. The 5 Hz note sits in the lane key, once.
+Follow zoom is − / + with the range between them, starting at 120 m, the same as Compare on the phone.
+6
+Compare on the phone, as rebuilt
+plot and map together · radar only when a car is near · toggle the radar to see both states
+‹
+Compare
+vs L16
+RADAR 30 m
+−
+{{ rangeLabel }}
++
+Demo
+Review of the new build
+The plot and the map touch, with no gap: the chart ends and the Follow map starts on the next pixel, so the eye moves between the trace and the car without crossing anything.
+The live values stay in the chart header (one value per lap, in lap colour), as the ChartHeader already does. No separate table between the plot and the map.
+Radar overlay: top-right of the plot, 72 % background so the traces show through, no shadow (it is not a floating control). Top-right is where speed traces are usually flat.
+When a car leaves the 30 m range, the overlay goes away without a fade; motion stays near zero.
+Follow − / + at 44 pt each, starting at 120 m. The steps 60 / 120 / 250 / 500 m are a proposal.
+The Transport keeps four rates at 375.
+7
+Corner fixes: throttle strip, steering, sampling text
+‹
+T5
+38 laps · vs L16
+Full throttle by the slowest point: 27 of 38 laps
+?
+What
+Car speed along the corner, one line per lap.
+Measured
+Game telemetry at 100 Hz, drawn at its recorded samples. Laps are aligned on a 5 m position grid.
+Direction
+Higher = faster. The lowest point of each line is its minimum speed.
+Decisions
+Throttle stays a DotStrip of the measurement: metres after the apex to full throttle. Laps already flat at the slowest point drop out, and their count takes one fixed 24 pt line under the strip.
+The live line reads “27 laps”. This version keeps the denominator (“27 of 38 laps”) and puts “Laps already flat at the slowest point are not plotted” in the DotStrip explainer, so the missing dots are explained.
+Cells stay only for “No brake in this corner”, as in round 4.
+Steering: “Steering, % of full lock”, with no direction wording until the sign is measured.
+MEASURED lines state each channel’s own rate: pedals 50 Hz, speed and steering 100 Hz, position 10 Hz, 5 m grid.
+8
+Desktop: Plan and Session with fuel
+1440 × 900 · Race desktop is item 5; Corner column is in round 4
+Sessions
+Session
+Compare
+Corner
+Race
+Plan
+Settings
+Plan
+Portimão ▾
+911 GT3 R ▾
+Your last race here
+27 Sep
+72 laps · 2 stops after L24, L48
+4.9 L / 3 % VE left
+ at the end of L72
+Inputs below are prefilled from it.
+Session →
+Length
+−
+120 min
++
+Rules
+ELMS 2 h ▾
+Max fuel
+100 L
+Max VE
+100 %
+1 % VE
+0.90 L
+Mandatory
+0 stops
+Formation
+1 lap
+Edit rules ›
+Race
+72
+ laps
+2
+ stops
+after L27, L55
+At your median lap, 1:41.2: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. 71 if the leader finishes first. Stop laps are the full-tank strategy.
+Per tank
+Laps one full load lasts. Bar = median use, notch = p90. The shorter meter sets the stint.
+VE
+RUNS OUT FIRST
+28.6 laps
+100 % ÷ 3.50 %/lap
+p90 27.6 laps
+Fuel
+42.0 laps
+100 L ÷ 2.38 L/lap
+p90 40.6 laps
+Stops
+Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison. Refuelling runs at 3.4 L/s (GT3, measured on 5 stops).
+Stop after
+Stint laps
+VE per stint
+Refuel per stop
+Full tank
+L27 · L55
+27 + 28 + 17
+100 · 98 · 60 %
+26.5 s · 25.9 s
+Equal stints
+L24 · L48
+24 + 24 + 24
+86 · 84 · 84 %
+22.2 s · 22.2 s
+To drop a stop
+Use per lap that fits 72 laps and the formation lap into 2 loads, and your green laps at or under it.
+Needed
+Your laps at it
+VE
+≤ 2.75 %/lap
+0 of 25
+Fuel
+≤ 2.76 L/lap
+25 of 25
+Per green lap
+The inputs to every card. n = 25 laps · 3 sessions · 12–27 Sep.
+Median
+p10–p90
+Fuel
+2.38 L
+2.31–2.46 L
+VE
+3.50 %
+3.41–3.62 %
+Lap
+1:41.2
+1:40.6–1:42.0
+Use and lap time
+Practice and race green laps here in this car. Right = more used per lap. Up = faster lap.
+{{ g.t }}
+{{ g.t }}
+{{ sc.th.t }}
+{{ sc.key }}
+Sessions
+Session
+Compare
+Corner
+Race
+Plan
+Portimão · 911 GT3 R · Race ▾
+Settings
+Race · Portimão
+Porsche 911 GT3 R · Manthey #91 · 27 Sep · 72 laps
+{{ r.fuel }}
+PIT
+{{ r.text }}
+Pit stops ›
+Fuel
+No stops. What was in the car at the start, what was used, and what was left.
+Start
+45.0 L · 68 % VE
+loaded before L1
+Used
+41.3 L · 64 % VE
+2.29 L/lap · 3.56 %/lap over 18 laps
+End of L18
+3.7 L / 4 % VE (1.1 laps)
+grey = used · white = left
+Pit stops
+Per stop: what was left on the way in, what was added, time in the pit lane with refuelling split out, and tyres.
+{{ c.n }}
+{{ c.lap }}
+In
+{{ c.inv }}
+{{ c.inm }}
+Added
+{{ c.ad }}
+{{ c.adm }}
+VE out
+{{ c.tt }}
+Pit lane
+{{ c.pl }}
+{{ c.plm }}
+Tyres
+{{ c.ty }}
+{{ pzD.key }}
+{{ pzD.endLabel }}
+the last whole lap
+Spare
+{{ pzD.spare }}
+Last stop
+{{ pzD.last }}
+Plan vs what happened
+{{ pzD.planDesc }}
+Plan
+Actual
+{{ r.k }}
+{{ r.p }}
+{{ r.a }}
+Decisions
+Plan desktop is three columns: inputs on the left (with the last race and the full rules visible), the answer in the middle in the same card order as the phone, and the practice “Use and lap time” chart on the right. The data the plan is built from sits beside it.
+With the width available, Stops gains VE per stint and refuel time per stop (litres ÷ 3.4 L/s). Race and Per tank sit side by side, so the answer and the limit read together.
+Session desktop: the lap table carries the stint fuel lines and pit note rows at the same fixed heights as the phone. Each pit row links to the card on the right.
+The Pit stops card moves to a 400 pt right column, pinned beside the table, so the stops and the laps around them are visible together. The same 0 / 1 / 2 / 3+ rules apply (the demo switch in item 3 drives this frame too).
+At 900–1279, the right column drops below the table, as with Stints in D1.
+Track page and Compare on desktop are not drawn: Track takes the Plan block per car above its session list, and Compare is D2 unchanged.
