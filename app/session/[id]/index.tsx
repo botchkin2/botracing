@@ -10,6 +10,7 @@ import {
   type Selection,
   SessionScreen,
 } from '@/src/features/session/SessionScreen';
+import {PlanVsRaceCard} from '@/src/features/plan/components/PlanVsRaceCard';
 import {useSessionsModel} from '@/src/features/sessions/model';
 
 // The URL owns the selection: ?laps=ref,a,b&hl=lapId (docs/ARCHITECTURE.md).
@@ -30,6 +31,8 @@ export default function SessionRoute() {
     <SessionScreen
       sessionId={params.id}
       selection={selection}
+      // Another feature's card, composed here: features do not import each other.
+      renderPlanVsRace={facts => <PlanVsRaceCard facts={facts} />}
       onSelectionChange={next =>
         router.setParams({
           laps: next.laps.length ? next.laps.join(',') : undefined,

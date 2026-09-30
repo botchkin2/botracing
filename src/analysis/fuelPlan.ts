@@ -25,6 +25,23 @@ export interface GreenLap {
   sessionId: string;
 }
 
+/** What the race itself gives the comparison. */
+export interface RaceFacts {
+  /** A Plan combo key, to find this track+car's earlier sessions. */
+  planKey: string;
+  startedAt: string;
+  /** The event's fill limit; null when the session has none on record. */
+  limitL: number | null;
+  /** What the car started with, litres; null without the channel. */
+  startL: number | null;
+  /** Racing laps driven: the formation lap is not counted. */
+  raceLaps: number;
+  /** Median use per green lap over this race's own laps; null under 3 laps. */
+  ownUse: {fuelL: number | null; vePct: number | null};
+  /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
+  stops: {lapIndex: number; fuelL: number | null; vePct: number | null}[];
+}
+
 export interface PlanRules {
   name: string;
   /** Exactly one of lengthLaps / lengthMin is set. */
