@@ -42,36 +42,3 @@ export function toggleLap(on: string[], lapId: string): ToggleResult {
   if (on.length >= MAX_ON_LAPS) return {kind: 'full'};
   return {kind: 'ok', laps: [...on, lapId]};
 }
-
-// A lap's trace is its whole 100 Hz CSV, about 0.55 MB gzipped, to draw a few
-// hundred metres of it. Beyond the laps on, only this many more are fetched,
-// so a long race stays a few MB on a phone (pit-wall thread 27 #978/#979).
-export const MAX_EXTRA_TRACE_LAPS = 12;
-
-/**
- * The laps whose lines are drawn dim behind the laps on: the nearest
- * `MAX_EXTRA_TRACE_LAPS` to the reference by lap time. Laps without a time
- * are skipped; the order is nearest first.
- */
-export function extraTraceLapIds(input: {
-  /** Every lap drawn on the screen, reference first. */
-  lapIds: string[];
-  /** The laps on (already fetched). */
-  keyLapIds: string[];
-  laps: {id: string; timeS: number | null}[];
-  max?: number;
-}): string[] {
-  const {lapIds, keyLapIds, laps, max = MAX_EXTRA_TRACE_LAPS} = input;
-  const timeOf = new Map(laps.map(l => [l.id, l.timeS] as const));
-  const refT = timeOf.get(keyLapIds[0] ?? lapIds[0]);
-  if (refT == null) return [];
-  const on = new Set(keyLapIds);
-  return lapIds
-    .filter(id => !on.has(id) && timeOf.get(id) != null)
-    .sort(
-      (a, b) =>
-        Math.abs(timeOf.get(a)! - refT) - Math.abs(timeOf.get(b)! - refT) ||
-        timeOf.get(a)! - timeOf.get(b)!,
-    )
-    .slice(0, max);
-}

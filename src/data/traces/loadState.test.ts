@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {traceLoad} from './loadState';
+import {sliceLoad, traceLoad} from './loadState';
 
 describe('traceLoad', () => {
   it('is idle with no laps asked for', () => {
@@ -38,5 +38,44 @@ describe('traceLoad', () => {
 
   it('stays loading while a failed lap has another still pending', () => {
     expect(traceLoad(['error', 'pending'])).toEqual({kind: 'loading'});
+  });
+});
+
+describe('sliceLoad', () => {
+  const base = {lapCount: 10, sessionKnown: true, hasFile: true};
+
+  it('no laps to draw: idle', () => {
+    expect(sliceLoad({...base, lapCount: 0, status: 'pending'})).toEqual({
+      kind: 'idle',
+    });
+  });
+
+  it('a session with no file for the corner needs a resync, whatever the query says', () => {
+    expect(sliceLoad({...base, hasFile: false, status: 'pending'})).toEqual({
+      kind: 'needsResync',
+    });
+  });
+
+  it('while the session doc is still loading a missing file is not yet a fact', () => {
+    expect(
+      sliceLoad({
+        ...base,
+        sessionKnown: false,
+        hasFile: false,
+        status: 'pending',
+      }),
+    ).toEqual({kind: 'loading'});
+  });
+
+  it('a failed fetch is a failure of every lap', () => {
+    expect(sliceLoad({...base, status: 'error'})).toEqual({
+      kind: 'failed',
+      failed: 10,
+    });
+  });
+
+  it('pending is loading, success is ready', () => {
+    expect(sliceLoad({...base, status: 'pending'})).toEqual({kind: 'loading'});
+    expect(sliceLoad({...base, status: 'success'})).toEqual({kind: 'ready'});
   });
 });

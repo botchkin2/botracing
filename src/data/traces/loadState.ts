@@ -10,7 +10,10 @@ export type TraceLoad =
   | {kind: 'loading'}
   | {kind: 'ready'}
   | {kind: 'partial'; failed: number}
-  | {kind: 'failed'; failed: number};
+  | {kind: 'failed'; failed: number}
+  /** The session has no corner slices: it was uploaded before analysis
+   *  version 13 and needs a resync. Retrying cannot help. */
+  | {kind: 'needsResync'};
 
 export function traceLoad(statuses: TraceQueryStatus[]): TraceLoad {
   if (statuses.length === 0) return {kind: 'idle'};
@@ -22,4 +25,22 @@ export function traceLoad(statuses: TraceQueryStatus[]): TraceLoad {
   if (statuses.includes('pending'))
     return loaded > 0 ? {kind: 'ready'} : {kind: 'loading'};
   return loaded > 0 ? {kind: 'partial', failed} : {kind: 'failed', failed};
+}
+
+/**
+ * The load state of a corner's slice file. `hasFile`: the session doc lists
+ * this corner's file; `sessionKnown`: the session doc has loaded, so a missing
+ * file is a fact and not just a doc still on its way.
+ */
+export function sliceLoad(input: {
+  lapCount: number;
+  sessionKnown: boolean;
+  hasFile: boolean;
+  status: TraceQueryStatus;
+}): TraceLoad {
+  const {lapCount, sessionKnown, hasFile, status} = input;
+  if (lapCount === 0) return {kind: 'idle'};
+  if (sessionKnown && !hasFile) return {kind: 'needsResync'};
+  if (status === 'error') return {kind: 'failed', failed: lapCount};
+  return status === 'success' ? {kind: 'ready'} : {kind: 'loading'};
 }

@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {useCallback, useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
@@ -7,7 +7,13 @@ import {
   useSessionLaps,
   useSessionMap,
 } from '@/src/data/sessions';
-import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
+import {
+  sliceLoad,
+  sliceReachesApex,
+  sliceToGridTrace,
+  type TraceLoad,
+  useCornerSlices,
+} from '@/src/data/traces';
 
 import {
   buildCornerModel,
@@ -15,9 +21,7 @@ import {
   type CornerModel,
   type CornerSelection,
 } from './model';
-import {extraTraceLapIds, keyLapIds as keyLapsOf} from './keyLaps';
-
-const GRID_STEP_M = 5;
+import {keyLapIds as keyLapsOf} from './keyLaps';
 
 export type CornerResult =
   | {state: 'loading'}
@@ -59,7 +63,7 @@ export function useCornerModel(
         : [],
     [laps.data, selection, allComparable, session.data?.bestLapId],
   );
-  // Only the laps on load traces; the rest show as dots.
+  // The laps on: drawn in their own colour and named on the strips.
   const bestLapId = session.data?.bestLapId ?? null;
   const traceIds = useMemo(
     () =>
@@ -72,43 +76,38 @@ export function useCornerModel(
       }),
     [lapIds, selection.laps, selection.hl, bestLapId],
   );
-  const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
-  const {
-    traces: grids,
-    load: traceLoad,
-    retry: retryTraces,
-  } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M});
-  // The laps on draw first; only then are the nearest laps by time fetched,
-  // to draw dim behind them. Leaving the screen drops the observers, and the
-  // fetches abort with them.
-  const keysDrawn = traceIds.length > 0 && traceIds.every((_, i) => grids[i]);
-  const extraIds = useMemo(
-    () =>
-      keysDrawn && laps.data
-        ? extraTraceLapIds({
-            lapIds,
-            keyLapIds: traceIds,
-            laps: laps.data,
-          })
-        : [],
-    [keysDrawn, laps.data, lapIds, traceIds],
+  // Every lap comes from the corner's slice file (one small fetch), so every
+  // comparable lap draws, not only the laps on. A session the uploader has
+  // not resynced since analysis version 13 has no file: nothing to draw yet.
+  const slicePointer = session.data?.slices ?? null;
+  const hasFile = slicePointer?.corners.includes(corner) ?? false;
+  const slices = useCornerSlices(
+    sessionId,
+    corner,
+    hasFile ? slicePointer?.hash ?? null : null,
   );
-  const {traces: extraGrids} = useLapTraceLoad(extraIds, {
-    lengthM,
-    stepM: GRID_STEP_M,
-  });
+  const {refetch: refetchSlices} = slices;
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
-    traceIds.forEach((id, i) => {
-      const g = grids[i];
-      if (g) out.set(id, g);
-    });
-    extraIds.forEach((id, i) => {
-      const g = extraGrids[i];
-      if (g) out.set(id, g);
-    });
+    if (!slices.data) return out;
+    for (const lap of slices.data.laps)
+      if (sliceReachesApex(lap, slices.data))
+        out.set(lap.id, sliceToGridTrace(lap, slices.data));
     return out;
-  }, [traceIds, grids, extraIds, extraGrids]);
+  }, [slices.data]);
+  const traceLoad = useMemo(
+    (): TraceLoad =>
+      sliceLoad({
+        lapCount: lapIds.length,
+        sessionKnown: session.data != null,
+        hasFile,
+        status: slices.status,
+      }),
+    [lapIds.length, session.data, hasFile, slices.status],
+  );
+  const retryTraces = useCallback(() => {
+    void refetchSlices();
+  }, [refetchSlices]);
 
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = session;

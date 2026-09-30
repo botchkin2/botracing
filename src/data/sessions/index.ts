@@ -14,6 +14,7 @@ export type {
   SessionFuel,
   SessionSummary,
   SessionType,
+  SlicePointer,
   Stint,
   TrackMapData,
   TrackMapQuality,
