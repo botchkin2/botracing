@@ -152,14 +152,31 @@ describe('buildPitReview', () => {
   it('ends on the last whole lap, timed or not, and not on a cut-short lap after it', () => {
     const cool = [
       ...race,
-      lap(7, {timeS: null, partial: true, fuel: fuelEnd(3, 1)}),
+      lap(7, {
+        timeS: null,
+        partial: true,
+        reasons: ['partial'],
+        fuel: fuelEnd(3, 1),
+      }),
     ];
     expect(buildPitReview('R', cool)!.end?.title).toBe('End of L6');
-    // The game stops timing the last laps of a race (Sarthe 09-21: L21-L23 are
-    // untimed but whole); the flag lap is the last whole one.
+    // The game stops timing the last laps of a race (Sarthe 09-21: L21-L23),
+    // and the app's `partial` also carries its "incomplete" flag on them, so
+    // only the uploader's 'partial' reason marks a cut-short lap (#160).
     const untimed = [
       ...race.slice(0, 5),
-      lap(6, {timeS: null, fuel: fuelEnd(2.6, 0)}),
+      lap(6, {
+        timeS: null,
+        partial: true,
+        reasons: ['untimed'],
+        fuel: fuelEnd(2.6, 0),
+      }),
+      lap(7, {
+        timeS: null,
+        partial: true,
+        reasons: ['partial', 'untimed'],
+        fuel: fuelEnd(2.5, 0),
+      }),
     ];
     expect(buildPitReview('R', untimed)!.end?.title).toBe('End of L6');
   });

@@ -57,10 +57,11 @@ function changeLine(
   fmt: (v: number) => string,
 ): string | null {
   if (planned == null || own == null || planned <= 0) return null;
-  const change = ((own - planned) / planned) * 100;
-  return `${name}: ${fmt(planned)} planned, ${fmt(own)} this race (${
-    change >= 0 ? '+' : '−'
-  }${Math.abs(change).toFixed(0)} %)`;
+  const change = Math.round(((own - planned) / planned) * 100);
+  const sign = change > 0 ? '+' : change < 0 ? '−' : '±';
+  return `${name}: ${fmt(planned)} planned, ${fmt(
+    own,
+  )} this race (${sign}${Math.abs(change)} %)`;
 }
 
 /**
@@ -118,12 +119,18 @@ export function buildPlanVsRace(
               med.firstStint.limitedBy === 've' ? 'VE' : 'fuel'
             } runs out first)`
           : '';
+      const atMedian = at(med);
+      const atP90 = at(p90);
+      // One list when the two use levels stop on the same laps.
+      const uses =
+        atP90 == null || atP90 === atMedian
+          ? 'at the median and p90 use'
+          : `at the median use, ${atP90} at the p90 use`;
       lines.push(
-        `Planned: ${plural(med.stops, 'stop')}. The load reaches ${at(
-          med,
-        )} at the median use${
-          at(p90) ? `, ${at(p90)} at the p90 use` : ''
-        }${limited}.`,
+        `Planned: ${plural(
+          med.stops,
+          'stop',
+        )}. The load reaches ${atMedian} ${uses}${limited}.`,
       );
     }
   }

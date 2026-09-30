@@ -34,6 +34,20 @@ const lapsOf = (v: number) => `${v.toFixed(1)} laps`;
  * session is the service before the start, not a stop, and is left out
  * (camber, thread 36 #1117). Practice and qualifying have no review.
  */
+/**
+ * The lap the race ends on: the last one that was not cut short and has a
+ * fuel level. `Lap.partial` also carries the game's "incomplete" flag, which
+ * LMU sets on the untimed last laps of a race (Le Mans 09-21: L21-L23), so
+ * the test is the uploader's own "partial" reason, not that flag (#160).
+ */
+export function endingLap(laps: Lap[]): Lap | null {
+  return (
+    [...laps]
+      .reverse()
+      .find(l => !l.reasons.includes('partial') && l.fuel?.endL != null) ?? null
+  );
+}
+
 export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   if (sessionType !== 'R') return [];
   const first = laps.length > 0 ? laps[0].lapIndex : 0;
@@ -134,9 +148,7 @@ export function buildPitReview(
   });
 
   const last = pitLaps[pitLaps.length - 1].pitStop as PitStop;
-  const ending = [...laps]
-    .reverse()
-    .find(l => !l.partial && l.fuel?.endL != null);
+  const ending = endingLap(laps);
   const f = ending?.fuel;
   const lines = f
     ? [
