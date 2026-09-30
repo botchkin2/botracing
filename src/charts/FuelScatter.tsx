@@ -12,7 +12,7 @@ export type ScatterPoint = {key: string; x: number; y: number; hollow: boolean};
 export type ScatterMedian = {key: string; label: string; x: number; y: number};
 export type ScatterTick = {v: number; label: string};
 
-const PAD_L = 44;
+const PAD_L = 56;
 const PAD_R = 12;
 const PAD_T = 18;
 const PAD_B = 32;
