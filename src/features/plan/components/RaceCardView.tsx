@@ -17,7 +17,7 @@ export function RaceCardView({card}: {card: RaceCard}) {
         <View>
           <Text variant='title'>{card.laps ?? '—'}</Text>
           <Text variant='dataSmall' tone='textMuted'>
-            laps
+            {card.laps === 1 ? 'lap' : 'laps'}
           </Text>
         </View>
         <View>
