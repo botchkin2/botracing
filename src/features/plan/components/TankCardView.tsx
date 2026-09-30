@@ -22,6 +22,14 @@ function scaleMax(meters: TankMeter[]): number {
  * fuel-only plan has the one bar, at full ink.
  */
 export function TankCardView({card}: {card: TankCard}) {
+  // Under 3 green laps there is no median for either meter: "no data", not a
+  // fuel-only plan (apex, #1309).
+  if (card.meters.length === 0)
+    return (
+      <Text variant='dataSmall' tone='textMuted'>
+        no data: a median needs 3 green laps
+      </Text>
+    );
   const max = scaleMax(card.meters);
   return (
     <View style={styles.box}>

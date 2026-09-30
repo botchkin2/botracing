@@ -10,6 +10,8 @@ import {
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
+  type Combo,
+  defaultCombo,
   driftRowOf,
   fuelOnly,
   greenLapsOf,
@@ -620,12 +622,17 @@ describe('fuelOnly', () => {
     veMeasured,
   });
 
-  it('is fuel-only when fewer than 3 green laps carry VE of their own', () => {
-    expect(fuelOnly([])).toBe(true);
+  it('is fuel-only when there are laps for a median and fewer than 3 carry VE of their own', () => {
     expect(fuelOnly([lap(false), lap(false), lap(false), lap(false)])).toBe(
       true,
     );
     expect(fuelOnly([lap(true), lap(true), lap(false), lap(false)])).toBe(true);
+  });
+
+  it('is not fuel-only with too few laps for a median: nothing is known about VE (a Hypercar driven for one lap)', () => {
+    expect(fuelOnly([])).toBe(false);
+    expect(fuelOnly([lap(false)])).toBe(false);
+    expect(fuelOnly([lap(false), lap(false)])).toBe(false);
   });
 
   it('is not fuel-only from 3 laps with VE, however many have none (Barcelona: March without VE, August with)', () => {
@@ -634,5 +641,34 @@ describe('fuelOnly', () => {
       ...Array.from({length: 3}, () => lap(true)),
     ];
     expect(fuelOnly(mixed)).toBe(false);
+  });
+});
+
+describe('defaultCombo', () => {
+  const combo = (key: string, comparable: number[]): Combo => ({
+    key,
+    trackId: 't',
+    track: 't',
+    label: key,
+    car: 'c',
+    sessions: comparable.map((n, i) => ({
+      ...session(`${key}${i}`, '2026-09-20T10:00:00Z'),
+      comparableCount: n,
+    })),
+  });
+
+  it('opens on the newest track and car with enough laps for a median, not one driven for a lap', () => {
+    const combos = [combo('cadillac', [1]), combo('porsche', [12, 30])];
+    expect(defaultCombo(combos)?.key).toBe('porsche');
+  });
+
+  it('counts the laps across a combo’s sessions', () => {
+    expect(defaultCombo([combo('a', [1, 1, 1])])?.key).toBe('a');
+    expect(defaultCombo([combo('a', [1]), combo('b', [2, 1])])?.key).toBe('b');
+  });
+
+  it('falls back to the newest when none has enough, and to null with none', () => {
+    expect(defaultCombo([combo('a', [1]), combo('b', [0])])?.key).toBe('a');
+    expect(defaultCombo([])).toBeNull();
   });
 });

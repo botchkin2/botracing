@@ -200,13 +200,29 @@ export function greenLapsOf(
 }
 
 /**
- * Whether the plan has no VE to show: fewer than the planner's minimum of the
- * green laps it was built from recorded VE themselves. Chosen from the data,
- * never from the car class, so a mixed history (Barcelona: March laps without
- * VE, August with) reads right (camber, thread 43 #1243).
+ * Whether the plan has no VE to show: enough green laps for a median, and
+ * fewer than the planner's minimum of them recorded VE themselves. Chosen from
+ * the data, never from the car class, so a mixed history (Barcelona: March laps
+ * without VE, August with) reads right (camber, thread 43 #1243). With too few
+ * laps for a median at all, nothing is known about VE either way, so it is not
+ * fuel-only: both meters read "no data" (apex, #1309).
  */
 export function fuelOnly(laps: GreenLap[]): boolean {
-  return laps.filter(l => l.veMeasured).length < MIN_GREEN_LAPS;
+  return (
+    laps.length >= MIN_GREEN_LAPS &&
+    laps.filter(l => l.veMeasured).length < MIN_GREEN_LAPS
+  );
+}
+
+/**
+ * The track+car the plan opens on: the newest one with enough comparable laps
+ * for a median, so it does not open on a car driven for one lap when others
+ * have hundreds. The chips still list them all. Falls back to the newest.
+ */
+export function defaultCombo(combos: Combo[]): Combo | null {
+  const enough = (c: Combo) =>
+    c.sessions.reduce((n, s) => n + s.comparableCount, 0) >= MIN_GREEN_LAPS;
+  return combos.find(enough) ?? combos[0] ?? null;
 }
 
 /** A typed number: positive and finite, else null (empty, "7.", "abc", 0). */
@@ -473,7 +489,9 @@ export function planView(
       },
       {
         label: 'From',
-        value: `${plan.history.laps} laps in ${plan.history.sessions} ${
+        value: `${plan.history.laps} ${
+          plan.history.laps === 1 ? 'lap' : 'laps'
+        } in ${plan.history.sessions} ${
           plan.history.sessions === 1 ? 'session' : 'sessions'
         }${since}`,
       },

@@ -36,7 +36,7 @@ import {RaceCardView} from './components/RaceCardView';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
-import {parseNumber, type PlanView, planCombos} from './model';
+import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {RulesEditor} from './RulesEditor';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
@@ -69,7 +69,7 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [showAll, setShowAll] = useState(false);
-  const combo = combos.find(c => c.key === comboKey) ?? combos[0] ?? null;
+  const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
   // The latest few, and the one picked even if it is older.
   const shownCombos = showAll
     ? combos
@@ -109,7 +109,9 @@ export function PlanScreen() {
       ', not from this race.'
     : typedFor === combo?.key
     ? 'Length is typed here; the fill limit is from this race.'
-    : 'Length and fill limit below are prefilled from it.';
+    : 'Length and fill limit below are prefilled from it: ' +
+      lastRace.raceLaps +
+      ' racing laps, the formation lap not counted.';
 
   const width = Math.min(layout.contentWidth, PLAN_MAX_W);
   return (

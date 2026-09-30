@@ -46,9 +46,9 @@ describe('lastRaceOf', () => {
 describe('lastRaceLine', () => {
   const race = lastRaceOf('s1', facts)!;
 
-  it('reads laps, stops by their pit-in lap, and what was left at the end', () => {
+  it('reads the stops by their pit-in lap and what was left at the end, in the lap-table numbering', () => {
     expect(lastRaceLine(race)).toBe(
-      '72 laps · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
+      '2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
     );
   });
 
@@ -58,13 +58,11 @@ describe('lastRaceLine', () => {
     expect(lastRaceLine({...race, stops: []})).toContain('no stop');
     const fuelOnly = {...race, end: {lap: 'L73', fuelL: 4.9, vePct: null}};
     expect(lastRaceLine(fuelOnly)).toBe(
-      '72 laps · 2 stops at L25, L49 · 4.9 L left at the end of L73',
+      '2 stops at L25, L49 · 4.9 L left at the end of L73',
     );
   });
 
   it('leaves the end out when there is no fuel level', () => {
-    expect(lastRaceLine({...race, end: null})).toBe(
-      '72 laps · 2 stops at L25, L49',
-    );
+    expect(lastRaceLine({...race, end: null})).toBe('2 stops at L25, L49');
   });
 });

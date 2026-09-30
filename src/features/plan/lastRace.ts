@@ -40,10 +40,12 @@ export function lastRaceOf(
 }
 
 /**
- * The one line under "Your last race here": laps, the stops by the lap the
- * pit lane was entered (as the pit stops card names them), and what was left
- * at the end of the last whole lap. VE is left out of a fuel-only race.
- * "72 laps · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73"
+ * The one line under "Your last race here": the stops by the lap the pit lane
+ * was entered (as the pit stops card names them), and what was left at the
+ * end of the last whole lap. One numbering, the lap table's: no lap count
+ * beside "L21", which counts the formation lap (apex, #1309). VE is left out
+ * of a fuel-only race.
+ * "2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73"
  */
 export function lastRaceLine(race: LastRace): string {
   const stops =
@@ -62,5 +64,5 @@ export function lastRaceLine(race: LastRace): string {
     race.end && left.length > 0
       ? ` · ${left.join(' / ')} left at the end of ${race.end.lap}`
       : '';
-  return `${race.raceLaps} laps · ${stops}${end}`;
+  return `${stops}${end}`;
 }

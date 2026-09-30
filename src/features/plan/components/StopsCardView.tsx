@@ -21,6 +21,12 @@ export function StopsCardView({
   carClass: string;
 }) {
   const {color} = useTheme();
+  if (!card.full && !card.equal)
+    return (
+      <Text variant='dataSmall' tone='textMuted'>
+        no data: a median needs 3 green laps
+      </Text>
+    );
   const scope = refuelScope(carClass);
   const f = card.formation;
   const formation = f
