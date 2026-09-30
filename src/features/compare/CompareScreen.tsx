@@ -48,7 +48,8 @@ import {
 
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
-import {RADAR_DOCK_W, RadarDock} from './components/RadarDock';
+import {DockedChart} from './components/DockedChart';
+import {RADAR_DOCK_W} from './components/RadarDock';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
 import {
@@ -570,13 +571,14 @@ function CompareView({
     const docked = dockOn && (oneChart || c.channels.includes('speed'));
     const chartW = mainW - RADAR_DOCK_W - space.md;
     return docked ? (
-      <View key={c.key} style={styles.docked}>
-        {/* Fixed width: the explainer's long line must wrap, not push the radar out. */}
-        <View style={{width: chartW}}>
-          <ChartBlock chart={c} {...chartProps(h)} width={chartW} />
-        </View>
-        <RadarDock field={field} lapNumber={dockLap} cursorM={cursorM} />
-      </View>
+      <DockedChart
+        key={c.key}
+        chart={<ChartBlock chart={c} {...chartProps(h)} width={chartW} />}
+        chartW={chartW}
+        field={field}
+        lapNumber={dockLap}
+        cursorM={cursorM}
+      />
     ) : (
       <ChartBlock key={c.key} chart={c} {...chartProps(h)} />
     );
@@ -770,5 +772,4 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   oneTabs: {gap: space.xs},
-  docked: {flexDirection: 'row', gap: space.md},
 });
