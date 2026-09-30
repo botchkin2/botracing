@@ -12,6 +12,7 @@ import {
   buildCompareModel,
   snapOut,
   cornerPlace,
+  pedalsDomains,
   followPlace,
   type CompareSelection,
   makeReference,
@@ -165,14 +166,12 @@ describe('buildCompareModel', () => {
     expect(m.charts.map(c => c.title)).toEqual([
       'Time diff',
       'Speed',
-      'Throttle + Brake',
-      'Steering',
+      'Throttle + Brake + Steering',
       'Gear',
     ]);
     const td = m.charts[0];
     expect(m.charts.map(c => c.zeroLine)).toEqual([
       'timeDiff',
-      null,
       null,
       'steering',
       null,
@@ -181,10 +180,9 @@ describe('buildCompareModel', () => {
     const l2 = td.lines.find(l => l.label === 'L2')!;
     expect(l2.values[0]).toBe(0);
     expect(l2.values[200]).toBeGreaterThan(0.39);
-    expect(m.charts[2].explainer).toBe(
-      'Throttle solid, Brake dashed. Same scale.',
-    );
-    expect(m.charts[2].height).toBe(64);
+    expect(m.charts[2].pedals).toBe(true);
+    expect(m.charts[2].explainer).toMatch(/^Line = throttle, filled area/);
+    expect(m.charts[2].height).toBe(140);
   });
 
   it('reads values at the cursor for every shown lap', () => {
@@ -265,8 +263,21 @@ describe('chart window', () => {
     expect(td.explainer).toMatch(/^Running gap to the reference/);
   });
 
-  it('pedals are fixed at -4..104; apex lines inside the window only', () => {
-    expect(m.charts[2].domains.throttle).toEqual([-4, 104]);
+  it('pedals chart shares one plot; apex lines inside the window only', () => {
+    const [lo, hi] = m.charts[2].domains.throttle!;
+    expect(hi).toBe(104);
+    expect(m.charts[2].domains.brake).toEqual([lo, hi]);
+    // A lone pedal chart keeps the fixed -4..104 range.
+    const lone = buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel(),
+      charts: [['throttle', 'brake']],
+    });
+    expect(lone.charts[0].domains.throttle).toEqual([-4, 104]);
     expect(m.apexMarks).toEqual([{m: 600, label: 'T2 apex'}]);
   });
 
@@ -482,5 +493,20 @@ describe('snapOut', () => {
     expect(snapOut(181, 259, 20)).toEqual([180, 260]);
     expect(snapOut(-23, 23, 10)).toEqual([-30, 30]);
     expect(snapOut(100, 100, 20)).toEqual([100, 120]);
+  });
+});
+
+describe('pedals chart layout', () => {
+  // y as a fraction of the plot height, 0 = top.
+  const frac = (v: number, [lo, hi]: [number, number]) => (hi - v) / (hi - lo);
+  const d = pedalsDomains(40);
+
+  it('puts the pedals in the top 96/140 and steering in the bottom 36/140', () => {
+    expect(frac(104, d.pedal)).toBeCloseTo(0);
+    expect(frac(-4, d.pedal)).toBeCloseTo(96 / 140);
+    expect(frac(40, d.steer)).toBeCloseTo(104 / 140);
+    expect(frac(-40, d.steer)).toBeCloseTo(1);
+    // Steering's zero is the middle of its band.
+    expect(frac(0, d.steer)).toBeCloseTo(122 / 140);
   });
 });

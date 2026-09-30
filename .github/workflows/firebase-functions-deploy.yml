@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '.claude/**'
-      - 'AGENTS.md'
-      - 'CLAUDE.md'
-      - 'docs/**'
+    # Only what the functions deploy reads; a UI or uploader merge rebuilds nothing.
+    paths:
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'firebase.json'
+      - '.github/workflows/firebase-functions-deploy.yml'
 
 permissions:
   contents: read

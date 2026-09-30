@@ -175,6 +175,20 @@ export function buildChunk(
   return emit(pts, a - first, Math.min(b, count - 1) - first, kind);
 }
 
+/**
+ * A chunk's line closed down to a baseline (y in build pixels), for a filled
+ * area under it. Empty for an empty path. The line's first and last points
+ * are its first "M" and its last coordinate pair.
+ */
+export function areaPath(d: string, baseY: number): string {
+  if (d === '') return '';
+  const nums = d.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 4) return '';
+  const x0 = nums[0];
+  const x1 = nums[nums.length - 2];
+  return `${d}L${x1},${f(baseY)}L${x0},${f(baseY)}Z`;
+}
+
 // Built chunks, per source (its samples or values array) and frame key. A
 // source keeps the chunks of its last few frames: y ranges change at section
 // boundaries and may change back. Within a frame it keeps the chunks it drew

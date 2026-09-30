@@ -1,6 +1,12 @@
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 
-import {type ChunkFrame, chunkPath, chunksIn, objectId} from './chunkPaths';
+import {
+  areaPath,
+  type ChunkFrame,
+  chunkPath,
+  chunksIn,
+  objectId,
+} from './chunkPaths';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -35,6 +41,8 @@ export type TraceSeries = {
   width: number;
   opacity: number;
   dash?: string;
+  /** Fill under the line down to 0, at this opacity (brake). */
+  fill?: number;
   /** Own y range; series without one share the chart's. */
   domain?: [number, number];
   /** Discrete channel (gear): drawn as steps, never smoothed. */
@@ -195,6 +203,7 @@ export function TraceChart({
       ds: chunks
         .map(k => ({k, d: chunkPath(s, frame, k)}))
         .filter(c => c.d !== ''),
+      base: frame.y(0),
       // The neighbour laps either side of the line (the S/F wrap), through
       // the same chunks and transform. Away from the line their chunks are
       // empty: drop them, or every frame reconciles hundreds of empty paths.
@@ -387,6 +396,16 @@ export function TraceChart({
                 fill='none'
               />
             ))}
+            {p.ds.map(c =>
+              p.fill == null ? null : (
+                <Path
+                  key={`a${c.k}`}
+                  d={areaPath(c.d, p.base)}
+                  fill={p.color}
+                  fillOpacity={p.fill * p.opacity}
+                />
+              ),
+            )}
             {p.ds.map(c => (
               <Path
                 key={c.k}
