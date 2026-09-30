@@ -9,12 +9,22 @@ import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
+import {
+  MAP_ZOOMS,
+  type MapZoom,
+  useComparePrefs,
+} from '@/src/state/comparePrefs';
 import {EmptyState, Skeleton, StatusBanner, Text} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
-import {type LabelMode, RaceMap} from './components/RaceMap';
+import {
+  type LabelMode,
+  type MapMode,
+  RaceMap,
+  type RaceFollow,
+} from './components/RaceMap';
 import {RaceTransport} from './components/RaceTransport';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
@@ -29,6 +39,7 @@ import {
   selectionFor,
   type SelectionPatch,
 } from './selectionClock';
+import {followCar, followViewFor, RACE_FOLLOW_M} from './followTarget';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -38,7 +49,9 @@ const PHONE_MAP_H = 260;
 // R1a / R1b: the radar inset over the map, top right.
 const RADAR_PHONE = {width: 72, height: 108};
 const RADAR_DESKTOP = {width: 150, height: 226};
+// Skeleton height, and the least the desktop map is given on a short window.
 const DESKTOP_MAP_H = 520;
+const MAP_MIN_H = 240;
 const DESKTOP_SIDE_W = 380;
 
 // Copy from handoff R4c, verbatim where it is drawn.
@@ -240,6 +253,12 @@ function RaceView({
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
+  const [mapMode, setMapMode] = useState<MapMode>('track');
+  // Compare's Follow zoom, so the two chase views keep one setting. A stored
+  // zoom outside the steps (a hand-edited or old save) reads as 1x.
+  const prefs = useComparePrefs();
+  const mapZoom: MapZoom =
+    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
 
   // Playing interpolates between the 5 Hz updates; paused rests on a real one.
   const snap = !clock.playing;
@@ -282,9 +301,26 @@ function RaceView({
       ),
     [prep, radarU, radarSize],
   );
-  const mapW = desktop
-    ? layout.contentWidth - DESKTOP_SIDE_W - size.gutter
-    : layout.contentWidth;
+  // Desktop: the map takes everything left of the leaderboard and the height
+  // left after the legend, lanes and transport, so both are measured, not set.
+  const [columnW, setColumnW] = useState(0);
+  const [mapBox, setMapBox] = useState({width: 0, height: 0});
+  const mapW = desktop ? mapBox.width : layout.contentWidth;
+  const mapH = desktop ? mapBox.height : PHONE_MAP_H;
+  // Follow chases the focused car, else you; a file without headings (before
+  // v2) or a car off the map has nothing to chase, so the switch is hidden.
+  const chased = data.matches ? followCar(cars, focus) : null;
+  const follow = useMemo<RaceFollow | null>(() => {
+    if (!chased) return null;
+    const view = followViewFor(placer, chased, RACE_FOLLOW_M);
+    if (!view) return null;
+    return {
+      view,
+      band: placer.outline.length > 0 ? outlineUse.used : [line],
+      bandFaded: outlineUse.unused,
+      fellBack: focus !== null && chased.index !== focus,
+    };
+  }, [chased, focus, placer, outlineUse, line]);
   const toggleFocus = useCallback(
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
@@ -299,7 +335,7 @@ function RaceView({
     <View>
       <RaceMap
         width={mapW}
-        height={desktop ? DESKTOP_MAP_H : PHONE_MAP_H}
+        height={mapH}
         desktop={desktop}
         placer={placer}
         line={line}
@@ -319,6 +355,11 @@ function RaceView({
         labels={labels}
         onLabels={setLabels}
         onPressCar={toggleFocus}
+        mode={mapMode}
+        onMode={follow ? setMapMode : null}
+        follow={follow}
+        zoom={mapZoom}
+        onZoom={prefs.setMapZoom}
       />
       {rows.focusLabel ? (
         <Pressable
@@ -351,7 +392,7 @@ function RaceView({
       zoom={zoom}
       onZoom={setZoom}
       playheadS={shownS}
-      width={mapW}
+      width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
       desktop={desktop}
       onScrub={scrub}
     />
@@ -378,12 +419,23 @@ function RaceView({
 
   if (desktop) {
     return (
-      <View style={[styles.desktop, {width: layout.contentWidth}]}>
-        <View style={styles.mapColumn}>
+      <View style={styles.desktop}>
+        <View
+          style={styles.mapColumn}
+          onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
           <Text variant='dataSmall' tone='textMuted'>
             {sub}
           </Text>
-          {map}
+          <View
+            style={styles.mapFill}
+            onLayout={e =>
+              setMapBox({
+                width: Math.floor(e.nativeEvent.layout.width),
+                height: Math.floor(e.nativeEvent.layout.height),
+              })
+            }>
+            {mapBox.width > 0 && mapBox.height > 0 ? map : null}
+          </View>
           <RaceLegend />
           {lanesBlock}
           {controls}
@@ -432,13 +484,10 @@ const styles = StyleSheet.create({
   noticeBoard: {gap: space.sm},
   phoneLanes: {paddingHorizontal: size.gutter, paddingTop: space.md},
   phoneTop: {paddingHorizontal: size.gutter, gap: space.md},
-  desktop: {
-    flex: 1,
-    flexDirection: 'row',
-    alignSelf: 'center',
-    gap: size.gutter,
-  },
+  desktop: {flex: 1, flexDirection: 'row', alignSelf: 'stretch'},
   mapColumn: {flex: 1, gap: space.md, paddingHorizontal: size.gutter},
+  // The map's own box; the map is drawn to its measured size.
+  mapFill: {flex: 1, minHeight: MAP_MIN_H},
   side: {width: DESKTOP_SIDE_W, borderLeftWidth: 1},
   chip: {
     position: 'absolute',

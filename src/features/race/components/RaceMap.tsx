@@ -2,12 +2,14 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Box} from '@/src/analysis/carLabels';
+import {type FollowView} from '@/src/analysis/followView';
 import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type Radar as RadarData} from '@/src/analysis/radar';
-import {type MapCar, Radar, TrackMap} from '@/src/charts';
+import {FollowMap, type MapCar, Radar, TrackMap} from '@/src/charts';
 import {type MapPlacer} from '@/src/data/sessions';
 import {radius, space, useTheme} from '@/src/design';
-import {Segment, Text} from '@/src/ui';
+import {MAP_ZOOMS, type MapZoom} from '@/src/state/comparePrefs';
+import {MAP_ZOOM_BUTTONS_W, MapZoomButtons, Segment, Text} from '@/src/ui';
 
 import {type RaceDot} from '../model';
 import {classColor} from './classColor';
@@ -27,10 +29,33 @@ const LABEL_OPTIONS = [
 // The control's and the attribution's rough boxes, for label placement.
 const LABEL_CONTROL_W = 100;
 const LABEL_CONTROL_H = 32;
+const MODE_CONTROL_H = 32;
+const ZOOM_BUTTON_H = 28;
 const ATTRIBUTION_W = 190;
 const ATTRIBUTION_H = 12;
 
 const NO_MARKS = {boundaries: [], sections: [], corners: []};
+const NO_FOLLOW_LINES: never[] = [];
+const NO_FOLLOW_TICKS: never[] = [];
+const NO_FOLLOW_DOTS: never[] = [];
+const NO_POINTS: never[] = [];
+const NO_CORNERS: never[] = [];
+const MODE_OPTIONS = [
+  {value: 'track', label: 'Track'},
+  {value: 'follow', label: 'Follow'},
+] as const;
+
+/** Track: the whole circuit. Follow: a heading-up chase view of one car. */
+export type MapMode = 'track' | 'follow';
+
+/** What Follow needs: where the view sits (no size), and the road under it. */
+export type RaceFollow = {
+  view: Omit<FollowView, 'width' | 'height'>;
+  band: {x: number; y: number}[][];
+  bandFaded: {x: number; y: number}[][];
+  /** A car is focused but cannot be chased (garage, no heading): this is you. */
+  fellBack: boolean;
+};
 
 /**
  * The race map: the track (OSM outline when the fit is good, else the driven
@@ -51,6 +76,11 @@ export function RaceMap({
   labels,
   onLabels,
   onPressCar,
+  mode,
+  onMode,
+  follow,
+  zoom,
+  onZoom,
 }: {
   width: number;
   height: number;
@@ -75,8 +105,16 @@ export function RaceMap({
   labels: LabelMode;
   onLabels: (mode: LabelMode) => void;
   onPressCar: (index: number) => void;
+  mode: MapMode;
+  /** Null hides the switch: the file has no headings, or nothing to chase. */
+  onMode: ((mode: MapMode) => void) | null;
+  follow: RaceFollow | null;
+  /** Index into MAP_ZOOMS; the Follow map's zoom. */
+  zoom: MapZoom;
+  onZoom: (zoom: MapZoom) => void;
 }) {
   const {color} = useTheme();
+  const following = mode === 'follow' && follow !== null;
   const scale = desktop ? DESKTOP_SCALE : PHONE_SCALE;
   const lines = useMemo(
     // Fits the view and is the band when there is no outline; no lap is drawn.
@@ -111,7 +149,7 @@ export function RaceMap({
         x: space.sm,
         y: space.sm,
         width: LABEL_CONTROL_W,
-        height: LABEL_CONTROL_H,
+        height: LABEL_CONTROL_H + (onMode ? MODE_CONTROL_H + space.xs : 0),
       },
       {
         x: width - 2 - ATTRIBUTION_W - space.md,
@@ -120,6 +158,13 @@ export function RaceMap({
         height: ATTRIBUTION_H,
       },
     ];
+    if (following)
+      boxes.push({
+        x: space.xs,
+        y: height - 2 - space.xs - ZOOM_BUTTON_H,
+        width: MAP_ZOOM_BUTTONS_W,
+        height: ZOOM_BUTTON_H,
+      });
     if (radar)
       boxes.push({
         x: width - 2 - space.sm - radar.width,
@@ -128,7 +173,7 @@ export function RaceMap({
         height: radar.height,
       });
     return boxes;
-  }, [width, height, radar]);
+  }, [width, height, radar, onMode, following]);
   return (
     <View
       style={[
@@ -140,24 +185,66 @@ export function RaceMap({
           backgroundColor: color.surface,
         },
       ]}>
-      <TrackMap
-        width={width - 2}
-        height={height - 2}
-        outline={outlineUse.used}
-        outlineFaded={outlineUse.unused}
-        pitLane={placer.pitLane}
-        lines={lines}
-        dots={[]}
-        marks={NO_MARKS}
-        openSection={null}
-        onPressSection={noop}
-        cars={cars}
-        avoidLabels={avoid}
-        onPressCar={key => onPressCar(Number(key))}
-      />
-      <View style={styles.control}>
+      {following ? (
+        <FollowMap
+          width={width - 2}
+          height={height - 2}
+          centre={follow.view.centre}
+          headingRad={follow.view.headingRad}
+          visibleM={follow.view.visibleM * MAP_ZOOMS[zoom]}
+          band={follow.band}
+          bandFaded={follow.bandFaded}
+          lines={NO_FOLLOW_LINES}
+          ticks={NO_FOLLOW_TICKS}
+          dots={NO_FOLLOW_DOTS}
+          // The docked radar is the overview in this corner.
+          inset={NO_POINTS}
+          corners={NO_CORNERS}
+          cars={cars}
+          avoidLabels={avoid}
+          onPressCar={key => onPressCar(Number(key))}
+          scaleX={MAP_ZOOM_BUTTONS_W + 2 * space.xs + space.sm}
+        />
+      ) : (
+        <TrackMap
+          width={width - 2}
+          height={height - 2}
+          outline={outlineUse.used}
+          outlineFaded={outlineUse.unused}
+          pitLane={placer.pitLane}
+          lines={lines}
+          dots={[]}
+          marks={NO_MARKS}
+          openSection={null}
+          onPressSection={noop}
+          cars={cars}
+          avoidLabels={avoid}
+          onPressCar={key => onPressCar(Number(key))}
+        />
+      )}
+      <View style={styles.controls}>
+        {onMode ? (
+          <Segment options={MODE_OPTIONS} value={mode} onChange={onMode} />
+        ) : null}
         <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
       </View>
+      {following && follow.fellBack ? (
+        <View
+          style={[styles.fellBack, {backgroundColor: color.surfaceOverlay}]}
+          pointerEvents='none'>
+          <Text variant='dataSmall' tone='textSecondary'>
+            Following you
+          </Text>
+        </View>
+      ) : null}
+      {following ? (
+        <MapZoomButtons
+          canOut={zoom < MAP_ZOOMS.length - 1}
+          canIn={zoom > 0}
+          onOut={() => onZoom((zoom + 1) as MapZoom)}
+          onIn={() => onZoom((zoom - 1) as MapZoom)}
+        />
+      ) : null}
       {radar ? (
         <View style={styles.radar}>
           <Radar
@@ -183,7 +270,21 @@ function noop() {}
 
 const styles = StyleSheet.create({
   frame: {borderWidth: 1, borderRadius: radius.md, overflow: 'hidden'},
-  control: {position: 'absolute', top: space.sm, left: space.sm},
+  controls: {
+    position: 'absolute',
+    top: space.sm,
+    left: space.sm,
+    alignItems: 'flex-start',
+    gap: space.xs,
+  },
+  fellBack: {
+    position: 'absolute',
+    bottom: space.xs,
+    alignSelf: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: space.xs,
+    paddingVertical: 2,
+  },
   radar: {position: 'absolute', top: space.sm, right: space.sm},
   credit: {position: 'absolute', right: space.md, bottom: space.xs},
 });

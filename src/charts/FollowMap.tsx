@@ -1,5 +1,5 @@
 import {memo, useMemo} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {
   Circle,
   G,
@@ -9,6 +9,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 
+import {type Box} from '@/src/analysis/carLabels';
 import {
   type FollowXy,
   followMatrix,
@@ -16,6 +17,8 @@ import {
   followScale,
 } from '@/src/analysis/followView';
 import {fonts, type as typeScale, useTheme, turnLabel} from '@/src/design';
+
+import {CarDots, type MapCar} from './CarDots';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
 // The road, each lap's line and the brake ticks are world-space paths built
@@ -50,6 +53,11 @@ const INSET_W = 96;
 const INSET_H = 64;
 const INSET_PAD = 6;
 const INSET_GAP = 8;
+// A finger's reach around a car, for pressing it.
+const CAR_HIT = 44;
+// Cars this far outside the frame are not drawn: the field is 60 cars.
+const CAR_MARGIN = 24;
+const NO_CARS: MapCar[] = [];
 
 function pathOf(
   pts: FollowXy[],
@@ -76,6 +84,10 @@ export function FollowMap({
   dots,
   inset,
   corners,
+  cars = NO_CARS,
+  avoidLabels,
+  onPressCar,
+  scaleX = SCALE_X,
 }: {
   width: number;
   height: number;
@@ -95,6 +107,14 @@ export function FollowMap({
   inset: FollowXy[];
   /** Corner numbers, placed inside each apex (world metres). */
   corners: {n: number; official?: string; at: FollowXy}[];
+  /** Every car of a race, `at` in world metres like the rest; projected here. */
+  cars?: MapCar[];
+  /** Screen boxes the car labels keep off (controls, the radar inset). */
+  avoidLabels?: Box[];
+  /** The nearest car within a finger's reach of a press. */
+  onPressCar?: (key: string) => void;
+  /** Left edge of the scale bar, to clear controls in the corner. */
+  scaleX?: number;
 }) {
   const {color} = useTheme();
   const view = {centre, headingRad, visibleM, width, height};
@@ -103,6 +123,22 @@ export function FollowMap({
   const axis = typeScale.axis;
   // One row up from the bottom edge, clear of the attribution.
   const scaleY = height - 24;
+  const screenCars = useMemo(() => {
+    const p = followProject({centre, headingRad, visibleM, width, height});
+    const shown: MapCar[] = [];
+    for (const c of cars) {
+      const at = p(c.at);
+      if (
+        at.x >= -CAR_MARGIN &&
+        at.x <= width + CAR_MARGIN &&
+        at.y >= -CAR_MARGIN &&
+        at.y <= height + CAR_MARGIN
+      )
+        shown.push({...c, at});
+    }
+    return shown;
+  }, [cars, centre, headingRad, visibleM, width, height]);
+  const bounds = useMemo(() => ({width, height}), [width, height]);
 
   return (
     <View style={{width, height}}>
@@ -150,16 +186,19 @@ export function FollowMap({
             />
           );
         })}
+        {screenCars.length > 0 && (
+          <CarDots cars={screenCars} avoid={avoidLabels} bounds={bounds} />
+        )}
         <Line
-          x1={SCALE_X}
-          x2={SCALE_X + SCALE_M * sc}
+          x1={scaleX}
+          x2={scaleX + SCALE_M * sc}
           y1={scaleY}
           y2={scaleY}
           stroke={color.textMuted}
           strokeWidth={1.5}
         />
         <SvgText
-          x={SCALE_X + SCALE_M * sc + 6}
+          x={scaleX + SCALE_M * sc + 6}
           y={scaleY + 3}
           fill={color.textMuted}
           fontFamily={axis.fontFamily}
@@ -168,6 +207,27 @@ export function FollowMap({
         </SvgText>
       </Svg>
       <Inset line={inset} at={centre} />
+      {/* One press target, like TrackMap: the cars move every frame. */}
+      {onPressCar && screenCars.length > 0 && (
+        <Pressable
+          accessibilityRole='button'
+          accessibilityLabel='Cars on the map'
+          onPress={e => {
+            const {locationX: x, locationY: y} = e.nativeEvent;
+            let best: string | null = null;
+            let bestD = CAR_HIT / 2;
+            for (const c of screenCars) {
+              const d = Math.hypot(c.at.x - x, c.at.y - y);
+              if (d < bestD) {
+                bestD = d;
+                best = c.key;
+              }
+            }
+            if (best !== null) onPressCar(best);
+          }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
     </View>
   );
 }
