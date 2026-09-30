@@ -44,6 +44,7 @@ export function SessionWorkspace({
   cards,
   renderRow,
   tagKey,
+  pitFocus,
 }: {
   sessionId: string;
   model: SessionScreenModel;
@@ -61,11 +62,15 @@ export function SessionWorkspace({
   cards: ReactNode;
   renderRow: (row: RowModel, width: number) => ReactNode;
   tagKey: string;
+  /** Set when a pit row was tapped: the side column scrolls to the cards. */
+  pitFocus: {lapIndex: number; at: number} | null;
 }) {
   const {color} = useTheme();
   const router = useRouter();
   const layout = useLayout();
   const listRef = useRef<FlatList<RowModel>>(null);
+  const sideRef = useRef<ScrollView>(null);
+  const cardsY = useRef(0);
   // layout.width already excludes the rail (the route's ContentInset).
   const centreW = layout.width - size.sidePanelWidth;
   const innerW = centreW - PAD_X * 2;
@@ -79,6 +84,11 @@ export function SessionWorkspace({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selection, onSelectionChange]);
+
+  useEffect(() => {
+    if (pitFocus)
+      sideRef.current?.scrollTo({y: cardsY.current, animated: true});
+  }, [pitFocus]);
 
   useEffect(() => {
     if (!scrollToLapId) return;
@@ -162,9 +172,13 @@ export function SessionWorkspace({
       </View>
       <View style={[styles.side, {width: size.sidePanelWidth}]}>
         <ScrollView
+          ref={sideRef}
           style={styles.flex}
           contentContainerStyle={styles.sideScroll}>
           <SidePanels
+            onCardsY={y => {
+              cardsY.current = y;
+            }}
             sessionId={sessionId}
             selection={selection}
             colorOf={colorOf}
@@ -198,7 +212,9 @@ function SidePanels({
   colorOf,
   onHighlight,
   cards,
+  onCardsY,
 }: {
+  onCardsY: (y: number) => void;
   sessionId: string;
   selection: Selection;
   colorOf: (selIndex: number) => string;
@@ -211,7 +227,7 @@ function SidePanels({
   return (
     <>
       {desk.stints.length > 0 && <StintsPanel rows={desk.stints} />}
-      {cards}
+      <View onLayout={e => onCardsY(e.nativeEvent.layout.y)}>{cards}</View>
       {desk.distribution && (
         <LapDistribution
           model={desk.distribution}

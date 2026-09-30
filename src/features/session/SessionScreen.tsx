@@ -46,6 +46,7 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
+  type NoteRowModel,
   type RowModel,
   type Selection,
   type SessionScreenModel,
@@ -73,12 +74,14 @@ export function SessionScreen({
   selection,
   onSelectionChange,
   renderPlanHalf,
+  renderPooledUse,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   /** The planner against this race: another feature's half of the card, put here by the route. */
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
+  renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
   const result = useSessionScreenModel(sessionId, selection);
   const {color} = useTheme();
@@ -109,6 +112,7 @@ export function SessionScreen({
       selection={selection}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
+      renderPooledUse={renderPooledUse}
     />
   );
 }
@@ -119,12 +123,14 @@ function SessionView({
   selection,
   onSelectionChange,
   renderPlanHalf,
+  renderPooledUse,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
+  renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -153,6 +159,11 @@ function SessionView({
 
   // Desktop workspace: a bar or dot tap scrolls its row into view.
   const [wideScrollTo, setWideScrollTo] = useState<string | null>(null);
+  // A pit row tapped on desktop: the Pit stops card marks that stop's column.
+  const [pitFocus, setPitFocus] = useState<{
+    lapIndex: number;
+    at: number;
+  } | null>(null);
 
   const highlight = (lapId: string, scroll: boolean) => {
     if (scroll && layout.isWide) setWideScrollTo(lapId);
@@ -328,7 +339,10 @@ function SessionView({
 
       {model.fuelUse && (
         <View style={styles.section}>
-          <FuelUseCard card={model.fuelUse} width={tableW} />
+          <FuelUseCard
+            card={model.fuelUse}
+            pooled={renderPooledUse?.(model.fuelUse.planKey, tableW)}
+          />
         </View>
       )}
 
@@ -354,9 +368,21 @@ function SessionView({
     />
   );
 
+  const pitRowPress = (row: NoteRowModel, wide: boolean) => {
+    const lapIndex = row.pitLapIndex;
+    if (!wide || lapIndex == null || model.pitCard?.kind !== 'stops')
+      return undefined;
+    return () => setPitFocus({lapIndex, at: Date.now()});
+  };
+
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
-      <NoteRow row={item} width={width} wide={wide} />
+      <NoteRow
+        row={item}
+        width={width}
+        wide={wide}
+        onPress={pitRowPress(item, wide)}
+      />
     ) : item.kind === 'stint' ? (
       <StintRow
         row={item}
@@ -400,6 +426,7 @@ function SessionView({
               <PitCard
                 card={model.pitCard}
                 width={size.sidePanelWidth - 2 * space.xl}
+                focusLapIndex={pitFocus?.lapIndex ?? null}
                 plan={
                   model.planVsRace && renderPlanHalf
                     ? renderPlanHalf(model.pitCard, model.planVsRace)
@@ -410,13 +437,17 @@ function SessionView({
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
-                width={size.sidePanelWidth - 2 * space.xl}
+                pooled={renderPooledUse?.(
+                  model.fuelUse.planKey,
+                  size.sidePanelWidth - 2 * space.xl,
+                )}
               />
             )}
           </>
         }
         renderRow={(row, width) => renderRow(row, width, true)}
         tagKey={TAG_KEY}
+        pitFocus={pitFocus}
       />
     );
 

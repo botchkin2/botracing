@@ -65,19 +65,17 @@ export function NoteRow({
   row,
   width,
   wide = false,
+  onPress,
 }: {
   row: NoteRowModel;
   width: number;
   wide?: boolean;
+  /** Given on a pit line when the stop's column is on screen to go to. */
+  onPress?: () => void;
 }) {
   const {color} = useTheme();
-  return (
-    <View
-      style={[
-        styles.note,
-        wide && styles.wide,
-        {width, borderColor: color.line},
-      ]}>
+  const body = (
+    <>
       <Text
         variant='dataSmall'
         tone='textSecondary'
@@ -85,7 +83,28 @@ export function NoteRow({
         style={styles.noteText}>
         {row.text}
       </Text>
-    </View>
+      {onPress ? (
+        <Text variant='dataSmall' tone='accentInk'>
+          Stop ›
+        </Text>
+      ) : null}
+    </>
+  );
+  const style = [
+    styles.note,
+    wide && styles.wide,
+    {width, borderColor: color.line},
+  ];
+  return onPress ? (
+    <Pressable
+      accessibilityRole='link'
+      accessibilityLabel={`${row.text}. Show this stop in the Pit stops card`}
+      onPress={onPress}
+      style={style}>
+      {body}
+    </Pressable>
+  ) : (
+    <View style={style}>{body}</View>
   );
 }
 
@@ -230,10 +249,12 @@ const styles = StyleSheet.create({
   stintLabel: {fontFamily: fonts.monoBold, fontSize: 10},
   // 10 pt like the tags: the longest line, a pit line with laps left and the
   // time in the pits, is 363 pt at 11 pt and the phone row is 343.
-  noteText: {fontSize: 10},
+  noteText: {fontSize: 10, flex: 1},
   note: {
     height: ROW_H,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
     borderBottomWidth: 1,
     alignSelf: 'center',
   },
