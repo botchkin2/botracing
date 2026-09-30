@@ -40,6 +40,7 @@ const placer: MapPlacer = {
     return out;
   },
   placeWorld: points => points.map(p => ({x: p.x, y: p.z})),
+  outlineUse: () => ({used: [], unused: []}),
   outline: [],
   pitLane: [],
 };

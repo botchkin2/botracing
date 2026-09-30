@@ -36,6 +36,8 @@ export type TrackCornerGroup = {title: string | null; rows: TrackCornerRow[]};
 export type TrackMapModel = {
   real: boolean;
   outline: Xy[][];
+  /** Outline stretches the line does not run along (drawn quietly). */
+  outlineFaded: Xy[][];
   pitLane: Xy[][];
   line: Xy[];
   marks: MapMarks;
@@ -237,6 +239,7 @@ function placeLine(
   if (t.lat.length < 3) return null;
   const placer = mapPlacer(map);
   const line = placer.place(t, 0, t.lat.length - 1, 1);
+  const split = placer.outlineUse(t);
   const pointAt = (m: number) => line[gridIndex(t, m)];
   const all = buildTrackMarks(
     map.sections,
@@ -247,7 +250,8 @@ function placeLine(
     line,
     model: {
       real: placer.real,
-      outline: placer.outline,
+      outline: split.used,
+      outlineFaded: split.unused,
       pitLane: placer.pitLane,
       line,
       // Numbers only: the page has no section labels or boundary ticks.

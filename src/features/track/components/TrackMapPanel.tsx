@@ -39,6 +39,7 @@ export function TrackMapPanel({
             width={width - 2}
             height={height - 2}
             outline={map.outline}
+            outlineFaded={map.outlineFaded}
             pitLane={map.pitLane}
             lines={[
               // Fits the view and is the band when there is no outline; the

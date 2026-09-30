@@ -5,6 +5,7 @@ import {
   LMU_FAKE_ORIGIN,
   toLocalMetres,
 } from '@/src/analysis/geo';
+import {splitOutline, type OutlineUse} from '@/src/analysis/outlineUse';
 import {type GridTrace} from '@/src/analysis/resample';
 import {type TrackMapData} from './adapters';
 
@@ -28,7 +29,23 @@ export type MapPlacer = {
   outline: Xy[][];
   /** OSM pit lane lines in map metres; empty unless real. */
   pitLane: Xy[][];
+  /**
+   * The outline split into stretches the trace's lap runs along and the rest,
+   * which a map draws at low contrast (src/analysis/outlineUse.ts). Computed
+   * once per track map and lap and cached; without a real outline both are
+   * empty.
+   */
+  outlineUse: (trace: GridTrace) => OutlineUse;
 };
+
+// One split per (track map, lap): the Compare model is rebuilt on every cursor
+// move and would otherwise redo it each time.
+const outlineUseCache = new WeakMap<TrackMapData, Map<string, OutlineUse>>();
+
+/** Two laps of a track never share their first sample and length. */
+function traceKey(t: GridTrace): string {
+  return `${t.lat.length}:${t.lat[0]}:${t.lon[0]}`;
+}
 
 export function mapPlacer(map: TrackMapData | null): MapPlacer {
   const georef =
@@ -42,15 +59,17 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
     lines.map(line =>
       line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
     );
+  const place: MapPlacer['place'] = (t, from, to, stride) => {
+    const pts = [];
+    for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
+      pts.push({lat: t.lat[i], lon: t.lon[i]});
+    const placed = georef ? applyGeoref(pts, georef) : pts;
+    return placed.map(p => toLocalMetres(p, origin));
+  };
+  const outline = georef ? toMetres(map!.outline) : [];
   return {
     real: georef != null,
-    place: (t, from, to, stride) => {
-      const pts = [];
-      for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
-        pts.push({lat: t.lat[i], lon: t.lon[i]});
-      const placed = georef ? applyGeoref(pts, georef) : pts;
-      return placed.map(p => toLocalMetres(p, origin));
-    },
+    place,
     placeWorld: points => {
       const pts = points.map(p =>
         fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
@@ -58,7 +77,19 @@ export function mapPlacer(map: TrackMapData | null): MapPlacer {
       const placed = georef ? applyGeoref(pts, georef) : pts;
       return placed.map(p => toLocalMetres(p, origin));
     },
-    outline: georef ? toMetres(map!.outline) : [],
+    outline,
     pitLane: georef ? toMetres(map!.pitLane) : [],
+    outlineUse: trace => {
+      if (!georef || map == null) return {used: [], unused: []};
+      const key = traceKey(trace);
+      const perMap = outlineUseCache.get(map) ?? new Map<string, OutlineUse>();
+      outlineUseCache.set(map, perMap);
+      const known = perMap.get(key);
+      if (known) return known;
+      const driven = place(trace, 0, trace.lat.length - 1, 1);
+      const split = splitOutline(outline, driven);
+      perMap.set(key, split);
+      return split;
+    },
   };
 }

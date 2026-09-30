@@ -1,6 +1,7 @@
 import {useMemo} from 'react';
 
 import {raceClock, type RaceClock} from '@/src/analysis/raceClock';
+import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type RacePrep, prepareRace} from '@/src/analysis/raceState';
 import {worldMatches, worldMatchM} from '@/src/analysis/worldMatch';
 import {useField} from '@/src/data/field';
@@ -37,6 +38,8 @@ export type RaceData =
       placer: MapPlacer;
       /** The reference lap in map metres: fits the view and is the band without an outline. */
       line: {x: number; y: number}[];
+      /** The outline split by the reference lap; all used when there is no timed lap. */
+      outlineUse: OutlineUse;
       /** False when the placed player is not on the placed line: cars are not drawn. */
       matches: boolean;
       /** Median metres from the player to the line, for the notice. */
@@ -114,6 +117,9 @@ export function useRaceData(sessionId: string): RaceData {
     laps: (laps.data ?? []).map(l => ({id: l.id, lapNumber: l.lapNumber})),
     placer,
     line,
+    outlineUse: refTrace
+      ? placer.outlineUse(refTrace)
+      : {used: placer.outline, unused: []},
     matches: worldMatches(matchM),
     matchM,
     attribution: map.data?.attribution ?? null,

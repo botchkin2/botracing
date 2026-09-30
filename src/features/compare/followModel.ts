@@ -14,6 +14,8 @@ import {type MapPlacer, type Xy} from '@/src/data/sessions';
 export type FollowGeometry = {
   /** Road centrelines: the OSM outline, or the first lap's driven line. */
   band: Xy[][];
+  /** Outline stretches the reference lap does not use; empty without an outline. */
+  bandFaded: Xy[][];
   /** Each lap's whole line at full grid resolution, by lap id. */
   lines: Map<string, Xy[]>;
   /** Short cross-track ticks where each lap's brake goes on, by lap id. */
@@ -77,8 +79,10 @@ export function buildFollowGeometry(
       }),
     );
   }
+  const split = placer.outlineUse(ref);
   return {
-    band: placer.outline.length > 0 ? placer.outline : [whole(ref, 1)],
+    band: placer.outline.length > 0 ? split.used : [whole(ref, 1)],
+    bandFaded: split.unused,
     lines,
     brakeTicks,
     inset: whole(ref, INSET_STRIDE),

@@ -101,6 +101,7 @@ export function MapPanel({
           headingRad={f.headingRad}
           visibleM={f.visibleM}
           band={f.geometry.band}
+          bandFaded={f.geometry.bandFaded}
           lines={followLines}
           ticks={followTicks}
           dots={map.dots.map(d => ({
@@ -116,6 +117,7 @@ export function MapPanel({
           width={width}
           height={height}
           outline={map.outline}
+          outlineFaded={map.outlineFaded}
           pitLane={map.pitLane}
           lines={map.lines.map(l => ({...styled(l), points: l.points}))}
           dots={map.dots.map(d => ({

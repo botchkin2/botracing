@@ -78,6 +78,7 @@ export function TrackMap({
   width,
   height,
   outline,
+  outlineFaded,
   pitLane,
   lines,
   dots,
@@ -94,6 +95,8 @@ export function TrackMap({
   height: number;
   /** Real track outline (OSM); empty when the fit is not good enough. */
   outline: MapPoint[][];
+  /** Outline stretches the lap does not use; drawn under the rest, quietly. */
+  outlineFaded?: MapPoint[][];
   pitLane: MapPoint[][];
   /** Drawn in order, reference last: it is also the band with no outline. */
   lines: MapLine[];
@@ -149,6 +152,10 @@ export function TrackMap({
       : '';
 
   const outlinePaths = useMemo(() => outline.map(toPath), [outline, fit]);
+  const fadedPaths = useMemo(
+    () => (outlineFaded ?? []).map(toPath),
+    [outlineFaded, fit],
+  );
   const pitPaths = useMemo(() => pitLane.map(toPath), [pitLane, fit]);
   const linePaths = useMemo(
     () => lines.map(l => ({...l, d: toPath(l.points)})),
@@ -272,6 +279,16 @@ export function TrackMap({
       <Svg width={width} height={height}>
         {real ? (
           <>
+            {fadedPaths.map((d, i) => (
+              <Path
+                key={`ox${i}`}
+                d={d}
+                stroke={color.outlineFaded}
+                strokeWidth={BAND_FILL_W}
+                strokeLinejoin='round'
+                fill='none'
+              />
+            ))}
             {outlinePaths.map((d, i) => (
               <Path
                 key={`oe${i}`}
