@@ -176,3 +176,22 @@ describe('one stop, one number', () => {
     expect(line).toContain(`The load reaches L${reached + 1}`);
   });
 });
+
+describe('the use check and the stop laps read cleanly', () => {
+  it('says ±0 % when the change rounds to zero, not a signed zero', () => {
+    const {lines} = build({ownUse: {fuelL: 2.401, vePct: 3.5}});
+    expect(lines.join(' ')).toContain('(±0 %)');
+    expect(lines.join(' ')).not.toContain('−0');
+  });
+
+  it('prints one list when the median and p90 use stop on the same laps', () => {
+    const f = facts({raceLaps: 30});
+    const plan = planRace(raceRules(f)!, history(5));
+    const line = buildPlanVsRace(f, plan, basis).lines.find(l =>
+      l.startsWith('Planned:'),
+    )!;
+    if (plan.atMedian.stopLaps.join() === plan.atP90.stopLaps.join())
+      expect(line).toContain('at the median and p90 use');
+    else expect(line).toContain('at the p90 use');
+  });
+});

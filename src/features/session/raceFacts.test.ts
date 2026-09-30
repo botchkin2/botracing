@@ -4,6 +4,7 @@ import {toLaps} from '@/src/data/sessions/adapters';
 import type {Lap} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
+import {buildPitReview} from './pitReview';
 import {raceFacts} from './raceFacts';
 
 const base = toLaps([fixture.laps[0]])[0];
@@ -56,7 +57,7 @@ describe('raceFacts', () => {
       },
     }),
     lap(6),
-    lap(7, {partial: true}),
+    lap(7, {partial: true, reasons: ['partial']}),
   ];
 
   it('is only for a race', () => {
@@ -72,6 +73,17 @@ describe('raceFacts', () => {
     expect(raceFacts(session(), 'k', laps)?.stops).toEqual([
       {lapIndex: 5, fuelL: 12.9, vePct: 0},
     ]);
+  });
+
+  it('takes the last lap that was not cut short, even one the game left untimed (Le Mans 09-21)', () => {
+    const untimedEnd = [
+      ...laps.slice(0, 5),
+      lap(6, {timeS: null, partial: true, reasons: ['untimed']}),
+      lap(7, {timeS: null, partial: true, reasons: ['partial', 'untimed']}),
+    ];
+    expect(raceFacts(session(), 'k', untimedEnd)?.raceLaps).toBe(5);
+    // The same lap the pit card ends on.
+    expect(buildPitReview('R', untimedEnd)?.end?.title).toBe('End of L6');
   });
 
   it('takes the fill limit, the start fuel and the race’s own median use', () => {

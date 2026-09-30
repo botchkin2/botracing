@@ -3,7 +3,7 @@
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
-import {racePitLaps} from './pitReview';
+import {endingLap, racePitLaps} from './pitReview';
 
 const MIN_OWN_LAPS = 3;
 
@@ -26,9 +26,7 @@ export function raceFacts(
   laps: Lap[],
 ): RaceFacts | null {
   if (session.sessionType !== 'R') return null;
-  const ending = [...laps]
-    .reverse()
-    .find(l => !l.partial && l.fuel?.endL != null);
+  const ending = endingLap(laps);
   if (!ending) return null;
   const green = laps.filter(l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0);
   return {
