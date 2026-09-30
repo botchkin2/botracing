@@ -106,8 +106,8 @@ test('parity: the slice equals the app path (parse, resample, slice) for every c
   slice.timeS.forEach((t, k) =>
     assert.ok(Math.abs(t - grid.timeS[i0 + k]) <= 0.00006, `timeS[${k}]`),
   );
-  assert.equal(slice.gridFromM, 1100);
-  assert.equal(slice.timeS.length, (1600 - 1100) / 5 + 1);
+  assert.equal(slice.gridFromM, 1400 - SLICE_BEFORE_M);
+  assert.equal(slice.timeS.length, (SLICE_BEFORE_M + SLICE_AFTER_M) / 5 + 1);
 });
 
 test('a slower channel is not held or repeated: brake keeps its 50 Hz samples', () => {
