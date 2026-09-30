@@ -1,7 +1,7 @@
 import {useRouter} from 'expo-router';
+import {type ReactNode} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {FuelScatter} from '@/src/charts';
 import {space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
@@ -9,18 +9,14 @@ import {Explainer, Text, useHowToRead} from '@/src/ui';
 
 import {
   FUEL_USE_HELP,
-  fuelScatter,
   fuelUseRows,
   limitText,
   planLinkText,
+  planMatchesLimit,
   planRaceText,
   verdictText,
 } from '../fuelUse';
 import {type FuelUseCardModel} from '../model';
-
-const X_TITLE = 'Fuel used per lap, L (the axis does not start at zero)';
-const Y_TITLE = 'Lap time, faster ↑';
-const SCATTER_H = 190;
 
 /**
  * The practice fuel card (pit-wall thread 36): one row per stint, the laps as
@@ -29,16 +25,16 @@ const SCATTER_H = 190;
  */
 export function FuelUseCard({
   card,
-  width,
+  pooled,
 }: {
   card: FuelUseCardModel;
-  width: number;
+  /** "Use and lap time", pooled over the sessions the plan reads; composed by the route. */
+  pooled?: ReactNode;
 }) {
   const {color} = useTheme();
   const router = useRouter();
   const help = useHowToRead('fuel use', FUEL_USE_HELP);
   const {fuelUse: fu} = card;
-  const scatter = fuelScatter(fu);
   const rows = fuelUseRows(fu);
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
@@ -52,37 +48,34 @@ export function FuelUseCard({
     planLimitL,
   );
   const limit = limitText(fu);
+  // These laps are in the plan's history only when its rules run at this fill limit.
+  const inPlan = planMatchesLimit(fu.limitL, planLimitL ?? fu.limitL);
   return (
     <View style={styles.card}>
       <View style={styles.title}>
         <Text variant='label'>Fuel use</Text>
         {help.button}
       </View>
-      <Explainer>
-        Fuel used per lap against lap time, one dot per green lap.
-      </Explainer>
+      <Explainer>Fuel and VE used per lap, stint by stint.</Explainer>
       {help.panel}
       <Text variant='dataSmall' tone='textSecondary'>
         {verdictText(fu)}
       </Text>
-      <FuelScatter
-        width={width}
-        height={SCATTER_H}
-        points={scatter.points}
-        medians={scatter.medians}
-        xDomain={scatter.xDomain}
-        yDomain={scatter.yDomain}
-        xTicks={scatter.xTicks}
-        yTicks={scatter.yTicks}
-        xTitle={X_TITLE}
-        yTitle={Y_TITLE}
-      />
       {rows.map(r => (
         <View key={r.key} style={[styles.row, {borderColor: color.line}]}>
           <Text variant='bodyStrong'>{r.title}</Text>
-          {r.lines.map(line => (
+          {r.lines.map((line, i) => (
             <Text key={line} variant='dataSmall' tone='textSecondary'>
               {line}
+              {i === r.lines.length - 1 && r.counts && inPlan ? (
+                <Text
+                  variant='dataSmall'
+                  tone='accentInk'
+                  accessibilityRole='link'
+                  onPress={() => router.push(planHref(card.planKey))}>
+                  {' · in Plan →'}
+                </Text>
+              ) : null}
             </Text>
           ))}
         </View>
@@ -97,6 +90,7 @@ export function FuelUseCard({
           {race}
         </Text>
       ) : null}
+      {pooled}
       <Pressable
         accessibilityRole='link'
         onPress={() => router.push(planHref(card.planKey))}

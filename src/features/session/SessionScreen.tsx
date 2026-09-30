@@ -74,12 +74,14 @@ export function SessionScreen({
   selection,
   onSelectionChange,
   renderPlanHalf,
+  renderPooledUse,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   /** The planner against this race: another feature's half of the card, put here by the route. */
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
+  renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
   const result = useSessionScreenModel(sessionId, selection);
   const {color} = useTheme();
@@ -110,6 +112,7 @@ export function SessionScreen({
       selection={selection}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
+      renderPooledUse={renderPooledUse}
     />
   );
 }
@@ -120,12 +123,14 @@ function SessionView({
   selection,
   onSelectionChange,
   renderPlanHalf,
+  renderPooledUse,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
+  renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -335,7 +340,10 @@ function SessionView({
 
       {model.fuelUse && (
         <View style={styles.section}>
-          <FuelUseCard card={model.fuelUse} width={tableW} />
+          <FuelUseCard
+            card={model.fuelUse}
+            pooled={renderPooledUse?.(model.fuelUse.planKey, tableW)}
+          />
         </View>
       )}
 
@@ -430,7 +438,10 @@ function SessionView({
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
-                width={size.sidePanelWidth - 2 * space.xl}
+                pooled={renderPooledUse?.(
+                  model.fuelUse.planKey,
+                  size.sidePanelWidth - 2 * space.xl,
+                )}
               />
             )}
           </>

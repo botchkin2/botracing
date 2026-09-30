@@ -1,14 +1,21 @@
 import {View} from 'react-native';
 import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
 
-import {stroke, type as typeScale, useTheme} from '@/src/design';
+import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
 
 // Fuel used per lap against lap time (practice view, pit-wall thread 36). Pure
 // props in, SVG out. Dots are neutral: colour has one meaning each, and lap
 // colours mean laps, so a stint is told by its label at its median. Faster is
 // up, as on the lap-time chart. The x axis does not start at zero.
 
-export type ScatterPoint = {key: string; x: number; y: number; hollow: boolean};
+export type ScatterPoint = {
+  key: string;
+  x: number;
+  y: number;
+  hollow: boolean;
+  /** An earlier session's lap: drawn fainter than this session's. */
+  muted?: boolean;
+};
 export type ScatterMedian = {key: string; label: string; x: number; y: number};
 export type ScatterTick = {v: number; label: string};
 
@@ -30,6 +37,7 @@ export function FuelScatter({
   yTicks,
   xTitle,
   yTitle,
+  refX,
 }: {
   width: number;
   height: number;
@@ -42,6 +50,8 @@ export function FuelScatter({
   yTicks: ScatterTick[];
   xTitle: string;
   yTitle: string;
+  /** One dashed vertical reference line, labelled with where it comes from. */
+  refX?: {x: number; label: string} | null;
 }) {
   const {color} = useTheme();
   const axis = typeScale.axis;
@@ -131,10 +141,32 @@ export function FuelScatter({
               cy={yOf(p.y)}
               r={DOT_R}
               fill={color.textSecondary}
-              fillOpacity={0.7}
+              fillOpacity={p.muted ? 0.3 : 0.7}
             />
           ),
         )}
+        {refX ? (
+          <G>
+            <Line
+              x1={xOf(refX.x)}
+              x2={xOf(refX.x)}
+              y1={PAD_T}
+              y2={PAD_T + plotH}
+              stroke={color.textSecondary}
+              strokeWidth={1}
+              strokeDasharray={dash.overlay2}
+            />
+            <SvgText
+              x={xOf(refX.x) + (xOf(refX.x) > width / 2 ? -4 : 4)}
+              y={PAD_T + 10}
+              textAnchor={xOf(refX.x) > width / 2 ? 'end' : 'start'}
+              fill={color.textSecondary}
+              fontFamily={axis.fontFamily}
+              fontSize={axis.fontSize}>
+              {refX.label}
+            </SvgText>
+          </G>
+        ) : null}
         {medians.map(m => (
           <G key={m.key}>
             <Circle
