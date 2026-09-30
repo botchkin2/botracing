@@ -339,3 +339,25 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
   assert.ok(lines.at(-1).startsWith('trackA: +1 sessions'));
   assert.deepEqual(store.written, []);
 });
+
+test('a grid lap (lap number 0) is left out: it sits at LapDistPct 0 for a minute', () => {
+  const ok = {timed: true, comparable: true, lapNumber: 1};
+  assert.equal(usableLap(ok), true);
+  assert.equal(usableLap({...ok, lapNumber: 0}), false);
+});
+
+test('an artifact built under older rules is rebuilt from every session', () => {
+  const first = buildSurface(null, LENGTH_M, [
+    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
+  ]);
+  assert.equal(first.surface.rules, 2);
+  const stale = {...first.surface, rules: undefined};
+  assert.deepEqual(sessionsToFold(stale, LENGTH_M, ['a', 'b']), ['a', 'b']);
+  const rebuilt = buildSurface(stale, LENGTH_M, [
+    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
+  ]);
+  assert.equal(rebuilt.replaced, true);
+  assert.equal(rebuilt.surface.rules, 2);
+  const kept = buildSurface(first.surface, LENGTH_M, []);
+  assert.equal(kept.replaced, false);
+});
