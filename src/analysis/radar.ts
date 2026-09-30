@@ -10,7 +10,7 @@ import {ABSENT, type Field, type FieldCar} from './field';
 /** The player's own block: 2 × 4.6 m (R2). */
 export const PLAYER_LENGTH_M = 4.6;
 export const CAR_WIDTH_M = 2;
-/** Cars fade over the last FADE_M before the range edge, not popping out. */
+/** Cars fade out over FADE_M ending 4 m past the range edge (R2), not popping out. */
 const FADE_M = 6;
 /** Cars in the pit lane draw dimmer (R2). */
 const PIT_OPACITY = 0.4;
@@ -104,7 +104,10 @@ export function radarAt(
     if (opacity <= 0) continue;
     const cls = radarClass(car.carClass);
     const lengthM = LENGTH_M[cls];
+    // A car in the pit lane alongside on pit entry or exit is not a car to
+    // look for on track, so it does not light the bars.
     if (
+      car.inPits[at] !== 1 &&
       Math.abs(forwardM) < (lengthM + PLAYER_LENGTH_M) / 2 &&
       Math.abs(sideM) < SIDE_BAR_M
     ) {

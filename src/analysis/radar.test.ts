@@ -100,6 +100,12 @@ describe('radarAt', () => {
     expect([behind.leftLit, behind.rightLit]).toEqual([false, false]);
   });
 
+  it('does not light the side bars for a car in the pit lane', () => {
+    const r = radarAt(field([me(), car(1, 97, 201, {pit: 1})]), 0, R, HALF_W)!;
+    expect(r.cars).toHaveLength(1);
+    expect([r.leftLit, r.rightLit]).toEqual([false, false]);
+  });
+
   it('is null without a heading, a player or a position', () => {
     const noYaw = field([car(0, 1, 1, {player: true, yaw: null})]);
     expect(radarAt(noYaw, 0, R, HALF_W)).toBeNull();

@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {Line} from 'react-native-svg';
+import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type TraceSeries, TraceChart} from '@/src/charts';
 import {dash, space, useTheme} from '@/src/design';
@@ -132,19 +132,17 @@ export function ChartBlock({
           </Text>
           {chart.valueRows.map(r => (
             <View key={r.channel} style={styles.overlayRow}>
-              <Svg width={18} height={6}>
-                <Line
-                  x1={0}
-                  x2={18}
-                  y1={3}
-                  y2={3}
-                  stroke={color.textMuted}
-                  strokeWidth={1.5}
-                  strokeDasharray={
-                    chart.pedals ? undefined : OVERLAY_DASH[r.overlay]
-                  }
-                />
-              </Svg>
+              <LegendSwatch
+                kind={
+                  chart.pedals && r.channel === 'brake'
+                    ? 'fill'
+                    : chart.pedals && r.channel === 'steering'
+                    ? 'band'
+                    : 'line'
+                }
+                dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
+                color={color.textMuted}
+              />
               <Text variant='dataSmall' tone='textMuted'>
                 {r.label} {r.unit}
               </Text>
@@ -205,6 +203,38 @@ export function ChartBlock({
         onHover={onHover}
       />
     </View>
+  );
+}
+
+// What the row's channel looks like on the chart: a line, the brake's filled
+// area, or steering's thin line over its band's zero tick.
+function LegendSwatch({
+  kind,
+  dash: dashArray,
+  color,
+}: {
+  kind: 'line' | 'fill' | 'band';
+  dash?: string;
+  color: string;
+}) {
+  return (
+    <Svg width={18} height={8}>
+      {kind === 'fill' && (
+        <Rect x={0} y={1} width={18} height={6} fill={color} opacity={0.3} />
+      )}
+      {kind === 'band' && (
+        <Line x1={0} x2={18} y1={4} y2={4} stroke={color} opacity={0.5} />
+      )}
+      <Line
+        x1={0}
+        x2={18}
+        y1={kind === 'fill' ? 1 : kind === 'band' ? 2 : 4}
+        y2={kind === 'fill' ? 1 : kind === 'band' ? 6 : 4}
+        stroke={color}
+        strokeWidth={kind === 'band' ? 1.2 : 1.5}
+        strokeDasharray={dashArray}
+      />
+    </Svg>
   );
 }
 

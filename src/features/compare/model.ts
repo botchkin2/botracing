@@ -280,6 +280,8 @@ export type MapModel = {
 
 export type CompareModel = {
   mode: LapMode;
+  /** The lap whose moment the field radar shows: the highlighted lap, else the reference. */
+  playing: {lapId: string; lapNumber: number | null} | null;
   reference: string;
   chips: Chip[];
   manyChip: string | null;
@@ -576,6 +578,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     selection.hl && selection.laps.includes(selection.hl)
       ? selection.hl
       : selected[1]?.id ?? null;
+
+  const playing = selected.find(l => l.id === hlId) ?? ref ?? null;
 
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
@@ -969,6 +973,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
 
   return {
     mode,
+    playing: playing ? {lapId: playing.id, lapNumber: playing.lapNumber} : null,
     reference: refBits.filter(Boolean).join(' · '),
     chips,
     manyChip,
