@@ -1,7 +1,6 @@
 import {useGlobalSearchParams, useRouter} from 'expo-router';
 
 import {firstCornerOf, trackCorners, useSessionMap} from '@/src/data/sessions';
-
 import {type SessionTab} from '@/src/nav/activeTab';
 import {
   compareHref,
@@ -17,9 +16,8 @@ import {
 import {type TabName, tabTarget} from '@/src/nav/tabTarget';
 
 /**
- * The corner the Corner tab opens: the open corner, else the open section's
- * first corner, else T1. `used` is false in the last case, so the desktop tab
- * can read plain "Corner" until a corner has been used.
+ * The corner the Corner tab opens, read from the URL: the open corner, else
+ * the open section's first corner, else T1. `used` is false in the last case.
  */
 export function useCornerTarget(
   sessionId: string | null,
@@ -33,28 +31,46 @@ export function useCornerTarget(
   return {n: fromSection ?? 1, used: fromSection != null};
 }
 
+/** Everything `go` needs, already resolved by the caller. */
+export type WorkspaceTarget = {
+  sessionId: string | null;
+  /** The lap selection to carry between tabs. */
+  selection: {laps?: string; hl?: string};
+  /** The corner the Corner tab opens. */
+  cornerN: number;
+  /** The Plan link's combo, when one is named. */
+  planCombo?: string;
+};
+
 /**
- * One `go` for the desktop bar and the phone bars, so switching keeps the lap
- * selection and lands on the same places.
+ * The target read straight from the URL: the phone has no bar state to keep,
+ * so what is open is what the route says.
  */
-export function useWorkspaceGo(
+export function useUrlTarget(
   sessionId: string | null,
   tab: SessionTab | null,
-  opts: {
-    planCombo?: string;
-    /** The corner the Corner tab opens, when the caller remembers one. */
-    cornerN?: number;
-    /** The lap selection to carry, when the URL no longer holds it. */
-    selection?: {laps?: string; hl?: string};
-  } = {},
-) {
+): Omit<WorkspaceTarget, 'planCombo'> {
+  const {laps, hl} = useGlobalSearchParams<{laps?: string; hl?: string}>();
+  return {
+    sessionId,
+    selection: {laps, hl},
+    cornerN: useCornerTarget(sessionId, tab).n,
+  };
+}
+
+/**
+ * One `go` for the desktop bar and the phone bars, so switching keeps the lap
+ * selection and lands on the same places. It only navigates; the caller
+ * resolves what to carry.
+ */
+export function useWorkspaceGo({
+  sessionId,
+  selection,
+  cornerN,
+  planCombo,
+}: WorkspaceTarget) {
   const router = useRouter();
-  // Only the lap selection travels between tabs; corner and cursor belong
-  // to the workspace that set them.
-  const params = useGlobalSearchParams<{laps?: string; hl?: string}>();
-  const urlCorner = useCornerTarget(sessionId, tab).n;
-  const cornerN = opts.cornerN ?? urlCorner;
-  const {laps: lapIds, hl: hlId} = parseSelection(opts.selection ?? params);
+  const {laps: lapIds, hl: hlId} = parseSelection(selection);
   const sel = {laps: lapIds, hl: hlId};
   return (name: TabName) => {
     const target = tabTarget(name, sessionId);
@@ -64,7 +80,7 @@ export function useWorkspaceGo(
       case 'tracks':
         return router.navigate(tracksHref());
       case 'plan':
-        return router.navigate(planHref(opts.planCombo));
+        return router.navigate(planHref(planCombo));
       case 'settings':
         return router.navigate(settingsHref());
       case 'session':

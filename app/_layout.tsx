@@ -107,7 +107,12 @@ function PhoneFrame({children}: {children: ReactNode}) {
     pathname.startsWith('/track/') ? id ?? null : null,
     false,
   );
-  const go = useWorkspaceGo(null, null, {planCombo: plan.key});
+  const go = useWorkspaceGo({
+    sessionId: null,
+    selection: {},
+    cornerN: 1,
+    planCombo: plan.key,
+  });
   return (
     <View style={styles.root}>
       <SafeAreaInsetsContext.Provider value={{...insets, bottom: 0}}>

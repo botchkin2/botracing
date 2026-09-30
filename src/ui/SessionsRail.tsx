@@ -34,11 +34,14 @@ export function SessionsRail({
   days,
   activeId,
   onSelect,
+  onTracks,
   status,
 }: {
   days: RailDay[];
   activeId: string | null;
   onSelect: (sessionId: string) => void;
+  /** The way to the Tracks list, which has left the top bar. */
+  onTracks: () => void;
   /** Shown instead of the list while loading, on error or when empty. */
   status?: string;
 }) {
@@ -51,6 +54,14 @@ export function SessionsRail({
       ]}>
       <View style={[styles.head, {borderColor: color.lineHeader}]}>
         <Text variant='title'>Sessions</Text>
+        <Pressable
+          accessibilityRole='link'
+          onPress={onTracks}
+          hitSlop={space.md}>
+          <Text variant='body' tone='accentInk'>
+            Tracks ›
+          </Text>
+        </Pressable>
       </View>
       {status ? (
         <Text variant='dataSmall' tone='textMuted' style={styles.status}>
@@ -138,6 +149,9 @@ const styles = StyleSheet.create({
     paddingTop: space.lg,
     paddingBottom: space.md,
     borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
   },
   status: {padding: space.lg},
   list: {paddingBottom: space.lg},

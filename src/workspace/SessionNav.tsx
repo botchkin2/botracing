@@ -1,17 +1,11 @@
 import {usePathname} from 'expo-router';
 
 import {useSession} from '@/src/data/sessions';
+import {sessionTabOf} from '@/src/nav/activeTab';
+import {sessionTabs} from '@/src/nav/sessionTabs';
 import {SessionTabs} from '@/src/ui';
 
-import {sessionTabOf} from '@/src/nav/activeTab';
-import {useWorkspaceGo} from './useWorkspaceGo';
-
-const TABS = [
-  {key: 'session', label: 'Laps'},
-  {key: 'compare', label: 'Compare'},
-  {key: 'corner', label: 'Corner'},
-  {key: 'race', label: 'Race'},
-] as const;
+import {useUrlTarget, useWorkspaceGo} from './useWorkspaceGo';
 
 /**
  * The phone's Laps / Compare / Corner / Race row. Each session screen puts it
@@ -20,12 +14,14 @@ const TABS = [
  */
 export function SessionNav({sessionId}: {sessionId: string}) {
   const tab = sessionTabOf(usePathname());
-  const go = useWorkspaceGo(sessionId, tab);
+  const go = useWorkspaceGo(useUrlTarget(sessionId, tab));
   const {data} = useSession(sessionId);
-  // The Race view is only for race sessions; while the session loads the
-  // row shows the three that always apply.
-  const items =
-    data?.sessionType === 'R' ? TABS : TABS.filter(t => t.key !== 'race');
   if (!tab) return null;
-  return <SessionTabs items={items} active={tab} onSelect={go} />;
+  return (
+    <SessionTabs
+      items={sessionTabs(data?.sessionType)}
+      active={tab}
+      onSelect={go}
+    />
+  );
 }
