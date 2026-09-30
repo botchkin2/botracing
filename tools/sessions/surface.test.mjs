@@ -7,6 +7,7 @@ import {
   buildSurface,
   gzipSurface,
   parseSurface,
+  sessionsToFold,
   surfaceLapFromCsv,
   usableLap,
 } from './surface.mjs';
@@ -132,6 +133,41 @@ test('a track whose length changed is rebuilt from scratch', () => {
   assert.equal(rebuilt.replaced, true);
   assert.deepEqual(rebuilt.surface.sessions, ['b']);
   assert.equal(rebuilt.surface.bins.length, 200);
+});
+
+test('which sessions to read: only the new ones while the artifact fits, all of them once it is rebuilt', () => {
+  const fits = buildSurface(null, LENGTH_M, [
+    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
+    {id: 'b', csvs: [csv({pl: 0, edge: -6})]},
+  ]).surface;
+  assert.deepEqual(sessionsToFold(fits, LENGTH_M, ['a', 'b', 'c']), ['c']);
+  assert.deepEqual(sessionsToFold(null, LENGTH_M, ['a', 'b', 'c']), [
+    'a',
+    'b',
+    'c',
+  ]);
+  // The track's length changed: the old artifact is discarded, so the two
+  // sessions it held must be read again along with the new one.
+  assert.deepEqual(sessionsToFold(fits, 2000, ['a', 'b', 'c']), [
+    'a',
+    'b',
+    'c',
+  ]);
+});
+
+test('a rebuild after a length change keeps every session', () => {
+  const old = buildSurface(null, LENGTH_M, [
+    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
+    {id: 'b', csvs: [csv({pl: 0, edge: -6})]},
+  ]).surface;
+  const ids = sessionsToFold(old, 2000, ['a', 'b', 'c']);
+  const rebuilt = buildSurface(
+    old,
+    2000,
+    ids.map(id => ({id, csvs: [csv({pl: 0, edge: -6})]})),
+  );
+  assert.equal(rebuilt.replaced, true);
+  assert.deepEqual(rebuilt.surface.sessions, ['a', 'b', 'c']);
 });
 
 test('the stored file round-trips and stays small', () => {

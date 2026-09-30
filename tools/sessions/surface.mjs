@@ -72,18 +72,36 @@ export function surfaceLapFromCsv(csv, lengthM) {
 }
 
 /**
+ * The stored artifact when it still fits the track (same length and bin
+ * step), else null: a track whose length changed (a rebuilt map) is measured
+ * again from every session.
+ */
+export function usableSurface(existing, lengthM) {
+  return existing &&
+    existing.lengthM === lengthM &&
+    existing.stepM === SURFACE_STEP_M
+    ? existing
+    : null;
+}
+
+/**
+ * Which sessions still have to be read. Decided against the artifact that is
+ * kept: when it is thrown away, every session is read, or the rebuilt file
+ * would lose the ones it had already folded in.
+ */
+export function sessionsToFold(existing, lengthM, sessionIds) {
+  const kept = usableSurface(existing, lengthM);
+  return sessionIds.filter(id => !(kept?.sessions ?? []).includes(id));
+}
+
+/**
  * Folds sessions into a track's surface. `existing` is the stored artifact or
  * null; sessions whose id it already holds are skipped. `sessions` is
  * [{id, csvs: string[]}] (one CSV per usable lap). Returns the surface and what
  * this call added.
  */
 export function buildSurface(existing, lengthM, sessions) {
-  const usable =
-    existing &&
-    existing.lengthM === lengthM &&
-    existing.stepM === SURFACE_STEP_M
-      ? existing
-      : null;
+  const usable = usableSurface(existing, lengthM);
   const surface = usable ?? emptySurface(lengthM);
   let sessionsAdded = 0;
   let lapsAdded = 0;
@@ -202,9 +220,17 @@ async function fromStore(trackFilter, dry) {
     } catch (error) {
       if (error?.code !== 404) throw error;
     }
-    const sessionDocs = (
+    const allSessions = (
       await db.collection('sessions').where('trackId', '==', trackId).get()
-    ).docs.filter(s => !(existing?.sessions ?? []).includes(s.id));
+    ).docs;
+    const todo = new Set(
+      sessionsToFold(
+        existing,
+        track.lengthM,
+        allSessions.map(s => s.id),
+      ),
+    );
+    const sessionDocs = allSessions.filter(s => todo.has(s.id));
     const input = [];
     for (const s of sessionDocs) {
       const laps = (
