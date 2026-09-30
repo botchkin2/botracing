@@ -87,6 +87,7 @@ export function lapFuel(s, i0, i1, pits) {
     // Filled in once the stint's median is known.
     lapsLeftFuel: null,
     lapsLeftVe: null,
+    green: false,
   };
 }
 
@@ -175,6 +176,15 @@ export function stintFuel(stintLaps) {
   };
 }
 
+/**
+ * Marks each lap's `fuel.green` (see isGreen), so a history across sessions
+ * counts the same laps as the stint medians (clutch, thread 35 #984).
+ * Mutates the laps.
+ */
+export function markGreen(laps) {
+  for (const lap of laps) if (lap.fuel) lap.fuel.green = isGreen(lap);
+}
+
 /** Laps a level lasts at a median use (whole and part); null without one. */
 export function lapsLeft(level, medianUse) {
   if (!Number.isFinite(level) || !medianUse || medianUse <= 0) return null;
@@ -204,10 +214,19 @@ export function fillLapsLeft(laps, stintMedians) {
 
 /**
  * The fill limit and physical tank from the recording's CarSetup JSON.
- * VM_FUEL_LEVEL.stringValue x 100 is the fill limit in litres (0.75 is 75 L
- * at Road Atlanta; VE 100 % is that full load); .maxValue is the tank in
- * litres when the event allows it, else the limit itself. Both null when the
- * setup is missing or empty (the 2026-09-29 Daytona Manthey files).
+ *
+ * VM_FUEL_LEVEL.stringValue is the fill limit in litres divided by 100, not a
+ * fraction of the tank (camber and apex, thread 34 #983/#986): the Proton at
+ * Silverstone has stringValue 0.89 and maxValue 115 and started at 89.0 L, so
+ * a fraction of the tank would say 102 L; the Manthey at Daytona has 1.00 and
+ * maxValue 117 and started at 100 L, not 117. VE 100 % is that full load.
+ * maxValue is the tank in litres when the event allows it, else the limit
+ * itself (75 at Road Atlanta). Both are null when the setup is missing or
+ * empty (the 2026-09-29 Daytona Manthey files).
+ *
+ * Every recording in the Telemetry folder is a GT3 (468 files, one class),
+ * so a Hypercar or an LMP2 is unchecked: if one shows a start fuel that is
+ * not stringValue x 100, this is the place to look.
  */
 export function fuelSetup(setupJson) {
   let level = null;

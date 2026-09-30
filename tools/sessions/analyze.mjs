@@ -25,7 +25,13 @@ import {
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {fileChange} from './fileChange.mjs';
-import {fillLapsLeft, lapFuel, lapPitStop, stintFuel} from './fuelFacts.mjs';
+import {
+  fillLapsLeft,
+  lapFuel,
+  lapPitStop,
+  markGreen,
+  stintFuel,
+} from './fuelFacts.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
@@ -993,6 +999,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   // laps left at that median.
   const stintMedians = new Map(stints.map(st => [st.n, stintFuel(st.laps)]));
   fillLapsLeft(laps, stintMedians);
+  markGreen(laps);
   const firstFuel = laps.find(l => l.fuel?.startL != null);
 
   return {

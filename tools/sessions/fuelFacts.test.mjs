@@ -7,6 +7,7 @@ import {
   fuelSetup,
   isGreen,
   lapFuel,
+  markGreen,
   lapPitStop,
   lapsLeft,
   stintFuel,
@@ -197,6 +198,17 @@ test('the fill limit and tank come from the CarSetup, null when it is empty', ()
     fillLimitL: 75,
     tankL: 75,
   });
+  // Silverstone, the Proton (start fuel 89.0 L): a 115 L tank, 89 L to fill.
+  // A fraction of the tank would say 102 L.
+  assert.deepEqual(fuelSetup(setup({stringValue: '0.89', maxValue: 115})), {
+    fillLimitL: 89,
+    tankL: 115,
+  });
+  // Daytona, the Manthey (start fuel 100 L): a 117 L tank, 100 L to fill.
+  assert.deepEqual(fuelSetup(setup({stringValue: '1.00', maxValue: 117})), {
+    fillLimitL: 100,
+    tankL: 117,
+  });
   // Sarthe: 84 L to fill, a 117 L tank.
   assert.deepEqual(fuelSetup(setup({stringValue: '0.84', maxValue: 117})), {
     fillLimitL: 84,
@@ -209,4 +221,19 @@ test('the fill limit and tank come from the CarSetup, null when it is empty', ()
   });
   assert.deepEqual(fuelSetup('not json'), {fillLimitL: null, tankL: null});
   assert.deepEqual(fuelSetup(undefined), {fillLimitL: null, tankL: null});
+});
+
+test('every lap with fuel says whether its use counts as green', () => {
+  const laps = [
+    {timed: true, fuel: {green: false}},
+    {timed: true, pitIn: true, fuel: {green: true}},
+    {timed: true, start: true, fuel: {}},
+    {timed: true, courseYellowSec: 4, fuel: {}},
+    {timed: true}, // no fuel channels: untouched
+  ];
+  markGreen(laps);
+  assert.deepEqual(
+    laps.map(l => l.fuel?.green),
+    [true, false, false, false, undefined],
+  );
 });
