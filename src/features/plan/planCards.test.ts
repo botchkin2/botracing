@@ -104,6 +104,14 @@ describe('buildPlanCards', () => {
     expect(full.refuel[0].litres).toBeCloseTo(9 * 2.38, 1);
   });
 
+  it('the Stops card: a pit window for each stop, the other stops free to move', () => {
+    // 72 laps, stints of 27 then 28 (formation lap off the first): stops after L28 and L56 at the latest.
+    expect(cards.stops.windows).toEqual([
+      {stop: 1, text: 'Stop 1: after L17 to L28'},
+      {stop: 2, text: 'Stop 2: after L45 to L56, within 28 laps of stop 1'},
+    ]);
+  });
+
   it('the Stops card: equal stints second, over the same race', () => {
     const equal = cards.stops.equal!;
     expect(equal.kind).toBe('equal');
@@ -144,6 +152,7 @@ describe('a race that needs no stop', () => {
     expect(cards.race.stopAfter).toEqual([]);
     expect(cards.race.working).toBeNull();
     expect(cards.stops.equal).toBeNull();
+    expect(cards.stops.windows).toEqual([]);
     expect(cards.stops.full!.stintLaps).toEqual([20]);
   });
 });

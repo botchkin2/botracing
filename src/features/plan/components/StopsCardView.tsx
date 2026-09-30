@@ -67,6 +67,25 @@ export function StopsCardView({
         </Text>
       </View>
       {card.full ? row(card.full, true) : null}
+      {card.windows.length > 0 ? (
+        <View style={[styles.row, {borderColor: color.line}]}>
+          <Text variant='label' tone='textMuted'>
+            Pit window
+          </Text>
+          {card.windows.map(w => (
+            <Text key={w.stop} variant='dataStrong' tone='textSecondary'>
+              {w.text}
+            </Text>
+          ))}
+          <Text variant='dataSmall' tone='textMuted'>
+            At the median use, with no reserve. Earliest: the laps after it
+            still fit in full tanks. Latest: the lap the tank runs out, the
+            earlier stops as late as they can be. Each stop after the first must
+            also come within a tank of the one before. A mandatory stop that
+            refuels makes the real window wider.
+          </Text>
+        </View>
+      ) : null}
       {card.equal ? row(card.equal, false) : null}
       {formation.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted'>
