@@ -59,6 +59,17 @@ describe('toUploader', () => {
     });
   });
 
+  it('reads resync progress, and drops a malformed one', () => {
+    expect(
+      toUploader({id: 'rig', progress: {done: 3, total: 9}}).progress,
+    ).toEqual({done: 3, total: 9});
+    expect(toUploader({id: 'rig', progress: null}).progress).toBeNull();
+    expect(toUploader({id: 'rig', progress: {done: 3}}).progress).toBeNull();
+    expect(
+      toUploader({id: 'rig', progress: {done: 0, total: 0}}).progress,
+    ).toBeNull();
+  });
+
   it('reads the retry time and the retrying state', () => {
     const u = toUploader({
       id: 'rig',

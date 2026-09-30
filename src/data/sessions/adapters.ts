@@ -1,4 +1,5 @@
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
+import {turnLabelsOf} from '../tracks/catalog';
 
 // API v2 session shapes (functions/src/sessionStore.ts returns raw Firestore
 // docs) → the typed shapes the app uses. Only fields a screen reads are typed;
@@ -317,6 +318,9 @@ export function toSessionBand(raw: Record<string, unknown>): SessionBand {
 export type MapCorner = {
   /** Corner number as drawn on the badge. */
   n: number;
+  /** The circuit's official label when it differs from the app's number
+   *  ("T10a"); shown by design/format turnLabel in place of "T{n}". */
+  official?: string;
   entryM: number;
   apexM: number;
   exitM: number;
@@ -363,10 +367,12 @@ function lineStrings(
     );
 }
 
-function toMapCorner(raw: unknown): MapCorner {
+function toMapCorner(raw: unknown, labels: Record<number, string>): MapCorner {
   const x = obj(raw);
+  const n = num(x.n) ?? 0;
   return {
-    n: num(x.n) ?? 0,
+    n,
+    ...(labels[n] ? {official: labels[n]} : {}),
     entryM: num(x.entryM) ?? 0,
     apexM: num(x.apexM) ?? 0,
     exitM: num(x.exitM) ?? 0,
@@ -376,17 +382,18 @@ function toMapCorner(raw: unknown): MapCorner {
 export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
   const g = obj(raw.georef);
   const quality = str(raw.quality);
+  const labels = turnLabelsOf(str(raw.trackId) ?? '');
   const features = Array.isArray(obj(raw.outline).features)
     ? (obj(raw.outline).features as unknown[])
     : [];
   return {
     lengthM: num(raw.lengthM) ?? 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
-      ...toMapCorner(c),
+      ...toMapCorner(c, labels),
       parts: (Array.isArray(obj(c).parts)
         ? (obj(c).parts as unknown[])
         : []
-      ).map(toMapCorner),
+      ).map(p => toMapCorner(p, labels)),
     })),
     quality:
       quality === 'good' || quality === 'fair' || quality === 'poor'

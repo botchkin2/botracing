@@ -49,6 +49,16 @@ MANUAL = {
     "Sebring International Raceway": {"openedYear": 1950},
 }
 
+# The circuit's official turn labels for corners the app numbers differently,
+# by trackId, then by the app's corner number. Shown in place of "T{n}"; a
+# corner not listed keeps its own number. Checked by hand against the
+# official map, not fetched.
+TURN_LABELS = {
+    # The official map runs T1-T12 with T10a/T10b. Our 11 corners match T1-T8;
+    # the kink at T9 and the one at T11 are not detected as corners.
+    "lmu-michelin_raceway_road_atlanta": {"9": "T10a", "10": "T10b", "11": "T12"},
+}
+
 
 def slug(name):  # same as tools/sessions/lmu.mjs slug()
     s = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).lower()
@@ -147,10 +157,12 @@ def main():
         lengths = lap_lengths(location)
         names = osm_names(location)
         for layout, lengthM in lengths.items():
-            entries[f"lmu-{slug(layout)}"] = dict(
+            track_id = f"lmu-{slug(layout)}"
+            entries[track_id] = dict(
                 layout=layout,
                 location=location,
                 lengthM=lengthM,
+                **({"turnLabels": TURN_LABELS[track_id]} if track_id in TURN_LABELS else {}),
                 **{k: v for k, v in wd.items()},
                 summary=dict(
                     title=s["title"],

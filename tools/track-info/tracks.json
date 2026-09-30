@@ -1024,6 +1024,11 @@
   "layout": "Michelin Raceway Road Atlanta",
   "location": "Michelin Raceway Road Atlanta",
   "lengthM": 4082,
+  "turnLabels": {
+   "9": "T10a",
+   "10": "T10b",
+   "11": "T12"
+  },
   "qid": "Q964148",
   "openedYear": 1970,
   "officialLengthM": null,

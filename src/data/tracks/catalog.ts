@@ -23,6 +23,9 @@ export type TrackInfo = {
   location: string;
   /** The game's lap length (longest Lap Dist recorded), metres. */
   lengthM: number | null;
+  /** The circuit's official label for corners the app numbers differently,
+   *  by the app's corner number ("10" → "T10a"). Others keep "T{n}". */
+  turnLabels: Record<number, string>;
   openedYear: number | null;
   country: string | null;
   /** ISO 3166 alpha-2, for the country chip. */
@@ -82,6 +85,16 @@ function toNamedPoints(raw: unknown): NamedPoint[] {
   });
 }
 
+function toTurnLabels(raw: unknown): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const [k, v] of Object.entries(obj(raw))) {
+    const n = Number(k);
+    const label = str(v);
+    if (Number.isInteger(n) && label) out[n] = label;
+  }
+  return out;
+}
+
 export function toTrackInfo(trackId: string, raw: unknown): TrackInfo {
   const x = obj(raw);
   const layout = str(x.layout) ?? trackId;
@@ -91,6 +104,7 @@ export function toTrackInfo(trackId: string, raw: unknown): TrackInfo {
     layout,
     location: str(x.location) ?? layout,
     lengthM: num(x.lengthM),
+    turnLabels: toTurnLabels(x.turnLabels),
     openedYear: num(x.openedYear),
     country,
     countryCode: country ? COUNTRY_CODES[country] ?? null : null,
@@ -109,6 +123,11 @@ const CATALOG: TrackInfo[] = Object.entries(
 /** Every layout with facts, by layout name. */
 export function trackCatalog(): TrackInfo[] {
   return CATALOG;
+}
+
+/** The official turn labels of a layout; empty when it has none. */
+export function turnLabelsOf(trackId: string): Record<number, string> {
+  return trackInfo(trackId)?.turnLabels ?? {};
 }
 
 export function trackInfo(trackId: string): TrackInfo | null {

@@ -22,6 +22,8 @@ export type TrackFact = {label: string; value: string; sub: string | null};
 
 export type TrackCornerRow = {
   n: number;
+  /** The circuit's official label when it differs ("T10a"). */
+  official: string | null;
   /** OSM name, or null: the row then shows "T7" muted. */
   name: string | null;
   turn: string | null;
@@ -130,8 +132,13 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     for (const c of corners) turns.set(c.n, TURN_LABEL[cornerTurn(line, c)]);
   }
 
-  const row = (c: {n: number; apexM: number}): TrackCornerRow => ({
+  const row = (c: {
+    n: number;
+    official?: string;
+    apexM: number;
+  }): TrackCornerRow => ({
     n: c.n,
+    official: c.official ?? null,
     name: names.get(c.n) ?? null,
     turn: turns.get(c.n) ?? null,
     dist: formatDistance(c.apexM),
@@ -143,7 +150,10 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
       const partNames = s.parts.map(p => names.get(p.n));
       const label = partNames.every(Boolean)
         ? partNames.join('–').toUpperCase()
-        : `T${s.parts[0].n}–T${s.parts[s.parts.length - 1].n}`;
+        : `${turnLabel(s.parts[0].n, s.parts[0].official)}–${turnLabel(
+            s.parts[s.parts.length - 1].n,
+            s.parts[s.parts.length - 1].official,
+          )}`;
       groups.push({title: `S${s.n} · ${label}`, rows: s.parts.map(row)});
       continue;
     }
@@ -165,7 +175,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     selection: picked
       ? {
           n: picked.n,
-          label: `${turnLabel(picked.n)}${
+          label: `${turnLabel(picked.n, picked.official)}${
             pickedName ? ` ${pickedName}` : ''
           } · ${formatDistance(picked.apexM)}`,
         }

@@ -22,6 +22,7 @@ const rig = (over: Partial<Uploader> = {}): Uploader => ({
   lastUploadAt: NOW - 30 * min,
   lastSessionId: 'bc1d5cd65e511410',
   queue: 2,
+  progress: null,
   retryAt: null,
   sessionsDone: 14,
   lastError: null,
@@ -58,6 +59,11 @@ describe('uploaderCard', () => {
       NOW,
     );
     expect(c.status).toMatch(/^Retrying at \d{2}:\d{2} · seen 2 min ago$/);
+  });
+
+  it('says how far a resync is', () => {
+    const c = uploaderCard(rig({progress: {done: 120, total: 364}}), NOW);
+    expect(c.status).toBe('Re-analysing 120 / 364 · seen 2 min ago');
   });
 
   it('is grey past 10 min, and says how long, never red', () => {

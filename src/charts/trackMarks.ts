@@ -8,7 +8,12 @@ import {type MapAnchor, type MapMarks} from './TrackMap';
 type Xy = {x: number; y: number};
 
 /** The map's sections (data/sessions MapSection), as far as marks need them. */
-type MarkCorner = {n: number; entryM: number; apexM: number};
+type MarkCorner = {
+  n: number;
+  official?: string;
+  entryM: number;
+  apexM: number;
+};
 type MarkSection = MarkCorner & {parts: MarkCorner[]};
 
 // Boundaries at each section's entry; section labels halfway to the next
@@ -43,6 +48,7 @@ export function buildTrackMarks(
     corners: sorted.flatMap(s =>
       (s.parts.length > 0 ? s.parts : [s]).map(c => ({
         n: c.n,
+        official: c.official,
         anchor: anchor(c.apexM),
       })),
     ),
