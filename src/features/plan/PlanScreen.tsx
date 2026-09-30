@@ -3,14 +3,8 @@ import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {sinceChange} from '@/src/analysis/fuelHistory';
 import {planRace} from '@/src/analysis/fuelPlan';
-import {
-  useSession,
-  useSessions,
-  useSessionsDetail,
-  useSessionsLaps,
-} from '@/src/data/sessions';
+import {useSessions} from '@/src/data/sessions';
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref} from '@/src/nav/routes';
 import {
@@ -31,18 +25,9 @@ import {
   Text,
 } from '@/src/ui';
 
-import {
-  greenLapsOf,
-  historySessions,
-  sessionLimitL,
-  parseNumber,
-  planCombos,
-  planView,
-  rulesFor,
-  veRatioFor,
-  veRatioOf,
-} from './model';
+import {parseNumber, planCombos, planView, rulesFor} from './model';
 import {RulesEditor} from './RulesEditor';
+import {usePlanHistory, usePlanLimits} from './usePlanHistory';
 
 // Track and car chips shown before "All".
 const RECENT_COMBOS = 6;
@@ -79,13 +64,7 @@ export function PlanScreen() {
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
   // The fill limit of every session there, to keep the ones at the rules' limit.
-  const allIds = useMemo(
-    () => (combo ? combo.sessions.map(s => s.id) : []),
-    [combo],
-  );
-  const allDetails = useSessionsDetail(allIds);
-  const last = useSession(allIds[0] ?? '');
-  const lastFuel = last.data?.fuel ?? null;
+  const {lastFuel, pending: detailsPending, limitsL} = usePlanLimits(combo);
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
@@ -97,37 +76,9 @@ export function PlanScreen() {
 
   const rules = rulesFor(preset, length, lastFuel);
   const wantedL = rules?.rules.fuelL ?? null;
-  const detailsPending = allDetails.details.some(d => d === undefined);
-  const limitsL = allDetails.details.map(d =>
-    d === undefined ? undefined : sessionLimitL(d.fuel),
-  );
-  const history =
-    combo && wantedL != null ? historySessions(combo, limitsL, wantedL) : [];
-  const ids = history.map(s => s.id);
-  const lapsOf = useSessionsLaps(ids);
-  const sessionDetails = useSessionsDetail(ids);
-
-  // The litres one VE % is worth: the preset's, else measured in the newest
-  // session there (VE % per lap depends on the load; thread 35 #1004).
-  const measured = history.map((s, i) => ({
-    startedAt: s.startedAt,
-    // The uploader's value first (analysisVersion 11), else measured here.
-    ratio:
-      sessionDetails.details[i]?.fuel?.litresPerVePct ??
-      (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
-    fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
-  }));
-  const ratio = veRatioFor(preset, measured);
-  const perSession = history.map((s, i) => ({
-    id: s.id,
-    laps: lapsOf.laps[i]
-      ? greenLapsOf(s.id, lapsOf.laps[i], ratio ? ratio.perPctL : null)
-      : [],
-  }));
-  // Laps from before a jump in use are left out (thread 36 #1102).
-  const chosen = sinceChange(perSession);
+  const {history, lapsOf, measured, ratio, chosen, usedSessions} =
+    usePlanHistory(combo, limitsL, wantedL, preset);
   const greenLaps = chosen.laps;
-  const usedSessions = history.filter(s => chosen.sessionIds.includes(s.id));
   const plan = rules ? planRace(rules.rules, greenLaps) : null;
   const view =
     rules && plan

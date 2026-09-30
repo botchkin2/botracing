@@ -1,5 +1,12 @@
 import {useRouter} from 'expo-router';
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,6 +16,7 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {LapTimeBars} from '@/src/charts';
 import {
   hitBox,
@@ -63,10 +71,13 @@ export function SessionScreen({
   sessionId,
   selection,
   onSelectionChange,
+  renderPlanVsRace,
 }: {
   sessionId: string;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
+  /** The planner against this race: another feature's card, put here by the route. */
+  renderPlanVsRace?: (facts: RaceFacts) => ReactNode;
 }) {
   const result = useSessionScreenModel(sessionId, selection);
   const {color} = useTheme();
@@ -96,6 +107,7 @@ export function SessionScreen({
       model={result.model}
       selection={selection}
       onSelectionChange={onSelectionChange}
+      renderPlanVsRace={renderPlanVsRace}
     />
   );
 }
@@ -105,11 +117,13 @@ function SessionView({
   model,
   selection,
   onSelectionChange,
+  renderPlanVsRace,
 }: {
   sessionId: string;
   model: SessionScreenModel;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
+  renderPlanVsRace?: (facts: RaceFacts) => ReactNode;
 }) {
   const {color, scheme} = useTheme();
   const layout = useLayout();
@@ -304,6 +318,10 @@ function SessionView({
         </View>
       )}
 
+      {model.planVsRace && renderPlanVsRace && (
+        <View style={styles.section}>{renderPlanVsRace(model.planVsRace)}</View>
+      )}
+
       {model.fuelUse && (
         <View style={styles.section}>
           <FuelUseCard card={model.fuelUse} width={tableW} />
@@ -375,6 +393,7 @@ function SessionView({
         cards={
           <>
             {model.pitReview && <PitReviewCard review={model.pitReview} />}
+            {model.planVsRace && renderPlanVsRace?.(model.planVsRace)}
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

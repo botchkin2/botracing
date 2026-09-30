@@ -34,7 +34,7 @@ const lapsOf = (v: number) => `${v.toFixed(1)} laps`;
  * session is the service before the start, not a stop, and is left out
  * (camber, thread 36 #1117). Practice and qualifying have no review.
  */
-function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
+export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   if (sessionType !== 'R') return [];
   const first = laps.length > 0 ? laps[0].lapIndex : 0;
   return laps.filter(l => l.pitStop !== null && l.lapIndex !== first);
