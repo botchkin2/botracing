@@ -17,7 +17,10 @@ import {CornerList} from './components/CornerList';
 import {FactTiles} from './components/FactTiles';
 import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
+import {PlanBlock} from './components/PlanBlock';
 import {TrackMapPanel} from './components/TrackMapPanel';
+import {type Combo} from '../plan/model';
+
 import {type TrackModel} from './model';
 import {useTrackModel} from './useTrackModel';
 
@@ -75,6 +78,7 @@ export function TrackScreen({
   };
   const props = {
     model: state.model,
+    plans: state.plans,
     mapLoading: state.mapLoading,
     attribution: state.attribution,
     canOpenCorner: refSessionId != null,
@@ -93,6 +97,7 @@ export function TrackScreen({
 
 type ViewProps = {
   model: TrackModel;
+  plans: Combo[];
   mapLoading: boolean;
   attribution: string | null;
   canOpenCorner: boolean;
@@ -125,6 +130,7 @@ function Title({model}: {model: TrackModel}) {
 
 function TrackPhone({
   model,
+  plans,
   mapLoading,
   attribution,
   canOpenCorner,
@@ -188,6 +194,7 @@ function TrackPhone({
           ) : null}
         </View>
       ) : null}
+      <PlanBlock combos={plans} />
       {model.history ? (
         <HistoryPanel
           history={model.history}
@@ -204,6 +211,7 @@ function TrackPhone({
 
 function TrackDesktop({
   model,
+  plans,
   mapLoading,
   attribution,
   canOpenCorner,
@@ -218,6 +226,7 @@ function TrackDesktop({
   const mapH = wide ? size.trackMapDesk : Math.round(mapW * 0.8);
   const history = (
     <>
+      <PlanBlock combos={plans} />
       {model.history ? (
         <HistoryPanel
           history={model.history}
