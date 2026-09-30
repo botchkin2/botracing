@@ -64,6 +64,8 @@ const fuel = (over: Partial<LapFuel> = {}): LapFuel => ({
   veEndPct: 75,
   veUsedPct: 5,
   veAddedPct: 0,
+  lapsLeftFuel: null,
+  lapsLeftVe: null,
   green: true,
   ...over,
 });

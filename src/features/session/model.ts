@@ -8,6 +8,7 @@ import {
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 
+import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -78,7 +79,10 @@ export type StintRowModel = {
   lapIds: string[];
 };
 
-export type RowModel = LapRowModel | StintRowModel;
+/** A line of text under a stint header or a pit lap: same height as a lap row. */
+export type NoteRowModel = {kind: 'note'; key: string; text: string};
+
+export type RowModel = LapRowModel | StintRowModel | NoteRowModel;
 
 export type DetailModel = {
   lapId: string;
@@ -86,6 +90,8 @@ export type DetailModel = {
   status: string;
   excluded: boolean;
   why: string | null;
+  /** Fuel and Virtual Energy on the lap, one line each (fuelLines.ts). */
+  fuel: string[];
   action: 'add' | 'remove' | 'reference';
 };
 
@@ -284,6 +290,9 @@ export function buildSessionModel(
       label: bits.join(' · '),
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
     });
+    const stintNote = stintFuelLine(stint);
+    if (stintNote)
+      rows.push({kind: 'note', key: `stint-${stint.n}-fuel`, text: stintNote});
     for (const l of stintLaps) {
       const gap =
         l.comparable && l.timeS != null && median != null
@@ -309,6 +318,9 @@ export function buildSessionModel(
         selIndex: selIndexOf(l.id),
         highlighted: l.id === selection.hl,
       });
+      const stopNote = l.pitStop ? pitLine(l.pitStop) : null;
+      if (stopNote)
+        rows.push({kind: 'note', key: `${l.id}-pit`, text: stopNote});
     }
   }
 
@@ -319,6 +331,7 @@ export function buildSessionModel(
     status: statusFor(hlLap, median),
     excluded: !hlLap.comparable,
     why: reasonText(hlLap, stintMedian.get(hlLap.stint) ?? null) || null,
+    fuel: lapFuelLines(hlLap),
     action:
       selIndexOf(hlLap.id) === 0
         ? 'reference'

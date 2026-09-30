@@ -101,6 +101,15 @@ export type Stint = {
    * uploader did not store one for this stint.
    */
   trendSPerLap: number | null;
+  /**
+   * Fuel and Virtual Energy per green lap (tools/sessions/fuelFacts.mjs): the
+   * median and spread over `greenLaps` laps, null under 3.
+   */
+  greenLaps: number;
+  medianFuelL: number | null;
+  fuelSpreadL: number | null;
+  medianVePct: number | null;
+  veSpreadPct: number | null;
 };
 
 /**
@@ -168,6 +177,11 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
         medianTimeS: num(x.medianLapTime),
         stdevS: num(x.stdevLapTime),
         trendSPerLap: trendByStint.get(num(x.n) ?? 0) ?? null,
+        greenLaps: num(x.greenLaps) ?? 0,
+        medianFuelL: num(x.medianFuelL),
+        fuelSpreadL: num(x.fuelSpreadL),
+        medianVePct: num(x.medianVePct),
+        veSpreadPct: num(x.veSpreadPct),
       };
     }),
   };
@@ -214,6 +228,8 @@ export type Lap = {
   traffic: LapTraffic | null;
   /** Null on laps analysed before the fuel facts, or without the channels. */
   fuel: LapFuel | null;
+  /** The pit stop entered on this lap, if any. */
+  pitStop: PitStop | null;
 };
 
 /**
@@ -232,7 +248,19 @@ export type LapFuel = {
   veEndPct: number | null;
   veUsedPct: number | null;
   veAddedPct: number | null;
+  /** The end level over the stint's median use; null without a median. */
+  lapsLeftFuel: number | null;
+  lapsLeftVe: number | null;
   green: boolean;
+};
+
+/** A pit stop: what was left at pit entry, what was added, how long. */
+export type PitStop = {
+  atEntry: {fuelL: number | null; vePct: number | null};
+  /** 0 for a drive-through or a penalty. */
+  added: {fuelL: number | null; vePct: number | null};
+  inPitS: number | null;
+  lapsLeftAtEntry: {fuel: number | null; ve: number | null};
 };
 
 /**
@@ -306,7 +334,23 @@ function toLapFuel(v: unknown): LapFuel | null {
     veEndPct: num(x.veEndPct),
     veUsedPct: num(x.veUsedPct),
     veAddedPct: num(x.veAddedPct),
+    lapsLeftFuel: num(x.lapsLeftFuel),
+    lapsLeftVe: num(x.lapsLeftVe),
     green: x.green === true,
+  };
+}
+
+function toPitStop(v: unknown): PitStop | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const at = obj(x.atEntry);
+  const added = obj(x.added);
+  const left = obj(x.lapsLeftAtEntry);
+  return {
+    atEntry: {fuelL: num(at.fuelL), vePct: num(at.vePct)},
+    added: {fuelL: num(added.fuelL), vePct: num(added.vePct)},
+    inPitS: num(x.inPitS),
+    lapsLeftAtEntry: {fuel: num(left.fuel), ve: num(left.ve)},
   };
 }
 
@@ -352,6 +396,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     })),
     traffic: toTraffic(raw.traffic),
     fuel: toLapFuel(raw.fuel),
+    pitStop: toPitStop(raw.pitStop),
   }));
 }
 

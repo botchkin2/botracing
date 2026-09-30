@@ -5,6 +5,7 @@ export type {
   LapFuel,
   LapReason,
   LapTraffic,
+  PitStop,
   MapCorner,
   MapSection,
   SectionFacts,

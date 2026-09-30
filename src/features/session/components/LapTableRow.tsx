@@ -3,7 +3,11 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {fonts, size, space, useTheme} from '@/src/design';
 import {Button, Checkbox, Text} from '@/src/ui';
 
-import {type LapRowModel, type StintRowModel} from '../model';
+import {
+  type LapRowModel,
+  type NoteRowModel,
+  type StintRowModel,
+} from '../model';
 
 // Columns from the handoff: checkbox | Lap | Time | vs med | S1 | S2 | S3 | Tags.
 export const LAP_COLS = {chk: 16, lap: 30, time: 62, gap: 44, sector: 38};
@@ -48,6 +52,39 @@ export function LapTableHeader({
       {cell('S2', cols.sector)}
       {cell('S3', cols.sector)}
       {cell('Tags', undefined, false)}
+    </View>
+  );
+}
+
+/**
+ * A line of numbers under a stint header or a pit lap (fuel and Virtual
+ * Energy). Muted and one line, at the height of a lap row so the list's fixed
+ * row layout still holds.
+ */
+export function NoteRow({
+  row,
+  width,
+  wide = false,
+}: {
+  row: NoteRowModel;
+  width: number;
+  wide?: boolean;
+}) {
+  const {color} = useTheme();
+  return (
+    <View
+      style={[
+        styles.note,
+        wide && styles.wide,
+        {width, borderColor: color.line},
+      ]}>
+      <Text
+        variant='dataSmall'
+        tone='textSecondary'
+        numberOfLines={1}
+        style={styles.noteText}>
+        {row.text}
+      </Text>
     </View>
   );
 }
@@ -191,6 +228,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   stintLabel: {fontFamily: fonts.monoBold, fontSize: 10},
+  // 10 pt like the tags: the longest line, a pit line with laps left and the
+  // time in the pits, is 363 pt at 11 pt and the phone row is 343.
+  noteText: {fontSize: 10},
+  note: {
+    height: ROW_H,
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    alignSelf: 'center',
+  },
   row: {
     height: ROW_H,
     flexDirection: 'row',
