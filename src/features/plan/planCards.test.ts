@@ -107,8 +107,8 @@ describe('buildPlanCards', () => {
   it('the Stops card: a pit window for each stop, the other stops free to move', () => {
     // 72 laps, stints of 27 then 28 (formation lap off the first): stops after L28 and L56 at the latest.
     expect(cards.stops.windows).toEqual([
-      {stop: 1, earliest: 'L17', latest: 'L28', within: null},
-      {stop: 2, earliest: 'L45', latest: 'L56', within: 28},
+      {stop: 1, text: 'Stop 1: after L17 to L28'},
+      {stop: 2, text: 'Stop 2: after L45 to L56, within 28 laps of stop 1'},
     ]);
   });
 

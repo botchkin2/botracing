@@ -4,7 +4,7 @@
 import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
 import {formatLapTime} from '@/src/design';
 
-import {pitWindows} from '@/src/analysis/pitWindow';
+import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
 
 /** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
 export const lapName = (racingLap: number) => `L${racingLap + 1}`;
@@ -57,11 +57,8 @@ export type StopRow = {
 
 export type StopWindow = {
   stop: number;
-  /** Lap names the stop can come after, earliest to latest ("L18" to "L28"). */
-  earliest: string;
-  latest: string;
-  /** Laps after the previous stop by which this one must come; null for the first. */
-  within: number | null;
+  /** "Stop 2: after L45 to L56, within 28 laps of stop 1"; the within part from the second stop on. */
+  text: string;
 };
 
 export type StopsCard = {
@@ -191,6 +188,15 @@ function stopRow(
   };
 }
 
+function windowText(w: PitWindow): string {
+  const range = `Stop ${w.stop}: after ${lapName(w.earliest)} to ${lapName(
+    w.latest,
+  )}`;
+  return w.withinLaps == null
+    ? range
+    : `${range}, within ${w.withinLaps} laps of stop ${w.stop - 1}`;
+}
+
 function stopsCard(
   plan: FuelPlan,
   rules: PlanRules,
@@ -251,12 +257,7 @@ function stopsCard(
   const windows =
     med.firstStint.laps != null && med.stint.laps != null
       ? pitWindows(med.firstStint.laps, med.stint.laps, laps, fuelStops).map(
-          w => ({
-            stop: w.stop,
-            earliest: lapName(w.earliest),
-            latest: lapName(w.latest),
-            within: w.withinLaps,
-          }),
+          w => ({stop: w.stop, text: windowText(w)}),
         )
       : [];
   return {

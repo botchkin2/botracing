@@ -74,11 +74,7 @@ export function StopsCardView({
           </Text>
           {card.windows.map(w => (
             <Text key={w.stop} variant='dataStrong' tone='textSecondary'>
-              {`Stop ${w.stop}: after ${w.earliest} to ${w.latest}${
-                w.within != null
-                  ? `, within ${w.within} laps of stop ${w.stop - 1}`
-                  : ''
-              }`}
+              {w.text}
             </Text>
           ))}
           <Text variant='dataSmall' tone='textMuted'>
