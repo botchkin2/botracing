@@ -36,6 +36,7 @@ export function MapPanel({
   openSection,
   lapStyle,
   onPressSection,
+  zoomControls = false,
 }: {
   width: number;
   height: number;
@@ -44,9 +45,14 @@ export function MapPanel({
   openSection: number | null;
   lapStyle: LapStyle;
   onPressSection: (n: number) => void;
+  /** − / + on the Follow map: desktop only, where they can be pointer targets. */
+  zoomControls?: boolean;
 }) {
   const prefs = useComparePrefs();
   const mode = prefs.mapMode;
+  // A stored zoom outside the steps (a hand-edited or old save) reads as 1×.
+  const zoom: MapZoom =
+    MAP_ZOOMS[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
   const noteShown = !map.realMap && !prefs.poorMapNoteSeen.includes(sessionId);
   const {color} = useTheme();
   const styled = (r: {
@@ -103,7 +109,7 @@ export function MapPanel({
           height={height}
           centre={f.centre}
           headingRad={f.headingRad}
-          visibleM={f.visibleM * MAP_ZOOMS[prefs.mapZoom]}
+          visibleM={f.visibleM * MAP_ZOOMS[zoom]}
           band={f.geometry.band}
           lines={followLines}
           ticks={followTicks}
@@ -142,19 +148,19 @@ export function MapPanel({
           </View>
         )}
       </View>
-      {mode === 'follow' && f && (
+      {zoomControls && mode === 'follow' && f && (
         <View style={styles.zoom}>
           <ZoomButton
             label='−'
             hint='Zoom the map out'
-            disabled={prefs.mapZoom === 2}
-            onPress={() => prefs.setMapZoom((prefs.mapZoom + 1) as MapZoom)}
+            disabled={zoom === 2}
+            onPress={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
           />
           <ZoomButton
             label='+'
             hint='Zoom the map in'
-            disabled={prefs.mapZoom === 0}
-            onPress={() => prefs.setMapZoom((prefs.mapZoom - 1) as MapZoom)}
+            disabled={zoom === 0}
+            onPress={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
           />
         </View>
       )}

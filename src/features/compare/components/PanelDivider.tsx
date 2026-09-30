@@ -7,7 +7,8 @@ import {useTheme} from '@/src/design';
 // Compare). Dragging left widens the right column. The caller clamps and
 // remembers the width; this only reports it.
 
-const HIT_W = 10;
+/** The divider's width, points; the workspace lays out around it. */
+export const PANEL_DIVIDER_W = 10;
 // react-native-web applies `cursor` to any view; RN's types only know it on
 // some.
 const RESIZE_CURSOR = {cursor: 'col-resize'} as unknown as ViewStyle;
@@ -15,31 +16,45 @@ const RESIZE_CURSOR = {cursor: 'col-resize'} as unknown as ViewStyle;
 export function PanelDivider({
   width,
   onResize,
+  onCommit,
 }: {
   /** The right column's current width, points. */
   width: number;
+  /** While dragging: the width the pointer asks for. */
   onResize: (width: number) => void;
+  /** On release: the last width asked for, to remember. */
+  onCommit: (width: number) => void;
 }) {
   const {color} = useTheme();
   const [active, setActive] = useState(false);
   // PanResponder reads its handlers once: keep the latest in refs.
-  const latest = useRef({width, onResize});
+  const latest = useRef({width, onResize, onCommit});
   useEffect(() => {
-    latest.current = {width, onResize};
+    latest.current = {width, onResize, onCommit};
   });
   const start = useRef(width);
+  const last = useRef(width);
   // eslint-disable-next-line react-hooks/refs
   const [responder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         start.current = latest.current.width;
+        last.current = start.current;
         setActive(true);
       },
-      onPanResponderMove: (_, g) =>
-        latest.current.onResize(start.current - g.dx),
-      onPanResponderRelease: () => setActive(false),
-      onPanResponderTerminate: () => setActive(false),
+      onPanResponderMove: (_, g) => {
+        last.current = start.current - g.dx;
+        latest.current.onResize(last.current);
+      },
+      onPanResponderRelease: () => {
+        setActive(false);
+        latest.current.onCommit(last.current);
+      },
+      onPanResponderTerminate: () => {
+        setActive(false);
+        latest.current.onCommit(last.current);
+      },
     }),
   );
   return (
@@ -59,6 +74,6 @@ export function PanelDivider({
 }
 
 const styles = StyleSheet.create({
-  hit: {width: HIT_W, alignItems: 'center'},
+  hit: {width: PANEL_DIVIDER_W, alignItems: 'center'},
   line: {width: 1, flex: 1},
 });

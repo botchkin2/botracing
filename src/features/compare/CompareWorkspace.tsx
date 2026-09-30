@@ -17,9 +17,11 @@ import {
 import {
   addChart,
   CHANNEL_IDS,
+  clampRightW,
   PLAY_RATES,
   type PlayRate,
   PRESETS,
+  RIGHT_W_MIN,
   stepWindow,
   toggleChannel,
   useComparePrefs,
@@ -35,7 +37,7 @@ import {
 } from '@/src/ui';
 
 import {CarsAround} from './components/CarsAround';
-import {PanelDivider} from './components/PanelDivider';
+import {PANEL_DIVIDER_W, PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {
@@ -56,7 +58,8 @@ import {
 // as the phone; this only arranges them.
 
 const LEFT_W = 260;
-const PANEL_DIVIDER_W = 10;
+// The charts never get narrower than this, whatever the right column asks.
+const MIN_CENTRE_W = 480;
 // The map is the column's width minus its padding, in D2's 320 : 220 shape.
 const MAP_ASPECT = 220 / 320;
 const OVERVIEW_H = 58;
@@ -91,10 +94,18 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const {model, selection, lapStyle} = p;
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
-  const rightW = prefs.rightW;
+  // The right column's width: while dragging the live value, else the saved
+  // one, read through the clamp (a stored width can be stale or hand-edited)
+  // and kept from squeezing the charts below MIN_CENTRE_W on a narrow window.
+  const [dragW, setDragW] = useState<number | null>(null);
+  const maxRightW = Math.max(
+    RIGHT_W_MIN,
+    layout.width - LEFT_W - MIN_CENTRE_W - PANEL_DIVIDER_W - space.xl * 2,
+  );
+  const rightW = Math.min(clampRightW(dragW ?? prefs.rightW), maxRightW);
   const mapW = rightW - space.xl * 2;
   const centreW = Math.max(
-    480,
+    MIN_CENTRE_W,
     layout.width - LEFT_W - rightW - PANEL_DIVIDER_W - space.xl * 2,
   );
   const readAt = hoverM ?? p.cursorM;
@@ -373,13 +384,21 @@ export function CompareWorkspace(p: WorkspaceProps) {
         </ScrollView>
       </View>
 
-      <PanelDivider width={rightW} onResize={prefs.setRightW} />
+      <PanelDivider
+        width={rightW}
+        onResize={setDragW}
+        onCommit={w => {
+          prefs.setRightW(w);
+          setDragW(null);
+        }}
+      />
       {/* --- right: map, values, time per section ---------------------------- */}
       <ScrollView
         style={[styles.right, {width: rightW, borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
         {model.map && (
           <MapPanel
+            zoomControls
             width={mapW}
             height={Math.round(mapW * MAP_ASPECT)}
             map={model.map}
