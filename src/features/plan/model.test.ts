@@ -11,6 +11,7 @@ import {newPreset} from '@/src/state/fuelPresets';
 
 import {
   driftRowOf,
+  fuelOnly,
   greenLapsOf,
   HISTORY_SESSIONS,
   historySessions,
@@ -190,8 +191,23 @@ describe('greenLapsOf', () => {
     );
     // 3.5 L at 0.7 L per 1 % is 5 % VE.
     expect(out).toEqual([
-      {fuelL: 3.5, vePct: 5, lapTimeS: 110, sessionId: 's1'},
+      {
+        fuelL: 3.5,
+        vePct: 5,
+        lapTimeS: 110,
+        sessionId: 's1',
+        veMeasured: true,
+      },
     ]);
+  });
+
+  it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
+    const out = greenLapsOf(
+      's1',
+      [lap({fuel: fuel({veUsedPct: null})}), lap()],
+      0.7,
+    );
+    expect(out.map(l => l.veMeasured)).toEqual([false, true]);
   });
 
   it('keeps the fuel and drops the VE without a ratio', () => {
@@ -605,5 +621,31 @@ describe('driftRowOf', () => {
     expect(row.note).toBe(
       'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
     );
+  });
+});
+
+describe('fuelOnly', () => {
+  const lap = (veMeasured: boolean): GreenLap => ({
+    fuelL: 2.4,
+    vePct: 3.5,
+    lapTimeS: 90,
+    sessionId: 's',
+    veMeasured,
+  });
+
+  it('is fuel-only when fewer than 3 green laps carry VE of their own', () => {
+    expect(fuelOnly([])).toBe(true);
+    expect(fuelOnly([lap(false), lap(false), lap(false), lap(false)])).toBe(
+      true,
+    );
+    expect(fuelOnly([lap(true), lap(true), lap(false), lap(false)])).toBe(true);
+  });
+
+  it('is not fuel-only from 3 laps with VE, however many have none (Barcelona: March without VE, August with)', () => {
+    const mixed = [
+      ...Array.from({length: 20}, () => lap(false)),
+      ...Array.from({length: 3}, () => lap(true)),
+    ];
+    expect(fuelOnly(mixed)).toBe(false);
   });
 });
