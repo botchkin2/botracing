@@ -28,6 +28,7 @@ import {fileChange} from './fileChange.mjs';
 import {
   fillLapsLeft,
   lapFuel,
+  neverLeavesZero,
   lapPitStop,
   litresPerVePct,
   markGreen,
@@ -38,7 +39,7 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
 // 11: litres per 1 % VE on the session's fuel block.
-export const analysisVersion = 11;
+export const analysisVersion = 12;
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -106,6 +107,8 @@ export function loadRecording(recording, samplesPath, eventsPath) {
         ? interpolateHeld(raw[name], hz, base, name === 'lap_dist_m')
         : raw[name];
   }
+  // A channel flat at 0 (an LMP2's Virtual Energy) means the car has none.
+  if (neverLeavesZero(s.virtual_energy_pct)) delete s.virtual_energy_pct;
   // Event names travel as their index in eventKinds, so every column is numeric.
   const ev = columns(
     ':memory:',
@@ -126,7 +129,9 @@ export function loadRecording(recording, samplesPath, eventsPath) {
     });
   }
   // Each channel's logged rate, so analysis can read real samples only.
-  const hz = Object.fromEntries(present.map(n => [n, hzByColumn[n] || base]));
+  const hz = Object.fromEntries(
+    Object.keys(s).map(n => [n, hzByColumn[n] || base]),
+  );
   return {recording, s, hz, baseHz: base, events, ticks: s.t.length};
 }
 
