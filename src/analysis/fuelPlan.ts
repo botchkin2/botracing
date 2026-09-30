@@ -69,10 +69,24 @@ export interface Option {
   firstStint: Stint;
   stint: Stint;
   stops: number | null;
-  /** Lap numbers after which a full-tank strategy stops. */
+  /** Lap numbers after which a full-tank strategy stops (fuel stops only). */
   stopLaps: number[];
-  /** The same stops with equal stint lengths. */
-  even: {stintLaps: number; fuelL: number | null; vePct: number | null} | null;
+  /** Mandatory stops beyond the ones the fuel needs: any lap will do. */
+  anyLapStops: number;
+  /**
+   * The same number of stops with stints as equal as the tank allows: the
+   * first stint is capped by its capacity (the formation lap is burnt from it),
+   * the rest share what is left. Null if a later stint would not fit the
+   * tank (a guard: the stop count already rules it out).
+   */
+  even: {
+    firstLaps: number;
+    firstFuelL: number | null;
+    firstVePct: number | null;
+    laps: number;
+    fuelL: number | null;
+    vePct: number | null;
+  } | null;
 }
 
 export interface DropStop {
@@ -155,6 +169,17 @@ function stintFor(
   return {fuelLaps, veLaps, laps, limitedBy};
 }
 
+function none(firstStint: Stint, stint: Stint): Option {
+  return {
+    firstStint,
+    stint,
+    stops: null,
+    stopLaps: [],
+    anyLapStops: 0,
+    even: null,
+  };
+}
+
 function optionFor(
   rules: PlanRules,
   raceLaps: number | null,
@@ -174,10 +199,9 @@ function optionFor(
   );
   const stint = stintFor(rules.fuelL, rules.vePct, fuelPerLap, vePerLap);
   if (raceLaps == null || first.laps == null || stint.laps == null)
-    return {firstStint: first, stint, stops: null, stopLaps: [], even: null};
+    return none(first, stint);
   // A stint of zero laps would never finish the race.
-  if (first.laps <= 0 || stint.laps <= 0)
-    return {firstStint: first, stint, stops: null, stopLaps: [], even: null};
+  if (first.laps <= 0 || stint.laps <= 0) return none(first, stint);
   const needed =
     raceLaps <= first.laps
       ? 0
@@ -190,16 +214,29 @@ function optionFor(
     at += stint.laps;
   }
   const evenLaps = Math.ceil(raceLaps / (stops + 1));
+  const firstLaps = Math.min(evenLaps, first.laps);
+  const laps =
+    stops > 0 ? Math.ceil((raceLaps - firstLaps) / stops) : firstLaps;
+  const formation = rules.formationLap ? 1 : 0;
   return {
     firstStint: first,
     stint,
     stops,
     stopLaps,
-    even: {
-      stintLaps: evenLaps,
-      fuelL: fuelPerLap == null ? null : evenLaps * fuelPerLap,
-      vePct: vePerLap == null ? null : evenLaps * vePerLap,
-    },
+    anyLapStops: stops - needed,
+    even:
+      laps > stint.laps
+        ? null
+        : {
+            firstLaps,
+            firstFuelL:
+              fuelPerLap == null ? null : (firstLaps + formation) * fuelPerLap,
+            firstVePct:
+              vePerLap == null ? null : (firstLaps + formation) * vePerLap,
+            laps,
+            fuelL: fuelPerLap == null ? null : laps * fuelPerLap,
+            vePct: vePerLap == null ? null : laps * vePerLap,
+          },
   };
 }
 
@@ -256,13 +293,10 @@ function dropStopFor(
   };
 }
 
-const NO_OPTION: Option = {
-  firstStint: {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
-  stint: {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
-  stops: null,
-  stopLaps: [],
-  even: null,
-};
+const NO_OPTION: Option = none(
+  {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
+  {fuelLaps: null, veLaps: null, laps: null, limitedBy: null},
+);
 
 export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));

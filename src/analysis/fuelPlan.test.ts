@@ -104,10 +104,14 @@ describe('planRace', () => {
     expect(p.atMedian.stopLaps).toEqual([20, 40]);
     // Even split of the same three stints.
     expect(p.atMedian.even).toEqual({
-      stintLaps: 15,
+      firstLaps: 15,
+      firstFuelL: 15 * 3.5,
+      firstVePct: 15 * 5,
+      laps: 15,
       fuelL: 15 * 3.5,
       vePct: 15 * 5,
     });
+    expect(p.atMedian.anyLapStops).toBe(0);
   });
 
   it('needs no stop when the race is shorter than a stint', () => {
@@ -132,6 +136,19 @@ describe('planRace', () => {
       laps(10, 3.5, 5),
     );
     expect(p.atMedian.stops).toBe(1);
+    // The fuel needs no stop, so the mandatory one can go on any lap.
+    expect(p.atMedian.stopLaps).toEqual([]);
+    expect(p.atMedian.anyLapStops).toBe(1);
+  });
+
+  it('counts only the mandatory stops beyond the fuel ones as any-lap', () => {
+    const p = planRace(
+      rules({lengthLaps: 45, mandatoryStops: 3}),
+      laps(10, 3.5, 5),
+    );
+    expect(p.atMedian.stops).toBe(3);
+    expect(p.atMedian.stopLaps).toEqual([20, 40]);
+    expect(p.atMedian.anyLapStops).toBe(1);
   });
 
   it('carries the spread: the p90 use can take a stop more', () => {
@@ -154,6 +171,25 @@ describe('planRace', () => {
     expect(p.atMedian.firstStint.laps).toBe(19);
     expect(p.atMedian.stint.laps).toBe(20);
     expect(p.atMedian.stopLaps).toEqual([19, 39]);
+  });
+
+  it('keeps the formation lap in the first even stint', () => {
+    // A 20-lap tank with the formation lap: 19 laps in the first stint. In a
+    // 39-lap race that is one stop and an even split of 20, but 20 laps plus
+    // the formation lap do not fit the first tank: it takes 19, the rest 20.
+    const p = planRace(
+      rules({lengthLaps: 39, formationLap: true}),
+      laps(10, 3.5, 5),
+    );
+    expect(p.atMedian.stops).toBe(1);
+    expect(p.atMedian.even).toEqual({
+      firstLaps: 19,
+      firstFuelL: 20 * 3.5,
+      firstVePct: 20 * 5,
+      laps: 20,
+      fuelL: 20 * 3.5,
+      vePct: 20 * 5,
+    });
   });
 
   it('gives a stint of no laps no stop count', () => {
