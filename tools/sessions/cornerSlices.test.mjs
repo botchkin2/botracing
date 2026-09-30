@@ -4,6 +4,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {
+  MAP_AFTER_M,
+  MAP_BEFORE_M,
+  ZOOM_AFTER_M,
+  ZOOM_BEFORE_M,
+} from '../../src/analysis/cornerWindows.ts';
+import {
   decodeCornerSlices,
   SLICE_CHANNELS,
 } from '../../src/analysis/cornerSlices.ts';
@@ -171,4 +177,12 @@ test('the decoder names the field that is wrong', () => {
   );
   good.laps[0].samples.speedKph.v = 'x';
   assert.throws(() => decodeCornerSlices(good), /speedKph\.v is not an array/);
+});
+
+test('the slice window covers the zoom window and the braking map, so they cannot drift', () => {
+  assert.ok(SLICE_BEFORE_M >= ZOOM_BEFORE_M && SLICE_BEFORE_M >= MAP_BEFORE_M);
+  assert.ok(SLICE_AFTER_M >= ZOOM_AFTER_M && SLICE_AFTER_M >= MAP_AFTER_M);
+  // ...and the file says so: a corner well inside the lap holds the whole window.
+  const slice = decode(build([{id: 'a', csv: () => lapCsv()}]), 2);
+  assert.deepEqual(slice.windowM, [1700 - MAP_BEFORE_M, 1700 + MAP_AFTER_M]);
 });

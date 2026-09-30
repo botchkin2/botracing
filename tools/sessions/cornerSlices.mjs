@@ -25,18 +25,21 @@
 //
 // Run: node --test tools/sessions/cornerSlices.test.mjs
 import {createHash} from 'node:crypto';
+import {
+  MAP_AFTER_M,
+  MAP_BEFORE_M,
+  ZOOM_AFTER_M,
+  ZOOM_BEFORE_M,
+} from '../../src/analysis/cornerWindows.ts';
 import {resampleTrace} from '../../src/analysis/resample.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
 
-export const SLICE_BEFORE_M = 350;
-export const SLICE_AFTER_M = 200;
+// The wider of the screen's windows, so the two cannot drift apart.
+export const SLICE_BEFORE_M = Math.max(ZOOM_BEFORE_M, MAP_BEFORE_M);
+export const SLICE_AFTER_M = Math.max(ZOOM_AFTER_M, MAP_AFTER_M);
 export const GRID_STEP_M = 5;
 export const SLICE_FORMAT = 1;
 const DIST_DIGITS = 3;
-
-// The app's zoom window is 250 m before to 150 m after the apex, and its
-// braking map 350 m before to 200 m after (MAP_BEFORE_M, MAP_AFTER_M in
-// src/features/corner/model.ts); the slice covers the wider of the two.
 
 // Channels a slice carries, and how many decimals each keeps: the same as the
 // trace CSV they are cut from (Speed is m/s to 4 decimals, so km/h to 3; the
