@@ -19,7 +19,7 @@ const TIMELINE_EXPLAINER =
 const TIMELINE_KEY =
   'Amber dashes = your stops. White tick = estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
 const FASTER_EXPLAINER =
-  'Gain = your median lap − theirs. First catch ≈ your lap ÷ gain, then again about every that many laps.';
+  'Gain = your median lap − theirs. First catch ≈ their lap ÷ gain, then again about every that many laps.';
 const YOURS_EXPLAINER =
   'Median green lap of all cars of your class in the sessions here, and yours.';
 
