@@ -268,6 +268,8 @@ export const size = {
   chip: 28,
   transport: 40,
   hit: 44,
+  // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
+  bottomBar: 52,
   checkbox: 16,
   // The "?" that opens a chart's how-to-read lines (thread 33 #1119).
   helpMark: 20,
@@ -280,8 +282,11 @@ export const size = {
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
   maxContent: 1200,
-  // Desktop workspace (handoff "Desktop", D1): 48 pt chrome, 280 | centre | 340.
-  chromeBar: 48,
+  // Desktop workspace (handoff "Desktop", D1): 44 pt chrome, 280 | centre | 340.
+  chromeBar: 44,
+  // The open-session box and its × (round 6 frame 1).
+  chromeBox: 34,
+  chromeClose: 28,
   railWidth: 280,
   // Session's right column: the Pit stops card fits three columns at 400 (round 5, item 8).
   sidePanelWidth: 400,

@@ -1,48 +1,60 @@
-import {type ReactNode} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {AppMark} from './AppMark';
 import {hitFor} from './hitArea';
+import {Segment} from './Segment';
 import {Text} from './Text';
 
 // 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
 export const MARK_SLOP = (size.hit - size.logo) / 2;
 
-export type WorkspaceTab =
-  | 'session'
-  | 'compare'
-  | 'race'
-  | 'corner'
-  | 'plan'
-  | 'tracks';
+export type ChromeTab<T extends string = string> = {key: T; label: string};
 
-export type ChromeTab = {
-  key: WorkspaceTab;
-  label: string;
-  /** Absent only when the tab has no route at all. With no open session a
-   * tab still goes somewhere (Sessions, round 3 N2), so it is never disabled. */
-  onPress?: () => void;
+export type ChromeSession<T extends string = string> = {
+  /** R, Q or P. */
+  badge: string;
+  track: string;
+  /** "Porsche 911 GT3 R · Manthey #91 · 14 Sep"; hidden when compact. */
+  detail: string;
+  tabs: readonly ChromeTab<T>[];
+  activeTab: T | null;
+  onTab: (key: T) => void;
+  /** The selected laps in lap colours, reference first. */
+  laps: readonly {label: string; color: string}[];
+  onClose: () => void;
 };
 
 /**
- * Desktop (≥1280) app bar from the handoff: logo, workspace tabs, context
- * label, and a right-side slot. Data-free; the route layout feeds it.
+ * Desktop (≥900) app bar, round 6 frame 1: Sessions | the open session in a
+ * box (badge, track, car, its four tabs, the selected laps, ×) | Plan with the
+ * pair it will open, Settings. The box is left out with no session open.
+ * Data-free; `workspace/DesktopChrome` feeds it.
  */
-export function AppChrome({
-  tabs,
-  active,
-  context,
-  right,
+export function AppChrome<T extends string>({
+  session,
+  compact,
   onHome,
+  onSessions,
+  planPair,
+  planActive,
+  onPlan,
+  settingsActive,
+  onSettings,
 }: {
-  tabs: ChromeTab[];
+  session: ChromeSession<T> | null;
+  /** Below 1280: car, team and date leave the box and the swatches become a count. */
+  compact: boolean;
   /** The logo is the way back to the sessions list from any workspace. */
-  onHome?: () => void;
-  active: WorkspaceTab | null;
-  context?: string;
-  right?: ReactNode;
+  onHome: () => void;
+  onSessions: () => void;
+  /** "Le Mans · 911 GT3 R", or null while there is nothing to open. */
+  planPair: string | null;
+  planActive: boolean;
+  onPlan: () => void;
+  settingsActive: boolean;
+  onSettings: () => void;
 }) {
   const {color} = useTheme();
   return (
@@ -50,50 +62,128 @@ export function AppChrome({
       accessibilityRole='header'
       style={[
         styles.bar,
-        {backgroundColor: color.chrome, borderColor: color.lineHeader},
+        {backgroundColor: color.surface, borderColor: color.lineStrong},
       ]}>
       <Pressable
         accessibilityRole='link'
         accessibilityLabel='Sessions'
-        disabled={!onHome}
         onPress={onHome}
         {...hitFor(MARK_SLOP, MARK_SLOP)}>
         <AppMark />
       </Pressable>
-      <View style={styles.tabs} accessibilityRole='tablist'>
-        {tabs.map(tab => {
-          const selected = tab.key === active;
-          return (
-            <Pressable
-              key={tab.key}
-              accessibilityRole='tab'
-              accessibilityState={{selected, disabled: !tab.onPress}}
-              disabled={!tab.onPress}
-              onPress={tab.onPress}
-              style={({pressed}) => [
-                styles.tab,
-                (selected || pressed) && {backgroundColor: color.tabActive},
-              ]}>
-              <Text
-                variant={selected ? 'bodyStrong' : 'body'}
-                tone={
-                  selected ? 'text' : tab.onPress ? 'textMuted' : 'textFaint'
-                }
-                style={styles.tabLabel}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {context ? (
-        <View style={[styles.context, {borderColor: color.lineStrong}]}>
-          <Text variant='dataSmall' numberOfLines={1}>
-            {context}
+      <Item label='Sessions' onPress={onSessions} active={false} />
+      {session && (
+        <View
+          style={[
+            styles.box,
+            {backgroundColor: color.bg, borderColor: color.lineStrong},
+          ]}>
+          <View style={[styles.badge, {borderColor: color.textSecondary}]}>
+            <Text variant='dataSmall'>{session.badge}</Text>
+          </View>
+          <Text variant='bodyStrong' numberOfLines={1}>
+            {session.track}
           </Text>
+          {!compact && (
+            <Text variant='body' tone='textSecondary' numberOfLines={1}>
+              {session.detail}
+            </Text>
+          )}
+          <Divider />
+          <Segment
+            options={session.tabs.map(t => ({value: t.key, label: t.label}))}
+            value={session.activeTab as T}
+            onChange={session.onTab}
+          />
+          {session.laps.length > 0 && (
+            <>
+              <Divider />
+              <Laps laps={session.laps} compact={compact} />
+            </>
+          )}
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel='Close session'
+            onPress={session.onClose}
+            style={styles.close}>
+            <Text variant='body' tone='textMuted'>
+              ×
+            </Text>
+          </Pressable>
         </View>
+      )}
+      <View style={styles.right}>
+        <Item
+          label='Plan'
+          pair={planPair}
+          active={planActive}
+          onPress={onPlan}
+        />
+        <Item label='Settings' active={settingsActive} onPress={onSettings} />
+      </View>
+    </View>
+  );
+}
+
+function Item({
+  label,
+  pair,
+  active,
+  onPress,
+}: {
+  label: string;
+  pair?: string | null;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const {color} = useTheme();
+  return (
+    <Pressable
+      accessibilityRole='link'
+      accessibilityState={{selected: active}}
+      onPress={onPress}
+      style={[styles.item, active && {backgroundColor: color.tabActive}]}>
+      <Text
+        variant={active ? 'bodyStrong' : 'body'}
+        tone={active ? 'text' : 'textSecondary'}>
+        {label}
+      </Text>
+      {pair ? (
+        <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
+          {pair}
+        </Text>
       ) : null}
-      <View style={styles.right}>{right}</View>
+    </Pressable>
+  );
+}
+
+function Divider() {
+  const {color} = useTheme();
+  return <View style={[styles.divider, {backgroundColor: color.lineStrong}]} />;
+}
+
+function Laps({
+  laps,
+  compact,
+}: {
+  laps: readonly {label: string; color: string}[];
+  compact: boolean;
+}) {
+  if (compact) {
+    return (
+      <Text variant='dataSmall'>
+        {laps.length} {laps.length === 1 ? 'lap' : 'laps'}
+      </Text>
+    );
+  }
+  return (
+    <View style={styles.laps}>
+      {laps.map(lap => (
+        <View key={lap.label} style={styles.lap}>
+          <View style={[styles.swatch, {backgroundColor: lap.color}]} />
+          <Text variant='dataSmall'>{lap.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -103,28 +193,51 @@ const styles = StyleSheet.create({
     height: size.chromeBar,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xl,
+    gap: space.lg,
     paddingHorizontal: space.xl,
     borderBottomWidth: 1,
   },
-  tabs: {flexDirection: 'row', gap: space.xxs},
-  tab: {
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
     borderRadius: radius.sm,
   },
-  tabLabel: {fontSize: 13, lineHeight: 16},
-  context: {
+  box: {
     flexShrink: 1,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.lg,
+    height: size.chromeBox,
+    paddingLeft: space.md,
+    paddingRight: space.xs,
     borderWidth: 1,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
+  },
+  badge: {
+    width: size.logo,
+    height: size.logo,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: radius.xs,
+  },
+  divider: {width: 1, height: size.logo},
+  laps: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
+  lap: {flexDirection: 'row', alignItems: 'center', gap: space.xs},
+  swatch: {width: 10, height: 3, borderRadius: 1},
+  close: {
+    width: size.chromeClose,
+    height: size.chromeClose,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   right: {
     marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.lg,
+    gap: space.xs,
   },
 });

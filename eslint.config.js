@@ -92,6 +92,19 @@ module.exports = defineConfig([
               except: ['./state', './analysis'],
             },
             {target: './src/nav', from: './', except: ['./src/nav']},
+            // Connected navigation: may read data, design and ui, never a feature or state.
+            {
+              target: './src/workspace',
+              from: './src',
+              except: [
+                './workspace',
+                './nav',
+                './data',
+                './design',
+                './ui',
+                './analysis',
+              ],
+            },
             // A feature never imports another feature; share through ui, charts, data or analysis.
             {
               target: './src/features/sessions',

@@ -21,6 +21,7 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
+import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
 import {Chip, Explainer, StatusBanner, Text, useHowToRead} from '@/src/ui';
@@ -250,6 +251,7 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       {layout.isWide ? (
         <View style={styles.wrap}>{cornerChips}</View>
       ) : (
