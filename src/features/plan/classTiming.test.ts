@@ -78,7 +78,7 @@ describe('classTiming', () => {
     expect(hyper.estimate?.gainText).toBe('12.0 s');
     expect(hyper.estimate?.everyText).toBe('~8 laps');
     expect(hyper.text).toBe(
-      'From 2 races, 1 practice · n = 270 laps · from practice',
+      'From 2 races, 1 practice · n = 270 laps · under 3 races, so practice counts',
     );
   });
 
