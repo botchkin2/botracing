@@ -33,6 +33,7 @@ import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
+import {type Unit} from './pitPlanText';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
@@ -43,6 +44,12 @@ const RECENT_COMBOS = 6;
 
 // Every session he has driven, for the track and car choices.
 const ALL_TIME_DAYS = 3650;
+
+// One unit at a time (Botkin, thread 44 #1826): VE in LMU, fuel without it.
+const UNITS = [
+  {value: 've', label: 'VE'},
+  {value: 'fuel', label: 'Fuel'},
+] as const;
 
 const LENGTH_KINDS = [
   {value: 'min', label: 'Minutes'},
@@ -67,6 +74,7 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [showAll, setShowAll] = useState(false);
+  const [unit, setUnit] = useState<Unit>('ve');
   const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
   // The latest few, and the one picked even if it is older.
   const shownCombos = showAll
@@ -86,6 +94,8 @@ export function PlanScreen() {
   );
   const classTiming = useClassTiming(combo ?? null, data, chosen);
   const {preset, length, rules, view, plan, hist, limits} = data;
+  // The switch shows only where there is VE to switch to.
+  const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
   const {history, lapsOf, measured} = hist;
 
@@ -150,6 +160,12 @@ export function PlanScreen() {
           />
         ) : (
           <>
+            {hasVe ? (
+              <Section title='Units'>
+                <Segment options={UNITS} value={unit} onChange={setUnit} />
+              </Section>
+            ) : null}
+
             <Section title='Track and car'>
               <View style={styles.chips}>
                 {shownCombos.map(c => (
@@ -303,6 +319,7 @@ export function PlanScreen() {
                       <PitPlanCard
                         pit={slider.pit}
                         planned={slider.planned}
+                        unit={hasVe ? unit : 'fuel'}
                         onStop={slider.setStop}
                         onReset={slider.reset}
                       />

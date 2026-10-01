@@ -6,7 +6,7 @@ import {type usePlanData} from './usePlanData';
 
 /**
  * The pit-lap slider's state over the Plan's data (pit-wall thread 44 #1812):
- * the stops he has moved, and the plan they make. Nothing is stored: a new
+ * the stops moved, and the plan they make. Nothing is stored: a new
  * track, car, rule set or length is a new plan, so the stops go back to it.
  * `pit` is null where there is no stop to move.
  */

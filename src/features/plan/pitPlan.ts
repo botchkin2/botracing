@@ -48,6 +48,8 @@ export type PitStint = {
   /** Used in the stint, formation lap included in the first; null without that meter's history. */
   fuelL: {median: number; p90: number} | null;
   vePct: {median: number; p90: number} | null;
+  /** What is left at the end of the stint at the median use, from a full load; 0 when it ran dry. */
+  left: {fuelL: number | null; vePct: number | null};
   /** The tank is empty before the stint ends, at the median and at the p90 use. */
   dryAtMedian: boolean;
   dryAtP90: boolean;
@@ -181,22 +183,44 @@ export function pitPlan(
   const after = clamped.map(c => c.after);
 
   const base = work(input, planned, estimate);
-  const first = work(input, after, estimate);
   const medianLap = plan.perLap.lapTimeS?.median ?? null;
-  let finishLaps = estimate;
-  let worked = first;
-  const deltaS =
-    first.totalS != null && base.totalS != null
-      ? first.totalS - base.totalS
-      : 0;
-  if (rules.lengthMin != null && medianLap != null && deltaS !== 0) {
-    const clockS = rules.lengthMin * 60;
-    const planPitS = plan.raceLaps?.pit?.totalS ?? base.totalS ?? 0;
-    finishLaps = Math.ceil((clockS - (planPitS + deltaS)) / medianLap - EPS);
+  // The finish moves with the pit time in a timed race, so it is worked out
+  // from the stops, one pass like the Race card.
+  const finishFor = (stops: number[]): number => {
+    const w = work(input, stops, estimate);
+    if (
+      rules.lengthMin == null ||
+      medianLap == null ||
+      w.totalS == null ||
+      base.totalS == null
+    )
+      return estimate;
+    const deltaS = w.totalS - base.totalS;
+    if (deltaS === 0) return estimate;
+    const planPitS = plan.raceLaps?.pit?.totalS ?? base.totalS;
+    const laps = Math.ceil(
+      (rules.lengthMin * 60 - (planPitS + deltaS)) / medianLap - EPS,
+    );
     // The last stop must come before the flag.
-    finishLaps = Math.max(finishLaps, after[after.length - 1] + 1);
-    worked = work(input, after, finishLaps);
+    return Math.max(laps, stops[stops.length - 1] + 1);
+  };
+  let finishLaps = finishFor(after);
+  // The stint after the last stop starts on a full load: if the finish moved
+  // it past a median tank, the last stop is held to the lap that keeps it
+  // inside one, so the slider never shows a stint that is empty at the median.
+  const reach = Math.floor(plan.atMedian.stint.laps ?? 0);
+  const last = after.length - 1;
+  for (let i = 0; i < 3; i++) {
+    const need = finishLaps - reach;
+    if (after[last] >= need || need > clamped[last].bounds.max) break;
+    after[last] = need;
+    finishLaps = finishFor(after);
   }
+  const worked = work(input, after, finishLaps);
+  clamped[last].bounds.min = Math.min(
+    Math.max(clamped[last].bounds.min, finishLaps - reach),
+    clamped[last].bounds.max,
+  );
 
   const fuel = plan.perLap.fuel;
   const ve = rules.vePct > 0 && !input.fuelOnly ? plan.perLap.ve : null;
@@ -218,6 +242,10 @@ export function pitPlan(
       tyreLaps: {onSet: laps, sinceStart},
       fuelL,
       vePct,
+      left: {
+        fuelL: fuelL ? Math.max(0, rules.fuelL - fuelL.median) : null,
+        vePct: vePct ? Math.max(0, rules.vePct - vePct.median) : null,
+      },
       dryAtMedian: dry('median'),
       dryAtP90: dry('p90'),
     };

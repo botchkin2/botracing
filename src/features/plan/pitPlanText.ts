@@ -9,15 +9,45 @@ const secs = (v: number) => `${Math.round(v)} s`;
 const signed = (v: number, unit: string) =>
   `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} ${unit}`;
 
-/** "adds 62.0 L · 71 s in the pit", or less when the model has less. */
-export function stopLine(s: SliderStop): string {
+export type Unit = 've' | 'fuel';
+
+/**
+ * The one unit the card speaks in (Botkin, thread 44 #1826): VE wherever the
+ * plan has VE data, fuel only without it. Both meters are still tested for
+ * running dry; this only picks what is printed.
+ */
+export function unitOf(p: PitPlan): Unit {
+  return p.stints.some(s => s.vePct) ? 've' : 'fuel';
+}
+
+/**
+ * "arrives with 14.2 % VE left · adds 62.0 L · 71 s in the pit", or less when
+ * the model has less. `stint` is the one that ends at this stop. The litres
+ * stay: the refuel time comes from them.
+ */
+export function stopLine(s: SliderStop, stint: PitStint, unit: Unit): string {
   const parts: string[] = [];
+  const left = unit === 've' ? stint.left.vePct : stint.left.fuelL;
+  if (left != null)
+    parts.push(
+      `arrives with ${one(left)} ${unit === 've' ? '% VE' : 'L'} left`,
+    );
   if (s.refuel)
     parts.push(
       `adds ${one(s.refuel.litres)} L${s.refuel.toFinish ? ' to finish' : ''}`,
     );
   if (s.pitS != null) parts.push(`${secs(s.pitS)} in the pit`);
   return parts.join(' · ');
+}
+
+/** The stint after the last stop, when a tank does not reach the flag: the fact, at the median and at p90. */
+export function finalStintWarning(p: PitPlan): string | null {
+  const last = p.stints[p.stints.length - 1];
+  if (last.dryAtMedian)
+    return `Stint ${last.n} runs dry before the flag at the median use.`;
+  if (last.dryAtP90)
+    return `At p90 use stint ${last.n} runs dry before the flag: a tank covers fewer laps in the heavier 10 % of the laps.`;
+  return null;
 }
 
 /** The p90 fact for a stop past its safe end; null inside it. */
@@ -29,19 +59,22 @@ export function stopWarning(s: SliderStop): string | null {
     : null;
 }
 
-/** One stint's row: laps, what it uses, the tyre laps. */
-export function stintRow(s: PitStint): {
-  label: string;
-  laps: string;
-  fuel: string;
-  ve: string;
-  tyres: string;
-} {
+/** One stint's row: laps, what it uses in `unit`, the tyre laps. */
+export function stintRow(
+  s: PitStint,
+  unit: Unit,
+): {label: string; laps: string; use: string; tyres: string} {
   return {
     label: `Stint ${s.n}`,
     laps: String(s.laps),
-    fuel: s.fuelL ? `${one(s.fuelL.median)} L` : '–',
-    ve: s.vePct ? `${one(s.vePct.median)} %` : '–',
+    use:
+      unit === 've'
+        ? s.vePct
+          ? `${one(s.vePct.median)} %`
+          : '–'
+        : s.fuelL
+        ? `${one(s.fuelL.median)} L`
+        : '–',
     tyres: `${s.tyreLaps.onSet} · ${s.tyreLaps.sinceStart}`,
   };
 }

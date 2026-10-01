@@ -24,7 +24,6 @@ export function useClassTiming(
   chosen: {raceLaps: number; stopsAfter: number[]} | null = null,
 ) {
   const sessions = useSessions({ageDays: ALL_TIME_DAYS});
-  const chosenKey = chosen?.stopsAfter.join(',');
   const {plan, greenLaps, hist} = data;
   const carClass = combo?.sessions[0]?.carClass ?? '';
   const timing = useMemo(
@@ -59,8 +58,7 @@ export function useClassTiming(
       plan,
       greenLaps,
       hist.usedSessions,
-      chosen?.raceLaps,
-      chosenKey,
+      chosen,
     ],
   );
   return timing;

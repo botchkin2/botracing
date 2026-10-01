@@ -4,6 +4,7 @@ import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {lapAt, pitPlan, type PitPlanInput, plannedStops} from './pitPlan';
 import {buildPlanCards} from './planCards';
+import {finalStintWarning, stintRow, stopLine, unitOf} from './pitPlanText';
 
 // planCards.test.ts's example: a 2 h race at 101.2 s a lap, 2.38 L and 3.5 % VE
 // a lap, a 100 L / 100 % load and a formation lap, with the pit model.
@@ -145,6 +146,69 @@ describe('pitPlan', () => {
   it('a plan with no stop has no slider', () => {
     const {input} = setup({lengthMin: 20});
     expect(pitPlan({...input, windows: []})).toBeNull();
+  });
+});
+
+describe('the stint after the last stop', () => {
+  // Every pair of stop positions the sliders can reach: none shows a stint
+  // that is empty at the median use, in a timed race where the finish moves.
+  it('never shows a stint empty at the median use, wherever the stops are', () => {
+    for (const model of [pitModel, {baseS: 5, refuelLPerS: 8}]) {
+      const {input} = setup({}, model);
+      const planned = pitPlan(input)!;
+      const [a, b] = planned.stops;
+      for (let x = a.min; x <= a.max; x++)
+        for (let y = b.min; y <= b.max; y++) {
+          const p = pitPlan(input, [x, y])!;
+          expect(p.stints.some(s => s.dryAtMedian)).toBe(false);
+        }
+    }
+  });
+
+  it('a late last stop leaves a final stint that is dry at p90 only, and says so', () => {
+    const {input} = setup();
+    const planned = pitPlan(input)!;
+    const last = planned.stops.length;
+    const asked = planned.stops.map(s => s.after);
+    // Hold the first stop and take the last stop as early as it can go.
+    asked[last - 1] = planned.stops[last - 1].min;
+    const p = pitPlan(input, asked)!;
+    expect(p.stints.some(s => s.dryAtMedian)).toBe(false);
+    expect(finalStintWarning(p)).toBe(
+      p.stints[p.stints.length - 1].dryAtP90
+        ? `At p90 use stint ${p.stints.length} runs dry before the flag: a tank covers fewer laps in the heavier 10 % of the laps.`
+        : null,
+    );
+  });
+
+  it('the text names a median-dry final stint when the model reports one', () => {
+    const {input} = setup();
+    const p = pitPlan(input)!;
+    const dry = {
+      ...p,
+      stints: p.stints.map((s, i) =>
+        i === p.stints.length - 1 ? {...s, dryAtMedian: true} : s,
+      ),
+    };
+    expect(finalStintWarning(dry)).toBe(
+      `Stint ${p.stints.length} runs dry before the flag at the median use.`,
+    );
+  });
+});
+
+describe('describing a stop in one unit', () => {
+  it('leads with VE where the plan has VE, fuel otherwise; litres stay for the refuel', () => {
+    const {input} = setup();
+    const p = pitPlan(input)!;
+    expect(unitOf(p)).toBe('ve');
+    expect(stopLine(p.stops[0], p.stints[0], 've')).toMatch(
+      /^arrives with \d+\.\d % VE left · adds \d+\.\d L · \d+ s in the pit$/,
+    );
+    expect(stopLine(p.stops[0], p.stints[0], 'fuel')).toMatch(
+      /^arrives with \d+\.\d L left · adds/,
+    );
+    expect(stintRow(p.stints[0], 've').use).toMatch(/ %$/);
+    expect(stintRow(p.stints[0], 'fuel').use).toMatch(/ L$/);
   });
 });
 
