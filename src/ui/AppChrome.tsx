@@ -23,6 +23,8 @@ export type ChromeSession<T extends string = string> = {
   onTab: (key: T) => void;
   /** The selected laps in lap colours, reference first. */
   laps: readonly {label: string; color: string}[];
+  /** Opens the session menu: other sessions at this track, the track page. */
+  onMenu: () => void;
   onClose: () => void;
 };
 
@@ -44,7 +46,7 @@ export function AppChrome<T extends string>({
   onSettings,
 }: {
   session: ChromeSession<T> | null;
-  /** Below 1280: car, team and date leave the box and the swatches become a count. */
+  /** Below 1280: car, team and date move into the ▾ menu and the swatches become a count. */
   compact: boolean;
   /** The logo is the way back to the sessions list from any workspace. */
   onHome: () => void;
@@ -81,14 +83,23 @@ export function AppChrome<T extends string>({
           <View style={[styles.badge, {borderColor: color.textSecondary}]}>
             <Text variant='dataSmall'>{session.badge}</Text>
           </View>
-          <Text variant='bodyStrong' numberOfLines={1}>
-            {session.track}
-          </Text>
-          {!compact && (
-            <Text variant='body' tone='textSecondary' numberOfLines={1}>
-              {session.detail}
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel='Sessions at this track'
+            onPress={session.onMenu}
+            style={styles.identity}>
+            <Text variant='bodyStrong' numberOfLines={1}>
+              {session.track}
             </Text>
-          )}
+            {!compact && (
+              <Text variant='body' tone='textSecondary' numberOfLines={1}>
+                {session.detail}
+              </Text>
+            )}
+            <Text variant='body' tone='textMuted'>
+              ▾
+            </Text>
+          </Pressable>
           <Divider />
           <Segment
             options={session.tabs.map(t => ({value: t.key, label: t.label}))}
@@ -223,6 +234,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: radius.xs,
+  },
+  identity: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.lg,
   },
   divider: {width: 1, height: size.logo},
   laps: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
