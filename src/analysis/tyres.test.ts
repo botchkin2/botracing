@@ -26,6 +26,25 @@ describe('toLapTyres', () => {
     expect(WHEELS).toEqual(['FL', 'FR', 'RL', 'RR']);
   });
 
+  it('reads the tread thirds by wheel and name, a wheel or a third that has none null', () => {
+    const t = toLapTyres({
+      v: 3,
+      treadC: {
+        FL: {inner: 81, centre: 72.5, outer: 61},
+        FR: {inner: 80, centre: 'x', outer: null},
+        RL: null,
+      },
+    });
+    expect(t?.treadC).toEqual({
+      FL: {inner: 81, centre: 72.5, outer: 61},
+      FR: {inner: 80, centre: null, outer: null},
+      RL: null,
+      RR: null,
+    });
+    // Before TYRES_VERSION 3 there is none.
+    expect(toLapTyres({v: 2})?.treadC).toBeNull();
+  });
+
   it('keeps a dead-sensor wheel null and a missing field null', () => {
     const t = toLapTyres({
       v: 1,
@@ -55,6 +74,7 @@ describe('freshTyres', () => {
     hotPressureKpa: null,
     rubberC: null,
     carcassC: null,
+    treadC: null,
     changed,
   });
 

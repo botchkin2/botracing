@@ -35,6 +35,7 @@ const lap = (
     hotPressureKpa: all(165),
     rubberC: all(90),
     carcassC: null,
+    treadC: null,
     changed: null,
     ...tyres,
   },

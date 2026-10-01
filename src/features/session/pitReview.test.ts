@@ -9,6 +9,8 @@ describe('tyresText', () => {
       wheels,
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
   it('names the wheels the way a driver would', () => {
     expect(at('FL', 'FR', 'RL', 'RR')).toBe('all four');
