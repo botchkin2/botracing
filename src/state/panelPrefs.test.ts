@@ -27,6 +27,23 @@ describe('clampPanelW', () => {
   });
 });
 
+describe('defaults at the narrowest wide window', () => {
+  // layout.width is 1000 at a 1280 window (the rail is not in it). The rooms
+  // the pages pass are that width less the other column's floor, the divider
+  // (10) and any gutters, and must leave each default as it was.
+  it('keeps every page default', () => {
+    const rooms: [keyof typeof PANEL_LIMITS, number][] = [
+      ['session', 1000 - 590 - 10],
+      ['corner', 1000 - 350 - 10 - 32],
+      ['race', 1000 - 560 - 10],
+    ];
+    for (const [id, room] of rooms)
+      expect(clampPanelW(id, PANEL_LIMITS[id].default, room)).toBe(
+        PANEL_LIMITS[id].default,
+      );
+  });
+});
+
 describe('the saved widths', () => {
   beforeEach(() => {
     usePanelPrefs.setState({widths: {}});

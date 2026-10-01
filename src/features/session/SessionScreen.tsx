@@ -62,8 +62,9 @@ const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 // The wide workspace's centre (bars and lap table) is kept at least this wide
-// when the right column is dragged out.
-const WIDE_MIN_CENTRE_W = 640;
+// when the right column is dragged out: the old 600 less the divider's 10, so
+// the default 400 column still fits a 1280 window (layout.width 1000).
+const WIDE_MIN_CENTRE_W = 590;
 
 const TAG_KEY =
   'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s of a car ahead (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';

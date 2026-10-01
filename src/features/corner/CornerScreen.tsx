@@ -73,8 +73,9 @@ const DESK_H: ZoomHeights = {
   line: 130,
 };
 // The wide layout's charts are kept at least this wide when the left column
-// is dragged out.
-const WIDE_MIN_CHARTS_W = 480;
+// is dragged out: what the old layout gave them at 1280 (layout.width 1000,
+// less the 600 column, the divider and the gutters), so the default holds.
+const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
 
 export function CornerScreen({

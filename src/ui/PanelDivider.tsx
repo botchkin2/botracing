@@ -89,7 +89,8 @@ export function PanelDivider({
           return;
         }
         lastTapAt.current = tapped ? now : 0;
-        latest.current.onCommit(last.current);
+        // A tap that did not drag changes nothing: nothing to remember.
+        if (!tapped) latest.current.onCommit(last.current);
       },
       onPanResponderTerminate: () => {
         holdSelection(false);
