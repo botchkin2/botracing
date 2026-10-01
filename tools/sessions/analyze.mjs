@@ -36,7 +36,12 @@ import {
   stintFuel,
 } from './fuelFacts.mjs';
 import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
-import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
+import {cornerFacts} from './cornerFacts.mjs';
+import {
+  CORNER_BOUNDARIES_VERSION,
+  sessionBoundaries,
+} from './layoutBoundaries.mjs';
+import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 
@@ -61,6 +66,7 @@ export const blockVersions = {
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
   gridLap: GRID_LAP_VERSION,
+  cornerBoundaries: CORNER_BOUNDARIES_VERSION,
 };
 
 const GRID_M = 5;
@@ -658,121 +664,6 @@ function cornersFit(lap, map) {
   );
 }
 
-// One lap through the track's corners: segment times brake to brake, and
-// what happened in each. Everything stays inside this lap, so its segments
-// add up to its lap time: the last segment is this lap's last entry to the
-// line plus its own run from the line to corner 1's entry.
-function cornerFacts(rec, lap, corners, flags) {
-  const {grid} = lap;
-  const {s} = rec;
-  const n = grid.time.length;
-  const at = m => Math.min(n - 1, Math.max(0, Math.round(m / GRID_M)));
-  // The first tick at or past a distance, and a tick's distance.
-  const tickAt = m => {
-    let lo = 0;
-    let hi = lap.dist.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (lap.dist[mid] < m) lo = mid + 1;
-      else hi = mid;
-    }
-    return lap.i0 + lo;
-  };
-  const distAt = i => lap.dist[i - lap.i0];
-  const entries = corners.map(c => at(c.entryM));
-  const firstEntryM = corners[0].entryM;
-  const facts = corners.map((c, k) => {
-    const e0 = entries[k];
-    const e1 = k + 1 < corners.length ? entries[k + 1] : null;
-    const last = e1 == null;
-    const segTime = last
-      ? lap.lapTime - grid.time[e0] + grid.time[entries[0]]
-      : grid.time[e1] - grid.time[e0];
-    // The slowest recorded sample between turn-in and exit (speed is logged
-    // at 100 Hz, every tick), at its own distance; then the brake point
-    // before it and the first full throttle after it, before the next corner.
-    const turnInTick = tickAt(c.turnInM);
-    const exitTick = tickAt(c.exitM);
-    let minTick = turnInTick;
-    for (let i = turnInTick; i <= exitTick; i++) {
-      if (s.speed_kmh[i] < s.speed_kmh[minTick]) minTick = i;
-    }
-    // Slowest on the window's edge: the car was still slowing at turn-in or
-    // already slower at the exit, so the minimum is the boundary's, not the
-    // corner's (pitlane #645). The speed at the map's apex is the corner fact
-    // that holds either way.
-    const minAtEdge = minTick - turnInTick <= 1 || exitTick - minTick <= 1;
-    const apexTick = tickAt(c.apexM);
-    // Brake and full-throttle points from the real pedal samples.
-    const nextTick = e1 == null ? lap.i1 : tickAt(e1 * GRID_M);
-    const entryTick = tickAt(e0 * GRID_M);
-    const brake = brakeStart(
-      s.brake_pct,
-      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, exitTick),
-      distAt,
-      entryTick,
-    );
-    const pedal = s.throttle_pos_unfiltered
-      ? 'throttle_pos_unfiltered'
-      : 'throttle_pct';
-    const pedalSamples = sampleTicks(
-      rec.hz[pedal],
-      rec.baseHz,
-      minTick,
-      nextTick,
-    );
-    const full = fullThrottleStart(s[pedal], pedalSamples, distAt);
-    // Full already at the first sample of the search, which starts at the
-    // slowest sample: on a corner taken flat that is the turn-in edge, so the
-    // point is the boundary's, as with minSpeedAtEdge (pitlane #712).
-    const fullAtEdge = Boolean(
-      full && full.atM === distAt(pedalSamples.ticks[0]),
-    );
-    const f = {
-      segTime: round(segTime, 3),
-      localYellowSec: 0,
-      offTrackSec: 0,
-      minSpeedKmh: round(s.speed_kmh[minTick], 1),
-      minSpeedAtM: round(distAt(minTick), 1),
-      minSpeedAtEdge: minAtEdge,
-      apexSpeedKmh: round(s.speed_kmh[apexTick], 1),
-      brakeAtM: brake && round(brake.atM, 1),
-      brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
-      fullThrottleAtM: full && round(full.atM, 1),
-      fullThrottleAtResM: full?.resM == null ? null : round(full.resM, 1),
-      fullThrottleAtEdge: fullAtEdge,
-    };
-    return f;
-  });
-  // Off-track and local-yellow time by corner, from the full-rate ticks.
-  // Before corner 1's entry is this lap's part of the last segment.
-  const {local} = flags;
-  const add = (from, i0, i1, cornerOf) => {
-    let li = 0;
-    for (let i = i0; i < i1; i++) {
-      const k = cornerOf(from.dist[i - from.i0]);
-      if (k == null) continue;
-      const dt = s.t[i + 1] - s.t[i];
-      if (from.off[i - from.i0]) facts[k].offTrackSec += dt;
-      while (li < local.length && local[li][1] < s.t[i]) li++;
-      if (li < local.length && local[li][0] <= s.t[i]) {
-        facts[k].localYellowSec += dt;
-      }
-    }
-  };
-  add(lap, lap.i0, lap.i1, m => {
-    if (m < firstEntryM) return corners.length - 1;
-    let k = 0;
-    for (let c = 0; c < corners.length; c++) if (corners[c].entryM <= m) k = c;
-    return k;
-  });
-  for (const f of facts) {
-    f.offTrackSec = round(f.offTrackSec, 2);
-    f.localYellowSec = round(f.localYellowSec, 2);
-  }
-  return facts;
-}
-
 // The lap's chart trace, one row per tick. A channel logged slower than the
 // file (pedals at 50 Hz, position at 10 Hz) is written only on the ticks
 // where it recorded a sample and left empty in between, so the app never
@@ -843,7 +734,10 @@ function startsInPits(rec) {
 // recs: loaded recordings of one session, in time order.
 // trackMap: the track's stored corners ({lengthM, corners}), or null to find
 // them on this session. The map used is returned, so the caller can keep it.
-export function analyzeSession(recs, {trackMap = null} = {}) {
+export function analyzeSession(
+  recs,
+  {trackMap = null, boundaries = null, sessionId = '', foldOnly = false} = {},
+) {
   const laps = [];
   // A stint starts with a new recording or with the lap that leaves the pits,
   // but never while the current stint has no timed lap yet. That keeps the
@@ -975,25 +869,53 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     ? 'new'
     : 'session';
   const newTrackMap = trackMapSource === 'new';
+  // Corner windows (src/analysis/cornerBoundaries.ts): the layout's boundaries
+  // tile the lap, and every lap is cut at them. This session's laps first
+  // fold their onsets into what the layout keeps; a lap on a map of this
+  // session's own (not stored) is cut at boundaries made from it alone.
+  let layout = null;
   if (map?.corners.length) {
-    laps.forEach(lap => {
-      if (!cornersFit(lap, map)) return;
-      const facts = list =>
-        cornerFacts(recs[lap.rec], lap, list, flags[lap.rec]);
-      lap.corners = facts(map.corners);
-      // The same facts for each single corner inside a section, for drilling
-      // in. A section's entry is its first part's entry, so a section's
-      // segment time is the sum of its parts'.
-      if (map.corners.some(c => c.parts)) {
-        const byPart = facts(map.corners.flatMap(c => c.parts ?? []));
-        let k = 0;
-        lap.corners.forEach((f, i) => {
-          const n = map.corners[i].parts?.length ?? 0;
-          f.parts = byPart.slice(k, k + n);
-          k += n;
-        });
-      }
+    const fitting = laps.filter(lap => cornersFit(lap, map));
+    layout = sessionBoundaries({
+      laps: fitting,
+      map,
+      stored: trackMapSource === 'session' ? null : boundaries,
+      sessionId,
     });
+    // Only the layout's boundaries wanted (sync's fold pass, before any
+    // session is cut at them): nothing past this point is needed.
+    if (foldOnly) {
+      return {
+        boundaries:
+          trackMapSource === 'session'
+            ? null
+            : {
+                state: layout.state,
+                windows: layout.windows,
+                moved: layout.moved,
+                changed: layout.changed,
+              },
+      };
+    }
+    const pitsOf = recs.map(rec => pitIntervals(rec.events.in_pits));
+    for (const lap of fitting) {
+      const facts = cornerFacts({
+        rec: recs[lap.rec],
+        lap,
+        windows: layout.windows,
+        sections: map.corners,
+        flags: flags[lap.rec],
+        pits: pitsOf[lap.rec],
+        lengthM: map.lengthM,
+        onsets: layout.onsets.get(lap),
+      });
+      lap.corners = facts.corners;
+      lap.startStraight = facts.startStraight;
+      lap.cornerBoundaries = {
+        v: layout.state.v,
+        rev: layout.state.rev,
+      };
+    }
   }
 
   // Consistency: the laps run in normal racing conditions, through the
@@ -1069,6 +991,19 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
       litresPerVePctStop: ratio.stop,
     },
     trackMap: map,
+    // The windows this session's laps were cut at (null without a map).
+    windows: layout ? layout.windows : null,
+    // The layout's boundaries as they stand after this session, and whether
+    // they moved or changed (null: no map, or a map of this session's own).
+    boundaries:
+      layout && trackMapSource !== 'session'
+        ? {
+            state: layout.state,
+            windows: layout.windows,
+            moved: layout.moved,
+            changed: layout.changed,
+          }
+        : null,
     newTrackMap,
     trackMapSource,
     trackMapMismatch: Boolean(trackMap && !fits),
