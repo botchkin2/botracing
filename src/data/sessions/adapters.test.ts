@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
+  toClassLaps,
   toLaps,
   toSessionDetail,
   toSessionSummary,
@@ -67,6 +68,42 @@ describe('toSessionDetail', () => {
       consistency: {stints: [{n: 2, trendPerLap: 0.042}]},
     });
     expect(d.stints.map(s => s.trendSPerLap)).toEqual([null, 0.042]);
+  });
+});
+
+describe('toClassLaps', () => {
+  const stats = {
+    cars: 18,
+    laps: 108,
+    medianS: 96.94,
+    p10S: 96.25,
+    p90S: 102.58,
+  };
+  it('reads the kind and the classes it has, skipping a malformed one', () => {
+    expect(
+      toClassLaps({
+        version: 1,
+        kind: 'practice',
+        classes: {hypercar: stats, gt3: {cars: 2}, other: 'x'},
+      }),
+    ).toEqual({kind: 'practice', classes: {hypercar: stats}});
+  });
+  it('keeps an empty doc as no classes, and reads nothing without a kind', () => {
+    expect(toClassLaps({version: 1, kind: 'qualify', classes: null})).toEqual({
+      kind: 'qualify',
+      classes: null,
+    });
+    expect(toClassLaps({classes: {gt3: stats}})).toBeNull();
+    expect(toClassLaps(undefined)).toBeNull();
+    expect(toClassLaps(null)).toBeNull();
+  });
+  it('rides on the session detail', () => {
+    const doc = {version: 1, kind: 'race', classes: {lmp2: stats}};
+    expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
+      kind: 'race',
+      classes: {lmp2: stats},
+    });
+    expect(toSessionDetail(raw).classLaps).toBeNull();
   });
 });
 

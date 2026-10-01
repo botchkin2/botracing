@@ -1,3 +1,9 @@
+import {
+  type ClassLaps,
+  type ClassLapsKind,
+  type ClassLapStats,
+  type PaceClass,
+} from '@/src/analysis/classLaps';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -162,6 +168,53 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
   return {hash: x.hash, corners};
 }
 
+/**
+ * Session doc `classLaps` (src/analysis/classLaps.ts, analysis version 17):
+ * the pace of every class in this session's field. `kind` is the session kind
+ * the numbers were computed for; `classes` is null when no class had enough
+ * laps, and always for qualifying.
+ */
+export type SessionClassLaps = {
+  kind: ClassLapsKind;
+  classes: ClassLaps | null;
+};
+
+const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
+
+function toClassStats(v: unknown): ClassLapStats | null {
+  const x = obj(v);
+  const [cars, laps, medianS, p10S, p90S] = [
+    num(x.cars),
+    num(x.laps),
+    num(x.medianS),
+    num(x.p10S),
+    num(x.p90S),
+  ];
+  if (
+    cars == null ||
+    laps == null ||
+    medianS == null ||
+    p10S == null ||
+    p90S == null
+  )
+    return null;
+  return {cars, laps, medianS, p10S, p90S};
+}
+
+/** Null when the session has no field or the uploader is older than version 17. */
+export function toClassLaps(v: unknown): SessionClassLaps | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const kind = x.kind;
+  if (kind !== 'race' && kind !== 'practice' && kind !== 'qualify') return null;
+  const classes: ClassLaps = {};
+  for (const key of PACE_CLASSES) {
+    const stats = toClassStats(obj(x.classes)[key]);
+    if (stats) classes[key] = stats;
+  }
+  return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
+}
+
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Null on sessions analysed before the fuel facts. */
@@ -169,6 +222,8 @@ export type SessionDetail = SessionSummary & {
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
+  /** Every class's lap times in this race, or null without a field. */
+  classLaps: SessionClassLaps | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
@@ -187,6 +242,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    classLaps: toClassLaps(raw.classLaps),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {

@@ -1,3 +1,4 @@
+import {paceClass} from '@/src/analysis/classLaps';
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 import {formatRaceGap} from '@/src/design';
 
@@ -24,13 +25,14 @@ export const CLASS_SHORT: Record<ClassKey, string> = {
   other: 'Other',
 };
 
-/** LMU's class strings ("Hyper", "LMP2", "GT3") to the three the design colours. */
+/**
+ * LMU's class strings to the three the design colours. GTE takes the GT3
+ * colour here; class timing keeps it apart (`paceClass`), so the parsing of
+ * the sim's strings is in one place.
+ */
 export function classKey(carClass: string): ClassKey {
-  const c = carClass.toLowerCase();
-  if (c.startsWith('hyper')) return 'hypercar';
-  if (c.startsWith('lmp2')) return 'lmp2';
-  if (c.startsWith('gt3') || c.includes('gte')) return 'gt3';
-  return 'other';
+  const pace = paceClass(carClass);
+  return pace === 'gte' ? 'gt3' : pace;
 }
 
 // LMU names a car's model with its class on the end ("Porsche 911 GT3 R

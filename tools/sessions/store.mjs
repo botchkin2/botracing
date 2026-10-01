@@ -17,7 +17,8 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
-import {gzipSync} from 'node:zlib';
+import {gunzipSync, gzipSync} from 'node:zlib';
+import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldAfterSync} from './field.mjs';
 import {withNetRetry} from './netRetry.mjs';
 
@@ -84,6 +85,22 @@ async function sameAsRemote(bucket, localPath, dest) {
   } catch (error) {
     if (error?.code === 404) return false;
     throw error;
+  }
+}
+
+// Class lap times from a field file already in the bucket (the capture is
+// gone after 7 days, the uploaded file is not). A failure is a log line and
+// null: the next sync tries again.
+async function classLapsOfStored(bucket, path, sessionType, log) {
+  try {
+    const [gz] = await bucket.file(path).download({decompress: false});
+    return classLapsDoc(
+      JSON.parse(gunzipSync(gz).toString('utf8')),
+      sessionType,
+    );
+  } catch (e) {
+    log(`  classLaps: not backfilled: ${e.message}`);
+    return null;
   }
 }
 
@@ -219,6 +236,18 @@ export async function upload(out, {log = () => {}} = {}) {
     );
   } else if (kept.field) {
     log('  field: kept the stored one');
+    // The class lap times go with the field: keep the stored ones while they
+    // are this version and this kind of session, else work them out from the
+    // uploaded file (an older analysis, a changed rule, a re-typed session).
+    const stored = before.exists ? before.get('classLaps') ?? null : null;
+    session.classLaps = classLapsCurrent(stored, session.sessionType)
+      ? stored
+      : await classLapsOfStored(
+          bucket,
+          kept.field.path,
+          session.sessionType,
+          log,
+        );
   }
 
   const writer = db.bulkWriter();

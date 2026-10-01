@@ -46,6 +46,7 @@ import {
   SLICE_BEFORE_M,
   SLICE_FORMAT,
 } from './cornerSlices.mjs';
+import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldFor} from './field.mjs';
 import {lapFieldFacts} from './fieldTags.mjs';
 
@@ -502,6 +503,11 @@ function build(s, trackMap, eventWindows) {
       : null,
     field: fieldPath
       ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
+      : null,
+    // Lap times by class, from the field (src/analysis/classLaps.ts); null
+    // without one.
+    classLaps: fieldOut.field
+      ? classLapsDoc(fieldOut.field, first.sessionType)
       : null,
     // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
     // with a file at {prefix}/c{n}.json.gz, and the window they cover.
