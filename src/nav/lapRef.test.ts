@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {foreignLapId, parseLapRef} from './lapRef';
+import {foreignLapId, isForeignLapId, ownLapIds, parseLapRef} from './lapRef';
 
 describe('lap refs', () => {
   it('round-trips a lap of another session', () => {
@@ -22,5 +22,13 @@ describe('lap refs', () => {
   it('does not split on a stray separator at either end', () => {
     expect(parseLapRef('~abc')).toEqual({sessionId: null, lapId: '~abc'});
     expect(parseLapRef('abc~')).toEqual({sessionId: null, lapId: 'abc~'});
+  });
+});
+
+describe('which ids leave Compare', () => {
+  it('tells a lap of another session from this session’s own', () => {
+    expect(isForeignLapId('s9~lap-001')).toBe(true);
+    expect(isForeignLapId('lap-001')).toBe(false);
+    expect(ownLapIds(['s9~lap-001', 'a', 'b'])).toEqual(['a', 'b']);
   });
 });

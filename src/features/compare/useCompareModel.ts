@@ -3,7 +3,6 @@ import {useMemo} from 'react';
 import {type GridTrace} from '@/src/analysis/resample';
 import {
   type Lap,
-  parseLapRef,
   useSession,
   useSessionBand,
   useSessionLaps,
@@ -14,7 +13,7 @@ import {
   mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
-import {formatDay} from '@/src/design';
+import {parseLapRef} from '@/src/nav/lapRef';
 import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
@@ -27,6 +26,7 @@ import {
 } from './model';
 
 import {buildFollowGeometry} from './followModel';
+import {foreignTag} from './foreignTag';
 
 import {lapNeighbours, WRAP_M} from './neighbours';
 
@@ -80,7 +80,7 @@ export function useCompareModel(
       if (!lap || !detail || !sectionsAgree) continue;
       if (detail.cornerMapSource === 'session') continue;
       out.push({...lap, id});
-      tags.set(id, formatDay(detail.startedAt) || detail.sessionType);
+      tags.set(id, foreignTag(detail.startedAt, detail.sessionType));
     }
     return {laps: out, tags};
   }, [

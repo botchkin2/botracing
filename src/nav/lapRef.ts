@@ -12,6 +12,16 @@ export function foreignLapId(sessionId: string, lapId: string): string {
 
 export type LapRef = {sessionId: string | null; lapId: string};
 
+/** Whether a selection id is a lap of another session. */
+export function isForeignLapId(id: string): boolean {
+  return parseLapRef(id).sessionId !== null;
+}
+
+/** The ids that are this session's own: a view other than Compare cannot show the rest. */
+export function ownLapIds(ids: string[]): string[] {
+  return ids.filter(id => !isForeignLapId(id));
+}
+
 /** Splits a selection id: `sessionId` is null for a lap of the URL's own session. */
 export function parseLapRef(id: string): LapRef {
   const at = id.indexOf(SEPARATOR);

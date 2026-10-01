@@ -1,6 +1,8 @@
 // Every in-app URL is built here. The URL owns the selection (laps with the
 // reference first, highlighted lap, open corner, cursor), so a link carries
-// the whole view. Pure: imports nothing, importable from features and routes.
+// the whole view. Pure: imports only ./lapRef, importable from features and routes.
+
+import {isForeignLapId, ownLapIds} from './lapRef';
 
 export type LapSelectionParams = {
   /** Lap ids; the first is the reference. */
@@ -15,10 +17,17 @@ export type LapSelectionParams = {
 
 type Href = {pathname: string; params: Record<string, string>};
 
-function selectionParams(sel: LapSelectionParams): Record<string, string> {
+// A lap of another session (`sessionId~lapId`) is only meaningful in Compare:
+// Corner, Session and the rest would drop it or fetch a trace that is not
+// there, so their links carry the session's own laps only.
+function selectionParams(
+  sel: LapSelectionParams,
+  keepForeign = false,
+): Record<string, string> {
   const p: Record<string, string> = {};
-  if (sel.laps?.length) p.laps = sel.laps.join(',');
-  if (sel.hl) p.hl = sel.hl;
+  const laps = keepForeign ? sel.laps : sel.laps && ownLapIds(sel.laps);
+  if (laps?.length) p.laps = laps.join(',');
+  if (sel.hl && (keepForeign || !isForeignLapId(sel.hl))) p.hl = sel.hl;
   if (sel.corner != null) p.c = String(sel.corner);
   if (sel.cursorM != null) p.t = String(Math.round(sel.cursorM));
   return p;
@@ -41,7 +50,7 @@ export const compareHref = (
   sel: LapSelectionParams = {},
 ): Href => ({
   pathname: '/session/[id]/compare',
-  params: {id: sessionId, ...selectionParams(sel)},
+  params: {id: sessionId, ...selectionParams(sel, true)},
 });
 
 export const raceHref = (

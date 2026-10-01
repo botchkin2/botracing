@@ -2,8 +2,9 @@ import {useRouter} from 'expo-router';
 import {useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {foreignLapId, type Lap, type SessionDetail} from '@/src/data/sessions';
+import {type Lap, type SessionDetail} from '@/src/data/sessions';
 import {space} from '@/src/design';
+import {foreignLapId} from '@/src/nav/lapRef';
 import {compareHref} from '@/src/nav/routes';
 import {Button, Text} from '@/src/ui';
 
