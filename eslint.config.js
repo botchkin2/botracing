@@ -53,6 +53,14 @@ module.exports = defineConfig([
       'no-undef': 'off',
     },
   },
+  // The uploader and session tools are Node scripts: an undefined name there
+  // only fails when that line runs (a missing import in watch.mjs took the
+  // uploader down, #206), so no-undef is an error with Node's globals.
+  {
+    files: ['tools/**/*.mjs'],
+    languageOptions: {globals: {...require('globals').node}},
+    rules: {'no-undef': 'error'},
+  },
   // Layering for the new app (docs/ARCHITECTURE.md). Old folders are not
   // listed; they are deleted as the new screens replace them.
   {
