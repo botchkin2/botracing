@@ -421,6 +421,7 @@ function RaceView({
       width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
       desktop={desktop}
       onScrub={scrub}
+      mode={mode}
     />
   );
   const controls = (
