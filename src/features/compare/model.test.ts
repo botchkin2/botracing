@@ -308,6 +308,22 @@ describe('desktop pieces', () => {
     ]);
   });
 
+  it('a parked grid start is tagged PARK, a plain partial lap PART', () => {
+    const parked = toLaps([rawLap('p', 5, [5]), rawLap('q', 5, [5])]);
+    parked[0].partial = true;
+    parked[0].partialWhy = 'grid';
+    parked[1].partial = true;
+    const tags = buildCompareModel({
+      session,
+      laps: parked,
+      traces,
+      band: null,
+      map,
+      selection: sel({laps: ['a']}),
+    }).allLaps.flatMap(g => g.rows.map(r => r.tag));
+    expect(tags).toEqual(['PARK', 'PART']);
+  });
+
   it('values table reads every channel for each key lap', () => {
     const rows = valuesAt(m.readouts, m.stepM, 600);
     expect(rows.map(r => r.label)).toEqual([

@@ -1101,6 +1101,8 @@ function allLapsByStint(
               ? 'OUT'
               : l.pitIn
               ? 'IN'
+              : l.partialWhy === 'grid'
+              ? 'PARK'
               : l.partial
               ? 'PART'
               : l.reasons.includes('slow')
