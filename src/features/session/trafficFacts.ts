@@ -65,11 +65,11 @@ export function trafficRows(traffic: LapTraffic | null): TrafficRow[] | null {
     {label: 'Within 1 s behind', value: secs(traffic.trafficBehindS)},
     {label: 'Faster car behind', value: secs(traffic.blueFlagS)},
     {
-      label: 'Passes in your class',
+      label: 'Passes within the car’s class',
       value: `made ${traffic.passesMade} · suffered ${traffic.passesSuffered}`,
     },
     {
-      label: 'Faster-class cars that passed you',
+      label: 'Faster-class cars that passed',
       value: String(traffic.overtakes.length),
       ...(traffic.overtakes.length > 0
         ? {

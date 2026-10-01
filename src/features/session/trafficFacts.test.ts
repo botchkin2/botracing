@@ -29,8 +29,8 @@ describe('trafficRows', () => {
       ['Within 1 s ahead', '4.2 s'],
       ['Within 1 s behind', '0.0 s'],
       ['Faster car behind', '1.2 s'],
-      ['Passes in your class', 'made 2 · suffered 1'],
-      ['Faster-class cars that passed you', '0'],
+      ['Passes within the car’s class', 'made 2 · suffered 1'],
+      ['Faster-class cars that passed', '0'],
     ]);
   });
 

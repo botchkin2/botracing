@@ -61,7 +61,7 @@ const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s behind a car (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered in your class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
+  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s behind a car (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
 
 export type {Selection} from './model';
 
