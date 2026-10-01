@@ -120,6 +120,7 @@ describe('buildFuelUse', () => {
         overtakes: [],
         aheadSpans: [],
         blueSpans: [],
+        draftSpans: [],
         passMarks: [],
         fieldLapM: null,
       },

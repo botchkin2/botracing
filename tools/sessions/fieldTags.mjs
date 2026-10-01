@@ -103,6 +103,10 @@ const EMPTY = () => ({
   // trafficAheadS and blueFlagS, so their seconds add up to those.
   aheadSpans: [],
   blueSpans: [],
+  // Where the tow was (draftS's rule: a car ahead within DRAFT_MAX_GAP_M in the
+  // same lane above DRAFT_MIN_KMH): {fromM, toM, s}, built like the spans above,
+  // so a window can say "this straight gained speed in a tow".
+  draftSpans: [],
   // Own-class passes with where they happened: {atM, made}.
   passMarks: [],
   // The field's lap length (the longest lap distance any car reached), so the
@@ -136,7 +140,11 @@ export function lapFieldFacts(field, windows) {
   };
   const prevGap = new Map();
   // The open run of each span kind per window: {span, lastU}.
-  const open = windows.map(() => ({aheadSpans: null, blueSpans: null}));
+  const open = windows.map(() => ({
+    aheadSpans: null,
+    blueSpans: null,
+    draftSpans: null,
+  }));
   const mark = (w, kind, u, atM, stepM) => {
     const run = open[w][kind];
     // A run ends where the lap distance wraps at the line.
@@ -217,6 +225,7 @@ export function lapFieldFacts(field, windows) {
       vMs * 3.6 > DRAFT_MIN_KMH
     ) {
       f.draftS += dt;
+      mark(w, 'draftSpans', u, here, stepM);
     }
   }
   for (const f of out) {
@@ -230,7 +239,7 @@ export function lapFieldFacts(field, windows) {
     ]) {
       f[k] = round1(f[k]);
     }
-    for (const kind of ['aheadSpans', 'blueSpans'])
+    for (const kind of ['aheadSpans', 'blueSpans', 'draftSpans'])
       for (const span of f[kind]) {
         span.fromM = round1(span.fromM);
         span.toM = round1(span.toM);
