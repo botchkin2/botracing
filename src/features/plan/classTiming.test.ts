@@ -65,10 +65,11 @@ describe('classTiming', () => {
       }),
     );
     const hyper = t.faster.find(c => c.key === 'hypercar')!;
-    // The median of 96, 98 and 100 is 98: a gain of 12 s, 110 / 12 = 9.2 laps.
+    // The median of 96, 98 and 100 is 98: a gain of 12 s. They gain a lap on him
+    // after 98 / 12 = 8.2 of his laps (not 110 / 12 = 9.2, which is their count).
     expect(hyper.estimate?.lapText).toBe('1:38.000');
     expect(hyper.estimate?.gainText).toBe('12.0 s');
-    expect(hyper.estimate?.everyText).toBe('~9 laps');
+    expect(hyper.estimate?.everyText).toBe('~8 laps');
     expect(hyper.text).toBe('From 2 races, 1 practice · n = 270 laps');
   });
 

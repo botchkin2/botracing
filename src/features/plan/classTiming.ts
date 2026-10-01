@@ -204,7 +204,10 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
       continue;
     }
     const gain = myLap - p.medianS;
-    const every = myLap / gain;
+    // They gain one lap on him when t / theirLap - t / myLap = 1, which is
+    // theirLap / gain of HIS laps (myLap / gain is the count in their laps,
+    // one more), so pass k sits at k times this.
+    const every = p.medianS / gain;
     faster.push({
       key,
       label: LABELS[key],
