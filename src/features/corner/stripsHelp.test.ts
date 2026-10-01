@@ -4,12 +4,14 @@ import {LAP_BARS_HELP} from '../session/lapBarsHelp';
 import {PIT_REVIEW_HELP} from '../session/pitReview';
 import {FIELD_HELP, RACE_HELP} from '../race/raceHelp';
 import {CORNER_CHART_HELP} from './chartHelp';
+import {SECTION_WINDOW_HELP} from './sectionWindowHelp';
 import {STRIPS_HELP} from './stripsHelp';
 
 // One instrument rule for every "?" (camber #937): the data is the subject.
 describe('how-to-read copy', () => {
   const sets = {
     STRIPS_HELP,
+    SECTION_WINDOW_HELP,
     LAP_BARS_HELP,
     RACE_HELP,
     FIELD_HELP,

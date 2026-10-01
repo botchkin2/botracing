@@ -62,6 +62,7 @@ import {
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {RadarOverlay} from './components/RadarOverlay';
+import {TrafficLaneBlock} from './components/TrafficLaneBlock';
 import {RADAR_HELP} from './chartHelp';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
@@ -721,6 +722,16 @@ function CompareView({
         </Explainer>
       )}
       {chartList}
+      {!noTraces && model.trafficLane && (!oneChart || chartsOpen) ? (
+        <TrafficLaneBlock
+          lane={model.trafficLane}
+          width={mainW}
+          windowM={model.windowM}
+          timeAxis={model.timeAxis}
+          cursorM={cursorM}
+          lapStyle={lapStyle}
+        />
+      ) : null}
     </View>
   );
 

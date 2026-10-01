@@ -103,6 +103,10 @@ const EMPTY = () => ({
   blueSpans: [],
   // Own-class passes with where they happened: {atM, made}.
   passMarks: [],
+  // The field's lap length (the longest lap distance any car reached), so the
+  // app can scale the spans' lap distances into its own frame: lap fraction
+  // times the map length, as the corner slices are.
+  fieldLapM: 0,
 });
 
 // windows: [{from, to}] on the session clock (seconds, `from` inclusive).
@@ -118,6 +122,7 @@ export function lapFieldFacts(field, windows) {
     for (const d of c.lapDistM) if (d !== null && d > L) L = d;
   const playerRank = paceOf(cars[me].carClass).rank;
   const out = windows.map(EMPTY);
+  for (const f of out) f.fieldLapM = round1(L);
   const windowAt = et => windows.findIndex(w => et >= w.from && et < w.to);
 
   // Speed of a car from its own distance between consecutive updates.
