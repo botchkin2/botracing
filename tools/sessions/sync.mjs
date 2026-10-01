@@ -33,6 +33,7 @@ import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
 import {reusableInfo} from './describeCache.mjs';
+import {versionKey} from './versionKey.mjs';
 import {
   analysisVersion,
   blockVersions,
@@ -220,8 +221,7 @@ function group(files) {
       const first = s.files[0].info;
       s.id = hash(s.key, first.recordedAt);
       s.fingerprint = hash(
-        analysisVersion,
-        JSON.stringify(blockVersions),
+        versionKey(analysisVersion, blockVersions),
         ...s.files.map(f => `${f.info.source}:${f.size}`),
       );
       for (const f of s.files) {
