@@ -340,7 +340,11 @@ function SessionView({
       )}
 
       <View style={styles.section}>
-        <TiresCard card={model.tires} width={tableW} />
+        <TiresCard
+          card={model.tires}
+          scatter={model.wearScatter}
+          width={tableW}
+        />
       </View>
 
       {model.fuelUse && (
@@ -455,7 +459,11 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
+            <TiresCard
+              card={model.tires}
+              scatter={model.wearScatter}
+              width={panel.width - 2 * space.xl}
+            />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
@@ -549,8 +557,7 @@ const styles = StyleSheet.create({
   },
   block: {gap: space.xs},
   title: {fontSize: 22, marginTop: space.sm},
-  // Wraps: a fifth fact ("Best without TOW or TRAF") does not fit beside the
-  // four at 375 pt.
+  // Wraps: the facts do not all fit on one row at 375 pt.
   facts: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -181,18 +181,10 @@ describe('traffic tags, rails and the clean best', () => {
     expect(m.chart!.rails).toEqual({tow: [21], tick: [10], pit: [17, 18]});
   });
 
-  it('adds the best lap without TOW or TRAF and how far behind it is', () => {
-    const fact = m.facts.find(f => f.label === 'Best without TOW or TRAF')!;
-    expect(fact.value).toMatch(/^L\d+ \d:\d\d\.\d{3} · \+\d\.\d{3} s$/);
-  });
-
-  it('a session without a field gets no traffic tags, rails or fact', () => {
+  it('a session without a field gets no traffic tags or rails', () => {
     const plain = buildSessionModel(session, laps, none);
     expect(plain.chart!.rails).toBeNull();
     expect(plain.chart!.bars.every(b => !b.hollow)).toBe(true);
-    expect(plain.facts.map(f => f.label)).not.toContain(
-      'Best without TOW or TRAF',
-    );
     expect(lapRow(plain, 'L21').tags.map(t => t.code)).toEqual(['BEST']);
   });
 });

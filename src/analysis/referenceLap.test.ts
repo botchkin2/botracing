@@ -118,7 +118,7 @@ describe('rankReferenceLaps', () => {
       sameSession: true,
       fuelBand: true,
       tyresKept: true,
-      clean: true,
+      onTrack: true,
     });
     expect(first.timeS).toBe(100);
   });
