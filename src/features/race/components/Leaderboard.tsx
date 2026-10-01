@@ -37,6 +37,7 @@ export const Leaderboard = memo(function Leaderboard({
   paged,
   nearby,
   showKey = true,
+  fallbackNote,
 }: {
   groups: RaceGroup[];
   classes: readonly ClassKey[];
@@ -51,6 +52,8 @@ export const Leaderboard = memo(function Leaderboard({
   nearby?: boolean;
   /** The column key under the filter; the phone folds it away with the legend. */
   showKey?: boolean;
+  /** Said when All is shown where Nearby was asked for. */
+  fallbackNote?: string | null;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -80,6 +83,11 @@ export const Leaderboard = memo(function Leaderboard({
           onChange={onFilter}
         />
       </View>
+      {fallbackNote ? (
+        <Text variant='dataSmall' tone='textSecondary' style={styles.key}>
+          {fallbackNote}
+        </Text>
+      ) : null}
       {showKey ? (
         <Text variant='explainer' tone='textFaint' style={styles.key}>
           {mode === 'race'

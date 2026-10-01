@@ -251,6 +251,8 @@ export type RaceModel = {
   focusLabel: string | null;
   /** Field mode only: who is near you on the road; null in a race or without you on it. */
   road: RoadSummary | null;
+  /** Why All is shown where Nearby was asked for: you are not on the road; null otherwise. */
+  fallbackNote: string | null;
 };
 
 // R1d: what replaces the pit count when it is not "running".
@@ -265,16 +267,25 @@ const STATUS: Record<CarState, string> = {
 
 /**
  * The class filter a session opens on: yours (R1a: "default = your class"). On
- * the phone outside a race, Nearby: the cars around you, any class (#1822).
+ * the phone outside a race, Nearby always: it does not flip with the pit lane
+ * as you go in and out, and the model says why when it cannot list the road
+ * (`RaceModel.fallbackNote`).
  */
 export function defaultFilter(
   cars: RaceCar[],
   opts: {nearby?: boolean} = {},
 ): ClassFilter {
+  if (opts.nearby) return 'nearby';
   const you = cars.find(c => c.player);
-  if (opts.nearby && you && you.state !== 'garage' && you.state !== 'pit')
-    return 'nearby';
   return you ? classKey(you.carClass) : 'all';
+}
+
+/** Why the road list is not available: where you are instead. */
+function notOnRoad(you: RaceCar | undefined): string {
+  if (!you) return 'No car of yours in the field · all cars';
+  return you.state === 'pit'
+    ? 'You are in the pit lane · all cars'
+    : 'You are in the garage · all cars';
 }
 
 /** Whether a car is on the road within Nearby's reach of you. Pit-lane and garage cars are not on the road. */
@@ -429,8 +440,9 @@ export function buildRaceModel(input: {
   const near = cars
     .filter(c => isNearby(c, frame))
     .sort((a, b) => byOrder(a, b, frame));
+  const nearOthers = near.filter(c => !c.player).length;
   const nearGroup: RaceGroup = {
-    title: `Within ${NEARBY_S} s of you · ${near.length} CARS`,
+    title: `Within ${NEARBY_S} s of you · ${nearOthers} CARS + YOU`,
     rows: near.map(c => rowOf(c, focus, frame)),
   };
   const shown =
@@ -470,6 +482,10 @@ export function buildRaceModel(input: {
   return {
     focusLabel: focused ? focusText(focused, frame) : null,
     road: frame.mode === 'field' ? roadSummary(cars, frame.trackM) : null,
+    fallbackNote:
+      input.filter === 'nearby' && frame.mode === 'field' && !nearbyOk
+        ? notOnRoad(frame.you)
+        : null,
     groups,
     dots,
     classes: present,

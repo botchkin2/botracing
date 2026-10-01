@@ -418,7 +418,7 @@ describe('Nearby filter (field mode)', () => {
     const m = model('nearby');
     expect(m.filter).toBe('nearby');
     expect(m.groups).toHaveLength(1);
-    expect(m.groups[0].title).toBe('Within 10 s of you · 5 CARS');
+    expect(m.groups[0].title).toBe('Within 10 s of you · 4 CARS + YOU');
     expect(m.groups[0].rows.map(r => [r.index, r.gap])).toEqual([
       [8, '+9.7 s'],
       [1, '+2.2 s'],
@@ -464,16 +464,27 @@ describe('Nearby filter (field mode)', () => {
       c.player ? {...c, state: 'garage' as const} : c,
     );
     expect(model('nearby', garage).filter).toBe('all');
+    expect(model('nearby', garage).fallbackNote).toBe(
+      'You are in the garage · all cars',
+    );
+    const pit = cars.map(c => (c.player ? {...c, state: 'pit' as const} : c));
+    expect(model('nearby', pit).fallbackNote).toBe(
+      'You are in the pit lane · all cars',
+    );
+    expect(model('nearby').fallbackNote).toBeNull();
+    expect(model('all').fallbackNote).toBeNull();
   });
 
   it('opens a phone on Nearby when you are on the road', () => {
     expect(defaultFilter(cars, {nearby: true})).toBe('nearby');
     expect(defaultFilter(cars)).toBe('gt3');
-    expect(
-      defaultFilter(
-        cars.map(c => (c.player ? {...c, state: 'pit' as const} : c)),
-        {nearby: true},
-      ),
-    ).toBe('gt3');
+    // It does not flip with the pit lane: the model falls back and says why.
+    for (const state of ['pit', 'garage'] as const)
+      expect(
+        defaultFilter(
+          cars.map(c => (c.player ? {...c, state} : c)),
+          {nearby: true},
+        ),
+      ).toBe('nearby');
   });
 });

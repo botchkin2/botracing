@@ -476,6 +476,7 @@ function RaceView({
       desktop={desktop}
       mode={mode}
       nearby={mode === 'field'}
+      fallbackNote={rows.fallbackNote}
     />
   );
   const boardPaged = (
@@ -490,6 +491,7 @@ function RaceView({
       paged
       nearby={mode === 'field'}
       showKey={keyOpen}
+      fallbackNote={rows.fallbackNote}
     />
   );
 
