@@ -38,6 +38,25 @@ export function paceClass(carClass: string): PaceClass {
   return 'other';
 }
 
+/**
+ * How fast a class is, higher is faster. For "a faster class passed me"
+ * (src/analysis/traffic.ts); GT3 and GTE share a rank because neither is
+ * clearly the faster of the two.
+ */
+export const PACE_RANK: Record<PaceClass, number> = {
+  hypercar: 3,
+  lmp2: 2,
+  gt3: 1,
+  gte: 1,
+  other: 0,
+};
+
+/** A class string as the traffic code wants it: the key and the rank. */
+export function paceOf(carClass: string): {key: PaceClass; rank: number} {
+  const key = paceClass(carClass);
+  return {key, rank: PACE_RANK[key]};
+}
+
 export interface ClassLapStats {
   cars: number;
   laps: number;

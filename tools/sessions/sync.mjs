@@ -49,7 +49,7 @@ import {
 } from './cornerSlices.mjs';
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldFor} from './field.mjs';
-import {lapFieldFacts} from './fieldTags.mjs';
+import {lapTraffic} from './lapTraffic.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -358,13 +358,11 @@ function build(s, trackMap, eventWindows) {
     },
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
   );
-  // Traffic around the player per lap, from the field (fieldTags.mjs).
-  const tags = fieldOut.field
-    ? lapFieldFacts(
-        fieldOut.field,
-        a.laps.map(lap => ({from: lap.startT, to: lap.endT})),
-      )
-    : null;
+  // Traffic around the player per lap, from the field (lapTraffic.mjs). The
+  // windows go out with the laps: a sync without the capture reads the
+  // uploaded field with them (store.mjs).
+  const lapWindows = a.laps.map(lap => ({from: lap.startT, to: lap.endT}));
+  const tags = fieldOut.field ? lapTraffic(fieldOut.field, lapWindows) : null;
 
   const traces = [];
   const laps = a.laps.map((lap, k) => {
@@ -550,6 +548,7 @@ function build(s, trackMap, eventWindows) {
     session,
     recordings,
     laps,
+    lapWindows,
     band: a.band,
     fieldText,
     slices,
