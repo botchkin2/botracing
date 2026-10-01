@@ -55,6 +55,8 @@ const INSET_W = 96;
 const INSET_H = 64;
 const INSET_PAD = 6;
 const INSET_GAP = 8;
+/** Where the whole-lap inset ends: the radar sits right under it (round 7, 2C). */
+export const FOLLOW_INSET_BOTTOM = INSET_GAP + INSET_H;
 // A finger's reach around a car, for pressing it.
 const CAR_HIT = 44;
 // Cars this far outside the frame are not drawn: the field is 60 cars.

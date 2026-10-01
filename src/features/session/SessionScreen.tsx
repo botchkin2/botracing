@@ -35,6 +35,7 @@ import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
 import {FuelUseCard} from './components/FuelUseCard';
 import {PitCard} from './components/PitCard';
+import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
@@ -61,7 +62,7 @@ const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
+  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s of a car ahead (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
 
 export type {Selection} from './model';
 
@@ -310,6 +311,7 @@ function SessionView({
           </View>
         ))}
       </View>
+      {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
 
       {chartBlock(tableW)}
 
@@ -326,6 +328,10 @@ function SessionView({
           />
         </View>
       )}
+
+      <View style={styles.section}>
+        <TiresCard card={model.tires} width={tableW} />
+      </View>
 
       {model.fuelUse && (
         <View style={styles.section}>
@@ -424,6 +430,10 @@ function SessionView({
                 }
               />
             )}
+            <TiresCard
+              card={model.tires}
+              width={size.sidePanelWidth - 2 * space.xl}
+            />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

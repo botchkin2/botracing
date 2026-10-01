@@ -105,6 +105,10 @@ export function overtakesOf(
 /** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
 export const TRAFFIC_VERSION = 4;
 
+// `blueFlagS` is seconds with a faster-class car this many seconds behind on
+// the road (tools/sessions/fieldTags.mjs, evidence in its comment).
+export const BLUE_BEHIND_S = 1.5;
+
 // A clean lap is free air: under CLEAN_AHEAD_S behind a car, and not passed by
 // any car (a Hypercar lapping a GT3 is a pass that `passesSuffered`, which is
 // the player's class only, does not count), no blue flag, under CLEAN_BATTLE_S of battle, and no faster-class

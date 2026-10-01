@@ -69,6 +69,7 @@ export function DesktopChrome() {
     next && session
       ? chromeBox({
           session,
+          hasField: session.field != null,
           laps: lapData.data,
           selection: {laps: next.laps, hl: next.hl},
           cornerN: next.corner,
