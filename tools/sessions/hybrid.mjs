@@ -124,7 +124,15 @@ function sectionEnergy(s, i0, i1, windows, mapM) {
  * read on their own sample ticks (50 Hz in a 100 Hz file). `dist(i)` is the
  * lap's raw distance at tick i. Returns the events and their totals.
  */
-export function liftAndCoast(s, hz, baseHz, i0, i1, dist) {
+export function liftAndCoast(
+  s,
+  hz,
+  baseHz,
+  i0,
+  i1,
+  dist,
+  minCoastS = MIN_COAST_S,
+) {
   const throttle = s.throttle_pos_unfiltered || s.throttle_pct;
   const brake = s.brake_pct;
   if (!throttle || !brake) return null;
@@ -142,7 +150,7 @@ export function liftAndCoast(s, hz, baseHz, i0, i1, dist) {
       if (brk >= BRAKE_ON_PCT && released && coastFrom >= 0) {
         // The application starts here: the coast ran from `coastFrom` to it.
         const coastS = s.t[i] - s.t[coastFrom];
-        if (coastS >= MIN_COAST_S && s.speed_kmh[coastFrom] >= MIN_COAST_KMH) {
+        if (coastS >= minCoastS && s.speed_kmh[coastFrom] >= MIN_COAST_KMH) {
           events.push({
             atM: round(dist(coastFrom), 1),
             brakeAtM: round(dist(i), 1),

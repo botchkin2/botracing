@@ -366,6 +366,9 @@ export async function readTrackMap(sessionId: string): Promise<any | null> {
     track: session.get('track') ?? track.track ?? null,
     lengthM: track.lengthM ?? null,
     corners: track.corners ?? [],
+    // Where each section's window starts and the windows that tile the lap
+    // (tools/sessions/layoutBoundaries.mjs); null before the first resync.
+    boundaries: track.boundaries ?? null,
     quality: track.quality ?? null,
     qualityNote: track.qualityNote ?? null,
     georef: track.georef ?? null,
