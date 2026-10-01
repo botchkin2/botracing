@@ -42,7 +42,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
     expect(cards.race.working).toBe(
-      "At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says when a faster class leads: 73 laps. Time in the pits is not counted.",
+      "At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says: 73 laps. Time in the pits is not counted.",
     );
   });
 

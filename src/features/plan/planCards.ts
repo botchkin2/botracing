@@ -86,7 +86,7 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
     ).toFixed(1)}, so ${race.estimate} laps.${
       race.oneMore == null
         ? ''
-        : ` The flag can fall a lap later than your own pace says when a faster class leads: ${race.oneMore} laps.`
+        : ` The flag can fall a lap later than your own pace says: ${race.oneMore} laps.`
     } Time in the pits is not counted.`;
   }
   return {
