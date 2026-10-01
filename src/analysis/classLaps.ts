@@ -15,7 +15,7 @@ export interface EncodedField {
   hz: number;
   /** Tenths of a second from `et0`, one per update. */
   tDs: number[];
-  cars: {class: string}[];
+  cars: {class: string; player?: boolean}[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
   inPits: (number | null)[][];
@@ -70,7 +70,7 @@ export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
  * Bump when the rules below change: a stored `classLaps` from an older
  * version is recomputed from the uploaded field (tools/sessions/store.mjs).
  */
-export const CLASS_LAPS_VERSION = 1;
+export const CLASS_LAPS_VERSION = 2;
 
 // A lap slower than this times the class median is a spin, a slow car or an
 // unflagged crash, not pace.
@@ -135,6 +135,13 @@ function crossingT(
  * The car's first crossing only starts the clock.
  */
 export function carLaps(field: EncodedField): number[][] {
+  return crossings(field).map(c => c.laps);
+}
+
+/** A car's green laps and when it first crossed the line (session clock, s); null when it never did. */
+type CarCrossings = {laps: number[]; firstT: number | null};
+
+function crossings(field: EncodedField): CarCrossings[] {
   const etS = field.tDs.map(d => d / 10);
   const lapDist = field.lapDistDm.map(row =>
     undelta(row).map(v => (v === null ? null : v / 10)),
@@ -142,11 +149,12 @@ export function carLaps(field: EncodedField): number[][] {
   let lengthM = 0;
   for (const row of lapDist)
     for (const d of row) if (d !== null && d > lengthM) lengthM = d;
-  if (lengthM === 0) return field.cars.map(() => []);
+  if (lengthM === 0) return field.cars.map(() => ({laps: [], firstT: null}));
 
   return field.cars.map((_, i) => {
     const laps: number[] = [];
     const lapDistM = lapDist[i];
+    let firstT: number | null = null;
     let startT: number | null = null;
     let clean = false;
     let prev: number | null = null;
@@ -173,6 +181,7 @@ export function carLaps(field: EncodedField): number[][] {
         ) {
           const at = crossingT(lapDistM, etS, u, prev, lengthM);
           if (startT !== null && clean) laps.push(at - startT);
+          if (firstT === null) firstT = at;
           startT = at;
           clean = true;
         } else {
@@ -184,8 +193,57 @@ export function carLaps(field: EncodedField): number[][] {
       }
       prev = d;
     }
-    return laps;
+    return {laps, firstT};
   });
+}
+
+// A first crossing later than this after the field's first is a pit-lane
+// start or a car that joined late, not the grid.
+const GRID_WINDOW_S = 60;
+
+/**
+ * How long before the player a class's cars first crossed the line, seconds
+ * (negative for a class that started behind the player): `firstS` for the
+ * class's first car, the leader with the biggest head start, `lastS` for its
+ * last car. Classes grid by class with the faster in front and arrive as a
+ * train, so the Plan's first catch is a band from the leader's gap to the
+ * tail's.
+ */
+export type StartGap = {firstS: number; lastS: number};
+
+/**
+ * Per class, the StartGap. Classes with no car that crossed in the grid
+ * window are left out; the player's own class is left out; null without a
+ * flagged player crossing the line in the window.
+ */
+export function startGapsS(
+  field: EncodedField,
+): Partial<Record<PaceClass, StartGap>> | null {
+  const firsts = crossings(field).map(c => c.firstT);
+  const known = firsts.filter((t): t is number => t !== null);
+  if (known.length === 0) return null;
+  const first = Math.min(...known);
+  const inGrid = (t: number | null): t is number =>
+    t !== null && t - first <= GRID_WINDOW_S;
+  const me = field.cars.findIndex(c => c.player === true);
+  const meT = me >= 0 ? firsts[me] : null;
+  if (!inGrid(meT)) return null;
+  const myKey = paceClass(field.cars[me].class);
+  const crossed = new Map<PaceClass, {first: number; last: number}>();
+  field.cars.forEach((c, i) => {
+    const t = firsts[i];
+    const key = paceClass(c.class);
+    if (key === myKey || !inGrid(t)) return;
+    const seen = crossed.get(key);
+    crossed.set(key, {
+      first: Math.min(seen?.first ?? Infinity, t),
+      last: Math.max(seen?.last ?? -Infinity, t),
+    });
+  });
+  const out: Partial<Record<PaceClass, StartGap>> = {};
+  for (const [key, t] of crossed)
+    out[key] = {firstS: round(meT - t.first), lastS: round(meT - t.last)};
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 const round = (v: number) => Math.round(v * 100) / 100;
@@ -225,6 +283,8 @@ export interface ClassLapsDoc {
   version: number;
   kind: ClassLapsKind;
   classes: ClassLaps | null;
+  /** Races only: see startGapsS; null in other sessions or when the start cannot be read. */
+  startGapsS: Partial<Record<PaceClass, StartGap>> | null;
 }
 
 function statsOf(kept: {car: number; t: number}[]): ClassLapStats | null {
@@ -303,6 +363,7 @@ export function classLapsDoc(
     version: CLASS_LAPS_VERSION,
     kind,
     classes: kind === 'qualify' ? null : classLaps(field, kind),
+    startGapsS: kind === 'race' ? startGapsS(field) : null,
   };
 }
 

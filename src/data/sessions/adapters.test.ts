@@ -52,7 +52,11 @@ describe('toSessionSummary class laps', () => {
       ...raw,
       classLaps: {kind: 'race', classes: {gt3: stats}},
     });
-    expect(s.classLaps).toEqual({kind: 'race', classes: {gt3: stats}});
+    expect(s.classLaps).toEqual({
+      kind: 'race',
+      classes: {gt3: stats},
+      startGapsS: null,
+    });
   });
 });
 
@@ -100,22 +104,37 @@ describe('toClassLaps', () => {
         kind: 'practice',
         classes: {hypercar: stats, gt3: {cars: 2}, other: 'x'},
       }),
-    ).toEqual({kind: 'practice', classes: {hypercar: stats}});
+    ).toEqual({
+      kind: 'practice',
+      classes: {hypercar: stats},
+      startGapsS: null,
+    });
   });
   it('keeps an empty doc as no classes, and reads nothing without a kind', () => {
     expect(toClassLaps({version: 1, kind: 'qualify', classes: null})).toEqual({
       kind: 'qualify',
       classes: null,
+      startGapsS: null,
     });
     expect(toClassLaps({classes: {gt3: stats}})).toBeNull();
     expect(toClassLaps(undefined)).toBeNull();
     expect(toClassLaps(null)).toBeNull();
   });
   it('rides on the session detail', () => {
-    const doc = {version: 1, kind: 'race', classes: {lmp2: stats}};
+    const doc = {
+      version: 2,
+      kind: 'race',
+      classes: {lmp2: stats},
+      startGapsS: {
+        hypercar: {firstS: 31.2, lastS: 26.4},
+        gt3: {firstS: 5},
+        lmp2: 'x',
+      },
+    };
     expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
       kind: 'race',
       classes: {lmp2: stats},
+      startGapsS: {hypercar: {firstS: 31.2, lastS: 26.4}},
     });
     expect(toSessionDetail(raw).classLaps).toBeNull();
   });

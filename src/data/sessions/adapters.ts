@@ -3,6 +3,7 @@ import {
   type ClassLapsKind,
   type ClassLapStats,
   type PaceClass,
+  type StartGap,
 } from '@/src/analysis/classLaps';
 import {type LapSet, type SessionTraffic} from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
@@ -182,6 +183,8 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
 export type SessionClassLaps = {
   kind: ClassLapsKind;
   classes: ClassLaps | null;
+  /** Races, from CLASS_LAPS_VERSION 2: seconds each class's first and last car crossed the line before the player; null otherwise. */
+  startGapsS: Partial<Record<PaceClass, StartGap>> | null;
 };
 
 const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
@@ -217,7 +220,17 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     const stats = toClassStats(obj(x.classes)[key]);
     if (stats) classes[key] = stats;
   }
-  return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
+  const gaps: Partial<Record<PaceClass, StartGap>> = {};
+  for (const key of PACE_CLASSES) {
+    const g = obj(obj(x.startGapsS)[key]);
+    const [firstS, lastS] = [num(g.firstS), num(g.lastS)];
+    if (firstS != null && lastS != null) gaps[key] = {firstS, lastS};
+  }
+  return {
+    kind,
+    classes: Object.keys(classes).length > 0 ? classes : null,
+    startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+  };
 }
 
 /** Null when the session has no traffic block (no field, or not yet resynced). */

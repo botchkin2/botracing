@@ -10,6 +10,7 @@ import {
   type EncodedField,
   paceClass,
   sessionKind,
+  startGapsS,
 } from './classLaps';
 
 const DT = 0.2;
@@ -19,6 +20,7 @@ type Spec = {
   class: string;
   lapS: number;
   offsetM: number;
+  player?: boolean;
   pitsAt?: (u: number) => boolean;
   flagAt?: (u: number) => boolean;
   // Replaces the distance at an update (a reset, a jump).
@@ -49,7 +51,7 @@ function build(specs: Spec[], updates: number): EncodedField {
   return {
     hz: 5,
     tDs: Array.from({length: updates}, (_, u) => Math.round(u * DT * 10)),
-    cars: specs.map(s => ({class: s.class})),
+    cars: specs.map(s => ({class: s.class, player: s.player})),
     lapDistDm: dist,
     inPits: specs.map(s =>
       Array.from({length: updates}, (_, u) => (s.pitsAt?.(u) ? 1 : 0)),
@@ -284,6 +286,7 @@ describe('classLapsDoc', () => {
       version: CLASS_LAPS_VERSION,
       kind: 'qualify',
       classes: null,
+      startGapsS: null,
     });
   });
   it('a field nothing reaches three laps in still gets a doc', () => {
@@ -367,5 +370,45 @@ describe('keptLaps, practice floor', () => {
   it('a race keeps its usual median anchor', () => {
     const race = [100, 101, 102, 130, 99].map(t => ({car: 0, t}));
     expect(keptLaps(race, 'race').map(l => l.t)).toEqual([100, 101, 102, 99]);
+  });
+});
+
+describe('startGapsS', () => {
+  // The first crossing is when the distance reaches L: (L - offset) / L * lapS.
+  const grid = (player: Partial<Spec> = {}, extra: Spec[] = []) =>
+    build(
+      [
+        {class: 'LMGT3', lapS: 100, offsetM: 0, player: true, ...player},
+        {class: 'Hypercar', lapS: 80, offsetM: 300},
+        {class: 'Hypercar', lapS: 80, offsetM: 400},
+        ...extra,
+      ],
+      1000,
+    );
+  it('is the player crossing minus the first and the last car of the class', () => {
+    // Hypercars cross at 74 s and 72 s; the player at 100 s: the leader's gap
+    // is 100 - 72, the tail's 100 - 74.
+    expect(startGapsS(grid())).toEqual({hypercar: {firstS: 28, lastS: 26}});
+  });
+  it('leaves out the player class and is negative for a class behind', () => {
+    const behind = grid({}, [{class: 'LMP2', lapS: 90, offsetM: -400}]);
+    // LMP2 first crosses at (4000 + 400) / 4000 * 90 = 99 s... no wrap before
+    // that, so its gap is 100 - 99.
+    expect(startGapsS(behind)).toEqual({
+      hypercar: {firstS: 28, lastS: 26},
+      lmp2: {firstS: 1, lastS: 1},
+    });
+  });
+  it('is null without a flagged player', () => {
+    expect(startGapsS(grid({player: false}))).toBeNull();
+  });
+  it('is null when the player first crosses long after the grid', () => {
+    expect(startGapsS(grid({lapS: 140}))).toBeNull();
+  });
+  it('is written for a race and not for practice', () => {
+    expect(classLapsDoc(grid(), 'Race').startGapsS).toEqual({
+      hypercar: {firstS: 28, lastS: 26},
+    });
+    expect(classLapsDoc(grid(), 'Practice 1').startGapsS).toBeNull();
   });
 });
