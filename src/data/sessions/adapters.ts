@@ -4,7 +4,11 @@ import {
   type ClassLapStats,
   type PaceClass,
 } from '@/src/analysis/classLaps';
-import {type LapSet, type SessionTraffic} from '@/src/analysis/traffic';
+import {
+  type LapSet,
+  type Overtake,
+  type SessionTraffic,
+} from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
@@ -413,6 +417,8 @@ export type LapTraffic = {
   passesSufferedAll: number;
   /** Seconds within 1 s of a car of the player's class, ahead or behind. */
   battleS: number;
+  /** Cars of a faster class that went from behind the player to ahead, in lap-distance order. */
+  overtakes: Overtake[];
 };
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
@@ -518,7 +524,18 @@ function toTraffic(v: unknown): LapTraffic | null {
     passesMadeAll: num(x.passesMadeAll) ?? 0,
     passesSufferedAll: num(x.passesSufferedAll) ?? 0,
     battleS: num(x.battleS) ?? 0,
+    overtakes: toOvertakes(x.overtakes),
   };
+}
+
+function toOvertakes(v: unknown): Overtake[] {
+  if (!Array.isArray(v)) return [];
+  const out: Overtake[] = [];
+  for (const o of v) {
+    const atM = num(obj(o).atM);
+    if (atM != null) out.push({cls: str(obj(o).cls), atM});
+  }
+  return out;
 }
 
 function toPartialWhy(v: unknown): Lap['partialWhy'] {

@@ -117,6 +117,7 @@ describe('buildFuelUse', () => {
         passesMadeAll: 0,
         passesSufferedAll: 0,
         battleS: 0,
+        overtakes: [],
       },
     });
     const fu = buildFuelUse(session(), [

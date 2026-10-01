@@ -16,6 +16,13 @@ import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {buildPitCard, type PitCard} from './pitCard';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
+import {
+  PACE_RULE,
+  setText,
+  stintTrafficText,
+  type TrafficRow,
+  trafficRows,
+} from './trafficFacts';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -102,6 +109,8 @@ export type DetailModel = {
   why: string | null;
   /** Fuel and Virtual Energy on the lap, one line each (fuelLines.ts). */
   fuel: string[];
+  /** Seconds and counts from the field; null on a lap without one (round 7, 2B). */
+  traffic: TrafficRow[] | null;
   action: 'add' | 'remove' | 'reference';
 };
 
@@ -117,6 +126,8 @@ export type SessionScreenModel = {
   /** For the link to the layout's Track page. */
   trackId: string;
   facts: Fact[];
+  /** What "clean" and "traffic" mean, when either is shown; null otherwise. */
+  paceRule: string | null;
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
   rows: RowModel[];
@@ -165,32 +176,28 @@ function buildFuelUseCard(
 }
 
 /**
- * The clean-lap median beside the overall median, never instead of it (Botkin,
- * pit-wall thread 44 #1563): the headline pace stays every comparable lap.
- * Shown with the laps it uses, and left out under the 3-lap floor or before a
- * field's traffic block is analysed. A session with no field says so.
+ * The clean and traffic medians beside the overall median, never instead of
+ * it (Botkin, pit-wall thread 44 #1563): the headline pace stays every
+ * comparable lap. Each shows the laps it uses and is left out under the 3-lap
+ * floor or before a field's traffic block is analysed. A session with no
+ * field says so, once.
  */
-export function cleanMedianFact(session: SessionDetail): Fact | null {
-  const label = 'Clean median';
-  if (session.traffic == null)
-    return session.field == null
-      ? {label, value: 'No other cars recorded'}
-      : null;
-  const {medianS, laps} = session.traffic.clean;
-  return medianS == null
-    ? null
-    : {
-        label,
-        value: `${formatLapTime(medianS)} · ${laps} of ${
-          session.comparableCount
-        } laps`,
-      };
+export function trafficPaceFacts(session: SessionDetail): Fact[] {
+  const {traffic, field} = session;
+  if (traffic == null)
+    return field == null
+      ? [{label: 'Clean median', value: 'No other cars recorded'}]
+      : [];
+  const facts: Fact[] = [];
+  for (const [label, set] of [
+    ['Clean median', traffic.clean],
+    ['Traffic median', traffic.traffic],
+  ] as const) {
+    const value = setText(set, session.comparableCount);
+    if (value) facts.push({label, value});
+  }
+  return facts;
 }
-
-const cleanMedianFacts = (session: SessionDetail): Fact[] => {
-  const fact = cleanMedianFact(session);
-  return fact ? [fact] : [];
-};
 
 export const BAR_CLAMP_S = 1.5;
 
@@ -364,10 +371,11 @@ export function buildSessionModel(
     if (stint.medianTimeS != null)
       bits.push(`med ${formatLapTime(stint.medianTimeS)}`);
     if (stint.stdevS != null) bits.push(`± ${stint.stdevS.toFixed(2)} s`);
+    const split = stintTrafficText(stintLaps);
     rows.push({
       kind: 'stint',
       key: `stint-${stint.n}`,
-      label: bits.join(' · '),
+      label: bits.join(' · ') + split,
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
     });
     const stintNote = stintFuelLine(stint);
@@ -417,6 +425,7 @@ export function buildSessionModel(
     excluded: !hlLap.comparable,
     why: reasonText(hlLap, stintMedian.get(hlLap.stint) ?? null) || null,
     fuel: lapFuelLines(hlLap),
+    traffic: trafficRows(hlLap.traffic),
     action:
       selIndexOf(hlLap.id) === 0
         ? 'reference'
@@ -441,6 +450,7 @@ export function buildSessionModel(
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
   const clean = bestWithoutTow(laps, session.bestLapId);
+  const trafficPace = trafficPaceFacts(session);
   const cleanBestFact: Fact[] = clean
     ? [
         {
@@ -477,9 +487,10 @@ export function buildSessionModel(
         best: true,
       },
       {label: 'Median', value: timeOrDash(median)},
-      ...cleanMedianFacts(session),
+      ...trafficPace,
       ...cleanBestFact,
     ],
+    paceRule: session.traffic && trafficPace.length > 0 ? PACE_RULE : null,
     chart,
     noComparable,
     rows,

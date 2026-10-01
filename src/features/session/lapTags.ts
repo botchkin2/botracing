@@ -4,9 +4,9 @@
 import {type Lap, type LapTraffic} from '@/src/data/sessions';
 
 // A tag shows from this many seconds. TOW 1.0 and BLUE 1.0 are R3's "shown
-// from"; TRAF 4 s is R3's "held up for 4 s or more".
+// from"; TRAF 2 s is round 7's "tagged from 2.0 s within 1.0 s of a car ahead" (R3 had 4 s).
 export const TOW_MIN_S = 1;
-export const TRAF_MIN_S = 4;
+export const TRAF_MIN_S = 2;
 export const BLUE_MIN_S = 1;
 // BTL shows from 5 s (R3).
 export const BTL_MIN_S = 5;
@@ -17,7 +17,8 @@ export const TOW_HOLLOW_S = 5;
  * The traffic tags of one lap, in the order R3 gives them. Null traffic (a
  * session without a field) gives none. TRAF reads trafficAheadS (a car within
  * 1 s ahead) without R3's slower-pace and 160 km/h conditions. BLUE is the
- * seconds with the blue flag, where R3 counts faster cars that passed. PASS
+ * number of faster-class cars that passed (round 7's key, as R3 counts it);
+ * the seconds with a faster car close behind are `blueFlagS`, in the lap detail. PASS
  * and BTL are the player's class only, on the road: a lapped car of that
  * class counts, so PASS is not a place change.
  */
@@ -28,8 +29,8 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
     tags.push({code: `TOW ${traffic.draftS.toFixed(1)}`});
   if (traffic.trafficAheadS >= TRAF_MIN_S)
     tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)}`});
-  if (traffic.blueFlagS >= BLUE_MIN_S)
-    tags.push({code: `BLUE ${traffic.blueFlagS.toFixed(1)}`});
+  if (traffic.overtakes.length > 0)
+    tags.push({code: `BLUE ${traffic.overtakes.length}`});
   const {passesMade: made, passesSuffered: lost} = traffic;
   if (made > 0 || lost > 0) {
     const parts = [made > 0 && `+${made}`, lost > 0 && `−${lost}`];
