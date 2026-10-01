@@ -433,6 +433,9 @@ function build(s, trackMap, eventWindows) {
       // the channels or a stop.
       fuel: lap.fuel,
       pitStop: lap.pitStop,
+      // The battery and motor energy of the lap (hybrid.mjs); null on a car
+      // without a hybrid.
+      hybrid: lap.hybrid,
       // Cars around the player, seconds and counts (fieldTags.mjs); null
       // when the session has no field.
       traffic: tags?.[k] ?? null,
