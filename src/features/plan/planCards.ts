@@ -224,12 +224,14 @@ function windowText(w: PitWindow, medianLap: number | null): string {
 /**
  * A plan with no stop has no window, but a timed race can run a lap long: when
  * one load at p90 use reaches the estimate and not the late-flag length, that is
- * the run-dry case, so the card says so (setup, thread 44 #1694). The extra
- * load is the late-flag row's p90 load over the estimate row's, from
- * `loadToFinish`; "more than the rules allow" when that row does not fit.
+ * the run-dry case, so the card says so (setup, thread 44 #1694). The rules cap
+ * the load, so the alternatives are one stop, or using at most the capped load
+ * over the late-flag laps a lap (the drop-a-stop arithmetic: the formation lap
+ * shares the load), in the meter that limits.
  */
 function lateFlagNote(
   plan: FuelPlan,
+  rules: PlanRules,
   safeLaps: number,
   first90: number | null,
   stint90: number | null,
@@ -238,22 +240,16 @@ function lateFlagNote(
     return null;
   if (fullTankStops(first90, stint90, safeLaps).needed === 0) return null;
   const base = `If the flag falls late, one load does not reach: one stop`;
-  const rows = plan.loadToFinish ?? [];
-  const estimate = rows.find(r => r.laps === plan.raceLaps?.estimate);
-  const late = rows.find(r => r.laps === safeLaps);
-  if (!estimate || !late) return `${base}.`;
+  const late = (plan.loadToFinish ?? []).find(r => r.laps === safeLaps);
+  if (!late) return `${base}.`;
+  const burnLaps = safeLaps + (rules.formationLap ? 1 : 0);
   const byVe = late.atP90.limitedBy === 've' || late.atP90.fuelL == null;
-  const more = byVe
-    ? late.atP90.vePct != null && estimate.atP90.vePct != null
-      ? `${(late.atP90.vePct - estimate.atP90.vePct).toFixed(1)} % VE`
-      : null
-    : `${((late.atP90.fuelL as number) - (estimate.atP90.fuelL ?? 0)).toFixed(
-        1,
-      )} L`;
-  if (more == null) return `${base}.`;
-  return `${base}, or start with ${more} more${
-    late.atP90.fits ? '' : ' than the rules allow'
-  }.`;
+  const atMost = byVe
+    ? late.atP90.vePct == null
+      ? null
+      : `${(rules.vePct / burnLaps).toFixed(2)} % a lap`
+    : `${(rules.fuelL / burnLaps).toFixed(2)} L a lap`;
+  return atMost == null ? `${base}.` : `${base}, or use at most ${atMost}.`;
 }
 
 function stopsCard(
@@ -361,7 +357,7 @@ function stopsCard(
   const extra = p90StopCount - medianStopCount;
   const windowNote =
     fuelStops === 0
-      ? lateFlagNote(plan, safeLaps, first90, stint90)
+      ? lateFlagNote(plan, rules, safeLaps, first90, stint90)
       : p90StopCount > 0 && windows.length === 0
       ? NO_WINDOW_NOTE
       : extra > 0

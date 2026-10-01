@@ -191,7 +191,9 @@ function fromText(p: Pooled): string {
     p.practices > 0 && plural(p.practices, 'practice'),
   ].filter(Boolean);
   return `From ${parts.join(', ')} · n = ${thousands(p.laps)} laps${
-    p.fromPractice ? ' · from practice' : ''
+    p.fromPractice
+      ? ` · under ${MIN_RACE_SESSIONS} races, so practice counts`
+      : ''
   }`;
 }
 

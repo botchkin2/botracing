@@ -163,19 +163,19 @@ describe('buildPlanCards', () => {
     expect(plan.atMedian.stopLaps).toEqual([]);
     const {stops} = buildPlanCards(plan, short, false, RATIO);
     expect(stops.windows).toEqual([]);
-    // It is the run-dry case, so the card says so, with the extra load of the
-    // meter that limits (VE here: 3.5 % a lap against a 100 % load, fuel 2.38 L
-    // against 100 L), from the late-flag row of loadToFinish over the estimate row's.
-    const [est, late] = plan.loadToFinish as NonNullable<
-      typeof plan.loadToFinish
-    >;
+    // It is the run-dry case, so the card says so. The rules cap the load, so
+    // the alternative to a stop is a use rate: the capped load over the
+    // late-flag laps, the formation lap sharing it (the drop-a-stop arithmetic),
+    // in the meter that limits (VE here: 3.5 % a lap on a 100 % load).
+    const late = (
+      plan.loadToFinish as NonNullable<typeof plan.loadToFinish>
+    )[1];
+    expect(late.laps).toBe(28);
     expect(late.atP90.limitedBy).toBe('ve');
-    const more = (late.atP90.vePct as number) - (est.atP90.vePct as number);
-    expect(more).toBeGreaterThan(0);
+    const atMost = (short.vePct / (late.laps + 1)).toFixed(2);
+    expect(atMost).toBe('3.45');
     expect(stops.windowNote).toBe(
-      `If the flag falls late, one load does not reach: one stop, or start with ${more.toFixed(
-        1,
-      )} % VE more${late.atP90.fits ? '' : ' than the rules allow'}.`,
+      `If the flag falls late, one load does not reach: one stop, or use at most ${atMost} % a lap.`,
     );
   });
 
