@@ -35,6 +35,9 @@ export const Leaderboard = memo(function Leaderboard({
   desktop,
   mode,
   paged,
+  nearby,
+  showKey = true,
+  fallbackNote,
 }: {
   groups: RaceGroup[];
   classes: readonly ClassKey[];
@@ -45,6 +48,12 @@ export const Leaderboard = memo(function Leaderboard({
   mode: RaceMode;
   /** The list is as long as its rows and the page scrolls (the phone), not a box that scrolls inside the screen. */
   paged?: boolean;
+  /** Offer the Nearby filter: the field mode, with you on the road. */
+  nearby?: boolean;
+  /** The column key under the filter; the phone folds it away with the legend. */
+  showKey?: boolean;
+  /** Said when All is shown where Nearby was asked for. */
+  fallbackNote?: string | null;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -66,6 +75,7 @@ export const Leaderboard = memo(function Leaderboard({
       <View style={styles.filter}>
         <Segment
           options={[
+            ...(nearby ? [{value: 'nearby' as const, label: 'Nearby'}] : []),
             {value: 'all', label: 'All'},
             ...classes.map(k => ({value: k, label: CLASS_SHORT[k]})),
           ]}
@@ -73,11 +83,18 @@ export const Leaderboard = memo(function Leaderboard({
           onChange={onFilter}
         />
       </View>
-      <Text variant='explainer' tone='textFaint' style={styles.key}>
-        {mode === 'race'
-          ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
-          : 'At the playback position. Road = seconds along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
-      </Text>
+      {fallbackNote ? (
+        <Text variant='dataSmall' tone='textSecondary' style={styles.key}>
+          {fallbackNote}
+        </Text>
+      ) : null}
+      {showKey ? (
+        <Text variant='explainer' tone='textFaint' style={styles.key}>
+          {mode === 'race'
+            ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
+            : 'At the playback position. Road = seconds along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
+        </Text>
+      ) : null}
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>
           Car
