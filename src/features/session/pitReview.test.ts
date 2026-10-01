@@ -4,7 +4,12 @@ import {tyresText} from './pitReview';
 
 describe('tyresText', () => {
   const at = (...wheels: ('FL' | 'FR' | 'RL' | 'RR')[]) =>
-    tyresText({changed: wheels.length > 0, wheels});
+    tyresText({
+      changed: wheels.length > 0,
+      wheels,
+      entryPct: null,
+      exitPct: null,
+    });
   it('names the wheels the way a driver would', () => {
     expect(at('FL', 'FR', 'RL', 'RR')).toBe('all four');
     expect(at('FL', 'FR')).toBe('fronts');

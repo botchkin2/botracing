@@ -42,7 +42,12 @@ const stop = (over: Partial<PitStop> = {}): PitStop => ({
   added: {fuelL: 40.1, vePct: 62},
   inPitS: 51.2,
   lapsLeftAtEntry: {fuel: 2.6, ve: 1.1},
-  tyres: {changed: true, wheels: ['FL', 'FR', 'RL', 'RR']},
+  tyres: {
+    changed: true,
+    wheels: ['FL', 'FR', 'RL', 'RR'],
+    entryPct: null,
+    exitPct: null,
+  },
   ...over,
 });
 
@@ -149,7 +154,9 @@ describe('buildPitCard', () => {
   it('a stop on the first lap is a stop when the lap ends in the lane, and the garage service is not', () => {
     const lap1Stop = [
       lap(1, {
-        pitStop: stop({tyres: {changed: true, wheels: ['FL']}}),
+        pitStop: stop({
+          tyres: {changed: true, wheels: ['FL'], entryPct: null, exitPct: null},
+        }),
         pitIn: true,
         fuel: fuel(),
       }),
@@ -264,9 +271,20 @@ describe('buildPitCard', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       return card.columns[0].tyres;
     };
-    expect(tyres({changed: false, wheels: []})).toBe('Not changed');
-    expect(tyres({changed: true, wheels: ['FL', 'FR']})).toBe('Fronts new');
-    expect(tyres({changed: true, wheels: ['FR']})).toBe('FR only');
+    expect(
+      tyres({changed: false, wheels: [], entryPct: null, exitPct: null}),
+    ).toBe('Not changed');
+    expect(
+      tyres({
+        changed: true,
+        wheels: ['FL', 'FR'],
+        entryPct: null,
+        exitPct: null,
+      }),
+    ).toBe('Fronts new');
+    expect(
+      tyres({changed: true, wheels: ['FR'], entryPct: null, exitPct: null}),
+    ).toBe('FR only');
     expect(tyres(null)).toBeNull();
   });
 
@@ -280,6 +298,7 @@ describe('buildPitCard', () => {
       v: 1,
       wearPct: {FL, FR, RL, RR},
       pressureKpa: null,
+      hotPressureKpa: null,
       rubberC: null,
       carcassC: null,
       changed: null,
@@ -287,7 +306,12 @@ describe('buildPitCard', () => {
     const wheels = (
       before: Lap['tyres'],
       after: Lap['tyres'],
-      tyres: PitStop['tyres'] = {changed: true, wheels: ['FR']},
+      tyres: PitStop['tyres'] = {
+        changed: true,
+        wheels: ['FR'],
+        entryPct: null,
+        exitPct: null,
+      },
     ) => {
       const laps = oneStop.map(l =>
         l.id === 'l6'

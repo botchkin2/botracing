@@ -375,7 +375,13 @@ const WHEELS: readonly Wheel[] = ['FL', 'FR', 'RL', 'RR'];
  * The wheels whose wear reading stepped up inside the stop (tools/sessions/
  * fuelFacts.mjs): a new tyre on each. `wheels` is empty when none changed.
  */
-export type PitTyres = {changed: boolean; wheels: Wheel[]};
+export type PitTyres = {
+  changed: boolean;
+  wheels: Wheel[];
+  /** Wear (%) of each wheel at pit entry and at pit exit; null before the resync, and `exitPct` when the session ended in the pits. */
+  entryPct: Record<Wheel, number | null> | null;
+  exitPct: Record<Wheel, number | null> | null;
+};
 
 /** A pit stop: what was left at pit entry, what was added, how long. */
 export type PitStop = {
@@ -465,12 +471,23 @@ function toLapFuel(v: unknown): LapFuel | null {
   };
 }
 
+function toWheelNumbers(v: unknown): Record<Wheel, number | null> | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  return {FL: num(x.FL), FR: num(x.FR), RL: num(x.RL), RR: num(x.RR)};
+}
+
 function toPitTyres(v: unknown): PitTyres | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
   const list = Array.isArray(x.wheels) ? x.wheels : [];
   const wheels = WHEELS.filter(w => list.includes(w));
-  return {changed: x.changed === true && wheels.length > 0, wheels};
+  return {
+    changed: x.changed === true && wheels.length > 0,
+    wheels,
+    entryPct: toWheelNumbers(x.entryPct),
+    exitPct: toWheelNumbers(x.exitPct),
+  };
 }
 
 function toPitStop(v: unknown): PitStop | null {

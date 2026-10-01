@@ -75,8 +75,8 @@ describe('lapTyres', () => {
       tyres_pressure_fr: Float64Array.from({length: N}, (_, i) => 160 + i / 60),
     });
     const t = tyres(s, lapBefore);
-    // The lap's last tick is 59.9 s in: 160 + 599 / 60.
-    assert.equal(t.hotPressureKpa.FR, 170);
+    // The median of the last 5 s (ticks 550 to 599, 10 Hz): 160 + 574.5 / 60.
+    assert.equal(t.hotPressureKpa.FR, 169.6);
     assert.equal(t.hotPressureKpa.FL, 160);
     assert.equal(t.hotPressureKpa.RL, null);
     // A lap that ends in the pit lane has no reading to take.

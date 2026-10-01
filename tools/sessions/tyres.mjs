@@ -44,6 +44,8 @@ const round1 = v => Math.round(v * 10) / 10;
  * #1539). Applied after the stints are known (`settleHotPressure`).
  */
 export const HOT_PRESSURE_FROM_STINT_LAP = 2;
+/** The reading is the median of the lap's last few seconds, so one glitchy sample cannot be it. */
+export const HOT_PRESSURE_WINDOW_S = 5;
 
 // A dead sensor reads exactly 0 (a flat tyre's wear, pressure and temperature
 // alike), which is not a measurement. Never put it in a doc or an average.
@@ -80,8 +82,8 @@ function perWheel(s, prefix, read) {
  * - pressureKpa, rubberC, carcassC: the median over the lap's ticks that are
  *   outside the pit lane (a stop cools the tyres), dead zeros left out. One
  *   reading at the line would be taken on the main straight, where they cool.
- * - hotPressureKpa: the pressure at the lap's last tick, outside the pit lane,
- *   dead zeros left out: what an engineer reads as the stabilised hot pressure
+ * - hotPressureKpa: the median pressure of the lap's last HOT_PRESSURE_WINDOW_S
+ *   seconds, outside the pit lane, dead zeros left out: what an engineer reads as the stabilised hot pressure
  *   once the stint's laps are known (`settleHotPressure` nulls it on a stint's
  *   first laps). The median above is close on a flying lap but understates the
  *   out-lap.
@@ -96,9 +98,17 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
   const wearPct = perWheel(s, 'tyres_wear', c => (live(c[i1]) ? c[i1] : null));
   const out = {v: version, wearPct};
   const inLane = i => pits.some(([a, b]) => s.t[i] >= a && s.t[i] <= b);
-  out.hotPressureKpa = perWheel(s, 'tyres_pressure', c =>
-    live(c[i1]) && !inLane(i1) ? c[i1] : null,
-  );
+  out.hotPressureKpa = perWheel(s, 'tyres_pressure', c => {
+    const kept = [];
+    for (
+      let i = i1;
+      i >= i0 && s.t[i] >= s.t[i1] - HOT_PRESSURE_WINDOW_S;
+      i--
+    ) {
+      if (live(c[i]) && !inLane(i)) kept.push(c[i]);
+    }
+    return median(kept);
+  });
   for (const [field, prefix] of MEDIAN_FIELDS) {
     out[field] = perWheel(s, prefix, c => {
       const kept = [];

@@ -403,5 +403,13 @@ test('a stop carries its tyres', () => {
     ...wearRecording([{wheel: 'fr', at: 205, from: 88, to: 100}]),
   };
   const stop = lapPitStop(s, 150, 300, pits);
-  assert.deepEqual(stop.tyres, {changed: true, wheels: ['FR']});
+  assert.deepEqual(stop.tyres.wheels, ['FR']);
+  assert.equal(stop.tyres.changed, true);
+  // Wear at entry and at exit: FR steps 88 to 100 at 205 s; the others only fall.
+  assert.equal(stop.tyres.entryPct.FR, 86.7);
+  assert.equal(stop.tyres.exitPct.FR, 100);
+  assert.ok(stop.tyres.exitPct.FL < stop.tyres.entryPct.FL);
+  // A session that ends in the pits has no exit reading.
+  const ends = lapPitStop(s, 150, 300, [[200, Infinity]]);
+  assert.equal(ends.tyres.exitPct, null);
 });

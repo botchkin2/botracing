@@ -147,6 +147,22 @@ export function tyreChange(s, a, b) {
 }
 
 /**
+ * Per-wheel wear (%) at the time `at`, {FL, FR, RL, RR}; a wheel with no
+ * channel or a dead 0 reading is null, and the whole thing null when `at` is
+ * not in the recording. The same wheel names as tyreChange.
+ */
+function wearAt(s, at) {
+  const i = firstIndexAtOrAfter(s.t, at);
+  if (!Number.isFinite(at) || i >= s.t.length) return null;
+  const out = {};
+  for (const [name, key] of WHEELS) {
+    const v = s[key]?.[i];
+    out[name] = Number.isFinite(v) && v > 0 ? round(v, 1) : null;
+  }
+  return out;
+}
+
+/**
  * The pit stop entered during the lap's time window (startT, endT] (its
  * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
  * recording is not a stop. `added` can be 0: a drive-through or a penalty.
@@ -177,9 +193,26 @@ export function lapPitStop(s, startT, endT, pits) {
       vePct: added(s.virtual_energy_pct, 2),
     },
     inPitS: b === Infinity ? null : round(b - a, 1),
-    tyres: tyreChange(s, a, b),
+    tyres: pitTyres(s, a, b),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},
+  };
+}
+
+/**
+ * The stop's tyre facts: tyreChange's `changed` and `wheels`, plus the wear of
+ * each wheel at pit entry and at pit exit (`entryPct`, `exitPct`), the same
+ * second after the window the change test reads (TYRE_MARGIN_S), so a new
+ * tyre shows as exit above entry. `exitPct` is null when the session ended in
+ * the pits. Null without a wear channel.
+ */
+function pitTyres(s, a, b) {
+  const change = tyreChange(s, a, b);
+  if (!change) return null;
+  return {
+    ...change,
+    entryPct: wearAt(s, a),
+    exitPct: b === Infinity ? null : wearAt(s, b + TYRE_MARGIN_S),
   };
 }
 
