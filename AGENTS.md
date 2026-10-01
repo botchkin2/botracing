@@ -12,5 +12,15 @@ Never `git push` to `main`. Every push to `main` builds and deploys. App changes
 
 ## Seeing your change with live data
 
-Don't run Metro (`expo start`) or any other local dev server. Botkin has to approve every start and restart, and a long-lived server breaks when worktrees change. Check locally with `npx tsc --noEmit` and `npx jest` (both allowlisted). For anything visual, push the branch and use the PR preview: the github-actions comment has its URL, it talks to the production API, and it is what the reviewer and apex check too. Push early (a draft PR is fine) and repush to update. Only if the preview can't show what you need, ask apex first.
+Check logic with `npx tsc --noEmit`, `npx jest` and `node --test` first; they take seconds.
+
+For anything visual, run your own live dev server. `.claude/launch.json` has six slots, `live-1` to `live-6` (ports 19101 to 19106). Each one runs Metro with hot reload against the production API.
+- Claim a free slot in your board Now note.
+- Start it from your own worktree with `preview_start {name: "live-N"}`.
+- Stop it with `preview_stop` when you finish or hand off.
+- Never start a server any other way: no `expo start` in a shell, no static server on a port. Never kill processes by hand (`Stop-Process`, `taskkill`). Those are what produced Botkin's approval prompts.
+
+The PR preview (its URL is in the github-actions comment) is still what the reviewer and apex check before a merge. Push early (a draft PR is fine).
+
+`.claude/settings.json` allowlists the everyday commands: git on your own branch, `gh pr create`/`comment`, tests, lint, the board, and the preview tools. Pushing to `main`, force pushes, and `gh pr merge` are denied: apex merges. If something you need still prompts, tell apex rather than working around it.
 

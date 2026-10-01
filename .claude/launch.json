@@ -26,7 +26,7 @@
       "port": 8081
     },
     {
-      "name": "web-live",
+      "name": "live-1",
       "runtimeExecutable": "npx.cmd",
       "runtimeArgs": [
         "cross-env",
@@ -36,9 +36,84 @@
         "start",
         "--web",
         "--port",
-        "19006"
+        "19101"
       ],
-      "port": 19006
+      "port": 19101
+    },
+    {
+      "name": "live-2",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19102"
+      ],
+      "port": 19102
+    },
+    {
+      "name": "live-3",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19103"
+      ],
+      "port": 19103
+    },
+    {
+      "name": "live-4",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19104"
+      ],
+      "port": 19104
+    },
+    {
+      "name": "live-5",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19105"
+      ],
+      "port": 19105
+    },
+    {
+      "name": "live-6",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "cross-env",
+        "BROWSER=none",
+        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "19106"
+      ],
+      "port": 19106
     }
   ]
 }
