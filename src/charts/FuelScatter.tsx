@@ -39,6 +39,7 @@ export function FuelScatter({
   xTitle,
   yTitle,
   refX,
+  fit,
 }: {
   width: number;
   height: number;
@@ -52,6 +53,8 @@ export function FuelScatter({
   yTitle: string;
   /** One dashed vertical reference line, labelled with where it comes from. */
   refX?: {x: number; label: string} | null;
+  /** A least-squares line over the points, drawn dashed under the dots. */
+  fit?: {x1: number; y1: number; x2: number; y2: number} | null;
 }) {
   const {color} = useTheme();
   const axis = typeScale.axis;
@@ -123,6 +126,17 @@ export function FuelScatter({
           fontSize={axis.fontSize}>
           {yTitle}
         </SvgText>
+        {fit ? (
+          <Line
+            x1={xOf(fit.x1)}
+            x2={xOf(fit.x2)}
+            y1={yOf(fit.y1)}
+            y2={yOf(fit.y2)}
+            stroke={color.textSecondary}
+            strokeWidth={stroke.mark}
+            strokeDasharray={dash.mark}
+          />
+        ) : null}
         {points.map(p => (
           <Circle
             key={p.key}
