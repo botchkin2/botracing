@@ -40,6 +40,15 @@ export function SectionWindowCard({window}: {window: SectionWindowModel}) {
           {window.referenceNote}
         </Text>
       ) : null}
+      {window.optimum.map(o => (
+        <Text
+          key={o.label}
+          variant='dataSmall'
+          tone='textSecondary'
+          accessibilityLabel={`${o.label}: best ${o.best} seconds on ${o.bestLap}, median ${o.median} seconds, ${o.gap}, over ${o.n}`}>
+          {`${o.label} · best ${o.best} (${o.bestLap}) · median ${o.median} · ${o.gap} · ${o.n}`}
+        </Text>
+      ))}
       {window.rows.map(row => (
         <View
           key={row.lapId}

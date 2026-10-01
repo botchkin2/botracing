@@ -14,6 +14,7 @@ import {
   type Lap,
   type MapBoundaries,
   type MapSection,
+  sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
 import {formatDistance, formatGap, turnLabel} from '@/src/design';
@@ -57,6 +58,20 @@ export type SectionWindowRow = {
   brakes: BrakeAppLine[];
 };
 
+/** One stint's best and median for this window, over the laps that count in it. */
+export type WindowOptimumRow = {
+  /** "Stint 2". */
+  label: string;
+  /** Times that counted: "14 laps". */
+  n: string;
+  best: string;
+  /** The lap the best came from, "L14". */
+  bestLap: string;
+  median: string;
+  /** Median minus best, signed. */
+  gap: string;
+};
+
 export type SectionWindowModel = {
   /** "S5 (T8–T10)". */
   label: string;
@@ -67,6 +82,8 @@ export type SectionWindowModel = {
   /** The parts of a compound section to drill into; empty for one corner. */
   parts: {n: number; label: string; fromM: number; toM: number}[];
   rows: SectionWindowRow[];
+  /** Per stint of 5 or more laps, the window's best and median over every comparable lap; empty under 5 times. */
+  optimum: WindowOptimumRow[];
   /** Laps shown as "re-analysis pending". */
   pendingCount: number;
   /**
@@ -113,6 +130,8 @@ export function buildSectionWindow(input: {
   map: TrackMapData;
   sectionN: number;
   laps: Lap[];
+  /** Every lap of the session, for the window's best and median. */
+  sessionLaps?: Lap[];
 }): SectionWindowModel | null {
   const {map, sectionN, laps} = input;
   const boundaries = map.boundaries;
@@ -214,6 +233,7 @@ export function buildSectionWindow(input: {
       };
     }),
     rows,
+    optimum: optimumRows(input.sessionLaps ?? laps, map, sectionN),
     pendingCount: states.filter(s => s === 'stale').length,
     referenceNote:
       laps.length > 1 && states[0] !== 'ok'
@@ -224,6 +244,33 @@ export function buildSectionWindow(input: {
           }; no gaps.`
         : null,
   };
+}
+
+function optimumRows(
+  laps: Lap[],
+  map: TrackMapData,
+  sectionN: number,
+): WindowOptimumRow[] {
+  const optimum = sessionOptimum(laps, map);
+  const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
+  const at = optimum?.windows.findIndex(
+    w => w.kind === 'section' && w.section === sectionN,
+  );
+  if (!optimum || at == null || at < 0) return [];
+  const rows: WindowOptimumRow[] = [];
+  for (const s of optimum.stints) {
+    const w = s.windows[at];
+    if (w.bestS == null || w.medianS == null) continue;
+    rows.push({
+      label: `Stint ${s.stint}`,
+      n: `${w.n} laps`,
+      best: seconds(w.bestS),
+      bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
+      median: seconds(w.medianS),
+      gap: formatGap(w.medianS - w.bestS),
+    });
+  }
+  return rows;
 }
 
 /** Whether a lap's windows were cut at the boundaries the map carries now. */

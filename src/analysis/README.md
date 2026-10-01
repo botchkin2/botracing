@@ -7,5 +7,6 @@ Pure TypeScript analysis shared with the uploader (`tools/sessions/analyze.mjs` 
 - Also here: the pre-race fuel and VE planner (`fuelPlan.ts`): numbers from the driver's own green laps for one set of event rules, no advice.
 - Also here: the reference-lap ranking (`referenceLap.ts`): which lap is a fair ruler for another (same car and session kind, a similar fuel load, tyres kept, clean air), as matches and numbers.
 - Also here: the corner windows (`cornerBoundaries.ts`): an ordered list of boundaries from the line to the line, each section's window a margin before the earliest brake or lift onset seen at the layout, so the windows tile the lap and add up to its time; the corner and exit split and the brake applications of a window. Pure; the uploader will cut section times and slices with it.
+- Also here: the optimal lap (`sectionOptimum.ts`): per stint and corner window, the best and median of the times a caller passes, and their two sums, hidden under 5 laps. The caller (`data/sessions/windowOptimum.ts`) decides which window times count: only pit, off-track and local-yellow windows are left out, never tow or traffic.
 - Not here: React, formatting, fetching.
 - Imports: **nothing**. Erasable TS syntax only, no path aliases.

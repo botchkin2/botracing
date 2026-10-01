@@ -6,14 +6,18 @@ import {
   raceFacts,
   type Lap,
   type SessionDetail,
+  sessionOptimum,
+  type TrackMapData,
   useSession,
   useSessionLaps,
+  useSessionMap,
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
+import {optimumFacts} from './optimumFacts';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {buildWearScatter, type WearScatterModel} from './wearScatter';
@@ -128,6 +132,8 @@ export type SessionScreenModel = {
   /** For the link to the layout's Track page. */
   trackId: string;
   facts: Fact[];
+  /** Best sections summed and the sum of window medians per stint; empty before the windows or under 5 laps. */
+  optimum: Fact[];
   /** What "clean" and "traffic" mean, when either is shown; null otherwise. */
   paceRule: string | null;
   chart: ChartModel | null;
@@ -294,6 +300,8 @@ export function buildSessionModel(
   session: SessionDetail,
   laps: Lap[],
   selection: Selection,
+  /** The layout's map, for the corner windows; null while it loads or before the resync. */
+  map: TrackMapData | null = null,
 ): SessionScreenModel {
   const median = session.medianTimeS;
   const selIndexOf = (id: string) => {
@@ -484,6 +492,10 @@ export function buildSessionModel(
       {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
     ],
+    optimum: optimumFacts(
+      map ? sessionOptimum(laps, map) : null,
+      session.stints.length,
+    ),
     paceRule: session.traffic && trafficPace.length > 0 ? PACE_RULE : null,
     chart,
     noComparable,
@@ -517,6 +529,8 @@ export function selectStint(sel: Selection, lapIds: string[]): Selection {
 export function useSessionScreenModel(id: string, selection: Selection) {
   const session = useSession(id);
   const laps = useSessionLaps(id);
+  // Only the optimal lap needs the map; the screen draws without it.
+  const map = useSessionMap(id);
   return useMemo(() => {
     if (session.isError || laps.isError) {
       const error = session.error ?? laps.error;
@@ -528,7 +542,7 @@ export function useSessionScreenModel(id: string, selection: Selection) {
     if (!session.data || !laps.data) return {state: 'loading' as const};
     return {
       state: 'ready' as const,
-      model: buildSessionModel(session.data, laps.data, selection),
+      model: buildSessionModel(session.data, laps.data, selection, map.data ?? null),
     };
-  }, [session.data, laps.data, session.error, laps.error, selection]);
+  }, [session.data, laps.data, map.data, session.error, laps.error, selection]);
 }
