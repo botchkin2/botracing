@@ -327,6 +327,21 @@ test('a full set: every wheel steps up to 100 inside the pit window', () => {
   });
 });
 
+test('a tyre swapped after a short run: 97 to 100 counts, float noise does not', () => {
+  // A 3-lap qualifying or splash stint, or a puncture early in a stint: the
+  // rise is a few %, which the old 5 % threshold missed (hairpin #1568).
+  const short = wearRecording([{wheel: 'fl', at: 205, from: 97, to: 100}]);
+  assert.deepEqual(tyreChange(short, 200, 220), {
+    changed: true,
+    wheels: ['FL'],
+  });
+  // The channel's float noise inside a pit window is at most 0.011.
+  const noise = wearRecording([
+    {wheel: 'fl', at: 205, from: 86.583, to: 86.594},
+  ]);
+  assert.equal(tyreChange(noise, 200, 220).changed, false);
+});
+
 test('single wheels: a healthy one replaced alone, and a dead sensor read as 0', () => {
   const healthy = wearRecording([{wheel: 'rl', at: 205, from: 84, to: 100}]);
   assert.deepEqual(tyreChange(healthy, 200, 220), {
@@ -388,5 +403,13 @@ test('a stop carries its tyres', () => {
     ...wearRecording([{wheel: 'fr', at: 205, from: 88, to: 100}]),
   };
   const stop = lapPitStop(s, 150, 300, pits);
-  assert.deepEqual(stop.tyres, {changed: true, wheels: ['FR']});
+  assert.deepEqual(stop.tyres.wheels, ['FR']);
+  assert.equal(stop.tyres.changed, true);
+  // Wear at entry and at exit: FR steps 88 to 100 at 205 s; the others only fall.
+  assert.equal(stop.tyres.entryPct.FR, 86.7);
+  assert.equal(stop.tyres.exitPct.FR, 100);
+  assert.ok(stop.tyres.exitPct.FL < stop.tyres.entryPct.FL);
+  // A session that ends in the pits has no exit reading.
+  const ends = lapPitStop(s, 150, 300, [[200, Infinity]]);
+  assert.equal(ends.tyres.exitPct, null);
 });

@@ -185,11 +185,28 @@ describe('pit stop tyres', () => {
   it('reads the wheels of a stop, in car order, dropping unknown names', () => {
     expect(
       stopWith({changed: true, wheels: ['RR', 'FL', 'XX']})?.tyres,
-    ).toEqual({changed: true, wheels: ['FL', 'RR']});
+    ).toEqual({
+      changed: true,
+      wheels: ['FL', 'RR'],
+      entryPct: null,
+      exitPct: null,
+    });
     expect(stopWith({changed: false, wheels: []})?.tyres).toEqual({
       changed: false,
       wheels: [],
+      entryPct: null,
+      exitPct: null,
     });
+  });
+  it('reads the wear at pit entry and exit by wheel name', () => {
+    const t = stopWith({
+      changed: true,
+      wheels: ['FR'],
+      entryPct: {FL: 61.2, FR: 55.4, RL: 63, RR: null},
+      exitPct: {FL: 61.2, FR: 100, RL: 63, RR: 'x'},
+    })?.tyres;
+    expect(t?.entryPct).toEqual({FL: 61.2, FR: 55.4, RL: 63, RR: null});
+    expect(t?.exitPct).toEqual({FL: 61.2, FR: 100, RL: 63, RR: null});
   });
   it('is null before analysisVersion 15, and never changed without a wheel', () => {
     expect(stopWith(undefined)?.tyres).toBeNull();
@@ -197,6 +214,8 @@ describe('pit stop tyres', () => {
     expect(stopWith({changed: true, wheels: []})?.tyres).toEqual({
       changed: false,
       wheels: [],
+      entryPct: null,
+      exitPct: null,
     });
   });
 });

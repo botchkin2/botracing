@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
-import {lapTyres} from './tyres.mjs';
+import {lapTyres, settleHotPressure} from './tyres.mjs';
 
 const HZ = 10;
 const N = 2400; // 240 s
@@ -67,6 +67,34 @@ describe('lapTyres', () => {
     assert.equal(t.pressureKpa.RL, null);
     assert.equal(t.rubberC.RR, 83);
     assert.equal(t.carcassC.FL, 70);
+  });
+
+  it('reads the stabilised hot pressure at the lap end, outside the pit lane, dead zeros out', () => {
+    const s = recording({
+      // Pressure climbs 1 kPa every 6 s: 160 at the start.
+      tyres_pressure_fr: Float64Array.from({length: N}, (_, i) => 160 + i / 60),
+    });
+    const t = tyres(s, lapBefore);
+    // The median of the last 5 s (ticks 550 to 599, 10 Hz): 160 + 574.5 / 60.
+    assert.equal(t.hotPressureKpa.FR, 169.6);
+    assert.equal(t.hotPressureKpa.FL, 160);
+    assert.equal(t.hotPressureKpa.RL, null);
+    // A lap that ends in the pit lane has no reading to take.
+    assert.equal(tyres(s, lapOfExit, [[1100, 1130]]).hotPressureKpa.FR, null);
+  });
+
+  it('settleHotPressure keeps it from the third lap of a stint and nulls it before', () => {
+    const laps = [0, 1, 2, 3].map(stintLap => ({
+      stintLap,
+      tyres: tyres(recording(), lapBefore),
+    }));
+    settleHotPressure(laps);
+    assert.deepEqual(
+      laps.map(l => l.tyres.hotPressureKpa?.FR ?? null),
+      [null, null, 161, 161],
+    );
+    // A lap with no tyre block is left alone.
+    assert.doesNotThrow(() => settleHotPressure([{stintLap: 0, tyres: null}]));
   });
 
   it('names the wheels changed in the stop that ended during the lap', () => {

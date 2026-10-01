@@ -94,8 +94,13 @@ export function lapFuel(s, i0, i1, pits) {
 // A wheel's wear reading rising by more than this within TYRE_STEP_S is a new
 // tyre (pit-wall thread 38, grip #1103: full sets and single wheels alike jump
 // to 100, dead-sensor wheels from 0). Real wear only falls, and the session
-// start's garage exit steps 100 to 98, a fall.
-export const TYRE_JUMP_PCT = 5;
+// start's garage exit steps 100 to 98, a fall. 0.5 sits between the channel's
+// float noise (a rise of at most 0.011 inside a pit window) and the smallest
+// real change (98.7 to 100, a short stint's tyre, 1.3): across the 516 local
+// recordings with wear, 73 positive steps in all, 69 inside a pit window and
+// the other 4 the first tick of one recording (thread 44, hairpin #1568).
+// It was 5, which missed any tyre swapped after a short run.
+export const TYRE_JUMP_PCT = 0.5;
 // The wear channel is 10 Hz and the analysis draws a straight line between its
 // real samples, so the step is spread over about 0.1 s of ticks (Silverstone
 // 09-16: 89.8 to 100 is 1 % a tick), never one tick. Look back this far.
@@ -142,6 +147,22 @@ export function tyreChange(s, a, b) {
 }
 
 /**
+ * Per-wheel wear (%) at the time `at`, {FL, FR, RL, RR}; a wheel with no
+ * channel or a dead 0 reading is null, and the whole thing null when `at` is
+ * not in the recording. The same wheel names as tyreChange.
+ */
+function wearAt(s, at) {
+  const i = firstIndexAtOrAfter(s.t, at);
+  if (!Number.isFinite(at) || i >= s.t.length) return null;
+  const out = {};
+  for (const [name, key] of WHEELS) {
+    const v = s[key]?.[i];
+    out[name] = Number.isFinite(v) && v > 0 ? round(v, 1) : null;
+  }
+  return out;
+}
+
+/**
  * The pit stop entered during the lap's time window (startT, endT] (its
  * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
  * recording is not a stop. `added` can be 0: a drive-through or a penalty.
@@ -172,9 +193,26 @@ export function lapPitStop(s, startT, endT, pits) {
       vePct: added(s.virtual_energy_pct, 2),
     },
     inPitS: b === Infinity ? null : round(b - a, 1),
-    tyres: tyreChange(s, a, b),
+    tyres: pitTyres(s, a, b),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},
+  };
+}
+
+/**
+ * The stop's tyre facts: tyreChange's `changed` and `wheels`, plus the wear of
+ * each wheel at pit entry and at pit exit (`entryPct`, `exitPct`), the same
+ * second after the window the change test reads (TYRE_MARGIN_S), so a new
+ * tyre shows as exit above entry. `exitPct` is null when the session ended in
+ * the pits. Null without a wear channel.
+ */
+function pitTyres(s, a, b) {
+  const change = tyreChange(s, a, b);
+  if (!change) return null;
+  return {
+    ...change,
+    entryPct: wearAt(s, a),
+    exitPct: b === Infinity ? null : wearAt(s, b + TYRE_MARGIN_S),
   };
 }
 
