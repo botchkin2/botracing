@@ -10,6 +10,14 @@
 // Plain JavaScript, no imports: analyze.mjs and its test both call it.
 
 /**
+ * The version of this rule, hashed into the sync fingerprint through
+ * analyze.mjs blockVersions. 1: a lap whose distance trace opens more than 100 m
+ * along the lap, or jumps more than 100 m in a tick, is partial (grid starts of
+ * a race's lap 0, file-boundary slivers).
+ */
+export const GRID_LAP_VERSION = 1;
+
+/**
  * Biggest believable rise of the lap distance between two ticks, in metres.
  * A car at 100 m/s covers 1 m in a 100 Hz tick and 10 m in a 10 Hz one.
  */

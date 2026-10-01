@@ -34,7 +34,7 @@ import {
   markGreen,
   stintFuel,
 } from './fuelFacts.mjs';
-import {jumpsOffTheGrid} from './gridLap.mjs';
+import {GRID_LAP_VERSION, jumpsOffTheGrid} from './gridLap.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres, TYRES_VERSION} from './tyres.mjs';
@@ -56,7 +56,7 @@ export const analysisVersion = 17;
 // bump re-analyses every session once, and each block's doc carries its key as
 // `v`. Each key is the constant that sits next to its block's rules (the
 // history of what each number meant is there).
-export const blockVersions = {tyres: TYRES_VERSION};
+export const blockVersions = {tyres: TYRES_VERSION, gridLap: GRID_LAP_VERSION};
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
