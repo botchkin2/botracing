@@ -97,29 +97,46 @@ describe('carLaps', () => {
     expect(carLaps(f)[0]).toHaveLength(2);
   });
 
-  it('does not take a counter reset for the line', () => {
-    // The lap distance jumps from 3700 to -300 (the race-start reset on the
-    // Daytona files): 300 m in one update is not a crossing, and the lap
-    // running through it is not a lap.
+  it('does not take the counter changing over before the line for a crossing', () => {
+    // The Daytona race start: the car rolls out at 6 s, the counter drops by
+    // one lap to -124 m, 124 m before the line, and the car then accelerates
+    // (2 m/s^2 to 40 m/s). Extrapolating the speed just after the drop puts
+    // the "crossing" in the wrong place, and the lap after it read 97.7 s.
+    const pos = (u: number) => {
+      const t = u * DT;
+      return t < 20 ? t * t : 400 + (t - 20) * 40;
+    };
+    const reading = (u: number) => {
+      const p = pos(u);
+      if (u < 30) return 3876 - 36 + p; // 124 m before the line, counter at the old lap
+      return (p - 160) % L;
+    };
+    const f = build(
+      [{class: 'GT3', lapS: 100, offsetM: 0, distAt: u => reading(u)}],
+      3200,
+    );
+    const laps = carLaps(f)[0];
+    expect(laps.length).toBeGreaterThanOrEqual(4);
+    for (const t of laps) expect(Math.abs(t - 100)).toBeLessThan(0.3);
+  });
+
+  it('does not take a jump bigger than one update of driving for a crossing', () => {
     const f = build(
       [
         {
           class: 'GT3',
           lapS: 100,
           offsetM: 0,
-          distAt: (u, along) =>
-            u > 700 && u < 1000
-              ? along % L
-              : u >= 1000
-              ? (along % L) - 300
-              : along % L,
+          // 1200 m forward at update 1375, from 3000 m to 4200 m, which reads
+          // as 200 m past the line.
+          distAt: (u, along) => (u < 1375 ? along % L : (along + 1200) % L),
         },
       ],
       3200,
     );
     const laps = carLaps(f)[0];
-    // No lap is shorter than the real 100 s by the reset's 300 m (2.3 s).
-    for (const t of laps) expect(t).toBeGreaterThan(97);
+    // The lap through the teleport is dropped, not counted short.
+    for (const t of laps) expect(t).toBeGreaterThan(99);
   });
 });
 
