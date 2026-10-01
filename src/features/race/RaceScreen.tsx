@@ -1,6 +1,6 @@
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
@@ -421,6 +421,7 @@ function RaceView({
       width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
       desktop={desktop}
       onScrub={scrub}
+      mode={mode}
     />
   );
   const controls = (
@@ -441,6 +442,18 @@ function RaceView({
       onFocus={toggleFocus}
       desktop={desktop}
       mode={mode}
+    />
+  );
+  const boardPaged = (
+    <Leaderboard
+      groups={rows.groups}
+      classes={rows.classes}
+      filter={rows.filter}
+      onFilter={setWanted}
+      onFocus={toggleFocus}
+      desktop={desktop}
+      mode={mode}
+      paged
     />
   );
 
@@ -487,26 +500,31 @@ function RaceView({
       </View>
     );
   }
+  // The phone screen scrolls as a page: the map at its height, the board
+  // below at full length, the lanes after it; the transport stays under the
+  // page (thread 44 #1733).
   return (
     <View style={styles.fill}>
-      <View style={styles.phoneTop}>
-        <View style={styles.subRow}>
-          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
-            {sub}
-          </Text>
-          {help.button}
+      <ScrollView style={styles.fill}>
+        <View style={styles.phoneTop}>
+          <View style={styles.subRow}>
+            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+              {sub}
+            </Text>
+            {help.button}
+          </View>
+          {help.panel}
+          {roadLine ? (
+            <Text variant='dataSmall' tone='textSecondary'>
+              {roadLine}
+            </Text>
+          ) : null}
+          {map}
+          <RaceLegend />
         </View>
-        {help.panel}
-        {roadLine ? (
-          <Text variant='dataSmall' tone='textSecondary'>
-            {roadLine}
-          </Text>
-        ) : null}
-        {map}
-        <RaceLegend />
-      </View>
-      {board}
-      <View style={styles.phoneLanes}>{lanesBlock}</View>
+        {boardPaged}
+        <View style={styles.phoneLanes}>{lanesBlock}</View>
+      </ScrollView>
       {controls}
     </View>
   );
