@@ -299,6 +299,7 @@ export function PlanScreen() {
                   pit={slider.pit}
                   planned={slider.planned}
                   unit={effectiveUnit(unit, hasVe)}
+                  wide={wide}
                   onStop={slider.setStop}
                   onReset={slider.reset}
                 />

@@ -29,10 +29,13 @@ export function PitPlanCard({
   pit,
   planned,
   unit: unitProp,
+  wide = false,
   onStop,
   onReset,
 }: {
   pit: PitPlan;
+  /** Desktop: the stops in two columns. */
+  wide?: boolean;
   /** VE or fuel, from the page's switch; absent, VE where the plan has it. */
   unit?: Unit;
   planned: number[];
@@ -45,36 +48,38 @@ export function PitPlanCard({
   const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tyre laps'];
   return (
     <PlanCard title='Pit plan' explainer={PIT_PLAN_EXPLAINER}>
-      {pit.stops.map(s => {
-        const warning = stopWarning(s);
-        return (
-          <View key={s.stop} style={styles.stop}>
-            <View style={styles.head}>
-              <Text variant='label' tone='textMuted'>
-                {`Stop ${s.stop}`}
-              </Text>
-              <Text variant='dataStrong'>{`after ${lapName(s.after)}`}</Text>
-            </View>
-            <StopSlider
-              after={s.after}
-              min={s.min}
-              max={s.max}
-              p90Max={s.p90Max}
-              plan={planned[s.stop - 1]}
-              name={`Stop ${s.stop}`}
-              onChange={lap => onStop(s.stop, lap)}
-            />
-            <Text variant='dataSmall' tone='textSecondary'>
-              {stopLine(s, pit.stints[s.stop - 1], unit)}
-            </Text>
-            {warning ? (
+      <View style={styles.stops}>
+        {pit.stops.map(s => {
+          const warning = stopWarning(s);
+          return (
+            <View key={s.stop} style={[styles.stop, wide && styles.stopHalf]}>
+              <View style={styles.head}>
+                <Text variant='label' tone='textMuted'>
+                  {`Stop ${s.stop}`}
+                </Text>
+                <Text variant='dataStrong'>{`after ${lapName(s.after)}`}</Text>
+              </View>
+              <StopSlider
+                after={s.after}
+                min={s.min}
+                max={s.max}
+                p90Max={s.p90Max}
+                plan={planned[s.stop - 1]}
+                name={`Stop ${s.stop}`}
+                onChange={lap => onStop(s.stop, lap)}
+              />
               <Text variant='dataSmall' tone='textSecondary'>
-                {warning}
+                {stopLine(s, pit.stints[s.stop - 1], unit)}
               </Text>
-            ) : null}
-          </View>
-        );
-      })}
+              {warning ? (
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {warning}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
       <View style={[styles.table, {borderColor: color.line}]}>
         <View style={styles.row}>
           {headers.map(h => (
@@ -125,7 +130,15 @@ export function PitPlanCard({
 }
 
 const styles = StyleSheet.create({
-  stop: {gap: space.xxs},
+  stops: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.xxl,
+    rowGap: space.lg,
+  },
+  stop: {gap: space.xxs, width: '100%'},
+  // Two to a row, less half the column gap.
+  stopHalf: {width: '47%', flexGrow: 1},
   head: {flexDirection: 'row', justifyContent: 'space-between'},
   table: {gap: space.xs, paddingTop: space.sm, borderTopWidth: 1},
   row: {flexDirection: 'row', gap: space.md},
