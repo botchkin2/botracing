@@ -125,7 +125,7 @@ const lap = (
   aheadS: number,
   suffered = 0,
   comparable = true,
-  extra: {blueFlagS?: number; overtakes?: number} = {},
+  extra: {blueFlagS?: number; battleS?: number; overtakes?: number} = {},
 ): TrafficLap => ({
   timeS,
   comparable,
@@ -133,6 +133,7 @@ const lap = (
     trafficAheadS: aheadS,
     passesSufferedAll: suffered,
     blueFlagS: extra.blueFlagS ?? 0,
+    battleS: extra.battleS ?? 0,
     overtakes: Array.from({length: extra.overtakes ?? 0}, () => ({})),
   },
 });
@@ -174,6 +175,18 @@ describe('trafficMedians', () => {
       lap(100, 0, 0, true, {blueFlagS: 12}),
     ];
     expect(trafficMedians(laps)?.clean.laps).toBe(3);
+  });
+
+  it('a lap with 2 s or more of battle with a same-class car is not clean', () => {
+    const laps = [
+      lap(100, 0),
+      lap(100, 0),
+      lap(100, 0),
+      lap(100, 0, 0, true, {battleS: 2}),
+      lap(100, 0, 0, true, {battleS: 9}),
+      lap(100, 0, 0, true, {battleS: 1.9}),
+    ];
+    expect(trafficMedians(laps)?.clean.laps).toBe(4);
   });
 
   it('gives no median under the floor, but keeps the count', () => {

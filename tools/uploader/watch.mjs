@@ -38,6 +38,7 @@ import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {
+  isProgressLine,
   newSyncResult,
   progressOf,
   queueCount,
