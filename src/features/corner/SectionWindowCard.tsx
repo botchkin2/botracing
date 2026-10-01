@@ -35,6 +35,11 @@ export function SectionWindowCard({window}: {window: SectionWindowModel}) {
           {window.parts.map(p => p.label).join(' · ')} inside
         </Text>
       ) : null}
+      {window.referenceNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {window.referenceNote}
+        </Text>
+      ) : null}
       {window.rows.map(row => (
         <View
           key={row.lapId}

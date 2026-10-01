@@ -69,6 +69,12 @@ export type SectionWindowModel = {
   rows: SectionWindowRow[];
   /** Laps shown as "re-analysis pending". */
   pendingCount: number;
+  /**
+   * Said on the card when the first lap (the reference) cannot be compared,
+   * so empty gap cells are never the only sign: "Reference L12 is pending
+   * re-analysis; no gaps." Null when the reference compares, or no lap does.
+   */
+  referenceNote: string | null;
 };
 
 const kph = (v: number | null) => (v == null ? '—' : `${Math.round(v)} km/h`);
@@ -209,6 +215,14 @@ export function buildSectionWindow(input: {
     }),
     rows,
     pendingCount: states.filter(s => s === 'stale').length,
+    referenceNote:
+      laps.length > 1 && states[0] !== 'ok'
+        ? `Reference L${laps[0].lapIndex} ${
+            states[0] === 'stale'
+              ? 'is pending re-analysis'
+              : 'crosses the pit lane here'
+          }; no gaps.`
+        : null,
   };
 }
 

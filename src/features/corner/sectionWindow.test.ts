@@ -1,4 +1,4 @@
-import {describe, expect, it} from '@jest/globals';
+import {describe, expect, it, jest} from '@jest/globals';
 
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {toLaps, toTrackMap} from '@/src/data/sessions/adapters';
@@ -206,7 +206,10 @@ describe('buildSectionWindow', () => {
       sectionN: 2,
       laps: lapsOf(
         rawLap('a', section2()),
-        rawLap('p', section2({pit: true}, 30)),
+        rawLap(
+          'p',
+          section2({pit: true, runInS: 10, cornerS: 12, exitS: 8}, 30),
+        ),
       ),
     });
     expect(w?.rows[1].state).toBe('pit');
@@ -216,6 +219,47 @@ describe('buildSectionWindow', () => {
       better: false,
     });
     expect(w?.pendingCount).toBe(0);
+  });
+
+  it('says on the card when the reference cannot be compared, and who it is', () => {
+    const stale = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(
+        rawLap('old', section2(), {v: 1, rev: 2}),
+        rawLap('b', section2()),
+      ),
+    });
+    expect(stale?.referenceNote).toBe(
+      'Reference L1 is pending re-analysis; no gaps.',
+    );
+    const pit = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(rawLap('p', section2({pit: true})), rawLap('b', section2())),
+    });
+    expect(pit?.referenceNote).toBe(
+      'Reference L1 crosses the pit lane here; no gaps.',
+    );
+    const ok = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(rawLap('a', section2()), rawLap('b', section2())),
+    });
+    expect(ok?.referenceNote).toBeNull();
+  });
+
+  it('a split that does not add up to the window time is a stored-data fault: pending, and named', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const w = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(rawLap('bad', section2({cornerS: 6.5}))),
+    });
+    expect(w?.rows[0].state).toBe('stale');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('does not add up to segTime');
+    warn.mockRestore();
   });
 
   it('a brake application with no part reads against the section apex', () => {

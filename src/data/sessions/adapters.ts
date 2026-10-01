@@ -505,10 +505,36 @@ function toBoundaryStamp(raw: unknown): BoundaryStamp | null {
   return v == null || rev == null ? null : {v, rev};
 }
 
+/** Rounding of three stored times to 3 decimals stays well inside this. */
+const SPLIT_TOLERANCE_S = 0.01;
+
 function toWindowFacts(x: Record<string, unknown>): CornerWindowFacts | null {
   const fromM = num(x.fromM);
   const toM = num(x.toM);
   if (fromM == null || toM == null) return null;
+  // The split adds up to the window's time (segTime) by construction; one that
+  // does not is a stored-data fault, so the window is dropped (the lap reads
+  // re-analysis pending) and the field is named, not shown as a wrong row.
+  const [segTime, runInS, cornerS, exitS] = [
+    x.segTime,
+    x.runInS,
+    x.cornerS,
+    x.exitS,
+  ].map(num);
+  if (
+    segTime != null &&
+    runInS != null &&
+    cornerS != null &&
+    exitS != null &&
+    Math.abs(runInS + cornerS + exitS - segTime) >= SPLIT_TOLERANCE_S
+  ) {
+    console.warn(
+      `corner window: runInS + cornerS + exitS (${
+        runInS + cornerS + exitS
+      }) does not add up to segTime (${segTime})`,
+    );
+    return null;
+  }
   return {
     fromM,
     toM,
