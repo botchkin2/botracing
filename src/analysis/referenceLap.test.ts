@@ -1,7 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
-  CLEAN_AIR_S,
   FUEL_BAND_L,
   type RefLap,
   rankReferenceLaps,
@@ -24,8 +23,6 @@ const lap = (id: string, over: Partial<RefLap> = {}): RefLap => ({
   newTyres: false,
   startL: 60,
   veStartPct: null,
-  trafficAheadS: 0,
-  blueFlagS: 0,
   ...over,
 });
 
@@ -86,19 +83,20 @@ describe('rankReferenceLaps', () => {
     expect(ids([fresh, worn])).toEqual(['worn', 'fresh']);
   });
 
-  it('traffic ahead, blue flag or off-track makes a lap unclean', () => {
-    const traffic = lap('traffic', {trafficAheadS: CLEAN_AIR_S});
-    const blue = lap('blue', {blueFlagS: 2});
+  it('time off track ranks a lap below one on the line', () => {
     const off = lap('off', {offTrackS: 0.4});
-    const clean = lap('clean', {timeS: 101.5});
-    const ranked = rankReferenceLaps(target, [traffic, blue, off, clean]);
-    expect(ranked[0].lapId).toBe('clean');
-    for (const r of ranked.slice(1)) expect(r.match.clean).toBe(false);
+    const on = lap('on', {timeS: 101.5});
+    const ranked = rankReferenceLaps(target, [off, on]);
+    expect(ranked[0].lapId).toBe('on');
+    expect(ranked[1].match.onTrack).toBe(false);
   });
 
-  it('a lap with no field is clean on what is known', () => {
-    const nofield = lap('nofield', {trafficAheadS: null, blueFlagS: null});
-    expect(rankReferenceLaps(target, [nofield])[0].match.clean).toBe(true);
+  it('a tow or traffic is not a ranking key: the faster lap still wins', () => {
+    // The ranking has no field to read: a lap with a tow, traffic or a
+    // blue flag ranks as any other (flags are shown beside a lap, never a filter).
+    const fast = lap('fast', {timeS: 99.9});
+    const slow = lap('slow', {timeS: 101.5});
+    expect(ids([slow, fast])).toEqual(['fast', 'slow']);
   });
 
   it('inside the band the fastest wins, not the closest fuel', () => {

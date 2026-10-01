@@ -79,29 +79,3 @@ export function lapTraffic(traffic: LapTraffic | null) {
     tick: heldUp || (!!traffic && traffic.blueFlagS >= BLUE_MIN_S),
   };
 }
-
-/**
- * The fastest comparable lap that is neither towed nor held up, and how far
- * it is behind the best lap ("Best without TOW or TRAF", R3). Null when the
- * session has no field, or the best lap is itself clean (nothing to say).
- */
-export function bestWithoutTow(
-  laps: Lap[],
-  bestLapId: string | null,
-): {lap: Lap; behindS: number} | null {
-  const best = laps.find(l => l.id === bestLapId);
-  if (!best || best.timeS == null || !laps.some(l => l.traffic)) return null;
-  const affected = (l: Lap) => {
-    const f = lapTraffic(l.traffic);
-    return f.towed || f.heldUp;
-  };
-  if (!affected(best)) return null;
-  let clean: {lap: Lap; timeS: number} | null = null;
-  for (const l of laps) {
-    if (!l.comparable || l.timeS == null || l.traffic == null) continue;
-    if (affected(l)) continue;
-    if (clean == null || l.timeS < clean.timeS)
-      clean = {lap: l, timeS: l.timeS};
-  }
-  return clean && {lap: clean.lap, behindS: clean.timeS - best.timeS};
-}

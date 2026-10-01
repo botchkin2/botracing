@@ -51,15 +51,13 @@ export function refLapOf(
     newTyres: lap.newTyres,
     startL: lap.fuel?.startL ?? null,
     veStartPct: lap.fuel?.veStartPct ?? null,
-    trafficAheadS: lap.traffic?.trafficAheadS ?? null,
-    blueFlagS: lap.traffic?.blueFlagS ?? null,
   };
 }
 
 /**
  * The laps Compare opens on when the URL names none: the session's median
  * comparable lap, and as its reference the fairest other lap for it (same
- * fuel band, tyres kept, clean air; then the fastest). A best lap on low fuel
+ * fuel band, tyres kept, on track; then the fastest). A best lap on low fuel
  * is the wrong ruler for a race lap, so this replaces "best lap first".
  * With fewer than three comparable laps, or no fair reference, it is
  * `defaultLapIds`.

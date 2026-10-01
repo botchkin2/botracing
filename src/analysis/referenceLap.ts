@@ -1,8 +1,10 @@
 // Which lap makes a fair reference for another lap (pit-wall thread 11, E3).
 // A best lap on low fuel is the wrong ruler for a race lap, so candidates are
 // ranked on what they have in common with the lap being compared: the same
-// car, the same kind of session, a similar fuel load, no fresh tyres, and
-// clean air; then the fastest. Numbers and matches only, no verdict.
+// car, the same kind of session, a similar fuel load, no fresh tyres, and no
+// time off track; then the fastest. A tow or traffic does not rank a lap
+// (Botkin, pit-wall thread 44 #1789: they are flags beside a number, never a
+// filter). Numbers and matches only, no verdict.
 // Pure: imports nothing.
 
 export type RefLap = {
@@ -27,18 +29,12 @@ export type RefLap = {
   startL: number | null;
   /** Virtual Energy on board at the start of the lap, %; null without the channel. */
   veStartPct: number | null;
-  /** Seconds within about 1 s of a car ahead; null without a field. */
-  trafficAheadS: number | null;
-  /** Seconds under the blue flag; null without a field. */
-  blueFlagS: number | null;
 };
 
 /** Fuel loads this close count as one band: a lap's weight moves its time by hundredths. */
 export const FUEL_BAND_L = 10;
 /** The same band in Virtual Energy points, where the fuel level is not known on both laps. */
 export const VE_BAND_PCT = 10;
-/** Traffic ahead and blue flag below this many seconds is clean air. */
-export const CLEAN_AIR_S = 1;
 
 export type RefMatch = {
   sameCar: boolean;
@@ -51,8 +47,8 @@ export type RefMatch = {
   fuelBand: boolean;
   /** No new tyres on the candidate lap. */
   tyresKept: boolean;
-  /** No traffic ahead, blue flag or off-track on the candidate lap; a lap without a field is clean on what is known. */
-  clean: boolean;
+  /** No time off track on the candidate lap. */
+  onTrack: boolean;
 };
 
 export type RankedRef = {
@@ -91,21 +87,18 @@ function matchOf(lap: RefLap, target: RefLap): RefMatch {
     sameSession: lap.sessionType === target.sessionType,
     fuelBand: inLoadBand(lap, target),
     tyresKept: !lap.newTyres,
-    clean:
-      (lap.trafficAheadS ?? 0) < CLEAN_AIR_S &&
-      (lap.blueFlagS ?? 0) < CLEAN_AIR_S &&
-      lap.offTrackS === 0,
+    onTrack: lap.offTrackS === 0,
   };
 }
 
 // Most important first: a different car is a different ruler whatever the
-// fuel, a different kind of session next, then the load, the tyres, the air.
+// fuel, a different kind of session next, then the load, the tyres, the line.
 const ORDER: (keyof RefMatch)[] = [
   'sameCar',
   'sameSession',
   'fuelBand',
   'tyresKept',
-  'clean',
+  'onTrack',
 ];
 
 /**
