@@ -15,11 +15,11 @@ import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
 
 const TIMELINE_EXPLAINER =
-  'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen because the error adds up. The first pass assumes a level start; a faster class that starts ahead needs less than a lap to catch you.';
+  'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen with each pass. The first pass assumes a level start; a faster class that starts ahead needs less than a lap to catch you. Each band runs from the class p10 to its p90 lap.';
 const TIMELINE_KEY =
   'Amber dashes = your stops. White tick = estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
 const FASTER_EXPLAINER =
-  'Gain = your median lap − theirs. First catch ≈ your lap ÷ gain, then again about every that many laps.';
+  'Gain = your median lap − theirs. First is the range of laps from their p10 to their p90 lap; Every is their median lap ÷ gain, in your laps.';
 const YOURS_EXPLAINER =
   'Median green lap of all cars of your class in the sessions here, and yours.';
 
@@ -120,7 +120,7 @@ function FasterClasses({timing}: {timing: ReadyClassTiming}) {
                 <Text variant='bodyStrong'>{c.label}</Text>
               )}
               <Text variant='dataSmall' tone='textMuted'>
-                {c.text}
+                {c.estimate ? `${c.text} · ${c.estimate.firstNote}` : c.text}
               </Text>
             </View>
           ))}

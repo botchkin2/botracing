@@ -11,6 +11,7 @@ const cars = [
   {id: 2, class: 'GT3', vehicle: 'C', player: false},
   // Parked far away: only makes the lap 4000 m long for the wrap maths.
   {id: 3, class: 'GT3', vehicle: 'D', player: false},
+  {id: 4, class: 'Hypercar', vehicle: 'E', player: false},
 ];
 
 // rows(u) -> {0: {lapDist, lane, flag, inPits}, 1: ...} for update u.
@@ -136,18 +137,57 @@ test('passes: made and suffered, per lap window, cars in the pits ignored', () =
   assert.equal(lapFieldFacts(pit, [all])[0].passesSuffered, 0);
 });
 
-test('blue flag seconds, and windows are [from, to)', () => {
+test('the game flag is gameBlueS, and windows are [from, to)', () => {
   const f = build(30, u => ({
     0: {...me(u), flag: u >= 5 && u < 15 ? 6 : 0},
     3: far,
   }));
-  assert.equal(lapFieldFacts(f, [all])[0].blueFlagS, 2);
+  assert.equal(lapFieldFacts(f, [all])[0].gameBlueS, 2);
   const [a, b] = lapFieldFacts(f, [
     {from: 10, to: 10 + 10 * DT},
     {from: 10 + 10 * DT, to: 1e9},
   ]);
-  assert.equal(a.blueFlagS, 1); // updates 5-9
-  assert.equal(b.blueFlagS, 1); // updates 10-14
+  assert.equal(a.gameBlueS, 1); // updates 5-9
+  assert.equal(b.gameBlueS, 1); // updates 10-14
+});
+
+test('blueFlagS is a faster-class car within 1.5 s behind, whatever the game flag says', () => {
+  // The latched case (#1534): the game flags the player with nothing near.
+  const latched = build(30, u => ({
+    0: {...me(u), flag: 6},
+    3: far,
+  }));
+  const l = lapFieldFacts(latched, [all])[0];
+  assert.equal(l.blueFlagS, 0);
+  assert.equal(l.gameBlueS, 6);
+  // A Hypercar 60 m (0.9 s) behind for updates 5-14 is 2 s of blue.
+  const near = build(30, u => ({
+    0: me(u),
+    4: {lapDist: me(u).lapDist - (u >= 5 && u < 15 ? 60 : 400), lane: 5},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(near, [all])[0].blueFlagS, 2);
+  // 150 m (2.2 s) behind is not blue.
+  const wide = build(30, u => ({
+    0: me(u),
+    4: {lapDist: me(u).lapDist - 150, lane: 5},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(wide, [all])[0].blueFlagS, 0);
+  // A car of the player's own class behind is a battle, not blue.
+  const same = build(30, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist - 60, lane: 5},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(same, [all])[0].blueFlagS, 0);
+  // A faster car ahead is not blue.
+  const ahead = build(30, u => ({
+    0: me(u),
+    4: {lapDist: me(u).lapDist + 60, lane: 5},
+    3: far,
+  }));
+  assert.equal(lapFieldFacts(ahead, [all])[0].blueFlagS, 0);
 });
 
 test('no player car in the field: nulls', () => {

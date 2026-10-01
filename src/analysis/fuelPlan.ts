@@ -178,7 +178,8 @@ export interface FuelPlan {
     lapTimeS: Usage | null;
   };
   /** Laps in the race: as given, or from minutes at the median lap time. */
-  raceLaps: {estimate: number; oneFewer: number | null} | null;
+  /** `oneMore` is the lap count when the flag falls late; null in a race in laps. */
+  raceLaps: {estimate: number; oneMore: number | null} | null;
   /** Stint and stops at the median use and at the p90 (heavy) use. */
   atMedian: Option;
   atP90: Option;
@@ -186,7 +187,7 @@ export interface FuelPlan {
   dropStop: DropStop | null;
   /**
    * Only when the race fits one load at the median use: one row per race-lap
-   * count (own estimate, and one fewer when the flag can fall early).
+   * count (own estimate, and one more when the flag can fall late).
    */
   loadToFinish: LoadToFinish[] | null;
 }
@@ -441,7 +442,10 @@ function loadToFinishFor(
   };
 }
 
-export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
+export function planRace(
+  rules: PlanRules,
+  history: GreenLap[],
+): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
   const ve = usage(
     history.filter(l => l.vePct != null).map(l => l.vePct as number),
@@ -450,13 +454,15 @@ export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
 
   let raceLaps: FuelPlan['raceLaps'] = null;
   if (rules.lengthLaps != null) {
-    raceLaps = {estimate: rules.lengthLaps, oneFewer: null};
+    raceLaps = {estimate: rules.lengthLaps, oneMore: null};
   } else if (rules.lengthMin != null && lapTimeS) {
-    // The race ends at the first line crossing after the time is up.
+    // The flag falls at the leader's first crossing after the time T is up,
+    // somewhere in (T, T + a leader lap], and he takes it at his next crossing:
+    // ceil(T / m) laps or one more, never fewer. Where in that span the leader
+    // crosses is not knowable (lap spread, their stops), so one more is always
+    // possible. Time lost in the pits is not counted.
     const estimate = Math.ceil((rules.lengthMin * 60) / lapTimeS.median);
-    // The flag falls when the overall leader finishes, so a slower class can
-    // get one lap fewer.
-    raceLaps = {estimate, oneFewer: Math.max(0, estimate - 1)};
+    raceLaps = {estimate, oneMore: estimate + 1};
   }
 
   const laps = raceLaps ? raceLaps.estimate : null;
@@ -476,7 +482,7 @@ export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
 
   const loadToFinish =
     raceLaps != null && atMedian.stops === 0 && (fuel != null || ve != null)
-      ? [raceLaps.estimate, raceLaps.oneFewer]
+      ? [raceLaps.estimate, raceLaps.oneMore]
           .filter((n): n is number => n != null && n > 0)
           .map(n => loadToFinishFor(rules, n, fuel, ve))
       : null;

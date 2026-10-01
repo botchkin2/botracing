@@ -12,9 +12,8 @@ import {lapName} from './planCards';
 
 /** Fewer sessions than this is not a class pace. (The uploader's own floor is 3 laps in a session; this is 3 sessions.) */
 export const MIN_CLASS_SESSIONS = 3;
-/** The first catch is this many laps either side; each pass adds HALF_BAND_STEP. */
-export const FIRST_HALF_BAND_LAPS = 1.5;
-export const HALF_BAND_STEP_LAPS = 0.5;
+/** Races alone make the pool from this many; fewer, and practice joins them. */
+export const MIN_RACE_SESSIONS = 3;
 /** Enough passes to fill any race the Plan draws. */
 const MAX_PASSES = 20;
 
@@ -22,7 +21,12 @@ const MAX_PASSES = 20;
 export type ClassSession = {
   kind: 'race' | 'practice';
   /** Per class: the median green lap of its cars in that session, and how many laps it rests on. */
-  byClass: Partial<Record<PaceClass, {medianS: number; laps: number}>>;
+  byClass: Partial<
+    Record<
+      PaceClass,
+      {medianS: number; p10S: number; p90S: number; laps: number}
+    >
+  >;
 };
 
 /**
@@ -37,7 +41,12 @@ export function classSessionOf(s: {
   if (!doc || doc.kind === 'qualify' || !doc.classes) return null;
   const byClass: ClassSession['byClass'] = {};
   for (const [key, stats] of Object.entries(doc.classes)) {
-    byClass[key as PaceClass] = {medianS: stats.medianS, laps: stats.laps};
+    byClass[key as PaceClass] = {
+      medianS: stats.medianS,
+      p10S: stats.p10S,
+      p90S: stats.p90S,
+      laps: stats.laps,
+    };
   }
   return {kind: doc.kind, byClass};
 }
@@ -65,6 +74,7 @@ export type ClassTimingInput = {
 export type Pass = {
   /** The lap, counted in his laps, around which the class reaches him. */
   centre: number;
+  /** Where its p10 lap puts the pass, and where its p90 lap does; `hi` is Infinity when the p90 lap is not faster than his. */
   lo: number;
   hi: number;
 };
@@ -77,6 +87,8 @@ export type FasterClass = {
     lapText: string;
     gainText: string;
     firstText: string;
+    /** "Assumes a level start": the grid gap to a faster class is not taken. */
+    firstNote: string;
     everyText: string;
     passes: Pass[];
   } | null;
@@ -136,25 +148,40 @@ const thousands = (n: number) => n.toLocaleString('en-GB');
 
 type Pooled = {
   medianS: number;
+  p10S: number;
+  p90S: number;
+  /** True when practice laps are in the pool because races alone were too few. */
+  fromPractice: boolean;
   sessions: number;
   races: number;
   practices: number;
   laps: number;
 };
 
-/** The median of the per-session medians: one long race does not outweigh the rest. */
+/**
+ * The median of the per-session medians: one long race does not outweigh the
+ * rest. Races alone when there are MIN_RACE_SESSIONS of them (practice laps
+ * are push laps and run faster than a race pace); otherwise every session,
+ * marked as from practice.
+ */
 function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
   const seen = sessions.flatMap(s => {
     const c = s.byClass[key];
     return c ? [{kind: s.kind, ...c}] : [];
   });
   if (seen.length === 0) return null;
+  const races = seen.filter(s => s.kind === 'race');
+  const raceOnly = races.length >= MIN_RACE_SESSIONS;
+  const used = raceOnly ? races : seen;
   return {
-    medianS: median(seen.map(s => s.medianS)),
+    medianS: median(used.map(s => s.medianS)),
+    p10S: median(used.map(s => s.p10S)),
+    p90S: median(used.map(s => s.p90S)),
+    fromPractice: !raceOnly && used.some(s => s.kind === 'practice'),
     sessions: seen.length,
-    races: seen.filter(s => s.kind === 'race').length,
-    practices: seen.filter(s => s.kind === 'practice').length,
-    laps: seen.reduce((a, s) => a + s.laps, 0),
+    races: used.filter(s => s.kind === 'race').length,
+    practices: used.filter(s => s.kind === 'practice').length,
+    laps: used.reduce((a, s) => a + s.laps, 0),
   };
 }
 
@@ -163,23 +190,40 @@ function fromText(p: Pooled): string {
     p.races > 0 && plural(p.races, 'race'),
     p.practices > 0 && plural(p.practices, 'practice'),
   ].filter(Boolean);
-  return `From ${parts.join(', ')} · n = ${thousands(p.laps)} laps`;
+  return `From ${parts.join(', ')} · n = ${thousands(p.laps)} laps${
+    p.fromPractice ? ' · from practice' : ''
+  }`;
 }
 
-/** Passes of a class at `everyLaps` apart, the bands widening with each one. */
-export function passesOf(everyLaps: number, raceLaps: number): Pass[] {
+/** The lap, in his laps, at which a car of lap time `lapS` has gained one lap on his `myLapS`: lapS / (myLapS - lapS). */
+const catchLaps = (lapS: number, myLapS: number): number =>
+  myLapS > lapS ? lapS / (myLapS - lapS) : Infinity;
+
+/**
+ * Passes of a class: the k-th is k times the catch at the class's median lap,
+ * its band the same count at its p10 and p90 lap. The band widens with k for a
+ * real reason, the spread of the class's laps, and needs no constant.
+ */
+export function passesOf(
+  lap: {medianS: number; p10S: number; p90S: number},
+  myLapS: number,
+  raceLaps: number,
+): Pass[] {
+  const every = catchLaps(lap.medianS, myLapS);
+  const lo = catchLaps(lap.p10S, myLapS);
+  const hi = catchLaps(lap.p90S, myLapS);
   const out: Pass[] = [];
   for (let k = 1; k <= MAX_PASSES; k++) {
-    const centre = k * everyLaps;
-    const half = FIRST_HALF_BAND_LAPS + HALF_BAND_STEP_LAPS * (k - 1);
-    if (centre - half >= raceLaps) break;
-    out.push({centre, lo: Math.max(0, centre - half), hi: centre + half});
+    if (k * lo >= raceLaps) break;
+    out.push({centre: k * every, lo: k * lo, hi: k * hi});
   }
   return out;
 }
 
 const rangeText = (lo: number, hi: number) =>
-  `${lapName(Math.ceil(lo))}–${lapName(Math.floor(hi))}`;
+  Number.isFinite(hi)
+    ? `${lapName(Math.ceil(lo))}–${lapName(Math.floor(hi))}`
+    : `${lapName(Math.ceil(lo))} or later`;
 
 export function classTiming(input: ClassTimingInput): ClassTiming {
   const {sessions, mine, raceLaps, stopsAfter} = input;
@@ -204,19 +248,18 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
       continue;
     }
     const gain = myLap - p.medianS;
-    const every = myLap / gain;
+    const every = catchLaps(p.medianS, myLap);
+    const band = {lo: catchLaps(p.p10S, myLap), hi: catchLaps(p.p90S, myLap)};
     faster.push({
       key,
       label: LABELS[key],
       estimate: {
         lapText: formatLapTime(p.medianS),
         gainText: `${gain.toFixed(1)} s`,
-        firstText: rangeText(
-          Math.max(0, every - FIRST_HALF_BAND_LAPS),
-          every + FIRST_HALF_BAND_LAPS,
-        ),
+        firstText: rangeText(band.lo, band.hi),
+        firstNote: 'Assumes a level start.',
         everyText: `~${Math.round(every)} laps`,
-        passes: raceLaps == null ? [] : passesOf(every, raceLaps),
+        passes: raceLaps == null ? [] : passesOf(p, myLap, raceLaps),
       },
       text: fromText(p),
     });
