@@ -416,7 +416,18 @@ export function buildCornerModel(input: {
     sec.apexM + ZOOM_AFTER_M,
   ];
   const ownFrame = own ? inWindowFrame(own, baseWindow, map.lengthM) : null;
-  const zoomWindow = zoomWindowFor(sec.apexM, ownFrame);
+  // The charts run from the section's start (where the delta is drawn from) to
+  // the corner's own end: the same extent the slice is cut to, so what the
+  // charts ask for is always in the file (tools/sessions/cornerSlices.mjs).
+  const zoomExtent =
+    windows && own
+      ? inWindowFrame(
+          {fromM: windows.section.fromM, toM: own.toM},
+          baseWindow,
+          map.lengthM,
+        )
+      : null;
+  const zoomWindow = zoomWindowFor(sec.apexM, zoomExtent);
   const baseView = cornerView(all, idx, zoomWindow, map.lengthM);
   if (!baseView) return null;
   // The delta is drawn from where laps share speed: a section's start, which

@@ -64,8 +64,10 @@ const CHANNELS = [
 
 /**
  * Corner number and apex for every corner of a track map, in map order. With
- * the layout's windows (`windowsOf`), each also carries its window: a part's
- * own for a compound section, else the section's.
+ * the layout's windows (`windowsOf`), each also carries its extent: from the
+ * start of its section's window (where laps share speed, which the delta is
+ * drawn from, so it is always inside the slice) to the end of its own window,
+ * a part's for a compound section, else the section's.
  */
 export function mapCorners(map, windows = null) {
   const out = [];
@@ -78,7 +80,7 @@ export function mapCorners(map, windows = null) {
       out.push({
         n: p.n,
         apexM: p.apexM,
-        ...(own ? {extent: {fromM: own.fromM, toM: own.toM}} : {}),
+        ...(own && w ? {extent: {fromM: w.fromM, toM: own.toM}} : {}),
       });
     });
   });

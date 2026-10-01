@@ -211,14 +211,24 @@ const windowOf = (windows, n) =>
 test('a corner window that reaches past the screen window widens the slice by a pad', () => {
   // Part 2 (apex 1700) runs 1600 to 1950: the apex window ends at 1900, the
   // corner's own at 1950 + the pad.
+  // The extent starts at the section's start (1300): the delta is drawn from there.
   const w = windowOf(windowsFor({fromM: 1600, toM: 1950}), 2);
-  assert.deepEqual(w, [1700 - SLICE_BEFORE_M, 1950 + WINDOW_PAD_M]);
+  assert.deepEqual(w, [
+    Math.min(1700 - SLICE_BEFORE_M, 1300 - WINDOW_PAD_M),
+    1950 + WINDOW_PAD_M,
+  ]);
   // One that starts before the apex window does reaches back to it, less the
   // pad, but no further than the screen's cap before the zoom window.
-  const early = windowOf(windowsFor({fromM: 1100, toM: 1800}), 2);
+  const early = windowOf(
+    windowsFor({fromM: 1600, toM: 1800}, {fromM: 1100, toM: 1600}),
+    2,
+  );
   assert.equal(early[0], zoomWindowFor(1700, {fromM: 1100, toM: 1800})[0]);
   assert.ok(early[0] > 1100 - WINDOW_PAD_M);
-  const near = windowOf(windowsFor({fromM: 1300, toM: 1800}), 2);
+  const near = windowOf(
+    windowsFor({fromM: 1600, toM: 1800}, {fromM: 1300, toM: 1600}),
+    2,
+  );
   assert.equal(near[0], 1300 - WINDOW_PAD_M);
 });
 

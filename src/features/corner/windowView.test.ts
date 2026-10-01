@@ -194,15 +194,13 @@ describe('the Corner model with windows', () => {
 
   it('draws a part’s delta from its section’s start, and says so', () => {
     const t3 = build(m, {v: 1, rev: 3}, 3)!;
-    // T3 starts at 700 inside S2 (500 → 1000): laps share speed at 500, which
-    // is before the drawn stretch (the zoom starts at 530), so the delta is
-    // anchored at the first drawn point and the caption says the start is not
-    // drawn rather than pretend.
+    // T3 starts at 700 inside S2 (500 → 1000): laps share speed at 500, and
+    // the charts run back to it (the slice is cut from the section's start).
     expect(t3.zoom.stretch.fromM).toBe(700);
-    expect(t3.zoom.deltaFromM).toBe(t3.zoom.windowM[0]);
-    expect(t3.zoom.caption).toContain(
-      'delta from the start of S2 at 500 m (not drawn)',
-    );
+    expect(t3.zoom.deltaFromM).toBe(500);
+    expect(t3.zoom.windowM[0]).toBeLessThanOrEqual(500);
+    expect(t3.zoom.caption).toContain('delta from the start of S2 at 500 m');
+    expect(t3.zoom.caption).not.toContain('not drawn');
     // The first part starts where its section does: nothing to add.
     const t2 = build(m, {v: 1, rev: 3}, 2)!;
     expect(t2.zoom.deltaFromM).toBe(t2.zoom.stretch.fromM);
@@ -240,9 +238,12 @@ describe('the Corner model with windows', () => {
     const t1 = build(one, {v: 1, rev: 3}, 1)!;
     expect(t1.explainer).toContain('the next corner starts');
     expect(t1.explainer).toContain('braking or lift');
-    expect(build(one, {v: 1, rev: 3}, 3)!.explainer).toContain(
-      'the next part starts',
-    );
+    // Both parts of a compound section, the first one too (its window starts
+    // where the section's does).
+    for (const part of [2, 3])
+      expect(build(one, {v: 1, rev: 3}, part)!.explainer).toContain(
+        'the next part starts',
+      );
   });
 
   it('keeps the old stretch and explainer for laps cut at other boundaries', () => {
