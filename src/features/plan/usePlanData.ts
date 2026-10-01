@@ -6,6 +6,7 @@ import {useFuelPresets} from '@/src/state/fuelPresets';
 import {lastRaceOf} from './lastRace';
 import {type Combo, fuelOnly, planView, rulesFor} from './model';
 import {buildPlanCards} from './planCards';
+import {useLeaderLap} from './useClassTiming';
 import {usePlanHistory, usePlanLimits} from './usePlanHistory';
 
 /**
@@ -26,7 +27,8 @@ export function usePlanData(combo: Combo | null) {
   const wantedL = rules?.rules.fuelL ?? null;
   const hist = usePlanHistory(combo, limits.limitsL, wantedL, preset);
   const greenLaps = hist.chosen.laps;
-  const plan = rules ? planRace(rules.rules, greenLaps) : null;
+  const leaderLapS = useLeaderLap(combo);
+  const plan = rules ? planRace(rules.rules, greenLaps, leaderLapS) : null;
   // Chosen from the data, never from the car class (camber, thread 43 #1243).
   const noVe = fuelOnly(greenLaps);
   const view =

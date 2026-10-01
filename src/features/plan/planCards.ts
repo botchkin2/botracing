@@ -12,8 +12,8 @@ export const lapName = (racingLap: number) => `L${racingLap + 1}`;
 export type RaceCard = {
   /** Laps in the race; null without a length or a median lap time. */
   laps: number | null;
-  /** One fewer, when a timed race can end a lap early. */
-  oneFewer: number | null;
+  /** The count when the flag falls late, in a timed race; null when it cannot differ. */
+  oneMore: number | null;
   /** Stops of the full-tank strategy, mandatory ones included; null without data. */
   stops: number | null;
   /** Where the full-tank strategy stops, in the app's lap names ("L27"). */
@@ -83,15 +83,15 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
       median,
     )}: ${seconds.toLocaleString('en-GB')} s ÷ ${median.toFixed(1)} s = ${(
       seconds / median
-    ).toFixed(1)}, so ${
-      race.estimate
-    } laps. The race ends after the leader's lap, which can make it ${
-      race.oneFewer ?? race.estimate - 1
-    }.`;
+    ).toFixed(1)}, so ${race.estimate} laps.${
+      race.oneMore == null
+        ? ''
+        : ` The flag can fall a lap later than your own pace says when a faster class leads: ${race.oneMore} laps.`
+    } Time in the pits is not counted.`;
   }
   return {
     laps: race ? race.estimate : null,
-    oneFewer: race?.oneFewer ?? null,
+    oneMore: race?.oneMore ?? null,
     stops: med.stops,
     stopAfter: med.stopLaps.map(lapName),
     working,

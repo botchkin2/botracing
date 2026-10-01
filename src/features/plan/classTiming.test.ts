@@ -4,8 +4,17 @@ import {
   classSessionOf,
   classTiming,
   type ClassSession,
+  leaderLapOf,
   passesOf,
 } from './classTiming';
+
+// A class's laps as the uploader keeps them: the median, and a p10 and p90 two seconds apart.
+const lapsOf = (medianS: number, laps: number) => ({
+  medianS,
+  p10S: medianS - 2,
+  p90S: medianS + 2,
+  laps,
+});
 
 const session = (
   kind: ClassSession['kind'],
@@ -15,9 +24,9 @@ const session = (
 ): ClassSession => ({
   kind,
   byClass: {
-    ...(hyper != null && {hypercar: {medianS: hyper, laps: 90}}),
-    ...(lmp2 != null && {lmp2: {medianS: lmp2, laps: 90}}),
-    ...(gt3 != null && {gt3: {medianS: gt3, laps: 100}}),
+    ...(hyper != null && {hypercar: lapsOf(hyper, 90)}),
+    ...(lmp2 != null && {lmp2: lapsOf(lmp2, 90)}),
+    ...(gt3 != null && {gt3: lapsOf(gt3, 100)}),
   },
 });
 
@@ -65,11 +74,51 @@ describe('classTiming', () => {
       }),
     );
     const hyper = t.faster.find(c => c.key === 'hypercar')!;
-    // The median of 96, 98 and 100 is 98: a gain of 12 s, 110 / 12 = 9.2 laps.
+    // The median of 96, 98 and 100 is 98: a gain of 12 s, 98 / 12 = 8.2 of his laps.
     expect(hyper.estimate?.lapText).toBe('1:38.000');
     expect(hyper.estimate?.gainText).toBe('12.0 s');
-    expect(hyper.estimate?.everyText).toBe('~9 laps');
-    expect(hyper.text).toBe('From 2 races, 1 practice · n = 270 laps');
+    expect(hyper.estimate?.everyText).toBe('~8 laps');
+    expect(hyper.text).toBe(
+      'From 2 races, 1 practice · n = 270 laps · from practice',
+    );
+  });
+
+  it('pools races alone from 3 races, and says nothing about practice', () => {
+    const t = ready(
+      classTiming({
+        sessions: [
+          session('race', 96, 110),
+          session('race', 98, 110),
+          session('race', 100, 110),
+          session('practice', 90, 110),
+        ],
+        mine,
+        raceLaps: 60,
+        stopsAfter: [],
+      }),
+    );
+    const hyper = t.faster.find(c => c.key === 'hypercar')!;
+    expect(hyper.estimate?.lapText).toBe('1:38.000');
+    expect(hyper.text).toBe('From 3 races, 1 practice · n = 270 laps');
+  });
+
+  it('the first catch is a range from the p10 to the p90 lap, and assumes a level start', () => {
+    const t = ready(
+      classTiming({
+        sessions: [
+          session('race', 98, 110),
+          session('race', 98, 110),
+          session('race', 98, 110),
+        ],
+        mine,
+        raceLaps: 60,
+        stopsAfter: [],
+      }),
+    );
+    const est = t.faster[0].estimate!;
+    // p10 96 s: 96 / 14 = 6.9 laps; p90 100 s: 100 / 10 = 10 laps.
+    expect(est.firstText).toBe('L8–L11');
+    expect(est.firstNote).toBe('Assumes a level start.');
   });
 
   it('keeps a class seen in fewer than 3 sessions as an empty row with no lane', () => {
@@ -129,13 +178,41 @@ describe('classTiming', () => {
 });
 
 describe('passesOf', () => {
-  it('widens each band by half a lap and stops past the flag', () => {
-    const p = passesOf(9.2, 30);
-    expect(p[0].centre).toBeCloseTo(9.2, 5);
-    expect(p[0].hi - p[0].lo).toBeCloseTo(3, 5);
-    expect(p[1].hi - p[1].lo).toBeCloseTo(4, 5);
-    // The fourth pass, at 36.8 with a half band of 3, starts at 33.8: past a 30 lap race.
-    expect(p).toHaveLength(3);
+  const lap = {medianS: 98, p10S: 96, p90S: 100};
+
+  it('puts pass k at k times the catch, the band from the p10 and p90 laps, widening with k', () => {
+    const p = passesOf(lap, 110, 60);
+    expect(p[0].centre).toBeCloseTo(98 / 12, 5);
+    expect(p[0].lo).toBeCloseTo(96 / 14, 5);
+    expect(p[0].hi).toBeCloseTo(10, 5);
+    expect(p[2].centre).toBeCloseTo(3 * (98 / 12), 5);
+    expect(p[2].hi - p[2].lo).toBeCloseTo(3 * (p[0].hi - p[0].lo), 5);
+  });
+
+  it('stops when a band starts past the flag', () => {
+    // The p10 catch is 6.86 laps: passes start at 6.9, 13.7, 20.6 and 27.4 laps, the fifth at 34.3.
+    expect(passesOf(lap, 110, 30)).toHaveLength(4);
+  });
+
+  it('leaves the band open-ended when the p90 lap is not faster than his', () => {
+    const p = passesOf({medianS: 108, p10S: 105, p90S: 111}, 110, 60);
+    expect(p[0].hi).toBe(Infinity);
+  });
+});
+
+describe('leaderLapOf', () => {
+  it('is the fastest class median among classes 3 sessions saw, his own included', () => {
+    const three = [
+      session('race', 96, 110),
+      session('race', 98, 110),
+      session('race', 100, 110, 101),
+    ];
+    expect(leaderLapOf(three)).toBe(98);
+  });
+
+  it('is null when no class has 3 sessions', () => {
+    expect(leaderLapOf([session('race', 96, 110)])).toBeNull();
+    expect(leaderLapOf([])).toBeNull();
   });
 });
 
@@ -145,7 +222,10 @@ describe('classSessionOf', () => {
   it('turns a stored race or practice field into the model input', () => {
     expect(
       classSessionOf({classLaps: {kind: 'race', classes: {gt3: stats}}}),
-    ).toEqual({kind: 'race', byClass: {gt3: {medianS: 215.4, laps: 120}}});
+    ).toEqual({
+      kind: 'race',
+      byClass: {gt3: {medianS: 215.4, p10S: 213, p90S: 219, laps: 120}},
+    });
     expect(
       classSessionOf({classLaps: {kind: 'practice', classes: {gt3: stats}}})
         ?.kind,

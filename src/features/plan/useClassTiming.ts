@@ -3,12 +3,39 @@ import {useMemo} from 'react';
 import {paceClass} from '@/src/analysis/classLaps';
 import {useSessions} from '@/src/data/sessions';
 
-import {classSessionOf, classTiming} from './classTiming';
+import {
+  classSessionOf,
+  classTiming,
+  type ClassSession,
+  leaderLapOf,
+} from './classTiming';
 import {type Combo} from './model';
 import {type usePlanData} from './usePlanData';
 
 // Every session he has driven, like the Plan screen's.
 const ALL_TIME_DAYS = 3650;
+
+/** Every race and practice at the combo's track with a field; null while the list loads. */
+function useTrackClassSessions(combo: Combo | null): ClassSession[] | null {
+  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  return useMemo(() => {
+    if (sessions.isPending) return null;
+    return (sessions.data?.items ?? []).flatMap(s => {
+      const inPool =
+        combo != null &&
+        s.trackId === combo.trackId &&
+        (s.sessionType === 'R' || s.sessionType === 'P');
+      const pooled = inPool ? classSessionOf(s) : null;
+      return pooled ? [pooled] : [];
+    });
+  }, [sessions.isPending, sessions.data, combo]);
+}
+
+/** The overall leader's median lap at the plan's track, for the timed race's late flag; null without one. */
+export function useLeaderLap(combo: Combo | null): number | null {
+  const pooled = useTrackClassSessions(combo);
+  return useMemo(() => (pooled ? leaderLapOf(pooled) : null), [pooled]);
+}
 
 /**
  * Class timing for the Plan's track: every race and practice there with a
@@ -21,22 +48,15 @@ export function useClassTiming(
   combo: Combo | null,
   data: ReturnType<typeof usePlanData>,
 ) {
-  const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const pooled = useTrackClassSessions(combo);
   const {plan, greenLaps, hist} = data;
   const carClass = combo?.sessions[0]?.carClass ?? '';
   const timing = useMemo(
     () =>
-      sessions.isPending
+      pooled == null
         ? null
         : classTiming({
-            sessions: (sessions.data?.items ?? []).flatMap(s => {
-              const inPool =
-                combo != null &&
-                s.trackId === combo.trackId &&
-                (s.sessionType === 'R' || s.sessionType === 'P');
-              const pooled = inPool ? classSessionOf(s) : null;
-              return pooled ? [pooled] : [];
-            }),
+            sessions: pooled,
             mine: {
               key: carClass ? paceClass(carClass) : null,
               name: carClass,
@@ -48,9 +68,7 @@ export function useClassTiming(
             stopsAfter: plan?.atMedian.stopLaps ?? [],
           }),
     [
-      sessions.isPending,
-      sessions.data,
-      combo,
+      pooled,
       carClass,
       plan,
       greenLaps,

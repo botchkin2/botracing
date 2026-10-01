@@ -199,18 +199,33 @@ describe('planRace', () => {
     expect(p.atMedian.stops).toBeNull();
   });
 
-  it('reads a timed race at the median lap time, with one lap fewer', () => {
-    // 60 min at 110 s is 32.7, so the flag comes on lap 33.
+  it('reads a timed race at the median lap time; the flag can fall one lap later', () => {
+    // 60 min at 110 s is 32.7, so the flag comes on lap 33, or 34 when it falls late.
     const p = planRace(
       rules({lengthLaps: null, lengthMin: 60}),
       laps(10, 3.5, 5, 110),
     );
-    expect(p.raceLaps).toEqual({estimate: 33, oneFewer: 32});
+    expect(p.raceLaps).toEqual({estimate: 33, oneMore: 34});
   });
 
-  it('a race in laps has no one-fewer', () => {
+  it('bounds the late flag by the leader pace when class timing has it', () => {
+    // 3630 s at 110 s is 33.0, so 33 laps. A leader at 100 s takes the flag at
+    // 3700 s, which is lap 33.6 for him: 34.
+    const rule = rules({lengthLaps: null, lengthMin: 60.5});
+    const at100 = planRace(rule, laps(10, 3.5, 5, 110), 100);
+    expect(at100.raceLaps).toEqual({estimate: 33, oneMore: 34});
+    // 3600 s: the leader at 98 s crosses at 3626 s, which is lap 33.0 for him: no extra lap.
+    const none = planRace(
+      rules({lengthLaps: null, lengthMin: 60}),
+      laps(10, 3.5, 5, 110),
+      98,
+    );
+    expect(none.raceLaps).toEqual({estimate: 33, oneMore: null});
+  });
+
+  it('a race in laps has no one-more', () => {
     const p = planRace(rules({lengthLaps: 40}), laps(10, 3.5, 5));
-    expect(p.raceLaps).toEqual({estimate: 40, oneFewer: null});
+    expect(p.raceLaps).toEqual({estimate: 40, oneMore: null});
   });
 
   it('a timed race without lap history has no length', () => {
@@ -343,7 +358,7 @@ describe('presetMismatch', () => {
 });
 
 describe('load to finish', () => {
-  // 40 min at 110 s is 22 laps, 21 if the leader finishes first. History: a
+  // 40 min at 110 s is 22 laps, 23 if the flag falls late. History: a
   // median of 3.5 L and 3 % VE a lap, and heavier laps (p90) at 4.2 L and 3.6 %.
   const history = [...laps(7, 3.5, 3), ...laps(3, 4.2, 3.6)];
   const sprint = rules({
@@ -357,16 +372,16 @@ describe('load to finish', () => {
     expect(planRace(rules({lengthLaps: 60}), history).loadToFinish).toBeNull();
   });
 
-  it('gives the load for the race laps and one fewer, with the formation lap', () => {
+  it('gives the load for the race laps and one more, with the formation lap', () => {
     const p = planRace(sprint, history);
-    expect(p.raceLaps).toEqual({estimate: 22, oneFewer: 21});
-    const [own, fewer] = p.loadToFinish!;
+    expect(p.raceLaps).toEqual({estimate: 22, oneMore: 23});
+    const [own, more] = p.loadToFinish!;
     expect(own.laps).toBe(22);
     // 22 laps + the formation lap at 3.5 L and 5 %.
     expect(own.atMedian.fuelL).toBeCloseTo(23 * 3.5);
     expect(own.atMedian.vePct).toBeCloseTo(23 * 3);
-    expect(fewer.laps).toBe(21);
-    expect(fewer.atMedian.fuelL).toBeCloseTo(22 * 3.5);
+    expect(more.laps).toBe(23);
+    expect(more.atMedian.fuelL).toBeCloseTo(24 * 3.5);
   });
 
   it('names the meter closer to its cap', () => {
