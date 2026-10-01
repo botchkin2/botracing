@@ -105,6 +105,11 @@ export function overtakesOf(
 /** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
 export const TRAFFIC_VERSION = 1;
 
+// A clean lap is free air: under CLEAN_AHEAD_S behind a car, and not passed by
+// any car (a Hypercar lapping a GT3 is a pass that `passesSuffered`, which is
+// the player's class only, does not count), no blue flag, and no faster-class
+// overtake. A traffic lap is TRAFFIC_AHEAD_S or more behind a car.
+//
 // A clean lap and a traffic lap are two sets that do not touch: a lap with
 // 2 to 5 s behind a car is in neither. That gap is deliberate, so nobody
 // merges them into one threshold: the evidence (the two full Daytona fields,
@@ -119,7 +124,13 @@ export const MIN_SET_LAPS = 3;
 export interface TrafficLap {
   timeS: number | null;
   comparable: boolean;
-  traffic: {trafficAheadS: number; passesSuffered: number} | null;
+  traffic: {
+    trafficAheadS: number;
+    /** Passes by any car, not only the player's class. */
+    passesSufferedAll: number;
+    blueFlagS: number;
+    overtakes: unknown[];
+  } | null;
 }
 
 export interface LapSet {
@@ -157,7 +168,13 @@ export function trafficMedians(laps: TrafficLap[]): SessionTraffic | null {
   return {
     v: TRAFFIC_VERSION,
     clean: setOf(
-      times(t => t.trafficAheadS < CLEAN_AHEAD_S && t.passesSuffered === 0),
+      times(
+        t =>
+          t.trafficAheadS < CLEAN_AHEAD_S &&
+          t.passesSufferedAll === 0 &&
+          t.blueFlagS === 0 &&
+          t.overtakes.length === 0,
+      ),
     ),
     traffic: setOf(times(t => t.trafficAheadS >= TRAFFIC_AHEAD_S)),
   };

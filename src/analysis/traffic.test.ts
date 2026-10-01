@@ -125,10 +125,16 @@ const lap = (
   aheadS: number,
   suffered = 0,
   comparable = true,
+  extra: {blueFlagS?: number; overtakes?: number} = {},
 ): TrafficLap => ({
   timeS,
   comparable,
-  traffic: {trafficAheadS: aheadS, passesSuffered: suffered},
+  traffic: {
+    trafficAheadS: aheadS,
+    passesSufferedAll: suffered,
+    blueFlagS: extra.blueFlagS ?? 0,
+    overtakes: Array.from({length: extra.overtakes ?? 0}, () => ({})),
+  },
 });
 
 describe('trafficMedians', () => {
@@ -153,6 +159,20 @@ describe('trafficMedians', () => {
 
   it('a lap that was passed is not clean, whatever the seconds ahead', () => {
     const laps = [lap(100, 0, 1), lap(100, 0), lap(100, 0), lap(100, 0)];
+    expect(trafficMedians(laps)?.clean.laps).toBe(3);
+  });
+
+  it('a lap lapped by faster-class cars, or under a blue flag, is not clean', () => {
+    // passesSufferedAll counts a Hypercar lapping a GT3; same-class
+    // passesSuffered would not.
+    const laps = [
+      lap(100, 0),
+      lap(100, 0),
+      lap(100, 0),
+      lap(100, 0, 3, true, {overtakes: 3}),
+      lap(100, 0, 0, true, {overtakes: 1}),
+      lap(100, 0, 0, true, {blueFlagS: 12}),
+    ];
     expect(trafficMedians(laps)?.clean.laps).toBe(3);
   });
 
