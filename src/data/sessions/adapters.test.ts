@@ -125,12 +125,16 @@ describe('toClassLaps', () => {
       version: 2,
       kind: 'race',
       classes: {lmp2: stats},
-      startGapsS: {hypercar: 26.4, gt3: 'x'},
+      startGapsS: {
+        hypercar: {firstS: 31.2, lastS: 26.4},
+        gt3: {firstS: 5},
+        lmp2: 'x',
+      },
     };
     expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
       kind: 'race',
       classes: {lmp2: stats},
-      startGapsS: {hypercar: 26.4},
+      startGapsS: {hypercar: {firstS: 31.2, lastS: 26.4}},
     });
     expect(toSessionDetail(raw).classLaps).toBeNull();
   });

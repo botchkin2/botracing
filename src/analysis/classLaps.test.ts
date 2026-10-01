@@ -385,15 +385,19 @@ describe('startGapsS', () => {
       ],
       1000,
     );
-  it('is the player crossing minus the last car of the class', () => {
-    // Hypercars cross at 74 s and 72 s; the player at 100 s: 100 - 74.
-    expect(startGapsS(grid())).toEqual({hypercar: 26});
+  it('is the player crossing minus the first and the last car of the class', () => {
+    // Hypercars cross at 74 s and 72 s; the player at 100 s: the leader's gap
+    // is 100 - 72, the tail's 100 - 74.
+    expect(startGapsS(grid())).toEqual({hypercar: {firstS: 28, lastS: 26}});
   });
   it('leaves out the player class and is negative for a class behind', () => {
     const behind = grid({}, [{class: 'LMP2', lapS: 90, offsetM: -400}]);
     // LMP2 first crosses at (4000 + 400) / 4000 * 90 = 99 s... no wrap before
     // that, so its gap is 100 - 99.
-    expect(startGapsS(behind)).toEqual({hypercar: 26, lmp2: 1});
+    expect(startGapsS(behind)).toEqual({
+      hypercar: {firstS: 28, lastS: 26},
+      lmp2: {firstS: 1, lastS: 1},
+    });
   });
   it('is null without a flagged player', () => {
     expect(startGapsS(grid({player: false}))).toBeNull();
@@ -402,7 +406,9 @@ describe('startGapsS', () => {
     expect(startGapsS(grid({lapS: 140}))).toBeNull();
   });
   it('is written for a race and not for practice', () => {
-    expect(classLapsDoc(grid(), 'Race').startGapsS).toEqual({hypercar: 26});
+    expect(classLapsDoc(grid(), 'Race').startGapsS).toEqual({
+      hypercar: {firstS: 28, lastS: 26},
+    });
     expect(classLapsDoc(grid(), 'Practice 1').startGapsS).toBeNull();
   });
 });
