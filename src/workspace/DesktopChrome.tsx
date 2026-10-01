@@ -15,6 +15,7 @@ import {sessionsHref} from '@/src/nav/routes';
 import {AppChrome, type ChromeSession} from '@/src/ui';
 
 import {chromeBox} from './chromeBox';
+import {SessionSwitcher} from './SessionSwitcher';
 import {usePlanCombo} from './usePlanCombo';
 import {useWorkspaceGo} from './useWorkspaceGo';
 
@@ -44,6 +45,7 @@ export function DesktopChrome() {
 
   // Derived from the route while rendering, not in an effect: no extra paint.
   const [kept, setKept] = useState<Kept | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const next = nextKept(kept, {pathname, id, laps, hl, n, sectionCorner});
   if (!sameKept(next, kept)) setKept(next);
 
@@ -63,36 +65,52 @@ export function DesktopChrome() {
   const lapData = useSessionLaps(sessionId ?? '');
   const map = useSessionMap(sessionId ?? '');
 
-  const box: ChromeSession<SessionTab> | null =
+  const content =
     next && session
-      ? {
-          ...chromeBox({
-            session,
-            laps: lapData.data,
-            selection: {laps: next.laps, hl: next.hl},
-            cornerN: next.corner,
-            corners: map.data ? trackCorners(map.data) : undefined,
-            tab,
-            scheme,
-          }),
-          onTab: key => go(key),
-          onClose: () => {
-            setKept(null);
-            router.navigate(sessionsHref());
-          },
-        }
+      ? chromeBox({
+          session,
+          laps: lapData.data,
+          selection: {laps: next.laps, hl: next.hl},
+          cornerN: next.corner,
+          corners: map.data ? trackCorners(map.data) : undefined,
+          tab,
+          scheme,
+        })
       : null;
+  const box: ChromeSession<SessionTab> | null = content
+    ? {
+        ...content,
+        onTab: key => go(key),
+        onMenu: () => setMenuOpen(true),
+        onClose: () => {
+          setKept(null);
+          router.navigate(sessionsHref());
+        },
+      }
+    : null;
   return (
-    <AppChrome
-      session={box}
-      compact={!isWide}
-      onHome={() => go('sessions')}
-      onSessions={() => go('sessions')}
-      planPair={plan.pair}
-      planActive={pathname === '/plan'}
-      onPlan={() => go('plan')}
-      settingsActive={pathname === '/settings'}
-      onSettings={() => go('settings')}
-    />
+    <>
+      <AppChrome
+        session={box}
+        compact={!isWide}
+        onHome={() => go('sessions')}
+        onSessions={() => go('sessions')}
+        planPair={plan.pair}
+        planActive={pathname === '/plan'}
+        onPlan={() => go('plan')}
+        settingsActive={pathname === '/settings'}
+        onSettings={() => go('settings')}
+      />
+      {session && content && sessionId && (
+        <SessionSwitcher
+          visible={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          sessionId={sessionId}
+          trackId={session.trackId}
+          trackName={content.track}
+          detail={content.detail}
+        />
+      )}
+    </>
   );
 }

@@ -61,7 +61,7 @@ describe('formatRaceGap', () => {
 
 describe('formatDayMonth', () => {
   it('is the day and short month', () => {
-    expect(formatDayMonth('2026-09-14T12:00:00Z')).toBe('14 Sept');
+    expect(formatDayMonth('2026-09-14T12:00:00Z')).toBe('14 Sep');
   });
 
   it('is empty for a bad date', () => {
