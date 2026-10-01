@@ -47,6 +47,8 @@ const stop = (over: Partial<PitStop> = {}): PitStop => ({
     wheels: ['FL', 'FR', 'RL', 'RR'],
     entryPct: null,
     exitPct: null,
+    coolDown: null,
+    compound: null,
   },
   ...over,
 });
@@ -155,7 +157,14 @@ describe('buildPitCard', () => {
     const lap1Stop = [
       lap(1, {
         pitStop: stop({
-          tyres: {changed: true, wheels: ['FL'], entryPct: null, exitPct: null},
+          tyres: {
+            changed: true,
+            wheels: ['FL'],
+            entryPct: null,
+            exitPct: null,
+            coolDown: null,
+            compound: null,
+          },
         }),
         pitIn: true,
         fuel: fuel(),
@@ -272,7 +281,14 @@ describe('buildPitCard', () => {
       return card.columns[0].tyres;
     };
     expect(
-      tyres({changed: false, wheels: [], entryPct: null, exitPct: null}),
+      tyres({
+        changed: false,
+        wheels: [],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: null,
+      }),
     ).toBe('Not changed');
     expect(
       tyres({
@@ -280,10 +296,19 @@ describe('buildPitCard', () => {
         wheels: ['FL', 'FR'],
         entryPct: null,
         exitPct: null,
+        coolDown: null,
+        compound: null,
       }),
     ).toBe('Fronts new');
     expect(
-      tyres({changed: true, wheels: ['FR'], entryPct: null, exitPct: null}),
+      tyres({
+        changed: true,
+        wheels: ['FR'],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: null,
+      }),
     ).toBe('FR only');
     expect(tyres(null)).toBeNull();
   });
@@ -301,6 +326,7 @@ describe('buildPitCard', () => {
       hotPressureKpa: null,
       rubberC: null,
       carcassC: null,
+      treadC: null,
       changed: null,
     });
     const wheels = (
@@ -311,6 +337,8 @@ describe('buildPitCard', () => {
         wheels: ['FR'],
         entryPct: null,
         exitPct: null,
+        coolDown: null,
+        compound: null,
       },
     ) => {
       const laps = oneStop.map(l =>
@@ -386,6 +414,8 @@ describe('buildPitCard', () => {
         wheels: ['FR' as const],
         entryPct,
         exitPct,
+        coolDown: null,
+        compound: null,
       });
 
       it('reads them, whatever the pit-in lap shows (box before the line)', () => {

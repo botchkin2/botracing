@@ -167,7 +167,7 @@ function wearAt(s, at) {
  * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
  * recording is not a stop. `added` can be 0: a drive-through or a penalty.
  */
-export function lapPitStop(s, startT, endT, pits) {
+export function lapPitStop(s, startT, endT, pits, compoundEvents = []) {
   const t0 = s.t[0];
   const enter = pits.find(
     ([a]) => a - t0 >= SESSION_START_S && a > startT && a <= endT,
@@ -193,7 +193,7 @@ export function lapPitStop(s, startT, endT, pits) {
       vePct: added(s.virtual_energy_pct, 2),
     },
     inPitS: b === Infinity ? null : round(b - a, 1),
-    tyres: pitTyres(s, a, b),
+    tyres: pitTyres(s, a, b, compoundEvents),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},
   };
@@ -206,14 +206,92 @@ export function lapPitStop(s, startT, endT, pits) {
  * tyre shows as exit above entry. `exitPct` is null when the session ended in
  * the pits. Null without a wear channel.
  */
-function pitTyres(s, a, b) {
+function pitTyres(s, a, b, compoundEvents) {
   const change = tyreChange(s, a, b);
   if (!change) return null;
   return {
     ...change,
     entryPct: wearAt(s, a),
     exitPct: b === Infinity ? null : wearAt(s, b + TYRE_MARGIN_S),
+    coolDown: coolDown(s, a, b, change.wheels),
+    compound: fullSetCompound(change.wheels, compoundEvents, b),
   };
+}
+
+/** How long after the pit exit the tyres have recovered to, for the cool-down. */
+export const COOL_DOWN_AFTER_S = 45;
+// The reading before the stop and after it are each the median of this many seconds.
+const COOL_DOWN_WINDOW_S = 1;
+
+/** Median of the live (above 0) readings of `values` over [from, to] seconds; null with none or past the recording's end. */
+function liveMedianBetween(values, t, from, to) {
+  if (!values || from < t[0] || to > t[t.length - 1]) return null;
+  const kept = [];
+  const end = firstIndexAtOrAfter(t, to);
+  for (let i = firstIndexAtOrAfter(t, from); i <= end && i < t.length; i++) {
+    if (Number.isFinite(values[i]) && values[i] > 0) kept.push(values[i]);
+  }
+  return median(kept);
+}
+
+/**
+ * What the stop did to the tyres it did not replace: the change in each wheel's
+ * rubber temperature (C) and pressure (kPa) from the last second before pit
+ * entry to COOL_DOWN_AFTER_S after the pit exit, {rubberC, pressureKpa} each
+ * {FL, FR, RL, RR}. A cooling stop is not a tyre change (tires audit, pit-wall
+ * thread 38), so a wheel that was replaced is null: its new tyre starts from
+ * ambient, which says nothing about cooling. Null when the stop never ends,
+ * the recording ends before the window, or there are neither channels.
+ */
+function coolDown(s, a, b, changedWheels) {
+  if (b === Infinity) return null;
+  const rubber = {};
+  const pressure = {};
+  let any = false;
+  for (const [name] of WHEELS) {
+    const w = name.toLowerCase();
+    const delta = (key, digits) => {
+      if (changedWheels.includes(name)) return null;
+      const v = s[`${key}_${w}`];
+      const before = liveMedianBetween(v, s.t, a - COOL_DOWN_WINDOW_S, a);
+      const after = liveMedianBetween(
+        v,
+        s.t,
+        b + COOL_DOWN_AFTER_S - COOL_DOWN_WINDOW_S / 2,
+        b + COOL_DOWN_AFTER_S + COOL_DOWN_WINDOW_S / 2,
+      );
+      return before == null || after == null
+        ? null
+        : round(after - before, digits);
+    };
+    rubber[name] = delta('tyres_rubber_temp', 1);
+    pressure[name] = delta('tyres_pressure', 1);
+    any = any || rubber[name] != null || pressure[name] != null;
+  }
+  return any
+    ? {afterS: COOL_DOWN_AFTER_S, rubberC: rubber, pressureKpa: pressure}
+    : null;
+}
+
+/**
+ * The compound fitted at a stop that changed all four wheels, from the game's
+ * compound event right after the pit exit: 'start' for code 0 (the compound
+ * the car started on, per the setup) and 'other' for anything else. The names
+ * are not recorded anywhere, so none is guessed. The event only fires for a
+ * full set (tires audit), so a stop that changed fewer wheels, one whose four
+ * wheels read different codes, or one with no event has none: null.
+ */
+function fullSetCompound(wheels, events, b) {
+  if (wheels.length !== 4 || b === Infinity) return null;
+  let at = null;
+  for (const e of events ?? []) {
+    if (e.t > b + TYRE_MARGIN_S) break;
+    at = e;
+  }
+  if (!at) return null;
+  const codes = [at.v, at.v2, at.v3, at.v4];
+  if (codes.some(c => !Number.isFinite(c) || c !== codes[0])) return null;
+  return codes[0] === 0 ? 'start' : 'other';
 }
 
 const median = values => {

@@ -15,8 +15,11 @@ import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
  * 2: the change threshold drops from 5 % to 0.5 % (fuelFacts TYRE_JUMP_PCT), so
  * a tyre swapped after a short run counts; and `hotPressureKpa`, the stabilised
  * hot pressure, is added.
+ * 3: `treadC`, the median temperature of the tread's inner, centre and outer
+ * thirds per wheel; and the pit stop's `tyres` gains `coolDown` and `compound`
+ * (fuelFacts.mjs). Thread 44 #1607.
  */
-export const TYRES_VERSION = 2;
+export const TYRES_VERSION = 3;
 
 // Wheel names as the doc writes them, with the archive's channel suffix.
 const WHEELS = [
@@ -34,6 +37,19 @@ const MEDIAN_FIELDS = [
   ['rubberC', 'tyres_rubber_temp'],
   ['carcassC', 'tyres_carcass_temp'],
 ];
+
+// The tread's three temperatures are car-fixed, not per wheel (tires audit,
+// pit-wall thread 38 #1111): the "Left" channel is the car's left edge and
+// "Right" its right edge on all four wheels, so the inner third is Right on
+// the left wheels and Left on the right wheels (negative camber makes the
+// outer edge the cooler one).
+const TREAD_CHANNELS = {
+  left: 'tyres_temp_left',
+  right: 'tyres_temp_right',
+  centre: 'tyres_temp_centre',
+};
+const INNER_SIDE = {FL: 'right', RL: 'right', FR: 'left', RR: 'left'};
+const OUTER_SIDE = {FL: 'left', RL: 'left', FR: 'right', RR: 'right'};
 
 const round1 = v => Math.round(v * 10) / 10;
 
@@ -118,6 +134,7 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
       return median(kept);
     });
   }
+  out.treadC = treadTemps(s, i0, i1, inLane);
   const t0 = s.t[0];
   // A window belongs to the lap its pit exit falls in; one that never ends
   // (the session finished in the pits) to the lap it was entered in.
@@ -137,8 +154,45 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
     ? WHEELS.map(([n]) => n).filter(n => changed.has(n))
     : null;
   const anyChannel =
-    wearPct != null || MEDIAN_FIELDS.some(([field]) => out[field] != null);
+    wearPct != null ||
+    out.treadC != null ||
+    MEDIAN_FIELDS.some(([field]) => out[field] != null);
   return anyChannel ? out : null;
+}
+
+/**
+ * {FL, FR, RL, RR}, each {inner, centre, outer}: the median temperature of the
+ * tread's three thirds over the lap's ticks outside the pit lane, dead zeros
+ * left out. A third with no channel or only dead readings is null, a wheel
+ * with none of the three is null, and the whole field is null when the
+ * recording has no tread channel at all.
+ */
+function treadTemps(s, i0, i1, inLane) {
+  const read = (key, w) => {
+    const c = s[`${key}_${w}`];
+    if (!c) return null;
+    const kept = [];
+    for (let i = i0; i <= i1; i++) {
+      if (live(c[i]) && !inLane(i)) kept.push(c[i]);
+    }
+    const m = median(kept);
+    return m == null ? null : round1(m);
+  };
+  const any = WHEELS.some(([, w]) =>
+    Object.values(TREAD_CHANNELS).some(key => s[`${key}_${w}`]),
+  );
+  if (!any) return null;
+  const out = {};
+  for (const [name, w] of WHEELS) {
+    const v = {
+      inner: read(TREAD_CHANNELS[INNER_SIDE[name]], w),
+      centre: read(TREAD_CHANNELS.centre, w),
+      outer: read(TREAD_CHANNELS[OUTER_SIDE[name]], w),
+    };
+    out[name] =
+      v.inner == null && v.centre == null && v.outer == null ? null : v;
+  }
+  return out;
 }
 
 /**

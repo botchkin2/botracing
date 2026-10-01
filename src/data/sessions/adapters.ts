@@ -401,6 +401,24 @@ export type PitTyres = {
   /** Wear (%) of each wheel at pit entry and at pit exit; null before the resync, and `exitPct` when the session ended in the pits. */
   entryPct: Record<Wheel, number | null> | null;
   exitPct: Record<Wheel, number | null> | null;
+  /**
+   * What the stop did to the tyres it did not replace, from the last second
+   * before pit entry to `afterS` after the exit: the change in rubber
+   * temperature (C) and pressure (kPa) per wheel; a replaced wheel or a dead
+   * sensor is null. Null before TYRES_VERSION 3, when the stop never ends, or
+   * with no channels.
+   */
+  coolDown: {
+    afterS: number;
+    rubberC: Record<Wheel, number | null>;
+    pressureKpa: Record<Wheel, number | null>;
+  } | null;
+  /**
+   * The compound fitted at a stop that changed all four wheels: 'start' (the
+   * compound the car started on) or 'other'. No file names it. Null for any
+   * other stop, and before TYRES_VERSION 3.
+   */
+  compound: 'start' | 'other' | null;
 };
 
 /** A pit stop: what was left at pit entry, what was added, how long. */
@@ -638,6 +656,16 @@ function toWheelNumbers(v: unknown): Record<Wheel, number | null> | null {
   return {FL: num(x.FL), FR: num(x.FR), RL: num(x.RL), RR: num(x.RR)};
 }
 
+function toCoolDown(v: unknown): PitTyres['coolDown'] {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const rubberC = toWheelNumbers(x.rubberC);
+  const pressureKpa = toWheelNumbers(x.pressureKpa);
+  const afterS = num(x.afterS);
+  if (afterS == null || !rubberC || !pressureKpa) return null;
+  return {afterS, rubberC, pressureKpa};
+}
+
 function toPitTyres(v: unknown): PitTyres | null {
   if (v == null || typeof v !== 'object') return null;
   const x = obj(v);
@@ -648,6 +676,9 @@ function toPitTyres(v: unknown): PitTyres | null {
     wheels,
     entryPct: toWheelNumbers(x.entryPct),
     exitPct: toWheelNumbers(x.exitPct),
+    coolDown: toCoolDown(x.coolDown),
+    compound:
+      x.compound === 'start' || x.compound === 'other' ? x.compound : null,
   };
 }
 
