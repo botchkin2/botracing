@@ -30,6 +30,8 @@ import {
 import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
+import {effectiveUnit, type Unit} from './unit';
+
 // The pre-race planner screen's model (pit wall thread 35): which track+car
 // combinations he has history for, the laps that count, the rules in force,
 // and the finished lines each card prints. Pure; the screen only lays it out.
@@ -464,6 +466,8 @@ export function planView(
     /** Median lap time of the clean and of the traffic laps among the green laps; null without a field. */
     traffic?: SessionTraffic | null;
   },
+  /** The one unit the rows speak in: VE where the plan has it, unless fuel is asked for (thread 44 #1826). */
+  unit: Unit = 've',
 ): PlanView {
   const r = rules.rules;
   const rulesLine = preset
@@ -498,24 +502,29 @@ export function planView(
 
   const cards: Card[] = [];
   const {fuel, ve, lapTimeS} = plan.perLap;
+  const shown = effectiveUnit(unit, ve != null);
   const since = history.since ? `, since ${formatDate(history.since)}` : '';
   const driftRow = history.drift ? driftRowOf(history.drift) : null;
+  const fuelRow: Row = {
+    label: 'Fuel',
+    value: fuel ? usageText(fuel, l2) : 'no data',
+    note: fuel ? undefined : 'Needs 3 green laps',
+  };
+  const veRow: Row = {
+    label: 'Virtual Energy',
+    value: ve ? usageText(ve, pct2) : 'no data',
+    note: ratioNote(history.ratio, r.fuelL, history.ratioLoadsL),
+  };
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
     explainer: `Green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, no car passing, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
     rows: [
       ...(driftRow ? [driftRow] : []),
-      {
-        label: 'Fuel',
-        value: fuel ? usageText(fuel, l2) : 'no data',
-        note: fuel ? undefined : 'Needs 3 green laps',
-      },
-      {
-        label: 'Virtual Energy',
-        value: ve ? usageText(ve, pct2) : 'no data',
-        note: ratioNote(history.ratio, r.fuelL, history.ratioLoadsL),
-      },
+      ...(shown === 'fuel' ? [fuelRow] : []),
+      // Without VE laps the row stays when it has a reason to give (the load
+      // no session ran), so the missing VE is explained, not silent.
+      ...(shown === 've' || (ve == null && veRow.note) ? [veRow] : []),
       {
         label: 'Lap time',
         value: lapTimeS
@@ -585,14 +594,15 @@ export function planView(
       {
         label: `${d.targetStops} ${stopWord}`,
         value: [
-          meterLine('Fuel', d.fuelPerLapL, d.saveFuelL, d.saveFuelPct, l2),
-          meterLine(
-            'VE',
-            d.vePerLapPct,
-            d.saveVePct,
-            d.saveVePctOfMedian,
-            pct2,
-          ),
+          shown === 'fuel'
+            ? meterLine('Fuel', d.fuelPerLapL, d.saveFuelL, d.saveFuelPct, l2)
+            : meterLine(
+                'VE',
+                d.vePerLapPct,
+                d.saveVePct,
+                d.saveVePctOfMedian,
+                pct2,
+              ),
         ]
           .filter(Boolean)
           .join(NL),
@@ -600,8 +610,12 @@ export function planView(
     ];
     const c = d.compare;
     const limits = [
-      c.atMost.fuelL != null ? `<= ${l2(c.atMost.fuelL)}` : null,
-      c.atMost.vePct != null ? `<= ${pct2(c.atMost.vePct)} VE` : null,
+      shown === 'fuel' && c.atMost.fuelL != null
+        ? `<= ${l2(c.atMost.fuelL)}`
+        : null,
+      shown === 've' && c.atMost.vePct != null
+        ? `<= ${pct2(c.atMost.vePct)} VE`
+        : null,
     ]
       .filter(Boolean)
       .join(' and ');
@@ -619,8 +633,12 @@ export function planView(
             note:
               c.lowestFuelL != null || c.lowestVePct != null
                 ? `your lowest tenth used ${[
-                    c.lowestFuelL != null ? l2(c.lowestFuelL) : null,
-                    c.lowestVePct != null ? pct2(c.lowestVePct) : null,
+                    shown === 'fuel' && c.lowestFuelL != null
+                      ? l2(c.lowestFuelL)
+                      : null,
+                    shown === 've' && c.lowestVePct != null
+                      ? pct2(c.lowestVePct)
+                      : null,
                   ]
                     .filter(Boolean)
                     .join(' and ')}`

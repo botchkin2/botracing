@@ -33,7 +33,7 @@ import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
-import {type Unit} from './pitPlanText';
+import {effectiveUnit, type Unit, UNITS} from './unit';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
@@ -44,12 +44,6 @@ const RECENT_COMBOS = 6;
 
 // Every session he has driven, for the track and car choices.
 const ALL_TIME_DAYS = 3650;
-
-// One unit at a time (Botkin, thread 44 #1826): VE in LMU, fuel without it.
-const UNITS = [
-  {value: 've', label: 'VE'},
-  {value: 'fuel', label: 'Fuel'},
-] as const;
 
 const LENGTH_KINDS = [
   {value: 'min', label: 'Minutes'},
@@ -80,7 +74,7 @@ export function PlanScreen() {
   const shownCombos = showAll
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
-  const data = usePlanData(combo);
+  const data = usePlanData(combo, unit);
   const slider = usePitSlider(data, combo?.key ?? '');
   const chosen = useMemo(
     () =>
@@ -319,7 +313,7 @@ export function PlanScreen() {
                       <PitPlanCard
                         pit={slider.pit}
                         planned={slider.planned}
-                        unit={hasVe ? unit : 'fuel'}
+                        unit={effectiveUnit(unit, hasVe)}
                         onStop={slider.setStop}
                         onReset={slider.reset}
                       />
@@ -365,6 +359,7 @@ export function PlanScreen() {
                     <StopsCardView
                       card={data.cards.stops}
                       carClass={combo.sessions[0]?.carClass ?? ''}
+                      unit={unit}
                     />
                   </PlanCard>
                 ) : null}

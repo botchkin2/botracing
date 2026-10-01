@@ -1,5 +1,6 @@
 import {type PitPlan, type PitStint, type SliderStop} from './pitPlan';
 import {lapName} from './planCards';
+import {type Unit} from './unit';
 
 // The words of the Pit plan card, finished here so the component only draws.
 // Facts and arithmetic, no advice (CODE_STANDARDS §7).
@@ -8,8 +9,6 @@ const one = (v: number) => v.toFixed(1);
 const secs = (v: number) => `${Math.round(v)} s`;
 const signed = (v: number, unit: string) =>
   `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} ${unit}`;
-
-export type Unit = 've' | 'fuel';
 
 /**
  * The one unit the card speaks in (Botkin, thread 44 #1826): VE wherever the

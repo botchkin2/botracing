@@ -12,9 +12,10 @@ import {
   stintRow,
   stopLine,
   stopWarning,
-  type Unit,
   unitOf,
 } from '../pitPlanText';
+
+import {type Unit} from '../unit';
 
 import {PlanCard} from './PlanCard';
 import {StopSlider} from './StopSlider';

@@ -5,6 +5,7 @@ import {space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type StopRow, type StopsCard} from '../planCards';
+import {effectiveUnit, type Unit} from '../unit';
 
 /**
  * The Stops card (round 5, frame 1): the full-tank strategy first, at full ink,
@@ -16,9 +17,12 @@ import {type StopRow, type StopsCard} from '../planCards';
 export function StopsCardView({
   card,
   carClass,
+  unit,
 }: {
   card: StopsCard;
   carClass: string;
+  /** What each stint uses is printed in this unit (VE where the plan has it). */
+  unit: Unit;
 }) {
   const {color} = useTheme();
   if (!card.full && !card.equal)
@@ -35,6 +39,16 @@ export function StopsCardView({
         f.fuelL != null && `${f.fuelL.toFixed(1)} L`,
       ].filter(Boolean)
     : [];
+  // What each stint uses, in the one unit shown.
+  const perStintLine = (r: StopRow) => {
+    const shown = effectiveUnit(unit, r.vePerStint.length > 0);
+    const values = shown === 've' ? r.vePerStint : r.fuelPerStint;
+    return values.length === 0
+      ? null
+      : `${values.map(v => Math.round(v)).join(' + ')} ${
+          shown === 've' ? '% VE' : 'L'
+        } used per stint`;
+  };
   const row = (r: StopRow, strong: boolean) => (
     <View key={r.kind} style={[styles.row, {borderColor: color.line}]}>
       <Text variant='label' tone={strong ? 'text' : 'textMuted'}>
@@ -54,6 +68,11 @@ export function StopsCardView({
           {r.stintLaps.join(' + ')}
         </Text>
       </View>
+      {perStintLine(r) ? (
+        <Text variant='dataSmall' tone={strong ? 'textSecondary' : 'textMuted'}>
+          {perStintLine(r)}
+        </Text>
+      ) : null}
     </View>
   );
   return (

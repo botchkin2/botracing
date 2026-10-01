@@ -9,6 +9,8 @@ import {
 import {REFUEL_L_PER_S} from '@/src/analysis/refuel';
 import {formatLapTime} from '@/src/design';
 
+import {effectiveUnit, type Unit} from './unit';
+
 import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
 
 /** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
@@ -34,13 +36,13 @@ export type TankMeter = {
   lapsP90: number | null;
   /** "100 L ÷ 2.38 L/lap": where the median number comes from. */
   formula: string;
-  /** The shorter meter; never set with one meter. */
-  runsOutFirst: boolean;
 };
 
 export type TankCard = {
-  /** One meter for a fuel-only plan, two otherwise. */
+  /** The one meter in the unit shown; empty under 3 green laps. */
   meters: TankMeter[];
+  /** "Fuel runs out first: 10.5 laps (84 L ÷ 7.61 L/lap)": the other meter, only when it is the shorter. */
+  otherFirst: string | null;
 };
 
 export type StopRow = {
@@ -51,6 +53,8 @@ export type StopRow = {
   stintLaps: number[];
   /** VE used in each stint, % of the full load; empty for a fuel-only plan. */
   vePerStint: number[];
+  /** Fuel used in each stint, litres; empty without a fuel median. */
+  fuelPerStint: number[];
   /**
    * Litres each stop adds, one per stop. A middle stop refills to full, which
    * is what the stint before it used. The last stop adds only enough to
@@ -138,6 +142,7 @@ function tankCard(
   plan: FuelPlan,
   rules: PlanRules,
   fuelOnly: boolean,
+  unit: Unit,
 ): TankCard {
   const {fuel, ve} = plan.perLap;
   const meters: TankMeter[] = [];
@@ -147,7 +152,6 @@ function tankCard(
       lapsMedian: rules.fuelL / fuel.median,
       lapsP90: rules.fuelL / fuel.p90,
       formula: `${rules.fuelL} L ÷ ${fuel.median.toFixed(2)} L/lap`,
-      runsOutFirst: false,
     });
   if (ve && !fuelOnly)
     meters.push({
@@ -155,14 +159,24 @@ function tankCard(
       lapsMedian: rules.vePct / ve.median,
       lapsP90: rules.vePct / ve.p90,
       formula: `${pct(rules.vePct)} ÷ ${ve.median.toFixed(2)} %/lap`,
-      runsOutFirst: false,
     });
-  // Only with two meters is there a "first".
-  if (meters.length === 2) {
-    const first = meters[0].lapsMedian <= meters[1].lapsMedian ? 0 : 1;
-    meters[first].runsOutFirst = true;
-  }
-  return {meters};
+  // One unit at a time (thread 44 #1826); the other meter is named only when
+  // it would run out first, as a fact under the bar.
+  const shown = effectiveUnit(
+    unit,
+    meters.some(m => m.key === 've'),
+  );
+  const mine = meters.find(m => m.key === shown);
+  const other = meters.find(m => m.key !== shown);
+  const otherFirst =
+    mine && other && other.lapsMedian < mine.lapsMedian
+      ? `${
+          other.key === 've' ? 'VE' : 'Fuel'
+        } runs out first: ${other.lapsMedian.toFixed(1)} laps (${
+          other.formula
+        }).`
+      : null;
+  return {meters: mine ? [mine] : [], otherFirst};
 }
 
 /**
@@ -189,6 +203,8 @@ export function stopRow(
     kind,
     stopAfter,
     stintLaps,
+    fuelPerStint:
+      fuelPerLap == null ? [] : stintLaps.map((_, i) => fuelOf(i) as number),
     vePerStint:
       vePerLap == null || fuelOnly
         ? []
@@ -407,10 +423,12 @@ export function buildPlanCards(
   fuelOnly: boolean,
   /** Litres of fuel one % of VE is worth here; null without VE. */
   ratioPerPctL: number | null = null,
+  /** VE where the plan has it, unless fuel is asked for. */
+  unit: Unit = 've',
 ): PlanCards {
   return {
     race: raceCard(plan, rules),
-    tank: tankCard(plan, rules, fuelOnly),
+    tank: tankCard(plan, rules, fuelOnly, unit),
     stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL),
   };
 }

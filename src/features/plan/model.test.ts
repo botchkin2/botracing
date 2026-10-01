@@ -446,9 +446,37 @@ describe('planView', () => {
   it('prints the row cards that are left: Per green lap and To drop a stop', () => {
     // Race, Per tank and Stops are typed cards now (planCards.test.ts).
     expect(view.cards.map(c => c.key)).toEqual(['perLap', 'dropStop']);
+    // One unit at a time, VE first (thread 44 #1826).
     const perLap = view.cards[0].rows;
-    expect(perLap[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
-    expect(perLap[3].value).toContain('10 laps in 2 sessions, since ');
+    expect(perLap.map(r => r.label)).not.toContain('Fuel');
+    expect(perLap[0].value).toBe('5.00 %  (5.00 % to 5.00 %)');
+    expect(perLap[perLap.length - 1].value).toContain(
+      '10 laps in 2 sessions, since ',
+    );
+  });
+
+  it('asked for fuel it prints the fuel row and not the VE one', () => {
+    const fuel = planView(
+      preset,
+      rules,
+      planRace(rules.rules, history),
+      {
+        since: '2026-09-01T10:00:00Z',
+        lastFillLimitL: 75,
+        ratio,
+        lastRatio: 0.7,
+        ratioLoadsL: [84],
+        drift: null,
+      },
+      'fuel',
+    );
+    const rows = fuel.cards[0].rows;
+    expect(rows[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
+    expect(rows.map(r => r.label)).not.toContain('Virtual Energy');
+    // The drop-a-stop line speaks fuel too.
+    const drop = fuel.cards.find(c => c.key === 'dropStop')!.rows[0].value;
+    expect(drop).toContain('Fuel:');
+    expect(drop).not.toContain('VE:');
   });
 
   it('Per green lap: the all-green median is the headline and sets the race laps, clean and traffic follow with their n', () => {
@@ -512,17 +540,16 @@ describe('planView', () => {
   it('prints the drop-one-stop line', () => {
     const drop = view.cards[1].rows;
     expect(drop[0].label).toBe('1 stop');
-    // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop.
-    expect(drop[0].value).toContain(
-      'Fuel: not the limit (3.65 L a lap would still reach)',
-    );
+    // Fuel (3.5 L) would still reach at 3.65 L a lap: only VE has to drop,
+    // and VE is the one unit the line speaks in.
     expect(drop[0].value).toContain('VE: at most 4.35 % a lap');
+    expect(drop[0].value).not.toContain('Fuel:');
     expect(drop[1].label).toBe('Your laps at <= 4.35 % VE');
     expect(drop[1].value).toBe('no data  (n = 0)');
   });
 
   it('shows where the VE ratio came from', () => {
-    const note = view.cards[0].rows[1].note;
+    const note = view.cards[0].rows[0].note;
     expect(note).toContain('0.700 L per 1 % VE');
     expect(note).toContain('measured in the session of ');
   });
@@ -561,7 +588,7 @@ describe('planView', () => {
       ratioLoadsL: [84, 100],
       drift: null,
     });
-    expect(v.cards[0].rows[1].note).toBe(
+    expect(v.cards[0].rows[0].note).toBe(
       'no VE: none of your sessions ran 60 L (they ran 84, 100 L) and the ratio follows the load; type it into the preset',
     );
   });
