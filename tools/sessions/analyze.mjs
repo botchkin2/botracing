@@ -24,6 +24,7 @@ import {
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
+import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {fileChange} from './fileChange.mjs';
 import {
   fillLapsLeft,
@@ -56,7 +57,11 @@ export const analysisVersion = 17;
 // bump re-analyses every session once, and each block's doc carries its key as
 // `v`. Each key is the constant that sits next to its block's rules (the
 // history of what each number meant is there).
-export const blockVersions = {tyres: TYRES_VERSION, gridLap: GRID_LAP_VERSION};
+export const blockVersions = {
+  tyres: TYRES_VERSION,
+  traffic: TRAFFIC_VERSION,
+  gridLap: GRID_LAP_VERSION,
+};
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
