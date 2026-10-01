@@ -289,3 +289,40 @@ describe('isCurrent', () => {
     expect(laps.map(l => isCurrent(l, b))).toEqual([true, false, false]);
   });
 });
+
+describe('buildSectionWindow optimum', () => {
+  const m = map();
+  // Six laps in stint 1: window times 12.0 to 12.5 (S2 is the section in `section2`).
+  const sixLaps = () =>
+    lapsOf(
+      ...[0, 1, 2, 3, 4, 5].map(i =>
+        rawLap(`l${i}`, section2({exitS: 4 + i * 0.1}, 12 + i * 0.1)),
+      ),
+    );
+
+  it('shows the window best, median and gap over the session laps, with n', () => {
+    const laps = sixLaps();
+    const w = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: laps.slice(0, 1),
+      sessionLaps: laps,
+    });
+    expect(w?.optimum).toEqual([
+      {
+        label: 'Stint 1',
+        n: '6 laps',
+        best: '12.000',
+        median: '12.250',
+        gap: '+0.250',
+      },
+    ]);
+  });
+
+  it('is empty under 5 laps', () => {
+    const laps = sixLaps().slice(0, 4);
+    expect(
+      buildSectionWindow({map: m, sectionN: 2, laps})?.optimum,
+    ).toEqual([]);
+  });
+});

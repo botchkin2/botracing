@@ -526,7 +526,12 @@ export function buildCornerModel(input: {
     rows,
     strips,
     highlightLine,
-    window: buildSectionWindow({map, sectionN: sec.sectionN, laps: selected}),
+    window: buildSectionWindow({
+      map,
+      sectionN: sec.sectionN,
+      laps: selected,
+      sessionLaps: laps,
+    }),
     zoom: {
       windowM: zoomWindow,
       apexM: sec.apexM,

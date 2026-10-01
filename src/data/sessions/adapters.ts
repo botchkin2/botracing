@@ -485,6 +485,8 @@ export type CornerFacts = {
   /** Speed at the apex sample, km/h (#82). */
   apexSpeedKph: number | null;
   offTrackS: number;
+  /** Seconds under a local yellow in this window; 0 on laps analysed before it. */
+  localYellowS: number;
   /**
    * The corner window (pit-wall thread 45): boundary to the next boundary in
    * the map's frame, with `segTimeS` its time, split at the lap's own onset
@@ -630,6 +632,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
     fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
+    localYellowS: num(x.localYellowSec) ?? 0,
     window: toWindowFacts(x),
   };
 }

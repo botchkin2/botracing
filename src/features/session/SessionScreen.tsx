@@ -39,6 +39,7 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
+import {OPTIMUM_HELP} from './optimumFacts';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -140,6 +141,7 @@ function SessionView({
   const router = useRouter();
   const listRef = useRef<FlatList<RowModel>>(null);
   const barsHelp = useHowToRead('the lap times', LAP_BARS_HELP);
+  const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
   const headerHeight = useRef(0);
   // A bar tap highlights a lap, which can open the detail panel and change
   // the header height; scroll once that render has laid out.
@@ -322,6 +324,24 @@ function SessionView({
         ))}
       </View>
       {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
+      {model.optimum.length > 0 ? (
+        <View style={styles.block}>
+          <View style={styles.facts}>
+            {model.optimum.map(f => (
+              <View key={f.label}>
+                <Text variant='label' tone='textMuted'>
+                  {f.label}
+                </Text>
+                <Text variant='dataStrong' style={styles.factValue}>
+                  {f.value}
+                </Text>
+              </View>
+            ))}
+            {optimumHelp.button}
+          </View>
+          {optimumHelp.panel}
+        </View>
+      ) : null}
 
       {chartBlock(tableW)}
 
