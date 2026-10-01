@@ -330,7 +330,11 @@ function SessionView({
       )}
 
       <View style={styles.section}>
-        <TiresCard card={model.tires} width={tableW} />
+        <TiresCard
+          card={model.tires}
+          scatter={model.wearScatter}
+          width={tableW}
+        />
       </View>
 
       {model.fuelUse && (
@@ -432,6 +436,7 @@ function SessionView({
             )}
             <TiresCard
               card={model.tires}
+              scatter={model.wearScatter}
               width={size.sidePanelWidth - 2 * space.xl}
             />
             {model.fuelUse && (
