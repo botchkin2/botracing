@@ -7,7 +7,13 @@ import {formatRaceGap} from '@/src/design';
 // turns cars into what is drawn.
 
 export type ClassKey = 'hypercar' | 'lmp2' | 'gt3' | 'other';
-export type ClassFilter = 'all' | ClassKey;
+/** 'nearby' (field mode): every class, the cars within NEARBY_S of you on the road. */
+export type ClassFilter = 'all' | 'nearby' | ClassKey;
+
+/** The Nearby filter's reach, seconds along the road either way (apex, thread 44 #1822). */
+export const NEARBY_S = 10;
+/** Where a time is not known (the car that sets it stands still), metres instead. */
+export const NEARBY_STILL_M = 150;
 
 // Field order, top of the leaderboard down.
 export const CLASS_ORDER: ClassKey[] = ['hypercar', 'lmp2', 'gt3', 'other'];
@@ -257,10 +263,29 @@ const STATUS: Record<CarState, string> = {
   garage: 'GAR',
 };
 
-/** The class filter a session opens on: yours (R1a: "default = your class"). */
-export function defaultFilter(cars: RaceCar[]): ClassFilter {
+/**
+ * The class filter a session opens on: yours (R1a: "default = your class"). On
+ * the phone outside a race, Nearby: the cars around you, any class (#1822).
+ */
+export function defaultFilter(
+  cars: RaceCar[],
+  opts: {nearby?: boolean} = {},
+): ClassFilter {
   const you = cars.find(c => c.player);
+  if (opts.nearby && you && you.state !== 'garage' && you.state !== 'pit')
+    return 'nearby';
   return you ? classKey(you.carClass) : 'all';
+}
+
+/** Whether a car is on the road within Nearby's reach of you. Pit-lane and garage cars are not on the road. */
+function isNearby(car: RaceCar, frame: Frame): boolean {
+  if (car.player) return true;
+  const you = frame.you;
+  if (!you || car.state === 'garage' || car.state === 'pit') return false;
+  const m = roadOffsetM(car, you, frame.trackM);
+  if (m === null) return false;
+  const s = roadGapS(car, you, m);
+  return s === null ? Math.abs(m) <= NEARBY_STILL_M : s <= NEARBY_S;
 }
 
 /**
@@ -387,12 +412,30 @@ export function buildRaceModel(input: {
   const present = CLASS_ORDER.filter(k =>
     cars.some(c => classKey(c.carClass) === k),
   );
+  // Nearby needs the field mode and you on the road; otherwise All.
+  const nearbyOk =
+    frame.mode === 'field' &&
+    frame.you != null &&
+    frame.you.state !== 'garage' &&
+    frame.you.state !== 'pit';
   const filter =
-    input.filter !== 'all' && present.includes(input.filter)
+    input.filter === 'nearby'
+      ? nearbyOk
+        ? 'nearby'
+        : 'all'
+      : input.filter !== 'all' && present.includes(input.filter)
       ? input.filter
       : 'all';
-  const shown = filter === 'all' ? present : [filter];
-  const groups: RaceGroup[] = shown.map(k => {
+  const near = cars
+    .filter(c => isNearby(c, frame))
+    .sort((a, b) => byOrder(a, b, frame));
+  const nearGroup: RaceGroup = {
+    title: `Within ${NEARBY_S} s of you · ${near.length} CARS`,
+    rows: near.map(c => rowOf(c, focus, frame)),
+  };
+  const shown =
+    filter === 'all' ? present : filter === 'nearby' ? [] : [filter];
+  const classGroups: RaceGroup[] = shown.map(k => {
     const inClass = cars
       .filter(c => classKey(c.carClass) === k)
       .sort((a, b) => byOrder(a, b, frame));
@@ -404,6 +447,7 @@ export function buildRaceModel(input: {
       rows: inClass.map(c => rowOf(c, focus, frame)),
     };
   });
+  const groups = filter === 'nearby' ? [nearGroup] : classGroups;
   const youCar = cars.find(c => c.player);
   const dot = (c: RaceCar): RaceDot => ({
     index: c.index,

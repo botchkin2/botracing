@@ -37,3 +37,17 @@ export function clockLabel(timeS: number): string {
   const seconds = (tenths - minutes * 600) / 10;
   return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
+
+/** Seconds a step button moves the clock (the phone's -5 s and +5 s). */
+export const STEP_S = 5;
+
+/** The clock moved by `deltaS`, kept inside the race. */
+export function stepBy(timeS: number, deltaS: number, endS: number): number {
+  return Math.min(endS, Math.max(0, timeS + deltaS));
+}
+
+/** The next playback rate, back to the slowest after the fastest: the phone's one rate chip. */
+export function nextRate(rate: RaceRate): RaceRate {
+  const i = RACE_RATES.indexOf(rate);
+  return RACE_RATES[(i + 1) % RACE_RATES.length];
+}

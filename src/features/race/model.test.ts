@@ -384,3 +384,96 @@ describe('field mode (practice and qualifying)', () => {
     );
   });
 });
+
+describe('Nearby filter (field mode)', () => {
+  const TRACK = 4000;
+  const onRoad = (
+    index: number,
+    carClass: string,
+    lapDistM: number,
+    extra: Partial<RaceCar> = {},
+  ) => car(index, carClass, index + 1, {lapDistM, ...extra});
+  // You at 1000 m, every car at 200 km/h (55.6 m/s): 10 s is 556 m.
+  const cars = [
+    onRoad(0, 'GT3', 1000, {player: true}),
+    onRoad(1, 'GT3', 1120), // 2.2 s ahead
+    onRoad(2, 'GT3', 915), // 1.5 s behind
+    onRoad(3, 'Hyper', 820), // 3.2 s behind, another class
+    onRoad(4, 'LMP2', 3950), // 1050 m behind across the line: 18.9 s
+    onRoad(5, 'GT3', 1050, {state: 'pit'}),
+    onRoad(6, 'GT3', NaN, {state: 'garage'}),
+    onRoad(7, 'LMP2', 1560), // 560 m ahead: 10.1 s, just out
+    onRoad(8, 'LMP2', 1540), // 540 m ahead: 9.7 s, just in
+  ];
+  const model = (filter: 'nearby' | 'all', over: RaceCar[] = cars) =>
+    buildRaceModel({
+      cars: over,
+      filter,
+      focus: null,
+      mode: 'field',
+      trackM: TRACK,
+    });
+
+  it('lists every class within 10 s, by road gap, you among them', () => {
+    const m = model('nearby');
+    expect(m.filter).toBe('nearby');
+    expect(m.groups).toHaveLength(1);
+    expect(m.groups[0].title).toBe('Within 10 s of you · 5 CARS');
+    expect(m.groups[0].rows.map(r => [r.index, r.gap])).toEqual([
+      [8, '+9.7 s'],
+      [1, '+2.2 s'],
+      [0, ''],
+      [2, '−1.5 s'],
+      [3, '−3.2 s'],
+    ]);
+    // Each row keeps its class, for the class bar.
+    expect(m.groups[0].rows.map(r => r.key)).toEqual([
+      'lmp2',
+      'gt3',
+      'gt3',
+      'gt3',
+      'hypercar',
+    ]);
+  });
+
+  it('leaves out the pit lane, the garage and a car 10 s or more away', () => {
+    const ids = model('nearby').groups[0].rows.map(r => r.index);
+    expect(ids).not.toContain(4);
+    expect(ids).not.toContain(5);
+    expect(ids).not.toContain(6);
+    expect(ids).not.toContain(7);
+  });
+
+  it('keeps a stopped car by metres where there is no time', () => {
+    const stopped = [
+      onRoad(0, 'GT3', 1000, {player: true}),
+      onRoad(1, 'GT3', 1100, {speedKmh: 0}), // ahead: timed at your speed
+      onRoad(2, 'GT3', 900, {speedKmh: 0}), // behind, standing: no time
+      onRoad(3, 'GT3', 700, {speedKmh: 0}), // 300 m behind, standing
+    ];
+    const ids = model('nearby', stopped).groups[0].rows.map(r => r.index);
+    expect(ids).toEqual([1, 0, 2]);
+  });
+
+  it('falls back to All outside the field mode and with you off the road', () => {
+    expect(
+      buildRaceModel({cars, filter: 'nearby', focus: null, mode: 'race'})
+        .filter,
+    ).toBe('all');
+    const garage = cars.map(c =>
+      c.player ? {...c, state: 'garage' as const} : c,
+    );
+    expect(model('nearby', garage).filter).toBe('all');
+  });
+
+  it('opens a phone on Nearby when you are on the road', () => {
+    expect(defaultFilter(cars, {nearby: true})).toBe('nearby');
+    expect(defaultFilter(cars)).toBe('gt3');
+    expect(
+      defaultFilter(
+        cars.map(c => (c.player ? {...c, state: 'pit' as const} : c)),
+        {nearby: true},
+      ),
+    ).toBe('gt3');
+  });
+});
