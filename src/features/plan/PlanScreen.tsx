@@ -26,14 +26,17 @@ import {
 } from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
+import {PitPlanCard} from './components/PitPlanCard';
 import {PlanCard, Section} from './components/PlanCard';
 import {RaceCardView} from './components/RaceCardView';
 import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
+import {type Unit} from './pitPlanText';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {useClassTiming} from './useClassTiming';
+import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
@@ -41,6 +44,12 @@ const RECENT_COMBOS = 6;
 
 // Every session he has driven, for the track and car choices.
 const ALL_TIME_DAYS = 3650;
+
+// One unit at a time (Botkin, thread 44 #1826): VE in LMU, fuel without it.
+const UNITS = [
+  {value: 've', label: 'VE'},
+  {value: 'fuel', label: 'Fuel'},
+] as const;
 
 const LENGTH_KINDS = [
   {value: 'min', label: 'Minutes'},
@@ -65,14 +74,28 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [showAll, setShowAll] = useState(false);
+  const [unit, setUnit] = useState<Unit>('ve');
   const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
   // The latest few, and the one picked even if it is older.
   const shownCombos = showAll
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
   const data = usePlanData(combo);
-  const classTiming = useClassTiming(combo ?? null, data);
+  const slider = usePitSlider(data, combo?.key ?? '');
+  const chosen = useMemo(
+    () =>
+      slider.pit
+        ? {
+            raceLaps: slider.pit.finishLaps,
+            stopsAfter: slider.pit.stops.map(s => s.after),
+          }
+        : null,
+    [slider.pit],
+  );
+  const classTiming = useClassTiming(combo ?? null, data, chosen);
   const {preset, length, rules, view, plan, hist, limits} = data;
+  // The switch shows only where there is VE to switch to.
+  const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
   const {history, lapsOf, measured} = hist;
 
@@ -137,6 +160,12 @@ export function PlanScreen() {
           />
         ) : (
           <>
+            {hasVe ? (
+              <Section title='Units'>
+                <Segment options={UNITS} value={unit} onChange={setUnit} />
+              </Section>
+            ) : null}
+
             <Section title='Track and car'>
               <View style={styles.chips}>
                 {shownCombos.map(c => (
@@ -286,11 +315,25 @@ export function PlanScreen() {
                     <PlanCard title='Race'>
                       <RaceCardView card={data.cards.race} />
                     </PlanCard>
+                    {slider.pit ? (
+                      <PitPlanCard
+                        pit={slider.pit}
+                        planned={slider.planned}
+                        unit={hasVe ? unit : 'fuel'}
+                        onStop={slider.setStop}
+                        onReset={slider.reset}
+                      />
+                    ) : null}
                     <ClassTimingSection
                       timing={classTiming}
-                      windows={data.cards.stops.windows}
+                      // The stop line is where the slider has it.
+                      windows={data.cards.stops.windows.map((w, i) => ({
+                        ...w,
+                        planLap: slider.pit?.stops[i]?.after ?? w.planLap,
+                      }))}
                       windowNote={data.cards.stops.windowNote}
                       width={cardInnerW}
+                      onStop={slider.pit ? slider.setStop : undefined}
                     />
                     <PlanCard
                       title='Per tank'

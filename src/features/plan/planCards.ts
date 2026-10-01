@@ -169,7 +169,7 @@ function tankCard(
  * One stops row from a stint plan: the laps in each stint and what each one
  * uses. `formation` is the formation lap's use, taken from the first stint.
  */
-function stopRow(
+export function stopRow(
   kind: 'full' | 'equal',
   stintLaps: number[],
   stopAfter: string[],
