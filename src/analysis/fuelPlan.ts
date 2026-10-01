@@ -258,6 +258,29 @@ function none(firstStint: Stint, stint: Stint): Option {
   };
 }
 
+/**
+ * The stops a full-tank strategy makes over `raceLaps`: after the first load's
+ * laps, then every stint's. `needed` is how many the fuel and VE call for;
+ * `stopLaps` are those stops' laps (fewer than `needed` only if a stop would
+ * fall at or after the flag). The one place this is worked out: the plan's
+ * options and the Plan's pit windows both read it.
+ */
+export function fullTankStops(
+  firstLaps: number,
+  stintLaps: number,
+  raceLaps: number,
+): {needed: number; stopLaps: number[]} {
+  const needed =
+    raceLaps <= firstLaps ? 0 : Math.ceil((raceLaps - firstLaps) / stintLaps);
+  const stopLaps: number[] = [];
+  let at = firstLaps;
+  while (stopLaps.length < needed && at < raceLaps) {
+    stopLaps.push(at);
+    at += stintLaps;
+  }
+  return {needed, stopLaps};
+}
+
 function optionFor(
   rules: PlanRules,
   raceLaps: number | null,
@@ -280,17 +303,8 @@ function optionFor(
     return none(first, stint);
   // A stint of zero laps would never finish the race.
   if (first.laps <= 0 || stint.laps <= 0) return none(first, stint);
-  const needed =
-    raceLaps <= first.laps
-      ? 0
-      : Math.ceil((raceLaps - first.laps) / stint.laps);
+  const {needed, stopLaps} = fullTankStops(first.laps, stint.laps, raceLaps);
   const stops = Math.max(needed, rules.mandatoryStops);
-  const stopLaps: number[] = [];
-  let at = first.laps;
-  while (stopLaps.length < needed && at < raceLaps) {
-    stopLaps.push(at);
-    at += stint.laps;
-  }
   const evenLaps = Math.ceil(raceLaps / (stops + 1));
   const firstLaps = Math.min(evenLaps, first.laps);
   const laps =

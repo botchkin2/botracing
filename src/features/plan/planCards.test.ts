@@ -2,6 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
+import {pitWindows} from '@/src/analysis/pitWindow';
+
 import {buildPlanCards, lapName} from './planCards';
 
 // The round 5 frame's example, with our own lap names: a 2 h race at 101.2 s a
@@ -105,27 +107,63 @@ describe('buildPlanCards', () => {
   });
 
   it('the Stops card: a pit window for each stop, at p90 use, with the median lap beside it', () => {
-    // 72 laps, stints of 27 then 28 (formation lap off the first). Use does not
-    // vary here, so p90 = median: the plan stop is the window's latest end.
+    // 72 laps (73 where the flag falls late: the windows use that), stints of 27
+    // then 28 (formation lap off the first). Use does not vary here, so
+    // p90 = median: the plan stop is the window's latest end.
     expect(cards.stops.windows).toEqual([
       {
         stop: 1,
-        earliest: 16,
+        earliest: 17,
         latest: 27,
         planLap: 27,
         medianLap: 27,
-        text: 'Stop 1: after L17 to L28 · 12 laps · at median use L28',
+        text: 'Stop 1: after L18 to L28 · 11 laps · at median use L28',
       },
       {
         stop: 2,
-        earliest: 44,
+        earliest: 45,
         latest: 55,
         planLap: 55,
         medianLap: 55,
-        text: 'Stop 2: after L45 to L56 · 12 laps · at median use L56, within 28 laps of stop 1',
+        text: 'Stop 2: after L46 to L56 · 11 laps · at median use L56, within 28 laps of stop 1',
       },
     ]);
     expect(cards.stops.windowNote).toBeNull();
+  });
+
+  it('a timed race: the windows use the late-flag length, so the earliest ends are a lap later than at the estimate', () => {
+    const plan = planRace(rules, history());
+    expect(plan.raceLaps?.estimate).toBe(72);
+    expect(plan.raceLaps?.oneMore).toBe(73);
+    const [first] = buildPlanCards(plan, rules, false, RATIO).stops.windows;
+    const p90 = plan.atP90;
+    const atEstimate = pitWindows(
+      p90.firstStint.laps as number,
+      p90.stint.laps as number,
+      72,
+      2,
+    )[0];
+    expect(first.earliest).toBe(atEstimate.earliest + 1);
+    // A race counted in laps has no late flag: its length is the estimate.
+    const lapsRace: PlanRules = {...rules, lengthMin: null, lengthLaps: 72};
+    const fixed = planRace(lapsRace, history());
+    expect(fixed.raceLaps?.oneMore ?? null).toBeNull();
+    expect(
+      buildPlanCards(fixed, lapsRace, false, RATIO).stops.windows[0].earliest,
+    ).toBe(atEstimate.earliest);
+  });
+
+  it('a plan with no stop gets no window, even where the late flag would need one', () => {
+    // 43.9 min is 27 laps: the first load goes 27, so no stop. At the late-flag
+    // length, 28 laps, a stop would be needed; that is not a pit window to show.
+    const short: PlanRules = {...rules, lengthMin: 43.9};
+    const plan = planRace(short, history());
+    expect(plan.raceLaps?.estimate).toBe(27);
+    expect(plan.raceLaps?.oneMore).toBe(28);
+    expect(plan.atMedian.stopLaps).toEqual([]);
+    const {stops} = buildPlanCards(plan, short, false, RATIO);
+    expect(stops.windows).toEqual([]);
+    expect(stops.windowNote).toBeNull();
   });
 
   it('a heavier p90 pulls the planned stop earlier than the median tick, never past the window', () => {

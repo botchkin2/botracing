@@ -1,7 +1,11 @@
 // The Plan screen's typed cards (round 5, frames 1 and 8; pit-wall thread 43):
 // Race, Per tank and Stops as numbers, before any layout. Pure. The screen
 // draws them; the old row text (`planView`) stays until the screen switches.
-import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
+import {
+  fullTankStops,
+  type FuelPlan,
+  type PlanRules,
+} from '@/src/analysis/fuelPlan';
 import {formatLapTime} from '@/src/design';
 
 import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
@@ -281,27 +285,47 @@ function stopsCard(
     );
   }
   // The window is the safe one: stops planned at p90 use, so each stop is the
-  // lap the tank runs out at the heavier 10 % of his laps, and both ends of its
-  // window use that rate (setup, thread 44 #1598 item 3 and #1662). The median's
-  // 'tank runs out' lap is kept beside it as the optimistic case.
+  // lap the tank runs out at the heavier 10 % of the laps, both ends of its
+  // window use that rate, and the race is the safe length: one lap more than
+  // the estimate where the flag can fall late (setup, thread 44 #1598 item 3,
+  // #1662 and the #224 review). The median's 'tank runs out' lap is kept beside
+  // it as the optimistic case. The stop counts are worked out at that length.
+  const safeLaps = plan.raceLaps?.oneMore ?? laps;
   const p90 = plan.atP90;
-  const p90Stops = p90.stopLaps.length;
-  const windows =
-    p90.firstStint.laps != null && p90.stint.laps != null
-      ? pitWindows(p90.firstStint.laps, p90.stint.laps, laps, p90Stops).map(
-          w => ({
-            stop: w.stop,
-            earliest: w.earliest,
-            latest: w.latest,
-            planLap: p90.stopLaps[w.stop - 1] ?? w.latest,
-            medianLap: med.stopLaps[w.stop - 1] ?? null,
-            text: windowText(w, med.stopLaps[w.stop - 1] ?? null),
-          }),
-        )
-      : [];
-  const extra = p90Stops - fuelStops;
+  const first90 = p90.firstStint.laps;
+  const stint90 = p90.stint.laps;
+  let windows: StopWindow[] = [];
+  let p90StopCount = 0;
+  // A plan with no stop shows nothing new here: 'load to finish' covers it (round 7).
+  if (
+    fuelStops > 0 &&
+    first90 != null &&
+    stint90 != null &&
+    first90 > 0 &&
+    stint90 > 0
+  ) {
+    const stops = fullTankStops(first90, stint90, safeLaps).stopLaps;
+    p90StopCount = stops.length;
+    windows = pitWindows(first90, stint90, safeLaps, stops.length).map(w => ({
+      stop: w.stop,
+      earliest: w.earliest,
+      latest: w.latest,
+      planLap: stops[w.stop - 1] ?? w.latest,
+      medianLap: med.stopLaps[w.stop - 1] ?? null,
+      text: windowText(w, med.stopLaps[w.stop - 1] ?? null),
+    }));
+  }
+  const medianStopCount =
+    med.firstStint.laps != null &&
+    med.stint.laps != null &&
+    med.firstStint.laps > 0 &&
+    med.stint.laps > 0
+      ? fullTankStops(med.firstStint.laps, med.stint.laps, safeLaps).stopLaps
+          .length
+      : fuelStops;
+  const extra = p90StopCount - medianStopCount;
   const windowNote =
-    p90Stops > 0 && windows.length === 0 && p90.firstStint.laps != null
+    p90StopCount > 0 && windows.length === 0
       ? NO_WINDOW_NOTE
       : extra > 0
       ? `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`

@@ -503,7 +503,7 @@ export function planView(
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
-    explainer: `Your green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, none passed you, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
+    explainer: `Green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, no car passing, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
     rows: [
       ...(driftRow ? [driftRow] : []),
       {
