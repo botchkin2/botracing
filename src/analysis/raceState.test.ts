@@ -4,7 +4,6 @@ import {ABSENT, type Field, type FieldCar} from './field';
 import {carsAt, OFF_TRACK_M, prepareRace, STOPPED_FOR_S} from './raceState';
 
 const HZ = 5;
-const TRACK = 1000;
 
 type Row = {
   /** Lap distance, metres; null when the car is absent. */

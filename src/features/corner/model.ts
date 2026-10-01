@@ -213,7 +213,7 @@ export function buildCornerModel(input: {
   hl: string | null;
   corner: number;
 }): CornerModel | null {
-  const {session, laps, map, band, traces, lapIds, corner} = input;
+  const {laps, map, band, traces, lapIds, corner} = input;
   const onIndexOf = new Map(input.keyLapIds.map((id, i) => [id, i]));
   const all = trackCorners(map);
   const idx = all.findIndex(c => c.n === corner);

@@ -96,7 +96,6 @@ export function PlanScreen() {
     useFuelPresets
       .getState()
       .setLength({kind: 'laps', value: lastRace.raceLaps});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combo?.key, lastRace?.sessionId, preset?.id]);
   const prefillLine = !lastRace
     ? null
