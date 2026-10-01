@@ -89,7 +89,7 @@ export function StopsCardView({
             Earliest: the laps after it still fit in full tanks. Latest: the lap
             the tank runs out, the earlier stops as late as they can be. Each
             stop after the first must also come within a tank of the one before.
-            "At median use" is where the tank would run out at the median lap. A
+            At median use is where the tank would run out at the median lap. A
             mandatory stop that refuels makes the real window wider.
           </Text>
         </View>
