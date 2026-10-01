@@ -8,6 +8,10 @@ import {
   defaultFilter,
   displayModel,
   labelRank,
+  roadGapS,
+  roadOffsetM,
+  roadSummary,
+  roadSummaryText,
 } from './model';
 
 function car(
@@ -242,6 +246,141 @@ describe('labelRank', () => {
   it('is a plain order with no player: leaders first', () => {
     expect(labelRank(car(1, 'GT3', 1), undefined, null)).toBeLessThan(
       labelRank(car(0, 'GT3', 2), undefined, null),
+    );
+  });
+});
+
+describe('field mode (practice and qualifying)', () => {
+  const TRACK = 4000;
+  // You at 1000 m on a 4000 m track: a GT3 120 m ahead, one 85 m behind, a
+  // hypercar 180 m behind, an LMP2 950 m ahead across the line (3950 m).
+  const onRoad = (
+    index: number,
+    carClass: string,
+    lapDistM: number,
+    extra: Partial<RaceCar> = {},
+  ) => car(index, carClass, index + 1, {lapDistM, ...extra});
+  const cars = [
+    onRoad(0, 'GT3', 1000, {player: true}),
+    onRoad(1, 'GT3', 1120),
+    onRoad(2, 'GT3', 915),
+    onRoad(3, 'Hyper', 820),
+    onRoad(4, 'LMP2', 3950),
+    onRoad(5, 'GT3', 1050, {state: 'pit'}),
+    onRoad(6, 'GT3', NaN, {state: 'garage'}),
+  ];
+
+  it('measures the road offset, wrapping at the line', () => {
+    const you = {lapDistM: 3900};
+    expect(roadOffsetM({lapDistM: 100}, you, TRACK)).toBe(200);
+    expect(roadOffsetM({lapDistM: 3700}, you, TRACK)).toBe(-200);
+    expect(roadOffsetM({lapDistM: NaN}, you, TRACK)).toBeNull();
+    expect(roadOffsetM({lapDistM: 10}, you, 0)).toBeNull();
+  });
+
+  it('finds the cars ahead and behind and the faster class coming', () => {
+    // Every car at 200 km/h, 55.6 m/s.
+    const s = roadSummary(cars, TRACK)!;
+    expect(s.ahead).toMatchObject({key: 'gt3', metres: 120});
+    expect(s.ahead!.seconds).toBeCloseTo(120 / (200 / 3.6), 6);
+    expect(s.behind).toMatchObject({key: 'gt3', metres: 85});
+    expect(s.coming).toMatchObject({key: 'hypercar', metres: 180});
+    expect(s.coming!.seconds).toBeCloseTo(180 / (200 / 3.6), 6);
+  });
+
+  it('times a car ahead at your speed and a car behind at its own', () => {
+    expect(roadGapS({speedKmh: 100}, {speedKmh: 200}, 100)).toBeCloseTo(1.8, 6);
+    expect(roadGapS({speedKmh: 100}, {speedKmh: 200}, -100)).toBeCloseTo(
+      3.6,
+      6,
+    );
+    // The car that sets the time is standing still: no time.
+    expect(roadGapS({speedKmh: 0}, {speedKmh: 200}, -100)).toBeNull();
+    expect(roadGapS({speedKmh: 200}, {speedKmh: 2}, 100)).toBeNull();
+  });
+
+  it('lists a faster class as coming only within 5 s', () => {
+    const far = [
+      onRoad(0, 'GT3', 2000, {player: true}),
+      onRoad(1, 'Hyper', 2000 - 300), // 5.4 s at 200 km/h
+    ];
+    expect(roadSummary(far, TRACK)!.coming).toBeNull();
+    expect(roadSummary(far, TRACK)!.behind).toMatchObject({metres: 300});
+  });
+
+  it('counts neither the pit lane nor the garage, nor a slower class as coming', () => {
+    // The car in the pit lane at +50 m is skipped.
+    expect(roadSummary(cars, TRACK)!.ahead!.metres).toBe(120);
+    const slower = roadSummary(
+      [onRoad(0, 'LMP2', 1000, {player: true}), onRoad(1, 'GT3', 900)],
+      TRACK,
+    )!;
+    expect(slower.coming).toBeNull();
+    expect(roadSummary([onRoad(1, 'GT3', 900)], TRACK)).toBeNull();
+  });
+
+  it('says it in one line', () => {
+    expect(roadSummaryText(roadSummary(cars, TRACK)!)).toBe(
+      'Ahead 2.2 s (120 m) GT3 · Behind 1.5 s (85 m) GT3 · Faster class: Hypercar 3.2 s (180 m) behind',
+    );
+  });
+
+  it('says the nearest car behind once when it is the faster class', () => {
+    const near = [
+      onRoad(0, 'GT3', 1000, {player: true}),
+      onRoad(1, 'GT3', 1120),
+      onRoad(2, 'Hyper', 900),
+    ];
+    const line = roadSummaryText(roadSummary(near, TRACK)!);
+    expect(line).toContain('Behind 1.8 s (100 m) Hypercar (faster class)');
+    expect(line).not.toContain('Faster class:');
+  });
+
+  it('has no place, no class position on a dot, and the road gap in seconds in place of the gap', () => {
+    const m = buildRaceModel({
+      cars,
+      filter: 'all',
+      focus: null,
+      mode: 'field',
+      trackM: TRACK,
+    });
+    const rows = m.groups.flatMap(g => g.rows);
+    expect(rows.every(r => r.position === '')).toBe(true);
+    expect(rows.find(r => r.player)!.gap).toBe('');
+    expect(rows.find(r => r.index === 1)!.gap).toBe('+2.2 s');
+    expect(rows.find(r => r.index === 2)!.gap).toBe('−1.5 s');
+    expect(rows.find(r => r.index === 6)!.gap).toBe('—');
+    expect(m.dots.every(d => d.label === '')).toBe(true);
+    expect(m.road).not.toBeNull();
+  });
+
+  it('orders a class from furthest ahead to furthest behind, you among them', () => {
+    const m = buildRaceModel({
+      cars,
+      filter: 'gt3',
+      focus: null,
+      mode: 'field',
+      trackM: TRACK,
+    });
+    expect(m.groups[0].rows.map(r => r.index)).toEqual([1, 5, 0, 2, 6]);
+  });
+
+  it('labels the focus without a class place', () => {
+    const m = buildRaceModel({
+      cars,
+      filter: 'all',
+      focus: 1,
+      mode: 'field',
+      trackM: TRACK,
+    });
+    expect(m.focusLabel).toBe('Car 1 · GT3 · +2.2 s');
+  });
+
+  it('is the race model unchanged by default', () => {
+    const m = buildRaceModel({cars, filter: 'all', focus: null});
+    expect(m.road).toBeNull();
+    expect(m.groups.flatMap(g => g.rows).some(r => r.position !== '')).toBe(
+      true,
     );
   });
 });

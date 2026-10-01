@@ -81,3 +81,23 @@ describe('routes', () => {
     });
   });
 });
+
+describe('a lap of another session', () => {
+  const sel = {laps: ['s9~x-001', 'a', 'b'], hl: 's9~x-001'};
+
+  it('stays in Compare’s link', () => {
+    expect(compareHref('s1', sel).params.laps).toBe('s9~x-001,a,b');
+    expect(compareHref('s1', sel).params.hl).toBe('s9~x-001');
+  });
+
+  it('is dropped from every link that leaves Compare, so Corner and Session never see it', () => {
+    for (const href of [
+      sessionHref('s1', sel),
+      raceHref('s1', sel),
+      cornerHref('s1', 3, sel),
+    ]) {
+      expect(href.params.laps).toBe('a,b');
+      expect(href.params.hl).toBeUndefined();
+    }
+  });
+});

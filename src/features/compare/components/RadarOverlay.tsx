@@ -4,20 +4,20 @@ import {StyleSheet, View} from 'react-native';
 import {type Field} from '@/src/analysis/field';
 import {raceClock} from '@/src/analysis/raceClock';
 import {RADAR_RANGE_M} from '@/src/analysis/radar';
-import {Radar} from '@/src/charts';
+import {FOLLOW_INSET_BOTTOM, Radar} from '@/src/charts';
 import {space} from '@/src/design';
 
 import {radarAtCursor, radarHasCars} from '../radarModel';
 
-/** The radar over a chart on the phone: the size Race gives it there (R2). */
+/** The radar on the phone's Follow map: the size Race gives it there (R2). */
 export const RADAR_OVERLAY_W = 72;
 export const RADAR_OVERLAY_H = 108;
 
 /**
- * The field radar at Compare's cursor, top right of the chart it is drawn
- * over. Only there while a car is in range: the chart keeps the whole width,
- * and the radar comes and goes over it. It does not take touches, so the
- * chart still scrubs underneath.
+ * The field radar at Compare's cursor, top right of the Follow map under the
+ * whole-lap inset, opaque: it covers no trace (round 7, 2C: the 72 % overlay
+ * on the chart hid the lines under the car blocks). Only there while a car is
+ * in range. It does not take touches.
  */
 export function RadarOverlay({
   field,
@@ -42,7 +42,7 @@ export function RadarOverlay({
   return (
     <View style={styles.at} pointerEvents='none'>
       <Radar
-        overlay
+        solid
         width={RADAR_OVERLAY_W}
         height={RADAR_OVERLAY_H}
         rangeM={RADAR_RANGE_M}
@@ -53,5 +53,9 @@ export function RadarOverlay({
 }
 
 const styles = StyleSheet.create({
-  at: {position: 'absolute', top: space.xs, right: space.xs},
+  at: {
+    position: 'absolute',
+    top: FOLLOW_INSET_BOTTOM + space.xs,
+    right: space.xs,
+  },
 });

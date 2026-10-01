@@ -205,12 +205,12 @@ describe('planRace', () => {
       rules({lengthLaps: null, lengthMin: 60}),
       laps(10, 3.5, 5, 110),
     );
-    expect(p.raceLaps).toEqual({estimate: 33, oneMore: 34});
+    expect(p.raceLaps).toEqual({estimate: 33, oneMore: 34, pit: null});
   });
 
   it('a race in laps has no one-more', () => {
     const p = planRace(rules({lengthLaps: 40}), laps(10, 3.5, 5));
-    expect(p.raceLaps).toEqual({estimate: 40, oneMore: null});
+    expect(p.raceLaps).toEqual({estimate: 40, oneMore: null, pit: null});
   });
 
   it('a timed race without lap history has no length', () => {
@@ -224,6 +224,39 @@ describe('planRace', () => {
       laps: 10,
       sessions: 2,
     });
+  });
+});
+
+describe('pit time in a timed race', () => {
+  const timed = rules({lengthLaps: null, lengthMin: 120});
+  const history = laps(10, 3, null);
+  const model = {baseS: 45, refuelLPerS: 3.4};
+
+  it('is not counted without a pit model', () => {
+    const r = planRace(timed, history).raceLaps!;
+    expect(r).toEqual({estimate: 66, oneMore: 67, pit: null});
+  });
+
+  it('takes stops x (base + refuel) off the clock', () => {
+    const r = planRace(timed, history, model).raceLaps!;
+    // 66 laps: 28-lap stints (84 L / 3), so 2 stops of 84 L: 45 + 24.7 s each.
+    expect(r.pit).toMatchObject({stops: 2, refuelL: 84, lapsWithout: 66});
+    expect(r.pit!.perStopS).toBeCloseTo(45 + 84 / 3.4, 6);
+    expect(r.estimate).toBe(65);
+    expect(r.oneMore).toBe(66);
+  });
+
+  it('is left out with no stop to make, no fuel history or a race in laps', () => {
+    const short = rules({lengthLaps: null, lengthMin: 40});
+    expect(planRace(short, history, model).raceLaps!.pit).toBeNull();
+    expect(
+      planRace(
+        timed,
+        laps(10, 3, null).map(l => ({...l, fuelL: NaN})),
+        model,
+      ).raceLaps?.pit,
+    ).toBeNull();
+    expect(planRace(rules(), history, model).raceLaps!.pit).toBeNull();
   });
 });
 
@@ -359,7 +392,7 @@ describe('load to finish', () => {
 
   it('gives the load for the race laps and one more, with the formation lap', () => {
     const p = planRace(sprint, history);
-    expect(p.raceLaps).toEqual({estimate: 22, oneMore: 23});
+    expect(p.raceLaps).toEqual({estimate: 22, oneMore: 23, pit: null});
     const [own, more] = p.loadToFinish!;
     expect(own.laps).toBe(22);
     // 22 laps + the formation lap at 3.5 L and 5 %.

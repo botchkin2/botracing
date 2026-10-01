@@ -193,6 +193,11 @@ function StopsBody({
         return c.tyres ? (
           <>
             <Text variant='dataStrong'>{c.tyres}</Text>
+            {c.compound ? (
+              <Text variant='dataSmall' tone='textMuted'>
+                {c.compound}
+              </Text>
+            ) : null}
             {c.wheels ? <WheelGrid wheels={c.wheels} /> : null}
           </>
         ) : (

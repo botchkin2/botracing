@@ -9,6 +9,7 @@ import {
   type ClassFilter,
   type ClassKey,
   type RaceGroup,
+  type RaceMode,
   type RaceRow,
 } from '../model';
 import {classColor} from './classColor';
@@ -32,6 +33,8 @@ export const Leaderboard = memo(function Leaderboard({
   onFilter,
   onFocus,
   desktop,
+  mode,
+  paged,
 }: {
   groups: RaceGroup[];
   classes: readonly ClassKey[];
@@ -39,6 +42,9 @@ export const Leaderboard = memo(function Leaderboard({
   onFilter: (f: ClassFilter) => void;
   onFocus: (index: number) => void;
   desktop: boolean;
+  mode: RaceMode;
+  /** The list is as long as its rows and the page scrolls (the phone), not a box that scrolls inside the screen. */
+  paged?: boolean;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -47,14 +53,16 @@ export const Leaderboard = memo(function Leaderboard({
   const listKey = `${filter}:${groups.length}`;
   const youAt = groups.flatMap(g => g.rows).findIndex(r => r.player);
   useEffect(() => {
+    if (paged) return;
     scroll.current?.scrollTo({
       y: Math.max(0, (youAt - YOU_ROW_FROM_TOP) * rowH),
       animated: false,
     });
     // Group headers add a little height; close enough for "third from the top".
   }, [listKey]);
+  const Rows = paged ? View : ScrollView;
   return (
-    <View style={styles.fill}>
+    <View style={paged ? undefined : styles.fill}>
       <View style={styles.filter}>
         <Segment
           options={[
@@ -66,21 +74,24 @@ export const Leaderboard = memo(function Leaderboard({
         />
       </View>
       <Text variant='explainer' tone='textFaint' style={styles.key}>
-        At the playback position. Gap = to the class leader. PIT = stops so far;
-        IN = in the pit lane now.
+        {mode === 'race'
+          ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
+          : 'At the playback position. Road = seconds along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
       </Text>
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>
           Car
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.gap}>
-          Gap
+          {mode === 'race' ? 'Gap' : 'Road'}
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.status}>
           Pit
         </Text>
       </View>
-      <ScrollView ref={scroll} style={styles.fill}>
+      <Rows
+        {...(paged ? {} : {ref: scroll})}
+        style={paged ? undefined : styles.fill}>
         {groups.map((g, i) => (
           <View key={g.title ?? `g${i}`}>
             {g.title ? (
@@ -99,7 +110,7 @@ export const Leaderboard = memo(function Leaderboard({
             ))}
           </View>
         ))}
-      </ScrollView>
+      </Rows>
     </View>
   );
 });
@@ -115,9 +126,13 @@ const Row = memo(function Row({
 }) {
   const {color} = useTheme();
   const garage = row.state === 'garage';
-  const where = row.position
+  const where = garage
+    ? 'in the garage'
+    : row.position
     ? `class position ${row.position}`
-    : 'in the garage';
+    : row.gap
+    ? `${row.gap} on the road`
+    : 'you';
   return (
     <Pressable
       accessibilityRole='button'

@@ -41,6 +41,11 @@ export function useLayout(): Layout {
   const isDesktop = window.width >= size.desktopBreakpoint;
   const isWide = window.width >= size.wideBreakpoint;
   const width = Math.max(0, window.width - inset);
-  const contentWidth = Math.min(width, size.maxContent) - size.gutter * 2;
+  // Never negative: a window not measured yet reports width 0, and an SVG
+  // with a negative width logs an error.
+  const contentWidth = Math.max(
+    0,
+    Math.min(width, size.maxContent) - size.gutter * 2,
+  );
   return {width, isDesktop, isWide, contentWidth};
 }

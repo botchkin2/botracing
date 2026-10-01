@@ -11,7 +11,6 @@ import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
-  defaultLapIds,
   firstCornerOf,
   type Lap,
   type SessionBand,
@@ -450,9 +449,26 @@ export function valuesAt(
   }));
 }
 
+/**
+ * Laps of other sessions in the selection (a reference from an earlier race,
+ * pit-wall thread 44 E3). Each has its selection id (`foreignLapId`) as `id`,
+ * and a tag for the session it is from ("25 Sep"). They sit beside this
+ * session's laps in the charts; nothing that belongs to this session (the
+ * field radar, the neighbour laps across the line, the All laps list) reads
+ * them.
+ */
+export type ForeignLaps = {
+  laps: Lap[];
+  tags: Map<string, string>;
+  /** This session's own tag, shown on its laps once a foreign lap is in the view ("L11 · 25 Sep Race" beside "L11 · 24 Sep Race"). */
+  ownTag?: string;
+};
+
 export type CompareInputs = {
   session: SessionDetail;
+  /** This session's laps. */
   laps: Lap[];
+  foreign?: ForeignLaps;
   /** Resampled traces by lap id; missing while loading. */
   traces: Map<string, GridTrace>;
   band: SessionBand | null;
@@ -633,7 +649,17 @@ const wrapCache = {
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
   const {session, laps, traces, band, map, selection} = input;
-  const byId = new Map(laps.map(l => [l.id, l]));
+  const foreignTags = input.foreign?.tags ?? new Map<string, string>();
+  const byId = new Map(
+    [...laps, ...(input.foreign?.laps ?? [])].map(l => [l.id, l]),
+  );
+  // "L12", and "L12 · 25 Sep" for a lap of another session: two sessions both
+  // have an L12.
+  const ownTag = foreignTags.size > 0 ? input.foreign?.ownTag : undefined;
+  const nameOf = (l: Lap) => {
+    const tag = foreignTags.get(l.id) ?? ownTag;
+    return tag ? `L${l.lapIndex} · ${tag}` : `L${l.lapIndex}`;
+  };
   const selected = selection.laps
     .map(id => byId.get(id))
     .filter((l): l is Lap => l != null);
@@ -649,12 +675,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // The time diff's label names the lap it is measured against.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && ref
-      ? `${CHANNELS[ch].label} vs L${ref.lapIndex}`
+      ? `${CHANNELS[ch].label} vs ${nameOf(ref)}`
       : CHANNELS[ch].label;
 
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
-    label: `L${l.lapIndex}`,
+    label: nameOf(l),
     selIndex: i,
     highlighted: l.id === hlId,
     key: i === 0 || l.id === hlId || mode === 'individual',
@@ -671,8 +697,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const windowM: [number, number] = refTrace
     ? windowRange(refTrace, cursorM, win.mode, win.size)
     : [0, lengthM];
-  const i0 = Math.max(0, Math.floor(windowM[0] / stepM));
-  const i1 = Math.ceil(windowM[1] / stepM);
   // y scales fit the whole sections the window touches (thread 26 #381).
   const fitM = sectionFitRange(
     (map?.sections ?? []).map(s => s.entryM),
@@ -685,7 +709,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // --- reference line and chips ---------------------------------------------
   const refBits = ref
     ? [
-        `L${ref.lapIndex}`,
+        nameOf(ref),
         ref.timeS == null ? '—' : formatLapTime(ref.timeS),
         ref.id === session.bestLapId
           ? `${session.sessionType === 'R' ? 'Race' : 'Session'} best`
@@ -757,7 +781,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // screen, and building it every playback frame cost ~100 ms (freeze #628).
   const nearLine = windowed && (cursorM < WRAP_M || cursorM > lengthM - WRAP_M);
   const sides = new Map(
-    lapRefs.map(r => [r.lapId, lapNeighbours(laps, r.lapId)]),
+    // A lap of another session has no neighbours here: they would be that
+    // session's laps, whose traces this view does not load.
+    lapRefs.map(r => [
+      r.lapId,
+      lapNeighbours(foreignTags.has(r.lapId) ? [] : laps, r.lapId),
+    ]),
   );
   const refSides = ref ? sides.get(ref.id)! : null;
   const neighbourTrace = (side: Side | undefined) =>
@@ -989,7 +1018,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const grid: CornerGridModel | null =
     gridRows.length && ref
       ? {
-          explainer: `Time in each section vs L${ref.lapIndex}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
+          explainer: `Time in each section vs ${nameOf(
+            ref,
+          )}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
           corners,
           rows: gridRows,
         }
@@ -1049,7 +1080,14 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
 
   return {
     mode,
-    playing: playing ? {lapId: playing.id, lapNumber: playing.lapNumber} : null,
+    // The field radar follows this session's field: a lap of another
+    // session has no place in it.
+    playing: playing
+      ? {
+          lapId: playing.id,
+          lapNumber: foreignTags.has(playing.id) ? null : playing.lapNumber,
+        }
+      : null,
     reference: refBits.filter(Boolean).join(' · '),
     chips,
     manyChip,

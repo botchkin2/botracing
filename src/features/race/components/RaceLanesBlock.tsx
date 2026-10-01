@@ -11,6 +11,7 @@ import {space} from '@/src/design';
 import {Segment, Text} from '@/src/ui';
 
 import {clockLabel} from '../clock';
+import type {RaceMode} from '../model';
 
 // YOUR RACE (handoff R1a/R1b): the label, the race clock and the zoom above the
 // lanes; the window's start and end times under them. Lanes are 9 pt high in a
@@ -18,11 +19,14 @@ import {clockLabel} from '../clock';
 const PHONE = {laneHeight: 9, labelWidth: 44};
 const DESKTOP = {laneHeight: 12, labelWidth: 56};
 
-const ZOOMS = [
-  {value: 'race', label: 'Race'},
-  {value: 'l10', label: '10 laps'},
-  {value: 'l3', label: '3 laps'},
-] as const;
+// The whole-window zoom is named for what the session is: outside a race
+// there is no race to show (production QA, thread 44 #1723).
+const zooms = (mode: RaceMode) =>
+  [
+    {value: 'race', label: mode === 'race' ? 'Race' : 'Session'},
+    {value: 'l10', label: '10 laps'},
+    {value: 'l3', label: '3 laps'},
+  ] as const;
 
 export function RaceLanesBlock({
   lanes,
@@ -32,6 +36,7 @@ export function RaceLanesBlock({
   width,
   desktop,
   onScrub,
+  mode,
 }: {
   lanes: RaceLanesModel;
   zoom: LaneZoom;
@@ -40,6 +45,7 @@ export function RaceLanesBlock({
   width: number;
   desktop: boolean;
   onScrub: (timeS: number) => void;
+  mode: RaceMode;
 }) {
   const window = laneWindow(zoom, playheadS, lanes);
   const {laneHeight, labelWidth} = desktop ? DESKTOP : PHONE;
@@ -47,12 +53,12 @@ export function RaceLanesBlock({
     <View style={styles.block}>
       <View style={styles.head}>
         <Text variant='label' tone='textMuted'>
-          Your race
+          {mode === 'race' ? 'Your race' : 'Your session'}
         </Text>
         <Text variant='dataStrong' style={styles.clock}>
           {clockLabel(playheadS)}
         </Text>
-        <Segment options={ZOOMS} value={zoom} onChange={onZoom} />
+        <Segment options={zooms(mode)} value={zoom} onChange={onZoom} />
       </View>
       <RaceLanes
         lanes={lanes}

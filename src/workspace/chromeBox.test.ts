@@ -17,6 +17,7 @@ const laps = [
 ];
 const base = {
   session: race,
+  hasField: true,
   laps,
   selection: {},
   cornerN: null,
@@ -43,14 +44,28 @@ describe('chromeBox', () => {
     expect(box.badge).toBe('R');
   });
 
-  it('reads plain Corner before any corner is used, and drops Race for practice', () => {
+  it('reads plain Corner before any corner is used, and a practice with a field gets Field', () => {
     const box = chromeBox({
       ...base,
       session: {...race, sessionType: 'P'},
       tab: null,
     });
-    expect(box.tabs.map(t => t.label)).toEqual(['Laps', 'Compare', 'Corner']);
+    expect(box.tabs.map(t => t.label)).toEqual([
+      'Laps',
+      'Compare',
+      'Corner',
+      'Field',
+    ]);
     expect(box.activeTab).toBeNull();
+  });
+
+  it('a practice without a field has no fourth tab', () => {
+    const box = chromeBox({
+      ...base,
+      session: {...race, sessionType: 'P'},
+      hasField: false,
+    });
+    expect(box.tabs.map(t => t.label)).toEqual(['Laps', 'Compare', 'Corner']);
   });
 
   it('uses the official corner label when the map has one', () => {

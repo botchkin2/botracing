@@ -8,7 +8,7 @@ import {
   type LapRowModel,
   buildSessionModel,
   selectStint,
-  cleanMedianFact,
+  trafficPaceFacts,
   toggleLap,
 } from './model';
 
@@ -274,29 +274,83 @@ describe('fuel and Virtual Energy rows', () => {
   });
 });
 
-describe('cleanMedianFact', () => {
+describe('trafficPaceFacts', () => {
   const field = {gridId: 'g'} as unknown as typeof session.field;
-  const withTraffic = (clean: {laps: number; medianS: number | null}) => ({
-    ...session,
-    field,
-    traffic: {v: 1, clean, traffic: {laps: 0, medianS: null}},
-  });
+  const set = (laps: number, medianS: number | null) => ({laps, medianS});
+  const withTraffic = (
+    clean: ReturnType<typeof set>,
+    traffic = set(0, null),
+  ) => ({...session, field, traffic: {v: 2, clean, traffic}});
 
   it('says so when the session has no field', () => {
-    expect(cleanMedianFact(session)?.value).toBe('No other cars recorded');
+    expect(trafficPaceFacts(session)).toEqual([
+      {label: 'Clean median', value: 'No other cars recorded'},
+    ]);
   });
 
   it('is left out for a field not yet analysed for traffic', () => {
-    expect(cleanMedianFact({...session, field})).toBeNull();
+    expect(trafficPaceFacts({...session, field})).toEqual([]);
   });
 
-  it('shows the median and the laps behind it', () => {
-    expect(cleanMedianFact(withTraffic({laps: 12, medianS: 81.5}))?.value).toBe(
-      `1:21.500 · 12 of ${session.comparableCount} laps`,
+  it('shows each median with the laps behind it, and the rule', () => {
+    const s = withTraffic(set(12, 81.5), set(4, 83));
+    expect(trafficPaceFacts(s)).toEqual([
+      {
+        label: 'Clean median',
+        value: `1:21.500 · 12 of ${session.comparableCount} laps`,
+      },
+      {
+        label: 'Traffic median',
+        value: `1:23.000 · 4 of ${session.comparableCount} laps`,
+      },
+    ]);
+    expect(buildSessionModel(s, laps, none).paceRule).toContain('Clean:');
+  });
+
+  it('leaves a set out under the lap floor, and the rule with it', () => {
+    const s = withTraffic(set(2, null), set(1, null));
+    expect(trafficPaceFacts(s)).toEqual([]);
+    expect(buildSessionModel(s, laps, none).paceRule).toBeNull();
+  });
+});
+
+describe('traffic in the stint header and the lap detail', () => {
+  const traffic = (over: Record<string, unknown>) => ({
+    draftS: 0,
+    trafficAheadS: 0,
+    trafficBehindS: 0,
+    blueFlagS: 0,
+    passesMade: 0,
+    passesSuffered: 0,
+    passesMadeAll: 0,
+    passesSufferedAll: 0,
+    battleS: 0,
+    overtakes: [],
+    ...over,
+  });
+  const raw = fixture.laps.map(l => ({...l, traffic: traffic({})}));
+  const withField = toLaps(raw);
+
+  it('a stint header gives the clean median with its n, from 3 laps', () => {
+    const m = buildSessionModel(session, withField, none);
+    const stint = m.rows.find(r => r.kind === 'stint')!;
+    expect(stint.kind === 'stint' && stint.label).toMatch(
+      / · clean 1:\d\d\.\d{3} \(\d+\)/,
     );
+    expect(stint.kind === 'stint' && stint.label).not.toContain('traffic');
   });
 
-  it('is left out under the lap floor', () => {
-    expect(cleanMedianFact(withTraffic({laps: 2, medianS: null}))).toBeNull();
+  it('a session without traffic facts keeps its stint headers as they were', () => {
+    const m = buildSessionModel(session, laps, none);
+    const stint = m.rows.find(r => r.kind === 'stint')!;
+    expect(stint.kind === 'stint' && stint.label).not.toContain('clean');
+  });
+
+  it('the lap detail has a traffic section only with a field', () => {
+    const hl = withField[3].id;
+    const d = buildSessionModel(session, withField, {laps: [], hl}).detail!;
+    expect(d.traffic?.[0]).toEqual({label: 'In a tow', value: '0.0 s'});
+    const bare = buildSessionModel(session, laps, {laps: [], hl: laps[3].id});
+    expect(bare.detail!.traffic).toBeNull();
   });
 });

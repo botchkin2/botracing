@@ -1,3 +1,4 @@
+import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {fonts, radius, space, useTheme} from '@/src/design';
@@ -14,9 +15,12 @@ const ACTION_LABEL = {
 export function LapDetail({
   detail,
   onAction,
+  extra,
 }: {
   detail: DetailModel;
   onAction: () => void;
+  /** Below the lap's facts, above the action (reference candidates). */
+  extra?: ReactNode;
 }) {
   const {color} = useTheme();
   return (
@@ -41,11 +45,34 @@ export function LapDetail({
           {line}
         </Text>
       ))}
+      {detail.traffic && (
+        <View style={styles.traffic}>
+          <Text variant='label' tone='textMuted'>
+            Traffic on this lap
+          </Text>
+          {detail.traffic.map(r => (
+            <View key={r.label}>
+              <View style={styles.row}>
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {r.label}
+                </Text>
+                <Text variant='dataSmall'>{r.value}</Text>
+              </View>
+              {r.note ? (
+                <Text variant='dataSmall' tone='textMuted'>
+                  {r.note}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
       {detail.why && (
         <Text variant='explainer' tone='textMuted'>
           {detail.why}
         </Text>
       )}
+      {extra}
       <View style={styles.action}>
         <Button
           label={ACTION_LABEL[detail.action]}
@@ -66,5 +93,7 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   title: {fontSize: 14, fontFamily: fonts.monoBold},
+  traffic: {gap: space.xs, marginTop: space.sm},
+  row: {flexDirection: 'row', justifyContent: 'space-between', gap: space.md},
   action: {alignSelf: 'flex-start', marginTop: space.sm},
 });

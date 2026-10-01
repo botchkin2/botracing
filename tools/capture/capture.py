@@ -27,6 +27,11 @@ VERSION = 1
 # Text kept per field row: which car is which. Driver names stay on this PC;
 # the uploader does not send them (pit-wall thread 30, #626).
 FIELD_TEXT = ("mVehicleName", "mVehicleClass", "mDriverName")
+# Text kept per player row: the tyre compound names. The numeric compound
+# index within a brand reads 0 on every capture so far and names nothing, so
+# the names are the only way to tell soft from medium or a wet (pit-wall
+# thread 44, setup #1539 item 3). A dictionary-encoded column: a few bytes a chunk.
+PLAYER_TEXT = ("mFrontTireCompoundName", "mRearTireCompoundName")
 
 
 def utc_ms():
@@ -137,7 +142,7 @@ class Capture:
             if not raw:
                 continue
             cols = {k: np.asarray(v) for k, v in extra.items()}
-            text = FIELD_TEXT if name == "field" else ()
+            text = {"field": FIELD_TEXT, "player": PLAYER_TEXT}.get(name, ())
             cols.update(columns(bytes(raw), ctype, text))
             if name != "session":
                 cols = narrow(cols, FLOAT32_FIELD if name == "field" else FLOAT32_PLAYER)

@@ -28,6 +28,7 @@ export type ChromeBox = Omit<
  */
 export function chromeBox({
   session,
+  hasField,
   laps,
   selection,
   cornerN,
@@ -36,6 +37,8 @@ export function chromeBox({
   scheme,
 }: {
   session: Pick<SessionDetail, 'sessionType' | 'track' | 'car' | 'startedAt'>;
+  /** Whether the session has a recorded field: the fourth tab is Race or Field. */
+  hasField: boolean;
   laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
   selection: {laps?: string; hl?: string};
   cornerN: number | null;
@@ -69,7 +72,10 @@ export function chromeBox({
     detail: [car.model, car.entry, formatDayMonth(session.startedAt)]
       .filter(Boolean)
       .join(' · '),
-    tabs: sessionTabs(session.sessionType, cornerLabel),
+    tabs: sessionTabs(
+      {sessionType: session.sessionType, hasField},
+      cornerLabel,
+    ),
     activeTab: tab,
     laps: lapRows,
   };

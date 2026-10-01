@@ -8,7 +8,7 @@ import {SessionTabs} from '@/src/ui';
 import {useUrlTarget, useWorkspaceGo} from './useWorkspaceGo';
 
 /**
- * The phone's Laps / Compare / Corner / Race row. Each session screen puts it
+ * The phone's Laps / Compare / Corner / Race-or-Field row. Each session screen puts it
  * under its title (round 4 nav frame, item 8); the desktop chrome has the
  * same destinations, so screens render this only below the chrome width.
  */
@@ -19,7 +19,9 @@ export function SessionNav({sessionId}: {sessionId: string}) {
   if (!tab) return null;
   return (
     <SessionTabs
-      items={sessionTabs(data?.sessionType)}
+      items={sessionTabs(
+        data && {sessionType: data.sessionType, hasField: data.field != null},
+      )}
       active={tab}
       onSelect={go}
     />

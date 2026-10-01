@@ -121,6 +121,20 @@ const wanted = [
   'tyres_rubber_temp_fr',
   'tyres_rubber_temp_rl',
   'tyres_rubber_temp_rr',
+  // The tread's three temperatures, car-fixed: Left and Right are the car's
+  // edges on every wheel (tyres.mjs treadTemps).
+  'tyres_temp_left_fl',
+  'tyres_temp_left_fr',
+  'tyres_temp_left_rl',
+  'tyres_temp_left_rr',
+  'tyres_temp_centre_fl',
+  'tyres_temp_centre_fr',
+  'tyres_temp_centre_rl',
+  'tyres_temp_centre_rr',
+  'tyres_temp_right_fl',
+  'tyres_temp_right_fr',
+  'tyres_temp_right_rl',
+  'tyres_temp_right_rr',
 ];
 
 const LOOSE_SURFACES = new Set([2, 3, 4]);
@@ -479,7 +493,7 @@ function analyzeLap(rec, seg, pits, flags) {
       Math.min(idxAt(s.t, seg.end), s.t.length - 1),
       pits,
     ),
-    pitStop: lapPitStop(s, seg.start, seg.end, pits),
+    pitStop: lapPitStop(s, seg.start, seg.end, pits, events.tyres_compound),
     distanceM: round(dist[dist.length - 1], 1),
     ...topSpeed(s, i0, i1, dist),
   };
