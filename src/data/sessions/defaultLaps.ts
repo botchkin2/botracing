@@ -23,6 +23,7 @@ export function defaultLapIds(laps: Lap[], bestLapId: string | null): string[] {
 
 /** What the session says about its laps: enough to tell a fair reference from a lucky one. */
 export type DefaultSession = {
+  id: string;
   bestLapId: string | null;
   /** The car as the session names it; every lap of a session shares it. */
   car: string;
@@ -30,9 +31,13 @@ export type DefaultSession = {
 };
 
 /** The ranking's view of a lap (analysis/referenceLap.ts). */
-function refLapOf(lap: Lap, session: DefaultSession): RefLap {
+export function refLapOf(
+  lap: Lap,
+  session: Pick<DefaultSession, 'id' | 'car' | 'sessionType'>,
+): RefLap {
   return {
     id: lap.id,
+    sessionId: session.id,
     car: session.car,
     sessionType: session.sessionType,
     timeS: lap.timeS,
@@ -45,6 +50,7 @@ function refLapOf(lap: Lap, session: DefaultSession): RefLap {
     offTrackS: lap.offTrackS,
     newTyres: lap.newTyres,
     startL: lap.fuel?.startL ?? null,
+    veStartPct: lap.fuel?.veStartPct ?? null,
     trafficAheadS: lap.traffic?.trafficAheadS ?? null,
     blueFlagS: lap.traffic?.blueFlagS ?? null,
   };

@@ -1,3 +1,4 @@
+import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {fonts, radius, space, useTheme} from '@/src/design';
@@ -14,9 +15,12 @@ const ACTION_LABEL = {
 export function LapDetail({
   detail,
   onAction,
+  extra,
 }: {
   detail: DetailModel;
   onAction: () => void;
+  /** Below the lap's facts, above the action (reference candidates). */
+  extra?: ReactNode;
 }) {
   const {color} = useTheme();
   return (
@@ -68,6 +72,7 @@ export function LapDetail({
           {detail.why}
         </Text>
       )}
+      {extra}
       <View style={styles.action}>
         <Button
           label={ACTION_LABEL[detail.action]}

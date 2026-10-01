@@ -412,7 +412,7 @@ describe('a URL with no laps', () => {
     lap('c', 91.9),
     lap('d', 90.0, false),
   ];
-  const facts = {bestLapId: 'b', car: 'GT3', sessionType: 'R'};
+  const facts = {id: 's1', bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
   it('opens on a fair reference and the median comparable lap', () => {
     const out = withDefaultLaps(sel({laps: []}), laps, facts);

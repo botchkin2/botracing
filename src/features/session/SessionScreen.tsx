@@ -33,6 +33,7 @@ import {Explainer, Text, useHowToRead} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
+import {LapCandidates} from './components/LapCandidates';
 import {FuelUseCard} from './components/FuelUseCard';
 import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
@@ -344,7 +345,13 @@ function SessionView({
 
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
-          <LapDetail detail={model.detail} onAction={detailAction} />
+          <LapDetail
+            detail={model.detail}
+            onAction={detailAction}
+            extra={
+              <LapCandidates sessionId={sessionId} lapId={model.detail.lapId} />
+            }
+          />
         </View>
       )}
       <View style={styles.section}>
@@ -412,7 +419,16 @@ function SessionView({
         chart={chartBlock}
         detail={
           model.detail && (
-            <LapDetail detail={model.detail} onAction={detailAction} />
+            <LapDetail
+              detail={model.detail}
+              onAction={detailAction}
+              extra={
+                <LapCandidates
+                  sessionId={sessionId}
+                  lapId={model.detail.lapId}
+                />
+              }
+            />
           )
         }
         tray={tray}
@@ -485,7 +501,16 @@ function SessionView({
         {layout.isDesktop && (
           <View style={[styles.side, {width: sideW}]}>
             {model.detail ? (
-              <LapDetail detail={model.detail} onAction={detailAction} />
+              <LapDetail
+                detail={model.detail}
+                onAction={detailAction}
+                extra={
+                  <LapCandidates
+                    sessionId={sessionId}
+                    lapId={model.detail.lapId}
+                  />
+                }
+              />
             ) : (
               <Explainer>
                 Tap a bar or a row to see that lap, and tick laps to compare.

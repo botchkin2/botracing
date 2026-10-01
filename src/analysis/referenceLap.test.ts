@@ -5,10 +5,12 @@ import {
   FUEL_BAND_L,
   type RefLap,
   rankReferenceLaps,
+  VE_BAND_PCT,
 } from './referenceLap';
 
 const lap = (id: string, over: Partial<RefLap> = {}): RefLap => ({
   id,
+  sessionId: 's1',
   car: '911 GT3 R',
   sessionType: 'R',
   timeS: 100,
@@ -21,6 +23,7 @@ const lap = (id: string, over: Partial<RefLap> = {}): RefLap => ({
   offTrackS: 0,
   newTyres: false,
   startL: 60,
+  veStartPct: null,
   trafficAheadS: 0,
   blueFlagS: 0,
   ...over,
@@ -120,5 +123,51 @@ describe('rankReferenceLaps', () => {
       clean: true,
     });
     expect(first.timeS).toBe(100);
+  });
+});
+
+describe('the load band', () => {
+  const ve = (id: string, veStartPct: number | null, startL: number | null) =>
+    lap(id, {veStartPct, startL});
+  const vt = ve('t', 80, null);
+  const rank = (cands: RefLap[]) =>
+    rankReferenceLaps(vt, cands).map(r => [r.lapId, r.match.fuelBand]);
+
+  it('falls back to Virtual Energy where a lap has no fuel level', () => {
+    expect(
+      rank([
+        ve('far', 80 + VE_BAND_PCT + 1, null),
+        ve('near', 80 + VE_BAND_PCT, null),
+      ]),
+    ).toEqual([
+      ['near', true],
+      ['far', false],
+    ]);
+  });
+
+  it('lets fuel decide when both laps have it, whatever the energy says', () => {
+    const t = ve('t', 80, 60);
+    const out = rankReferenceLaps(t, [
+      ve('fuelNear', 20, 60 + FUEL_BAND_L),
+      ve('fuelFar', 80, 60 + FUEL_BAND_L + 1),
+    ]).map(r => [r.lapId, r.match.fuelBand]);
+    expect(out).toEqual([
+      ['fuelNear', true],
+      ['fuelFar', false],
+    ]);
+  });
+
+  it('is no band when neither is known on both laps', () => {
+    expect(rank([ve('unknown', null, null), ve('oneSide', null, 60)])).toEqual([
+      ['oneSide', false],
+      ['unknown', false],
+    ]);
+  });
+
+  it('carries the session each ranked lap is from', () => {
+    const out = rankReferenceLaps(vt, [
+      {...lap('x'), sessionId: 'other', veStartPct: 80},
+    ]);
+    expect(out[0].sessionId).toBe('other');
   });
 });
