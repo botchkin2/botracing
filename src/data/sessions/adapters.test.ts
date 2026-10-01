@@ -228,6 +228,7 @@ describe('pit stop tyres', () => {
       coolDown: {
         afterS: 45,
         rubberC: {FL: -9.5, FR: null, RL: -8, RR: 'x'},
+        carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
         pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
       },
       compound: 'other',
@@ -235,6 +236,7 @@ describe('pit stop tyres', () => {
     expect(t?.coolDown).toEqual({
       afterS: 45,
       rubberC: {FL: -9.5, FR: null, RL: -8, RR: null},
+      carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
       pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
     });
     expect(t?.compound).toBe('other');

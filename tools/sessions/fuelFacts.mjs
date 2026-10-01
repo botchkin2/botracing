@@ -214,14 +214,17 @@ function pitTyres(s, a, b, compoundEvents) {
     entryPct: wearAt(s, a),
     exitPct: b === Infinity ? null : wearAt(s, b + TYRE_MARGIN_S),
     coolDown: coolDown(s, a, b, change.wheels),
-    compound: fullSetCompound(change.wheels, compoundEvents, b),
+    compound: fullSetCompound(s, change.wheels, compoundEvents, b),
   };
 }
 
 /** How long after the pit exit the tyres have recovered to, for the cool-down. */
 export const COOL_DOWN_AFTER_S = 45;
-// The reading before the stop and after it are each the median of this many seconds.
-const COOL_DOWN_WINDOW_S = 1;
+// The reading before the stop and after it are each the median of this many
+// seconds: a surface temperature at one instant is noise-prone (setup, pit-wall
+// thread 44 #1689). Before is the window ending at pit entry; after is centred
+// COOL_DOWN_AFTER_S after the exit.
+const COOL_DOWN_WINDOW_S = 5;
 
 /** Median of the live (above 0) readings of `values` over [from, to] seconds; null with none or past the recording's end. */
 function liveMedianBetween(values, t, from, to) {
@@ -236,8 +239,9 @@ function liveMedianBetween(values, t, from, to) {
 
 /**
  * What the stop did to the tyres it did not replace: the change in each wheel's
- * rubber temperature (C) and pressure (kPa) from the last second before pit
- * entry to COOL_DOWN_AFTER_S after the pit exit, {rubberC, pressureKpa} each
+ * rubber temperature (C), carcass temperature (C) and pressure (kPa), pit
+ * entry against COOL_DOWN_AFTER_S after the pit exit (each the median of
+ * COOL_DOWN_WINDOW_S seconds), {rubberC, carcassC, pressureKpa} each
  * {FL, FR, RL, RR}. A cooling stop is not a tyre change (tires audit, pit-wall
  * thread 38), so a wheel that was replaced is null: its new tyre starts from
  * ambient, which says nothing about cooling. Null when the stop never ends,
@@ -246,6 +250,7 @@ function liveMedianBetween(values, t, from, to) {
 function coolDown(s, a, b, changedWheels) {
   if (b === Infinity) return null;
   const rubber = {};
+  const carcass = {};
   const pressure = {};
   let any = false;
   for (const [name] of WHEELS) {
@@ -265,33 +270,55 @@ function coolDown(s, a, b, changedWheels) {
         : round(after - before, digits);
     };
     rubber[name] = delta('tyres_rubber_temp', 1);
+    carcass[name] = delta('tyres_carcass_temp', 1);
     pressure[name] = delta('tyres_pressure', 1);
-    any = any || rubber[name] != null || pressure[name] != null;
+    any =
+      any ||
+      rubber[name] != null ||
+      carcass[name] != null ||
+      pressure[name] != null;
   }
   return any
-    ? {afterS: COOL_DOWN_AFTER_S, rubberC: rubber, pressureKpa: pressure}
+    ? {
+        afterS: COOL_DOWN_AFTER_S,
+        rubberC: rubber,
+        carcassC: carcass,
+        pressureKpa: pressure,
+      }
     : null;
 }
 
 /**
  * The compound fitted at a stop that changed all four wheels, from the game's
- * compound event right after the pit exit: 'start' for code 0 (the compound
- * the car started on, per the setup) and 'other' for anything else. The names
- * are not recorded anywhere, so none is guessed. The event only fires for a
- * full set (tires audit), so a stop that changed fewer wheels, one whose four
- * wheels read different codes, or one with no event has none: null.
+ * compound event right after the pit exit: 'start' when its code is the one in
+ * force at the start of the recording, 'other' for any other (the code is an
+ * index into the car's options, so it says nothing by itself: '1/1' is the
+ * wets in some of our files, setup #1689). The names are not recorded
+ * anywhere, so none is guessed. The event only fires for a full set (tires
+ * audit), so a stop that changed fewer wheels, one whose four wheels read
+ * different codes, or one with no event at the stop or at the start has none:
+ * null.
  */
-function fullSetCompound(wheels, events, b) {
+function fullSetCompound(s, wheels, events, b) {
   if (wheels.length !== 4 || b === Infinity) return null;
-  let at = null;
-  for (const e of events ?? []) {
-    if (e.t > b + TYRE_MARGIN_S) break;
-    at = e;
-  }
-  if (!at) return null;
-  const codes = [at.v, at.v2, at.v3, at.v4];
-  if (codes.some(c => !Number.isFinite(c) || c !== codes[0])) return null;
-  return codes[0] === 0 ? 'start' : 'other';
+  const codeAt = t => {
+    let at = null;
+    for (const e of events ?? []) {
+      if (e.t > t) break;
+      at = e;
+    }
+    // A recording whose first event comes a moment after its first tick.
+    if (!at && t === s.t[0] + 1) at = events?.[0] ?? null;
+    if (!at) return null;
+    const codes = [at.v, at.v2, at.v3, at.v4];
+    return codes.some(c => !Number.isFinite(c) || c !== codes[0])
+      ? null
+      : codes[0];
+  };
+  const fitted = codeAt(b + TYRE_MARGIN_S);
+  const started = codeAt(s.t[0] + 1);
+  if (fitted == null || started == null) return null;
+  return fitted === started ? 'start' : 'other';
 }
 
 const median = values => {

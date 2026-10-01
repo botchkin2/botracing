@@ -425,12 +425,13 @@ function coolingStop(steps = []) {
         ? before
         : sec <= 220
         ? during
-        : sec < 265
+        : sec < 255
         ? (during + after) / 2
         : after,
     );
   for (const w of ['fl', 'fr', 'rl', 'rr']) {
     s[`tyres_rubber_temp_${w}`] = at(80, 70, 78);
+    s[`tyres_carcass_temp_${w}`] = at(90, 85, 88);
     s[`tyres_pressure_${w}`] = at(165, 160, 164);
   }
   // A dead sensor reads 0, never a measurement.
@@ -443,6 +444,7 @@ test('a stop that changed no wheel records how far the tyres cooled by 45 s afte
   const stop = lapPitStop(s, 150, 300, pits);
   assert.equal(stop.tyres.coolDown.afterS, 45);
   assert.equal(stop.tyres.coolDown.rubberC.FL, -2);
+  assert.equal(stop.tyres.coolDown.carcassC.FL, -2);
   assert.equal(stop.tyres.coolDown.pressureKpa.FL, -1);
   // A dead sensor is null, not a change from 0.
   assert.equal(stop.tyres.coolDown.pressureKpa.RR, null);
@@ -454,6 +456,7 @@ test('a replaced wheel has no cool-down; a stop that never ends or has no window
   const stop = lapPitStop(s, 150, 300, pits);
   assert.equal(stop.tyres.coolDown.rubberC.FR, null);
   assert.equal(stop.tyres.coolDown.rubberC.FL, -2);
+  assert.equal(stop.tyres.coolDown.carcassC.FL, -2);
   assert.equal(lapPitStop(s, 150, 300, [[200, Infinity]]).tyres.coolDown, null);
   // The recording ends 400 s in: a window needing 45 s after a 390 s exit is past it.
   assert.equal(lapPitStop(s, 350, 400, [[380, 390]]).tyres.coolDown, null);
@@ -475,7 +478,7 @@ test('a full set reads its compound from the game event: start for 0, other for 
     'other',
   );
   assert.equal(
-    lapPitStop(full, 150, 300, pits, [event(0, 1), event(205, 0)]).tyres
+    lapPitStop(full, 150, 300, pits, [event(0, 1), event(205, 1)]).tyres
       .compound,
     'start',
   );
