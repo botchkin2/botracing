@@ -1,4 +1,5 @@
 import {planRace} from '@/src/analysis/fuelPlan';
+import {trafficMedians} from '@/src/analysis/traffic';
 import {raceFacts, useSession, useSessionLaps} from '@/src/data/sessions';
 import {carLabel} from '@/src/design';
 import {useFuelPresets} from '@/src/state/fuelPresets';
@@ -40,6 +41,14 @@ export function usePlanData(combo: Combo | null) {
           ratio: hist.ratio,
           lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
           drift: hist.chosen.drift,
+          // Over the pooled green laps, which are comparable by construction.
+          traffic: trafficMedians(
+            greenLaps.map(l => ({
+              timeS: l.lapTimeS,
+              comparable: true,
+              traffic: l.traffic ?? null,
+            })),
+          ),
           ratioLoadsL: [
             ...new Set(
               hist.measured

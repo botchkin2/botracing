@@ -3,6 +3,7 @@ import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
 import {dash, size, stroke, type as typeScale, useTheme} from '@/src/design';
 
 import {type ReadyClassTiming} from '../classTiming';
+import {type StopWindow} from '../planCards';
 
 // Spacing of the lap ticks: the first of these that gives at most 8 ticks.
 const TICK_STEPS = [5, 10, 20, 25, 50, 100];
@@ -18,14 +19,20 @@ function tickStep(raceLaps: number): number {
 /**
  * The Race timeline (round 6, section 2): his stints and each faster class on
  * one lap axis, his stops as amber dashes through every lane. Each class lane
- * is a band per pass (the range) with a tick at the estimate. Drawn from
- * finished values; the model owns every number.
+ * is a band per pass (the range) with a tick at the estimate. Round 7 (3A):
+ * each stop is a pit window, an amber box on the stint lane from earliest to
+ * latest with the planned stop a solid line inside it and a thin tick where the
+ * tank runs out at the median use; the dashed stop line then continues through
+ * the class lanes only. Without windows the dashes run through every lane as
+ * before. Drawn from finished values; the model owns every number.
  */
 export function RaceTimelineView({
   timing,
+  windows,
   width,
 }: {
   timing: ReadyClassTiming;
+  windows: StopWindow[];
   width: number;
 }) {
   const {color} = useTheme();
@@ -106,6 +113,37 @@ export function RaceTimelineView({
           </G>
         );
       })}
+      {windows.map(w => (
+        <G key={`window${w.stop}`}>
+          <Rect
+            x={xOf(w.earliest)}
+            y={laneY(0)}
+            width={Math.max(1, xOf(w.latest) - xOf(w.earliest))}
+            height={size.timelineLane}
+            fill={color.accentTint}
+            stroke={color.accent}
+            strokeWidth={stroke.grey}
+          />
+          {w.medianLap != null ? (
+            <Line
+              x1={xOf(w.medianLap)}
+              x2={xOf(w.medianLap)}
+              y1={laneY(0)}
+              y2={laneY(0) + size.timelineLane}
+              stroke={color.textMuted}
+              strokeWidth={stroke.grey}
+            />
+          ) : null}
+          <Line
+            x1={xOf(w.planLap)}
+            x2={xOf(w.planLap)}
+            y1={laneY(0)}
+            y2={laneY(0) + size.timelineLane}
+            stroke={color.accent}
+            strokeWidth={stroke.ref}
+          />
+        </G>
+      ))}
       {lanes.map((lane, i) => (
         <G key={lane.key}>
           <SvgText
@@ -143,7 +181,7 @@ export function RaceTimelineView({
           key={s}
           x1={xOf(s)}
           x2={xOf(s)}
-          y1={size.timelineAxis}
+          y1={windows.length > 0 ? laneY(1) : size.timelineAxis}
           y2={height}
           stroke={color.accent}
           strokeWidth={stroke.selected}

@@ -14,6 +14,12 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
+import {
+  CLEAN_AHEAD_S,
+  CLEAN_BATTLE_S,
+  type SessionTraffic,
+  TRAFFIC_AHEAD_S,
+} from '@/src/analysis/traffic';
 import {trackInfo} from '@/src/data/tracks';
 import {
   carLabel,
@@ -215,6 +221,15 @@ export function greenLapsOf(
       lapTimeS: l.timeS,
       sessionId,
       veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
+      traffic: l.traffic
+        ? {
+            trafficAheadS: l.traffic.trafficAheadS,
+            passesSufferedAll: l.traffic.passesSufferedAll,
+            blueFlagS: l.traffic.blueFlagS,
+            battleS: l.traffic.battleS,
+            overtakes: l.traffic.overtakes,
+          }
+        : null,
     });
   }
   return out;
@@ -446,6 +461,8 @@ export function planView(
     ratioLoadsL: number[];
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
+    /** Median lap time of the clean and of the traffic laps among the green laps; null without a field. */
+    traffic?: SessionTraffic | null;
   },
 ): PlanView {
   const r = rules.rules;
@@ -486,8 +503,7 @@ export function planView(
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
-    explainer:
-      'Your clean laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets.',
+    explainer: `Green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, no car passing, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
     rows: [
       ...(driftRow ? [driftRow] : []),
       {
@@ -507,7 +523,28 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
+        note: lapTimeS
+          ? `all green laps · n ${lapTimeS.n} · sets race laps`
+          : undefined,
       },
+      ...(history.traffic?.clean.medianS != null
+        ? [
+            {
+              label: 'Clean laps',
+              value: lapTime(history.traffic.clean.medianS),
+              note: `n ${history.traffic.clean.laps}`,
+            },
+          ]
+        : []),
+      ...(history.traffic?.traffic.medianS != null
+        ? [
+            {
+              label: 'Traffic laps',
+              value: lapTime(history.traffic.traffic.medianS),
+              note: `n ${history.traffic.traffic.laps}`,
+            },
+          ]
+        : []),
       {
         label: 'From',
         value: `${plan.history.laps} ${
