@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type SessionSummary} from '@/src/data/sessions';
 
-import {switcherRows} from './switcherRows';
+import {SWITCHER_MAX_ROWS, switcherRows} from './switcherRows';
 
 const session = (over: Partial<SessionSummary>): SessionSummary =>
   ({
@@ -59,8 +59,36 @@ describe('switcherRows', () => {
   });
 
   it('formats the day and the best lap', () => {
-    const [row] = switcherRows([session({id: 'a'})], 'le-mans', 'a');
-    expect(row.date).toBe('14 Sep');
+    const startedAt = new Date(
+      new Date().getFullYear(),
+      8,
+      14,
+      18,
+      5,
+    ).toISOString();
+    const [row] = switcherRows([session({id: 'a', startedAt})], 'le-mans', 'a');
+    expect(row.date).toBe('14 Sep, 18:05');
     expect(row.best).toBe('3:59.400');
+  });
+});
+
+describe('switcherRows cap', () => {
+  const many = Array.from({length: SWITCHER_MAX_ROWS + 5}, (_, i) =>
+    session({
+      id: `s${i}`,
+      startedAt: new Date(2026, 8, 1 + i, 10).toISOString(),
+    }),
+  );
+
+  it('keeps the newest rows only', () => {
+    const rows = switcherRows(many, 'le-mans', 's16');
+    expect(rows).toHaveLength(SWITCHER_MAX_ROWS);
+    expect(rows[0].id).toBe('s16');
+  });
+
+  it('keeps the open session even when it is older than the cut', () => {
+    const rows = switcherRows(many, 'le-mans', 's0');
+    expect(rows).toHaveLength(SWITCHER_MAX_ROWS + 1);
+    expect(rows.at(-1)?.id).toBe('s0');
   });
 });
