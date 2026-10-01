@@ -179,8 +179,8 @@ function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
     p90S: median(used.map(s => s.p90S)),
     fromPractice: !raceOnly && used.some(s => s.kind === 'practice'),
     sessions: seen.length,
-    races: races.length,
-    practices: seen.length - races.length,
+    races: used.filter(s => s.kind === 'race').length,
+    practices: used.filter(s => s.kind === 'practice').length,
     laps: used.reduce((a, s) => a + s.laps, 0),
   };
 }
@@ -224,19 +224,6 @@ const rangeText = (lo: number, hi: number) =>
   Number.isFinite(hi)
     ? `${lapName(Math.ceil(lo))}–${lapName(Math.floor(hi))}`
     : `${lapName(Math.ceil(lo))} or later`;
-
-/**
- * The overall leader's pace at the track: the fastest class median among the
- * classes that MIN_CLASS_SESSIONS sessions saw (his own included, so a plan in
- * the fastest class gets no extra lap). Null when no class qualifies.
- */
-export function leaderLapOf(sessions: ClassSession[]): number | null {
-  const medians = ORDER.flatMap(key => {
-    const p = pool(sessions, key);
-    return p && p.sessions >= MIN_CLASS_SESSIONS ? [p.medianS] : [];
-  });
-  return medians.length === 0 ? null : Math.min(...medians);
-}
 
 export function classTiming(input: ClassTimingInput): ClassTiming {
   const {sessions, mine, raceLaps, stopsAfter} = input;

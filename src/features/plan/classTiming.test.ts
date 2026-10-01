@@ -4,7 +4,6 @@ import {
   classSessionOf,
   classTiming,
   type ClassSession,
-  leaderLapOf,
   passesOf,
 } from './classTiming';
 
@@ -83,7 +82,7 @@ describe('classTiming', () => {
     );
   });
 
-  it('pools races alone from 3 races, and says nothing about practice', () => {
+  it('pools races alone from 3 races, and the text names only what it pooled', () => {
     const t = ready(
       classTiming({
         sessions: [
@@ -99,7 +98,7 @@ describe('classTiming', () => {
     );
     const hyper = t.faster.find(c => c.key === 'hypercar')!;
     expect(hyper.estimate?.lapText).toBe('1:38.000');
-    expect(hyper.text).toBe('From 3 races, 1 practice · n = 270 laps');
+    expect(hyper.text).toBe('From 3 races · n = 270 laps');
   });
 
   it('the first catch is a range from the p10 to the p90 lap, and assumes a level start', () => {
@@ -197,22 +196,6 @@ describe('passesOf', () => {
   it('leaves the band open-ended when the p90 lap is not faster than his', () => {
     const p = passesOf({medianS: 108, p10S: 105, p90S: 111}, 110, 60);
     expect(p[0].hi).toBe(Infinity);
-  });
-});
-
-describe('leaderLapOf', () => {
-  it('is the fastest class median among classes 3 sessions saw, his own included', () => {
-    const three = [
-      session('race', 96, 110),
-      session('race', 98, 110),
-      session('race', 100, 110, 101),
-    ];
-    expect(leaderLapOf(three)).toBe(98);
-  });
-
-  it('is null when no class has 3 sessions', () => {
-    expect(leaderLapOf([session('race', 96, 110)])).toBeNull();
-    expect(leaderLapOf([])).toBeNull();
   });
 });
 

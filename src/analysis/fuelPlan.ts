@@ -178,10 +178,7 @@ export interface FuelPlan {
     lapTimeS: Usage | null;
   };
   /** Laps in the race: as given, or from minutes at the median lap time. */
-  /**
-   * `oneMore` is the lap count when the flag falls late (null when it cannot
-   * differ from `estimate`, as in a race in laps).
-   */
+  /** `oneMore` is the lap count when the flag falls late; null in a race in laps. */
   raceLaps: {estimate: number; oneMore: number | null} | null;
   /** Stint and stops at the median use and at the p90 (heavy) use. */
   atMedian: Option;
@@ -445,36 +442,9 @@ function loadToFinishFor(
   };
 }
 
-/**
- * Laps of a timed race when the flag falls late. The race ends at the leader's
- * first crossing after the time T is up, at some F in (T, T + a leader lap];
- * he takes the flag at his first crossing after F, so he runs ceil(T / m) laps
- * or one more, never fewer, and being lapped does not change his own count.
- * With the overall leader's lap `leaderLapS`, F is at most
- * ceil(T / p) * p, which bounds his laps at ceil(F / m); without it, one more
- * is the bound. Null when that bound is not above `estimate`. Time lost in the
- * pits is not counted: the median lap is a green lap.
- */
-export function flagLateLaps(
-  timeS: number,
-  medianLapS: number,
-  leaderLapS: number | null,
-  estimate: number,
-): number | null {
-  // A leader slower than he is cannot be the overall leader.
-  const lead = leaderLapS == null ? null : Math.min(leaderLapS, medianLapS);
-  const bound =
-    lead == null
-      ? estimate + 1
-      : Math.ceil((Math.ceil(timeS / lead) * lead) / medianLapS);
-  return bound > estimate ? bound : null;
-}
-
 export function planRace(
   rules: PlanRules,
   history: GreenLap[],
-  /** The overall leader's median lap, from class timing; null when unknown. */
-  leaderLapS: number | null = null,
 ): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
   const ve = usage(
@@ -486,16 +456,13 @@ export function planRace(
   if (rules.lengthLaps != null) {
     raceLaps = {estimate: rules.lengthLaps, oneMore: null};
   } else if (rules.lengthMin != null && lapTimeS) {
+    // The flag falls at the leader's first crossing after the time T is up,
+    // somewhere in (T, T + a leader lap], and he takes it at his next crossing:
+    // ceil(T / m) laps or one more, never fewer. Where in that span the leader
+    // crosses is not knowable (lap spread, their stops), so one more is always
+    // possible. Time lost in the pits is not counted.
     const estimate = Math.ceil((rules.lengthMin * 60) / lapTimeS.median);
-    raceLaps = {
-      estimate,
-      oneMore: flagLateLaps(
-        rules.lengthMin * 60,
-        lapTimeS.median,
-        leaderLapS,
-        estimate,
-      ),
-    };
+    raceLaps = {estimate, oneMore: estimate + 1};
   }
 
   const laps = raceLaps ? raceLaps.estimate : null;

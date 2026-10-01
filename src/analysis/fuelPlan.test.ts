@@ -208,21 +208,6 @@ describe('planRace', () => {
     expect(p.raceLaps).toEqual({estimate: 33, oneMore: 34});
   });
 
-  it('bounds the late flag by the leader pace when class timing has it', () => {
-    // 3630 s at 110 s is 33.0, so 33 laps. A leader at 100 s takes the flag at
-    // 3700 s, which is lap 33.6 for him: 34.
-    const rule = rules({lengthLaps: null, lengthMin: 60.5});
-    const at100 = planRace(rule, laps(10, 3.5, 5, 110), 100);
-    expect(at100.raceLaps).toEqual({estimate: 33, oneMore: 34});
-    // 3600 s: the leader at 98 s crosses at 3626 s, which is lap 33.0 for him: no extra lap.
-    const none = planRace(
-      rules({lengthLaps: null, lengthMin: 60}),
-      laps(10, 3.5, 5, 110),
-      98,
-    );
-    expect(none.raceLaps).toEqual({estimate: 33, oneMore: null});
-  });
-
   it('a race in laps has no one-more', () => {
     const p = planRace(rules({lengthLaps: 40}), laps(10, 3.5, 5));
     expect(p.raceLaps).toEqual({estimate: 40, oneMore: null});
