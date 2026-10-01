@@ -24,6 +24,7 @@ import {Buffer} from 'node:buffer';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {LMU_FAKE_ORIGIN, toLocalMetres} from '../../src/analysis/geo.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
+import {surfaceProgressLine} from './surfaceProgress.mjs';
 import {
   addSession,
   emptySurface,
@@ -230,11 +231,16 @@ export async function foldSurfaces({
         trackIds.map(id => db.collection('tracks').doc(id).get()),
       )
     : (await db.collection('tracks').get()).docs;
-  for (const doc of trackDocs) {
-    if (!doc.exists) continue;
+  // The uploader's watcher reads these lines for its heartbeat: "surface N/M
+  // tracks" before each track (N finished so far) and once more at the end.
+  // Without them a fold of a dozen tracks looks like a stuck sync.
+  const tracks = trackDocs.filter(doc => doc.exists && doc.data().lengthM);
+  let finished = 0;
+  for (const doc of tracks) {
+    log(surfaceProgressLine(finished, tracks.length));
+    finished += 1;
     const trackId = doc.id;
     const track = doc.data();
-    if (!track.lengthM) continue;
     let existing = null;
     try {
       const [gz] = await bucket
@@ -312,6 +318,7 @@ export async function foldSurfaces({
       `  wrote gs://${bucketName}/${surfacePath(trackId)} (${gz.length} bytes)`,
     );
   }
+  if (tracks.length > 0) log(surfaceProgressLine(tracks.length, tracks.length));
 }
 
 function arg(name) {
