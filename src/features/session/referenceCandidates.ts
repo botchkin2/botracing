@@ -76,6 +76,8 @@ export function referenceCandidates(
     {session: {...current, startedAt: ''}, laps: currentLaps},
     ...others,
   ];
+  // Lap ids are recordingId-NNN, unique across sessions, so the id alone
+  // finds a lap (a lap's own session is in the same list as the pool's).
   const located = new Map<string, {lap: Lap; source: PoolSource}>();
   const refs = sources.flatMap(source =>
     source.laps.map(lap => {
