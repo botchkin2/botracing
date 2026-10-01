@@ -24,6 +24,7 @@ import {Buffer} from 'node:buffer';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {LMU_FAKE_ORIGIN, toLocalMetres} from '../../src/analysis/geo.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
+import {surfaceProgressLine} from './surfaceProgress.mjs';
 import {
   addSession,
   emptySurface,
@@ -319,9 +320,6 @@ export async function foldSurfaces({
   }
   if (tracks.length > 0) log(surfaceProgressLine(tracks.length, tracks.length));
 }
-
-export const surfaceProgressLine = (done, total) =>
-  `surface ${done}/${total} tracks`;
 
 function arg(name) {
   const i = process.argv.indexOf(name);

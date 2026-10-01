@@ -43,6 +43,7 @@ import {
   readSyncLine,
 } from './syncOutput.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
+import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -167,8 +168,7 @@ function runSync(onProgress, skipIds) {
       for (const line of lines) {
         log(`  sync | ${line}`);
         readSyncLine(result, line);
-        if (/^(to do \d+$|[0-9a-f]{16} |surface \d+\/\d+ tracks$)/.test(line))
-          onProgress(progressOf(result));
+        if (isProgressLine(line)) onProgress(progressOf(result));
       }
     };
     child.stdout.setEncoding('utf8').on('data', onData);
@@ -277,27 +277,20 @@ async function main() {
         const startedMs = Date.now();
         const skippedIds = waitingIds(watch.retries, startedMs);
         await beat('syncing');
-        let beating = false;
-        // Say so every minute while the sync runs, with or without a progress
-        // line: a surface fold of a dozen tracks printed none for 15 minutes
-        // and the heartbeat went stale.
-        const keepAlive = setInterval(() => {
-          if (beating) return;
-          beating = true;
-          beat('syncing', true)
-            .catch(error => log(`keepalive beat failed: ${String(error)}`))
-            .finally(() => (beating = false));
-        }, KEEPALIVE_SEC * 1000);
-        const r = await runSync(p => {
-          progress = p;
-          // One write in flight at a time; the next block catches up.
-          if (beating) return;
-          beating = true;
-          beat('syncing')
-            .catch(error => log(`progress beat failed: ${String(error)}`))
-            .finally(() => (beating = false));
-        }, skippedIds);
-        clearInterval(keepAlive);
+        // Beats while the sync runs: one per progress line, and every minute
+        // with or without one (a surface fold of a dozen tracks printed none
+        // for 15 minutes and the heartbeat went stale). They are stopped, and
+        // any write in flight awaited, before the state that follows is
+        // written, even if the sync throws (syncBeats.mjs).
+        const r = await runWithBeats(
+          {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
+          beatProgress =>
+            runSync(p => {
+              progress = p;
+              // One write in flight at a time; the next block catches up.
+              beatProgress();
+            }, skippedIds),
+        );
         progress = null;
         // A stopped sync never prints its closing "done N" line, but each
         // session's block is printed only once it is stored or has failed.

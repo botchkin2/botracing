@@ -3,6 +3,17 @@
 // starting with its id, then indented lines, "  failed: ..." when it failed,
 // and a closing "done N, failed M, unchanged K".
 
+import {readSurfaceProgress} from '../sessions/surfaceProgress.mjs';
+
+// The lines that move the progress: the count, a session's block, a fold step.
+// The watcher beats on these.
+export function isProgressLine(line) {
+  return (
+    /^(to do \d+$|[0-9a-f]{16} )/.test(line) ||
+    readSurfaceProgress(line) !== null
+  );
+}
+
 export function newSyncResult() {
   return {
     sessions: [],
@@ -29,8 +40,8 @@ export function readSyncLine(result, line) {
     const id = result.sessions[result.sessions.length - 1];
     if (id && !result.failedIds.includes(id)) result.failedIds.push(id);
   }
-  const fold = line.match(/^surface (\d+)\/(\d+) tracks$/);
-  if (fold) result.fold = {done: +fold[1], total: +fold[2]};
+  const fold = readSurfaceProgress(line);
+  if (fold) result.fold = fold;
   const end = line.match(/^done (\d+), failed (\d+)/);
   if (end) {
     [result.done, result.failed] = [+end[1], +end[2]];

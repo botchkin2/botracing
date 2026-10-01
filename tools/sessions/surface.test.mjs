@@ -8,13 +8,13 @@ import {surfaceGeometry} from '../../src/analysis/trackSurface.ts';
 import {
   buildSurface,
   foldSurfaces,
-  surfaceProgressLine,
   gzipSurface,
   parseSurface,
   sessionsToFold,
   surfaceLapFromCsv,
   usableLap,
 } from './surface.mjs';
+import {surfaceProgressLine} from './surfaceProgress.mjs';
 
 const LENGTH_M = 1000;
 const HEADER =
