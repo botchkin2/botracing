@@ -94,8 +94,13 @@ export function lapFuel(s, i0, i1, pits) {
 // A wheel's wear reading rising by more than this within TYRE_STEP_S is a new
 // tyre (pit-wall thread 38, grip #1103: full sets and single wheels alike jump
 // to 100, dead-sensor wheels from 0). Real wear only falls, and the session
-// start's garage exit steps 100 to 98, a fall.
-export const TYRE_JUMP_PCT = 5;
+// start's garage exit steps 100 to 98, a fall. 0.5 sits between the channel's
+// float noise (a rise of at most 0.011 inside a pit window) and the smallest
+// real change (98.7 to 100, a short stint's tyre, 1.3): across the 516 local
+// recordings with wear, 73 positive steps in all, 69 inside a pit window and
+// the other 4 the first tick of one recording (thread 44, hairpin #1568).
+// It was 5, which missed any tyre swapped after a short run.
+export const TYRE_JUMP_PCT = 0.5;
 // The wear channel is 10 Hz and the analysis draws a straight line between its
 // real samples, so the step is spread over about 0.1 s of ticks (Silverstone
 // 09-16: 89.8 to 100 is 1 % a tick), never one tick. Look back this far.

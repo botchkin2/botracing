@@ -12,8 +12,11 @@ import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
  * 1: per-wheel wear at the lap end, median pressure and temperatures outside
  * the pit lane (dead zeros out), and the wheels changed in the stop that ended
  * during the lap.
+ * 2: the change threshold drops from 5 % to 0.5 % (fuelFacts TYRE_JUMP_PCT), so
+ * a tyre swapped after a short run counts; and `hotPressureKpa`, the stabilised
+ * hot pressure, is added.
  */
-export const TYRES_VERSION = 1;
+export const TYRES_VERSION = 2;
 
 // Wheel names as the doc writes them, with the archive's channel suffix.
 const WHEELS = [
@@ -33,6 +36,14 @@ const MEDIAN_FIELDS = [
 ];
 
 const round1 = v => Math.round(v * 10) / 10;
+
+/**
+ * Laps into a stint before the tyres' hot pressure has settled: the end-of-lap
+ * pressure counts from the third lap of a stint (stintLap 2, counted from 0).
+ * The out-lap and the first lap on new tyres understate it (setup, thread 44
+ * #1539). Applied after the stints are known (`settleHotPressure`).
+ */
+export const HOT_PRESSURE_FROM_STINT_LAP = 2;
 
 // A dead sensor reads exactly 0 (a flat tyre's wear, pressure and temperature
 // alike), which is not a measurement. Never put it in a doc or an average.
@@ -69,6 +80,11 @@ function perWheel(s, prefix, read) {
  * - pressureKpa, rubberC, carcassC: the median over the lap's ticks that are
  *   outside the pit lane (a stop cools the tyres), dead zeros left out. One
  *   reading at the line would be taken on the main straight, where they cool.
+ * - hotPressureKpa: the pressure at the lap's last tick, outside the pit lane,
+ *   dead zeros left out: what an engineer reads as the stabilised hot pressure
+ *   once the stint's laps are known (`settleHotPressure` nulls it on a stint's
+ *   first laps). The median above is close on a flying lap but understates the
+ *   out-lap.
  * - changed: the wheels with a new tyre in a pit window that ended during this
  *   lap, from the same per-stop test as the pit stop's `tyres` (fuelFacts
  *   tyreChange). A window in the first SESSION_START_S of the recording is the
@@ -80,6 +96,9 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
   const wearPct = perWheel(s, 'tyres_wear', c => (live(c[i1]) ? c[i1] : null));
   const out = {v: version, wearPct};
   const inLane = i => pits.some(([a, b]) => s.t[i] >= a && s.t[i] <= b);
+  out.hotPressureKpa = perWheel(s, 'tyres_pressure', c =>
+    live(c[i1]) && !inLane(i1) ? c[i1] : null,
+  );
   for (const [field, prefix] of MEDIAN_FIELDS) {
     out[field] = perWheel(s, prefix, c => {
       const kept = [];
@@ -110,4 +129,15 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
   const anyChannel =
     wearPct != null || MEDIAN_FIELDS.some(([field]) => out[field] != null);
   return anyChannel ? out : null;
+}
+
+/**
+ * The stabilised hot pressure is only read from the third lap of a stint:
+ * null it on the laps before. `laps` carry `tyres` and `stintLap`.
+ */
+export function settleHotPressure(laps) {
+  for (const lap of laps) {
+    if (lap.tyres && lap.stintLap < HOT_PRESSURE_FROM_STINT_LAP)
+      lap.tyres.hotPressureKpa = null;
+  }
 }

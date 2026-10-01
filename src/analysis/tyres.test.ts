@@ -15,11 +15,13 @@ describe('toLapTyres', () => {
       v: 1,
       wearPct: wheels(94, 100, 93, 92.5),
       pressureKpa: wheels(160, 161, 150, 162),
+      hotPressureKpa: wheels(166, 167, 158, 168),
       rubberC: wheels(80, 81, 82, 83),
       carcassC: wheels(70, 71, 72, 73),
       changed: ['FR'],
     });
     expect(t?.wearPct).toEqual(wheels(94, 100, 93, 92.5));
+    expect(t?.hotPressureKpa).toEqual(wheels(166, 167, 158, 168));
     expect(t?.changed).toEqual(['FR']);
     expect(WHEELS).toEqual(['FL', 'FR', 'RL', 'RR']);
   });
@@ -34,6 +36,7 @@ describe('toLapTyres', () => {
     expect(t?.wearPct).toEqual({FL: 90, FR: null, RL: null, RR: null});
     expect(t?.pressureKpa).toBeNull();
     expect(t?.rubberC).toBeNull();
+    expect(t?.hotPressureKpa).toBeNull();
     expect(t?.changed).toBeNull();
   });
 
@@ -49,6 +52,7 @@ describe('freshTyres', () => {
     v: 1,
     wearPct: null,
     pressureKpa: null,
+    hotPressureKpa: null,
     rubberC: null,
     carcassC: null,
     changed,

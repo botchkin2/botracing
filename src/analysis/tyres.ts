@@ -17,6 +17,12 @@ export type LapTyres = {
   wearPct: PerWheel | null;
   /** Median hot pressure over the lap, outside the pit lane, kPa. */
   pressureKpa: PerWheel | null;
+  /**
+   * The stabilised hot pressure: the pressure at the end of the lap, outside
+   * the pit lane, kPa. Null on the first two laps of a stint, where it has not
+   * settled, and when the wheel's sensor read 0.
+   */
+  hotPressureKpa: PerWheel | null;
   /** Median temperature of the outer rubber layer, same samples, C. */
   rubberC: PerWheel | null;
   /** Median carcass temperature, same samples, C. */
@@ -66,6 +72,7 @@ export function toLapTyres(v: unknown): LapTyres | null {
     wearPct: perWheel(x.wearPct),
     pressureKpa: perWheel(x.pressureKpa),
     rubberC: perWheel(x.rubberC),
+    hotPressureKpa: perWheel(x.hotPressureKpa),
     carcassC: perWheel(x.carcassC),
     changed: Array.isArray(x.changed) ? x.changed.filter(isWheel) : null,
   };

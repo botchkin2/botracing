@@ -38,7 +38,7 @@ import {
 import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
-import {lapTyres, TYRES_VERSION} from './tyres.mjs';
+import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
@@ -993,6 +993,7 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
     lap.start = i === 0 && !lap.pitOut;
     return lapFacts(String(i), lap);
   });
+  settleHotPressure(laps);
   const {reasons: excluded, damage} = selectNormalRacing(facts);
   // Every stint of the session, so one with no normal-racing laps still
   // shows up (laps: 0 and why). Lap ids here are indexes into laps; the
