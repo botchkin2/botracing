@@ -28,6 +28,7 @@ import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {fileChange} from './fileChange.mjs';
 import {
   fillLapsLeft,
+  isGreen,
   lapFuel,
   neverLeavesZero,
   lapPitStop,
@@ -44,6 +45,12 @@ import {
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
+import {
+  HYBRID_VERSION,
+  lapHybrid,
+  sectionEnergy,
+  stintHybrid,
+} from './hybrid.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
@@ -66,6 +73,7 @@ export const blockVersions = {
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
   gridLap: GRID_LAP_VERSION,
+  hybrid: HYBRID_VERSION,
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
 };
 
@@ -102,6 +110,10 @@ const wanted = [
   // conditions, and the cold-tyre rule simply does not fire.
   // The driver's pedal before the car's electronics; see pedalPoints.mjs.
   'throttle_pos_unfiltered',
+  // A Hypercar's battery: state of charge (%) and the regen rate, in watts
+  // although the file says kW (hybrid.mjs). Flat 0 on a car without one.
+  'so_c',
+  'regen_rate',
   'tyres_carcass_temp_fl',
   'tyres_carcass_temp_fr',
   'tyres_carcass_temp_rl',
@@ -494,6 +506,11 @@ function analyzeLap(rec, seg, pits, flags) {
       pits,
     ),
     pitStop: lapPitStop(s, seg.start, seg.end, pits, events.tyres_compound),
+    // Battery and motor energy on the lap (hybrid.mjs); null without a hybrid.
+    hybrid: lapHybrid(s, rec.hz, rec.baseHz, i0, i1, i => dist[i - i0], {
+      a: idxAt(s.t, seg.start),
+      b: Math.min(idxAt(s.t, seg.end), s.t.length - 1),
+    }),
     distanceM: round(dist[dist.length - 1], 1),
     ...topSpeed(s, i0, i1, dist),
   };
@@ -911,6 +928,18 @@ export function analyzeSession(
       });
       lap.corners = facts.corners;
       lap.startStraight = facts.startStraight;
+      // Where on the lap the battery goes, through the same windows (the lap's
+      // raw distance over the map's frame ratio, as cornerFacts reads it).
+      if (lap.hybrid) {
+        const ratio = lap.distanceM / map.lengthM;
+        lap.hybrid.sections = sectionEnergy(
+          recs[lap.rec].s,
+          lap.i0,
+          lap.i1,
+          layout.windows,
+          i => lap.dist[i - lap.i0] / ratio,
+        );
+      }
       lap.cornerBoundaries = {
         v: layout.state.v,
         rev: layout.state.rev,
@@ -1037,6 +1066,8 @@ export function analyzeSession(
           medianLapTime: round(median(c), 3),
           stdevLapTime: round(stdev(c), 3),
           ...stintMedians.get(st.n),
+          // The battery across the stint (hybrid.mjs); null without a hybrid.
+          hybrid: stintHybrid(st.laps, isGreen),
         };
       }),
     },
