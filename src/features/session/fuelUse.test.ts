@@ -117,6 +117,11 @@ describe('buildFuelUse', () => {
         passesMadeAll: 0,
         passesSufferedAll: 0,
         battleS: 0,
+        overtakes: [],
+        aheadSpans: [],
+        blueSpans: [],
+        passMarks: [],
+        fieldLapM: null,
       },
     });
     const fu = buildFuelUse(session(), [

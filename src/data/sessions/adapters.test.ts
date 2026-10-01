@@ -354,3 +354,38 @@ describe('toSessionTraffic', () => {
     expect(toSessionTraffic({v: 1, clean: {laps: 3}})).toBeNull();
   });
 });
+
+describe('lap traffic positions', () => {
+  const lap = (traffic: unknown) =>
+    toLaps([{id: 'a', lapTime: 20, comparable: true, reasons: [], traffic}])[0]
+      .traffic!;
+
+  it('reads spans, passes, overtakes and the field lap length', () => {
+    const t = lap({
+      aheadSpans: [[100.5, 180, 2.4]],
+      blueSpans: [[10, 20, 0.2]],
+      passMarks: [{atM: 500, made: true}],
+      overtakes: [{cls: 'Hyper', atM: 900}],
+      fieldLapM: 5000,
+    });
+    expect(t.aheadSpans).toEqual([[100.5, 180, 2.4]]);
+    expect(t.blueSpans).toEqual([[10, 20, 0.2]]);
+    expect(t.passMarks).toEqual([{atM: 500, made: true}]);
+    expect(t.overtakes).toEqual([{cls: 'Hyper', atM: 900}]);
+    expect(t.fieldLapM).toBe(5000);
+  });
+
+  it('is empty, and the lap length null, before traffic v3', () => {
+    const t = lap({draftS: 1});
+    expect(t.aheadSpans).toEqual([]);
+    expect(t.passMarks).toEqual([]);
+    expect(t.overtakes).toEqual([]);
+    expect(t.fieldLapM).toBeNull();
+  });
+
+  it('drops a malformed span rather than drawing a wrong one', () => {
+    expect(lap({aheadSpans: [[1, 2], 'x', [1, 2, 'y']]}).aheadSpans).toEqual(
+      [],
+    );
+  });
+});
