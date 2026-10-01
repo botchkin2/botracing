@@ -48,5 +48,9 @@ export {
   type MeasuredRun,
   type Xy,
 } from './mapPlace';
-export {defaultLapIds} from './defaultLaps';
+export {
+  type DefaultSession,
+  defaultLapIds,
+  referenceDefaultLapIds,
+} from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';

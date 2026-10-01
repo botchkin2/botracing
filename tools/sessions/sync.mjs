@@ -415,7 +415,11 @@ function build(s, trackMap, eventWindows) {
       // src/analysis/consistency.ts needs to rerun on any selection.
       stintLap: lap.stintLap,
       start: lap.start,
-      newTyres: lap.newTyres,
+      // Per wheel (FL FR RL RR): wear at the end of the lap, the lap's median
+      // pressure and temperatures, and the wheels changed in the stop that
+      // ended during it (tyres.mjs); null without the channels. The lap after
+      // a change is the first on new tyres (consistency's cold-tyres rule).
+      tyres: lap.tyres,
       tyreCarcassC: lap.tyreCarcassC,
       courseYellowSec: lap.courseYellowSec,
       compound: lap.compound,

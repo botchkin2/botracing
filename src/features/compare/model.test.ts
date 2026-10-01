@@ -370,40 +370,76 @@ describe('many laps', () => {
 });
 
 describe('a URL with no laps', () => {
-  const lap = (id: string, timeS: number | null, comparable = true) =>
-    ({id, timeS, comparable} as unknown as Lap);
+  const lap = (
+    id: string,
+    timeS: number | null,
+    comparable = true,
+    startL: number | null = null,
+  ) =>
+    ({
+      id,
+      timeS,
+      comparable,
+      partial: false,
+      pitIn: false,
+      pitOut: false,
+      endedInReset: false,
+      hadImpact: false,
+      offTrackS: 0,
+      newTyres: false,
+      fuel: startL == null ? null : {startL},
+      traffic: null,
+    } as unknown as Lap);
   const laps = [
     lap('a', 92.4),
     lap('b', 91.1),
     lap('c', 91.9),
     lap('d', 90.0, false),
   ];
+  const facts = {bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
-  it('opens on the best lap and the fastest other comparable lap', () => {
-    const out = withDefaultLaps(sel({laps: []}), laps, 'b');
+  it('opens on a fair reference and the median comparable lap', () => {
+    const out = withDefaultLaps(sel({laps: []}), laps, facts);
+    // c is the median of b, c, a; b is the fastest fair lap for it.
     expect(out.laps).toEqual(['b', 'c']);
     // The rest of the selection is untouched.
     expect(out.cursorM).toBe(600);
   });
 
-  it('takes the fastest comparable lap when the best lap is not there', () => {
-    expect(withDefaultLaps(sel({laps: []}), laps, null).laps).toEqual([
-      'b',
-      'c',
-    ]);
-    expect(withDefaultLaps(sel({laps: []}), laps, 'gone').laps).toEqual([
-      'b',
-      'c',
-    ]);
+  it('a quicker lap on a lighter load is not the reference', () => {
+    const race = [
+      lap('light', 98.0, true, 20),
+      lap('m1', 100.1, true, 62),
+      lap('m2', 100.4, true, 60),
+      lap('m3', 100.9, true, 58),
+    ];
+    // Median is m1 (100.1 s, 62 L): the fastest lap at that load is m1's
+    // neighbour m2, not the 98.0 s lap with a third of the fuel.
+    expect(
+      withDefaultLaps(sel({laps: []}), race, {...facts, bestLapId: 'light'})
+        .laps,
+    ).toEqual(['m2', 'm1']);
   });
 
-  it('keeps the laps the URL names, and waits while the laps load', () => {
-    expect(withDefaultLaps(sel({laps: ['c', 'a']}), laps, 'b').laps).toEqual([
+  it('with fewer than three comparable laps it is the best lap and the fastest other', () => {
+    const few = [lap('a', 92.4), lap('b', 91.1), lap('x', 90, false)];
+    expect(withDefaultLaps(sel({laps: []}), few, facts).laps).toEqual([
+      'b',
+      'a',
+    ]);
+    expect(
+      withDefaultLaps(sel({laps: []}), few, {...facts, bestLapId: null}).laps,
+    ).toEqual(['b', 'a']);
+  });
+
+  it('keeps the laps the URL names, and waits while the session or its laps load', () => {
+    expect(withDefaultLaps(sel({laps: ['c', 'a']}), laps, facts).laps).toEqual([
       'c',
       'a',
     ]);
     const empty = sel({laps: []});
-    expect(withDefaultLaps(empty, undefined, 'b')).toBe(empty);
+    expect(withDefaultLaps(empty, undefined, facts)).toBe(empty);
+    expect(withDefaultLaps(empty, laps, undefined)).toBe(empty);
   });
 
   it('one comparable lap is the reference alone; none stays empty', () => {
@@ -411,11 +447,11 @@ describe('a URL with no laps', () => {
       withDefaultLaps(
         sel({laps: []}),
         [lap('a', 90), lap('x', 95, false)],
-        null,
+        facts,
       ).laps,
     ).toEqual(['a']);
     expect(
-      withDefaultLaps(sel({laps: []}), [lap('x', 95, false)], null).laps,
+      withDefaultLaps(sel({laps: []}), [lap('x', 95, false)], facts).laps,
     ).toEqual([]);
   });
 });

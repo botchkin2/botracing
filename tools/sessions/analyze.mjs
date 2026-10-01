@@ -36,6 +36,8 @@ import {
   stintFuel,
 } from './fuelFacts.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
+import {freshTyres} from '../../src/analysis/tyres.ts';
+import {lapTyres, TYRES_VERSION} from './tyres.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
@@ -47,16 +49,17 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 //     before #144 kept their old fuel setup (an LMP2 fill limit of 1980 L).
 export const analysisVersion = 17;
 
-// One version per block of a session that has its own rules (pit-wall thread
-// 44, steward #1456, #1460). A block's change bumps its own key, never
-// analysisVersion, so two PRs add two keys and merge in either order. The
-// table is part of the session fingerprint (sync.mjs), so any key bump
-// re-analyses every session, the same as analysisVersion: bump deliberately.
-// The stamp written on the block itself (lap.traffic.v, session.traffic.v) is
-// its entry here. A block made from the field also recomputes from the
-// uploaded field when its stamp is stale, because the capture it came from
-// can be gone from disk.
-export const blockVersions = {traffic: TRAFFIC_VERSION};
+// One registry of the versions of the blocks that are computed on their own
+// (pit-wall thread 44, steward #1456): a block's rules change bumps its own
+// key and never analysisVersion, so two PRs that each add or bump a key merge in
+// either order. The sync's session fingerprint hashes the whole table, so a
+// bump re-analyses every session once, and each block's doc carries its key as
+// `v`. Each key is the constant that sits next to its block's rules (the
+// history of what each number meant is there).
+export const blockVersions = {
+  tyres: TYRES_VERSION,
+  traffic: TRAFFIC_VERSION,
+};
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -99,6 +102,17 @@ const wanted = [
   'tyres_wear_fr',
   'tyres_wear_rl',
   'tyres_wear_rr',
+  // Pressure and the rubber temperature, for the per-lap tyre facts (tyres.mjs);
+  // the carcass temperature and wear are above (already read for the cold-tyre
+  // rule).
+  'tyres_pressure_fl',
+  'tyres_pressure_fr',
+  'tyres_pressure_rl',
+  'tyres_pressure_rr',
+  'tyres_rubber_temp_fl',
+  'tyres_rubber_temp_fr',
+  'tyres_rubber_temp_rl',
+  'tyres_rubber_temp_rr',
 ];
 
 const LOOSE_SURFACES = new Set([2, 3, 4]);
@@ -403,7 +417,6 @@ function analyzeLap(rec, seg, pits, flags) {
   const carcass = mean4(s, 'tyres_carcass_temp', i0, i1);
   const compoundAt = valueAt(events.tyres_compound, seg.start + 1);
   const wetness = maxIn(events.minimum_path_wetness, seg.start, seg.end);
-  const wearStart = mean4(s, 'tyres_wear', i0, i0);
 
   // In: entered the pits during this lap. Out: left them during this lap.
   // A box before the timing line makes one lap both.
@@ -432,8 +445,8 @@ function analyzeLap(rec, seg, pits, flags) {
     offtrack: offTicks * tickSec >= OFF_TRACK_SEC,
     impactMax: round(impactMax, 1),
     tyreCarcassC: round(carcass, 1),
-    wearStart,
     courseYellowSec: round(overlap(flags.course, seg.start, seg.end), 2),
+    tyres: lapTyres(s, i0, i1, seg, pits, TYRES_VERSION),
     compound: compoundAt
       ? `${compoundAt.v}/${compoundAt.v2 ?? compoundAt.v}`
       : null,
@@ -966,14 +979,11 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
 
   // Consistency: the laps run in normal racing conditions, through the
   // shared module the app also runs on a driver's own selection.
-  let lastWear = null;
   const stintStart = new Map();
   const facts = laps.map((lap, i) => {
     if (!stintStart.has(lap.stint)) stintStart.set(lap.stint, i);
-    // Fresh tyres: average wear jumps up from the lap before.
-    lap.newTyres =
-      lap.wearStart != null && lastWear != null && lap.wearStart > lastWear + 1;
-    if (lap.wearStart != null) lastWear = lap.wearStart;
+    // The first lap on new tyres is cold whatever the temperature says.
+    lap.newTyres = freshTyres(laps[i - 1]);
     lap.stintLap = i - stintStart.get(lap.stint);
     lap.start = i === 0 && !lap.pitOut;
     return lapFacts(String(i), lap);
