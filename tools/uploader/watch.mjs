@@ -299,10 +299,12 @@ async function main() {
         progress = null;
         // A stopped sync never prints its closing "done N" line, but each
         // session's block is printed only once it is stored or has failed.
-        if (r.stoppedForGame) r.done = r.sessions.length - r.failedIds.length;
+        // A fold block (sync's pass before the sessions) stores nothing: only
+        // the others are uploads.
+        if (r.stoppedForGame) r.done = r.stored.length - r.failedIds.length;
         if (r.done) {
           watch.lastUploadAt = new Date().toISOString();
-          watch.lastSessionId = r.sessions[0] ?? watch.lastSessionId;
+          watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
           watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
         }
         if (r.stoppedForGame) {

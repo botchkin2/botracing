@@ -44,6 +44,13 @@ export const SLICE_FORMAT = 1;
 // A slice reaches this far past its corner window on each side, so the
 // delta from the boundary and the lines run to the window's edges.
 export const WINDOW_PAD_M = 50;
+// And at most this far past the screen's own window (apex + SLICE_AFTER_M): a
+// corner whose window runs a long way to the next boundary (Daytona's last
+// corner, to the line past the tri-oval) would otherwise hold two kilometres at
+// 100 Hz, 181 KB gzipped against 62 KB. The corner's time, split and speeds
+// are the uploader's facts, not read from the slice, and the exit to full
+// throttle sits well inside this reach.
+export const EXIT_REACH_M = 300;
 const DIST_DIGITS = 3;
 
 // Channels a slice carries, and how many decimals each keeps: the same as the
@@ -85,6 +92,7 @@ export function mapCorners(map, windows = null) {
 // The window a slice covers: the screen's apex-based window, widened to the
 // corner's own window and a pad when there is one.
 function sliceWindow(apexM, lengthM, extent) {
+  const reach = apexM + SLICE_AFTER_M + EXIT_REACH_M;
   return [
     Math.max(
       0,
@@ -97,7 +105,7 @@ function sliceWindow(apexM, lengthM, extent) {
       lengthM,
       Math.max(
         apexM + SLICE_AFTER_M,
-        (extent?.toM ?? -Infinity) + WINDOW_PAD_M,
+        Math.min((extent?.toM ?? -Infinity) + WINDOW_PAD_M, reach),
       ),
     ),
   ];

@@ -9,9 +9,9 @@ import {
   View,
 } from 'react-native';
 
-import {size, space, useLayout, useTheme} from '@/src/design';
+import {space, useLayout, useTheme} from '@/src/design';
 import {trackHref} from '@/src/nav/routes';
-import {Explainer, Text} from '@/src/ui';
+import {Explainer, PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';
@@ -45,6 +45,7 @@ export function SessionWorkspace({
   renderRow,
   tagKey,
   pitFocus,
+  side,
 }: {
   sessionId: string;
   model: SessionScreenModel;
@@ -64,6 +65,13 @@ export function SessionWorkspace({
   tagKey: string;
   /** Set when a pit row was tapped: the side column scrolls to the cards. */
   pitFocus: {lapIndex: number; at: number} | null;
+  /** The right column's width and the divider's handlers (usePanelWidth). */
+  side: {
+    width: number;
+    onResize: (width: number) => void;
+    onCommit: (width: number) => void;
+    reset: () => void;
+  };
 }) {
   const {color} = useTheme();
   const router = useRouter();
@@ -72,7 +80,7 @@ export function SessionWorkspace({
   const sideRef = useRef<ScrollView>(null);
   const cardsY = useRef(0);
   // layout.width already excludes the rail (the route's ContentInset).
-  const centreW = layout.width - size.sidePanelWidth;
+  const centreW = layout.width - side.width - PANEL_DIVIDER_W;
   const innerW = centreW - PAD_X * 2;
 
   // Esc clears the highlight (handoff desktop keyboard notes).
@@ -100,11 +108,7 @@ export function SessionWorkspace({
 
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
-      <View
-        style={[
-          styles.centre,
-          {width: centreW, borderColor: color.lineHeader},
-        ]}>
+      <View style={{width: centreW}}>
         <View style={styles.head}>
           {/* The bar names the session (round 6), so the head is the stats row. */}
           {model.trackId ? (
@@ -158,7 +162,14 @@ export function SessionWorkspace({
           }
         />
       </View>
-      <View style={[styles.side, {width: size.sidePanelWidth}]}>
+      <PanelDivider
+        width={side.width}
+        onResize={side.onResize}
+        onCommit={side.onCommit}
+        onReset={side.reset}
+        label='Resize the lap detail and cards panel'
+      />
+      <View style={[styles.side, {width: side.width}]}>
         <ScrollView
           ref={sideRef}
           style={styles.flex}
@@ -231,7 +242,6 @@ function SidePanels({
 const styles = StyleSheet.create({
   screen: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
-  centre: {borderRightWidth: 1},
   head: {
     flexDirection: 'row',
     alignItems: 'flex-end',

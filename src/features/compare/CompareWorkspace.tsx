@@ -22,6 +22,7 @@ import {
   PLAY_RATES,
   type PlayRate,
   PRESETS,
+  RIGHT_W_DEFAULT,
   RIGHT_W_MIN,
   stepWindow,
   toggleChannel,
@@ -32,13 +33,14 @@ import {
   Checkbox,
   Chip,
   Explainer,
+  PANEL_DIVIDER_W,
+  PanelDivider,
   Segment,
   Text,
   TraceRetryBanner,
 } from '@/src/ui';
 
 import {CarsAround} from './components/CarsAround';
-import {PANEL_DIVIDER_W, PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
@@ -441,6 +443,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
           prefs.setRightW(w);
           setDragW(null);
         }}
+        onReset={() => {
+          prefs.setRightW(RIGHT_W_DEFAULT);
+          setDragW(null);
+        }}
+        label='Resize the map and values panel'
       />
       {/* --- right: map, values, time per section ---------------------------- */}
       <ScrollView
