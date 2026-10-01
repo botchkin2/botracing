@@ -66,8 +66,10 @@ export type StintTires = {
   tab: string;
   /** "Stint 2 · L14–L26". */
   title: string;
-  /** "12 green laps · laps 14–26 on this set". */
+  /** "12 green laps". */
   sub: string;
+  /** Each wheel's set age at the stint's last lap: "all four on 13-lap sets", or per wheel when they differ. */
+  setAge: string;
   greenLaps: number;
   /** Bars and trend, or the readings as a table when there are too few green laps. */
   kind: 'trend' | 'readings';
@@ -160,7 +162,42 @@ function axleSeries(
   };
 }
 
-function stintTires(n: number, laps: Lap[]): StintTires | null {
+/**
+ * How many laps each wheel's tyre had run by the stint's last lap. A set
+ * starts on the lap after a stop that changed the wheel (`tyres.changed`) or
+ * after a reset to the garage, so a kept-tyres stop does not restart it and a
+ * single-wheel change restarts only that wheel. Without a change on record
+ * the set is as old as the session's first lap.
+ */
+export function setAges(
+  all: Lap[],
+  lastLapIndex: number,
+): Record<Wheel, number> {
+  const out = {} as Record<Wheel, number>;
+  for (const w of WHEELS) {
+    let start = all.length ? all[0].lapIndex : lastLapIndex;
+    for (const l of all) {
+      if (l.lapIndex >= lastLapIndex) break;
+      if (l.endedInReset || l.tyres?.changed?.includes(w)) {
+        start = l.lapIndex + 1;
+      }
+    }
+    out[w] = lastLapIndex - start + 1;
+  }
+  return out;
+}
+
+export function setAgeText(ages: Record<Wheel, number>, lastLap: number) {
+  const v = WHEELS.map(w => ages[w]);
+  const unit = (n: number) => `${n}-lap`;
+  if (v.every(n => n === v[0]))
+    return `All four on ${unit(v[0])} sets at L${lastLap}`;
+  return `Set age at L${lastLap}: ${WHEELS.map(
+    w => `${w} ${ages[w]} ${ages[w] === 1 ? 'lap' : 'laps'}`,
+  ).join(' · ')}`;
+}
+
+function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
   const withData = laps.filter(hasTyres);
   if (withData.length === 0) return null;
   const green = new Set(
@@ -245,9 +282,8 @@ function stintTires(n: number, laps: Lap[]): StintTires | null {
     n,
     tab: `S${n}`,
     title: `Stint ${n} · L${first}–L${last}`,
-    sub: `${greenLaps.length} green ${
-      greenLaps.length === 1 ? 'lap' : 'laps'
-    } · laps ${first}–${last} on this set`,
+    sub: `${greenLaps.length} green ${greenLaps.length === 1 ? 'lap' : 'laps'}`,
+    setAge: setAgeText(setAges(all, last), last),
     greenLaps: greenLaps.length,
     kind,
     wheels,
@@ -286,6 +322,7 @@ export function buildTiresCard(
     const s = stintTires(
       n,
       laps.filter(l => l.stint === n),
+      laps,
     );
     if (s) stints.push(s);
   }
