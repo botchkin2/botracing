@@ -2,6 +2,7 @@
 // Race, Per tank and Stops as numbers, before any layout. Pure. The screen
 // draws them; the old row text (`planView`) stays until the screen switches.
 import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
+import {REFUEL_L_PER_S} from '@/src/analysis/refuel';
 import {formatLapTime} from '@/src/design';
 
 import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
@@ -79,15 +80,34 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
   let working: string | null = null;
   if (race && rules.lengthMin != null && median != null) {
     const seconds = rules.lengthMin * 60;
+    const pit = race.pit;
+    const clock = pit
+      ? `(${seconds.toLocaleString('en-GB')} s - ${Math.round(
+          pit.totalS,
+        )} s in the pits)`
+      : `${seconds.toLocaleString('en-GB')} s`;
     working = `At the median lap, ${formatLapTime(
       median,
-    )}: ${seconds.toLocaleString('en-GB')} s ÷ ${median.toFixed(1)} s = ${(
-      seconds / median
+    )}: ${clock} ÷ ${median.toFixed(1)} s = ${(
+      (seconds - (pit?.totalS ?? 0)) /
+      median
     ).toFixed(1)}, so ${race.estimate} laps.${
       race.oneMore == null
         ? ''
         : ` The flag can fall a lap later than your own pace says: ${race.oneMore} laps.`
-    } Time in the pits is not counted.`;
+    } ${
+      pit
+        ? `Pit time: ${pit.stops} ${
+            pit.stops === 1 ? 'stop' : 'stops'
+          } × (${Math.round(
+            pit.perStopS - pit.refuelL / REFUEL_L_PER_S,
+          )} s lane + ${pit.refuelL.toFixed(
+            0,
+          )} L ÷ ${REFUEL_L_PER_S} L/s) = ${Math.round(pit.totalS)} s; ${
+            pit.lapsWithout
+          } laps without it.`
+        : 'Time in the pits is not counted.'
+    }`;
   }
   return {
     laps: race ? race.estimate : null,

@@ -11,8 +11,9 @@
 // limiting one.
 //
 // Not modelled (the screen says so): tyres and double-stinting, full-course
-// yellows, weather, safety cars, and the time a stop takes (refuelling scales
-// with the amount added, so dropping a stop does not have a known time gain).
+// yellows, weather, safety cars, and what a dropped stop saves (refuelling scales
+// with the amount added, so it has no known time gain). The time the plan's stops
+// take is counted in a timed race when the caller gives a pit model.
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
@@ -170,6 +171,24 @@ export interface LoadToFinish {
   };
 }
 
+/** What a stop costs in the pit lane: a base per track and car, plus refuelling by the litre. */
+export interface PitModel {
+  /** Seconds in the pit lane with nothing added and no tyres. */
+  baseS: number;
+  refuelLPerS: number;
+}
+
+/** The time the plan's stops take, taken off a timed race before its laps are counted. */
+export interface PitTime {
+  stops: number;
+  /** Litres a stop adds: what the stint before it used, up to the fill limit. */
+  refuelL: number;
+  perStopS: number;
+  totalS: number;
+  /** The lap count without pit time, for the line that shows the difference. */
+  lapsWithout: number;
+}
+
 export interface FuelPlan {
   history: {laps: number; sessions: number};
   perLap: {
@@ -179,7 +198,12 @@ export interface FuelPlan {
   };
   /** Laps in the race: as given, or from minutes at the median lap time. */
   /** `oneMore` is the lap count when the flag falls late; null in a race in laps. */
-  raceLaps: {estimate: number; oneMore: number | null} | null;
+  raceLaps: {
+    estimate: number;
+    oneMore: number | null;
+    /** A timed race with a pit model and a stop to make; null otherwise. */
+    pit: PitTime | null;
+  } | null;
   /** Stint and stops at the median use and at the p90 (heavy) use. */
   atMedian: Option;
   atP90: Option;
@@ -442,9 +466,32 @@ function loadToFinishFor(
   };
 }
 
+function pitTimeFor(
+  rules: PlanRules,
+  raceLaps: number,
+  fuel: Usage | null,
+  ve: Usage | null,
+  model: PitModel | null,
+): PitTime | null {
+  if (!model || !fuel) return null;
+  const option = optionFor(rules, raceLaps, fuel.median, ve ? ve.median : null);
+  const {stops} = option;
+  if (stops == null || stops <= 0 || option.stint.laps == null) return null;
+  const refuelL = Math.min(rules.fuelL, option.stint.laps * fuel.median);
+  const perStopS = model.baseS + refuelL / model.refuelLPerS;
+  return {
+    stops,
+    refuelL,
+    perStopS,
+    totalS: stops * perStopS,
+    lapsWithout: raceLaps,
+  };
+}
+
 export function planRace(
   rules: PlanRules,
   history: GreenLap[],
+  pitModel: PitModel | null = null,
 ): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
   const ve = usage(
@@ -454,15 +501,22 @@ export function planRace(
 
   let raceLaps: FuelPlan['raceLaps'] = null;
   if (rules.lengthLaps != null) {
-    raceLaps = {estimate: rules.lengthLaps, oneMore: null};
+    raceLaps = {estimate: rules.lengthLaps, oneMore: null, pit: null};
   } else if (rules.lengthMin != null && lapTimeS) {
     // The flag falls at the leader's first crossing after the time T is up,
     // somewhere in (T, T + a leader lap], and he takes it at his next crossing:
     // ceil(T / m) laps or one more, never fewer. Where in that span the leader
     // crosses is not knowable (lap spread, their stops), so one more is always
-    // possible. Time lost in the pits is not counted.
-    const estimate = Math.ceil((rules.lengthMin * 60) / lapTimeS.median);
-    raceLaps = {estimate, oneMore: estimate + 1};
+    // possible. Time in the pits comes off the clock when a pit model is
+    // given: the stop count is that of the race without it (one pass, not a
+    // fixed point; a stop more or less moves the count by a lap at most).
+    const clockS = rules.lengthMin * 60;
+    const lapsWithout = Math.ceil(clockS / lapTimeS.median);
+    const pit = pitTimeFor(rules, lapsWithout, fuel, ve, pitModel);
+    const estimate = pit
+      ? Math.ceil((clockS - pit.totalS) / lapTimeS.median)
+      : lapsWithout;
+    raceLaps = {estimate, oneMore: estimate + 1, pit};
   }
 
   const laps = raceLaps ? raceLaps.estimate : null;
