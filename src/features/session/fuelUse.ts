@@ -8,9 +8,7 @@ import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
-import {TOW_HOLLOW_S} from './lapTags';
-
-/** A stint gives a median from this many laps that are not towed. */
+/** A stint gives a median from this many green laps. */
 export const MIN_STINT_LAPS = 4;
 /** Stints differ when their medians are further apart than this share of the use, and than the laps inside them. */
 export const MIN_DIFF_FRACTION = 0.03;
@@ -22,15 +20,12 @@ export type FuelUsePoint = {
   stint: number;
   fuelL: number;
   timeS: number;
-  /** In a slipstream for TOW_HOLLOW_S or more: out of the medians. */
-  towed: boolean;
 };
 
 export type FuelUseStint = {
   n: number;
-  /** Laps in the medians (green, comparable, not towed). */
+  /** Laps in the medians (green, comparable); a tow or traffic does not leave one out. */
   laps: number;
-  towedLaps: number;
   /** Null under MIN_STINT_LAPS. */
   medianFuelL: number | null;
   /** Spread inside the stint: q3 - q1 of the fuel use per lap. */
@@ -105,7 +100,6 @@ export function buildFuelUse(
     stint: l.stint,
     fuelL: l.fuel!.usedL as number,
     timeS: l.timeS as number,
-    towed: (l.traffic?.draftS ?? 0) >= TOW_HOLLOW_S,
   }));
 
   const stintNumbers = [...new Set(usable.map(l => l.stint))].sort(
@@ -113,10 +107,9 @@ export function buildFuelUse(
   );
   const stints = stintNumbers.map((n): FuelUseStint => {
     const inStint = usable.filter(l => l.stint === n);
-    const clean = inStint.filter(l => (l.traffic?.draftS ?? 0) < TOW_HOLLOW_S);
-    const enough = clean.length >= MIN_STINT_LAPS;
-    const fuel = clean.map(l => l.fuel!.usedL as number);
-    const ve = clean
+    const enough = inStint.length >= MIN_STINT_LAPS;
+    const fuel = inStint.map(l => l.fuel!.usedL as number);
+    const ve = inStint
       .map(l => l.fuel!.veUsedPct)
       .filter((v): v is number => v != null && v > 0);
     const medianFuelL = enough ? median(fuel) : null;
@@ -124,12 +117,11 @@ export function buildFuelUse(
       enough && ve.length >= MIN_STINT_LAPS ? median(ve) : null;
     return {
       n,
-      laps: clean.length,
-      towedLaps: inStint.length - clean.length,
+      laps: inStint.length,
       medianFuelL,
       fuelIqrL: enough ? iqr(fuel) : null,
       medianVePct,
-      medianTimeS: enough ? median(clean.map(l => l.timeS as number)) : null,
+      medianTimeS: enough ? median(inStint.map(l => l.timeS as number)) : null,
       loadLaps: {
         fuel:
           medianFuelL != null && limitL != null ? limitL / medianFuelL : null,
@@ -153,13 +145,12 @@ export function buildFuelUse(
         ? {kind: 'differs'}
         : {kind: 'same', lowL, highL};
   }
-  const clean = points.filter(p => !p.towed);
   return {
     points,
     stints,
     verdict,
     limitL,
-    medianTimeS: median(clean.map(p => p.timeS)),
+    medianTimeS: median(points.map(p => p.timeS)),
   };
 }
 
@@ -189,7 +180,6 @@ export function planMatchesLimit(
 // Behind the "?" on the Fuel use card, one sentence a line.
 export const FUEL_USE_HELP: readonly string[] = [
   'A stint’s use is measured from the recorded fuel level over its green laps.',
-  'A lap with 5 s or more in a slipstream is counted as towed: it uses less fuel and runs faster, so it is left out of the medians.',
   'A stint gets a median use, and its spread (the middle half of its laps), from 4 laps or more.',
   'One load is the fill limit, or 100 % VE, over the stint’s median use per lap.',
 ];
@@ -207,9 +197,7 @@ export type FuelUseRow = {
 /** One row per stint, as text. */
 export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
   return fu.stints.map(s => {
-    const title = `Stint ${s.n} · ${s.laps} lap${s.laps === 1 ? '' : 's'}${
-      s.towedLaps > 0 ? ` + ${s.towedLaps} towed` : ''
-    }`;
+    const title = `Stint ${s.n} · ${s.laps} lap${s.laps === 1 ? '' : 's'}`;
     if (s.medianFuelL == null)
       return {
         key: String(s.n),
@@ -245,7 +233,7 @@ export function verdictText(fu: FuelUse): string {
   const v = fu.verdict;
   switch (v.kind) {
     case 'none':
-      return `No stint has ${MIN_STINT_LAPS} green laps that are not towed, so there are no medians to compare.`;
+      return `No stint has ${MIN_STINT_LAPS} green laps, so there are no medians to compare.`;
     case 'one-stint':
       return 'One stint has enough laps: nothing to compare between stints yet.';
     case 'same':

@@ -204,24 +204,31 @@ describe('classSessionOf', () => {
 
   it('turns a stored race or practice field into the model input', () => {
     expect(
-      classSessionOf({classLaps: {kind: 'race', classes: {gt3: stats}}}),
+      classSessionOf({
+        classLaps: {kind: 'race', classes: {gt3: stats}, startGapsS: null},
+      }),
     ).toEqual({
       kind: 'race',
       byClass: {gt3: {medianS: 215.4, p10S: 213, p90S: 219, laps: 120}},
     });
     expect(
-      classSessionOf({classLaps: {kind: 'practice', classes: {gt3: stats}}})
-        ?.kind,
+      classSessionOf({
+        classLaps: {kind: 'practice', classes: {gt3: stats}, startGapsS: null},
+      })?.kind,
     ).toBe('practice');
   });
 
   it('leaves out qualifying, no field and a field with no class pace', () => {
     expect(
-      classSessionOf({classLaps: {kind: 'qualify', classes: null}}),
+      classSessionOf({
+        classLaps: {kind: 'qualify', classes: null, startGapsS: null},
+      }),
     ).toBeNull();
     expect(classSessionOf({classLaps: null})).toBeNull();
     expect(
-      classSessionOf({classLaps: {kind: 'race', classes: null}}),
+      classSessionOf({
+        classLaps: {kind: 'race', classes: null, startGapsS: null},
+      }),
     ).toBeNull();
   });
 });

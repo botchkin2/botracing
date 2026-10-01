@@ -25,6 +25,7 @@ import {
 } from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
+import {buildSectionWindow, type SectionWindowModel} from './sectionWindow';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
@@ -115,6 +116,8 @@ export type CornerModel = {
   rows: CornerRow[];
   strips: StripModel[] | null;
   highlightLine: string | null;
+  /** The section's window, split and compared; null until the track has boundaries. */
+  window: SectionWindowModel | null;
   zoom: {
     windowM: [number, number];
     apexM: number;
@@ -379,6 +382,7 @@ export function buildCornerModel(input: {
     rows,
     strips,
     highlightLine,
+    window: buildSectionWindow({map, sectionN: sec.sectionN, laps: selected}),
     zoom: {
       windowM: zoomWindow,
       apexM: sec.apexM,

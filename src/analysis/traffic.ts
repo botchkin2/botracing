@@ -103,7 +103,7 @@ export function overtakesOf(
 }
 
 /** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
-export const TRAFFIC_VERSION = 2;
+export const TRAFFIC_VERSION = 4;
 
 // A clean lap is free air: under CLEAN_AHEAD_S behind a car, and not passed by
 // any car (a Hypercar lapping a GT3 is a pass that `passesSuffered`, which is
@@ -160,6 +160,21 @@ function setOf(times: number[]): LapSet {
   return {laps: s.length, medianS: Math.round(m * 1000) / 1000};
 }
 
+/** Whether a lap's traffic facts make it a clean lap (the rule above). */
+export function isCleanTraffic(
+  t: Omit<NonNullable<TrafficLap['traffic']>, 'overtakes'> & {
+    overtakes: {length: number};
+  },
+): boolean {
+  return (
+    t.trafficAheadS < CLEAN_AHEAD_S &&
+    t.passesSufferedAll === 0 &&
+    t.blueFlagS === 0 &&
+    t.battleS < CLEAN_BATTLE_S &&
+    t.overtakes.length === 0
+  );
+}
+
 /**
  * Clean and traffic laps over the comparable laps. Null when no lap has
  * traffic facts (a session without a field).
@@ -173,16 +188,7 @@ export function trafficMedians(laps: TrafficLap[]): SessionTraffic | null {
     known.filter(l => pick(l.traffic!)).map(l => l.timeS as number);
   return {
     v: TRAFFIC_VERSION,
-    clean: setOf(
-      times(
-        t =>
-          t.trafficAheadS < CLEAN_AHEAD_S &&
-          t.passesSufferedAll === 0 &&
-          t.blueFlagS === 0 &&
-          t.battleS < CLEAN_BATTLE_S &&
-          t.overtakes.length === 0,
-      ),
-    ),
+    clean: setOf(times(isCleanTraffic)),
     traffic: setOf(times(t => t.trafficAheadS >= TRAFFIC_AHEAD_S)),
   };
 }

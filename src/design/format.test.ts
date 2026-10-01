@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   formatCornerGap,
   formatDayMonth,
+  formatDayMonthTime,
   formatDistance,
   formatLength,
   formatGap,
@@ -66,5 +67,25 @@ describe('formatDayMonth', () => {
 
   it('is empty for a bad date', () => {
     expect(formatDayMonth('not a date')).toBe('');
+  });
+});
+
+describe('formatDayMonthTime', () => {
+  const now = new Date(2026, 8, 30, 12, 0);
+
+  it('adds the local time within the current year', () => {
+    expect(
+      formatDayMonthTime(new Date(2026, 8, 14, 18, 5).toISOString(), now),
+    ).toBe('14 Sep, 18:05');
+  });
+
+  it('adds the year for an earlier year', () => {
+    expect(
+      formatDayMonthTime(new Date(2025, 8, 14, 18, 5).toISOString(), now),
+    ).toBe('14 Sep 2025');
+  });
+
+  it('is empty for a bad date', () => {
+    expect(formatDayMonthTime('nope', now)).toBe('');
   });
 });

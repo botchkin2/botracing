@@ -62,7 +62,7 @@ const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
+  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
 
 export type {Selection} from './model';
 
@@ -264,19 +264,23 @@ function SessionView({
     <View
       onLayout={e => (headerHeight.current = e.nativeEvent.layout.height)}
       style={[styles.block, {width: tableW}]}>
-      {/* At ≥1280 the rail and the chrome tabs replace the back link. */}
-      <Pressable
-        accessibilityRole='link'
-        onPress={() => router.navigate(sessionsHref())}
-        style={hitBox.link}
-        hitSlop={space.md}>
-        <Text variant='bodyStrong' tone='accentInk'>
-          ‹ Sessions
-        </Text>
-      </Pressable>
-      <Text variant='display' style={styles.title}>
-        {model.title}
-      </Text>
+      {/* From 900 pt the top bar carries the back link and the session name. */}
+      {!layout.isDesktop && (
+        <>
+          <Pressable
+            accessibilityRole='link'
+            onPress={() => router.navigate(sessionsHref())}
+            style={hitBox.link}
+            hitSlop={space.md}>
+            <Text variant='bodyStrong' tone='accentInk'>
+              ‹ Sessions
+            </Text>
+          </Pressable>
+          <Text variant='display' style={styles.title}>
+            {model.title}
+          </Text>
+        </>
+      )}
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
@@ -325,7 +329,11 @@ function SessionView({
       )}
 
       <View style={styles.section}>
-        <TiresCard card={model.tires} width={tableW} />
+        <TiresCard
+          card={model.tires}
+          scatter={model.wearScatter}
+          width={tableW}
+        />
       </View>
 
       {model.fuelUse && (
@@ -427,6 +435,7 @@ function SessionView({
             )}
             <TiresCard
               card={model.tires}
+              scatter={model.wearScatter}
               width={size.sidePanelWidth - 2 * space.xl}
             />
             {model.fuelUse && (

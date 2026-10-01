@@ -14,3 +14,5 @@ export * from './RaceLanes';
 export * from './raceLanesLayout';
 export * from './MeasuredRoad';
 export * from './SplitBar';
+export * from './TrafficLane';
+export * from './trafficLaneLayout';

@@ -1,5 +1,6 @@
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
+import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
 import {
   type GridTrace,
   gridIndex,
@@ -291,6 +292,49 @@ export type MapModel = {
   follow: (FollowView & {geometry: FollowGeometry}) | null;
 };
 
+/**
+ * One row per selected lap that has traffic positions, in chip order, or the
+ * empty state for a session with no field. A session with a field whose laps
+ * are not yet analysed for positions has no lane: an empty lane there would
+ * read as "no traffic".
+ */
+export type TrafficLaneModel =
+  | {kind: 'empty'}
+  | {
+      kind: 'rows';
+      rows: (LaneRow & {
+        lapId: string;
+        selIndex: number;
+        highlighted: boolean;
+        label: string;
+      })[];
+    };
+
+export function trafficLaneOf(
+  session: SessionDetail,
+  refs: LapRef[],
+  byId: Map<string, Lap>,
+  lengthM: number,
+): TrafficLaneModel | null {
+  if (refs.length === 0) return null;
+  if (session.field == null) return {kind: 'empty'};
+  const rows = refs.flatMap(r => {
+    const lane = laneRowOf(byId.get(r.lapId)?.traffic ?? null, lengthM);
+    return lane
+      ? [
+          {
+            ...lane,
+            lapId: r.lapId,
+            selIndex: r.selIndex,
+            highlighted: r.highlighted,
+            label: r.label,
+          },
+        ]
+      : [];
+  });
+  return rows.length > 0 ? {kind: 'rows', rows} : null;
+}
+
 export type CompareModel = {
   mode: LapMode;
   /** The lap whose moment the field radar shows: the highlighted lap, else the reference. */
@@ -305,6 +349,8 @@ export type CompareModel = {
   };
   grid: CornerGridModel | null;
   charts: ChartModel[];
+  /** The car-ahead lane under the last chart; null when there is nothing true to draw (round 7, 2C). */
+  trafficLane: TrafficLaneModel | null;
   stepM: number;
   lengthM: number;
   /** Visible distance range of the charts, metres. */
@@ -1014,6 +1060,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     },
     grid,
     charts,
+    trafficLane: trafficLaneOf(session, lapRefs, byId, lengthM),
     stepM,
     lengthM,
     windowM,
@@ -1101,6 +1148,8 @@ function allLapsByStint(
               ? 'OUT'
               : l.pitIn
               ? 'IN'
+              : l.partialWhy === 'grid'
+              ? 'PARK'
               : l.partial
               ? 'PART'
               : l.reasons.includes('slow')
