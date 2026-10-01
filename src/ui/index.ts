@@ -11,6 +11,7 @@ export * from './hitArea';
 export * from './HowToRead';
 export * from './MapZoomButtons';
 export * from './NumberField';
+export * from './PanelDivider';
 export * from './Segment';
 export * from './SessionTabs';
 export * from './Sheet';
