@@ -107,7 +107,7 @@ export const TRAFFIC_VERSION = 2;
 
 // A clean lap is free air: under CLEAN_AHEAD_S behind a car, and not passed by
 // any car (a Hypercar lapping a GT3 is a pass that `passesSuffered`, which is
-// the player's class only, does not count), no blue flag, and no faster-class
+// the player's class only, does not count), no blue flag, under CLEAN_BATTLE_S of battle, and no faster-class
 // overtake. A traffic lap is TRAFFIC_AHEAD_S or more behind a car.
 //
 // A clean lap and a traffic lap are two sets that do not touch: a lap with
@@ -118,6 +118,10 @@ export const TRAFFIC_VERSION = 2;
 // front-runners and a "traffic costs X seconds" number would be selection.
 export const CLEAN_AHEAD_S = 2;
 export const TRAFFIC_AHEAD_S = 5;
+// A same-class car close behind is defended against, which costs time as
+// surely as following one (setup, pit-wall thread 44 #1539): a clean lap has
+// under this many seconds of battle, ahead or behind.
+export const CLEAN_BATTLE_S = 2;
 // Fewer laps than this has no median (the floor used everywhere else).
 export const MIN_SET_LAPS = 3;
 
@@ -129,6 +133,8 @@ export interface TrafficLap {
     /** Passes by any car, not only the player's class. */
     passesSufferedAll: number;
     blueFlagS: number;
+    /** Seconds within 1 s of a car of the player's class, ahead or behind. */
+    battleS: number;
     overtakes: unknown[];
   } | null;
 }
@@ -173,6 +179,7 @@ export function trafficMedians(laps: TrafficLap[]): SessionTraffic | null {
           t.trafficAheadS < CLEAN_AHEAD_S &&
           t.passesSufferedAll === 0 &&
           t.blueFlagS === 0 &&
+          t.battleS < CLEAN_BATTLE_S &&
           t.overtakes.length === 0,
       ),
     ),
