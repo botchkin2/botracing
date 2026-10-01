@@ -26,12 +26,15 @@ import {
   Text,
 } from '@/src/ui';
 
+import {ClassTimingSection} from './components/ClassTimingSection';
+import {PlanCard, Section} from './components/PlanCard';
 import {RaceCardView} from './components/RaceCardView';
 import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
+import {useClassTiming} from './useClassTiming';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
@@ -69,6 +72,7 @@ export function PlanScreen() {
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
   const data = usePlanData(combo);
+  const classTiming = useClassTiming(combo ?? null, data);
   const {preset, length, rules, view, plan, hist, limits} = data;
   const {lastFuel, pending: detailsPending} = limits;
   const {history, lapsOf, measured} = hist;
@@ -108,6 +112,8 @@ export function PlanScreen() {
       ' racing laps, the formation lap not counted.';
 
   const width = Math.min(layout.contentWidth, PLAN_MAX_W);
+  // A card's content: the column less its padding and 1 pt border.
+  const cardInnerW = width - 2 * (space.lg + 1);
   return (
     <ScrollView
       style={{backgroundColor: color.bg}}
@@ -292,6 +298,10 @@ export function PlanScreen() {
                     <PlanCard title='Race'>
                       <RaceCardView card={data.cards.race} />
                     </PlanCard>
+                    <ClassTimingSection
+                      timing={classTiming}
+                      width={cardInnerW}
+                    />
                     <PlanCard
                       title='Per tank'
                       explainer={
@@ -337,31 +347,6 @@ const TANK_EXPLAINER_FUEL_ONLY =
 const STOPS_EXPLAINER =
   'Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.';
 
-/** A card: the title, the content in a surface box, and the explainer under it. */
-function PlanCard({
-  title,
-  explainer,
-  children,
-}: {
-  title: string;
-  explainer?: string;
-  children: React.ReactNode;
-}) {
-  const {color} = useTheme();
-  return (
-    <Section title={title}>
-      <View
-        style={[
-          styles.card,
-          {backgroundColor: color.surface, borderColor: color.lineHeader},
-        ]}>
-        {children}
-      </View>
-      {explainer ? <Explainer>{explainer}</Explainer> : null}
-    </Section>
-  );
-}
-
 /** A card of label / value / note rows, as `planView` gives them. */
 function RowsCard({card}: {card: PlanView['cards'][number]}) {
   return (
@@ -386,28 +371,10 @@ function RowsCard({card}: {card: PlanView['cards'][number]}) {
 // A phone-first column; on a wide screen it stays readable, not stretched.
 const PLAN_MAX_W = 640;
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.section}>
-      <Text variant='label' tone='textMuted'>
-        {title}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   page: {alignItems: 'center'},
   column: {gap: space.xl, paddingHorizontal: size.gutter},
   head: {gap: space.xs, paddingTop: space.md},
-  section: {gap: space.sm},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   chips: {
     flexDirection: 'row',
@@ -417,12 +384,6 @@ const styles = StyleSheet.create({
   },
   lengthRow: {flexDirection: 'row', alignItems: 'flex-end', gap: space.lg},
   actions: {flexDirection: 'row', gap: space.md},
-  card: {
-    gap: space.lg,
-    padding: space.lg,
-    borderWidth: 1,
-    borderRadius: radius.md,
-  },
   rowBox: {gap: space.xs},
   lastRace: {
     flexDirection: 'row',

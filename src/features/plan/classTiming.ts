@@ -74,6 +74,8 @@ export type YourClass = {
   youSrc: string;
 };
 
+export type ReadyClassTiming = Extract<ClassTiming, {kind: 'ready'}>;
+
 export type ClassTiming =
   /** No session here has other cars' laps. */
   | {kind: 'no-field'}
