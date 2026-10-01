@@ -36,7 +36,7 @@ import {
 } from './fuelFacts.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
-import {lapTyres} from './tyres.mjs';
+import {lapTyres, TYRES_VERSION} from './tyres.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
@@ -53,10 +53,9 @@ export const analysisVersion = 17;
 // key and never analysisVersion, so two PRs that each add or bump a key merge in
 // either order. The sync's session fingerprint hashes the whole table, so a
 // bump re-analyses every session once, and each block's doc carries its key as
-// `v`.
-//   tyres 1: per-lap per-wheel wear, pressure, temperatures and the wheels
-//   changed (tyres.mjs), replacing the lap's newTyres flag.
-export const blockVersions = {tyres: 1};
+// `v`. Each key is the constant that sits next to its block's rules (the
+// history of what each number meant is there).
+export const blockVersions = {tyres: TYRES_VERSION};
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
@@ -443,7 +442,7 @@ function analyzeLap(rec, seg, pits, flags) {
     impactMax: round(impactMax, 1),
     tyreCarcassC: round(carcass, 1),
     courseYellowSec: round(overlap(flags.course, seg.start, seg.end), 2),
-    tyres: lapTyres(s, i0, i1, seg, pits, blockVersions.tyres),
+    tyres: lapTyres(s, i0, i1, seg, pits, TYRES_VERSION),
     compound: compoundAt
       ? `${compoundAt.v}/${compoundAt.v2 ?? compoundAt.v}`
       : null,

@@ -6,6 +6,15 @@
 // channels line up with each other and with the pit windows.
 import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
 
+/**
+ * Bump when the rules below change: it goes into analyze.mjs's blockVersions,
+ * which the sync's session fingerprint hashes, and onto each lap's `tyres.v`.
+ * 1: per-wheel wear at the lap end, median pressure and temperatures outside
+ * the pit lane (dead zeros out), and the wheels changed in the stop that ended
+ * during the lap.
+ */
+export const TYRES_VERSION = 1;
+
 // Wheel names as the doc writes them, with the archive's channel suffix.
 const WHEELS = [
   ['FL', 'fl'],
