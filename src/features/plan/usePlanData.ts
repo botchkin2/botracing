@@ -5,6 +5,7 @@ import {carLabel} from '@/src/design';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {lastRaceOf} from './lastRace';
+import {pitLaneBase, pitModelOf} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor} from './model';
 import {buildPlanCards} from './planCards';
 import {usePlanHistory, usePlanLimits} from './usePlanHistory';
@@ -27,7 +28,20 @@ export function usePlanData(combo: Combo | null) {
   const wantedL = rules?.rules.fuelL ?? null;
   const hist = usePlanHistory(combo, limits.limitsL, wantedL, preset);
   const greenLaps = hist.chosen.laps;
-  const plan = rules ? planRace(rules.rules, greenLaps) : null;
+  // The lane base comes from his own race stops here; the Plan counts no pit
+  // time without it (fewer than two stops, or a class the refuel rate is not
+  // measured for).
+  const pitBase = pitLaneBase(
+    hist.history.flatMap((s, i) =>
+      hist.lapsOf.laps[i]
+        ? [{sessionType: s.sessionType, laps: hist.lapsOf.laps[i]}]
+        : [],
+    ),
+    combo?.sessions[0]?.carClass ?? '',
+  );
+  const plan = rules
+    ? planRace(rules.rules, greenLaps, pitModelOf(pitBase))
+    : null;
   // Chosen from the data, never from the car class (camber, thread 43 #1243).
   const noVe = fuelOnly(greenLaps);
   const view =
@@ -70,6 +84,7 @@ export function usePlanData(combo: Combo | null) {
     hist,
     greenLaps,
     plan,
+    pitBase,
     view,
     cards,
     fuelOnly: noVe,

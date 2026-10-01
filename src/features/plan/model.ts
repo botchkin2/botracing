@@ -641,6 +641,6 @@ export function planView(
     stale,
     cards,
     footnote:
-      'Not modelled: tyres and double-stinting, full-course yellows, weather, and how long a stop takes (refuelling time grows with the amount added).',
+      'Not modelled: tyres and double-stinting, full-course yellows, weather, and how long a stop takes, except in a timed race, where the time of a stop is the pit loss measured from your own stops here plus refuelling (not counted without two such stops).',
   };
 }
