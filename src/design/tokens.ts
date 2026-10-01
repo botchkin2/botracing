@@ -265,6 +265,9 @@ export const size = {
   timelineLane: 26,
   timelineGap: 8,
   timelineAxis: 18,
+  // The Plan's pit-stop slider: the track's drawn height, and the handle's width.
+  sliderTrack: 14,
+  sliderHandle: 4,
   sessionRow: 54,
   chip: 28,
   transport: 40,

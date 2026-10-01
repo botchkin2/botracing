@@ -26,6 +26,7 @@ import {
 } from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
+import {PitPlanCard} from './components/PitPlanCard';
 import {PlanCard, Section} from './components/PlanCard';
 import {RaceCardView} from './components/RaceCardView';
 import {RulesSheet} from './components/RulesSheet';
@@ -34,6 +35,7 @@ import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
 import {defaultCombo, parseNumber, type PlanView, planCombos} from './model';
 import {useClassTiming} from './useClassTiming';
+import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
 // Track and car chips shown before "All".
@@ -71,7 +73,18 @@ export function PlanScreen() {
     ? combos
     : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
   const data = usePlanData(combo);
-  const classTiming = useClassTiming(combo ?? null, data);
+  const slider = usePitSlider(data, combo?.key ?? '');
+  const chosen = useMemo(
+    () =>
+      slider.pit
+        ? {
+            raceLaps: slider.pit.finishLaps,
+            stopsAfter: slider.pit.stops.map(s => s.after),
+          }
+        : null,
+    [slider.pit],
+  );
+  const classTiming = useClassTiming(combo ?? null, data, chosen);
   const {preset, length, rules, view, plan, hist, limits} = data;
   const {lastFuel, pending: detailsPending} = limits;
   const {history, lapsOf, measured} = hist;
@@ -286,11 +299,24 @@ export function PlanScreen() {
                     <PlanCard title='Race'>
                       <RaceCardView card={data.cards.race} />
                     </PlanCard>
+                    {slider.pit ? (
+                      <PitPlanCard
+                        pit={slider.pit}
+                        planned={slider.planned}
+                        onStop={slider.setStop}
+                        onReset={slider.reset}
+                      />
+                    ) : null}
                     <ClassTimingSection
                       timing={classTiming}
-                      windows={data.cards.stops.windows}
+                      // The stop line is where the slider has it.
+                      windows={data.cards.stops.windows.map((w, i) => ({
+                        ...w,
+                        planLap: slider.pit?.stops[i]?.after ?? w.planLap,
+                      }))}
                       windowNote={data.cards.stops.windowNote}
                       width={cardInnerW}
+                      onStop={slider.pit ? slider.setStop : undefined}
                     />
                     <PlanCard
                       title='Per tank'

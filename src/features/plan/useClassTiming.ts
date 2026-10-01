@@ -20,8 +20,11 @@ const ALL_TIME_DAYS = 3650;
 export function useClassTiming(
   combo: Combo | null,
   data: ReturnType<typeof usePlanData>,
+  /** The pit-lap slider's stops and finish, in place of the plan's own. */
+  chosen: {raceLaps: number; stopsAfter: number[]} | null = null,
 ) {
   const sessions = useSessions({ageDays: ALL_TIME_DAYS});
+  const chosenKey = chosen?.stopsAfter.join(',');
   const {plan, greenLaps, hist} = data;
   const carClass = combo?.sessions[0]?.carClass ?? '';
   const timing = useMemo(
@@ -44,9 +47,9 @@ export function useClassTiming(
               greenLaps: greenLaps.length,
               sessions: hist.usedSessions.length,
             },
-            raceLaps: plan?.raceLaps?.estimate ?? null,
+            raceLaps: chosen?.raceLaps ?? plan?.raceLaps?.estimate ?? null,
             // The stops are planned at p90 use, like the pit windows (thread 44 #1662).
-            stopsAfter: plan?.atP90.stopLaps ?? [],
+            stopsAfter: chosen?.stopsAfter ?? plan?.atP90.stopLaps ?? [],
           }),
     [
       sessions.isPending,
@@ -56,6 +59,8 @@ export function useClassTiming(
       plan,
       greenLaps,
       hist.usedSessions,
+      chosen?.raceLaps,
+      chosenKey,
     ],
   );
   return timing;

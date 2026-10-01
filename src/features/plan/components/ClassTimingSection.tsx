@@ -35,6 +35,7 @@ export function ClassTimingSection({
   windows,
   windowNote,
   width,
+  onStop,
 }: {
   timing: ClassTiming | null;
   /** The pit window of each planned stop (the Stops card reads the same ones). */
@@ -42,6 +43,8 @@ export function ClassTimingSection({
   windowNote: string | null;
   /** The width a card's content may use. */
   width: number;
+  /** Dragging a stop on the timeline; absent, the timeline is a picture. */
+  onStop?: (stop: number, lap: number) => void;
 }) {
   if (timing == null) return <Skeleton height={size.sessionRow} />;
   if (timing.kind !== 'ready')
@@ -61,7 +64,12 @@ export function ClassTimingSection({
           <Text variant='dataSmall' tone='textSecondary'>
             {TIMELINE_EXPLAINER}
           </Text>
-          <RaceTimelineView timing={timing} windows={windows} width={width} />
+          <RaceTimelineView
+            timing={timing}
+            windows={windows}
+            width={width}
+            onStop={onStop}
+          />
           {windows.map(w => (
             <Text key={w.stop} variant='dataSmall' tone='textSecondary'>
               {w.text}

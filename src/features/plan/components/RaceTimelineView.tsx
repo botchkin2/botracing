@@ -1,8 +1,11 @@
+import {useEffect, useRef, useState} from 'react';
+import {PanResponder, StyleSheet, View} from 'react-native';
 import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
 
 import {dash, size, stroke, type as typeScale, useTheme} from '@/src/design';
 
 import {type ReadyClassTiming} from '../classTiming';
+import {lapAt} from '../pitPlan';
 import {type StopWindow} from '../planCards';
 
 // Spacing of the lap ticks: the first of these that gives at most 8 ticks.
@@ -30,14 +33,22 @@ export function RaceTimelineView({
   timing,
   windows,
   width,
+  onStop,
 }: {
   timing: ReadyClassTiming;
   windows: StopWindow[];
   width: number;
+  /** Dragging a stop on the stint lane asks for it after this lap; absent, the timeline is a picture. */
+  onStop?: (stop: number, lap: number) => void;
 }) {
   const {color} = useTheme();
   const axis = typeScale.axis;
   const raceLaps = timing.raceLaps;
+  const drag = useStopDrag(
+    windows.map(w => w.planLap),
+    raceLaps ?? 0,
+    onStop,
+  );
   if (raceLaps == null) return null;
   const lanes = timing.faster.flatMap(c =>
     c.estimate ? [{key: c.key, label: c.label, passes: c.estimate.passes}] : [],
@@ -55,139 +66,207 @@ export function RaceTimelineView({
   for (let t = 0; t <= raceLaps; t += step) ticks.push(t);
   const bounds = [0, ...timing.stopsAfter, raceLaps];
   return (
-    <Svg width={width} height={height}>
-      {ticks.map(t => (
-        <G key={t}>
-          <Line
-            x1={xOf(t)}
-            x2={xOf(t)}
-            y1={size.timelineAxis}
-            y2={height}
-            stroke={color.line}
-            strokeWidth={stroke.grey}
-          />
-          <SvgText
-            x={xOf(t)}
-            y={size.timelineAxis - 6}
-            textAnchor='middle'
-            fill={color.textMuted}
-            fontFamily={axis.fontFamily}
-            fontSize={axis.fontSize}>
-            {t}
-          </SvgText>
-        </G>
-      ))}
-      <SvgText
-        x={0}
-        y={laneY(0) + size.timelineLane / 2 + 3}
-        fill={color.textSecondary}
-        fontFamily={axis.fontFamily}
-        fontSize={axis.fontSize}>
-        Stints
-      </SvgText>
-      {bounds.slice(0, -1).map((from, i) => {
-        const x = xOf(from);
-        const w = xOf(bounds[i + 1]) - x;
-        return (
-          <G key={from}>
-            <Rect
-              x={x}
-              y={laneY(0)}
-              width={w}
-              height={size.timelineLane}
-              fill={color.surfaceRaised}
-              stroke={color.lineStrong}
+    <View>
+      <Svg width={width} height={height}>
+        {ticks.map(t => (
+          <G key={t}>
+            <Line
+              x1={xOf(t)}
+              x2={xOf(t)}
+              y1={size.timelineAxis}
+              y2={height}
+              stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            {w >= LABEL_MIN_W ? (
-              <SvgText
-                x={x + w / 2}
-                y={laneY(0) + size.timelineLane / 2 + 3}
-                textAnchor='middle'
-                fill={color.text}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
-                {i + 1}
-              </SvgText>
-            ) : null}
+            <SvgText
+              x={xOf(t)}
+              y={size.timelineAxis - 6}
+              textAnchor='middle'
+              fill={color.textMuted}
+              fontFamily={axis.fontFamily}
+              fontSize={axis.fontSize}>
+              {t}
+            </SvgText>
           </G>
-        );
-      })}
-      {windows.map(w => (
-        <G key={`window${w.stop}`}>
-          <Rect
-            x={xOf(w.earliest)}
-            y={laneY(0)}
-            width={Math.max(1, xOf(w.latest) - xOf(w.earliest))}
-            height={size.timelineLane}
-            fill={color.accentTint}
-            stroke={color.accent}
-            strokeWidth={stroke.grey}
-          />
-          {w.medianLap != null ? (
+        ))}
+        <SvgText
+          x={0}
+          y={laneY(0) + size.timelineLane / 2 + 3}
+          fill={color.textSecondary}
+          fontFamily={axis.fontFamily}
+          fontSize={axis.fontSize}>
+          Stints
+        </SvgText>
+        {bounds.slice(0, -1).map((from, i) => {
+          const x = xOf(from);
+          const w = xOf(bounds[i + 1]) - x;
+          return (
+            <G key={from}>
+              <Rect
+                x={x}
+                y={laneY(0)}
+                width={w}
+                height={size.timelineLane}
+                fill={color.surfaceRaised}
+                stroke={color.lineStrong}
+                strokeWidth={stroke.grey}
+              />
+              {w >= LABEL_MIN_W ? (
+                <SvgText
+                  x={x + w / 2}
+                  y={laneY(0) + size.timelineLane / 2 + 3}
+                  textAnchor='middle'
+                  fill={color.text}
+                  fontFamily={axis.fontFamily}
+                  fontSize={axis.fontSize}>
+                  {i + 1}
+                </SvgText>
+              ) : null}
+            </G>
+          );
+        })}
+        {windows.map(w => (
+          <G key={`window${w.stop}`}>
+            <Rect
+              x={xOf(w.earliest)}
+              y={laneY(0)}
+              width={Math.max(1, xOf(w.latest) - xOf(w.earliest))}
+              height={size.timelineLane}
+              fill={color.accentTint}
+              stroke={color.accent}
+              strokeWidth={stroke.grey}
+            />
+            {w.medianLap != null ? (
+              <Line
+                x1={xOf(w.medianLap)}
+                x2={xOf(w.medianLap)}
+                y1={laneY(0)}
+                y2={laneY(0) + size.timelineLane}
+                stroke={color.textMuted}
+                strokeWidth={stroke.grey}
+              />
+            ) : null}
             <Line
-              x1={xOf(w.medianLap)}
-              x2={xOf(w.medianLap)}
+              x1={xOf(w.planLap)}
+              x2={xOf(w.planLap)}
               y1={laneY(0)}
               y2={laneY(0) + size.timelineLane}
-              stroke={color.textMuted}
-              strokeWidth={stroke.grey}
+              stroke={color.accent}
+              strokeWidth={stroke.ref}
             />
-          ) : null}
+          </G>
+        ))}
+        {lanes.map((lane, i) => (
+          <G key={lane.key}>
+            <SvgText
+              x={0}
+              y={laneY(i + 1) + size.timelineLane / 2 + 3}
+              fill={color.textSecondary}
+              fontFamily={axis.fontFamily}
+              fontSize={axis.fontSize}>
+              {lane.label}
+            </SvgText>
+            {lane.passes.map(p => (
+              <G key={p.centre}>
+                <Rect
+                  x={xOf(p.lo)}
+                  y={laneY(i + 1)}
+                  width={Math.max(1, xOf(p.hi) - xOf(p.lo))}
+                  height={size.timelineLane}
+                  fill={color.lineStrong}
+                  fillOpacity={BAND_OPACITY}
+                />
+                <Line
+                  x1={xOf(p.centre)}
+                  x2={xOf(p.centre)}
+                  y1={laneY(i + 1)}
+                  y2={laneY(i + 1) + size.timelineLane}
+                  stroke={color.text}
+                  strokeWidth={stroke.selected}
+                />
+              </G>
+            ))}
+          </G>
+        ))}
+        {timing.stopsAfter.map(s => (
           <Line
-            x1={xOf(w.planLap)}
-            x2={xOf(w.planLap)}
-            y1={laneY(0)}
-            y2={laneY(0) + size.timelineLane}
+            key={s}
+            x1={xOf(s)}
+            x2={xOf(s)}
+            y1={windows.length > 0 ? laneY(1) : size.timelineAxis}
+            y2={height}
             stroke={color.accent}
-            strokeWidth={stroke.ref}
+            strokeWidth={stroke.selected}
+            strokeDasharray={dash.pit}
           />
-        </G>
-      ))}
-      {lanes.map((lane, i) => (
-        <G key={lane.key}>
-          <SvgText
-            x={0}
-            y={laneY(i + 1) + size.timelineLane / 2 + 3}
-            fill={color.textSecondary}
-            fontFamily={axis.fontFamily}
-            fontSize={axis.fontSize}>
-            {lane.label}
-          </SvgText>
-          {lane.passes.map(p => (
-            <G key={p.centre}>
-              <Rect
-                x={xOf(p.lo)}
-                y={laneY(i + 1)}
-                width={Math.max(1, xOf(p.hi) - xOf(p.lo))}
-                height={size.timelineLane}
-                fill={color.lineStrong}
-                fillOpacity={BAND_OPACITY}
-              />
-              <Line
-                x1={xOf(p.centre)}
-                x2={xOf(p.centre)}
-                y1={laneY(i + 1)}
-                y2={laneY(i + 1) + size.timelineLane}
-                stroke={color.text}
-                strokeWidth={stroke.selected}
-              />
-            </G>
-          ))}
-        </G>
-      ))}
-      {timing.stopsAfter.map(s => (
-        <Line
-          key={s}
-          x1={xOf(s)}
-          x2={xOf(s)}
-          y1={windows.length > 0 ? laneY(1) : size.timelineAxis}
-          y2={height}
-          stroke={color.accent}
-          strokeWidth={stroke.selected}
-          strokeDasharray={dash.pit}
+        ))}
+      </Svg>
+      {onStop ? (
+        <View
+          {...drag.panHandlers}
+          onLayout={drag.onLayout}
+          accessibilityLabel='Drag a stop along the stint lane'
+          style={[styles.dragLane, {left: plotX, width: plotW, top: laneY(0)}]}
         />
-      ))}
-    </Svg>
+      ) : null}
+    </View>
   );
 }
+
+/**
+ * Dragging on the stint lane moves the stop nearest the touch: the pointer's
+ * lap is asked of the model, which clamps it to the stop's bounds. `stops` are
+ * the stops as drawn now.
+ */
+function useStopDrag(
+  stops: number[],
+  raceLaps: number,
+  onStop?: (stop: number, lap: number) => void,
+) {
+  const [trackW, setTrackW] = useState(0);
+  const latest = useRef({stops, raceLaps, trackW, onStop});
+  useEffect(() => {
+    latest.current = {stops, raceLaps, trackW, onStop};
+  });
+  const held = useRef(-1);
+  // eslint-disable-next-line react-hooks/refs
+  const [responder] = useState(() => {
+    const ask = (x: number) => {
+      const l = latest.current;
+      if (held.current < 0 || !l.onStop) return;
+      l.onStop(held.current + 1, lapAt(x, l.trackW, 0, l.raceLaps));
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => latest.current.onStop != null,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: e => {
+        const l = latest.current;
+        const lap = lapAt(e.nativeEvent.locationX, l.trackW, 0, l.raceLaps);
+        let best = -1;
+        l.stops.forEach((s, i) => {
+          if (best < 0 || Math.abs(s - lap) < Math.abs(l.stops[best] - lap))
+            best = i;
+        });
+        held.current = best;
+        ask(e.nativeEvent.locationX);
+      },
+      onPanResponderMove: e => ask(e.nativeEvent.locationX),
+      onPanResponderRelease: () => {
+        held.current = -1;
+      },
+      onPanResponderTerminate: () => {
+        held.current = -1;
+      },
+    });
+  });
+  return {
+    panHandlers: responder.panHandlers,
+    onLayout: (e: {nativeEvent: {layout: {width: number}}}) =>
+      setTrackW(e.nativeEvent.layout.width),
+  };
+}
+
+// The touch target over the stint lane, drawn nowhere.
+const styles = StyleSheet.create({
+  dragLane: {position: 'absolute', height: size.timelineLane},
+});
