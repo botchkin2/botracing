@@ -4,6 +4,7 @@ import {
   type ClassLapStats,
   type PaceClass,
 } from '@/src/analysis/classLaps';
+import {type LapSet, type SessionTraffic} from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
@@ -219,6 +220,19 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
   return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
 }
 
+/** Null when the session has no traffic block (no field, or not yet resynced). */
+export function toSessionTraffic(v: unknown): SessionTraffic | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const set = (w: unknown): LapSet | null => {
+    const laps = num(obj(w).laps);
+    return laps == null ? null : {laps, medianS: num(obj(w).medianS)};
+  };
+  const [clean, traffic] = [set(x.clean), set(x.traffic)];
+  if (!clean || !traffic) return null;
+  return {v: num(x.v) ?? 0, clean, traffic};
+}
+
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Null on sessions analysed before the fuel facts. */
@@ -228,6 +242,8 @@ export type SessionDetail = SessionSummary & {
   field: FieldPointer | null;
   /** Every class's lap times in this race, or null without a field. */
   classLaps: SessionClassLaps | null;
+  /** Median of the clean laps and of the traffic laps; null without a field. */
+  traffic: SessionTraffic | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
@@ -247,6 +263,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
     classLaps: toClassLaps(raw.classLaps),
+    traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
     stints: stints.map(s => {

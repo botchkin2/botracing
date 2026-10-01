@@ -8,6 +8,7 @@ import {
   type LapRowModel,
   buildSessionModel,
   selectStint,
+  cleanMedianFact,
   toggleLap,
 } from './model';
 
@@ -30,6 +31,7 @@ describe('buildSessionModel', () => {
       {label: 'Comparable', value: '16'},
       {label: 'Best', value: '1:20.763', best: true},
       {label: 'Median', value: '1:21.915'},
+      {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });
 
@@ -165,7 +167,7 @@ describe('traffic tags, rails and the clean best', () => {
 
   it('a towed best lap shows TOW first, then BEST', () => {
     expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual(['TOW 6.1', 'BEST']);
-    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF');
+    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0');
   });
 
   it('hollow bars and rails come from the traffic facts', () => {
@@ -264,5 +266,34 @@ describe('fuel and Virtual Energy rows', () => {
     expect(
       buildSessionModel(session, laps, {laps: [], hl: laps[0].id}).detail!.fuel,
     ).toEqual([]);
+  });
+});
+
+describe('cleanMedianFact', () => {
+  const field = {gridId: 'g'} as unknown as typeof session.field;
+  const withTraffic = (clean: {laps: number; medianS: number | null}) => ({
+    ...session,
+    field,
+    traffic: {v: 1, clean, traffic: {laps: 0, medianS: null}},
+  });
+
+  it('says so when the session has no field', () => {
+    expect(cleanMedianFact(session).value).toBe('No other cars recorded');
+  });
+
+  it('shows a dash for a field not yet analysed for traffic', () => {
+    expect(cleanMedianFact({...session, field}).value).toBe('—');
+  });
+
+  it('shows the median and the laps behind it', () => {
+    expect(cleanMedianFact(withTraffic({laps: 12, medianS: 81.5})).value).toBe(
+      '1:21.500 · 12 laps',
+    );
+  });
+
+  it('shows a dash under the lap floor', () => {
+    expect(cleanMedianFact(withTraffic({laps: 2, medianS: null})).value).toBe(
+      '—',
+    );
   });
 });

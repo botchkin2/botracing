@@ -164,6 +164,25 @@ function buildFuelUseCard(
   };
 }
 
+/**
+ * The clean-lap median beside the overall median: laps in free air (the rule
+ * is in src/analysis/traffic.ts). A session with no field says so; one with a
+ * field but no traffic block yet (not resynced) shows a dash.
+ */
+export function cleanMedianFact(session: SessionDetail): Fact {
+  const label = 'Clean median';
+  if (session.traffic == null)
+    return {
+      label,
+      value: session.field == null ? 'No other cars recorded' : '—',
+    };
+  const {medianS, laps} = session.traffic.clean;
+  return {
+    label,
+    value: medianS == null ? '—' : `${formatLapTime(medianS)} · ${laps} laps`,
+  };
+}
+
 export const BAR_CLAMP_S = 1.5;
 
 const TYPE_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
@@ -449,6 +468,7 @@ export function buildSessionModel(
         best: true,
       },
       {label: 'Median', value: timeOrDash(median)},
+      cleanMedianFact(session),
       ...cleanBestFact,
     ],
     chart,
