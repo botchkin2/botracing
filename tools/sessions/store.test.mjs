@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {sessionBoundaries, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {checkDoc} from './docShape.mjs';
 import {getBoundaries, putBoundaries, writeBoundaries} from './store.mjs';
 import {LENGTH_M, makeLap, map} from './syntheticLap.mjs';
 
@@ -31,19 +32,8 @@ function fakeDb() {
         set: (ref, data, options) => queue.push([ref, data, options]),
         close: async () => {
           for (const [ref, data, options] of queue) {
-            // What Firestore refuses: an array inside an array.
-            const check = v => {
-              if (Array.isArray(v)) {
-                assert.ok(
-                  !v.some(Array.isArray),
-                  `nested array in ${ref.path}`,
-                );
-                v.forEach(check);
-              } else if (v && typeof v === 'object')
-                Object.values(v).forEach(check);
-              assert.notEqual(v, undefined, `undefined in ${ref.path}`);
-            };
-            check(data);
+            // What Firestore refuses (docShape.mjs).
+            checkDoc(ref.path, data);
             docs.set(
               ref.path,
               options?.merge ? merge(docs.get(ref.path) ?? {}, data) : data,
@@ -127,4 +117,16 @@ test('a session on an older rev is stale, one on the current rev or a layout wit
   assert.equal(staleRev(undefined, 1), true);
   assert.equal(staleRev(3, 3), false);
   assert.equal(staleRev(2, null), false);
+});
+
+test('a layout state Firestore would refuse is not written at all', async () => {
+  const db = fakeDb();
+  const r = fold(null, 's1', lapsOf([580, 1380], [590, 1390]));
+  // A NaN where a speed should be, as a bad channel could leave.
+  const bad = {...r.state, marginM: [NaN, ...r.state.marginM.slice(1)]};
+  await assert.rejects(
+    putBoundaries({trackId: TRACK, state: bad, windows: r.windows}, db),
+    /trackBoundaries\/lmu-synthetic cannot be written to Firestore: marginM\[0\]: NaN/,
+  );
+  assert.equal(db.docs.size, 0);
 });

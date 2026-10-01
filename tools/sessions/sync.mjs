@@ -50,6 +50,7 @@ import {
 } from './cornerSlices.mjs';
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldFor} from './field.mjs';
+import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
@@ -629,6 +630,11 @@ function build(
 }
 
 function writeLocal(out) {
+  // The same shape check the upload runs (docShape.mjs), so a local run, the
+  // one a worktree can do without credentials, fails on what Firestore would.
+  checkDoc(`sessions/${out.session.id}`, out.session);
+  for (const rec of out.recordings) checkDoc(`recordings/${rec.id}`, rec);
+  for (const lap of out.laps) checkDoc(`laps/${lap.id}`, lap);
   const dir = resolve(work, 'out', out.session.id);
   mkdirSync(resolve(dir, 'traces'), {recursive: true});
   writeFileSync(
