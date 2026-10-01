@@ -11,6 +11,7 @@ import {
   type TiresCard as TiresCardModel,
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
+import {CoolDown} from './CoolDown';
 import {TireGrid} from './TireGrid';
 import {TreadZones} from './TreadZones';
 
@@ -131,6 +132,10 @@ export function TiresCard({
         width={width}
         medianLabel='median over the green laps'
       />
+      <View style={styles.block}>
+        <Text variant='label'>Stop cool-down</Text>
+        <CoolDown block={stint.coolDown} width={width} />
+      </View>
       {stint.tread ? (
         <View style={styles.block}>
           <Text variant='label'>Tread zones</Text>

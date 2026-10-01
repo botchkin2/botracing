@@ -48,6 +48,8 @@ export type PitColumn = {
     refuelS: number | null;
   } | null;
   tyres: string | null;
+  /** "As at the start of the run" or "different from it", for a stop that changed all four wheels; null otherwise. Names are not recorded. */
+  compound: string | null;
   /** Wear per wheel round the stop; null where the laps carry no wear (older sessions). */
   wheels: WheelWear[] | null;
 };
@@ -204,6 +206,22 @@ function tyresCell(stop: PitStop): string | null {
     : text;
 }
 
+/**
+ * The compound of a full set against the one in force at the start of the
+ * recording (a recording restarts after a reset to the garage, so "of the
+ * run", not "of the race"). No file names a compound, so none is named.
+ */
+export function compoundText(stop: PitStop): string | null {
+  switch (stop.tyres?.compound) {
+    case 'start':
+      return 'Compound as at the start of the run';
+    case 'other':
+      return 'Compound different from the start of the run';
+    default:
+      return null;
+  }
+}
+
 // A wear reading of 0 is a dead sensor (the uploader nulls it; guarded here
 // for docs written before that).
 const liveWear = (v: number | null | undefined) =>
@@ -301,6 +319,7 @@ function column(
     veOut,
     lane,
     tyres: tyresCell(stop),
+    compound: compoundText(stop),
     wheels: wheelWear(stop, laps, index),
   };
 }

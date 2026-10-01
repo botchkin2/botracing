@@ -8,7 +8,7 @@ import type {Lap, PitTyres, SessionType, Wheel} from '@/src/data/sessions';
 export const PIT_REVIEW_HELP: readonly string[] = [
   'Each stop is a column: what was in the tank at pit entry, what the stop added, VE out and the time in the lane.',
   'Laps are at the median use per green lap of the stint they belong to; the lane bar splits out refuelling only where the rate is measured.',
-  'Tyres: the wheels whose wear reading stepped up inside the pit window. Under them, % of a new tyre left per wheel, at pit entry then 1 s after pit exit; a kept wheel is one number. A star is the last valid reading from an earlier lap, for a sensor that reads 0.',
+  'Tyres: the wheels whose wear reading stepped up inside the pit window. Under them, % of a new tyre left per wheel, at pit entry then 1 s after pit exit; a kept wheel is one number. A star is the last valid reading from an earlier lap, for a sensor that reads 0. A stop that changed all four wheels says whether the compound is the one in force at the start of the run; names are not recorded. Cooling at a stop is not a change, and its numbers are on the Tires card.',
   'The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.',
 ];
 
