@@ -82,3 +82,17 @@ export function formatDayMonth(iso: string): string {
   const month = d.toLocaleDateString('en-US', {month: 'short'});
   return `${d.getDate()} ${month}`;
 }
+
+/** "14 Sep, 18:30" this year, "14 Sep 2025" for an earlier year; device time zone. */
+export function formatDayMonthTime(
+  iso: string,
+  now: Date = new Date(),
+): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  if (d.getFullYear() !== now.getFullYear())
+    return `${formatDayMonth(iso)} ${d.getFullYear()}`;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDayMonth(iso)}, ${hh}:${mm}`;
+}
