@@ -8,7 +8,7 @@ import type {Lap, PitTyres, SessionType, Wheel} from '@/src/data/sessions';
 export const PIT_REVIEW_HELP: readonly string[] = [
   'Each stop is a column: what was in the tank at pit entry, what the stop added, VE out and the time in the lane.',
   'Laps are at the median use per green lap of the stint they belong to; the lane bar splits out refuelling only where the rate is measured.',
-  'Tyres are the wheels whose wear reading stepped up inside the pit window.',
+  'Tyres: the wheels whose wear reading stepped up inside the pit window, and under them how much of a new tyre is left per wheel, in %, at the end of the lap the stop was entered on and then at the end of the lap after (one out lap of wear on a new tyre). A dash is a dead sensor.',
   'The end row is the last whole lap: the tank at the last stop plus what it added, less what was left, is what the laps after it used.',
 ];
 
