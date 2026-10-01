@@ -132,6 +132,7 @@ export function SessionWorkspace({
               </View>
             ))}
           </View>
+          {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
         </View>
         <View style={styles.chart}>{chart(innerW)}</View>
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>

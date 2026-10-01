@@ -41,6 +41,28 @@ export function LapDetail({
           {line}
         </Text>
       ))}
+      {detail.traffic && (
+        <View style={styles.traffic}>
+          <Text variant='label' tone='textMuted'>
+            Traffic on this lap
+          </Text>
+          {detail.traffic.map(r => (
+            <View key={r.label}>
+              <View style={styles.row}>
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {r.label}
+                </Text>
+                <Text variant='dataSmall'>{r.value}</Text>
+              </View>
+              {r.note ? (
+                <Text variant='dataSmall' tone='textMuted'>
+                  {r.note}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
       {detail.why && (
         <Text variant='explainer' tone='textMuted'>
           {detail.why}
@@ -66,5 +88,7 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   title: {fontSize: 14, fontFamily: fonts.monoBold},
+  traffic: {gap: space.xs, marginTop: space.sm},
+  row: {flexDirection: 'row', justifyContent: 'space-between', gap: space.md},
   action: {alignSelf: 'flex-start', marginTop: space.sm},
 });

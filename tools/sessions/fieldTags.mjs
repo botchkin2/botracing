@@ -8,6 +8,7 @@
 // Sampling is 5 Hz, so a pass that starts and ends inside 0.4 s is missed;
 // that is fine for a count of passes but not for timing one.
 import {paceOf} from '../../src/analysis/classLaps.ts';
+import {BLUE_BEHIND_S} from '../../src/analysis/traffic.ts';
 import {undelta} from './field.mjs';
 
 // Same lane: lateral centre lines within this many metres (the measured
@@ -24,8 +25,8 @@ export const BLUE_FLAG = 6;
 // fields (9b16b76c, adb8e6e8; 5 Hz): 99-100 % of the samples the game flags
 // blue have a faster car within 1.5 s, and 100 % within 2 s, so a longer
 // window flags laps the game never did (3 s: the game flagged 8-22 % of
-// those samples). The game's flag starts about 1.1 s behind.
-export const BLUE_BEHIND_S = 1.5;
+// those samples). The game's flag starts about 1.1 s behind. The constant
+// is BLUE_BEHIND_S in src/analysis/traffic.ts, which the app prints too.
 // "Traffic" is a car within this many seconds on the road, ahead or behind.
 export const TRAFFIC_S = 1;
 // A pass is the on-road gap changing sign while both cars are this close.
