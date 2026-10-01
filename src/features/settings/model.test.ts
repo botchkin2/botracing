@@ -66,6 +66,14 @@ describe('uploaderCard', () => {
     expect(c.status).toBe('Re-analysing 120 / 364 · seen 2 min ago');
   });
 
+  it('says the track maps are updating once the sessions are done', () => {
+    const c = uploaderCard(
+      rig({progress: {done: 7, total: 13, phase: 'surface'}}),
+      NOW,
+    );
+    expect(c.status).toBe('Updating track maps 7 / 13 · seen 2 min ago');
+  });
+
   it('is grey past 10 min, and says how long, never red', () => {
     const c = uploaderCard(rig({lastSeenAt: NOW - 3 * 24 * 60 * min}), NOW);
     expect(c.dot).toBe('unseen');

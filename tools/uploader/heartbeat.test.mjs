@@ -109,3 +109,13 @@ test('idle state: crash, then in game, then retrying, then waiting', () => {
   );
   assert.equal(idleState({...s, retryPending: true, crashed: true}), 'error');
 });
+
+test('the fold phase is part of the beat key, so a new phase writes at once', () => {
+  const sessions = heartbeatDoc({...input, progress: {done: 13, total: 13}});
+  const fold = heartbeatDoc({
+    ...input,
+    progress: {done: 13, total: 13, phase: 'surface'},
+  });
+  assert.notEqual(beatKey(sessions), beatKey(fold));
+  assert.equal(fold.progress.phase, 'surface');
+});
