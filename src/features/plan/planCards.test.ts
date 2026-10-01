@@ -38,11 +38,11 @@ describe('buildPlanCards', () => {
 
   it('the Race card: laps from the median lap time, the full-tank stops and the arithmetic', () => {
     expect(cards.race.laps).toBe(72);
-    expect(cards.race.oneFewer).toBe(71);
+    expect(cards.race.oneMore).toBe(73);
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
     expect(cards.race.working).toBe(
-      "At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The race ends after the leader's lap, which can make it 71.",
+      "At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says: 73 laps. Time in the pits is not counted.",
     );
   });
 
