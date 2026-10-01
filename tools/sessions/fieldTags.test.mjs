@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {encode} from './field.mjs';
 import {decodeField, lapFieldFacts} from './fieldTags.mjs';
+import {lapTraffic} from './lapTraffic.mjs';
 
 const DT = 0.2;
 const cars = [
@@ -205,7 +206,7 @@ test('spans: where traffic and blue were, adding up to the seconds', () => {
   }));
   const t = lapFieldFacts(f, [all])[0];
   const sum = spans =>
-    Math.round(spans.reduce((a, s) => a + s[2], 0) * 10) / 10;
+    Math.round(spans.reduce((a, s) => a + s.s, 0) * 10) / 10;
   assert.equal(t.aheadSpans.length, 2);
   assert.equal(sum(t.aheadSpans), t.trafficAheadS);
   assert.equal(t.blueSpans.length, 1);
@@ -213,8 +214,8 @@ test('spans: where traffic and blue were, adding up to the seconds', () => {
   // The first span starts where the player was at update 5 and ends one step
   // past update 14.
   const step = V * DT;
-  assert.equal(t.aheadSpans[0][0], Math.round(me(5).lapDist * 10) / 10);
-  assert.ok(Math.abs(t.aheadSpans[0][1] - (me(14).lapDist + step)) < 0.5);
+  assert.equal(t.aheadSpans[0].fromM, Math.round(me(5).lapDist * 10) / 10);
+  assert.ok(Math.abs(t.aheadSpans[0].toM - (me(14).lapDist + step)) < 0.5);
 });
 
 test('the field lap length rides with the block, for scaling the spans', () => {
@@ -316,4 +317,30 @@ test('battleS: seconds within 1 s of a same-class car, either side, any lane', (
   } finally {
     cars[2].class = was;
   }
+});
+
+// Firestore refuses an array directly inside an array, and every lap doc is
+// written to it: the traffic block of every kind of lap must have none
+// (the v3 spans were [a, b, c] and blocked a rollout).
+test('no array inside an array anywhere in a traffic block', () => {
+  const nested = (v, path = 'traffic') => {
+    if (Array.isArray(v)) {
+      assert.ok(!v.some(Array.isArray), `array in array at ${path}`);
+      v.forEach((x, i) => nested(x, `${path}[${i}]`));
+    } else if (v && typeof v === 'object')
+      for (const [k, x] of Object.entries(v)) nested(x, `${path}.${k}`);
+  };
+  const f = build(40, u => ({
+    0: me(u),
+    1: {
+      lapDist: me(u).lapDist + (u >= 5 && u < 15 ? 30 : 300),
+      lane: 0,
+    },
+    4: {lapDist: me(u).lapDist - (u >= 8 && u < 18 ? 60 : 500), lane: 5},
+    3: far,
+  }));
+  const [t] = lapFieldFacts(f, [all]);
+  assert.ok(t.aheadSpans.length > 0 && t.blueSpans.length > 0);
+  nested(t);
+  nested(lapTraffic(f, [all])[0]);
 });

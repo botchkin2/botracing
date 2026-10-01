@@ -455,7 +455,7 @@ export type LapTraffic = {
   battleS: number;
   /** Cars of a faster class that went from behind the player to ahead, in lap-distance order. */
   overtakes: Overtake[];
-  /** Where a car was within 1 s ahead, and where a faster-class car was within 1.5 s behind, on this lap: [fromM, toM, seconds] in the field's lap distance. Empty before traffic v3. */
+  /** Where a car was within 1 s ahead, and where a faster-class car was within 1.5 s behind, on this lap: {fromM, toM, s} in the field's lap distance. Empty before traffic v3. */
   aheadSpans: TrafficSpan[];
   blueSpans: TrafficSpan[];
   /** Own-class passes and where they happened. */
@@ -465,7 +465,7 @@ export type LapTraffic = {
 };
 
 /** A run of consecutive updates: lap distance from, to (metres) and its length in seconds. */
-export type TrafficSpan = [fromM: number, toM: number, s: number];
+export type TrafficSpan = {fromM: number; toM: number; s: number};
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
 export type CornerFacts = {
@@ -734,9 +734,12 @@ function toOvertakes(v: unknown): Overtake[] {
 function toSpans(v: unknown): TrafficSpan[] {
   if (!Array.isArray(v)) return [];
   const out: TrafficSpan[] = [];
-  for (const s of v) {
-    const [a, b, c] = Array.isArray(s) ? s : [];
-    if (num(a) != null && num(b) != null && num(c) != null) out.push([a, b, c]);
+  for (const o of v) {
+    const fromM = num(obj(o).fromM);
+    const toM = num(obj(o).toM);
+    const seconds = num(obj(o).s);
+    if (fromM != null && toM != null && seconds != null)
+      out.push({fromM, toM, s: seconds});
   }
   return out;
 }

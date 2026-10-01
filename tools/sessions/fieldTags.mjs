@@ -95,7 +95,8 @@ const EMPTY = () => ({
   // Seconds within TRAFFIC_S of a car of the player's class, ahead or behind,
   // in any lane (side by side counts).
   battleS: 0,
-  // Where on the lap, for the Compare lane (round 7, 2C): [fromM, toM, s],
+  // Where on the lap, for the Compare lane (round 7, 2C): {fromM, toM, s} (objects,
+  // not [a, b, c]: Firestore refuses an array inside an array),
   // one per run of consecutive updates, from the lap distance of the first
   // update to the end of the last one's step (speed times the update
   // interval), 0.1 m resolution. They follow the same rule and thresholds as
@@ -139,13 +140,13 @@ export function lapFieldFacts(field, windows) {
   const mark = (w, kind, u, atM, stepM) => {
     const run = open[w][kind];
     // A run ends where the lap distance wraps at the line.
-    if (run && run.lastU === u - 1 && atM >= run.span[0]) {
-      run.span[1] = atM + stepM;
-      run.span[2] += dt;
+    if (run && run.lastU === u - 1 && atM >= run.span.fromM) {
+      run.span.toM = atM + stepM;
+      run.span.s += dt;
       run.lastU = u;
       return;
     }
-    const span = [atM, atM + stepM, dt];
+    const span = {fromM: atM, toM: atM + stepM, s: dt};
     out[w][kind].push(span);
     open[w][kind] = {span, lastU: u};
   };
@@ -231,9 +232,9 @@ export function lapFieldFacts(field, windows) {
     }
     for (const kind of ['aheadSpans', 'blueSpans'])
       for (const span of f[kind]) {
-        span[0] = round1(span[0]);
-        span[1] = round1(span[1]);
-        span[2] = Math.round(span[2] * 10) / 10;
+        span.fromM = round1(span.fromM);
+        span.toM = round1(span.toM);
+        span.s = round1(span.s);
       }
   }
   return out;

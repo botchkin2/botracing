@@ -3,7 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {laneRowOf} from './trafficLane';
 
 const base = {
-  aheadSpans: [] as [number, number, number][],
+  aheadSpans: [] as {fromM: number; toM: number; s: number}[],
   overtakes: [] as {atM: number}[],
   passMarks: [] as {atM: number; made: boolean}[],
   fieldLapM: 5000,
@@ -20,7 +20,7 @@ describe('laneRowOf', () => {
     const row = laneRowOf(
       {
         ...base,
-        aheadSpans: [[1000, 2000, 5]],
+        aheadSpans: [{fromM: 1000, toM: 2000, s: 5}],
         overtakes: [{atM: 2500}],
         passMarks: [{atM: 500, made: true}],
       },
@@ -38,10 +38,10 @@ describe('laneRowOf', () => {
       {
         ...base,
         aheadSpans: [
-          [-90, -80, 1], // the race-start roll, before the line
-          [-30, 200, 2], // over the start line
-          [4900, 5200, 2], // over the finish line
-          [5300, 5400, 1], // next lap
+          {fromM: -90, toM: -80, s: 1}, // the race-start roll, before the line
+          {fromM: -30, toM: 200, s: 2}, // over the start line
+          {fromM: 4900, toM: 5200, s: 2}, // over the finish line
+          {fromM: 5300, toM: 5400, s: 1}, // next lap
         ],
       },
       5000,
