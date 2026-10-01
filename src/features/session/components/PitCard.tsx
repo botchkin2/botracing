@@ -10,6 +10,7 @@ import {
   type PitCard as PitCardModel,
   type PitColumn,
   type StopsCard,
+  type WheelWear,
 } from '../pitCard';
 import {PIT_REVIEW_HELP} from '../pitReview';
 
@@ -131,7 +132,7 @@ function StopsBody({
     {key: 'added', label: 'Added', h: size.pitRow},
     ...(card.hasVe ? [{key: 'veOut', label: 'VE out', h: size.pitBarRow}] : []),
     {key: 'lane', label: 'Pit lane', h: size.pitBarRow},
-    {key: 'tyres', label: 'Tyres', h: size.pitRow},
+    {key: 'tyres', label: 'Tyres', h: size.pitTyreRow},
   ];
   const cellOf = (c: PitColumn, key: string) => {
     switch (key) {
@@ -189,7 +190,14 @@ function StopsBody({
           dash()
         );
       default:
-        return c.tyres ? <Text variant='dataStrong'>{c.tyres}</Text> : dash();
+        return c.tyres ? (
+          <>
+            <Text variant='dataStrong'>{c.tyres}</Text>
+            {c.wheels ? <WheelGrid wheels={c.wheels} /> : null}
+          </>
+        ) : (
+          dash()
+        );
     }
   };
   const columns = card.columns.map(c => (
@@ -267,6 +275,27 @@ function StopsBody({
           ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// Wear per wheel, "before → after" in %, fronts first. A wheel with a new
+// tyre is bright; one with no reading is a gap.
+function WheelGrid({wheels}: {wheels: WheelWear[]}) {
+  const pct = (v: number | null) => (v == null ? '—' : String(Math.round(v)));
+  return (
+    <View>
+      {wheels.map(w => (
+        <Text
+          key={w.wheel}
+          variant='dataSmall'
+          tone={w.changed ? 'text' : 'textMuted'}
+          accessibilityLabel={`${w.wheel} wear ${pct(w.beforePct)} to ${pct(
+            w.afterPct,
+          )} percent${w.changed ? ', new tyre' : ''}`}>
+          {`${w.wheel} ${pct(w.beforePct)}→${pct(w.afterPct)}`}
+        </Text>
+      ))}
     </View>
   );
 }

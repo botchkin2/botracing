@@ -8,6 +8,7 @@
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
 import {refuelS, refuelScope} from '@/src/analysis/refuel';
+import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {
   Lap,
@@ -47,6 +48,21 @@ export type PitColumn = {
     refuelS: number | null;
   } | null;
   tyres: string | null;
+  /** Wear per wheel round the stop; null where the laps carry no wear (older sessions). */
+  wheels: WheelWear[] | null;
+};
+
+/**
+ * One wheel's wear in % of a new tyre. `beforePct` is the end of the lap the
+ * stop was entered on, `afterPct` the end of the lap after it (the stop ends
+ * inside that lap, so it holds one out lap of wear). A null is a dead sensor
+ * or no reading, shown as a gap and never as 0.
+ */
+export type WheelWear = {
+  wheel: Wheel;
+  changed: boolean;
+  beforePct: number | null;
+  afterPct: number | null;
 };
 
 export type PitCardEnd = {
@@ -184,6 +200,29 @@ function tyresCell(stop: PitStop): string | null {
     : text;
 }
 
+// A wear reading of 0 is a dead sensor (the uploader nulls it; guarded here
+// for docs written before that).
+const liveWear = (v: number | null | undefined) =>
+  v != null && v > 0 ? v : null;
+
+// Null when neither lap has a wear reading, so older sessions keep the
+// summary alone.
+function wheelWear(
+  stop: PitStop,
+  before: Lap,
+  after: Lap | undefined,
+): WheelWear[] | null {
+  const b = before.tyres?.wearPct;
+  const a = after?.tyres?.wearPct;
+  if (!b && !a) return null;
+  return WHEELS.map(wheel => ({
+    wheel,
+    changed: stop.tyres?.wheels.includes(wheel) ?? false,
+    beforePct: liveWear(b?.[wheel]),
+    afterPct: liveWear(a?.[wheel]),
+  }));
+}
+
 function column(
   laps: Lap[],
   lap: Lap,
@@ -227,6 +266,7 @@ function column(
     veOut,
     lane,
     tyres: tyresCell(stop),
+    wheels: wheelWear(stop, lap, laps[index + 1]),
   };
 }
 

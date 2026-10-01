@@ -270,6 +270,73 @@ describe('buildPitCard', () => {
     expect(tyres(null)).toBeNull();
   });
 
+  describe('wear per wheel round the stop', () => {
+    const wear = (
+      FL: number | null,
+      FR: number | null,
+      RL: number | null,
+      RR: number | null,
+    ) => ({
+      v: 1,
+      wearPct: {FL, FR, RL, RR},
+      pressureKpa: null,
+      rubberC: null,
+      carcassC: null,
+      changed: null,
+    });
+    const wheels = (
+      before: Lap['tyres'],
+      after: Lap['tyres'],
+      tyres: PitStop['tyres'] = {changed: true, wheels: ['FR']},
+    ) => {
+      const laps = oneStop.map(l =>
+        l.id === 'l6'
+          ? {...l, tyres: before, pitStop: stop({tyres})}
+          : l.id === 'l7'
+          ? {...l, tyres: after}
+          : l,
+      );
+      const card = buildPitCard('R', laps, session());
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      return card.columns[0].wheels;
+    };
+
+    it('reads the pit-in lap as before and the lap after as after, and marks the changed wheel', () => {
+      expect(
+        wheels(wear(61.2, 55.4, 63, 58), wear(60.1, 98.9, 62.4, 57.2)),
+      ).toEqual([
+        {wheel: 'FL', changed: false, beforePct: 61.2, afterPct: 60.1},
+        {wheel: 'FR', changed: true, beforePct: 55.4, afterPct: 98.9},
+        {wheel: 'RL', changed: false, beforePct: 63, afterPct: 62.4},
+        {wheel: 'RR', changed: false, beforePct: 58, afterPct: 57.2},
+      ]);
+    });
+
+    it('leaves a dead sensor as a gap, never a zero', () => {
+      const w = wheels(wear(61, 0, 63, 58), wear(60, null, 62, 57));
+      expect(w?.[1]).toEqual({
+        wheel: 'FR',
+        changed: true,
+        beforePct: null,
+        afterPct: null,
+      });
+    });
+
+    it('has no wheels for older sessions whose laps carry no tyres', () => {
+      expect(wheels(null, null)).toBeNull();
+    });
+
+    it('keeps the side that has a reading when the other lap has none', () => {
+      const w = wheels(wear(61, 55, 63, 58), null);
+      expect(w?.map(x => [x.beforePct, x.afterPct])).toEqual([
+        [61, null],
+        [55, null],
+        [63, null],
+        [58, null],
+      ]);
+    });
+  });
+
   it('a session ending in the pits has no lane time and no tyres yet', () => {
     const laps = [
       ...oneStop.slice(0, 5),
