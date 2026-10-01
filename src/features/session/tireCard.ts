@@ -20,15 +20,22 @@ export type WheelCell = {
   wheel: Wheel;
   /** Wear left at the end of the last green lap, % of a new tyre. */
   leftPct: number | null;
-  /** % lost on each green lap that follows a lap with a reading, in lap order. */
-  lossPct: number[];
-  /** Median of `lossPct`; null with none. */
+  /** % lost on every lap that follows a lap with a reading, in lap order; a lap that is not green is drawn hollow. */
+  bars: LossBar[];
+  /** Median over the green laps' losses; null with none. */
   medianLossPct: number | null;
+  /** The largest single-lap loss, when it is over BIG_LOSS_FACTOR times the median. */
+  biggest: {lapLabel: string; lossPct: number; green: boolean} | null;
   /** Median stabilised hot pressure over the green laps, kPa. */
   hotKpa: number | null;
   /** The sensor reads nothing from `flat.fromLap` on (a flat tyre or a failed sensor). */
   flat: FlatWheel | null;
 };
+
+export type LossBar = {lapLabel: string; lossPct: number; green: boolean};
+
+/** A single lap's loss is called out when it is over this many times the median. */
+export const BIG_LOSS_FACTOR = 3;
 
 export type FlatWheel = {
   /** "L37": the first lap with no pressure reading. */
@@ -69,7 +76,7 @@ export type StintTires = {
   readings: ReadingRow[];
   /** Each lap's median pressure (the line); the key's median is the stabilised hot one. */
   pressure: AxleSeries;
-  /** Each lap's outer rubber temperature, C. */
+  /** Each lap's surface-layer rubber temperature, C. */
   rubber: AxleSeries;
   /** The sentence about a wheel that read nothing, or null. */
   flatNote: string | null;
@@ -169,21 +176,33 @@ function stintTires(n: number, laps: Lap[]): StintTires | null {
     const usable = (i: number) => from == null || i < from;
     // Wear left: the last green lap with a reading before the wheel went dark.
     let leftPct: number | null = null;
-    const loss: number[] = [];
+    const bars: LossBar[] = [];
     const hot: number[] = [];
     withData.forEach((l, i) => {
-      if (!usable(i) || !green.has(l.id)) return;
+      if (!usable(i)) return;
+      const isGreen = green.has(l.id);
       const w = l.tyres?.wearPct?.[wheel];
-      if (w != null) leftPct = w;
+      if (w != null && isGreen) leftPct = w;
       const prev = withData[i - 1];
       const before =
         prev && prev.lapIndex === l.lapIndex - 1
           ? prev.tyres?.wearPct?.[wheel]
           : null;
-      if (w != null && before != null && before >= w) loss.push(before - w);
-      const h = l.tyres?.hotPressureKpa?.[wheel];
+      // Every lap is a bar, so a lock-up on an untimed lap shows; only green laps feed the median.
+      if (w != null && before != null && before >= w)
+        bars.push({lapLabel: lapLabel(l), lossPct: before - w, green: isGreen});
+      const h = isGreen ? l.tyres?.hotPressureKpa?.[wheel] : null;
       if (h != null) hot.push(h);
     });
+    const medianLoss = median(bars.filter(b => b.green).map(b => b.lossPct));
+    let biggest: WheelCell['biggest'] = null;
+    for (const b of bars)
+      if (!biggest || b.lossPct > biggest.lossPct) biggest = b;
+    if (
+      biggest &&
+      (medianLoss == null || biggest.lossPct <= BIG_LOSS_FACTOR * medianLoss)
+    )
+      biggest = null;
     let flat: FlatWheel | null = null;
     if (from != null) {
       const lastValid = from > 0 ? withData[from - 1] : null;
@@ -196,8 +215,9 @@ function stintTires(n: number, laps: Lap[]): StintTires | null {
     return {
       wheel,
       leftPct,
-      lossPct: loss,
-      medianLossPct: median(loss),
+      bars,
+      medianLossPct: medianLoss,
+      biggest,
       hotKpa: median(hot),
       flat,
     };
@@ -277,8 +297,8 @@ export const NO_TYRE_CHANNELS =
 
 // Behind the "?" on the Tires card, one sentence a line.
 export const TIRES_HELP: readonly string[] = [
-  'Cells are laid out as seen from above, front at the top. The big number is the wear left at the end of the last green lap, in % of a new tyre; the bars are the % lost on each green lap, the dashed line their median.',
+  'Cells are laid out as seen from above, front at the top. The big number is the wear left at the end of the last green lap, in % of a new tyre; the bars are the % lost on each lap, hollow when the lap is not a green one, and the dashed line is the median of the green laps. A lap that lost more than 3 times the median is named under its number.',
   'Pressure is each lap median, outside the pit lane, as an axle mean. The key gives the stabilised hot pressure (the last 5 s of the lap, from the third lap of a stint), which is the number in each cell.',
-  'Rubber temperature is the outer layer, a median per lap. The out-lap warm-up stays in the line.',
+  'Rubber temperature is the surface layer (not the carcass), a median per lap. The out-lap warm-up stays in the line.',
   'A trend needs 5 green laps; with fewer the readings are listed. A wheel that reads no pressure is outlined and left out of every median.',
 ];

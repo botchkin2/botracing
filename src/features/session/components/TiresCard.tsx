@@ -48,7 +48,8 @@ export function TiresCard({
       </View>
       <Explainer>
         Seen from above, front at the top. Big number = left at the end of the
-        last green lap. Bars = % lost on each green lap, dashed line = median.
+        last green lap. Bars = % lost on each lap (hollow = not a green lap),
+        dashed line = median of the green laps.
       </Explainer>
       {help.panel}
       {card.stints.length > 1 ? (

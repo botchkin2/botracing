@@ -75,7 +75,7 @@ describe('buildTiresCard', () => {
     const fl = s.wheels[0];
     expect(fl.wheel).toBe('FL');
     expect(fl.leftPct).toBeCloseTo(95.6);
-    expect(fl.lossPct.map(x => +x.toFixed(2))).toEqual([
+    expect(fl.bars.map(b => +b.lossPct.toFixed(2))).toEqual([
       0.6, 0.8, 0.6, 0.8, 0.6,
     ]);
     expect(fl.medianLossPct).toBeCloseTo(0.6);
@@ -83,22 +83,40 @@ describe('buildTiresCard', () => {
     expect(s.title).toBe('Stint 1 · L2–L7');
   });
 
-  it('a non-green lap is not a bar; the lap after a gap has no loss', () => {
+  it('every lap is a bar, hollow when not green; the median is green laps only', () => {
     const s = one([
       lap(2, 99),
       lap(3, 98, {fuel: {green: false} as Lap['fuel']}),
       lap(4, 97),
     ]);
-    // L3 is not green. L4 follows it, so its loss is 1.0 from L3.
-    expect(s.wheels[0].lossPct).toEqual([1]);
-    expect(s.wheels[0].leftPct).toBe(97);
-    const gap = one([lap(2, 99), lap(5, 95)]);
-    expect(gap.wheels[0].lossPct).toEqual([]);
+    const fl = s.wheels[0];
+    expect(fl.bars).toEqual([
+      {lapLabel: 'L3', lossPct: 1, green: false},
+      {lapLabel: 'L4', lossPct: 1, green: true},
+    ]);
+    expect(fl.medianLossPct).toBe(1);
+    expect(fl.leftPct).toBe(97);
+    // A gap in the laps leaves no bar: nothing to subtract from.
+    expect(one([lap(2, 99), lap(5, 95)]).wheels[0].bars).toEqual([]);
+  });
+
+  it('a single-lap loss over 3 times the median is called out with its lap', () => {
+    const wear = [99, 98.4, 97.8, 91.1, 90.5, 89.9];
+    const laps = wear.map((w, i) =>
+      lap(i + 2, w, i === 3 ? {fuel: {green: false} as Lap['fuel']} : {}),
+    );
+    const fl = one(laps).wheels[0];
+    expect(fl.medianLossPct).toBeCloseTo(0.6);
+    expect(fl.biggest?.lapLabel).toBe('L5');
+    expect(fl.biggest?.lossPct).toBeCloseTo(6.7);
+    expect(fl.biggest?.green).toBe(false);
+    const even = one(wear.map((_, i) => lap(i + 2, 99 - i * 0.6))).wheels[0];
+    expect(even.biggest).toBeNull();
   });
 
   it('a wear step upward (a new tyre) is not a loss', () => {
     const s = one([lap(2, 60), lap(3, 100)]);
-    expect(s.wheels[0].lossPct).toEqual([]);
+    expect(s.wheels[0].bars).toEqual([]);
   });
 
   it('axle means and the key median come from the stabilised hot pressure', () => {
@@ -150,7 +168,7 @@ describe('buildTiresCard', () => {
     });
     // Wear after L3 is out of the wheel's own numbers; the other wheels go on.
     expect(fr.leftPct).toBe(98);
-    expect(fr.lossPct).toEqual([1]);
+    expect(fr.bars.map(b => b.lossPct)).toEqual([1]);
     expect(s.wheels[0].flat).toBeNull();
     expect(s.wheels[0].leftPct).toBe(96);
     expect(s.pressure.front).toEqual([160, 160, 160, 160]);
