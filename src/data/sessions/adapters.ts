@@ -314,6 +314,13 @@ export type Lap = {
   pitStop: PitStop | null;
   /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
   tyres: LapTyres | null;
+  /**
+   * The first lap on new tyres: the lap before had a pit stop that changed
+   * any wheel (`tyres.changed`). Cold whatever the temperature says, and not a
+   * fair reference. Derived here from the lap before, so it is false for the
+   * first lap and on laps without the block.
+   */
+  newTyres: boolean;
 };
 
 /**
@@ -475,7 +482,7 @@ function toTraffic(v: unknown): LapTraffic | null {
 }
 
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
-  return items.map((raw, i) => ({
+  const laps = items.map((raw, i) => ({
     id: str(raw.id),
     lapIndex: i + 1,
     lapNumber: num(raw.lapNumber),
@@ -502,7 +509,13 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
+    newTyres: false,
   }));
+  return laps.map((lap, i) =>
+    i > 0 && (laps[i - 1].tyres?.changed?.length ?? 0) > 0
+      ? {...lap, newTyres: true}
+      : lap,
+  );
 }
 
 // --- band (GET /sessions/{id}/band) ----------------------------------------

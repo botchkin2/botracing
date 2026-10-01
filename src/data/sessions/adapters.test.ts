@@ -271,3 +271,26 @@ describe('toTrackMap official turn labels', () => {
     expect(trackCorners(m)[0].sectionLabel).toBe('S5 (T10a–T12)');
   });
 });
+
+describe('toLaps tyres', () => {
+  const lap = (changed: string[] | null) => ({
+    id: 'l',
+    lapTime: 90,
+    tyres: {v: 1, changed},
+  });
+
+  it('reads the lap tyres and marks the lap after a change as the first on new tyres', () => {
+    const laps = toLaps([lap([]), lap(['FR']), lap([]), lap(null)]);
+    expect(laps[1].tyres?.changed).toEqual(['FR']);
+    expect(laps.map(l => l.newTyres)).toEqual([false, false, true, false]);
+  });
+
+  it('has no tyres and no new-tyres flag on laps analysed before the block', () => {
+    const laps = toLaps([
+      {id: 'a', lapTime: 90},
+      {id: 'b', lapTime: 90},
+    ]);
+    expect(laps.map(l => l.tyres)).toEqual([null, null]);
+    expect(laps.map(l => l.newTyres)).toEqual([false, false]);
+  });
+});

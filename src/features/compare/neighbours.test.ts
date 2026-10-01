@@ -25,6 +25,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   fuel: null,
   pitStop: null,
   tyres: null,
+  newTyres: false,
   ...over,
 });
 
