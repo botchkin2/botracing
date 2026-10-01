@@ -2,10 +2,10 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   toClassLaps,
-  toSessionTraffic,
   toLaps,
   toSessionDetail,
   toSessionSummary,
+  toSessionTraffic,
   toTrackMap,
 } from './adapters';
 import {trackCorners} from './corners';
