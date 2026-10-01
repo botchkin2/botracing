@@ -413,3 +413,86 @@ test('a stop carries its tyres', () => {
   const ends = lapPitStop(s, 150, 300, [[200, Infinity]]);
   assert.equal(ends.tyres.exitPct, null);
 });
+
+// The tyres cool in the pits and recover over the next 45 s: rubber 80 C
+// before the stop, 70 C at 215 s, 78 C at 265 s; pressure 165, 160, 164 kPa.
+// Built on the wear recording's 100 Hz clock so every channel lines up.
+function coolingStop(steps = []) {
+  const s = {...recording(), ...wearRecording(steps)};
+  const at = (before, during, after) =>
+    Float64Array.from(s.t, sec =>
+      sec < 200
+        ? before
+        : sec <= 220
+        ? during
+        : sec < 255
+        ? (during + after) / 2
+        : after,
+    );
+  for (const w of ['fl', 'fr', 'rl', 'rr']) {
+    s[`tyres_rubber_temp_${w}`] = at(80, 70, 78);
+    s[`tyres_carcass_temp_${w}`] = at(90, 85, 88);
+    s[`tyres_pressure_${w}`] = at(165, 160, 164);
+  }
+  // A dead sensor reads 0, never a measurement.
+  s.tyres_pressure_rr = at(0, 0, 0);
+  return s;
+}
+
+test('a stop that changed no wheel records how far the tyres cooled by 45 s after the exit', () => {
+  const s = coolingStop();
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.equal(stop.tyres.coolDown.afterS, 45);
+  assert.equal(stop.tyres.coolDown.rubberC.FL, -2);
+  assert.equal(stop.tyres.coolDown.carcassC.FL, -2);
+  assert.equal(stop.tyres.coolDown.pressureKpa.FL, -1);
+  // A dead sensor is null, not a change from 0.
+  assert.equal(stop.tyres.coolDown.pressureKpa.RR, null);
+  assert.equal(stop.tyres.coolDown.rubberC.RR, -2);
+});
+
+test('a replaced wheel has no cool-down; a stop that never ends or has no window after has none', () => {
+  const s = coolingStop([{wheel: 'fr', at: 205, from: 88, to: 100}]);
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.equal(stop.tyres.coolDown.rubberC.FR, null);
+  assert.equal(stop.tyres.coolDown.rubberC.FL, -2);
+  assert.equal(stop.tyres.coolDown.carcassC.FL, -2);
+  assert.equal(lapPitStop(s, 150, 300, [[200, Infinity]]).tyres.coolDown, null);
+  // The recording ends 400 s in: a window needing 45 s after a 390 s exit is past it.
+  assert.equal(lapPitStop(s, 350, 400, [[380, 390]]).tyres.coolDown, null);
+});
+
+test('a full set reads its compound from the game event: start for 0, other for 1; fewer wheels, none', () => {
+  const full = coolingStop(
+    ['fl', 'fr', 'rl', 'rr'].map(wheel => ({
+      wheel,
+      at: 205,
+      from: 88,
+      to: 100,
+    })),
+  );
+  const event = (t, v) => ({t, v, v2: v, v3: v, v4: v});
+  assert.equal(
+    lapPitStop(full, 150, 300, pits, [event(0, 0), event(205, 1)]).tyres
+      .compound,
+    'other',
+  );
+  assert.equal(
+    lapPitStop(full, 150, 300, pits, [event(0, 1), event(205, 1)]).tyres
+      .compound,
+    'start',
+  );
+  // No event, or four different codes, says nothing.
+  assert.equal(lapPitStop(full, 150, 300, pits, []).tyres.compound, null);
+  assert.equal(
+    lapPitStop(full, 150, 300, pits, [{t: 205, v: 0, v2: 1, v3: 0, v4: 0}])
+      .tyres.compound,
+    null,
+  );
+  // One wheel is not a compound change, whatever the event says.
+  const one = coolingStop([{wheel: 'fr', at: 205, from: 88, to: 100}]);
+  assert.equal(
+    lapPitStop(one, 150, 300, pits, [event(205, 1)]).tyres.compound,
+    null,
+  );
+});

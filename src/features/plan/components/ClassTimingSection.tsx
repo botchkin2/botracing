@@ -11,13 +11,15 @@ import {
   type ReadyClassTiming,
 } from '../classTiming';
 
+import {type StopWindow} from '../planCards';
+
 import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
 
 const TIMELINE_EXPLAINER =
   'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen with each pass. The first pass assumes a level start; a faster class that starts ahead needs less than a lap to catch you. Each band runs from the class p10 to its p90 lap.';
 const TIMELINE_KEY =
-  'Amber dashes = your stops. White tick = estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
+  'Amber box = pit window, amber line = planned stop, thin grey tick = where the tank runs out at the median use. Stops are planned at p90 use per lap (the heavier 10 % of the laps), and both ends of a window use it, so the window is the safe one: earliest = the first lap after which the remaining stints still reach the end, latest = the last lap the tank covers. In a timed race the windows use the race length plus one lap, because the flag can fall late. Each window assumes the earlier stops at plan. Amber dashes through the class lanes = the planned stops. White tick = class estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
 const FASTER_EXPLAINER =
   'Gain = your median lap − theirs. First is the range of laps from their p10 to their p90 lap; Every is their median lap ÷ gain, in your laps.';
 const YOURS_EXPLAINER =
@@ -30,9 +32,14 @@ const YOURS_EXPLAINER =
  */
 export function ClassTimingSection({
   timing,
+  windows,
+  windowNote,
   width,
 }: {
   timing: ClassTiming | null;
+  /** The pit window of each planned stop (the Stops card reads the same ones). */
+  windows: StopWindow[];
+  windowNote: string | null;
   /** The width a card's content may use. */
   width: number;
 }) {
@@ -47,13 +54,24 @@ export function ClassTimingSection({
     );
   return (
     <>
-      {timing.raceLaps != null && timing.faster.some(c => c.estimate) ? (
+      {timing.raceLaps != null &&
+      (timing.faster.some(c => c.estimate) || windows.length > 0) ? (
         <PlanCard title='Race timeline' explainer={TIMELINE_KEY}>
           <EstimateBadge />
           <Text variant='dataSmall' tone='textSecondary'>
             {TIMELINE_EXPLAINER}
           </Text>
-          <RaceTimelineView timing={timing} width={width} />
+          <RaceTimelineView timing={timing} windows={windows} width={width} />
+          {windows.map(w => (
+            <Text key={w.stop} variant='dataSmall' tone='textSecondary'>
+              {w.text}
+            </Text>
+          ))}
+          {windowNote ? (
+            <Text variant='dataSmall' tone='textMuted'>
+              {windowNote}
+            </Text>
+          ) : null}
         </PlanCard>
       ) : null}
       <FasterClasses timing={timing} />
