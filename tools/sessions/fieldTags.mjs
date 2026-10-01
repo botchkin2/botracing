@@ -7,13 +7,25 @@
 //
 // Sampling is 5 Hz, so a pass that starts and ends inside 0.4 s is missed;
 // that is fine for a count of passes but not for timing one.
+import {paceOf} from '../../src/analysis/classLaps.ts';
 import {undelta} from './field.mjs';
 
 // Same lane: lateral centre lines within this many metres (the measured
 // tow needs cars nose to tail; 2 m is a car width, pit-wall thread 30 #787).
 export const SAME_LANE_M = 2;
-// Blue flag on the player, `mFlag` in the capture (only 0 and 6 seen).
+// The game's blue flag on a car, `mFlag` in the capture (only 0 and 6 seen).
+// Kept as gameBlueS only: on the player it latches for most of a lap while a
+// lap down, with no faster car near (pit-wall thread 44 #1534), so it is not
+// what `blueFlagS` counts.
 export const BLUE_FLAG = 6;
+// `blueFlagS` is derived from the field for every car: seconds with a car of
+// a faster class this many seconds behind on the road (gap over the player's
+// speed, any lane). Measured on the AI GT3 cars of the two full Daytona
+// fields (9b16b76c, adb8e6e8; 5 Hz): 99-100 % of the samples the game flags
+// blue have a faster car within 1.5 s, and 100 % within 2 s, so a longer
+// window flags laps the game never did (3 s: the game flagged 8-22 % of
+// those samples). The game's flag starts about 1.1 s behind.
+export const BLUE_BEHIND_S = 1.5;
 // "Traffic" is a car within this many seconds on the road, ahead or behind.
 export const TRAFFIC_S = 1;
 // A pass is the on-road gap changing sign while both cars are this close.
@@ -69,7 +81,9 @@ const EMPTY = () => ({
   draftS: 0,
   trafficAheadS: 0,
   trafficBehindS: 0,
+  // Derived (BLUE_BEHIND_S); gameBlueS is the game's own flag.
   blueFlagS: 0,
+  gameBlueS: 0,
   // Passes on the road with cars of the player's class (lapped ones too, so
   // not a place change): a Hypercar lapping a GT3 is not counted. The All
   // counts take every car.
@@ -93,6 +107,7 @@ export function lapFieldFacts(field, windows) {
   let L = 0;
   for (const c of cars)
     for (const d of c.lapDistM) if (d !== null && d > L) L = d;
+  const playerRank = paceOf(cars[me].carClass).rank;
   const out = windows.map(EMPTY);
   const windowAt = et => windows.findIndex(w => et >= w.from && et < w.to);
 
@@ -117,6 +132,7 @@ export function lapFieldFacts(field, windows) {
     let gapAhead = Infinity;
     let gapBehind = Infinity;
     let battleGapM = Infinity;
+    let fasterBehindM = Infinity;
     const gapNow = new Map();
     for (let j = 0; j < cars.length; j++) {
       const c = cars[j];
@@ -124,6 +140,8 @@ export function lapFieldFacts(field, windows) {
       const g = ahead(here, c.lapDistM[u], L);
       const sameClass = c.carClass === p.carClass;
       if (sameClass) battleGapM = Math.min(battleGapM, Math.abs(g));
+      if (g < 0 && paceOf(c.carClass).rank > playerRank)
+        fasterBehindM = Math.min(fasterBehindM, -g);
       if (Math.abs(g) < PASS_WINDOW_M) {
         gapNow.set(j, g);
         const before = prevGap.get(j);
@@ -150,7 +168,8 @@ export function lapFieldFacts(field, windows) {
     if (gapAhead / speed < TRAFFIC_S) f.trafficAheadS += dt;
     if (gapBehind / speed < TRAFFIC_S) f.trafficBehindS += dt;
     if (battleGapM / speed < TRAFFIC_S) f.battleS += dt;
-    if (p.flag[u] === BLUE_FLAG) f.blueFlagS += dt;
+    if (fasterBehindM / speed < BLUE_BEHIND_S) f.blueFlagS += dt;
+    if (p.flag[u] === BLUE_FLAG) f.gameBlueS += dt;
     if (
       gapAhead <= DRAFT_MAX_GAP_M &&
       vMs !== null &&
@@ -165,6 +184,7 @@ export function lapFieldFacts(field, windows) {
       'trafficAheadS',
       'trafficBehindS',
       'blueFlagS',
+      'gameBlueS',
       'battleS',
     ]) {
       f[k] = round1(f[k]);
