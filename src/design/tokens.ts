@@ -322,6 +322,7 @@ export const size = {
   pitHeadRow: 44,
   pitRow: 52,
   pitBarRow: 60,
+  pitTyreRow: 118,
   pitPlanKey: 56,
 } as const;
 export const chartHeight = {

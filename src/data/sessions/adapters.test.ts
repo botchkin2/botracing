@@ -5,6 +5,7 @@ import {
   toLaps,
   toSessionDetail,
   toSessionSummary,
+  toSessionTraffic,
   toTrackMap,
 } from './adapters';
 import {trackCorners} from './corners';
@@ -292,5 +293,26 @@ describe('toLaps tyres', () => {
     ]);
     expect(laps.map(l => l.tyres)).toEqual([null, null]);
     expect(laps.map(l => l.newTyres)).toEqual([false, false]);
+  });
+});
+
+describe('toSessionTraffic', () => {
+  it('reads the clean and traffic sets', () => {
+    expect(
+      toSessionTraffic({
+        v: 1,
+        clean: {laps: 12, medianS: 81.5},
+        traffic: {laps: 2, medianS: null},
+      }),
+    ).toEqual({
+      v: 1,
+      clean: {laps: 12, medianS: 81.5},
+      traffic: {laps: 2, medianS: null},
+    });
+  });
+
+  it('is null without a block or with a malformed one', () => {
+    expect(toSessionTraffic(undefined)).toBeNull();
+    expect(toSessionTraffic({v: 1, clean: {laps: 3}})).toBeNull();
   });
 });

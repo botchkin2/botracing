@@ -26,7 +26,8 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   const tags: {code: string}[] = [];
   if (traffic.draftS >= TOW_MIN_S)
     tags.push({code: `TOW ${traffic.draftS.toFixed(1)}`});
-  if (traffic.trafficAheadS >= TRAF_MIN_S) tags.push({code: 'TRAF'});
+  if (traffic.trafficAheadS >= TRAF_MIN_S)
+    tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)}`});
   if (traffic.blueFlagS >= BLUE_MIN_S)
     tags.push({code: `BLUE ${traffic.blueFlagS.toFixed(1)}`});
   const {passesMade: made, passesSuffered: lost} = traffic;
