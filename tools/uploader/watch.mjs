@@ -32,7 +32,8 @@ import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {analysisVersion} from '../sessions/analyze.mjs';
+import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
+import {versionKey} from '../sessions/versionKey.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
@@ -201,6 +202,9 @@ async function main() {
   const ver = version();
   const {label = 'Race PC'} = readJson(resolve(home, 'config.json'), {});
   const watch = readJson(statePath, {});
+  // State from before block versions kept only analysisVersion: no versionKey
+  // reads as changed, so the first run with this code syncs everything once.
+  const currentKey = versionKey(analysisVersion, blockVersions);
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
@@ -268,7 +272,7 @@ async function main() {
         retryAtMs: watch.retryAtMs ?? null,
         sessionRetryAtMs: earliestRetryMs(watch.retries),
         // First run with this code, or a merge that bumped it.
-        versionChanged: watch.analysisVersion !== analysisVersion,
+        versionChanged: watch.versionKey !== currentKey,
         nowMs: Date.now(),
       });
       wasRunning = running;
@@ -333,7 +337,7 @@ async function main() {
             nowMs: Date.now(),
           });
           watch.lastRunAtMs = startedMs;
-          watch.analysisVersion = analysisVersion;
+          watch.versionKey = currentKey;
           watch.retryAtMs = null;
           watch.failuresInRow = 0;
           watch.lastError = r.failedIds.length
