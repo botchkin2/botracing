@@ -7,7 +7,6 @@ import {useSessions} from '@/src/data/sessions';
 import {
   formatDate,
   hitBox,
-  radius,
   size,
   space,
   useLayout,
