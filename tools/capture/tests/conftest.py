@@ -44,6 +44,8 @@ class Game:
         p.mVehicleName = b"Car 1"
         p.mTrackName = b"Road Atlanta"
         p.mGear = 3
+        p.mFrontTireCompoundName = b"Medium"
+        p.mRearTireCompoundName = b"Soft"
         p.mLocalVel.z = 40.0
         for w in p.mWheel:
             w.mTemperature[:] = [350.0, 355.0, 352.0]

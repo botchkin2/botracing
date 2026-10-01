@@ -41,7 +41,7 @@ Each chunk is rewritten beside itself, read back and compared value for value (s
 `%LOCALAPPDATA%\lap-capture\<startUtc>_<track>_<session>\`:
 
 - `meta.json`: written at the start, and again at the end with `endUtc` and `chunks`. No `endUtc` means the capture was cut short (crash, kill, power).
-- `player-NNNN.parquet`: one row per telemetry frame. Columns keep LMU's names (`mLocalVel_x`, `fl_mTemperature_0`, wheels `fl fr rl rr`). Temperatures are Kelvin.
+- `player-NNNN.parquet`: one row per telemetry frame. Columns keep LMU's names (`mLocalVel_x`, `fl_mTemperature_0`, wheels `fl fr rl rr`). Temperatures are Kelvin. Two text columns, `mFrontTireCompoundName` and `mRearTireCompoundName` (`PLAYER_TEXT` in `capture.py`), carry the tyre compound names; the numeric compound index reads 0 on every capture so far and names nothing. Captures made before the recorder was restarted with this change lack them.
 - `field-NNNN.parquet`: one row per car per scoring update, plus `update` (the update's index in the chunk) and `et` (session clock).
 - `session-NNNN.parquet`: one row per scoring update: flags, weather, phase.
 
