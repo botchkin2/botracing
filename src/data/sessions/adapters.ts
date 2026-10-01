@@ -182,6 +182,8 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
 export type SessionClassLaps = {
   kind: ClassLapsKind;
   classes: ClassLaps | null;
+  /** Races, from CLASS_LAPS_VERSION 2: seconds each class's last car crossed the line before the player; null otherwise. */
+  startGapsS: Partial<Record<PaceClass, number>> | null;
 };
 
 const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
@@ -217,7 +219,16 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     const stats = toClassStats(obj(x.classes)[key]);
     if (stats) classes[key] = stats;
   }
-  return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
+  const gaps: Partial<Record<PaceClass, number>> = {};
+  for (const key of PACE_CLASSES) {
+    const g = num(obj(x.startGapsS)[key]);
+    if (g != null) gaps[key] = g;
+  }
+  return {
+    kind,
+    classes: Object.keys(classes).length > 0 ? classes : null,
+    startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+  };
 }
 
 /** Null when the session has no traffic block (no field, or not yet resynced). */
