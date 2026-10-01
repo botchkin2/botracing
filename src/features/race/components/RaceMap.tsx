@@ -109,7 +109,8 @@ export function RaceMap({
   } | null;
   /** Car labels on the map: off, or the class position (R1e). */
   labels: LabelMode;
-  onLabels: (mode: LabelMode) => void;
+  /** Null hides the switch: outside a race there is no position to label with. */
+  onLabels: ((mode: LabelMode) => void) | null;
   onPressCar: (index: number) => void;
   mode: MapMode;
   /** Null hides the switch: the file has no headings, or nothing to chase. */
@@ -238,7 +239,9 @@ export function RaceMap({
         {onMode ? (
           <Segment options={MODE_OPTIONS} value={mode} onChange={onMode} />
         ) : null}
-        <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
+        {onLabels ? (
+          <Segment options={LABEL_OPTIONS} value={labels} onChange={onLabels} />
+        ) : null}
       </View>
       {following && follow.fellBack ? (
         <View

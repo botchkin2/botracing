@@ -379,7 +379,7 @@ function RaceView({
             : undefined,
         }}
         labels={labels}
-        onLabels={setLabels}
+        onLabels={mode === 'race' ? setLabels : null}
         onPressCar={toggleFocus}
         mode={mapMode}
         onMode={follow ? setMapMode : null}
