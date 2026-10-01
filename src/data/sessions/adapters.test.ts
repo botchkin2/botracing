@@ -52,7 +52,11 @@ describe('toSessionSummary class laps', () => {
       ...raw,
       classLaps: {kind: 'race', classes: {gt3: stats}},
     });
-    expect(s.classLaps).toEqual({kind: 'race', classes: {gt3: stats}});
+    expect(s.classLaps).toEqual({
+      kind: 'race',
+      classes: {gt3: stats},
+      startGapsS: null,
+    });
   });
 });
 
@@ -100,22 +104,37 @@ describe('toClassLaps', () => {
         kind: 'practice',
         classes: {hypercar: stats, gt3: {cars: 2}, other: 'x'},
       }),
-    ).toEqual({kind: 'practice', classes: {hypercar: stats}});
+    ).toEqual({
+      kind: 'practice',
+      classes: {hypercar: stats},
+      startGapsS: null,
+    });
   });
   it('keeps an empty doc as no classes, and reads nothing without a kind', () => {
     expect(toClassLaps({version: 1, kind: 'qualify', classes: null})).toEqual({
       kind: 'qualify',
       classes: null,
+      startGapsS: null,
     });
     expect(toClassLaps({classes: {gt3: stats}})).toBeNull();
     expect(toClassLaps(undefined)).toBeNull();
     expect(toClassLaps(null)).toBeNull();
   });
   it('rides on the session detail', () => {
-    const doc = {version: 1, kind: 'race', classes: {lmp2: stats}};
+    const doc = {
+      version: 2,
+      kind: 'race',
+      classes: {lmp2: stats},
+      startGapsS: {
+        hypercar: {firstS: 31.2, lastS: 26.4},
+        gt3: {firstS: 5},
+        lmp2: 'x',
+      },
+    };
     expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
       kind: 'race',
       classes: {lmp2: stats},
+      startGapsS: {hypercar: {firstS: 31.2, lastS: 26.4}},
     });
     expect(toSessionDetail(raw).classLaps).toBeNull();
   });
@@ -333,5 +352,40 @@ describe('toSessionTraffic', () => {
   it('is null without a block or with a malformed one', () => {
     expect(toSessionTraffic(undefined)).toBeNull();
     expect(toSessionTraffic({v: 1, clean: {laps: 3}})).toBeNull();
+  });
+});
+
+describe('lap traffic positions', () => {
+  const lap = (traffic: unknown) =>
+    toLaps([{id: 'a', lapTime: 20, comparable: true, reasons: [], traffic}])[0]
+      .traffic!;
+
+  it('reads spans, passes, overtakes and the field lap length', () => {
+    const t = lap({
+      aheadSpans: [[100.5, 180, 2.4]],
+      blueSpans: [[10, 20, 0.2]],
+      passMarks: [{atM: 500, made: true}],
+      overtakes: [{cls: 'Hyper', atM: 900}],
+      fieldLapM: 5000,
+    });
+    expect(t.aheadSpans).toEqual([[100.5, 180, 2.4]]);
+    expect(t.blueSpans).toEqual([[10, 20, 0.2]]);
+    expect(t.passMarks).toEqual([{atM: 500, made: true}]);
+    expect(t.overtakes).toEqual([{cls: 'Hyper', atM: 900}]);
+    expect(t.fieldLapM).toBe(5000);
+  });
+
+  it('is empty, and the lap length null, before traffic v3', () => {
+    const t = lap({draftS: 1});
+    expect(t.aheadSpans).toEqual([]);
+    expect(t.passMarks).toEqual([]);
+    expect(t.overtakes).toEqual([]);
+    expect(t.fieldLapM).toBeNull();
+  });
+
+  it('drops a malformed span rather than drawing a wrong one', () => {
+    expect(lap({aheadSpans: [[1, 2], 'x', [1, 2, 'y']]}).aheadSpans).toEqual(
+      [],
+    );
   });
 });

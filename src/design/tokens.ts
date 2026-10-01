@@ -323,6 +323,9 @@ export const size = {
   pitRow: 52,
   pitBarRow: 60,
   pitTyreRow: 118,
+  // Compare's traffic lane (round 7, 2C): one row per lap, the empty-state line.
+  trafficLaneRow: 14,
+  trafficLaneEmpty: 44,
   pitPlanKey: 56,
 } as const;
 export const chartHeight = {

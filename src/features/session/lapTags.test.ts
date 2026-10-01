@@ -14,7 +14,11 @@ const none: LapTraffic = {
   passesMadeAll: 0,
   passesSufferedAll: 0,
   battleS: 0,
-  overtakes: 0,
+  overtakes: [],
+  aheadSpans: [],
+  blueSpans: [],
+  passMarks: [],
+  fieldLapM: null,
 };
 
 describe('trafficTags', () => {
@@ -27,7 +31,9 @@ describe('trafficTags', () => {
     expect(trafficTags({...none, draftS: 0.9})).toEqual([]);
     expect(trafficTags({...none, draftS: 6.14})).toEqual([{code: 'TOW 6.1'}]);
     expect(trafficTags({...none, trafficAheadS: 3.8})).toEqual([]);
-    expect(trafficTags({...none, trafficAheadS: 4})).toEqual([{code: 'TRAF 4.0'}]);
+    expect(trafficTags({...none, trafficAheadS: 4})).toEqual([
+      {code: 'TRAF 4.0'},
+    ]);
     expect(trafficTags({...none, blueFlagS: 3.5})).toEqual([
       {code: 'BLUE 3.5'},
     ]);

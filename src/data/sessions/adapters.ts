@@ -3,8 +3,13 @@ import {
   type ClassLapsKind,
   type ClassLapStats,
   type PaceClass,
+  type StartGap,
 } from '@/src/analysis/classLaps';
-import {type LapSet, type SessionTraffic} from '@/src/analysis/traffic';
+import {
+  type LapSet,
+  type Overtake,
+  type SessionTraffic,
+} from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
@@ -182,6 +187,8 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
 export type SessionClassLaps = {
   kind: ClassLapsKind;
   classes: ClassLaps | null;
+  /** Races, from CLASS_LAPS_VERSION 2: seconds each class's first and last car crossed the line before the player; null otherwise. */
+  startGapsS: Partial<Record<PaceClass, StartGap>> | null;
 };
 
 const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
@@ -217,7 +224,17 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     const stats = toClassStats(obj(x.classes)[key]);
     if (stats) classes[key] = stats;
   }
-  return {kind, classes: Object.keys(classes).length > 0 ? classes : null};
+  const gaps: Partial<Record<PaceClass, StartGap>> = {};
+  for (const key of PACE_CLASSES) {
+    const g = obj(obj(x.startGapsS)[key]);
+    const [firstS, lastS] = [num(g.firstS), num(g.lastS)];
+    if (firstS != null && lastS != null) gaps[key] = {firstS, lastS};
+  }
+  return {
+    kind,
+    classes: Object.keys(classes).length > 0 ? classes : null,
+    startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+  };
 }
 
 /** Null when the session has no traffic block (no field, or not yet resynced). */
@@ -329,6 +346,9 @@ export type Lap = {
   hadImpact: boolean;
   /** Per-section facts in track order, precomputed by the uploader. */
   sections: SectionFacts[];
+  /** The start straight, and the boundaries the windows were cut at; null before the windows. */
+  startStraight: StartStraightFacts | null;
+  cornerBoundaries: BoundaryStamp | null;
   /** The cars around the player on this lap; null when the session has no field. */
   traffic: LapTraffic | null;
   /** Null on laps analysed before the fuel facts, or without the channels. */
@@ -413,9 +433,19 @@ export type LapTraffic = {
   passesSufferedAll: number;
   /** Seconds within 1 s of a car of the player's class, ahead or behind. */
   battleS: number;
-  /** Faster-class cars that passed the player on this lap (the stored list's length). */
-  overtakes: number;
+  /** Cars of a faster class that went from behind the player to ahead, in lap-distance order. */
+  overtakes: Overtake[];
+  /** Where a car was within 1 s ahead, and where a faster-class car was within 1.5 s behind, on this lap: [fromM, toM, seconds] in the field's lap distance. Empty before traffic v3. */
+  aheadSpans: TrafficSpan[];
+  blueSpans: TrafficSpan[];
+  /** Own-class passes and where they happened. */
+  passMarks: {atM: number; made: boolean}[];
+  /** The field's lap length in metres, the frame of the distances above; null before it was stored. */
+  fieldLapM: number | null;
 };
+
+/** A run of consecutive updates: lap distance from, to (metres) and its length in seconds. */
+export type TrafficSpan = [fromM: number, toM: number, s: number];
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
 export type CornerFacts = {
@@ -433,9 +463,137 @@ export type CornerFacts = {
   /** Speed at the apex sample, km/h (#82). */
   apexSpeedKph: number | null;
   offTrackS: number;
+  /**
+   * The corner window (pit-wall thread 45): boundary to the next boundary in
+   * the map's frame, with `segTimeS` its time, split at the lap's own onset
+   * and where full throttle is held. Null on a lap cut before the windows.
+   */
+  window: CornerWindowFacts | null;
 };
 
-export type SectionFacts = CornerFacts & {parts: CornerFacts[]};
+/** What a lap did inside one corner window; the three times add up to `segTimeS`. */
+export type CornerWindowFacts = {
+  fromM: number;
+  toM: number;
+  runInS: number | null;
+  cornerS: number | null;
+  exitS: number | null;
+  /** The lap's own brake (or lift) onset for the section; null if taken flat. */
+  onsetM: number | null;
+  /** Four speeds that tell the story without the trace, km/h. */
+  onsetSpeedKph: number | null;
+  fullThrottleSpeedKph: number | null;
+  endSpeedKph: number | null;
+  minSpeedAtM: number | null;
+  /** The part the slowest point fell in; null for a single corner. */
+  minSpeedPart: number | null;
+  /** The pit lane overlaps this window, so only this window is not comparable. */
+  pit: boolean;
+};
+
+/** One brake application in a section's window, by the corner braked for. */
+export type BrakeApp = {onsetM: number; peakPct: number; part: number | null};
+
+export type SectionFacts = CornerFacts & {
+  parts: CornerFacts[];
+  /** Sections only; empty on a lap cut before the windows. */
+  brakeApps: BrakeApp[];
+};
+
+/** A lap's start straight: the line to the first section's window. */
+export type StartStraightFacts = {
+  segTimeS: number | null;
+  fromM: number;
+  toM: number;
+  offTrackS: number;
+  localYellowS: number;
+  pit: boolean;
+};
+
+/** The version and revision of the boundaries a lap's windows were cut at. */
+export type BoundaryStamp = {v: number; rev: number};
+
+function toBoundaryStamp(raw: unknown): BoundaryStamp | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const x = obj(raw);
+  const v = num(x.v);
+  const rev = num(x.rev);
+  return v == null || rev == null ? null : {v, rev};
+}
+
+/** Rounding of three stored times to 3 decimals stays well inside this. */
+const SPLIT_TOLERANCE_S = 0.01;
+
+function toWindowFacts(x: Record<string, unknown>): CornerWindowFacts | null {
+  const fromM = num(x.fromM);
+  const toM = num(x.toM);
+  if (fromM == null || toM == null) return null;
+  // The split adds up to the window's time (segTime) by construction; one that
+  // does not is a stored-data fault, so the window is dropped (the lap reads
+  // re-analysis pending) and the field is named, not shown as a wrong row.
+  const [segTime, runInS, cornerS, exitS] = [
+    x.segTime,
+    x.runInS,
+    x.cornerS,
+    x.exitS,
+  ].map(num);
+  if (
+    segTime != null &&
+    runInS != null &&
+    cornerS != null &&
+    exitS != null &&
+    Math.abs(runInS + cornerS + exitS - segTime) >= SPLIT_TOLERANCE_S
+  ) {
+    console.warn(
+      `corner window: runInS + cornerS + exitS (${
+        runInS + cornerS + exitS
+      }) does not add up to segTime (${segTime})`,
+    );
+    return null;
+  }
+  return {
+    fromM,
+    toM,
+    runInS: num(x.runInS),
+    cornerS: num(x.cornerS),
+    exitS: num(x.exitS),
+    onsetM: num(x.onsetM),
+    onsetSpeedKph: num(x.onsetSpeedKmh),
+    fullThrottleSpeedKph: num(x.fullThrottleSpeedKmh),
+    endSpeedKph: num(x.endSpeedKmh),
+    minSpeedAtM: num(x.minSpeedAtM),
+    minSpeedPart: num(x.minSpeedPart),
+    pit: x.pit === true,
+  };
+}
+
+function toBrakeApps(raw: unknown): BrakeApp[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap(a => {
+    const x = obj(a);
+    const onsetM = num(x.onsetM);
+    const peakPct = num(x.peakPct);
+    return onsetM == null || peakPct == null
+      ? []
+      : [{onsetM, peakPct, part: num(x.part)}];
+  });
+}
+
+function toStartStraight(raw: unknown): StartStraightFacts | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const x = obj(raw);
+  const fromM = num(x.fromM);
+  const toM = num(x.toM);
+  if (fromM == null || toM == null) return null;
+  return {
+    segTimeS: num(x.segTime),
+    fromM,
+    toM,
+    offTrackS: num(x.offTrackSec) ?? 0,
+    localYellowS: num(x.localYellowSec) ?? 0,
+    pit: x.pit === true,
+  };
+}
 
 function toCornerFacts(raw: unknown): CornerFacts {
   const x = obj(raw);
@@ -450,6 +608,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
     fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
+    window: toWindowFacts(x),
   };
 }
 
@@ -520,8 +679,42 @@ function toTraffic(v: unknown): LapTraffic | null {
     passesMadeAll: num(x.passesMadeAll) ?? 0,
     passesSufferedAll: num(x.passesSufferedAll) ?? 0,
     battleS: num(x.battleS) ?? 0,
-    overtakes: Array.isArray(x.overtakes) ? x.overtakes.length : 0,
+    overtakes: toOvertakes(x.overtakes),
+    aheadSpans: toSpans(x.aheadSpans),
+    blueSpans: toSpans(x.blueSpans),
+    passMarks: toPassMarks(x.passMarks),
+    fieldLapM: num(x.fieldLapM),
   };
+}
+
+function toOvertakes(v: unknown): Overtake[] {
+  if (!Array.isArray(v)) return [];
+  const out: Overtake[] = [];
+  for (const o of v) {
+    const atM = num(obj(o).atM);
+    if (atM != null) out.push({cls: str(obj(o).cls), atM});
+  }
+  return out;
+}
+
+function toSpans(v: unknown): TrafficSpan[] {
+  if (!Array.isArray(v)) return [];
+  const out: TrafficSpan[] = [];
+  for (const s of v) {
+    const [a, b, c] = Array.isArray(s) ? s : [];
+    if (num(a) != null && num(b) != null && num(c) != null) out.push([a, b, c]);
+  }
+  return out;
+}
+
+function toPassMarks(v: unknown): LapTraffic['passMarks'] {
+  if (!Array.isArray(v)) return [];
+  const out: LapTraffic['passMarks'] = [];
+  for (const m of v) {
+    const atM = num(obj(m).atM);
+    if (atM != null) out.push({atM, made: obj(m).made === true});
+  }
+  return out;
 }
 
 function toPartialWhy(v: unknown): Lap['partialWhy'] {
@@ -548,11 +741,14 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
       ...toCornerFacts(c),
+      brakeApps: toBrakeApps(obj(c).brakeApps),
       parts: (Array.isArray(obj(c).parts)
         ? (obj(c).parts as unknown[])
         : []
       ).map(toCornerFacts),
     })),
+    startStraight: toStartStraight(raw.startStraight),
+    cornerBoundaries: toBoundaryStamp(raw.cornerBoundaries),
     traffic: toTraffic(raw.traffic),
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
@@ -612,9 +808,53 @@ export type MapSection = MapCorner & {parts: MapCorner[]};
 
 export type TrackMapQuality = 'good' | 'fair' | 'poor';
 
+/** One window of the layout's boundaries; they tile 0 to the map's length. */
+export type BoundaryWindow = {
+  kind: 'start-straight' | 'section';
+  /** The section's number; null for the start straight. */
+  section: number | null;
+  fromM: number;
+  toM: number;
+  /** The parts of a compound section, tiling it; empty for one corner. */
+  parts: {n: number; turnInM: number; fromM: number; toM: number}[];
+};
+
+/** The layout's corner boundaries (stored with the map), in the map's frame. */
+export type MapBoundaries = BoundaryStamp & {windows: BoundaryWindow[]};
+
+/** Null when the map has no boundaries yet (not resynced) or a malformed block. */
+export function toMapBoundaries(raw: unknown): MapBoundaries | null {
+  const stamp = toBoundaryStamp(raw);
+  if (!stamp || !Array.isArray(obj(raw).windows)) return null;
+  const windows: BoundaryWindow[] = [];
+  for (const w of obj(raw).windows as unknown[]) {
+    const x = obj(w);
+    const fromM = num(x.fromM);
+    const toM = num(x.toM);
+    if (fromM == null || toM == null) return null;
+    const parts = (Array.isArray(x.parts) ? x.parts : []).flatMap(p => {
+      const y = obj(p);
+      const [n, turnInM, pf, pt] = [y.n, y.turnInM, y.fromM, y.toM].map(num);
+      return n == null || turnInM == null || pf == null || pt == null
+        ? []
+        : [{n, turnInM, fromM: pf, toM: pt}];
+    });
+    windows.push({
+      kind: x.kind === 'start-straight' ? 'start-straight' : 'section',
+      section: num(x.section),
+      fromM,
+      toM,
+      parts,
+    });
+  }
+  return {...stamp, windows};
+}
+
 export type TrackMapData = {
   lengthM: number;
   sections: MapSection[];
+  /** The corner windows that tile the lap; null until the track is resynced. */
+  boundaries: MapBoundaries | null;
   quality: TrackMapQuality | null;
   georef: {
     rotationDeg: number;
@@ -695,6 +935,7 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
         : []
       ).map(p => toMapCorner(p, labels)),
     })),
+    boundaries: toMapBoundaries(raw.boundaries),
     quality:
       quality === 'good' || quality === 'fair' || quality === 'poor'
         ? quality

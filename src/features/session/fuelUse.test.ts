@@ -105,7 +105,7 @@ describe('buildFuelUse', () => {
     expect(verdictText(fu)).toContain('vary more than that');
   });
 
-  it('is not moved by one towed lap: towed laps are marked and out of the medians', () => {
+  it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
     const towed = lap(1, 2.1, 79, {
       traffic: {
         draftS: 8,
@@ -117,17 +117,20 @@ describe('buildFuelUse', () => {
         passesMadeAll: 0,
         passesSufferedAll: 0,
         battleS: 0,
-        overtakes: 0,
+        overtakes: [],
+        aheadSpans: [],
+        blueSpans: [],
+        passMarks: [],
+        fieldLapM: null,
       },
     });
     const fu = buildFuelUse(session(), [
       ...stintOf(1, [2.4, 2.41, 2.39, 2.4]),
       towed,
     ])!;
-    expect(fu.points.filter(p => p.towed)).toHaveLength(1);
-    expect(fu.stints[0].laps).toBe(4);
-    expect(fu.stints[0].towedLaps).toBe(1);
+    expect(fu.stints[0].laps).toBe(5);
     expect(fu.stints[0].medianFuelL).toBeCloseTo(2.4, 2);
+    expect(fu.stints[0].medianTimeS).toBe(81);
   });
 
   it('gives no median under 4 laps, and says there is nothing to compare', () => {

@@ -42,6 +42,7 @@ import {PANEL_DIVIDER_W, PanelDivider} from './components/PanelDivider';
 import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
+import {TrafficLaneBlock} from './components/TrafficLaneBlock';
 import {
   CHANNELS,
   type ChartValueRow,
@@ -407,6 +408,16 @@ export function CompareWorkspace(p: WorkspaceProps) {
               }}
             />
           ))}
+          {model.trafficLane ? (
+            <TrafficLaneBlock
+              lane={model.trafficLane}
+              width={centreW}
+              windowM={model.windowM}
+              timeAxis={model.timeAxis}
+              cursorM={p.cursorM}
+              lapStyle={lapStyle}
+            />
+          ) : null}
           <View style={styles.wrap}>
             <Text variant='label' tone='textMuted'>
               + Add chart
