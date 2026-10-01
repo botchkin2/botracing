@@ -73,7 +73,12 @@ export function useSessionsDetail(ids: string[]) {
       staleTime: DETAIL_STALE_MS,
       retry: retryUnlessClientError,
     })),
-    combine: results => ({details: results.map(r => r.data)}),
+    combine: results => ({
+      details: results.map(r => r.data),
+      // Loading, not failed: a query that errored has no data either.
+      pending: results.some(r => r.isPending),
+      failed: results.filter(r => r.isError).length,
+    }),
   });
 }
 

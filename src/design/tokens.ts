@@ -264,6 +264,11 @@ export const size = {
   gutter: 16,
   contentWidth: 358,
   lapRow: 32,
+  // The Plan's Race timeline (round 6, section 2): lane label column, lane height, gap, axis row.
+  timelineLabel: 72,
+  timelineLane: 26,
+  timelineGap: 8,
+  timelineAxis: 18,
   sessionRow: 54,
   chip: 28,
   transport: 40,
