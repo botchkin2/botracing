@@ -57,7 +57,17 @@ export type StopRow = {
 
 export type StopWindow = {
   stop: number;
-  /** "Stop 2: after L45 to L56, within 28 laps of stop 1"; the within part from the second stop on. */
+  /** Racing laps, the axis of the Race timeline: the stop comes after these. */
+  earliest: number;
+  latest: number;
+  /**
+   * The planned stop: the full tank at p90 use, so it is the window's latest
+   * end (or the lap before the last, if that is earlier). The timeline draws it.
+   */
+  planLap: number;
+  /** Where the tank runs out at the median use, the optimistic case; null with no such stop. */
+  medianLap: number | null;
+  /** "Stop 2: after L45 to L56 · 12 laps · at median use L57, within 28 laps of stop 1". */
   text: string;
 };
 
@@ -65,6 +75,8 @@ export type StopsCard = {
   full: StopRow | null;
   /** The pit window of each fuel stop of the full-tank plan; empty with no stop. */
   windows: StopWindow[];
+  /** "1 more stop than at median use", or why there is no window; null when neither applies. */
+  windowNote: string | null;
   equal: StopRow | null;
   /** What the formation lap takes from the first stint; null without one. */
   formation: {fuelL: number | null; vePct: number | null} | null;
@@ -188,13 +200,21 @@ function stopRow(
   };
 }
 
-function windowText(w: PitWindow): string {
-  const range = `Stop ${w.stop}: after ${lapName(w.earliest)} to ${lapName(
+/** Why a plan with stops has no window: no lap is safe for every stop at p90 use. */
+export const NO_WINDOW_NOTE =
+  'No pit window: at p90 use no lap is safe for every stop.';
+
+function windowText(w: PitWindow, medianLap: number | null): string {
+  const laps = w.latest - w.earliest + 1;
+  const median =
+    medianLap == null ? '' : ` · at median use ${lapName(medianLap)}`;
+  const within =
+    w.withinLaps == null
+      ? ''
+      : `, within ${w.withinLaps} laps of stop ${w.stop - 1}`;
+  return `Stop ${w.stop}: after ${lapName(w.earliest)} to ${lapName(
     w.latest,
-  )}`;
-  return w.withinLaps == null
-    ? range
-    : `${range}, within ${w.withinLaps} laps of stop ${w.stop - 1}`;
+  )} · ${laps} ${laps === 1 ? 'lap' : 'laps'}${median}${within}`;
 }
 
 function stopsCard(
@@ -208,7 +228,13 @@ function stopsCard(
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
   if (laps == null || med.stops == null)
-    return {full: null, equal: null, windows: [], formation: null};
+    return {
+      full: null,
+      equal: null,
+      windows: [],
+      windowNote: null,
+      formation: null,
+    };
   const fuelStops = med.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
   let full: StopRow | null = null;
@@ -254,16 +280,37 @@ function stopsCard(
       ratioPerPctL,
     );
   }
+  // The window is the safe one: stops planned at p90 use, so each stop is the
+  // lap the tank runs out at the heavier 10 % of his laps, and both ends of its
+  // window use that rate (setup, thread 44 #1598 item 3 and #1662). The median's
+  // 'tank runs out' lap is kept beside it as the optimistic case.
+  const p90 = plan.atP90;
+  const p90Stops = p90.stopLaps.length;
   const windows =
-    med.firstStint.laps != null && med.stint.laps != null
-      ? pitWindows(med.firstStint.laps, med.stint.laps, laps, fuelStops).map(
-          w => ({stop: w.stop, text: windowText(w)}),
+    p90.firstStint.laps != null && p90.stint.laps != null
+      ? pitWindows(p90.firstStint.laps, p90.stint.laps, laps, p90Stops).map(
+          w => ({
+            stop: w.stop,
+            earliest: w.earliest,
+            latest: w.latest,
+            planLap: p90.stopLaps[w.stop - 1] ?? w.latest,
+            medianLap: med.stopLaps[w.stop - 1] ?? null,
+            text: windowText(w, med.stopLaps[w.stop - 1] ?? null),
+          }),
         )
       : [];
+  const extra = p90Stops - fuelStops;
+  const windowNote =
+    p90Stops > 0 && windows.length === 0 && p90.firstStint.laps != null
+      ? NO_WINDOW_NOTE
+      : extra > 0
+      ? `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`
+      : null;
   return {
     full,
     equal,
     windows,
+    windowNote,
     formation: rules.formationLap
       ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
       : null,

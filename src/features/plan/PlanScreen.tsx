@@ -289,6 +289,8 @@ export function PlanScreen() {
                     </PlanCard>
                     <ClassTimingSection
                       timing={classTiming}
+                      windows={data.cards.stops.windows}
+                      windowNote={data.cards.stops.windowNote}
                       width={cardInnerW}
                     />
                     <PlanCard

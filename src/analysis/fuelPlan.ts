@@ -28,6 +28,17 @@ export interface GreenLap {
    * `vePct` being fuel over the ratio. Unset counts as not measured.
    */
   veMeasured?: boolean;
+  /**
+   * The lap's traffic facts (the lap doc's `traffic`), for the clean and
+   * traffic medians of the Plan's Per green lap card; null or unset without a field.
+   */
+  traffic?: {
+    trafficAheadS: number;
+    passesSufferedAll: number;
+    blueFlagS: number;
+    battleS: number;
+    overtakes: unknown[];
+  } | null;
 }
 
 /** What the race itself gives the comparison. */
@@ -442,10 +453,7 @@ function loadToFinishFor(
   };
 }
 
-export function planRace(
-  rules: PlanRules,
-  history: GreenLap[],
-): FuelPlan {
+export function planRace(rules: PlanRules, history: GreenLap[]): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
   const ve = usage(
     history.filter(l => l.vePct != null).map(l => l.vePct as number),

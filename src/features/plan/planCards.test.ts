@@ -42,7 +42,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
     expect(cards.race.working).toBe(
-      "At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says: 73 laps. Time in the pits is not counted.",
+      'At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says: 73 laps. Time in the pits is not counted.',
     );
   });
 
@@ -104,12 +104,64 @@ describe('buildPlanCards', () => {
     expect(full.refuel[0].litres).toBeCloseTo(9 * 2.38, 1);
   });
 
-  it('the Stops card: a pit window for each stop, the other stops free to move', () => {
-    // 72 laps, stints of 27 then 28 (formation lap off the first): stops after L28 and L56 at the latest.
+  it('the Stops card: a pit window for each stop, at p90 use, with the median lap beside it', () => {
+    // 72 laps, stints of 27 then 28 (formation lap off the first). Use does not
+    // vary here, so p90 = median: the plan stop is the window's latest end.
     expect(cards.stops.windows).toEqual([
-      {stop: 1, text: 'Stop 1: after L17 to L28'},
-      {stop: 2, text: 'Stop 2: after L45 to L56, within 28 laps of stop 1'},
+      {
+        stop: 1,
+        earliest: 16,
+        latest: 27,
+        planLap: 27,
+        medianLap: 27,
+        text: 'Stop 1: after L17 to L28 · 12 laps · at median use L28',
+      },
+      {
+        stop: 2,
+        earliest: 44,
+        latest: 55,
+        planLap: 55,
+        medianLap: 55,
+        text: 'Stop 2: after L45 to L56 · 12 laps · at median use L56, within 28 laps of stop 1',
+      },
     ]);
+    expect(cards.stops.windowNote).toBeNull();
+  });
+
+  it('a heavier p90 pulls the planned stop earlier than the median tick, never past the window', () => {
+    // Four laps in twelve at 2.6 L: p90 use above the median.
+    const heavier = [
+      ...Array.from({length: 8}, () => lap(2.38, 3.5)),
+      ...Array.from({length: 4}, () => lap(2.6, 3.8)),
+    ];
+    const plan = planRace(rules, heavier);
+    expect(plan.atP90.stopLaps[0]).toBeLessThan(plan.atMedian.stopLaps[0]);
+    const {windows} = buildPlanCards(plan, rules, false, RATIO).stops;
+    expect(windows.length).toBeGreaterThan(0);
+    for (const w of windows) {
+      expect(w.planLap).toBe(plan.atP90.stopLaps[w.stop - 1]);
+      expect(w.planLap).toBeLessThanOrEqual(w.latest);
+      expect(w.planLap).toBeGreaterThanOrEqual(w.earliest);
+      expect(w.medianLap).toBe(plan.atMedian.stopLaps[w.stop - 1] ?? null);
+    }
+    // The median tick is where the optimistic case runs out: past the plan stop.
+    expect(windows[0].medianLap as number).toBeGreaterThan(windows[0].planLap);
+  });
+
+  it('says so when p90 use needs more stops than the median', () => {
+    // A third of the laps at 3.6 L: p90 use is far above the median.
+    const heavy = [
+      ...Array.from({length: 8}, () => lap(2.38, 3.5)),
+      ...Array.from({length: 4}, () => lap(3.6, 5.2)),
+    ];
+    const plan = planRace(rules, heavy);
+    const extra = plan.atP90.stopLaps.length - plan.atMedian.stopLaps.length;
+    expect(extra).toBeGreaterThan(0);
+    const {stops} = buildPlanCards(plan, rules, false, RATIO);
+    expect(stops.windows).toHaveLength(plan.atP90.stopLaps.length);
+    expect(stops.windowNote).toBe(
+      `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`,
+    );
   });
 
   it('the Stops card: equal stints second, over the same race', () => {
