@@ -154,6 +154,7 @@ describe('traffic tags, rails and the clean best', () => {
     overtakes: [],
     aheadSpans: [],
     blueSpans: [],
+    draftSpans: [],
     passMarks: [],
     fieldLapM: null,
     ...over,

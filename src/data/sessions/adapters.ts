@@ -458,6 +458,8 @@ export type LapTraffic = {
   /** Where a car was within 1 s ahead, and where a faster-class car was within 1.5 s behind, on this lap: {fromM, toM, s} in the field's lap distance. Empty before traffic v3. */
   aheadSpans: TrafficSpan[];
   blueSpans: TrafficSpan[];
+  /** Where the tow was (`draftS`'s rule); empty before traffic v5. */
+  draftSpans: TrafficSpan[];
   /** Own-class passes and where they happened. */
   passMarks: {atM: number; made: boolean}[];
   /** The field's lap length in metres, the frame of the distances above; null before it was stored. */
@@ -716,6 +718,7 @@ function toTraffic(v: unknown): LapTraffic | null {
     overtakes: toOvertakes(x.overtakes),
     aheadSpans: toSpans(x.aheadSpans),
     blueSpans: toSpans(x.blueSpans),
+    draftSpans: toSpans(x.draftSpans),
     passMarks: toPassMarks(x.passMarks),
     fieldLapM: num(x.fieldLapM),
   };

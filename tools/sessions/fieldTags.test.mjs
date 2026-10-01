@@ -344,3 +344,31 @@ test('no array inside an array anywhere in a traffic block', () => {
   nested(t);
   nested(lapTraffic(f, [all])[0]);
 });
+
+test('draftSpans: where the tow was, adding up to draftS, as objects', () => {
+  // A GT3 20 m ahead in the same lane for updates 5-14 (inside the draft gap,
+  // above 200 km/h at the player's 250), 300 m ahead otherwise.
+  const f = build(40, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist + (u >= 5 && u < 15 ? 20 : 300), lane: 0},
+    3: far,
+  }));
+  const [t] = lapFieldFacts(f, [all]);
+  assert.equal(t.draftSpans.length, 1);
+  assert.equal(
+    Math.round(t.draftSpans.reduce((a, s) => a + s.s, 0) * 10) / 10,
+    t.draftS,
+  );
+  assert.ok(t.draftS > 0);
+  const [span] = t.draftSpans;
+  assert.equal(span.fromM, Math.round(me(5).lapDist * 10) / 10);
+  assert.ok(span.toM > span.fromM);
+  // The wrapper's whole output has no array inside an array (Firestore).
+  const nested = v => {
+    if (Array.isArray(v)) {
+      assert.ok(!v.some(Array.isArray));
+      v.forEach(nested);
+    } else if (v && typeof v === 'object') Object.values(v).forEach(nested);
+  };
+  nested(t);
+});

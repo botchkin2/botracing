@@ -17,6 +17,7 @@ const none: LapTraffic = {
   overtakes: [],
   aheadSpans: [],
   blueSpans: [],
+  draftSpans: [],
   passMarks: [],
   fieldLapM: null,
 };

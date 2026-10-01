@@ -221,6 +221,7 @@ describe('greenLapsOf', () => {
       overtakes: [],
       aheadSpans: [],
       blueSpans: [],
+      draftSpans: [],
       passMarks: [],
       fieldLapM: null,
     };

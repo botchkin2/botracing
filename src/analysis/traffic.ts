@@ -103,7 +103,7 @@ export function overtakesOf(
 }
 
 /** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
-export const TRAFFIC_VERSION = 4;
+export const TRAFFIC_VERSION = 5;
 
 // `blueFlagS` is seconds with a faster-class car this many seconds behind on
 // the road (tools/sessions/fieldTags.mjs, evidence in its comment).

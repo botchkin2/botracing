@@ -398,12 +398,14 @@ describe('lap traffic positions', () => {
     const t = lap({
       aheadSpans: [{fromM: 100.5, toM: 180, s: 2.4}],
       blueSpans: [{fromM: 10, toM: 20, s: 0.2}],
+      draftSpans: [{fromM: 300, toM: 380, s: 1.2}],
       passMarks: [{atM: 500, made: true}],
       overtakes: [{cls: 'Hyper', atM: 900}],
       fieldLapM: 5000,
     });
     expect(t.aheadSpans).toEqual([{fromM: 100.5, toM: 180, s: 2.4}]);
     expect(t.blueSpans).toEqual([{fromM: 10, toM: 20, s: 0.2}]);
+    expect(t.draftSpans).toEqual([{fromM: 300, toM: 380, s: 1.2}]);
     expect(t.passMarks).toEqual([{atM: 500, made: true}]);
     expect(t.overtakes).toEqual([{cls: 'Hyper', atM: 900}]);
     expect(t.fieldLapM).toBe(5000);
@@ -412,6 +414,7 @@ describe('lap traffic positions', () => {
   it('is empty, and the lap length null, before traffic v3', () => {
     const t = lap({draftS: 1});
     expect(t.aheadSpans).toEqual([]);
+    expect(t.draftSpans).toEqual([]);
     expect(t.passMarks).toEqual([]);
     expect(t.overtakes).toEqual([]);
     expect(t.fieldLapM).toBeNull();
