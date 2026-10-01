@@ -31,6 +31,7 @@ import {
   WINDOW_PAD_M,
   ZOOM_AFTER_M,
   ZOOM_BEFORE_M,
+  zoomWindowFor,
 } from '../../src/analysis/cornerWindows.ts';
 import {resampleTrace} from '../../src/analysis/resample.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
@@ -84,24 +85,16 @@ export function mapCorners(map, windows = null) {
   return out;
 }
 
-// The window a slice covers: the screen's apex-based window, widened to the
-// corner's own window and a pad when there is one.
+// The window a slice covers: the wider of the screen's two windows around the
+// apex (zoom, braking map), and the zoom window as the screen widens it to the
+// corner's own window (`zoomWindowFor`: the window plus a pad, at most
+// WINDOW_EXTRA_M past the zoom window). One function for both, so the slice
+// can never be narrower than what the screen asks for.
 function sliceWindow(apexM, lengthM, extent) {
+  const [from, to] = zoomWindowFor(apexM, extent ?? null);
   return [
-    Math.max(
-      0,
-      Math.min(
-        apexM - SLICE_BEFORE_M,
-        (extent?.fromM ?? Infinity) - WINDOW_PAD_M,
-      ),
-    ),
-    Math.min(
-      lengthM,
-      Math.max(
-        apexM + SLICE_AFTER_M,
-        (extent?.toM ?? -Infinity) + WINDOW_PAD_M,
-      ),
-    ),
+    Math.max(0, Math.min(apexM - SLICE_BEFORE_M, from)),
+    Math.min(lengthM, Math.max(apexM + SLICE_AFTER_M, to)),
   ];
 }
 

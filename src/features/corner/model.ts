@@ -132,6 +132,8 @@ export type CornerModel = {
   zoom: {
     windowM: [number, number];
     apexM: number;
+    /** Where the delta is zero, in the window's frame: the stretch's start, or a part's section start. */
+    deltaFromM: number;
     lines: ZoomLine[];
     band: {speed: [number[], number[]]} | null;
     stepM: number;
@@ -223,13 +225,16 @@ function ownWindow(
   sectionN: number,
   corner: number,
   ref: Lap | undefined,
-): CornerStretch | null {
+): {own: CornerStretch; section: CornerStretch} | null {
   const b = map.boundaries;
   if (!b || !ref || !isCurrent(ref, b)) return null;
   const w = b.windows.find(x => x.kind === 'section' && x.section === sectionN);
   if (!w) return null;
   const at = w.parts.find(p => p.n === corner) ?? w;
-  return {fromM: at.fromM, toM: at.toM};
+  return {
+    own: {fromM: at.fromM, toM: at.toM},
+    section: {fromM: w.fromM, toM: w.toM},
+  };
 }
 
 /** The text under "Time in corner" when the corner has a window of its own. */
@@ -237,7 +242,7 @@ export function windowExplainer(window: CornerStretch, isPart: boolean) {
   const span = `${formatDistance(window.fromM)} to ${formatDistance(
     window.toM,
   )}`;
-  return `Time in corner runs from ${span}, the same stretch of track for every lap: from where laps still run alike before the braking, to where the next ${
+  return `Time in corner runs from ${span}, the same stretch of track for every lap: from where laps still run alike before the braking or lift, to where the next ${
     isPart ? 'part' : 'corner'
   } starts. Brake point is metres before the apex; full throttle is metres after it.`;
 }
@@ -404,7 +409,8 @@ export function buildCornerModel(input: {
   // The corner's own window (a part's, or the section's when it is one corner)
   // is shaded and the charts run to its edges, once the laps are cut at the
   // boundaries the map carries; otherwise the old entry-to-next-entry stretch.
-  const own = ownWindow(map, sec.sectionN, corner, ref);
+  const windows = ownWindow(map, sec.sectionN, corner, ref);
+  const own = windows?.own ?? null;
   const baseWindow: [number, number] = [
     sec.apexM - ZOOM_BEFORE_M,
     sec.apexM + ZOOM_AFTER_M,
@@ -413,6 +419,16 @@ export function buildCornerModel(input: {
   const zoomWindow = zoomWindowFor(sec.apexM, ownFrame);
   const baseView = cornerView(all, idx, zoomWindow, map.lengthM);
   if (!baseView) return null;
+  // The delta is drawn from where laps share speed: a section's start, which
+  // for a part is earlier than the part's own (mid-chicane, laps already
+  // differ). It cannot start before the drawn stretch.
+  const isPart = windows != null && windows.section.fromM !== own?.fromM;
+  const sectionFrame = windows
+    ? inWindowFrame(windows.section, baseWindow, map.lengthM)
+    : null;
+  const anchorM = sectionFrame
+    ? Math.max(sectionFrame.fromM, zoomWindow[0])
+    : baseView.stretch.fromM;
   const view =
     own && ownFrame
       ? {
@@ -424,6 +440,14 @@ export function buildCornerModel(input: {
             ownFrame,
             baseView.neighbours,
             zoomWindow,
+            windows && isPart
+              ? {
+                  label: `S${sec.sectionN}`,
+                  lapM: windows.section.fromM,
+                  drawn:
+                    sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
+                }
+              : null,
           ),
         }
       : baseView;
@@ -451,7 +475,7 @@ export function buildCornerModel(input: {
         brakePct: t.brakePct,
         throttlePct: t.throttlePct,
         // Zero at the turn's entry; the stretch is in the window's frame.
-        deltaS: deltaFromEntry(t, refTrace, view.stretch.fromM),
+        deltaS: deltaFromEntry(t, refTrace, anchorM),
         steeringPct: t.steeringPct,
         samples: t.samples,
         brakeAtM: f?.brakeAtM ?? null,
@@ -480,8 +504,13 @@ export function buildCornerModel(input: {
       .filter(Boolean)
       .join(' · '),
     mode,
+    // The stored map gives every section a parts array, so "a part" is a
+    // section with more than one corner (hairpin #1781).
     explainer: own
-      ? windowExplainer(own, sec.sectionN !== corner || sec.partIndex != null)
+      ? windowExplainer(
+          own,
+          all.filter(c => c.sectionN === sec.sectionN).length > 1,
+        )
       : cornerExplainer(sec, nextSec),
     rows,
     strips,
@@ -490,6 +519,7 @@ export function buildCornerModel(input: {
     zoom: {
       windowM: zoomWindow,
       apexM: sec.apexM,
+      deltaFromM: anchorM,
       lines,
       band:
         band && mode !== 'individual'

@@ -13,6 +13,7 @@ import {
   decodeCornerSlices,
   SLICE_CHANNELS,
 } from '../../src/analysis/cornerSlices.ts';
+import {zoomWindowFor} from '../../src/analysis/cornerWindows.ts';
 import {sliceSamples} from '../../src/analysis/nativeSamples.ts';
 import {resampleTrace} from '../../src/analysis/resample.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
@@ -21,6 +22,7 @@ import {
   mapCorners,
   SLICE_AFTER_M,
   SLICE_BEFORE_M,
+  WINDOW_PAD_M,
 } from './cornerSlices.mjs';
 
 const LENGTH_M = 3000;
@@ -185,4 +187,55 @@ test('the slice window covers the zoom window and the braking map, so they canno
   // ...and the file says so: a corner well inside the lap holds the whole window.
   const slice = decode(build([{id: 'a', csv: () => lapCsv()}]), 2);
   assert.deepEqual(slice.windowM, [1700 - MAP_BEFORE_M, 1700 + MAP_AFTER_M]);
+});
+
+// The layout's windows for the map above (sections in order: corner 1 with its
+// two parts, corner 3), as `windowsOf` gives them; only the extents matter.
+const windowsFor = (part2, part1 = {fromM: 1300, toM: 1600}) => [
+  {
+    kind: 'section',
+    section: 1,
+    fromM: part1.fromM,
+    toM: part2.toM,
+    parts: [
+      {n: 1, ...part1},
+      {n: 2, ...part2},
+    ],
+  },
+  {kind: 'section', section: 3, fromM: 100, toM: 400, parts: []},
+];
+const windowOf = (windows, n) =>
+  decode(buildCornerSlices([{id: 'a', csv: () => lapCsv()}], map, windows), n)
+    .windowM;
+
+test('a corner window that reaches past the screen window widens the slice by a pad', () => {
+  // Part 2 (apex 1700) runs 1600 to 1950: the apex window ends at 1900, the
+  // corner's own at 1950 + the pad.
+  const w = windowOf(windowsFor({fromM: 1600, toM: 1950}), 2);
+  assert.deepEqual(w, [1700 - SLICE_BEFORE_M, 1950 + WINDOW_PAD_M]);
+  // One that starts before the apex window does reaches back to it, less the
+  // pad, but no further than the screen's cap before the zoom window.
+  const early = windowOf(windowsFor({fromM: 1100, toM: 1800}), 2);
+  assert.equal(early[0], zoomWindowFor(1700, {fromM: 1100, toM: 1800})[0]);
+  assert.ok(early[0] > 1100 - WINDOW_PAD_M);
+  const near = windowOf(windowsFor({fromM: 1300, toM: 1800}), 2);
+  assert.equal(near[0], 1300 - WINDOW_PAD_M);
+});
+
+test('a window that runs a long way (the last corner, to the line) is capped by the screen’s own rule', () => {
+  // To the line at 3000 m: 2000 m of tri-oval would be 181 KB for 14 laps. The
+  // cap is the screen's (`zoomWindowFor`), so the slice always holds what the
+  // charts ask for.
+  const own = {fromM: 1600, toM: 3000};
+  const w = windowOf(windowsFor(own), 2);
+  const zoom = zoomWindowFor(1700, own);
+  assert.equal(w[1], Math.max(1700 + SLICE_AFTER_M, zoom[1]));
+  assert.ok(w[1] < 3000);
+  // And it covers the zoom window on both sides.
+  assert.ok(w[0] <= zoom[0] && w[1] >= zoom[1]);
+});
+
+test('a corner with no window keeps the screen window alone', () => {
+  const w = windowOf([], 2);
+  assert.deepEqual(w, [1700 - SLICE_BEFORE_M, 1700 + SLICE_AFTER_M]);
 });

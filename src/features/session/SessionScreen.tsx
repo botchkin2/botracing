@@ -22,14 +22,14 @@ import {
   hitBox,
   lapStroke,
   radius,
-  size,
   space,
   useLayout,
   useTheme,
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
-import {Explainer, Text, useHowToRead} from '@/src/ui';
+import {usePanelWidth} from '@/src/state/panelPrefs';
+import {Explainer, PANEL_DIVIDER_W, Text, useHowToRead} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -61,6 +61,10 @@ import {
 const CHART_H = 166;
 const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
+// The wide workspace's centre (bars and lap table) is kept at least this wide
+// when the right column is dragged out: the old 600 less the divider's 10, so
+// the default 400 column still fits a 1280 window (layout.width 1000).
+const WIDE_MIN_CENTRE_W = 590;
 
 const TAG_KEY =
   'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s of a car ahead (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
@@ -149,6 +153,11 @@ function SessionView({
   );
 
   const {contentWidth} = layout;
+  // The wide workspace's right column: resizable, kept per viewer.
+  const panel = usePanelWidth(
+    'session',
+    layout.width - WIDE_MIN_CENTRE_W - PANEL_DIVIDER_W,
+  );
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : 0;
   // A lap table has nothing to fill 800 pt with; cap it on desktop.
   const tableW = layout.isDesktop
@@ -437,7 +446,7 @@ function SessionView({
             {model.pitCard && (
               <PitCard
                 card={model.pitCard}
-                width={size.sidePanelWidth - 2 * space.xl}
+                width={panel.width - 2 * space.xl}
                 focusLapIndex={pitFocus?.lapIndex ?? null}
                 plan={
                   model.planVsRace && renderPlanHalf
@@ -446,16 +455,13 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard
-              card={model.tires}
-              width={size.sidePanelWidth - 2 * space.xl}
-            />
+            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
                 pooled={renderPooledUse?.(
                   model.fuelUse.planKey,
-                  size.sidePanelWidth - 2 * space.xl,
+                  panel.width - 2 * space.xl,
                 )}
               />
             )}
@@ -464,6 +470,7 @@ function SessionView({
         renderRow={(row, width) => renderRow(row, width, true)}
         tagKey={TAG_KEY}
         pitFocus={pitFocus}
+        side={panel}
       />
     );
 

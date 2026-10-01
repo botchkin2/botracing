@@ -3,9 +3,11 @@
 // cornerSlices.mjs) take the wider of these as their own window, so a screen
 // can never ask for track the slice does not hold.
 //
-// Changing any of these changes what the uploader writes: bump
-// `analysisVersion` in tools/sessions/analyze.mjs, and every session needs a
-// resync before the screen can use the wider window.
+// Changing any of these changes what the uploader writes: the slices carry
+// their own `windowM`, and a changed window needs a bump of the corner block's
+// version (`blockVersions.cornerBoundaries` in tools/sessions/analyze.mjs; the
+// slice format stays 1), then a resync before the screen can use the wider
+// window.
 
 // Zoomed traces: 250 m before the apex to 150 m after (handoff section 4).
 export const ZOOM_BEFORE_M = 250;

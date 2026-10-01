@@ -192,6 +192,59 @@ describe('the Corner model with windows', () => {
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
 
+  it('draws a part’s delta from its section’s start, and says so', () => {
+    const t3 = build(m, {v: 1, rev: 3}, 3)!;
+    // T3 starts at 700 inside S2 (500 → 1000): laps share speed at 500, which
+    // is before the drawn stretch (the zoom starts at 530), so the delta is
+    // anchored at the first drawn point and the caption says the start is not
+    // drawn rather than pretend.
+    expect(t3.zoom.stretch.fromM).toBe(700);
+    expect(t3.zoom.deltaFromM).toBe(t3.zoom.windowM[0]);
+    expect(t3.zoom.caption).toContain(
+      'delta from the start of S2 at 500 m (not drawn)',
+    );
+    // The first part starts where its section does: nothing to add.
+    const t2 = build(m, {v: 1, rev: 3}, 2)!;
+    expect(t2.zoom.deltaFromM).toBe(t2.zoom.stretch.fromM);
+    expect(t2.zoom.caption).not.toContain('delta from');
+    // A single corner is unchanged.
+    const t1 = build(m, {v: 1, rev: 3}, 1)!;
+    expect(t1.zoom.deltaFromM).toBe(t1.zoom.stretch.fromM);
+  });
+
+  it('reads a one-corner section as a corner, though the stored map gives it a parts array', () => {
+    const one = toTrackMap({
+      lengthM: 1000,
+      boundaries,
+      corners: [
+        {
+          n: 1,
+          entryM: 200,
+          apexM: 250,
+          exitM: 300,
+          parts: [{n: 1, entryM: 200, apexM: 250, exitM: 300}],
+        },
+        {
+          n: 2,
+          entryM: 520,
+          apexM: 600,
+          exitM: 800,
+          parts: [
+            {n: 2, entryM: 520, apexM: 580, exitM: 700},
+            {n: 3, entryM: 700, apexM: 780, exitM: 800},
+          ],
+        },
+      ],
+      outline: {features: []},
+    });
+    const t1 = build(one, {v: 1, rev: 3}, 1)!;
+    expect(t1.explainer).toContain('the next corner starts');
+    expect(t1.explainer).toContain('braking or lift');
+    expect(build(one, {v: 1, rev: 3}, 3)!.explainer).toContain(
+      'the next part starts',
+    );
+  });
+
   it('keeps the old stretch and explainer for laps cut at other boundaries', () => {
     const model = build(m, {v: 1, rev: 2}, 3)!;
     expect(model.zoom.caption).toMatch(/^Shaded: T3 · 700 → /);

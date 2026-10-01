@@ -121,6 +121,12 @@ export function windowCaption(
   inFrame: CornerStretch,
   neighbours: {label: string; lapM: number}[],
   zoom: [number, number],
+  /**
+   * For a part of a compound section: the delta is drawn from the section's
+   * start, where laps run at the same speed, not from the part's start inside
+   * the chicane. `drawn` is false when that start is before the drawn stretch.
+   */
+  deltaFrom: {label: string; lapM: number; drawn: boolean} | null = null,
 ): string {
   const [startM, endM] = zoom;
   const cut = [
@@ -135,6 +141,11 @@ export function windowCaption(
   return [
     `Shaded: ${label} · ${plain(window.fromM)} → ${plain(window.toM)} m`,
     ...cut,
+    deltaFrom
+      ? `delta from the start of ${deltaFrom.label} at ${plain(
+          deltaFrom.lapM,
+        )} m${deltaFrom.drawn ? '' : ' (not drawn)'}`
+      : null,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
   ]
     .filter(Boolean)
