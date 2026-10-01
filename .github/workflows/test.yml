@@ -25,6 +25,10 @@ jobs:
       # node --check only parses; no-undef is what catches a missing import (#206).
       - name: Tools - undefined names
         run: npx eslint "tools/**/*.mjs"
+      # Errors fail the job (warnings do not): the same rules `npm run lint`
+      # shows, so a missing import or a hook misuse is caught before merge.
+      - name: App lint
+        run: npx eslint src app
       - name: Uploader and session tools
         run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs
   capture:

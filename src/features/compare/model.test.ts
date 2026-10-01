@@ -735,6 +735,24 @@ describe('laps of another session', () => {
     ).toContain('vs L1 · 25 Sep');
   });
 
+  it('names this session’s laps with its own tag beside a foreign one', () => {
+    const tagged = buildCompareModel({
+      session,
+      laps,
+      foreign: {...foreign, ownTag: '26 Sep Race'},
+      traces: withTrace,
+      band: null,
+      map,
+      selection: sel({laps: [fid, 'a'], hl: 'a'}),
+    });
+    expect(tagged.chips.map(c => c.label)).toEqual([
+      'L1 · 25 Sep',
+      'L1 · 26 Sep Race',
+    ]);
+    // Without a foreign lap in the view, nothing is tagged.
+    expect(build().chips.every(c => !c.label.includes('·'))).toBe(true);
+  });
+
   it('is not found when its laps are not loaded', () => {
     const lost = buildCompareModel({
       session,

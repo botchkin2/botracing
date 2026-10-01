@@ -11,7 +11,6 @@ import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
 import {
-  defaultLapIds,
   firstCornerOf,
   type Lap,
   type SessionBand,
@@ -458,7 +457,12 @@ export function valuesAt(
  * field radar, the neighbour laps across the line, the All laps list) reads
  * them.
  */
-export type ForeignLaps = {laps: Lap[]; tags: Map<string, string>};
+export type ForeignLaps = {
+  laps: Lap[];
+  tags: Map<string, string>;
+  /** This session's own tag, shown on its laps once a foreign lap is in the view ("L11 · 25 Sep Race" beside "L11 · 24 Sep Race"). */
+  ownTag?: string;
+};
 
 export type CompareInputs = {
   session: SessionDetail;
@@ -651,10 +655,11 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   );
   // "L12", and "L12 · 25 Sep" for a lap of another session: two sessions both
   // have an L12.
-  const nameOf = (l: Lap) =>
-    foreignTags.has(l.id)
-      ? `L${l.lapIndex} · ${foreignTags.get(l.id)}`
-      : `L${l.lapIndex}`;
+  const ownTag = foreignTags.size > 0 ? input.foreign?.ownTag : undefined;
+  const nameOf = (l: Lap) => {
+    const tag = foreignTags.get(l.id) ?? ownTag;
+    return tag ? `L${l.lapIndex} · ${tag}` : `L${l.lapIndex}`;
+  };
   const selected = selection.laps
     .map(id => byId.get(id))
     .filter((l): l is Lap => l != null);
@@ -692,8 +697,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const windowM: [number, number] = refTrace
     ? windowRange(refTrace, cursorM, win.mode, win.size)
     : [0, lengthM];
-  const i0 = Math.max(0, Math.floor(windowM[0] / stepM));
-  const i1 = Math.ceil(windowM[1] / stepM);
   // y scales fit the whole sections the window touches (thread 26 #381).
   const fitM = sectionFitRange(
     (map?.sections ?? []).map(s => s.entryM),

@@ -82,13 +82,21 @@ export function useCompareModel(
       out.push({...lap, id});
       tags.set(id, foreignTag(detail.startedAt, detail.sessionType));
     }
-    return {laps: out, tags};
+    return {
+      laps: out,
+      tags,
+      ownTag: session.data
+        ? foreignTag(session.data.startedAt, session.data.sessionType)
+        : undefined,
+    };
   }, [
     selection.laps,
     foreignSessionIds,
     foreignLaps.laps,
     foreignDetails.details,
     session.data?.cornerMapSource,
+    session.data?.startedAt,
+    session.data?.sessionType,
   ]);
   // Fetch traces only for ids this session has, or that came from another
   // session; a hand-edited URL with unknown ids would otherwise fire a 404

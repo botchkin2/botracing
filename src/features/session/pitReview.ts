@@ -2,7 +2,7 @@
 // lap the race ends on, and the wheels a stop changed. Pure. The card itself
 // is built in pitCard.ts from these. Numbers, units and what they were
 // measured against, never advice (CODE_STANDARDS §7).
-import type {Lap, PitTyres, SessionType, Wheel} from '@/src/data/sessions';
+import type {PitTyres, Wheel} from '@/src/data/sessions';
 
 // Behind the "?" on the Pit stops card (thread 33 #1119), one sentence a line.
 export const PIT_REVIEW_HELP: readonly string[] = [
