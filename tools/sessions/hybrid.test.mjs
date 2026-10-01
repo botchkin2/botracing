@@ -139,21 +139,27 @@ describe('lapHybrid', () => {
     // 1000-3000 = 500-1500 m; regen 40-50 s = 2000-2500 m.
     const sections = {
       windows: [
-        {key: 'start', fromM: 0, toM: 400},
-        {key: 'S1', fromM: 400, toM: 1600},
-        {key: 'S2', fromM: 1600, toM: 3000},
+        {section: null, fromM: 0, toM: 400},
+        {section: 1, fromM: 400, toM: 1600},
+        {section: 2, fromM: 1600, toM: 3000},
       ],
       mapM: i => i * 0.5,
     };
     const h = lapHybrid(s, hzOf, HZ, 0, N - 1, dist, win, sections);
-    const by = Object.fromEntries(h.sections.map(x => [x.key, x]));
+    const by = Object.fromEntries(
+      h.sections.map(x => [x.section ?? 'start', x]),
+    );
     assert.equal(by.start.deployKwh, 0);
-    assert.ok(Math.abs(by.S1.deployKwh - (50 * 20) / 3600) < 1e-3);
-    assert.equal(by.S1.regenKwh, 0);
-    assert.equal(by.S2.deployKwh, 0);
-    assert.ok(Math.abs(by.S2.regenKwh - (120 * 10) / 3600) < 1e-3);
+    assert.ok(Math.abs(by[1].deployKwh - (50 * 20) / 3600) < 1e-3);
+    assert.equal(by[1].regenKwh, 0);
+    // Net is regen minus deploy: negative where the battery empties, positive where it fills.
+    assert.ok(by[1].netKwh < 0 && by[2].netKwh > 0);
+    assert.equal(by[1].fromM, 400);
+    assert.equal(by[1].toM, 1600);
+    assert.equal(by[2].deployKwh, 0);
+    assert.ok(Math.abs(by[2].regenKwh - (120 * 10) / 3600) < 1e-3);
     // The window opens at 400 m, tick 800, 8 s in: 80 - 0.1 x 8.
-    assert.equal(by.S1.socStartPct, 79.2);
+    assert.equal(by[1].socStartPct, 79.2);
     // The windows add up to the lap's energy.
     const sum = h.sections.reduce((a, x) => a + x.deployKwh + x.regenKwh, 0);
     assert.ok(Math.abs(sum - (h.deployKwh + h.regenKwh)) < 3e-3);
@@ -161,7 +167,7 @@ describe('lapHybrid', () => {
 
   it('leaves out a window the lap never reaches', () => {
     const h = lapHybrid(s, hzOf, HZ, 0, N - 1, dist, win, {
-      windows: [{key: 'far', fromM: 99_000, toM: 99_500}],
+      windows: [{section: 9, fromM: 99_000, toM: 99_500}],
       mapM: i => i * 0.5,
     });
     assert.deepEqual(h.sections, []);
@@ -194,8 +200,11 @@ describe('liftAndCoast', () => {
   });
 
   it('ignores a lift shorter than a pedal change, and a crawl', () => {
-    assert.ok(MIN_COAST_S > 0.1);
     assert.equal(read(run({liftFrom: 19.9})).count, 0);
+    // The usual 0.1 to 0.3 s throttle-to-brake change is not a lift ...
+    assert.equal(read(run({liftFrom: 19.75})).count, 0);
+    // ... and a deliberate one of the floor's length is.
+    assert.equal(read(run({liftFrom: 20 - MIN_COAST_S - 0.1})).count, 1);
     assert.equal(read(run({over: {speed_kmh: col(() => 40)}})).count, 0);
   });
 
@@ -232,7 +241,8 @@ describe('liftAndCoast', () => {
 });
 
 describe('stintHybrid', () => {
-  const lap = (start, end, deploy, regen) => ({
+  const lap = (stintLap, start, end, deploy, regen) => ({
+    stintLap,
     hybrid: {
       socStartPct: start,
       socEndPct: end,
@@ -245,10 +255,10 @@ describe('stintHybrid', () => {
 
   it('gives the SoC at the ends, the slope per green lap and the totals', () => {
     const laps = [
-      lap(80, 70, 1, 0.5),
-      lap(70, 60, 1, 0.5),
-      lap(60, 50, 1, 0.5),
-      lap(50, 40, 1, 0.5),
+      lap(0, 80, 70, 1, 0.5),
+      lap(1, 70, 60, 1, 0.5),
+      lap(2, 60, 50, 1, 0.5),
+      lap(3, 50, 40, 1, 0.5),
     ];
     const h = stintHybrid(laps, isGreen);
     assert.equal(h.socStartPct, 80);
@@ -259,10 +269,21 @@ describe('stintHybrid', () => {
     assert.equal(h.regenKwh, 2);
   });
 
+  it('uses the lap number in the stint, so a missing lap does not shift the rest', () => {
+    // Stint lap 2 has no hybrid facts: the points are at 0, 1, 3, 4.
+    const laps = [
+      lap(0, 80, 70, 1, 0.5),
+      lap(1, 70, 60, 1, 0.5),
+      lap(3, 50, 40, 1, 0.5),
+      lap(4, 40, 30, 1, 0.5),
+    ];
+    assert.equal(stintHybrid(laps, isGreen).socPerLapPct, -10);
+  });
+
   it('has no slope under three green laps, and leaves a non-green lap out of it', () => {
-    const a = {...lap(70, 60, 1, 0.5), green: false};
+    const a = {...lap(1, 70, 60, 1, 0.5), green: false};
     const h = stintHybrid(
-      [lap(80, 70, 1, 0.5), a, lap(60, 50, 1, 0.5)],
+      [lap(0, 80, 70, 1, 0.5), a, lap(2, 60, 50, 1, 0.5)],
       isGreen,
     );
     assert.equal(h.socPerLapPct, null);

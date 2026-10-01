@@ -45,7 +45,12 @@ import {
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
-import {HYBRID_VERSION, lapHybrid, stintHybrid} from './hybrid.mjs';
+import {
+  HYBRID_VERSION,
+  lapHybrid,
+  sectionEnergy,
+  stintHybrid,
+} from './hybrid.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
 // 10: fuel and Virtual Energy per lap, pit stop and stint (fuelFacts.mjs).
@@ -502,18 +507,10 @@ function analyzeLap(rec, seg, pits, flags) {
     ),
     pitStop: lapPitStop(s, seg.start, seg.end, pits, events.tyres_compound),
     // Battery and motor energy on the lap (hybrid.mjs); null without a hybrid.
-    hybrid: lapHybrid(
-      s,
-      rec.hz,
-      rec.baseHz,
-      i0,
-      i1,
-      i => dist[i - i0],
-      {
-        a: idxAt(s.t, seg.start),
-        b: Math.min(idxAt(s.t, seg.end), s.t.length - 1),
-      },
-    ),
+    hybrid: lapHybrid(s, rec.hz, rec.baseHz, i0, i1, i => dist[i - i0], {
+      a: idxAt(s.t, seg.start),
+      b: Math.min(idxAt(s.t, seg.end), s.t.length - 1),
+    }),
     distanceM: round(dist[dist.length - 1], 1),
     ...topSpeed(s, i0, i1, dist),
   };
@@ -931,6 +928,18 @@ export function analyzeSession(
       });
       lap.corners = facts.corners;
       lap.startStraight = facts.startStraight;
+      // Where on the lap the battery goes, through the same windows (the lap's
+      // raw distance over the map's frame ratio, as cornerFacts reads it).
+      if (lap.hybrid) {
+        const ratio = lap.distanceM / map.lengthM;
+        lap.hybrid.sections = sectionEnergy(
+          recs[lap.rec].s,
+          lap.i0,
+          lap.i1,
+          layout.windows,
+          i => lap.dist[i - lap.i0] / ratio,
+        );
+      }
       lap.cornerBoundaries = {
         v: layout.state.v,
         rev: layout.state.rev,

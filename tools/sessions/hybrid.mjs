@@ -8,10 +8,13 @@
 //   so_c         state of charge, % (20 Hz, held between samples)
 //   regen_rate   power in WATTS although the file labels it kW: positive =
 //                regenerating into the battery, negative = the motor
-//                deploying. Integrated as watts over time against the change
-//                in SoC it gives one constant, about 0.013 kWh per 1 % SoC,
-//                i.e. a battery of about 1.3 kWh; as kW it would be 1000 times
-//                too big.
+//                deploying. Two proofs. Integrated as watts over time against
+//                the change in SoC it gives one constant, about 0.013 kWh per
+//                1 % SoC, i.e. a battery of about 1.3 kWh; as kW it would be
+//                1000 times too big. And the figures are the LMDh spec hybrid
+//                (about 1.35 kWh energy store, 50 kW motor deploy, up to
+//                about 200 kW regen): the file's peaks are 51.6 kW deploy and
+//                164.9 kW regen (setup, thread 44 #1757).
 // An LMP2 or a GT3 logs both flat at 0 (neverLeavesZero): no hybrid.
 import {neverLeavesZero} from './fuelFacts.mjs';
 import {BRAKE_ON_PCT, BRAKE_RELEASED_PCT, sampleTicks} from './pedalPoints.mjs';
@@ -31,8 +34,16 @@ const WS_PER_KWH = 3.6e6;
 
 /** Throttle below this (the driver's pedal) is lifted. */
 export const LIFT_THROTTLE_PCT = 5;
-/** A coast shorter than this is a pedal change, not a lift. */
-export const MIN_COAST_S = 0.2;
+/**
+ * A coast shorter than this is the pedal change of an ordinary braking zone,
+ * not a lift. Set from the one Hypercar file (Daytona 3bdf1a09, all 7 brake
+ * applications, no floor): throttle-off-to-brake took 0.04, 0.04 and 0.16 s
+ * on the three flat-out corners, then nothing until 0.92, 1.24, 1.80 and
+ * 3.84 s; the floor sits in that empty stretch (setup, thread 44 #1757:
+ * deliberate lift-and-coast is about 0.5 to 3 s). n = 7 on one car and one
+ * track, so another car or track may need another floor.
+ */
+export const MIN_COAST_S = 0.5;
 /** Below this speed the car is crawling (a pit lane, a spin), not coasting into a corner. */
 export const MIN_COAST_KMH = 80;
 
@@ -86,12 +97,15 @@ export function energyKwh(s, a, b) {
 
 /**
  * Where on the lap the battery goes: the energy and the SoC change in each
- * window. `windows` are `{key, fromM, toM}` in the map's frame (the lap's
- * fraction times the track map's length, as every corner window is) and
- * `mapM(i)` the map-frame distance of tick i. A window with no tick in it
- * is left out.
+ * corner window (src/analysis/cornerBoundaries.ts: the windows tile the lap, the
+ * start straight included, `section: null`). `windows` are
+ * `{section, fromM, toM}` in the map's frame (the lap's fraction times the
+ * track map's length, as every corner window is) and `mapM(i)` the map-frame
+ * distance of tick i. A window with no tick in it is left out. `netKwh` is
+ * regen minus deploy, the number that says where the battery is filled and
+ * emptied.
  */
-function sectionEnergy(s, i0, i1, windows, mapM) {
+export function sectionEnergy(s, i0, i1, windows, mapM) {
   const out = [];
   for (const w of windows) {
     let a = -1;
@@ -105,10 +119,15 @@ function sectionEnergy(s, i0, i1, windows, mapM) {
     }
     if (a < 0 || b <= a) continue;
     const e = energyKwh(s, a, b);
+    const deployKwh = round(e.deployKwh, 4);
+    const regenKwh = round(e.regenKwh, 4);
     out.push({
-      key: w.key,
-      deployKwh: round(e.deployKwh, 4),
-      regenKwh: round(e.regenKwh, 4),
+      section: w.section,
+      fromM: round(w.fromM, 1),
+      toM: round(w.toM, 1),
+      deployKwh,
+      regenKwh,
+      netKwh: round(regenKwh - deployKwh, 4),
       socStartPct: round(s.so_c[a], 1),
       socEndPct: round(s.so_c[b], 1),
     });
@@ -224,7 +243,8 @@ export function lapHybrid(s, hzOf, baseHz, i0, i1, dist, win, sections = null) {
 /**
  * The SoC across a stint: where it was at the first and last lap with a
  * reading, and the least-squares slope in % per lap over the green laps'
- * end-of-lap readings (the lap counted from the stint's first). A stint with
+ * end-of-lap readings against the lap's own number in the stint (`stintLap`), so a lap
+ * missing from the middle does not shift the later ones. A stint with
  * under MIN_TREND_LAPS readings has no slope: a trend of two points is not
  * one. Null when no lap of the stint carries hybrid facts.
  */
@@ -235,7 +255,7 @@ export function stintHybrid(stintLaps, isGreen) {
   const first = laps[0].hybrid;
   const last = laps[laps.length - 1].hybrid;
   const pts = laps
-    .map((l, k) => ({k, y: l.hybrid.socEndPct, green: isGreen(l)}))
+    .map(l => ({k: l.stintLap, y: l.hybrid.socEndPct, green: isGreen(l)}))
     .filter(p => p.green && Number.isFinite(p.y));
   let slope = null;
   if (pts.length >= MIN_TREND_LAPS) {
