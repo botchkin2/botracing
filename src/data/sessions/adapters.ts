@@ -413,6 +413,8 @@ export type LapTraffic = {
   passesSufferedAll: number;
   /** Seconds within 1 s of a car of the player's class, ahead or behind. */
   battleS: number;
+  /** Faster-class cars that passed the player on this lap (the stored list's length). */
+  overtakes: number;
 };
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
@@ -518,6 +520,7 @@ function toTraffic(v: unknown): LapTraffic | null {
     passesMadeAll: num(x.passesMadeAll) ?? 0,
     passesSufferedAll: num(x.passesSufferedAll) ?? 0,
     battleS: num(x.battleS) ?? 0,
+    overtakes: Array.isArray(x.overtakes) ? x.overtakes.length : 0,
   };
 }
 

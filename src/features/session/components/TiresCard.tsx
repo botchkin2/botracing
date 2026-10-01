@@ -5,6 +5,7 @@ import {WHEELS} from '@/src/analysis/tyres';
 import {space, useTheme} from '@/src/design';
 import {EmptyState, Explainer, Segment, Text, useHowToRead} from '@/src/ui';
 
+import type {WearScatterModel} from '../wearScatter';
 import {
   NO_TYRE_CHANNELS,
   TIRES_HELP,
@@ -12,6 +13,7 @@ import {
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
 import {TireGrid} from './TireGrid';
+import {WearScatter} from './WearScatter';
 
 /**
  * The Session Tires card (round 7 1A, 1C, 1D): one stint at a time. Wear per
@@ -20,9 +22,12 @@ import {TireGrid} from './TireGrid';
  */
 export function TiresCard({
   card,
+  scatter,
   width,
 }: {
   card: TiresCardModel;
+  /** Lap time against wear over the whole race; null with too few laps. */
+  scatter: WearScatterModel | null;
   /** The width the card may use, in points. */
   width: number;
 }) {
@@ -126,6 +131,7 @@ export function TiresCard({
         width={width}
         medianLabel='median over the green laps'
       />
+      {scatter ? <WearScatter model={scatter} width={width} /> : null}
     </View>
   );
 }
