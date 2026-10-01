@@ -66,13 +66,20 @@ export const MIN_CLASS_LAPS = 3;
 // The wrap: from the last 30% of the lap to the first 30%.
 const WRAP_FROM = 0.7;
 const WRAP_TO = 0.3;
-// A real crossing moves the car one step: the distance to the end of the lap
-// plus the distance past the start is what it drove in one update. 120 m/s
+// A crossing lands at a distance of zero or more. At the start of the
+// Daytona races of 2026-09-29/30 every car's lap distance drops by one lap, to
+// about -450 m, at the same update (120.8 s): the counter changes over 450 m
+// before the line and reads negative until the car reaches it. That wrap is
+// continuous on the road (a 1 m step), so only the sign tells it from a
+// crossing; taking it for one started each car's clock up to 26 s early or
+// late (the time was extrapolated from a rolling start's speed) and made a
+// first "lap" of 95-99 s against a 110 s GT3 pace.
+//
+// A real crossing also moves the car one step: the distance to the end of the
+// lap plus the distance past the start is what it drove in one update. 120 m/s
 // (430 km/h) is above any car; the slack covers the track length being only
-// the longest distance seen, short of the real one by up to a step. A bigger
-// step is the counter resetting: at the start of the Daytona races of
-// 2026-09-29/30 every car's lap distance jumps from about 5300 m to -330 m at
-// the same update (120.8 s), which is the grid, not the line.
+// the longest distance seen, short of the real one by up to a step. A jump
+// that is bigger (a reset to the garage, a teleport) is not a crossing.
 const MAX_SPEED_MS = 120;
 const STEP_SLACK_M = 20;
 
@@ -141,6 +148,7 @@ export function carLaps(field: EncodedField): number[][] {
         const stepM = lengthM - prev + d;
         const dt = etS[u] - etS[u - 1];
         if (
+          d >= 0 &&
           stepM >= -STEP_SLACK_M &&
           stepM <= MAX_SPEED_MS * dt + STEP_SLACK_M
         ) {
@@ -149,7 +157,8 @@ export function carLaps(field: EncodedField): number[][] {
           startT = at;
           clean = true;
         } else {
-          // Not the line: whatever lap is running is not a lap.
+          // Not the line (the counter changing over, or a jump): whatever
+          // lap is running is not a lap.
           startT = null;
           clean = false;
         }
