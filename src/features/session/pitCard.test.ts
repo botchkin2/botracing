@@ -271,6 +271,30 @@ describe('buildPitCard', () => {
     expect(card.refuelScope).toBeNull();
   });
 
+  it('names the compound of a full set against the start of the run, and only then', () => {
+    const compound = (c: 'start' | 'other' | null) => {
+      const t = {
+        changed: true,
+        wheels: ['FL', 'FR', 'RL', 'RR'] as ('FL' | 'FR' | 'RL' | 'RR')[],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: c,
+      };
+      const laps = oneStop.map(l =>
+        l.id === 'l6' ? {...l, pitStop: stop({tyres: t})} : l,
+      );
+      const card = buildPitCard('R', laps, session());
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      return card.columns[0].compound;
+    };
+    expect(compound('start')).toBe('Compound as at the start of the run');
+    expect(compound('other')).toBe(
+      'Compound different from the start of the run',
+    );
+    expect(compound(null)).toBeNull();
+  });
+
   it('says which tyres changed in the card wording, and nothing before the wear step is seen', () => {
     const tyres = (t: NonNullable<PitStop['tyres']> | null) => {
       const laps = oneStop.map(l =>

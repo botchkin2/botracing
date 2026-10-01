@@ -11,7 +11,9 @@ import {
   type TiresCard as TiresCardModel,
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
+import {CoolDown} from './CoolDown';
 import {TireGrid} from './TireGrid';
+import {TreadZones} from './TreadZones';
 
 /**
  * The Session Tires card (round 7 1A, 1C, 1D): one stint at a time. Wear per
@@ -130,6 +132,21 @@ export function TiresCard({
         width={width}
         medianLabel='median over the green laps'
       />
+      <View style={styles.block}>
+        <Text variant='label'>Stop cool-down</Text>
+        <CoolDown block={stint.coolDown} width={width} />
+      </View>
+      {stint.tread ? (
+        <View style={styles.block}>
+          <Text variant='label'>Tread zones</Text>
+          <Explainer>
+            Median over the green laps, °C. Outer edges face out, as seen from
+            above. I inner · C centre · O outer; I − O = inner minus outer. Bar
+            scale 70–100 °C.
+          </Explainer>
+          <TreadZones zones={stint.tread} width={width} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -139,6 +156,7 @@ const SHORT_STINT_NOTE =
 
 const styles = StyleSheet.create({
   card: {gap: space.md},
+  block: {gap: space.sm},
   title: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   table: {gap: space.xs},
   row: {flexDirection: 'row', gap: space.sm},
