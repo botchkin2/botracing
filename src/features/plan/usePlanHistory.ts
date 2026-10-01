@@ -12,7 +12,7 @@ import {
   type Combo,
   greenLapsOf,
   historySessions,
-  sessionLimitL,
+  limitsOfDetails,
   veRatioFor,
   veRatioOf,
 } from './model';
@@ -32,10 +32,7 @@ export function usePlanLimits(combo: Combo | null) {
   const last = useSession(allIds[0] ?? '');
   return {
     lastFuel: last.data?.fuel ?? null,
-    pending: allDetails.details.some(d => d === undefined),
-    limitsL: allDetails.details.map(d =>
-      d === undefined ? undefined : sessionLimitL(d.fuel),
-    ),
+    ...limitsOfDetails(allDetails.details, allDetails.pending),
   };
 }
 

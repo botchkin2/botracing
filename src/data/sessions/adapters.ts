@@ -30,6 +30,8 @@ export type SessionSummary = {
   medianTimeS: number | null;
   bestLapId: string | null;
   series: string | null;
+  /** Pace of each class in the field (analysis v17); null without a field. */
+  classLaps: SessionClassLaps | null;
   eventId: string | null;
   /**
    * Where the session's corners came from: the track's stored map
@@ -87,6 +89,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     medianTimeS: num(raw.medianLapTime),
     bestLapId: str(raw.bestLapId) || null,
     series: str(raw.series) || null,
+    classLaps: toClassLaps(raw.classLaps),
     eventId: str(raw.eventId) || null,
     cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),

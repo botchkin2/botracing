@@ -10,6 +10,7 @@ import {
 } from '@/src/analysis/fuelPlan';
 import {
   type Lap,
+  type SessionDetail,
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
@@ -89,6 +90,25 @@ export function planCombos(sessions: SessionSummary[]): Combo[] {
  */
 export function sessionLimitL(fuel: SessionFuel | null): number | null {
   return fuel?.fillLimitL ?? fuel?.startL ?? fuel?.tankL ?? null;
+}
+
+/**
+ * The fill limit of each session doc at a track and car, and whether any doc
+ * is still loading. A doc that failed to load is not loading: it has no limit
+ * to read, so it is left out of the history rather than waited for forever.
+ * `details` lines up with `combo.sessions`; `pending` is the query's loading
+ * flag, not "this entry is undefined" (a failed one is undefined too).
+ */
+export function limitsOfDetails(
+  details: (SessionDetail | undefined)[],
+  pending: boolean,
+): {pending: boolean; limitsL: (number | null | undefined)[]} {
+  return {
+    pending,
+    limitsL: details.map(d =>
+      d === undefined ? undefined : sessionLimitL(d.fuel),
+    ),
+  };
 }
 
 /**

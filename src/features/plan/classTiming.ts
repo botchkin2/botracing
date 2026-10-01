@@ -1,4 +1,5 @@
 import {type PaceClass} from '@/src/analysis/classLaps';
+import {type SessionClassLaps} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
 import {lapName} from './planCards';
@@ -23,6 +24,23 @@ export type ClassSession = {
   /** Per class: the median green lap of its cars in that session, and how many laps it rests on. */
   byClass: Partial<Record<PaceClass, {medianS: number; laps: number}>>;
 };
+
+/**
+ * The one place a stored `classLaps` (the session list serves it, and so does
+ * the full doc) becomes the model's input: qualifying has no class laps and is
+ * left out; so is a session without a field or without a class pace.
+ */
+export function classSessionOf(s: {
+  classLaps: SessionClassLaps | null;
+}): ClassSession | null {
+  const doc = s.classLaps;
+  if (!doc || doc.kind === 'qualify' || !doc.classes) return null;
+  const byClass: ClassSession['byClass'] = {};
+  for (const [key, stats] of Object.entries(doc.classes)) {
+    byClass[key as PaceClass] = {medianS: stats.medianS, laps: stats.laps};
+  }
+  return {kind: doc.kind, byClass};
+}
 
 export type ClassTimingInput = {
   /** Every race and practice at the track with a field, whatever car he drove. */
