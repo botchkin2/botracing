@@ -56,7 +56,10 @@ export type PitColumn = {
  * One wheel's wear in % of a new tyre. `beforePct` is the end of the lap the
  * stop was entered on, `afterPct` the end of the lap after it (the stop ends
  * inside that lap, so it holds one out lap of wear). A null is a dead sensor
- * or no reading, shown as a gap and never as 0.
+ * or no reading, shown as a gap and never as 0. Right only where the pit box
+ * is past the timing line; with the box before it, `beforePct` already reads
+ * the new tyre (setup, thread 44 #1543: the uploader should store wear at pit
+ * entry and exit on pitStop.tyres, then this reads those).
  */
 export type WheelWear = {
   wheel: Wheel;

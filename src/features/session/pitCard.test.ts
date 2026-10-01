@@ -301,7 +301,7 @@ describe('buildPitCard', () => {
       return card.columns[0].wheels;
     };
 
-    it('reads the pit-in lap as before and the lap after as after, and marks the changed wheel', () => {
+    it('box past the timing line: reads the pit-in lap as before and the lap after as after, and marks the changed wheel', () => {
       expect(
         wheels(wear(61.2, 55.4, 63, 58), wear(60.1, 98.9, 62.4, 57.2)),
       ).toEqual([
