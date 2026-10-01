@@ -4,6 +4,7 @@ import {
   type ClassLapStats,
   type PaceClass,
 } from '@/src/analysis/classLaps';
+import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -311,10 +312,13 @@ export type Lap = {
   fuel: LapFuel | null;
   /** The pit stop entered on this lap, if any. */
   pitStop: PitStop | null;
+  /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
+  tyres: LapTyres | null;
   /**
-   * The average tyre wear reading at the start of this lap jumped up from the
-   * lap before (tools/sessions/analyze.mjs): a set, or a wheel replaced alone.
-   * Never says which wheels.
+   * The first lap on new tyres (`freshTyres` in src/analysis/tyres.ts, from
+   * the lap before): a pit stop that changed any wheel ended in it, or it
+   * ended in a reset to the garage. Cold whatever the temperature says, and
+   * not a fair reference.
    */
   newTyres: boolean;
 };
@@ -478,7 +482,7 @@ function toTraffic(v: unknown): LapTraffic | null {
 }
 
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
-  return items.map((raw, i) => ({
+  const laps = items.map((raw, i) => ({
     id: str(raw.id),
     lapIndex: i + 1,
     lapNumber: num(raw.lapNumber),
@@ -504,8 +508,12 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     traffic: toTraffic(raw.traffic),
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
-    newTyres: raw.newTyres === true,
+    tyres: toLapTyres(raw.tyres),
+    newTyres: false,
   }));
+  return laps.map((lap, i) =>
+    freshTyres(laps[i - 1]) ? {...lap, newTyres: true} : lap,
+  );
 }
 
 // --- band (GET /sessions/{id}/band) ----------------------------------------
