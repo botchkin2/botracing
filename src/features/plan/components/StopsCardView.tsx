@@ -94,6 +94,11 @@ export function StopsCardView({
           </Text>
         </View>
       ) : null}
+      {card.windows.length === 0 && card.windowNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {card.windowNote}
+        </Text>
+      ) : null}
       {card.equal ? row(card.equal, false) : null}
       {formation.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted'>

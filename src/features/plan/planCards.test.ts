@@ -163,6 +163,31 @@ describe('buildPlanCards', () => {
     expect(plan.atMedian.stopLaps).toEqual([]);
     const {stops} = buildPlanCards(plan, short, false, RATIO);
     expect(stops.windows).toEqual([]);
+    // It is the run-dry case, so the card says so, with the extra load of the
+    // meter that limits (VE here: 3.5 % a lap against a 100 % load, fuel 2.38 L
+    // against 100 L), from the late-flag row of loadToFinish over the estimate row's.
+    const [est, late] = plan.loadToFinish as NonNullable<
+      typeof plan.loadToFinish
+    >;
+    expect(late.atP90.limitedBy).toBe('ve');
+    const more = (late.atP90.vePct as number) - (est.atP90.vePct as number);
+    expect(more).toBeGreaterThan(0);
+    expect(stops.windowNote).toBe(
+      `If the flag falls late, one load does not reach: one stop, or start with ${more.toFixed(
+        1,
+      )} % VE more${late.atP90.fits ? '' : ' than the rules allow'}.`,
+    );
+  });
+
+  it('a plan with no stop and a late flag that one load still reaches says nothing', () => {
+    // 40 min is 24 laps; 25 at the late flag is still inside the 27-lap load.
+    const short: PlanRules = {...rules, lengthMin: 40};
+    const plan = planRace(short, history());
+    expect(plan.raceLaps?.oneMore).toBe(
+      (plan.raceLaps?.estimate as number) + 1,
+    );
+    const {stops} = buildPlanCards(plan, short, false, RATIO);
+    expect(stops.windows).toEqual([]);
     expect(stops.windowNote).toBeNull();
   });
 
