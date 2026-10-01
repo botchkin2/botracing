@@ -4,6 +4,7 @@ import {
   type ClassLapStats,
   type PaceClass,
 } from '@/src/analysis/classLaps';
+import {type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -311,12 +312,8 @@ export type Lap = {
   fuel: LapFuel | null;
   /** The pit stop entered on this lap, if any. */
   pitStop: PitStop | null;
-  /**
-   * The average tyre wear reading at the start of this lap jumped up from the
-   * lap before (tools/sessions/analyze.mjs): a set, or a wheel replaced alone.
-   * Never says which wheels.
-   */
-  newTyres: boolean;
+  /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
+  tyres: LapTyres | null;
 };
 
 /**
@@ -504,7 +501,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     traffic: toTraffic(raw.traffic),
     fuel: toLapFuel(raw.fuel),
     pitStop: toPitStop(raw.pitStop),
-    newTyres: raw.newTyres === true,
+    tyres: toLapTyres(raw.tyres),
   }));
 }
 

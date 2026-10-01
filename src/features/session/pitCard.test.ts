@@ -7,7 +7,7 @@ import fixture from './__fixtures__/roadAtlantaRace.json';
 import {buildPitCard, type PitCardSession, sessionHasVe} from './pitCard';
 
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
-  ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
+  ...toLaps([fixture.laps[0]])[0],
   id: `l${lapIndex}`,
   lapIndex,
   stint: 1,
@@ -17,7 +17,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   fuel: null,
   pitStop: null,
   pitOut: false,
-  newTyres: false,
+  tyres: null,
   ...over,
 });
 
@@ -72,7 +72,7 @@ const oneStop = [
   lap(5, {fuel: fuel()}),
   lap(6, {fuel: fuel(), pitStop: stop(), pitIn: true}),
   lap(7, {pitOut: true, stint: 2, fuel: fuel()}),
-  lap(8, {stint: 2, newTyres: true, fuel: fuel()}),
+  lap(8, {stint: 2, fuel: fuel()}),
   lap(9, {
     stint: 2,
     fuel: fuel({endL: 3.7, veEndPct: 4, lapsLeftFuel: 1.5, lapsLeftVe: 1.1}),
