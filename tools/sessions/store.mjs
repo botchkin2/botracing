@@ -20,6 +20,7 @@ import {createHash} from 'node:crypto';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldAfterSync} from './field.mjs';
+import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
@@ -158,7 +159,7 @@ export function writeBoundaries(db, writer, {trackId, state, windows}) {
 // The same writes on their own, for the fold pass that runs before any
 // session is uploaded.
 export async function putBoundaries(boundaries, db = connect().db) {
-  const writer = db.bulkWriter();
+  const writer = guardedWriter(db.bulkWriter());
   writeBoundaries(db, writer, boundaries);
   await writer.close();
 }
@@ -309,7 +310,9 @@ export async function upload(out, {log = () => {}} = {}) {
     })),
   );
 
-  const writer = db.bulkWriter();
+  // Every document is checked first (docShape.mjs): one Firestore would refuse
+  // fails this session with the field path, before anything is written.
+  const writer = guardedWriter(db.bulkWriter());
   for (const rec of out.recordings)
     writer.set(db.collection('recordings').doc(rec.id), rec);
   for (const lap of out.laps)

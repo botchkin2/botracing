@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {cornerFacts} from './cornerFacts.mjs';
+import {docProblems} from './docShape.mjs';
 import {LENGTH_M, makeLap, map} from './syntheticLap.mjs';
 import {
   mapKeyOf,
@@ -170,4 +171,27 @@ test('packed state has no array inside an array and unpacks to the same state', 
 test("windows come back as the model's own from the kept starts", () => {
   const {state, windows} = layout;
   assert.deepEqual(windows, windowsOf(state, map.corners, LENGTH_M));
+});
+
+test('what a lap doc and the track doc carry from here passes the Firestore shape check', () => {
+  const {corners, startStraight} = factsOf(laps[0], layout);
+  const lapDoc = {
+    corners,
+    startStraight,
+    cornerBoundaries: {v: layout.state.v, rev: layout.state.rev},
+  };
+  assert.deepEqual(docProblems(lapDoc), []);
+  assert.deepEqual(docProblems(packState(layout.state)), []);
+  assert.deepEqual(
+    docProblems({
+      boundaries: {
+        v: layout.state.v,
+        rev: layout.state.rev,
+        startsM: layout.state.startsM,
+        marginM: layout.state.marginM,
+        windows: layout.windows,
+      },
+    }),
+    [],
+  );
 });
