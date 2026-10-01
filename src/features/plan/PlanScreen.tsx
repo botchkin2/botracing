@@ -289,6 +289,8 @@ export function PlanScreen() {
                     </PlanCard>
                     <ClassTimingSection
                       timing={classTiming}
+                      windows={data.cards.stops.windows}
+                      windowNote={data.cards.stops.windowNote}
                       width={cardInnerW}
                     />
                     <PlanCard
@@ -303,9 +305,19 @@ export function PlanScreen() {
                   </>
                 ) : null}
                 {plan?.loadToFinish ? (
-                  view.cards
-                    .filter(c => c.key === 'load')
-                    .map(card => <RowsCard key={card.key} card={card} />)
+                  <>
+                    {view.cards
+                      .filter(c => c.key === 'load')
+                      .map(card => (
+                        <RowsCard key={card.key} card={card} />
+                      ))}
+                    {/* No stop planned: the late-flag run-dry case, if any. */}
+                    {data.cards?.stops.windowNote ? (
+                      <Text variant='dataSmall' tone='textSecondary'>
+                        {data.cards.stops.windowNote}
+                      </Text>
+                    ) : null}
+                  </>
                 ) : data.cards ? (
                   <PlanCard title='Stops' explainer={STOPS_EXPLAINER}>
                     <StopsCardView

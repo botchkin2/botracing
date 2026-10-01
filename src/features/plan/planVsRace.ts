@@ -44,4 +44,5 @@ export const dateOf = (iso: string) => {
   const d = new Date(iso);
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 };
-export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export const plural = (n: number, word: string) =>
+  `${n} ${word}${n === 1 ? '' : 's'}`;
