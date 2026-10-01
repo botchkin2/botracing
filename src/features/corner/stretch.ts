@@ -106,6 +106,41 @@ export function viewCaption(
     .join(' · ');
 }
 
+/**
+ * The caption when the corner has a window of its own (pit-wall thread 45):
+ * "Shaded: S5 (T8–T10) · 3,665 → 4,005 m · also in view: ...". A window that
+ * runs past the zoom window says where it really ends and that the rest is not
+ * drawn, so the shading ending at the edge is not read as the window's end
+ * (setup #1760).
+ */
+export function windowCaption(
+  label: string,
+  /** The window in lap metres, what the caption prints. */
+  window: CornerStretch,
+  /** The same window in the zoom window's frame, to see what runs past it. */
+  inFrame: CornerStretch,
+  neighbours: {label: string; lapM: number}[],
+  zoom: [number, number],
+): string {
+  const [startM, endM] = zoom;
+  const cut = [
+    inFrame.fromM < startM
+      ? `window starts at ${plain(window.fromM)} m, not drawn`
+      : null,
+    inFrame.toM > endM
+      ? `window continues to ${plain(window.toM)} m, not drawn`
+      : null,
+  ].filter(Boolean);
+  const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
+  return [
+    `Shaded: ${label} · ${plain(window.fromM)} → ${plain(window.toM)} m`,
+    ...cut,
+    also.length > 0 ? `also in view: ${also.join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 // "T8 and T9 overlap here", "T8, T9 and T10 overlap here".
 function overlapSentence(labels: string[]): string {
   const head = labels.slice(0, -1).join(', ');

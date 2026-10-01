@@ -28,6 +28,7 @@ import {createHash} from 'node:crypto';
 import {
   MAP_AFTER_M,
   MAP_BEFORE_M,
+  WINDOW_PAD_M,
   ZOOM_AFTER_M,
   ZOOM_BEFORE_M,
 } from '../../src/analysis/cornerWindows.ts';
@@ -42,8 +43,9 @@ export const GRID_STEP_M = 5;
 // new format (src/analysis/cornerSlices.ts).
 export const SLICE_FORMAT = 1;
 // A slice reaches this far past its corner window on each side, so the
-// delta from the boundary and the lines run to the window's edges.
-export const WINDOW_PAD_M = 50;
+// delta from the boundary and the lines run to the window's edges (the pad
+// is shared with the screen: src/analysis/cornerWindows.ts).
+export {WINDOW_PAD_M};
 const DIST_DIGITS = 3;
 
 // Channels a slice carries, and how many decimals each keeps: the same as the
