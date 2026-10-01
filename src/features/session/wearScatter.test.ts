@@ -106,9 +106,33 @@ describe('buildWearScatter', () => {
     expect(m?.panels).toHaveLength(1);
     expect(m?.panels[0].fit).not.toBeNull();
     expect(m?.panels[0].note).toBe('8 laps');
-    expect(m?.headline).toMatch(/^No number: wear and fuel fall together/);
+    expect(m?.headline).toBe('No number: fewer than 10 laps.');
     expect(m?.xDomain[0]).toBe(0);
     expect(m?.cleanOnly).toBe(false);
+  });
+
+  it('one stint with wear and fuel locked together has no number, and says why', () => {
+    const laps = Array.from({length: 12}, (_, i) => lap(i + 1));
+    expect(buildWearScatter(laps, false)?.headline).toMatch(
+      /^No number: wear and fuel fall together/,
+    );
+  });
+
+  it('a fit shows its standard error, and a note when wear and fuel move together', () => {
+    // Two stints on carried tyres; a fixed zig-zag on the times.
+    const two = [
+      ...Array.from({length: 10}, (_, i) => [i + 1, 60 - 3 * i]),
+      ...Array.from({length: 10}, (_, i) => [i + 15, 60 - 3 * i]),
+    ].map(([n, f], i) =>
+      lap(n, {
+        timeS: 90 + 0.05 * (n - 1) + 0.03 * f + (i % 2 === 0 ? 0.02 : -0.02),
+        fuel: {green: true, startL: f} as Lap['fuel'],
+        tyres: tyres({wearPct: all(100 - (n - 1))}),
+      }),
+    );
+    const h = buildWearScatter(two, false)?.headline ?? '';
+    expect(h).toMatch(/^\+0\.0\d\d ± 0\.\d{3} s per 1 % lost, fuel held fixed/);
+    expect(h).not.toContain('loose');
   });
 
   it('the key says track changes are not separated and no cause is shown', () => {

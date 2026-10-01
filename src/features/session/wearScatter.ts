@@ -5,6 +5,8 @@ import {isCleanTraffic} from '@/src/analysis/traffic';
 import {
   type JointFit,
   jointFit,
+  LOOSE_CORR,
+  MIN_FIT_LAPS,
   type WearBand,
   type WearLap,
   wearBands,
@@ -80,15 +82,24 @@ const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(3)}`
 
 /** The joint fit as one line, or why there is none. */
 export function headlineOf(fit: JointFit): string {
-  if (fit.kind === 'fit')
-    return `${signed(fit.sPerPct)} s per 1 % lost, fuel held fixed (${signed(
+  if (fit.kind === 'fit') {
+    const loose =
+      Math.abs(fit.corr) >= LOOSE_CORR
+        ? ` Wear and fuel move together over these laps (r = ${fit.corr.toFixed(
+            2,
+          )}), so the number is loose.`
+        : '';
+    return `${signed(fit.sPerPct)} ± ${fit.seSPerPct.toFixed(
+      3,
+    )} s per 1 % lost, fuel held fixed (${signed(
       fit.sPerL,
-    )} s per litre at the start of the lap) · ${fit.n} laps`;
+    )} s per litre at the start of the lap) · ${fit.n} laps.${loose}`;
+  }
   if (fit.why === 'locked')
     return 'No number: wear and fuel fall together over these laps (tyres were not carried across a stop), so their effects cannot be told apart.';
   if (fit.why === 'one-set')
     return 'No number: the laps span too little wear; it needs tyres run across two stints.';
-  return 'No number: fewer than 5 laps.';
+  return `No number: fewer than ${MIN_FIT_LAPS} laps.`;
 }
 
 function padded([lo, hi]: [number, number]): [number, number] {

@@ -13,6 +13,14 @@
 export const MIN_BAND_LAPS = 5;
 /** A line needs the laps to span at least this much wear, % lost; below it the slope is noise. */
 export const MIN_WEAR_SPAN_PCT = 2;
+/**
+ * The joint fit needs this many laps: three coefficients (a, b, c) are fitted
+ * and the spread of b is read from the residual, so a handful of laps gives a
+ * number that looks exact and is not (apex, pit-wall thread 44 #1690).
+ */
+export const MIN_FIT_LAPS = 10;
+/** From this |corr(wear, fuel)| the number is shown with a note that it is loose (the gate is MAX_WEAR_FUEL_CORR). */
+export const LOOSE_CORR = 0.8;
 /** The joint fit is only identifiable when wear and fuel are not locked together (tyres carried across a stop). */
 export const MAX_WEAR_FUEL_CORR = 0.9;
 /** Bands by fuel at lap start (equal counts of laps). */
@@ -115,6 +123,12 @@ export type JointFit =
       kind: 'fit';
       /** Seconds per 1 % lost, fuel held fixed. */
       sPerPct: number;
+      /**
+       * One standard error of `sPerPct`, seconds: sqrt(s² · sff / det) with s²
+       * the residual variance over n − 3. Correlated wear and fuel inflate it
+       * by 1 / (1 − r²), which is why it is shown beside the number.
+       */
+      seSPerPct: number;
       /** Seconds per litre of fuel at the start of the lap, wear held fixed. */
       sPerL: number;
       corr: number;
@@ -124,13 +138,13 @@ export type JointFit =
 
 /**
  * time = a + b * lostPct + c * fuelStartL over every lap, by least squares
- * (centred, so a 2x2 solve). None under MIN_BAND_LAPS laps, under
+ * (centred, so a 2x2 solve). None under MIN_FIT_LAPS laps, under
  * MIN_WEAR_SPAN_PCT of wear, or when |corr(wear, fuel)| is MAX_WEAR_FUEL_CORR
  * or more: the two then cannot be told apart.
  */
 export function jointFit(laps: WearLap[]): JointFit {
   const n = laps.length;
-  if (n < MIN_BAND_LAPS) return {kind: 'none', why: 'few-laps', corr: null};
+  if (n < MIN_FIT_LAPS) return {kind: 'none', why: 'few-laps', corr: null};
   const mean = (f: (l: WearLap) => number) =>
     laps.reduce((a, l) => a + f(l), 0) / n;
   const mx = mean(l => l.lostPct);
@@ -141,6 +155,7 @@ export function jointFit(laps: WearLap[]): JointFit {
   let sxf = 0;
   let sxy = 0;
   let sfy = 0;
+  let syy = 0;
   for (const l of laps) {
     const x = l.lostPct - mx;
     const f = l.fuelStartL - mf;
@@ -150,6 +165,7 @@ export function jointFit(laps: WearLap[]): JointFit {
     sxf += x * f;
     sxy += x * y;
     sfy += f * y;
+    syy += y * y;
   }
   const xs = laps.map(l => l.lostPct);
   const span = Math.max(...xs) - Math.min(...xs);
@@ -159,10 +175,15 @@ export function jointFit(laps: WearLap[]): JointFit {
   const det = sxx * sff - sxf * sxf;
   if (Math.abs(corr) >= MAX_WEAR_FUEL_CORR || det <= 0)
     return {kind: 'none', why: 'locked', corr};
+  const b = (sff * sxy - sxf * sfy) / det;
+  const c = (sxx * sfy - sxf * sxy) / det;
+  // The residual sum of squares of the centred fit; clamped against rounding.
+  const rss = Math.max(0, syy - b * sxy - c * sfy);
   return {
     kind: 'fit',
-    sPerPct: (sff * sxy - sxf * sfy) / det,
-    sPerL: (sxx * sfy - sxf * sxy) / det,
+    sPerPct: b,
+    seSPerPct: Math.sqrt((rss / (n - 3)) * (sff / det)),
+    sPerL: c,
     corr,
     n,
   };

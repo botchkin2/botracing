@@ -4,6 +4,7 @@ import {
   jointFit,
   leastSquares,
   MIN_BAND_LAPS,
+  MIN_FIT_LAPS,
   type WearLap,
   wearBands,
 } from './tyreWear';
@@ -109,11 +110,44 @@ describe('jointFit', () => {
     }
   });
 
-  it('has no number under 5 laps or under 2 % of wear span', () => {
+  it('has no number under 10 laps or under 2 % of wear span', () => {
     expect(jointFit(laps.slice(0, 3))).toMatchObject({why: 'few-laps'});
+    expect(jointFit(laps.slice(0, MIN_FIT_LAPS - 1))).toMatchObject({
+      why: 'few-laps',
+    });
     const flat = laps
-      .slice(0, 8)
+      .slice(0, MIN_FIT_LAPS)
       .map(l => ({...l, lostPct: 4 + l.fuelStartL * 0.001}));
     expect(jointFit(flat)).toMatchObject({why: 'one-set'});
+  });
+
+  it('has a standard error that is zero without noise and covers the truth with it', () => {
+    const exact = jointFit(laps);
+    if (exact.kind !== 'fit') throw new Error('no fit');
+    expect(exact.seSPerPct).toBeLessThan(1e-9);
+    // A fixed zig-zag of +-0.02 s on every lap: the truth is within 3 SE.
+    const noisy = laps.map((l, i) => ({
+      ...l,
+      timeS: l.timeS + (i % 2 === 0 ? 0.02 : -0.02),
+    }));
+    const fit = jointFit(noisy);
+    if (fit.kind !== 'fit') throw new Error('no fit');
+    expect(fit.seSPerPct).toBeGreaterThan(0);
+    expect(Math.abs(fit.sPerPct - TRUE_B)).toBeLessThan(3 * fit.seSPerPct);
+  });
+
+  it('a standard error grows as wear and fuel correlate (same noise)', () => {
+    const zigzag = (ls: WearLap[]) =>
+      ls.map((l, i) => ({...l, timeS: l.timeS + (i % 2 === 0 ? 0.02 : -0.02)}));
+    // Fuel nearly a function of wear (r about -0.89, just under the gate) versus the two-stint laps.
+    const tight = Array.from({length: 20}, (_, i) => {
+      const f = 60 - 3 * i + (((i * 7) % 5) - 2) * 6;
+      return lap(i, i, 90 + TRUE_B * i + TRUE_C * f, f);
+    });
+    const a = jointFit(zigzag(laps));
+    const b = jointFit(zigzag(tight));
+    if (a.kind !== 'fit' || b.kind !== 'fit') throw new Error('no fit');
+    expect(Math.abs(b.corr)).toBeGreaterThan(Math.abs(a.corr));
+    expect(b.seSPerPct).toBeGreaterThan(a.seSPerPct);
   });
 });
