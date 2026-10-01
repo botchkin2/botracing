@@ -217,6 +217,11 @@ test('spans: where traffic and blue were, adding up to the seconds', () => {
   assert.ok(Math.abs(t.aheadSpans[0][1] - (me(14).lapDist + step)) < 0.5);
 });
 
+test('the field lap length rides with the block, for scaling the spans', () => {
+  const f = build(10, u => ({0: me(u), 3: far}));
+  assert.equal(lapFieldFacts(f, [all])[0].fieldLapM, 4000);
+});
+
 test('spans are per window, and passes carry where they happened', () => {
   const f = build(40, u => ({
     0: me(u),

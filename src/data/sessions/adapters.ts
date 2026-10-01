@@ -5,7 +5,11 @@ import {
   type PaceClass,
   type StartGap,
 } from '@/src/analysis/classLaps';
-import {type LapSet, type SessionTraffic} from '@/src/analysis/traffic';
+import {
+  type LapSet,
+  type Overtake,
+  type SessionTraffic,
+} from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
@@ -426,7 +430,19 @@ export type LapTraffic = {
   passesSufferedAll: number;
   /** Seconds within 1 s of a car of the player's class, ahead or behind. */
   battleS: number;
+  /** Cars of a faster class that went from behind the player to ahead, in lap-distance order. */
+  overtakes: Overtake[];
+  /** Where a car was within 1 s ahead, and where a faster-class car was within 1.5 s behind, on this lap: [fromM, toM, seconds] in the field's lap distance. Empty before traffic v3. */
+  aheadSpans: TrafficSpan[];
+  blueSpans: TrafficSpan[];
+  /** Own-class passes and where they happened. */
+  passMarks: {atM: number; made: boolean}[];
+  /** The field's lap length in metres, the frame of the distances above; null before it was stored. */
+  fieldLapM: number | null;
 };
+
+/** A run of consecutive updates: lap distance from, to (metres) and its length in seconds. */
+export type TrafficSpan = [fromM: number, toM: number, s: number];
 
 /** One pass through a corner or section (lap doc `corners[]` / `parts[]`). */
 export type CornerFacts = {
@@ -531,7 +547,42 @@ function toTraffic(v: unknown): LapTraffic | null {
     passesMadeAll: num(x.passesMadeAll) ?? 0,
     passesSufferedAll: num(x.passesSufferedAll) ?? 0,
     battleS: num(x.battleS) ?? 0,
+    overtakes: toOvertakes(x.overtakes),
+    aheadSpans: toSpans(x.aheadSpans),
+    blueSpans: toSpans(x.blueSpans),
+    passMarks: toPassMarks(x.passMarks),
+    fieldLapM: num(x.fieldLapM),
   };
+}
+
+function toOvertakes(v: unknown): Overtake[] {
+  if (!Array.isArray(v)) return [];
+  const out: Overtake[] = [];
+  for (const o of v) {
+    const atM = num(obj(o).atM);
+    if (atM != null) out.push({cls: str(obj(o).cls), atM});
+  }
+  return out;
+}
+
+function toSpans(v: unknown): TrafficSpan[] {
+  if (!Array.isArray(v)) return [];
+  const out: TrafficSpan[] = [];
+  for (const s of v) {
+    const [a, b, c] = Array.isArray(s) ? s : [];
+    if (num(a) != null && num(b) != null && num(c) != null) out.push([a, b, c]);
+  }
+  return out;
+}
+
+function toPassMarks(v: unknown): LapTraffic['passMarks'] {
+  if (!Array.isArray(v)) return [];
+  const out: LapTraffic['passMarks'] = [];
+  for (const m of v) {
+    const atM = num(obj(m).atM);
+    if (atM != null) out.push({atM, made: obj(m).made === true});
+  }
+  return out;
 }
 
 function toPartialWhy(v: unknown): Lap['partialWhy'] {
