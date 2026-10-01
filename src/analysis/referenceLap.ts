@@ -7,6 +7,8 @@
 
 export type RefLap = {
   id: string;
+  /** The session the lap is from; the pool spans sessions of one track. */
+  sessionId: string;
   /** The car model, not the livery (`carLabel(car).model`). */
   car: string;
   /** R, Q or P. */
@@ -23,6 +25,8 @@ export type RefLap = {
   newTyres: boolean;
   /** Fuel on board at the start of the lap, litres; null without the channel. */
   startL: number | null;
+  /** Virtual Energy on board at the start of the lap, %; null without the channel. */
+  veStartPct: number | null;
   /** Seconds within about 1 s of a car ahead; null without a field. */
   trafficAheadS: number | null;
   /** Seconds under the blue flag; null without a field. */
@@ -31,13 +35,19 @@ export type RefLap = {
 
 /** Fuel loads this close count as one band: a lap's weight moves its time by hundredths. */
 export const FUEL_BAND_L = 10;
+/** The same band in Virtual Energy points, where the fuel level is not known on both laps. */
+export const VE_BAND_PCT = 10;
 /** Traffic ahead and blue flag below this many seconds is clean air. */
 export const CLEAN_AIR_S = 1;
 
 export type RefMatch = {
   sameCar: boolean;
   sameSession: boolean;
-  /** Within `FUEL_BAND_L` of the compared lap's fuel; false when either is unknown. */
+  /**
+   * Within `FUEL_BAND_L` of the compared lap's fuel; where either lap has no
+   * fuel level, within `VE_BAND_PCT` of its Virtual Energy; false when
+   * neither is known on both.
+   */
   fuelBand: boolean;
   /** No new tyres on the candidate lap. */
   tyresKept: boolean;
@@ -45,7 +55,12 @@ export type RefMatch = {
   clean: boolean;
 };
 
-export type RankedRef = {lapId: string; timeS: number; match: RefMatch};
+export type RankedRef = {
+  lapId: string;
+  sessionId: string;
+  timeS: number;
+  match: RefMatch;
+};
 
 /** A lap that can be a reference at all: timed, whole, on the racing line, and not the lap itself. */
 function eligible(lap: RefLap, target: RefLap): boolean {
@@ -60,14 +75,21 @@ function eligible(lap: RefLap, target: RefLap): boolean {
   );
 }
 
+// Fuel is the weight, so it decides when both laps have it; the energy
+// fallback covers laps recorded without a fuel channel.
+function inLoadBand(lap: RefLap, target: RefLap): boolean {
+  if (lap.startL != null && target.startL != null)
+    return Math.abs(lap.startL - target.startL) <= FUEL_BAND_L;
+  if (lap.veStartPct != null && target.veStartPct != null)
+    return Math.abs(lap.veStartPct - target.veStartPct) <= VE_BAND_PCT;
+  return false;
+}
+
 function matchOf(lap: RefLap, target: RefLap): RefMatch {
   return {
     sameCar: lap.car === target.car,
     sameSession: lap.sessionType === target.sessionType,
-    fuelBand:
-      lap.startL != null &&
-      target.startL != null &&
-      Math.abs(lap.startL - target.startL) <= FUEL_BAND_L,
+    fuelBand: inLoadBand(lap, target),
     tyresKept: !lap.newTyres,
     clean:
       (lap.trafficAheadS ?? 0) < CLEAN_AIR_S &&
@@ -92,8 +114,8 @@ const ORDER: (keyof RefMatch)[] = [
  * fastest. Ineligible laps are left out.
  *
  * Within one session every lap has the same car and session type, so those
- * two keys only separate laps once other sessions join the pool. The band is
- * fuel only; Virtual Energy is not in it yet.
+ * two keys only separate laps once other sessions join the pool (the same
+ * track is the pool's precondition, `crossSessionReferences`).
  */
 export function rankReferenceLaps(
   target: RefLap,
@@ -113,5 +135,10 @@ export function rankReferenceLaps(
       // by fuel distance as well would pick the lap beside the target.
       return a.timeS - b.timeS || a.lap.id.localeCompare(b.lap.id);
     })
-    .map(({lap, timeS, match}) => ({lapId: lap.id, timeS, match}));
+    .map(({lap, timeS, match}) => ({
+      lapId: lap.id,
+      sessionId: lap.sessionId,
+      timeS,
+      match,
+    }));
 }
