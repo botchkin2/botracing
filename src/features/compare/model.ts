@@ -14,11 +14,13 @@ import {
   firstCornerOf,
   type Lap,
   type SessionBand,
+  type DefaultSession,
   type SessionDetail,
   type MapSection,
   mapPlacer,
   measuredCentreLines,
   type TrackMapData,
+  referenceDefaultLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -1128,18 +1130,18 @@ export const drawRank = (r: {selIndex: number; highlighted: boolean}) =>
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
 /**
- * A URL with no laps opens on the session's default laps (the best lap as
- * reference plus the fastest other comparable one), so Compare is never an
- * empty reference with no chips. Laps the URL names are kept as given, and
- * nothing changes while the session's laps are still loading.
+ * A URL with no laps opens on the session's default laps (a fair reference
+ * and the median lap, `referenceDefaultLapIds`), so Compare is never an empty
+ * reference with no chips. Laps the URL names are kept as given, and nothing
+ * changes while the session or its laps are still loading.
  */
 export function withDefaultLaps(
   sel: CompareSelection,
   laps: Lap[] | undefined,
-  bestLapId: string | null,
+  session: DefaultSession | undefined,
 ): CompareSelection {
-  if (sel.laps.length > 0 || !laps) return sel;
-  return {...sel, laps: defaultLapIds(laps, bestLapId)};
+  if (sel.laps.length > 0 || !laps || !session) return sel;
+  return {...sel, laps: referenceDefaultLapIds(laps, session)};
 }
 
 export function makeReference(
