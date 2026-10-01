@@ -190,6 +190,50 @@ test('blueFlagS is a faster-class car within 1.5 s behind, whatever the game fla
   assert.equal(lapFieldFacts(ahead, [all])[0].blueFlagS, 0);
 });
 
+test('spans: where traffic and blue were, adding up to the seconds', () => {
+  // A GT3 30 m ahead in lane for updates 5-14 (0.43 s ahead: traffic), a
+  // gap of two updates, then again for 20-24; a Hypercar 60 m behind for 8-17.
+  const f = build(40, u => ({
+    0: me(u),
+    1: {
+      lapDist:
+        me(u).lapDist + ((u >= 5 && u < 15) || (u >= 20 && u < 25) ? 30 : 300),
+      lane: 0,
+    },
+    4: {lapDist: me(u).lapDist - (u >= 8 && u < 18 ? 60 : 500), lane: 5},
+    3: far,
+  }));
+  const t = lapFieldFacts(f, [all])[0];
+  const sum = spans =>
+    Math.round(spans.reduce((a, s) => a + s[2], 0) * 10) / 10;
+  assert.equal(t.aheadSpans.length, 2);
+  assert.equal(sum(t.aheadSpans), t.trafficAheadS);
+  assert.equal(t.blueSpans.length, 1);
+  assert.equal(sum(t.blueSpans), t.blueFlagS);
+  // The first span starts where the player was at update 5 and ends one step
+  // past update 14.
+  const step = V * DT;
+  assert.equal(t.aheadSpans[0][0], Math.round(me(5).lapDist * 10) / 10);
+  assert.ok(Math.abs(t.aheadSpans[0][1] - (me(14).lapDist + step)) < 0.5);
+});
+
+test('the field lap length rides with the block, for scaling the spans', () => {
+  const f = build(10, u => ({0: me(u), 3: far}));
+  assert.equal(lapFieldFacts(f, [all])[0].fieldLapM, 4000);
+});
+
+test('spans are per window, and passes carry where they happened', () => {
+  const f = build(40, u => ({
+    0: me(u),
+    1: {lapDist: me(u).lapDist - 30 + u * 4, lane: 3},
+    3: far,
+  }));
+  const t = lapFieldFacts(f, [all])[0];
+  assert.deepEqual(t.aheadSpans, []);
+  assert.equal(t.passMarks.length, t.passesMade + t.passesSuffered);
+  assert.equal(typeof t.passMarks[0].atM, 'number');
+});
+
 test('no player car in the field: nulls', () => {
   const noPlayer = build(5, u => ({1: me(u), 3: far}));
   noPlayer.cars[0].player = false;

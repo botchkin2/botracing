@@ -19,6 +19,7 @@ function map(georef: TrackMapData['georef'], quality: 'good' | 'poor') {
     sections: [],
     quality,
     georef,
+    boundaries: null,
     outline: [],
     outlineKinds: [],
     pitLane: [],
