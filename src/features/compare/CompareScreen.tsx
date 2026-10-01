@@ -462,6 +462,10 @@ function CompareView({
     </ScrollView>
   );
 
+  // Phone: the radar is on the Follow map while a car is in range; without
+  // field data for the playing lap there is none.
+  const dockLap = model.playing?.lapNumber ?? null;
+  const radarOn = !layout.isDesktop && field != null && dockLap != null;
   const map =
     model.map &&
     (mapShown ? (
@@ -474,6 +478,11 @@ function CompareView({
         lapStyle={lapStyle}
         onPressSection={openCorner}
         zoomControls
+        radar={
+          radarOn && field != null && dockLap != null ? (
+            <RadarOverlay field={field} lapNumber={dockLap} cursorM={cursorM} />
+          ) : undefined
+        }
       />
     ) : (
       <TrackStrip
@@ -636,11 +645,6 @@ function CompareView({
         </View>
       ),
   );
-  // Phone: plot first, and the radar over the speed chart, or over the one
-  // chart shown, while a car is in range. The lap it follows is the playing
-  // one; without field data for that lap the chart has no radar.
-  const dockLap = model.playing?.lapNumber ?? null;
-  const overlayOn = !layout.isDesktop && field != null && dockLap != null;
   // The last chart keeps its values and explainer above the plot (the chart
   // header), so nothing sits between the plot and the Follow map under it
   // (round 5, item 6); the others are plot first, numbers below (thread 41
@@ -650,19 +654,13 @@ function CompareView({
     h: number,
     last: boolean,
   ) => {
-    const radar = overlayOn && (oneChart || c.channels.includes('speed'));
     return (
       <ChartBlock
         key={c.key}
         chart={c}
         {...chartProps(h)}
         plotFirst={!layout.isDesktop && !last}
-        overlay={
-          radar ? (
-            <RadarOverlay field={field} lapNumber={dockLap} cursorM={cursorM} />
-          ) : undefined
-        }
-        extraHelp={radar ? RADAR_HELP : undefined}
+        extraHelp={radarOn && last ? RADAR_HELP : undefined}
       />
     );
   };

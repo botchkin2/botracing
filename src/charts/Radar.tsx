@@ -23,7 +23,7 @@ export function Radar({
   radar,
   sampleLabel,
   inset,
-  overlay,
+  solid,
 }: {
   width: number;
   height: number;
@@ -35,8 +35,8 @@ export function Radar({
   sampleLabel?: string;
   /** Drawn over a map: a translucent background instead of the surface. */
   inset?: boolean;
-  /** Drawn over a chart: a lighter translucent background than `inset`. */
-  overlay?: boolean;
+  /** Drawn on the Follow map, opaque: nothing of the plot shows through (round 7, 2C). */
+  solid?: boolean;
 }) {
   const {color, lapColors} = useTheme();
   const pxPerM = height / (2 * rangeM);
@@ -63,8 +63,8 @@ export function Radar({
         height={height - 1}
         rx={3}
         fill={
-          overlay
-            ? color.radarOverlay
+          solid
+            ? color.surfaceOverlay
             : inset
             ? color.radarInset
             : color.surface
