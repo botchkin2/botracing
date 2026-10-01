@@ -23,7 +23,11 @@ import Svg, {Line} from 'react-native-svg';
 import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
-import {useSession, useSessionLaps} from '@/src/data/sessions';
+import {
+  type DefaultSession,
+  useSession,
+  useSessionLaps,
+} from '@/src/data/sessions';
 import {
   disabledOpacity,
   hitBox,
@@ -104,13 +108,21 @@ export function CompareScreen({
   selection: CompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
-  // A URL with no laps opens on the best lap and the fastest other one.
+  // A URL with no laps opens on a fair reference and the median lap.
   const sessionDoc = useSession(sessionId);
   const sessionLaps = useSessionLaps(sessionId);
-  const bestLapId = sessionDoc.data?.bestLapId ?? null;
+  const sessionFacts = useMemo<DefaultSession | undefined>(
+    () =>
+      sessionDoc.data && {
+        bestLapId: sessionDoc.data.bestLapId,
+        car: sessionDoc.data.car,
+        sessionType: sessionDoc.data.sessionType,
+      },
+    [sessionDoc.data],
+  );
   const selection = useMemo(
-    () => withDefaultLaps(urlSelection, sessionLaps.data, bestLapId),
-    [urlSelection, sessionLaps.data, bestLapId],
+    () => withDefaultLaps(urlSelection, sessionLaps.data, sessionFacts),
+    [urlSelection, sessionLaps.data, sessionFacts],
   );
   // The cursor moves on every drag and playback frame, so it lives here,
   // not in the URL.
