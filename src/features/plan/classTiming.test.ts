@@ -1,6 +1,11 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {classTiming, type ClassSession, passesOf} from './classTiming';
+import {
+  classSessionOf,
+  classTiming,
+  type ClassSession,
+  passesOf,
+} from './classTiming';
 
 const session = (
   kind: ClassSession['kind'],
@@ -131,5 +136,29 @@ describe('passesOf', () => {
     expect(p[1].hi - p[1].lo).toBeCloseTo(4, 5);
     // The fourth pass, at 36.8 with a half band of 3, starts at 33.8: past a 30 lap race.
     expect(p).toHaveLength(3);
+  });
+});
+
+describe('classSessionOf', () => {
+  const stats = {cars: 8, laps: 120, medianS: 215.4, p10S: 213, p90S: 219};
+
+  it('turns a stored race or practice field into the model input', () => {
+    expect(
+      classSessionOf({classLaps: {kind: 'race', classes: {gt3: stats}}}),
+    ).toEqual({kind: 'race', byClass: {gt3: {medianS: 215.4, laps: 120}}});
+    expect(
+      classSessionOf({classLaps: {kind: 'practice', classes: {gt3: stats}}})
+        ?.kind,
+    ).toBe('practice');
+  });
+
+  it('leaves out qualifying, no field and a field with no class pace', () => {
+    expect(
+      classSessionOf({classLaps: {kind: 'qualify', classes: null}}),
+    ).toBeNull();
+    expect(classSessionOf({classLaps: null})).toBeNull();
+    expect(
+      classSessionOf({classLaps: {kind: 'race', classes: null}}),
+    ).toBeNull();
   });
 });

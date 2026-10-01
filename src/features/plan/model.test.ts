@@ -4,6 +4,7 @@ import {planRace, type GreenLap} from '@/src/analysis/fuelPlan';
 import {
   type Lap,
   type LapFuel,
+  type SessionDetail,
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
@@ -17,6 +18,7 @@ import {
   greenLapsOf,
   HISTORY_SESSIONS,
   historySessions,
+  limitsOfDetails,
   planCombos,
   parseNumber,
   planView,
@@ -45,6 +47,7 @@ const session = (
   medianTimeS: 110,
   bestLapId: null,
   series: null,
+  classLaps: null,
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
@@ -670,5 +673,25 @@ describe('defaultCombo', () => {
   it('falls back to the newest when none has enough, and to null with none', () => {
     expect(defaultCombo([combo('a', [1]), combo('b', [0])])?.key).toBe('a');
     expect(defaultCombo([])).toBeNull();
+  });
+});
+
+describe('limitsOfDetails', () => {
+  const doc = (fillLimitL: number) =>
+    ({
+      fuel: {fillLimitL, startL: null, tankL: null},
+    } as unknown as SessionDetail);
+
+  it('is pending while a session doc is still loading', () => {
+    expect(limitsOfDetails([doc(75), undefined], true)).toEqual({
+      pending: true,
+      limitsL: [75, undefined],
+    });
+  });
+
+  it('is not pending when a session failed to load: it is left out, not waited for', () => {
+    const state = limitsOfDetails([doc(75), undefined], false);
+    expect(state.pending).toBe(false);
+    expect(state.limitsL).toEqual([75, undefined]);
   });
 });

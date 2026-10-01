@@ -42,6 +42,19 @@ describe('toSessionSummary', () => {
   });
 });
 
+describe('toSessionSummary class laps', () => {
+  const stats = {cars: 8, laps: 120, medianS: 215.4, p10S: 213, p90S: 219};
+
+  it('carries the class pace the list serves, null without it', () => {
+    expect(toSessionSummary(raw).classLaps).toBeNull();
+    const s = toSessionSummary({
+      ...raw,
+      classLaps: {kind: 'race', classes: {gt3: stats}},
+    });
+    expect(s.classLaps).toEqual({kind: 'race', classes: {gt3: stats}});
+  });
+});
+
 describe('toSessionDetail', () => {
   it('carries the field pointer, null when the session has none', () => {
     expect(toSessionDetail(raw).field).toBeNull();

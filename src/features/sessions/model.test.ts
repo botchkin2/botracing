@@ -18,6 +18,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   medianTimeS: 101.123,
   bestLapId: null,
   series: null,
+  classLaps: null,
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-09-27T23:00:00Z',
