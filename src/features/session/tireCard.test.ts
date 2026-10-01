@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import type {PerWheel} from '@/src/analysis/tyres';
+import type {PerWheel, TreadC} from '@/src/analysis/tyres';
 import type {Lap} from '@/src/data/sessions';
 import {toLaps} from '@/src/data/sessions/adapters';
 
@@ -35,6 +35,7 @@ const lap = (
     hotPressureKpa: all(165),
     rubberC: all(90),
     carcassC: null,
+    treadC: null,
     changed: null,
     ...tyres,
   },
@@ -231,5 +232,64 @@ describe('setAges', () => {
     expect(setAgeText({...ages, FR: 2}, 8)).toBe(
       'Set age at L8: FL 5 laps · FR 2 laps · RL 5 laps · RR 5 laps',
     );
+  });
+});
+
+describe('tread zones', () => {
+  const tread = (inner: number, centre: number, outer: number): TreadC => ({
+    inner,
+    centre,
+    outer,
+  });
+  const treads = (t: TreadC) => ({FL: t, FR: t, RL: t, RR: t});
+  const run = (n: number, t: (i: number) => TreadC) =>
+    Array.from({length: n}, (_, i) =>
+      lap(i + 2, 99 - i, {}, {treadC: treads(t(i))}),
+    );
+
+  it('is null for a stint from before the tread was recorded', () => {
+    const laps = Array.from({length: 6}, (_, i) => lap(i + 2, 99 - i));
+    expect(one(laps).tread).toBeNull();
+  });
+
+  it('is the median over the green laps, inner minus outer', () => {
+    const z = one(run(5, i => tread(50 + i, 52 + i, 48 + i))).tread!;
+    expect(z.map(w => w.wheel)).toEqual(['FL', 'FR', 'RL', 'RR']);
+    expect(z[0]).toEqual({
+      wheel: 'FL',
+      inner: 52,
+      centre: 54,
+      outer: 50,
+      innerMinusOuter: 2,
+    });
+  });
+
+  it('leaves a lap that is not green out of the median', () => {
+    const laps = run(5, i => tread(50 + i, 50 + i, 50 + i));
+    laps[4] = {...laps[4], fuel: {green: false} as Lap['fuel']};
+    expect(one(laps).tread![0].inner).toBe(51.5);
+  });
+
+  it('has no I - O where a third has no reading', () => {
+    const laps = run(5, () => ({inner: 50, centre: 52, outer: null}));
+    const z = one(laps).tread![0];
+    expect(z.outer).toBeNull();
+    expect(z.innerMinusOuter).toBeNull();
+  });
+
+  it('drops a wheel from the lap its pressure sensor went dark', () => {
+    const laps = run(6, i => tread(50 + i * 10, 50, 50));
+    for (const i of [4, 5])
+      laps[i] = {
+        ...laps[i],
+        tyres: {
+          ...laps[i].tyres!,
+          pressureKpa: {...all(160), FR: null},
+        },
+      };
+    const z = one(laps).tread!;
+    // FR is read for the first four laps only: 50, 60, 70, 80.
+    expect(z[1].inner).toBe(65);
+    expect(z[0].inner).toBe(75);
   });
 });

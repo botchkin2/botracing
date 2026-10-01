@@ -3,8 +3,8 @@
 // tyres.mjs). Pure. Numbers, units and what they were measured against, never
 // advice (CODE_STANDARDS §7).
 //
-// Not here, because the laps do not carry it yet: tread zones, the stop
-// cool-down and the compound (thread 44 #1606/#1607).
+// Not here yet: the stop cool-down and the compound (thread 44 #1606/#1607;
+// setup's #1689 changes their shape).
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
@@ -46,6 +46,20 @@ export type FlatWheel = {
   lastValidPct: number | null;
 };
 
+/** The tread bars run from this to the next, C (round 7 1A key). */
+export const TREAD_BAR_MIN_C = 70;
+export const TREAD_BAR_MAX_C = 100;
+
+/** One wheel's tread, the median over the stint's green laps, C; a third with no reading is null. */
+export type TreadZone = {
+  wheel: Wheel;
+  inner: number | null;
+  centre: number | null;
+  outer: number | null;
+  /** Inner minus outer, C; null when either has no reading. */
+  innerMinusOuter: number | null;
+};
+
 export type Axle = 'front' | 'rear';
 
 /** One value per lap for each axle (mean of its wheels with a reading). */
@@ -82,6 +96,8 @@ export type StintTires = {
   rubber: AxleSeries;
   /** The sentence about a wheel that read nothing, or null. */
   flatNote: string | null;
+  /** The tread of each wheel over the green laps; null when no lap of the stint carries tread (a file from before TYRES_VERSION 3). */
+  tread: TreadZone[] | null;
 };
 
 export type TiresCard =
@@ -123,6 +139,43 @@ function flatWheels(laps: Lap[]): Map<Wheel, number> {
     }
   }
   return out;
+}
+
+/**
+ * Each wheel's tread thirds: the median over the stint's green laps, leaving
+ * out a wheel's laps from the one its sensor went dark. Null when no green lap
+ * carries tread.
+ */
+function treadZones(
+  laps: Lap[],
+  green: Set<string>,
+  flatFrom: Map<Wheel, number>,
+): TreadZone[] | null {
+  const any = laps.some(l => l.tyres?.treadC != null);
+  if (!any) return null;
+  return WHEELS.map(wheel => {
+    const from = flatFrom.get(wheel);
+    const third = (part: 'inner' | 'centre' | 'outer') => {
+      const v: number[] = [];
+      laps.forEach((l, i) => {
+        const x = green.has(l.id) ? l.tyres?.treadC?.[wheel]?.[part] : null;
+        if (x != null && (from == null || i < from)) v.push(x);
+      });
+      return median(v);
+    };
+    const [inner, centre, outer] = [
+      third('inner'),
+      third('centre'),
+      third('outer'),
+    ];
+    return {
+      wheel,
+      inner,
+      centre,
+      outer,
+      innerMinusOuter: inner != null && outer != null ? inner - outer : null,
+    };
+  });
 }
 
 function axleSeries(
@@ -306,6 +359,7 @@ function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
       l => l.tyres?.rubberC,
     ),
     flatNote,
+    tread: treadZones(withData, green, flatFrom),
   };
 }
 
@@ -336,6 +390,6 @@ export const NO_TYRE_CHANNELS =
 export const TIRES_HELP: readonly string[] = [
   'Cells are laid out as seen from above, front at the top. The big number is the wear left at the end of the last green lap, in % of a new tyre; the bars are the % lost on each lap, hollow when the lap is not a green one, and the dashed line is the median of the green laps. A lap that lost more than 3 times the median is named under its number.',
   'Pressure is each lap median, outside the pit lane, as an axle mean. The key gives the stabilised hot pressure (the last 5 s of the lap, from the third lap of a stint), which is the number in each cell.',
-  'Rubber temperature is the surface layer (not the carcass), a median per lap. The out-lap warm-up stays in the line.',
+  'Rubber temperature is the surface layer (not the carcass), a median per lap; the out-lap warm-up stays in the line. Tread zones are the median over the green laps of each tyre’s three thirds, in degrees C, as seen from above with the outer edges facing out; I − O is inner minus outer, above zero when the inner edge is hotter. Inner and outer follow the car, not the corner.',
   'A trend needs 5 green laps; with fewer the readings are listed. A wheel that reads no pressure is outlined and left out of every median.',
 ];
