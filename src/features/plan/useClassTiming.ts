@@ -35,7 +35,11 @@ export function classSessionOf(d: SessionDetail): ClassSession | null {
 /**
  * Class timing for the Plan's track: every race and practice there with a
  * field counts, whatever car he drove, against his own median lap and race
- * from the plan in force. Null while the sessions load.
+ * from the plan in force. His class is that of the newest session of the
+ * plan's track and car. Null while the sessions load; a session that failed
+ * to load is left out. It fetches the full detail of every race and practice
+ * at the track to find those with a field (the list summary should say which
+ * have one; thread 44 #1433).
  */
 export function useClassTiming(
   combo: Combo | null,
@@ -57,7 +61,8 @@ export function useClassTiming(
   const details = useSessionsDetail(ids);
   const {plan, greenLaps, hist} = data;
   const carClass = combo?.sessions[0]?.carClass ?? '';
-  const pending = sessions.isPending || details.details.some(d => !d);
+  // A session that failed to load is left out of the pool, not waited for.
+  const pending = sessions.isPending || details.pending;
   const timing = useMemo(
     () =>
       pending

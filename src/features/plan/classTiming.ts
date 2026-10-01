@@ -9,7 +9,7 @@ import {lapName} from './planCards';
 // The input type is this model's own: one function in `useClassTiming` adapts
 // the session docs to it, so a change to the stored shape costs one place.
 
-/** Fewer sessions than this is not a class pace (matches the uploader's rule). */
+/** Fewer sessions than this is not a class pace. (The uploader's own floor is 3 laps in a session; this is 3 sessions.) */
 export const MIN_CLASS_SESSIONS = 3;
 /** The first catch is this many laps either side; each pass adds HALF_BAND_STEP. */
 export const FIRST_HALF_BAND_LAPS = 1.5;

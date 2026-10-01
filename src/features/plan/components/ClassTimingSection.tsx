@@ -15,7 +15,7 @@ import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
 
 const TIMELINE_EXPLAINER =
-  'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen because the error adds up.';
+  'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen because the error adds up. The first pass assumes a level start; a faster class that starts ahead needs less than a lap to catch you.';
 const TIMELINE_KEY =
   'Amber dashes = your stops. White tick = estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
 const FASTER_EXPLAINER =
