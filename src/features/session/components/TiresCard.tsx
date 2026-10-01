@@ -73,6 +73,9 @@ export function TiresCard({
       <Text variant='dataSmall' tone='textMuted'>
         {stint.sub}
       </Text>
+      <Text variant='dataSmall' tone='textMuted'>
+        {stint.setAge}
+      </Text>
       {stint.kind === 'readings' ? (
         <View style={styles.table}>
           <Text variant='dataSmall' tone='textMuted'>

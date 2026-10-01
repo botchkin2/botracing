@@ -8,6 +8,8 @@ import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
   buildTiresCard,
   MIN_TREND_LAPS,
+  setAges,
+  setAgeText,
   NO_TYRE_CHANNELS,
   TIRES_HELP,
   type StintTires,
@@ -79,7 +81,8 @@ describe('buildTiresCard', () => {
       0.6, 0.8, 0.6, 0.8, 0.6,
     ]);
     expect(fl.medianLossPct).toBeCloseTo(0.6);
-    expect(s.sub).toBe('6 green laps · laps 2–7 on this set');
+    expect(s.sub).toBe('6 green laps');
+    expect(s.setAge).toBe('All four on 6-lap sets at L7');
     expect(s.title).toBe('Stint 1 · L2–L7');
   });
 
@@ -201,5 +204,32 @@ describe('TIRES_HELP', () => {
     const text = TIRES_HELP.join(' ');
     expect(TIRES_HELP.length).toBeLessThanOrEqual(4);
     expect(text).not.toMatch(/\b(you|your|should|try|avoid|improve)\b/i);
+  });
+});
+
+describe('setAges', () => {
+  const laps = (n: number) => Array.from({length: n}, (_, i) => lap(i + 1, 99));
+
+  it('a stop that changes no wheel does not restart the set', () => {
+    const l = laps(10);
+    l[4] = lap(5, 99, {}, {changed: []});
+    expect(setAges(l, 10)).toEqual({FL: 10, FR: 10, RL: 10, RR: 10});
+  });
+
+  it('a full set restarts every wheel on the next lap; one wheel only that wheel', () => {
+    const l = laps(10);
+    l[3] = lap(4, 99, {}, {changed: ['FL', 'FR', 'RL', 'RR']});
+    l[6] = lap(7, 99, {}, {changed: ['FR']});
+    expect(setAges(l, 10)).toEqual({FL: 6, FR: 3, RL: 6, RR: 6});
+  });
+
+  it('a reset to the garage restarts the set; the text names wheels that differ', () => {
+    const l = laps(8);
+    l[2] = lap(3, 99, {endedInReset: true});
+    const ages = setAges(l, 8);
+    expect(ages.FL).toBe(5);
+    expect(setAgeText({...ages, FR: 2}, 8)).toBe(
+      'Set age at L8: FL 5 laps · FR 2 laps · RL 5 laps · RR 5 laps',
+    );
   });
 });
