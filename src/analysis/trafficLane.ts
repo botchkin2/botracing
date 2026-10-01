@@ -8,8 +8,8 @@
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
 export interface LaneInput {
-  /** [fromM, toM, seconds] runs with a car within 1 s ahead. */
-  aheadSpans: [number, number, number][];
+  /** Runs with a car within 1 s ahead. */
+  aheadSpans: {fromM: number; toM: number; s: number}[];
   /** Faster-class cars that went from behind to ahead: where, on the player's lap. */
   overtakes: {atM: number}[];
   /** Own-class passes: where, and whether the player made them. */
@@ -33,7 +33,7 @@ export function laneRowOf(
   const k = mapLengthM / traffic.fieldLapM;
   const clip = (m: number) => Math.min(mapLengthM, Math.max(0, m * k));
   const ahead: [number, number][] = [];
-  for (const [from, to] of traffic.aheadSpans) {
+  for (const {fromM: from, toM: to} of traffic.aheadSpans) {
     // A span wholly before the line (the race-start roll) or after the lap is
     // not on this lap's axis.
     if (to <= 0 || from >= traffic.fieldLapM) continue;

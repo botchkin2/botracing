@@ -688,7 +688,7 @@ describe('trafficLane', () => {
     const ls = toLaps([
       withTraffic('a', {
         fieldLapM: 2000,
-        aheadSpans: [[200, 400, 3]],
+        aheadSpans: [{fromM: 200, toM: 400, s: 3}],
         overtakes: [{cls: 'Hyper', atM: 1000}],
         passMarks: [{atM: 500, made: true}],
       }),
