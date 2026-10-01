@@ -34,6 +34,7 @@ export const Leaderboard = memo(function Leaderboard({
   onFocus,
   desktop,
   mode,
+  paged,
 }: {
   groups: RaceGroup[];
   classes: readonly ClassKey[];
@@ -42,6 +43,8 @@ export const Leaderboard = memo(function Leaderboard({
   onFocus: (index: number) => void;
   desktop: boolean;
   mode: RaceMode;
+  /** The list is as long as its rows and the page scrolls (the phone), not a box that scrolls inside the screen. */
+  paged?: boolean;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -50,14 +53,16 @@ export const Leaderboard = memo(function Leaderboard({
   const listKey = `${filter}:${groups.length}`;
   const youAt = groups.flatMap(g => g.rows).findIndex(r => r.player);
   useEffect(() => {
+    if (paged) return;
     scroll.current?.scrollTo({
       y: Math.max(0, (youAt - YOU_ROW_FROM_TOP) * rowH),
       animated: false,
     });
     // Group headers add a little height; close enough for "third from the top".
   }, [listKey]);
+  const Rows = paged ? View : ScrollView;
   return (
-    <View style={styles.fill}>
+    <View style={paged ? undefined : styles.fill}>
       <View style={styles.filter}>
         <Segment
           options={[
@@ -84,7 +89,9 @@ export const Leaderboard = memo(function Leaderboard({
           Pit
         </Text>
       </View>
-      <ScrollView ref={scroll} style={styles.fill}>
+      <Rows
+        {...(paged ? {} : {ref: scroll})}
+        style={paged ? undefined : styles.fill}>
         {groups.map((g, i) => (
           <View key={g.title ?? `g${i}`}>
             {g.title ? (
@@ -103,7 +110,7 @@ export const Leaderboard = memo(function Leaderboard({
             ))}
           </View>
         ))}
-      </ScrollView>
+      </Rows>
     </View>
   );
 });
