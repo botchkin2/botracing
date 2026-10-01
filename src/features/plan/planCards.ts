@@ -4,6 +4,8 @@
 import type {FuelPlan, PlanRules} from '@/src/analysis/fuelPlan';
 import {formatLapTime} from '@/src/design';
 
+import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
+
 /** The app's lap name for the planner's racing lap n: L1 is the formation lap. */
 export const lapName = (racingLap: number) => `L${racingLap + 1}`;
 
@@ -53,8 +55,16 @@ export type StopRow = {
   refuel: {litres: number; toFinish: boolean}[];
 };
 
+export type StopWindow = {
+  stop: number;
+  /** "Stop 2: after L45 to L56, within 28 laps of stop 1"; the within part from the second stop on. */
+  text: string;
+};
+
 export type StopsCard = {
   full: StopRow | null;
+  /** The pit window of each fuel stop of the full-tank plan; empty with no stop. */
+  windows: StopWindow[];
   equal: StopRow | null;
   /** What the formation lap takes from the first stint; null without one. */
   formation: {fuelL: number | null; vePct: number | null} | null;
@@ -178,6 +188,15 @@ function stopRow(
   };
 }
 
+function windowText(w: PitWindow): string {
+  const range = `Stop ${w.stop}: after ${lapName(w.earliest)} to ${lapName(
+    w.latest,
+  )}`;
+  return w.withinLaps == null
+    ? range
+    : `${range}, within ${w.withinLaps} laps of stop ${w.stop - 1}`;
+}
+
 function stopsCard(
   plan: FuelPlan,
   rules: PlanRules,
@@ -189,7 +208,7 @@ function stopsCard(
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
   if (laps == null || med.stops == null)
-    return {full: null, equal: null, formation: null};
+    return {full: null, equal: null, windows: [], formation: null};
   const fuelStops = med.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
   let full: StopRow | null = null;
@@ -235,9 +254,16 @@ function stopsCard(
       ratioPerPctL,
     );
   }
+  const windows =
+    med.firstStint.laps != null && med.stint.laps != null
+      ? pitWindows(med.firstStint.laps, med.stint.laps, laps, fuelStops).map(
+          w => ({stop: w.stop, text: windowText(w)}),
+        )
+      : [];
   return {
     full,
     equal,
+    windows,
     formation: rules.formationLap
       ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
       : null,

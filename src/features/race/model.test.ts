@@ -50,8 +50,17 @@ const field = [
 describe('classKey', () => {
   it('maps the sim strings, else other', () => {
     expect(
-      ['Hyper', 'LMP2', 'GT3', 'LMGT3', 'GTE', '', 'Odd'].map(classKey),
-    ).toEqual(['hypercar', 'lmp2', 'gt3', 'other', 'gt3', 'other', 'other']);
+      ['Hyper', 'LMP2', 'GT3', 'LMGT3', 'GTE', 'LMH', '', 'Odd'].map(classKey),
+    ).toEqual([
+      'hypercar',
+      'lmp2',
+      'gt3',
+      'gt3',
+      'gt3',
+      'hypercar',
+      'other',
+      'other',
+    ]);
   });
 });
 
