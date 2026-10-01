@@ -295,6 +295,12 @@ export type Lap = {
   pitIn: boolean;
   pitOut: boolean;
   partial: boolean;
+  /**
+   * Why it is partial: 'grid' is a parked start and the roll to the line (a
+   * race's lap 0 on the grid, or a start from the garage), 'file' a stretch cut by a recording boundary. Absent on
+   * laps analysed before the grid rule (blockVersions.gridLap).
+   */
+  partialWhy?: 'grid' | 'file' | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
@@ -481,6 +487,10 @@ function toTraffic(v: unknown): LapTraffic | null {
   };
 }
 
+function toPartialWhy(v: unknown): Lap['partialWhy'] {
+  return v === 'grid' || v === 'file' ? v : null;
+}
+
 export function toLaps(items: Record<string, unknown>[]): Lap[] {
   const laps = items.map((raw, i) => ({
     id: str(raw.id),
@@ -496,6 +506,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     pitOut: raw.pitOut === true,
     endedInReset: raw.endedInReset === true,
     partial: raw.partial === true || raw.incomplete === true,
+    partialWhy: toPartialWhy(raw.partialWhy),
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({

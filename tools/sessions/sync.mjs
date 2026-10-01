@@ -391,6 +391,9 @@ function build(s, trackMap, eventWindows) {
       durationSec: lap.durationSec,
       timed: lap.timed,
       partial: lap.partial,
+      // 'grid' (the parked car and the roll to the line), 'file' (cut by a
+      // recording boundary), or null.
+      partialWhy: lap.partialWhy,
       // A lap cut short by a reset to the garage, and the first lap after one.
       endedInReset: lap.endedInReset,
       afterReset: lap.afterReset,
