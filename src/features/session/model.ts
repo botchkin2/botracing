@@ -17,7 +17,7 @@ import {buildFuelUse, type FuelUse} from './fuelUse';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {buildWearScatter, type WearScatterModel} from './wearScatter';
-import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
+import {lapTraffic, orderTags, trafficTags} from './lapTags';
 import {
   PACE_RULE,
   setText,
@@ -455,18 +455,7 @@ export function buildSessionModel(
     : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
-  const clean = bestWithoutTow(laps, session.bestLapId);
   const trafficPace = trafficPaceFacts(session);
-  const cleanBestFact: Fact[] = clean
-    ? [
-        {
-          label: 'Best without TOW or TRAF',
-          value: `${lapLabel(clean.lap)} ${timeOrDash(
-            clean.lap.timeS,
-          )} · ${formatGap(clean.behindS, 3)} s`,
-        },
-      ]
-    : [];
   return {
     trackId: session.trackId,
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
@@ -494,7 +483,6 @@ export function buildSessionModel(
       },
       {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
-      ...cleanBestFact,
     ],
     paceRule: session.traffic && trafficPace.length > 0 ? PACE_RULE : null,
     chart,

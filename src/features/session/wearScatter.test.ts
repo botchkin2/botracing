@@ -93,8 +93,11 @@ describe('wearLaps', () => {
   it('counts the laps with traffic or a blue flag among those it uses, null without a field', () => {
     const free = lap(1, {traffic: clean});
     const busy = lap(2, {traffic: {...clean, trafficAheadS: 3}});
+    const towed = lap(3, {traffic: {...clean, draftS: 6}});
     const used = new Set(['l1', 'l2']);
     expect(flaggedCount([free, busy], used)).toBe(1);
+    // A tow-only lap is flagged: the footer names tow.
+    expect(flaggedCount([free, towed], new Set(['l1', 'l3']))).toBe(1);
     expect(flaggedCount([lap(1), lap(2)], used)).toBeNull();
     // A lap the panels do not use is not counted.
     expect(flaggedCount([free, busy], new Set(['l1']))).toBe(0);

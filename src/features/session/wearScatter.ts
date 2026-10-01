@@ -14,6 +14,8 @@ import {
 import type {Lap} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
+import {TOW_MIN_S} from './lapTags';
+
 import {WHEELS} from '@/src/analysis/tyres';
 
 export type WearPanel = {
@@ -76,11 +78,14 @@ export function wearLaps(laps: Lap[]): WearLap[] {
   return out;
 }
 
-/** Laps with a tow, traffic or blue flag among those the panels use. */
+/** Laps with a tow (TOW_MIN_S, the tag's threshold), traffic or blue flag among those the panels use. */
 export function flaggedCount(laps: Lap[], used: Set<string>): number | null {
   if (!laps.some(l => l.traffic)) return null;
   return laps.filter(
-    l => used.has(l.id) && l.traffic && !isCleanTraffic(l.traffic),
+    l =>
+      used.has(l.id) &&
+      l.traffic &&
+      (!isCleanTraffic(l.traffic) || l.traffic.draftS >= TOW_MIN_S),
   ).length;
 }
 

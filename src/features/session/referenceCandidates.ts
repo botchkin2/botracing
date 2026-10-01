@@ -129,7 +129,7 @@ export function matchText(m: RefMatch): string {
     m.sameSession && 'same session type',
     m.fuelBand && 'load in band',
     m.tyresKept && 'tyres kept',
-    m.clean && 'clean air',
+    m.onTrack && 'on track',
   ].filter(Boolean);
   return has.length > 0 ? has.join(' · ') : 'no match on the ranking keys';
 }

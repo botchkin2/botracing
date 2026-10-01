@@ -81,7 +81,7 @@ describe('carLaps', () => {
     expect(carLaps(f)[0]).toHaveLength(2);
   });
 
-  it('leaves out a lap with a pit visit, a flag, or a gap in the field', () => {
+  it('leaves out a lap with a pit visit or a gap in the field, but not one under a blue flag', () => {
     const f = build(
       [
         {
@@ -95,8 +95,9 @@ describe('carLaps', () => {
       ],
       3200,
     );
-    // Crossings 500 (clock), 1000 counts, 1500 pit, 2000 flag, 2500 gap, 3000 counts.
-    expect(carLaps(f)[0]).toHaveLength(2);
+    // Crossings 500 (clock), 1000 counts, 1500 pit, 2000 counts (the flag is
+    // not a filter), 2500 gap, 3000 counts.
+    expect(carLaps(f)[0]).toHaveLength(3);
   });
 
   it('does not take the counter changing over before the line for a crossing', () => {

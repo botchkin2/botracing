@@ -69,8 +69,12 @@ export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
 /**
  * Bump when the rules below change: a stored `classLaps` from an older
  * version is recomputed from the uploaded field (tools/sessions/store.mjs).
+ * 3: a car's lap is no longer left out for the game's blue flag (the flag
+ * only reads 0 or blue): that dropped every AI lap with a faster car close
+ * behind, and at Daytona that is many GT3 laps. Blue is a flag, never a
+ * filter (Botkin, pit-wall thread 44 #1789).
  */
-export const CLASS_LAPS_VERSION = 2;
+export const CLASS_LAPS_VERSION = 3;
 
 // A lap slower than this times the class median is a spin, a slow car or an
 // unflagged crash, not pace.
@@ -131,7 +135,7 @@ function crossingT(
 
 /**
  * Green lap times per car, seconds, in the file's car order. A lap counts when
- * the car was in the field, out of the pits and under no flag for all of it.
+ * the car was in the field and out of the pits for all of it.
  * The car's first crossing only starts the clock.
  */
 export function carLaps(field: EncodedField): number[][] {
@@ -165,8 +169,7 @@ function crossings(field: EncodedField): CarCrossings[] {
         prev = null;
         continue;
       }
-      if (field.inPits[i][u] === 1 || (field.flag[i][u] ?? 0) > 0)
-        clean = false;
+      if (field.inPits[i][u] === 1) clean = false;
       if (
         prev !== null &&
         prev > WRAP_FROM * lengthM &&

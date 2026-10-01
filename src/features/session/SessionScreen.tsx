@@ -557,8 +557,7 @@ const styles = StyleSheet.create({
   },
   block: {gap: space.xs},
   title: {fontSize: 22, marginTop: space.sm},
-  // Wraps: a fifth fact ("Best without TOW or TRAF") does not fit beside the
-  // four at 375 pt.
+  // Wraps: the facts do not all fit on one row at 375 pt.
   facts: {
     flexDirection: 'row',
     flexWrap: 'wrap',
