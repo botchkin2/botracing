@@ -45,8 +45,8 @@ export function SectionWindowCard({window}: {window: SectionWindowModel}) {
           key={o.label}
           variant='dataSmall'
           tone='textSecondary'
-          accessibilityLabel={`${o.label}: best ${o.best} seconds, median ${o.median} seconds, ${o.gap}, over ${o.n}`}>
-          {`${o.label} · best ${o.best} · median ${o.median} · ${o.gap} · ${o.n}`}
+          accessibilityLabel={`${o.label}: best ${o.best} seconds on ${o.bestLap}, median ${o.median} seconds, ${o.gap}, over ${o.n}`}>
+          {`${o.label} · best ${o.best} (${o.bestLap}) · median ${o.median} · ${o.gap} · ${o.n}`}
         </Text>
       ))}
       {window.rows.map(row => (

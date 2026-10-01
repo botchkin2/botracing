@@ -313,6 +313,7 @@ describe('buildSectionWindow optimum', () => {
         label: 'Stint 1',
         n: '6 laps',
         best: '12.000',
+        bestLap: 'L1',
         median: '12.250',
         gap: '+0.250',
       },

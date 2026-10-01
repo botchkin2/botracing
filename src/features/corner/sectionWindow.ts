@@ -65,6 +65,8 @@ export type WindowOptimumRow = {
   /** Times that counted: "14 laps". */
   n: string;
   best: string;
+  /** The lap the best came from, "L14". */
+  bestLap: string;
   median: string;
   /** Median minus best, signed. */
   gap: string;
@@ -250,6 +252,7 @@ function optimumRows(
   sectionN: number,
 ): WindowOptimumRow[] {
   const optimum = sessionOptimum(laps, map);
+  const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
   const at = optimum?.windows.findIndex(
     w => w.kind === 'section' && w.section === sectionN,
   );
@@ -262,6 +265,7 @@ function optimumRows(
       label: `Stint ${s.stint}`,
       n: `${w.n} laps`,
       best: seconds(w.bestS),
+      bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
       median: seconds(w.medianS),
       gap: formatGap(w.medianS - w.bestS),
     });
