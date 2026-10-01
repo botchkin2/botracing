@@ -78,5 +78,7 @@ export function formatLength(distanceM: number): {km: string; mi: string} {
 export function formatDayMonth(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
+  // en-GB spells September "Sept"; the frames say "14 Sep".
+  const month = d.toLocaleDateString('en-US', {month: 'short'});
+  return `${d.getDate()} ${month}`;
 }

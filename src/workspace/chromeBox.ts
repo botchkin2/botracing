@@ -16,7 +16,10 @@ import {parseSelection} from '@/src/nav/routes';
 import {sessionTabs} from '@/src/nav/sessionTabs';
 import {type ChromeSession} from '@/src/ui';
 
-export type ChromeBox = Omit<ChromeSession<SessionTab>, 'onTab' | 'onClose'>;
+export type ChromeBox = Omit<
+  ChromeSession<SessionTab>,
+  'onTab' | 'onMenu' | 'onClose'
+>;
 
 /**
  * The desktop bar's session box as finished values (round 6 frame 1). The
