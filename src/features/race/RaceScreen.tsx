@@ -15,7 +15,16 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {EmptyState, Skeleton, StatusBanner, Text, useHowToRead} from '@/src/ui';
+import {usePanelWidth} from '@/src/state/panelPrefs';
+import {
+  EmptyState,
+  PANEL_DIVIDER_W,
+  PanelDivider,
+  Skeleton,
+  StatusBanner,
+  Text,
+  useHowToRead,
+} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
@@ -58,6 +67,8 @@ const MAP_MIN_H = 240;
 // The leaderboard's right column from 1280 (round 5, item 5); from 900 to 1279
 // it goes below the lanes instead, at this height.
 const DESKTOP_SIDE_W = 320;
+// The wide map is kept at least this wide when the leaderboard is dragged out.
+const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 // Copy from handoff R4c, verbatim where it is drawn.
@@ -310,6 +321,11 @@ function RaceView({
     Math.floor(shownS * prep.field.hz) / prep.field.hz,
   );
   const desktop = layout.isDesktop;
+  // The leaderboard beside the map (wide): resizable, kept per viewer.
+  const boardPanel = usePanelWidth(
+    'race',
+    layout.width - WIDE_MIN_MAP_W - PANEL_DIVIDER_W,
+  );
   const radarSize = desktop ? RADAR_DESKTOP : RADAR_PHONE;
   const radarData = useMemo(
     () =>
@@ -495,7 +511,16 @@ function RaceView({
           )}
         </View>
         {layout.isWide ? (
-          <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+          <>
+            <PanelDivider
+              width={boardPanel.width}
+              onResize={boardPanel.onResize}
+              onCommit={boardPanel.onCommit}
+              onReset={boardPanel.reset}
+              label='Resize the leaderboard panel'
+            />
+            <View style={{width: boardPanel.width}}>{board}</View>
+          </>
         ) : null}
       </View>
     );
@@ -558,7 +583,6 @@ const styles = StyleSheet.create({
   mapColumn: {flex: 1, gap: space.md, paddingHorizontal: size.gutter},
   // The map's own box; the map is drawn to its measured size.
   mapFill: {flex: 1, minHeight: MAP_MIN_H},
-  side: {width: DESKTOP_SIDE_W, borderLeftWidth: 1},
   boardBelow: {height: BOARD_BELOW_H, borderTopWidth: 1},
   chip: {
     position: 'absolute',

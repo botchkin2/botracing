@@ -24,7 +24,16 @@ import {
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
-import {Chip, Explainer, StatusBanner, Text, useHowToRead} from '@/src/ui';
+import {usePanelWidth} from '@/src/state/panelPrefs';
+import {
+  Chip,
+  Explainer,
+  PANEL_DIVIDER_W,
+  PanelDivider,
+  StatusBanner,
+  Text,
+  useHowToRead,
+} from '@/src/ui';
 
 import {
   type BrakeMapModel,
@@ -63,7 +72,10 @@ const DESK_H: ZoomHeights = {
   steering: 60,
   line: 130,
 };
-const DESK_LEFT_W = 600;
+// The wide layout's charts are kept at least this wide when the left column
+// is dragged out: what the old layout gave them at 1280 (layout.width 1000,
+// less the 600 column, the divider and the gutters), so the default holds.
+const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
 
 export function CornerScreen({
@@ -427,9 +439,14 @@ function CornerView({
     </View>
   );
 
-  // Desktop: the charts take all the width the left column leaves.
+  // Desktop: the left column is resizable (kept per viewer); the charts take
+  // all the width it leaves.
+  const left = usePanelWidth(
+    'corner',
+    layout.width - WIDE_MIN_CHARTS_W - PANEL_DIVIDER_W - 2 * space.xl,
+  );
   const tracesW = layout.isWide
-    ? layout.width - DESK_LEFT_W - 2 * space.xl
+    ? layout.width - left.width - PANEL_DIVIDER_W - 2 * space.xl
     : layout.contentWidth;
   const h = layout.isWide ? DESK_H : PHONE_H;
   const traces = (
@@ -450,18 +467,26 @@ function CornerView({
       <View
         style={[styles.screen, styles.columns, {backgroundColor: color.bg}]}>
         <ScrollView
-          style={{width: DESK_LEFT_W, flexGrow: 0}}
+          style={{width: left.width, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
           {header}
           {model.brakeMap && (
             <BrakeMapPanel
               map={model.brakeMap}
-              width={DESK_LEFT_W - 2 * space.xl}
+              width={left.width - 2 * space.xl}
               lapColor={lapColor}
             />
           )}
           {measures}
         </ScrollView>
+        <PanelDivider
+          anchor='left'
+          width={left.width}
+          onResize={left.onResize}
+          onCommit={left.onCommit}
+          onReset={left.reset}
+          label='Resize the braking map and measures panel'
+        />
         <ScrollView
           style={styles.flex}
           contentContainerStyle={[styles.col, top]}>
