@@ -29,7 +29,9 @@ export function usePlanLimits(combo: Combo | null) {
     [combo],
   );
   const allDetails = useSessionsDetail(allIds);
-  const last = useSession(allIds[0] ?? '');
+  // No session at the track and car yet: nothing to read (an empty id would
+  // request /sessions/ and 404).
+  const last = useSession(allIds[0] ?? '', allIds.length > 0);
   return {
     lastFuel: last.data?.fuel ?? null,
     ...limitsOfDetails(allDetails.details, allDetails.pending),

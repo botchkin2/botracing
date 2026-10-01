@@ -1,6 +1,6 @@
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
@@ -15,7 +15,16 @@ import {
   type MapZoom,
   useComparePrefs,
 } from '@/src/state/comparePrefs';
-import {EmptyState, Skeleton, StatusBanner, Text, useHowToRead} from '@/src/ui';
+import {usePanelWidth} from '@/src/state/panelPrefs';
+import {
+  EmptyState,
+  PANEL_DIVIDER_W,
+  PanelDivider,
+  Skeleton,
+  StatusBanner,
+  Text,
+  useHowToRead,
+} from '@/src/ui';
 
 import {clockLabel, snapClock} from './clock';
 import {Leaderboard} from './components/Leaderboard';
@@ -58,6 +67,8 @@ const MAP_MIN_H = 240;
 // The leaderboard's right column from 1280 (round 5, item 5); from 900 to 1279
 // it goes below the lanes instead, at this height.
 const DESKTOP_SIDE_W = 320;
+// The wide map is kept at least this wide when the leaderboard is dragged out.
+const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 // Copy from handoff R4c, verbatim where it is drawn.
@@ -310,6 +321,11 @@ function RaceView({
     Math.floor(shownS * prep.field.hz) / prep.field.hz,
   );
   const desktop = layout.isDesktop;
+  // The leaderboard beside the map (wide): resizable, kept per viewer.
+  const boardPanel = usePanelWidth(
+    'race',
+    layout.width - WIDE_MIN_MAP_W - PANEL_DIVIDER_W,
+  );
   const radarSize = desktop ? RADAR_DESKTOP : RADAR_PHONE;
   const radarData = useMemo(
     () =>
@@ -421,6 +437,7 @@ function RaceView({
       width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
       desktop={desktop}
       onScrub={scrub}
+      mode={mode}
     />
   );
   const controls = (
@@ -441,6 +458,18 @@ function RaceView({
       onFocus={toggleFocus}
       desktop={desktop}
       mode={mode}
+    />
+  );
+  const boardPaged = (
+    <Leaderboard
+      groups={rows.groups}
+      classes={rows.classes}
+      filter={rows.filter}
+      onFilter={setWanted}
+      onFocus={toggleFocus}
+      desktop={desktop}
+      mode={mode}
+      paged
     />
   );
 
@@ -482,31 +511,45 @@ function RaceView({
           )}
         </View>
         {layout.isWide ? (
-          <View style={[styles.side, {borderColor: color.line}]}>{board}</View>
+          <>
+            <PanelDivider
+              width={boardPanel.width}
+              onResize={boardPanel.onResize}
+              onCommit={boardPanel.onCommit}
+              onReset={boardPanel.reset}
+              label='Resize the leaderboard panel'
+            />
+            <View style={{width: boardPanel.width}}>{board}</View>
+          </>
         ) : null}
       </View>
     );
   }
+  // The phone screen scrolls as a page: the map at its height, the board
+  // below at full length, the lanes after it; the transport stays under the
+  // page (thread 44 #1733).
   return (
     <View style={styles.fill}>
-      <View style={styles.phoneTop}>
-        <View style={styles.subRow}>
-          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
-            {sub}
-          </Text>
-          {help.button}
+      <ScrollView style={styles.fill}>
+        <View style={styles.phoneTop}>
+          <View style={styles.subRow}>
+            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+              {sub}
+            </Text>
+            {help.button}
+          </View>
+          {help.panel}
+          {roadLine ? (
+            <Text variant='dataSmall' tone='textSecondary'>
+              {roadLine}
+            </Text>
+          ) : null}
+          {map}
+          <RaceLegend />
         </View>
-        {help.panel}
-        {roadLine ? (
-          <Text variant='dataSmall' tone='textSecondary'>
-            {roadLine}
-          </Text>
-        ) : null}
-        {map}
-        <RaceLegend />
-      </View>
-      {board}
-      <View style={styles.phoneLanes}>{lanesBlock}</View>
+        {boardPaged}
+        <View style={styles.phoneLanes}>{lanesBlock}</View>
+      </ScrollView>
       {controls}
     </View>
   );
@@ -540,7 +583,6 @@ const styles = StyleSheet.create({
   mapColumn: {flex: 1, gap: space.md, paddingHorizontal: size.gutter},
   // The map's own box; the map is drawn to its measured size.
   mapFill: {flex: 1, minHeight: MAP_MIN_H},
-  side: {width: DESKTOP_SIDE_W, borderLeftWidth: 1},
   boardBelow: {height: BOARD_BELOW_H, borderTopWidth: 1},
   chip: {
     position: 'absolute',

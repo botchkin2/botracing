@@ -115,6 +115,7 @@ export function CompareScreen({
   const sessionFacts = useMemo<DefaultSession | undefined>(
     () =>
       sessionDoc.data && {
+        id: sessionDoc.data.id,
         bestLapId: sessionDoc.data.bestLapId,
         car: sessionDoc.data.car,
         sessionType: sessionDoc.data.sessionType,

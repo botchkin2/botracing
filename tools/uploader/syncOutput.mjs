@@ -16,7 +16,13 @@ export function isProgressLine(line) {
 
 export function newSyncResult() {
   return {
+    // Every session block, a fold's too (the progress counts them: the total
+    // includes the folds), and `stored`: those that are not a fold, the ones
+    // that were uploaded; `folded` counts the fold blocks.
     sessions: [],
+    stored: [],
+    folded: 0,
+    inFold: false,
     failedIds: [],
     done: 0,
     failed: 0,
@@ -34,11 +40,20 @@ export function readSyncLine(result, line) {
   const todo = line.match(/^to do (\d+)$/);
   if (todo) result.total = +todo[1];
   const session = line.match(/^([0-9a-f]{16}) /);
-  if (session) result.sessions.push(session[1]);
+  if (session) {
+    // The fold pass before the sessions (sync.mjs): '<id> fold: ...'. It stores
+    // nothing, so it is not an upload, and a failed fold is retried by the
+    // session's own block, which is where a failure counts.
+    result.inFold = /^[0-9a-f]{16} fold: /.test(line);
+    result.sessions.push(session[1]);
+    if (result.inFold) result.folded++;
+    else result.stored.push(session[1]);
+  }
   if (/^\s+failed: /.test(line)) {
     result.errors.push(line.trim());
     const id = result.sessions[result.sessions.length - 1];
-    if (id && !result.failedIds.includes(id)) result.failedIds.push(id);
+    if (!result.inFold && id && !result.failedIds.includes(id))
+      result.failedIds.push(id);
   }
   const fold = readSurfaceProgress(line);
   if (fold) result.fold = fold;

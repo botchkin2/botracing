@@ -290,7 +290,6 @@ export const size = {
   chromeClose: 28,
   railWidth: 280,
   // Session's right column: the Pit stops card fits three columns at 400 (round 5, item 8).
-  sidePanelWidth: 400,
   railBadge: 20,
   railBar: 3,
   logo: 18,

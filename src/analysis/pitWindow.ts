@@ -1,7 +1,8 @@
 // The pit window (Botkin, pit-wall thread 44 #1379): for each stop of the
 // full-tank plan, the earliest and the latest lap it can be taken and still
 // reach the flag, with the other stops free to move. A range, not a
-// recommendation, at the median use and with no reserve. Pure; laps are racing
+// recommendation, at the use rate the caller chose (the Plan passes the p90
+// stint lengths, so the window is the safe one) and with no reserve. Pure; laps are racing
 // laps, named by the caller ("after L18"). Stops that only a rule asks for
 // (mandatory, refuelling) are not counted, so the real windows are wider.
 

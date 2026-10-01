@@ -184,6 +184,19 @@ def test_field_rows_keep_car_text(lay, game, tmp_path):
     assert "mVehicleClass" in field and "mDriverName" in field
 
 
+def test_player_rows_keep_the_tyre_compound_names(lay, game, tmp_path):
+    rec = make(lay, game, tmp_path)
+    now = drive(rec, game, 0, 1.5)
+    game.running = False
+    rec.tick(now + 10_000)
+    (cap,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    player = pq.read_table(sorted(cap.glob("player-*.parquet"))[0]).to_pydict()
+    assert set(player["mFrontTireCompoundName"]) == {"Medium"}
+    assert set(player["mRearTireCompoundName"]) == {"Soft"}
+    # Only those two are text: the other char fields stay out of the player rows.
+    assert "mVehicleName" not in player
+
+
 def test_meta_maps_car_ids_to_models(lay, game, tmp_path):
     rec = make(lay, game, tmp_path)
     now = drive(rec, game, 0, 1.5)

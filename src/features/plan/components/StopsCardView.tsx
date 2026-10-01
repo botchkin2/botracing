@@ -77,14 +77,27 @@ export function StopsCardView({
               {w.text}
             </Text>
           ))}
+          {card.windowNote ? (
+            <Text variant='dataSmall' tone='textSecondary'>
+              {card.windowNote}
+            </Text>
+          ) : null}
           <Text variant='dataSmall' tone='textMuted'>
-            At the median use, with no reserve. Earliest: the laps after it
-            still fit in full tanks. Latest: the lap the tank runs out, the
-            earlier stops as late as they can be. Each stop after the first must
-            also come within a tank of the one before. A mandatory stop that
-            refuels makes the real window wider.
+            Stops planned at p90 use per lap (the heavier 10 % of the laps),
+            with no reserve, so the window is the safe one. In a timed race it
+            uses the race length plus one lap, because the flag can fall late.
+            Earliest: the laps after it still fit in full tanks. Latest: the lap
+            the tank runs out, the earlier stops as late as they can be. Each
+            stop after the first must also come within a tank of the one before.
+            At median use is where the tank would run out at the median lap. A
+            mandatory stop that refuels makes the real window wider.
           </Text>
         </View>
+      ) : null}
+      {card.windows.length === 0 && card.windowNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {card.windowNote}
+        </Text>
       ) : null}
       {card.equal ? row(card.equal, false) : null}
       {formation.length > 0 ? (

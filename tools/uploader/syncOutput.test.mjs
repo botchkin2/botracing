@@ -116,3 +116,31 @@ test('the surface fold takes over the progress once the sessions are done', () =
   assert.equal(r.sessions.length, 2);
   assert.equal(r.failed, 0);
 });
+
+test('a fold block stores nothing: it is progress, not an upload, and a failed one is not a failed session', () => {
+  const r = newSyncResult();
+  readSyncLine(r, 'to do 4');
+  // The fold pass before the sessions, then the sessions themselves.
+  readSyncLine(
+    r,
+    'aaaaaaaaaaaaaaaa fold: 2026-09-28T20:00 Race   Road Atlanta | 911 | 1 file(s)',
+  );
+  readSyncLine(
+    r,
+    'bbbbbbbbbbbbbbbb fold: 2026-09-28T19:00 Race   Road Atlanta | 911 | 1 file(s)',
+  );
+  readSyncLine(r, '  failed: Error: could not read the recording');
+  assert.deepEqual(progressOf(r), {done: 2, total: 4});
+  readSyncLine(
+    r,
+    'aaaaaaaaaaaaaaaa 2026-09-28T20:00 Race   Road Atlanta | 911 | 1 file(s)',
+  );
+  assert.equal(r.sessions.length, 3);
+  assert.equal(r.folded, 2);
+  // Only the session block is an upload; the failed fold is no failed session.
+  assert.deepEqual(r.stored, ['aaaaaaaaaaaaaaaa']);
+  assert.deepEqual(r.failedIds, []);
+  assert.equal(r.errors.length, 1);
+  // A stop here (the game started) has uploaded one session, not three.
+  assert.equal(r.stored.length - r.failedIds.length, 1);
+});

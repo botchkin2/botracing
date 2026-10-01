@@ -9,12 +9,18 @@ import {
 
 import {useTheme} from '@/src/design';
 
-// The draggable divider between the charts and the right column (desktop
-// Compare). Dragging left widens the right column. The caller clamps and
-// remembers the width; this only reports it.
+// The draggable divider beside a side column on the desktop pages (Compare,
+// Session, Race, Corner). `anchor` says which column the width belongs to:
+// dragging left widens a right column, dragging right widens a left one. A
+// quick second tap (a double click) asks for the default width. The caller
+// clamps and remembers the width; this only reports it.
 
 /** The divider's width, points; the workspace lays out around it. */
 export const PANEL_DIVIDER_W = 10;
+/** Two taps within this many ms, with no drag between, are a double click. */
+const DOUBLE_TAP_MS = 350;
+/** A pointer that moved less than this many points did not drag. */
+const TAP_SLOP = 3;
 // react-native-web applies `cursor` to any view; RN's types only know it on
 // some.
 const RESIZE_CURSOR = {cursor: 'col-resize'} as unknown as ViewStyle;
@@ -30,9 +36,18 @@ export function PanelDivider({
   width,
   onResize,
   onCommit,
+  onReset,
+  anchor = 'right',
+  label = 'Resize the side panel',
 }: {
-  /** The right column's current width, points. */
+  /** The column's current width, points. */
   width: number;
+  /** Which column the width is: 'right' (the default) or 'left'. */
+  anchor?: 'left' | 'right';
+  /** Spoken name; the default says "side panel". */
+  label?: string;
+  /** A double click: back to the default width. */
+  onReset?: () => void;
   /** While dragging: the width the pointer asks for. */
   onResize: (width: number) => void;
   /** On release: the last width asked for, to remember. */
@@ -41,10 +56,11 @@ export function PanelDivider({
   const {color} = useTheme();
   const [active, setActive] = useState(false);
   // PanResponder reads its handlers once: keep the latest in refs.
-  const latest = useRef({width, onResize, onCommit});
+  const latest = useRef({width, onResize, onCommit, onReset, anchor});
   useEffect(() => {
-    latest.current = {width, onResize, onCommit};
+    latest.current = {width, onResize, onCommit, onReset, anchor};
   });
+  const lastTapAt = useRef(0);
   const start = useRef(width);
   const last = useRef(width);
   // eslint-disable-next-line react-hooks/refs
@@ -58,13 +74,23 @@ export function PanelDivider({
         setActive(true);
       },
       onPanResponderMove: (_, g) => {
-        last.current = start.current - g.dx;
+        const dx = latest.current.anchor === 'left' ? g.dx : -g.dx;
+        last.current = start.current + dx;
         latest.current.onResize(last.current);
       },
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (_, g) => {
         holdSelection(false);
         setActive(false);
-        latest.current.onCommit(last.current);
+        const tapped = Math.abs(g.dx) < TAP_SLOP;
+        const now = Date.now();
+        if (tapped && now - lastTapAt.current < DOUBLE_TAP_MS) {
+          lastTapAt.current = 0;
+          latest.current.onReset?.();
+          return;
+        }
+        lastTapAt.current = tapped ? now : 0;
+        // A tap that did not drag changes nothing: nothing to remember.
+        if (!tapped) latest.current.onCommit(last.current);
       },
       onPanResponderTerminate: () => {
         holdSelection(false);
@@ -76,7 +102,7 @@ export function PanelDivider({
   return (
     <View
       accessibilityRole='adjustable'
-      accessibilityLabel='Resize the right panel'
+      accessibilityLabel={label}
       {...responder.panHandlers}
       style={[styles.hit, RESIZE_CURSOR]}>
       <View

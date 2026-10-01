@@ -325,6 +325,17 @@ describe('field mode (practice and qualifying)', () => {
     );
   });
 
+  it('says the nearest car behind once when it is the faster class', () => {
+    const near = [
+      onRoad(0, 'GT3', 1000, {player: true}),
+      onRoad(1, 'GT3', 1120),
+      onRoad(2, 'Hyper', 900),
+    ];
+    const line = roadSummaryText(roadSummary(near, TRACK)!);
+    expect(line).toContain('Behind 1.8 s (100 m) Hypercar (faster class)');
+    expect(line).not.toContain('Faster class:');
+  });
+
   it('has no place, no class position on a dot, and the road gap in seconds in place of the gap', () => {
     const m = buildRaceModel({
       cars,

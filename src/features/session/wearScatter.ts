@@ -30,8 +30,12 @@ export type WearScatterModel = {
   yDomain: [number, number];
   xTicks: {v: number; label: string}[];
   yTicks: {v: number; label: string}[];
-  /** True when the laps were limited to clean ones (the session has a field). */
-  cleanOnly: boolean;
+  /**
+   * How many of the laps had a tow, traffic or a blue flag (a flag, never a
+   * filter: Botkin, pit-wall thread 44 #1789). Null without a field, where none
+   * of that is known.
+   */
+  flagged: number | null;
   n: number;
   /** The number: seconds per 1 % lost with fuel held fixed, over every lap; or why there is none. */
   headline: string;
@@ -47,16 +51,18 @@ const hasDeadWheel = (l: Lap) => {
   return reads > 0 && reads < WHEELS.length;
 };
 
-/** Clean green laps with all four wheels reading wear and a fuel level at the start. */
-export function wearLaps(laps: Lap[], hasField: boolean): WearLap[] {
+/**
+ * Green laps with all four wheels reading wear and a fuel level at the start.
+ * Tow and traffic do not leave a lap out (they are flags: `flaggedCount`);
+ * off-track, yellow and pit laps are not green and do.
+ */
+export function wearLaps(laps: Lap[]): WearLap[] {
   const out: WearLap[] = [];
   for (const l of laps) {
     const wear = l.tyres?.wearPct;
     const startL = l.fuel?.startL;
     if (!wear || startL == null || l.timeS == null || !l.comparable) continue;
     if (l.fuel?.green !== true || hasDeadWheel(l)) continue;
-    // With a field a clean lap is free air; without one nothing can be said, so every green lap counts.
-    if (hasField && !(l.traffic && isCleanTraffic(l.traffic))) continue;
     const vals = WHEELS.map(w => wear[w]);
     if (vals.some(v => v == null)) continue;
     const mean = (vals as number[]).reduce((a, b) => a + b, 0) / vals.length;
@@ -68,6 +74,14 @@ export function wearLaps(laps: Lap[], hasField: boolean): WearLap[] {
     });
   }
   return out;
+}
+
+/** Laps with a tow, traffic or blue flag among those the panels use. */
+export function flaggedCount(laps: Lap[], used: Set<string>): number | null {
+  if (!laps.some(l => l.traffic)) return null;
+  return laps.filter(
+    l => used.has(l.id) && l.traffic && !isCleanTraffic(l.traffic),
+  ).length;
 }
 
 function noteOf(b: WearBand): string {
@@ -108,11 +122,8 @@ function padded([lo, hi]: [number, number]): [number, number] {
 }
 
 /** Null under MIN_SCATTER_LAPS laps. */
-export function buildWearScatter(
-  laps: Lap[],
-  hasField: boolean,
-): WearScatterModel | null {
-  const pts = wearLaps(laps, hasField);
+export function buildWearScatter(laps: Lap[]): WearScatterModel | null {
+  const pts = wearLaps(laps);
   if (pts.length < MIN_SCATTER_LAPS) return null;
   const bands = wearBands(pts);
   const xs = pts.map(p => p.lostPct);
@@ -138,11 +149,11 @@ export function buildWearScatter(
     yDomain,
     xTicks: ticks(xDomain, v => `${v.toFixed(0)} %`),
     yTicks: ticks(yDomain, formatLapTime),
-    cleanOnly: hasField,
+    flagged: flaggedCount(laps, new Set(pts.map(p => p.lapId))),
     n: pts.length,
     headline: headlineOf(jointFit(pts)),
   };
 }
 
 export const WEAR_SCATTER_KEY =
-  'Clean green laps, whole race. Right = more worn (mean of four wheels), up = faster. Split by fuel at the start of the lap so the fuel effect is not counted as wear. The number is one fit over all the laps with fuel held fixed; the dashed line in each panel is the line for that band alone. It shows the two move together, not that one causes the other. Track changes over the race are not separated.';
+  'Green laps, whole race. Right = more worn (mean of four wheels), up = faster. Split by fuel at the start of the lap so the fuel effect is not counted as wear. The number is one fit over all the laps with fuel held fixed; the dashed line in each panel is the line for that band alone. It shows the two move together, not that one causes the other. Track changes over the race are not separated.';

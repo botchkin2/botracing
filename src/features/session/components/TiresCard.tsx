@@ -12,7 +12,9 @@ import {
   type TiresCard as TiresCardModel,
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
+import {CoolDown} from './CoolDown';
 import {TireGrid} from './TireGrid';
+import {TreadZones} from './TreadZones';
 import {WearScatter} from './WearScatter';
 
 /**
@@ -135,6 +137,21 @@ export function TiresCard({
         width={width}
         medianLabel='median over the green laps'
       />
+      <View style={styles.block}>
+        <Text variant='label'>Stop cool-down</Text>
+        <CoolDown block={stint.coolDown} width={width} />
+      </View>
+      {stint.tread ? (
+        <View style={styles.block}>
+          <Text variant='label'>Tread zones</Text>
+          <Explainer>
+            Median over the green laps, °C. Outer edges face out, as seen from
+            above. I inner · C centre · O outer; I − O = inner minus outer. Bar
+            scale 70–100 °C.
+          </Explainer>
+          <TreadZones zones={stint.tread} width={width} />
+        </View>
+      ) : null}
       {scatter ? <WearScatter model={scatter} width={width} /> : null}
     </View>
   );
@@ -145,6 +162,7 @@ const SHORT_STINT_NOTE =
 
 const styles = StyleSheet.create({
   card: {gap: space.md},
+  block: {gap: space.sm},
   title: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   table: {gap: space.xs},
   row: {flexDirection: 'row', gap: space.sm},

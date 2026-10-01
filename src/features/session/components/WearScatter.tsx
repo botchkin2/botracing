@@ -49,9 +49,9 @@ export function WearScatter({
         </View>
       ))}
       <Text variant='dataSmall' tone='textMuted'>
-        {model.cleanOnly
-          ? `${model.n} clean green laps.`
-          : `${model.n} green laps; no other cars were recorded, so clean air cannot be told.`}
+        {model.flagged == null
+          ? `${model.n} green laps; no other cars were recorded, so tow and traffic are not known.`
+          : `${model.n} green laps; ${model.flagged} had a tow, traffic or blue flag and are included.`}
       </Text>
     </View>
   );

@@ -177,18 +177,27 @@ const distanceText = (n: RoadNeighbour): string =>
 
 /** "Ahead 1.5 s (120 m) GT3 · Behind 1.0 s (85 m) LMP2 · Faster class: HYPERCAR 2.4 s (310 m) behind". */
 export function roadSummaryText(s: RoadSummary): string {
-  const one = (label: string, n: RoadNeighbour | null) =>
-    n ? [`${label} ${distanceText(n)} ${CLASS_NAME[n.key]}`] : [];
-  const faster = s.coming
-    ? [
-        `Faster class: ${CLASS_NAME[s.coming.key]} ${distanceText(
-          s.coming,
-        )} behind`,
-      ]
-    : [];
-  return [...one('Ahead', s.ahead), ...one('Behind', s.behind), ...faster].join(
-    ' · ',
-  );
+  // When the car right behind is the faster class, it is one fact, not two.
+  const sameCar =
+    s.coming != null &&
+    s.behind != null &&
+    s.coming.key === s.behind.key &&
+    s.coming.metres === s.behind.metres;
+  const one = (label: string, n: RoadNeighbour | null, note = '') =>
+    n ? [`${label} ${distanceText(n)} ${CLASS_NAME[n.key]}${note}`] : [];
+  const faster =
+    s.coming && !sameCar
+      ? [
+          `Faster class: ${CLASS_NAME[s.coming.key]} ${distanceText(
+            s.coming,
+          )} behind`,
+        ]
+      : [];
+  return [
+    ...one('Ahead', s.ahead),
+    ...one('Behind', s.behind, sameCar ? ' (faster class)' : ''),
+    ...faster,
+  ].join(' · ');
 }
 
 export type RaceRow = {

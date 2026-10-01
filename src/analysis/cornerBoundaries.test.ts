@@ -58,8 +58,9 @@ describe.each([
         reference(f.onsets[k].onsetsM),
       );
       expect(w.fromM).toBeLessThan(ref);
-      // 0.5 s at the speed there, give or take a 5 m bin and the 5 m profile.
-      const marginM = (speedAt(f.speedKmh)(ref) / 3.6) * BOUNDARY_MARGIN_S;
+      // 0.5 s at the speed at the section's entry, give or take a 5 m bin.
+      const marginM =
+        (speedAt(f.speedKmh)(f.sections[k].entryM) / 3.6) * BOUNDARY_MARGIN_S;
       const gap = ref - w.fromM;
       // A boundary clamped to the previous exit sits closer than the margin.
       if (k > 0 && w.fromM === f.sections[k - 1].exitM) {
@@ -215,6 +216,13 @@ describe('onsetsOfLaps', () => {
     expect(onsetsM).toEqual([285, 290, 285]);
   });
 
+  it('measures a section the way the layout decided, whatever this session does', () => {
+    // Most of these laps brake, but the layout says lift: lift onsets it is.
+    const laps = [lap(285, 270), lap(290, 275)];
+    expect(onsetsOfLaps(laps, section, 0, 'lift').onsetsM).toEqual([270, 275]);
+    expect(onsetsOfLaps(laps, section, 0, 'brake').onsetsM).toEqual([285, 290]);
+  });
+
   it('uses lift onsets for a section nobody brakes for, and none for a corner taken flat', () => {
     const kink = onsetsOfLaps([lap(null, 300), lap(null, 310)], section, 0);
     expect(kink).toMatchObject({kind: 'lift', onsetsM: [300, 310]});
@@ -227,10 +235,25 @@ describe('foldBoundaries', () => {
   const sections: MapSection[] = [
     {n: 1, entryM: 300, turnInM: 340, exitM: 420},
   ];
-  const speed = () => 180; // 50 m/s: a 25 m margin
+  // Every pool is built at 180 km/h, 50 m/s: a 25 m margin.
   // A session's pools from onsets laid on 5 m bins.
-  const pools = (onsets: number[]) =>
-    onsetPools(sections, [{kind: 'brake', onsetsM: onsets}]);
+  const braking = (onsets: number[]) => ({
+    laps: onsets.length,
+    braked: onsets.length,
+    brakeM: onsets,
+    liftM: [],
+    speedKmh: 180,
+  });
+  // Laps that lift where the others brake: braked 0, the onsets are lifts.
+  const lifting = (onsets: (number | null)[]) => ({
+    laps: onsets.length,
+    braked: 0,
+    brakeM: [],
+    liftM: onsets,
+    speedKmh: 180,
+  });
+  const pools = (onsets: number[]) => onsetPools(sections, [braking(onsets)]);
+  const pools0 = (n: number, at: number) => pools(around(n, at));
   const fold = (
     stored: Boundaries | null,
     sessionId: string,
@@ -242,7 +265,6 @@ describe('foldBoundaries', () => {
       stored,
       sessionId,
       pools: pools(onsets),
-      speedKmhAt: speed,
       ...extra,
     });
   // 40 laps around 280 m, one early outlier at 200 m (a spin, a coast).
@@ -301,6 +323,58 @@ describe('foldBoundaries', () => {
     expect(later.boundaries.startsM[0]).toBeGreaterThan(early.startsM[0] + 25);
   });
 
+  it("decides each section's kind by the majority of every pooled lap, and a flip moves the windows", () => {
+    // The first session lifts where the layout will turn out to brake.
+    const first = foldBoundaries({
+      sections,
+      stored: null,
+      sessionId: 's1',
+      pools: onsetPools(sections, [lifting(around(25, 260))]),
+    });
+    expect(first.boundaries.kinds).toEqual(['lift']);
+    // Two sessions that brake outweigh it: 50 braked of 75 laps.
+    const second = foldBoundaries({
+      sections,
+      stored: first.boundaries,
+      sessionId: 's2',
+      pools: onsetPools(sections, [braking(around(25, 280))]),
+    });
+    expect(second.boundaries.kinds).toEqual(['brake']);
+    expect(second.moved).toBe(true);
+    expect(second.boundaries.rev).toBe(first.boundaries.rev + 1);
+    // The earliest onset rests on the brakes now, not on the lifts at 260 m.
+    expect(second.boundaries.earliestOnsetM[0]).toBe(280);
+  });
+
+  it('keeps the kind while the majority does not change', () => {
+    const base = fold(null, 's1', around(30)).boundaries;
+    expect(base.kinds).toEqual(['brake']);
+    const next = fold(base, 's2', around(10, 282));
+    expect(next.boundaries.kinds).toEqual(['brake']);
+  });
+
+  it('rests on the pools alone: the same sessions give the same reference and margin whichever folds last', () => {
+    const slow = (onsets: number[]) =>
+      onsetPools(sections, [{...braking(onsets), speedKmh: 120}]);
+    const fold2 = (order: ['a' | 'b', 'a' | 'b']) => {
+      const pools = {a: pools0(25, 280), b: slow(around(25, 270))};
+      let state: Boundaries | null = null;
+      for (const id of order) {
+        state = foldBoundaries({
+          sections,
+          stored: state,
+          sessionId: id,
+          pools: pools[id],
+        }).boundaries;
+      }
+      return state!;
+    };
+    const ab = fold2(['a', 'b']);
+    const ba = fold2(['b', 'a']);
+    expect(ab.earliestOnsetM).toEqual(ba.earliestOnsetM);
+    expect(ab.marginM).toEqual(ba.marginM);
+  });
+
   it('replaces a session on a resync instead of counting its laps twice', () => {
     const base = fold(null, 's1', around(30)).boundaries;
     const again = fold(base, 's1', around(30));
@@ -315,9 +389,8 @@ describe('foldBoundaries', () => {
       sessionId: 's1',
       pools: onsetPools(
         [{n: 1, entryM: 340, turnInM: 340, exitM: 420}],
-        [{kind: 'lift', onsetsM: [null, null, null]}],
+        [lifting([null, null, null])],
       ),
-      speedKmhAt: speed,
     });
     expect(flat.boundaries.startsM[0]).toBeCloseTo(315, 0);
   });

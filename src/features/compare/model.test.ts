@@ -412,7 +412,7 @@ describe('a URL with no laps', () => {
     lap('c', 91.9),
     lap('d', 90.0, false),
   ];
-  const facts = {bestLapId: 'b', car: 'GT3', sessionType: 'R'};
+  const facts = {id: 's1', bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
   it('opens on a fair reference and the median comparable lap', () => {
     const out = withDefaultLaps(sel({laps: []}), laps, facts);
@@ -702,5 +702,83 @@ describe('trafficLane', () => {
       {m: 250, kind: 'pass'},
       {m: 500, kind: 'blue'},
     ]);
+  });
+});
+
+describe('laps of another session', () => {
+  // d is lap 1 of another session; its id in the selection is qualified.
+  const other = toLaps([rawLap('d', 19.5, [4.9, 4.9])]);
+  const fid = 's9~d';
+  const foreign = {
+    laps: [{...other[0], id: fid}],
+    tags: new Map([[fid, '25 Sep']]),
+  };
+  const withTrace = new Map(traces);
+  withTrace.set(fid, resampleTrace(circleLap(183), LENGTH_M, 5, 10));
+  const m = buildCompareModel({
+    session,
+    laps,
+    foreign,
+    traces: withTrace,
+    band: null,
+    map,
+    selection: sel({laps: [fid, 'a'], hl: 'a'}),
+  });
+
+  it('is the reference, named with its session so two L1s are not confused', () => {
+    expect(m.reference).toContain('L1 · 25 Sep');
+    expect(m.chips.map(c => c.label)).toContain('L1 · 25 Sep');
+    expect(m.chips.find(c => c.lapId === fid)!.isRef).toBe(true);
+    expect(m.charts[0].lines.some(l => l.lapId === fid)).toBe(true);
+    expect(
+      m.charts.flatMap(c => c.valueRows.map(r => r.label)).join(),
+    ).toContain('vs L1 · 25 Sep');
+  });
+
+  it('names this session’s laps with its own tag beside a foreign one', () => {
+    const tagged = buildCompareModel({
+      session,
+      laps,
+      foreign: {...foreign, ownTag: '26 Sep Race'},
+      traces: withTrace,
+      band: null,
+      map,
+      selection: sel({laps: [fid, 'a'], hl: 'a'}),
+    });
+    expect(tagged.chips.map(c => c.label)).toEqual([
+      'L1 · 25 Sep',
+      'L1 · 26 Sep Race',
+    ]);
+    // Without a foreign lap in the view, nothing is tagged.
+    expect(build().chips.every(c => !c.label.includes('·'))).toBe(true);
+  });
+
+  it('is not found when its laps are not loaded', () => {
+    const lost = buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel({laps: [fid, 'a']}),
+    });
+    expect(lost.notFound).toBe(1);
+  });
+
+  it('keeps the field radar and the All laps list to this session', () => {
+    const playingForeign = buildCompareModel({
+      session,
+      laps,
+      foreign,
+      traces: withTrace,
+      band: null,
+      map,
+      selection: sel({laps: ['a', fid], hl: fid}),
+    });
+    expect(playingForeign.playing).toEqual({lapId: fid, lapNumber: null});
+    expect(m.allLaps.flatMap(s => s.rows.map(r => r.lapId)).includes(fid)).toBe(
+      false,
+    );
+    expect(m.playing?.lapId).toBe('a');
   });
 });

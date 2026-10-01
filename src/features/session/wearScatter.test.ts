@@ -7,6 +7,7 @@ import {toLaps} from '@/src/data/sessions/adapters';
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
   buildWearScatter,
+  flaggedCount,
   MIN_SCATTER_LAPS,
   WEAR_SCATTER_KEY,
   wearLaps,
@@ -35,6 +36,7 @@ const tyres = (over: Partial<NonNullable<Lap['tyres']>> = {}) => ({
   wearPct: all(97),
   pressureKpa: all(160),
   hotPressureKpa: null,
+  treadC: null,
   rubberC: null,
   carcassC: null,
   changed: null,
@@ -58,7 +60,7 @@ describe('wearLaps', () => {
     const l = lap(3, {
       tyres: tyres({wearPct: {FL: 96, FR: 96, RL: 94, RR: 94}}),
     });
-    expect(wearLaps([l], false)[0].lostPct).toBe(5);
+    expect(wearLaps([l])[0].lostPct).toBe(5);
   });
 
   it('leaves out non-green, untimed, and dead-sensor laps', () => {
@@ -71,24 +73,30 @@ describe('wearLaps', () => {
       lap(3, {timeS: null}),
       dead,
     ];
-    expect(wearLaps(laps, false).map(l => l.lapId)).toEqual(['l1']);
+    expect(wearLaps(laps).map(l => l.lapId)).toEqual(['l1']);
   });
 
-  it('with a field keeps clean laps only; without one, every green lap', () => {
+  it('keeps every green lap, tow and traffic or not: they are flags, never a filter', () => {
     const free = lap(1, {traffic: clean});
     const busy = lap(2, {traffic: {...clean, trafficAheadS: 3}});
-    const unknown = lap(3);
-    expect(wearLaps([free, busy, unknown], true).map(l => l.lapId)).toEqual([
-      'l1',
-    ]);
-    expect(wearLaps([free, busy, unknown], false)).toHaveLength(3);
-  });
-
-  it('a faster-class overtake makes a lap not clean', () => {
-    const l = lap(1, {
+    const towed = lap(3, {traffic: {...clean, draftS: 20}});
+    const passed = lap(4, {
       traffic: {...clean, overtakes: [{cls: 'GT3', atM: 100}]},
     });
-    expect(wearLaps([l], true)).toEqual([]);
+    const unknown = lap(5);
+    expect(
+      wearLaps([free, busy, towed, passed, unknown]).map(l => l.lapId),
+    ).toEqual(['l1', 'l2', 'l3', 'l4', 'l5']);
+  });
+
+  it('counts the laps with traffic or a blue flag among those it uses, null without a field', () => {
+    const free = lap(1, {traffic: clean});
+    const busy = lap(2, {traffic: {...clean, trafficAheadS: 3}});
+    const used = new Set(['l1', 'l2']);
+    expect(flaggedCount([free, busy], used)).toBe(1);
+    expect(flaggedCount([lap(1), lap(2)], used)).toBeNull();
+    // A lap the panels do not use is not counted.
+    expect(flaggedCount([free, busy], new Set(['l1']))).toBe(0);
   });
 });
 
@@ -97,23 +105,23 @@ describe('buildWearScatter', () => {
     const few = Array.from({length: MIN_SCATTER_LAPS - 1}, (_, i) =>
       lap(i + 1),
     );
-    expect(buildWearScatter(few, false)).toBeNull();
+    expect(buildWearScatter(few)).toBeNull();
   });
 
   it('draws one panel with a line and the shared axes', () => {
     const laps = Array.from({length: 8}, (_, i) => lap(i + 1));
-    const m = buildWearScatter(laps, false);
+    const m = buildWearScatter(laps);
     expect(m?.panels).toHaveLength(1);
     expect(m?.panels[0].fit).not.toBeNull();
     expect(m?.panels[0].note).toBe('8 laps');
     expect(m?.headline).toBe('No number: fewer than 10 laps.');
     expect(m?.xDomain[0]).toBe(0);
-    expect(m?.cleanOnly).toBe(false);
+    expect(m?.flagged).toBeNull();
   });
 
   it('one stint with wear and fuel locked together has no number, and says why', () => {
     const laps = Array.from({length: 12}, (_, i) => lap(i + 1));
-    expect(buildWearScatter(laps, false)?.headline).toMatch(
+    expect(buildWearScatter(laps)?.headline).toMatch(
       /^No number: wear and fuel fall together/,
     );
   });
@@ -130,7 +138,7 @@ describe('buildWearScatter', () => {
         tyres: tyres({wearPct: all(100 - (n - 1))}),
       }),
     );
-    const h = buildWearScatter(two, false)?.headline ?? '';
+    const h = buildWearScatter(two)?.headline ?? '';
     expect(h).toMatch(/^\+0\.0\d\d ± 0\.\d{3} s per 1 % lost, fuel held fixed/);
     expect(h).not.toContain('loose');
   });

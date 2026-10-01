@@ -76,7 +76,6 @@ export function DotStrip({
         coincidentWithin,
       ),
     // x depends only on these.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dots, width, min, max, flipped, coincidentWithin],
   );
   const maxRow = Math.max(0, ...rows.map(Math.abs));

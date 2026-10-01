@@ -139,7 +139,7 @@ export type SessionScreenModel = {
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
   tires: TiresCard;
-  /** Lap time against wear, by fuel band; null under 5 clean green laps. */
+  /** Lap time against wear, by fuel band; null under 10 green laps. */
   wearScatter: WearScatterModel | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
@@ -504,7 +504,7 @@ export function buildSessionModel(
     tray,
     pitCard: buildPitCard(session.sessionType, laps, session),
     tires: buildTiresCard(session, laps),
-    wearScatter: buildWearScatter(laps, session.field != null),
+    wearScatter: buildWearScatter(laps),
     fuelUse: buildFuelUseCard(session, laps),
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };

@@ -45,7 +45,8 @@ export function useClassTiming(
               sessions: hist.usedSessions.length,
             },
             raceLaps: plan?.raceLaps?.estimate ?? null,
-            stopsAfter: plan?.atMedian.stopLaps ?? [],
+            // The stops are planned at p90 use, like the pit windows (thread 44 #1662).
+            stopsAfter: plan?.atP90.stopLaps ?? [],
           }),
     [
       sessions.isPending,

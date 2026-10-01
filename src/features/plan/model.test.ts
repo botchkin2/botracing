@@ -202,8 +202,36 @@ describe('greenLapsOf', () => {
         lapTimeS: 110,
         sessionId: 's1',
         veMeasured: true,
+        traffic: null,
       },
     ]);
+  });
+
+  it('carries the traffic facts of a lap for the clean and traffic medians', () => {
+    const facts = {
+      draftS: 0,
+      trafficAheadS: 6,
+      trafficBehindS: 0,
+      blueFlagS: 0,
+      passesMade: 0,
+      passesSuffered: 0,
+      passesMadeAll: 0,
+      passesSufferedAll: 1,
+      battleS: 0.5,
+      overtakes: [],
+      aheadSpans: [],
+      blueSpans: [],
+      passMarks: [],
+      fieldLapM: null,
+    };
+    const [out] = greenLapsOf('s1', [lap({traffic: facts})], 0.7);
+    expect(out.traffic).toEqual({
+      trafficAheadS: 6,
+      passesSufferedAll: 1,
+      blueFlagS: 0,
+      battleS: 0.5,
+      overtakes: [],
+    });
   });
 
   it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
@@ -420,6 +448,64 @@ describe('planView', () => {
     const perLap = view.cards[0].rows;
     expect(perLap[0].value).toBe('3.50 L  (3.50 L to 3.50 L)');
     expect(perLap[3].value).toContain('10 laps in 2 sessions, since ');
+  });
+
+  it('Per green lap: the all-green median is the headline and sets the race laps, clean and traffic follow with their n', () => {
+    const withTraffic = planView(
+      preset,
+      rules,
+      planRace(rules.rules, history),
+      {
+        since: null,
+        lastFillLimitL: 75,
+        ratio,
+        lastRatio: 0.7,
+        ratioLoadsL: [84],
+        drift: null,
+        traffic: {
+          v: 4,
+          clean: {laps: 4, medianS: 108.2},
+          traffic: {laps: 5, medianS: 111.5},
+        },
+      },
+    );
+    const rows = withTraffic.cards[0].rows;
+    const time = rows.find(r => r.label === 'Lap time')!;
+    expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
+    expect(time.note).toBe('all green laps · n 10 · sets race laps');
+    const clean = rows.find(r => r.label === 'Clean laps')!;
+    expect([clean.value, clean.note]).toEqual(['1:48.200', 'n 4']);
+    const traffic = rows.find(r => r.label === 'Traffic laps')!;
+    expect([traffic.value, traffic.note]).toEqual(['1:51.500', 'n 5']);
+    // The headline comes first, the secondary rows after it.
+    const labels = rows.map(r => r.label);
+    expect(labels.indexOf('Lap time')).toBeLessThan(
+      labels.indexOf('Clean laps'),
+    );
+    expect(withTraffic.cards[0].explainer).toContain('sets the race laps');
+    expect(withTraffic.cards[0].explainer).toContain('2 s ahead');
+  });
+
+  it('Per green lap: a set under 3 laps, or no field, adds no row', () => {
+    const few = planView(preset, rules, planRace(rules.rules, history), {
+      since: null,
+      lastFillLimitL: 75,
+      ratio,
+      lastRatio: 0.7,
+      ratioLoadsL: [84],
+      drift: null,
+      traffic: {
+        v: 4,
+        clean: {laps: 2, medianS: null},
+        traffic: {laps: 7, medianS: 111.5},
+      },
+    });
+    const labels = few.cards[0].rows.map(r => r.label);
+    expect(labels).not.toContain('Clean laps');
+    expect(labels).toContain('Traffic laps');
+    // The view above has no traffic at all: neither row.
+    expect(view.cards[0].rows.map(r => r.label)).not.toContain('Traffic laps');
+    expect(view.cards[0].rows.map(r => r.label)).not.toContain('Clean laps');
   });
 
   it('prints the drop-one-stop line', () => {

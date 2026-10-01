@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
-import type {PerWheel} from '@/src/analysis/tyres';
-import type {Lap} from '@/src/data/sessions';
+import type {PerWheel, TreadC} from '@/src/analysis/tyres';
+import type {Lap, PitStop} from '@/src/data/sessions';
 import {toLaps} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
@@ -35,6 +35,7 @@ const lap = (
     hotPressureKpa: all(165),
     rubberC: all(90),
     carcassC: null,
+    treadC: null,
     changed: null,
     ...tyres,
   },
@@ -231,5 +232,142 @@ describe('setAges', () => {
     expect(setAgeText({...ages, FR: 2}, 8)).toBe(
       'Set age at L8: FL 5 laps · FR 2 laps · RL 5 laps · RR 5 laps',
     );
+  });
+});
+
+describe('tread zones', () => {
+  const tread = (inner: number, centre: number, outer: number): TreadC => ({
+    inner,
+    centre,
+    outer,
+  });
+  const treads = (t: TreadC) => ({FL: t, FR: t, RL: t, RR: t});
+  const run = (n: number, t: (i: number) => TreadC) =>
+    Array.from({length: n}, (_, i) =>
+      lap(i + 2, 99 - i, {}, {treadC: treads(t(i))}),
+    );
+
+  it('is null for a stint from before the tread was recorded', () => {
+    const laps = Array.from({length: 6}, (_, i) => lap(i + 2, 99 - i));
+    expect(one(laps).tread).toBeNull();
+  });
+
+  it('is the median over the green laps, inner minus outer', () => {
+    const z = one(run(5, i => tread(50 + i, 52 + i, 48 + i))).tread!;
+    expect(z.map(w => w.wheel)).toEqual(['FL', 'FR', 'RL', 'RR']);
+    expect(z[0]).toEqual({
+      wheel: 'FL',
+      inner: 52,
+      centre: 54,
+      outer: 50,
+      innerMinusOuter: 2,
+    });
+  });
+
+  it('leaves a lap that is not green out of the median', () => {
+    const laps = run(5, i => tread(50 + i, 50 + i, 50 + i));
+    laps[4] = {...laps[4], fuel: {green: false} as Lap['fuel']};
+    expect(one(laps).tread![0].inner).toBe(51.5);
+  });
+
+  it('has no I - O where a third has no reading', () => {
+    const laps = run(5, () => ({inner: 50, centre: 52, outer: null}));
+    const z = one(laps).tread![0];
+    expect(z.outer).toBeNull();
+    expect(z.innerMinusOuter).toBeNull();
+  });
+
+  it('drops a wheel from the lap its pressure sensor went dark', () => {
+    const laps = run(6, i => tread(50 + i * 10, 50, 50));
+    for (const i of [4, 5])
+      laps[i] = {
+        ...laps[i],
+        tyres: {
+          ...laps[i].tyres!,
+          pressureKpa: {...all(160), FR: null},
+        },
+      };
+    const z = one(laps).tread!;
+    // FR is read for the first four laps only: 50, 60, 70, 80.
+    expect(z[1].inner).toBe(65);
+    expect(z[0].inner).toBe(75);
+  });
+});
+
+describe('stop cool-down', () => {
+  const wheelsOf = (v: number | null) => ({FL: v, FR: v, RL: v, RR: v});
+  const stop = (
+    over: Partial<NonNullable<PitStop['tyres']>> = {},
+  ): PitStop => ({
+    atEntry: {fuelL: 10, vePct: 10},
+    added: {fuelL: 50, vePct: 50},
+    inPitS: 40,
+    lapsLeftAtEntry: {fuel: null, ve: null},
+    tyres: {
+      changed: false,
+      wheels: [],
+      entryPct: null,
+      exitPct: null,
+      coolDown: {
+        afterS: 45,
+        rubberC: {FL: -5.7, FR: -4.1, RL: null, RR: -5.2},
+        carcassC: wheelsOf(-6),
+        pressureKpa: wheelsOf(-3.5),
+      },
+      compound: null,
+      ...over,
+    },
+  });
+  // Stint 1 is L2-L6 with the stop in L6; stint 2 is L7-L12.
+  const race = (pitStop: PitStop | null) => [
+    ...Array.from({length: 4}, (_, i) => lap(i + 2, 99 - i)),
+    lap(6, 95, {pitStop, pitIn: true}),
+    ...Array.from({length: 6}, (_, i) => lap(i + 7, 99 - i, {stint: 2})),
+  ];
+  const second = (laps: Lap[]) => stints(laps)[1].coolDown;
+
+  it('reads the stop before the stint, for the wheels that kept their tyre', () => {
+    const c = second(race(stop()));
+    expect(c).toMatchObject({kind: 'readings', after: 'After L6', afterS: 45});
+    // RL's rubber is null but its carcass and pressure read, so it stays.
+    if (c.kind !== 'readings') throw new Error('absent');
+    expect(c.wheels.map(w => w.wheel)).toEqual(['FL', 'FR', 'RL', 'RR']);
+    expect(c.wheels[0].rubberC).toBe(-5.7);
+    expect(c.wheels[2].rubberC).toBeNull();
+  });
+
+  it('says there is no stop before the first stint', () => {
+    expect(stints(race(stop()))[0].coolDown).toEqual({
+      kind: 'absent',
+      why: 'There is no stop before this stint.',
+    });
+  });
+
+  it('says so when all four tyres were changed', () => {
+    const c = second(
+      race(
+        stop({changed: true, wheels: ['FL', 'FR', 'RL', 'RR'], coolDown: null}),
+      ),
+    );
+    expect(c).toMatchObject({kind: 'absent'});
+    expect(c.kind === 'absent' && c.why).toMatch(/All four tyres were changed/);
+  });
+
+  it('says so when the stop has no reading, or no wheel has one', () => {
+    const none = second(race(stop({coolDown: null})));
+    expect(none.kind === 'absent' && none.why).toMatch(/no cool-down reading/);
+    const dead = second(
+      race(
+        stop({
+          coolDown: {
+            afterS: 45,
+            rubberC: wheelsOf(null),
+            carcassC: wheelsOf(null),
+            pressureKpa: wheelsOf(null),
+          },
+        }),
+      ),
+    );
+    expect(dead.kind === 'absent' && dead.why).toMatch(/kept/);
   });
 });

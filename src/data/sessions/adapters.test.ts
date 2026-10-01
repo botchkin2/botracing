@@ -209,13 +209,45 @@ describe('pit stop tyres', () => {
       wheels: ['FL', 'RR'],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
     expect(stopWith({changed: false, wheels: []})?.tyres).toEqual({
       changed: false,
       wheels: [],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
+  });
+  it('reads the cool-down by wheel name and the compound of a full set', () => {
+    const t = stopWith({
+      changed: false,
+      wheels: [],
+      coolDown: {
+        afterS: 45,
+        rubberC: {FL: -9.5, FR: null, RL: -8, RR: 'x'},
+        carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
+        pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
+      },
+      compound: 'other',
+    })?.tyres;
+    expect(t?.coolDown).toEqual({
+      afterS: 45,
+      rubberC: {FL: -9.5, FR: null, RL: -8, RR: null},
+      carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
+      pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
+    });
+    expect(t?.compound).toBe('other');
+    // A name no file carries is not read, and a half-written cool-down is none.
+    expect(
+      stopWith({changed: false, wheels: [], compound: 'Hard'})?.tyres?.compound,
+    ).toBeNull();
+    expect(
+      stopWith({changed: false, wheels: [], coolDown: {afterS: 45}})?.tyres
+        ?.coolDown,
+    ).toBeNull();
   });
   it('reads the wear at pit entry and exit by wheel name', () => {
     const t = stopWith({
@@ -235,6 +267,8 @@ describe('pit stop tyres', () => {
       wheels: [],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
   });
 });

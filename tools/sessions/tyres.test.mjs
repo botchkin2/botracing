@@ -140,3 +140,50 @@ describe('lapTyres', () => {
     assert.equal(tyres(bare, lapOfExit), null);
   });
 });
+
+describe('treadC', () => {
+  const flat = value => new Float64Array(N).fill(value);
+  const withTread = () =>
+    recording({
+      // Left, centre and right: distinct per wheel so the car-fixed mapping shows.
+      tyres_temp_left_fl: flat(60),
+      tyres_temp_centre_fl: flat(70),
+      tyres_temp_right_fl: flat(80),
+      tyres_temp_left_fr: flat(61),
+      tyres_temp_centre_fr: flat(71),
+      tyres_temp_right_fr: flat(81),
+      tyres_temp_left_rl: flat(0), // dead
+      tyres_temp_centre_rl: flat(72),
+      tyres_temp_right_rl: flat(82),
+    });
+
+  it('names the thirds car-fixed: inner is Right on the left wheels and Left on the right wheels', () => {
+    const t = tyres(withTread(), lapBefore).treadC;
+    assert.deepEqual(t.FL, {inner: 80, centre: 70, outer: 60});
+    assert.deepEqual(t.FR, {inner: 61, centre: 71, outer: 81});
+  });
+
+  it('leaves a dead third null and a wheel with no tread channel null', () => {
+    const t = tyres(withTread(), lapBefore).treadC;
+    assert.deepEqual(t.RL, {inner: 82, centre: 72, outer: null});
+    assert.equal(t.RR, null);
+  });
+
+  it('is null when the recording has no tread channel, and is a reason for the block on its own', () => {
+    assert.equal(tyres(recording(), lapBefore).treadC, null);
+    const only = {t: recording().t, tyres_temp_left_fl: flat(60)};
+    assert.deepEqual(tyres(only, lapBefore).treadC.FL, {
+      inner: null,
+      centre: null,
+      outer: 60,
+    });
+  });
+
+  it('leaves the pit lane out of the median', () => {
+    const s = withTread();
+    s.tyres_temp_centre_fl = Float64Array.from({length: N}, (_, i) =>
+      i / HZ >= 95 && i / HZ <= 110 ? 20 : 70,
+    );
+    assert.equal(tyres(s, lapOfExit).treadC.FL.centre, 70);
+  });
+});
