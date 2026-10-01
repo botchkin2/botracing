@@ -1,0 +1,44 @@
+// Run: node --test tools/sessions/gridLap.test.mjs
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {jumpsOffTheGrid, MAX_TICK_RISE_M} from './gridLap.mjs';
+
+// A 100 Hz lap at 50 m/s: 0.5 m per tick.
+const roll = (from, n) => Array.from({length: n}, (_, i) => from + i * 0.5);
+
+test('a lap that rolls along is not a grid start', () => {
+  assert.equal(jumpsOffTheGrid(roll(0, 2000)), false);
+});
+
+test('a lap that starts standing still and then rolls is not a grid start', () => {
+  const standing = new Array(500).fill(0);
+  assert.equal(jumpsOffTheGrid([...standing, ...roll(0, 500)]), false);
+});
+
+test('parked on the grid at 0, then the distance jumps to the grid slot (Sebring lap 0)', () => {
+  // Sebring 574eec6c: 5,181 ticks at 0, a ramp of 485 m per tick, then 17 m/s.
+  const parked = new Array(5181).fill(0);
+  const ramp = [485, 970, 1455, 1940, 2425, 2910, 3395, 3880, 4365, 4850];
+  assert.equal(jumpsOffTheGrid([...parked, ...ramp, ...roll(4850, 300)]), true);
+});
+
+test('a trace that opens far along the lap, with no jump to see (Daytona lap 0, grid at 67 %)', () => {
+  assert.equal(jumpsOffTheGrid(roll(3635, 3500)), true);
+  assert.equal(jumpsOffTheGrid(roll(MAX_TICK_RISE_M, 500)), false);
+});
+
+test('a standing start from the line is a lap: parked at 0, then rolling, no jump', () => {
+  // Sebring 6121da, the second lap 0: 93 s still at the line, then a smooth lap.
+  const parked = new Array(9355).fill(0);
+  assert.equal(jumpsOffTheGrid([...parked, ...roll(0, 3000)]), false);
+});
+
+test('a single jump over the limit is enough, one at the limit is not', () => {
+  assert.equal(jumpsOffTheGrid([0, MAX_TICK_RISE_M]), false);
+  assert.equal(jumpsOffTheGrid([0, MAX_TICK_RISE_M + 1]), true);
+});
+
+test('empty and one-tick traces have no jump', () => {
+  assert.equal(jumpsOffTheGrid([]), false);
+  assert.equal(jumpsOffTheGrid([0]), false);
+});

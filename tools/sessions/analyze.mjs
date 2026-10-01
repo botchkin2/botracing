@@ -34,6 +34,7 @@ import {
   markGreen,
   stintFuel,
 } from './fuelFacts.mjs';
+import {jumpsOffTheGrid} from './gridLap.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres, TYRES_VERSION} from './tyres.mjs';
@@ -432,7 +433,8 @@ function analyzeLap(rec, seg, pits, flags) {
     gameLapTime: timed ? round(gameLapTime, 3) : null,
     lapTime: round(timed ? gameLapTime : seg.end - seg.start, 3),
     timed,
-    partial: seg.partial,
+    // A grid start is the parked car and the roll to the line, not a lap.
+    partial: seg.partial || jumpsOffTheGrid(dist),
     pitlane,
     pitIn,
     pitOut,
