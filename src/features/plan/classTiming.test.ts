@@ -120,6 +120,26 @@ describe('classTiming', () => {
     expect(est.firstNote).toBe('Assumes a level start.');
   });
 
+  it('takes the first catch from the median grid gap of the races that recorded it', () => {
+    const withGap = (gapS: number | null): ClassSession => {
+      const s = session('race', 98, 110);
+      if (gapS != null) s.byClass.hypercar!.gapS = gapS;
+      return s;
+    };
+    const t = ready(
+      classTiming({
+        sessions: [withGap(10), withGap(20), withGap(15), withGap(null)],
+        mine,
+        raceLaps: 60,
+        stopsAfter: [],
+      }),
+    );
+    const est = t.faster[0].estimate!;
+    // 15 s gap: p10 96 * 95 / (110 * 14) = 5.9 laps; p90 100 * 95 / (110 * 10) = 8.6.
+    expect(est.firstText).toBe('L7–L9');
+    expect(est.firstNote).toBe("Grid gap 15 s, from the races' starts.");
+  });
+
   it('keeps a class seen in fewer than 3 sessions as an empty row with no lane', () => {
     const t = ready(
       classTiming({
@@ -188,6 +208,18 @@ describe('passesOf', () => {
     expect(p[2].hi - p[2].lo).toBeCloseTo(3 * (p[0].hi - p[0].lo), 5);
   });
 
+  it('starts at the catch with the grid gap, then goes on at one catch per pass', () => {
+    const p = passesOf(lap, 110, 60, 15);
+    // 98 * 95 / (110 * 12) = 7.05 laps, against 8.17 on a level start.
+    expect(p[0].centre).toBeCloseTo(7.053, 3);
+    expect(p[1].centre - p[0].centre).toBeCloseTo(98 / 12, 5);
+    expect(passesOf(lap, 110, 60, 0)[0].centre).toBeCloseTo(98 / 12, 5);
+  });
+
+  it('a gap longer than his lap puts the first catch at lap 0', () => {
+    expect(passesOf(lap, 110, 60, 200)[0].centre).toBe(0);
+  });
+
   it('stops when a band starts past the flag', () => {
     // The p10 catch is 6.86 laps: passes start at 6.9, 13.7, 20.6 and 27.4 laps, the fifth at 34.3.
     expect(passesOf(lap, 110, 30)).toHaveLength(4);
@@ -216,6 +248,13 @@ describe('classSessionOf', () => {
         classLaps: {kind: 'practice', classes: {gt3: stats}, startGapsS: null},
       })?.kind,
     ).toBe('practice');
+  });
+
+  it('carries the grid gap of a class', () => {
+    const s = classSessionOf({
+      classLaps: {kind: 'race', classes: {gt3: stats}, startGapsS: {gt3: 12.5}},
+    });
+    expect(s?.byClass.gt3?.gapS).toBe(12.5);
   });
 
   it('leaves out qualifying, no field and a field with no class pace', () => {
