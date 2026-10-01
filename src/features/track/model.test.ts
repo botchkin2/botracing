@@ -94,6 +94,7 @@ const map = (): TrackMapData => ({
     {...corner(2, 200), parts: [corner(2, 195), corner(3, 205)]},
     {...corner(4, 300), parts: []},
   ],
+  boundaries: null,
   quality: 'poor',
   georef: null,
   outline: [],

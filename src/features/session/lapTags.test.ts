@@ -15,6 +15,10 @@ const none: LapTraffic = {
   passesSufferedAll: 0,
   battleS: 0,
   overtakes: [],
+  aheadSpans: [],
+  blueSpans: [],
+  passMarks: [],
+  fieldLapM: null,
 };
 
 describe('trafficTags', () => {

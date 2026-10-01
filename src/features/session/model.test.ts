@@ -152,6 +152,10 @@ describe('traffic tags, rails and the clean best', () => {
     passesSufferedAll: 0,
     battleS: 0,
     overtakes: [],
+    aheadSpans: [],
+    blueSpans: [],
+    passMarks: [],
+    fieldLapM: null,
     ...over,
   });
   // L21 is the best lap: tow it for 6.1 s. L9 is clean; L10 is held up.

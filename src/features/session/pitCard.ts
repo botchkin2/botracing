@@ -53,19 +53,20 @@ export type PitColumn = {
 };
 
 /**
- * One wheel's wear in % of a new tyre. `beforePct` is the end of the lap the
- * stop was entered on, `afterPct` the end of the lap after it (the stop ends
- * inside that lap, so it holds one out lap of wear). A null is a dead sensor
- * or no reading, shown as a gap and never as 0. Right only where the pit box
- * is past the timing line; with the box before it, `beforePct` already reads
- * the new tyre (setup, thread 44 #1543: the uploader should store wear at pit
- * entry and exit on pitStop.tyres, then this reads those).
+ * One wheel's wear in % of a new tyre round a stop. From `pitStop.tyres`
+ * entryPct (at pit entry) and exitPct (1 s after pit exit), so the box's
+ * position against the timing line does not matter. Stops resynced before
+ * those existed fall back to the end of the pit-in lap and the end of the lap
+ * after it (which holds one out lap of wear). A null is no reading, shown as
+ * a gap and never as 0.
  */
 export type WheelWear = {
   wheel: Wheel;
   changed: boolean;
   beforePct: number | null;
   afterPct: number | null;
+  /** Set when `beforePct` is the last valid reading from this earlier lap (a dead sensor at entry). */
+  beforeLapIndex: number | null;
 };
 
 export type PitCardEnd = {
@@ -208,21 +209,52 @@ function tyresCell(stop: PitStop): string | null {
 const liveWear = (v: number | null | undefined) =>
   v != null && v > 0 ? v : null;
 
-// Null when neither lap has a wear reading, so older sessions keep the
-// summary alone.
+// The last valid reading of a wheel on or before the pit-in lap, for a sensor
+// that is dead at the stop (round 7, 1B).
+function lastValidWear(
+  laps: Lap[],
+  index: number,
+  wheel: Wheel,
+): {pct: number; lapIndex: number} | null {
+  for (let i = index; i >= 0; i--) {
+    const pct = liveWear(laps[i].tyres?.wearPct?.[wheel]);
+    if (pct != null) return {pct, lapIndex: laps[i].lapIndex};
+  }
+  return null;
+}
+
+// Null when there is no wear reading anywhere round the stop, so older
+// sessions keep the summary alone.
 function wheelWear(
   stop: PitStop,
-  before: Lap,
-  after: Lap | undefined,
+  laps: Lap[],
+  index: number,
 ): WheelWear[] | null {
-  const b = before.tyres?.wearPct;
-  const a = after?.tyres?.wearPct;
+  const changedWheels = stop.tyres?.wheels ?? [];
+  const entry = stop.tyres?.entryPct;
+  const exit = stop.tyres?.exitPct;
+  if (entry || exit) {
+    return WHEELS.map(wheel => {
+      const at = liveWear(entry?.[wheel]);
+      const earlier = at == null ? lastValidWear(laps, index, wheel) : null;
+      return {
+        wheel,
+        changed: changedWheels.includes(wheel),
+        beforePct: at ?? earlier?.pct ?? null,
+        afterPct: liveWear(exit?.[wheel]),
+        beforeLapIndex: earlier?.lapIndex ?? null,
+      };
+    });
+  }
+  const b = laps[index].tyres?.wearPct;
+  const a = laps[index + 1]?.tyres?.wearPct;
   if (!b && !a) return null;
   return WHEELS.map(wheel => ({
     wheel,
-    changed: stop.tyres?.wheels.includes(wheel) ?? false,
+    changed: changedWheels.includes(wheel),
     beforePct: liveWear(b?.[wheel]),
     afterPct: liveWear(a?.[wheel]),
+    beforeLapIndex: null,
   }));
 }
 
@@ -269,7 +301,7 @@ function column(
     veOut,
     lane,
     tyres: tyresCell(stop),
-    wheels: wheelWear(stop, lap, laps[index + 1]),
+    wheels: wheelWear(stop, laps, index),
   };
 }
 

@@ -15,6 +15,10 @@ const base: LapTraffic = {
   passesSufferedAll: 2,
   battleS: 0,
   overtakes: [],
+  aheadSpans: [],
+  blueSpans: [],
+  passMarks: [],
+  fieldLapM: null,
 };
 
 describe('trafficRows', () => {
