@@ -89,16 +89,16 @@ const ORDER: (keyof RefMatch)[] = [
 /**
  * The candidates that could be a reference for `target`, best first: those
  * that match on the most important things, and within equal matches the
- * closest fuel load, then the fastest. Ineligible laps are left out.
+ * fastest. Ineligible laps are left out.
+ *
+ * Within one session every lap has the same car and session type, so those
+ * two keys only separate laps once other sessions join the pool. The band is
+ * fuel only; Virtual Energy is not in it yet.
  */
 export function rankReferenceLaps(
   target: RefLap,
   candidates: RefLap[],
 ): RankedRef[] {
-  const fuelGap = (lap: RefLap) =>
-    lap.startL != null && target.startL != null
-      ? Math.abs(lap.startL - target.startL)
-      : Infinity;
   const timed = candidates.flatMap(lap =>
     lap.timeS != null && eligible(lap, target)
       ? [{lap, timeS: lap.timeS, match: matchOf(lap, target)}]
@@ -109,11 +109,9 @@ export function rankReferenceLaps(
       for (const key of ORDER) {
         if (a.match[key] !== b.match[key]) return a.match[key] ? -1 : 1;
       }
-      return (
-        fuelGap(a.lap) - fuelGap(b.lap) ||
-        a.timeS - b.timeS ||
-        a.lap.id.localeCompare(b.lap.id)
-      );
+      // The band decides what is fair; inside it the fastest wins. Ordering
+      // by fuel distance as well would pick the lap beside the target.
+      return a.timeS - b.timeS || a.lap.id.localeCompare(b.lap.id);
     })
     .map(({lap, timeS, match}) => ({lapId: lap.id, timeS, match}));
 }

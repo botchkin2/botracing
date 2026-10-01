@@ -98,10 +98,11 @@ describe('rankReferenceLaps', () => {
     expect(rankReferenceLaps(target, [nofield])[0].match.clean).toBe(true);
   });
 
-  it('closer fuel breaks a tie inside the band, then the time', () => {
-    const near = lap('near', {startL: 61, timeS: 100.9});
-    const far = lap('far', {startL: 66, timeS: 99.9});
-    expect(ids([far, near])).toEqual(['near', 'far']);
+  it('inside the band the fastest wins, not the closest fuel', () => {
+    // A slow lap next to the target in fuel, a quicker one at the band's far side.
+    const beside = lap('beside', {startL: 62.4, timeS: 111.5});
+    const quick = lap('quick', {startL: 58, timeS: 109.9});
+    expect(ids([beside, quick])).toEqual(['quick', 'beside']);
   });
 
   it('is empty with no candidates, or none that qualify', () => {
