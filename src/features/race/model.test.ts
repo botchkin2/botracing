@@ -8,6 +8,7 @@ import {
   defaultFilter,
   displayModel,
   labelRank,
+  roadGapS,
   roadOffsetM,
   roadSummary,
   roadSummaryText,
@@ -252,7 +253,7 @@ describe('labelRank', () => {
 describe('field mode (practice and qualifying)', () => {
   const TRACK = 4000;
   // You at 1000 m on a 4000 m track: a GT3 120 m ahead, one 85 m behind, a
-  // hypercar 310 m behind, an LMP2 950 m ahead across the line (3950 m).
+  // hypercar 180 m behind, an LMP2 950 m ahead across the line (3950 m).
   const onRoad = (
     index: number,
     carClass: string,
@@ -263,7 +264,7 @@ describe('field mode (practice and qualifying)', () => {
     onRoad(0, 'GT3', 1000, {player: true}),
     onRoad(1, 'GT3', 1120),
     onRoad(2, 'GT3', 915),
-    onRoad(3, 'Hyper', 690),
+    onRoad(3, 'Hyper', 820),
     onRoad(4, 'LMP2', 3950),
     onRoad(5, 'GT3', 1050, {state: 'pit'}),
     onRoad(6, 'GT3', NaN, {state: 'garage'}),
@@ -278,11 +279,33 @@ describe('field mode (practice and qualifying)', () => {
   });
 
   it('finds the cars ahead and behind and the faster class coming', () => {
-    expect(roadSummary(cars, TRACK)).toEqual({
-      ahead: {key: 'gt3', metres: 120},
-      behind: {key: 'gt3', metres: 85},
-      coming: {key: 'hypercar', metres: 310},
-    });
+    // Every car at 200 km/h, 55.6 m/s.
+    const s = roadSummary(cars, TRACK)!;
+    expect(s.ahead).toMatchObject({key: 'gt3', metres: 120});
+    expect(s.ahead!.seconds).toBeCloseTo(120 / (200 / 3.6), 6);
+    expect(s.behind).toMatchObject({key: 'gt3', metres: 85});
+    expect(s.coming).toMatchObject({key: 'hypercar', metres: 180});
+    expect(s.coming!.seconds).toBeCloseTo(180 / (200 / 3.6), 6);
+  });
+
+  it('times a car ahead at your speed and a car behind at its own', () => {
+    expect(roadGapS({speedKmh: 100}, {speedKmh: 200}, 100)).toBeCloseTo(1.8, 6);
+    expect(roadGapS({speedKmh: 100}, {speedKmh: 200}, -100)).toBeCloseTo(
+      3.6,
+      6,
+    );
+    // The car that sets the time is standing still: no time.
+    expect(roadGapS({speedKmh: 0}, {speedKmh: 200}, -100)).toBeNull();
+    expect(roadGapS({speedKmh: 200}, {speedKmh: 2}, 100)).toBeNull();
+  });
+
+  it('lists a faster class as coming only within 5 s', () => {
+    const far = [
+      onRoad(0, 'GT3', 2000, {player: true}),
+      onRoad(1, 'Hyper', 2000 - 300), // 5.4 s at 200 km/h
+    ];
+    expect(roadSummary(far, TRACK)!.coming).toBeNull();
+    expect(roadSummary(far, TRACK)!.behind).toMatchObject({metres: 300});
   });
 
   it('counts neither the pit lane nor the garage, nor a slower class as coming', () => {
@@ -298,11 +321,11 @@ describe('field mode (practice and qualifying)', () => {
 
   it('says it in one line', () => {
     expect(roadSummaryText(roadSummary(cars, TRACK)!)).toBe(
-      'Ahead 120 m GT3 · Behind 85 m GT3 · Faster class: HYPERCAR 310 m behind',
+      'Ahead 2.2 s (120 m) GT3 · Behind 1.5 s (85 m) GT3 · Faster class: HYPERCAR 3.2 s (180 m) behind',
     );
   });
 
-  it('has no place, no class position on a dot, and the road offset in place of the gap', () => {
+  it('has no place, no class position on a dot, and the road gap in seconds in place of the gap', () => {
     const m = buildRaceModel({
       cars,
       filter: 'all',
@@ -313,8 +336,8 @@ describe('field mode (practice and qualifying)', () => {
     const rows = m.groups.flatMap(g => g.rows);
     expect(rows.every(r => r.position === '')).toBe(true);
     expect(rows.find(r => r.player)!.gap).toBe('');
-    expect(rows.find(r => r.index === 1)!.gap).toBe('+120 m');
-    expect(rows.find(r => r.index === 2)!.gap).toBe('−85 m');
+    expect(rows.find(r => r.index === 1)!.gap).toBe('+2.2 s');
+    expect(rows.find(r => r.index === 2)!.gap).toBe('−1.5 s');
     expect(rows.find(r => r.index === 6)!.gap).toBe('—');
     expect(m.dots.every(d => d.label === '')).toBe(true);
     expect(m.road).not.toBeNull();
@@ -339,7 +362,7 @@ describe('field mode (practice and qualifying)', () => {
       mode: 'field',
       trackM: TRACK,
     });
-    expect(m.focusLabel).toBe('Car 1 · GT3 · +120 m');
+    expect(m.focusLabel).toBe('Car 1 · GT3 · +2.2 s');
   });
 
   it('is the race model unchanged by default', () => {

@@ -71,7 +71,7 @@ export const Leaderboard = memo(function Leaderboard({
       <Text variant='explainer' tone='textFaint' style={styles.key}>
         {mode === 'race'
           ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
-          : 'At the playback position. Road = metres along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
+          : 'At the playback position. Road = seconds along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
       </Text>
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>

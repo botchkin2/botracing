@@ -2,7 +2,7 @@
 // The same screen outside a race: no places, no gap to a leader.
 export const FIELD_HELP: readonly string[] = [
   'Positions are recorded 5 times a second. The dots move smoothly between recorded samples; the numbers are the recorded ones.',
-  'Road is the distance along the track from the recorded car to each other car at the playback position: plus is ahead, minus is behind. A car a lap down reads as near.',
+  'Road is the time along the track between the recorded car and each other car at the playback position: plus is ahead (its distance over the recorded car’s speed), minus is behind (its distance over that car’s own speed). The summary line gives the metres too. A car a lap down reads as near, and a faster class is listed as coming only within 5 s.',
   'There is no race position here. Cars in the pit lane or the garage are not counted as ahead or behind.',
 ];
 

@@ -74,16 +74,40 @@ export function roadOffsetM(
   return d > trackM / 2 ? d - trackM : d;
 }
 
-const signedM = (m: number) =>
-  `${m < 0 ? '−' : '+'}${Math.abs(Math.round(m))} m`;
+/** Below this a car is standing still, and a time to it is not a number. */
+const MOVING_KMH = 5;
+/** A faster class is "coming" only within this many seconds behind. */
+export const COMING_WITHIN_S = 5;
 
-export type RoadNeighbour = {key: ClassKey; metres: number};
+/**
+ * Seconds for a distance on the road: ahead, the distance over your own
+ * speed (how long until you reach where it is now); behind, over that car's
+ * speed (how long until it reaches this point). Null when the car that sets
+ * the time stands still.
+ */
+export function roadGapS(
+  car: Pick<RaceCar, 'speedKmh'>,
+  you: Pick<RaceCar, 'speedKmh'>,
+  metres: number,
+): number | null {
+  const kmh = metres >= 0 ? you.speedKmh : car.speedKmh;
+  return kmh >= MOVING_KMH ? Math.abs(metres) / (kmh / 3.6) : null;
+}
 
-/** The cars nearest you on the road, and the nearest faster-class car behind. */
+const signed = (v: number, text: string) => `${v < 0 ? '−' : '+'}${text}`;
+
+export type RoadNeighbour = {
+  key: ClassKey;
+  metres: number;
+  /** Null when the car that sets the time is standing still. */
+  seconds: number | null;
+};
+
+/** The cars nearest you on the road, and the nearest faster-class car close behind. */
 export type RoadSummary = {
   ahead: RoadNeighbour | null;
   behind: RoadNeighbour | null;
-  /** The nearest car behind of a faster class than yours; null when none is. */
+  /** The nearest car behind of a faster class than yours, within COMING_WITHIN_S; null when none is. */
   coming: RoadNeighbour | null;
 };
 
@@ -104,7 +128,14 @@ export function roadSummary(
     const m = roadOffsetM(c, you, trackM);
     return m === null
       ? []
-      : [{key: classKey(c.carClass), metres: m, rank: paceOf(c.carClass).rank}];
+      : [
+          {
+            key: classKey(c.carClass),
+            metres: m,
+            seconds: roadGapS(c, you, m),
+            rank: paceOf(c.carClass).rank,
+          },
+        ];
   });
   type Near = (typeof around)[number];
   const nearest = (list: Near[]): RoadNeighbour | null => {
@@ -112,25 +143,40 @@ export function roadSummary(
     const best = list.reduce((a, b) =>
       Math.abs(b.metres) < Math.abs(a.metres) ? b : a,
     );
-    return {key: best.key, metres: Math.abs(best.metres)};
+    return {
+      key: best.key,
+      metres: Math.abs(best.metres),
+      seconds: best.seconds,
+    };
   };
   const behind = around.filter(c => c.metres < 0);
   return {
     ahead: nearest(around.filter(c => c.metres > 0)),
     behind: nearest(behind),
-    coming: nearest(behind.filter(c => c.rank > mine)),
+    coming: nearest(
+      behind.filter(
+        c =>
+          c.rank > mine && c.seconds !== null && c.seconds <= COMING_WITHIN_S,
+      ),
+    ),
   };
 }
 
-/** "Ahead 120 m GT3 · Behind 85 m LMP2 · Faster class: Hypercar 310 m behind". */
+/** "1.5 s (120 m)", or "120 m" when the time is not known. */
+const distanceText = (n: RoadNeighbour): string =>
+  n.seconds === null
+    ? `${Math.round(n.metres)} m`
+    : `${n.seconds.toFixed(1)} s (${Math.round(n.metres)} m)`;
+
+/** "Ahead 1.5 s (120 m) GT3 · Behind 1.0 s (85 m) LMP2 · Faster class: HYPERCAR 2.4 s (310 m) behind". */
 export function roadSummaryText(s: RoadSummary): string {
   const one = (label: string, n: RoadNeighbour | null) =>
-    n ? [`${label} ${Math.round(n.metres)} m ${CLASS_TITLE[n.key]}`] : [];
+    n ? [`${label} ${distanceText(n)} ${CLASS_TITLE[n.key]}`] : [];
   const faster = s.coming
     ? [
-        `Faster class: ${CLASS_TITLE[s.coming.key]} ${Math.round(
-          s.coming.metres,
-        )} m behind`,
+        `Faster class: ${CLASS_TITLE[s.coming.key]} ${distanceText(
+          s.coming,
+        )} behind`,
       ]
     : [];
   return [...one('Ahead', s.ahead), ...one('Behind', s.behind), ...faster].join(
@@ -144,7 +190,7 @@ export type RaceRow = {
   /** Place in the class, "" in the garage and in the field mode. */
   position: string;
   model: string;
-  /** "+3.412", "" for a leader, "—" in the garage; in the field mode the road offset from you ("+120 m"), "" for you. */
+  /** "+3.412", "" for a leader, "—" in the garage; in the field mode the road gap from you ("+1.5 s", "−1.0 s"), "" for you. */
   gap: string;
   /** Pit stops so far, or the state that replaces it. */
   status: string;
@@ -213,13 +259,18 @@ export function gapText(car: RaceCar): string {
 
 type Frame = {mode: RaceMode; you: RaceCar | undefined; trackM: number};
 
-/** The row's gap column: the gap to the class leader in a race, the road offset from you in the field mode. */
+/** The row's gap column: the gap to the class leader in a race, in the field mode the road gap from you in seconds ("+1.5 s"), metres where the time is not known. */
 function gapOf(car: RaceCar, frame: Frame): string {
   if (car.state === 'garage') return '—';
   if (frame.mode === 'race') return gapText(car);
   if (car.player || !frame.you) return '';
   const m = roadOffsetM(car, frame.you, frame.trackM);
-  return m === null ? '' : signedM(m);
+  if (m === null) return '';
+  const s = roadGapS(car, frame.you, m);
+  return signed(
+    m,
+    s === null ? `${Math.abs(Math.round(m))} m` : `${s.toFixed(1)} s`,
+  );
 }
 
 function rowOf(car: RaceCar, focus: number | null, frame: Frame): RaceRow {
