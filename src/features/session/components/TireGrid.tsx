@@ -49,7 +49,7 @@ function TireCell({
 }) {
   const {color} = useTheme();
   const inner = width - 2 * space.md - 2;
-  const n = cell.lossPct.length;
+  const n = cell.bars.length;
   const barW = n > 0 ? Math.max(1, (inner - (n - 1) * BAR_GAP) / n) : 0;
   const scale = (v: number) =>
     (Math.min(Math.max(v, 0), WEAR_BAR_MAX_PCT) / WEAR_BAR_MAX_PCT) * BAR_H;
@@ -92,16 +92,25 @@ function TireCell({
             : 'wear left'}
         </Text>
       )}
+      {cell.biggest ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {`${cell.biggest.lapLabel} lost ${cell.biggest.lossPct.toFixed(1)} %${
+            cell.biggest.green ? '' : ' (not a green lap)'
+          }`}
+        </Text>
+      ) : null}
       {showBars && n > 0 ? (
         <Svg width={inner} height={BAR_H} style={styles.bars}>
-          {cell.lossPct.map((v, i) => (
+          {cell.bars.map((b, i) => (
             <Rect
-              key={i}
+              key={b.lapLabel}
               x={i * (barW + BAR_GAP)}
-              y={BAR_H - scale(v)}
+              y={BAR_H - scale(b.lossPct)}
               width={barW}
-              height={scale(v)}
-              fill={color.textFaint}
+              height={scale(b.lossPct)}
+              fill={b.green ? color.textFaint : 'none'}
+              stroke={b.green ? 'none' : color.textFaint}
+              strokeWidth={stroke.grey}
             />
           ))}
           {cell.medianLossPct != null ? (
