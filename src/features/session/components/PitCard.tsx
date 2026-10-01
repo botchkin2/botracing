@@ -279,7 +279,7 @@ function StopsBody({
   );
 }
 
-// Wear per wheel, "before → after" in %, fronts first. A wheel with a new
+// Tyre left per wheel, "before → after" in % of a new tyre (it counts down), fronts first. A wheel with a new
 // tyre is bright; one with no reading is a gap.
 function WheelGrid({wheels}: {wheels: WheelWear[]}) {
   const pct = (v: number | null) => (v == null ? '—' : String(Math.round(v)));
@@ -292,8 +292,8 @@ function WheelGrid({wheels}: {wheels: WheelWear[]}) {
           tone={w.changed ? 'text' : 'textMuted'}
           accessibilityLabel={`${w.wheel} wear ${pct(w.beforePct)} to ${pct(
             w.afterPct,
-          )} percent${w.changed ? ', new tyre' : ''}`}>
-          {`${w.wheel} ${pct(w.beforePct)}→${pct(w.afterPct)}`}
+          )} percent left${w.changed ? ', new tyre' : ''}`}>
+          {`${w.wheel} ${pct(w.beforePct)}→${pct(w.afterPct)} %`}
         </Text>
       ))}
     </View>
