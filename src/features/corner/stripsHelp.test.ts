@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {LAP_BARS_HELP} from '../session/lapBarsHelp';
 import {PIT_REVIEW_HELP} from '../session/pitReview';
-import {RACE_HELP} from '../race/raceHelp';
+import {FIELD_HELP, RACE_HELP} from '../race/raceHelp';
 import {CORNER_CHART_HELP} from './chartHelp';
 import {STRIPS_HELP} from './stripsHelp';
 
@@ -12,6 +12,7 @@ describe('how-to-read copy', () => {
     STRIPS_HELP,
     LAP_BARS_HELP,
     RACE_HELP,
+    FIELD_HELP,
     PIT_REVIEW_HELP,
     ...Object.fromEntries(
       Object.entries(CORNER_CHART_HELP).map(([k, v]) => [`CORNER_${k}`, v]),

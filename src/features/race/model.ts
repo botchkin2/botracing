@@ -1,4 +1,4 @@
-import {paceClass} from '@/src/analysis/classLaps';
+import {paceClass, paceOf} from '@/src/analysis/classLaps';
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 import {formatRaceGap} from '@/src/design';
 
@@ -50,13 +50,101 @@ export function displayModel(vehicle: string | null): string {
   return name === '' ? 'Unknown car' : name;
 }
 
+/**
+ * A race ranks its cars (class place, gap to the leader). Practice and
+ * qualifying have no road position that means anything, so the field mode
+ * shows what is true of the road instead: how far each car is from you, ahead
+ * or behind (pit-wall thread 45 #1589, decision 2026-10-01).
+ */
+export type RaceMode = 'race' | 'field';
+
+/**
+ * Metres along the road from `you` to a car, positive ahead, in (-L/2, L/2]
+ * for a track of length `trackM`; null in the garage or without a track
+ * length. A lap-distance difference, so a car a lap down reads as near.
+ */
+export function roadOffsetM(
+  car: Pick<RaceCar, 'lapDistM'>,
+  you: Pick<RaceCar, 'lapDistM'>,
+  trackM: number,
+): number | null {
+  if (!(trackM > 0) || Number.isNaN(car.lapDistM) || Number.isNaN(you.lapDistM))
+    return null;
+  const d = (((car.lapDistM - you.lapDistM) % trackM) + trackM) % trackM;
+  return d > trackM / 2 ? d - trackM : d;
+}
+
+const signedM = (m: number) =>
+  `${m < 0 ? '−' : '+'}${Math.abs(Math.round(m))} m`;
+
+export type RoadNeighbour = {key: ClassKey; metres: number};
+
+/** The cars nearest you on the road, and the nearest faster-class car behind. */
+export type RoadSummary = {
+  ahead: RoadNeighbour | null;
+  behind: RoadNeighbour | null;
+  /** The nearest car behind of a faster class than yours; null when none is. */
+  coming: RoadNeighbour | null;
+};
+
+/**
+ * Cars on the road around you: cars in the pit lane or the garage are not on
+ * it. Null without you on the road. `coming` is a faster class by `paceOf`'s
+ * rank, so GT3 and GTE count as one class here.
+ */
+export function roadSummary(
+  cars: RaceCar[],
+  trackM: number,
+): RoadSummary | null {
+  const you = cars.find(c => c.player);
+  if (!you || you.state === 'garage' || you.state === 'pit') return null;
+  const mine = paceOf(you.carClass).rank;
+  const around = cars.flatMap(c => {
+    if (c.player || c.state === 'garage' || c.state === 'pit') return [];
+    const m = roadOffsetM(c, you, trackM);
+    return m === null
+      ? []
+      : [{key: classKey(c.carClass), metres: m, rank: paceOf(c.carClass).rank}];
+  });
+  type Near = (typeof around)[number];
+  const nearest = (list: Near[]): RoadNeighbour | null => {
+    if (list.length === 0) return null;
+    const best = list.reduce((a, b) =>
+      Math.abs(b.metres) < Math.abs(a.metres) ? b : a,
+    );
+    return {key: best.key, metres: Math.abs(best.metres)};
+  };
+  const behind = around.filter(c => c.metres < 0);
+  return {
+    ahead: nearest(around.filter(c => c.metres > 0)),
+    behind: nearest(behind),
+    coming: nearest(behind.filter(c => c.rank > mine)),
+  };
+}
+
+/** "Ahead 120 m GT3 · Behind 85 m LMP2 · Faster class: Hypercar 310 m behind". */
+export function roadSummaryText(s: RoadSummary): string {
+  const one = (label: string, n: RoadNeighbour | null) =>
+    n ? [`${label} ${Math.round(n.metres)} m ${CLASS_TITLE[n.key]}`] : [];
+  const faster = s.coming
+    ? [
+        `Faster class: ${CLASS_TITLE[s.coming.key]} ${Math.round(
+          s.coming.metres,
+        )} m behind`,
+      ]
+    : [];
+  return [...one('Ahead', s.ahead), ...one('Behind', s.behind), ...faster].join(
+    ' · ',
+  );
+}
+
 export type RaceRow = {
   index: number;
   key: ClassKey;
-  /** Place in the class, "" in the garage. */
+  /** Place in the class, "" in the garage and in the field mode. */
   position: string;
   model: string;
-  /** "+3.412", "" for a leader, "—" in the garage. */
+  /** "+3.412", "" for a leader, "—" in the garage; in the field mode the road offset from you ("+120 m"), "" for you. */
   gap: string;
   /** Pit stops so far, or the state that replaces it. */
   status: string;
@@ -93,6 +181,8 @@ export type RaceModel = {
   you: {key: ClassKey; model: string} | null;
   /** The focus chip's text: "Ferrari 296 GT3 · GT3 P5 · +3.412". */
   focusLabel: string | null;
+  /** Field mode only: who is near you on the road; null in a race or without you on it. */
+  road: RoadSummary | null;
 };
 
 // R1d: what replaces the pit count when it is not "running".
@@ -121,14 +211,25 @@ export function gapText(car: RaceCar): string {
   return car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '';
 }
 
-function rowOf(car: RaceCar, focus: number | null): RaceRow {
+type Frame = {mode: RaceMode; you: RaceCar | undefined; trackM: number};
+
+/** The row's gap column: the gap to the class leader in a race, the road offset from you in the field mode. */
+function gapOf(car: RaceCar, frame: Frame): string {
+  if (car.state === 'garage') return '—';
+  if (frame.mode === 'race') return gapText(car);
+  if (car.player || !frame.you) return '';
+  const m = roadOffsetM(car, frame.you, frame.trackM);
+  return m === null ? '' : signedM(m);
+}
+
+function rowOf(car: RaceCar, focus: number | null, frame: Frame): RaceRow {
   const garage = car.state === 'garage';
   return {
     index: car.index,
     key: classKey(car.carClass),
-    position: garage ? '' : String(car.classPlace),
+    position: garage || frame.mode === 'field' ? '' : String(car.classPlace),
     model: displayModel(car.vehicle),
-    gap: garage ? '—' : gapText(car),
+    gap: gapOf(car, frame),
     status:
       car.state === 'running' && car.pits > 0
         ? String(car.pits)
@@ -146,10 +247,28 @@ function byRun(a: RaceCar, b: RaceCar): number {
   return ga - gb || a.classPlace - b.classPlace || a.place - b.place;
 }
 
-function focusText(car: RaceCar): string {
+// Field mode: furthest ahead first, down to furthest behind, you among them;
+// cars with no place on the road (the garage) last.
+function byRoad(a: RaceCar, b: RaceCar, frame: Frame): number {
+  const offset = (c: RaceCar) =>
+    c.player || !frame.you ? 0 : roadOffsetM(c, frame.you, frame.trackM);
+  const [oa, ob] = [offset(a), offset(b)];
+  if (oa === null || ob === null)
+    return (oa === null ? 1 : 0) - (ob === null ? 1 : 0);
+  return ob - oa;
+}
+
+const byOrder = (a: RaceCar, b: RaceCar, frame: Frame): number =>
+  frame.mode === 'race' ? byRun(a, b) : byRoad(a, b, frame);
+
+function focusText(car: RaceCar, frame: Frame): string {
   const parts = [displayModel(car.vehicle)];
   if (car.state === 'garage') {
     parts.push('in the garage');
+  } else if (frame.mode === 'field') {
+    parts.push(CLASS_TITLE[classKey(car.carClass)]);
+    const gap = gapOf(car, frame);
+    if (gap) parts.push(gap);
   } else {
     parts.push(`${CLASS_TITLE[classKey(car.carClass)]} P${car.classPlace}`);
     const gap = gapText(car);
@@ -187,8 +306,17 @@ export function buildRaceModel(input: {
   cars: RaceCar[];
   filter: ClassFilter;
   focus: number | null;
+  /** Race by default; the field mode drops places and gaps. */
+  mode?: RaceMode;
+  /** The track's length in metres, for the road offsets of the field mode. */
+  trackM?: number;
 }): RaceModel {
   const {cars, focus} = input;
+  const frame: Frame = {
+    mode: input.mode ?? 'race',
+    you: cars.find(c => c.player),
+    trackM: input.trackM ?? 0,
+  };
   const present = CLASS_ORDER.filter(k =>
     cars.some(c => classKey(c.carClass) === k),
   );
@@ -198,13 +326,15 @@ export function buildRaceModel(input: {
       : 'all';
   const shown = filter === 'all' ? present : [filter];
   const groups: RaceGroup[] = shown.map(k => {
-    const inClass = cars.filter(c => classKey(c.carClass) === k).sort(byRun);
+    const inClass = cars
+      .filter(c => classKey(c.carClass) === k)
+      .sort((a, b) => byOrder(a, b, frame));
     return {
       title:
         filter === 'all'
           ? `${CLASS_TITLE[k]} · ${inClass.length} CARS`
           : `Class · ${CLASS_TITLE[k]}`,
-      rows: inClass.map(c => rowOf(c, focus)),
+      rows: inClass.map(c => rowOf(c, focus, frame)),
     };
   });
   const youCar = cars.find(c => c.player);
@@ -216,7 +346,8 @@ export function buildRaceModel(input: {
     focused: c.index === focus,
     xM: c.xM,
     zM: c.zM,
-    label: String(c.classPlace),
+    // No road position outside a race: nothing to number a dot with.
+    label: frame.mode === 'race' ? String(c.classPlace) : '',
     labelRank: labelRank(c, youCar, focus),
   });
   // A car in the garage is not on the map (R1d).
@@ -226,7 +357,8 @@ export function buildRaceModel(input: {
   const you = cars.find(c => c.player);
   const focused = focus == null ? undefined : cars.find(c => c.index === focus);
   return {
-    focusLabel: focused ? focusText(focused) : null,
+    focusLabel: focused ? focusText(focused, frame) : null,
+    road: frame.mode === 'field' ? roadSummary(cars, frame.trackM) : null,
     groups,
     dots,
     classes: present,

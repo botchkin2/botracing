@@ -9,6 +9,7 @@ import {
   type ClassFilter,
   type ClassKey,
   type RaceGroup,
+  type RaceMode,
   type RaceRow,
 } from '../model';
 import {classColor} from './classColor';
@@ -32,6 +33,7 @@ export const Leaderboard = memo(function Leaderboard({
   onFilter,
   onFocus,
   desktop,
+  mode,
 }: {
   groups: RaceGroup[];
   classes: readonly ClassKey[];
@@ -39,6 +41,7 @@ export const Leaderboard = memo(function Leaderboard({
   onFilter: (f: ClassFilter) => void;
   onFocus: (index: number) => void;
   desktop: boolean;
+  mode: RaceMode;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -66,15 +69,16 @@ export const Leaderboard = memo(function Leaderboard({
         />
       </View>
       <Text variant='explainer' tone='textFaint' style={styles.key}>
-        At the playback position. Gap = to the class leader. PIT = stops so far;
-        IN = in the pit lane now.
+        {mode === 'race'
+          ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
+          : 'At the playback position. Road = metres along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
       </Text>
       <View style={[styles.head, {borderColor: color.line}]}>
         <Text variant='tableHeader' tone='textMuted' style={styles.model}>
           Car
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.gap}>
-          Gap
+          {mode === 'race' ? 'Gap' : 'Road'}
         </Text>
         <Text variant='tableHeader' tone='textMuted' style={styles.status}>
           Pit
@@ -115,9 +119,13 @@ const Row = memo(function Row({
 }) {
   const {color} = useTheme();
   const garage = row.state === 'garage';
-  const where = row.position
+  const where = garage
+    ? 'in the garage'
+    : row.position
     ? `class position ${row.position}`
-    : 'in the garage';
+    : row.gap
+    ? `${row.gap} on the road`
+    : 'you';
   return (
     <Pressable
       accessibilityRole='button'
