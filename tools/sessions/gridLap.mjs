@@ -36,18 +36,27 @@ export function jumpsOffTheGrid(dist) {
   return false;
 }
 
-/** A grid start lasts a minute or more; a file-boundary sliver, seconds. */
-export const GRID_MIN_SEC = 20;
+/** A grid start sits still this long before the lap counter starts. */
+export const GRID_PARKED_SEC = 10;
+
+/** Ticks at the start of the trace where the distance has not moved by 1 m. */
+function parkedTicks(dist) {
+  let n = 0;
+  while (n < dist.length && dist[n] - dist[0] < 1) n++;
+  return n;
+}
 
 /**
- * Why a lap is partial, or null when it is not. 'grid': the parked car and the
- * roll to the line. 'file': a stretch cut by a recording boundary, which
- * includes the sliver the game still gives a whole lap time (Imola practice
- * d184d6e1: 1.4 s long, 134.7 s on the clock).
+ * Why a lap is partial, or null when it is not. 'grid': the car sat parked for
+ * `GRID_PARKED_SEC` or more at the start and then the distance jumped (the parked car and
+ * the roll to the line). 'file': any other stretch cut by a recording boundary
+ * or a reset, including the sliver the game still gives a whole lap time
+ * (Imola practice d184d6e1: 1.4 s long, 134.7 s on the clock).
  */
 export function partialWhy(segPartial, dist, durationSec) {
   if (jumpsOffTheGrid(dist)) {
-    return durationSec >= GRID_MIN_SEC ? 'grid' : 'file';
+    const parkedSec = (parkedTicks(dist) / dist.length) * durationSec;
+    return parkedSec >= GRID_PARKED_SEC ? 'grid' : 'file';
   }
   return segPartial ? 'file' : null;
 }

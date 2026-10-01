@@ -178,7 +178,7 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   if (lap.pitIn) tags.push({code: 'IN'});
   // A lap cut short by a reset says so, instead of the generic PART.
   if (lap.endedInReset) tags.push({code: 'RESET'});
-  else if (lap.partialWhy === 'grid') tags.push({code: 'GRID'});
+  else if (lap.partialWhy === 'grid') tags.push({code: 'PARK'});
   else if (lap.partial || lap.reasons.includes('untimed'))
     tags.push({code: 'PART'});
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
@@ -203,7 +203,7 @@ export function reasonText(lap: Lap, stintMedianS: number | null): string {
     parts.push('Ends in a reset to the garage, so the lap is incomplete.');
   else if (lap.partialWhy === 'grid')
     parts.push(
-      'Starts on the grid, so this is the roll to the line, not a lap.',
+      'Starts parked (the grid or the garage), so this is the roll to the line, not a lap.',
     );
   else if (lap.partial || lap.reasons.includes('untimed'))
     parts.push('Timing started partway round, so the lap is incomplete.');
@@ -237,7 +237,7 @@ function statusFor(lap: Lap, medianS: number | null): string {
       : lap.endedInReset
       ? 'Reset'
       : lap.partialWhy === 'grid'
-      ? 'Grid start'
+      ? 'Parked start'
       : lap.partial || lap.reasons.includes('untimed')
       ? 'Partial'
       : lap.reasons.includes('slow')

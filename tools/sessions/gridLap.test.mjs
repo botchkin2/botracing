@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {
-  GRID_MIN_SEC,
+  GRID_PARKED_SEC,
   jumpsOffTheGrid,
   MAX_TICK_RISE_M,
   partialWhy,
@@ -48,12 +48,20 @@ test('empty and one-tick traces have no jump', () => {
   assert.equal(jumpsOffTheGrid([0]), false);
 });
 
-test('partialWhy: a long grid start is grid, a short one and a cut lap are file', () => {
-  const sebring = [0, 0, 485, 970, 1455];
+test('partialWhy: parked then jumped is grid; a jump without the parked start, or a cut lap, is file', () => {
+  // Sebring 574eec6c: parked 52 s at 0 of a 243 s segment of 11,250 ticks.
+  const sebring = [...new Array(5181).fill(0), 485, 970, 1455, 1940];
   assert.equal(partialWhy(false, sebring, 242.8), 'grid');
+  // Daytona db47a83b: opens at 67 % of the lap and sits there.
+  const daytona = [...new Array(6000).fill(3635), ...roll(3635, 3000)];
+  assert.equal(partialWhy(false, daytona, 280.8), 'grid');
   // Imola practice d184d6e1 lap 1: 1.4 s long, opens at 98 % of the lap.
   assert.equal(partialWhy(false, [4809, 4810, 4812], 1.428), 'file');
-  assert.equal(partialWhy(false, [4809, 4810], GRID_MIN_SEC), 'grid');
+  // A long untimed lap that jumps mid-way without sitting parked first.
+  assert.equal(partialWhy(false, [...roll(0, 4000), 5000, 5001], 128), 'file');
+  // Parked just under the limit.
+  const brief = [...new Array(GRID_PARKED_SEC * 10 - 1).fill(0), 900, 901];
+  assert.equal(partialWhy(false, brief, GRID_PARKED_SEC + 0.2), 'file');
   // Cut by a recording boundary, no jump: still file.
   assert.equal(partialWhy(true, roll(0, 100), 40), 'file');
   assert.equal(partialWhy(false, roll(0, 100), 40), null);

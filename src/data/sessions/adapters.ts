@@ -296,8 +296,8 @@ export type Lap = {
   pitOut: boolean;
   partial: boolean;
   /**
-   * Why it is partial: 'grid' is the parked car and the roll to the line (a
-   * race's lap 0), 'file' a stretch cut by a recording boundary. Absent on
+   * Why it is partial: 'grid' is a parked start and the roll to the line (a
+   * race's lap 0 on the grid, or a start from the garage), 'file' a stretch cut by a recording boundary. Absent on
    * laps analysed before the grid rule (blockVersions.gridLap).
    */
   partialWhy?: 'grid' | 'file' | null;
