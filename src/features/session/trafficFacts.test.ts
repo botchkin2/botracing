@@ -30,8 +30,8 @@ describe('trafficRows', () => {
     const rows = trafficRows(base)!;
     expect(rows.map(r => [r.label, r.value])).toEqual([
       ['In a tow', '6.1 s'],
-      ['Within 1 s ahead', '4.2 s'],
-      ['Within 1 s behind', '0.0 s'],
+      ['Car within 1 s ahead', '4.2 s'],
+      ['Car within 1 s behind', '0.0 s'],
       ['Faster car behind', '1.2 s'],
       ['Passes within the car’s class', 'made 2 · suffered 1'],
       ['Faster-class cars that passed', '0'],

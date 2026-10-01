@@ -22,7 +22,7 @@ export {MIN_SET_LAPS} from '@/src/analysis/traffic';
  */
 export const PACE_RULE =
   `Clean: no car within 1 s ahead for ${CLEAN_AHEAD_S} s or more, no faster-class car within ${BLUE_BEHIND_S} s behind, no pass suffered, ` +
-  `under ${CLEAN_BATTLE_S} s within 1 s of a same-class car. Traffic: ${TRAFFIC_AHEAD_S} s or more within 1 s behind a car. ` +
+  `under ${CLEAN_BATTLE_S} s within 1 s of a same-class car. Traffic: ${TRAFFIC_AHEAD_S} s or more within 1 s of a car ahead. ` +
   'n is the laps a median uses; a lap between the two is in neither. Both are laps with a recorded field.';
 
 /** "1:49.800 · 4 of 14 laps"; null under the lap floor, where there is no median. */
@@ -61,8 +61,8 @@ export function trafficRows(traffic: LapTraffic | null): TrafficRow[] | null {
   if (!traffic) return null;
   const rows: TrafficRow[] = [
     {label: 'In a tow', value: secs(traffic.draftS)},
-    {label: 'Within 1 s ahead', value: secs(traffic.trafficAheadS)},
-    {label: 'Within 1 s behind', value: secs(traffic.trafficBehindS)},
+    {label: 'Car within 1 s ahead', value: secs(traffic.trafficAheadS)},
+    {label: 'Car within 1 s behind', value: secs(traffic.trafficBehindS)},
     {label: 'Faster car behind', value: secs(traffic.blueFlagS)},
     {
       label: 'Passes within the car’s class',
