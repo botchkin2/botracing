@@ -215,6 +215,13 @@ describe('onsetsOfLaps', () => {
     expect(onsetsM).toEqual([285, 290, 285]);
   });
 
+  it('measures a section the way the layout decided, whatever this session does', () => {
+    // Most of these laps brake, but the layout says lift: lift onsets it is.
+    const laps = [lap(285, 270), lap(290, 275)];
+    expect(onsetsOfLaps(laps, section, 0, 'lift').onsetsM).toEqual([270, 275]);
+    expect(onsetsOfLaps(laps, section, 0, 'brake').onsetsM).toEqual([285, 290]);
+  });
+
   it('uses lift onsets for a section nobody brakes for, and none for a corner taken flat', () => {
     const kink = onsetsOfLaps([lap(null, 300), lap(null, 310)], section, 0);
     expect(kink).toMatchObject({kind: 'lift', onsetsM: [300, 310]});
@@ -299,6 +306,25 @@ describe('foldBoundaries', () => {
     expect(later.moved).toBe(true);
     expect(later.boundaries.rev).toBe(early.rev + 1);
     expect(later.boundaries.startsM[0]).toBeGreaterThan(early.startsM[0] + 25);
+  });
+
+  it('keeps the kinds the first session decided', () => {
+    const first = foldBoundaries({
+      sections,
+      stored: null,
+      sessionId: 's1',
+      pools: onsetPools(sections, [{kind: 'lift', onsetsM: around(25)}]),
+      speedKmhAt: speed,
+    });
+    expect(first.boundaries.kinds).toEqual(['lift']);
+    const next = foldBoundaries({
+      sections,
+      stored: first.boundaries,
+      sessionId: 's2',
+      pools: onsetPools(sections, [{kind: 'brake', onsetsM: around(25)}]),
+      speedKmhAt: speed,
+    });
+    expect(next.boundaries.kinds).toEqual(['lift']);
   });
 
   it('replaces a session on a resync instead of counting its laps twice', () => {

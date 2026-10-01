@@ -20,6 +20,7 @@ import {createHash} from 'node:crypto';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldAfterSync} from './field.mjs';
+import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
 import {withNetRetry} from './netRetry.mjs';
@@ -121,6 +122,15 @@ async function putGzip(bucket, dest, text, contentType) {
 export async function getTrack(trackId) {
   const {db} = connect();
   const doc = await db.collection('tracks').doc(trackId).get();
+  return doc.exists ? doc.data() : null;
+}
+
+// A track's corner boundaries (tools/sessions/layoutBoundaries.mjs), packed,
+// or null. A doc of its own: it grows with every session of the layout, and
+// the app reads only the small summary on the track doc.
+export async function getBoundaries(trackId) {
+  const {db} = connect();
+  const doc = await db.collection('trackBoundaries').doc(trackId).get();
   return doc.exists ? doc.data() : null;
 }
 
@@ -282,6 +292,27 @@ export async function upload(out, {log = () => {}} = {}) {
     writer.set(db.collection('tracks').doc(out.track.id), out.track, {
       merge: true,
     });
+  }
+
+  // The layout's corner boundaries, when this session changed them: the full
+  // state in its own doc, and the summary the app draws from on the track doc.
+  if (out.boundaries) {
+    const {trackId, state, windows} = out.boundaries;
+    writer.set(db.collection('trackBoundaries').doc(trackId), packState(state));
+    writer.set(
+      db.collection('tracks').doc(trackId),
+      {
+        id: trackId,
+        boundaries: {
+          v: state.v,
+          rev: state.rev,
+          startsM: state.startsM,
+          marginM: state.marginM,
+          windows,
+        },
+      },
+      {merge: true},
+    );
   }
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.

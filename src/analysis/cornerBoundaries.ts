@@ -207,7 +207,16 @@ export function onsetsOfLaps(
   laps: PedalTrace[],
   section: MapSection,
   prevExitM: number,
+  forceKind?: OnsetKind,
 ): {kind: OnsetKind; onsetsM: (number | null)[]; beyondLookBack: number} {
+  if (forceKind) {
+    const os = laps.map(l => onsetOf(l, section, prevExitM, forceKind));
+    return {
+      kind: forceKind,
+      onsetsM: os.map(o => o.atM),
+      beyondLookBack: os.filter(o => o.beyondLookBack).length,
+    };
+  }
   const brake = laps.map(l => onsetOf(l, section, prevExitM, 'brake'));
   const braked = brake.filter(o => o.atM != null || o.beyondLookBack).length;
   const pick = (os: {atM: number | null; beyondLookBack: boolean}[]) => ({
@@ -268,6 +277,8 @@ export function onsetPools(
 export interface Boundaries {
   v: number;
   rev: number;
+  /** Per section, what its onsets are: decided by the first session, kept after. */
+  kinds: OnsetKind[];
   sessions: Record<string, OnsetPool[]>;
   /** Per section, the reference onset the start rests on; null while provisional. */
   earliestOnsetM: (number | null)[];
@@ -388,6 +399,7 @@ export function foldBoundaries(input: {
     const boundaries: Boundaries = {
       v: CORNER_BOUNDARIES_VERSION,
       rev: (stored?.rev ?? 0) + 1,
+      kinds: pools.map(p => p.kind),
       sessions,
       earliestOnsetM,
       ...cut,

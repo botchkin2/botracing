@@ -38,7 +38,12 @@ import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
 export const SLICE_BEFORE_M = Math.max(ZOOM_BEFORE_M, MAP_BEFORE_M);
 export const SLICE_AFTER_M = Math.max(ZOOM_AFTER_M, MAP_AFTER_M);
 export const GRID_STEP_M = 5;
+// Still 1: the decoder reads a file's own `windowM`, so a wider window needs no
+// new format (src/analysis/cornerSlices.ts).
 export const SLICE_FORMAT = 1;
+// A slice reaches this far past its corner window on each side, so the
+// delta from the boundary and the lines run to the window's edges.
+export const WINDOW_PAD_M = 50;
 const DIST_DIGITS = 3;
 
 // Channels a slice carries, and how many decimals each keeps: the same as the
@@ -54,14 +59,48 @@ const CHANNELS = [
   ['trackEdgeM', 2],
 ];
 
-/** Corner number and apex for every corner of a track map, in map order. */
-export function mapCorners(map) {
+/**
+ * Corner number and apex for every corner of a track map, in map order. With
+ * the layout's windows (`windowsOf`), each also carries its window: a part's
+ * own for a compound section, else the section's.
+ */
+export function mapCorners(map, windows = null) {
   const out = [];
-  for (const section of map.corners ?? []) {
+  const sectionWindows = (windows ?? []).filter(w => w.kind === 'section');
+  (map.corners ?? []).forEach((section, k) => {
     const parts = section.parts?.length ? section.parts : [section];
-    for (const p of parts) out.push({n: p.n, apexM: p.apexM});
-  }
+    const w = sectionWindows[k] ?? null;
+    parts.forEach((p, i) => {
+      const own = w?.parts?.length ? w.parts[i] : w;
+      out.push({
+        n: p.n,
+        apexM: p.apexM,
+        ...(own ? {extent: {fromM: own.fromM, toM: own.toM}} : {}),
+      });
+    });
+  });
   return out;
+}
+
+// The window a slice covers: the screen's apex-based window, widened to the
+// corner's own window and a pad when there is one.
+function sliceWindow(apexM, lengthM, extent) {
+  return [
+    Math.max(
+      0,
+      Math.min(
+        apexM - SLICE_BEFORE_M,
+        (extent?.fromM ?? Infinity) - WINDOW_PAD_M,
+      ),
+    ),
+    Math.min(
+      lengthM,
+      Math.max(
+        apexM + SLICE_AFTER_M,
+        (extent?.toM ?? -Infinity) + WINDOW_PAD_M,
+      ),
+    ),
+  ];
 }
 
 /** First index with a[i] >= x. */
@@ -103,9 +142,8 @@ function windowSamples(s, fromM, toM, digits) {
  * One lap's slice for one corner, or null when the lap has no sample in the
  * window. grid: the lap's resampleTrace result.
  */
-export function lapSlice(id, grid, apexM, lengthM) {
-  const fromM = Math.max(0, apexM - SLICE_BEFORE_M);
-  const toM = Math.min(lengthM, apexM + SLICE_AFTER_M);
+export function lapSlice(id, grid, apexM, lengthM, extent = null) {
+  const [fromM, toM] = sliceWindow(apexM, lengthM, extent);
   const samples = {};
   for (const [name, digits] of CHANNELS) {
     samples[name] = windowSamples(grid.samples[name], fromM, toM, digits);
@@ -137,15 +175,15 @@ export function lapSlice(id, grid, apexM, lengthM) {
  * lap's text is dropped after use); map: {lengthM, corners}. Returns
  * {files: [{n, text}], corners, hash}, or null without a map.
  */
-export function buildCornerSlices(laps, map) {
+export function buildCornerSlices(laps, map, windows = null) {
   if (!map || !map.lengthM || !(map.corners ?? []).length) return null;
-  const corners = mapCorners(map);
+  const corners = mapCorners(map, windows);
   const perCorner = new Map(corners.map(c => [c.n, []]));
   for (const lap of laps) {
     const raw = parseTraceCsv(lap.csv());
     const grid = resampleTrace(raw, map.lengthM, GRID_STEP_M);
     for (const c of corners) {
-      const slice = lapSlice(lap.id, grid, c.apexM, map.lengthM);
+      const slice = lapSlice(lap.id, grid, c.apexM, map.lengthM, c.extent);
       if (slice) perCorner.get(c.n).push(slice);
     }
   }
@@ -165,10 +203,7 @@ export function buildCornerSlices(laps, map) {
         lon: 6,
         ...Object.fromEntries(CHANNELS),
       },
-      windowM: [
-        Math.max(0, c.apexM - SLICE_BEFORE_M),
-        Math.min(map.lengthM, c.apexM + SLICE_AFTER_M),
-      ],
+      windowM: sliceWindow(c.apexM, map.lengthM, c.extent),
       laps: perCorner.get(c.n),
     }),
   }));
