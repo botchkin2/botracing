@@ -278,22 +278,20 @@ describe('cleanMedianFact', () => {
   });
 
   it('says so when the session has no field', () => {
-    expect(cleanMedianFact(session).value).toBe('No other cars recorded');
+    expect(cleanMedianFact(session)?.value).toBe('No other cars recorded');
   });
 
-  it('shows a dash for a field not yet analysed for traffic', () => {
-    expect(cleanMedianFact({...session, field}).value).toBe('—');
+  it('is left out for a field not yet analysed for traffic', () => {
+    expect(cleanMedianFact({...session, field})).toBeNull();
   });
 
   it('shows the median and the laps behind it', () => {
-    expect(cleanMedianFact(withTraffic({laps: 12, medianS: 81.5})).value).toBe(
-      '1:21.500 · 12 laps',
+    expect(cleanMedianFact(withTraffic({laps: 12, medianS: 81.5}))?.value).toBe(
+      `1:21.500 · 12 of ${session.comparableCount} laps`,
     );
   });
 
-  it('shows a dash under the lap floor', () => {
-    expect(cleanMedianFact(withTraffic({laps: 2, medianS: null})).value).toBe(
-      '—',
-    );
+  it('is left out under the lap floor', () => {
+    expect(cleanMedianFact(withTraffic({laps: 2, medianS: null}))).toBeNull();
   });
 });
