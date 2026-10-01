@@ -23,6 +23,9 @@ export function WearScatter({
     <View style={styles.box}>
       <Text variant='label'>Lap time and wear</Text>
       <Explainer>{WEAR_SCATTER_KEY}</Explainer>
+      <Text variant='dataSmall' tone='textSecondary'>
+        {model.headline}
+      </Text>
       {model.panels.map(p => (
         <View key={p.label} style={styles.panel}>
           <Text variant='dataSmall' tone='textSecondary'>

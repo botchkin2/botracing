@@ -2,7 +2,13 @@
 // the laps from analysis/tyreWear.ts as scatter inputs. Same axes on every
 // band so the panels read against each other. Pure.
 import {isCleanTraffic} from '@/src/analysis/traffic';
-import {type WearBand, type WearLap, wearBands} from '@/src/analysis/tyreWear';
+import {
+  type JointFit,
+  jointFit,
+  type WearBand,
+  type WearLap,
+  wearBands,
+} from '@/src/analysis/tyreWear';
 import type {Lap} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
@@ -12,7 +18,7 @@ export type WearPanel = {
   label: string;
   points: {key: string; x: number; y: number}[];
   fit: {x1: number; y1: number; x2: number; y2: number} | null;
-  /** "+0.12 s per 1 % lost · 9 laps", or why there is no line. */
+  /** "9 laps", or why there is no line. */
   note: string;
 };
 
@@ -25,6 +31,8 @@ export type WearScatterModel = {
   /** True when the laps were limited to clean ones (the session has a field). */
   cleanOnly: boolean;
   n: number;
+  /** The number: seconds per 1 % lost with fuel held fixed, over every lap; or why there is none. */
+  headline: string;
 };
 
 /** Fewest laps for the panels at all. */
@@ -37,11 +45,6 @@ const hasDeadWheel = (l: Lap) => {
   return reads > 0 && reads < WHEELS.length;
 };
 
-const forClean = (t: NonNullable<Lap['traffic']>) => ({
-  ...t,
-  overtakes: {length: t.overtakes},
-});
-
 /** Clean green laps with all four wheels reading wear and a fuel level at the start. */
 export function wearLaps(laps: Lap[], hasField: boolean): WearLap[] {
   const out: WearLap[] = [];
@@ -51,8 +54,7 @@ export function wearLaps(laps: Lap[], hasField: boolean): WearLap[] {
     if (!wear || startL == null || l.timeS == null || !l.comparable) continue;
     if (l.fuel?.green !== true || hasDeadWheel(l)) continue;
     // With a field a clean lap is free air; without one nothing can be said, so every green lap counts.
-    if (hasField && !(l.traffic && isCleanTraffic(forClean(l.traffic))))
-      continue;
+    if (hasField && !(l.traffic && isCleanTraffic(l.traffic))) continue;
     const vals = WHEELS.map(w => wear[w]);
     if (vals.some(v => v == null)) continue;
     const mean = (vals as number[]).reduce((a, b) => a + b, 0) / vals.length;
@@ -71,10 +73,22 @@ function noteOf(b: WearBand): string {
     return `${b.laps.length} laps: too few for a line (5 needed).`;
   if (b.empty === 'one-set')
     return `${b.laps.length} laps, but all on about the same wear: a line needs tyres run across two stints.`;
-  const s = b.slopeSPerPct ?? 0;
-  return `${s >= 0 ? '+' : '−'}${Math.abs(s).toFixed(3)} s per 1 % lost · ${
-    b.laps.length
-  } laps`;
+  return `${b.laps.length} laps`;
+}
+
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(3)}`;
+
+/** The joint fit as one line, or why there is none. */
+export function headlineOf(fit: JointFit): string {
+  if (fit.kind === 'fit')
+    return `${signed(fit.sPerPct)} s per 1 % lost, fuel held fixed (${signed(
+      fit.sPerL,
+    )} s per litre at the start of the lap) · ${fit.n} laps`;
+  if (fit.why === 'locked')
+    return 'No number: wear and fuel fall together over these laps (tyres were not carried across a stop), so their effects cannot be told apart.';
+  if (fit.why === 'one-set')
+    return 'No number: the laps span too little wear; it needs tyres run across two stints.';
+  return 'No number: fewer than 5 laps.';
 }
 
 function padded([lo, hi]: [number, number]): [number, number] {
@@ -115,8 +129,9 @@ export function buildWearScatter(
     yTicks: ticks(yDomain, formatLapTime),
     cleanOnly: hasField,
     n: pts.length,
+    headline: headlineOf(jointFit(pts)),
   };
 }
 
 export const WEAR_SCATTER_KEY =
-  'Clean green laps, whole race. Right = more worn (mean of four wheels), up = faster. Split by fuel at the start of the lap so the fuel effect is not counted as wear. Dashed = least-squares fit. It shows the two move together, not that one causes the other. Track changes over the race are not separated.';
+  'Clean green laps, whole race. Right = more worn (mean of four wheels), up = faster. Split by fuel at the start of the lap so the fuel effect is not counted as wear. The number is one fit over all the laps with fuel held fixed; the dashed line in each panel is the line for that band alone. It shows the two move together, not that one causes the other. Track changes over the race are not separated.';

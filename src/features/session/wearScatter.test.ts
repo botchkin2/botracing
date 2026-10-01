@@ -23,7 +23,11 @@ const clean = {
   passesMadeAll: 0,
   passesSufferedAll: 0,
   battleS: 0,
-  overtakes: 0,
+  overtakes: [] as NonNullable<Lap['traffic']>['overtakes'],
+  aheadSpans: [],
+  blueSpans: [],
+  passMarks: [],
+  fieldLapM: null,
 };
 
 const tyres = (over: Partial<NonNullable<Lap['tyres']>> = {}) => ({
@@ -81,7 +85,9 @@ describe('wearLaps', () => {
   });
 
   it('a faster-class overtake makes a lap not clean', () => {
-    const l = lap(1, {traffic: {...clean, overtakes: 1}});
+    const l = lap(1, {
+      traffic: {...clean, overtakes: [{cls: 'GT3', atM: 100}]},
+    });
     expect(wearLaps([l], true)).toEqual([]);
   });
 });
@@ -99,7 +105,8 @@ describe('buildWearScatter', () => {
     const m = buildWearScatter(laps, false);
     expect(m?.panels).toHaveLength(1);
     expect(m?.panels[0].fit).not.toBeNull();
-    expect(m?.panels[0].note).toMatch(/s per 1 % lost · 8 laps/);
+    expect(m?.panels[0].note).toBe('8 laps');
+    expect(m?.headline).toMatch(/^No number: wear and fuel fall together/);
     expect(m?.xDomain[0]).toBe(0);
     expect(m?.cleanOnly).toBe(false);
   });
