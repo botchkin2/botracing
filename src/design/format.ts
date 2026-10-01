@@ -73,3 +73,10 @@ export function formatLength(distanceM: number): {km: string; mi: string} {
     mi: `${(distanceM / 1609.344).toFixed(3)} mi`,
   };
 }
+
+/** "14 Sep", in the device's time zone. */
+export function formatDayMonth(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
+}

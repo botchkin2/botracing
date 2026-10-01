@@ -8,6 +8,7 @@ import {carsAt} from '@/src/analysis/raceState';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
+import {SessionNav} from '@/src/workspace/SessionNav';
 import {sessionHref} from '@/src/nav/routes';
 import {
   FOLLOW_SPANS_M,
@@ -107,6 +108,7 @@ function RaceShell({
 }) {
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
   const router = useRouter();
   const title = 'title' in data ? data.title : 'Race';
   return (
@@ -128,6 +130,7 @@ function RaceShell({
           {title}
         </Text>
       </View>
+      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
       {data.kind === 'ready' ? (
         <RaceView
           data={data}

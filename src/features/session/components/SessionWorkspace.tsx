@@ -106,30 +106,17 @@ export function SessionWorkspace({
           {width: centreW, borderColor: color.lineHeader},
         ]}>
         <View style={styles.head}>
-          <View style={styles.titleBlock}>
-            <Text variant='display' style={styles.title} numberOfLines={1}>
-              {model.title}
-            </Text>
-            <View style={styles.subRow}>
-              <Text
-                variant='dataSmall'
-                tone='textMuted'
-                numberOfLines={1}
-                style={styles.subtitle}>
-                {model.subtitle}
+          {/* The bar names the session (round 6), so the head is the stats row. */}
+          {model.trackId ? (
+            <Pressable
+              accessibilityRole='link'
+              onPress={() => router.push(trackHref(model.trackId))}
+              hitSlop={space.md}>
+              <Text variant='dataSmall' tone='accentInk'>
+                Track page ›
               </Text>
-              {model.trackId ? (
-                <Pressable
-                  accessibilityRole='link'
-                  onPress={() => router.push(trackHref(model.trackId))}
-                  hitSlop={space.md}>
-                  <Text variant='dataSmall' tone='accentInk'>
-                    Track page ›
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
+            </Pressable>
+          ) : null}
           <View style={styles.facts}>
             {model.facts.map(f => (
               <View key={f.label}>
@@ -251,10 +238,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: PAD_X,
     paddingTop: space.lg,
   },
-  titleBlock: {flexShrink: 1, gap: space.xxs},
-  title: {fontSize: 22},
-  subRow: {flexDirection: 'row', alignItems: 'center', gap: space.md},
-  subtitle: {flexShrink: 1},
   facts: {marginLeft: 'auto', flexDirection: 'row', gap: space.xxl},
   factValue: {fontSize: 15},
   chart: {paddingHorizontal: PAD_X, paddingTop: space.lg, gap: space.xs},

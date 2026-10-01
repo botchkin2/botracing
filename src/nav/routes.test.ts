@@ -4,6 +4,7 @@ import {
   compareHref,
   cornerHref,
   parseSelection,
+  planComboKey,
   planHref,
   raceHref,
   sessionHref,
@@ -11,6 +12,13 @@ import {
 } from './routes';
 
 describe('routes', () => {
+  it('names a plan combo by track and car model', () => {
+    expect(planComboKey('t1', '911 GT3 R')).toBe('t1|911 GT3 R');
+    expect(planHref(planComboKey('t1', '911 GT3 R')).params.combo).toBe(
+      't1|911 GT3 R',
+    );
+  });
+
   it('opens the plan on a track and car, or on its own', () => {
     expect(planHref()).toEqual({pathname: '/plan', params: {}});
     expect(planHref('t1|911 GT3 R')).toEqual({

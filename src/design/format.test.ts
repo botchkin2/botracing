@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   formatCornerGap,
+  formatDayMonth,
   formatDistance,
   formatLength,
   formatGap,
@@ -55,5 +56,15 @@ describe('formatRaceGap', () => {
     expect(formatRaceGap(59.9994)).toBe('+59.999');
     expect(formatRaceGap(64.2)).toBe('+1:04.2');
     expect(formatRaceGap(600)).toBe('+10:00.0');
+  });
+});
+
+describe('formatDayMonth', () => {
+  it('is the day and short month', () => {
+    expect(formatDayMonth('2026-09-14T12:00:00Z')).toBe('14 Sept');
+  });
+
+  it('is empty for a bad date', () => {
+    expect(formatDayMonth('not a date')).toBe('');
   });
 });

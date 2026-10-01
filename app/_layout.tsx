@@ -6,43 +6,33 @@ import {
   ThemeProvider,
   useGlobalSearchParams,
   usePathname,
-  useRouter,
 } from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
-import {Pressable, StyleSheet, View} from 'react-native';
-import 'react-native-reanimated';
-import {SafeAreaProvider} from 'react-native-safe-area-context';
-
-import {trackInfo} from '@/src/data/tracks';
+import {type ReactNode} from 'react';
+import {StyleSheet, View} from 'react-native';
 import {
-  firstCornerOf,
-  trackCorners,
-  useSession,
-  useSessionMap,
-} from '@/src/data/sessions';
+  SafeAreaInsetsContext,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import 'react-native-reanimated';
+
 import {
   ThemeProvider as AppThemeProvider,
-  carLabel,
-  shortTrackName,
-  space,
   useAppFonts,
   useLayout,
   useTheme,
 } from '@/src/design';
 import {
-  compareHref,
-  cornerHref,
-  raceHref,
-  parseSelection,
-  sessionHref,
-  sessionsHref,
-  settingsHref,
-  planHref,
-  tracksHref,
-} from '@/src/nav/routes';
-import {tabTarget, type TabName} from '@/src/nav/tabTarget';
-import {AppChrome, type ChromeTab, Text, type WorkspaceTab} from '@/src/ui';
+  destinationOf,
+  type Destination,
+  sessionTabOf,
+} from '@/src/nav/activeTab';
+import {BottomBar} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
+import {DesktopChrome} from '@/src/workspace/DesktopChrome';
+import {usePlanCombo} from '@/src/workspace/usePlanCombo';
+import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
@@ -73,18 +63,21 @@ function Navigation() {
       border: color.lineHeader,
     },
   };
-  const {isWide} = useLayout();
+  const {isDesktop} = useLayout();
+  const stack = (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: {backgroundColor: color.bg},
+      }}
+    />
+  );
   return (
     <ThemeProvider value={navTheme}>
       <View style={[styles.root, {backgroundColor: color.bg}]}>
-        {isWide && <DesktopChrome />}
+        {isDesktop && <DesktopChrome />}
         <View style={styles.root}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: {backgroundColor: color.bg},
-            }}
-          />
+          {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
         </View>
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -92,136 +85,46 @@ function Navigation() {
   );
 }
 
-/** Which workspace the path is in; null off the session routes. */
-function activeTab(pathname: string): WorkspaceTab | null {
-  if (!pathname.startsWith('/session/')) return null;
-  if (pathname.includes('/compare')) return 'compare';
-  if (pathname.includes('/race')) return 'race';
-  if (pathname.includes('/corner/')) return 'corner';
-  return 'session';
-}
+const DESTINATIONS = [
+  {key: 'sessions', label: 'Sessions'},
+  {key: 'plan', label: 'Plan'},
+  {key: 'settings', label: 'Settings'},
+] as const;
 
 /**
- * Feeds the data-free AppChrome from the URL: the open session and its
- * selection become the tab links, so switching tabs keeps context.
+ * Phone navigation (below 900 pt): the three destinations
+ * that work without a session in a bottom bar. The Laps / Compare / Corner /
+ * Race row belongs under each session screen's title (`SessionNav`). The bar
+ * takes the bottom safe-area inset, so the screens above it see none.
  */
-function DesktopChrome() {
+function PhoneFrame({children}: {children: ReactNode}) {
   const pathname = usePathname();
   const {id} = useGlobalSearchParams<{id?: string}>();
-  if (pathname === '/plan') {
-    return <ChromeBar sessionId={null} tab='plan' context='LMU' />;
-  }
-  if (pathname === '/tracks' || pathname.startsWith('/track/')) {
-    const layout = id ? trackInfo(id)?.layout : null;
-    return (
-      <ChromeBar
-        sessionId={null}
-        tab='tracks'
-        context={layout ? `LMU · ${layout}` : 'LMU'}
-      />
-    );
-  }
-  const sessionId = activeTab(pathname) ? id : undefined;
-  return sessionId ? (
-    <SessionChrome sessionId={sessionId} tab={activeTab(pathname)} />
-  ) : (
-    <ChromeBar sessionId={null} tab={null} context='LMU' />
+  const insets = useSafeAreaInsets();
+  const tab = sessionTabOf(pathname);
+  const plan = usePlanCombo(
+    tab ? id ?? null : null,
+    pathname.startsWith('/track/') ? id ?? null : null,
+    false,
   );
-}
-
-/** "LMU · Road Atlanta · 911 GT3 R" once the session has loaded. */
-function SessionChrome({
-  sessionId,
-  tab,
-}: {
-  sessionId: string;
-  tab: WorkspaceTab | null;
-}) {
-  const {data} = useSession(sessionId);
-  const context = data
-    ? [
-        data.sim.toUpperCase(),
-        shortTrackName(data.track),
-        carLabel(data.car).shortModel,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : 'LMU';
-  return <ChromeBar sessionId={sessionId} tab={tab} context={context} />;
-}
-
-function ChromeBar({
-  sessionId,
-  tab,
-  context,
-}: {
-  sessionId: string | null;
-  tab: WorkspaceTab | null;
-  context: string;
-}) {
-  const router = useRouter();
-  // Only the lap selection travels between tabs; corner and cursor belong
-  // to the workspace that set them.
-  const {laps, hl, c, n} = useGlobalSearchParams<{
-    laps?: string;
-    hl?: string;
-    c?: string;
-    n?: string;
-  }>();
-  const map = useSessionMap(sessionId ?? '');
-  // Corner tab: the open corner, else the open section's first corner, else C1.
-  const cornerN =
-    tab === 'corner' && n
-      ? Number(n)
-      : (map.data && c
-          ? firstCornerOf(trackCorners(map.data), Number(c))
-          : null) ?? 1;
-  const {laps: lapIds, hl: hlId} = parseSelection({laps, hl});
-  const sel = {laps: lapIds, hl: hlId};
-  const go = (name: TabName) => {
-    const target = tabTarget(name, sessionId);
-    switch (target.kind) {
-      case 'sessions':
-        return router.navigate(sessionsHref());
-      case 'tracks':
-        return router.navigate(tracksHref());
-      case 'plan':
-        return router.navigate(planHref());
-      case 'session':
-        return router.navigate(sessionHref(target.sessionId, sel));
-      case 'compare':
-        return router.navigate(compareHref(target.sessionId, sel));
-      case 'race':
-        return router.navigate(raceHref(target.sessionId, sel));
-      case 'corner':
-        return router.navigate(cornerHref(target.sessionId, cornerN, sel));
-    }
-  };
-  const tabs: ChromeTab[] = [
-    {key: 'session', label: 'Session', onPress: () => go('session')},
-    {key: 'compare', label: 'Compare', onPress: () => go('compare')},
-    {key: 'race', label: 'Race', onPress: () => go('race')},
-    {key: 'corner', label: 'Corner', onPress: () => go('corner')},
-    {key: 'plan', label: 'Plan', onPress: () => go('plan')},
-    {key: 'tracks', label: 'Tracks', onPress: () => go('tracks')},
-  ];
+  const go = useWorkspaceGo({
+    sessionId: null,
+    selection: {},
+    cornerN: 1,
+    planCombo: plan.key,
+  });
   return (
-    <AppChrome
-      onHome={() => router.navigate(sessionsHref())}
-      tabs={tabs}
-      active={tab}
-      context={context}
-      right={
-        <Pressable
-          accessibilityRole='link'
-          onPress={() => router.navigate(settingsHref())}
-          hitSlop={space.md}>
-          <Text variant='body' tone='textSecondary'>
-            Settings
-          </Text>
-        </Pressable>
-      }
-    />
+    <View style={styles.root}>
+      <SafeAreaInsetsContext.Provider value={{...insets, bottom: 0}}>
+        <View style={styles.root}>{children}</View>
+      </SafeAreaInsetsContext.Provider>
+      <BottomBar<Destination>
+        items={DESTINATIONS}
+        active={destinationOf(pathname)}
+        onSelect={go}
+        bottomInset={insets.bottom}
+      />
+    </View>
   );
 }
 

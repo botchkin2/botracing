@@ -32,6 +32,7 @@ import {
   useLayout,
   useTheme,
 } from '@/src/design';
+import {SessionNav} from '@/src/workspace/SessionNav';
 import {cornerHref, sessionHref} from '@/src/nav/routes';
 import {
   CHANNEL_IDS,
@@ -299,7 +300,7 @@ function CompareView({
   const oneChart = prefs.view === 'one' && !layout.isDesktop;
   const mapShown = layout.isDesktop || prefs.mapShown;
 
-  const header = (
+  const headerRow = (
     <View style={styles.header}>
       <Pressable
         accessibilityRole='link'
@@ -326,6 +327,15 @@ function CompareView({
           </Text>
         </Pressable>
       )}
+    </View>
+  );
+
+  const header = layout.isDesktop ? (
+    headerRow
+  ) : (
+    <View>
+      {headerRow}
+      <SessionNav sessionId={sessionId} />
     </View>
   );
 

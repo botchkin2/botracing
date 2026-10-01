@@ -3,7 +3,7 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {ContentInset, size, useLayout} from '@/src/design';
-import {parseSelection, sessionHref} from '@/src/nav/routes';
+import {parseSelection, sessionHref, tracksHref} from '@/src/nav/routes';
 import {SessionsRail} from '@/src/ui';
 
 import {
@@ -54,6 +54,7 @@ export default function SessionRoute() {
         activeId={params.id}
         // Lap ids belong to one session, so the selection does not carry over.
         onSelect={id => router.replace(sessionHref(id))}
+        onTracks={() => router.push(tracksHref())}
       />
       <View style={styles.flex}>
         <ContentInset width={size.railWidth}>{screen}</ContentInset>
@@ -66,9 +67,11 @@ export default function SessionRoute() {
 function Rail({
   activeId,
   onSelect,
+  onTracks,
 }: {
   activeId: string;
   onSelect: (id: string) => void;
+  onTracks: () => void;
 }) {
   const model = useSessionsModel();
   const status =
@@ -84,6 +87,7 @@ function Rail({
       days={model.state === 'ready' ? model.days : []}
       activeId={activeId}
       onSelect={onSelect}
+      onTracks={onTracks}
       status={status}
     />
   );

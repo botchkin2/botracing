@@ -19,6 +19,7 @@
 // Tests: node --test tools/sessions/surface.test.mjs
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {Buffer} from 'node:buffer';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {LMU_FAKE_ORIGIN, toLocalMetres} from '../../src/analysis/geo.ts';
@@ -31,11 +32,17 @@ import {
 
 export const SURFACE_FORMAT = 1;
 export const surfacePath = trackId => `surface/${trackId}/v1.json.gz`;
+// Which laps and samples went in. A stored artifact built under other rules is
+// thrown away and rebuilt from every session. 2: grid laps (lap number 0) are
+// left out: a race's lap 0 sits on the grid with LapDistPct 0 for a minute and
+// pulled Sebring's first bin 80 m off the road (pit-wall thread 44, E).
+export const SURFACE_RULES = 2;
 
 // A lap the surface may use: a whole, timed, comparable lap with no pit lane
 // (the pit lane's lateral is not the racing surface's: Daytona reads -17..+29 m).
 export function usableLap(lap) {
   return (
+    lap.lapNumber !== 0 &&
     lap.timed === true &&
     lap.comparable === true &&
     lap.partial !== true &&
@@ -78,6 +85,7 @@ export function surfaceLapFromCsv(csv, lengthM) {
  */
 export function usableSurface(existing, lengthM) {
   return existing &&
+    existing.rules === SURFACE_RULES &&
     existing.lengthM === lengthM &&
     existing.stepM === SURFACE_STEP_M
     ? existing
@@ -102,7 +110,7 @@ export function sessionsToFold(existing, lengthM, sessionIds) {
  */
 export function buildSurface(existing, lengthM, sessions) {
   const usable = usableSurface(existing, lengthM);
-  const surface = usable ?? emptySurface(lengthM);
+  const surface = usable ?? {...emptySurface(lengthM), rules: SURFACE_RULES};
   let sessionsAdded = 0;
   let lapsAdded = 0;
   for (const s of sessions) {
@@ -275,7 +283,7 @@ export async function foldSurfaces({
     );
     log(
       `${trackId}: +${sessionsAdded} sessions, +${lapsAdded} laps${
-        replaced ? ' (track length changed: rebuilt)' : ''
+        replaced ? ' (length or rules changed: rebuilt)' : ''
       }, ${surface.sessions.length} sessions in all`,
     );
     if (dry || (sessionsAdded === 0 && !replaced)) continue;
@@ -311,7 +319,12 @@ function arg(name) {
   return i >= 0 ? process.argv[i + 1] : null;
 }
 
-if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
+// argv[1] is relative when run as `node tools/sessions/surface.mjs`: resolve it,
+// or this block is skipped and the command prints nothing.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   const track = arg('--track');
   if (arg('--api')) {
     await fromApi(arg('--api'), track, arg('--out') ?? 'surface-out');
