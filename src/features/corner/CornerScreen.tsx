@@ -223,12 +223,22 @@ function CornerView({
       cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
     );
 
-  const cornerChips = model.corners.map(({n, label}) => (
+  // One chip per section; a compound one (the bus stop) opens on its first
+  // part, and its parts are a second row to drill into.
+  const cornerChips = model.sections.map(s => (
     <Chip
-      key={n}
-      label={label}
-      selected={n === model.corner}
-      onPress={() => go(n)}
+      key={s.sectionN}
+      label={s.label}
+      selected={s.selected}
+      onPress={() => go(s.firstCorner)}
+    />
+  ));
+  const partChips = model.parts.map(p => (
+    <Chip
+      key={p.n}
+      label={p.label}
+      selected={p.selected}
+      onPress={() => go(p.n)}
     />
   ));
 
@@ -276,6 +286,14 @@ function CornerView({
           {cornerChips}
         </ScrollView>
       )}
+      {partChips.length > 0 ? (
+        <View style={styles.wrap}>
+          <Text variant='label' tone='textMuted'>
+            Parts
+          </Text>
+          {partChips}
+        </View>
+      ) : null}
       <View style={styles.row}>
         <Chip
           label={

@@ -28,8 +28,10 @@ import {createHash} from 'node:crypto';
 import {
   MAP_AFTER_M,
   MAP_BEFORE_M,
+  WINDOW_PAD_M,
   ZOOM_AFTER_M,
   ZOOM_BEFORE_M,
+  zoomWindowFor,
 } from '../../src/analysis/cornerWindows.ts';
 import {resampleTrace} from '../../src/analysis/resample.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
@@ -42,15 +44,9 @@ export const GRID_STEP_M = 5;
 // new format (src/analysis/cornerSlices.ts).
 export const SLICE_FORMAT = 1;
 // A slice reaches this far past its corner window on each side, so the
-// delta from the boundary and the lines run to the window's edges.
-export const WINDOW_PAD_M = 50;
-// And at most this far past the screen's own window (apex + SLICE_AFTER_M): a
-// corner whose window runs a long way to the next boundary (Daytona's last
-// corner, to the line past the tri-oval) would otherwise hold two kilometres at
-// 100 Hz, 181 KB gzipped against 62 KB. The corner's time, split and speeds
-// are the uploader's facts, not read from the slice, and the exit to full
-// throttle sits well inside this reach.
-export const EXIT_REACH_M = 300;
+// delta from the boundary and the lines run to the window's edges (the pad
+// is shared with the screen: src/analysis/cornerWindows.ts).
+export {WINDOW_PAD_M};
 const DIST_DIGITS = 3;
 
 // Channels a slice carries, and how many decimals each keeps: the same as the
@@ -68,8 +64,10 @@ const CHANNELS = [
 
 /**
  * Corner number and apex for every corner of a track map, in map order. With
- * the layout's windows (`windowsOf`), each also carries its window: a part's
- * own for a compound section, else the section's.
+ * the layout's windows (`windowsOf`), each also carries its extent: from the
+ * start of its section's window (where laps share speed, which the delta is
+ * drawn from, so it is always inside the slice) to the end of its own window,
+ * a part's for a compound section, else the section's.
  */
 export function mapCorners(map, windows = null) {
   const out = [];
@@ -82,32 +80,23 @@ export function mapCorners(map, windows = null) {
       out.push({
         n: p.n,
         apexM: p.apexM,
-        ...(own ? {extent: {fromM: own.fromM, toM: own.toM}} : {}),
+        ...(own && w ? {extent: {fromM: w.fromM, toM: own.toM}} : {}),
       });
     });
   });
   return out;
 }
 
-// The window a slice covers: the screen's apex-based window, widened to the
-// corner's own window and a pad when there is one.
+// The window a slice covers: the wider of the screen's two windows around the
+// apex (zoom, braking map), and the zoom window as the screen widens it to the
+// corner's own window (`zoomWindowFor`: the window plus a pad, at most
+// WINDOW_EXTRA_M past the zoom window). One function for both, so the slice
+// can never be narrower than what the screen asks for.
 function sliceWindow(apexM, lengthM, extent) {
-  const reach = apexM + SLICE_AFTER_M + EXIT_REACH_M;
+  const [from, to] = zoomWindowFor(apexM, extent ?? null);
   return [
-    Math.max(
-      0,
-      Math.min(
-        apexM - SLICE_BEFORE_M,
-        (extent?.fromM ?? Infinity) - WINDOW_PAD_M,
-      ),
-    ),
-    Math.min(
-      lengthM,
-      Math.max(
-        apexM + SLICE_AFTER_M,
-        Math.min((extent?.toM ?? -Infinity) + WINDOW_PAD_M, reach),
-      ),
-    ),
+    Math.max(0, Math.min(apexM - SLICE_BEFORE_M, from)),
+    Math.min(lengthM, Math.max(apexM + SLICE_AFTER_M, to)),
   ];
 }
 

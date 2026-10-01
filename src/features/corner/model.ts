@@ -4,6 +4,7 @@ import {
   MAP_BEFORE_M,
   ZOOM_AFTER_M,
   ZOOM_BEFORE_M,
+  zoomWindowFor,
 } from '@/src/analysis/cornerWindows';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 import {
@@ -12,6 +13,7 @@ import {
   lapCornerFacts,
   type SessionBand,
   type SessionDetail,
+  type TrackCorner,
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
@@ -25,14 +27,20 @@ import {
 } from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
-import {buildSectionWindow, type SectionWindowModel} from './sectionWindow';
+import {
+  buildSectionWindow,
+  isCurrent,
+  type SectionWindowModel,
+} from './sectionWindow';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
   type CornerStretch,
   cornerView,
   dimmedRanges,
+  inWindowFrame,
   type NeighbourApex,
+  windowCaption,
 } from './stretch';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
@@ -107,8 +115,11 @@ export type CornerModel = {
   corner: number;
   /** The section this corner belongs to (Compare opens sections). */
   sectionN: number;
-  /** Every corner, for the chips: its number and display label. */
+  /** Every corner, for prev/next: its number and display label. */
   corners: {n: number; label: string}[];
+  /** The chips: one per section, and the current compound section's parts to drill into. */
+  sections: ReturnType<typeof sectionChips>['sections'];
+  parts: ReturnType<typeof sectionChips>['parts'];
   title: string;
   subtitle: string;
   mode: LapMode;
@@ -121,6 +132,8 @@ export type CornerModel = {
   zoom: {
     windowM: [number, number];
     apexM: number;
+    /** Where the delta is zero, in the window's frame: the stretch's start, or a part's section start. */
+    deltaFromM: number;
     lines: ZoomLine[];
     band: {speed: [number[], number[]]} | null;
     stepM: number;
@@ -199,6 +212,77 @@ export function cornerExplainer(
       ? ' The apex is at the corner’s exit.'
       : '';
   return `Time in corner runs from ${span}, the same stretch of track for every lap. Brake point is metres before ${apexRef}; full throttle is metres after it.${edge}`;
+}
+
+/**
+ * The corner's own window, in lap metres: its part's, or the section's when
+ * the section is one corner. Null until the reference lap is cut at the
+ * boundaries the map carries now (a lap cut at older ones, or before windows
+ * existed, has windows that do not match the map's).
+ */
+function ownWindow(
+  map: TrackMapData,
+  sectionN: number,
+  corner: number,
+  ref: Lap | undefined,
+): {own: CornerStretch; section: CornerStretch} | null {
+  const b = map.boundaries;
+  if (!b || !ref || !isCurrent(ref, b)) return null;
+  const w = b.windows.find(x => x.kind === 'section' && x.section === sectionN);
+  if (!w) return null;
+  const at = w.parts.find(p => p.n === corner) ?? w;
+  return {
+    own: {fromM: at.fromM, toM: at.toM},
+    section: {fromM: w.fromM, toM: w.toM},
+  };
+}
+
+/** The text under "Time in corner" when the corner has a window of its own. */
+export function windowExplainer(window: CornerStretch, isPart: boolean) {
+  const span = `${formatDistance(window.fromM)} to ${formatDistance(
+    window.toM,
+  )}`;
+  return `Time in corner runs from ${span}, the same stretch of track for every lap: from where laps still run alike before the braking or lift, to where the next ${
+    isPart ? 'part' : 'corner'
+  } starts. Brake point is metres before the apex; full throttle is metres after it.`;
+}
+
+/** One chip per section (a compound one reads "S5 (T8–T10)") and the parts of the current one. */
+export function sectionChips(
+  all: TrackCorner[],
+  current: TrackCorner,
+): {
+  sections: {
+    sectionN: number;
+    label: string;
+    firstCorner: number;
+    selected: boolean;
+  }[];
+  parts: {n: number; label: string; selected: boolean}[];
+} {
+  const sections: ReturnType<typeof sectionChips>['sections'] = [];
+  for (const c of all) {
+    if (sections.some(s => s.sectionN === c.sectionN)) continue;
+    const members = all.filter(x => x.sectionN === c.sectionN);
+    sections.push({
+      sectionN: c.sectionN,
+      label: members.length > 1 ? c.sectionLabel : turnLabel(c.n, c.official),
+      firstCorner: c.n,
+      selected: c.sectionN === current.sectionN,
+    });
+  }
+  const members = all.filter(x => x.sectionN === current.sectionN);
+  return {
+    sections,
+    parts:
+      members.length > 1
+        ? members.map(m => ({
+            n: m.n,
+            label: turnLabel(m.n, m.official),
+            selected: m.n === current.n,
+          }))
+        : [],
+  };
 }
 
 export function buildCornerModel(input: {
@@ -322,12 +406,62 @@ export function buildCornerModel(input: {
       }`
     : null;
 
-  const zoomWindow: [number, number] = [
+  // The corner's own window (a part's, or the section's when it is one corner)
+  // is shaded and the charts run to its edges, once the laps are cut at the
+  // boundaries the map carries; otherwise the old entry-to-next-entry stretch.
+  const windows = ownWindow(map, sec.sectionN, corner, ref);
+  const own = windows?.own ?? null;
+  const baseWindow: [number, number] = [
     sec.apexM - ZOOM_BEFORE_M,
     sec.apexM + ZOOM_AFTER_M,
   ];
-  const view = cornerView(all, idx, zoomWindow, map.lengthM);
-  if (!view) return null;
+  const ownFrame = own ? inWindowFrame(own, baseWindow, map.lengthM) : null;
+  // The charts run from the section's start (where the delta is drawn from) to
+  // the corner's own end: the same extent the slice is cut to, so what the
+  // charts ask for is always in the file (tools/sessions/cornerSlices.mjs).
+  const zoomExtent =
+    windows && own
+      ? inWindowFrame(
+          {fromM: windows.section.fromM, toM: own.toM},
+          baseWindow,
+          map.lengthM,
+        )
+      : null;
+  const zoomWindow = zoomWindowFor(sec.apexM, zoomExtent);
+  const baseView = cornerView(all, idx, zoomWindow, map.lengthM);
+  if (!baseView) return null;
+  // The delta is drawn from where laps share speed: a section's start, which
+  // for a part is earlier than the part's own (mid-chicane, laps already
+  // differ). It cannot start before the drawn stretch.
+  const isPart = windows != null && windows.section.fromM !== own?.fromM;
+  const sectionFrame = windows
+    ? inWindowFrame(windows.section, baseWindow, map.lengthM)
+    : null;
+  const anchorM = sectionFrame
+    ? Math.max(sectionFrame.fromM, zoomWindow[0])
+    : baseView.stretch.fromM;
+  const view =
+    own && ownFrame
+      ? {
+          ...baseView,
+          stretch: ownFrame,
+          caption: windowCaption(
+            turnLabel(sec.n, sec.official),
+            own,
+            ownFrame,
+            baseView.neighbours,
+            zoomWindow,
+            windows && isPart
+              ? {
+                  label: `S${sec.sectionN}`,
+                  lapM: windows.section.fromM,
+                  drawn:
+                    sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
+                }
+              : null,
+          ),
+        }
+      : baseView;
   const mapView = cornerView(
     all,
     idx,
@@ -352,7 +486,7 @@ export function buildCornerModel(input: {
         brakePct: t.brakePct,
         throttlePct: t.throttlePct,
         // Zero at the turn's entry; the stretch is in the window's frame.
-        deltaS: deltaFromEntry(t, refTrace, view.stretch.fromM),
+        deltaS: deltaFromEntry(t, refTrace, anchorM),
         steeringPct: t.steeringPct,
         samples: t.samples,
         brakeAtM: f?.brakeAtM ?? null,
@@ -364,10 +498,13 @@ export function buildCornerModel(input: {
   });
 
   const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
+  const {sections, parts} = sectionChips(all, sec);
   return {
     corner,
     sectionN: sec.sectionN,
     corners: chips,
+    sections,
+    parts,
     title: `Turn ${turnNumber(corner, sec.official)}`,
     subtitle: [
       formatDistance(sec.apexM),
@@ -378,7 +515,14 @@ export function buildCornerModel(input: {
       .filter(Boolean)
       .join(' · '),
     mode,
-    explainer: cornerExplainer(sec, nextSec),
+    // The stored map gives every section a parts array, so "a part" is a
+    // section with more than one corner (hairpin #1781).
+    explainer: own
+      ? windowExplainer(
+          own,
+          all.filter(c => c.sectionN === sec.sectionN).length > 1,
+        )
+      : cornerExplainer(sec, nextSec),
     rows,
     strips,
     highlightLine,
@@ -386,6 +530,7 @@ export function buildCornerModel(input: {
     zoom: {
       windowM: zoomWindow,
       apexM: sec.apexM,
+      deltaFromM: anchorM,
       lines,
       band:
         band && mode !== 'individual'
