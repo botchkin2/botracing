@@ -17,6 +17,13 @@ export const CLASS_TITLE: Record<ClassKey, string> = {
   gt3: 'GT3',
   other: 'OTHER',
 };
+/** Class names in running text (the road summary), as the rest of the app writes them. */
+const CLASS_NAME: Record<ClassKey, string> = {
+  hypercar: 'Hypercar',
+  lmp2: 'LMP2',
+  gt3: 'GT3',
+  other: 'Other',
+};
 /** Short names for the class filter. */
 export const CLASS_SHORT: Record<ClassKey, string> = {
   hypercar: 'HY',
@@ -171,10 +178,10 @@ const distanceText = (n: RoadNeighbour): string =>
 /** "Ahead 1.5 s (120 m) GT3 · Behind 1.0 s (85 m) LMP2 · Faster class: HYPERCAR 2.4 s (310 m) behind". */
 export function roadSummaryText(s: RoadSummary): string {
   const one = (label: string, n: RoadNeighbour | null) =>
-    n ? [`${label} ${distanceText(n)} ${CLASS_TITLE[n.key]}`] : [];
+    n ? [`${label} ${distanceText(n)} ${CLASS_NAME[n.key]}`] : [];
   const faster = s.coming
     ? [
-        `Faster class: ${CLASS_TITLE[s.coming.key]} ${distanceText(
+        `Faster class: ${CLASS_NAME[s.coming.key]} ${distanceText(
           s.coming,
         )} behind`,
       ]

@@ -321,7 +321,7 @@ describe('field mode (practice and qualifying)', () => {
 
   it('says it in one line', () => {
     expect(roadSummaryText(roadSummary(cars, TRACK)!)).toBe(
-      'Ahead 2.2 s (120 m) GT3 · Behind 1.5 s (85 m) GT3 · Faster class: HYPERCAR 3.2 s (180 m) behind',
+      'Ahead 2.2 s (120 m) GT3 · Behind 1.5 s (85 m) GT3 · Faster class: Hypercar 3.2 s (180 m) behind',
     );
   });
 
