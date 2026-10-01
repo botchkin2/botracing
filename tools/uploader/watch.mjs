@@ -43,6 +43,7 @@ import {
   readSyncLine,
 } from './syncOutput.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
+import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,8 @@ const GAME_EXE = 'Le Mans Ultimate.exe';
 const LOCK_PIPE = String.raw`\\.\pipe\lap-uploader-watch`;
 const TICK_SEC = 30;
 const BEAT_MIN = 5;
+// A running sync rewrites the heartbeat at least this often.
+const KEEPALIVE_SEC = 60;
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
 const hostId = hostIdOf(hostname());
 const dash = process.argv.indexOf('--');
@@ -165,8 +168,7 @@ function runSync(onProgress, skipIds) {
       for (const line of lines) {
         log(`  sync | ${line}`);
         readSyncLine(result, line);
-        if (/^(to do \d+$|[0-9a-f]{16} )/.test(line))
-          onProgress(progressOf(result));
+        if (isProgressLine(line)) onProgress(progressOf(result));
       }
     };
     child.stdout.setEncoding('utf8').on('data', onData);
@@ -209,7 +211,9 @@ async function main() {
   let progress = null;
   log(`start ${hostId} ${ver}, telemetry ${telemetry}`);
 
-  const beat = async state => {
+  // force: write even when nothing changed, so lastSeenAt stays fresh through a
+  // long step that prints no progress (a surface fold, one big session).
+  const beat = async (state, force = false) => {
     const recs = recordings(watch.lastRunAtMs);
     let freeBytes = null;
     try {
@@ -236,7 +240,11 @@ async function main() {
       nowMs: Date.now(),
     });
     const key = beatKey(doc);
-    if (key === lastKey && Date.now() - lastBeatMs < BEAT_MIN * 60 * 1000)
+    if (
+      !force &&
+      key === lastKey &&
+      Date.now() - lastBeatMs < BEAT_MIN * 60 * 1000
+    )
       return;
     try {
       await writeBeat(doc);
@@ -269,16 +277,20 @@ async function main() {
         const startedMs = Date.now();
         const skippedIds = waitingIds(watch.retries, startedMs);
         await beat('syncing');
-        let beating = false;
-        const r = await runSync(p => {
-          progress = p;
-          // One write in flight at a time; the next block catches up.
-          if (beating) return;
-          beating = true;
-          beat('syncing')
-            .catch(error => log(`progress beat failed: ${String(error)}`))
-            .finally(() => (beating = false));
-        }, skippedIds);
+        // Beats while the sync runs: one per progress line, and every minute
+        // with or without one (a surface fold of a dozen tracks printed none
+        // for 15 minutes and the heartbeat went stale). They are stopped, and
+        // any write in flight awaited, before the state that follows is
+        // written, even if the sync throws (syncBeats.mjs).
+        const r = await runWithBeats(
+          {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
+          beatProgress =>
+            runSync(p => {
+              progress = p;
+              // One write in flight at a time; the next block catches up.
+              beatProgress();
+            }, skippedIds),
+        );
         progress = null;
         // A stopped sync never prints its closing "done N" line, but each
         // session's block is printed only once it is stored or has failed.

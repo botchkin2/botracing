@@ -74,6 +74,21 @@ describe('toUploader', () => {
     ).toBeNull();
   });
 
+  it('keeps the surface phase, and drops a finished fold like a finished resync', () => {
+    expect(
+      toUploader({id: 'rig', progress: {done: 7, total: 13, phase: 'surface'}})
+        .progress,
+    ).toEqual({done: 7, total: 13, phase: 'surface'});
+    expect(
+      toUploader({id: 'rig', progress: {done: 13, total: 13, phase: 'surface'}})
+        .progress,
+    ).toBeNull();
+    expect(
+      toUploader({id: 'rig', progress: {done: 7, total: 13, phase: 'other'}})
+        .progress,
+    ).toEqual({done: 7, total: 13});
+  });
+
   it('reads the retry time and the retrying state', () => {
     const u = toUploader({
       id: 'rig',

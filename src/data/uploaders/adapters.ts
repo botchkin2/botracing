@@ -20,8 +20,12 @@ export type Uploader = {
   lastUploadAt: number | null;
   lastSessionId: string | null;
   queue: number;
-  /** Sessions done of total during a resync (uploader heartbeat, #90); null otherwise. */
-  progress: {done: number; total: number} | null;
+  /**
+   * Sessions done of total during a resync (uploader heartbeat, #90); null
+   * otherwise. phase 'surface' is the track-surface fold after the sessions
+   * (done of total tracks); absent while sessions are being analysed.
+   */
+  progress: {done: number; total: number; phase?: 'surface'} | null;
   /** Epoch ms the earliest failed session is tried again; null with none. */
   retryAt: number | null;
   sessionsDone: number;
@@ -73,7 +77,10 @@ function toProgress(v: unknown): Uploader['progress'] {
   const done = num(p.done);
   const total = num(p.total);
   // A finished resync (done = total) is not in progress; drop a stale one.
-  return done != null && total != null && done < total ? {done, total} : null;
+  if (done == null || total == null || done >= total) return null;
+  return p.phase === 'surface'
+    ? {done, total, phase: 'surface'}
+    : {done, total};
 }
 
 export function toUploader(raw: unknown): Uploader {

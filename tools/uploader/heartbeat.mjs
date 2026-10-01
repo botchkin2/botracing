@@ -95,6 +95,7 @@ export function beatKey(doc) {
     doc.queue,
     doc.progress?.done,
     doc.progress?.total,
+    doc.progress?.phase,
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
