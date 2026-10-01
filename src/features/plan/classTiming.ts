@@ -1,4 +1,4 @@
-import {type PaceClass} from '@/src/analysis/classLaps';
+import {type PaceClass, type StartGap} from '@/src/analysis/classLaps';
 import {type SessionClassLaps} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
@@ -29,8 +29,8 @@ export type ClassSession = {
         p10S: number;
         p90S: number;
         laps: number;
-        /** Seconds this class's last car crossed the line before the player at the race start; races from CLASS_LAPS_VERSION 2. */
-        gapS?: number;
+        /** Seconds this class's first and last car crossed the line before the player at the race start; races from CLASS_LAPS_VERSION 2. */
+        gap?: StartGap;
       }
     >
   >;
@@ -54,7 +54,7 @@ export function classSessionOf(s: {
       p90S: stats.p90S,
       laps: stats.laps,
       ...(doc.startGapsS?.[key as PaceClass] != null && {
-        gapS: doc.startGapsS[key as PaceClass],
+        gap: doc.startGapsS[key as PaceClass],
       }),
     };
   }
@@ -160,8 +160,8 @@ type Pooled = {
   medianS: number;
   p10S: number;
   p90S: number;
-  /** Median over the used races that recorded the start; null when none did. */
-  gapS: number | null;
+  /** Median over the used races that recorded the start, leader and tail; null when none did. */
+  gap: StartGap | null;
   /** True when practice laps are in the pool because races alone were too few. */
   fromPractice: boolean;
   sessions: number;
@@ -185,12 +185,18 @@ function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
   const races = seen.filter(s => s.kind === 'race');
   const raceOnly = races.length >= MIN_RACE_SESSIONS;
   const used = raceOnly ? races : seen;
-  const gaps = used.flatMap(s => (s.gapS == null ? [] : [s.gapS]));
+  const gaps = used.flatMap(s => (s.gap == null ? [] : [s.gap]));
   return {
     medianS: median(used.map(s => s.medianS)),
     p10S: median(used.map(s => s.p10S)),
     p90S: median(used.map(s => s.p90S)),
-    gapS: gaps.length > 0 ? median(gaps) : null,
+    gap:
+      gaps.length > 0
+        ? {
+            firstS: median(gaps.map(g => g.firstS)),
+            lastS: median(gaps.map(g => g.lastS)),
+          }
+        : null,
     fromPractice: !raceOnly && used.some(s => s.kind === 'practice'),
     sessions: seen.length,
     races: used.filter(s => s.kind === 'race').length,
@@ -209,6 +215,8 @@ function fromText(p: Pooled): string {
   }`;
 }
 
+const LEVEL_START: StartGap = {firstS: 0, lastS: 0};
+
 /**
  * Where, in his laps, a car of lap time `lapS` first reaches him: it needs a
  * lap on him, less the `gapS` seconds it started up the road, at a gain of
@@ -226,28 +234,43 @@ const catchLaps = (lapS: number, myLapS: number): number =>
 
 /**
  * Passes of a class: the first at the catch with the grid gap, then one every
- * catchLaps; the band is the same count at its p10 and p90 lap. The band
- * widens with each pass for a real reason, the spread of the class's laps,
- * and needs no constant. `gapS` is 0 for a level start.
+ * catchLaps. The band runs from the class's p10 lap with its leader's head
+ * start to its p90 lap with its tail's (the class arrives as a train, and the
+ * leader gets there first); the centre is the median lap with the mean gap.
+ * The band widens with each pass for a real reason, the spread of the class's
+ * laps, and needs no constant. The gap is 0 for a level start.
  */
 export function passesOf(
   lap: {medianS: number; p10S: number; p90S: number},
   myLapS: number,
   raceLaps: number,
-  gapS = 0,
+  gap: StartGap = LEVEL_START,
 ): Pass[] {
   // k = 1 adds nothing: 0 * Infinity is NaN for a lap that is not faster.
-  const at = (lapS: number, k: number) =>
+  const at = (lapS: number, gapS: number, k: number) =>
     firstCatch(lapS, myLapS, gapS) +
     (k > 1 ? (k - 1) * catchLaps(lapS, myLapS) : 0);
+  const midS = (gap.firstS + gap.lastS) / 2;
   const out: Pass[] = [];
   for (let k = 1; k <= MAX_PASSES; k++) {
-    const lo = at(lap.p10S, k);
+    const lo = at(lap.p10S, gap.firstS, k);
     if (lo >= raceLaps) break;
-    out.push({centre: at(lap.medianS, k), lo, hi: at(lap.p90S, k)});
+    out.push({
+      centre: at(lap.medianS, midS, k),
+      lo,
+      hi: at(lap.p90S, gap.lastS, k),
+    });
   }
   return out;
 }
+
+/** "Grid gap 26-28 s": the class's tail to its leader. */
+const gapNote = (g: StartGap): string => {
+  const [tail, lead] = [Math.round(g.lastS), Math.round(g.firstS)];
+  return `Grid gap ${
+    tail === lead ? tail : `${tail}–${lead}`
+  } s, from the races' starts.`;
+};
 
 const rangeText = (lo: number, hi: number) =>
   Number.isFinite(hi)
@@ -278,10 +301,10 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
     }
     const gain = myLap - p.medianS;
     const every = catchLaps(p.medianS, myLap);
-    const gapS = p.gapS ?? 0;
+    const gap = p.gap ?? LEVEL_START;
     const band = {
-      lo: firstCatch(p.p10S, myLap, gapS),
-      hi: firstCatch(p.p90S, myLap, gapS),
+      lo: firstCatch(p.p10S, myLap, gap.firstS),
+      hi: firstCatch(p.p90S, myLap, gap.lastS),
     };
     faster.push({
       key,
@@ -290,12 +313,9 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
         lapText: formatLapTime(p.medianS),
         gainText: `${gain.toFixed(1)} s`,
         firstText: rangeText(band.lo, band.hi),
-        firstNote:
-          p.gapS == null
-            ? 'Assumes a level start.'
-            : `Grid gap ${p.gapS.toFixed(0)} s, from the races' starts.`,
+        firstNote: p.gap == null ? 'Assumes a level start.' : gapNote(p.gap),
         everyText: `~${Math.round(every)} laps`,
-        passes: raceLaps == null ? [] : passesOf(p, myLap, raceLaps, gapS),
+        passes: raceLaps == null ? [] : passesOf(p, myLap, raceLaps, gap),
       },
       text: fromText(p),
     });

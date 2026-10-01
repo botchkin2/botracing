@@ -120,24 +120,29 @@ describe('classTiming', () => {
     expect(est.firstNote).toBe('Assumes a level start.');
   });
 
-  it('takes the first catch from the median grid gap of the races that recorded it', () => {
-    const withGap = (gapS: number | null): ClassSession => {
+  it('takes the first catch band from the median leader and tail gaps of the races that recorded them', () => {
+    const withGap = (gap: {firstS: number; lastS: number} | null) => {
       const s = session('race', 98, 110);
-      if (gapS != null) s.byClass.hypercar!.gapS = gapS;
+      if (gap) s.byClass.hypercar!.gap = gap;
       return s;
     };
     const t = ready(
       classTiming({
-        sessions: [withGap(10), withGap(20), withGap(15), withGap(null)],
+        sessions: [
+          withGap({firstS: 20, lastS: 10}),
+          withGap({firstS: 24, lastS: 14}),
+          withGap({firstS: 16, lastS: 6}),
+          withGap(null),
+        ],
         mine,
         raceLaps: 60,
         stopsAfter: [],
       }),
     );
     const est = t.faster[0].estimate!;
-    // 15 s gap: p10 96 * 95 / (110 * 14) = 5.9 laps; p90 100 * 95 / (110 * 10) = 8.6.
-    expect(est.firstText).toBe('L7–L9');
-    expect(est.firstNote).toBe("Grid gap 15 s, from the races' starts.");
+    // Leader 20 s, p10 96 s: 96 * 90 / (110 * 14) = 5.6 laps; tail 10 s, p90 100 s: 100 * 100 / (110 * 10) = 9.1.
+    expect(est.firstText).toBe('L7–L10');
+    expect(est.firstNote).toBe("Grid gap 10–20 s, from the races' starts.");
   });
 
   it('keeps a class seen in fewer than 3 sessions as an empty row with no lane', () => {
@@ -209,15 +214,22 @@ describe('passesOf', () => {
   });
 
   it('starts at the catch with the grid gap, then goes on at one catch per pass', () => {
-    const p = passesOf(lap, 110, 60, 15);
+    const p = passesOf(lap, 110, 60, {firstS: 15, lastS: 15});
     // 98 * 95 / (110 * 12) = 7.05 laps, against 8.17 on a level start.
     expect(p[0].centre).toBeCloseTo(7.053, 3);
     expect(p[1].centre - p[0].centre).toBeCloseTo(98 / 12, 5);
-    expect(passesOf(lap, 110, 60, 0)[0].centre).toBeCloseTo(98 / 12, 5);
+    expect(passesOf(lap, 110, 60)[0].centre).toBeCloseTo(98 / 12, 5);
   });
 
   it('a gap longer than his lap puts the first catch at lap 0', () => {
-    expect(passesOf(lap, 110, 60, 200)[0].centre).toBe(0);
+    expect(passesOf(lap, 110, 60, {firstS: 200, lastS: 200})[0].centre).toBe(0);
+  });
+
+  it('runs the band from the leader (p10 lap) to the tail (p90 lap) and puts the centre between', () => {
+    const [first] = passesOf(lap, 110, 60, {firstS: 20, lastS: 10});
+    expect(first.lo).toBeCloseTo((96 * 90) / (110 * 14), 5);
+    expect(first.hi).toBeCloseTo((100 * 100) / (110 * 10), 5);
+    expect(first.centre).toBeCloseTo((98 * 95) / (110 * 12), 5);
   });
 
   it('stops when a band starts past the flag', () => {
@@ -252,9 +264,13 @@ describe('classSessionOf', () => {
 
   it('carries the grid gap of a class', () => {
     const s = classSessionOf({
-      classLaps: {kind: 'race', classes: {gt3: stats}, startGapsS: {gt3: 12.5}},
+      classLaps: {
+        kind: 'race',
+        classes: {gt3: stats},
+        startGapsS: {gt3: {firstS: 14, lastS: 12.5}},
+      },
     });
-    expect(s?.byClass.gt3?.gapS).toBe(12.5);
+    expect(s?.byClass.gt3?.gap).toEqual({firstS: 14, lastS: 12.5});
   });
 
   it('leaves out qualifying, no field and a field with no class pace', () => {

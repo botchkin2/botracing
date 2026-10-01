@@ -24,53 +24,90 @@ const stop = (
       : {changed: tyresChanged, wheels: [], entryPct: null, exitPct: null},
 });
 
-const lap = (lapIndex: number, pitStop: PitStop | null): Lap => ({
+const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...base,
   id: `l${lapIndex}`,
   lapIndex,
-  pitIn: pitStop != null,
-  pitStop,
+  timeS: 100,
+  stint: 1,
+  comparable: true,
+  pitIn: false,
+  pitOut: false,
+  partial: false,
+  pitStop: null,
+  ...over,
 });
 
-// Lap 1 is the first lap; the stops are on later laps.
-const race = (stops: (PitStop | null)[]) => ({
+// Four 100 s laps, an in-lap and an out-lap, then two more. Loss = in + out - 2 x 100.
+const race = (inS: number, outS: number, pitStop: PitStop | null) => ({
   sessionType: 'R' as const,
-  laps: [lap(1, null), ...stops.map((s, i) => lap(i + 2, s))],
+  laps: [
+    lap(1),
+    lap(2),
+    lap(3),
+    lap(4),
+    lap(5, {timeS: inS, pitIn: true, pitStop}),
+    lap(6, {timeS: outS, pitOut: true, stint: 2}),
+    lap(7, {stint: 2}),
+  ],
 });
 
 describe('pitLaneBase', () => {
-  it('is the median of lane time minus litres / 3.4 over stops with fuel and no tyres', () => {
-    // 51 - 34/3.4 = 41; 60 - 51/3.4 = 45.
+  it('is the median of pit loss minus litres / 3.4 over stops with fuel and no tyres', () => {
+    // Loss 135 + 125 - 200 = 60; 60 - 34 / 3.4 = 50. Loss 126 + 125 - 200 = 51; 51 - 51 / 3.4 = 36.
     const b = pitLaneBase(
-      [race([stop(51, 34, false), stop(60, 51, false)])],
+      [
+        race(135, 125, stop(80, 34, false)),
+        race(126, 125, stop(80, 51, false)),
+      ],
       'GT3',
     );
     expect(b).toEqual({baseS: 43, stops: 2});
   });
 
-  it('leaves out a tyre change, an unknown tyre state, no fuel and no lane time', () => {
+  it('takes the loss, not the time in the lane', () => {
     const b = pitLaneBase(
       [
-        race([
-          stop(51, 34, false),
-          stop(60, 51, false),
-          stop(70, 34, true),
-          stop(70, 34, null),
-          stop(30, 0, false),
-          stop(null, 34, false),
-        ]),
+        race(135, 125, stop(999, 34, false)),
+        race(135, 125, stop(1, 34, false)),
+      ],
+      'GT3',
+    );
+    expect(b?.baseS).toBe(50);
+  });
+
+  it('leaves out a tyre change, an unknown tyre state, no fuel and no out-lap', () => {
+    const fuelled = stop(80, 34, false);
+    const noOut = race(135, 125, fuelled);
+    noOut.laps.splice(5, 2);
+    const b = pitLaneBase(
+      [
+        race(135, 125, fuelled),
+        race(135, 125, fuelled),
+        race(135, 125, stop(80, 34, true)),
+        race(135, 125, stop(80, 34, null)),
+        race(135, 125, stop(30, 0, false)),
+        noOut,
       ],
       'GT3',
     );
     expect(b?.stops).toBe(2);
   });
 
+  it('leaves out a stop whose stint has under 3 green laps', () => {
+    const short = race(135, 125, stop(80, 34, false));
+    short.laps.splice(0, 3);
+    expect(pitLaneBase([short, short], 'GT3')).toBeNull();
+  });
+
   it('is null under two stops, outside a race, and where the refuel rate is not measured', () => {
     expect(MIN_BASE_STOPS).toBe(2);
-    expect(pitLaneBase([race([stop(51, 34, false)])], 'GT3')).toBeNull();
-    const two = race([stop(51, 34, false), stop(60, 51, false)]);
-    expect(pitLaneBase([{sessionType: 'P', laps: two.laps}], 'GT3')).toBeNull();
-    expect(pitLaneBase([two], 'Hypercar')).toBeNull();
+    const one = race(135, 125, stop(80, 34, false));
+    expect(pitLaneBase([one], 'GT3')).toBeNull();
+    expect(pitLaneBase([one, one], 'Hypercar')).toBeNull();
+    expect(
+      pitLaneBase([{sessionType: 'P', laps: one.laps}, one], 'GT3'),
+    ).toBeNull();
   });
 });
 

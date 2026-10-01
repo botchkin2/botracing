@@ -101,7 +101,7 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
             pit.stops === 1 ? 'stop' : 'stops'
           } × (${Math.round(
             pit.perStopS - pit.refuelL / REFUEL_L_PER_S,
-          )} s lane + ${pit.refuelL.toFixed(
+          )} s loss + ${pit.refuelL.toFixed(
             0,
           )} L ÷ ${REFUEL_L_PER_S} L/s) = ${Math.round(pit.totalS)} s; ${
             pit.lapsWithout

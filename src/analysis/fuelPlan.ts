@@ -171,9 +171,9 @@ export interface LoadToFinish {
   };
 }
 
-/** What a stop costs in the pit lane: a base per track and car, plus refuelling by the litre. */
+/** What a stop costs the race: a pit-loss base per track and car, plus refuelling by the litre. */
 export interface PitModel {
-  /** Seconds in the pit lane with nothing added and no tyres. */
+  /** Seconds a stop costs the race with nothing added and no tyres: the pit loss, not the time in the lane. */
   baseS: number;
   refuelLPerS: number;
 }

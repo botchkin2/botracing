@@ -55,7 +55,7 @@ describe('buildPlanCards', () => {
     );
     expect(withPit.race.laps).toBe(70);
     expect(withPit.race.working).toBe(
-      'At the median lap, 1:41.200: (7,200 s - 129 s in the pits) ÷ 101.2 s = 69.9, so 70 laps. The flag can fall a lap later than your own pace says: 71 laps. Pit time: 2 stops × (45 s lane + 67 L ÷ 3.4 L/s) = 129 s; 72 laps without it.',
+      'At the median lap, 1:41.200: (7,200 s - 129 s in the pits) ÷ 101.2 s = 69.9, so 70 laps. The flag can fall a lap later than your own pace says: 71 laps. Pit time: 2 stops × (45 s loss + 67 L ÷ 3.4 L/s) = 129 s; 72 laps without it.',
     );
   });
 
