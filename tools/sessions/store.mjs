@@ -128,10 +128,39 @@ export async function getTrack(trackId) {
 // A track's corner boundaries (tools/sessions/layoutBoundaries.mjs), packed,
 // or null. A doc of its own: it grows with every session of the layout, and
 // the app reads only the small summary on the track doc.
-export async function getBoundaries(trackId) {
-  const {db} = connect();
+export async function getBoundaries(trackId, db = connect().db) {
   const doc = await db.collection('trackBoundaries').doc(trackId).get();
   return doc.exists ? doc.data() : null;
+}
+
+// The layout's corner boundaries, when a session changed them: the full state
+// in its own doc, and the summary the app draws from on the track doc.
+// `boundaries` is {trackId, state, windows}; `writer` anything with
+// set(ref, data, options), a Firestore bulkWriter in the uploader.
+export function writeBoundaries(db, writer, {trackId, state, windows}) {
+  writer.set(db.collection('trackBoundaries').doc(trackId), packState(state));
+  writer.set(
+    db.collection('tracks').doc(trackId),
+    {
+      id: trackId,
+      boundaries: {
+        v: state.v,
+        rev: state.rev,
+        startsM: state.startsM,
+        marginM: state.marginM,
+        windows,
+      },
+    },
+    {merge: true},
+  );
+}
+
+// The same writes on their own, for the fold pass that runs before any
+// session is uploaded.
+export async function putBoundaries(boundaries, db = connect().db) {
+  const writer = db.bulkWriter();
+  writeBoundaries(db, writer, boundaries);
+  await writer.close();
 }
 
 // Which online event each session was, without re-uploading anything else.
@@ -294,26 +323,8 @@ export async function upload(out, {log = () => {}} = {}) {
     });
   }
 
-  // The layout's corner boundaries, when this session changed them: the full
-  // state in its own doc, and the summary the app draws from on the track doc.
-  if (out.boundaries) {
-    const {trackId, state, windows} = out.boundaries;
-    writer.set(db.collection('trackBoundaries').doc(trackId), packState(state));
-    writer.set(
-      db.collection('tracks').doc(trackId),
-      {
-        id: trackId,
-        boundaries: {
-          v: state.v,
-          rev: state.rev,
-          startsM: state.startsM,
-          marginM: state.marginM,
-          windows,
-        },
-      },
-      {merge: true},
-    );
-  }
+  // The layout's corner boundaries, when this session changed them.
+  if (out.boundaries) writeBoundaries(db, writer, out.boundaries);
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));

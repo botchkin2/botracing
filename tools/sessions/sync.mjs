@@ -50,7 +50,8 @@ import {
 } from './cornerSlices.mjs';
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {fieldFor} from './field.mjs';
-import {packState, unpackState} from './layoutBoundaries.mjs';
+import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 
 function arg(name, fallback) {
@@ -316,19 +317,29 @@ function eventsOf(s, eventWindows) {
   };
 }
 
-function build(s, trackMap, boundaries, eventWindows) {
+function build(
+  s,
+  trackMap,
+  boundaries,
+  eventWindows,
+  {fresh = [], foldOnly = false} = {},
+) {
   const dir = resolve(work, 'archive', s.id);
   mkdirSync(dir, {recursive: true});
   const first = s.files[0].info;
   const sim = first.sim;
   const files = [];
   const recs = [];
+  const archived = [];
   const recordings = [];
   const joined = eventsOf(s, eventWindows);
   for (const [k, f] of s.files.entries()) {
     const samples = resolve(dir, `${f.id}.samples.parquet`);
     const events = resolve(dir, `${f.id}.events.parquet`);
-    adapter.writeArchive(f.path, f.info, samples, events);
+    // An archive the fold pass of this very run just wrote is not written again.
+    if (!fresh.includes(samples))
+      adapter.writeArchive(f.path, f.info, samples, events);
+    archived.push(samples);
     const prefix = `archive/${sim}/${s.id}/${f.id}`;
     files.push({local: samples, dest: `${prefix}/samples.parquet`});
     files.push({local: events, dest: `${prefix}/events.parquet`});
@@ -350,7 +361,13 @@ function build(s, trackMap, boundaries, eventWindows) {
     });
   }
 
-  const a = analyzeSession(recs, {trackMap, boundaries, sessionId: s.id});
+  const a = analyzeSession(recs, {
+    trackMap,
+    boundaries,
+    sessionId: s.id,
+    foldOnly,
+  });
+  if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
   const trackId = slugId(sim, first.layout);
   // A new corner map is stored as the track's own doc, where custom sectors
@@ -599,6 +616,7 @@ function build(s, trackMap, boundaries, eventWindows) {
             trackId,
             state: a.boundaries.state,
             windows: a.boundaries.windows,
+            moved: a.boundaries.moved,
           }
         : null,
     boundariesRev: a.boundaries ? a.boundaries.state.rev : null,
@@ -694,7 +712,7 @@ async function main() {
   // is re-analysed, even though nothing about its files changed.
   const staleRev = async s => {
     const rev = (await boundariesFor(trackOf(s), store))?.rev;
-    return rev != null && (state.revs[s.id] ?? 0) < rev;
+    return staleRev(state.revs[s.id], rev);
   };
   const stale = new Set();
   if (!force && !local) {
@@ -720,7 +738,47 @@ async function main() {
   }
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
-  const first = await runPool(todo, store, state, eventWindows);
+  // Fold first, then cut: every session of a track with a map has its onsets
+  // folded into the layout's boundaries before any is analysed, so each is cut
+  // once, at the boundaries they settle on. Sessions already counted (a resync
+  // of one, a session folded by an earlier run) are skipped; a track without a
+  // map yet is built by its first session in the main pass, the rest settle.
+  const needFold = [];
+  for (const s of todo) {
+    const trackId = trackOf(s);
+    if (!(await trackMapFor(trackId, store))) continue;
+    const kept = await boundariesFor(trackId, store);
+    if (kept?.sessions?.[s.id]) continue;
+    needFold.push(s);
+  }
+  let fresh = [];
+  let foldCount = 0;
+  if (needFold.length > 1) {
+    log(`${needFold.length} session(s) folded into corner boundaries first`);
+    // The watcher's total grows by what is folded first; each fold prints a
+    // session line like the pass after it.
+    log(`to do ${todo.length + needFold.length}`);
+    const folded = await runPool([...needFold], store, state, eventWindows, {
+      mode: 'fold',
+    });
+    fresh = folded.archived;
+    foldCount = folded.done + folded.failed;
+    // What the fold pass settled on is stored before any session is cut at it.
+    if (!local && folded.done > 0) {
+      for (const trackId of new Set(needFold.map(trackOf))) {
+        const kept = await boundariesFor(trackId, store);
+        const map = await trackMapFor(trackId, store);
+        if (kept && map) {
+          await store.putBoundaries({
+            trackId,
+            state: kept,
+            windows: windowsOf(kept, map.corners, map.lengthM),
+          });
+        }
+      }
+    }
+  }
+  const first = await runPool(todo, store, state, eventWindows, {fresh});
   // Sessions analysed before a later one moved their layout's boundaries were
   // cut at the old ones: once more, now that the boundaries have settled (a
   // session already counted in them folds in nothing new, so this ends).
@@ -736,7 +794,7 @@ async function main() {
   if (redo.length) {
     log(`${redo.length} session(s) cut at boundaries that moved: again`);
     // The watcher's total grows by what is redone; its progress goes on.
-    log(`to do ${first.done + first.failed + redo.length}`);
+    log(`to do ${foldCount + first.done + first.failed + redo.length}`);
     const again = await runPool(redo, store, state, eventWindows);
     done += again.done;
     failed += again.failed;
@@ -771,7 +829,15 @@ const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
 // Hand sessions to workers in order. A track without a corner map yet takes
 // one session at a time, so the first session there builds the map and the
 // rest use it, as they would one by one.
-async function runPool(todo, store, state, eventWindows) {
+async function runPool(
+  todo,
+  store,
+  state,
+  eventWindows,
+  {mode = 'full', fresh = []} = {},
+) {
+  const folding = mode === 'fold';
+  const archived = [];
   let done = 0;
   let failed = 0;
   const tracks = new Set();
@@ -800,7 +866,15 @@ async function runPool(todo, store, state, eventWindows) {
       // layout's boundaries and is cut at the result, so two at once would
       // each fold into the same stored state and lose one of them.
       const boundaries = await boundariesFor(trackId, store);
-      const r = await ask(worker, {s, trackMap, boundaries, eventWindows});
+      const r = await ask(worker, {
+        op: mode,
+        s,
+        trackMap,
+        boundaries,
+        eventWindows,
+        fresh,
+      });
+      if (r.archived) archived.push(...r.archived);
       if (r.track) keepTrackMap(r.track);
       if (r.boundaries) keepBoundaries(trackId, r.boundaries.state);
       building.delete(trackId);
@@ -812,7 +886,9 @@ async function runPool(todo, store, state, eventWindows) {
         log(`  corners before: ${mapSummary(replacedMaps.get(trackId))}`);
         log(`  corners after:  ${mapSummary(r.track)}`);
       }
-      if (r.ok) {
+      if (r.ok && folding) {
+        done++;
+      } else if (r.ok) {
         done++;
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
@@ -837,7 +913,7 @@ async function runPool(todo, store, state, eventWindows) {
   // Every worker died: what is left was not attempted, and is not unchanged.
   if (todo.length)
     log(`${todo.length} session(s) not attempted: no workers left`);
-  return {done, failed: failed + todo.length, tracks, processed};
+  return {done, failed: failed + todo.length, tracks, processed, archived};
 }
 
 function ask(worker, message) {
@@ -872,9 +948,10 @@ async function processSession(
   eventWindows,
   store,
   lines,
+  fresh = [],
 ) {
   lines.push(`${s.id} ${describeSession(s)}`);
-  const out = build(s, trackMap, boundaries, eventWindows);
+  const out = build(s, trackMap, boundaries, eventWindows, {fresh});
   const trackId = trackOf(s);
   if (out.track) {
     lines.push(
@@ -888,7 +965,9 @@ async function processSession(
   }
   if (out.boundaries) {
     lines.push(
-      `  corner boundaries for ${trackId}: rev ${out.boundaries.state.rev}, ${out.boundaries.windows.length} windows`,
+      `  corner boundaries for ${trackId}: rev ${out.boundaries.state.rev}, ${
+        out.boundaries.windows.length
+      } windows${out.boundaries.moved ? ' (moved)' : ''}`,
     );
   }
   if (out.session.series)
@@ -918,9 +997,27 @@ async function processSession(
 
 async function worker() {
   const store = local ? null : await import('./store.mjs');
-  parentPort.on('message', async ({s, trackMap, boundaries, eventWindows}) => {
+  parentPort.on('message', async message => {
+    const {op, s, trackMap, boundaries, eventWindows, fresh} = message;
     const lines = [];
     try {
+      // The fold pass: this session's onsets into the layout's boundaries,
+      // nothing analysed past them, nothing uploaded.
+      if (op === 'fold') {
+        lines.push(`${s.id} fold: ${describeSession(s)}`);
+        const {a, archived} = build(s, trackMap, boundaries, eventWindows, {
+          foldOnly: true,
+        });
+        parentPort.postMessage({
+          ok: true,
+          lines,
+          boundaries: a.boundaries?.changed
+            ? {trackId: trackOf(s), ...a.boundaries}
+            : null,
+          archived,
+        });
+        return;
+      }
       const done = await processSession(
         s,
         trackMap,
@@ -928,6 +1025,7 @@ async function worker() {
         eventWindows,
         store,
         lines,
+        fresh,
       );
       parentPort.postMessage({ok: true, lines, ...done});
     } catch (error) {

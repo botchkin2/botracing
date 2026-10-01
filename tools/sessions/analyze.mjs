@@ -722,7 +722,7 @@ function startsInPits(rec) {
 // them on this session. The map used is returned, so the caller can keep it.
 export function analyzeSession(
   recs,
-  {trackMap = null, boundaries = null, sessionId = ''} = {},
+  {trackMap = null, boundaries = null, sessionId = '', foldOnly = false} = {},
 ) {
   const laps = [];
   // A stint starts with a new recording or with the lap that leaves the pits,
@@ -868,6 +868,21 @@ export function analyzeSession(
       stored: trackMapSource === 'session' ? null : boundaries,
       sessionId,
     });
+    // Only the layout's boundaries wanted (sync's fold pass, before any
+    // session is cut at them): nothing past this point is needed.
+    if (foldOnly) {
+      return {
+        boundaries:
+          trackMapSource === 'session'
+            ? null
+            : {
+                state: layout.state,
+                windows: layout.windows,
+                moved: layout.moved,
+                changed: layout.changed,
+              },
+      };
+    }
     const pitsOf = recs.map(rec => pitIntervals(rec.events.in_pits));
     for (const lap of fitting) {
       const facts = cornerFacts({

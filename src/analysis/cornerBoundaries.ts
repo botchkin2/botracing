@@ -77,6 +77,7 @@ export const MAX_LOOK_BACK_M = 400;
 const LOOK_BACK_M = 250;
 /** A section counts as braked when at least this share of laps brake for it. */
 const BRAKED_SHARE = 0.5;
+const DEFAULT_SPEED_KMH = 180;
 
 /** A section of the track map, as `findTrackSections` gives it. */
 export interface MapSection {
@@ -232,11 +233,58 @@ export function onsetsOfLaps(
   };
 }
 
-/** Onsets of one section, binned: `counts[i]` laps began in bin i, which starts at `binFromM + i * ONSET_BIN_M`. */
+/**
+ * One session's laps measured for a section: the brake onset and the lift
+ * onset of every lap (null where there was none), how many laps there were and
+ * how many braked for it. Both kinds are kept so the layout can decide which
+ * one the section is by the majority of every lap pooled, and change its mind
+ * (`foldBoundaries`).
+ */
+export interface SectionOnsets {
+  laps: number;
+  braked: number;
+  brakeM: (number | null)[];
+  liftM: (number | null)[];
+  /**
+   * The median speed of these laps at the section's map entry, km/h: what the
+   * margin in seconds is turned into metres with. Part of the pool, not read
+   * from whichever session folds last, so the same pools always give the same
+   * boundaries.
+   */
+  speedKmh: number | null;
+}
+
+export function lapOnsets(
+  laps: PedalTrace[],
+  section: MapSection,
+  prevExitM: number,
+): SectionOnsets {
+  const brake = laps.map(l => onsetOf(l, section, prevExitM, 'brake'));
+  const lift = laps.map(l => onsetOf(l, section, prevExitM, 'lift'));
+  const speeds = laps
+    .map(l => {
+      const i = l.distM.findIndex(d => d >= section.entryM);
+      return i >= 0 ? l.speedKmh?.[i] : undefined;
+    })
+    .filter((v): v is number => v != null && Number.isFinite(v))
+    .sort((a, b) => a - b);
+  return {
+    laps: laps.length,
+    braked: brake.filter(o => o.atM != null || o.beyondLookBack).length,
+    brakeM: brake.map(o => o.atM),
+    liftM: lift.map(o => o.atM),
+    speedKmh: speeds.length ? speeds[speeds.length >> 1] : null,
+  };
+}
+
+/** Onsets of one section, binned: `brake[i]` laps began braking in bin i, which starts at `binFromM + i * ONSET_BIN_M`; `lift` the same for lifts. */
 export interface OnsetPool {
-  kind: OnsetKind;
+  laps: number;
+  braked: number;
+  speedKmh: number | null;
   binFromM: number;
-  counts: number[];
+  brake: number[];
+  lift: number[];
 }
 
 const binFrom = (section: MapSection, prevExitM: number): number => {
@@ -248,7 +296,7 @@ const binFrom = (section: MapSection, prevExitM: number): number => {
 /** The pools of one session: per section, its laps' onsets binned. */
 export function onsetPools(
   sections: MapSection[],
-  onsets: {kind: OnsetKind; onsetsM: (number | null)[]}[],
+  onsets: SectionOnsets[],
 ): OnsetPool[] {
   return sections.map((s, k) => {
     const first = s.parts?.[0] ?? s;
@@ -257,13 +305,24 @@ export function onsetPools(
       1,
       Math.ceil((first.exitM - binFromM) / ONSET_BIN_M) + 1,
     );
-    const counts = new Array<number>(size).fill(0);
-    for (const m of onsets[k]?.onsetsM ?? []) {
-      if (m == null || !Number.isFinite(m)) continue;
-      const i = Math.floor((m - binFromM) / ONSET_BIN_M);
-      counts[Math.min(size - 1, Math.max(0, i))]++;
-    }
-    return {kind: onsets[k]?.kind ?? 'brake', binFromM, counts};
+    const bin = (ms: (number | null)[]) => {
+      const counts = new Array<number>(size).fill(0);
+      for (const m of ms) {
+        if (m == null || !Number.isFinite(m)) continue;
+        const i = Math.floor((m - binFromM) / ONSET_BIN_M);
+        counts[Math.min(size - 1, Math.max(0, i))]++;
+      }
+      return counts;
+    };
+    const o = onsets[k];
+    return {
+      laps: o?.laps ?? 0,
+      braked: o?.braked ?? 0,
+      speedKmh: o?.speedKmh ?? null,
+      binFromM,
+      brake: bin(o?.brakeM ?? []),
+      lift: bin(o?.liftM ?? []),
+    };
   });
 }
 
@@ -277,7 +336,7 @@ export function onsetPools(
 export interface Boundaries {
   v: number;
   rev: number;
-  /** Per section, what its onsets are: decided by the first session, kept after. */
+  /** Per section, what its onsets are: brake where most pooled laps brake for it, else lift; decided again at every fold. */
   kinds: OnsetKind[];
   sessions: Record<string, OnsetPool[]>;
   /** Per section, the reference onset the start rests on; null while provisional. */
@@ -288,31 +347,43 @@ export interface Boundaries {
   marginM: number[];
 }
 
-// The pooled laps of one section across sessions.
+// The pooled laps of one section across sessions: how many, how many braked,
+// from how many sessions, and the onsets of `kind` binned.
 function pooled(
   sessions: Record<string, OnsetPool[]>,
   k: number,
-): {laps: number; sessions: number; binFromM: number; counts: number[]} {
+  kind: OnsetKind,
+): {
+  laps: number;
+  braked: number;
+  onsets: number;
+  sessions: number;
+  binFromM: number;
+  counts: number[];
+} {
   let counts: number[] = [];
   let binFromM = 0;
   let laps = 0;
+  let braked = 0;
+  let onsets = 0;
   let n = 0;
   for (const pools of Object.values(sessions)) {
     const p = pools[k];
-    if (!p) continue;
-    const total = p.counts.reduce((a, b) => a + b, 0);
-    if (total === 0) continue;
+    if (!p || p.laps === 0) continue;
+    const mine = kind === 'brake' ? p.brake : p.lift;
     if (counts.length === 0) {
       binFromM = p.binFromM;
-      counts = new Array<number>(p.counts.length).fill(0);
+      counts = new Array<number>(mine.length).fill(0);
     }
-    p.counts.forEach((c, i) => {
+    mine.forEach((c, i) => {
       if (i < counts.length) counts[i] += c;
     });
-    laps += total;
+    laps += p.laps;
+    braked += p.braked;
+    onsets += mine.reduce((a, b) => a + b, 0);
     n++;
   }
-  return {laps, sessions: n, binFromM, counts};
+  return {laps, braked, onsets, sessions: n, binFromM, counts};
 }
 
 // The lower edge of the bin that holds the q-th share of the pooled laps.
@@ -335,10 +406,10 @@ function quantileM(
 function boundaryStarts(input: {
   sections: MapSection[];
   earliestOnsetM: (number | null)[];
-  speedKmhAt: (m: number) => number;
+  speedKmh: number[];
   marginS: number;
 }): {startsM: number[]; marginM: number[]} {
-  const {sections, earliestOnsetM, speedKmhAt, marginS} = input;
+  const {sections, earliestOnsetM, speedKmh, marginS} = input;
   const startsM: number[] = [];
   const marginM: number[] = [];
   sections.forEach((s, k) => {
@@ -348,7 +419,7 @@ function boundaryStarts(input: {
     // the map found from the track's curvature).
     const seen = earliestOnsetM[k];
     const reference = seen == null ? s.entryM : Math.min(s.entryM, seen);
-    const margin = (speedKmhAt(reference) / 3.6) * marginS;
+    const margin = (speedKmh[k] / 3.6) * marginS;
     const floor = k > 0 ? sections[k - 1].exitM : 0;
     const start = Math.max(floor, reference - margin, startsM[k - 1] ?? 0);
     startsM.push(Math.min(start, s.turnInM));
@@ -373,13 +444,12 @@ export function foldBoundaries(input: {
   stored: Boundaries | null;
   sessionId: string;
   pools: OnsetPool[];
-  speedKmhAt: (m: number) => number;
   marginS?: number;
   quantile?: number;
   minLaps?: number;
   minSessions?: number;
 }): {boundaries: Boundaries; moved: boolean; changed: boolean} {
-  const {sections, stored, sessionId, pools, speedKmhAt} = input;
+  const {sections, stored, sessionId, pools} = input;
   const marginS = input.marginS ?? BOUNDARY_MARGIN_S;
   const quantile = input.quantile ?? EARLIEST_QUANTILE;
   const minLaps = input.minLaps ?? MIN_POOL_LAPS;
@@ -389,29 +459,49 @@ export function foldBoundaries(input: {
     stored.v === CORNER_BOUNDARIES_VERSION &&
     stored.startsM.length === sections.length;
   const sessions = {...(usable ? stored.sessions : {}), [sessionId]: pools};
-  const earliestOnsetM = sections.map((_, k) => {
-    const p = pooled(sessions, k);
-    if (p.laps < minLaps || p.sessions < minSessions) return null;
-    return quantileM(p.binFromM, p.counts, p.laps, quantile);
+  // What each section's onsets are, from every lap pooled: brake where most
+  // brake for it, else lift. A flip moves the boundary and what `onsetM` means
+  // on every lap, so it is a move of the windows (the rev goes up).
+  const kinds: OnsetKind[] = sections.map((_, k) => {
+    const all = pooled(sessions, k, 'brake');
+    if (all.laps === 0) return usable ? stored.kinds[k] : 'brake';
+    return all.braked / all.laps >= BRAKED_SHARE ? 'brake' : 'lift';
   });
-  const cut = boundaryStarts({sections, earliestOnsetM, speedKmhAt, marginS});
+  const earliestOnsetM = sections.map((_, k) => {
+    const p = pooled(sessions, k, kinds[k]);
+    if (p.onsets < minLaps || p.sessions < minSessions) return null;
+    return quantileM(p.binFromM, p.counts, p.onsets, quantile);
+  });
+  // The speed the margin is turned into metres at: the median of the sessions'
+  // own medians at the section's entry (180 km/h where none was measured).
+  const speedKmh = sections.map((_, k) => {
+    const v = Object.values(sessions)
+      .map(p => p[k]?.speedKmh)
+      .filter((x): x is number => x != null)
+      .sort((a, b) => a - b);
+    return v.length ? v[v.length >> 1] : DEFAULT_SPEED_KMH;
+  });
+  const cut = boundaryStarts({sections, earliestOnsetM, speedKmh, marginS});
   if (!usable) {
     const boundaries: Boundaries = {
       v: CORNER_BOUNDARIES_VERSION,
       rev: (stored?.rev ?? 0) + 1,
-      kinds: pools.map(p => p.kind),
+      kinds,
       sessions,
       earliestOnsetM,
       ...cut,
     };
     return {boundaries, moved: false, changed: true};
   }
-  const moved = cut.startsM.some(
-    (m, k) => Math.abs(m - stored.startsM[k]) > stored.marginM[k],
-  );
+  const flipped = kinds.some((kind, k) => kind !== stored.kinds[k]);
+  const moved =
+    flipped ||
+    cut.startsM.some(
+      (m, k) => Math.abs(m - stored.startsM[k]) > stored.marginM[k],
+    );
   const boundaries: Boundaries = moved
-    ? {...stored, rev: stored.rev + 1, sessions, earliestOnsetM, ...cut}
-    : {...stored, sessions, earliestOnsetM};
+    ? {...stored, rev: stored.rev + 1, kinds, sessions, earliestOnsetM, ...cut}
+    : {...stored, kinds, sessions, earliestOnsetM};
   const same =
     JSON.stringify(stored.sessions[sessionId]) === JSON.stringify(pools);
   const sameEarliest = earliestOnsetM.every(
@@ -469,7 +559,13 @@ export function cornerBoundaries(input: {
 }): CornerWindow[] {
   const pools = onsetPools(
     input.sections,
-    input.onsetsM.map(onsetsM => ({kind: 'brake' as const, onsetsM})),
+    input.onsetsM.map((onsetsM, k) => ({
+      laps: onsetsM.length,
+      braked: onsetsM.filter(m => m != null).length,
+      brakeM: onsetsM,
+      liftM: [],
+      speedKmh: input.speedKmhAt(input.sections[k].entryM),
+    })),
   );
   const {boundaries} = foldBoundaries({
     ...input,

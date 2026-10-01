@@ -10,6 +10,7 @@
 import {
   CORNER_BOUNDARIES_VERSION,
   foldBoundaries,
+  lapOnsets,
   onsetPools,
   onsetsOfLaps,
   windowsOf,
@@ -30,11 +31,6 @@ function pedalTrace(lap, lengthM) {
     speedKmh: Array.from(lap.grid.speed),
   };
 }
-
-const median = values => {
-  const v = values.filter(Number.isFinite).sort((a, b) => a - b);
-  return v.length ? v[v.length >> 1] : 0;
-};
 
 // Which laps measure where laps agree: comparable, green and clean.
 const measures = lap =>
@@ -74,27 +70,21 @@ export function sessionBoundaries({
   const old = stored && !usable ? {...stored, v: 0} : stored;
   const traces = new Map(laps.map(l => [l, pedalTrace(l, lengthM)]));
   const pooled = laps.filter(measures);
-  const kinds = usable?.kinds ?? null;
   const prevExit = k => (k > 0 ? sections[k - 1].exitM : 0);
-  const decided = sections.map((s, k) =>
-    onsetsOfLaps(
+  // Both kinds of onset for every pooled lap: the layout decides which one a
+  // section is by the majority of every lap it has seen (foldBoundaries).
+  const measured = sections.map((s, k) =>
+    lapOnsets(
       pooled.map(l => traces.get(l)),
       s,
       prevExit(k),
-      kinds?.[k],
     ),
   );
-  const speed = Array.from({length: Math.ceil(lengthM / GRID_M) + 1}, (_, g) =>
-    median(pooled.map(l => l.grid.speed[g])),
-  );
-  const speedKmhAt = m =>
-    speed[Math.min(speed.length - 1, Math.max(0, Math.round(m / GRID_M)))];
   const fold = foldBoundaries({
     sections,
     stored: usable ?? old ?? null,
     sessionId,
-    pools: onsetPools(sections, decided),
-    speedKmhAt,
+    pools: onsetPools(sections, measured),
     ...opts,
   });
   const state = {...fold.boundaries, mapKey: key};
@@ -122,15 +112,24 @@ export function sessionBoundaries({
 // are mostly empty bins, so each pool keeps only the bins that hold laps
 // ({"12": 3} is three laps in bin 12), by session id.
 export function packState(state) {
+  const sparse = counts => {
+    const nz = {};
+    counts.forEach((c, i) => {
+      if (c > 0) nz[i] = c;
+    });
+    return nz;
+  };
   const sessions = {};
   for (const [id, pools] of Object.entries(state.sessions)) {
-    sessions[id] = pools.map(p => {
-      const nz = {};
-      p.counts.forEach((c, i) => {
-        if (c > 0) nz[i] = c;
-      });
-      return {kind: p.kind, binFromM: p.binFromM, size: p.counts.length, nz};
-    });
+    sessions[id] = pools.map(p => ({
+      laps: p.laps,
+      braked: p.braked,
+      speedKmh: p.speedKmh,
+      binFromM: p.binFromM,
+      size: p.brake.length,
+      brake: sparse(p.brake),
+      lift: sparse(p.lift),
+    }));
   }
   return {...state, sessions};
 }
@@ -138,13 +137,29 @@ export function packState(state) {
 /** The inverse of `packState`; null for nothing stored. */
 export function unpackState(doc) {
   if (!doc) return null;
+  const dense = (nz, size) => {
+    const counts = new Array(size).fill(0);
+    for (const [i, c] of Object.entries(nz ?? {})) counts[Number(i)] = c;
+    return counts;
+  };
   const sessions = {};
   for (const [id, pools] of Object.entries(doc.sessions ?? {})) {
-    sessions[id] = pools.map(p => {
-      const counts = new Array(p.size).fill(0);
-      for (const [i, c] of Object.entries(p.nz ?? {})) counts[Number(i)] = c;
-      return {kind: p.kind, binFromM: p.binFromM, counts};
-    });
+    sessions[id] = pools.map(p => ({
+      laps: p.laps,
+      braked: p.braked,
+      speedKmh: p.speedKmh ?? null,
+      binFromM: p.binFromM,
+      brake: dense(p.brake, p.size),
+      lift: dense(p.lift, p.size),
+    }));
   }
   return {...doc, sessions};
 }
+
+/**
+ * Whether a session's corner times were cut at boundaries older than the
+ * layout's now: it records the rev it used (none before boundaries existed),
+ * and the layout's rev only goes up when a start moved by more than its margin.
+ */
+export const staleRev = (sessionRev, layoutRev) =>
+  layoutRev != null && (sessionRev ?? 0) < layoutRev;
