@@ -164,6 +164,34 @@ function buildFuelUseCard(
   };
 }
 
+/**
+ * The clean-lap median beside the overall median, never instead of it (Botkin,
+ * pit-wall thread 44 #1563): the headline pace stays every comparable lap.
+ * Shown with the laps it uses, and left out under the 3-lap floor or before a
+ * field's traffic block is analysed. A session with no field says so.
+ */
+export function cleanMedianFact(session: SessionDetail): Fact | null {
+  const label = 'Clean median';
+  if (session.traffic == null)
+    return session.field == null
+      ? {label, value: 'No other cars recorded'}
+      : null;
+  const {medianS, laps} = session.traffic.clean;
+  return medianS == null
+    ? null
+    : {
+        label,
+        value: `${formatLapTime(medianS)} · ${laps} of ${
+          session.comparableCount
+        } laps`,
+      };
+}
+
+const cleanMedianFacts = (session: SessionDetail): Fact[] => {
+  const fact = cleanMedianFact(session);
+  return fact ? [fact] : [];
+};
+
 export const BAR_CLAMP_S = 1.5;
 
 const TYPE_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
@@ -449,6 +477,7 @@ export function buildSessionModel(
         best: true,
       },
       {label: 'Median', value: timeOrDash(median)},
+      ...cleanMedianFacts(session),
       ...cleanBestFact,
     ],
     chart,

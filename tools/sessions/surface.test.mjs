@@ -14,6 +14,7 @@ import {
   surfaceLapFromCsv,
   usableLap,
 } from './surface.mjs';
+import {surfaceProgressLine} from './surfaceProgress.mjs';
 
 const LENGTH_M = 1000;
 const HEADER =
@@ -286,6 +287,11 @@ function storeWith(sessionIds) {
   return fakeStore({tracks, sessions, laps, files});
 }
 
+// The track lines only: the "surface N/M tracks" progress lines are tested apart.
+const trackLines = lines => l => {
+  if (!l.startsWith('surface ')) lines.push(l);
+};
+
 test('foldSurfaces writes the artifact and the pointer, then adds only what is new', async () => {
   const store = storeWith(['s1', 's2']);
   const lines = [];
@@ -293,7 +299,7 @@ test('foldSurfaces writes the artifact and the pointer, then adds only what is n
   const read = async () =>
     parseSurface((await store.bucket.file(ARTIFACT).download())[0]);
 
-  await foldSurfaces({log: l => lines.push(l), connectStore});
+  await foldSurfaces({log: trackLines(lines), connectStore});
   assert.ok(lines[0].startsWith('trackA: +2 sessions, +4 laps'));
   assert.deepEqual((await read()).sessions, ['s1', 's2']);
   assert.equal(store.tracks.trackA.surface.sessions, 2);
@@ -302,7 +308,7 @@ test('foldSurfaces writes the artifact and the pointer, then adds only what is n
   // Nothing new: no trace is read and nothing is written.
   store.downloads.length = 0;
   store.written.length = 0;
-  await foldSurfaces({log: l => lines.push(l), connectStore});
+  await foldSurfaces({log: trackLines(lines), connectStore});
   assert.ok(lines.at(-1).startsWith('trackA: +0 sessions'));
   assert.deepEqual(store.written, []);
   assert.equal(store.downloads.filter(p => p.startsWith('traces/')).length, 0);
@@ -310,7 +316,7 @@ test('foldSurfaces writes the artifact and the pointer, then adds only what is n
   // A third session arrives: only its laps are read, and it is added.
   addSessionTo(store, 's3');
   store.downloads.length = 0;
-  await foldSurfaces({log: l => lines.push(l), connectStore});
+  await foldSurfaces({log: trackLines(lines), connectStore});
   assert.equal(lines.at(-2), 'trackA: +1 sessions, +2 laps, 3 sessions in all');
   assert.deepEqual(
     store.downloads.filter(p => p.startsWith('traces/')).sort(),
@@ -325,7 +331,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
   const lines = [];
   await foldSurfaces({
     trackIds: ['trackB'],
-    log: l => lines.push(l),
+    log: trackLines(lines),
     connectStore: async () => store,
   });
   assert.ok(lines[0].startsWith('trackB: +0 sessions'));
@@ -333,7 +339,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
   await foldSurfaces({
     trackIds: ['trackA'],
     dry: true,
-    log: l => lines.push(l),
+    log: trackLines(lines),
     connectStore: async () => store,
   });
   assert.ok(lines.at(-1).startsWith('trackA: +1 sessions'));
@@ -360,4 +366,40 @@ test('an artifact built under older rules is rebuilt from every session', () => 
   assert.equal(rebuilt.surface.rules, 2);
   const kept = buildSurface(first.surface, LENGTH_M, []);
   assert.equal(kept.replaced, false);
+});
+
+test('foldSurfaces says how far it is, one line per track and a last one: the watcher reads them', async () => {
+  const store = storeWith(['s1']);
+  store.tracks.trackB = {lengthM: LENGTH_M};
+  store.tracks.noLength = {};
+  const lines = [];
+  await foldSurfaces({
+    log: l => lines.push(l),
+    connectStore: async () => store,
+  });
+  const progress = lines.filter(l => l.startsWith('surface '));
+  // Two tracks have a length: the one without is not counted. Each line is
+  // printed before its track starts, with the tracks finished so far.
+  assert.deepEqual(progress, [
+    'surface 0/2 tracks',
+    'surface 1/2 tracks',
+    'surface 2/2 tracks',
+  ]);
+  assert.equal(progress[0], surfaceProgressLine(0, 2));
+  assert.ok(
+    lines.indexOf('surface 0/2 tracks') <
+      lines.findIndex(l => l.startsWith('trackA:')),
+  );
+  assert.equal(lines.at(-1), 'surface 2/2 tracks');
+});
+
+test('foldSurfaces with nothing to fold prints no progress line', async () => {
+  const store = storeWith(['s1']);
+  const lines = [];
+  await foldSurfaces({
+    trackIds: ['noSuchTrack'],
+    log: l => lines.push(l),
+    connectStore: async () => store,
+  });
+  assert.deepEqual(lines, []);
 });

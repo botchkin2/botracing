@@ -67,10 +67,16 @@ test('progress is done/total once sync.mjs says how many, null before', () => {
   assert.equal(progressOf(r), null);
   readSyncLine(r, 'to do 3');
   assert.deepEqual(progressOf(r), {done: 0, total: 3});
-  readSyncLine(r, 'aaaaaaaaaaaaaaaa 2026-09-28T20:00 Race       Road Atlanta | 911 | 1 file(s)');
+  readSyncLine(
+    r,
+    'aaaaaaaaaaaaaaaa 2026-09-28T20:00 Race       Road Atlanta | 911 | 1 file(s)',
+  );
   readSyncLine(r, '  22 laps, 20 comparable, best 80.1');
   assert.deepEqual(progressOf(r), {done: 1, total: 3});
-  readSyncLine(r, 'bbbbbbbbbbbbbbbb 2026-09-28T19:00 Practice   Road Atlanta | 911 | 2 file(s)');
+  readSyncLine(
+    r,
+    'bbbbbbbbbbbbbbbb 2026-09-28T19:00 Practice   Road Atlanta | 911 | 2 file(s)',
+  );
   readSyncLine(r, '  failed: Error: upload timed out');
   assert.deepEqual(progressOf(r), {done: 2, total: 3});
 });
@@ -83,4 +89,30 @@ test('a sync is finished only once its closing line is read', () => {
   assert.deepEqual(died.failedIds, ['bbbbbbbbbbbbbbbb']);
   assert.equal(died.finished, false);
   assert.equal(newSyncResult().finished, false);
+});
+
+test('the surface fold takes over the progress once the sessions are done', () => {
+  const r = newSyncResult();
+  readSyncLine(r, 'to do 2');
+  readSyncLine(
+    r,
+    'aaaaaaaaaaaaaaaa 2026-09-28T20:00 Race       Road Atlanta | 911 | 1 file(s)',
+  );
+  readSyncLine(
+    r,
+    'bbbbbbbbbbbbbbbb 2026-09-28T19:00 Race       Road Atlanta | 911 | 1 file(s)',
+  );
+  readSyncLine(r, 'done 2, failed 0, unchanged 0');
+  // The sessions sit at 2/2 through the fold: that is what read as stuck.
+  assert.deepEqual(progressOf(r), {done: 2, total: 2});
+  readSyncLine(r, 'surface 0/13 tracks');
+  assert.deepEqual(progressOf(r), {done: 0, total: 13, phase: 'surface'});
+  readSyncLine(r, 'lmu-sebring: +51 sessions, +226 laps, 51 sessions in all');
+  readSyncLine(r, 'surface 7/13 tracks');
+  assert.deepEqual(progressOf(r), {done: 7, total: 13, phase: 'surface'});
+  readSyncLine(r, 'surface 13/13 tracks');
+  assert.deepEqual(progressOf(r), {done: 13, total: 13, phase: 'surface'});
+  // The fold lines are not sessions, failures or the closing line.
+  assert.equal(r.sessions.length, 2);
+  assert.equal(r.failed, 0);
 });

@@ -99,7 +99,11 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
   // A resync in progress says how far it is; neutral text, no colour.
   const stateText =
     u.progress != null
-      ? `Re-analysing ${u.progress.done} / ${u.progress.total}`
+      ? `${
+          u.progress.phase === 'surface'
+            ? 'Updating track maps'
+            : 'Re-analysing'
+        } ${u.progress.done} / ${u.progress.total}`
       : u.state === 'retrying' && u.retryAt != null
       ? `Retrying at ${formatClock(u.retryAt)}`
       : STATE_LABEL[u.state];
