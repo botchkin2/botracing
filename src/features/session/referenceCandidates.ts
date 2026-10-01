@@ -9,7 +9,7 @@ import {
   type SessionDetail,
   type SessionSummary,
 } from '@/src/data/sessions';
-import {carLabel, formatGap, formatLapTime} from '@/src/design';
+import {carLabel, formatDay, formatGap, formatLapTime} from '@/src/design';
 
 /** How many other sessions join the pool: each is one lap list to fetch. */
 export const POOL_SESSIONS = 4;
@@ -18,14 +18,19 @@ export const CANDIDATES_SHOWN = 3;
 
 /** Other sessions at this track with this car model, newest first, up to `POOL_SESSIONS`. */
 export function poolSessions(
-  current: Pick<SessionSummary, 'id' | 'trackId' | 'car'>,
+  current: Pick<SessionSummary, 'id' | 'trackId' | 'car' | 'cornerMapSource'>,
   all: SessionSummary[],
 ): SessionSummary[] {
   const model = carLabel(current.car).model;
+  // A session with a corner map of its own (lap length off the track's by
+  // more than 3 %) has sections that do not line up with the others', so
+  // Compare could not put its laps beside this one's.
+  if (current.cornerMapSource === 'session') return [];
   return all
     .filter(
       s =>
         s.id !== current.id &&
+        s.cornerMapSource !== 'session' &&
         s.trackId === current.trackId &&
         carLabel(s.car).model === model,
     )
@@ -102,34 +107,11 @@ export function referenceCandidates(
 }
 
 const SESSION_WORD = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/** "25 Sep"; the empty string for an unparseable date. */
-export function dayLabel(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-}
-
 /** "L12 · 25 Sep · Race · 1:21.234 · +0.412 s". */
 export function candidateLine(c: Candidate): string {
   return [
     `L${c.lapIndex}`,
-    c.startedAt ? dayLabel(c.startedAt) : 'this session',
+    c.startedAt ? formatDay(c.startedAt) : 'this session',
     SESSION_WORD[c.sessionType as keyof typeof SESSION_WORD] ?? c.sessionType,
     formatLapTime(c.timeS),
     c.deltaS == null ? null : `${formatGap(c.deltaS, 3)} s`,

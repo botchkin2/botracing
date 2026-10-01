@@ -61,3 +61,4 @@ export {
   refLapOf,
 } from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';
+export {foreignLapId, type LapRef, parseLapRef} from './lapRef';
