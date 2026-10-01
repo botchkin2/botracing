@@ -67,6 +67,22 @@ describe('buildSessionModel', () => {
     expect(r.chart?.resets).toEqual([13]);
   });
 
+  it('a grid start reads GRID, not PART, with its own reason', () => {
+    const raw = fixture.laps.map((l, i) =>
+      i === 12
+        ? {...l, partial: true, partialWhy: 'grid', comparable: false}
+        : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    const codes = lapRow(r, 'L13').tags.map(t => t.code);
+    expect(codes).toContain('GRID');
+    expect(codes).not.toContain('PART');
+    const ids = raw.map(l => l.id);
+    const d = buildSessionModel(session, toLaps(raw), {laps: [], hl: ids[12]});
+    expect(d.detail).toMatchObject({status: 'Excluded · Grid start'});
+    expect(d.detail!.why).toMatch(/^Starts on the grid/);
+  });
+
   it('tags pit, partial, slow, off-track and best laps', () => {
     expect(lapRow(m, 'L17').tags.map(t => t.code)).toContain('IN');
     expect(lapRow(m, 'L18').tags.map(t => t.code)).toContain('OUT');

@@ -35,3 +35,19 @@ export function jumpsOffTheGrid(dist) {
   }
   return false;
 }
+
+/** A grid start lasts a minute or more; a file-boundary sliver, seconds. */
+export const GRID_MIN_SEC = 20;
+
+/**
+ * Why a lap is partial, or null when it is not. 'grid': the parked car and the
+ * roll to the line. 'file': a stretch cut by a recording boundary, which
+ * includes the sliver the game still gives a whole lap time (Imola practice
+ * d184d6e1: 1.4 s long, 134.7 s on the clock).
+ */
+export function partialWhy(segPartial, dist, durationSec) {
+  if (jumpsOffTheGrid(dist)) {
+    return durationSec >= GRID_MIN_SEC ? 'grid' : 'file';
+  }
+  return segPartial ? 'file' : null;
+}

@@ -1,7 +1,12 @@
 // Run: node --test tools/sessions/gridLap.test.mjs
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {jumpsOffTheGrid, MAX_TICK_RISE_M} from './gridLap.mjs';
+import {
+  GRID_MIN_SEC,
+  jumpsOffTheGrid,
+  MAX_TICK_RISE_M,
+  partialWhy,
+} from './gridLap.mjs';
 
 // A 100 Hz lap at 50 m/s: 0.5 m per tick.
 const roll = (from, n) => Array.from({length: n}, (_, i) => from + i * 0.5);
@@ -41,4 +46,15 @@ test('a single jump over the limit is enough, one at the limit is not', () => {
 test('empty and one-tick traces have no jump', () => {
   assert.equal(jumpsOffTheGrid([]), false);
   assert.equal(jumpsOffTheGrid([0]), false);
+});
+
+test('partialWhy: a long grid start is grid, a short one and a cut lap are file', () => {
+  const sebring = [0, 0, 485, 970, 1455];
+  assert.equal(partialWhy(false, sebring, 242.8), 'grid');
+  // Imola practice d184d6e1 lap 1: 1.4 s long, opens at 98 % of the lap.
+  assert.equal(partialWhy(false, [4809, 4810, 4812], 1.428), 'file');
+  assert.equal(partialWhy(false, [4809, 4810], GRID_MIN_SEC), 'grid');
+  // Cut by a recording boundary, no jump: still file.
+  assert.equal(partialWhy(true, roll(0, 100), 40), 'file');
+  assert.equal(partialWhy(false, roll(0, 100), 40), null);
 });
