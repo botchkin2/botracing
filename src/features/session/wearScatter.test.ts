@@ -27,6 +27,7 @@ const clean = {
   overtakes: [] as NonNullable<Lap['traffic']>['overtakes'],
   aheadSpans: [],
   blueSpans: [],
+  draftSpans: [],
   passMarks: [],
   fieldLapM: null,
 };
