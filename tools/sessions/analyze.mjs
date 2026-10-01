@@ -35,6 +35,7 @@ import {
   stintFuel,
 } from './fuelFacts.mjs';
 import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
+import {freshTyres} from '../../src/analysis/tyres.ts';
 import {lapTyres} from './tyres.mjs';
 
 // 9: the trace CSV gains PathLateral and TrackEdge (Corner's racing-line chart).
@@ -98,7 +99,9 @@ const wanted = [
   'tyres_wear_fr',
   'tyres_wear_rl',
   'tyres_wear_rr',
-  // Pressure and the rubber temperature, for the per-lap tyre facts (tyres.mjs).
+  // Pressure and the rubber temperature, for the per-lap tyre facts (tyres.mjs);
+  // the carcass temperature and wear are above (already read for the cold-tyre
+  // rule).
   'tyres_pressure_fl',
   'tyres_pressure_fr',
   'tyres_pressure_rl',
@@ -976,9 +979,8 @@ export function analyzeSession(recs, {trackMap = null} = {}) {
   const stintStart = new Map();
   const facts = laps.map((lap, i) => {
     if (!stintStart.has(lap.stint)) stintStart.set(lap.stint, i);
-    // The first lap on new tyres is cold whatever the temperature says: the
-    // lap after the one a pit stop that changed any wheel ended in.
-    lap.newTyres = i > 0 && (laps[i - 1].tyres?.changed?.length ?? 0) > 0;
+    // The first lap on new tyres is cold whatever the temperature says.
+    lap.newTyres = freshTyres(laps[i - 1]);
     lap.stintLap = i - stintStart.get(lap.stint);
     lap.start = i === 0 && !lap.pitOut;
     return lapFacts(String(i), lap);

@@ -43,6 +43,20 @@ function perWheel(v: unknown): PerWheel | null {
   return {FL: read('FL'), FR: read('FR'), RL: read('RL'), RR: read('RR')};
 }
 
+/**
+ * Whether a lap is the first on new tyres, from the lap before it: a pit stop
+ * that changed any wheel ended in it (`tyres.changed`), or it ended in a reset
+ * to the garage (which starts a new recording on fresh tyres, with no pit
+ * window to see). Cold whatever the temperature says, which is consistency's
+ * `newTyres` fact, and not a fair reference. False for the first lap.
+ */
+export function freshTyres(
+  prev: {tyres: LapTyres | null; endedInReset: boolean} | null | undefined,
+): boolean {
+  if (!prev) return false;
+  return prev.endedInReset || (prev.tyres?.changed?.length ?? 0) > 0;
+}
+
 /** A lap doc's `tyres`; null when the lap has none (older analysis, no channels). */
 export function toLapTyres(v: unknown): LapTyres | null {
   if (v == null || typeof v !== 'object') return null;

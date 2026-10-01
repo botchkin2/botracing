@@ -4,7 +4,7 @@ import {
   type ClassLapStats,
   type PaceClass,
 } from '@/src/analysis/classLaps';
-import {type LapTyres, toLapTyres} from '@/src/analysis/tyres';
+import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -315,10 +315,10 @@ export type Lap = {
   /** Per-wheel tyre facts (tools/sessions/tyres.mjs); null before the resync or without the channels. */
   tyres: LapTyres | null;
   /**
-   * The first lap on new tyres: the lap before had a pit stop that changed
-   * any wheel (`tyres.changed`). Cold whatever the temperature says, and not a
-   * fair reference. Derived here from the lap before, so it is false for the
-   * first lap and on laps without the block.
+   * The first lap on new tyres (`freshTyres` in src/analysis/tyres.ts, from
+   * the lap before): a pit stop that changed any wheel ended in it, or it
+   * ended in a reset to the garage. Cold whatever the temperature says, and
+   * not a fair reference.
    */
   newTyres: boolean;
 };
@@ -512,9 +512,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     newTyres: false,
   }));
   return laps.map((lap, i) =>
-    i > 0 && (laps[i - 1].tyres?.changed?.length ?? 0) > 0
-      ? {...lap, newTyres: true}
-      : lap,
+    freshTyres(laps[i - 1]) ? {...lap, newTyres: true} : lap,
   );
 }
 

@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {toLapTyres, WHEELS} from './tyres';
+import {freshTyres, type LapTyres, toLapTyres, WHEELS} from './tyres';
 
 const wheels = (fl: number, fr: number, rl: number, rr: number) => ({
   FL: fl,
@@ -41,5 +41,36 @@ describe('toLapTyres', () => {
     expect(toLapTyres(undefined)).toBeNull();
     expect(toLapTyres('FL')).toBeNull();
     expect(toLapTyres({changed: ['FL', 'XX', 3]})?.changed).toEqual(['FL']);
+  });
+});
+
+describe('freshTyres', () => {
+  const tyres = (changed: ('FL' | 'FR' | 'RL' | 'RR')[] | null): LapTyres => ({
+    v: 1,
+    wearPct: null,
+    pressureKpa: null,
+    rubberC: null,
+    carcassC: null,
+    changed,
+  });
+
+  it('is the lap after a stop that changed any wheel, a set or one wheel', () => {
+    expect(freshTyres({tyres: tyres(['FR']), endedInReset: false})).toBe(true);
+    expect(
+      freshTyres({tyres: tyres(['FL', 'FR', 'RL', 'RR']), endedInReset: false}),
+    ).toBe(true);
+  });
+
+  it('is the lap after a reset to the garage, which has no pit window', () => {
+    expect(freshTyres({tyres: tyres([]), endedInReset: true})).toBe(true);
+    expect(freshTyres({tyres: null, endedInReset: true})).toBe(true);
+  });
+
+  it('is false for the first lap, after no change, and without the block', () => {
+    expect(freshTyres(null)).toBe(false);
+    expect(freshTyres(undefined)).toBe(false);
+    expect(freshTyres({tyres: tyres([]), endedInReset: false})).toBe(false);
+    expect(freshTyres({tyres: tyres(null), endedInReset: false})).toBe(false);
+    expect(freshTyres({tyres: null, endedInReset: false})).toBe(false);
   });
 });
