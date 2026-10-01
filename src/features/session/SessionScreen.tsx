@@ -35,6 +35,7 @@ import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
 import {FuelUseCard} from './components/FuelUseCard';
 import {PitCard} from './components/PitCard';
+import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
@@ -323,6 +324,10 @@ function SessionView({
         </View>
       )}
 
+      <View style={styles.section}>
+        <TiresCard card={model.tires} width={tableW} />
+      </View>
+
       {model.fuelUse && (
         <View style={styles.section}>
           <FuelUseCard
@@ -420,6 +425,10 @@ function SessionView({
                 }
               />
             )}
+            <TiresCard
+              card={model.tires}
+              width={size.sidePanelWidth - 2 * space.xl}
+            />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

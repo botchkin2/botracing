@@ -15,6 +15,7 @@ import {planComboKey} from '@/src/nav/routes';
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {buildPitCard, type PitCard} from './pitCard';
+import {buildTiresCard, type TiresCard} from './tireCard';
 import {bestWithoutTow, lapTraffic, orderTags, trafficTags} from './lapTags';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
@@ -124,6 +125,8 @@ export type SessionScreenModel = {
   tray: TrayModel | null;
   /** Races with a stop only. */
   pitCard: PitCard | null;
+  /** Per-wheel wear, pressure and rubber temperature by stint. */
+  tires: TiresCard;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -486,6 +489,7 @@ export function buildSessionModel(
     detail,
     tray,
     pitCard: buildPitCard(session.sessionType, laps, session),
+    tires: buildTiresCard(session, laps),
     fuelUse: buildFuelUseCard(session, laps),
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
