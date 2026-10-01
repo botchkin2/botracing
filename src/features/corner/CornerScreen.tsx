@@ -39,6 +39,7 @@ import {
 import {MAX_ON_LAPS, toggleLap} from './keyLaps';
 import {STRIPS_HELP} from './stripsHelp';
 import {useCornerModel} from './useCornerModel';
+import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
 
 export type {CornerSelection} from './model';
@@ -277,6 +278,7 @@ function CornerView({
 
   const measures = (
     <View style={styles.gap}>
+      {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
           <View style={styles.row}>
