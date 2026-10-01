@@ -209,13 +209,45 @@ describe('pit stop tyres', () => {
       wheels: ['FL', 'RR'],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
     expect(stopWith({changed: false, wheels: []})?.tyres).toEqual({
       changed: false,
       wheels: [],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
+  });
+  it('reads the cool-down by wheel name and the compound of a full set', () => {
+    const t = stopWith({
+      changed: false,
+      wheels: [],
+      coolDown: {
+        afterS: 45,
+        rubberC: {FL: -9.5, FR: null, RL: -8, RR: 'x'},
+        carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
+        pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
+      },
+      compound: 'other',
+    })?.tyres;
+    expect(t?.coolDown).toEqual({
+      afterS: 45,
+      rubberC: {FL: -9.5, FR: null, RL: -8, RR: null},
+      carcassC: {FL: -4, FR: -4.2, RL: -3.9, RR: -4.1},
+      pressureKpa: {FL: -3, FR: -3.2, RL: -2.8, RR: null},
+    });
+    expect(t?.compound).toBe('other');
+    // A name no file carries is not read, and a half-written cool-down is none.
+    expect(
+      stopWith({changed: false, wheels: [], compound: 'Hard'})?.tyres?.compound,
+    ).toBeNull();
+    expect(
+      stopWith({changed: false, wheels: [], coolDown: {afterS: 45}})?.tyres
+        ?.coolDown,
+    ).toBeNull();
   });
   it('reads the wear at pit entry and exit by wheel name', () => {
     const t = stopWith({
@@ -235,6 +267,8 @@ describe('pit stop tyres', () => {
       wheels: [],
       entryPct: null,
       exitPct: null,
+      coolDown: null,
+      compound: null,
     });
   });
 });
@@ -352,5 +386,40 @@ describe('toSessionTraffic', () => {
   it('is null without a block or with a malformed one', () => {
     expect(toSessionTraffic(undefined)).toBeNull();
     expect(toSessionTraffic({v: 1, clean: {laps: 3}})).toBeNull();
+  });
+});
+
+describe('lap traffic positions', () => {
+  const lap = (traffic: unknown) =>
+    toLaps([{id: 'a', lapTime: 20, comparable: true, reasons: [], traffic}])[0]
+      .traffic!;
+
+  it('reads spans, passes, overtakes and the field lap length', () => {
+    const t = lap({
+      aheadSpans: [[100.5, 180, 2.4]],
+      blueSpans: [[10, 20, 0.2]],
+      passMarks: [{atM: 500, made: true}],
+      overtakes: [{cls: 'Hyper', atM: 900}],
+      fieldLapM: 5000,
+    });
+    expect(t.aheadSpans).toEqual([[100.5, 180, 2.4]]);
+    expect(t.blueSpans).toEqual([[10, 20, 0.2]]);
+    expect(t.passMarks).toEqual([{atM: 500, made: true}]);
+    expect(t.overtakes).toEqual([{cls: 'Hyper', atM: 900}]);
+    expect(t.fieldLapM).toBe(5000);
+  });
+
+  it('is empty, and the lap length null, before traffic v3', () => {
+    const t = lap({draftS: 1});
+    expect(t.aheadSpans).toEqual([]);
+    expect(t.passMarks).toEqual([]);
+    expect(t.overtakes).toEqual([]);
+    expect(t.fieldLapM).toBeNull();
+  });
+
+  it('drops a malformed span rather than drawing a wrong one', () => {
+    expect(lap({aheadSpans: [[1, 2], 'x', [1, 2, 'y']]}).aheadSpans).toEqual(
+      [],
+    );
   });
 });

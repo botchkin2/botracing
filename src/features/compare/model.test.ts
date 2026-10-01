@@ -308,6 +308,22 @@ describe('desktop pieces', () => {
     ]);
   });
 
+  it('a parked grid start is tagged PARK, a plain partial lap PART', () => {
+    const parked = toLaps([rawLap('p', 5, [5]), rawLap('q', 5, [5])]);
+    parked[0].partial = true;
+    parked[0].partialWhy = 'grid';
+    parked[1].partial = true;
+    const tags = buildCompareModel({
+      session,
+      laps: parked,
+      traces,
+      band: null,
+      map,
+      selection: sel({laps: ['a']}),
+    }).allLaps.flatMap(g => g.rows.map(r => r.tag));
+    expect(tags).toEqual(['PARK', 'PART']);
+  });
+
   it('values table reads every channel for each key lap', () => {
     const rows = valuesAt(m.readouts, m.stepM, 600);
     expect(rows.map(r => r.label)).toEqual([
@@ -396,7 +412,7 @@ describe('a URL with no laps', () => {
     lap('c', 91.9),
     lap('d', 90.0, false),
   ];
-  const facts = {bestLapId: 'b', car: 'GT3', sessionType: 'R'};
+  const facts = {id: 's1', bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
   it('opens on a fair reference and the median comparable lap', () => {
     const out = withDefaultLaps(sel({laps: []}), laps, facts);
@@ -618,5 +634,73 @@ describe('pedals chart layout', () => {
     expect(frac(-40, d.steer)).toBeCloseTo(1);
     // Steering's zero is the middle of its band.
     expect(frac(0, d.steer)).toBeCloseTo(122 / 140);
+  });
+});
+
+describe('trafficLane', () => {
+  const traffic = (over: Record<string, unknown>) => ({
+    draftS: 0,
+    trafficAheadS: 3,
+    trafficBehindS: 0,
+    blueFlagS: 0,
+    passesMade: 0,
+    passesSuffered: 0,
+    passesMadeAll: 0,
+    passesSufferedAll: 0,
+    battleS: 0,
+    ...over,
+  });
+  const withTraffic = (id: string, over: Record<string, unknown>) => ({
+    ...rawLap(id, 20, [5, 5]),
+    traffic: traffic(over),
+  });
+  const field = {path: 'p', hash: 'h', hz: 5, cars: 3, durationS: 100};
+  const fieldSession = toSessionDetail({
+    id: 's1',
+    sim: 'lmu',
+    track: {name: 'Test Ring'},
+    car: {name: 'Manthey DK Engineering 2026 #91:LM'},
+    sessionType: 'Race',
+    startedAt: '2026-09-26T00:00:00Z',
+    stints: [],
+    field,
+  });
+  const lanes = (ls: ReturnType<typeof toLaps>, ss = fieldSession) =>
+    buildCompareModel({
+      session: ss,
+      laps: ls,
+      traces,
+      band: null,
+      map,
+      selection: sel({laps: ['a', 'b']}),
+    }).trafficLane;
+
+  it('says so for a session with no field', () => {
+    expect(build().trafficLane).toEqual({kind: 'empty'});
+  });
+
+  it('is absent for a field whose laps carry no positions yet, never an empty lane', () => {
+    const ls = toLaps([withTraffic('a', {}), withTraffic('b', {})]);
+    expect(lanes(ls)).toBeNull();
+  });
+
+  it('has a row per selected lap with positions, scaled to the map', () => {
+    const ls = toLaps([
+      withTraffic('a', {
+        fieldLapM: 2000,
+        aheadSpans: [[200, 400, 3]],
+        overtakes: [{cls: 'Hyper', atM: 1000}],
+        passMarks: [{atM: 500, made: true}],
+      }),
+      withTraffic('b', {}),
+    ]);
+    const lane = lanes(ls);
+    if (lane?.kind !== 'rows') throw new Error('no rows');
+    expect(lane.rows.map(r => r.lapId)).toEqual(['a']);
+    expect(lane.rows[0].ahead).toEqual([[100, 200]]);
+    expect(lane.rows[0].ticks).toEqual([
+      {m: 250, kind: 'pass'},
+      {m: 500, kind: 'blue'},
+    ]);
   });
 });

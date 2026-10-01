@@ -47,6 +47,8 @@ const stop = (over: Partial<PitStop> = {}): PitStop => ({
     wheels: ['FL', 'FR', 'RL', 'RR'],
     entryPct: null,
     exitPct: null,
+    coolDown: null,
+    compound: null,
   },
   ...over,
 });
@@ -155,7 +157,14 @@ describe('buildPitCard', () => {
     const lap1Stop = [
       lap(1, {
         pitStop: stop({
-          tyres: {changed: true, wheels: ['FL'], entryPct: null, exitPct: null},
+          tyres: {
+            changed: true,
+            wheels: ['FL'],
+            entryPct: null,
+            exitPct: null,
+            coolDown: null,
+            compound: null,
+          },
         }),
         pitIn: true,
         fuel: fuel(),
@@ -262,6 +271,30 @@ describe('buildPitCard', () => {
     expect(card.refuelScope).toBeNull();
   });
 
+  it('names the compound of a full set against the start of the run, and only then', () => {
+    const compound = (c: 'start' | 'other' | null) => {
+      const t = {
+        changed: true,
+        wheels: ['FL', 'FR', 'RL', 'RR'] as ('FL' | 'FR' | 'RL' | 'RR')[],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: c,
+      };
+      const laps = oneStop.map(l =>
+        l.id === 'l6' ? {...l, pitStop: stop({tyres: t})} : l,
+      );
+      const card = buildPitCard('R', laps, session());
+      if (card?.kind !== 'stops') throw new Error('not a stops card');
+      return card.columns[0].compound;
+    };
+    expect(compound('start')).toBe('Compound as at the start of the run');
+    expect(compound('other')).toBe(
+      'Compound different from the start of the run',
+    );
+    expect(compound(null)).toBeNull();
+  });
+
   it('says which tyres changed in the card wording, and nothing before the wear step is seen', () => {
     const tyres = (t: NonNullable<PitStop['tyres']> | null) => {
       const laps = oneStop.map(l =>
@@ -272,7 +305,14 @@ describe('buildPitCard', () => {
       return card.columns[0].tyres;
     };
     expect(
-      tyres({changed: false, wheels: [], entryPct: null, exitPct: null}),
+      tyres({
+        changed: false,
+        wheels: [],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: null,
+      }),
     ).toBe('Not changed');
     expect(
       tyres({
@@ -280,10 +320,19 @@ describe('buildPitCard', () => {
         wheels: ['FL', 'FR'],
         entryPct: null,
         exitPct: null,
+        coolDown: null,
+        compound: null,
       }),
     ).toBe('Fronts new');
     expect(
-      tyres({changed: true, wheels: ['FR'], entryPct: null, exitPct: null}),
+      tyres({
+        changed: true,
+        wheels: ['FR'],
+        entryPct: null,
+        exitPct: null,
+        coolDown: null,
+        compound: null,
+      }),
     ).toBe('FR only');
     expect(tyres(null)).toBeNull();
   });
@@ -301,6 +350,7 @@ describe('buildPitCard', () => {
       hotPressureKpa: null,
       rubberC: null,
       carcassC: null,
+      treadC: null,
       changed: null,
     });
     const wheels = (
@@ -311,6 +361,8 @@ describe('buildPitCard', () => {
         wheels: ['FR'],
         entryPct: null,
         exitPct: null,
+        coolDown: null,
+        compound: null,
       },
     ) => {
       const laps = oneStop.map(l =>
@@ -325,14 +377,38 @@ describe('buildPitCard', () => {
       return card.columns[0].wheels;
     };
 
-    it('box past the timing line: reads the pit-in lap as before and the lap after as after, and marks the changed wheel', () => {
+    it('without entry/exit readings (resynced before them): reads the pit-in lap as before and the lap after as after, and marks the changed wheel', () => {
       expect(
         wheels(wear(61.2, 55.4, 63, 58), wear(60.1, 98.9, 62.4, 57.2)),
       ).toEqual([
-        {wheel: 'FL', changed: false, beforePct: 61.2, afterPct: 60.1},
-        {wheel: 'FR', changed: true, beforePct: 55.4, afterPct: 98.9},
-        {wheel: 'RL', changed: false, beforePct: 63, afterPct: 62.4},
-        {wheel: 'RR', changed: false, beforePct: 58, afterPct: 57.2},
+        {
+          wheel: 'FL',
+          changed: false,
+          beforePct: 61.2,
+          afterPct: 60.1,
+          beforeLapIndex: null,
+        },
+        {
+          wheel: 'FR',
+          changed: true,
+          beforePct: 55.4,
+          afterPct: 98.9,
+          beforeLapIndex: null,
+        },
+        {
+          wheel: 'RL',
+          changed: false,
+          beforePct: 63,
+          afterPct: 62.4,
+          beforeLapIndex: null,
+        },
+        {
+          wheel: 'RR',
+          changed: false,
+          beforePct: 58,
+          afterPct: 57.2,
+          beforeLapIndex: null,
+        },
       ]);
     });
 
@@ -343,6 +419,77 @@ describe('buildPitCard', () => {
         changed: true,
         beforePct: null,
         afterPct: null,
+        beforeLapIndex: null,
+      });
+    });
+
+    describe('from the stop entry and exit readings', () => {
+      const pw = (
+        FL: number | null,
+        FR: number | null,
+        RL: number | null,
+        RR: number | null,
+      ) => ({FL, FR, RL, RR});
+      const stopWith = (
+        entryPct: ReturnType<typeof pw> | null,
+        exitPct: ReturnType<typeof pw> | null,
+      ) => ({
+        changed: true,
+        wheels: ['FR' as const],
+        entryPct,
+        exitPct,
+        coolDown: null,
+        compound: null,
+      });
+
+      it('reads them, whatever the pit-in lap shows (box before the line)', () => {
+        // The pit-in lap already reads the new tyre (FR 99); the entry does not.
+        const w = wheels(
+          wear(61, 99, 63, 58),
+          wear(60, 98, 62, 57),
+          stopWith(pw(61, 55, 63, 58), pw(61, 100, 63, 58)),
+        );
+        expect(
+          w?.map(x => [x.wheel, x.changed, x.beforePct, x.afterPct]),
+        ).toEqual([
+          ['FL', false, 61, 61],
+          ['FR', true, 55, 100],
+          ['RL', false, 63, 63],
+          ['RR', false, 58, 58],
+        ]);
+      });
+
+      it('uses the last valid reading from an earlier lap for a sensor dead at entry, and says which lap', () => {
+        const laps = oneStop.map(l =>
+          l.id === 'l5'
+            ? {...l, tyres: wear(62, 56, 64, 59)}
+            : l.id === 'l6'
+            ? {
+                ...l,
+                tyres: wear(61, 0, 63, 58),
+                pitStop: stop({
+                  tyres: stopWith(pw(61, 0, 63, 58), pw(61, 100, 63, 58)),
+                }),
+              }
+            : l,
+        );
+        const card = buildPitCard('R', laps, session());
+        if (card?.kind !== 'stops') throw new Error('not a stops card');
+        const fr = card.columns[0].wheels?.[1];
+        expect(fr).toEqual({
+          wheel: 'FR',
+          changed: true,
+          beforePct: 56,
+          afterPct: 100,
+          beforeLapIndex: 5,
+        });
+        expect(card.columns[0].wheels?.[0].beforeLapIndex).toBeNull();
+      });
+
+      it('leaves the after side a gap when the session ends in the pits', () => {
+        const w = wheels(null, null, stopWith(pw(61, 55, 63, 58), null));
+        expect(w?.map(x => x.afterPct)).toEqual([null, null, null, null]);
+        expect(w?.map(x => x.beforePct)).toEqual([61, 55, 63, 58]);
       });
     });
 

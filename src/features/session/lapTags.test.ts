@@ -14,6 +14,11 @@ const none: LapTraffic = {
   passesMadeAll: 0,
   passesSufferedAll: 0,
   battleS: 0,
+  overtakes: [],
+  aheadSpans: [],
+  blueSpans: [],
+  passMarks: [],
+  fieldLapM: null,
 };
 
 describe('trafficTags', () => {
@@ -22,14 +27,18 @@ describe('trafficTags', () => {
     expect(trafficTags(none)).toEqual([]);
   });
 
-  it('shows TOW from 1.0 s, TRAF from 4 s, BLUE from 1.0 s, BTL from 5 s', () => {
+  it('shows TOW from 1.0 s, TRAF from 2 s, BLUE for each faster-class pass, BTL from 5 s', () => {
     expect(trafficTags({...none, draftS: 0.9})).toEqual([]);
     expect(trafficTags({...none, draftS: 6.14})).toEqual([{code: 'TOW 6.1'}]);
-    expect(trafficTags({...none, trafficAheadS: 3.8})).toEqual([]);
-    expect(trafficTags({...none, trafficAheadS: 4})).toEqual([{code: 'TRAF 4.0'}]);
-    expect(trafficTags({...none, blueFlagS: 3.5})).toEqual([
-      {code: 'BLUE 3.5'},
+    expect(trafficTags({...none, trafficAheadS: 1.9})).toEqual([]);
+    expect(trafficTags({...none, trafficAheadS: 4.2})).toEqual([
+      {code: 'TRAF 4.2'},
     ]);
+    // Seconds with a faster car close behind are a fact in the lap detail, not a tag.
+    expect(trafficTags({...none, blueFlagS: 3.5})).toEqual([]);
+    expect(
+      trafficTags({...none, overtakes: [{cls: 'Hyper', atM: 900}]}),
+    ).toEqual([{code: 'BLUE 1'}]);
     expect(trafficTags({...none, battleS: 4.9})).toEqual([]);
     expect(trafficTags({...none, battleS: 33.6})).toEqual([{code: 'BTL 34'}]);
   });

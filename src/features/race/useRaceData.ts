@@ -22,6 +22,9 @@ const GRID_STEP_M = 5;
 // Every 10th player sample is plenty for a median over a lap-long line.
 const MATCH_STEP = 10;
 
+/** A race ranks its cars; practice and qualifying show the road around the player instead. */
+export type RaceMode = 'race' | 'field';
+
 export type RaceData =
   | {kind: 'loading'}
   | {kind: 'error'; message: string}
@@ -32,6 +35,7 @@ export type RaceData =
   | {
       kind: 'ready';
       title: string;
+      mode: RaceMode;
       prep: RacePrep;
       /** The player's lap and distance at a race time, and back; shared with Compare. */
       clock: RaceClock;
@@ -119,6 +123,7 @@ export function useRaceData(sessionId: string): RaceData {
   return {
     kind: 'ready',
     title,
+    mode: detail.sessionType === 'R' ? 'race' : 'field',
     prep,
     clock,
     laps: (laps.data ?? []).map(l => ({id: l.id, lapNumber: l.lapNumber})),

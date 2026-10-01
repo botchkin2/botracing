@@ -8,6 +8,7 @@
 // Sampling is 5 Hz, so a pass that starts and ends inside 0.4 s is missed;
 // that is fine for a count of passes but not for timing one.
 import {paceOf} from '../../src/analysis/classLaps.ts';
+import {BLUE_BEHIND_S} from '../../src/analysis/traffic.ts';
 import {undelta} from './field.mjs';
 
 // Same lane: lateral centre lines within this many metres (the measured
@@ -24,8 +25,8 @@ export const BLUE_FLAG = 6;
 // fields (9b16b76c, adb8e6e8; 5 Hz): 99-100 % of the samples the game flags
 // blue have a faster car within 1.5 s, and 100 % within 2 s, so a longer
 // window flags laps the game never did (3 s: the game flagged 8-22 % of
-// those samples). The game's flag starts about 1.1 s behind.
-export const BLUE_BEHIND_S = 1.5;
+// those samples). The game's flag starts about 1.1 s behind. The constant
+// is BLUE_BEHIND_S in src/analysis/traffic.ts, which the app prints too.
 // "Traffic" is a car within this many seconds on the road, ahead or behind.
 export const TRAFFIC_S = 1;
 // A pass is the on-road gap changing sign while both cars are this close.
@@ -94,6 +95,19 @@ const EMPTY = () => ({
   // Seconds within TRAFFIC_S of a car of the player's class, ahead or behind,
   // in any lane (side by side counts).
   battleS: 0,
+  // Where on the lap, for the Compare lane (round 7, 2C): [fromM, toM, s],
+  // one per run of consecutive updates, from the lap distance of the first
+  // update to the end of the last one's step (speed times the update
+  // interval), 0.1 m resolution. They follow the same rule and thresholds as
+  // trafficAheadS and blueFlagS, so their seconds add up to those.
+  aheadSpans: [],
+  blueSpans: [],
+  // Own-class passes with where they happened: {atM, made}.
+  passMarks: [],
+  // The field's lap length (the longest lap distance any car reached), so the
+  // app can scale the spans' lap distances into its own frame: lap fraction
+  // times the map length, as the corner slices are.
+  fieldLapM: 0,
 });
 
 // windows: [{from, to}] on the session clock (seconds, `from` inclusive).
@@ -109,6 +123,7 @@ export function lapFieldFacts(field, windows) {
     for (const d of c.lapDistM) if (d !== null && d > L) L = d;
   const playerRank = paceOf(cars[me].carClass).rank;
   const out = windows.map(EMPTY);
+  for (const f of out) f.fieldLapM = round1(L);
   const windowAt = et => windows.findIndex(w => et >= w.from && et < w.to);
 
   // Speed of a car from its own distance between consecutive updates.
@@ -119,6 +134,21 @@ export function lapFieldFacts(field, windows) {
     return ahead(a, b, L) / dt;
   };
   const prevGap = new Map();
+  // The open run of each span kind per window: {span, lastU}.
+  const open = windows.map(() => ({aheadSpans: null, blueSpans: null}));
+  const mark = (w, kind, u, atM, stepM) => {
+    const run = open[w][kind];
+    // A run ends where the lap distance wraps at the line.
+    if (run && run.lastU === u - 1 && atM >= run.span[0]) {
+      run.span[1] = atM + stepM;
+      run.span[2] += dt;
+      run.lastU = u;
+      return;
+    }
+    const span = [atM, atM + stepM, dt];
+    out[w][kind].push(span);
+    open[w][kind] = {span, lastU: u};
+  };
 
   for (let u = 0; u < etS.length; u++) {
     const p = cars[me];
@@ -150,7 +180,10 @@ export function lapFieldFacts(field, windows) {
         if (before !== undefined && before * g < 0 && w >= 0) {
           const made = before > 0;
           out[w][made ? 'passesMadeAll' : 'passesSufferedAll']++;
-          if (sameClass) out[w][made ? 'passesMade' : 'passesSuffered']++;
+          if (sameClass) {
+            out[w][made ? 'passesMade' : 'passesSuffered']++;
+            out[w].passMarks.push({atM: round1(here), made});
+          }
         }
         if (g === 0 && before !== undefined) gapNow.set(j, before);
       }
@@ -165,10 +198,17 @@ export function lapFieldFacts(field, windows) {
 
     const f = out[w];
     const speed = Math.max(vMs ?? 0, MIN_SPEED_MS);
-    if (gapAhead / speed < TRAFFIC_S) f.trafficAheadS += dt;
+    const stepM = speed * dt;
+    if (gapAhead / speed < TRAFFIC_S) {
+      f.trafficAheadS += dt;
+      mark(w, 'aheadSpans', u, here, stepM);
+    }
     if (gapBehind / speed < TRAFFIC_S) f.trafficBehindS += dt;
     if (battleGapM / speed < TRAFFIC_S) f.battleS += dt;
-    if (fasterBehindM / speed < BLUE_BEHIND_S) f.blueFlagS += dt;
+    if (fasterBehindM / speed < BLUE_BEHIND_S) {
+      f.blueFlagS += dt;
+      mark(w, 'blueSpans', u, here, stepM);
+    }
     if (p.flag[u] === BLUE_FLAG) f.gameBlueS += dt;
     if (
       gapAhead <= DRAFT_MAX_GAP_M &&
@@ -189,6 +229,12 @@ export function lapFieldFacts(field, windows) {
     ]) {
       f[k] = round1(f[k]);
     }
+    for (const kind of ['aheadSpans', 'blueSpans'])
+      for (const span of f[kind]) {
+        span[0] = round1(span[0]);
+        span[1] = round1(span[1]);
+        span[2] = Math.round(span[2] * 10) / 10;
+      }
   }
   return out;
 }

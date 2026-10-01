@@ -10,6 +10,13 @@ export const WHEELS: readonly Wheel[] = ['FL', 'FR', 'RL', 'RR'];
 /** One value per wheel; null for a dead sensor or a wheel with no channel. */
 export type PerWheel = Record<Wheel, number | null>;
 
+/** The tread's three temperatures, C: inner and outer are car-fixed (see tools/sessions/tyres.mjs); a third with no reading is null. */
+export type TreadC = {
+  inner: number | null;
+  centre: number | null;
+  outer: number | null;
+};
+
 export type LapTyres = {
   /** The block's version (the uploader's `blockVersions.tyres`). */
   v: number;
@@ -27,6 +34,8 @@ export type LapTyres = {
   rubberC: PerWheel | null;
   /** Median carcass temperature, same samples, C. */
   carcassC: PerWheel | null;
+  /** Median temperature of each wheel's tread thirds, same samples, C; a wheel with no reading is null. Absent before TYRES_VERSION 3. */
+  treadC: Record<Wheel, TreadC | null> | null;
   /**
    * The wheels with a new tyre in the pit stop that ended during this lap
    * (a full set, one wheel, or none); null when the recording has no wear
@@ -37,6 +46,26 @@ export type LapTyres = {
 
 function isWheel(v: unknown): v is Wheel {
   return v === 'FL' || v === 'FR' || v === 'RL' || v === 'RR';
+}
+
+function treadTemps(v: unknown): Record<Wheel, TreadC | null> | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = v as Record<string, unknown>;
+  const third = (t: Record<string, unknown>, k: string) => {
+    const n = t[k];
+    return typeof n === 'number' && Number.isFinite(n) ? n : null;
+  };
+  const read = (w: Wheel): TreadC | null => {
+    const t = x[w];
+    if (t == null || typeof t !== 'object') return null;
+    const o = t as Record<string, unknown>;
+    return {
+      inner: third(o, 'inner'),
+      centre: third(o, 'centre'),
+      outer: third(o, 'outer'),
+    };
+  };
+  return {FL: read('FL'), FR: read('FR'), RL: read('RL'), RR: read('RR')};
 }
 
 function perWheel(v: unknown): PerWheel | null {
@@ -74,6 +103,7 @@ export function toLapTyres(v: unknown): LapTyres | null {
     rubberC: perWheel(x.rubberC),
     hotPressureKpa: perWheel(x.hotPressureKpa),
     carcassC: perWheel(x.carcassC),
+    treadC: treadTemps(x.treadC),
     changed: Array.isArray(x.changed) ? x.changed.filter(isWheel) : null,
   };
 }

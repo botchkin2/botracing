@@ -41,6 +41,8 @@ struct TelemInfoV01
   Klass mVehicleClass;
   bool mABSActive, mTCActive;
   char mVehicleModel[30];
+  char mFrontTireCompoundName[18];
+  char mRearTireCompoundName[18];
   TelemWheelV01 mWheel[4];
 };
 

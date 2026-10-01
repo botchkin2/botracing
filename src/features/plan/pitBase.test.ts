@@ -21,7 +21,14 @@ const stop = (
   tyres:
     tyresChanged === null
       ? null
-      : {changed: tyresChanged, wheels: [], entryPct: null, exitPct: null},
+      : {
+          changed: tyresChanged,
+          wheels: [],
+          entryPct: null,
+          exitPct: null,
+          coolDown: null,
+          compound: null,
+        },
 });
 
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({

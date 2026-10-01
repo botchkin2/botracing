@@ -1,4 +1,4 @@
-import {useMemo} from 'react';
+import {type ReactNode, useMemo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
 import {FollowMap, TrackMap} from '@/src/charts';
@@ -44,6 +44,7 @@ export function MapPanel({
   lapStyle,
   onPressSection,
   zoomControls = false,
+  radar,
 }: {
   width: number;
   height: number;
@@ -54,6 +55,8 @@ export function MapPanel({
   onPressSection: (n: number) => void;
   /** − / + on the Follow map: desktop only, where they can be pointer targets. */
   zoomControls?: boolean;
+  /** The field radar, drawn top right of the Follow map (phone). */
+  radar?: ReactNode;
 }) {
   const prefs = useComparePrefs();
   const mode = prefs.mapMode;
@@ -170,6 +173,7 @@ export function MapPanel({
           </View>
         )}
       </View>
+      {mode === 'follow' && f ? radar : null}
       {zoomControls && mode === 'follow' && f && (
         <MapZoomButtons
           canOut={zoom < FOLLOW_SPANS_M.length - 1}

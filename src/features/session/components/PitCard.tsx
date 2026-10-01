@@ -193,6 +193,11 @@ function StopsBody({
         return c.tyres ? (
           <>
             <Text variant='dataStrong'>{c.tyres}</Text>
+            {c.compound ? (
+              <Text variant='dataSmall' tone='textMuted'>
+                {c.compound}
+              </Text>
+            ) : null}
             {c.wheels ? <WheelGrid wheels={c.wheels} /> : null}
           </>
         ) : (
@@ -279,22 +284,42 @@ function StopsBody({
   );
 }
 
-// Tyre left per wheel, "before → after" in % of a new tyre (it counts down), fronts first. A wheel with a new
-// tyre is bright; one with no reading is a gap.
+// Tyre left per wheel, in % of a new tyre (it counts down), laid out as the
+// car: fronts on top. A wheel with a new tyre shows "before → after" in the
+// bright ink; a kept wheel is one muted number; no reading is a gap. A "*" is
+// the last valid reading from an earlier lap, for a sensor dead at the stop.
 function WheelGrid({wheels}: {wheels: WheelWear[]}) {
   const pct = (v: number | null) => (v == null ? '—' : String(Math.round(v)));
+  const text = (w: WheelWear) => {
+    const star = w.beforeLapIndex != null ? '*' : '';
+    return w.changed
+      ? `${pct(w.beforePct)}${star}→${pct(w.afterPct)}`
+      : `${pct(w.beforePct ?? w.afterPct)}${star}`;
+  };
+  const label = (w: WheelWear) =>
+    `${w.wheel} ${w.changed ? 'new tyre' : 'kept'}, ${text(w).replace(
+      '→',
+      ' to ',
+    )} percent left${
+      w.beforeLapIndex != null
+        ? `, last valid reading from lap ${w.beforeLapIndex}`
+        : ''
+    }`;
   return (
-    <View>
+    <View style={styles.wheels}>
       {wheels.map(w => (
-        <Text
+        <View
           key={w.wheel}
-          variant='dataSmall'
-          tone={w.changed ? 'text' : 'textMuted'}
-          accessibilityLabel={`${w.wheel} wear ${pct(w.beforePct)} to ${pct(
-            w.afterPct,
-          )} percent left${w.changed ? ', new tyre' : ''}`}>
-          {`${w.wheel} ${pct(w.beforePct)}→${pct(w.afterPct)} %`}
-        </Text>
+          style={styles.wheel}
+          accessible
+          accessibilityLabel={label(w)}>
+          <Text variant='label' tone='textMuted'>
+            {w.wheel}
+          </Text>
+          <Text variant='dataSmall' tone={w.changed ? 'text' : 'textMuted'}>
+            {text(w)}
+          </Text>
+        </View>
       ))}
     </View>
   );
@@ -335,6 +360,8 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
     borderTopWidth: 1,
   },
+  wheels: {flexDirection: 'row', flexWrap: 'wrap'},
+  wheel: {width: '50%', paddingVertical: space.xxs},
   fuelRow: {gap: space.xxs, paddingVertical: space.md, borderTopWidth: 1},
   bar: {gap: space.xs},
   end: {

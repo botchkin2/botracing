@@ -1,6 +1,10 @@
 export type {TrackSurface} from '@/src/analysis/trackSurface';
 export type {
   BandChannel,
+  BoundaryStamp,
+  BoundaryWindow,
+  BrakeApp,
+  CornerWindowFacts,
   SessionClassLaps,
   CornerFacts,
   Lap,
@@ -10,6 +14,7 @@ export type {
   PitStop,
   PitTyres,
   MapCorner,
+  MapBoundaries,
   MapSection,
   SectionFacts,
   SessionBand,
@@ -18,6 +23,7 @@ export type {
   SessionSummary,
   SessionType,
   SlicePointer,
+  StartStraightFacts,
   Stint,
   TrackMapData,
   TrackMapQuality,
@@ -52,5 +58,6 @@ export {
   type DefaultSession,
   defaultLapIds,
   referenceDefaultLapIds,
+  refLapOf,
 } from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';

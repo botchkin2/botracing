@@ -33,8 +33,10 @@ import {Explainer, Text, useHowToRead} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
+import {LapCandidates} from './components/LapCandidates';
 import {FuelUseCard} from './components/FuelUseCard';
 import {PitCard} from './components/PitCard';
+import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {SessionWorkspace} from './components/SessionWorkspace';
@@ -61,7 +63,7 @@ const DESKTOP_SIDE_W = 340;
 const DESKTOP_TABLE_MAX_W = 640;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). Excluded laps are dimmed.';
+  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s of a car ahead (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
 
 export type {Selection} from './model';
 
@@ -263,19 +265,23 @@ function SessionView({
     <View
       onLayout={e => (headerHeight.current = e.nativeEvent.layout.height)}
       style={[styles.block, {width: tableW}]}>
-      {/* At ≥1280 the rail and the chrome tabs replace the back link. */}
-      <Pressable
-        accessibilityRole='link'
-        onPress={() => router.navigate(sessionsHref())}
-        style={hitBox.link}
-        hitSlop={space.md}>
-        <Text variant='bodyStrong' tone='accentInk'>
-          ‹ Sessions
-        </Text>
-      </Pressable>
-      <Text variant='display' style={styles.title}>
-        {model.title}
-      </Text>
+      {/* From 900 pt the top bar carries the back link and the session name. */}
+      {!layout.isDesktop && (
+        <>
+          <Pressable
+            accessibilityRole='link'
+            onPress={() => router.navigate(sessionsHref())}
+            style={hitBox.link}
+            hitSlop={space.md}>
+            <Text variant='bodyStrong' tone='accentInk'>
+              ‹ Sessions
+            </Text>
+          </Pressable>
+          <Text variant='display' style={styles.title}>
+            {model.title}
+          </Text>
+        </>
+      )}
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
@@ -306,6 +312,7 @@ function SessionView({
           </View>
         ))}
       </View>
+      {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
 
       {chartBlock(tableW)}
 
@@ -323,6 +330,10 @@ function SessionView({
         </View>
       )}
 
+      <View style={styles.section}>
+        <TiresCard card={model.tires} width={tableW} />
+      </View>
+
       {model.fuelUse && (
         <View style={styles.section}>
           <FuelUseCard
@@ -334,7 +345,13 @@ function SessionView({
 
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
-          <LapDetail detail={model.detail} onAction={detailAction} />
+          <LapDetail
+            detail={model.detail}
+            onAction={detailAction}
+            extra={
+              <LapCandidates sessionId={sessionId} lapId={model.detail.lapId} />
+            }
+          />
         </View>
       )}
       <View style={styles.section}>
@@ -402,7 +419,16 @@ function SessionView({
         chart={chartBlock}
         detail={
           model.detail && (
-            <LapDetail detail={model.detail} onAction={detailAction} />
+            <LapDetail
+              detail={model.detail}
+              onAction={detailAction}
+              extra={
+                <LapCandidates
+                  sessionId={sessionId}
+                  lapId={model.detail.lapId}
+                />
+              }
+            />
           )
         }
         tray={tray}
@@ -420,6 +446,10 @@ function SessionView({
                 }
               />
             )}
+            <TiresCard
+              card={model.tires}
+              width={size.sidePanelWidth - 2 * space.xl}
+            />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}
@@ -471,7 +501,16 @@ function SessionView({
         {layout.isDesktop && (
           <View style={[styles.side, {width: sideW}]}>
             {model.detail ? (
-              <LapDetail detail={model.detail} onAction={detailAction} />
+              <LapDetail
+                detail={model.detail}
+                onAction={detailAction}
+                extra={
+                  <LapCandidates
+                    sessionId={sessionId}
+                    lapId={model.detail.lapId}
+                  />
+                }
+              />
             ) : (
               <Explainer>
                 Tap a bar or a row to see that lap, and tick laps to compare.
