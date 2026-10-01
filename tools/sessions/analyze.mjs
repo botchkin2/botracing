@@ -24,6 +24,7 @@ import {
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
+import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {fileChange} from './fileChange.mjs';
 import {
   fillLapsLeft,
@@ -45,6 +46,17 @@ import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
 // 16: forces a resync after the describe cache learned versions: files described
 //     before #144 kept their old fuel setup (an LMP2 fill limit of 1980 L).
 export const analysisVersion = 17;
+
+// One version per block of a session that has its own rules (pit-wall thread
+// 44, steward #1456, #1460). A block's change bumps its own key, never
+// analysisVersion, so two PRs add two keys and merge in either order. The
+// table is part of the session fingerprint (sync.mjs), so any key bump
+// re-analyses every session, the same as analysisVersion: bump deliberately.
+// The stamp written on the block itself (lap.traffic.v, session.traffic.v) is
+// its entry here. A block made from the field also recomputes from the
+// uploaded field when its stamp is stale, because the capture it came from
+// can be gone from disk.
+export const blockVersions = {traffic: TRAFFIC_VERSION};
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
