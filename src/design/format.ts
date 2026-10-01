@@ -10,6 +10,29 @@ export function formatLapTime(timeS: number): string {
   return `${minutes}:${seconds}`;
 }
 
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** An ISO date as the day it fell on here: "25 Sep"; the empty string when it does not parse. */
+export function formatDay(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
 /** Signed gap with 3 decimals: "+0.312", "−0.105". Uses a true minus sign. */
 export function formatGap(deltaS: number, decimals = 3): string {
   const sign = deltaS > 0 ? '+' : deltaS < 0 ? '−' : '±';

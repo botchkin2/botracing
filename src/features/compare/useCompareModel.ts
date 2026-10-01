@@ -2,18 +2,23 @@ import {useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
+  type Lap,
   useSession,
   useSessionBand,
   useSessionLaps,
   useSessionMap,
   useSessionSurface,
+  useSessionsDetail,
+  useSessionsLaps,
   mapPlacer,
   trackCorners,
 } from '@/src/data/sessions';
+import {parseLapRef} from '@/src/nav/lapRef';
 import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareModel,
+  type ForeignLaps,
   type ChannelId,
   type CompareModel,
   type ChartWindow,
@@ -21,6 +26,7 @@ import {
 } from './model';
 
 import {buildFollowGeometry} from './followModel';
+import {foreignTag} from './foreignTag';
 
 import {lapNeighbours, WRAP_M} from './neighbours';
 
@@ -50,12 +56,50 @@ export function useCompareModel(
   const map = useSessionMap(sessionId);
   const surface = useSessionSurface(sessionId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
-  // Fetch traces only for ids this session has; a hand-edited URL with
-  // unknown ids would otherwise fire a 404 per id.
+  // Laps of other sessions in the selection (`sessionId~lapId`): their
+  // sessions' laps and docs are read so each can be found and tagged.
+  const foreignSessionIds = useMemo(
+    () => [
+      ...new Set(selection.laps.flatMap(id => parseLapRef(id).sessionId ?? [])),
+    ],
+    [selection.laps],
+  );
+  const foreignLaps = useSessionsLaps(foreignSessionIds);
+  const foreignDetails = useSessionsDetail(foreignSessionIds);
+  const foreign = useMemo<ForeignLaps>(() => {
+    const out: Lap[] = [];
+    const tags = new Map<string, string>();
+    // A session with a corner map of its own has sections that do not line
+    // up with this one's, so its laps are not offered beside it.
+    const sectionsAgree = session.data?.cornerMapSource !== 'session';
+    for (const id of selection.laps) {
+      const ref = parseLapRef(id);
+      const at = foreignSessionIds.indexOf(ref.sessionId ?? '');
+      const detail = foreignDetails.details[at];
+      const lap = foreignLaps.laps[at]?.find(l => l.id === ref.lapId);
+      if (!lap || !detail || !sectionsAgree) continue;
+      if (detail.cornerMapSource === 'session') continue;
+      out.push({...lap, id});
+      tags.set(id, foreignTag(detail.startedAt, detail.sessionType));
+    }
+    return {laps: out, tags};
+  }, [
+    selection.laps,
+    foreignSessionIds,
+    foreignLaps.laps,
+    foreignDetails.details,
+    session.data?.cornerMapSource,
+  ]);
+  // Fetch traces only for ids this session has, or that came from another
+  // session; a hand-edited URL with unknown ids would otherwise fire a 404
+  // per id.
   const knownIds = useMemo(() => {
-    const ids = new Set(laps.data?.map(l => l.id));
+    const ids = new Set([
+      ...(laps.data ?? []).map(l => l.id),
+      ...foreign.laps.map(l => l.id),
+    ]);
     return selection.laps.filter(id => ids.has(id));
-  }, [laps.data, selection.laps]);
+  }, [laps.data, foreign.laps, selection.laps]);
   // The S/F wrap needs each lap's contiguous neighbours, but only while the
   // window is near the line (thread 27 #377). Compare opens at 0 m, so that
   // is usually at once; each trace is cached by lap id either way.
@@ -73,11 +117,16 @@ export function useCompareModel(
     });
     return [...new Set([...knownIds, ...extra])];
   }, [nearLine, laps.data, knownIds]);
+  // Traces are fetched by the lap's own id; the model knows the selection id.
+  const traceIds = useMemo(
+    () => fetchIds.map(id => parseLapRef(id).lapId),
+    [fetchIds],
+  );
   const {
     traces: grids,
     load: traceLoad,
     retry: retryTraces,
-  } = useLapTraceLoad(fetchIds, {lengthM, stepM: GRID_STEP_M}, knownIds.length);
+  } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M}, knownIds.length);
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     fetchIds.forEach((id, i) => {
@@ -114,7 +163,13 @@ export function useCompareModel(
           void refetchLaps();
         },
       };
-    if (!session.data || !laps.data || map.isPending) return {state: 'loading'};
+    // A lap of another session is found once its session has loaded; until
+    // then it would read as "not found".
+    const waitingOnForeign =
+      foreignSessionIds.length > 0 &&
+      (foreignLaps.pending || foreignDetails.pending);
+    if (!session.data || !laps.data || map.isPending || waitingOnForeign)
+      return {state: 'loading'};
     return {
       state: 'ready',
       traceLoad,
@@ -122,6 +177,7 @@ export function useCompareModel(
       model: buildCompareModel({
         session: session.data,
         laps: laps.data,
+        foreign,
         traces,
         band: band.data ?? null,
         map: map.data ?? null,
@@ -135,8 +191,12 @@ export function useCompareModel(
     };
   }, [
     error,
+    foreignSessionIds,
+    foreignLaps.pending,
+    foreignDetails.pending,
     session.data,
     laps.data,
+    foreign,
     map.isPending,
     map.data,
     surface.data,

@@ -1,8 +1,11 @@
+import {useRouter} from 'expo-router';
 import {useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 
 import {type Lap, type SessionDetail} from '@/src/data/sessions';
 import {space} from '@/src/design';
+import {foreignLapId} from '@/src/nav/lapRef';
+import {compareHref} from '@/src/nav/routes';
 import {Button, Text} from '@/src/ui';
 
 import {candidateLine, matchText} from '../referenceCandidates';
@@ -22,6 +25,7 @@ export function ReferenceCandidates({
   laps: Lap[];
   lap: Lap;
 }) {
+  const router = useRouter();
   const [asked, setAsked] = useState(false);
   const state = useReferenceCandidates(session, laps, lap, asked);
   if (state.kind === 'idle')
@@ -56,16 +60,37 @@ export function ReferenceCandidates({
       )}
       {state.kind === 'ready' &&
         state.candidates.map(c => (
-          <View key={c.lapId}>
+          <Pressable
+            key={c.lapId}
+            accessibilityRole='button'
+            accessibilityLabel={`Compare with ${candidateLine(c)}`}
+            style={styles.candidate}
+            onPress={() =>
+              // The candidate is the reference; this lap is the one compared.
+              router.push(
+                compareHref(session.id, {
+                  laps: [
+                    c.sessionId === session.id
+                      ? c.lapId
+                      : foreignLapId(c.sessionId, c.lapId),
+                    lap.id,
+                  ],
+                  hl: lap.id,
+                }),
+              )
+            }>
             <Text variant='dataSmall'>{candidateLine(c)}</Text>
             <Text variant='dataSmall' tone='textMuted'>
               {matchText(c.match)}
             </Text>
-          </View>
+            <Text variant='dataSmall' tone='accentInk'>
+              Compare ›
+            </Text>
+          </Pressable>
         ))}
       {state.kind === 'ready' && (
         <Text variant='explainer' tone='textMuted'>
-          {`Ranked on car, session type, load (fuel within 10 L, else Virtual Energy within 10 points), tyres kept, clean air; then the fastest. ${
+          {`Gap = the candidate minus this lap. Ranked on car, session type, load (fuel within 10 L, else Virtual Energy within 10 points), tyres kept, clean air; then the fastest. Weather, track temperature and rubber are not compared. ${
             state.sessions
           } other session${
             state.sessions === 1 ? '' : 's'
@@ -78,5 +103,6 @@ export function ReferenceCandidates({
 
 const styles = StyleSheet.create({
   block: {gap: space.xs, marginTop: space.sm},
+  candidate: {gap: space.xxs, paddingVertical: space.xs, minHeight: 44},
   action: {alignSelf: 'flex-start', marginTop: space.sm},
 });
