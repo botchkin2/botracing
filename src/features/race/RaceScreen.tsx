@@ -33,6 +33,7 @@ import {
   CLASS_TITLE,
   type ClassFilter,
   defaultFilter,
+  roadSummaryText,
 } from './model';
 import {
   raceTimeFor,
@@ -42,7 +43,7 @@ import {
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
 import {markPitLane} from './pitLaneState';
-import {RACE_HELP} from './raceHelp';
+import {FIELD_HELP, RACE_HELP} from './raceHelp';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
@@ -215,7 +216,11 @@ function RaceView({
   onSelectionChange: (patch: SelectionPatch) => void;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('the race', RACE_HELP);
+  const {mode} = data;
+  const help = useHowToRead(
+    mode === 'race' ? 'the race' : 'the field',
+    mode === 'race' ? RACE_HELP : FIELD_HELP,
+  );
   const layout = useLayout();
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
@@ -283,12 +288,19 @@ function RaceView({
   );
   const filter = wanted ?? defaultFilter(sampleCars);
   const rows = useMemo(
-    () => buildRaceModel({cars: sampleCars, filter, focus}),
-    [sampleCars, filter, focus],
+    () =>
+      buildRaceModel({
+        cars: sampleCars,
+        filter,
+        focus,
+        mode,
+        trackM: prep.trackM,
+      }),
+    [sampleCars, filter, focus, mode, prep.trackM],
   );
   const dots = useMemo(
-    () => buildRaceModel({cars, filter, focus}).dots,
-    [cars, filter, focus],
+    () => buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM}).dots,
+    [cars, filter, focus, mode, prep.trackM],
   );
 
   // The radar shows the 5 Hz sample at or before the clock, even while the
@@ -336,11 +348,12 @@ function RaceView({
     (index: number) => setFocus(f => (f === index ? null : index)),
     [],
   );
+  const count = `${rows.carCount} cars \u00b7 ${rows.classes.length} classes`;
   const sub = rows.you
-    ? `${rows.carCount} cars · ${rows.classes.length} classes · you ${
-        rows.you.model
-      } ${CLASS_TITLE[rows.you.key]}`
-    : `${rows.carCount} cars · ${rows.classes.length} classes`;
+    ? `${count} \u00b7 you ${rows.you.model} ${CLASS_TITLE[rows.you.key]}`
+    : count;
+  // Outside a race: who is near you on the road, in place of a position.
+  const roadLine = rows.road ? roadSummaryText(rows.road) : '';
 
   const map = data.roadPending ? (
     <Skeleton height={mapH} />
@@ -366,7 +379,7 @@ function RaceView({
             : undefined,
         }}
         labels={labels}
-        onLabels={setLabels}
+        onLabels={mode === 'race' ? setLabels : null}
         onPressCar={toggleFocus}
         mode={mapMode}
         onMode={follow ? setMapMode : null}
@@ -427,6 +440,7 @@ function RaceView({
       onFilter={setWanted}
       onFocus={toggleFocus}
       desktop={desktop}
+      mode={mode}
     />
   );
 
@@ -443,6 +457,11 @@ function RaceView({
             {help.button}
           </View>
           {help.panel}
+          {roadLine ? (
+            <Text variant='dataSmall' tone='textSecondary'>
+              {roadLine}
+            </Text>
+          ) : null}
           <View
             style={styles.mapFill}
             onLayout={e =>
@@ -478,6 +497,11 @@ function RaceView({
           {help.button}
         </View>
         {help.panel}
+        {roadLine ? (
+          <Text variant='dataSmall' tone='textSecondary'>
+            {roadLine}
+          </Text>
+        ) : null}
         {map}
         <RaceLegend />
       </View>
