@@ -432,6 +432,31 @@ describe('buildPitCard', () => {
         expect(card.columns[0].wheels?.[0].beforeLapIndex).toBeNull();
       });
 
+      it('does not reach back into an earlier stint for a dead sensor', () => {
+        const laps = oneStop.map(l =>
+          l.id === 'l1'
+            ? {...l, stint: 0, tyres: wear(62, 56, 64, 59)}
+            : l.id === 'l6'
+            ? {
+                ...l,
+                tyres: wear(61, 0, 63, 58),
+                pitStop: stop({
+                  tyres: stopWith(pw(61, 0, 63, 58), pw(61, 100, 63, 58)),
+                }),
+              }
+            : l,
+        );
+        const card = buildPitCard('R', laps, session());
+        if (card?.kind !== 'stops') throw new Error('not a stops card');
+        expect(card.columns[0].wheels?.[1]).toEqual({
+          wheel: 'FR',
+          changed: true,
+          beforePct: null,
+          afterPct: 100,
+          beforeLapIndex: null,
+        });
+      });
+
       it('leaves the after side a gap when the session ends in the pits', () => {
         const w = wheels(null, null, stopWith(pw(61, 55, 63, 58), null));
         expect(w?.map(x => x.afterPct)).toEqual([null, null, null, null]);

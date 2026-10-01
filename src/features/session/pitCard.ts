@@ -210,13 +210,14 @@ const liveWear = (v: number | null | undefined) =>
   v != null && v > 0 ? v : null;
 
 // The last valid reading of a wheel on or before the pit-in lap, for a sensor
-// that is dead at the stop (round 7, 1B).
+// that is dead at the stop (round 7, 1B). It stops at the stint's first lap:
+// an earlier stint's reading is another set of tyres.
 function lastValidWear(
   laps: Lap[],
   index: number,
   wheel: Wheel,
 ): {pct: number; lapIndex: number} | null {
-  for (let i = index; i >= 0; i--) {
+  for (let i = index; i >= 0 && laps[i].stint === laps[index].stint; i--) {
     const pct = liveWear(laps[i].tyres?.wearPct?.[wheel]);
     if (pct != null) return {pct, lapIndex: laps[i].lapIndex};
   }
