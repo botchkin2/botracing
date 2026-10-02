@@ -119,7 +119,7 @@ export function TransportBar({
       />
       {/* How to move back and forth: drag works everywhere, keys on desktop. */}
       <Text variant='dataSmall' tone='textMuted'>
-        {oneRow ? 'Drag a chart or ← →' : 'Drag a chart to move'}
+        {oneRow ? 'Drag a chart or ← →' : 'Drag to move'}
       </Text>
     </View>
   );

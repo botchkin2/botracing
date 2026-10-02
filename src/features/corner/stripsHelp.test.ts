@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {LAP_BARS_HELP} from '../session/lapBarsHelp';
 import {OPTIMUM_HELP} from '../session/optimumFacts';
+import {PACE_RULE_LINES} from '../session/trafficFacts';
 import {PIT_REVIEW_HELP} from '../session/pitReview';
 import {FIELD_HELP, RACE_HELP} from '../race/raceHelp';
 import {CORNER_CHART_HELP} from './chartHelp';
@@ -15,6 +16,7 @@ describe('how-to-read copy', () => {
     SECTION_WINDOW_HELP,
     LAP_BARS_HELP,
     OPTIMUM_HELP,
+    PACE_RULE_LINES,
     RACE_HELP,
     FIELD_HELP,
     PIT_REVIEW_HELP,

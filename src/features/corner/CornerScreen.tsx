@@ -229,6 +229,7 @@ function CornerView({
     <Chip
       key={s.sectionN}
       label={s.label}
+      minWidth={size.hit}
       selected={s.selected}
       onPress={() => go(s.firstCorner)}
     />
@@ -237,6 +238,7 @@ function CornerView({
     <Chip
       key={p.n}
       label={p.label}
+      minWidth={size.hit}
       selected={p.selected}
       onPress={() => go(p.n)}
     />

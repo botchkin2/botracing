@@ -40,6 +40,7 @@ import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
 import {OPTIMUM_HELP} from './optimumFacts';
+import {PACE_RULE_LINES} from './trafficFacts';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -142,6 +143,7 @@ function SessionView({
   const listRef = useRef<FlatList<RowModel>>(null);
   const barsHelp = useHowToRead('the lap times', LAP_BARS_HELP);
   const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
+  const paceHelp = useHowToRead('clean and traffic', PACE_RULE_LINES);
   const headerHeight = useRef(0);
   // A bar tap highlights a lap, which can open the detail panel and change
   // the header height; scroll once that render has laid out.
@@ -323,7 +325,17 @@ function SessionView({
           </View>
         ))}
       </View>
-      {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
+      {model.paceRule ? (
+        <View style={styles.block}>
+          <View style={styles.titleRow}>
+            <Text variant='dataSmall' tone='textMuted'>
+              Clean and traffic medians
+            </Text>
+            {paceHelp.button}
+          </View>
+          {paceHelp.panel}
+        </View>
+      ) : null}
       {model.optimum.length > 0 ? (
         <View style={styles.block}>
           <View style={styles.facts}>
