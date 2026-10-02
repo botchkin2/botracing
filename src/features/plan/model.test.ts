@@ -19,6 +19,7 @@ import {
   driftRowOf,
   fuelOnly,
   greenLapsOf,
+  eventLoad,
   HISTORY_SESSIONS,
   historySessions,
   limitsOfDetails,
@@ -1034,5 +1035,50 @@ describe('planning an event with litres pooled from other events', () => {
     expect(plan.perLap.ve).toBeNull();
     expect(plan.perLap.fuel!.median).toBeCloseTo(2.4, 6);
     expect(plan.atMedian.stops).toBe(0);
+  });
+});
+
+describe('an older event keeps its own sessions in the history', () => {
+  it('adds the event sessions to the newest eight, however old', () => {
+    const many = Array.from({length: HISTORY_SESSIONS + 3}, (_, i) =>
+      session(`s${i}`, `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00Z`),
+    );
+    const [combo] = planCombos(many);
+    const limits = combo.sessions.map(() => 75);
+    const ids = historySessions(combo, limits, ['s0', 's1']).map(s => s.id);
+    expect(ids).toHaveLength(HISTORY_SESSIONS + 2);
+    expect(ids).toContain('s0');
+    expect(ids).toContain('s1');
+    // Still a session doc that is loading is not used yet.
+    limits[combo.sessions.findIndex(s => s.id === 's0')] = undefined as never;
+    expect(historySessions(combo, limits, ['s0']).map(s => s.id)).not.toContain(
+      's0',
+    );
+  });
+});
+
+describe('eventLoad', () => {
+  const f = (over: Partial<SessionFuel>) =>
+    ({fillLimitL: null, startL: null, tankL: null, ...over} as SessionFuel);
+
+  it('is the largest fill limit over the event, never a Q or R start under it', () => {
+    expect(
+      eventLoad([
+        f({fillLimitL: 100, startL: 87}),
+        f({fillLimitL: 100, startL: 28}),
+      ]),
+    ).toEqual({kind: 'fill limit', litres: 100});
+  });
+
+  it('falls back to the largest start, then the tank, when no setup level was recorded', () => {
+    expect(eventLoad([f({startL: 28}), f({startL: 87})])).toEqual({
+      kind: 'start fuel',
+      litres: 87,
+    });
+    expect(eventLoad([f({tankL: 117}), null])).toEqual({
+      kind: 'tank',
+      litres: 117,
+    });
+    expect(eventLoad([null, undefined])).toBeNull();
   });
 });

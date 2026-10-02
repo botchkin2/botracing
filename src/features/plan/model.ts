@@ -132,10 +132,36 @@ export function limitsOfDetails(
 export function historySessions(
   combo: Combo,
   limitsL: (number | null | undefined)[],
+  /** The planned event's sessions: always in the history, however old, so an older event still finds its own ratio. */
+  eventIds: string[] = [],
 ): SessionSummary[] {
-  return combo.sessions
-    .filter((_, i) => limitsL[i] !== undefined)
-    .slice(0, HISTORY_SESSIONS);
+  const loaded = combo.sessions.filter((_, i) => limitsL[i] !== undefined);
+  const newest = new Set(loaded.slice(0, HISTORY_SESSIONS).map(s => s.id));
+  return loaded.filter(s => newest.has(s.id) || eventIds.includes(s.id));
+}
+
+/**
+ * The full load of an event: the largest fill limit over its sessions, else
+ * the largest start, else the tank. A Q or R start under the full load is his
+ * choice, never the event's cap ("fuel is time", thread 44 #1985). Null when
+ * none of its docs has a fuel fact.
+ */
+export function eventLoad(
+  fuels: (SessionFuel | null | undefined)[],
+): {kind: 'fill limit' | 'start fuel' | 'tank'; litres: number} | null {
+  const max = (pick: (f: SessionFuel) => number | null | undefined) => {
+    const v = fuels.flatMap(f => {
+      const x = f ? pick(f) : null;
+      return x == null ? [] : [x];
+    });
+    return v.length > 0 ? Math.max(...v) : null;
+  };
+  const fill = max(f => f.fillLimitL);
+  if (fill != null) return {kind: 'fill limit', litres: fill};
+  const start = max(f => f.startL);
+  if (start != null) return {kind: 'start fuel', litres: start};
+  const tank = max(f => f.tankL);
+  return tank != null ? {kind: 'tank', litres: tank} : null;
 }
 
 /**

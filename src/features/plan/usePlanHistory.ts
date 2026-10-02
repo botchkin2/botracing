@@ -11,6 +11,7 @@ import {type FuelPreset} from '@/src/state/fuelPresets';
 import {
   type Combo,
   greenLapsOf,
+  eventLoad,
   historySessions,
   limitsOfDetails,
   veRatioFor,
@@ -43,8 +44,26 @@ export function usePlanLimits(
   // yet: nothing to read (an empty id would request /sessions/ and 404).
   const lastId = event?.sessionIds[0] ?? '';
   const last = useSession(lastId, lastId !== '');
+  // The event's full load is the largest over its sessions, not the newest's.
+  const load = event
+    ? eventLoad(
+        event.sessionIds.map(
+          id => allDetails.details[allIds.indexOf(id)]?.fuel ?? null,
+        ),
+      )
+    : null;
+  const newestFuel = last.data?.fuel ?? null;
+  const lastFuel =
+    newestFuel && load
+      ? {
+          ...newestFuel,
+          fillLimitL: load.kind === 'fill limit' ? load.litres : null,
+          startL: load.kind === 'start fuel' ? load.litres : newestFuel.startL,
+          tankL: load.kind === 'tank' ? load.litres : newestFuel.tankL,
+        }
+      : newestFuel;
   return {
-    lastFuel: last.data?.fuel ?? null,
+    lastFuel,
     events,
     event,
     ...limitsOfDetails(allDetails.details, allDetails.pending),
@@ -65,7 +84,9 @@ export function usePlanHistory(
   eventIds: string[] | null = null,
 ) {
   const history =
-    combo && wantedL != null ? historySessions(combo, limitsL) : [];
+    combo && wantedL != null
+      ? historySessions(combo, limitsL, eventIds ?? [])
+      : [];
   const ids = history.map(s => s.id);
   const lapsOf = useSessionsLaps(ids);
   const sessionDetails = useSessionsDetail(ids);
