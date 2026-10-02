@@ -31,6 +31,24 @@ export type RaceCard = {
   working: string | null;
   /** "At median use: 5 stops.", only when the median tank would make a different number of stops than the plan (p90 use). */
   medianNote: string | null;
+  /** The start load the race needs at the p90 use; null without data. */
+  startLoad: StartLoad | null;
+};
+
+/**
+ * What the car starts with, read from the p90 use (Botkin, thread 44 #1985):
+ * a race that fits one load reads it to the flag; a race with stops reads it
+ * for the first stint, which is what sets the stop plan.
+ */
+export type StartLoad = {
+  /** "79 % VE (54 L)" in VE, "54 L" in fuel. */
+  value: string;
+  /** What the load covers: "to finish" or "for the first stint". */
+  covers: string;
+  /** The laps and use behind it: "30 laps + formation at p90 use". */
+  basis: string;
+  /** The same load for one more lap, only when the race can run a lap longer; null otherwise. */
+  plusOne: string | null;
 };
 
 export type TankMeter = {
@@ -119,7 +137,12 @@ export type StopsCard = {
 
 const pct = (v: number) => `${Math.round(v)} %`;
 
-function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
+function raceCard(
+  plan: FuelPlan,
+  rules: PlanRules,
+  unit: Unit,
+  fuelOnly: boolean,
+): RaceCard {
   const med = plan.atMedian;
   const planned = plan.atP90;
   const race = plan.raceLaps;
@@ -170,6 +193,72 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
       med.stops != null && planned.stops != null && med.stops !== planned.stops
         ? `At median use: ${med.stops} ${med.stops === 1 ? 'stop' : 'stops'}.`
         : null,
+    startLoad: startLoadOf(plan, rules, unit, fuelOnly),
+  };
+}
+
+/**
+ * A load in the unit shown, VE first with the litres beside it. LMU loads fuel
+ * on the event's static scale with the VE you set (87 % of a 100 L event is
+ * 87.0 L, whatever the car burns), so the litres of a VE load are its share of
+ * the event's full load, not the fuel burned (parc #2017).
+ */
+function loadText(
+  fuelL: number | null,
+  vePct: number | null,
+  shown: Unit,
+  fullLoadL: number,
+): string | null {
+  if (shown === 'fuel') return fuelL == null ? null : `${Math.round(fuelL)} L`;
+  if (vePct == null) return null;
+  return `${Math.round(vePct)} % VE (${Math.round(
+    (vePct * fullLoadL) / 100,
+  )} L)`;
+}
+
+function startLoadOf(
+  plan: FuelPlan,
+  rules: PlanRules,
+  unit: Unit,
+  fuelOnly: boolean,
+): StartLoad | null {
+  const {fuel, ve} = plan.perLap;
+  const shown = effectiveUnit(unit, ve != null && !fuelOnly);
+  const formation = rules.formationLap ? ' + formation' : '';
+  const rows = plan.loadToFinish;
+  if (rows && rows.length > 0) {
+    const own = rows[0];
+    const value = loadText(
+      own.atP90.fuelL,
+      own.atP90.vePct,
+      shown,
+      rules.fuelL,
+    );
+    if (value == null) return null;
+    const more = rows[1]
+      ? loadText(rows[1].atP90.fuelL, rows[1].atP90.vePct, shown, rules.fuelL)
+      : null;
+    return {
+      value,
+      covers: 'to finish',
+      basis: `${own.laps} laps${formation} at p90 use`,
+      plusOne: more == null ? null : `+1 lap = ${more}`,
+    };
+  }
+  // A race with stops: the first stint sets the stop plan.
+  const first = plan.atP90.firstStint.laps;
+  if (first == null || plan.atP90.stops == null || plan.atP90.stops < 1)
+    return null;
+  const burn = first + (rules.formationLap ? 1 : 0);
+  const fuelL = fuel ? Math.min(rules.fuelL, burn * fuel.p90) : null;
+  const vePct = ve && !fuelOnly ? Math.min(rules.vePct, burn * ve.p90) : null;
+  const value = loadText(fuelL, vePct, shown, rules.fuelL);
+  if (value == null) return null;
+  return {
+    value,
+    covers: 'for the first stint',
+    basis: `${first} laps${formation} at p90 use`,
+    plusOne: null,
   };
 }
 
@@ -537,7 +626,7 @@ export function buildPlanCards(
   carClass = '',
 ): PlanCards {
   return {
-    race: raceCard(plan, rules),
+    race: raceCard(plan, rules, unit, fuelOnly),
     tank: tankCard(plan, rules, fuelOnly, unit),
     stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, carClass),
   };

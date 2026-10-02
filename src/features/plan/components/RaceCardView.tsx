@@ -37,6 +37,16 @@ export function RaceCardView({card}: {card: RaceCard}) {
           </View>
         ) : null}
       </View>
+      {card.startLoad ? (
+        <View style={styles.load}>
+          <Text variant='dataStrong'>{`Start load ${card.startLoad.covers}: ${card.startLoad.value}`}</Text>
+          <Text variant='dataSmall' tone='textSecondary'>
+            {[card.startLoad.basis, card.startLoad.plusOne]
+              .filter(Boolean)
+              .join('; ')}
+          </Text>
+        </View>
+      ) : null}
       {card.medianNote ? (
         <Text variant='dataSmall' tone='textSecondary'>
           {card.medianNote}
@@ -55,4 +65,5 @@ const styles = StyleSheet.create({
   box: {gap: space.md},
   big: {flexDirection: 'row', alignItems: 'flex-end', gap: space.xxl},
   after: {flex: 1, alignItems: 'flex-end'},
+  load: {gap: space.xs},
 });
