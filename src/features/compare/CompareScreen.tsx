@@ -407,7 +407,11 @@ function CompareView({
                   REF
                 </Text>
               ) : null}
-              {!c.isRef && (
+            </>
+          }
+          actions={
+            !c.isRef ? (
+              <>
                 <Pressable
                   accessibilityRole='button'
                   accessibilityLabel={`Make ${c.label} the reference`}
@@ -419,8 +423,6 @@ function CompareView({
                     Ref
                   </Text>
                 </Pressable>
-              )}
-              {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
                   accessibilityState={{
@@ -442,8 +444,8 @@ function CompareView({
                     ×
                   </Text>
                 </Pressable>
-              )}
-            </>
+              </>
+            ) : undefined
           }
         />
       ))}

@@ -135,37 +135,41 @@ export function CompareWorkspace(p: WorkspaceProps) {
           Comparing
         </Text>
         {model.chips.map(c => (
-          <Pressable
+          <View
             key={c.lapId}
-            accessibilityRole='button'
-            accessibilityLabel={`Make ${c.label} the reference`}
-            onPress={() =>
-              p.onSelectionChange(makeReference(selection, c.lapId))
-            }
             style={[
               styles.lapRow,
               c.isRef && {backgroundColor: color.accentTint},
             ]}>
-            <View
-              style={[
-                styles.swatch,
-                {backgroundColor: lapStyle(c.selIndex, c.highlighted).color},
-              ]}
-            />
-            <Text variant='dataStrong' style={styles.lapLabel}>
-              {c.label}
-            </Text>
-            <Text
-              variant='data'
-              tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}
-              style={styles.flex}>
-              {c.delta}
-            </Text>
-            {c.refTag ? (
-              <Text variant='dataSmall' tone='accentInk'>
-                REF
+            {/* The row's own button; Ref and remove sit beside it, never inside. */}
+            <Pressable
+              accessibilityRole='button'
+              accessibilityLabel={`Make ${c.label} the reference`}
+              onPress={() =>
+                p.onSelectionChange(makeReference(selection, c.lapId))
+              }
+              style={styles.lapMain}>
+              <View
+                style={[
+                  styles.swatch,
+                  {backgroundColor: lapStyle(c.selIndex, c.highlighted).color},
+                ]}
+              />
+              <Text variant='dataStrong' style={styles.lapLabel}>
+                {c.label}
               </Text>
-            ) : null}
+              <Text
+                variant='data'
+                tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}
+                style={styles.flex}>
+                {c.delta}
+              </Text>
+              {c.refTag ? (
+                <Text variant='dataSmall' tone='accentInk'>
+                  REF
+                </Text>
+              ) : null}
+            </Pressable>
             {!c.isRef && (
               <Pressable
                 accessibilityRole='button'
@@ -200,7 +204,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
                 </Text>
               </Pressable>
             )}
-          </Pressable>
+          </View>
         ))}
         {model.manyChip && <Chip label={model.manyChip} dashed />}
         <Text variant='dataSmall' tone='textFaint'>
@@ -594,6 +598,14 @@ const styles = StyleSheet.create({
     height: size.lapRow,
     paddingHorizontal: space.xs,
     borderRadius: radius.sm,
+  },
+  // The row's button: swatch, label and delta, taking what Ref and remove leave.
+  lapMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    height: '100%',
   },
   swatch: {width: 10, height: 3},
   lapLabel: {width: 34},
