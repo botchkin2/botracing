@@ -80,6 +80,10 @@ if (Test-Path (Join-Path $Runtime '.git')) {
     throw "$Runtime has local changes; not updating. Look at them, then clean it:`n$dirty"
   }
 }
+# Set when the new code fails `sync.mjs --check`: the uploader is then left
+# stopped instead of restarted on code that crashes (#223 wrote nothing for a
+# night). The recorder does not run sync.mjs, so it restarts regardless.
+$checkError = $null
 try {
   # Inside the try: if the stop times out, finally still restarts the tasks.
   Stop-LapTasks $restart
@@ -110,10 +114,24 @@ try {
     if ($found) { Copy-Item $found $duck }
     else { Write-Warning "No duckdb.exe found; put one at $duck" }
   }
+
+  # The gate before the uploader starts: every step of a sync before its first
+  # write, over all sessions, on the code just installed. Takes about 2 min.
+  # Always, not only when the uploader was running: a rollout that stops it
+  # first and starts it by hand still gets the check.
+  & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check
+  if ($LASTEXITCODE -ne 0) { $checkError = "sync.mjs --check failed (exit $LASTEXITCODE)" }
 }
 finally {
   # Whatever happened, the tasks that were running run again.
-  foreach ($name in $restart) { Start-ScheduledTask -TaskName $name }
+  foreach ($name in $restart) {
+    if ($checkError -and $name -eq 'LapUploader') { continue }
+    Start-ScheduledTask -TaskName $name
+  }
+}
+if ($checkError) {
+  $restart = @($restart | Where-Object { $_ -ne 'LapUploader' })
+  Write-Warning "$checkError. LapUploader is stopped and not restarted; fix origin/main (or revert) and run update.ps1 again."
 }
 
 # Starting a task does not prove it stayed up: LapRecorder once sat at Ready
@@ -139,4 +157,5 @@ if ($restart) {
     if ($stillDead) { throw "Not running after the update and a retry: $($stillDead -join ', ')" }
   }
 }
+if ($checkError) { throw "$checkError; LapUploader left stopped." }
 $Runtime
