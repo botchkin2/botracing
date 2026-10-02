@@ -6,7 +6,8 @@ import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {lastRaceOf} from './lastRace';
 import {pitLaneBase, pitModelOf} from './pitBase';
-import {type Combo, fuelOnly, planView, rulesFor} from './model';
+import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
+import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
 import {type Unit} from './unit';
 import {usePlanHistory, usePlanLimits} from './usePlanHistory';
@@ -23,16 +24,30 @@ export function usePlanData(
   unit: Unit = 've',
   /** What the car starts with when less than a full load, typed for this race. */
   start: {fuelL?: number | null; vePct?: number | null} = {},
+  /** The series week of the event being planned; null is the newest event at this track and car. */
+  eventWeek: string | null = null,
 ) {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
 
-  const limits = usePlanLimits(combo);
+  const limits = usePlanLimits(combo, eventWeek);
   const rules = rulesFor(preset, length, limits.lastFuel, start);
   const wantedL = rules?.rules.fuelL ?? null;
-  const hist = usePlanHistory(combo, limits.limitsL, wantedL, preset);
+  const hist = usePlanHistory(
+    combo,
+    limits.limitsL,
+    wantedL,
+    preset,
+    limits.event?.sessionIds ?? null,
+  );
+  const eventText = limits.event
+    ? eventLabel(
+        limits.event,
+        limits.lastFuel ? sessionLimitL(limits.lastFuel) : null,
+      )
+    : null;
   const greenLaps = hist.chosen.laps;
   // The lane base comes from his own race stops here; the Plan counts no pit
   // time without it (fewer than two stops, or a class the refuel rate is not
@@ -67,6 +82,7 @@ export function usePlanData(
                 ? hist.usedSessions[hist.usedSessions.length - 1].startedAt
                 : null,
             lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
+            eventText,
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
@@ -112,15 +128,26 @@ export function usePlanData(
     view,
     cards,
     fuelOnly: noVe,
+    eventText,
   };
 }
 
 /**
- * The newest race at a track and car, for "Your last race here". Null while it
- * loads, and when there is no race there.
+ * The newest race of the planned event at a track and car (the series is the
+ * unit, not the track: pit-wall thread 44 #1967), for "Your last race here".
+ * Null while it loads, and when the event has no race yet. With no event given
+ * it is the newest race at the track and car.
  */
-export function useLastRaceHere(combo: Combo | null) {
-  const newest = combo?.sessions.find(s => s.sessionType === 'R') ?? null;
+export function useLastRaceHere(
+  combo: Combo | null,
+  event: {sessionIds: string[]} | null = null,
+) {
+  const newest =
+    combo?.sessions.find(
+      s =>
+        s.sessionType === 'R' &&
+        (event == null || event.sessionIds.includes(s.id)),
+    ) ?? null;
   const detail = useSession(newest?.id ?? '');
   const laps = useSessionLaps(newest?.id ?? '');
   if (!newest || !detail.data || !laps.data) return null;

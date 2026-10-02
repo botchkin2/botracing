@@ -16,6 +16,7 @@ import {
   veRatioFor,
   veRatioOf,
 } from './model';
+import {eventsOf} from './planEvent';
 
 /**
  * The first half of the plan's data: the fill limit of every session at a
@@ -23,17 +24,29 @@ import {
  * "plan vs what happened" card both read the history through these two hooks,
  * so the two never disagree (pit-wall thread 42).
  */
-export function usePlanLimits(combo: Combo | null) {
+export function usePlanLimits(
+  combo: Combo | null,
+  /** The series week of the planned event; null is the newest one. */
+  eventWeek: string | null = null,
+) {
   const allIds = useMemo(
     () => (combo ? combo.sessions.map(s => s.id) : []),
     [combo],
   );
   const allDetails = useSessionsDetail(allIds);
-  // No session at the track and car yet: nothing to read (an empty id would
-  // request /sessions/ and 404).
-  const last = useSession(allIds[0] ?? '', allIds.length > 0);
+  const events = useMemo(
+    () => (combo ? eventsOf(combo.sessions) : []),
+    [combo],
+  );
+  const event = events.find(e => e.week === eventWeek) ?? events[0] ?? null;
+  // The event's newest session gives its load; no session at the track and car
+  // yet: nothing to read (an empty id would request /sessions/ and 404).
+  const lastId = event?.sessionIds[0] ?? '';
+  const last = useSession(lastId, lastId !== '');
   return {
     lastFuel: last.data?.fuel ?? null,
+    events,
+    event,
     ...limitsOfDetails(allDetails.details, allDetails.pending),
   };
 }
@@ -48,6 +61,8 @@ export function usePlanHistory(
   limitsL: (number | null | undefined)[],
   wantedL: number | null,
   preset: FuelPreset | null,
+  /** The sessions of the planned event, whose ratio the plan takes; unset, every session counts as in it. */
+  eventIds: string[] | null = null,
 ) {
   const history =
     combo && wantedL != null ? historySessions(combo, limitsL) : [];
@@ -64,8 +79,9 @@ export function usePlanHistory(
       sessionDetails.details[i]?.fuel?.litresPerVePct ??
       (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
     fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
+    inEvent: eventIds == null || eventIds.includes(s.id),
   }));
-  const ratio = veRatioFor(preset, measured, wantedL);
+  const ratio = veRatioFor(preset, measured);
   const perSession = history.map((s, i) => ({
     id: s.id,
     laps: lapsOf.laps[i]

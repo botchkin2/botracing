@@ -30,6 +30,8 @@ export function RulesSheet({
   length,
   lastFillLimitL,
   lastVeRatio,
+  events,
+  onEvent,
   onSelect,
   onSave,
   onRemove,
@@ -46,6 +48,9 @@ export function RulesSheet({
   length: RaceLength;
   lastFillLimitL: number | null;
   lastVeRatio: number | null;
+  /** The events at this track and car, newest first: the rules come from the one picked (its load, its L per %). */
+  events: {week: string; label: string; selected: boolean}[];
+  onEvent: (week: string) => void;
   onSelect: (id: string | null) => void;
   onSave: (preset: FuelPreset) => void;
   onRemove: (id: string) => void;
@@ -62,14 +67,17 @@ export function RulesSheet({
       onClose={close}
       bodyStyle={styles.body}>
       <View style={styles.chips}>
-        <Chip
-          label='No limits'
-          selected={preset == null}
-          onPress={() => {
-            onSelect(null);
-            setEditing(null);
-          }}
-        />
+        {events.map(e => (
+          <Chip
+            key={e.week}
+            label={e.label}
+            selected={e.selected}
+            onPress={() => {
+              onEvent(e.week);
+              setEditing(null);
+            }}
+          />
+        ))}
         {presets.map(p => (
           <Chip
             key={p.id}

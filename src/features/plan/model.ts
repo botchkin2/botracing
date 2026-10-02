@@ -1,4 +1,4 @@
-import {type HistoryDrift, sameLimit} from '@/src/analysis/fuelHistory';
+import {type HistoryDrift} from '@/src/analysis/fuelHistory';
 import {
   type FuelPlan,
   type Load,
@@ -167,17 +167,16 @@ export type VeRatio = {
 };
 
 /**
- * The ratio to plan with: the preset's if it sets one, else the newest history
- * session that ran the planned load and has one, else none. `sessions` is
- * newest first, as `historySessions` gives.
+ * The ratio to plan with: the preset's if it sets one; with a preset max fuel,
+ * the newest session that ran that load; else the newest session of the
+ * planned event, else none. `sessions` is newest first, as `historySessions`
+ * gives, and `inEvent` marks the planned event's sessions (unset counts as in).
  *
- * The ratio belongs to the event, not the car: 0.67 to 0.99 L per % across
- * events, and the load does not predict it (parc's 9-month audit, thread 44
- * #1980), so a session of another load is never taken and nothing is
- * estimated from the load. Within one event practice, qualifying and race
- * agree to 0.005, so one lap of that event gives it. The planned load is the
- * preset's max fuel, else `plannedL` (the rules' load); with neither, the
- * newest session's ratio is the one.
+ * The ratio belongs to the event: 0.67 to 0.99 L per % across events of one
+ * car, and the load does not predict it (parc's 9-month audit, thread 44
+ * #1980), so nothing is estimated from the load and another event's ratio is
+ * never taken. Within one event practice, qualifying and race agree to 0.005,
+ * so one lap of that event gives it.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
@@ -185,17 +184,18 @@ export function veRatioFor(
     startedAt: string;
     ratio: number | null;
     fillLimitL: number | null;
+    inEvent?: boolean;
   }[],
-  plannedL: number | null = null,
 ): VeRatio | null {
   if (preset?.veRatio != null)
     return {perPctL: preset.veRatio, source: {kind: 'preset'}};
-  const wanted = preset?.fuelL ?? plannedL;
+  const wanted = preset?.fuelL ?? null;
   const last = sessions.find(
     s =>
       s.ratio != null &&
-      (wanted == null ||
-        (s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5)),
+      (wanted != null
+        ? s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5
+        : s.inEvent !== false),
   );
   return last
     ? {
@@ -461,7 +461,10 @@ function ratioNote(
   ratio: VeRatio | null,
   fuelL: number,
   loadsL: number[],
+  eventText: string | null = null,
 ): string {
+  if (!ratio && eventText != null)
+    return `no VE a lap yet: no green lap with fuel and VE in this event (${eventText}); drive one lap here, or type the ratio into a rule set`;
   if (!ratio)
     return loadsL.length > 0
       ? `no VE: none of your sessions ran ${fuelL} L (they ran ${loadsL.join(
@@ -566,6 +569,8 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
+    /** The event the plan is for ("One Stint Sprint · week of 09-29 · 100 L"); null for a rule set or no event. */
+    eventText?: string | null;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
     /** Median lap time of the clean and of the traffic laps among the green laps; null without a field. */
@@ -575,9 +580,10 @@ export function planView(
   unit: Unit = 've',
 ): PlanView {
   const r = rules.rules;
+  const eventText = preset ? null : history.eventText ?? null;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
-    : `Rules: last race here (${r.fuelL} L ${
+    : `Rules: ${eventText ?? 'last race here'} (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'
           : rules.fuelSource === 'tank'
@@ -618,7 +624,12 @@ export function planView(
   const veRow: Row = {
     label: 'Virtual Energy',
     value: ve ? usageText(ve, pct2) : 'no data',
-    note: ratioNote(history.ratio, r.fuelL, history.ratioLoadsL),
+    note: ratioNote(
+      history.ratio,
+      r.fuelL,
+      history.ratioLoadsL,
+      preset ? null : history.eventText ?? null,
+    ),
   };
   cards.push({
     key: 'perLap',

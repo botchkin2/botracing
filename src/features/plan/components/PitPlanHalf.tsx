@@ -8,6 +8,7 @@ import {type PitCard} from '@/src/features/session/pitCard';
 import {Explainer, Text, useHowToRead} from '@/src/ui';
 
 import {planCombos} from '../model';
+import {seriesWeek} from '../planEvent';
 import {buildPlanHalf, PLAN_HALF_HELP, type PlanHalf} from '../planHalf';
 import {raceRules} from '../planVsRace';
 import {usePlanHistory, usePlanLimits} from '../usePlanHistory';
@@ -35,7 +36,20 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
       : null;
   }, [sessions.data, facts.planKey, facts.startedAt]);
   const limits = usePlanLimits(prior);
-  const hist = usePlanHistory(prior, limits.limitsL, facts.limitL, null);
+  // The race's own event: the sessions before it in its series week, whose
+  // ratio the plan takes.
+  const week = seriesWeek(facts.startedAt);
+  const eventIds =
+    prior?.sessions
+      .filter(s => seriesWeek(s.startedAt) === week)
+      .map(s => s.id) ?? null;
+  const hist = usePlanHistory(
+    prior,
+    limits.limitsL,
+    facts.limitL,
+    null,
+    eventIds,
+  );
   const rules = raceRules(facts);
   const laps = hist.chosen.laps;
   const plan = rules && laps.length > 0 ? planRace(rules, laps) : null;

@@ -452,9 +452,30 @@ describe('veRatioFor', () => {
     ).toBeNull();
   });
 
-  it('plans a load by the ratio of a session that ran it, from the rules when there is no preset', () => {
-    expect(veRatioFor(null, sessions, 75)!.perPctL).toBe(0.68);
-    expect(veRatioFor(null, sessions, 100)).toBeNull();
+  it('takes the ratio of the planned event only, never another event with a ratio', () => {
+    const events = [
+      {
+        startedAt: '2026-10-02T00:12:00Z',
+        ratio: null,
+        fillLimitL: 100,
+        inEvent: true,
+      },
+      {
+        startedAt: '2026-09-26T00:38:00Z',
+        ratio: 0.675,
+        fillLimitL: 75,
+        inEvent: false,
+      },
+    ];
+    expect(veRatioFor(null, events)).toBeNull();
+    expect(
+      veRatioFor(null, [{...events[0], ratio: 0.968}, ...events.slice(1)])!
+        .perPctL,
+    ).toBe(0.968);
+  });
+
+  it('the newest ratio of the event wins, practice or race alike', () => {
+    expect(veRatioFor(null, sessions)!.perPctL).toBe(0.81);
   });
 
   it('with no preset max fuel, the newest ratio is right (rules start from that session)', () => {
@@ -958,7 +979,7 @@ describe('limitsOfDetails', () => {
 // (2.40 L a lap, 0.675 L per % of VE); the event being planned is a 100 L one,
 // where a % of VE is worth 0.968 L. The same fuel a lap reads 2.5 % there, not
 // the 3.5 % it read at 75 L, and 40 minutes need no stop.
-describe('planning a load nobody ran yet (pooled litres)', () => {
+describe('planning an event with litres pooled from other events', () => {
   const history = Array.from({length: 12}, (_, i) =>
     lap({
       id: `l${i}`,
@@ -976,15 +997,21 @@ describe('planning a load nobody ran yet (pooled litres)', () => {
     mandatoryStops: 0,
   };
 
-  it('with the ratio of the planned 100 L load, VE per lap follows the load', () => {
-    const ratio = veRatioFor(
-      null,
-      [
-        {startedAt: '2026-10-02T00:12:00Z', ratio: 0.968, fillLimitL: 100},
-        {startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75},
-      ],
-      100,
-    )!;
+  it("with the planned event's own ratio, VE per lap follows the event", () => {
+    const ratio = veRatioFor(null, [
+      {
+        startedAt: '2026-10-02T00:12:00Z',
+        ratio: 0.968,
+        fillLimitL: 100,
+        inEvent: true,
+      },
+      {
+        startedAt: '2026-09-26T00:38:00Z',
+        ratio: 0.675,
+        fillLimitL: 75,
+        inEvent: false,
+      },
+    ])!;
     expect(ratio.perPctL).toBe(0.968);
     const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
     expect(plan.perLap.ve!.median).toBeCloseTo(2.4 / 0.968, 6);
@@ -992,13 +1019,16 @@ describe('planning a load nobody ran yet (pooled litres)', () => {
     expect(plan.atMedian.stops).toBe(0);
   });
 
-  it('with only 75 L sessions there is no VE for a 100 L event, and the fuel plan still needs no stop', () => {
+  it('with only another event on record there is no VE yet, and the fuel plan still needs no stop', () => {
     expect(
-      veRatioFor(
-        null,
-        [{startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75}],
-        100,
-      ),
+      veRatioFor(null, [
+        {
+          startedAt: '2026-09-26T00:38:00Z',
+          ratio: 0.675,
+          fillLimitL: 75,
+          inEvent: false,
+        },
+      ]),
     ).toBeNull();
     const plan = planRace(rules, greenLapsOf('s', history, null));
     expect(plan.perLap.ve).toBeNull();
