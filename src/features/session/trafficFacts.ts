@@ -20,10 +20,14 @@ export {MIN_SET_LAPS} from '@/src/analysis/traffic';
  * The stored rule, in words (src/analysis/traffic.ts), printed wherever
  * "clean" or "traffic" appears.
  */
-export const PACE_RULE =
-  `Clean: no car within 1 s ahead for ${CLEAN_AHEAD_S} s or more, no faster-class car within ${BLUE_BEHIND_S} s behind, no pass suffered, ` +
-  `under ${CLEAN_BATTLE_S} s within 1 s of a same-class car. Traffic: ${TRAFFIC_AHEAD_S} s or more within 1 s of a car ahead. ` +
-  'n is the laps a median uses; a lap between the two is in neither. Both are laps with a recorded field.';
+export const PACE_RULE_LINES: readonly string[] = [
+  `Clean: no car within 1 s ahead for ${CLEAN_AHEAD_S} s or more, no faster-class car within ${BLUE_BEHIND_S} s behind, no pass suffered, under ${CLEAN_BATTLE_S} s within 1 s of a same-class car.`,
+  `Traffic: ${TRAFFIC_AHEAD_S} s or more within 1 s of a car ahead.`,
+  'n is the laps a median uses; a lap between the two is in neither. Both are laps with a recorded field.',
+];
+
+/** The same rule as one string. */
+export const PACE_RULE = PACE_RULE_LINES.join(' ');
 
 /** "1:49.800 · 4 of 14 laps"; null under the lap floor, where there is no median. */
 export function setText(set: LapSet, ofLaps: number): string | null {

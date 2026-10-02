@@ -9,7 +9,12 @@ import {
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {BrakeMap, type BrakeMapMarker, DotStrip} from '@/src/charts';
+import {
+  BrakeMap,
+  brakeMapHeight,
+  type BrakeMapMarker,
+  DotStrip,
+} from '@/src/charts';
 import {
   hitBox,
   lapColors,
@@ -229,6 +234,7 @@ function CornerView({
     <Chip
       key={s.sectionN}
       label={s.label}
+      minWidth={size.hit}
       selected={s.selected}
       onPress={() => go(s.firstCorner)}
     />
@@ -237,6 +243,7 @@ function CornerView({
     <Chip
       key={p.n}
       label={p.label}
+      minWidth={size.hit}
       selected={p.selected}
       onPress={() => go(p.n)}
     />
@@ -448,11 +455,6 @@ function CornerView({
           onPressRow={highlight}
         />
       )}
-      {model.highlightLine && (
-        <Text variant='dataSmall' tone='textSecondary'>
-          {model.highlightLine}
-        </Text>
-      )}
       <Explainer>{model.explainer}</Explainer>
     </View>
   );
@@ -508,9 +510,6 @@ function CornerView({
         <ScrollView
           style={styles.flex}
           contentContainerStyle={[styles.col, top]}>
-          {model.highlightLine && (
-            <Text variant='dataStrong'>{model.highlightLine}</Text>
-          )}
           {traces}
         </ScrollView>
       </View>
@@ -692,7 +691,7 @@ function BrakeMapPanel({
       </Text>
       <BrakeMap
         width={width}
-        height={BRAKE_MAP_H}
+        height={brakeMapHeight(width, map.centreline, BRAKE_MAP_H)}
         centreline={map.centreline}
         stretch={map.stretch}
         neighbours={map.neighbours}

@@ -598,7 +598,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: size.gutter,
     height: size.hit,
   },
-  back: {width: space.xxl, alignItems: 'center'},
+  // A 44 pt square: the chevron glyph alone is 24 x 20.
+  back: {
+    width: size.hit,
+    height: size.hit,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {flex: 1},
   center: {
     flex: 1,
@@ -631,5 +637,10 @@ const styles = StyleSheet.create({
   matchNote: {marginTop: space.xs},
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
-  keyToggle: {minHeight: size.hit, justifyContent: 'center'},
+  keyToggle: {
+    minWidth: size.hit,
+    minHeight: size.hit,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

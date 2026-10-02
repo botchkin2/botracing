@@ -57,6 +57,7 @@ export function RaceTransport({
       onPress={onToggle}
       style={[
         styles.play,
+        phone && styles.playPhone,
         {backgroundColor: color.accent, borderRadius: radius.md},
       ]}>
       <Svg width={ICON} height={ICON} viewBox='0 0 16 16'>
@@ -150,6 +151,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 44 pt on the phone, like the step and rate buttons beside it.
+  playPhone: {width: size.hit, height: size.hit},
   clock: {flex: 1},
   phoneBar: {
     paddingHorizontal: size.gutter,

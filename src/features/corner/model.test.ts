@@ -136,12 +136,6 @@ describe('a lap at full throttle by the slowest point', () => {
     });
     expect(model.rows[0].cells.throttle.value).toBe('10');
   });
-
-  it('the highlight line says so, not a distance', () => {
-    expect(model.highlightLine).toBe(
-      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle at the slowest point',
-    );
-  });
 });
 
 describe('buildCornerModel (per single corner)', () => {
@@ -178,12 +172,6 @@ describe('buildCornerModel (per single corner)', () => {
     expect(b.brake).toEqual({value: '190', gap: '+10', better: false});
     expect(b.minSpeed).toEqual({value: '106', gap: '−4', better: false});
     expect(m.rows[0].cells.time.gap).toBeNull();
-  });
-
-  it('highlight line for the highlighted lap', () => {
-    expect(m.highlightLine).toBe(
-      'L2: 10.100 s · brake 190 m · min 106 km/h · full throttle 30 m',
-    );
   });
 
   it('zoom window is apex −250 m to +150 m; explainer names the corner', () => {
