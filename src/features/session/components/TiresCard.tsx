@@ -9,6 +9,8 @@ import type {WearScatterModel} from '../wearScatter';
 import {
   NO_TYRE_CHANNELS,
   TIRES_HELP,
+  treadScale,
+  type TreadZone,
   type TiresCard as TiresCardModel,
 } from '../tireCard';
 import {AxleLines} from './AxleLines';
@@ -141,17 +143,7 @@ export function TiresCard({
         <Text variant='label'>Stop cool-down</Text>
         <CoolDown block={stint.coolDown} width={width} />
       </View>
-      {stint.tread ? (
-        <View style={styles.block}>
-          <Text variant='label'>Tread zones</Text>
-          <Explainer>
-            Median over the green laps, °C. Outer edges face out, as seen from
-            above. I inner · C centre · O outer; I − O = inner minus outer. Bar
-            scale 70–100 °C.
-          </Explainer>
-          <TreadZones zones={stint.tread} width={width} />
-        </View>
-      ) : null}
+      {stint.tread ? <TreadBlock zones={stint.tread} width={width} /> : null}
       {scatter ? <WearScatter model={scatter} width={width} /> : null}
     </View>
   );
@@ -170,3 +162,16 @@ const styles = StyleSheet.create({
   lapCol: {width: 48},
   wheelCol: {flex: 1, textAlign: 'right'},
 });
+
+function TreadBlock({zones, width}: {zones: TreadZone[]; width: number}) {
+  const scale = treadScale(zones);
+  return (
+    <View style={styles.block}>
+      <Text variant='label'>Tread zones</Text>
+      <Explainer>
+        {`Median over the green laps, °C. Outer edges face out, as seen from above. I inner · C centre · O outer; I − O = inner minus outer. Bar scale ${scale.minC}–${scale.maxC} °C.`}
+      </Explainer>
+      <TreadZones zones={zones} width={width} scale={scale} />
+    </View>
+  );
+}

@@ -24,18 +24,24 @@ describe('tiresSummary', () => {
 });
 
 describe('fuelSummary', () => {
-  const fuel = (medians: (number | null)[]) =>
+  const fuel = (used: number[]) =>
     ({
-      stints: medians.map((m, i) => ({n: i + 1, medianFuelL: m})),
+      points: used.map((fuelL, i) => ({lapId: `l${i}`, fuelL})),
     } as unknown as FuelUse);
 
-  it('is the median of the stint medians, with how many stints', () => {
-    expect(fuelSummary(fuel([3, 3.2, 3.4]))).toBe('3.20 L a lap · 3 stints');
-    expect(fuelSummary(fuel([3, null, 3.4]))).toBe('3.20 L a lap · 2 stints');
-    expect(fuelSummary(fuel([3.1]))).toBe('3.10 L a lap · 1 stint');
+  it('is the median fuel use over the green laps, with how many', () => {
+    expect(fuelSummary(fuel([3, 3.4, 3.2]))).toBe(
+      '3.20 L a lap · median of 3 green laps',
+    );
+    expect(fuelSummary(fuel([3, 3.2, 3.4, 3.6]))).toBe(
+      '3.30 L a lap · median of 4 green laps',
+    );
+    expect(fuelSummary(fuel([3.1]))).toBe(
+      '3.10 L a lap · median of 1 green lap',
+    );
   });
 
-  it('says so when no stint has a median', () => {
-    expect(fuelSummary(fuel([null]))).toBe('No stint with enough laps');
+  it('says so when no lap is in the medians', () => {
+    expect(fuelSummary(fuel([]))).toBe('No stint with enough laps');
   });
 });

@@ -4,7 +4,7 @@ import Svg, {Rect} from 'react-native-svg';
 import {radius, space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
-import {TREAD_BAR_MAX_C, TREAD_BAR_MIN_C, type TreadZone} from '../tireCard';
+import {type TreadZone} from '../tireCard';
 
 const BAR_H = 32;
 const BAR_W = 14;
@@ -12,7 +12,6 @@ const BAR_GAP = space.sm;
 const GRID_GAP = space.md;
 
 type Zone = 'inner' | 'centre' | 'outer';
-const ZONES: Zone[] = ['inner', 'centre', 'outer'];
 
 /**
  * Seen from above with the outer edges facing out: on the left wheels the
@@ -32,21 +31,18 @@ const LETTER: Record<Zone, string> = {inner: 'I', centre: 'C', outer: 'O'};
 export function TreadZones({
   zones,
   width,
+  scale,
 }: {
   zones: TreadZone[];
   width: number;
+  /** The shared bar scale, C (`treadScale`). */
+  scale: {minC: number; maxC: number};
 }) {
   const cellW = Math.floor((width - GRID_GAP) / 2);
-  // A tyre under the scale's floor (a cold stint) draws no bar; when every bar
-  // of the four is empty the bar rows would be blank space above the numbers,
-  // so they are left out and the numbers stand alone.
-  const barH = zones.some(z => ZONES.some(p => (z[p] ?? 0) > TREAD_BAR_MIN_C))
-    ? BAR_H
-    : 0;
   return (
     <View style={[styles.grid, {width, gap: GRID_GAP}]}>
       {zones.map(z => (
-        <ZoneCell key={z.wheel} zone={z} width={cellW} barH={barH} />
+        <ZoneCell key={z.wheel} zone={z} width={cellW} range={scale} />
       ))}
     </View>
   );
@@ -55,21 +51,18 @@ export function TreadZones({
 function ZoneCell({
   zone,
   width,
-  barH,
+  range,
 }: {
   zone: TreadZone;
   width: number;
-  barH: number;
+  range: {minC: number; maxC: number};
 }) {
   const {color} = useTheme();
   const order = ORDER[zone.wheel.endsWith('L') ? 'left' : 'right'];
   const scale = (v: number) =>
-    (Math.min(
-      Math.max(v - TREAD_BAR_MIN_C, 0),
-      TREAD_BAR_MAX_C - TREAD_BAR_MIN_C,
-    ) /
-      (TREAD_BAR_MAX_C - TREAD_BAR_MIN_C)) *
-    barH;
+    (Math.min(Math.max(v - range.minC, 0), range.maxC - range.minC) /
+      (range.maxC - range.minC)) *
+    BAR_H;
   const diff = zone.innerMinusOuter;
   return (
     <View
@@ -94,19 +87,17 @@ function ZoneCell({
           const v = zone[part];
           return (
             <View key={part} style={styles.bar}>
-              {barH > 0 ? (
-                <Svg width={BAR_W} height={barH}>
-                  {v != null ? (
-                    <Rect
-                      x={0}
-                      y={barH - scale(v)}
-                      width={BAR_W}
-                      height={scale(v)}
-                      fill={color.textFaint}
-                    />
-                  ) : null}
-                </Svg>
-              ) : null}
+              <Svg width={BAR_W} height={BAR_H}>
+                {v != null ? (
+                  <Rect
+                    x={0}
+                    y={BAR_H - scale(v)}
+                    width={BAR_W}
+                    height={scale(v)}
+                    fill={color.textFaint}
+                  />
+                ) : null}
+              </Svg>
               <Text variant='dataSmall'>{v == null ? '—' : v.toFixed(0)}</Text>
               <Text variant='label' tone='textMuted'>
                 {LETTER[part]}

@@ -10,17 +10,16 @@ export function tiresSummary(card: TiresCard): string | null {
   return last ? `${last.title} · ${last.sub}` : null;
 }
 
-/** "3.42 L a lap · 3 stints", the median over the stints that have one. */
+/**
+ * "2.96 L a lap · median of 9 green laps": the median fuel use over the laps in
+ * the card's medians (green, comparable), every stint together, and how many.
+ */
 export function fuelSummary(fuel: FuelUse): string | null {
-  const medians = fuel.stints.flatMap(s =>
-    s.medianFuelL == null ? [] : [s.medianFuelL],
-  );
-  if (medians.length === 0) return 'No stint with enough laps';
-  const sorted = [...medians].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  const median =
-    sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  return `${median.toFixed(2)} L a lap · ${medians.length} ${
-    medians.length === 1 ? 'stint' : 'stints'
+  const used = fuel.points.map(p => p.fuelL).sort((a, b) => a - b);
+  if (used.length === 0) return 'No stint with enough laps';
+  const mid = used.length >> 1;
+  const median = used.length % 2 ? used[mid] : (used[mid - 1] + used[mid]) / 2;
+  return `${median.toFixed(2)} L a lap · median of ${used.length} green ${
+    used.length === 1 ? 'lap' : 'laps'
   }`;
 }
