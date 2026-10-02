@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   classSessionOf,
   classTiming,
+  noPassText,
   type ClassSession,
   passesOf,
 } from './classTiming';
@@ -285,5 +286,13 @@ describe('classSessionOf', () => {
         classLaps: {kind: 'race', classes: null, startGapsS: null},
       }),
     ).toBeNull();
+  });
+});
+
+describe('noPassText', () => {
+  it('says how long the race is and where the first pass would fall', () => {
+    expect(noPassText(5, 'L13–L16')).toBe(
+      'No pass in 5 laps (first at L13–L16)',
+    );
   });
 });

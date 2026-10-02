@@ -4,7 +4,7 @@ import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
 
 import {dash, size, stroke, type as typeScale, useTheme} from '@/src/design';
 
-import {type ReadyClassTiming} from '../classTiming';
+import {noPassText, type ReadyClassTiming} from '../classTiming';
 import {lapAt} from '../pitPlan';
 import {type StopWindow} from '../planCards';
 
@@ -51,7 +51,16 @@ export function RaceTimelineView({
   );
   if (raceLaps == null) return null;
   const lanes = timing.faster.flatMap(c =>
-    c.estimate ? [{key: c.key, label: c.label, passes: c.estimate.passes}] : [],
+    c.estimate
+      ? [
+          {
+            key: c.key,
+            label: c.label,
+            passes: c.estimate.passes,
+            firstText: c.estimate.firstText,
+          },
+        ]
+      : [],
   );
   const plotX = size.timelineLabel;
   const plotW = Math.max(1, width - plotX - PAD_R);
@@ -166,6 +175,16 @@ export function RaceTimelineView({
               fontSize={axis.fontSize}>
               {lane.label}
             </SvgText>
+            {lane.passes.length === 0 ? (
+              <SvgText
+                x={plotX + 6}
+                y={laneY(i + 1) + size.timelineLane / 2 + 3}
+                fill={color.textMuted}
+                fontFamily={axis.fontFamily}
+                fontSize={axis.fontSize}>
+                {noPassText(raceLaps, lane.firstText)}
+              </SvgText>
+            ) : null}
             {lane.passes.map(p => (
               <G key={p.centre}>
                 <Rect

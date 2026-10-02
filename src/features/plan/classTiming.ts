@@ -279,6 +279,10 @@ const rangeText = (lo: number, hi: number) =>
     ? `${lapName(Math.ceil(lo))}–${lapName(Math.floor(hi))}`
     : `${lapName(Math.ceil(lo))} or later`;
 
+/** The words in a class lane that has no pass inside the race. */
+export const noPassText = (raceLaps: number, firstText: string) =>
+  `No pass in ${raceLaps} laps (first at ${firstText})`;
+
 export function classTiming(input: ClassTimingInput): ClassTiming {
   const {sessions, mine, raceLaps, stopsAfter} = input;
   if (sessions.length === 0) return {kind: 'no-field'};

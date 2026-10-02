@@ -1,7 +1,7 @@
 import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {Skeleton, Text} from '@/src/ui';
+import {Skeleton, Text, useHowToRead} from '@/src/ui';
 
 import {
   type ClassTiming,
@@ -13,13 +13,11 @@ import {
 
 import {type StopWindow} from '../planCards';
 
+import {TIMELINE_HELP} from '../timelineHelp';
+
 import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
 
-const TIMELINE_EXPLAINER =
-  'Your stints, and the laps when cars of each faster class, at its median lap, reach you. Each band is a range, and the bands widen with each pass. The first pass counts the grid gap to the faster class where the recorded races give it, and otherwise assumes a level start. Each band runs from the class p10 to its p90 lap.';
-const TIMELINE_KEY =
-  'Amber box = pit window, amber line = planned stop, thin grey tick = where the tank runs out at the median use. Stops are planned at p90 use per lap (the heavier 10 % of the laps), and both ends of a window use it, so the window is the safe one: earliest = the first lap after which the remaining stints still reach the end, latest = the last lap the tank covers. In a timed race the windows use the race length plus one lap, because the flag can fall late. Each window assumes the earlier stops at plan. Amber dashes through the class lanes = the planned stops. White tick = class estimate, grey band = range. Staggered starts, grid order and traffic are not modelled.';
 const FASTER_EXPLAINER =
   'Gain = your median lap − theirs. First is the range of laps from their p10 to their p90 lap; Every is their median lap ÷ gain, in your laps.';
 const YOURS_EXPLAINER =
@@ -62,28 +60,13 @@ export function ClassTimingSection({
     <>
       {timing.raceLaps != null &&
       (timing.faster.some(c => c.estimate) || windows.length > 0) ? (
-        <PlanCard title='Race timeline' explainer={TIMELINE_KEY}>
-          <EstimateBadge />
-          <Text variant='dataSmall' tone='textSecondary'>
-            {TIMELINE_EXPLAINER}
-          </Text>
-          <RaceTimelineView
-            timing={timing}
-            windows={windows}
-            width={width}
-            onStop={onStop}
-          />
-          {windows.map(w => (
-            <Text key={w.stop} variant='dataSmall' tone='textSecondary'>
-              {w.text}
-            </Text>
-          ))}
-          {windowNote ? (
-            <Text variant='dataSmall' tone='textMuted'>
-              {windowNote}
-            </Text>
-          ) : null}
-        </PlanCard>
+        <RaceTimelineCard
+          timing={timing}
+          windows={windows}
+          windowNote={windowNote}
+          width={width}
+          onStop={onStop}
+        />
       ) : null}
       {wide && timing.yours ? (
         <View style={styles.twoUp}>
@@ -101,6 +84,47 @@ export function ClassTimingSection({
         </>
       )}
     </>
+  );
+}
+
+function RaceTimelineCard({
+  timing,
+  windows,
+  windowNote,
+  width,
+  onStop,
+}: {
+  timing: ReadyClassTiming;
+  windows: StopWindow[];
+  windowNote: string | null;
+  width: number;
+  onStop?: (stop: number, lap: number) => void;
+}) {
+  const help = useHowToRead('the race timeline', TIMELINE_HELP);
+  return (
+    <PlanCard title='Race timeline'>
+      <View style={styles.head}>
+        <EstimateBadge />
+        {help.button}
+      </View>
+      {help.panel}
+      <RaceTimelineView
+        timing={timing}
+        windows={windows}
+        width={width}
+        onStop={onStop}
+      />
+      {windows.map(w => (
+        <Text key={w.stop} variant='dataSmall' tone='textSecondary'>
+          {w.text}
+        </Text>
+      ))}
+      {windowNote ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {windowNote}
+        </Text>
+      ) : null}
+    </PlanCard>
   );
 }
 
@@ -205,6 +229,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     paddingVertical: space.xxs,
   },
+  head: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   name: {flex: 1.2},
   cell: {flex: 1},
