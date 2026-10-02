@@ -179,35 +179,35 @@ describe('buildPlanCards', () => {
   });
 
   it('the Stops card: a pit window for each stop, at p90 use, with the median lap beside it', () => {
-    // 72 laps (73 where the flag falls late: the windows use that), stints of 27
-    // then 28 (formation lap off the first). Use does not vary here, so
-    // p90 = median: the plan stop is the window's latest end.
+    // 72 laps (the plan's own count: the lap a late flag adds is a margin line,
+    // not a stop), stints of 27 then 28 (formation lap off the first). Use does
+    // not vary here, so p90 = median: the plan stop is the window's latest end.
     expect(cards.stops.windows).toEqual([
       {
         stop: 1,
-        earliest: 17,
+        earliest: 16,
         latest: 27,
         planLap: 27,
         medianLap: 27,
-        text: 'Stop 1: after L18 to L28 · 11 laps · at median use L28',
+        text: 'Stop 1: after L17 to L28 · 12 laps · at median use L28',
       },
       {
         stop: 2,
-        earliest: 45,
+        earliest: 44,
         latest: 55,
         planLap: 55,
         medianLap: 55,
-        text: 'Stop 2: after L46 to L56 · 11 laps · at median use L56, within 28 laps of stop 1',
+        text: 'Stop 2: after L45 to L56 · 12 laps · at median use L56, within 28 laps of stop 1',
       },
     ]);
     expect(cards.stops.windowNote).toBeNull();
   });
 
-  it('a timed race: the windows use the late-flag length, so the earliest ends are a lap later than at the estimate', () => {
+  it('a timed race: the windows use the own lap count, and the late-flag lap is a margin line', () => {
     const plan = planRace(rules, history());
     expect(plan.raceLaps?.estimate).toBe(72);
     expect(plan.raceLaps?.oneMore).toBe(73);
-    const [first] = buildPlanCards(plan, rules, false, RATIO).stops.windows;
+    const stops = buildPlanCards(plan, rules, false, RATIO).stops;
     const p90 = plan.atP90;
     const atEstimate = pitWindows(
       p90.firstStint.laps as number,
@@ -215,14 +215,18 @@ describe('buildPlanCards', () => {
       72,
       2,
     )[0];
-    expect(first.earliest).toBe(atEstimate.earliest + 1);
-    // A race counted in laps has no late flag: its length is the estimate.
+    expect(stops.windows[0].earliest).toBe(atEstimate.earliest);
+    // The lap the flag can add is a fact with its numbers, not a stop.
+    expect(stops.lateFlag).toBe(
+      'If the flag falls late (73 laps): one more lap uses 3.5 % VE at p90 use, 2.4 L more at the last stop.',
+    );
+    // A race counted in laps has no late flag: no margin line.
     const lapsRace: PlanRules = {...rules, lengthMin: null, lengthLaps: 72};
     const fixed = planRace(lapsRace, history());
     expect(fixed.raceLaps?.oneMore ?? null).toBeNull();
-    expect(
-      buildPlanCards(fixed, lapsRace, false, RATIO).stops.windows[0].earliest,
-    ).toBe(atEstimate.earliest);
+    const fixedStops = buildPlanCards(fixed, lapsRace, false, RATIO).stops;
+    expect(fixedStops.lateFlag).toBeNull();
+    expect(fixedStops.windows[0].earliest).toBe(atEstimate.earliest);
   });
 
   it('a plan with no stop gets no window, even where the late flag would need one', () => {
@@ -283,7 +287,7 @@ describe('buildPlanCards', () => {
     expect(windows[0].medianLap as number).toBeGreaterThan(windows[0].planLap);
   });
 
-  it('says so when p90 use needs more stops than the median', () => {
+  it('one plan: the Race card, the Stops row and the windows count the p90 stops, and the Race card keeps the median as a fact', () => {
     // A third of the laps at 3.6 L: p90 use is far above the median.
     const heavy = [
       ...Array.from({length: 8}, () => lap(2.38, 3.5)),
@@ -292,11 +296,17 @@ describe('buildPlanCards', () => {
     const plan = planRace(rules, heavy);
     const extra = plan.atP90.stopLaps.length - plan.atMedian.stopLaps.length;
     expect(extra).toBeGreaterThan(0);
-    const {stops} = buildPlanCards(plan, rules, false, RATIO);
-    expect(stops.windows).toHaveLength(plan.atP90.stopLaps.length);
-    expect(stops.windowNote).toBe(
-      `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`,
+    const c = buildPlanCards(plan, rules, false, RATIO);
+    // One list: the p90 stops, everywhere.
+    expect(c.race.stops).toBe(plan.atP90.stopLaps.length);
+    expect(c.stops.windows).toHaveLength(plan.atP90.stopLaps.length);
+    expect(c.stops.full!.stopAfter).toEqual(c.race.stopAfter);
+    expect(c.stops.windows.map(w => w.planLap)).toEqual(plan.atP90.stopLaps);
+    // The median's count is a fact beside it, only where it differs.
+    expect(c.race.medianNote).toBe(
+      `At median use: ${plan.atMedian.stopLaps.length} stops.`,
     );
+    expect(cards.race.medianNote).toBeNull();
   });
 
   it('the Stops card: equal stints second, over the same race', () => {

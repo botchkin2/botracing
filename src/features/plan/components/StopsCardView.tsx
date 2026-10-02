@@ -118,6 +118,11 @@ export function StopsCardView({
           {card.windowNote}
         </Text>
       ) : null}
+      {card.lateFlag ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {card.lateFlag}
+        </Text>
+      ) : null}
       {card.equal ? table(card.equal, false) : null}
       {scope ? (
         <Text variant='dataSmall' tone='textMuted'>
