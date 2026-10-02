@@ -119,8 +119,15 @@ try {
   # write, over all sessions, on the code just installed. Takes about 2 min.
   # Always, not only when the uploader was running: a rollout that stops it
   # first and starts it by hand still gets the check.
-  & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check
-  if ($LASTEXITCODE -ne 0) { $checkError = "sync.mjs --check failed (exit $LASTEXITCODE)" }
+  # Judged on the exit code only. Windows PowerShell 5.1 with Stop turns any
+  # stderr line of a native command into a terminating NativeCommandError when
+  # the caller redirects 2>&1, and node warns on stderr (MODULE_TYPELESS_PACKAGE_JSON)
+  # even when the check passes (apex #2005).
+  $was = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check; $code = $LASTEXITCODE }
+  finally { $ErrorActionPreference = $was }
+  if ($code -ne 0) { $checkError = "sync.mjs --check failed (exit $code)" }
 }
 finally {
   # Whatever happened, the tasks that were running run again.
