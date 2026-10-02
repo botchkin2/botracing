@@ -62,11 +62,10 @@ export function ClassTimingSection({
     <>
       {timing.raceLaps != null &&
       (timing.faster.some(c => c.estimate) || windows.length > 0) ? (
-        <PlanCard title='Race timeline' explainer={TIMELINE_KEY}>
+        <PlanCard
+          title='Race timeline'
+          explainer={`${TIMELINE_EXPLAINER} ${TIMELINE_KEY}`}>
           <EstimateBadge />
-          <Text variant='dataSmall' tone='textSecondary'>
-            {TIMELINE_EXPLAINER}
-          </Text>
           <RaceTimelineView
             timing={timing}
             windows={windows}
