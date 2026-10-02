@@ -27,6 +27,7 @@ import {
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
 import {PlanCard, Section} from './components/PlanCard';
+import {eventLabel} from './planEvent';
 import {LengthStepper} from './components/LengthStepper';
 import {StartLoad} from './components/StartLoad';
 import {PooledUseCard} from './components/PooledUseCard';
@@ -90,7 +91,15 @@ export function PlanScreen() {
     vePct: parseNumber(startText.ve),
     fuelL: parseNumber(startText.fuel),
   };
-  const data = usePlanData(combo, unit, start);
+  // The event being planned: a series week at this track and car; the newest
+  // one until another is picked (thread 44 #1983).
+  const [eventPick, setEventPick] = useState<{
+    key: string;
+    week: string;
+  } | null>(null);
+  const eventWeek =
+    eventPick && eventPick.key === combo?.key ? eventPick.week : null;
+  const data = usePlanData(combo, unit, start, eventWeek);
   const slider = usePitSlider(data, combo?.key ?? '');
   const chosen = useMemo(
     () =>
@@ -118,9 +127,9 @@ export function PlanScreen() {
     draft && draft.key === combo?.key ? draft.text : String(length.value);
 
   // The race length is the driver's: Minutes until he picks otherwise (he has
-  // never run a lap-based race, pit-wall thread 44 #1954). The newest race here
-  // prefills the fill limit and the start chips, not the length.
-  const lastRace = useLastRaceHere(combo);
+  // never run a lap-based race, pit-wall thread 44 #1954). The newest race of
+  // the planned event prefills the fill limit and the start chips, not the length.
+  const lastRace = useLastRaceHere(combo, data.limits.event);
   const prefillLine = !lastRace
     ? null
     : preset
@@ -143,6 +152,16 @@ export function PlanScreen() {
   const width = wide ? size.planSetup + space.xxl + resultsW + railW : resultsW;
   // A card's content: the column less its padding and 1 pt border.
   const cardInnerW = resultsW - 2 * (space.lg + 1);
+  // An event's load: the largest fill limit among its sessions, so a start
+  // below the full load (his choice, "fuel is time") never reads as the cap.
+  const eventLoadL = (e: {sessionIds: string[]}) => {
+    const loads = e.sessionIds.flatMap(id => {
+      const i = combo?.sessions.findIndex(x => x.id === id) ?? -1;
+      const l = i >= 0 ? limits.limitsL[i] : null;
+      return l == null ? [] : [l];
+    });
+    return loads.length > 0 ? Math.max(...loads) : null;
+  };
   const ruleSheet = {
     presets,
     activeId,
@@ -152,6 +171,16 @@ export function PlanScreen() {
     length,
     lastFillLimitL: lastFuel?.fillLimitL ?? null,
     lastVeRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
+    events: limits.events.map(e => ({
+      week: e.week,
+      label: eventLabel(e, eventLoadL(e)),
+      selected: preset == null && e.week === limits.event?.week,
+    })),
+    onEvent: (week: string) => {
+      select(null);
+      setDraft(null);
+      if (combo) setEventPick({key: combo.key, week});
+    },
     onSelect: (id: string | null) => {
       select(id);
       setDraft(null);
@@ -167,6 +196,7 @@ export function PlanScreen() {
         hist.ratio?.perPctL ?? null,
       )}
       sheet={ruleSheet}
+      eventText={data.eventText}
       compact={compact}
     />
   );

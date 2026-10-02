@@ -19,6 +19,7 @@ import {
   driftRowOf,
   fuelOnly,
   greenLapsOf,
+  eventLoad,
   HISTORY_SESSIONS,
   historySessions,
   limitsOfDetails,
@@ -293,13 +294,14 @@ describe('planCombos', () => {
     );
     const [combo] = planCombos(many);
     const limits = combo.sessions.map(() => 75);
-    const ids = historySessions(combo, limits, 75).map(s => s.id);
+    const ids = historySessions(combo, limits).map(s => s.id);
     expect(ids).toHaveLength(HISTORY_SESSIONS);
     expect(ids[0]).toBe(`s${HISTORY_SESSIONS + 2}`);
   });
 
-  // Barcelona 2026-08 (thread 36 #1095): the fill limit moved from 79 L to 75 L.
-  it('keeps only sessions at the rules fill limit, never an unknown one', () => {
+  // Fuel per lap is the car on the track: laps from every load are pooled in
+  // litres (thread 44 #1968); a session doc still loading is not used yet.
+  it('pools sessions of every fill limit, never one still loading', () => {
     const [combo] = planCombos([
       session('old', '2026-04-01T10:00:00Z'),
       session('other', '2026-08-01T10:00:00Z'),
@@ -308,9 +310,10 @@ describe('planCombos', () => {
       session('new', '2026-08-13T10:00:00Z'),
     ]);
     // combo.sessions is newest first: new, none, loading, other, old.
-    const limits = [75, null, undefined, 79, 79];
-    expect(historySessions(combo, limits, 75).map(s => s.id)).toEqual(['new']);
-    expect(historySessions(combo, limits, 79).map(s => s.id)).toEqual([
+    const limits = [100, null, undefined, 75, 79];
+    expect(historySessions(combo, limits).map(s => s.id)).toEqual([
+      'new',
+      'none',
       'other',
       'old',
     ]);
@@ -439,7 +442,7 @@ describe('veRatioFor', () => {
     expect(veRatioFor(p84, sessions)!.perPctL).toBe(0.81);
   });
 
-  it('has no ratio when no session ran the preset load', () => {
+  it('has no ratio when no session ran the preset load: nothing is estimated from the load', () => {
     const p60 = newPreset('X', {fuelL: 60}, 'p3', '2026-09-26T00:00:00Z');
     expect(veRatioFor(p60, sessions)).toBeNull();
     // A session with no recorded fill limit cannot be matched either.
@@ -448,6 +451,32 @@ describe('veRatioFor', () => {
         {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81, fillLimitL: null},
       ]),
     ).toBeNull();
+  });
+
+  it('takes the ratio of the planned event only, never another event with a ratio', () => {
+    const events = [
+      {
+        startedAt: '2026-10-02T00:12:00Z',
+        ratio: null,
+        fillLimitL: 100,
+        inEvent: true,
+      },
+      {
+        startedAt: '2026-09-26T00:38:00Z',
+        ratio: 0.675,
+        fillLimitL: 75,
+        inEvent: false,
+      },
+    ];
+    expect(veRatioFor(null, events)).toBeNull();
+    expect(
+      veRatioFor(null, [{...events[0], ratio: 0.968}, ...events.slice(1)])!
+        .perPctL,
+    ).toBe(0.968);
+  });
+
+  it('the newest ratio of the event wins, practice or race alike', () => {
+    expect(veRatioFor(null, sessions)!.perPctL).toBe(0.81);
   });
 
   it('with no preset max fuel, the newest ratio is right (rules start from that session)', () => {
@@ -944,5 +973,112 @@ describe('limitsOfDetails', () => {
     const state = limitsOfDetails([doc(75), undefined], false);
     expect(state.pending).toBe(false);
     expect(state.limitsL).toEqual([75, undefined]);
+  });
+});
+
+// Road Atlanta 911, thread 44 #1954: every session on record ran a 75 L load
+// (2.40 L a lap, 0.675 L per % of VE); the event being planned is a 100 L one,
+// where a % of VE is worth 0.968 L. The same fuel a lap reads 2.5 % there, not
+// the 3.5 % it read at 75 L, and 40 minutes need no stop.
+describe('planning an event with litres pooled from other events', () => {
+  const history = Array.from({length: 12}, (_, i) =>
+    lap({
+      id: `l${i}`,
+      timeS: 81.3,
+      fuel: fuel({usedL: 2.4, veUsedPct: 3.55, green: true}),
+    }),
+  );
+  const rules = {
+    name: 'test',
+    lengthLaps: null,
+    lengthMin: 40,
+    fuelL: 100,
+    vePct: 100,
+    formationLap: true,
+    mandatoryStops: 0,
+  };
+
+  it("with the planned event's own ratio, VE per lap follows the event", () => {
+    const ratio = veRatioFor(null, [
+      {
+        startedAt: '2026-10-02T00:12:00Z',
+        ratio: 0.968,
+        fillLimitL: 100,
+        inEvent: true,
+      },
+      {
+        startedAt: '2026-09-26T00:38:00Z',
+        ratio: 0.675,
+        fillLimitL: 75,
+        inEvent: false,
+      },
+    ])!;
+    expect(ratio.perPctL).toBe(0.968);
+    const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
+    expect(plan.perLap.ve!.median).toBeCloseTo(2.4 / 0.968, 6);
+    expect(plan.raceLaps!.estimate).toBe(30);
+    expect(plan.atMedian.stops).toBe(0);
+  });
+
+  it('with only another event on record there is no VE yet, and the fuel plan still needs no stop', () => {
+    expect(
+      veRatioFor(null, [
+        {
+          startedAt: '2026-09-26T00:38:00Z',
+          ratio: 0.675,
+          fillLimitL: 75,
+          inEvent: false,
+        },
+      ]),
+    ).toBeNull();
+    const plan = planRace(rules, greenLapsOf('s', history, null));
+    expect(plan.perLap.ve).toBeNull();
+    expect(plan.perLap.fuel!.median).toBeCloseTo(2.4, 6);
+    expect(plan.atMedian.stops).toBe(0);
+  });
+});
+
+describe('an older event keeps its own sessions in the history', () => {
+  it('adds the event sessions to the newest eight, however old', () => {
+    const many = Array.from({length: HISTORY_SESSIONS + 3}, (_, i) =>
+      session(`s${i}`, `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00Z`),
+    );
+    const [combo] = planCombos(many);
+    const limits = combo.sessions.map(() => 75);
+    const ids = historySessions(combo, limits, ['s0', 's1']).map(s => s.id);
+    expect(ids).toHaveLength(HISTORY_SESSIONS + 2);
+    expect(ids).toContain('s0');
+    expect(ids).toContain('s1');
+    // Still a session doc that is loading is not used yet.
+    limits[combo.sessions.findIndex(s => s.id === 's0')] = undefined as never;
+    expect(historySessions(combo, limits, ['s0']).map(s => s.id)).not.toContain(
+      's0',
+    );
+  });
+});
+
+describe('eventLoad', () => {
+  const f = (over: Partial<SessionFuel>) =>
+    ({fillLimitL: null, startL: null, tankL: null, ...over} as SessionFuel);
+
+  it('is the largest fill limit over the event, never a Q or R start under it', () => {
+    expect(
+      eventLoad([
+        f({fillLimitL: 100, startL: 87}),
+        f({fillLimitL: 100, startL: 28}),
+      ]),
+    ).toEqual({kind: 'fill limit', litres: 100});
+  });
+
+  it('falls back to the largest start, then the tank, when no setup level was recorded', () => {
+    expect(eventLoad([f({startL: 28}), f({startL: 87})])).toEqual({
+      kind: 'start fuel',
+      litres: 87,
+    });
+    expect(eventLoad([f({tankL: 117}), null])).toEqual({
+      kind: 'tank',
+      litres: 117,
+    });
+    expect(eventLoad([null, undefined])).toBeNull();
   });
 });

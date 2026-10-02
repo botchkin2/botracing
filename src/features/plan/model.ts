@@ -1,4 +1,4 @@
-import {type HistoryDrift, sameLimit} from '@/src/analysis/fuelHistory';
+import {type HistoryDrift} from '@/src/analysis/fuelHistory';
 import {
   type FuelPlan,
   type Load,
@@ -120,24 +120,48 @@ export function limitsOfDetails(
 }
 
 /**
- * The sessions whose laps feed the plan: the newest few at the fill limit of
- * the rules. A balance-of-performance change moves fuel per lap (Barcelona
- * 2026-08: 2.31 L a lap at a 79 L limit, 2.88 L at 75 L), and history from the
- * other limit plans the old car (pit wall thread 36 #1095, #1102).
+ * The sessions whose laps feed the plan: the newest few at the track and car,
+ * whatever fill limit they ran. Fuel per lap is the car on the track, so the
+ * history is pooled in litres across events; only VE % depends on the load,
+ * and that is worked out through the ratio of the event being planned
+ * (`veRatioFor`). A real jump in use (balance of performance) is cut out later
+ * by `sinceChange` (pit wall thread 36 #1102, thread 44 #1968).
  * `limitsL` lines up with `combo.sessions`; undefined is a session doc still
- * loading, and null one with no limit on record: neither is used.
+ * loading, which is not used yet.
  */
 export function historySessions(
   combo: Combo,
   limitsL: (number | null | undefined)[],
-  wantedL: number,
+  /** The planned event's sessions: always in the history, however old, so an older event still finds its own ratio. */
+  eventIds: string[] = [],
 ): SessionSummary[] {
-  return combo.sessions
-    .filter((_, i) => {
-      const limit = limitsL[i];
-      return limit != null && sameLimit(limit, wantedL);
-    })
-    .slice(0, HISTORY_SESSIONS);
+  const loaded = combo.sessions.filter((_, i) => limitsL[i] !== undefined);
+  const newest = new Set(loaded.slice(0, HISTORY_SESSIONS).map(s => s.id));
+  return loaded.filter(s => newest.has(s.id) || eventIds.includes(s.id));
+}
+
+/**
+ * The full load of an event: the largest fill limit over its sessions, else
+ * the largest start, else the tank. A Q or R start under the full load is his
+ * choice, never the event's cap ("fuel is time", thread 44 #1985). Null when
+ * none of its docs has a fuel fact.
+ */
+export function eventLoad(
+  fuels: (SessionFuel | null | undefined)[],
+): {kind: 'fill limit' | 'start fuel' | 'tank'; litres: number} | null {
+  const max = (pick: (f: SessionFuel) => number | null | undefined) => {
+    const v = fuels.flatMap(f => {
+      const x = f ? pick(f) : null;
+      return x == null ? [] : [x];
+    });
+    return v.length > 0 ? Math.max(...v) : null;
+  };
+  const fill = max(f => f.fillLimitL);
+  if (fill != null) return {kind: 'fill limit', litres: fill};
+  const start = max(f => f.startL);
+  if (start != null) return {kind: 'start fuel', litres: start};
+  const tank = max(f => f.tankL);
+  return tank != null ? {kind: 'tank', litres: tank} : null;
 }
 
 /**
@@ -164,19 +188,21 @@ export function veRatioOf(laps: Lap[]): number | null {
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
-  /** Where it came from: the preset, or the last session there on this date. */
+  /** Where it came from: the preset, or a session that ran that load. */
   source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
 };
 
 /**
- * The ratio to plan with: the preset's if it sets one, else the newest history
- * session that has one. `sessions` is newest first, as `historySessions` gives.
+ * The ratio to plan with: the preset's if it sets one; with a preset max fuel,
+ * the newest session that ran that load; else the newest session of the
+ * planned event, else none. `sessions` is newest first, as `historySessions`
+ * gives, and `inEvent` marks the planned event's sessions (unset counts as in).
  *
- * The ratio follows the fill limit (0.68 L per % at 75 L, 0.81 at 84), so when
- * a preset sets its own max fuel the session must have run that load (within
- * 0.5 L), or VE per lap would come out ~16 % off for a 75 L event judged on an
- * 84 L one (camber, thread 35 #1046). With no preset max fuel the rules start
- * from the last session's own limit, so its ratio is the right one.
+ * The ratio belongs to the event: 0.67 to 0.99 L per % across events of one
+ * car, and the load does not predict it (parc's 9-month audit, thread 44
+ * #1980), so nothing is estimated from the load and another event's ratio is
+ * never taken. Within one event practice, qualifying and race agree to 0.005,
+ * so one lap of that event gives it.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
@@ -184,6 +210,7 @@ export function veRatioFor(
     startedAt: string;
     ratio: number | null;
     fillLimitL: number | null;
+    inEvent?: boolean;
   }[],
 ): VeRatio | null {
   if (preset?.veRatio != null)
@@ -192,8 +219,9 @@ export function veRatioFor(
   const last = sessions.find(
     s =>
       s.ratio != null &&
-      (wanted == null ||
-        (s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5)),
+      (wanted != null
+        ? s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5
+        : s.inEvent !== false),
   );
   return last
     ? {
@@ -459,7 +487,10 @@ function ratioNote(
   ratio: VeRatio | null,
   fuelL: number,
   loadsL: number[],
+  eventText: string | null = null,
 ): string {
+  if (!ratio && eventText != null)
+    return `no VE a lap yet: no green lap with fuel and VE in this event (${eventText}); drive one lap here, or type the ratio into a rule set`;
   if (!ratio)
     return loadsL.length > 0
       ? `no VE: none of your sessions ran ${fuelL} L (they ran ${loadsL.join(
@@ -564,6 +595,8 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
+    /** The event the plan is for ("One Stint Sprint · week of 09-29 · 100 L"); null for a rule set or no event. */
+    eventText?: string | null;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;
     /** Median lap time of the clean and of the traffic laps among the green laps; null without a field. */
@@ -573,9 +606,10 @@ export function planView(
   unit: Unit = 've',
 ): PlanView {
   const r = rules.rules;
+  const eventText = preset ? null : history.eventText ?? null;
   const rulesLine = preset
     ? `Rules: ${preset.name}  ·  set ${formatDate(preset.savedAt)}`
-    : `Rules: last race here (${r.fuelL} L ${
+    : `Rules: ${eventText ?? 'last race here'} (${r.fuelL} L ${
         rules.fuelSource === 'fill limit'
           ? 'fill limit'
           : rules.fuelSource === 'tank'
@@ -616,7 +650,12 @@ export function planView(
   const veRow: Row = {
     label: 'Virtual Energy',
     value: ve ? usageText(ve, pct2) : 'no data',
-    note: ratioNote(history.ratio, r.fuelL, history.ratioLoadsL),
+    note: ratioNote(
+      history.ratio,
+      r.fuelL,
+      history.ratioLoadsL,
+      preset ? null : history.eventText ?? null,
+    ),
   };
   cards.push({
     key: 'perLap',

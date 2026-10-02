@@ -20,11 +20,14 @@ type SheetProps = Omit<
 export function RulesBlock({
   cells,
   sheet,
+  eventText,
   compact = false,
 }: {
   /** The numbers the plan is worked with, finished (`rulesCells`). */
   cells: RulesCell[];
   sheet: SheetProps;
+  /** The event the plan is for ("week of 09-29 · 100 L"), the chip's label when no rule set is picked. */
+  eventText: string | null;
   /** The chip and its sheet alone, to sit among other chips (the phone). */
   compact?: boolean;
 }) {
@@ -32,7 +35,9 @@ export function RulesBlock({
   const chip = (
     <Chip
       label={
-        'Rules: ' + (sheet.preset ? sheet.preset.name : 'No limits') + ' ▾'
+        'Rules: ' +
+        (sheet.preset ? sheet.preset.name : eventText ?? 'No limits') +
+        ' ▾'
       }
       onPress={() => setOpen(true)}
     />

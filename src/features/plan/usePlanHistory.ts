@@ -11,11 +11,13 @@ import {type FuelPreset} from '@/src/state/fuelPresets';
 import {
   type Combo,
   greenLapsOf,
+  eventLoad,
   historySessions,
   limitsOfDetails,
   veRatioFor,
   veRatioOf,
 } from './model';
+import {eventsOf} from './planEvent';
 
 /**
  * The first half of the plan's data: the fill limit of every session at a
@@ -23,34 +25,68 @@ import {
  * "plan vs what happened" card both read the history through these two hooks,
  * so the two never disagree (pit-wall thread 42).
  */
-export function usePlanLimits(combo: Combo | null) {
+export function usePlanLimits(
+  combo: Combo | null,
+  /** The series week of the planned event; null is the newest one. */
+  eventWeek: string | null = null,
+) {
   const allIds = useMemo(
     () => (combo ? combo.sessions.map(s => s.id) : []),
     [combo],
   );
   const allDetails = useSessionsDetail(allIds);
-  // No session at the track and car yet: nothing to read (an empty id would
-  // request /sessions/ and 404).
-  const last = useSession(allIds[0] ?? '', allIds.length > 0);
+  const events = useMemo(
+    () => (combo ? eventsOf(combo.sessions) : []),
+    [combo],
+  );
+  const event = events.find(e => e.week === eventWeek) ?? events[0] ?? null;
+  // The event's newest session gives its load; no session at the track and car
+  // yet: nothing to read (an empty id would request /sessions/ and 404).
+  const lastId = event?.sessionIds[0] ?? '';
+  const last = useSession(lastId, lastId !== '');
+  // The event's full load is the largest over its sessions, not the newest's.
+  const load = event
+    ? eventLoad(
+        event.sessionIds.map(
+          id => allDetails.details[allIds.indexOf(id)]?.fuel ?? null,
+        ),
+      )
+    : null;
+  const newestFuel = last.data?.fuel ?? null;
+  const lastFuel =
+    newestFuel && load
+      ? {
+          ...newestFuel,
+          fillLimitL: load.kind === 'fill limit' ? load.litres : null,
+          startL: load.kind === 'start fuel' ? load.litres : newestFuel.startL,
+          tankL: load.kind === 'tank' ? load.litres : newestFuel.tankL,
+        }
+      : newestFuel;
   return {
-    lastFuel: last.data?.fuel ?? null,
+    lastFuel,
+    events,
+    event,
     ...limitsOfDetails(allDetails.details, allDetails.pending),
   };
 }
 
 /**
- * The second half: the sessions at the wanted fill limit, their green laps
- * with VE worked out through the ratio in use, and the laps since a jump in
- * use (thread 36 #1102).
+ * The second half: the newest sessions at the track and car whatever load they
+ * ran, their green laps in litres with VE worked out through the ratio of the
+ * wanted load, and the laps since a jump in use (thread 36 #1102).
  */
 export function usePlanHistory(
   combo: Combo | null,
   limitsL: (number | null | undefined)[],
   wantedL: number | null,
   preset: FuelPreset | null,
+  /** The sessions of the planned event, whose ratio the plan takes; unset, every session counts as in it. */
+  eventIds: string[] | null = null,
 ) {
   const history =
-    combo && wantedL != null ? historySessions(combo, limitsL, wantedL) : [];
+    combo && wantedL != null
+      ? historySessions(combo, limitsL, eventIds ?? [])
+      : [];
   const ids = history.map(s => s.id);
   const lapsOf = useSessionsLaps(ids);
   const sessionDetails = useSessionsDetail(ids);
@@ -64,6 +100,7 @@ export function usePlanHistory(
       sessionDetails.details[i]?.fuel?.litresPerVePct ??
       (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
     fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
+    inEvent: eventIds == null || eventIds.includes(s.id),
   }));
   const ratio = veRatioFor(preset, measured);
   const perSession = history.map((s, i) => ({
