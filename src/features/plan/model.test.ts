@@ -28,6 +28,7 @@ import {
   rulesCells,
   rulesFor,
   sessionLimitL,
+  startChips,
   trackChoices,
   veRatioFor,
   veRatioOf,
@@ -147,6 +148,51 @@ describe('the track and car choices', () => {
       [comboCar(daytonaCadillac), false],
       ['911 GT3 R', true],
     ]);
+  });
+});
+
+describe('startChips', () => {
+  const caps = {fuelL: 100, vePct: 100};
+
+  it('offers the start of the last race under the full load as a one-tap chip, never as a value', () => {
+    expect(startChips({fuelL: 100, vePct: 87}, caps, true)).toEqual({
+      ve: {label: 'Last race here: 87 %', text: '87'},
+      fuel: null,
+    });
+    expect(startChips({fuelL: 52.04, vePct: 100}, caps, true)).toEqual({
+      ve: null,
+      fuel: {label: 'Last race here: 52.0 L', text: '52.0'},
+    });
+  });
+
+  it('offers nothing for a full start, no recorded start, or VE on a car without it', () => {
+    expect(startChips({fuelL: 100, vePct: 100}, caps, true)).toEqual({
+      ve: null,
+      fuel: null,
+    });
+    expect(startChips(null, caps, true)).toEqual({ve: null, fuel: null});
+    expect(startChips({fuelL: 100, vePct: 87}, caps, false).ve).toBeNull();
+  });
+
+  it('rulesFor takes the typed start into the rules, blank (null) staying a full load', () => {
+    const base = rulesFor(
+      null,
+      {kind: 'laps', value: 40},
+      sessionFuel({fillLimitL: 100}),
+      {},
+    )!;
+    expect(base.rules.startVePct).toBeNull();
+    const typed = rulesFor(
+      null,
+      {kind: 'laps', value: 40},
+      sessionFuel({fillLimitL: 100}),
+      {
+        vePct: 87,
+        fuelL: null,
+      },
+    )!;
+    expect(typed.rules.startVePct).toBe(87);
+    expect(typed.rules.startFuelL).toBeNull();
   });
 });
 

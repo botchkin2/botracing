@@ -41,6 +41,17 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...over,
 });
 
+describe('raceFacts start', () => {
+  it('reads the VE the car started the race on from the first recorded lap', () => {
+    const first = lap(1, {
+      fuel: {...lap(1).fuel!, veStartPct: 87},
+    });
+    const facts = raceFacts(session(), 'k', [lap(2), first, lap(3)]);
+    expect(facts?.startVePct).toBe(87);
+    expect(facts?.startL).toBe(75);
+  });
+});
+
 describe('raceFacts', () => {
   const laps = [
     lap(1),

@@ -51,6 +51,8 @@ export interface RaceFacts {
   limitL: number | null;
   /** What the car started with, litres; null without the channel. */
   startL: number | null;
+  /** VE at the start, % of the full load (the first recorded lap's `veStartPct`); null without the channel. */
+  startVePct?: number | null;
   /** Racing laps driven: the formation lap is not counted. */
   raceLaps: number;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
@@ -73,6 +75,24 @@ export interface PlanRules {
   /** LMU runs one formation lap, burning one median lap of fuel and VE. */
   formationLap: boolean;
   mandatoryStops: number;
+  /**
+   * What the car starts with when that is less than the load it can hold (a
+   * choice for this race: to finish on one stop fewer, or to the lap). Unset or
+   * null is a full first load, `fuelL` and `vePct`. Only the first stint reads
+   * it; every later stop refuels to the full load (thread 44 #1901/#1902).
+   */
+  startFuelL?: number | null;
+  startVePct?: number | null;
+}
+
+/** The first load: the start values where set (never above the caps), else the full load. */
+export function startLoad(rules: PlanRules): {fuelL: number; vePct: number} {
+  const pick = (start: number | null | undefined, cap: number) =>
+    start == null || !(start > 0) ? cap : Math.min(start, cap);
+  return {
+    fuelL: pick(rules.startFuelL, rules.fuelL),
+    vePct: pick(rules.startVePct, rules.vePct),
+  };
 }
 
 /** Fewer green laps than this and a median is not shown (matches the uploader). */
@@ -316,14 +336,16 @@ function optionFor(
   fuelPerLap: number | null,
   vePerLap: number | null,
 ): Option {
-  // The formation lap is burnt from the first load, before lap 1.
+  // The formation lap is burnt from the first load, before lap 1. The first
+  // load is what the car starts with, which can be less than a full one.
+  const start = startLoad(rules);
   const first = stintFor(
     rules.formationLap && fuelPerLap != null
-      ? rules.fuelL - fuelPerLap
-      : rules.fuelL,
+      ? start.fuelL - fuelPerLap
+      : start.fuelL,
     rules.formationLap && vePerLap != null
-      ? rules.vePct - vePerLap
-      : rules.vePct,
+      ? start.vePct - vePerLap
+      : start.vePct,
     fuelPerLap,
     vePerLap,
   );
@@ -374,11 +396,22 @@ function dropStopFor(
   // The formation lap is a lap of use taken from the first load, so it is
   // shared out with the race laps: 65 laps + formation on 2 loads is 33 laps
   // of use per load (not 32.5 + 1).
-  const burnLaps = Math.ceil(
-    (raceLaps + (rules.formationLap ? 1 : 0)) / (targetStops + 1),
-  );
-  const fuelPerLapL = fuel ? rules.fuelL / burnLaps : null;
-  const vePerLapPct = ve ? rules.vePct / burnLaps : null;
+  const burn = raceLaps + (rules.formationLap ? 1 : 0);
+  const burnLaps = Math.ceil(burn / (targetStops + 1));
+  // A first load under the full one: the fuel to burn is the start load plus a
+  // full one for each stop, shared over the laps.
+  const start = startLoad(rules);
+  const short = start.fuelL < rules.fuelL || start.vePct < rules.vePct;
+  const fuelPerLapL = fuel
+    ? short
+      ? (start.fuelL + targetStops * rules.fuelL) / burn
+      : rules.fuelL / burnLaps
+    : null;
+  const vePerLapPct = ve
+    ? short
+      ? (start.vePct + targetStops * rules.vePct) / burn
+      : rules.vePct / burnLaps
+    : null;
   const saveFuelL =
     fuel && fuelPerLapL != null ? fuel.median - fuelPerLapL : null;
   const saveVePct = ve && vePerLapPct != null ? ve.median - vePerLapPct : null;
@@ -443,8 +476,10 @@ function loadFor(
   const burn = laps + (rules.formationLap ? 1 : 0);
   const fuelL = fuelPerLap == null ? null : burn * fuelPerLap;
   const vePct = vePerLap == null ? null : burn * vePerLap;
-  const fuelShare = fuelL == null ? null : fuelL / rules.fuelL;
-  const veShare = vePct == null ? null : vePct / rules.vePct;
+  // One load is the one the car starts with.
+  const start = startLoad(rules);
+  const fuelShare = fuelL == null ? null : fuelL / start.fuelL;
+  const veShare = vePct == null ? null : vePct / start.vePct;
   const limitedBy: Limit | null =
     fuelShare != null && veShare != null && fuelShare !== veShare
       ? fuelShare > veShare
@@ -540,12 +575,16 @@ export function stopRefuels(
       rules.fuelL,
       (stintLaps[i] + extra(i)) * fuelHeavy,
     );
-    const fuelLeft = Math.max(0, rules.fuelL - fuelUsed);
+    // The first stint starts from the start load, every later one from a full tank.
+    const loaded = startLoad(rules);
+    const fuelAtStart = i === 0 ? loaded.fuelL : rules.fuelL;
+    const veAtStart = i === 0 ? loaded.vePct : rules.vePct;
+    const fuelLeft = Math.max(0, fuelAtStart - fuelUsed);
     const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
     let veNeedL = 0;
     if (veHeavy != null && useVe && ratioPerPctL != null) {
       const veUsed = Math.min(rules.vePct, (stintLaps[i] + extra(i)) * veHeavy);
-      const veLeft = Math.max(0, rules.vePct - veUsed);
+      const veLeft = Math.max(0, veAtStart - veUsed);
       veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
     }
     const need = Math.max(fuelNeed, veNeedL);

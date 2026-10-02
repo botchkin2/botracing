@@ -18,14 +18,19 @@ import {usePlanHistory, usePlanLimits} from './usePlanHistory';
  * practice lines read it through this hook, so they all give the Plan
  * screen's own numbers (pit-wall thread 43 #1244).
  */
-export function usePlanData(combo: Combo | null, unit: Unit = 've') {
+export function usePlanData(
+  combo: Combo | null,
+  unit: Unit = 've',
+  /** What the car starts with when less than a full load, typed for this race. */
+  start: {fuelL?: number | null; vePct?: number | null} = {},
+) {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
 
   const limits = usePlanLimits(combo);
-  const rules = rulesFor(preset, length, limits.lastFuel);
+  const rules = rulesFor(preset, length, limits.lastFuel, start);
   const wantedL = rules?.rules.fuelL ?? null;
   const hist = usePlanHistory(combo, limits.limitsL, wantedL, preset);
   const greenLaps = hist.chosen.laps;

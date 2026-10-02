@@ -28,6 +28,7 @@ import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
 import {PlanCard, Section} from './components/PlanCard';
 import {LengthStepper} from './components/LengthStepper';
+import {StartLoad} from './components/StartLoad';
 import {PooledUseCard} from './components/PooledUseCard';
 import {RulesBlock} from './components/RulesBlock';
 import {TrackCarPicker} from './components/TrackCarPicker';
@@ -45,6 +46,7 @@ import {
   parseNumber,
   planCombos,
   rulesCells,
+  startChips,
   trackChoices,
 } from './model';
 import {useClassTiming} from './useClassTiming';
@@ -73,7 +75,22 @@ export function PlanScreen() {
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [unit, setUnit] = useState<Unit>('ve');
   const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
-  const data = usePlanData(combo, unit);
+  // What the car starts with, as typed for this track and car; blank is a full
+  // load, and the last race's start is only offered (parc #1902).
+  const [startTyped, setStartTyped] = useState<{
+    key: string;
+    ve: string;
+    fuel: string;
+  } | null>(null);
+  const startText =
+    startTyped && startTyped.key === combo?.key
+      ? startTyped
+      : {key: combo?.key ?? '', ve: '', fuel: ''};
+  const start = {
+    vePct: parseNumber(startText.ve),
+    fuelL: parseNumber(startText.fuel),
+  };
+  const data = usePlanData(combo, unit, start);
   const slider = usePitSlider(data, combo?.key ?? '');
   const chosen = useMemo(
     () =>
@@ -242,6 +259,24 @@ export function PlanScreen() {
           }}
         />
       </Section>
+
+      {rules ? (
+        <Section title='Start'>
+          <StartLoad
+            hasVe={hasVe}
+            veText={startText.ve}
+            fuelText={startText.fuel}
+            full={{fuelL: rules.rules.fuelL, vePct: rules.rules.vePct}}
+            chips={startChips(
+              lastRace?.start ?? null,
+              {fuelL: rules.rules.fuelL, vePct: rules.rules.vePct},
+              hasVe,
+            )}
+            onVe={ve => setStartTyped({...startText, ve})}
+            onFuel={fuel => setStartTyped({...startText, fuel})}
+          />
+        </Section>
+      ) : null}
 
       {wide ? (
         <Section title='Rules'>

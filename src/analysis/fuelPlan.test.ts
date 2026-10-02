@@ -6,6 +6,8 @@ import {
   MIN_COMPARE_LAPS,
   planRace,
   presetMismatch,
+  startLoad,
+  stopRefuels,
   type PlanRules,
   usage,
 } from './fuelPlan';
@@ -321,6 +323,80 @@ describe('pit time in a timed race', () => {
       ).raceLaps?.pit,
     ).toBeNull();
     expect(planRace(rules(), history, model).raceLaps!.pit).toBeNull();
+  });
+});
+
+describe('a start load under the full one (thread 44 #1901/#1902)', () => {
+  const base = rules({lengthLaps: 60, formationLap: true, fuelL: 100});
+  const hist = laps(12, 2.38, 3.5);
+
+  it('startLoad is the full load unless a start is set, and never above it', () => {
+    expect(startLoad(base)).toEqual({fuelL: 100, vePct: 100});
+    expect(startLoad({...base, startVePct: 87})).toEqual({
+      fuelL: 100,
+      vePct: 87,
+    });
+    expect(startLoad({...base, startVePct: 120, startFuelL: 60})).toEqual({
+      fuelL: 60,
+      vePct: 100,
+    });
+    expect(startLoad({...base, startVePct: null, startFuelL: 0})).toEqual({
+      fuelL: 100,
+      vePct: 100,
+    });
+  });
+
+  it('only the first stint shortens: the stops come earlier and the later stints are full', () => {
+    const full = planRace(base, hist);
+    const short = planRace({...base, startVePct: 87}, hist);
+    // 100 % VE at 3.5 a lap: (100 - 3.5) / 3.5 = 27 laps; 87 %: (87 - 3.5) / 3.5 = 23.
+    expect(full.atMedian.firstStint.laps).toBe(27);
+    expect(short.atMedian.firstStint.laps).toBe(23);
+    expect(short.atMedian.stint.laps).toBe(full.atMedian.stint.laps);
+    expect(short.atMedian.stopLaps[0]).toBe(23);
+    expect(short.atMedian.stopLaps[1]).toBe(
+      23 + (full.atMedian.stint.laps as number),
+    );
+    expect(short.atP90.stopLaps[0]).toBeLessThan(full.atP90.stopLaps[0]);
+  });
+
+  it('drop-a-stop shares the start load and the full loads over the laps; one load that fits is judged against the start', () => {
+    const full = planRace(base, hist).dropStop!;
+    const short = planRace({...base, startVePct: 87}, hist).dropStop!;
+    // 60 laps + formation = 61 laps of use. 2 stops, so 1 stop to drop to: a
+    // start of 87 % plus 100 % over 61 laps = 3.07 % a lap, against 3.33 % at
+    // a full start (ceil(61 / 2) = 31 laps a load).
+    expect(short.targetStops).toBe(full.targetStops);
+    expect(short.vePerLapPct!).toBeCloseTo((87 + 100) / 61, 6);
+    expect(full.vePerLapPct!).toBeCloseTo(100 / 31, 6);
+    // One load, a race of 20 laps: a full tank covers it, a 50 % start needs a stop.
+    const sprint = rules({lengthLaps: 20, formationLap: true, fuelL: 100});
+    expect(planRace(sprint, hist).loadToFinish![0].atMedian.fits).toBe(true);
+    const lowStart = planRace({...sprint, startVePct: 50}, hist);
+    expect(lowStart.atP90.stops).toBeGreaterThan(0);
+    expect(lowStart.loadToFinish).toBeNull();
+  });
+
+  it('the first stop of a one-stop plan is sized from the start load, not a full tank', () => {
+    const one = rules({
+      lengthLaps: 40,
+      formationLap: false,
+      fuelL: 100,
+      startFuelL: 50,
+    });
+    // Stint 1: 20 laps at 2.38 L = 47.6 L of the 50 L start; the last 20 laps
+    // need 47.6 L and 2.4 L is left: it adds 45.2 L, not a full refill.
+    const refuels = stopRefuels(
+      one,
+      [20, 20],
+      {fuel: 2.38, ve: null},
+      null,
+      null,
+      false,
+    );
+    expect(refuels).toHaveLength(1);
+    expect(refuels[0].toFinish).toBe(true);
+    expect(refuels[0].litres).toBeCloseTo(45.2, 6);
   });
 });
 

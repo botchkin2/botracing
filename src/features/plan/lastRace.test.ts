@@ -9,6 +9,7 @@ const facts: RaceFacts = {
   startedAt: '2026-09-27T20:00:00Z',
   limitL: 100,
   startL: 100,
+  startVePct: 87,
   raceLaps: 72,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [
@@ -29,6 +30,8 @@ describe('lastRaceOf', () => {
         {lap: 'L49', fuelL: 10.1, vePct: 3},
       ],
       end: {lap: 'L73', fuelL: 4.9, vePct: 3},
+      // What the car started the race with: offered to the Plan, not applied.
+      start: {fuelL: 100, vePct: 87},
     });
   });
 

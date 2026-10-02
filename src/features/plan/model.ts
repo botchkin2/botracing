@@ -299,6 +299,42 @@ export function carChoices(combos: Combo[], current: Combo): Choice[] {
     }));
 }
 
+/** A one-tap offer of the last race's start (parc #1902): its text, and the value it sets. */
+export type StartChip = {label: string; text: string};
+
+/**
+ * The last race's start, offered beside the Start inputs instead of being
+ * prefilled: a start under the full load is usually that race's own choice, so
+ * the plan never starts from a value nobody set this time. A start at the full
+ * load (or none recorded) offers nothing.
+ */
+export function startChips(
+  last: {fuelL: number | null; vePct: number | null} | null,
+  caps: {fuelL: number; vePct: number},
+  hasVe: boolean,
+): {ve: StartChip | null; fuel: StartChip | null} {
+  const under = (v: number | null, cap: number) =>
+    v != null && v > 0 && v < cap - 0.5 ? v : null;
+  const ve = hasVe ? under(last?.vePct ?? null, caps.vePct) : null;
+  const fuel = under(last?.fuelL ?? null, caps.fuelL);
+  return {
+    ve:
+      ve == null
+        ? null
+        : {
+            label: `Last race here: ${Math.round(ve)} %`,
+            text: String(Math.round(ve)),
+          },
+    fuel:
+      fuel == null
+        ? null
+        : {
+            label: `Last race here: ${fuel.toFixed(1)} L`,
+            text: fuel.toFixed(1),
+          },
+  };
+}
+
 /** One number of the rules in force, finished for the Rules block. */
 export type RulesCell = {label: string; value: string};
 
@@ -352,6 +388,8 @@ export function rulesFor(
   preset: FuelPreset | null,
   length: RaceLength,
   last: SessionFuel | null,
+  /** What the car starts with, when it is less than the full load (typed for this race); null or unset is full. */
+  start: {fuelL?: number | null; vePct?: number | null} = {},
 ): Rules | null {
   let fuelL: number | null = null;
   let fuelSource: FuelSource = 'preset';
@@ -379,6 +417,8 @@ export function rulesFor(
       vePct: preset ? preset.vePct : 100,
       formationLap: preset ? preset.formationLap : true,
       mandatoryStops: preset ? preset.mandatoryStops : 0,
+      startFuelL: start.fuelL ?? null,
+      startVePct: start.vePct ?? null,
     },
   };
 }

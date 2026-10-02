@@ -67,6 +67,11 @@ export function raceFacts(
     startedAt: session.startedAt,
     limitL: session.fuel?.fillLimitL ?? null,
     startL: session.fuel?.startL ?? null,
+    // The first recorded lap's VE at the start (the formation lap, where it
+    // is recorded): what the car started the race on.
+    startVePct:
+      [...laps].sort((a, b) => a.lapIndex - b.lapIndex)[0]?.fuel?.veStartPct ??
+      null,
     raceLaps: Math.max(0, ending.lapIndex - 1),
     ownUse: {
       fuelL: median(green.map(l => l.fuel!.usedL as number)),
