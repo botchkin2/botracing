@@ -1,12 +1,17 @@
 import {type ReactNode, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {hitBox, shortTrackName, space, useTheme} from '@/src/design';
+import {hitBox, space, useTheme} from '@/src/design';
 import {Chip, Sheet, Text} from '@/src/ui';
 
 import {type Combo} from '../model';
 
 type Pick = 'track' | 'car';
+
+// A combo's label is "short track · short car" (planCombos tells two layouts
+// of a circuit apart in it), so each half is read from there.
+const trackOf = (c: Combo) => c.label.slice(0, c.label.lastIndexOf(' · '));
+const carOf = (c: Combo) => c.label.slice(c.label.lastIndexOf(' · ') + 3);
 
 /**
  * The track and the car as two dropdown chips (D6a, 07a), each opening a list
@@ -56,10 +61,10 @@ export function TrackCarPicker({
     <>
       <View style={styles.chips}>
         <Chip
-          label={`${shortTrackName(current.track)} ▾`}
+          label={`${trackOf(current)} ▾`}
           onPress={() => setOpen('track')}
         />
-        <Chip label={`${current.car} ▾`} onPress={() => setOpen('car')} />
+        <Chip label={`${carOf(current)} ▾`} onPress={() => setOpen('car')} />
         {children}
       </View>
       <Sheet
@@ -74,17 +79,23 @@ export function TrackCarPicker({
               );
               return row(
                 (same ?? t).key,
-                shortTrackName(t.track),
+                trackOf(t),
                 t.trackId === current.trackId,
               );
             })
-          : cars.map(c => row(c.key, c.car, c.key === current.key))}
+          : cars.map(c => row(c.key, carOf(c), c.key === current.key))}
       </Sheet>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  chips: {flexDirection: 'row', flexWrap: 'wrap', columnGap: space.sm},
+  // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: space.sm,
+    rowGap: space.xl,
+  },
   row: {borderBottomWidth: 1},
 });
