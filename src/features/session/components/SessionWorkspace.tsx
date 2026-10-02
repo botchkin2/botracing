@@ -24,6 +24,7 @@ import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 import {OPTIMUM_HELP} from '../optimumFacts';
 import {PACE_RULE_LINES} from '../trafficFacts';
 
+import {EnergyLineRow} from './EnergyLineRow';
 import {LapDistribution} from './LapDistribution';
 import {LapTableHeader, WIDE_ROW_H} from './LapTableRow';
 import {StintCornerBars} from './StintCornerBars';
@@ -148,6 +149,14 @@ export function SessionWorkspace({
           </View>
         </View>
         <View style={styles.extra}>
+          {model.energy ? (
+            <EnergyLineRow
+              line={model.energy}
+              onPress={() =>
+                sideRef.current?.scrollTo({y: cardsY.current, animated: true})
+              }
+            />
+          ) : null}
           {/* The rules are help lines, not a column: a "?" opens them across the head. */}
           {model.paceRule ? (
             <View style={styles.helpRow}>

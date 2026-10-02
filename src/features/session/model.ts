@@ -18,6 +18,7 @@ import {planComboKey} from '@/src/nav/routes';
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
+import {energyLine, type EnergyLine} from './energyLine';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {buildWearScatter, type WearScatterModel} from './wearScatter';
@@ -141,6 +142,8 @@ export type SessionScreenModel = {
   rows: RowModel[];
   detail: DetailModel | null;
   tray: TrayModel | null;
+  /** Energy at the start and end of the session, one line under the facts; null without readings. */
+  energy: EnergyLine | null;
   /** Races with a stop only. */
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
@@ -464,6 +467,8 @@ export function buildSessionModel(
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
   const trafficPace = trafficPaceFacts(session);
+  const pitCard = buildPitCard(session.sessionType, laps, session);
+  const fuelUse = buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
@@ -502,10 +507,15 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
-    pitCard: buildPitCard(session.sessionType, laps, session),
+    energy: energyLine(
+      session.sessionType,
+      laps,
+      pitCard ? 'pit' : fuelUse ? 'fuel' : null,
+    ),
+    pitCard,
     tires: buildTiresCard(session, laps),
     wearScatter: buildWearScatter(laps),
-    fuelUse: buildFuelUseCard(session, laps),
+    fuelUse,
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
 }
@@ -542,7 +552,12 @@ export function useSessionScreenModel(id: string, selection: Selection) {
     if (!session.data || !laps.data) return {state: 'loading' as const};
     return {
       state: 'ready' as const,
-      model: buildSessionModel(session.data, laps.data, selection, map.data ?? null),
+      model: buildSessionModel(
+        session.data,
+        laps.data,
+        selection,
+        map.data ?? null,
+      ),
     };
   }, [session.data, laps.data, map.data, session.error, laps.error, selection]);
 }
