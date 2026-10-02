@@ -228,6 +228,13 @@ export function stopRow(
   rules: PlanRules,
   fuelOnly: boolean,
   ratioPerPctL: number | null,
+  /**
+   * The heavy use (p90) the last stop is sized at, so the final stint reaches
+   * the flag in the heavier 10 % of the laps too (parc #1883); the median use
+   * when absent. What each stint uses, and what a middle stop refills, stay at
+   * the median.
+   */
+  heavy: {fuelPerLap: number | null; vePerLap: number | null} | null = null,
 ): StopRow {
   const extra = (i: number) => (i === 0 && formation ? 1 : 0);
   const fuelOf = (i: number) =>
@@ -257,16 +264,22 @@ export function stopRow(
       if (toFull == null || fuelPerLap == null) return [];
       if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
       const remaining = stintLaps[i + 1];
-      const fuelLeft = Math.max(0, rules.fuelL - toFull);
-      const fuelNeed = Math.max(0, remaining * fuelPerLap - fuelLeft);
+      const fuelHeavy = heavy?.fuelPerLap ?? fuelPerLap;
+      const veHeavy = heavy?.vePerLap ?? vePerLap;
+      const fuelUsed = Math.min(
+        rules.fuelL,
+        (stintLaps[i] + extra(i)) * fuelHeavy,
+      );
+      const fuelLeft = Math.max(0, rules.fuelL - fuelUsed);
+      const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
       let veNeedL = 0;
-      if (vePerLap != null && !fuelOnly && ratioPerPctL != null) {
+      if (veHeavy != null && !fuelOnly && ratioPerPctL != null) {
         const veUsed = Math.min(
           rules.vePct,
-          (stintLaps[i] + extra(i)) * vePerLap,
+          (stintLaps[i] + extra(i)) * veHeavy,
         );
         const veLeft = Math.max(0, rules.vePct - veUsed);
-        veNeedL = Math.max(0, remaining * vePerLap - veLeft) * ratioPerPctL;
+        veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
       }
       const need = Math.max(fuelNeed, veNeedL);
       return need < toFull
@@ -405,6 +418,11 @@ function stopsCard(
   const laps = plan.raceLaps?.estimate ?? null;
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
+  // The last stop is sized at the p90 use, like the stops (parc #1883).
+  const heavy = {
+    fuelPerLap: plan.perLap.fuel?.p90 ?? null,
+    vePerLap: plan.perLap.ve?.p90 ?? null,
+  };
   if (laps == null || planned.stops == null)
     return {
       full: null,
@@ -435,6 +453,7 @@ function stopsCard(
       rules,
       fuelOnly,
       ratioPerPctL,
+      heavy,
     );
   }
   // Equal stints: the same number of stops, spread evenly.
@@ -460,6 +479,7 @@ function stopsCard(
       rules,
       fuelOnly,
       ratioPerPctL,
+      heavy,
     );
   }
   // The window is the safe one: stops planned at p90 use, so each stop is the

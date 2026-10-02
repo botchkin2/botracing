@@ -309,6 +309,48 @@ describe('buildPlanCards', () => {
     expect(cards.race.medianNote).toBeNull();
   });
 
+  it('the last stop is sized at the p90 use, so the final stint reaches the flag in the heavy laps too', () => {
+    // A third of the laps at 3.6 L / 5.2 %: p90 use is far above the median.
+    const heavy = [
+      ...Array.from({length: 8}, () => lap(2.38, 3.5)),
+      ...Array.from({length: 4}, () => lap(3.6, 5.2)),
+    ];
+    const plan = planRace(rules, heavy);
+    const full = buildPlanCards(plan, rules, false, RATIO).stops.full!;
+    const last = full.refuel[full.refuel.length - 1];
+    const i = full.stintLaps.length - 2;
+    const remaining = full.stintLaps[i + 1];
+    const form = i === 0 ? 1 : 0;
+    const {fuel, ve} = plan.perLap;
+    // What the tank holds on arrival and what the remaining laps need, at p90.
+    const fuelLeft = Math.max(
+      0,
+      rules.fuelL -
+        Math.min(rules.fuelL, (full.stintLaps[i] + form) * fuel!.p90),
+    );
+    const veLeft = Math.max(
+      0,
+      rules.vePct - Math.min(rules.vePct, (full.stintLaps[i] + form) * ve!.p90),
+    );
+    const needL = Math.max(
+      remaining * fuel!.p90 - fuelLeft,
+      (remaining * ve!.p90 - veLeft) * RATIO,
+    );
+    // Enough to finish at the p90 use: exactly that when it is less than a
+    // full refill, else the full refill (which the p90 need exceeds).
+    if (last.toFinish) expect(last.litres).toBeCloseTo(needL, 6);
+    else expect(needL).toBeGreaterThanOrEqual(last.litres - 1e-9);
+    // Sized at the median use it would have been smaller (the bug parc found).
+    const medianNeed = Math.max(
+      remaining * fuel!.median -
+        Math.max(0, rules.fuelL - (full.stintLaps[i] + form) * fuel!.median),
+      (remaining * ve!.median -
+        Math.max(0, rules.vePct - (full.stintLaps[i] + form) * ve!.median)) *
+        RATIO,
+    );
+    expect(needL).toBeGreaterThan(medianNeed);
+  });
+
   it('the Stops card: equal stints second, over the same race', () => {
     const equal = cards.stops.equal!;
     expect(equal.kind).toBe('equal');

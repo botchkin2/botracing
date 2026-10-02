@@ -153,6 +153,10 @@ function work(
     rules,
     fuelOnly,
     ratioPerPctL,
+    {
+      fuelPerLap: plan.perLap.fuel?.p90 ?? null,
+      vePerLap: plan.perLap.ve?.p90 ?? null,
+    },
   );
   const pitS = row.refuel.map(r =>
     pitModel ? pitModel.baseS + r.litres / pitModel.refuelLPerS : null,
