@@ -117,10 +117,10 @@ try {
 
   # The gate before the uploader starts: every step of a sync before its first
   # write, over all sessions, on the code just installed. Takes about 2 min.
-  if ('LapUploader' -in $restart) {
-    & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check
-    if ($LASTEXITCODE -ne 0) { $checkError = "sync.mjs --check failed (exit $LASTEXITCODE)" }
-  }
+  # Always, not only when the uploader was running: a rollout that stops it
+  # first and starts it by hand still gets the check.
+  & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check
+  if ($LASTEXITCODE -ne 0) { $checkError = "sync.mjs --check failed (exit $LASTEXITCODE)" }
 }
 finally {
   # Whatever happened, the tasks that were running run again.
