@@ -31,6 +31,7 @@ import {
   type LapMode,
   turnLabel,
 } from '@/src/design';
+import {tableReference} from './tableReference';
 import {buildTrackMarks, type TrackMarks} from '@/src/charts';
 
 import {
@@ -339,6 +340,12 @@ export type CompareModel = {
   /** The lap whose moment the field radar shows: the highlighted lap, else the reference. */
   playing: {lapId: string; lapNumber: number | null} | null;
   reference: string;
+  /**
+   * What the chip deltas and the time per section are measured against, in
+   * words ("median of 8 checked laps", "stint 2 medians, n = 14", or the
+   * reference lap's name). The traces always use the reference lap.
+   */
+  tableReference: {chips: string; grid: string};
   chips: Chip[];
   manyChip: string | null;
   map: MapModel | null;
@@ -687,6 +694,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   }));
   const keyRefs = lapRefs.filter(r => r.key);
 
+  const table = tableReference({
+    selected,
+    sessionLaps: laps,
+    map,
+    refName: ref ? nameOf(ref) : '',
+  });
   const refTrace = ref ? traces.get(ref.id) : undefined;
   const stepM = refTrace?.stepM ?? band?.stepM ?? 5;
   const lengthM =
@@ -716,10 +729,24 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           : null,
       ]
     : [];
+  // The chips need every window's median for a total; without one they stay on
+  // the reference lap, and say so.
+  const againstSet = table.kind !== 'lap' && table.totalS != null;
   const chips: Chip[] = lapRefs
     .filter(r => mode === 'individual' || r.key)
     .map(r => {
       const lap = byId.get(r.lapId)!;
+      // Every checked lap, the reference too, against the set's total; the
+      // reference lap is marked REF beside it.
+      if (againstSet) {
+        const d = lap.timeS != null ? lap.timeS - table.totalS! : null;
+        return {
+          ...r,
+          isRef: r.selIndex === 0,
+          delta: d == null ? '—' : formatGap(d),
+          faster: d != null && d < 0,
+        };
+      }
       const d =
         lap.timeS != null && ref?.timeS != null ? lap.timeS - ref.timeS : null;
       return {
@@ -973,13 +1000,27 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     ? sectionNs
     : Array.from({length: cornerCount}, (_, i) => i + 1);
   const diffRow = (lap: Lap) =>
-    corners.map((_, i) => {
+    corners.map((n, i) => {
       const a = lap.sections[i]?.segTimeS;
-      const b = ref?.sections[i]?.segTimeS;
+      const b =
+        table.kind === 'lap'
+          ? ref?.sections[i]?.segTimeS
+          : table.sectionS.get(n);
       return a == null || b == null ? null : a - b;
     });
   let gridRows: CornerGridModel['rows'] = [];
-  if (ref && cornerCount > 0) {
+  if (ref && cornerCount > 0 && table.kind !== 'lap') {
+    // Against the checked set's medians the reference lap is a row like any
+    // other (it is not zero); a long selection shows the laps in key.
+    const rowsOf = lapRefs.filter(r => mode === 'individual' || r.key);
+    gridRows = rowsOf.map(r => ({
+      key: r.lapId,
+      label: r.label,
+      lapId: r.lapId,
+      selIndex: r.selIndex,
+      cells: diffRow(byId.get(r.lapId)!),
+    }));
+  } else if (ref && cornerCount > 0) {
     const others = lapRefs.filter(r => r.selIndex > 0);
     if (mode === 'individual') {
       gridRows = others.map(r => ({
@@ -1018,9 +1059,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const grid: CornerGridModel | null =
     gridRows.length && ref
       ? {
-          explainer: `Time in each section vs ${nameOf(
-            ref,
-          )}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
+          explainer: `Time in each section vs ${table.label}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
           corners,
           rows: gridRows,
         }
@@ -1089,6 +1128,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         }
       : null,
     reference: refBits.filter(Boolean).join(' · '),
+    tableReference: {
+      chips: againstSet || !ref ? table.label : nameOf(ref),
+      grid: table.label,
+    },
     chips,
     manyChip,
     map: mapModel,

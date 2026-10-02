@@ -61,4 +61,10 @@ export {
   refLapOf,
 } from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';
-export {type SessionOptimum, sessionOptimum} from './windowOptimum';
+export {
+  checkedWindowMedians,
+  type SessionOptimum,
+  sessionOptimum,
+  stintWindowMedians,
+  type WindowReference,
+} from './windowOptimum';

@@ -47,10 +47,7 @@ function median(sorted: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function windowOptimum(
-  laps: OptimumLap[],
-  index: number,
-): WindowOptimum {
+function windowOptimum(laps: OptimumLap[], index: number): WindowOptimum {
   const times: {id: string; t: number}[] = [];
   for (const lap of laps) {
     const t = lap.windowsS[index];
@@ -100,6 +97,42 @@ export function sectionOptimum(
       windows,
       bestSumS: whole ? bestSumS : null,
       medianSumS: whole ? medianSumS : null,
+    });
+  }
+  return out;
+}
+
+/** Fewest checked laps a window's median needs before the checked set is the reference (apex, thread 44 #1835). */
+export const MIN_CHECKED_LAPS = 3;
+
+export interface WindowMedian {
+  /** Times that counted for this window. */
+  n: number;
+  /** Null under `minLaps`. */
+  medianS: number | null;
+}
+
+/**
+ * Each window's median over a set of laps the caller picked (the checked laps
+ * on Compare), with how many times counted. Unlike `sectionOptimum` there is
+ * no stint split: the set is the reference.
+ */
+export function windowMedians(
+  laps: OptimumLap[],
+  windowCount: number,
+  minLaps = MIN_CHECKED_LAPS,
+): WindowMedian[] {
+  const out: WindowMedian[] = [];
+  for (let i = 0; i < windowCount; i++) {
+    const times: number[] = [];
+    for (const lap of laps) {
+      const t = lap.windowsS[i];
+      if (t != null && Number.isFinite(t)) times.push(t);
+    }
+    out.push({
+      n: times.length,
+      medianS:
+        times.length < minLaps ? null : median(times.sort((a, b) => a - b)),
     });
   }
   return out;

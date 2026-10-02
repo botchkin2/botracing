@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type OptimumLap, sectionOptimum} from './sectionOptimum';
+import {type OptimumLap, sectionOptimum, windowMedians} from './sectionOptimum';
 
 const lap = (
   id: string,
@@ -34,8 +34,18 @@ describe('sectionOptimum', () => {
       lap('f', 1, [15, 24]),
     ];
     const [s] = sectionOptimum(laps, 2);
-    expect(s.windows[0]).toEqual({n: 6, bestS: 10, bestLapId: 'a', medianS: 12.5});
-    expect(s.windows[1]).toEqual({n: 6, bestS: 20, bestLapId: 'b', medianS: 22.5});
+    expect(s.windows[0]).toEqual({
+      n: 6,
+      bestS: 10,
+      bestLapId: 'a',
+      medianS: 12.5,
+    });
+    expect(s.windows[1]).toEqual({
+      n: 6,
+      bestS: 20,
+      bestLapId: 'b',
+      medianS: 22.5,
+    });
     expect(s.bestSumS).toBe(30);
     expect(s.medianSumS).toBe(35);
   });
@@ -74,5 +84,21 @@ describe('sectionOptimum', () => {
     expect(sectionOptimum([], 2)).toEqual([]);
     const [s] = sectionOptimum(five, 0);
     expect(s.bestSumS).toBeNull();
+  });
+});
+
+describe('windowMedians', () => {
+  it('takes each window median over the laps given, with n', () => {
+    const laps = [
+      lap('a', 1, [10, 20]),
+      lap('b', 2, [12, 22]),
+      lap('c', 3, [14, null]),
+    ];
+    // No stint split: the set is the reference.
+    expect(windowMedians(laps, 2)).toEqual([
+      {n: 3, medianS: 12},
+      {n: 2, medianS: null},
+    ]);
+    expect(windowMedians(laps, 2, 2)[1]).toEqual({n: 2, medianS: 21});
   });
 });

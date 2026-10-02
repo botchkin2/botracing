@@ -161,6 +161,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
               style={styles.flex}>
               {c.delta}
             </Text>
+            {c.isRef && c.delta !== 'REF' ? (
+              <Text variant='dataSmall' tone='accentInk'>
+                REF
+              </Text>
+            ) : null}
             {!c.isRef && (
               <Pressable
                 accessibilityRole='button'
@@ -199,7 +204,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
         ))}
         {model.manyChip && <Chip label={model.manyChip} dashed />}
         <Text variant='dataSmall' tone='textFaint'>
-          REF · tap another lap’s Ref to change
+          {`Times vs ${model.tableReference.chips}. REF is the lap the traces and the map follow; tap another lap’s Ref to change it.`}
         </Text>
         <Text variant='label' tone='textMuted' style={styles.gapTop}>
           All laps
