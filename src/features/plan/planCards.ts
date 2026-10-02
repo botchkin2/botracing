@@ -27,6 +27,8 @@ export type RaceCard = {
   stopAfter: string[];
   /** The arithmetic behind the lap count, for a timed race; null for a length in laps. */
   working: string | null;
+  /** "At median use: 5 stops.", only when the median tank would make a different number of stops than the plan (p90 use). */
+  medianNote: string | null;
 };
 
 export type TankMeter = {
@@ -102,8 +104,10 @@ export type StopsCard = {
   perStintHeader: string;
   /** The head of the refuel column: "Refuel time" where seconds are known for the class, else "Refuel". */
   refuelHeader: string;
-  /** "1 more stop than at median use", or why there is no window; null when neither applies. */
+  /** Why there is no window, or the late-flag run-dry case; null when neither applies. */
   windowNote: string | null;
+  /** The lap the flag can add, as a margin in numbers: what it uses at p90 and what the last stop would add; null with no stop or no late flag. */
+  lateFlag: string | null;
   equal: StopRow | null;
   /** What the formation lap takes from the first stint; null without one. */
   formation: {fuelL: number | null; vePct: number | null} | null;
@@ -115,6 +119,7 @@ const pct = (v: number) => `${Math.round(v)} %`;
 
 function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
   const med = plan.atMedian;
+  const planned = plan.atP90;
   const race = plan.raceLaps;
   const median = plan.perLap.lapTimeS?.median ?? null;
   let working: string | null = null;
@@ -147,14 +152,24 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
             pit.lapsWithout
           } laps without it.`
         : 'Time in the pits is not counted.'
+    }${
+      race.settled
+        ? ''
+        : ' The stops and the laps do not agree on one count here: the longest pit time is used.'
     }`;
   }
   return {
     laps: race ? race.estimate : null,
     oneMore: race?.oneMore ?? null,
-    stops: med.stops,
-    stopAfter: med.stopLaps.map(lapName),
+    // One plan (thread 44 #1877): the p90 stops, the ones the Stops card, the
+    // windows and the Pit plan show. The median's count is a fact beside them.
+    stops: planned.stops,
+    stopAfter: planned.stopLaps.map(lapName),
     working,
+    medianNote:
+      med.stops != null && planned.stops != null && med.stops !== planned.stops
+        ? `At median use: ${med.stops} ${med.stops === 1 ? 'stop' : 'stops'}.`
+        : null,
   };
 }
 
@@ -213,6 +228,13 @@ export function stopRow(
   rules: PlanRules,
   fuelOnly: boolean,
   ratioPerPctL: number | null,
+  /**
+   * The heavy use (p90) the last stop is sized at, so the final stint reaches
+   * the flag in the heavier 10 % of the laps too (parc #1883); the median use
+   * when absent. What each stint uses, and what a middle stop refills, stay at
+   * the median.
+   */
+  heavy: {fuelPerLap: number | null; vePerLap: number | null} | null = null,
 ): StopRow {
   const extra = (i: number) => (i === 0 && formation ? 1 : 0);
   const fuelOf = (i: number) =>
@@ -242,16 +264,22 @@ export function stopRow(
       if (toFull == null || fuelPerLap == null) return [];
       if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
       const remaining = stintLaps[i + 1];
-      const fuelLeft = Math.max(0, rules.fuelL - toFull);
-      const fuelNeed = Math.max(0, remaining * fuelPerLap - fuelLeft);
+      const fuelHeavy = heavy?.fuelPerLap ?? fuelPerLap;
+      const veHeavy = heavy?.vePerLap ?? vePerLap;
+      const fuelUsed = Math.min(
+        rules.fuelL,
+        (stintLaps[i] + extra(i)) * fuelHeavy,
+      );
+      const fuelLeft = Math.max(0, rules.fuelL - fuelUsed);
+      const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
       let veNeedL = 0;
-      if (vePerLap != null && !fuelOnly && ratioPerPctL != null) {
+      if (veHeavy != null && !fuelOnly && ratioPerPctL != null) {
         const veUsed = Math.min(
           rules.vePct,
-          (stintLaps[i] + extra(i)) * vePerLap,
+          (stintLaps[i] + extra(i)) * veHeavy,
         );
         const veLeft = Math.max(0, rules.vePct - veUsed);
-        veNeedL = Math.max(0, remaining * vePerLap - veLeft) * ratioPerPctL;
+        veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
       }
       const need = Math.max(fuelNeed, veNeedL);
       return need < toFull
@@ -350,6 +378,30 @@ function describeRow(
   return {...r, lines};
 }
 
+/**
+ * The late flag as a margin (apex #1871 item 1): the plan runs its own lap
+ * count, and the lap the flag can add is not planned as a stop. Says what that
+ * lap uses at the p90 and, where the VE to litres ratio is known, what the last
+ * stop would add to cover it.
+ */
+function lateFlagMargin(
+  plan: FuelPlan,
+  stops: number,
+  unit: Unit,
+  ratioPerPctL: number | null,
+): string | null {
+  const oneMore = plan.raceLaps?.oneMore;
+  const use = unit === 've' ? plan.perLap.ve?.p90 : plan.perLap.fuel?.p90;
+  if (oneMore == null || use == null || stops === 0) return null;
+  const litres =
+    unit === 've' ? (ratioPerPctL == null ? null : use * ratioPerPctL) : use;
+  return `If the flag falls late (${oneMore} laps): one more lap uses ${use.toFixed(
+    1,
+  )} ${unit === 've' ? '% VE' : 'L'} at p90 use${
+    litres == null ? '' : `, ${litres.toFixed(1)} L more at the last stop`
+  }.`;
+}
+
 function stopsCard(
   plan: FuelPlan,
   rules: PlanRules,
@@ -358,11 +410,20 @@ function stopsCard(
   unit: Unit,
   carClass: string,
 ): StopsCard {
+  // One plan (thread 44 #1877): the stops are full tanks at the p90 use, at the
+  // plan's own lap count. The median's stops stay as a fact on the Race card
+  // and as the tick on each window.
   const med = plan.atMedian;
+  const planned = plan.atP90;
   const laps = plan.raceLaps?.estimate ?? null;
   const fuelPerLap = plan.perLap.fuel?.median ?? null;
   const vePerLap = plan.perLap.ve?.median ?? null;
-  if (laps == null || med.stops == null)
+  // The last stop is sized at the p90 use, like the stops (parc #1883).
+  const heavy = {
+    fuelPerLap: plan.perLap.fuel?.p90 ?? null,
+    vePerLap: plan.perLap.ve?.p90 ?? null,
+  };
+  if (laps == null || planned.stops == null)
     return {
       full: null,
       equal: null,
@@ -370,36 +431,38 @@ function stopsCard(
       perStintHeader: 'Use per stint',
       refuelHeader: 'Refuel',
       windowNote: null,
+      lateFlag: null,
       formation: null,
       formationUse: null,
     };
-  const fuelStops = med.stopLaps.length;
+  const fuelStops = planned.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
   let full: StopRow | null = null;
-  if (med.firstStint.laps != null && med.stint.laps != null) {
+  if (planned.firstStint.laps != null && planned.stint.laps != null) {
     // No fuel stop: the whole race is one stint.
-    const stints = [fuelStops === 0 ? laps : med.firstStint.laps];
-    for (let i = 1; i < fuelStops; i++) stints.push(med.stint.laps);
+    const stints = [fuelStops === 0 ? laps : planned.firstStint.laps];
+    for (let i = 1; i < fuelStops; i++) stints.push(planned.stint.laps);
     if (fuelStops > 0) stints.push(laps - stints.reduce((a, b) => a + b, 0));
     full = stopRow(
       'full',
       stints,
-      med.stopLaps.map(lapName),
+      planned.stopLaps.map(lapName),
       fuelPerLap,
       vePerLap,
       rules.formationLap,
       rules,
       fuelOnly,
       ratioPerPctL,
+      heavy,
     );
   }
   // Equal stints: the same number of stops, spread evenly.
   let equal: StopRow | null = null;
-  const e = med.even;
-  if (e && med.stops > 0) {
+  const e = planned.even;
+  if (e && planned.stops > 0) {
     const stints = [e.firstLaps];
     let left = laps - e.firstLaps;
-    for (let i = 0; i < med.stops; i++) {
+    for (let i = 0; i < planned.stops; i++) {
       const n = Math.min(e.laps, left);
       stints.push(n);
       left -= n;
@@ -416,20 +479,19 @@ function stopsCard(
       rules,
       fuelOnly,
       ratioPerPctL,
+      heavy,
     );
   }
   // The window is the safe one: stops planned at p90 use, so each stop is the
   // lap the tank runs out at the heavier 10 % of the laps, both ends of its
-  // window use that rate, and the race is the safe length: one lap more than
-  // the estimate where the flag can fall late (setup, thread 44 #1598 item 3,
-  // #1662 and the #224 review). The median's 'tank runs out' lap is kept beside
-  // it as the optimistic case. The stop counts are worked out at that length.
+  // window use that rate. The race is the plan's own length; the lap the flag
+  // can add is a margin line (`lateFlagMargin`), not a stop (apex #1871). The
+  // median's 'tank runs out' lap is kept beside it as the optimistic case.
   const safeLaps = plan.raceLaps?.oneMore ?? laps;
-  const p90 = plan.atP90;
+  const p90 = planned;
   const first90 = p90.firstStint.laps;
   const stint90 = p90.stint.laps;
   let windows: StopWindow[] = [];
-  let p90StopCount = 0;
   // A plan with no stop shows nothing new here: 'load to finish' covers it (round 7).
   if (
     fuelStops > 0 &&
@@ -438,9 +500,8 @@ function stopsCard(
     first90 > 0 &&
     stint90 > 0
   ) {
-    const stops = fullTankStops(first90, stint90, safeLaps).stopLaps;
-    p90StopCount = stops.length;
-    windows = pitWindows(first90, stint90, safeLaps, stops.length).map(w => ({
+    const stops = p90.stopLaps;
+    windows = pitWindows(first90, stint90, laps, stops.length).map(w => ({
       stop: w.stop,
       earliest: w.earliest,
       latest: w.latest,
@@ -449,22 +510,11 @@ function stopsCard(
       text: windowText(w, med.stopLaps[w.stop - 1] ?? null),
     }));
   }
-  const medianStopCount =
-    med.firstStint.laps != null &&
-    med.stint.laps != null &&
-    med.firstStint.laps > 0 &&
-    med.stint.laps > 0
-      ? fullTankStops(med.firstStint.laps, med.stint.laps, safeLaps).stopLaps
-          .length
-      : fuelStops;
-  const extra = p90StopCount - medianStopCount;
   const windowNote =
     fuelStops === 0
       ? lateFlagNote(plan, rules, safeLaps, first90, stint90)
-      : p90StopCount > 0 && windows.length === 0
+      : fuelStops > 0 && windows.length === 0
       ? NO_WINDOW_NOTE
-      : extra > 0
-      ? `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`
       : null;
   const shownUnit = effectiveUnit(unit, !fuelOnly && vePerLap != null);
   const formation = rules.formationLap
@@ -477,6 +527,7 @@ function stopsCard(
     perStintHeader: shownUnit === 've' ? 'VE per stint' : 'Fuel per stint',
     refuelHeader: refuelInSeconds(carClass) ? 'Refuel time' : 'Refuel',
     windowNote,
+    lateFlag: lateFlagMargin(plan, fuelStops, shownUnit, ratioPerPctL),
     formation,
     formationUse:
       formation == null

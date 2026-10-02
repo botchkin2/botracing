@@ -37,6 +37,11 @@ export function RaceCardView({card}: {card: RaceCard}) {
           </View>
         ) : null}
       </View>
+      {card.medianNote ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {card.medianNote}
+        </Text>
+      ) : null}
       {card.working ? (
         <Text variant='dataSmall' tone='textSecondary'>
           {card.working}

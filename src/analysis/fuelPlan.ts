@@ -214,6 +214,8 @@ export interface FuelPlan {
     oneMore: number | null;
     /** A timed race with a pit model and a stop to make; null otherwise. */
     pit: PitTime | null;
+    /** False when the stops and the laps of a timed race did not agree within MAX_PIT_PASSES passes: the longest pit time decided. */
+    settled: boolean;
   } | null;
   /** Stint and stops at the median use and at the p90 (heavy) use. */
   atMedian: Option;
@@ -499,7 +501,10 @@ function pitTimeFor(
   model: PitModel | null,
 ): PitTime | null {
   if (!model || !fuel) return null;
-  const option = optionFor(rules, raceLaps, fuel.median, ve ? ve.median : null);
+  // The stops of the plan: full tanks at the p90 use (thread 44 #1877), the
+  // same stops the Plan shows. A stop refuels what its stint burns at the
+  // median use.
+  const option = optionFor(rules, raceLaps, fuel.p90, ve ? ve.p90 : null);
   const {stops} = option;
   if (stops == null || stops <= 0 || option.stint.laps == null) return null;
   const refuelL = Math.min(rules.fuelL, option.stint.laps * fuel.median);
@@ -512,6 +517,9 @@ function pitTimeFor(
     lapsWithout: raceLaps,
   };
 }
+
+/** The most passes the laps and the stops get to settle on each other in a timed race. */
+export const MAX_PIT_PASSES = 3;
 
 export function planRace(
   rules: PlanRules,
@@ -526,22 +534,52 @@ export function planRace(
 
   let raceLaps: FuelPlan['raceLaps'] = null;
   if (rules.lengthLaps != null) {
-    raceLaps = {estimate: rules.lengthLaps, oneMore: null, pit: null};
+    raceLaps = {
+      estimate: rules.lengthLaps,
+      oneMore: null,
+      pit: null,
+      settled: true,
+    };
   } else if (rules.lengthMin != null && lapTimeS) {
     // The flag falls at the leader's first crossing after the time T is up,
     // somewhere in (T, T + a leader lap], and he takes it at his next crossing:
     // ceil(T / m) laps or one more, never fewer. Where in that span the leader
     // crosses is not knowable (lap spread, their stops), so one more is always
     // possible. Time in the pits comes off the clock when a pit model is
-    // given: the stop count is that of the race without it (one pass, not a
-    // fixed point; a stop more or less moves the count by a lap at most).
+    // given. The stops set the pit time, the pit time sets the laps and the
+    // laps set the stops, so the laps are worked out to a fixed point, at most
+    // MAX_PIT_PASSES times. Near a boundary the two never agree (one count's
+    // stops leave time for a lap that needs one more stop); then the longest
+    // pit time seen decides, the safe side, and `settled` says so.
     const clockS = rules.lengthMin * 60;
     const lapsWithout = Math.ceil(clockS / lapTimeS.median);
-    const pit = pitTimeFor(rules, lapsWithout, fuel, ve, pitModel);
-    const estimate = pit
-      ? Math.ceil((clockS - pit.totalS) / lapTimeS.median)
-      : lapsWithout;
-    raceLaps = {estimate, oneMore: estimate + 1, pit};
+    const lapsFor = (pitS: number) =>
+      Math.ceil((clockS - pitS) / lapTimeS.median);
+    let estimate = lapsWithout;
+    let settled = false;
+    let worst: PitTime | null = null;
+    for (let pass = 0; pass < MAX_PIT_PASSES; pass++) {
+      const at = pitTimeFor(rules, estimate, fuel, ve, pitModel);
+      if (at && (!worst || at.totalS > worst.totalS)) worst = at;
+      const next = at ? lapsFor(at.totalS) : estimate;
+      if (next === estimate) {
+        settled = true;
+        break;
+      }
+      estimate = next;
+    }
+    // `lapsWithout` is the count with no pit time at all, for the line that shows the difference.
+    let pit = pitTimeFor(rules, estimate, fuel, ve, pitModel);
+    if (!settled && worst) {
+      estimate = lapsFor(worst.totalS);
+      pit = worst;
+    }
+    raceLaps = {
+      estimate,
+      oneMore: estimate + 1,
+      pit: pit && {...pit, lapsWithout},
+      settled,
+    };
   }
 
   const laps = raceLaps ? raceLaps.estimate : null;
@@ -555,12 +593,12 @@ export function planRace(
       : NO_OPTION;
 
   const dropStop =
-    laps != null && atMedian.stops != null && atMedian.stops > 0
-      ? dropStopFor(rules, laps, atMedian.stops, fuel, ve, history)
+    laps != null && atP90.stops != null && atP90.stops > 0
+      ? dropStopFor(rules, laps, atP90.stops, fuel, ve, history)
       : null;
 
   const loadToFinish =
-    raceLaps != null && atMedian.stops === 0 && (fuel != null || ve != null)
+    raceLaps != null && atP90.stops === 0 && (fuel != null || ve != null)
       ? [raceLaps.estimate, raceLaps.oneMore]
           .filter((n): n is number => n != null && n > 0)
           .map(n => loadToFinishFor(rules, n, fuel, ve))

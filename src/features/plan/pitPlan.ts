@@ -86,7 +86,8 @@ function boundsOf(
   const stint90 = plan.atP90.stint.laps;
   if (first50 == null || stint50 == null || first90 == null || stint90 == null)
     return null;
-  const safeLaps = plan.raceLaps?.oneMore ?? plan.raceLaps?.estimate ?? null;
+  // The plan's own lap count (thread 44 #1877): the late-flag lap is a margin, not a stop.
+  const safeLaps = plan.raceLaps?.estimate ?? null;
   if (safeLaps == null) return null;
   // A stop after the flag is no stop, and each stop after this one needs a lap.
   const lastLap = safeLaps - 1 - (n - k);
@@ -152,6 +153,10 @@ function work(
     rules,
     fuelOnly,
     ratioPerPctL,
+    {
+      fuelPerLap: plan.perLap.fuel?.p90 ?? null,
+      vePerLap: plan.perLap.ve?.p90 ?? null,
+    },
   );
   const pitS = row.refuel.map(r =>
     pitModel ? pitModel.baseS + r.litres / pitModel.refuelLPerS : null,

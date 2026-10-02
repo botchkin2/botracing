@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   type GreenLap,
+  MAX_PIT_PASSES,
   MIN_COMPARE_LAPS,
   planRace,
   presetMismatch,
@@ -205,12 +206,22 @@ describe('planRace', () => {
       rules({lengthLaps: null, lengthMin: 60}),
       laps(10, 3.5, 5, 110),
     );
-    expect(p.raceLaps).toEqual({estimate: 33, oneMore: 34, pit: null});
+    expect(p.raceLaps).toEqual({
+      estimate: 33,
+      oneMore: 34,
+      pit: null,
+      settled: true,
+    });
   });
 
   it('a race in laps has no one-more', () => {
     const p = planRace(rules({lengthLaps: 40}), laps(10, 3.5, 5));
-    expect(p.raceLaps).toEqual({estimate: 40, oneMore: null, pit: null});
+    expect(p.raceLaps).toEqual({
+      estimate: 40,
+      oneMore: null,
+      pit: null,
+      settled: true,
+    });
   });
 
   it('a timed race without lap history has no length', () => {
@@ -234,7 +245,7 @@ describe('pit time in a timed race', () => {
 
   it('is not counted without a pit model', () => {
     const r = planRace(timed, history).raceLaps!;
-    expect(r).toEqual({estimate: 66, oneMore: 67, pit: null});
+    expect(r).toEqual({estimate: 66, oneMore: 67, pit: null, settled: true});
   });
 
   it('takes stops x (base + refuel) off the clock', () => {
@@ -244,6 +255,51 @@ describe('pit time in a timed race', () => {
     expect(r.pit!.perStopS).toBeCloseTo(45 + 84 / 3.4, 6);
     expect(r.estimate).toBe(65);
     expect(r.oneMore).toBe(66);
+  });
+
+  it('takes the stops of the p90 plan, at the laps it ends on, and the laps agree with the pit time (fixed point)', () => {
+    // Le Mans 4 h in a 911: 84 L / 100 % VE, 9.37 % VE and 7.61 L a lap, 241.6 s.
+    // 60 laps would take 6 stops (404 s), which leaves time for 58; 58 laps
+    // takes 5 stops (337 s), which gives 59; 59 laps takes 5 stops again.
+    const lemans = rules({
+      lengthLaps: null,
+      lengthMin: 240,
+      formationLap: true,
+    });
+    const hist = laps(35, 7.61, 9.37, 241.6);
+    const plan = planRace(lemans, hist, model);
+    const r = plan.raceLaps!;
+    expect(r.settled).toBe(true);
+    expect(r.estimate).toBe(59);
+    expect(r.pit!.lapsWithout).toBe(60);
+    // The pit time is that of the stops the plan shows, and gives the laps.
+    expect(r.pit!.stops).toBe(plan.atP90.stopLaps.length);
+    expect(Math.ceil((240 * 60 - r.pit!.totalS) / 241.6)).toBe(r.estimate);
+  });
+
+  it('at a boundary the stops and the laps never agree: after MAX_PIT_PASSES passes the longest pit time decides, and it says so', () => {
+    // 90 min at 95 s a lap, 100 L: 57 laps without pit time need 2 stops, whose
+    // 219 s leave 55 laps; 55 laps need only 1 stop (110 s), which leaves 56;
+    // 56 laps need 2 stops again.
+    const edge = rules({
+      lengthLaps: null,
+      lengthMin: 90,
+      formationLap: true,
+      fuelL: 100,
+    });
+    const hist = laps(12, 2.38, 3.5, 95);
+    const slow = planRace(edge, hist, {baseS: 90, refuelLPerS: 3.4}).raceLaps!;
+    expect(MAX_PIT_PASSES).toBe(3);
+    expect(slow.settled).toBe(false);
+    expect(slow.pit!.stops).toBe(2);
+    // The longest pit time (2 stops) gives the laps: the arithmetic holds.
+    expect(slow.estimate).toBe(Math.ceil((90 * 60 - slow.pit!.totalS) / 95));
+    expect(slow.estimate).toBe(55);
+    // A shorter stop (base 60) settles on 56 laps with 2 stops.
+    const quick = planRace(edge, hist, {baseS: 60, refuelLPerS: 3.4}).raceLaps!;
+    expect(quick.settled).toBe(true);
+    expect(quick.estimate).toBe(56);
+    expect(quick.pit!.stops).toBe(2);
   });
 
   it('is left out with no stop to make, no fuel history or a race in laps', () => {
@@ -392,7 +448,12 @@ describe('load to finish', () => {
 
   it('gives the load for the race laps and one more, with the formation lap', () => {
     const p = planRace(sprint, history);
-    expect(p.raceLaps).toEqual({estimate: 22, oneMore: 23, pit: null});
+    expect(p.raceLaps).toEqual({
+      estimate: 22,
+      oneMore: 23,
+      pit: null,
+      settled: true,
+    });
     const [own, more] = p.loadToFinish!;
     expect(own.laps).toBe(22);
     // 22 laps + the formation lap at 3.5 L and 5 %.
