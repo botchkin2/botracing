@@ -377,6 +377,40 @@ describe('a start load under the full one (thread 44 #1901/#1902)', () => {
     expect(lowStart.loadToFinish).toBeNull();
   });
 
+  it('the first stop refills to full after a short start: what the stint used plus what the car did not start with', () => {
+    const rs = rules({lengthLaps: 60, formationLap: false, fuelL: 100});
+    const per = {fuel: 2.38, ve: 3.5};
+    const RATIO = 0.68;
+    const stints = [20, 20, 20];
+    const full = stopRefuels(rs, stints, per, null, RATIO, true);
+    const short = stopRefuels(
+      {...rs, startVePct: 87},
+      stints,
+      per,
+      null,
+      RATIO,
+      true,
+    );
+    // Stint 1 uses 47.6 L / 70 % VE. From 87 % the car leaves stop 1 only back
+    // to full if it adds the 13 % it did not start with: (70 + 13) % x 0.68 L
+    // per % = 56.44 L, 13 x 0.68 = 8.84 L more than from a full start.
+    expect(full[0].litres).toBeCloseTo(47.6, 6);
+    expect(short[0].litres).toBeCloseTo(47.6 + 13 * RATIO, 6);
+    expect(short[0].litres - full[0].litres).toBeCloseTo(13 * RATIO, 6);
+    // Stop 2 is the last stop and refills to finish, the same either way.
+    expect(short[1].litres).toBeCloseTo(full[1].litres, 6);
+    // A fuel start under the full tank adds its deficit in litres.
+    const lowFuel = stopRefuels(
+      {...rs, startFuelL: 90},
+      stints,
+      per,
+      null,
+      RATIO,
+      true,
+    );
+    expect(lowFuel[0].litres).toBeCloseTo(47.6 + 10, 6);
+  });
+
   it('the first stop of a one-stop plan is sized from the start load, not a full tank', () => {
     const one = rules({
       lengthLaps: 40,

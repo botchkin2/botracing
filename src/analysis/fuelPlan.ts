@@ -563,10 +563,21 @@ export function stopRefuels(
   const extra = (i: number) => (i === 0 && rules.formationLap ? 1 : 0);
   return stintLaps.slice(0, -1).flatMap((_, i, stops): StopRefuel[] => {
     if (median.fuel == null) return [];
-    const toFull = Math.min(
-      rules.fuelL,
-      (stintLaps[i] + extra(i)) * median.fuel,
-    );
+    let toFull = Math.min(rules.fuelL, (stintLaps[i] + extra(i)) * median.fuel);
+    // The first stop refills to a full tank: what the stint used, plus what the
+    // car did not start with (parc #1915). With a full start that is just the use.
+    const first = startLoad(rules);
+    if (i === 0) {
+      toFull = Math.min(rules.fuelL, toFull + (rules.fuelL - first.fuelL));
+      if (median.ve != null && useVe && ratioPerPctL != null) {
+        const deficitL =
+          (rules.vePct - first.vePct) * ratioPerPctL +
+          Math.min(rules.vePct, (stintLaps[0] + extra(0)) * median.ve) *
+            ratioPerPctL;
+        if (rules.vePct > first.vePct)
+          toFull = Math.min(rules.fuelL, Math.max(toFull, deficitL));
+      }
+    }
     if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
     const remaining = stintLaps[i + 1];
     const fuelHeavy = heavy?.fuel ?? median.fuel;

@@ -225,6 +225,37 @@ describe('describing a stop in one unit', () => {
 });
 
 describe('a start load under the full one', () => {
+  it('after a short start the Pit plan pit time still equals the Race card pit time (the first stop refills to full)', () => {
+    const r = {...rules, startVePct: 87};
+    const plan = planRace(
+      r,
+      Array.from({length: 12}, () => lap(2.38)),
+      pitModel,
+      RATIO,
+    );
+    const windows = buildPlanCards(plan, r, false, RATIO).stops.windows;
+    const p = pitPlan({
+      plan,
+      rules: r,
+      fuelOnly: false,
+      ratioPerPctL: RATIO,
+      pitModel,
+      windows,
+    })!;
+    expect(p.pit!.totalS).toBeCloseTo(plan.raceLaps!.pit!.totalS, 6);
+    // And the short start costs refuelling: more than the same race on a full start.
+    const fullPlan = planRace(
+      rules,
+      Array.from({length: 12}, () => lap(2.38)),
+      pitModel,
+      RATIO,
+    );
+    expect(plan.raceLaps!.pit!.refuelL).toBeGreaterThan(0);
+    expect(plan.raceLaps!.pit!.totalS).toBeGreaterThan(
+      fullPlan.raceLaps!.pit!.totalS - 1e-9,
+    );
+  });
+
   it('stint 1 is tested against the start, every later stint against a full load', () => {
     const {input} = setup();
     const planned = pitPlan(input)!;
