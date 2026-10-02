@@ -164,7 +164,9 @@ function SessionRowView({
   return (
     <Pressable
       accessibilityRole='button'
-      accessibilityLabel={`${row.track}, ${row.subline}`}
+      accessibilityLabel={[row.track, row.subline, row.entry]
+        .filter(Boolean)
+        .join(', ')}
       onPress={onPress}
       style={({pressed}) => [
         styles.sessionRow,
@@ -179,9 +181,17 @@ function SessionRowView({
           <Text variant='bodyStrong' style={styles.trackName} numberOfLines={1}>
             {row.track}
           </Text>
-          <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
-            {row.subline}
-          </Text>
+          {/* The car keeps its words; the entry drops to a second line when it does not fit beside it. */}
+          <View style={styles.subline}>
+            <Text variant='dataSmall' tone='textMuted'>
+              {row.subline}
+            </Text>
+            {row.entry ? (
+              <Text variant='dataSmall' tone='textFaint'>
+                {row.entry}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <Text variant='data' tone='textSecondary' style={styles.laps}>
           {row.laps}
@@ -261,6 +271,7 @@ const styles = StyleSheet.create({
   laps: {width: COL.laps, textAlign: 'right'},
   time: {width: COL.time, textAlign: 'right'},
   trackName: {fontSize: 14.5},
+  subline: {flexDirection: 'row', flexWrap: 'wrap', columnGap: space.sm},
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',

@@ -29,7 +29,13 @@ import {
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {Explainer, PANEL_DIVIDER_W, Text, useHowToRead} from '@/src/ui';
+import {
+  Explainer,
+  FoldedSection,
+  PANEL_DIVIDER_W,
+  Text,
+  useHowToRead,
+} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -39,7 +45,9 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {LAP_BARS_HELP} from './lapBarsHelp';
+import {fuelSummary, tiresSummary} from './foldedSummaries';
 import {OPTIMUM_HELP} from './optimumFacts';
+import {PACE_RULE_LINES} from './trafficFacts';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -142,6 +150,7 @@ function SessionView({
   const listRef = useRef<FlatList<RowModel>>(null);
   const barsHelp = useHowToRead('the lap times', LAP_BARS_HELP);
   const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
+  const paceHelp = useHowToRead('clean and traffic', PACE_RULE_LINES);
   const headerHeight = useRef(0);
   // A bar tap highlights a lap, which can open the detail panel and change
   // the header height; scroll once that render has laid out.
@@ -272,6 +281,16 @@ function SessionView({
       )
     );
 
+  const tiresCard = (
+    <TiresCard card={model.tires} scatter={model.wearScatter} width={tableW} />
+  );
+  const fuelCard = model.fuelUse ? (
+    <FuelUseCard
+      card={model.fuelUse}
+      pooled={renderPooledUse?.(model.fuelUse.planKey, tableW)}
+    />
+  ) : null;
+
   const header = (
     <View
       onLayout={e => (headerHeight.current = e.nativeEvent.layout.height)}
@@ -323,7 +342,17 @@ function SessionView({
           </View>
         ))}
       </View>
-      {model.paceRule ? <Explainer>{model.paceRule}</Explainer> : null}
+      {model.paceRule ? (
+        <View style={styles.block}>
+          <View style={styles.titleRow}>
+            <Text variant='dataSmall' tone='textMuted'>
+              Clean and traffic medians
+            </Text>
+            {paceHelp.button}
+          </View>
+          {paceHelp.panel}
+        </View>
+      ) : null}
       {model.optimum.length > 0 ? (
         <View style={styles.block}>
           <View style={styles.facts}>
@@ -359,22 +388,12 @@ function SessionView({
         </View>
       )}
 
-      <View style={styles.section}>
-        <TiresCard
-          card={model.tires}
-          scatter={model.wearScatter}
-          width={tableW}
-        />
-      </View>
-
-      {model.fuelUse && (
-        <View style={styles.section}>
-          <FuelUseCard
-            card={model.fuelUse}
-            pooled={renderPooledUse?.(model.fuelUse.planKey, tableW)}
-          />
-        </View>
-      )}
+      {layout.isDesktop ? (
+        <>
+          <View style={styles.section}>{tiresCard}</View>
+          {fuelCard ? <View style={styles.section}>{fuelCard}</View> : null}
+        </>
+      ) : null}
 
       {!layout.isDesktop && model.detail && (
         <View style={styles.section}>
@@ -524,6 +543,23 @@ function SessionView({
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
               <Explainer>{TAG_KEY}</Explainer>
+              {/* The phone: the laps first, the cards after them, each closed to one line. */}
+              {layout.isDesktop ? null : (
+                <>
+                  <FoldedSection
+                    title='Tires'
+                    summary={tiresSummary(model.tires)}>
+                    {tiresCard}
+                  </FoldedSection>
+                  {model.fuelUse && fuelCard ? (
+                    <FoldedSection
+                      title='Fuel use'
+                      summary={fuelSummary(model.fuelUse.fuelUse)}>
+                      {fuelCard}
+                    </FoldedSection>
+                  ) : null}
+                </>
+              )}
             </View>
           }
           getItemLayout={(_, index) => ({

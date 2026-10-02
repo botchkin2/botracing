@@ -126,7 +126,6 @@ export type CornerModel = {
   explainer: string;
   rows: CornerRow[];
   strips: StripModel[] | null;
-  highlightLine: string | null;
   /** The section's window, split and compared; null until the track has boundaries. */
   window: SectionWindowModel | null;
   zoom: {
@@ -395,17 +394,6 @@ export function buildCornerModel(input: {
         )
       : null;
 
-  const hlRow = rows.find(r => r.highlighted) ?? null;
-  const highlightLine = hlRow
-    ? `${hlRow.label}: ${hlRow.cells.time.value} s · brake ${
-        hlRow.cells.brake.value
-      } m · min ${hlRow.cells.minSpeed.value} km/h · full throttle ${
-        hlRow.cells.throttle.value === AT_MIN
-          ? 'at the slowest point'
-          : `${hlRow.cells.throttle.value} m`
-      }`
-    : null;
-
   // The corner's own window (a part's, or the section's when it is one corner)
   // is shaded and the charts run to its edges, once the laps are cut at the
   // boundaries the map carries; otherwise the old entry-to-next-entry stretch.
@@ -525,7 +513,6 @@ export function buildCornerModel(input: {
       : cornerExplainer(sec, nextSec),
     rows,
     strips,
-    highlightLine,
     window: buildSectionWindow({
       map,
       sectionN: sec.sectionN,

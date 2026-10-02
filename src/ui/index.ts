@@ -7,6 +7,7 @@ export * from './Checkbox';
 export * from './Chip';
 export * from './EmptyState';
 export * from './Explainer';
+export * from './FoldedSection';
 export * from './hitArea';
 export * from './HowToRead';
 export * from './MapZoomButtons';

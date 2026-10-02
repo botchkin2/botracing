@@ -19,6 +19,7 @@ For anything visual, run your own live dev server. `.claude/launch.json` has six
 - Start it with `preview_start {name: "live-N"}`. `preview_start` always reads the main checkout's `launch.json`; `tools/dev/live.mjs N` there starts Metro with cwd = the folder your slot is claimed for, and the log's first line says which folder it serves.
 - Your worktree needs `node_modules` (run `npm ci` there, or link the main checkout's); the launcher says so and installs nothing.
 - Stop it with `preview_stop` when you finish or hand off, and delete your key.
+- A live run in a worktree writes `.expo/types/router.d.ts`, which can make `npx tsc --noEmit` fail on `Href` there; delete that folder (`.expo/types`) and rerun.
 - Never start a server any other way: no `expo start` in a shell, no static server on a port. Never kill processes by hand (`Stop-Process`, `taskkill`). Those are what produced Botkin's approval prompts.
 
 The PR preview (its URL is in the github-actions comment) is still what the reviewer and apex check before a merge. Push early (a draft PR is fine).
