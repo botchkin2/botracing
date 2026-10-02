@@ -19,7 +19,6 @@ import {
   driftRowOf,
   fuelOnly,
   greenLapsOf,
-  ESTIMATED_RATIO_OF_LOAD,
   HISTORY_SESSIONS,
   historySessions,
   limitsOfDetails,
@@ -442,25 +441,20 @@ describe('veRatioFor', () => {
     expect(veRatioFor(p84, sessions)!.perPctL).toBe(0.81);
   });
 
-  it('estimates from the load, labelled, when no session ran it', () => {
+  it('has no ratio when no session ran the preset load: nothing is estimated from the load', () => {
     const p60 = newPreset('X', {fuelL: 60}, 'p3', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(p60, sessions)).toEqual({
-      perPctL: 60 * ESTIMATED_RATIO_OF_LOAD,
-      source: {kind: 'estimate', fillL: 60},
-    });
+    expect(veRatioFor(p60, sessions)).toBeNull();
     // A session with no recorded fill limit cannot be matched either.
     expect(
       veRatioFor(p60, [
         {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81, fillLimitL: null},
-      ])!.source.kind,
-    ).toBe('estimate');
-    // With no load at all there is nothing to estimate from.
-    expect(veRatioFor(null, [], null)).toBeNull();
+      ]),
+    ).toBeNull();
   });
 
   it('plans a load by the ratio of a session that ran it, from the rules when there is no preset', () => {
     expect(veRatioFor(null, sessions, 75)!.perPctL).toBe(0.68);
-    expect(veRatioFor(null, sessions, 100)!.source.kind).toBe('estimate');
+    expect(veRatioFor(null, sessions, 100)).toBeNull();
   });
 
   it('with no preset max fuel, the newest ratio is right (rules start from that session)', () => {
@@ -998,18 +992,17 @@ describe('planning a load nobody ran yet (pooled litres)', () => {
     expect(plan.atMedian.stops).toBe(0);
   });
 
-  it('with only 75 L sessions it estimates the 100 L ratio, says so, and still needs no stop', () => {
-    const ratio = veRatioFor(
-      null,
-      [{startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75}],
-      100,
-    )!;
-    expect(ratio.source).toEqual({kind: 'estimate', fillL: 100});
-    const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
-    expect(plan.perLap.ve!.median).toBeCloseTo(
-      2.4 / (100 * ESTIMATED_RATIO_OF_LOAD),
-      6,
-    );
+  it('with only 75 L sessions there is no VE for a 100 L event, and the fuel plan still needs no stop', () => {
+    expect(
+      veRatioFor(
+        null,
+        [{startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75}],
+        100,
+      ),
+    ).toBeNull();
+    const plan = planRace(rules, greenLapsOf('s', history, null));
+    expect(plan.perLap.ve).toBeNull();
+    expect(plan.perLap.fuel!.median).toBeCloseTo(2.4, 6);
     expect(plan.atMedian.stops).toBe(0);
   });
 });

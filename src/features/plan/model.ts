@@ -162,27 +162,22 @@ export function veRatioOf(laps: Lap[]): number | null {
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
-  /** Where it came from: the preset, a session that ran that load, or an estimate from the load alone. */
-  source:
-    | {kind: 'preset'}
-    | {kind: 'session'; startedAt: string}
-    | {kind: 'estimate'; fillL: number};
+  /** Where it came from: the preset, or a session that ran that load. */
+  source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
 };
-
-/** Litres per 1 % of VE as a share of the load, for a load no session ran: the measured ratios sit at 0.97 to 1.06 of it (thread 44 #1962), 0.90 at the 75 L events. */
-export const ESTIMATED_RATIO_OF_LOAD = 0.97;
 
 /**
  * The ratio to plan with: the preset's if it sets one, else the newest history
- * session that ran the planned load and has one, else an estimate from the
- * load, labelled as one. `sessions` is newest first, as `historySessions`
- * gives.
+ * session that ran the planned load and has one, else none. `sessions` is
+ * newest first, as `historySessions` gives.
  *
- * The ratio follows the load the event sets (0.68 L per % at 75 L, 0.81 at 84,
- * 0.97 at 100), so a session of another load is never taken: VE per lap would
- * come out 15 to 30 % off (camber, thread 35 #1046; thread 44 #1954). The
- * planned load is the preset's max fuel, else `plannedL` (the rules' load);
- * with neither, the newest session's ratio is the one.
+ * The ratio belongs to the event, not the car: 0.67 to 0.99 L per % across
+ * events, and the load does not predict it (parc's 9-month audit, thread 44
+ * #1980), so a session of another load is never taken and nothing is
+ * estimated from the load. Within one event practice, qualifying and race
+ * agree to 0.005, so one lap of that event gives it. The planned load is the
+ * preset's max fuel, else `plannedL` (the rules' load); with neither, the
+ * newest session's ratio is the one.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
@@ -202,15 +197,10 @@ export function veRatioFor(
       (wanted == null ||
         (s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5)),
   );
-  if (last)
-    return {
-      perPctL: last.ratio as number,
-      source: {kind: 'session', startedAt: last.startedAt},
-    };
-  return wanted != null && wanted > 0
+  return last
     ? {
-        perPctL: wanted * ESTIMATED_RATIO_OF_LOAD,
-        source: {kind: 'estimate', fillL: wanted},
+        perPctL: last.ratio as number,
+        source: {kind: 'session', startedAt: last.startedAt},
       }
     : null;
 }
@@ -481,8 +471,6 @@ function ratioNote(
   const src =
     ratio.source.kind === 'preset'
       ? 'from the preset'
-      : ratio.source.kind === 'estimate'
-      ? `estimated from the ${ratio.source.fillL} L load: no session of yours ran it`
       : `measured in the session of ${formatDate(ratio.source.startedAt)}`;
   return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
 }
