@@ -125,6 +125,9 @@ try {
   # even when the check passes (apex #2005).
   $was = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
+  # -1 unless node ran: a missing node must not pass on an earlier exit code.
+  $code = -1
+  $LASTEXITCODE = -1
   try { & node (Join-Path $Runtime 'tools\sessions\sync.mjs') --check; $code = $LASTEXITCODE }
   finally { $ErrorActionPreference = $was }
   if ($code -ne 0) { $checkError = "sync.mjs --check failed (exit $code)" }
