@@ -15,9 +15,10 @@ Never `git push` to `main`. Every push to `main` builds and deploys. App changes
 Check logic with `npx tsc --noEmit`, `npx jest` and `node --test` first; they take seconds.
 
 For anything visual, run your own live dev server. `.claude/launch.json` has six slots, `live-1` to `live-6` (ports 19101 to 19106). Each one runs Metro with hot reload against the production API.
-- Claim a free slot in your board Now note.
-- Start it from your own worktree with `preview_start {name: "live-N"}`.
-- Stop it with `preview_stop` when you finish or hand off.
+- Claim a free slot in your board Now note, and point it at your worktree: with the Write tool, set one key in `<main checkout>/.claude/live-slots.local.json` (gitignored), e.g. `{"1": "C:/Users/Botkin/Projects/garage61-session-analysis/.claude/worktrees/<seat>-<task>"}`. Keep the other slots' keys. An unclaimed slot serves the main checkout.
+- Start it with `preview_start {name: "live-N"}`. `preview_start` always reads the main checkout's `launch.json`; `tools/dev/live.mjs N` there starts Metro with cwd = the folder your slot is claimed for, and the log's first line says which folder it serves.
+- Your worktree needs `node_modules` (run `npm ci` there, or link the main checkout's); the launcher says so and installs nothing.
+- Stop it with `preview_stop` when you finish or hand off, and delete your key.
 - Never start a server any other way: no `expo start` in a shell, no static server on a port. Never kill processes by hand (`Stop-Process`, `taskkill`). Those are what produced Botkin's approval prompts.
 
 The PR preview (its URL is in the github-actions comment) is still what the reviewer and apex check before a merge. Push early (a draft PR is fine).
