@@ -329,6 +329,16 @@ export function PlanScreen() {
               </PlanCard>
             ) : null}
           </Pair>
+          {data.cards && slider.pit ? (
+            <PitPlanCard
+              pit={slider.pit}
+              planned={slider.planned}
+              unit={effectiveUnit(unit, hasVe)}
+              wide={wide}
+              onStop={slider.setStop}
+              onReset={slider.reset}
+            />
+          ) : null}
           {plan?.loadToFinish ? (
             <>
               {view.cards
@@ -348,19 +358,8 @@ export function PlanScreen() {
               <StopsCardView
                 card={data.cards.stops}
                 carClass={combo.sessions[0]?.carClass ?? ''}
-                wide={wide}
               />
             </PlanCard>
-          ) : null}
-          {data.cards && slider.pit ? (
-            <PitPlanCard
-              pit={slider.pit}
-              planned={slider.planned}
-              unit={effectiveUnit(unit, hasVe)}
-              wide={wide}
-              onStop={slider.setStop}
-              onReset={slider.reset}
-            />
           ) : null}
           {data.cards ? (
             <ClassTimingSection
