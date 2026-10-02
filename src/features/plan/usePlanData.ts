@@ -41,7 +41,12 @@ export function usePlanData(combo: Combo | null, unit: Unit = 've') {
     combo?.sessions[0]?.carClass ?? '',
   );
   const plan = rules
-    ? planRace(rules.rules, greenLaps, pitModelOf(pitBase))
+    ? planRace(
+        rules.rules,
+        greenLaps,
+        pitModelOf(pitBase),
+        hist.ratio?.perPctL ?? null,
+      )
     : null;
   // Chosen from the data, never from the car class (camber, thread 43 #1243).
   const noVe = fuelOnly(greenLaps);

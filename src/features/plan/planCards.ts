@@ -4,7 +4,9 @@
 import {
   fullTankStops,
   type FuelPlan,
+  plannedStints,
   type PlanRules,
+  stopRefuels,
 } from '@/src/analysis/fuelPlan';
 import {REFUEL_L_PER_S, refuelS} from '@/src/analysis/refuel';
 import {formatLapTime} from '@/src/design';
@@ -144,11 +146,9 @@ function raceCard(plan: FuelPlan, rules: PlanRules): RaceCard {
       pit
         ? `Pit time: ${pit.stops} ${
             pit.stops === 1 ? 'stop' : 'stops'
-          } × (${Math.round(
-            pit.perStopS - pit.refuelL / REFUEL_L_PER_S,
-          )} s loss + ${pit.refuelL.toFixed(
+          } × ${Math.round(pit.baseS)} s loss + ${pit.refuelL.toFixed(
             0,
-          )} L ÷ ${REFUEL_L_PER_S} L/s) = ${Math.round(pit.totalS)} s; ${
+          )} L ÷ ${REFUEL_L_PER_S} L/s = ${Math.round(pit.totalS)} s; ${
             pit.lapsWithout
           } laps without it.`
         : 'Time in the pits is not counted.'
@@ -254,38 +254,16 @@ export function stopRow(
         : stintLaps.map((_, i) =>
             Math.min(rules.vePct, (stintLaps[i] + extra(i)) * vePerLap),
           ),
-    // A stop refills what the stint before it used. The last one adds only
-    // what it takes to finish: the larger of the fuel the remaining laps need
-    // less what is still in the tank, and, when VE is the limit, the VE they
-    // need less what is left, in litres through the ratio; both capped at the
-    // refill (camber, #168).
-    refuel: stintLaps.slice(0, -1).flatMap((_, i, stops): StopRow['refuel'] => {
-      const toFull = fuelOf(i);
-      if (toFull == null || fuelPerLap == null) return [];
-      if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
-      const remaining = stintLaps[i + 1];
-      const fuelHeavy = heavy?.fuelPerLap ?? fuelPerLap;
-      const veHeavy = heavy?.vePerLap ?? vePerLap;
-      const fuelUsed = Math.min(
-        rules.fuelL,
-        (stintLaps[i] + extra(i)) * fuelHeavy,
-      );
-      const fuelLeft = Math.max(0, rules.fuelL - fuelUsed);
-      const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
-      let veNeedL = 0;
-      if (veHeavy != null && !fuelOnly && ratioPerPctL != null) {
-        const veUsed = Math.min(
-          rules.vePct,
-          (stintLaps[i] + extra(i)) * veHeavy,
-        );
-        const veLeft = Math.max(0, rules.vePct - veUsed);
-        veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
-      }
-      const need = Math.max(fuelNeed, veNeedL);
-      return need < toFull
-        ? [{litres: need, toFinish: true}]
-        : [{litres: toFull, toFinish: false}];
-    }),
+    // The rule is `stopRefuels` (analysis/fuelPlan.ts), which the pit time of a
+    // timed race reads too.
+    refuel: stopRefuels(
+      rules,
+      stintLaps,
+      {fuel: fuelPerLap, ve: vePerLap},
+      heavy && {fuel: heavy.fuelPerLap, ve: heavy.vePerLap},
+      ratioPerPctL,
+      !fuelOnly,
+    ),
   };
 }
 
@@ -440,9 +418,7 @@ function stopsCard(
   let full: StopRow | null = null;
   if (planned.firstStint.laps != null && planned.stint.laps != null) {
     // No fuel stop: the whole race is one stint.
-    const stints = [fuelStops === 0 ? laps : planned.firstStint.laps];
-    for (let i = 1; i < fuelStops; i++) stints.push(planned.stint.laps);
-    if (fuelStops > 0) stints.push(laps - stints.reduce((a, b) => a + b, 0));
+    const stints = plannedStints(planned, laps);
     full = stopRow(
       'full',
       stints,
