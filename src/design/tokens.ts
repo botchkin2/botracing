@@ -309,6 +309,19 @@ export const size = {
   distLabel: 62,
   distStrip: 236,
   distRow: 30,
+  // Desktop Sessions table (apex, thread 44 #1898): fixed column widths, the
+  // header row, the badge column and the widest the table grows. Text columns
+  // share what is left. Body rows use `lapRow`.
+  sessionsTable: {
+    date: 128,
+    session: 104,
+    class: 72,
+    laps: 56,
+    time: 92,
+    badge: 24,
+    head: 36,
+    maxWidth: 1500,
+  },
   divergeHalf: 84,
   divergeRow: 21,
   // Track page (Track page handoff T1 and 05): map heights, the desktop

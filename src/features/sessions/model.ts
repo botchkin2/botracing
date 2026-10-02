@@ -25,6 +25,22 @@ export type SessionRow = {
   laps: string;
   best: string;
   median: string;
+  /** For the desktop table: the sortable values and the cells' text. */
+  table: TableCells;
+};
+
+/** What the desktop table shows and sorts on; the same facts as the row, unformatted where they sort as numbers. */
+export type TableCells = {
+  startedAt: string;
+  /** "30 Sep 20:27". */
+  dateText: string;
+  /** "911 GT3 R · Manthey #91". */
+  carText: string;
+  lapsN: number;
+  bestS: number | null;
+  medianS: number | null;
+  /** The car's class, for a race only ("GT3"); null otherwise. */
+  classText: string | null;
 };
 type SessionType = SessionSummary['sessionType'];
 
@@ -105,9 +121,97 @@ export function buildSessionsModel(
       laps: String(s.lapCount),
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),
+      table: {
+        startedAt: s.startedAt,
+        dateText: `${started.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+        })} ${hhmm(started)}`,
+        carText: [car.shortModel, car.entry].filter(Boolean).join(' · '),
+        lapsN: s.lapCount,
+        bestS: s.bestTimeS,
+        medianS: s.medianTimeS,
+        classText: s.sessionType === 'R' && s.carClass ? s.carClass : null,
+      },
     });
   }
   return [...groups.values()];
+}
+
+export type SortKey =
+  | 'date'
+  | 'track'
+  | 'car'
+  | 'type'
+  | 'laps'
+  | 'best'
+  | 'median'
+  | 'class';
+export type Sort = {key: SortKey; dir: 'asc' | 'desc'};
+
+/** The desktop table opens newest first. */
+export const DEFAULT_SORT: Sort = {key: 'date', dir: 'desc'};
+
+/** The direction a column starts in when it is first picked: text A to Z, numbers and dates with the largest or newest first except times, fastest first. */
+export function firstDirection(key: SortKey): Sort['dir'] {
+  return key === 'laps' || key === 'date' ? 'desc' : 'asc';
+}
+
+/** Picking the sorted column flips it; picking another starts it in its own first direction. */
+export function nextSort(current: Sort, key: SortKey): Sort {
+  if (current.key === key)
+    return {key, dir: current.dir === 'asc' ? 'desc' : 'asc'};
+  return {key, dir: firstDirection(key)};
+}
+
+function compare(a: SessionRow, b: SessionRow, key: SortKey): number {
+  const text = (x: string | null, y: string | null) =>
+    (x ?? '').localeCompare(y ?? '', 'en', {sensitivity: 'base'});
+  switch (key) {
+    case 'date':
+      return a.table.startedAt.localeCompare(b.table.startedAt);
+    case 'track':
+      return text(a.track, b.track);
+    case 'car':
+      return text(a.table.carText, b.table.carText);
+    case 'type':
+      return text(a.typeLabel, b.typeLabel);
+    case 'class':
+      return text(a.table.classText, b.table.classText);
+    case 'laps':
+      return a.table.lapsN - b.table.lapsN;
+    case 'best':
+    case 'median': {
+      const [x, y] =
+        key === 'best'
+          ? [a.table.bestS, b.table.bestS]
+          : [a.table.medianS, b.table.medianS];
+      // A session with no time sorts last whichever way it goes.
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+      return x - y;
+    }
+  }
+}
+
+/**
+ * The rows in the order a column asks for, ties by date newest first. A
+ * missing time or class stays at the bottom in both directions.
+ */
+export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  const empty = (r: SessionRow) =>
+    (sort.key === 'best' && r.table.bestS == null) ||
+    (sort.key === 'median' && r.table.medianS == null) ||
+    (sort.key === 'class' && r.table.classText == null);
+  return [...rows].sort((a, b) => {
+    const ea = empty(a);
+    const eb = empty(b);
+    if (ea !== eb) return ea ? 1 : -1;
+    return (
+      sign * compare(a, b, sort.key) ||
+      b.table.startedAt.localeCompare(a.table.startedAt)
+    );
+  });
 }
 
 export function useSessionsModel(filter: SessionFilter = {}): SessionsModel {
