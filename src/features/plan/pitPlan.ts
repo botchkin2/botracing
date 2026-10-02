@@ -2,6 +2,7 @@ import {
   type FuelPlan,
   type PitModel,
   type PlanRules,
+  startLoad,
 } from '@/src/analysis/fuelPlan';
 
 import {lapName, stopRow, type StopWindow} from './planCards';
@@ -238,9 +239,12 @@ export function pitPlan(
       ? {median: burn * fuel.median, p90: burn * fuel.p90}
       : null;
     const vePct = ve ? {median: burn * ve.median, p90: burn * ve.p90} : null;
+    // The first stint is tested against what the car starts with (parc #1902),
+    // every later one against a full load.
+    const loaded = i === 0 ? startLoad(rules) : rules;
     const dry = (pick: 'median' | 'p90') =>
-      (fuelL != null && fuelL[pick] > rules.fuelL + EPS) ||
-      (vePct != null && vePct[pick] > rules.vePct + EPS);
+      (fuelL != null && fuelL[pick] > loaded.fuelL + EPS) ||
+      (vePct != null && vePct[pick] > loaded.vePct + EPS);
     return {
       n: i + 1,
       laps,
@@ -248,8 +252,8 @@ export function pitPlan(
       fuelL,
       vePct,
       left: {
-        fuelL: fuelL ? Math.max(0, rules.fuelL - fuelL.median) : null,
-        vePct: vePct ? Math.max(0, rules.vePct - vePct.median) : null,
+        fuelL: fuelL ? Math.max(0, loaded.fuelL - fuelL.median) : null,
+        vePct: vePct ? Math.max(0, loaded.vePct - vePct.median) : null,
       },
       dryAtMedian: dry('median'),
       dryAtP90: dry('p90'),

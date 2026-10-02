@@ -224,6 +224,65 @@ describe('describing a stop in one unit', () => {
   });
 });
 
+describe('a start load under the full one', () => {
+  it('after a short start the Pit plan pit time still equals the Race card pit time (the first stop refills to full)', () => {
+    const r = {...rules, startVePct: 87};
+    const plan = planRace(
+      r,
+      Array.from({length: 12}, () => lap(2.38)),
+      pitModel,
+      RATIO,
+    );
+    const windows = buildPlanCards(plan, r, false, RATIO).stops.windows;
+    const p = pitPlan({
+      plan,
+      rules: r,
+      fuelOnly: false,
+      ratioPerPctL: RATIO,
+      pitModel,
+      windows,
+    })!;
+    expect(p.pit!.totalS).toBeCloseTo(plan.raceLaps!.pit!.totalS, 6);
+    // And the short start costs refuelling: more than the same race on a full start.
+    const fullPlan = planRace(
+      rules,
+      Array.from({length: 12}, () => lap(2.38)),
+      pitModel,
+      RATIO,
+    );
+    expect(plan.raceLaps!.pit!.refuelL).toBeGreaterThan(0);
+    expect(plan.raceLaps!.pit!.totalS).toBeGreaterThan(
+      fullPlan.raceLaps!.pit!.totalS - 1e-9,
+    );
+  });
+
+  it('stint 1 is tested against the start, every later stint against a full load', () => {
+    const {input} = setup();
+    const planned = pitPlan(input)!;
+    expect(planned.stints[0].dryAtMedian).toBe(false);
+    // The same plan on a start of 60 % VE: stint 1's use (at the plan stops)
+    // is more than the car starts with, so it says so; a later stint is not.
+    const low = {
+      ...input,
+      rules: {...input.rules, startVePct: 60},
+      plan: planRace(
+        {...input.rules, startVePct: 60},
+        Array.from({length: 12}, () => lap(2.38)),
+        pitModel,
+        RATIO,
+      ),
+    };
+    const p = pitPlan({
+      ...low,
+      windows: buildPlanCards(low.plan, low.rules, false, RATIO).stops.windows,
+    })!;
+    expect(p.stints[0].dryAtMedian).toBe(false);
+    // Stop 1 is held inside the (shorter) first tank: the slider cannot show a median-dry first stint.
+    expect(p.stops[0].max).toBeLessThan(planned.stops[0].max);
+    expect(p.stints.slice(1).some(s => s.dryAtMedian)).toBe(false);
+  });
+});
+
 describe('lapAt', () => {
   it('maps a pointer on a track to a whole lap and holds it inside', () => {
     expect(lapAt(0, 200, 10, 30)).toBe(10);

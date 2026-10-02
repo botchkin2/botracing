@@ -12,6 +12,8 @@ export type LastRace = {
   stops: {lap: string; fuelL: number | null; vePct: number | null}[];
   /** The tank at the end of the last whole lap ("L72"); null without a fuel level. */
   end: {lap: string; fuelL: number | null; vePct: number | null} | null;
+  /** What the car started the race with: litres, and % of the full VE load; null without the channel. */
+  start: {fuelL: number | null; vePct: number | null};
 };
 
 /** The race's facts as the Plan screen shows them; the stop and end laps are the app's lap names. */
@@ -29,6 +31,7 @@ export function lastRaceOf(
       fuelL: s.fuelL,
       vePct: s.vePct,
     })),
+    start: {fuelL: facts.startL, vePct: facts.startVePct ?? null},
     end: facts.end
       ? {
           lap: `L${facts.end.lapIndex}`,
