@@ -26,17 +26,22 @@ const COLS: {
   flex?: number;
   align?: 'right';
 }[] = [
-  {key: 'date', title: 'Date', width: 128},
+  {key: 'date', title: 'Date', width: size.sessionsTable.date},
   {key: 'track', title: 'Track', flex: 1.2},
   {key: 'car', title: 'Car', flex: 1.8},
-  {key: 'type', title: 'Session', width: 104},
-  {key: 'class', title: 'Class', width: 72},
-  {key: 'laps', title: 'Laps', width: 56, align: 'right'},
-  {key: 'best', title: 'Best', width: 92, align: 'right'},
-  {key: 'median', title: 'Median', width: 92, align: 'right'},
+  {key: 'type', title: 'Session', width: size.sessionsTable.session},
+  {key: 'class', title: 'Class', width: size.sessionsTable.class},
+  {key: 'laps', title: 'Laps', width: size.sessionsTable.laps, align: 'right'},
+  {key: 'best', title: 'Best', width: size.sessionsTable.time, align: 'right'},
+  {
+    key: 'median',
+    title: 'Median',
+    width: size.sessionsTable.time,
+    align: 'right',
+  },
 ];
-const BADGE_W = 24;
-const HEAD_H = 36;
+const BADGE_W = size.sessionsTable.badge;
+const HEAD_H = size.sessionsTable.head;
 
 const cellStyle = (c: (typeof COLS)[number]) =>
   c.width != null

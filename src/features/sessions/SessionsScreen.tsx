@@ -23,8 +23,6 @@ import {SessionsTable} from './SessionsTable';
 // Columns from the handoff: badge | track · car | laps | best | median.
 const COL = {badge: 24, laps: 30, time: 64};
 const LIST_MAX_WIDTH = 760;
-// The desktop table takes the width, to a limit that keeps a row readable.
-const TABLE_MAX_WIDTH = 1500;
 
 const markHit = hitFor(MARK_SLOP, MARK_SLOP);
 // Web grows the box with padding, so the margin takes it back; native only has
@@ -42,7 +40,10 @@ export function SessionsScreen() {
   // window's width (the rail already comes off `layout.width`), to a limit that
   // keeps a row readable.
   const contentWidth = layout.isDesktop
-    ? Math.min(Math.max(0, layout.width - size.gutter * 2), TABLE_MAX_WIDTH)
+    ? Math.min(
+        Math.max(0, layout.width - size.gutter * 2),
+        size.sessionsTable.maxWidth,
+      )
     : Math.min(layout.contentWidth, LIST_MAX_WIDTH);
   const insets = useSafeAreaInsets();
 
