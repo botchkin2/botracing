@@ -12,6 +12,7 @@ const BAR_GAP = space.sm;
 const GRID_GAP = space.md;
 
 type Zone = 'inner' | 'centre' | 'outer';
+const ZONES: Zone[] = ['inner', 'centre', 'outer'];
 
 /**
  * Seen from above with the outer edges facing out: on the left wheels the
@@ -36,16 +37,30 @@ export function TreadZones({
   width: number;
 }) {
   const cellW = Math.floor((width - GRID_GAP) / 2);
+  // A tyre under the scale's floor (a cold stint) draws no bar; when every bar
+  // of the four is empty the bar rows would be blank space above the numbers,
+  // so they are left out and the numbers stand alone.
+  const barH = zones.some(z => ZONES.some(p => (z[p] ?? 0) > TREAD_BAR_MIN_C))
+    ? BAR_H
+    : 0;
   return (
     <View style={[styles.grid, {width, gap: GRID_GAP}]}>
       {zones.map(z => (
-        <ZoneCell key={z.wheel} zone={z} width={cellW} />
+        <ZoneCell key={z.wheel} zone={z} width={cellW} barH={barH} />
       ))}
     </View>
   );
 }
 
-function ZoneCell({zone, width}: {zone: TreadZone; width: number}) {
+function ZoneCell({
+  zone,
+  width,
+  barH,
+}: {
+  zone: TreadZone;
+  width: number;
+  barH: number;
+}) {
   const {color} = useTheme();
   const order = ORDER[zone.wheel.endsWith('L') ? 'left' : 'right'];
   const scale = (v: number) =>
@@ -54,7 +69,7 @@ function ZoneCell({zone, width}: {zone: TreadZone; width: number}) {
       TREAD_BAR_MAX_C - TREAD_BAR_MIN_C,
     ) /
       (TREAD_BAR_MAX_C - TREAD_BAR_MIN_C)) *
-    BAR_H;
+    barH;
   const diff = zone.innerMinusOuter;
   return (
     <View
@@ -79,17 +94,19 @@ function ZoneCell({zone, width}: {zone: TreadZone; width: number}) {
           const v = zone[part];
           return (
             <View key={part} style={styles.bar}>
-              <Svg width={BAR_W} height={BAR_H}>
-                {v != null ? (
-                  <Rect
-                    x={0}
-                    y={BAR_H - scale(v)}
-                    width={BAR_W}
-                    height={scale(v)}
-                    fill={color.textFaint}
-                  />
-                ) : null}
-              </Svg>
+              {barH > 0 ? (
+                <Svg width={BAR_W} height={barH}>
+                  {v != null ? (
+                    <Rect
+                      x={0}
+                      y={barH - scale(v)}
+                      width={BAR_W}
+                      height={scale(v)}
+                      fill={color.textFaint}
+                    />
+                  ) : null}
+                </Svg>
+              ) : null}
               <Text variant='dataSmall'>{v == null ? '—' : v.toFixed(0)}</Text>
               <Text variant='label' tone='textMuted'>
                 {LETTER[part]}

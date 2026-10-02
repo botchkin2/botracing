@@ -16,7 +16,10 @@ export type SessionRow = {
   track: string;
   /** "Race", for the desktop rail. */
   typeLabel: string;
+  /** "21:40 · 911 GT3 R": the time and the car, which never truncate. */
   subline: string;
+  /** "Manthey #91": the entry, which wraps to its own line before the car is cut. */
+  entry: string | null;
   /** "21:40 · 44 laps", for the desktop rail. */
   railSubline: string;
   laps: string;
@@ -97,9 +100,8 @@ export function buildSessionsModel(
       track: shortTrackName(s.track),
       typeLabel: TYPE_LABEL[s.sessionType],
       railSubline: `${hhmm(started)} · ${s.lapCount} laps`,
-      subline: [hhmm(started), car.shortModel, car.entry]
-        .filter(Boolean)
-        .join(' · '),
+      subline: [hhmm(started), car.shortModel].filter(Boolean).join(' · '),
+      entry: car.entry,
       laps: String(s.lapCount),
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),

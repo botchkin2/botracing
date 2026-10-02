@@ -21,6 +21,52 @@ export type BrakeMapMarker = {
 
 const PAD = 22;
 const BAND_W = 16;
+// Never squeezed below this, so the markers and labels keep room.
+const MIN_H = 96;
+
+/**
+ * The line turned so its first-to-last chord runs left to right (a corner
+ * fills a wide box whatever its compass heading), and its extent after the turn.
+ */
+function turnedExtent(centreline: Xy[]) {
+  const first = centreline[0];
+  const last = centreline[centreline.length - 1];
+  const angle = Math.atan2(last.y - first.y, last.x - first.x);
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const turn = (p: Xy) => ({
+    x: p.x * cos - p.y * sin,
+    y: p.x * sin + p.y * cos,
+  });
+  const turned = centreline.map(turn);
+  const xs = turned.map(p => p.x);
+  const ys = turned.map(p => p.y);
+  const minX = Math.min(...xs);
+  const maxY = Math.max(...ys);
+  return {
+    turn,
+    minX,
+    maxY,
+    spanX: Math.max(...xs) - minX || 1,
+    spanY: maxY - Math.min(...ys) || 1,
+  };
+}
+
+/**
+ * The height that fits the line's own extent at the width given (plus the
+ * padding), never taller than `maxHeight`: a flat arc does not need a box as
+ * tall as a hairpin.
+ */
+export function brakeMapHeight(
+  width: number,
+  centreline: Xy[],
+  maxHeight: number,
+): number {
+  if (centreline.length < 2) return maxHeight;
+  const {spanX, spanY} = turnedExtent(centreline);
+  const fitted = Math.ceil(((width - 2 * PAD) / spanX) * spanY + 2 * PAD);
+  return Math.min(maxHeight, Math.max(MIN_H, fitted));
+}
 // The track band outside this turn's stretch.
 const DIM_OPACITY = 0.45;
 
@@ -52,22 +98,7 @@ export function BrakeMap({
   // Rotate so the line from the first to the last point runs left to right:
   // a corner fills the wide box whatever its compass heading.
   const fit = useMemo(() => {
-    const first = centreline[0];
-    const last = centreline[centreline.length - 1];
-    const angle = Math.atan2(last.y - first.y, last.x - first.x);
-    const cos = Math.cos(-angle);
-    const sin = Math.sin(-angle);
-    const turn = (p: Xy) => ({
-      x: p.x * cos - p.y * sin,
-      y: p.x * sin + p.y * cos,
-    });
-    const turned = centreline.map(turn);
-    const xs = turned.map(p => p.x);
-    const ys = turned.map(p => p.y);
-    const minX = Math.min(...xs);
-    const maxY = Math.max(...ys);
-    const spanX = Math.max(...xs) - minX || 1;
-    const spanY = maxY - Math.min(...ys) || 1;
+    const {turn, minX, maxY, spanX, spanY} = turnedExtent(centreline);
     const scale = Math.min(
       (width - 2 * PAD) / spanX,
       (height - 2 * PAD) / spanY,

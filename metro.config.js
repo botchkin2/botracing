@@ -12,7 +12,10 @@ const worktrees = path
   .join(__dirname, '.claude', 'worktrees')
   .split(/[\\/]/)
   .map(escapeRe)
-  .join('[\\\\/]');
+  .join('[\\\\/]')
+  // A drive letter comes in either case. No `i` flag: Metro refuses to combine
+  // ignore patterns whose flags differ.
+  .replace(/^([A-Za-z]):/, (_, d) => `[${d.toLowerCase()}${d.toUpperCase()}]:`);
 const blocked = new RegExp(`^${worktrees}[\\\\/].*`);
 const current = config.resolver.blockList;
 config.resolver.blockList = [
