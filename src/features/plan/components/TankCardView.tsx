@@ -20,10 +20,10 @@ function scaleMax(meters: TankMeter[]): number {
 }
 
 /**
- * The Per tank card (round 5, frame 1): one bar per meter, the median use as
- * the bar and the p90 use as a notch, on one shared scale in laps. The shorter
- * meter, the one that sets the stint, carries a boxed "RUNS OUT FIRST". A
- * fuel-only plan has the one bar, at full ink.
+ * The Per tank card (round 5, frame 1): the bar of the unit shown (VE, or
+ * fuel without VE; thread 44 #1826), the median use as the bar and the p90 use
+ * as a notch, in laps. When the other meter is the shorter one it is named in
+ * one line under the bar, as a fact.
  */
 export function TankCardView({card}: {card: TankCard}) {
   // Under 3 green laps there is no median for either meter: "no data", not a
@@ -38,45 +38,28 @@ export function TankCardView({card}: {card: TankCard}) {
   return (
     <View style={styles.box}>
       {card.meters.map(m => (
-        <Meter
-          key={m.key}
-          meter={m}
-          max={max}
-          only={card.meters.length === 1}
-        />
+        <Meter key={m.key} meter={m} max={max} />
       ))}
       <Scale max={max} />
+      {card.otherFirst ? (
+        <Text variant='dataSmall' tone='textSecondary'>
+          {card.otherFirst}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-function Meter({
-  meter,
-  max,
-  only,
-}: {
-  meter: TankMeter;
-  max: number;
-  only: boolean;
-}) {
+function Meter({meter, max}: {meter: TankMeter; max: number}) {
   const {color} = useTheme();
   const pctOf = (laps: number) =>
     `${Math.min(100, (laps / max) * 100)}%` as const;
-  // The bar that sets the stint, or the only one, is drawn at full ink.
-  const strong = meter.runsOutFirst || only;
   return (
     <View style={styles.meter}>
       <View style={styles.head}>
         <Text variant='label' tone='textMuted'>
           {meter.key === 've' ? 'VE' : 'Fuel'}
         </Text>
-        {meter.runsOutFirst ? (
-          <View style={[styles.boxed, {borderColor: color.textSecondary}]}>
-            <Text variant='dataSmall' tone='textSecondary'>
-              RUNS OUT FIRST
-            </Text>
-          </View>
-        ) : null}
       </View>
       <View style={styles.numbers}>
         <Text variant='title'>{`${meter.lapsMedian.toFixed(1)} laps`}</Text>
@@ -90,7 +73,7 @@ function Meter({
             styles.fill,
             {
               width: pctOf(meter.lapsMedian),
-              backgroundColor: strong ? color.text : color.textMuted,
+              backgroundColor: color.text,
             },
           ]}
         />
@@ -134,12 +117,6 @@ const styles = StyleSheet.create({
   box: {gap: space.lg},
   meter: {gap: space.xs},
   head: {flexDirection: 'row', alignItems: 'center', gap: space.md},
-  boxed: {
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xxs,
-  },
   numbers: {flexDirection: 'row', alignItems: 'baseline', gap: space.md},
   track: {height: BAR_H, borderRadius: radius.xs, marginVertical: space.sm},
   fill: {height: BAR_H, borderRadius: radius.xs},

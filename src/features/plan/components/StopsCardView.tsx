@@ -16,9 +16,12 @@ import {type StopRow, type StopsCard} from '../planCards';
 export function StopsCardView({
   card,
   carClass,
+  wide = false,
 }: {
   card: StopsCard;
   carClass: string;
+  /** Desktop (D6a): the use per stint and the refuelling seconds get their own columns. */
+  wide?: boolean;
 }) {
   const {color} = useTheme();
   if (!card.full && !card.equal)
@@ -53,7 +56,28 @@ export function StopsCardView({
           style={styles.col}>
           {r.stintLaps.join(' + ')}
         </Text>
+        {wide ? (
+          <>
+            <Text
+              variant='dataStrong'
+              tone={strong ? 'text' : 'textSecondary'}
+              style={styles.col}>
+              {r.perStintText ?? '–'}
+            </Text>
+            <Text
+              variant='dataStrong'
+              tone={strong ? 'text' : 'textSecondary'}
+              style={styles.col}>
+              {r.refuelText ?? '–'}
+            </Text>
+          </>
+        ) : null}
       </View>
+      {!wide && r.perStintText ? (
+        <Text variant='dataSmall' tone={strong ? 'textSecondary' : 'textMuted'}>
+          {`${r.perStintText} used per stint`}
+        </Text>
+      ) : null}
     </View>
   );
   return (
@@ -65,6 +89,16 @@ export function StopsCardView({
         <Text variant='tableHeader' tone='textMuted' style={styles.col}>
           Stint laps
         </Text>
+        {wide ? (
+          <>
+            <Text variant='tableHeader' tone='textMuted' style={styles.col}>
+              {card.perStintHeader}
+            </Text>
+            <Text variant='tableHeader' tone='textMuted' style={styles.col}>
+              Refuel per stop
+            </Text>
+          </>
+        ) : null}
       </View>
       {card.full ? row(card.full, true) : null}
       {card.windows.length > 0 ? (

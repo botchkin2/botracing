@@ -8,6 +8,7 @@ import {lastRaceOf} from './lastRace';
 import {pitLaneBase, pitModelOf} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor} from './model';
 import {buildPlanCards} from './planCards';
+import {type Unit} from './unit';
 import {usePlanHistory, usePlanLimits} from './usePlanHistory';
 
 /**
@@ -17,7 +18,7 @@ import {usePlanHistory, usePlanLimits} from './usePlanHistory';
  * practice lines read it through this hook, so they all give the Plan
  * screen's own numbers (pit-wall thread 43 #1244).
  */
-export function usePlanData(combo: Combo | null) {
+export function usePlanData(combo: Combo | null, unit: Unit = 've') {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const length = useFuelPresets(s => s.length);
@@ -46,35 +47,48 @@ export function usePlanData(combo: Combo | null) {
   const noVe = fuelOnly(greenLaps);
   const view =
     rules && plan
-      ? planView(preset, rules, plan, {
-          since:
-            hist.usedSessions.length > 0
-              ? hist.usedSessions[hist.usedSessions.length - 1].startedAt
-              : null,
-          lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
-          ratio: hist.ratio,
-          lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
-          drift: hist.chosen.drift,
-          // Over the pooled green laps, which are comparable by construction.
-          traffic: trafficMedians(
-            greenLaps.map(l => ({
-              timeS: l.lapTimeS,
-              comparable: true,
-              traffic: l.traffic ?? null,
-            })),
-          ),
-          ratioLoadsL: [
-            ...new Set(
-              hist.measured
-                .filter(m => m.ratio != null && m.fillLimitL != null)
-                .map(m => m.fillLimitL as number),
+      ? planView(
+          preset,
+          rules,
+          plan,
+          {
+            since:
+              hist.usedSessions.length > 0
+                ? hist.usedSessions[hist.usedSessions.length - 1].startedAt
+                : null,
+            lastFillLimitL: limits.lastFuel?.fillLimitL ?? null,
+            ratio: hist.ratio,
+            lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
+            drift: hist.chosen.drift,
+            // Over the pooled green laps, which are comparable by construction.
+            traffic: trafficMedians(
+              greenLaps.map(l => ({
+                timeS: l.lapTimeS,
+                comparable: true,
+                traffic: l.traffic ?? null,
+              })),
             ),
-          ],
-        })
+            ratioLoadsL: [
+              ...new Set(
+                hist.measured
+                  .filter(m => m.ratio != null && m.fillLimitL != null)
+                  .map(m => m.fillLimitL as number),
+              ),
+            ],
+          },
+          unit,
+        )
       : null;
   const cards =
     rules && plan
-      ? buildPlanCards(plan, rules.rules, noVe, hist.ratio?.perPctL ?? null)
+      ? buildPlanCards(
+          plan,
+          rules.rules,
+          noVe,
+          hist.ratio?.perPctL ?? null,
+          unit,
+          combo?.sessions[0]?.carClass ?? '',
+        )
       : null;
   return {
     preset,

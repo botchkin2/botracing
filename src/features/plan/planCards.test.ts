@@ -61,16 +61,40 @@ describe('buildPlanCards', () => {
     );
   });
 
-  it('the Per tank card: a bar per meter from its own median, p90 notch, the shorter one runs out first', () => {
-    const [fuel, ve] = cards.tank.meters;
-    expect(fuel.key).toBe('fuel');
-    expect(fuel.lapsMedian).toBeCloseTo(42.0, 1);
-    expect(fuel.formula).toBe('100 L ÷ 2.38 L/lap');
+  it('the Per tank card: one bar in one unit, VE first, from its own median and p90 notch', () => {
+    const [ve] = cards.tank.meters;
+    expect(cards.tank.meters).toHaveLength(1);
     expect(ve.key).toBe('ve');
     expect(ve.lapsMedian).toBeCloseTo(28.6, 1);
     expect(ve.formula).toBe('100 % ÷ 3.50 %/lap');
-    expect(ve.runsOutFirst).toBe(true);
-    expect(fuel.runsOutFirst).toBe(false);
+    // Fuel would reach 42 laps: no warning under the bar.
+    expect(cards.tank.otherFirst).toBeNull();
+  });
+
+  it('asking for fuel shows the fuel bar, and says VE runs out first because it does', () => {
+    const asked = buildPlanCards(
+      planRace(rules, history()),
+      rules,
+      false,
+      RATIO,
+      'fuel',
+    );
+    const [fuel] = asked.tank.meters;
+    expect(fuel.key).toBe('fuel');
+    expect(fuel.lapsMedian).toBeCloseTo(42.0, 1);
+    expect(fuel.formula).toBe('100 L ÷ 2.38 L/lap');
+    expect(asked.tank.otherFirst).toBe(
+      'VE runs out first: 28.6 laps (100 % ÷ 3.50 %/lap).',
+    );
+  });
+
+  it('with VE shown, fuel is named only where it is the shorter meter', () => {
+    const heavy = Array.from({length: 12}, () => lap(4.2, 3.5));
+    const c = buildPlanCards(planRace(rules, heavy), rules, false, RATIO, 've');
+    expect(c.tank.meters[0].key).toBe('ve');
+    expect(c.tank.otherFirst).toBe(
+      'Fuel runs out first: 23.8 laps (100 L ÷ 4.20 L/lap).',
+    );
   });
 
   it('the Stops card: full tank first with its stint laps, VE per stint and the litres each stop refuels', () => {
@@ -79,6 +103,25 @@ describe('buildPlanCards', () => {
     expect(full.stintLaps).toEqual([27, 28, 17]);
     // The first stint also burns the formation lap: (27 + 1) x 3.5 = 98.
     expect(full.vePerStint.map(Math.round)).toEqual([98, 98, 60]);
+    // And the fuel the same stints use: 28 x 2.38, 28 x 2.38, 17 x 2.38.
+    expect(full.fuelPerStint.map(Math.round)).toEqual([67, 67, 40]);
+    // The row's text is finished in the unit shown, VE first.
+    expect(full.perStintText).toBe('98 · 98 · 60 %');
+    expect(cards.stops.perStintHeader).toBe('VE per stint');
+    const fuelCards = buildPlanCards(
+      planRace(rules, history()),
+      rules,
+      false,
+      RATIO,
+      'fuel',
+      'GT3',
+    );
+    expect(fuelCards.stops.full!.perStintText).toBe('67 · 67 · 40 L');
+    expect(fuelCards.stops.perStintHeader).toBe('Fuel per stint');
+    // The refuelling seconds come from the litres at the GT3 rate, and are
+    // left out for a class the rate is not measured for.
+    expect(fuelCards.stops.full!.refuelText).toMatch(/^\d+\.\d s · \d+\.\d s$/);
+    expect(cards.stops.full!.refuelText).toBeNull();
     // Two stops. Stop 1 refills what stint 1 (27 + formation) used. Stop 2
     // adds only what the last 17 laps need: VE is the limit here. Stint 2 used
     // 28 x 3.5 = 98 % VE, so 2 % is left, and 17 x 3.5 = 59.5 % needs 57.5 %
@@ -253,9 +296,9 @@ describe('the fuel-only plan', () => {
   const plan = planRace(rules, history(false));
   const cards = buildPlanCards(plan, rules, true);
 
-  it('has one meter and no "runs out first"', () => {
+  it('has one meter, fuel, and nothing to say about another', () => {
     expect(cards.tank.meters.map(m => m.key)).toEqual(['fuel']);
-    expect(cards.tank.meters[0].runsOutFirst).toBe(false);
+    expect(cards.tank.otherFirst).toBeNull();
   });
 
   it('has no VE per stint, and stints set by fuel', () => {

@@ -36,6 +36,7 @@ export function ClassTimingSection({
   windowNote,
   width,
   onStop,
+  wide = false,
 }: {
   timing: ClassTiming | null;
   /** The pit window of each planned stop (the Stops card reads the same ones). */
@@ -45,6 +46,8 @@ export function ClassTimingSection({
   width: number;
   /** Dragging a stop on the timeline; absent, the timeline is a picture. */
   onStop?: (stop: number, lap: number) => void;
+  /** Faster classes and Your class go side by side (desktop, round 6 section 2). */
+  wide?: boolean;
 }) {
   if (timing == null) return <Skeleton height={size.sessionRow} />;
   if (timing.kind !== 'ready')
@@ -82,8 +85,21 @@ export function ClassTimingSection({
           ) : null}
         </PlanCard>
       ) : null}
-      <FasterClasses timing={timing} />
-      {timing.yours ? <YourClass yours={timing.yours} /> : null}
+      {wide && timing.yours ? (
+        <View style={styles.twoUp}>
+          <View style={styles.faster}>
+            <FasterClasses timing={timing} />
+          </View>
+          <View style={styles.yours}>
+            <YourClass yours={timing.yours} />
+          </View>
+        </View>
+      ) : (
+        <>
+          <FasterClasses timing={timing} />
+          {timing.yours ? <YourClass yours={timing.yours} /> : null}
+        </>
+      )}
     </>
   );
 }
@@ -193,6 +209,10 @@ const styles = StyleSheet.create({
   name: {flex: 1.2},
   cell: {flex: 1},
   classBox: {gap: space.xs, paddingVertical: space.md, borderTopWidth: 1},
+  // Faster classes get the wider half: its table has five columns.
+  twoUp: {flexDirection: 'row', gap: space.xl, alignItems: 'flex-start'},
+  faster: {flex: 1.4, minWidth: 0},
+  yours: {flex: 1, minWidth: 0},
   pair: {
     flexDirection: 'row',
     alignItems: 'baseline',

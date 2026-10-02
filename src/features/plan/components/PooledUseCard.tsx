@@ -35,12 +35,16 @@ export function PooledUseCard({
   planKey,
   sessionId,
   width,
+  measure: asked,
 }: {
   planKey: string;
   sessionId: string;
   width: number;
+  /** The Plan's own unit switch drives the card: the card's Fuel / VE switch is then not drawn. */
+  measure?: UseMeasure;
 }) {
-  const [measure, setMeasure] = useState<UseMeasure>('fuel');
+  const [own, setMeasure] = useState<UseMeasure>('fuel');
+  const measure = asked ?? own;
   const help = useHowToRead('use and lap time', POOLED_USE_HELP);
   const sessions = useSessions({ageDays: ALL_TIME_DAYS});
   const combo = useMemo(
@@ -73,7 +77,9 @@ export function PooledUseCard({
         per lap. Up = faster lap.
       </Explainer>
       {help.panel}
-      <Segment options={MEASURES} value={measure} onChange={setMeasure} />
+      {asked ? null : (
+        <Segment options={MEASURES} value={measure} onChange={setMeasure} />
+      )}
       {loading ? (
         <Skeleton height={SCATTER_H} />
       ) : chart ? (
