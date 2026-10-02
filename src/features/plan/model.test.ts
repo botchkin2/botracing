@@ -11,7 +11,10 @@ import {
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
+  carChoices,
   type Combo,
+  comboCar,
+  comboTrack,
   defaultCombo,
   driftRowOf,
   fuelOnly,
@@ -22,8 +25,10 @@ import {
   planCombos,
   parseNumber,
   planView,
+  rulesCells,
   rulesFor,
   sessionLimitL,
+  trackChoices,
   veRatioFor,
   veRatioOf,
 } from './model';
@@ -100,6 +105,91 @@ const lap = (over: Partial<Lap> = {}): Lap =>
     fuel: fuel(),
     ...over,
   } as Lap);
+
+describe('the track and car choices', () => {
+  const combos = planCombos([
+    session('a', '2026-09-01T10:00:00Z'),
+    session('b', '2026-09-20T10:00:00Z', {
+      trackId: 'lmu-sebring',
+      track: 'Sebring',
+      car: 'Cadillac WTR 2026 #101:LM',
+      carClass: 'Hypercar',
+    }),
+    session('c', '2026-09-10T10:00:00Z', {car: 'Cadillac WTR 2026 #101:LM'}),
+  ]);
+  const [sebring, daytonaCadillac, daytona911] = [
+    combos.find(c => c.trackId === 'lmu-sebring')!,
+    combos.find(c => c.trackId === 'lmu-daytona' && c.car.startsWith('Cad'))!,
+    combos.find(c => c.trackId === 'lmu-daytona' && c.car.startsWith('Por'))!,
+  ];
+
+  it('splits a chip label into its track and its car', () => {
+    expect(comboTrack(daytona911)).toBe('Daytona');
+    expect(comboCar(daytona911)).toBe('911 GT3 R');
+  });
+
+  it('lists a track once, and a track keeps the current car where it was driven', () => {
+    const tracks = trackChoices(combos, daytonaCadillac);
+    expect(tracks.map(t => [t.label, t.selected])).toEqual([
+      ['Sebring', false],
+      ['Daytona', true],
+    ]);
+    // Sebring has only the Cadillac, which is the current car: that combo.
+    expect(tracks[0].key).toBe(sebring.key);
+    // From the 911 at Daytona, Sebring has no 911, so it takes its newest car.
+    expect(trackChoices(combos, daytona911)[0].key).toBe(sebring.key);
+  });
+
+  it('lists the cars of the current track and marks the one in force', () => {
+    expect(
+      carChoices(combos, daytona911).map(c => [c.label, c.selected]),
+    ).toEqual([
+      [comboCar(daytonaCadillac), false],
+      ['911 GT3 R', true],
+    ]);
+  });
+});
+
+describe('rulesCells', () => {
+  const rules = {
+    name: 'ELMS 2 h',
+    lengthLaps: null,
+    lengthMin: 120,
+    fuelL: 100,
+    vePct: 100,
+    formationLap: true,
+    mandatoryStops: 0,
+  };
+
+  it('finishes the numbers the plan is worked with', () => {
+    expect(rulesCells(rules, true, 0.9)).toEqual([
+      {label: 'Max fuel', value: '100 L'},
+      {label: 'Max VE', value: '100 %'},
+      {label: '1 % VE', value: '0.90 L'},
+      {label: 'Mandatory', value: '0 stops'},
+      {label: 'Formation', value: '1 lap'},
+    ]);
+  });
+
+  it('leaves the VE numbers out for a car with no VE, and says one stop in the singular', () => {
+    const cells = rulesCells(
+      {...rules, mandatoryStops: 1, formationLap: false},
+      false,
+      null,
+    );
+    expect(cells.map(c => c.label)).toEqual([
+      'Max fuel',
+      'Mandatory',
+      'Formation',
+    ]);
+    expect(cells[1].value).toBe('1 stop');
+    expect(cells[2].value).toBe('none');
+  });
+
+  it('is empty without rules', () => {
+    expect(rulesCells(null, true, 0.9)).toEqual([]);
+  });
+});
 
 describe('planCombos', () => {
   it('groups by track and car model, not livery, newest combination first', () => {

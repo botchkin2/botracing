@@ -263,6 +263,69 @@ export function defaultCombo(combos: Combo[]): Combo | null {
   return combos.find(enough) ?? combos[0] ?? null;
 }
 
+/** A combo's label is "short track · short car"; each half, for the two chips. */
+export const comboTrack = (c: Combo) =>
+  c.label.slice(0, c.label.lastIndexOf(' · '));
+export const comboCar = (c: Combo) =>
+  c.label.slice(c.label.lastIndexOf(' · ') + 3);
+
+/** One row of a picker list: the combo it selects, its text, and whether it is the one in force. */
+export type Choice = {key: string; label: string; selected: boolean};
+
+/**
+ * The tracks to pick from, one per circuit, newest first. A track keeps the
+ * current car where it has been driven there, and else takes its newest car.
+ */
+export function trackChoices(combos: Combo[], current: Combo): Choice[] {
+  return combos
+    .filter((c, i) => combos.findIndex(o => o.trackId === c.trackId) === i)
+    .map(t => ({
+      key: (
+        combos.find(c => c.trackId === t.trackId && c.car === current.car) ?? t
+      ).key,
+      label: comboTrack(t),
+      selected: t.trackId === current.trackId,
+    }));
+}
+
+/** The cars driven at the current track. */
+export function carChoices(combos: Combo[], current: Combo): Choice[] {
+  return combos
+    .filter(c => c.trackId === current.trackId)
+    .map(c => ({
+      key: c.key,
+      label: comboCar(c),
+      selected: c.key === current.key,
+    }));
+}
+
+/** One number of the rules in force, finished for the Rules block. */
+export type RulesCell = {label: string; value: string};
+
+/** The numbers the plan is worked with; the VE ones only for a car with VE. */
+export function rulesCells(
+  rules: PlanRules | null,
+  hasVe: boolean,
+  /** Litres one % of VE is worth; null without VE. */
+  ratioPerPctL: number | null,
+): RulesCell[] {
+  if (!rules) return [];
+  return [
+    {label: 'Max fuel', value: `${rules.fuelL} L`},
+    ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
+    ...(hasVe && ratioPerPctL != null
+      ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
+      : []),
+    {
+      label: 'Mandatory',
+      value: `${rules.mandatoryStops} ${
+        rules.mandatoryStops === 1 ? 'stop' : 'stops'
+      }`,
+    },
+    {label: 'Formation', value: rules.formationLap ? '1 lap' : 'none'},
+  ];
+}
+
 /** A typed number: positive and finite, else null (empty, "7.", "abc", 0). */
 export function parseNumber(text: string): number | null {
   const n = Number(text.trim().replace(',', '.'));

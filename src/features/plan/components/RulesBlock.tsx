@@ -1,9 +1,10 @@
 import {type ComponentProps, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {type PlanRules} from '@/src/analysis/fuelPlan';
 import {space} from '@/src/design';
 import {Chip, Text} from '@/src/ui';
+
+import {type RulesCell} from '../model';
 
 import {RulesSheet} from './RulesSheet';
 
@@ -14,41 +15,20 @@ type SheetProps = Omit<
 
 /**
  * The event rules (D6a): the rule set's chip, and under it the numbers the
- * plan is worked with, in a grid. The chip opens the Rules sheet. The VE
- * numbers are left out for a car with no VE.
+ * plan is worked with, in a grid. The chip opens the Rules sheet.
  */
 export function RulesBlock({
-  rules,
-  hasVe,
-  ratioPerPctL,
+  cells,
   sheet,
   compact = false,
 }: {
-  rules: PlanRules | null;
-  hasVe: boolean;
-  /** Litres one % of VE is worth; null without VE. */
-  ratioPerPctL: number | null;
+  /** The numbers the plan is worked with, finished (`rulesCells`). */
+  cells: RulesCell[];
   sheet: SheetProps;
   /** The chip and its sheet alone, to sit among other chips (the phone). */
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const cells: {label: string; value: string}[] = rules
-    ? [
-        {label: 'Max fuel', value: `${rules.fuelL} L`},
-        ...(hasVe ? [{label: 'Max VE', value: `${rules.vePct} %`}] : []),
-        ...(hasVe && ratioPerPctL != null
-          ? [{label: '1 % VE', value: `${ratioPerPctL.toFixed(2)} L`}]
-          : []),
-        {
-          label: 'Mandatory',
-          value: `${rules.mandatoryStops} ${
-            rules.mandatoryStops === 1 ? 'stop' : 'stops'
-          }`,
-        },
-        {label: 'Formation', value: rules.formationLap ? '1 lap' : 'none'},
-      ]
-    : [];
   const chip = (
     <Chip
       label={

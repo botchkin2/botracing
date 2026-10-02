@@ -87,6 +87,7 @@ export function usePlanData(combo: Combo | null, unit: Unit = 've') {
           noVe,
           hist.ratio?.perPctL ?? null,
           unit,
+          combo?.sessions[0]?.carClass ?? '',
         )
       : null;
   return {

@@ -6,7 +6,7 @@ import {
   type FuelPlan,
   type PlanRules,
 } from '@/src/analysis/fuelPlan';
-import {REFUEL_L_PER_S} from '@/src/analysis/refuel';
+import {REFUEL_L_PER_S, refuelS} from '@/src/analysis/refuel';
 import {formatLapTime} from '@/src/design';
 
 import {effectiveUnit, type Unit} from './unit';
@@ -55,6 +55,10 @@ export type StopRow = {
   vePerStint: number[];
   /** Fuel used in each stint, litres; empty without a fuel median. */
   fuelPerStint: number[];
+  /** The use of each stint in the unit shown, finished: "100 · 98 · 60 %" or "67 · 67 · 40 L"; null without that meter. Set by the Stops card. */
+  perStintText: string | null;
+  /** The refuelling time of each stop, finished: "26.5 s · 25.9 s"; null where the rate is not measured for the class or there is no stop. Set by the Stops card. */
+  refuelText: string | null;
   /**
    * Litres each stop adds, one per stop. A middle stop refills to full, which
    * is what the stint before it used. The last stop adds only enough to
@@ -84,6 +88,8 @@ export type StopsCard = {
   full: StopRow | null;
   /** The pit window of each fuel stop of the full-tank plan; empty with no stop. */
   windows: StopWindow[];
+  /** The column head of the use per stint: "VE per stint" or "Fuel per stint". */
+  perStintHeader: string;
   /** "1 more stop than at median use", or why there is no window; null when neither applies. */
   windowNote: string | null;
   equal: StopRow | null;
@@ -205,6 +211,8 @@ export function stopRow(
     stintLaps,
     fuelPerStint:
       fuelPerLap == null ? [] : stintLaps.map((_, i) => fuelOf(i) as number),
+    perStintText: null,
+    refuelText: null,
     vePerStint:
       vePerLap == null || fuelOnly
         ? []
@@ -288,11 +296,37 @@ function lateFlagNote(
   return atMost == null ? `${base}.` : `${base}, or use at most ${atMost}.`;
 }
 
+/**
+ * The text a stops row prints beside its laps: what each stint uses in the
+ * unit shown, and the refuelling time of each stop. Finished here, so the
+ * component only draws it.
+ */
+function describeRow(r: StopRow, unit: Unit, carClass: string): StopRow {
+  const shown = effectiveUnit(unit, r.vePerStint.length > 0);
+  const values = shown === 've' ? r.vePerStint : r.fuelPerStint;
+  const times = r.refuel.map(x => refuelS(x.litres, carClass));
+  return {
+    ...r,
+    perStintText:
+      values.length === 0
+        ? null
+        : `${values.map(v => Math.round(v)).join(' · ')} ${
+            shown === 've' ? '%' : 'L'
+          }`,
+    refuelText:
+      times.length === 0 || times.some(t => t == null)
+        ? null
+        : (times as number[]).map(t => `${t.toFixed(1)} s`).join(' · '),
+  };
+}
+
 function stopsCard(
   plan: FuelPlan,
   rules: PlanRules,
   fuelOnly: boolean,
   ratioPerPctL: number | null,
+  unit: Unit,
+  carClass: string,
 ): StopsCard {
   const med = plan.atMedian;
   const laps = plan.raceLaps?.estimate ?? null;
@@ -303,6 +337,7 @@ function stopsCard(
       full: null,
       equal: null,
       windows: [],
+      perStintHeader: 'Use per stint',
       windowNote: null,
       formation: null,
     };
@@ -399,10 +434,12 @@ function stopsCard(
       : extra > 0
       ? `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`
       : null;
+  const shownUnit = effectiveUnit(unit, !fuelOnly && vePerLap != null);
   return {
-    full,
-    equal,
+    full: full && describeRow(full, unit, carClass),
+    equal: equal && describeRow(equal, unit, carClass),
     windows,
+    perStintHeader: shownUnit === 've' ? 'VE per stint' : 'Fuel per stint',
     windowNote,
     formation: rules.formationLap
       ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
@@ -425,10 +462,12 @@ export function buildPlanCards(
   ratioPerPctL: number | null = null,
   /** VE where the plan has it, unless fuel is asked for. */
   unit: Unit = 've',
+  /** The car class of the sessions, for the refuel rate; '' where unknown. */
+  carClass = '',
 ): PlanCards {
   return {
     race: raceCard(plan, rules),
     tank: tankCard(plan, rules, fuelOnly, unit),
-    stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL),
+    stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, carClass),
   };
 }

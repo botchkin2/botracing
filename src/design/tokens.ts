@@ -265,6 +265,15 @@ export const size = {
   timelineLane: 26,
   timelineGap: 8,
   timelineAxis: 18,
+  // The Plan screen's columns (round 6 section 2, round 7 3C, D6a): the phone
+  // column's cap, the desktop setup column, the results column's cap (the
+  // 840 pt card of 3C), the use and lap time rail at the wide breakpoint, and
+  // the page's widest.
+  planColumn: 640,
+  planSetup: 280,
+  planResults: 840,
+  planRail: 340,
+  planPage: 1680,
   // The Plan's pit-stop slider: the track's drawn height, and the handle's width.
   sliderTrack: 14,
   sliderHandle: 4,

@@ -4,14 +4,9 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {hitBox, space, useTheme} from '@/src/design';
 import {Chip, Sheet, Text} from '@/src/ui';
 
-import {type Combo} from '../model';
+import {type Choice} from '../model';
 
 type Pick = 'track' | 'car';
-
-// A combo's label is "short track · short car" (planCombos tells two layouts
-// of a circuit apart in it), so each half is read from there.
-const trackOf = (c: Combo) => c.label.slice(0, c.label.lastIndexOf(' · '));
-const carOf = (c: Combo) => c.label.slice(c.label.lastIndexOf(' · ') + 3);
 
 /**
  * The track and the car as two dropdown chips (D6a, 07a), each opening a list
@@ -20,23 +15,25 @@ const carOf = (c: Combo) => c.label.slice(c.label.lastIndexOf(' · ') + 3);
  * `combos` are newest first, so the first of a track is its newest.
  */
 export function TrackCarPicker({
-  combos,
-  current,
+  track,
+  car,
+  tracks,
+  cars,
   onPick,
   children,
 }: {
-  combos: Combo[];
-  current: Combo;
+  /** The chips' text: the track and the car in force. */
+  track: string;
+  car: string;
+  /** The lists the chips open (`trackChoices`, `carChoices`). */
+  tracks: Choice[];
+  cars: Choice[];
   onPick: (key: string) => void;
   /** More chips for the same row (the phone's Rules chip). */
   children?: ReactNode;
 }) {
   const {color} = useTheme();
   const [open, setOpen] = useState<Pick | null>(null);
-  const tracks = combos.filter(
-    (c, i) => combos.findIndex(o => o.trackId === c.trackId) === i,
-  );
-  const cars = combos.filter(c => c.trackId === current.trackId);
   const choose = (key: string) => {
     setOpen(null);
     onPick(key);
@@ -60,30 +57,17 @@ export function TrackCarPicker({
   return (
     <>
       <View style={styles.chips}>
-        <Chip
-          label={`${trackOf(current)} ▾`}
-          onPress={() => setOpen('track')}
-        />
-        <Chip label={`${carOf(current)} ▾`} onPress={() => setOpen('car')} />
+        <Chip label={`${track} ▾`} onPress={() => setOpen('track')} />
+        <Chip label={`${car} ▾`} onPress={() => setOpen('car')} />
         {children}
       </View>
       <Sheet
         visible={open != null}
         title={open === 'car' ? 'Car' : 'Track'}
         onClose={() => setOpen(null)}>
-        {open === 'track'
-          ? tracks.map(t => {
-              // The current car there if he has driven it, else the newest.
-              const same = combos.find(
-                c => c.trackId === t.trackId && c.car === current.car,
-              );
-              return row(
-                (same ?? t).key,
-                trackOf(t),
-                t.trackId === current.trackId,
-              );
-            })
-          : cars.map(c => row(c.key, carOf(c), c.key === current.key))}
+        {(open === 'track' ? tracks : cars).map(c =>
+          row(c.key, c.label, c.selected),
+        )}
       </Sheet>
     </>
   );

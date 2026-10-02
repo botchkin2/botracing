@@ -37,7 +37,16 @@ import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
 import {effectiveUnit, type Unit, UNITS} from './unit';
-import {defaultCombo, parseNumber, planCombos} from './model';
+import {
+  carChoices,
+  comboCar,
+  comboTrack,
+  defaultCombo,
+  parseNumber,
+  planCombos,
+  rulesCells,
+  trackChoices,
+} from './model';
 import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
@@ -121,12 +130,12 @@ export function PlanScreen() {
   // at the wide breakpoint the use and lap time scatter takes a third column
   // (D6a).
   const three = layout.isWide;
-  const avail = Math.min(layout.width, PAGE_MAX_W) - 2 * size.gutter;
-  const railW = three ? SCATTER_W + space.xxl : 0;
+  const avail = Math.min(layout.width, size.planPage) - 2 * size.gutter;
+  const railW = three ? size.planRail + space.xxl : 0;
   const resultsW = wide
-    ? Math.min(avail - SETUP_W - space.xxl - railW, RESULTS_MAX_W)
-    : Math.min(layout.contentWidth, PLAN_MAX_W);
-  const width = wide ? SETUP_W + space.xxl + resultsW + railW : resultsW;
+    ? Math.min(avail - size.planSetup - space.xxl - railW, size.planResults)
+    : Math.min(layout.contentWidth, size.planColumn);
+  const width = wide ? size.planSetup + space.xxl + resultsW + railW : resultsW;
   // A card's content: the column less its padding and 1 pt border.
   const cardInnerW = resultsW - 2 * (space.lg + 1);
   const ruleSheet = {
@@ -147,9 +156,11 @@ export function PlanScreen() {
   };
   const rulesBlock = (compact: boolean) => (
     <RulesBlock
-      rules={rules?.rules ?? null}
-      hasVe={hasVe}
-      ratioPerPctL={hist.ratio?.perPctL ?? null}
+      cells={rulesCells(
+        rules?.rules ?? null,
+        hasVe,
+        hist.ratio?.perPctL ?? null,
+      )}
       sheet={ruleSheet}
       compact={compact}
     />
@@ -165,7 +176,12 @@ export function PlanScreen() {
         </Section>
       ) : null}
 
-      <TrackCarPicker combos={combos} current={combo} onPick={setComboKey}>
+      <TrackCarPicker
+        track={comboTrack(combo)}
+        car={comboCar(combo)}
+        tracks={trackChoices(combos, combo)}
+        cars={carChoices(combos, combo)}
+        onPick={setComboKey}>
         {wide ? null : rulesBlock(true)}
       </TrackCarPicker>
       {!wide && view?.stale ? (
@@ -270,7 +286,7 @@ export function PlanScreen() {
         <PooledUseCard
           planKey={combo.key}
           sessionId={lastRace?.sessionId ?? ''}
-          width={(three ? SCATTER_W : resultsW) - 2 * (space.lg + 1)}
+          width={(three ? size.planRail : resultsW) - 2 * (space.lg + 1)}
           measure={effectiveUnit(unit, hasVe)}
         />
       </View>
@@ -332,7 +348,6 @@ export function PlanScreen() {
               <StopsCardView
                 card={data.cards.stops}
                 carClass={combo.sessions[0]?.carClass ?? ''}
-                unit={unit}
                 wide={wide}
               />
             </PlanCard>
@@ -398,13 +413,15 @@ export function PlanScreen() {
           />
         ) : wide ? (
           <View style={styles.split}>
-            <View style={[styles.stack, {width: SETUP_W}]}>{setup}</View>
+            <View style={[styles.stack, {width: size.planSetup}]}>{setup}</View>
             <View style={[styles.stack, {width: resultsW}]}>
               {results}
               {three ? null : scatter}
             </View>
             {three ? (
-              <View style={[styles.stack, {width: SCATTER_W}]}>{scatter}</View>
+              <View style={[styles.stack, {width: size.planRail}]}>
+                {scatter}
+              </View>
             ) : null}
           </View>
         ) : (
@@ -424,16 +441,6 @@ const TANK_EXPLAINER_FUEL_ONLY =
   'Laps one full load lasts. Bar = median use per lap, notch = p90 use. This car has no VE; fuel sets the stint length.';
 const STOPS_EXPLAINER =
   'Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.';
-
-// A phone-first column; on a wide screen it stays readable, not stretched.
-const PLAN_MAX_W = 640;
-// Desktop (round 6 section 2: the timeline card is 840 pt wide): the setup
-// column, and the most the results column grows to.
-const SETUP_W = 280;
-const RESULTS_MAX_W = 840;
-// The third column, at the wide breakpoint (D6a), and the page's widest.
-const SCATTER_W = 340;
-const PAGE_MAX_W = 1680;
 
 const styles = StyleSheet.create({
   page: {alignItems: 'center'},
