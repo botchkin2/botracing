@@ -395,3 +395,45 @@ describe('a race that needs no stop', () => {
     expect(cards.stops.full!.stintLaps).toEqual([20]);
   });
 });
+
+describe('the start load', () => {
+  const short: PlanRules = {...rules, lengthMin: 20};
+  const withStops = buildPlanCards(
+    planRace(rules, history()),
+    rules,
+    false,
+    RATIO,
+  );
+  const fits = buildPlanCards(planRace(short, history()), short, false, RATIO);
+
+  it('a race that fits one load reads the load to the flag in VE, litres beside, and one lap more', () => {
+    expect(fits.race.startLoad).toEqual({
+      value: '46 % VE (31 L)',
+      covers: 'to finish',
+      basis: '12 laps + formation at p90 use',
+      plusOne: '+1 lap = 49 % VE (33 L)',
+    });
+  });
+
+  it('asking for fuel shows litres only', () => {
+    const fuel = buildPlanCards(
+      planRace(short, history()),
+      short,
+      false,
+      RATIO,
+      'fuel',
+    );
+    expect(fuel.race.startLoad?.value).toBe('31 L');
+    expect(fuel.race.startLoad?.plusOne).toBe('+1 lap = 33 L');
+  });
+
+  it('a race with stops reads the first stint, which sets the stop plan', () => {
+    expect(withStops.race.startLoad?.covers).toBe('for the first stint');
+    expect(withStops.race.startLoad?.plusOne).toBeNull();
+  });
+
+  it('says nothing without a use per lap', () => {
+    const none = buildPlanCards(planRace(short, []), short, false, RATIO);
+    expect(none.race.startLoad).toBeNull();
+  });
+});
