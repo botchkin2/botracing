@@ -13,6 +13,7 @@ import {
   NO_TYRE_CHANNELS,
   TIRES_HELP,
   type StintTires,
+  treadScale,
 } from './tireCard';
 
 const all = (v: number | null): PerWheel => ({FL: v, FR: v, RL: v, RR: v});
@@ -369,5 +370,34 @@ describe('stop cool-down', () => {
       ),
     );
     expect(dead.kind === 'absent' && dead.why).toMatch(/kept/);
+  });
+});
+
+describe('treadScale', () => {
+  const zone = (
+    inner: number | null,
+    centre: number | null,
+    outer: number | null,
+  ) => ({wheel: 'FL', inner, centre, outer, innerMinusOuter: null} as const);
+
+  it('is 70 to 100 when every reading is on it', () => {
+    expect(treadScale([zone(72, 80, 91), zone(70, 99, 85)])).toEqual({
+      minC: 70,
+      maxC: 100,
+    });
+  });
+
+  it('takes its floor down for a cold stint, so no bar is blank', () => {
+    // Daytona practice: 59 to 69 C. 59 -> 55, and 5 lower so 59 still draws.
+    expect(treadScale([zone(59, 65, 64), zone(68, 68, 61)])).toEqual({
+      minC: 50,
+      maxC: 100,
+    });
+    expect(treadScale([zone(69, 80, 75)]).minC).toBe(60);
+  });
+
+  it('keeps the standard scale with no readings', () => {
+    expect(treadScale([zone(null, null, null)]).minC).toBe(70);
+    expect(treadScale([]).minC).toBe(70);
   });
 });

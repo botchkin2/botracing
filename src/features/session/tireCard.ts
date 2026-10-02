@@ -48,6 +48,24 @@ export type FlatWheel = {
 export const TREAD_BAR_MIN_C = 70;
 export const TREAD_BAR_MAX_C = 100;
 
+/**
+ * The scale the four wheels' tread bars share. 70 to 100 C, but a stint whose
+ * coldest reading is under 70 takes the floor down to the next 5 C below it
+ * (and 5 more, so that reading still draws a stub): a bar is never blank
+ * because the tyre was cold. Shared by all wheels, so bars compare.
+ */
+export function treadScale(zones: TreadZone[]): {minC: number; maxC: number} {
+  const readings = zones.flatMap(z =>
+    [z.inner, z.centre, z.outer].filter((v): v is number => v != null),
+  );
+  const lowest = readings.length > 0 ? Math.min(...readings) : null;
+  const minC =
+    lowest != null && lowest < TREAD_BAR_MIN_C
+      ? Math.floor(lowest / 5) * 5 - 5
+      : TREAD_BAR_MIN_C;
+  return {minC, maxC: TREAD_BAR_MAX_C};
+}
+
 /** One wheel's tread, the median over the stint's green laps, C; a third with no reading is null. */
 export type TreadZone = {
   wheel: Wheel;
