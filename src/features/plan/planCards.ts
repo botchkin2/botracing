@@ -142,7 +142,6 @@ function raceCard(
   rules: PlanRules,
   unit: Unit,
   fuelOnly: boolean,
-  ratioPerPctL: number | null,
 ): RaceCard {
   const med = plan.atMedian;
   const planned = plan.atP90;
@@ -194,23 +193,27 @@ function raceCard(
       med.stops != null && planned.stops != null && med.stops !== planned.stops
         ? `At median use: ${med.stops} ${med.stops === 1 ? 'stop' : 'stops'}.`
         : null,
-    startLoad: startLoadOf(plan, rules, unit, fuelOnly, ratioPerPctL),
+    startLoad: startLoadOf(plan, rules, unit, fuelOnly),
   };
 }
 
-/** A load in the unit shown, VE first with the litres beside it. */
+/**
+ * A load in the unit shown, VE first with the litres beside it. LMU loads fuel
+ * on the event's static scale with the VE you set (87 % of a 100 L event is
+ * 87.0 L, whatever the car burns), so the litres of a VE load are its share of
+ * the event's full load, not the fuel burned (parc #2017).
+ */
 function loadText(
   fuelL: number | null,
   vePct: number | null,
   shown: Unit,
-  ratioPerPctL: number | null,
+  fullLoadL: number,
 ): string | null {
   if (shown === 'fuel') return fuelL == null ? null : `${Math.round(fuelL)} L`;
   if (vePct == null) return null;
-  const litres = fuelL ?? (ratioPerPctL == null ? null : vePct * ratioPerPctL);
-  return litres == null
-    ? `${Math.round(vePct)} % VE`
-    : `${Math.round(vePct)} % VE (${Math.round(litres)} L)`;
+  return `${Math.round(vePct)} % VE (${Math.round(
+    (vePct * fullLoadL) / 100,
+  )} L)`;
 }
 
 function startLoadOf(
@@ -218,7 +221,6 @@ function startLoadOf(
   rules: PlanRules,
   unit: Unit,
   fuelOnly: boolean,
-  ratioPerPctL: number | null,
 ): StartLoad | null {
   const {fuel, ve} = plan.perLap;
   const shown = effectiveUnit(unit, ve != null && !fuelOnly);
@@ -230,11 +232,11 @@ function startLoadOf(
       own.atP90.fuelL,
       own.atP90.vePct,
       shown,
-      ratioPerPctL,
+      rules.fuelL,
     );
     if (value == null) return null;
     const more = rows[1]
-      ? loadText(rows[1].atP90.fuelL, rows[1].atP90.vePct, shown, ratioPerPctL)
+      ? loadText(rows[1].atP90.fuelL, rows[1].atP90.vePct, shown, rules.fuelL)
       : null;
     return {
       value,
@@ -250,7 +252,7 @@ function startLoadOf(
   const burn = first + (rules.formationLap ? 1 : 0);
   const fuelL = fuel ? Math.min(rules.fuelL, burn * fuel.p90) : null;
   const vePct = ve && !fuelOnly ? Math.min(rules.vePct, burn * ve.p90) : null;
-  const value = loadText(fuelL, vePct, shown, ratioPerPctL);
+  const value = loadText(fuelL, vePct, shown, rules.fuelL);
   if (value == null) return null;
   return {
     value,
@@ -624,7 +626,7 @@ export function buildPlanCards(
   carClass = '',
 ): PlanCards {
   return {
-    race: raceCard(plan, rules, unit, fuelOnly, ratioPerPctL),
+    race: raceCard(plan, rules, unit, fuelOnly),
     tank: tankCard(plan, rules, fuelOnly, unit),
     stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, carClass),
   };

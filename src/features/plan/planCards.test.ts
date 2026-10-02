@@ -408,11 +408,23 @@ describe('the start load', () => {
 
   it('a race that fits one load reads the load to the flag in VE, litres beside, and one lap more', () => {
     expect(fits.race.startLoad).toEqual({
-      value: '46 % VE (31 L)',
+      value: '46 % VE (46 L)',
       covers: 'to finish',
       basis: '12 laps + formation at p90 use',
-      plusOne: '+1 lap = 49 % VE (33 L)',
+      plusOne: '+1 lap = 49 % VE (49 L)',
     });
+  });
+
+  it('the litres beside VE are its share of the full load of the event, not the fuel burned (parc #2017)', () => {
+    const small: PlanRules = {...short, fuelL: 86};
+    const cards = buildPlanCards(
+      planRace(small, history()),
+      small,
+      false,
+      RATIO,
+    );
+    // The VE is the rounded 46 % of 86 L; 100 L would read 46 L.
+    expect(cards.race.startLoad?.value).toBe('46 % VE (39 L)');
   });
 
   it('asking for fuel shows litres only', () => {
