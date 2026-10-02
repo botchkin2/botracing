@@ -6,6 +6,7 @@ import {PIT_REVIEW_HELP} from '../session/pitReview';
 import {FIELD_HELP, RACE_HELP} from '../race/raceHelp';
 import {CORNER_CHART_HELP} from './chartHelp';
 import {SECTION_WINDOW_HELP} from './sectionWindowHelp';
+import {PIT_WINDOW_HELP} from '../plan/pitWindowHelp';
 import {STRIPS_HELP} from './stripsHelp';
 
 // One instrument rule for every "?" (camber #937): the data is the subject.
@@ -18,6 +19,7 @@ describe('how-to-read copy', () => {
     RACE_HELP,
     FIELD_HELP,
     PIT_REVIEW_HELP,
+    PIT_WINDOW_HELP,
     ...Object.fromEntries(
       Object.entries(CORNER_CHART_HELP).map(([k, v]) => [`CORNER_${k}`, v]),
     ),

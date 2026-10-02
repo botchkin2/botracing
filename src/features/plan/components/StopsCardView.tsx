@@ -4,14 +4,8 @@ import {refuelScope} from '@/src/analysis/refuel';
 import {space, useTheme} from '@/src/design';
 import {Text, useHowToRead} from '@/src/ui';
 
+import {PIT_WINDOW_HELP} from '../pitWindowHelp';
 import {type StintLine, type StopRow, type StopsCard} from '../planCards';
-
-const WINDOW_HELP = [
-  'Stops are planned at p90 use per lap (the heavier 10 % of the laps), with no reserve, so the window is the safe one.',
-  'Earliest: the laps after it still fit in full tanks. Latest: the lap the tank runs out, the earlier stops as late as they can be. Each stop after the first must also come within a tank of the one before.',
-  'In a timed race the window uses the race length plus one lap, because the flag can fall late. At median use is where the tank would run out at the median lap.',
-  'A mandatory stop that refuels makes the real window wider.',
-] as const;
 
 /**
  * The Stops card (round 5, frame 1; table form after parc #1870): each plan is
@@ -30,7 +24,7 @@ export function StopsCardView({
   carClass: string;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('the pit window', WINDOW_HELP);
+  const help = useHowToRead('the pit window', PIT_WINDOW_HELP);
   if (!card.full && !card.equal)
     return (
       <Text variant='dataSmall' tone='textMuted'>
