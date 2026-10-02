@@ -39,9 +39,9 @@ export function usePlanLimits(combo: Combo | null) {
 }
 
 /**
- * The second half: the sessions at the wanted fill limit, their green laps
- * with VE worked out through the ratio in use, and the laps since a jump in
- * use (thread 36 #1102).
+ * The second half: the newest sessions at the track and car whatever load they
+ * ran, their green laps in litres with VE worked out through the ratio of the
+ * wanted load, and the laps since a jump in use (thread 36 #1102).
  */
 export function usePlanHistory(
   combo: Combo | null,
@@ -50,7 +50,7 @@ export function usePlanHistory(
   preset: FuelPreset | null,
 ) {
   const history =
-    combo && wantedL != null ? historySessions(combo, limitsL, wantedL) : [];
+    combo && wantedL != null ? historySessions(combo, limitsL) : [];
   const ids = history.map(s => s.id);
   const lapsOf = useSessionsLaps(ids);
   const sessionDetails = useSessionsDetail(ids);
@@ -65,7 +65,7 @@ export function usePlanHistory(
       (lapsOf.laps[i] ? veRatioOf(lapsOf.laps[i]) : null),
     fillLimitL: sessionDetails.details[i]?.fuel?.fillLimitL ?? null,
   }));
-  const ratio = veRatioFor(preset, measured);
+  const ratio = veRatioFor(preset, measured, wantedL);
   const perSession = history.map((s, i) => ({
     id: s.id,
     laps: lapsOf.laps[i]

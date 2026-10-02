@@ -19,6 +19,7 @@ import {
   driftRowOf,
   fuelOnly,
   greenLapsOf,
+  ESTIMATED_RATIO_OF_LOAD,
   HISTORY_SESSIONS,
   historySessions,
   limitsOfDetails,
@@ -293,13 +294,14 @@ describe('planCombos', () => {
     );
     const [combo] = planCombos(many);
     const limits = combo.sessions.map(() => 75);
-    const ids = historySessions(combo, limits, 75).map(s => s.id);
+    const ids = historySessions(combo, limits).map(s => s.id);
     expect(ids).toHaveLength(HISTORY_SESSIONS);
     expect(ids[0]).toBe(`s${HISTORY_SESSIONS + 2}`);
   });
 
-  // Barcelona 2026-08 (thread 36 #1095): the fill limit moved from 79 L to 75 L.
-  it('keeps only sessions at the rules fill limit, never an unknown one', () => {
+  // Fuel per lap is the car on the track: laps from every load are pooled in
+  // litres (thread 44 #1968); a session doc still loading is not used yet.
+  it('pools sessions of every fill limit, never one still loading', () => {
     const [combo] = planCombos([
       session('old', '2026-04-01T10:00:00Z'),
       session('other', '2026-08-01T10:00:00Z'),
@@ -308,9 +310,10 @@ describe('planCombos', () => {
       session('new', '2026-08-13T10:00:00Z'),
     ]);
     // combo.sessions is newest first: new, none, loading, other, old.
-    const limits = [75, null, undefined, 79, 79];
-    expect(historySessions(combo, limits, 75).map(s => s.id)).toEqual(['new']);
-    expect(historySessions(combo, limits, 79).map(s => s.id)).toEqual([
+    const limits = [100, null, undefined, 75, 79];
+    expect(historySessions(combo, limits).map(s => s.id)).toEqual([
+      'new',
+      'none',
       'other',
       'old',
     ]);
@@ -439,15 +442,25 @@ describe('veRatioFor', () => {
     expect(veRatioFor(p84, sessions)!.perPctL).toBe(0.81);
   });
 
-  it('has no ratio when no session ran the preset load', () => {
+  it('estimates from the load, labelled, when no session ran it', () => {
     const p60 = newPreset('X', {fuelL: 60}, 'p3', '2026-09-26T00:00:00Z');
-    expect(veRatioFor(p60, sessions)).toBeNull();
+    expect(veRatioFor(p60, sessions)).toEqual({
+      perPctL: 60 * ESTIMATED_RATIO_OF_LOAD,
+      source: {kind: 'estimate', fillL: 60},
+    });
     // A session with no recorded fill limit cannot be matched either.
     expect(
       veRatioFor(p60, [
         {startedAt: '2026-09-20T10:00:00Z', ratio: 0.81, fillLimitL: null},
-      ]),
-    ).toBeNull();
+      ])!.source.kind,
+    ).toBe('estimate');
+    // With no load at all there is nothing to estimate from.
+    expect(veRatioFor(null, [], null)).toBeNull();
+  });
+
+  it('plans a load by the ratio of a session that ran it, from the rules when there is no preset', () => {
+    expect(veRatioFor(null, sessions, 75)!.perPctL).toBe(0.68);
+    expect(veRatioFor(null, sessions, 100)!.source.kind).toBe('estimate');
   });
 
   it('with no preset max fuel, the newest ratio is right (rules start from that session)', () => {
@@ -944,5 +957,59 @@ describe('limitsOfDetails', () => {
     const state = limitsOfDetails([doc(75), undefined], false);
     expect(state.pending).toBe(false);
     expect(state.limitsL).toEqual([75, undefined]);
+  });
+});
+
+// Road Atlanta 911, thread 44 #1954: every session on record ran a 75 L load
+// (2.40 L a lap, 0.675 L per % of VE); the event being planned is a 100 L one,
+// where a % of VE is worth 0.968 L. The same fuel a lap reads 2.5 % there, not
+// the 3.5 % it read at 75 L, and 40 minutes need no stop.
+describe('planning a load nobody ran yet (pooled litres)', () => {
+  const history = Array.from({length: 12}, (_, i) =>
+    lap({
+      id: `l${i}`,
+      timeS: 81.3,
+      fuel: fuel({usedL: 2.4, veUsedPct: 3.55, green: true}),
+    }),
+  );
+  const rules = {
+    name: 'test',
+    lengthLaps: null,
+    lengthMin: 40,
+    fuelL: 100,
+    vePct: 100,
+    formationLap: true,
+    mandatoryStops: 0,
+  };
+
+  it('with the ratio of the planned 100 L load, VE per lap follows the load', () => {
+    const ratio = veRatioFor(
+      null,
+      [
+        {startedAt: '2026-10-02T00:12:00Z', ratio: 0.968, fillLimitL: 100},
+        {startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75},
+      ],
+      100,
+    )!;
+    expect(ratio.perPctL).toBe(0.968);
+    const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
+    expect(plan.perLap.ve!.median).toBeCloseTo(2.4 / 0.968, 6);
+    expect(plan.raceLaps!.estimate).toBe(30);
+    expect(plan.atMedian.stops).toBe(0);
+  });
+
+  it('with only 75 L sessions it estimates the 100 L ratio, says so, and still needs no stop', () => {
+    const ratio = veRatioFor(
+      null,
+      [{startedAt: '2026-09-26T00:38:00Z', ratio: 0.675, fillLimitL: 75}],
+      100,
+    )!;
+    expect(ratio.source).toEqual({kind: 'estimate', fillL: 100});
+    const plan = planRace(rules, greenLapsOf('s', history, ratio.perPctL));
+    expect(plan.perLap.ve!.median).toBeCloseTo(
+      2.4 / (100 * ESTIMATED_RATIO_OF_LOAD),
+      6,
+    );
+    expect(plan.atMedian.stops).toBe(0);
   });
 });

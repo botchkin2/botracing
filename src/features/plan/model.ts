@@ -120,23 +120,21 @@ export function limitsOfDetails(
 }
 
 /**
- * The sessions whose laps feed the plan: the newest few at the fill limit of
- * the rules. A balance-of-performance change moves fuel per lap (Barcelona
- * 2026-08: 2.31 L a lap at a 79 L limit, 2.88 L at 75 L), and history from the
- * other limit plans the old car (pit wall thread 36 #1095, #1102).
+ * The sessions whose laps feed the plan: the newest few at the track and car,
+ * whatever fill limit they ran. Fuel per lap is the car on the track, so the
+ * history is pooled in litres across events; only VE % depends on the load,
+ * and that is worked out through the ratio of the event being planned
+ * (`veRatioFor`). A real jump in use (balance of performance) is cut out later
+ * by `sinceChange` (pit wall thread 36 #1102, thread 44 #1968).
  * `limitsL` lines up with `combo.sessions`; undefined is a session doc still
- * loading, and null one with no limit on record: neither is used.
+ * loading, which is not used yet.
  */
 export function historySessions(
   combo: Combo,
   limitsL: (number | null | undefined)[],
-  wantedL: number,
 ): SessionSummary[] {
   return combo.sessions
-    .filter((_, i) => {
-      const limit = limitsL[i];
-      return limit != null && sameLimit(limit, wantedL);
-    })
+    .filter((_, i) => limitsL[i] !== undefined)
     .slice(0, HISTORY_SESSIONS);
 }
 
@@ -164,19 +162,27 @@ export function veRatioOf(laps: Lap[]): number | null {
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
-  /** Where it came from: the preset, or the last session there on this date. */
-  source: {kind: 'preset'} | {kind: 'session'; startedAt: string};
+  /** Where it came from: the preset, a session that ran that load, or an estimate from the load alone. */
+  source:
+    | {kind: 'preset'}
+    | {kind: 'session'; startedAt: string}
+    | {kind: 'estimate'; fillL: number};
 };
+
+/** Litres per 1 % of VE as a share of the load, for a load no session ran: the measured ratios sit at 0.97 to 1.06 of it (thread 44 #1962), 0.90 at the 75 L events. */
+export const ESTIMATED_RATIO_OF_LOAD = 0.97;
 
 /**
  * The ratio to plan with: the preset's if it sets one, else the newest history
- * session that has one. `sessions` is newest first, as `historySessions` gives.
+ * session that ran the planned load and has one, else an estimate from the
+ * load, labelled as one. `sessions` is newest first, as `historySessions`
+ * gives.
  *
- * The ratio follows the fill limit (0.68 L per % at 75 L, 0.81 at 84), so when
- * a preset sets its own max fuel the session must have run that load (within
- * 0.5 L), or VE per lap would come out ~16 % off for a 75 L event judged on an
- * 84 L one (camber, thread 35 #1046). With no preset max fuel the rules start
- * from the last session's own limit, so its ratio is the right one.
+ * The ratio follows the load the event sets (0.68 L per % at 75 L, 0.81 at 84,
+ * 0.97 at 100), so a session of another load is never taken: VE per lap would
+ * come out 15 to 30 % off (camber, thread 35 #1046; thread 44 #1954). The
+ * planned load is the preset's max fuel, else `plannedL` (the rules' load);
+ * with neither, the newest session's ratio is the one.
  */
 export function veRatioFor(
   preset: FuelPreset | null,
@@ -185,20 +191,26 @@ export function veRatioFor(
     ratio: number | null;
     fillLimitL: number | null;
   }[],
+  plannedL: number | null = null,
 ): VeRatio | null {
   if (preset?.veRatio != null)
     return {perPctL: preset.veRatio, source: {kind: 'preset'}};
-  const wanted = preset?.fuelL ?? null;
+  const wanted = preset?.fuelL ?? plannedL;
   const last = sessions.find(
     s =>
       s.ratio != null &&
       (wanted == null ||
         (s.fillLimitL != null && Math.abs(s.fillLimitL - wanted) <= 0.5)),
   );
-  return last
+  if (last)
+    return {
+      perPctL: last.ratio as number,
+      source: {kind: 'session', startedAt: last.startedAt},
+    };
+  return wanted != null && wanted > 0
     ? {
-        perPctL: last.ratio as number,
-        source: {kind: 'session', startedAt: last.startedAt},
+        perPctL: wanted * ESTIMATED_RATIO_OF_LOAD,
+        source: {kind: 'estimate', fillL: wanted},
       }
     : null;
 }
@@ -469,6 +481,8 @@ function ratioNote(
   const src =
     ratio.source.kind === 'preset'
       ? 'from the preset'
+      : ratio.source.kind === 'estimate'
+      ? `estimated from the ${ratio.source.fillL} L load: no session of yours ran it`
       : `measured in the session of ${formatDate(ratio.source.startedAt)}`;
   return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
 }
