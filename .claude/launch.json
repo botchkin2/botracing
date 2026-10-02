@@ -27,91 +27,55 @@
     },
     {
       "name": "live-1",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19101"
+        "tools/dev/live.mjs",
+        "1"
       ],
       "port": 19101
     },
     {
       "name": "live-2",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19102"
+        "tools/dev/live.mjs",
+        "2"
       ],
       "port": 19102
     },
     {
       "name": "live-3",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19103"
+        "tools/dev/live.mjs",
+        "3"
       ],
       "port": 19103
     },
     {
       "name": "live-4",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19104"
+        "tools/dev/live.mjs",
+        "4"
       ],
       "port": 19104
     },
     {
       "name": "live-5",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19105"
+        "tools/dev/live.mjs",
+        "5"
       ],
       "port": 19105
     },
     {
       "name": "live-6",
-      "runtimeExecutable": "npx.cmd",
+      "runtimeExecutable": "node",
       "runtimeArgs": [
-        "cross-env",
-        "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=https://botracing-61.web.app/api/lmu",
-        "expo",
-        "start",
-        "--web",
-        "--port",
-        "19106"
+        "tools/dev/live.mjs",
+        "6"
       ],
       "port": 19106
     }

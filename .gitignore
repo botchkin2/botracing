@@ -178,3 +178,6 @@ app-example
 
 # Local agent worktrees
 .claude/worktrees/
+
+# Which worktree each live-N slot serves (tools/dev/liveSlots.mjs); per machine
+.claude/live-slots.local.json
