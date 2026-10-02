@@ -59,7 +59,7 @@ module.exports = defineConfig([
   {
     files: ['tools/**/*.mjs'],
     languageOptions: {globals: {...require('globals').node}},
-    rules: {'no-undef': 'error'},
+    rules: {'no-undef': 'error', 'no-shadow': 'error'},
   },
   // Layering for the new app (docs/ARCHITECTURE.md). Old folders are not
   // listed; they are deleted as the new screens replace them.

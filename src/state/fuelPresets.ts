@@ -113,6 +113,14 @@ export const useFuelPresets = create<State & Actions>()(
     }),
     {
       name: 'fuel-presets-v1',
+      // Version 1 stored a length the Plan had prefilled in laps from the last
+      // race (thread 44 #1954); it was never a choice, so it goes back to the
+      // default. Saved rule sets keep their own lengths.
+      version: 2,
+      migrate: persisted => ({
+        ...(persisted as Partial<State>),
+        length: DEFAULT_LENGTH,
+      }),
       storage: createJSONStorage(() => AsyncStorage),
       partialize: s => ({
         presets: s.presets,

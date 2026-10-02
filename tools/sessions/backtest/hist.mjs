@@ -71,13 +71,13 @@ for (const name of files) {
     // (17,801 samples of each over 890 s); a file at another rate must fail
     // here, not be read at the wrong times (camber, #145).
     const expected = (Number(span.b) - t0) * 20;
-    for (const [name, values] of [
+    for (const [series, values] of [
       ['Fuel Level', fuel],
       ['Virtual Energy', ve],
     ]) {
       if (Math.abs(values.length - expected) > expected * 0.01 + 20)
         throw new Error(
-          `${name} has ${values.length} samples, not ~${Math.round(
+          `${series} has ${values.length} samples, not ~${Math.round(
             expected,
           )} at 20 Hz`,
         );

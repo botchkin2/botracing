@@ -327,11 +327,15 @@ async function main() {
           watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
           watch.retryAtMs =
             Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
+          // Shown in the app as the uploader's error: what died, and when.
+          const why =
+            r.crash ?? r.errors[0] ?? `sync exited with code ${r.code}`;
           watch.lastError = {
             at: new Date().toISOString(),
-            message: r.errors[0] ?? `sync exited with code ${r.code}`,
+            message: `sync crashed: ${why}`,
             path: 'lap-uploader/watch.log',
           };
+          log(`sync: CRASHED, ${why}`);
         } else {
           watch.retries = nextRetries({
             retries: watch.retries,
