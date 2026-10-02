@@ -26,7 +26,7 @@ import {
   useHowToRead,
 } from '@/src/ui';
 
-import {clockLabel, snapClock} from './clock';
+import {clockLabel, nextRate, snapClock, stepBy} from './clock';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
 import {
@@ -274,6 +274,8 @@ function RaceView({
   const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
+  // Phone: the legend and the column key are folded away until asked for.
+  const [keyOpen, setKeyOpen] = useState(false);
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
   const [labels, setLabels] = useState<LabelMode>('pos');
@@ -297,7 +299,10 @@ function RaceView({
     () => markPitLane(carsAt(prep, times[Math.max(0, u)] ?? 0, true), placer),
     [prep, times, u, placer],
   );
-  const filter = wanted ?? defaultFilter(sampleCars);
+  // The phone outside a race opens on Nearby: the cars around you, any class.
+  const filter =
+    wanted ??
+    defaultFilter(sampleCars, {nearby: mode === 'field' && !layout.isDesktop});
   const rows = useMemo(
     () =>
       buildRaceModel({
@@ -447,6 +452,18 @@ function RaceView({
       clock={clockLabel(shownS)}
       onToggle={toggle}
       onRate={clock.setRate}
+      phone={
+        desktop
+          ? undefined
+          : {
+              lanes,
+              playheadS: shownS,
+              width: layout.contentWidth,
+              onScrub: scrub,
+              onStep: deltaS => scrub(stepBy(clock.timeS, deltaS, endS)),
+              onCycleRate: () => clock.setRate(nextRate(clock.rate)),
+            }
+      }
     />
   );
   const board = (
@@ -458,6 +475,8 @@ function RaceView({
       onFocus={toggleFocus}
       desktop={desktop}
       mode={mode}
+      nearby={mode === 'field'}
+      fallbackNote={rows.fallbackNote}
     />
   );
   const boardPaged = (
@@ -470,6 +489,9 @@ function RaceView({
       desktop={desktop}
       mode={mode}
       paged
+      nearby={mode === 'field'}
+      showKey={keyOpen}
+      fallbackNote={rows.fallbackNote}
     />
   );
 
@@ -536,6 +558,17 @@ function RaceView({
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
+            <Pressable
+              accessibilityRole='button'
+              accessibilityState={{expanded: keyOpen}}
+              accessibilityLabel='Key'
+              onPress={() => setKeyOpen(o => !o)}
+              hitSlop={space.md}
+              style={styles.keyToggle}>
+              <Text variant='dataSmall' tone='accentInk'>
+                {keyOpen ? 'Key ▴' : 'Key ▾'}
+              </Text>
+            </Pressable>
             {help.button}
           </View>
           {help.panel}
@@ -545,7 +578,7 @@ function RaceView({
             </Text>
           ) : null}
           {map}
-          <RaceLegend />
+          {keyOpen ? <RaceLegend /> : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>
@@ -598,4 +631,5 @@ const styles = StyleSheet.create({
   matchNote: {marginTop: space.xs},
   subRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   flexFill: {flex: 1},
+  keyToggle: {minHeight: size.hit, justifyContent: 'center'},
 });

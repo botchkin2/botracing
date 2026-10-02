@@ -23,6 +23,7 @@ export function RaceLanes({
   labelWidth,
   lapLabelEvery,
   onScrub,
+  compact = false,
 }: {
   lanes: RaceLanesModel;
   window: Span;
@@ -36,6 +37,8 @@ export function RaceLanes({
   lapLabelEvery: number;
   /** Called with the race time under the finger, while dragging. */
   onScrub: (timeS: number) => void;
+  /** One thin strip for the phone's transport: no row labels, no lap labels, no axis row. */
+  compact?: boolean;
 }) {
   const {color} = useTheme();
   const laneWidth = Math.max(1, width - labelWidth);
@@ -47,6 +50,7 @@ export function RaceLanes({
     lapLabelEvery,
   });
   const height = layout.height;
+  const axisH = compact ? 0 : AXIS_H;
   const axis = {...typeScale.axis, fontSize: 9};
 
   // PanResponder reads its handlers once; keep the latest inputs in a ref.
@@ -79,8 +83,8 @@ export function RaceLanes({
     <View
       {...responder.panHandlers}
       // Web: a mouse drag scrubs; without this it also selects the labels.
-      style={[styles.noSelect, {width, height: height + AXIS_H}]}>
-      <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
+      style={[styles.noSelect, {width, height: height + axisH}]}>
+      <Svg width={width} height={height + axisH} pointerEvents='none'>
         <Rect
           x={labelWidth}
           y={0}
@@ -98,7 +102,7 @@ export function RaceLanes({
               stroke={color.grid}
               strokeWidth={1}
             />
-            {l.label && (
+            {l.label && !compact && (
               <SvgText
                 x={labelWidth + l.x}
                 y={height + AXIS_H - 2}
@@ -113,14 +117,16 @@ export function RaceLanes({
         ))}
         {layout.rows.map(row => (
           <G key={row.key}>
-            <SvgText
-              x={0}
-              y={row.y + laneHeight - 2}
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
-              {row.label}
-            </SvgText>
+            {!compact && (
+              <SvgText
+                x={0}
+                y={row.y + laneHeight - 2}
+                fill={color.textMuted}
+                fontFamily={axis.fontFamily}
+                fontSize={axis.fontSize}>
+                {row.label}
+              </SvgText>
+            )}
             {row.spans.map((s, i) => (
               <Rect
                 key={`s-${i}`}

@@ -3,8 +3,10 @@ import {describe, expect, it} from '@jest/globals';
 import {
   clockLabel,
   MAX_STEP_S,
+  nextRate,
   RACE_RATES,
   snapClock,
+  stepBy,
   stepClock,
 } from './clock';
 
@@ -56,5 +58,22 @@ describe('clockLabel', () => {
     expect(clockLabel(1283.4)).toBe('21:23.4');
     expect(clockLabel(59.96)).toBe('1:00.0');
     expect(clockLabel(-3)).toBe('0:00.0');
+  });
+});
+
+describe('stepBy', () => {
+  it('moves the clock and stays inside the race', () => {
+    expect(stepBy(100, 5, 600)).toBe(105);
+    expect(stepBy(100, -5, 600)).toBe(95);
+    expect(stepBy(2, -5, 600)).toBe(0);
+    expect(stepBy(598, 5, 600)).toBe(600);
+  });
+});
+
+describe('nextRate', () => {
+  it('cycles the rates and wraps from the fastest to the slowest', () => {
+    expect(nextRate(1)).toBe(2);
+    expect(nextRate(0.25)).toBe(0.5);
+    expect(nextRate(16)).toBe(0.25);
   });
 });
