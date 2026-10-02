@@ -8,12 +8,15 @@ const KINDS = [
   {value: 'laps', label: 'Laps'},
 ] as const;
 
+// The stepper keeps this much before the switch wraps under it (- + 44 pt each and a four-digit field).
+const STEPPER_BASIS = 220;
+
 /** One tap of - or +: 5 minutes, or a lap. */
 export const LENGTH_STEP = {min: 5, laps: 1} as const;
 
 /**
- * The race length (D6a, 07a): Minutes | Laps, and the value between a - and a
- * + (44 pt). The value is still typed text, so a half-typed number is not
+ * The race length (D6a, 07a): the value between a - and a + (44 pt), then
+ * Minutes | Laps behind it, since the length is nearly always in minutes. The value is still typed text, so a half-typed number is not
  * rewritten; the caller parses it.
  */
 export function LengthStepper({
@@ -33,7 +36,6 @@ export function LengthStepper({
   const step = LENGTH_STEP[kind];
   return (
     <View style={styles.row}>
-      <Segment options={KINDS} value={kind} onChange={onKind} />
       <View style={styles.stepper}>
         <Chip label='−' minWidth={size.hit} onPress={() => onStep(-step)} />
         <NumberField
@@ -44,14 +46,22 @@ export function LengthStepper({
         />
         <Chip label='+' minWidth={size.hit} onPress={() => onStep(step)} />
       </View>
+      <Segment options={KINDS} value={kind} onChange={onKind} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
+  // Wraps: on a phone the Minutes | Laps switch drops under the field.
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.lg,
+  },
   stepper: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: STEPPER_BASIS,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,

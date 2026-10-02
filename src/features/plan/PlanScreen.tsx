@@ -1,5 +1,5 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
-import {useEffect, useMemo, useState} from 'react';
+import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
@@ -117,29 +117,17 @@ export function PlanScreen() {
   const lengthText =
     draft && draft.key === combo?.key ? draft.text : String(length.value);
 
-  // The newest race here fills the race length in laps, until a rule set is in
-  // force or the length is typed: a saved preset is never overwritten silently.
+  // The race length is the driver's: Minutes until he picks otherwise (he has
+  // never run a lap-based race, pit-wall thread 44 #1954). The newest race here
+  // prefills the fill limit and the start chips, not the length.
   const lastRace = useLastRaceHere(combo);
-  const [typedFor, setTypedFor] = useState<string | null>(null);
-  useEffect(() => {
-    if (!combo || !lastRace || preset || typedFor === combo.key) return;
-    const {value, kind} = useFuelPresets.getState().length;
-    if (kind === 'laps' && value === lastRace.raceLaps) return;
-    useFuelPresets
-      .getState()
-      .setLength({kind: 'laps', value: lastRace.raceLaps});
-  }, [combo?.key, lastRace?.sessionId, preset?.id]);
   const prefillLine = !lastRace
     ? null
     : preset
     ? 'Length and rules are from the rule set ' +
       preset.name +
       ', not from this race.'
-    : typedFor === combo?.key
-    ? 'Length is typed here; the fill limit is from this race.'
-    : 'Length and fill limit below are prefilled from it: ' +
-      lastRace.raceLaps +
-      ' racing laps, the formation lap not counted.';
+    : 'The fill limit below is prefilled from it; the length is yours.';
 
   const wide = layout.isDesktop;
   // Phone: one column. Desktop: the setup on the left and the results beside
@@ -240,17 +228,14 @@ export function PlanScreen() {
           kind={length.kind}
           text={lengthText}
           onKind={kind => {
-            setTypedFor(combo.key);
             setLength({kind, value: length.value});
           }}
           onText={text => {
             setDraft({key: combo.key, text});
-            setTypedFor(combo.key);
             const value = parseNumber(text);
             if (value != null) setLength({kind: length.kind, value});
           }}
           onStep={delta => {
-            setTypedFor(combo.key);
             setDraft(null);
             setLength({
               kind: length.kind,

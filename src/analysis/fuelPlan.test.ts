@@ -326,6 +326,31 @@ describe('pit time in a timed race', () => {
   });
 });
 
+describe('a timed race that fits one load (thread 44 #1954)', () => {
+  const model = {baseS: 45, refuelLPerS: 3.4};
+  const race = rules({
+    lengthLaps: null,
+    lengthMin: 40,
+    formationLap: true,
+    fuelL: 75,
+  });
+
+  it('never gets pit time: the laps are the no-stop count', () => {
+    // Road Atlanta, 40 min at 81.3 s: 30 laps and a formation lap at 2.7 %/lap
+    // of VE is 83.7 %, inside one load.
+    const r = planRace(race, laps(12, 1.82, 2.7, 81.3), model, 0.675).raceLaps!;
+    expect(r.pit).toBeNull();
+    expect(r.estimate).toBe(Math.ceil(2400 / 81.3));
+    expect(r.settled).toBe(true);
+  });
+
+  it('the same race at a use that does not fit takes the stop and its pit time', () => {
+    const r = planRace(race, laps(12, 2.4, 3.54, 81.3), model, 0.675).raceLaps!;
+    expect(r.pit).not.toBeNull();
+    expect(r.estimate).toBeLessThan(r.pit!.lapsWithout);
+  });
+});
+
 describe('a start load under the full one (thread 44 #1901/#1902)', () => {
   const base = rules({lengthLaps: 60, formationLap: true, fuelL: 100});
   const hist = laps(12, 2.38, 3.5);
