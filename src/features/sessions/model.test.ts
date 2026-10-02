@@ -25,6 +25,7 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   bestLapId: null,
   series: null,
   classLaps: null,
+  finish: null,
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-09-27T23:00:00Z',
@@ -90,6 +91,7 @@ describe('desktop table', () => {
       bestS: 99.733,
       medianS: 101.123,
       classText: 'GT3',
+      place: null,
     });
   });
 
@@ -159,5 +161,65 @@ describe('desktop table', () => {
       key: 'best',
       dir: 'desc',
     });
+  });
+});
+
+describe('finishing position', () => {
+  const now = new Date('2026-09-27T23:00:00');
+  const finish = {
+    overall: 3,
+    inClass: 1,
+    ofOverall: 58,
+    ofClass: 14,
+    lapsDone: 20,
+    leaderLapsDone: 21,
+    leftEarly: false,
+  };
+  const rows = (...over: Partial<SessionSummary>[]): SessionRow[] =>
+    buildSessionsModel(
+      over.map((o, i) => session({id: `s${i}`, ...o})),
+      now,
+    ).flatMap(d => d.rows);
+
+  it('reads "P3 · P1 in class" for a race with one, and nothing without', () => {
+    const [withIt, without] = rows(
+      {finish},
+      {finish: null, startedAt: '2026-09-26T21:40:00'},
+    );
+    expect(withIt.resultText).toBe('P3 · P1 in class');
+    expect(withIt.table.place).toBe(3);
+    expect(without.resultText).toBeNull();
+    expect(without.table.place).toBeNull();
+  });
+
+  it('says "left early" with the lap, not a result, when the player stopped first', () => {
+    const [r] = rows({
+      finish: {
+        ...finish,
+        overall: 12,
+        lapsDone: 6,
+        leaderLapsDone: 7,
+        leftEarly: true,
+      },
+    });
+    expect(r.resultText).toBe('P12 at L6 of 7 (left early)');
+  });
+
+  it('sorts by the overall place, with sessions that have none last both ways', () => {
+    const r = rows(
+      {finish: {...finish, overall: 5}, startedAt: '2026-09-25T10:00:00'},
+      {finish: null, startedAt: '2026-09-26T10:00:00'},
+      {finish: {...finish, overall: 2}, startedAt: '2026-09-27T10:00:00'},
+    );
+    expect(sortRows(r, {key: 'result', dir: 'asc'}).map(x => x.id)).toEqual([
+      's2',
+      's0',
+      's1',
+    ]);
+    expect(sortRows(r, {key: 'result', dir: 'desc'}).map(x => x.id)).toEqual([
+      's0',
+      's2',
+      's1',
+    ]);
   });
 });

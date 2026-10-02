@@ -175,7 +175,7 @@ export function lapPitStop(
   endT,
   pits,
   compoundEvents = [],
-  damage = null,
+  {damage = null, race = false} = {},
 ) {
   const t0 = s.t[0];
   const enter = pits.find(
@@ -213,6 +213,7 @@ export function lapPitStop(
       added: addedNow,
       tyresChanged: tyres ? tyres.changed : false,
       repaired: b === Infinity ? null : repaired(damage, a, b),
+      race,
     }),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},

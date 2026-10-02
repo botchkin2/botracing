@@ -21,7 +21,7 @@
 // added, no damage change: a penalty, a stop-go.
 
 /** Bump when the rules below change: it goes into analyze.mjs's blockVersions, so sessions are re-analysed. */
-export const PIT_VISIT_VERSION = 1;
+export const PIT_VISIT_VERSION = 2;
 
 /** Slower than this is standing still (km/h). The game's speed reads 0.0 to 2.7 around a stop. */
 export const STATIONARY_KMH = 1;
@@ -80,7 +80,9 @@ export function repaired(damage, a, b) {
  *
  *   {v, kind, detail, did, stationaryS, evidence}
  *
- * kind: 'service' | 'repair' | 'penalty' | 'unknown', the primary reason. A
+ * kind: 'service' | 'repair' | 'penalty' | 'through' | 'unknown', the primary
+ * reason. A penalty exists only in a race (parc #1957: in practice a run
+ * through the lane without stopping is just that, kind 'through'). A
  * repair outranks a service when both happened (the stationary time is the
  * repair's). `did` lists everything that happened in the visit ('refuel',
  * 'tyres', 'repair'), so a repair that also refuelled is
@@ -91,7 +93,7 @@ export function repaired(damage, a, b) {
  *
  * Input: {inPitS (null when the session ended in the lane), stationaryS (null
  * without a speed channel), added {fuelL, vePct}, tyresChanged, repaired (null
- * without damage samples)}.
+ * without damage samples), race (the session is a race)}.
  */
 export function classifyVisit({
   inPitS,
@@ -99,6 +101,7 @@ export function classifyVisit({
   added,
   tyresChanged,
   repaired: fixed,
+  race = false,
 }) {
   const refuel =
     (added?.fuelL ?? 0) >= ADDED_FUEL_MIN_L ||
@@ -109,7 +112,8 @@ export function classifyVisit({
   if (tyres) did.push('tyres');
   if (fixed === true) did.push('repair');
   const evidence = [];
-  if (still != null) evidence.push(`stationary ${Math.round(still * 10) / 10} s`);
+  if (still != null)
+    evidence.push(`stationary ${Math.round(still * 10) / 10} s`);
   if (refuel) evidence.push('fuel or VE added');
   if (tyres) evidence.push('tyres changed');
   if (fixed === true) evidence.push('damage repaired');
@@ -122,19 +126,28 @@ export function classifyVisit({
     evidence: [...evidence, ...extra],
   });
   // A window that never ends, or no speed to read: nothing can be said.
-  if (inPitS == null) return result('unknown', null, ['session ended in the pit lane']);
+  if (inPitS == null)
+    return result('unknown', null, ['session ended in the pit lane']);
   if (still == null) return result('unknown', null, ['no speed channel']);
   const stopped = still >= STOPPED_MIN_S;
   if (!stopped) {
-    // Through the lane without stopping, nothing done: a drive-through.
-    return refuel || tyres
-      ? result('unknown', null, ['added or changed without standing still'])
-      : result('penalty', 'drive-through');
+    // Through the lane without stopping, nothing done: a drive-through when it
+    // is a race, else just a run through the lane.
+    if (refuel || tyres)
+      return result('unknown', null, [
+        'added or changed without standing still',
+      ]);
+    return race ? result('penalty', 'drive-through') : result('through');
   }
   if (fixed === true) return result('repair');
   if (refuel || tyres) return result('service');
-  // Stopped with nothing done: a stop-go served, unless it was a repair we
-  // cannot see (no damage samples to say).
+  // Stopped with nothing done: a stop-go served in a race, unless it was a
+  // repair we cannot see (no damage samples to say). Outside a race nothing
+  // says why the car stood still.
+  if (!race)
+    return result('unknown', null, [
+      'stopped with nothing done outside a race',
+    ]);
   if (fixed === false) return result('penalty', 'stop-go');
   return result('unknown', null, ['no damage record']);
 }

@@ -2,6 +2,7 @@ export type {TrackSurface} from '@/src/analysis/trackSurface';
 export type {
   BandChannel,
   BoundaryStamp,
+  FinishPlace,
   BoundaryWindow,
   BrakeApp,
   CornerWindowFacts,

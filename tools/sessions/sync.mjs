@@ -49,6 +49,7 @@ import {
   SLICE_FORMAT,
 } from './cornerSlices.mjs';
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {checkDoc} from './docShape.mjs';
@@ -379,6 +380,7 @@ function build(
     sessionId: s.id,
     foldOnly,
     carDamage: damage,
+    sessionType: first.sessionType,
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
@@ -578,6 +580,11 @@ function build(
     classLaps: fieldOut.field
       ? classLapsDoc(fieldOut.field, first.sessionType)
       : null,
+    // The player's finishing position in a race, from the same field
+    // (src/analysis/raceResult.ts); null without one and outside a race.
+    result: fieldOut.field
+      ? finishDoc(fieldOut.field, first.sessionType)
+      : null,
     // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
     // with a file at {prefix}/c{n}.json.gz, and the window they cover.
     slices: slices
@@ -725,14 +732,14 @@ async function main() {
   state.revs ??= {};
   // A session whose corner times were cut at boundaries that have since moved
   // is re-analysed, even though nothing about its files changed.
-  const staleRev = async s => {
+  const boundariesMoved = async s => {
     const rev = (await boundariesFor(trackOf(s), store))?.rev;
     return staleRev(state.revs[s.id], rev);
   };
   const stale = new Set();
   if (!force && !local) {
     for (const s of sessions) {
-      if (state.sessions[s.id] === s.fingerprint && (await staleRev(s)))
+      if (state.sessions[s.id] === s.fingerprint && (await boundariesMoved(s)))
         stale.add(s.id);
     }
   }

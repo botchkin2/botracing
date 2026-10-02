@@ -41,6 +41,7 @@ import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
 import {LapCandidates} from './components/LapCandidates';
 import {FuelUseCard} from './components/FuelUseCard';
+import {EnergyLineRow} from './components/EnergyLineRow';
 import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
@@ -152,6 +153,8 @@ function SessionView({
   const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
   const paceHelp = useHowToRead('clean and traffic', PACE_RULE_LINES);
   const headerHeight = useRef(0);
+  // Where the Pit stops / Fuel card starts in the header, for the energy line's tap.
+  const pitCardY = useRef(0);
   // A bar tap highlights a lap, which can open the detail panel and change
   // the header height; scroll once that render has laid out.
   const pendingScroll = useRef<string | null>(null);
@@ -342,6 +345,16 @@ function SessionView({
           </View>
         ))}
       </View>
+      {model.energy ? (
+        <EnergyLineRow
+          line={model.energy}
+          onPress={() =>
+            model.energy?.target === 'pit'
+              ? listRef.current?.scrollToOffset({offset: pitCardY.current})
+              : listRef.current?.scrollToEnd()
+          }
+        />
+      ) : null}
       {model.paceRule ? (
         <View style={styles.block}>
           <View style={styles.titleRow}>
@@ -375,7 +388,9 @@ function SessionView({
       {chartBlock(tableW)}
 
       {model.pitCard && (
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          onLayout={e => (pitCardY.current = e.nativeEvent.layout.y)}>
           <PitCard
             card={model.pitCard}
             width={tableW}

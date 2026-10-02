@@ -56,10 +56,20 @@ test('repaired is true when the exit has less damage than the entry, null withou
 });
 
 const none = {fuelL: 0, vePct: 0};
-const base = {inPitS: 90, stationaryS: 20, added: none, tyresChanged: false};
+const base = {
+  inPitS: 90,
+  stationaryS: 20,
+  added: none,
+  tyresChanged: false,
+  race: true,
+};
 
 test('a service: stopped, and fuel, VE or tyres were added or changed', () => {
-  const fuel = classifyVisit({...base, added: {fuelL: 60, vePct: 40}, repaired: false});
+  const fuel = classifyVisit({
+    ...base,
+    added: {fuelL: 60, vePct: 40},
+    repaired: false,
+  });
   assert.equal(fuel.kind, 'service');
   assert.deepEqual(fuel.did, ['refuel']);
   assert.equal(fuel.v, PIT_VISIT_VERSION);
@@ -67,7 +77,11 @@ test('a service: stopped, and fuel, VE or tyres were added or changed', () => {
   assert.equal(tyres.kind, 'service');
   assert.deepEqual(tyres.did, ['tyres']);
   // Without a damage record a service is still a service.
-  assert.equal(classifyVisit({...base, added: {fuelL: 60, vePct: 40}, repaired: null}).kind, 'service');
+  assert.equal(
+    classifyVisit({...base, added: {fuelL: 60, vePct: 40}, repaired: null})
+      .kind,
+    'service',
+  );
 });
 
 test('a repair outranks a service, and lists what else happened', () => {
@@ -98,6 +112,7 @@ test("tonight's Road Atlanta visits: 61 s stationary with the damage gone is a r
     added: none,
     tyresChanged: false,
     repaired: false,
+    race: true,
   });
   assert.equal(two.kind, 'penalty');
   assert.equal(two.detail, 'stop-go');
@@ -109,7 +124,11 @@ test('a visit that never stood still and did nothing is a drive-through penalty'
   assert.equal(r.kind, 'penalty');
   assert.equal(r.detail, 'drive-through');
   // Standing still for less than the stop floor is not a stop.
-  assert.equal(classifyVisit({...base, stationaryS: STOPPED_MIN_S - 0.1, repaired: null}).kind, 'penalty');
+  assert.equal(
+    classifyVisit({...base, stationaryS: STOPPED_MIN_S - 0.1, repaired: null})
+      .kind,
+    'penalty',
+  );
 });
 
 test('stopped with nothing done and no damage record is unknown, not a guess', () => {
@@ -119,8 +138,14 @@ test('stopped with nothing done and no damage record is unknown, not a guess', (
 });
 
 test('unknown when the window never ends or there is no speed channel', () => {
-  assert.equal(classifyVisit({...base, inPitS: null, repaired: false}).kind, 'unknown');
-  assert.equal(classifyVisit({...base, stationaryS: null, repaired: false}).kind, 'unknown');
+  assert.equal(
+    classifyVisit({...base, inPitS: null, repaired: false}).kind,
+    'unknown',
+  );
+  assert.equal(
+    classifyVisit({...base, stationaryS: null, repaired: false}).kind,
+    'unknown',
+  );
 });
 
 test('added fuel just under the floor is noise, not a service', () => {
@@ -134,6 +159,31 @@ test('added fuel just under the floor is noise, not a service', () => {
 });
 
 test('fuel or VE added while never standing still is unknown (a recording fault, not a service)', () => {
-  const r = classifyVisit({...base, stationaryS: 0.5, added: {fuelL: 20, vePct: 10}, repaired: false});
+  const r = classifyVisit({
+    ...base,
+    stationaryS: 0.5,
+    added: {fuelL: 20, vePct: 10},
+    repaired: false,
+  });
   assert.equal(r.kind, 'unknown');
+});
+
+test('outside a race a run through the lane is "through", and standing still with nothing done is unknown (parc #1957)', () => {
+  const practice = {...base, race: false};
+  const through = classifyVisit({
+    ...practice,
+    stationaryS: 1.2,
+    repaired: false,
+  });
+  assert.equal(through.kind, 'through');
+  assert.equal(through.detail, null);
+  const stood = classifyVisit({...practice, repaired: false});
+  assert.equal(stood.kind, 'unknown');
+  // A repair is a repair in any session, and a service too.
+  assert.equal(classifyVisit({...practice, repaired: true}).kind, 'repair');
+  assert.equal(
+    classifyVisit({...practice, added: {fuelL: 30, vePct: 20}, repaired: false})
+      .kind,
+    'service',
+  );
 });

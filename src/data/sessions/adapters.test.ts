@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   toClassLaps,
+  toFinishPlace,
   toLaps,
   toSessionDetail,
   toSessionSummary,
@@ -452,5 +453,47 @@ describe('pit stop visit', () => {
   it('is null before the block existed or for a kind it does not know', () => {
     expect(visitOf(undefined)).toBeNull();
     expect(visitOf({kind: 'tow'})).toBeNull();
+  });
+});
+
+describe('toFinishPlace', () => {
+  const doc = (finish: unknown) => ({version: 1, kind: 'race', finish});
+
+  it('reads the stored finishing position', () => {
+    expect(
+      toFinishPlace(
+        doc({
+          overall: 3,
+          inClass: 1,
+          ofOverall: 58,
+          ofClass: 14,
+          lapsDone: 20,
+          leaderLapsDone: 21,
+        }),
+      ),
+    ).toEqual({
+      overall: 3,
+      inClass: 1,
+      ofOverall: 58,
+      ofClass: 14,
+      lapsDone: 20,
+      leaderLapsDone: 21,
+      leftEarly: false,
+    });
+  });
+
+  it('is null without a result, outside a race, or with a place that is not from 1', () => {
+    expect(toFinishPlace(undefined)).toBeNull();
+    expect(toFinishPlace(doc(null))).toBeNull();
+    expect(toFinishPlace(doc({overall: 0, inClass: 1}))).toBeNull();
+    expect(toFinishPlace(doc({overall: 'x', inClass: 1}))).toBeNull();
+  });
+
+  it('is on the session summary', () => {
+    const s = toSessionSummary({
+      id: 's',
+      result: doc({overall: 2, inClass: 2}),
+    });
+    expect(s.finish).toMatchObject({overall: 2, inClass: 2});
   });
 });

@@ -25,6 +25,8 @@ export type SessionRow = {
   laps: string;
   best: string;
   median: string;
+  /** "P3 · P1 in class": a race's finishing position, overall then in class; null outside a race or when unknown. */
+  resultText: string | null;
   /** For the desktop table: the sortable values and the cells' text. */
   table: TableCells;
 };
@@ -41,6 +43,8 @@ export type TableCells = {
   medianS: number | null;
   /** The car's class, for a race only ("GT3"); null otherwise. */
   classText: string | null;
+  /** The overall finishing place, for sorting; null when there is none. */
+  place: number | null;
 };
 type SessionType = SessionSummary['sessionType'];
 
@@ -121,6 +125,11 @@ export function buildSessionsModel(
       laps: String(s.lapCount),
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),
+      resultText: s.finish
+        ? s.finish.leftEarly
+          ? `P${s.finish.overall} at L${s.finish.lapsDone} of ${s.finish.leaderLapsDone} (left early)`
+          : `P${s.finish.overall} · P${s.finish.inClass} in class`
+        : null,
       table: {
         startedAt: s.startedAt,
         dateText: `${started.toLocaleDateString('en-GB', {
@@ -132,6 +141,7 @@ export function buildSessionsModel(
         bestS: s.bestTimeS,
         medianS: s.medianTimeS,
         classText: s.sessionType === 'R' && s.carClass ? s.carClass : null,
+        place: s.finish?.overall ?? null,
       },
     });
   }
@@ -146,7 +156,8 @@ export type SortKey =
   | 'laps'
   | 'best'
   | 'median'
-  | 'class';
+  | 'class'
+  | 'result';
 export type Sort = {key: SortKey; dir: 'asc' | 'desc'};
 
 /** The desktop table opens newest first. */
@@ -178,6 +189,8 @@ function compare(a: SessionRow, b: SessionRow, key: SortKey): number {
       return text(a.typeLabel, b.typeLabel);
     case 'class':
       return text(a.table.classText, b.table.classText);
+    case 'result':
+      return (a.table.place ?? 0) - (b.table.place ?? 0);
     case 'laps':
       return a.table.lapsN - b.table.lapsN;
     case 'best':
@@ -202,7 +215,8 @@ export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
   const empty = (r: SessionRow) =>
     (sort.key === 'best' && r.table.bestS == null) ||
     (sort.key === 'median' && r.table.medianS == null) ||
-    (sort.key === 'class' && r.table.classText == null);
+    (sort.key === 'class' && r.table.classText == null) ||
+    (sort.key === 'result' && r.table.place == null);
   return [...rows].sort((a, b) => {
     const ea = empty(a);
     const eb = empty(b);

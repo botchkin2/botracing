@@ -31,6 +31,7 @@ const COLS: {
   {key: 'car', title: 'Car', flex: 1.8},
   {key: 'type', title: 'Session', width: size.sessionsTable.session},
   {key: 'class', title: 'Class', width: size.sessionsTable.class},
+  {key: 'result', title: 'Result', width: size.sessionsTable.result},
   {key: 'laps', title: 'Laps', width: size.sessionsTable.laps, align: 'right'},
   {key: 'best', title: 'Best', width: size.sessionsTable.time, align: 'right'},
   {
@@ -131,6 +132,7 @@ function Cell({col, row}: {col: (typeof COLS)[number]; row: SessionRow}) {
     car: t.carText,
     type: row.typeLabel,
     class: t.classText ?? '',
+    result: row.resultText ?? '',
     laps: row.laps,
     best: row.best,
     median: row.median,

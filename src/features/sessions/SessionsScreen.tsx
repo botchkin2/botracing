@@ -205,6 +205,13 @@ function SessionRowView({
                 {row.entry}
               </Text>
             ) : null}
+            {row.table.classText || row.resultText ? (
+              <Text variant='dataSmall' tone='textSecondary'>
+                {[row.table.classText, row.resultText]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : null}
           </View>
         </View>
         <Text variant='data' tone='textSecondary' style={styles.laps}>
