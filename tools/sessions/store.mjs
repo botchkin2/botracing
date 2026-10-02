@@ -19,6 +19,7 @@ import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
@@ -291,6 +292,14 @@ export async function upload(out, {log = () => {}} = {}) {
       session.classLaps = field
         ? classLapsDoc(field, session.sessionType)
         : null;
+    }
+    // The finishing position, kept while it is this version and kind.
+    const storedResult = before.exists ? before.get('result') ?? null : null;
+    if (finishCurrent(storedResult, session.sessionType)) {
+      session.result = storedResult;
+    } else {
+      const field = await load();
+      session.result = field ? finishDoc(field, session.sessionType) : null;
     }
     const traffic = await lapTrafficFrom({
       fresh: null,
