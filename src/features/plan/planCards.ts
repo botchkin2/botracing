@@ -45,6 +45,18 @@ export type TankCard = {
   otherFirst: string | null;
 };
 
+/** A stint's row of the Stops table. */
+export type StintLine = {
+  n: number;
+  laps: string;
+  /** What the stint uses in the unit shown: "94 %" or "67 L"; null without that meter. */
+  use: string | null;
+  /** The refuelling at the stop that ends the stint: seconds where the rate is measured for the class, else litres; null for the last stint. */
+  refuel: string | null;
+  /** The lap the stop that ends the stint comes after ("L27"); null for the last stint. */
+  stopAfter: string | null;
+};
+
 export type StopRow = {
   kind: 'full' | 'equal';
   /** Lap names the stops come after ("L27"); empty for no fuel stop. */
@@ -55,10 +67,8 @@ export type StopRow = {
   vePerStint: number[];
   /** Fuel used in each stint, litres; empty without a fuel median. */
   fuelPerStint: number[];
-  /** The use of each stint in the unit shown, finished: "100 · 98 · 60 %" or "67 · 67 · 40 L"; null without that meter. Set by the Stops card. */
-  perStintText: string | null;
-  /** The refuelling time of each stop, finished: "26.5 s · 25.9 s"; null where the rate is not measured for the class or there is no stop. Set by the Stops card. */
-  refuelText: string | null;
+  /** One line per stint, finished for the table (round 7 follow-up, parc #1870): one number a cell. Set by the Stops card. */
+  lines: StintLine[];
   /**
    * Litres each stop adds, one per stop. A middle stop refills to full, which
    * is what the stint before it used. The last stop adds only enough to
@@ -90,11 +100,15 @@ export type StopsCard = {
   windows: StopWindow[];
   /** The column head of the use per stint: "VE per stint" or "Fuel per stint". */
   perStintHeader: string;
+  /** The head of the refuel column: "Refuel time" where seconds are known for the class, else "Refuel". */
+  refuelHeader: string;
   /** "1 more stop than at median use", or why there is no window; null when neither applies. */
   windowNote: string | null;
   equal: StopRow | null;
   /** What the formation lap takes from the first stint; null without one. */
   formation: {fuelL: number | null; vePct: number | null} | null;
+  /** The formation lap's use in the unit shown ("2 %", "2.4 L"), for its row of the table; null without a formation lap or that meter. */
+  formationUse: string | null;
 };
 
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -211,8 +225,7 @@ export function stopRow(
     stintLaps,
     fuelPerStint:
       fuelPerLap == null ? [] : stintLaps.map((_, i) => fuelOf(i) as number),
-    perStintText: null,
-    refuelText: null,
+    lines: [],
     vePerStint:
       vePerLap == null || fuelOnly
         ? []
@@ -296,28 +309,45 @@ function lateFlagNote(
   return atMost == null ? `${base}.` : `${base}, or use at most ${atMost}.`;
 }
 
+/** Whether the refuelling time is known for the class: seconds, else litres. */
+const refuelInSeconds = (carClass: string) => refuelS(1, carClass) != null;
+
 /**
- * The text a stops row prints beside its laps: what each stint uses in the
- * unit shown, and the refuelling time of each stop. Finished here, so the
- * component only draws it.
+ * The lines a stops row prints, one per stint, one number a cell: the laps,
+ * what the stint uses in the unit shown, and the stop that ends it with what
+ * it refuels. Finished here, so the component only draws them.
  */
-function describeRow(r: StopRow, unit: Unit, carClass: string): StopRow {
+function describeRow(
+  r: StopRow,
+  unit: Unit,
+  carClass: string,
+  /** What the formation lap burns, taken from stint 1's use: it has its own row. */
+  formation: {fuelL: number | null; vePct: number | null} | null,
+): StopRow {
   const shown = effectiveUnit(unit, r.vePerStint.length > 0);
-  const values = shown === 've' ? r.vePerStint : r.fuelPerStint;
-  const times = r.refuel.map(x => refuelS(x.litres, carClass));
-  return {
-    ...r,
-    perStintText:
-      values.length === 0
+  const values = [...(shown === 've' ? r.vePerStint : r.fuelPerStint)];
+  const formationUse = shown === 've' ? formation?.vePct : formation?.fuelL;
+  if (values.length > 0 && formationUse != null)
+    values[0] = Math.max(0, values[0] - formationUse);
+  const lines = r.stintLaps.map((laps, i): StintLine => {
+    const refuel = r.refuel[i];
+    const seconds = refuel ? refuelS(refuel.litres, carClass) : null;
+    return {
+      n: i + 1,
+      laps: String(laps),
+      use:
+        values[i] == null
+          ? null
+          : `${Math.round(values[i])} ${shown === 've' ? '%' : 'L'}`,
+      refuel: !refuel
         ? null
-        : `${values.map(v => Math.round(v)).join(' · ')} ${
-            shown === 've' ? '%' : 'L'
-          }`,
-    refuelText:
-      times.length === 0 || times.some(t => t == null)
-        ? null
-        : (times as number[]).map(t => `${t.toFixed(1)} s`).join(' · '),
-  };
+        : seconds != null
+        ? `${seconds.toFixed(1)} s`
+        : `${refuel.litres.toFixed(1)} L`,
+      stopAfter: r.stopAfter[i] ?? null,
+    };
+  });
+  return {...r, lines};
 }
 
 function stopsCard(
@@ -338,8 +368,10 @@ function stopsCard(
       equal: null,
       windows: [],
       perStintHeader: 'Use per stint',
+      refuelHeader: 'Refuel',
       windowNote: null,
       formation: null,
+      formationUse: null,
     };
   const fuelStops = med.stopLaps.length;
   // Full tank: each stint runs until the meter that runs out first is empty.
@@ -435,15 +467,27 @@ function stopsCard(
       ? `${extra} more ${extra === 1 ? 'stop' : 'stops'} than at median use`
       : null;
   const shownUnit = effectiveUnit(unit, !fuelOnly && vePerLap != null);
+  const formation = rules.formationLap
+    ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
+    : null;
   return {
-    full: full && describeRow(full, unit, carClass),
-    equal: equal && describeRow(equal, unit, carClass),
+    full: full && describeRow(full, unit, carClass, formation),
+    equal: equal && describeRow(equal, unit, carClass, formation),
     windows,
     perStintHeader: shownUnit === 've' ? 'VE per stint' : 'Fuel per stint',
+    refuelHeader: refuelInSeconds(carClass) ? 'Refuel time' : 'Refuel',
     windowNote,
-    formation: rules.formationLap
-      ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
-      : null,
+    formation,
+    formationUse:
+      formation == null
+        ? null
+        : shownUnit === 've'
+        ? formation.vePct == null
+          ? null
+          : `${formation.vePct.toFixed(1)} %`
+        : formation.fuelL == null
+        ? null
+        : `${formation.fuelL.toFixed(1)} L`,
   };
 }
 

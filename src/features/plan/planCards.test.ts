@@ -105,9 +105,16 @@ describe('buildPlanCards', () => {
     expect(full.vePerStint.map(Math.round)).toEqual([98, 98, 60]);
     // And the fuel the same stints use: 28 x 2.38, 28 x 2.38, 17 x 2.38.
     expect(full.fuelPerStint.map(Math.round)).toEqual([67, 67, 40]);
-    // The row's text is finished in the unit shown, VE first.
-    expect(full.perStintText).toBe('98 · 98 · 60 %');
+    // One line per stint, one number a cell, in the unit shown (VE first). The
+    // formation lap has its own row, so stint 1 shows 98 - 3.5 = 94.5 -> 95 %.
+    expect(full.lines).toEqual([
+      {n: 1, laps: '27', use: '95 %', refuel: '66.6 L', stopAfter: 'L28'},
+      {n: 2, laps: '28', use: '98 %', refuel: '39.1 L', stopAfter: 'L56'},
+      {n: 3, laps: '17', use: '60 %', refuel: null, stopAfter: null},
+    ]);
+    expect(cards.stops.formationUse).toBe('3.5 %');
     expect(cards.stops.perStintHeader).toBe('VE per stint');
+    expect(cards.stops.refuelHeader).toBe('Refuel');
     const fuelCards = buildPlanCards(
       planRace(rules, history()),
       rules,
@@ -116,12 +123,21 @@ describe('buildPlanCards', () => {
       'fuel',
       'GT3',
     );
-    expect(fuelCards.stops.full!.perStintText).toBe('67 · 67 · 40 L');
+    expect(fuelCards.stops.full!.lines.map(l => l.use)).toEqual([
+      '64 L',
+      '67 L',
+      '40 L',
+    ]);
+    expect(fuelCards.stops.formationUse).toBe('2.4 L');
     expect(fuelCards.stops.perStintHeader).toBe('Fuel per stint');
     // The refuelling seconds come from the litres at the GT3 rate, and are
-    // left out for a class the rate is not measured for.
-    expect(fuelCards.stops.full!.refuelText).toMatch(/^\d+\.\d s · \d+\.\d s$/);
-    expect(cards.stops.full!.refuelText).toBeNull();
+    // litres for a class the rate is not measured for.
+    expect(fuelCards.stops.refuelHeader).toBe('Refuel time');
+    expect(fuelCards.stops.full!.lines.map(l => l.refuel)).toEqual([
+      '19.6 s',
+      '11.5 s',
+      null,
+    ]);
     // Two stops. Stop 1 refills what stint 1 (27 + formation) used. Stop 2
     // adds only what the last 17 laps need: VE is the limit here. Stint 2 used
     // 28 x 3.5 = 98 % VE, so 2 % is left, and 17 x 3.5 = 59.5 % needs 57.5 %

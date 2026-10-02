@@ -15,6 +15,7 @@ export function NumberField({
   unit,
   placeholder,
   decimal,
+  showLabel = true,
 }: {
   label: string;
   value: string;
@@ -22,13 +23,17 @@ export function NumberField({
   unit?: string;
   placeholder?: string;
   decimal?: boolean;
+  /** False when a heading above a row of controls names the field; the label is still spoken. */
+  showLabel?: boolean;
 }) {
   const {color} = useTheme();
   return (
     <View style={styles.field}>
-      <Text variant='label' tone='textMuted'>
-        {label}
-      </Text>
+      {showLabel ? (
+        <Text variant='label' tone='textMuted'>
+          {label}
+        </Text>
+      ) : null}
       <View
         style={[
           styles.box,

@@ -38,6 +38,7 @@ export function LengthStepper({
         <Chip label='−' minWidth={size.hit} onPress={() => onStep(-step)} />
         <NumberField
           label={kind === 'min' ? 'Minutes' : 'Laps'}
+          showLabel={false}
           value={text}
           onChange={onText}
         />
@@ -48,11 +49,11 @@ export function LengthStepper({
 }
 
 const styles = StyleSheet.create({
-  row: {flexDirection: 'row', alignItems: 'flex-end', gap: space.lg},
+  row: {flexDirection: 'row', alignItems: 'center', gap: space.lg},
   stepper: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: space.sm,
   },
 });
