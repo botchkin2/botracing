@@ -39,6 +39,8 @@ export type SessionSummary = {
   series: string | null;
   /** Pace of each class in the field (analysis v17); null without a field. */
   classLaps: SessionClassLaps | null;
+  /** The player's finishing position in a race (the stored `result` block); null outside a race or before it is computed. */
+  finish: FinishPlace | null;
   eventId: string | null;
   /**
    * Where the session's corners came from: the track's stored map
@@ -97,6 +99,7 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     bestLapId: str(raw.bestLapId) || null,
     series: str(raw.series) || null,
     classLaps: toClassLaps(raw.classLaps),
+    finish: toFinishPlace(raw.result),
     eventId: str(raw.eventId) || null,
     cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),
@@ -234,6 +237,41 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     kind,
     classes: Object.keys(classes).length > 0 ? classes : null,
     startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+  };
+}
+
+/** A race's finishing position: the game's place overall and in class, and the field it was among. */
+export type FinishPlace = {
+  overall: number;
+  inClass: number;
+  ofOverall: number;
+  ofClass: number;
+  /** The player's laps and the most any car had at that moment, to read the place against. */
+  lapsDone: number;
+  leaderLapsDone: number;
+  /** The leader crossed the line after the player's last crossing: the player left before the race ended. */
+  leftEarly: boolean;
+};
+
+/** Null without a `result` block, outside a race, or with a place that is not a number from 1 (src/analysis/raceResult.ts). */
+export function toFinishPlace(v: unknown): FinishPlace | null {
+  const f = obj(obj(v).finish);
+  const [overall, inClass, ofOverall, ofClass] = [
+    f.overall,
+    f.inClass,
+    f.ofOverall,
+    f.ofClass,
+  ].map(num);
+  if (overall == null || inClass == null || overall < 1 || inClass < 1)
+    return null;
+  return {
+    overall,
+    inClass,
+    ofOverall: ofOverall ?? 0,
+    ofClass: ofClass ?? 0,
+    lapsDone: num(f.lapsDone) ?? 0,
+    leaderLapsDone: num(f.leaderLapsDone) ?? 0,
+    leftEarly: f.leftEarly === true,
   };
 }
 

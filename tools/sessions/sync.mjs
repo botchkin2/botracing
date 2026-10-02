@@ -49,6 +49,7 @@ import {
   SLICE_FORMAT,
 } from './cornerSlices.mjs';
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
@@ -571,6 +572,11 @@ function build(
     // without one.
     classLaps: fieldOut.field
       ? classLapsDoc(fieldOut.field, first.sessionType)
+      : null,
+    // The player's finishing position in a race, from the same field
+    // (src/analysis/raceResult.ts); null without one and outside a race.
+    result: fieldOut.field
+      ? finishDoc(fieldOut.field, first.sessionType)
       : null,
     // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
     // with a file at {prefix}/c{n}.json.gz, and the window they cover.

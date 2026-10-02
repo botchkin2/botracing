@@ -26,6 +26,7 @@ const session = (
   bestLapId: null,
   series: null,
   classLaps: null,
+  finish: null,
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
