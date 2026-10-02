@@ -18,10 +18,13 @@ import {
 import {AppMark, Badge, Button, hitFor, MARK_SLOP, Text} from '@/src/ui';
 
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
+import {SessionsTable} from './SessionsTable';
 
 // Columns from the handoff: badge | track · car | laps | best | median.
 const COL = {badge: 24, laps: 30, time: 64};
 const LIST_MAX_WIDTH = 760;
+// The desktop table takes the width, to a limit that keeps a row readable.
+const TABLE_MAX_WIDTH = 1500;
 
 const markHit = hitFor(MARK_SLOP, MARK_SLOP);
 // Web grows the box with padding, so the margin takes it back; native only has
@@ -35,8 +38,12 @@ export function SessionsScreen() {
   const router = useRouter();
   const {color} = useTheme();
   const layout = useLayout();
-  // A list reads badly at 1200 pt; cap it on desktop.
-  const contentWidth = Math.min(layout.contentWidth, LIST_MAX_WIDTH);
+  // The phone's grouped list reads badly past 760 pt; the desktop table takes the
+  // window's width (the rail already comes off `layout.width`), to a limit that
+  // keeps a row readable.
+  const contentWidth = layout.isDesktop
+    ? Math.min(Math.max(0, layout.width - size.gutter * 2), TABLE_MAX_WIDTH)
+    : Math.min(layout.contentWidth, LIST_MAX_WIDTH);
   const insets = useSafeAreaInsets();
 
   return (
@@ -90,9 +97,15 @@ export function SessionsScreen() {
         </View>
       )}
       {model.state === 'empty' && <EmptyState width={contentWidth} />}
-      {model.state === 'ready' && (
-        <SessionTable days={model.days} width={contentWidth} />
-      )}
+      {model.state === 'ready' &&
+        (layout.isDesktop ? (
+          <SessionsTable
+            rows={model.days.flatMap(d => d.rows)}
+            width={contentWidth}
+          />
+        ) : (
+          <SessionTable days={model.days} width={contentWidth} />
+        ))}
     </View>
   );
 }

@@ -1,7 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 import {type SessionSummary} from '@/src/data/sessions';
 
-import {buildSessionsModel} from './model';
+import {
+  buildSessionsModel,
+  DEFAULT_SORT,
+  nextSort,
+  type SessionRow,
+  sortRows,
+} from './model';
 
 const session = (over: Partial<SessionSummary>): SessionSummary => ({
   id: 's1',
@@ -62,5 +68,96 @@ describe('buildSessionsModel', () => {
     )[0].rows;
     expect(row.best).toBe('—');
     expect(row.median).toBe('—');
+  });
+});
+
+describe('desktop table', () => {
+  const now = new Date('2026-09-27T23:00:00');
+  const rows = (...over: Partial<SessionSummary>[]): SessionRow[] =>
+    buildSessionsModel(
+      over.map((o, i) => session({id: `s${i}`, ...o})),
+      now,
+    ).flatMap(d => d.rows);
+  const ids = (r: SessionRow[]) => r.map(x => x.id);
+
+  it('carries the cells the table shows', () => {
+    const [row] = rows({startedAt: '2026-09-27T21:40:00'});
+    expect(row.table).toEqual({
+      startedAt: '2026-09-27T21:40:00',
+      dateText: '27 Sept 21:40',
+      carText: '911 GT3 R · Manthey #91',
+      lapsN: 42,
+      bestS: 99.733,
+      medianS: 101.123,
+      classText: 'GT3',
+    });
+  });
+
+  it('shows a class for a race only', () => {
+    const [race, practice] = rows(
+      {sessionType: 'R'},
+      {sessionType: 'P', startedAt: '2026-09-26T10:00:00'},
+    );
+    expect(race.table.classText).toBe('GT3');
+    expect(practice.table.classText).toBeNull();
+  });
+
+  it('sorts by date newest first by default, and by laps and times', () => {
+    const r = rows(
+      {startedAt: '2026-09-25T10:00:00', lapCount: 10, bestTimeS: 100},
+      {startedAt: '2026-09-27T10:00:00', lapCount: 30, bestTimeS: 98},
+      {startedAt: '2026-09-26T10:00:00', lapCount: 20, bestTimeS: null},
+    );
+    expect(ids(sortRows(r, DEFAULT_SORT))).toEqual(['s1', 's2', 's0']);
+    expect(ids(sortRows(r, {key: 'laps', dir: 'desc'}))).toEqual([
+      's1',
+      's2',
+      's0',
+    ]);
+    expect(ids(sortRows(r, {key: 'laps', dir: 'asc'}))).toEqual([
+      's0',
+      's2',
+      's1',
+    ]);
+    // Fastest first; a session with no time is last in both directions.
+    expect(ids(sortRows(r, {key: 'best', dir: 'asc'}))).toEqual([
+      's1',
+      's0',
+      's2',
+    ]);
+    expect(ids(sortRows(r, {key: 'best', dir: 'desc'}))).toEqual([
+      's0',
+      's1',
+      's2',
+    ]);
+  });
+
+  it('sorts text columns A to Z and ties by date', () => {
+    const r = rows(
+      {
+        track: 'Daytona International Speedway',
+        startedAt: '2026-09-25T10:00:00',
+      },
+      {track: 'Barcelona', startedAt: '2026-09-26T10:00:00'},
+      {
+        track: 'Daytona International Speedway',
+        startedAt: '2026-09-27T10:00:00',
+      },
+    );
+    expect(ids(sortRows(r, {key: 'track', dir: 'asc'}))).toEqual([
+      's1',
+      's2',
+      's0',
+    ]);
+  });
+
+  it('flips the sorted column and starts a new one in its own direction', () => {
+    expect(nextSort(DEFAULT_SORT, 'date')).toEqual({key: 'date', dir: 'asc'});
+    expect(nextSort(DEFAULT_SORT, 'best')).toEqual({key: 'best', dir: 'asc'});
+    expect(nextSort(DEFAULT_SORT, 'laps')).toEqual({key: 'laps', dir: 'desc'});
+    expect(nextSort({key: 'best', dir: 'asc'}, 'best')).toEqual({
+      key: 'best',
+      dir: 'desc',
+    });
   });
 });
