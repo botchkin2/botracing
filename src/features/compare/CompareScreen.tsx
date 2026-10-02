@@ -375,7 +375,7 @@ function CompareView({
   );
   const referenceHint = (
     <Text variant='dataSmall' tone='textFaint'>
-      REF · tap another lap’s Ref to change
+      {`Times vs ${model.tableReference.chips}. REF is the lap the traces and the map follow; tap another lap’s Ref to change it.`}
     </Text>
   );
 
@@ -402,7 +402,16 @@ function CompareView({
                 tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}>
                 {c.delta}
               </Text>
-              {!c.isRef && (
+              {c.refTag ? (
+                <Text variant='dataSmall' tone='accentInk'>
+                  REF
+                </Text>
+              ) : null}
+            </>
+          }
+          actions={
+            !c.isRef ? (
+              <>
                 <Pressable
                   accessibilityRole='button'
                   accessibilityLabel={`Make ${c.label} the reference`}
@@ -414,8 +423,6 @@ function CompareView({
                     Ref
                   </Text>
                 </Pressable>
-              )}
-              {!c.isRef && (
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
                   accessibilityState={{
@@ -437,8 +444,8 @@ function CompareView({
                     ×
                   </Text>
                 </Pressable>
-              )}
-            </>
+              </>
+            ) : undefined
           }
         />
       ))}
