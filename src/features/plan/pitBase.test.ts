@@ -18,6 +18,7 @@ const stop = (
   added: {fuelL: addedL, vePct: 0},
   inPitS,
   lapsLeftAtEntry: {fuel: null, ve: null},
+  visit: null,
   tyres:
     tyresChanged === null
       ? null

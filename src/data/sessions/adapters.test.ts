@@ -428,3 +428,29 @@ describe('lap traffic positions', () => {
     ).toEqual([]);
   });
 });
+
+describe('pit stop visit', () => {
+  const visitOf = (visit: unknown) =>
+    toLaps([{id: 'a', pitStop: {visit}}])[0].pitStop?.visit;
+  it('reads the reason, what was done and the detail of a penalty', () => {
+    expect(
+      visitOf({
+        kind: 'penalty',
+        detail: 'stop-go',
+        did: ['repair', 'XX'],
+        stationaryS: 10.4,
+        evidence: ['stationary 10.4 s', 3],
+      }),
+    ).toEqual({
+      kind: 'penalty',
+      detail: 'stop-go',
+      did: ['repair'],
+      stationaryS: 10.4,
+      evidence: ['stationary 10.4 s'],
+    });
+  });
+  it('is null before the block existed or for a kind it does not know', () => {
+    expect(visitOf(undefined)).toBeNull();
+    expect(visitOf({kind: 'tow'})).toBeNull();
+  });
+});

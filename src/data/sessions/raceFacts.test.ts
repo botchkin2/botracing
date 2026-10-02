@@ -64,6 +64,7 @@ describe('raceFacts', () => {
         added: {fuelL: 50, vePct: 38},
         inPitS: 81,
         lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+        visit: null,
         tyres: null,
       },
     }),
@@ -123,6 +124,7 @@ describe('racePitLaps', () => {
     added: {fuelL: 50, vePct: 38},
     inPitS: 81,
     lapsLeftAtEntry: {fuel: 3.6, ve: 0},
+    visit: null,
     tyres: null,
   };
   // L1 from the grid (with the service before the start), L2-L3 flying, a

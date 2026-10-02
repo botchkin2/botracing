@@ -38,6 +38,7 @@ import {
 } from './fuelFacts.mjs';
 import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
+import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
   sessionBoundaries,
@@ -75,6 +76,7 @@ export const blockVersions = {
   gridLap: GRID_LAP_VERSION,
   hybrid: HYBRID_VERSION,
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
+  pitVisit: PIT_VISIT_VERSION,
 };
 
 const GRID_M = 5;
@@ -412,7 +414,7 @@ function lapDistance(rec, i0, i1) {
   return out;
 }
 
-function analyzeLap(rec, seg, pits, flags) {
+function analyzeLap(rec, seg, pits, flags, damage) {
   const {s, events} = rec;
   const [i0, i1] = lapTicks(rec, seg);
   const dist = lapDistance(rec, i0, i1);
@@ -505,7 +507,14 @@ function analyzeLap(rec, seg, pits, flags) {
       Math.min(idxAt(s.t, seg.end), s.t.length - 1),
       pits,
     ),
-    pitStop: lapPitStop(s, seg.start, seg.end, pits, events.tyres_compound),
+    pitStop: lapPitStop(
+      s,
+      seg.start,
+      seg.end,
+      pits,
+      events.tyres_compound,
+      damage,
+    ),
     // Battery and motor energy on the lap (hybrid.mjs); null without a hybrid.
     hybrid: lapHybrid(s, rec.hz, rec.baseHz, i0, i1, i => dist[i - i0], {
       a: idxAt(s.t, seg.start),
@@ -753,7 +762,13 @@ function startsInPits(rec) {
 // them on this session. The map used is returned, so the caller can keep it.
 export function analyzeSession(
   recs,
-  {trackMap = null, boundaries = null, sessionId = '', foldOnly = false} = {},
+  {
+    trackMap = null,
+    boundaries = null,
+    sessionId = '',
+    foldOnly = false,
+    carDamage = null,
+  } = {},
 ) {
   const laps = [];
   // A stint starts with a new recording or with the lap that leaves the pits,
@@ -788,7 +803,7 @@ export function analyzeSession(
     openStint(change);
     let first = true;
     for (const seg of segments(rec)) {
-      const lap = analyzeLap(rec, seg, pits, flags[r]);
+      const lap = analyzeLap(rec, seg, pits, flags[r], carDamage);
       lap.endedInReset = false;
       lap.afterReset = first && reset;
       if (!first && lap.pitOut) openStint('pit');

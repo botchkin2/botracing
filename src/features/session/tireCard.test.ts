@@ -304,6 +304,7 @@ describe('stop cool-down', () => {
     added: {fuelL: 50, vePct: 50},
     inPitS: 40,
     lapsLeftAtEntry: {fuel: null, ve: null},
+    visit: null,
     tyres: {
       changed: false,
       wheels: [],
