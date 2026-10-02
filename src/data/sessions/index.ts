@@ -63,6 +63,7 @@ export {
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';
 export {
   checkedWindowMedians,
+  onCurrentBoundaries,
   type SessionOptimum,
   sessionOptimum,
   stintWindowMedians,

@@ -161,7 +161,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               style={styles.flex}>
               {c.delta}
             </Text>
-            {c.isRef && c.delta !== 'REF' ? (
+            {c.refTag ? (
               <Text variant='dataSmall' tone='accentInk'>
                 REF
               </Text>

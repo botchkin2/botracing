@@ -19,6 +19,7 @@ import {
   type MapSection,
   mapPlacer,
   measuredCentreLines,
+  onCurrentBoundaries,
   type TrackMapData,
   referenceDefaultLapIds,
   trackCorners,
@@ -208,7 +209,13 @@ export type LapRef = {
   highlighted: boolean;
 };
 
-export type Chip = LapRef & {delta: string; faster: boolean; isRef: boolean};
+export type Chip = LapRef & {
+  delta: string;
+  faster: boolean;
+  isRef: boolean;
+  /** Draw REF beside the delta: the traces' lap, while the delta is against the checked set (against the lap itself the delta reads "REF"). */
+  refTag: boolean;
+};
 
 export type ChartLine = LapRef & {
   channel: ChannelId;
@@ -743,6 +750,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         return {
           ...r,
           isRef: r.selIndex === 0,
+          refTag: r.selIndex === 0,
           delta: d == null ? '—' : formatGap(d),
           faster: d != null && d < 0,
         };
@@ -752,6 +760,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       return {
         ...r,
         isRef: r.selIndex === 0,
+        refTag: false,
         delta: r.selIndex === 0 ? 'REF' : d == null ? '—' : formatGap(d),
         faster: d != null && d < 0,
       };
@@ -999,8 +1008,16 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const corners = sectionNs.length
     ? sectionNs
     : Array.from({length: cornerCount}, (_, i) => i + 1);
+  // Against windows, a lap cut at other boundaries (or analysed before them)
+  // has section times cut elsewhere: no cells for it, and the header says so.
+  const staleLaps = (rowLaps: Lap[]) =>
+    table.kind === 'lap' || !map
+      ? []
+      : rowLaps.filter(l => !onCurrentBoundaries(l, map));
   const diffRow = (lap: Lap) =>
     corners.map((n, i) => {
+      if (table.kind !== 'lap' && map && !onCurrentBoundaries(lap, map))
+        return null;
       const a = lap.sections[i]?.segTimeS;
       const b =
         table.kind === 'lap'
@@ -1056,10 +1073,25 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       ];
     }
   }
+  const pendingNote = (names: string[]) =>
+    names.length > 0
+      ? ` ${names.join(', ')} ${
+          names.length > 1 ? 'are' : 'is'
+        } pending re-analysis: no cells.`
+      : '';
   const grid: CornerGridModel | null =
     gridRows.length && ref
       ? {
-          explainer: `Time in each section vs ${table.label}, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.`,
+          explainer: `Time in each section vs ${
+            table.label
+          }, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.${pendingNote(
+            staleLaps(
+              gridRows.flatMap(r => {
+                const l = r.lapId == null ? undefined : byId.get(r.lapId);
+                return l ? [l] : [];
+              }),
+            ).map(nameOf),
+          )}`,
           corners,
           rows: gridRows,
         }

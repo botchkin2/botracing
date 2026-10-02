@@ -209,6 +209,41 @@ describe('Compare tables against the checked set', () => {
     expect(m.chips[0].delta).toBe('−2.000');
   });
 
+  it('gives a lap cut at other boundaries no cells, and says so', () => {
+    const stale = toLaps([
+      ...stintLaps.slice(0, 3),
+      rawLap('x', 1, 4, 30, 30, {v: 1, rev: 0}),
+    ]);
+    const m = buildCompareModel({
+      session,
+      laps: stale,
+      traces: new Map(),
+      band: null,
+      map: map(),
+      selection: sel(['a', 'b', 'c', 'x']),
+    });
+    expect(m.tableReference.grid).toBe('median of 3 checked laps');
+    const row = m.grid!.rows.find(r => r.lapId === 'x')!;
+    expect(row.cells).toEqual([null, null]);
+    expect(m.grid!.rows.find(r => r.lapId === 'a')!.cells).toEqual([-1, 0]);
+    expect(m.grid!.explainer).toContain('L4 is pending re-analysis: no cells.');
+    // The chip delta is a lap time, which does not depend on the cut.
+    expect(m.chips.find(c => c.lapId === 'x')!.delta).toBe('+39.000');
+  });
+
+  it('marks REF on the reference chip only against the set', () => {
+    expect(build(['a', 'b', 'c']).chips.map(c => c.refTag)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect(build(['a', 'b', 'c'], map(null)).chips.map(c => c.refTag)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
   it('stays on the reference lap without windows, as before', () => {
     const m = build(['a', 'b', 'c'], map(null));
     expect(m.tableReference.chips).toBe('L1');

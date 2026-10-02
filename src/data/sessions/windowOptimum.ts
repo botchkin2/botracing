@@ -65,6 +65,11 @@ function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
   );
 }
 
+/** False when the map has no windows, or the lap was cut at other ones: its window times are not comparable with the map's. */
+export function onCurrentBoundaries(lap: Lap, map: TrackMapData): boolean {
+  return map.boundaries != null && isCurrent(lap, map.boundaries);
+}
+
 /** A lap's time in every window, null where it does not count (see the top of this file). */
 function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
   return frame.boundaries.windows.map(w => {

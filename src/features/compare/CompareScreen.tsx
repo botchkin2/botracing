@@ -402,7 +402,7 @@ function CompareView({
                 tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}>
                 {c.delta}
               </Text>
-              {c.isRef && c.delta !== 'REF' ? (
+              {c.refTag ? (
                 <Text variant='dataSmall' tone='accentInk'>
                   REF
                 </Text>
