@@ -32,6 +32,7 @@ function setup(over: Partial<PlanRules> = {}, model = pitModel) {
     r,
     Array.from({length: 12}, () => lap(2.38)),
     model,
+    RATIO,
   );
   const cards = buildPlanCards(plan, r, false, RATIO);
   const input: PitPlanInput = {
@@ -55,6 +56,17 @@ describe('pitPlan', () => {
     expect(p.stops.map(s => s.after)).toEqual(plannedStops(input.windows));
     expect(p.stints.reduce((a, s) => a + s.laps, 0)).toBe(p.finishLaps);
     expect(p.pit!.deltaS).toBe(0);
+  });
+
+  it('at the planned stops its pit time equals the Race card pit time: both read the same refuel litres', () => {
+    const {input, plan} = setup();
+    const p = pitPlan(input)!;
+    expect(p.pit!.totalS).toBeCloseTo(plan.raceLaps!.pit!.totalS, 6);
+    // And it is the sum of the printed stops' own pit times.
+    expect(p.stops.reduce((a, s) => a + (s.pitS ?? 0), 0)).toBeCloseTo(
+      p.pit!.totalS,
+      6,
+    );
   });
 
   it('every stop is bounded by its window at the early end and the median dry lap at the late end', () => {

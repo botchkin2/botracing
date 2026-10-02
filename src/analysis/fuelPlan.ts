@@ -192,8 +192,11 @@ export interface PitModel {
 /** The time the plan's stops take, taken off a timed race before its laps are counted. */
 export interface PitTime {
   stops: number;
-  /** Litres a stop adds: what the stint before it used, up to the fill limit. */
+  /** The pit loss of one stop, from the model. */
+  baseS: number;
+  /** Litres the stops add in all: each as its own stop adds it (`stopRefuels`), the last one sized to finish. */
   refuelL: number;
+  /** Seconds a stop costs on average: the total over the stops. */
   perStopS: number;
   totalS: number;
   /** The lap count without pit time, for the line that shows the difference. */
@@ -493,27 +496,108 @@ function loadToFinishFor(
   };
 }
 
+/** What one stop adds. */
+export interface StopRefuel {
+  litres: number;
+  /** The last stop adds only what it takes to finish; a middle stop refills what its stint used. */
+  toFinish: boolean;
+}
+
+/**
+ * Litres each stop adds, one per stop, for stints of `stintLaps` (the first
+ * burns the formation lap too). A middle stop refills what the stint before it
+ * used at the median use, up to the fill limit. The last one adds only what it
+ * takes to finish: the larger of the fuel the remaining laps need less what is
+ * still in the tank and, when VE is the limit, the VE they need less what is
+ * left, in litres through the ratio; both capped at the refill (camber, #168).
+ * That need is sized at the heavy (p90) use when `heavy` is given, so the last
+ * stint reaches the flag in the heavier 10 % of the laps too (parc #1883). The
+ * one place the rule is written: the Stops card, the Pit plan and the pit time
+ * of a timed race all read it.
+ */
+export function stopRefuels(
+  rules: PlanRules,
+  stintLaps: number[],
+  median: {fuel: number | null; ve: number | null},
+  heavy: {fuel: number | null; ve: number | null} | null,
+  /** Litres one % of VE is worth; null without VE. */
+  ratioPerPctL: number | null,
+  /** False for a plan that is fuel only by the data. */
+  useVe: boolean,
+): StopRefuel[] {
+  const extra = (i: number) => (i === 0 && rules.formationLap ? 1 : 0);
+  return stintLaps.slice(0, -1).flatMap((_, i, stops): StopRefuel[] => {
+    if (median.fuel == null) return [];
+    const toFull = Math.min(
+      rules.fuelL,
+      (stintLaps[i] + extra(i)) * median.fuel,
+    );
+    if (i !== stops.length - 1) return [{litres: toFull, toFinish: false}];
+    const remaining = stintLaps[i + 1];
+    const fuelHeavy = heavy?.fuel ?? median.fuel;
+    const veHeavy = heavy?.ve ?? median.ve;
+    const fuelUsed = Math.min(
+      rules.fuelL,
+      (stintLaps[i] + extra(i)) * fuelHeavy,
+    );
+    const fuelLeft = Math.max(0, rules.fuelL - fuelUsed);
+    const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
+    let veNeedL = 0;
+    if (veHeavy != null && useVe && ratioPerPctL != null) {
+      const veUsed = Math.min(rules.vePct, (stintLaps[i] + extra(i)) * veHeavy);
+      const veLeft = Math.max(0, rules.vePct - veUsed);
+      veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
+    }
+    const need = Math.max(fuelNeed, veNeedL);
+    return need < toFull
+      ? [{litres: need, toFinish: true}]
+      : [{litres: toFull, toFinish: false}];
+  });
+}
+
+/** The stints of a full-tank option over `raceLaps`: the first, the full ones, and what is left. */
+export function plannedStints(option: Option, raceLaps: number): number[] {
+  const n = option.stopLaps.length;
+  if (n === 0 || option.firstStint.laps == null || option.stint.laps == null)
+    return [raceLaps];
+  const stints = [option.firstStint.laps];
+  for (let i = 1; i < n; i++) stints.push(option.stint.laps);
+  stints.push(raceLaps - stints.reduce((a, b) => a + b, 0));
+  return stints;
+}
+
 function pitTimeFor(
   rules: PlanRules,
   raceLaps: number,
   fuel: Usage | null,
   ve: Usage | null,
   model: PitModel | null,
+  ratioPerPctL: number | null,
 ): PitTime | null {
   if (!model || !fuel) return null;
   // The stops of the plan: full tanks at the p90 use (thread 44 #1877), the
-  // same stops the Plan shows. A stop refuels what its stint burns at the
-  // median use.
+  // same stops the Plan shows. Each stop adds what the Stops card says it adds
+  // (`stopRefuels`), the last one sized to finish at the p90 use, so the pit
+  // time is that of the printed stops, not of a flat refill.
   const option = optionFor(rules, raceLaps, fuel.p90, ve ? ve.p90 : null);
   const {stops} = option;
   if (stops == null || stops <= 0 || option.stint.laps == null) return null;
-  const refuelL = Math.min(rules.fuelL, option.stint.laps * fuel.median);
-  const perStopS = model.baseS + refuelL / model.refuelLPerS;
+  const refuels = stopRefuels(
+    rules,
+    plannedStints(option, raceLaps),
+    {fuel: fuel.median, ve: ve ? ve.median : null},
+    {fuel: fuel.p90, ve: ve ? ve.p90 : null},
+    ratioPerPctL,
+    true,
+  );
+  const refuelL = refuels.reduce((a, r) => a + r.litres, 0);
+  const totalS = stops * model.baseS + refuelL / model.refuelLPerS;
   return {
     stops,
+    baseS: model.baseS,
     refuelL,
-    perStopS,
-    totalS: stops * perStopS,
+    perStopS: totalS / stops,
+    totalS,
     lapsWithout: raceLaps,
   };
 }
@@ -525,6 +609,8 @@ export function planRace(
   rules: PlanRules,
   history: GreenLap[],
   pitModel: PitModel | null = null,
+  /** Litres one % of VE is worth, for the last stop's VE need; null without VE. */
+  ratioPerPctL: number | null = null,
 ): FuelPlan {
   const fuel = usage(history.map(l => l.fuelL));
   const ve = usage(
@@ -559,7 +645,7 @@ export function planRace(
     let settled = false;
     let worst: PitTime | null = null;
     for (let pass = 0; pass < MAX_PIT_PASSES; pass++) {
-      const at = pitTimeFor(rules, estimate, fuel, ve, pitModel);
+      const at = pitTimeFor(rules, estimate, fuel, ve, pitModel, ratioPerPctL);
       if (at && (!worst || at.totalS > worst.totalS)) worst = at;
       const next = at ? lapsFor(at.totalS) : estimate;
       if (next === estimate) {
@@ -569,7 +655,7 @@ export function planRace(
       estimate = next;
     }
     // `lapsWithout` is the count with no pit time at all, for the line that shows the difference.
-    let pit = pitTimeFor(rules, estimate, fuel, ve, pitModel);
+    let pit = pitTimeFor(rules, estimate, fuel, ve, pitModel, ratioPerPctL);
     if (!settled && worst) {
       estimate = lapsFor(worst.totalS);
       pit = worst;

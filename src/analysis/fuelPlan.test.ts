@@ -250,9 +250,17 @@ describe('pit time in a timed race', () => {
 
   it('takes stops x (base + refuel) off the clock', () => {
     const r = planRace(timed, history, model).raceLaps!;
-    // 66 laps: 28-lap stints (84 L / 3), so 2 stops of 84 L: 45 + 24.7 s each.
-    expect(r.pit).toMatchObject({stops: 2, refuelL: 84, lapsWithout: 66});
-    expect(r.pit!.perStopS).toBeCloseTo(45 + 84 / 3.4, 6);
+    // 28-lap stints (84 L / 3), so 2 stops: the first refills 84 L, and the
+    // last adds only what the last 9 of 65 laps take at the p90 use (27 L), not
+    // a full refill: 2 x 45 s + 111 L / 3.4 L/s.
+    expect(r.pit).toMatchObject({
+      stops: 2,
+      baseS: 45,
+      refuelL: 111,
+      lapsWithout: 66,
+    });
+    expect(r.pit!.totalS).toBeCloseTo(2 * 45 + 111 / 3.4, 6);
+    expect(r.pit!.perStopS).toBeCloseTo((2 * 45 + 111 / 3.4) / 2, 6);
     expect(r.estimate).toBe(65);
     expect(r.oneMore).toBe(66);
   });
