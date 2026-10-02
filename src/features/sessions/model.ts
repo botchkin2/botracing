@@ -126,7 +126,9 @@ export function buildSessionsModel(
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),
       resultText: s.finish
-        ? `P${s.finish.overall} · P${s.finish.inClass} in class`
+        ? s.finish.leftEarly
+          ? `P${s.finish.overall} at L${s.finish.lapsDone} of ${s.finish.leaderLapsDone} (left early)`
+          : `P${s.finish.overall} · P${s.finish.inClass} in class`
         : null,
       table: {
         startedAt: s.startedAt,

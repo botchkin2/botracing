@@ -452,6 +452,7 @@ describe('toFinishPlace', () => {
       ofClass: 14,
       lapsDone: 20,
       leaderLapsDone: 21,
+      leftEarly: false,
     });
   });
 

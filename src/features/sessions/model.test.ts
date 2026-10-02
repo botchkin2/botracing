@@ -173,6 +173,7 @@ describe('finishing position', () => {
     ofClass: 14,
     lapsDone: 20,
     leaderLapsDone: 21,
+    leftEarly: false,
   };
   const rows = (...over: Partial<SessionSummary>[]): SessionRow[] =>
     buildSessionsModel(
@@ -189,6 +190,19 @@ describe('finishing position', () => {
     expect(withIt.table.place).toBe(3);
     expect(without.resultText).toBeNull();
     expect(without.table.place).toBeNull();
+  });
+
+  it('says "left early" with the lap, not a result, when the player stopped first', () => {
+    const [r] = rows({
+      finish: {
+        ...finish,
+        overall: 12,
+        lapsDone: 6,
+        leaderLapsDone: 7,
+        leftEarly: true,
+      },
+    });
+    expect(r.resultText).toBe('P12 at L6 of 7 (left early)');
   });
 
   it('sorts by the overall place, with sessions that have none last both ways', () => {

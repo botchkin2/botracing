@@ -316,7 +316,7 @@ export const size = {
     date: 128,
     session: 104,
     class: 72,
-    result: 128,
+    result: 232,
     laps: 56,
     time: 92,
     badge: 24,

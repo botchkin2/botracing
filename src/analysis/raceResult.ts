@@ -1,15 +1,17 @@
 // The player's finishing position in a race, from the encoded field (docs/API.md,
-// GET /sessions/{id}/field/{hash}): the game's scoring place at the last update
-// the player is in the field, and the place among the cars of its class
-// (pit-wall thread 44 #1910). The uploader (tools/sessions/sync.mjs) computes
-// it once per session and stores it as the session doc's `result`, so the
-// Sessions list never downloads a field. Plain TypeScript with erasable syntax
-// only, no imports: Node runs it.
+// GET /sessions/{id}/field/{hash}): the game's scoring place when the player
+// last crossed the line, and the place among the cars of its class
+// (pit-wall thread 44 #1910, parc #1920). The uploader (tools/sessions/sync.mjs)
+// computes it once per session and stores it as the session doc's `result`, so
+// the Sessions list never downloads a field. Plain TypeScript with erasable
+// syntax only, no imports: Node runs it.
 //
-// "At the flag" is as close as the field gets: it has no chequered-flag
-// column, so the position is the last one the recording saw. A race left early
-// reads as the place at the moment the driver left; `lapsDone` and
-// `leaderLapsDone` are stored so the number can be read against the laps.
+// Not the last update the player is in the field: a driver who goes back to
+// the garage or the pits after the flag is scored behind everyone, so the last
+// update reads last. The place is read at the player's last line crossing (the
+// laps counter's last step up). The field has no chequered-flag column, so
+// whether the race was finished is read from the leader: if the leader crossed
+// the line after the player's last crossing, the player left early.
 
 /** The encoded field file, only the columns this reads. */
 export interface ResultField {
@@ -21,20 +23,23 @@ export interface ResultField {
 }
 
 /** Bump when the rule below changes: every session recomputes it once on the next sync. */
-export const FINISH_VERSION = 1;
+export const FINISH_VERSION = 2;
 
 export interface FinishPosition {
-  /** The game's place among all cars, from 1. */
+  /** The game's place among all cars when the player last crossed the line, from 1. */
   overall: number;
-  /** Place among the cars of the player's class, from 1. */
+  /** Place among the cars of the player's class then, from 1. */
   inClass: number;
-  /** Cars in the field at that update. */
+  /** Cars in the field then. */
   ofOverall: number;
-  /** Cars of the player's class at that update. */
+  /** Cars of the player's class then. */
   ofClass: number;
-  /** The player's laps completed, and the most any car had, then. */
+  /** The player's laps completed at that crossing. */
   lapsDone: number;
+  /** The most laps any car completed by the end of the field: the race's length as far as the recording saw it. */
   leaderLapsDone: number;
+  /** The leader crossed the line after the player's last crossing: the player stopped before the race did. */
+  leftEarly: boolean;
 }
 
 /**
@@ -51,30 +56,49 @@ export interface FinishDoc {
 const kindOf = (sessionType: string): FinishDoc['kind'] =>
   sessionType.toLowerCase().startsWith('r') ? 'race' : 'other';
 
-/** The last update the player has a place at, or -1. */
-function lastUpdateOf(player: (number | null)[]): number {
-  for (let u = player.length - 1; u >= 0; u--) if (player[u] != null) return u;
-  return -1;
+/**
+ * The update of the player's last line crossing: the last one where the laps
+ * counter is higher than at the player's previous reading. -1 without one.
+ */
+function lastCrossing(laps: (number | null)[]): number {
+  let prev: number | null = null;
+  let at = -1;
+  laps.forEach((v, u) => {
+    if (v == null) return;
+    if (prev != null && v > prev) at = u;
+    prev = v;
+  });
+  return at;
 }
 
-/** The player's place at the last update they are in the field; null with no player or no place. */
+/** A car's laps at an update: its last reading at or before it, 0 before any. */
+function lapsAt(laps: (number | null)[] | undefined, u: number): number {
+  if (!laps) return 0;
+  for (let i = Math.min(u, laps.length - 1); i >= 0; i--)
+    if (laps[i] != null) return laps[i] as number;
+  return 0;
+}
+
+/** The player's place when they last crossed the line; null with no player, no crossing or no place then. */
 export function finishPosition(field: ResultField): FinishPosition | null {
   const me = field.cars.findIndex(c => c.player === true);
-  if (me < 0 || !field.place[me]) return null;
-  const u = lastUpdateOf(field.place[me]);
-  if (u < 0) return null;
-  const mine = field.place[me][u] as number;
+  if (me < 0 || !field.place[me] || !field.laps[me]) return null;
+  const u = lastCrossing(field.laps[me]);
+  const mine = u < 0 ? null : field.place[me][u];
+  if (mine == null) return null;
   const myClass = field.cars[me].class;
+  const end = Math.max(0, ...field.laps.map(l => (l ? l.length : 0))) - 1;
   let ofOverall = 0;
   let ofClass = 0;
   let inClass = 1;
-  let leaderLapsDone = 0;
+  let leaderAtCrossing = 0;
+  let leaderAtEnd = 0;
   field.cars.forEach((car, i) => {
+    leaderAtCrossing = Math.max(leaderAtCrossing, lapsAt(field.laps[i], u));
+    leaderAtEnd = Math.max(leaderAtEnd, lapsAt(field.laps[i], end));
     const place = field.place[i]?.[u];
     if (place == null) return;
     ofOverall++;
-    const laps = field.laps[i]?.[u];
-    if (laps != null && laps > leaderLapsDone) leaderLapsDone = laps;
     if (car.class !== myClass) return;
     ofClass++;
     if (i !== me && place < mine) inClass++;
@@ -84,8 +108,9 @@ export function finishPosition(field: ResultField): FinishPosition | null {
     inClass,
     ofOverall,
     ofClass,
-    lapsDone: field.laps[me]?.[u] ?? 0,
-    leaderLapsDone,
+    lapsDone: lapsAt(field.laps[me], u),
+    leaderLapsDone: leaderAtEnd,
+    leftEarly: leaderAtEnd > leaderAtCrossing,
   };
 }
 
