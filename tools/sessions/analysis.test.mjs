@@ -24,27 +24,27 @@ function noise(seed) {
 }
 
 // A stint of laps over 5 corners, getting 0.05 s/lap faster.
-function stint({laps = 20, stint = 1, slope = -0.05, jitter = 0.1, seed = 1}) {
+function stint({laps = 20, stint: stintNo = 1, slope = -0.05, jitter = 0.1, seed = 1}) {
   const rand = noise(seed);
   const shares = [0.15, 0.2, 0.25, 0.1, 0.3];
   return Array.from({length: laps}, (_, i) => {
     const base = 80 + slope * i;
     const segs = shares.map(s => s * base + rand() * jitter * 0.4);
     return lap({
-      id: `${stint}-${i}`,
+      id: `${stintNo}-${i}`,
       lapNumber: i + 1,
-      stint,
+      stint: stintNo,
       stintLap: i,
       segs,
     });
   });
 }
 
-function lap({id, lapNumber, stint, stintLap, segs, ...rest}) {
+function lap({id, lapNumber, stint: stintNo, stintLap, segs, ...rest}) {
   return {
     id,
     lapNumber,
-    stint,
+    stint: stintNo,
     stintLap,
     lapTime: segs.reduce((a, b) => a + b, 0),
     timed: true,
@@ -81,10 +81,10 @@ test('a big loss in one corner is an off-pace lap with a mistake there', () => {
   const laps = stint({});
   laps[10] = addLoss(laps[10], 3, 0.8);
   const r = analyzeConsistency(laps);
-  const lap = r.laps.find(x => x.id === laps[10].id);
-  assert.equal(lap.offPace, true);
-  assert.equal(lap.losses[0].corner, 3);
-  assert.equal(lap.losses[0].mistake, true);
+  const row = r.laps.find(x => x.id === laps[10].id);
+  assert.equal(row.offPace, true);
+  assert.equal(row.losses[0].corner, 3);
+  assert.equal(row.losses[0].mistake, true);
   assert.equal(r.summary.offPaceLaps, 1);
   assert.equal(r.corners[2].mistakes, 1);
 });
@@ -95,10 +95,10 @@ test('a loss made back elsewhere is still a mistake, not an off-pace lap', () =>
   l = addLoss(l, 5, -0.6);
   laps[8] = l;
   const r = analyzeConsistency(laps);
-  const lap = r.laps.find(x => x.id === l.id);
-  assert.equal(lap.offPace, false);
+  const row = r.laps.find(x => x.id === l.id);
+  assert.equal(row.offPace, false);
   assert.deepEqual(
-    lap.losses.map(x => [x.corner, x.mistake]),
+    row.losses.map(x => [x.corner, x.mistake]),
     [[2, true]],
   );
 });
