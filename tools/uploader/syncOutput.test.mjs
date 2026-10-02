@@ -144,3 +144,20 @@ test('a fold block stores nothing: it is progress, not an upload, and a failed o
   // A stop here (the game started) has uploaded one session, not three.
   assert.equal(r.stored.length - r.failedIds.length, 1);
 });
+
+test('a sync that dies before its closing line reports the error line', () => {
+  const r = run([
+    'to do 3',
+    'file:///x/sync.mjs:120',
+    '      return staleRev(a);',
+    '',
+    'RangeError: Maximum call stack size exceeded',
+    '    at staleRev (file:///x/sync.mjs:120:7)',
+  ]);
+  assert.equal(r.finished, false);
+  assert.equal(r.crash, 'RangeError: Maximum call stack size exceeded');
+});
+
+test('a finished sync with a failed session is not a crash', () => {
+  assert.equal(run(output).crash, null);
+});

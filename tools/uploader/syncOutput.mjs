@@ -27,6 +27,10 @@ export function newSyncResult() {
     done: 0,
     failed: 0,
     errors: [],
+    // The first line of an uncaught error ("RangeError: Maximum call stack
+    // size exceeded"), or null: what a sync that died before its closing line
+    // says (watch.mjs shows it as "sync crashed").
+    crash: null,
     total: null,
     // The closing "done N, failed M" line was read: the sync ran to its end.
     finished: false,
@@ -55,6 +59,8 @@ export function readSyncLine(result, line) {
     if (!result.inFold && id && !result.failedIds.includes(id))
       result.failedIds.push(id);
   }
+  if (result.crash == null && /^(?:[A-Z]\w*)?Error\b[:\s]/.test(line))
+    result.crash = line.trim();
   const fold = readSurfaceProgress(line);
   if (fold) result.fold = fold;
   const end = line.match(/^done (\d+), failed (\d+)/);

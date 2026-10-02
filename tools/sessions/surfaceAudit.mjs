@@ -183,8 +183,8 @@ function svg(runs, split, pit, half) {
       .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}" width="1400" style="background:#0d0f14">
 ${line(pit, '#666', 3)}
-${line(split.flatMap(w => w.faded), '#c98a1a', 3)}
-${line(split.flatMap(w => w.kept), '#e0483e', 3)}
+${line(split.flatMap(part => part.faded), '#c98a1a', 3)}
+${line(split.flatMap(part => part.kept), '#e0483e', 3)}
 ${line(runs.map(r => r.centre), '#2fb5a8', half * 2)}
 </svg>`;
 }

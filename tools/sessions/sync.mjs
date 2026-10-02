@@ -6,6 +6,9 @@
 //   node tools/sessions/sync.mjs --since 2026-09-20   only sessions from that day on
 //   node tools/sessions/sync.mjs --only "Road Atlanta" only matching file names
 //   node tools/sessions/sync.mjs --list               show the session grouping and stop
+//   node tools/sessions/sync.mjs --check              every step before the first write, over all
+//                                                     sessions: fingerprints, staleness, fold plan.
+//                                                     Analyses and writes nothing; exits 1 on a throw
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
 //   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
 //   node tools/sessions/sync.mjs --jobs 4             sessions analyzed at once
@@ -74,6 +77,7 @@ const only = arg('--only', '');
 // waiting on their backoff.
 const skipIds = new Set(arg('--skip', '').split(',').filter(Boolean));
 const local = flag('--local');
+const check = flag('--check');
 const force = flag('--force');
 const quietMin = Number(arg('--quiet-min', '3'));
 // Replace this track's stored corner map with one built from the next
@@ -682,7 +686,7 @@ function describeSession(s) {
 async function main() {
   const state = readState();
   const files = scan(state);
-  saveState(state);
+  if (!check) saveState(state);
   const sessions = group(files);
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 
@@ -732,7 +736,10 @@ async function main() {
   const stale = new Set();
   if (!force && !local) {
     for (const s of sessions) {
-      if (state.sessions[s.id] === s.fingerprint && (await boundariesMoved(s)))
+      // --check evaluates every session, so a throw here shows even on a
+      // machine whose state has not seen them yet.
+      const same = state.sessions[s.id] === s.fingerprint;
+      if ((same || check) && (await boundariesMoved(s)) && same)
         stale.add(s.id);
     }
   }
@@ -765,6 +772,12 @@ async function main() {
     const kept = await boundariesFor(trackId, store);
     if (kept?.sessions?.[s.id]) continue;
     needFold.push(s);
+  }
+  if (check) {
+    log(
+      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries, ${needFold.length} to fold`,
+    );
+    return;
   }
   let fresh = [];
   let foldCount = 0;
@@ -867,7 +880,7 @@ async function runPool(
     building.add(trackOf(s));
     return s;
   };
-  const drive = async worker => {
+  const drive = async member => {
     for (;;) {
       const s = take();
       if (!s) {
@@ -881,7 +894,7 @@ async function runPool(
       // layout's boundaries and is cut at the result, so two at once would
       // each fold into the same stored state and lose one of them.
       const boundaries = await boundariesFor(trackId, store);
-      const r = await ask(worker, {
+      const r = await ask(member, {
         op: mode,
         s,
         trackMap,
@@ -931,19 +944,19 @@ async function runPool(
   return {done, failed: failed + todo.length, tracks, processed, archived};
 }
 
-function ask(worker, message) {
+function ask(thread, message) {
   return new Promise(done => {
     const onError = error => {
-      worker.off('message', onMessage);
+      thread.off('message', onMessage);
       done({ok: false, dead: true, lines: [], error: String(error.stack)});
     };
     const onMessage = reply => {
-      worker.off('error', onError);
+      thread.off('error', onError);
       done(reply);
     };
-    worker.once('message', onMessage);
-    worker.once('error', onError);
-    worker.postMessage(message);
+    thread.once('message', onMessage);
+    thread.once('error', onError);
+    thread.postMessage(message);
   });
 }
 
