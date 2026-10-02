@@ -7,6 +7,7 @@ import {useSessions} from '@/src/data/sessions';
 import {
   formatDate,
   hitBox,
+  radius,
   size,
   space,
   useLayout,
@@ -15,10 +16,8 @@ import {
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 import {
-  Chip,
   EmptyState,
   Explainer,
-  NumberField,
   Segment,
   Skeleton,
   StatusBanner,
@@ -28,9 +27,12 @@ import {
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
 import {PlanCard, Section} from './components/PlanCard';
+import {LengthStepper} from './components/LengthStepper';
+import {PooledUseCard} from './components/PooledUseCard';
+import {RulesBlock} from './components/RulesBlock';
+import {TrackCarPicker} from './components/TrackCarPicker';
 import {Pair, RowsCard} from './components/PlanCards';
 import {RaceCardView} from './components/RaceCardView';
-import {RulesSheet} from './components/RulesSheet';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
@@ -40,16 +42,8 @@ import {useClassTiming} from './useClassTiming';
 import {usePitSlider} from './usePitSlider';
 import {useLastRaceHere, usePlanData} from './usePlanData';
 
-// Track and car chips shown before "All".
-const RECENT_COMBOS = 6;
-
 // Every session he has driven, for the track and car choices.
 const ALL_TIME_DAYS = 3650;
-
-const LENGTH_KINDS = [
-  {value: 'min', label: 'Minutes'},
-  {value: 'laps', label: 'Laps'},
-] as const;
 
 /**
  * The pre-race planner (pit wall thread 35): his own green laps at a track
@@ -68,13 +62,8 @@ export function PlanScreen() {
   // A link from a session opens the plan on its track and car.
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
-  const [showAll, setShowAll] = useState(false);
   const [unit, setUnit] = useState<Unit>('ve');
   const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
-  // The latest few, and the one picked even if it is older.
-  const shownCombos = showAll
-    ? combos
-    : combos.filter((c, i) => i < RECENT_COMBOS || c.key === combo?.key);
   const data = usePlanData(combo, unit);
   const slider = usePitSlider(data, combo?.key ?? '');
   const chosen = useMemo(
@@ -97,7 +86,6 @@ export function PlanScreen() {
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
   const {save, remove, select, setLength} = useFuelPresets.getState();
-  const [rulesOpen, setRulesOpen] = useState(false);
   // The length as typed, while it is being typed; else the length in force.
   const [draft, setDraft] = useState<{key: string; text: string} | null>(null);
   const lengthText =
@@ -128,14 +116,47 @@ export function PlanScreen() {
       ' racing laps, the formation lap not counted.';
 
   const wide = layout.isDesktop;
-  // Phone: one column. Desktop: the setup on the left, the results beside it
-  // (round 6 section 2, round 7 3C: the timeline spans the results column).
+  // Phone: one column. Desktop: the setup on the left and the results beside
+  // it (round 6 section 2, round 7 3C: the timeline spans the results column);
+  // at the wide breakpoint the use and lap time scatter takes a third column
+  // (D6a).
+  const three = layout.isWide;
+  const avail = Math.min(layout.width, PAGE_MAX_W) - 2 * size.gutter;
+  const railW = three ? SCATTER_W + space.xxl : 0;
   const resultsW = wide
-    ? Math.min(layout.contentWidth - SETUP_W - space.xxl, RESULTS_MAX_W)
+    ? Math.min(avail - SETUP_W - space.xxl - railW, RESULTS_MAX_W)
     : Math.min(layout.contentWidth, PLAN_MAX_W);
-  const width = wide ? SETUP_W + space.xxl + resultsW : resultsW;
+  const width = wide ? SETUP_W + space.xxl + resultsW + railW : resultsW;
   // A card's content: the column less its padding and 1 pt border.
   const cardInnerW = resultsW - 2 * (space.lg + 1);
+  const ruleSheet = {
+    presets,
+    activeId,
+    preset,
+    rulesLine: view?.rulesLine ?? null,
+    stale: view?.stale ?? null,
+    length,
+    lastFillLimitL: lastFuel?.fillLimitL ?? null,
+    lastVeRatio: measured.find(m => m.ratio != null)?.ratio ?? null,
+    onSelect: (id: string | null) => {
+      select(id);
+      setDraft(null);
+    },
+    onSave: save,
+    onRemove: remove,
+  };
+  const rulesBlock = (compact: boolean) => (
+    <RulesBlock
+      rules={rules?.rules ?? null}
+      hasVe={hasVe}
+      ratioPerPctL={hist.ratio?.perPctL ?? null}
+      sheet={ruleSheet}
+      compact={compact}
+    />
+  );
+  // The order of 07a: the chips (track, car, rules on the phone), the last
+  // race under them, then the length. Desktop (D6a) gives the rules their own
+  // block with its numbers under the length.
   const setup = !combo ? null : (
     <>
       {hasVe ? (
@@ -144,25 +165,15 @@ export function PlanScreen() {
         </Section>
       ) : null}
 
-      <Section title='Track and car'>
-        <View style={styles.chips}>
-          {shownCombos.map(c => (
-            <Chip
-              key={c.key}
-              label={c.label}
-              selected={c.key === combo.key}
-              onPress={() => setComboKey(c.key)}
-            />
-          ))}
-          {combos.length > RECENT_COMBOS ? (
-            <Chip
-              label={showAll ? 'Fewer' : `All ${combos.length}`}
-              dashed
-              onPress={() => setShowAll(v => !v)}
-            />
-          ) : null}
-        </View>
-      </Section>
+      <TrackCarPicker combos={combos} current={combo} onPick={setComboKey}>
+        {wide ? null : rulesBlock(true)}
+      </TrackCarPicker>
+      {!wide && view?.stale ? (
+        <StatusBanner
+          dot='idle'
+          text={`This preset may be stale: ${view.stale}.`}
+        />
+      ) : null}
 
       {lastRace ? (
         <Section title='Your last race here'>
@@ -191,61 +202,42 @@ export function PlanScreen() {
         </Section>
       ) : null}
 
-      <Section title='Race length'>
-        <View style={styles.lengthRow}>
-          <Segment
-            options={LENGTH_KINDS}
-            value={length.kind}
-            onChange={kind => {
-              setTypedFor(combo.key);
-              setLength({kind, value: length.value});
-            }}
-          />
-          <NumberField
-            label={length.kind === 'min' ? 'Minutes' : 'Laps'}
-            value={lengthText}
-            onChange={text => {
-              setDraft({key: combo.key, text});
-              setTypedFor(combo.key);
-              const value = parseNumber(text);
-              if (value != null) setLength({kind: length.kind, value});
-            }}
-          />
-        </View>
-      </Section>
-
-      <Section title='Event rules'>
-        <View style={styles.chips}>
-          <Chip
-            label={'Rules: ' + (preset ? preset.name : 'No limits') + ' ▾'}
-            onPress={() => setRulesOpen(true)}
-          />
-        </View>
-        {view?.stale ? (
-          <StatusBanner
-            dot='idle'
-            text={`This preset may be stale: ${view.stale}.`}
-          />
-        ) : null}
-        <RulesSheet
-          visible={rulesOpen}
-          onClose={() => setRulesOpen(false)}
-          presets={presets}
-          activeId={activeId}
-          preset={preset}
-          rulesLine={view?.rulesLine ?? null}
-          stale={view?.stale ?? null}
-          length={length}
-          lastFillLimitL={lastFuel?.fillLimitL ?? null}
-          lastVeRatio={measured.find(m => m.ratio != null)?.ratio ?? null}
-          onSelect={id => {
-            select(id);
-            setDraft(null);
+      <Section title='Length'>
+        <LengthStepper
+          kind={length.kind}
+          text={lengthText}
+          onKind={kind => {
+            setTypedFor(combo.key);
+            setLength({kind, value: length.value});
           }}
-          onSave={save}
-          onRemove={remove}
+          onText={text => {
+            setDraft({key: combo.key, text});
+            setTypedFor(combo.key);
+            const value = parseNumber(text);
+            if (value != null) setLength({kind: length.kind, value});
+          }}
+          onStep={delta => {
+            setTypedFor(combo.key);
+            setDraft(null);
+            setLength({
+              kind: length.kind,
+              value: Math.max(1, length.value + delta),
+            });
+          }}
         />
       </Section>
+
+      {wide ? (
+        <Section title='Rules'>
+          {rulesBlock(false)}
+          {view?.stale ? (
+            <StatusBanner
+              dot='idle'
+              text={`This preset may be stale: ${view.stale}.`}
+            />
+          ) : null}
+        </Section>
+      ) : null}
 
       {detailsPending ? (
         <StatusBanner
@@ -267,6 +259,22 @@ export function PlanScreen() {
       ) : null}
     </>
   );
+  // Use and lap time (D6a): the green laps the plan reads, in the unit shown.
+  const scatter =
+    combo && view && wide ? (
+      <View
+        style={[
+          styles.rail,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        <PooledUseCard
+          planKey={combo.key}
+          sessionId={lastRace?.sessionId ?? ''}
+          width={(three ? SCATTER_W : resultsW) - 2 * (space.lg + 1)}
+          measure={effectiveUnit(unit, hasVe)}
+        />
+      </View>
+    ) : null;
   const results = !combo ? null : (
     <>
       {rules == null ? (
@@ -289,36 +297,12 @@ export function PlanScreen() {
         />
       ) : view ? (
         <>
-          {data.cards ? (
-            <>
+          <Pair wide={wide}>
+            {data.cards ? (
               <PlanCard title='Race'>
                 <RaceCardView card={data.cards.race} />
               </PlanCard>
-              {slider.pit ? (
-                <PitPlanCard
-                  pit={slider.pit}
-                  planned={slider.planned}
-                  unit={effectiveUnit(unit, hasVe)}
-                  wide={wide}
-                  onStop={slider.setStop}
-                  onReset={slider.reset}
-                />
-              ) : null}
-              <ClassTimingSection
-                timing={classTiming}
-                // The stop line is where the slider has it.
-                windows={data.cards.stops.windows.map((w, i) => ({
-                  ...w,
-                  planLap: slider.pit?.stops[i]?.after ?? w.planLap,
-                }))}
-                windowNote={data.cards.stops.windowNote}
-                width={cardInnerW}
-                onStop={slider.pit ? slider.setStop : undefined}
-                wide={wide}
-              />
-            </>
-          ) : null}
-          <Pair wide={wide}>
+            ) : null}
             {data.cards ? (
               <PlanCard
                 title='Per tank'
@@ -328,30 +312,55 @@ export function PlanScreen() {
                 <TankCardView card={data.cards.tank} />
               </PlanCard>
             ) : null}
-            {plan?.loadToFinish ? (
-              <>
-                {view.cards
-                  .filter(c => c.key === 'load')
-                  .map(card => (
-                    <RowsCard key={card.key} card={card} />
-                  ))}
-                {/* No stop planned: the late-flag run-dry case, if any. */}
-                {data.cards?.stops.windowNote ? (
-                  <Text variant='dataSmall' tone='textSecondary'>
-                    {data.cards.stops.windowNote}
-                  </Text>
-                ) : null}
-              </>
-            ) : data.cards ? (
-              <PlanCard title='Stops' explainer={STOPS_EXPLAINER}>
-                <StopsCardView
-                  card={data.cards.stops}
-                  carClass={combo.sessions[0]?.carClass ?? ''}
-                  unit={unit}
-                />
-              </PlanCard>
-            ) : null}
           </Pair>
+          {plan?.loadToFinish ? (
+            <>
+              {view.cards
+                .filter(c => c.key === 'load')
+                .map(card => (
+                  <RowsCard key={card.key} card={card} />
+                ))}
+              {/* No stop planned: the late-flag run-dry case, if any. */}
+              {data.cards?.stops.windowNote ? (
+                <Text variant='dataSmall' tone='textSecondary'>
+                  {data.cards.stops.windowNote}
+                </Text>
+              ) : null}
+            </>
+          ) : data.cards ? (
+            <PlanCard title='Stops' explainer={STOPS_EXPLAINER}>
+              <StopsCardView
+                card={data.cards.stops}
+                carClass={combo.sessions[0]?.carClass ?? ''}
+                unit={unit}
+                wide={wide}
+              />
+            </PlanCard>
+          ) : null}
+          {data.cards && slider.pit ? (
+            <PitPlanCard
+              pit={slider.pit}
+              planned={slider.planned}
+              unit={effectiveUnit(unit, hasVe)}
+              wide={wide}
+              onStop={slider.setStop}
+              onReset={slider.reset}
+            />
+          ) : null}
+          {data.cards ? (
+            <ClassTimingSection
+              timing={classTiming}
+              // The stop line is where the slider has it.
+              windows={data.cards.stops.windows.map((w, i) => ({
+                ...w,
+                planLap: slider.pit?.stops[i]?.after ?? w.planLap,
+              }))}
+              windowNote={data.cards.stops.windowNote}
+              width={cardInnerW}
+              onStop={slider.pit ? slider.setStop : undefined}
+              wide={wide}
+            />
+          ) : null}
           <Pair wide={wide}>
             {['dropStop', 'perLap'].flatMap(key =>
               view.cards
@@ -390,7 +399,13 @@ export function PlanScreen() {
         ) : wide ? (
           <View style={styles.split}>
             <View style={[styles.stack, {width: SETUP_W}]}>{setup}</View>
-            <View style={[styles.stack, {width: resultsW}]}>{results}</View>
+            <View style={[styles.stack, {width: resultsW}]}>
+              {results}
+              {three ? null : scatter}
+            </View>
+            {three ? (
+              <View style={[styles.stack, {width: SCATTER_W}]}>{scatter}</View>
+            ) : null}
           </View>
         ) : (
           <>
@@ -414,14 +429,22 @@ const STOPS_EXPLAINER =
 const PLAN_MAX_W = 640;
 // Desktop (round 6 section 2: the timeline card is 840 pt wide): the setup
 // column, and the most the results column grows to.
-const SETUP_W = 300;
+const SETUP_W = 280;
 const RESULTS_MAX_W = 840;
+// The third column, at the wide breakpoint (D6a), and the page's widest.
+const SCATTER_W = 340;
+const PAGE_MAX_W = 1680;
 
 const styles = StyleSheet.create({
   page: {alignItems: 'center'},
   column: {gap: space.xl, paddingHorizontal: size.gutter},
   split: {flexDirection: 'row', gap: space.xxl, alignItems: 'flex-start'},
   stack: {gap: space.xl},
+  rail: {
+    padding: space.lg,
+    borderWidth: 1,
+    borderRadius: radius.md,
+  },
   head: {gap: space.xs, paddingTop: space.md},
   // Row gap 2 x the chips' 8 pt vertical hit growth, so wrapped rows never overlap.
   chips: {

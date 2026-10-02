@@ -1,6 +1,6 @@
 import {StyleSheet, View} from 'react-native';
 
-import {refuelScope} from '@/src/analysis/refuel';
+import {refuelS, refuelScope} from '@/src/analysis/refuel';
 import {space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
@@ -18,9 +18,12 @@ export function StopsCardView({
   card,
   carClass,
   unit,
+  wide = false,
 }: {
   card: StopsCard;
   carClass: string;
+  /** Desktop (D6a): the use per stint and the refuelling seconds get their own columns. */
+  wide?: boolean;
   /** What each stint uses is printed in this unit (VE where the plan has it). */
   unit: Unit;
 }) {
@@ -40,14 +43,23 @@ export function StopsCardView({
       ].filter(Boolean)
     : [];
   // What each stint uses, in the one unit shown.
-  const perStintLine = (r: StopRow) => {
-    const shown = effectiveUnit(unit, r.vePerStint.length > 0);
-    const values = shown === 've' ? r.vePerStint : r.fuelPerStint;
+  const shownUnit = effectiveUnit(unit, card.full?.vePerStint.length !== 0);
+  const perStint = (r: StopRow) => {
+    const values = shownUnit === 've' ? r.vePerStint : r.fuelPerStint;
     return values.length === 0
       ? null
-      : `${values.map(v => Math.round(v)).join(' + ')} ${
-          shown === 've' ? '% VE' : 'L'
-        } used per stint`;
+      : `${values.map(v => Math.round(v)).join(' · ')} ${
+          shownUnit === 've' ? '%' : 'L'
+        }`;
+  };
+  const perStintLine = (r: StopRow) =>
+    perStint(r) == null ? null : `${perStint(r)} used per stint`;
+  // The refuelling time of each stop, where the rate is measured for the class.
+  const refuelTimes = (r: StopRow) => {
+    const times = r.refuel.map(x => refuelS(x.litres, carClass));
+    return times.length === 0 || times.some(t => t == null)
+      ? null
+      : (times as number[]).map(t => `${t.toFixed(1)} s`).join(' · ');
   };
   const row = (r: StopRow, strong: boolean) => (
     <View key={r.kind} style={[styles.row, {borderColor: color.line}]}>
@@ -67,8 +79,24 @@ export function StopsCardView({
           style={styles.col}>
           {r.stintLaps.join(' + ')}
         </Text>
+        {wide ? (
+          <>
+            <Text
+              variant='dataStrong'
+              tone={strong ? 'text' : 'textSecondary'}
+              style={styles.col}>
+              {perStint(r) ?? '–'}
+            </Text>
+            <Text
+              variant='dataStrong'
+              tone={strong ? 'text' : 'textSecondary'}
+              style={styles.col}>
+              {refuelTimes(r) ?? '–'}
+            </Text>
+          </>
+        ) : null}
       </View>
-      {perStintLine(r) ? (
+      {!wide && perStintLine(r) ? (
         <Text variant='dataSmall' tone={strong ? 'textSecondary' : 'textMuted'}>
           {perStintLine(r)}
         </Text>
@@ -84,6 +112,16 @@ export function StopsCardView({
         <Text variant='tableHeader' tone='textMuted' style={styles.col}>
           Stint laps
         </Text>
+        {wide ? (
+          <>
+            <Text variant='tableHeader' tone='textMuted' style={styles.col}>
+              {shownUnit === 've' ? 'VE per stint' : 'Fuel per stint'}
+            </Text>
+            <Text variant='tableHeader' tone='textMuted' style={styles.col}>
+              Refuel per stop
+            </Text>
+          </>
+        ) : null}
       </View>
       {card.full ? row(card.full, true) : null}
       {card.windows.length > 0 ? (
