@@ -49,7 +49,12 @@ import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const syncScript = resolve(here, '../sessions/sync.mjs');
+// LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
+// seams (watch.e2e.test.mjs): a stand-in sync, the heartbeat docs appended to a
+// file instead of Firestore, and a lock and game name of their own so a test
+// never meets the real watcher or the real game.
+const syncScript =
+  process.env.LAP_SYNC_SCRIPT || resolve(here, '../sessions/sync.mjs');
 const local = process.env.LOCALAPPDATA || homedir();
 const home = resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
@@ -58,8 +63,9 @@ const recorderStatus = resolve(local, 'lap-capture', 'status.json');
 // sync.mjs's default work folder and its record of files already described.
 const syncStatePath = resolve(local, 'lap-sessions', 'state.json');
 const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
-const GAME_EXE = 'Le Mans Ultimate.exe';
-const LOCK_PIPE = String.raw`\\.\pipe\lap-uploader-watch`;
+const GAME_EXE = process.env.LAP_GAME_EXE || 'Le Mans Ultimate.exe';
+const LOCK_PIPE =
+  process.env.LAP_LOCK_PIPE || String.raw`\\.\pipe\lap-uploader-watch`;
 const TICK_SEC = 30;
 const BEAT_MIN = 5;
 // A running sync rewrites the heartbeat at least this often.
@@ -192,6 +198,10 @@ function runSync(onProgress, skipIds) {
 
 let db = null;
 async function writeBeat(doc) {
+  if (process.env.LAP_HEARTBEAT_FILE) {
+    appendFileSync(process.env.LAP_HEARTBEAT_FILE, `${JSON.stringify(doc)}\n`);
+    return;
+  }
   if (!db) db = (await import('../sessions/store.mjs')).connect().db;
   await db.collection('uploaders').doc(hostId).set(doc);
 }

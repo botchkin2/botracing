@@ -15,3 +15,5 @@ Needs what `sync.mjs` needs: `npm ci --prefix functions` and `gcloud auth applic
 Before a rollout, `node tools/sessions/sync.mjs --check` runs every step before the first write over all sessions (fingerprints, staleness, fold plan) and exits 1 on any throw; it analyses and writes nothing (about 2 min on the full set).
 
 Test without touching the store: `node tools/uploader/watch.mjs --once -- --local --work <dir>` (everything after `--` goes to `sync.mjs`; `LMU_TELEMETRY=<dir>` points it at another folder).
+
+End-to-end test of the watcher: `node --test tools/uploader/watch.e2e.test.mjs` (Windows only; skipped elsewhere). It runs the real `watch.mjs --once` against a fixture telemetry folder and a stand-in sync, through the seams `LAP_SYNC_SCRIPT`, `LAP_HEARTBEAT_FILE` (heartbeat docs to a file, not Firestore), `LAP_LOCK_PIPE` and `LAP_GAME_EXE`, and checks: new file, sync, heartbeat; a crash, `sync crashed`, the wait; the retry, and the error clearing.
