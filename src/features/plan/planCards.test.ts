@@ -44,7 +44,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
     expect(cards.race.working).toBe(
-      'At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. The flag can fall a lap later than your own pace says: 73 laps. Time in the pits is not counted.',
+      'At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. Late flag: 73 laps. No pit time.',
     );
   });
 
@@ -57,7 +57,7 @@ describe('buildPlanCards', () => {
     );
     expect(withPit.race.laps).toBe(71);
     expect(withPit.race.working).toBe(
-      'At the median lap, 1:41.200: (7,200 s - 111 s in the pits) ÷ 101.2 s = 70.0, so 71 laps. The flag can fall a lap later than your own pace says: 72 laps. Pit time: 2 stops × 45 s loss + 71 L ÷ 3.4 L/s = 111 s; 72 laps without it.',
+      'At the median lap, 1:41.200: (7,200 s - 111 s in the pits) ÷ 101.2 s = 70.0, so 71 laps. Late flag: 72 laps. Pit time: 2 stops × 45 s loss + 71 L ÷ 3.4 L/s = 111 s; 72 laps without it.',
     );
   });
 

@@ -162,9 +162,7 @@ function raceCard(
       (seconds - (pit?.totalS ?? 0)) /
       median
     ).toFixed(1)}, so ${race.estimate} laps.${
-      race.oneMore == null
-        ? ''
-        : ` The flag can fall a lap later than your own pace says: ${race.oneMore} laps.`
+      race.oneMore == null ? '' : ` Late flag: ${race.oneMore} laps.`
     } ${
       pit
         ? `Pit time: ${pit.stops} ${
@@ -174,12 +172,8 @@ function raceCard(
           )} L ÷ ${REFUEL_L_PER_S} L/s = ${Math.round(pit.totalS)} s; ${
             pit.lapsWithout
           } laps without it.`
-        : 'Time in the pits is not counted.'
-    }${
-      race.settled
-        ? ''
-        : ' The stops and the laps do not agree on one count here: the longest pit time is used.'
-    }`;
+        : 'No pit time.'
+    }${race.settled ? '' : ' Longest pit time used.'}`;
   }
   return {
     laps: race ? race.estimate : null,
