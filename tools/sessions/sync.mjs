@@ -209,9 +209,11 @@ function sameSession(prev, next) {
 
 function group(files) {
   const byKey = new Map();
-  for (const file of files.sort((a, b) =>
-    a.info.recordedAt.localeCompare(b.info.recordedAt),
-  )) {
+  for (const file of files.sort((a, b) => {
+    const byWall = a.info.recordedAt.localeCompare(b.info.recordedAt);
+    if (byWall) return byWall;
+    return a.info.startT - b.info.startT;
+  })) {
     const {info} = file;
     const key =
       info.groupId ||
@@ -234,6 +236,11 @@ function group(files) {
     for (const s of list) {
       const first = s.files[0].info;
       s.id = hash(s.key, first.recordedAt);
+      s.files.sort(
+        (a, b) =>
+          a.info.startT - b.info.startT ||
+          a.info.recordedAt.localeCompare(b.info.recordedAt),
+      );
       s.fingerprint = hash(
         versionKey(analysisVersion, blockVersions),
         ...s.files.map(f => `${f.info.source}:${f.size}`),

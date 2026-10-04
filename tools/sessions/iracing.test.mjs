@@ -7,7 +7,10 @@ import {yamlKmToM} from './ibt.mjs';
 import {
   CHANNELS,
   describe,
+  gameLapTimes,
   isRecording,
+  lapCrossings,
+  mapSessionType,
   slug,
   writeArchive,
 } from './iracing.mjs';
@@ -33,6 +36,38 @@ test('isRecording and slug', () => {
   assert.equal(isRecording('a.duckdb'), false);
   assert.equal(slug('Full Course'), 'full_course');
   assert.equal(slug('127-full_course'), '127-full_course');
+});
+
+test('Lone/Open Qualify map to Qualify, Warmup to Practice', () => {
+  assert.equal(mapSessionType('Lone Qualify'), 'Qualify');
+  assert.equal(mapSessionType('Open Qualify'), 'Qualify');
+  assert.equal(mapSessionType('Race'), 'Race');
+  assert.equal(mapSessionType('Warmup'), 'Practice');
+  assert.equal(mapSessionType('Offline Testing'), 'Practice');
+});
+
+test('game lap time is the LastLapTime that settles after the crossing', () => {
+  const t = [0, 1, 2, 80, 81, 82, 83, 160, 161];
+  const lap = [1, 1, 1, 2, 2, 2, 2, 3, 3];
+  // At the 1→2 crossing (t=80) LastLapTime still holds 0, then becomes 79.15.
+  const last = [0, 0, 0, 0, 0, 79.15, 79.15, 79.15, 79.97];
+  const ev = gameLapTimes(t, lap, last);
+  assert.equal(ev.length, 2);
+  assert.equal(ev[0][0], 80);
+  assert.equal(ev[0][2], 79.15);
+  assert.equal(ev[1][0], 160);
+  assert.equal(ev[1][2], 79.97);
+});
+
+test('a Lap that goes backwards keeps a monotonic session number', () => {
+  const t = [0, 10, 20, 30, 40];
+  const lap = [30, 30, 31, 4, 4];
+  const last = [79, 79, 79, 80, 80];
+  const xs = lapCrossings(t, lap, last);
+  assert.deepEqual(
+    xs.map(c => c.lap),
+    [31, 32],
+  );
 });
 
 test('TrackLength km string becomes metres', () => {
@@ -64,6 +99,7 @@ test('describe: Road Atlanta race is groupId subsession+session', {skip: !exists
   assert.equal(Math.round(a.trackLengthM), 4057);
   assert.ok(a.fuelSetup.tankL > 0);
   assert.match(b.car, /Mustang/i);
+  assert.equal(b.sessionType, 'Race');
 });
 
 test('writeArchive: samples have km/h and fuel, no VE column', {skip: !existsSync(GR86)}, () => {

@@ -1,12 +1,12 @@
 // iRacing adapter: one .ibt recording → sim-neutral archive.
 // Analysis never reads iRacing names. Conversions live in CHANNELS.
-import {mkdirSync, writeFileSync} from 'node:fs';
+import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
 import {basename, dirname} from 'node:path';
 import {tmpdir} from 'node:os';
 import {run, sqlPath} from './duck.mjs';
 import {
   openIbt,
-  readColumn,
+  readColumns,
   sampleAt,
   yamlField,
   yamlKmToM,
@@ -17,7 +17,7 @@ export const sim = 'iracing';
 export const defaultFolder =
   'C:\\Users\\Botkin\\Documents\\iRacing\\telemetry';
 
-export const describeVersion = 2;
+export const describeVersion = 3;
 
 export function slug(name) {
   return String(name)
@@ -82,6 +82,13 @@ export const CHANNELS = [
 const YELLOW =
   0x00000008 | 0x00000100 | 0x00004000 | 0x00008000;
 
+export function mapSessionType(raw) {
+  const t = String(raw).toLowerCase();
+  if (t.includes('race')) return 'Race';
+  if (t.includes('qual')) return 'Qualify';
+  return 'Practice';
+}
+
 function sessionTypeOf(yaml) {
   const num = yamlField(yaml, 'CurrentSessionNum');
   const block = yaml.match(
@@ -89,7 +96,44 @@ function sessionTypeOf(yaml) {
       `- SessionNum:\\s*${num}\\s*[\\s\\S]*?SessionType:\\s*(.+)`,
     ),
   );
-  return (block ? block[1] : yamlField(yaml, 'SessionType') || 'Session').trim();
+  const raw = (block ? block[1] : yamlField(yaml, 'SessionType') || 'Session').trim();
+  return {raw, mapped: mapSessionType(raw)};
+}
+
+// LapLastLapTime still holds the previous lap at the crossing. Take the first
+// new value after the Lap increment and stamp it at the crossing time so
+// analyze's 0.75 s window still finds it (thread 49, chief #2075).
+export function gameLapTimes(t, laps, lastTimes) {
+  return lapCrossings(t, laps, lastTimes).map(c => [
+    c.t,
+    'lap_time',
+    c.time,
+    '',
+    '',
+    '',
+  ]);
+}
+
+// Lap numbers that go backwards in one .ibt (a split race file after the
+// chequered flag) become seq+1 so a session is 1..N with no duplicates.
+export function lapCrossings(t, laps, lastTimes) {
+  const out = [];
+  let seq = 0;
+  let prevCross = 0;
+  for (let i = 1; i < laps.length; i++) {
+    if (laps[i] === laps[i - 1]) continue;
+    if (!(laps[i] > 0) && !(laps[i - 1] > 0)) continue;
+    if (laps[i] > seq) seq = laps[i];
+    else seq += 1;
+    const held = lastTimes[i];
+    let j = i;
+    while (j < lastTimes.length && lastTimes[j] === held) j++;
+    let time = j < lastTimes.length && lastTimes[j] > 0 ? lastTimes[j] : 0;
+    if (!(time > 0) && t[i] - t[prevCross] > 0.5) time = t[i] - t[prevCross];
+    out.push({t: t[i], lap: seq, time, i});
+    prevCross = i;
+  }
+  return out;
 }
 
 function playerCar(yaml) {
@@ -140,6 +184,7 @@ export function describe(path) {
         : null;
     const sub = yamlField(yaml, 'SubSessionID') || '0';
     const sess = yamlField(yaml, 'CurrentSessionNum') || '0';
+    const session = sessionTypeOf(yaml);
     return {
       sim,
       source: basename(path),
@@ -147,7 +192,8 @@ export function describe(path) {
       recordedAt,
       sessionClock: `${sub}:${sess}`,
       groupId: `${sim}|${sub}|${sess}`,
-      sessionType: sessionTypeOf(yaml),
+      sessionType: session.mapped,
+      sessionTypeRaw: session.raw,
       track: yamlField(yaml, 'TrackDisplayName') || 'Unknown track',
       layout,
       trackLengthM: yamlKmToM(yamlField(yaml, 'TrackLength')),
@@ -225,13 +271,27 @@ function surfaceCode(loc, material) {
 
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
+  const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
+  const samplesCsv = `${tmp}.samples.csv`;
+  const eventsCsv = `${tmp}.events.csv`;
   try {
+    const sources = [
+      ...CHANNELS.map(c => c.source),
+      'Lap',
+      'LapLastLapTime',
+      'OnPitRoad',
+      'Gear',
+      'PlayerTrackSurface',
+      'PlayerTrackSurfaceMaterial',
+      'SessionFlags',
+      'SteeringWheelAngleMax',
+    ];
+    const raw = readColumns(ibt, sources);
     const cols = {};
     for (const ch of CHANNELS) {
-      if (!ibt.byName.has(ch.source)) continue;
-      const raw = readColumn(ibt, ch.source);
+      if (!raw[ch.source]) continue;
       const k = scaleOf(ch, ibt);
-      cols[ch.name] = Float64Array.from(raw, x => x * k);
+      cols[ch.name] = Float64Array.from(raw[ch.source], x => x * k);
     }
     const headers = ['tick', ...Object.keys(cols)];
     const n = info.ticks;
@@ -241,13 +301,12 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
     }
     mkdirSync(dirname(samplesOut), {recursive: true});
     mkdirSync(dirname(eventsOut), {recursive: true});
-    const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
-    writeCsv(`${tmp}.samples.csv`, headers, rows);
+    writeCsv(samplesCsv, headers, rows);
     run(
       ':memory:',
       `COPY (SELECT * FROM read_csv(${sqlPath(
-        `${tmp}.samples.csv`,
-      )}, AUTO_DETECT=true, HEADER=true) ORDER BY tick) TO ${sqlPath(
+        samplesCsv,
+      )}, AUTO_DETECT=true, HEADER=true) ORDER BY CAST(tick AS BIGINT)) TO ${sqlPath(
         samplesOut,
       )} (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 9, ROW_GROUP_SIZE 100000)`,
       {readonly: false},
@@ -255,58 +314,51 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
 
     const t = cols.t;
     const events = [];
-    if (ibt.byName.has('Lap')) {
-      events.push(...emitChanges(t, readColumn(ibt, 'Lap'), 'lap'));
-    }
-    if (ibt.byName.has('LapLastLapTime')) {
-      const times = readColumn(ibt, 'LapLastLapTime');
-      const laps = ibt.byName.has('Lap') ? readColumn(ibt, 'Lap') : null;
-      for (let i = 1; i < n; i++) {
-        if (laps && laps[i] !== laps[i - 1] && times[i] > 0) {
-          events.push([t[i], 'lap_time', times[i], '', '', '']);
-        }
+    if (raw.Lap && raw.LapLastLapTime) {
+      for (const c of lapCrossings(t, raw.Lap, raw.LapLastLapTime)) {
+        events.push([c.t, 'lap', c.lap, '', '', '']);
+        if (c.time > 0) events.push([c.t, 'lap_time', c.time, '', '', '']);
       }
+    } else if (raw.Lap) {
+      events.push(...emitChanges(t, raw.Lap, 'lap', v => (v > 0 ? v : 0)));
     }
-    if (ibt.byName.has('OnPitRoad')) {
+    if (raw.OnPitRoad) {
+      events.push(...emitChanges(t, raw.OnPitRoad, 'in_pits', v => (v ? 1 : 0)));
+    }
+    if (raw.Gear) events.push(...emitChanges(t, raw.Gear, 'gear'));
+    if (raw.PlayerTrackSurface) {
+      const loc = raw.PlayerTrackSurface;
+      const mat = raw.PlayerTrackSurfaceMaterial || new Float64Array(n);
       events.push(
-        ...emitChanges(t, readColumn(ibt, 'OnPitRoad'), 'in_pits', v =>
-          v ? 1 : 0,
-        ),
+        ...emitChanges(t, loc, 'surface', (_, i) => surfaceCode(loc[i], mat[i])),
       );
     }
-    if (ibt.byName.has('Gear')) {
-      events.push(...emitChanges(t, readColumn(ibt, 'Gear'), 'gear'));
-    }
-    if (ibt.byName.has('PlayerTrackSurface')) {
-      const loc = readColumn(ibt, 'PlayerTrackSurface');
-      const mat = ibt.byName.has('PlayerTrackSurfaceMaterial')
-        ? readColumn(ibt, 'PlayerTrackSurfaceMaterial')
-        : new Float64Array(n);
+    if (raw.SessionFlags) {
       events.push(
-        ...emitChanges(t, loc, 'surface', (_, i) =>
-          surfaceCode(loc[i], mat[i]),
-        ),
-      );
-    }
-    if (ibt.byName.has('SessionFlags')) {
-      events.push(
-        ...emitChanges(t, readColumn(ibt, 'SessionFlags'), 'yellow_flag', v =>
+        ...emitChanges(t, raw.SessionFlags, 'yellow_flag', v =>
           v & YELLOW ? 1 : 0,
         ),
       );
     }
     events.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
-    writeCsv(`${tmp}.events.csv`, ['t', 'event_name', 'v1', 'v2', 'v3', 'v4'], events);
+    writeCsv(eventsCsv, ['t', 'event_name', 'v1', 'v2', 'v3', 'v4'], events);
     run(
       ':memory:',
-      `COPY (SELECT t, event_name AS name, TRY_CAST(v1 AS DOUBLE) AS v1, TRY_CAST(v2 AS DOUBLE) AS v2, TRY_CAST(v3 AS DOUBLE) AS v3, TRY_CAST(v4 AS DOUBLE) AS v4 FROM read_csv(${sqlPath(
-        `${tmp}.events.csv`,
-      )}, HEADER=true, ALL_VARCHAR=true) ORDER BY t, event_name) TO ${sqlPath(
+      `COPY (SELECT TRY_CAST(t AS DOUBLE) AS t, event_name AS name, TRY_CAST(v1 AS DOUBLE) AS v1, TRY_CAST(v2 AS DOUBLE) AS v2, TRY_CAST(v3 AS DOUBLE) AS v3, TRY_CAST(v4 AS DOUBLE) AS v4 FROM read_csv(${sqlPath(
+        eventsCsv,
+      )}, HEADER=true, ALL_VARCHAR=true) ORDER BY TRY_CAST(t AS DOUBLE), event_name) TO ${sqlPath(
         eventsOut,
       )} (FORMAT parquet, COMPRESSION zstd)`,
       {readonly: false},
     );
   } finally {
     ibt.close();
+    for (const f of [samplesCsv, eventsCsv]) {
+      try {
+        unlinkSync(f);
+      } catch {
+        // temp file may not have been written
+      }
+    }
   }
 }

@@ -127,14 +127,24 @@ export function sampleAt(ibt, name, index) {
 }
 
 export function readColumn(ibt, name) {
-  const v = ibt.byName.get(name);
-  if (!v) return null;
+  return readColumns(ibt, [name])[name] ?? null;
+}
+
+// One pass over the row buffer, every named column.
+export function readColumns(ibt, names) {
+  const wanted = names
+    .map(name => ibt.byName.get(name))
+    .filter(Boolean);
   const {bufLen, bufOffset, sessionRecordCount: n} = ibt.header;
   const chunk = Buffer.alloc(n * bufLen);
   readSync(ibt.fd, chunk, 0, chunk.length, bufOffset);
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    out[i] = readNumber(chunk, v.type, i * bufLen + v.offset);
+  const out = {};
+  for (const v of wanted) {
+    const col = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      col[i] = readNumber(chunk, v.type, i * bufLen + v.offset);
+    }
+    out[v.name] = col;
   }
   return out;
 }
