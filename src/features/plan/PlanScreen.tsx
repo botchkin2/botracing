@@ -26,7 +26,7 @@ import {StartLoad} from './components/StartLoad';
 import {PooledUseCard} from './components/PooledUseCard';
 import {RulesBlock} from './components/RulesBlock';
 import {TrackCarPicker} from './components/TrackCarPicker';
-import {Pair, RowsCard} from './components/PlanCards';
+import {LoadTableCard, Pair, RowsCard} from './components/PlanCards';
 import {RaceCardView} from './components/RaceCardView';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
@@ -360,11 +360,7 @@ export function PlanScreen() {
           ) : null}
           {plan?.loadToFinish ? (
             <>
-              {view.cards
-                .filter(c => c.key === 'load')
-                .map(card => (
-                  <RowsCard key={card.key} card={card} />
-                ))}
+              {view.loadTable ? <LoadTableCard table={view.loadTable} /> : null}
               {/* No stop planned: the late-flag run-dry case, if any. */}
               {data.cards?.stops.windowNote ? (
                 <Text variant='dataSmall' tone='textSecondary'>

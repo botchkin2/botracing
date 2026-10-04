@@ -408,8 +408,6 @@ describe('the start load', () => {
     expect(fits.race.startLoad).toEqual({
       value: '46 % VE (46 L)',
       covers: 'to finish',
-      basis: '12 laps + formation at p90 use',
-      plusOne: '+1 lap = 49 % VE (49 L)',
     });
   });
 
@@ -434,12 +432,10 @@ describe('the start load', () => {
       'fuel',
     );
     expect(fuel.race.startLoad?.value).toBe('31 L');
-    expect(fuel.race.startLoad?.plusOne).toBe('+1 lap = 33 L');
   });
 
   it('a race with stops reads the first stint, which sets the stop plan', () => {
     expect(withStops.race.startLoad?.covers).toBe('for the first stint');
-    expect(withStops.race.startLoad?.plusOne).toBeNull();
   });
 
   it('says nothing without a use per lap', () => {

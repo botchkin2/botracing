@@ -45,10 +45,6 @@ export type StartLoad = {
   value: string;
   /** What the load covers: "to finish" or "for the first stint". */
   covers: string;
-  /** The laps and use behind it: "30 laps + formation at p90 use". */
-  basis: string;
-  /** The same load for one more lap, only when the race can run a lap longer; null otherwise. */
-  plusOne: string | null;
 };
 
 export type TankMeter = {
@@ -207,7 +203,6 @@ function startLoadOf(
 ): StartLoad | null {
   const {fuel, ve} = plan.perLap;
   const shown = effectiveUnit(unit, ve != null && !fuelOnly);
-  const formation = rules.formationLap ? ' + formation' : '';
   const rows = plan.loadToFinish;
   if (rows && rows.length > 0) {
     const own = rows[0];
@@ -218,14 +213,9 @@ function startLoadOf(
       rules.fuelL,
     );
     if (value == null) return null;
-    const more = rows[1]
-      ? loadText(rows[1].atP90.fuelL, rows[1].atP90.vePct, shown, rules.fuelL)
-      : null;
     return {
       value,
       covers: 'to finish',
-      basis: `${own.laps} laps${formation} at p90 use`,
-      plusOne: more == null ? null : `+1 lap = ${more}`,
     };
   }
   // A race with stops: the first stint sets the stop plan.
@@ -240,8 +230,6 @@ function startLoadOf(
   return {
     value,
     covers: 'for the first stint',
-    basis: `${first} laps${formation} at p90 use`,
-    plusOne: null,
   };
 }
 

@@ -456,12 +456,21 @@ export type Card = {
   rows: Row[];
 };
 
+/** The Load to finish card: one row per race length, the median and p90 loads side by side. */
+export type LoadTable = {
+  title: string;
+  head: string[];
+  rows: {label: string; median: string; p90: string}[];
+};
+
 export type PlanView = {
   /** "Rules: Endurance 75 % fuel · set 26 Sep 2026". */
   rulesLine: string;
   /** "preset 75 L · last race 84 L" when the preset may be stale. */
   stale: string | null;
   cards: Card[];
+  /** Set when the race fits one load. */
+  loadTable: LoadTable | null;
 };
 
 const NL = String.fromCharCode(10);
@@ -496,47 +505,34 @@ function ratioNote(
   return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
 }
 
-function loadText(l: Load): string {
+function loadCell(l: Load): string {
   const parts = [
-    l.fuelL != null ? l2(l.fuelL) : null,
     l.vePct != null ? pct2(l.vePct) : null,
+    l.fuelL != null ? l2(l.fuelL) : null,
   ].filter(Boolean);
-  const limit =
-    l.limitedBy === 'fuel' ? 'fuel' : l.limitedBy === 've' ? 'VE' : null;
-  return `${parts.join('  ·  ')}${
-    limit ? `  (${limit} closer to its cap)` : ''
-  }${l.fits ? '' : '  (over the rules)'}`;
+  return `${parts.join(' · ')}${l.fits ? '' : ' · over'}`;
 }
 
-/** A race that fits one load, read the other way round (thread 35 #1015). */
-function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
-  const out: Row[] = [];
-  for (const row of rows) {
-    const lapsText = `${row.laps} laps${
-      r.formationLap ? ' + formation lap' : ''
-    }`;
-    out.push({label: `${lapsText}, median use`, value: loadText(row.atMedian)});
-    const left = row.leftAtMedian;
-    const leftParts = [
-      left.fuelL != null && left.fuelLaps != null
-        ? `${l2(left.fuelL)} = ${left.fuelLaps.toFixed(1)} laps fuel`
-        : null,
-      left.vePct != null && left.veLaps != null
-        ? `${pct2(left.vePct)} = ${left.veLaps.toFixed(1)} laps VE`
-        : null,
-    ].filter(Boolean);
-    out.push({
-      label: `${lapsText}, p90 use`,
-      value: loadText(row.atP90),
-      note: leftParts.length
-        ? `left at median: ${leftParts.join(' · ')}`
-        : undefined,
-    });
-  }
+/** A race that fits one load, read the other way round (thread 35 #1015): one row per race length. */
+function loadTable(rows: LoadToFinish[], r: PlanRules): LoadTable {
+  const limits = new Set(rows.map(row => row.atP90.limitedBy));
+  const only = limits.size === 1 ? [...limits][0] : null;
   return {
-    key: 'load',
     title: 'Load to finish',
-    rows: out,
+    head: [
+      '',
+      'Median',
+      only === 'fuel'
+        ? 'p90 · fuel limits'
+        : only === 've'
+        ? 'p90 · VE limits'
+        : 'p90',
+    ],
+    rows: rows.map(row => ({
+      label: `${row.laps} laps${r.formationLap ? ' + form.' : ''}`,
+      median: loadCell(row.atMedian),
+      p90: loadCell(row.atP90),
+    })),
   };
 }
 
@@ -694,7 +690,6 @@ export function planView(
 
   // A race that fits one load reads the Stops card the other way round; every
   // other race's Race, Per tank and Stops cards are typed (`planCards.ts`).
-  if (plan.loadToFinish) cards.push(loadCard(plan.loadToFinish, r));
 
   const d = plan.dropStop;
   if (d) {
@@ -783,5 +778,6 @@ export function planView(
     rulesLine,
     stale,
     cards,
+    loadTable: plan.loadToFinish ? loadTable(plan.loadToFinish, r) : null,
   };
 }

@@ -733,12 +733,12 @@ describe('planView', () => {
       drift: null,
     });
     expect(v.cards.some(c => c.key === 'stops')).toBe(false);
-    const load = v.cards.find(c => c.key === 'load')!;
+    const load = v.loadTable!;
     // 10 laps + the formation lap at 3.5 L and 5 %: 38.50 L, 55.00 % VE.
-    expect(load.rows[0].label).toBe('10 laps + formation lap, median use');
-    expect(load.rows[0].value).toContain('38.50 L');
-    expect(load.rows[0].value).toContain('55.00 %');
-    expect(load.rows[1].label).toContain('p90 use');
+    expect(load.rows[0].label).toBe('10 laps + form.');
+    expect(load.rows[0].median).toContain('38.50 L');
+    expect(load.rows[0].median).toContain('55.00 %');
+    expect(load.head[2]).toContain('p90');
   });
 
   it('says why there is no VE when no session ran the preset load', () => {
