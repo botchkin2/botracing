@@ -825,6 +825,10 @@ export function analyzeSession(
       if (r < recs.length - 1 && si === segs.length - 1) seg.partial = true;
       const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
       lap.lapNumber = seg.lapNumber + recOffset;
+      // The piece before the first crossing is the previous lap, not the next.
+      if (si === 0 && seg.partial) {
+        lap.lapNumber = Math.max(0, lap.lapNumber - 1);
+      }
       lap.endedInReset = false;
       lap.afterReset = first && reset;
       if (!first && lap.pitOut) openStint('pit');
