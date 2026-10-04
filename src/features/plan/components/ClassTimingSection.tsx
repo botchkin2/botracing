@@ -1,7 +1,7 @@
 import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {Skeleton, Text, useHowToRead} from '@/src/ui';
+import {Skeleton, Text} from '@/src/ui';
 
 import {
   type ClassTiming,
@@ -13,15 +13,8 @@ import {
 
 import {type StopWindow} from '../planCards';
 
-import {TIMELINE_HELP} from '../timelineHelp';
-
 import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
-
-const FASTER_EXPLAINER =
-  'Gain = your median lap − theirs. First is the range of laps from their p10 to their p90 lap; Every is their median lap ÷ gain, in your laps.';
-const YOURS_EXPLAINER =
-  'Median green lap of all cars of your class in the sessions here, and yours.';
 
 /**
  * Class timing on the Plan (round 6, section 2), under Race: the timeline, the
@@ -100,14 +93,11 @@ function RaceTimelineCard({
   width: number;
   onStop?: (stop: number, lap: number) => void;
 }) {
-  const help = useHowToRead('the race timeline', TIMELINE_HELP);
   return (
     <PlanCard title='Race timeline'>
       <View style={styles.head}>
         <EstimateBadge />
-        {help.button}
       </View>
-      {help.panel}
       <RaceTimelineView
         timing={timing}
         windows={windows}
@@ -142,7 +132,7 @@ function EstimateBadge() {
 function FasterClasses({timing}: {timing: ReadyClassTiming}) {
   const {color} = useTheme();
   return (
-    <PlanCard title='Faster classes' explainer={FASTER_EXPLAINER}>
+    <PlanCard title='Faster classes'>
       {timing.noFaster ? (
         <Text variant='dataSmall' tone='textMuted'>
           {NO_FASTER_TEXT}
@@ -198,7 +188,7 @@ function FasterClasses({timing}: {timing: ReadyClassTiming}) {
 
 function YourClass({yours}: {yours: NonNullable<ReadyClassTiming['yours']>}) {
   return (
-    <PlanCard title='Your class, for context' explainer={YOURS_EXPLAINER}>
+    <PlanCard title='Your class'>
       <View style={styles.pair}>
         <Text variant='bodyStrong' style={styles.name}>
           {yours.name}

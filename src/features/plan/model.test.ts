@@ -667,7 +667,7 @@ describe('planView', () => {
     const rows = withTraffic.cards[0].rows;
     const time = rows.find(r => r.label === 'Lap time')!;
     expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
-    expect(time.note).toBe('all green laps · n 10 · sets race laps');
+    expect(time.note).toBe('all green laps · n 10');
     const clean = rows.find(r => r.label === 'Clean laps')!;
     expect([clean.value, clean.note]).toEqual(['1:48.200', 'n 4']);
     const traffic = rows.find(r => r.label === 'Traffic laps')!;
@@ -677,8 +677,6 @@ describe('planView', () => {
     expect(labels.indexOf('Lap time')).toBeLessThan(
       labels.indexOf('Clean laps'),
     );
-    expect(withTraffic.cards[0].explainer).toContain('sets the race laps');
-    expect(withTraffic.cards[0].explainer).toContain('2 s ahead');
   });
 
   it('Per green lap: a set under 3 laps, or no field, adds no row', () => {
@@ -735,12 +733,12 @@ describe('planView', () => {
       drift: null,
     });
     expect(v.cards.some(c => c.key === 'stops')).toBe(false);
-    const load = v.cards.find(c => c.key === 'load')!;
+    const load = v.loadTable!;
     // 10 laps + the formation lap at 3.5 L and 5 %: 38.50 L, 55.00 % VE.
-    expect(load.rows[0].label).toBe('10 laps + formation lap, median use');
-    expect(load.rows[0].value).toContain('38.50 L');
-    expect(load.rows[0].value).toContain('55.00 %');
-    expect(load.rows[1].label).toContain('p90 use');
+    expect(load.rows[0].label).toBe('10 laps + form.');
+    expect(load.rows[0].median).toContain('38.50 L');
+    expect(load.rows[0].median).toContain('55.00 %');
+    expect(load.head[2]).toContain('p90');
   });
 
   it('says why there is no VE when no session ran the preset load', () => {
@@ -796,7 +794,6 @@ describe('planView', () => {
     });
     expect(v.stale).toBeNull();
     expect(v.rulesLine).toBe('Rules: last race here (84 L fill limit)');
-    expect(v.footnote).toContain('tyres');
   });
 
   it('shows no data without history', () => {
@@ -860,7 +857,7 @@ describe('driftRowOf', () => {
       '2.88 L a lap against 2.31 L\n4.30 %/lap against 3.33 %',
     );
     expect(row.note).toBe(
-      'not in line with your 23 other sessions: the plan uses the 15 laps of the 3 sessions since the change',
+      'differs from 23 other sessions · plan uses the last 15 laps (3 sessions)',
     );
   });
 
@@ -875,8 +872,8 @@ describe('driftRowOf', () => {
       droppedSessions: 1,
     });
     expect(row.value).toBe('4.30 %/lap against 3.33 %');
-    expect(row.note).toContain('1 other session:');
-    expect(row.note).toContain('the 6 laps of the 1 session since');
+    expect(row.note).toContain('1 other session ·');
+    expect(row.note).toContain('the last 6 laps (1 session)');
   });
 
   it('says a lower session is not used, and what switches it', () => {
@@ -891,7 +888,7 @@ describe('driftRowOf', () => {
     });
     expect(row.value).toBe('2.10 L a lap against 2.40 L');
     expect(row.note).toBe(
-      'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
+      'lower than 4 other sessions · not used until a second session agrees',
     );
   });
 });

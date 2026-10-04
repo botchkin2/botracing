@@ -23,7 +23,6 @@ import {
   Skeleton,
   StatusBanner,
   Text,
-  useHowToRead,
 } from '@/src/ui';
 
 import {clockLabel, nextRate, snapClock, stepBy} from './clock';
@@ -52,7 +51,6 @@ import {
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
 import {markPitLane} from './pitLaneState';
-import {FIELD_HELP, RACE_HELP} from './raceHelp';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
 
@@ -71,17 +69,9 @@ const DESKTOP_SIDE_W = 320;
 const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
-// Copy from handoff R4c, verbatim where it is drawn.
 const NO_FIELD_TITLE = 'No field data for this session';
-const NO_FIELD_BODY =
-  'Other cars are recorded for sessions from 28 Sep 2026 on. Your laps and traces work as before.';
-
-// Handoff R4c, drawn here; no download progress or timeout is measured, so
-// the byte counts and "after 30 s" of the handoff copy are left out.
-const FIELD_LOADING_TEXT =
-  'Loading field data. Your laps and traces already work.';
-const FIELD_ERROR_TEXT =
-  'Field data didn’t load. Your laps and traces still work.';
+const FIELD_LOADING_TEXT = 'Loading field data';
+const FIELD_ERROR_TEXT = 'Field data didn’t load';
 const SKELETON_ROWS = 8;
 
 // Compare's cursor settles this long after the clock stops, like Compare's own.
@@ -173,7 +163,7 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
   if (data.kind === 'no-field') {
     return (
       <View style={styles.center}>
-        <EmptyState title={NO_FIELD_TITLE} body={NO_FIELD_BODY} />
+        <EmptyState title={NO_FIELD_TITLE} />
       </View>
     );
   }
@@ -228,10 +218,6 @@ function RaceView({
 }) {
   const {color} = useTheme();
   const {mode} = data;
-  const help = useHowToRead(
-    mode === 'race' ? 'the race' : 'the field',
-    mode === 'race' ? RACE_HELP : FIELD_HELP,
-  );
   const layout = useLayout();
   const {prep, placer, line, outlineUse} = data;
   const times = prep.field.timeS;
@@ -274,7 +260,7 @@ function RaceView({
   const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
-  // Phone: the legend and the column key are folded away until asked for.
+  // Phone: the legend is folded away until asked for.
   const [keyOpen, setKeyOpen] = useState(false);
   // R1e: per view; the design's third mode (car number) needs numbers the
   // field upload does not carry.
@@ -423,12 +409,10 @@ function RaceView({
         </Pressable>
       ) : null}
       {!data.matches ? (
-        <Text variant='explainer' tone='textMuted' style={styles.matchNote}>
+        <Text variant='dataSmall' tone='textMuted' style={styles.matchNote}>
           {data.matchM === null
-            ? 'The cars could not be checked against this track map, so they are not drawn.'
-            : `The cars are ${Math.round(
-                data.matchM,
-              )} m from this track map, so they are not drawn.`}
+            ? 'Cars not drawn: no track map match'
+            : `Cars not drawn: ${Math.round(data.matchM)} m off the track map`}
         </Text>
       ) : null}
     </View>
@@ -490,7 +474,6 @@ function RaceView({
       mode={mode}
       paged
       nearby={mode === 'field'}
-      showKey={keyOpen}
       fallbackNote={rows.fallbackNote}
     />
   );
@@ -505,9 +488,7 @@ function RaceView({
             <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
               {sub}
             </Text>
-            {help.button}
           </View>
-          {help.panel}
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
               {roadLine}
@@ -569,9 +550,7 @@ function RaceView({
                 {keyOpen ? 'Key ▴' : 'Key ▾'}
               </Text>
             </Pressable>
-            {help.button}
           </View>
-          {help.panel}
           {roadLine ? (
             <Text variant='dataSmall' tone='textSecondary'>
               {roadLine}

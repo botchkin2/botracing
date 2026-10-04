@@ -81,8 +81,7 @@ const TURN_LABEL: Record<CornerTurn, string> = {
   'R-L': 'R-L',
 };
 
-const NO_OUTLINE_NOTE =
-  'No reliable outline for this layout yet, so this shows your driven line.';
+const NO_OUTLINE_NOTE = 'No outline yet: your driven line';
 
 /**
  * The session whose best lap draws the page's map and names its corners:

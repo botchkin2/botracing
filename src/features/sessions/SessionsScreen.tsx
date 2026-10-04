@@ -241,10 +241,6 @@ function EmptyState({width}: {width: number}) {
       <Text variant='title' style={styles.emptyTitle}>
         No sessions yet
       </Text>
-      <Text tone='textSecondary' style={styles.emptyBody}>
-        Sessions upload automatically from your PC. Install the uploader on your
-        sim PC and sign in with the same account.
-      </Text>
       <View style={[styles.statusPill, {backgroundColor: color.surfaceRaised}]}>
         <View style={[styles.statusDot, {backgroundColor: color.textFaint}]} />
         <Text variant='dataSmall' tone='textMuted'>
@@ -306,7 +302,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   emptyTitle: {fontSize: 18, lineHeight: 22},
-  emptyBody: {fontSize: 13, lineHeight: 19},
   emptyAction: {alignSelf: 'flex-start'},
   statusPill: {
     alignSelf: 'flex-start',

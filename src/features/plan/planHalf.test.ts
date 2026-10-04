@@ -69,9 +69,7 @@ function half(
 describe('buildPlanHalf', () => {
   it('lines the planned stops up with the made stops, in order, row for row', () => {
     const h = half({}, [actual(24), actual(49)]);
-    expect(h.desc).toBe(
-      'Plan = full-tank strategy at the median use, for this race’s 75 L limit and 60 laps, from the 12 green laps recorded before 26 Sep.',
-    );
+    expect(h.note).toBeNull();
     expect(h.rows).toEqual([
       {k: 'Stop 1', p: 'after L28', a: 'after L24'},
       // 28 laps burned (27 + the formation lap) of 100 % at 3.50 %/lap.
@@ -147,8 +145,8 @@ describe('buildPlanHalf', () => {
 
   it('says why there is no plan instead of inventing one', () => {
     expect(half({limitL: null}).rows).toEqual([]);
-    expect(half({limitL: null}).desc).toBe(
-      'No fill limit on record for this race, so there is no plan.',
+    expect(half({limitL: null}).note).toBe(
+      'No fill limit on record for this race.',
     );
     const none = buildPlanHalf({
       facts: facts(),
@@ -159,12 +157,10 @@ describe('buildPlanHalf', () => {
       stops: [],
       end,
     });
-    expect(none.desc).toBe(
-      'No earlier laps at the 75 L limit, so there is no plan for this race.',
-    );
+    expect(none.note).toBe('No earlier laps at the 75 L limit.');
     // History without VE cannot plan a VE-state card.
-    expect(half({}, [], true, history(false)).desc).toBe(
-      'The earlier laps do not give a Virtual Energy use to plan the stops from.',
+    expect(half({}, [], true, history(false)).note).toBe(
+      'No VE use in the earlier laps.',
     );
   });
 });

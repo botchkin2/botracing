@@ -94,6 +94,3 @@ export function finishLine(p: PitPlan): string {
     : '';
   return finish + pit + '.';
 }
-
-export const PIT_PLAN_EXPLAINER =
-  'Move a stop over its window: the stints, what each uses, what each stop adds and the finish follow. The filled part of a bar is the safe end (p90 use), the outlined part runs to where the tank is empty at the median use; the grey tick is the planned lap. In a timed race the pit time moves the finish. Tyre laps: on a set changed at the stop that starts the stint · since the start if never changed.';
