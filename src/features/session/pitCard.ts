@@ -471,11 +471,8 @@ export function buildPitCard(
         }
       : null,
     key: [
-      hasVe &&
-        'VE out: what was left (bright) and what the stop added (dim), of a full load.',
-      anyRefuel
-        ? 'Pit lane: the time in the lane, with the refuelling inside it (bright).'
-        : 'Pit lane: the time in the lane.',
+      hasVe && '■ left ▪ added',
+      anyRefuel && '■ refuelling',
     ].filter((l): l is string => Boolean(l)),
     refuelScope: anyRefuel ? scope : null,
     hasVe,
