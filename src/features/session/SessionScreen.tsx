@@ -29,13 +29,7 @@ import {
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {
-  Explainer,
-  FoldedSection,
-  PANEL_DIVIDER_W,
-  Text,
-  useHowToRead,
-} from '@/src/ui';
+import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -45,10 +39,7 @@ import {EnergyLineRow} from './components/EnergyLineRow';
 import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
-import {LAP_BARS_HELP} from './lapBarsHelp';
 import {fuelSummary, tiresSummary} from './foldedSummaries';
-import {OPTIMUM_HELP} from './optimumFacts';
-import {PACE_RULE_LINES} from './trafficFacts';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -77,7 +68,7 @@ const DESKTOP_TABLE_MAX_W = 640;
 const WIDE_MIN_CENTRE_W = 590;
 
 const TAG_KEY =
-  'Purple = best lap and best sectors. OUT/IN = pit lap, RESET = ended in a reset to the garage, PART = partial, PARK = parked start (the roll to the line), SLOW = slow outlier, OFF = seconds off track, HIT = impact (possible damage). TOW = seconds in a slipstream, TRAF = seconds within 1 s of a car ahead (from 2 s), BLUE = faster-class cars that passed, PASS = passes made and suffered within the car’s class, BTL = seconds within 1 s of a same-class car. Excluded laps are dimmed.';
+  'OUT/IN pit · PART partial · PARK parked · SLOW outlier · OFF s off track · HIT impact · TOW slipstream · TRAF traffic · BLUE blue flag · PASS passes · BTL battle';
 
 export type {Selection} from './model';
 
@@ -149,9 +140,6 @@ function SessionView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const listRef = useRef<FlatList<RowModel>>(null);
-  const barsHelp = useHowToRead('the lap times', LAP_BARS_HELP);
-  const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
-  const paceHelp = useHowToRead('clean and traffic', PACE_RULE_LINES);
   const headerHeight = useRef(0);
   // Where the Pit stops / Fuel card starts in the header, for the energy line's tap.
   const pitCardY = useRef(0);
@@ -238,13 +226,9 @@ function SessionView({
   const chartBlock = (width: number) =>
     model.chart ? (
       <View style={styles.section}>
-        <View style={styles.titleRow}>
-          <Text variant='label' tone='textMuted'>
-            Lap times
-          </Text>
-          {barsHelp.button}
-        </View>
-        {barsHelp.panel}
+        <Text variant='label' tone='textMuted'>
+          Lap times
+        </Text>
         <LapTimeBars
           width={width}
           height={CHART_H}
@@ -355,17 +339,6 @@ function SessionView({
           }
         />
       ) : null}
-      {model.paceRule ? (
-        <View style={styles.block}>
-          <View style={styles.titleRow}>
-            <Text variant='dataSmall' tone='textMuted'>
-              Clean and traffic medians
-            </Text>
-            {paceHelp.button}
-          </View>
-          {paceHelp.panel}
-        </View>
-      ) : null}
       {model.optimum.length > 0 ? (
         <View style={styles.block}>
           <View style={styles.facts}>
@@ -379,9 +352,7 @@ function SessionView({
                 </Text>
               </View>
             ))}
-            {optimumHelp.button}
           </View>
-          {optimumHelp.panel}
         </View>
       ) : null}
 
@@ -557,7 +528,9 @@ function SessionView({
           ListHeaderComponent={header}
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
-              <Explainer>{TAG_KEY}</Explainer>
+              <Text variant='dataSmall' tone='textMuted'>
+                {TAG_KEY}
+              </Text>
               {/* The phone: the laps first, the cards after them, each closed to one line. */}
               {layout.isDesktop ? null : (
                 <>
@@ -597,11 +570,7 @@ function SessionView({
                   />
                 }
               />
-            ) : (
-              <Explainer>
-                Tap a bar or a row to see that lap, and tick laps to compare.
-              </Explainer>
-            )}
+            ) : null}
             {tray}
           </View>
         )}

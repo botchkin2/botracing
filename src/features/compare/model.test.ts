@@ -185,7 +185,6 @@ describe('buildCompareModel', () => {
     expect(l2.values[0]).toBe(0);
     expect(l2.values[200]).toBeGreaterThan(0.39);
     expect(m.charts[2].pedals).toBe(true);
-    expect(m.charts[2].explainer).toMatch(/^Line = throttle, filled area/);
     expect(m.charts[2].height).toBe(140);
   });
 
@@ -201,7 +200,6 @@ describe('buildCompareModel', () => {
       [0.3, 0.1],
       [-0.05, -0.05],
     ]);
-    expect(g.explainer).toMatch(/^Time in each section vs L1, in seconds\./);
   });
 
   it('plain map for a poor fit: lines and dots, no outline', () => {
@@ -268,7 +266,6 @@ describe('chart window', () => {
     expect(td.valueRows[0].values[1].text).toMatch(/ s$/);
     expect(td.valueRows[0].label).toBe('Time diff vs L1');
     expect(td.valueRows[0].unit).toBe('');
-    expect(td.explainer).toMatch(/^Running gap to the reference/);
   });
 
   it('pedals chart shares one plot; apex lines inside the window only', () => {

@@ -2,32 +2,12 @@
 // and traffic medians beside the all-lap median, and one lap's seconds and
 // counts. Facts about laps, never a verdict: the headline pace stays every
 // comparable lap (Botkin, pit-wall thread 44 #1563).
-import {
-  BLUE_BEHIND_S,
-  CLEAN_AHEAD_S,
-  CLEAN_BATTLE_S,
-  type LapSet,
-  trafficMedians,
-  TRAFFIC_AHEAD_S,
-} from '@/src/analysis/traffic';
+import {type LapSet, trafficMedians} from '@/src/analysis/traffic';
 import {type Lap, type LapTraffic} from '@/src/data/sessions';
 import {formatLapTime} from '@/src/design';
 
 /** A traffic or clean set needs this many laps to show a median (the floor used everywhere else). */
 export {MIN_SET_LAPS} from '@/src/analysis/traffic';
-
-/**
- * The stored rule, in words (src/analysis/traffic.ts), printed wherever
- * "clean" or "traffic" appears.
- */
-export const PACE_RULE_LINES: readonly string[] = [
-  `Clean: no car within 1 s ahead for ${CLEAN_AHEAD_S} s or more, no faster-class car within ${BLUE_BEHIND_S} s behind, no pass suffered, under ${CLEAN_BATTLE_S} s within 1 s of a same-class car.`,
-  `Traffic: ${TRAFFIC_AHEAD_S} s or more within 1 s of a car ahead.`,
-  'n is the laps a median uses; a lap between the two is in neither. Both are laps with a recorded field.',
-];
-
-/** The same rule as one string. */
-export const PACE_RULE = PACE_RULE_LINES.join(' ');
 
 /** "1:49.800 · 4 of 14 laps"; null under the lap floor, where there is no median. */
 export function setText(set: LapSet, ofLaps: number): string | null {

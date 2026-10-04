@@ -3,12 +3,10 @@ import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {WHEELS} from '@/src/analysis/tyres';
 import {space, useTheme} from '@/src/design';
-import {EmptyState, Explainer, Segment, Text, useHowToRead} from '@/src/ui';
+import {EmptyState, Segment, Text} from '@/src/ui';
 
 import type {WearScatterModel} from '../wearScatter';
 import {
-  NO_TYRE_CHANNELS,
-  TIRES_HELP,
   treadScale,
   type TreadZone,
   type TiresCard as TiresCardModel,
@@ -36,13 +34,12 @@ export function TiresCard({
   width: number;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('the tires', TIRES_HELP);
   const [picked, setPicked] = useState<number | null>(null);
   if (card.kind === 'absent') {
     return (
       <View style={styles.card}>
         <Text variant='label'>Tires</Text>
-        <EmptyState title='No tyre channels' body={NO_TYRE_CHANNELS} />
+        <EmptyState title='No tyre channels' />
       </View>
     );
   }
@@ -51,16 +48,7 @@ export function TiresCard({
     card.stints[card.stints.length - 1];
   return (
     <View style={styles.card}>
-      <View style={styles.title}>
-        <Text variant='label'>Tires</Text>
-        {help.button}
-      </View>
-      <Explainer>
-        Seen from above, front at the top. Big number = left at the end of the
-        last green lap. Bars = % lost on each lap (hollow = not a green lap),
-        dashed line = median of the green laps.
-      </Explainer>
-      {help.panel}
+      <Text variant='label'>Tires</Text>
       {card.stints.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <Segment
@@ -168,9 +156,9 @@ function TreadBlock({zones, width}: {zones: TreadZone[]; width: number}) {
   return (
     <View style={styles.block}>
       <Text variant='label'>Tread zones</Text>
-      <Explainer>
-        {`Median over the green laps, °C. Outer edges face out, as seen from above. I inner · C centre · O outer; I − O = inner minus outer. Bar scale ${scale.minC}–${scale.maxC} °C.`}
-      </Explainer>
+      <Text variant='dataSmall' tone='textMuted'>
+        {`Green-lap median, °C · I inner · C centre · O outer · scale ${scale.minC}–${scale.maxC} °C`}
+      </Text>
       <TreadZones zones={zones} width={width} scale={scale} />
     </View>
   );

@@ -88,15 +88,6 @@ export function ReferenceCandidates({
             </Text>
           </Pressable>
         ))}
-      {state.kind === 'ready' && (
-        <Text variant='explainer' tone='textMuted'>
-          {`Gap = the candidate minus this lap. Ranked on car, session type, load (fuel within 10 L, else Virtual Energy within 10 points), tyres kept, clean air; then the fastest. Weather, track temperature and rubber are not compared. ${
-            state.sessions
-          } other session${
-            state.sessions === 1 ? '' : 's'
-          } at this track and car.`}
-        </Text>
-      )}
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import {type ReactNode, useMemo} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {FollowMap, TrackMap} from '@/src/charts';
 import {radius, space, useTheme} from '@/src/design';
@@ -22,13 +22,8 @@ import {type LapStyle} from './ChartBlock';
 
 // The Compare map panel (handoff v2 M1): Follow / Track switch over the map,
 // the position label in Follow, the outline quality chip, OSM attribution
-// when OSM is drawn, and a one-time note when there is no reliable outline.
-// Satellite is not shown until it ships. The panel reads and writes the
-// map prefs (mode, dismissed notes) itself, so both Compare layouts share them.
-
-// Copy from the handoff, verbatim.
-const POOR_NOTE =
-  'No reliable track outline for this layout, so this shows your driven line instead. Laps line up by distance, not by position on the track.';
+// when OSM is drawn. Satellite is not shown until it ships. The panel reads
+// and writes the map prefs (mode, zoom) itself, so both Compare layouts share them.
 
 const MODES = [
   {value: 'follow', label: 'Follow'},
@@ -39,7 +34,6 @@ export function MapPanel({
   width,
   height,
   map,
-  sessionId,
   openSection,
   lapStyle,
   onPressSection,
@@ -49,7 +43,6 @@ export function MapPanel({
   width: number;
   height: number;
   map: MapModel;
-  sessionId: string;
   openSection: number | null;
   lapStyle: LapStyle;
   onPressSection: (n: number) => void;
@@ -63,7 +56,6 @@ export function MapPanel({
   // A stored zoom outside the steps (a hand-edited or old save) reads as 1×.
   const zoom: MapZoom =
     FOLLOW_SPANS_M[prefs.mapZoom] === undefined ? 1 : prefs.mapZoom;
-  const noteShown = !map.realMap && !prefs.poorMapNoteSeen.includes(sessionId);
   const {color} = useTheme();
   const styled = (r: {
     lapId: string;
@@ -198,23 +190,6 @@ export function MapPanel({
           </Text>
         </View>
       )}
-      {noteShown && (
-        <Pressable
-          accessibilityRole='button'
-          accessibilityHint='Dismisses this note'
-          onPress={() => prefs.dismissPoorMapNote(sessionId)}
-          style={[
-            styles.note,
-            {
-              borderColor: color.lineStrong,
-              backgroundColor: color.surfaceOverlay,
-            },
-          ]}>
-          <Text variant='body' tone='textSecondary'>
-            {POOR_NOTE}
-          </Text>
-        </Pressable>
-      )}
       {map.attribution && (
         <Text variant='attribution' tone='textFaint' style={styles.attribution}>
           {map.attribution}
@@ -247,14 +222,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: space.sm,
     paddingVertical: space.xxs,
-  },
-  note: {
-    position: 'absolute',
-    left: space.md,
-    right: space.md,
-    bottom: space.md,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    padding: space.md,
   },
 });

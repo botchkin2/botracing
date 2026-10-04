@@ -230,18 +230,18 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
     .filter(l => l.pitStop != null && l.lapIndex < firstLapIndex)
     .pop();
   if (!stopLap?.pitStop)
-    return {kind: 'absent', why: 'There is no stop before this stint.'};
+    return {kind: 'absent', why: 'No stop before this stint'};
   const tyres = stopLap.pitStop.tyres;
   const cool = tyres?.coolDown;
   if (tyres?.changed && tyres.wheels.length === 4)
     return {
       kind: 'absent',
-      why: `All four tyres were changed at the stop after L${stopLap.lapIndex}, so there is no kept tyre to read cooling on.`,
+      why: `All four tyres changed after L${stopLap.lapIndex}`,
     };
   if (!cool)
     return {
       kind: 'absent',
-      why: `The stop after L${stopLap.lapIndex} has no cool-down reading (an older file, or the session ended too soon after it).`,
+      why: `No cool-down reading after L${stopLap.lapIndex}`,
     };
   const wheels = WHEELS.flatMap((wheel): CoolDownWheel[] => {
     const w = {
@@ -257,7 +257,7 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
   if (wheels.length === 0)
     return {
       kind: 'absent',
-      why: `The tyres kept at the stop after L${stopLap.lapIndex} have no cool-down reading.`,
+      why: `No cool-down reading on the kept tyres after L${stopLap.lapIndex}`,
     };
   return {
     kind: 'readings',
@@ -472,14 +472,3 @@ export function buildTiresCard(
   }
   return stints.length ? {kind: 'stints', stints} : {kind: 'absent'};
 }
-
-export const NO_TYRE_CHANNELS =
-  'This session has no tyre channels (an older file, or the recording had none). Laps, fuel and pit stops still work.';
-
-// Behind the "?" on the Tires card, one sentence a line.
-export const TIRES_HELP: readonly string[] = [
-  'Cells are laid out as seen from above, front at the top. The big number is the wear left at the end of the last green lap, in % of a new tyre; the bars are the % lost on each lap, hollow when the lap is not a green one, and the dashed line is the median of the green laps. A lap that lost more than 3 times the median is named under its number. A trend needs 5 green laps; with fewer the readings are listed, and a wheel that reads no pressure is outlined and left out of every median.',
-  'Pressure is each lap median, outside the pit lane, as an axle mean. The key gives the stabilised hot pressure (the last 5 s of the lap, from the third lap of a stint), which is the number in each cell.',
-  'Rubber temperature is the surface layer (not the carcass), a median per lap; the out-lap warm-up stays in the line. Tread zones are the median over the green laps of each tyre’s three thirds, in degrees C, as seen from above with the outer edges facing out; I − O is inner minus outer, above zero when the inner edge is hotter. Inner and outer follow the car, not the corner.',
-  'Stop cool-down is the change from pit entry to 45 s after pit exit (5 s medians), in rubber and carcass degrees C and in kPa, for the wheels that kept their tyre at the stop before the stint. Cooling is not a tyre change, and it is never part of the wear bars.',
-];

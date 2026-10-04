@@ -65,7 +65,6 @@ export type StintCornerRow = {
 
 export type StintVsStintModel = {
   title: string;
-  explainer: string;
   rows: StintCornerRow[];
   total: string;
 };
@@ -199,7 +198,6 @@ export function buildStintVsStint(
   const total = raw.reduce((sum, r) => sum + r.deltaS, 0);
   return {
     title: `Stint ${b.n} vs Stint ${a.n}`,
-    explainer: `Median segment time per corner over comparable laps, stint ${b.n} minus stint ${a.n}, in seconds. Left and green = stint ${b.n} faster; right and red = slower.`,
     rows: raw.map(r => ({
       key: String(r.i),
       label: named

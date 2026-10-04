@@ -8,7 +8,7 @@ import {
 } from '@/src/data/sessions/adapters';
 import {trackCorners} from '@/src/data/sessions';
 
-import {buildCornerModel, sectionChips, windowExplainer} from './model';
+import {buildCornerModel, sectionChips} from './model';
 import {windowCaption} from './stretch';
 
 const session = toSessionDetail({
@@ -171,15 +171,6 @@ describe('windowCaption', () => {
   });
 });
 
-describe('windowExplainer', () => {
-  it('says what the stretch is and that it is the same for every lap', () => {
-    const text = windowExplainer({fromM: 700, toM: 1000}, true);
-    expect(text).toContain('700 m to 1,000 m');
-    expect(text).toContain('the same stretch of track for every lap');
-    expect(text).toContain('next part');
-  });
-});
-
 describe('the Corner model with windows', () => {
   const m = mapWith(boundaries);
 
@@ -187,7 +178,6 @@ describe('the Corner model with windows', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
     expect(model.zoom.caption).toMatch(/^Shaded: T3 · 700 → 1,000 m/);
-    expect(model.explainer).toContain('700 m to 1,000 m');
     expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–T3)']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
@@ -236,25 +226,19 @@ describe('the Corner model with windows', () => {
       outline: {features: []},
     });
     const t1 = build(one, {v: 1, rev: 3}, 1)!;
-    expect(t1.explainer).toContain('the next corner starts');
-    expect(t1.explainer).toContain('braking or lift');
-    // Both parts of a compound section, the first one too (its window starts
-    // where the section's does).
-    for (const part of [2, 3])
-      expect(build(one, {v: 1, rev: 3}, part)!.explainer).toContain(
-        'the next part starts',
-      );
+    expect(t1.parts).toEqual([]);
+    expect(build(one, {v: 1, rev: 3}, 2)!.parts.map(p => p.label)).toHaveLength(
+      2,
+    );
   });
 
-  it('keeps the old stretch and explainer for laps cut at other boundaries', () => {
+  it('keeps the old stretch for laps cut at other boundaries', () => {
     const model = build(m, {v: 1, rev: 2}, 3)!;
     expect(model.zoom.caption).toMatch(/^Shaded: T3 · 700 → /);
-    expect(model.explainer).toMatch(/next corner.s entry/);
     expect(model.zoom.stretch.fromM).toBe(700);
   });
 
   it('keeps the old stretch for a track with no boundaries', () => {
     const model = build(mapWith(null), null, 3)!;
-    expect(model.explainer).toMatch(/next corner.s entry/);
   });
 });

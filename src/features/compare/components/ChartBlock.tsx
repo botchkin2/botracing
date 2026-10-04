@@ -9,7 +9,7 @@ import {
   type ChannelId,
   MAX_OVERLAY,
 } from '@/src/state/comparePrefs';
-import {Chip, Explainer, Text, useHowToRead} from '@/src/ui';
+import {Chip, Text} from '@/src/ui';
 
 import {
   CHANNELS,
@@ -18,7 +18,6 @@ import {
   type ChartValueRow,
   drawRank,
 } from '../model';
-import {chartHelp} from '../chartHelp';
 
 export type LapStyle = (
   selIndex: number,
@@ -30,7 +29,7 @@ const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 const BRAKE_FILL = 0.16;
 const STEER_WIDTH = 1.2;
 
-/** One chart: header with values at the cursor, the explainer, the traces. */
+/** One chart: header with values at the cursor, the traces. */
 export function ChartBlock({
   chart,
   width,
@@ -50,7 +49,6 @@ export function ChartBlock({
   editor,
   plotFirst,
   overlay,
-  extraHelp,
 }: {
   chart: ChartModel;
   width: number;
@@ -73,15 +71,13 @@ export function ChartBlock({
   /** Desktop: the header is its own editor (× per channel, + overlay). */
   editor?: {onToggle: (ch: ChannelId) => void};
   /**
-   * Phone: the plot sits right under the title, and the values per channel and
-   * the explainer come below it (Botkin watches the lines, not the numbers;
+   * Phone: the plot sits right under the title, and the values per channel come
+   * below it (Botkin watches the lines, not the numbers;
    * pit-wall thread 41 #1178).
    */
   plotFirst?: boolean;
   /** Drawn over the plot's top right corner (the radar on the phone). */
   overlay?: ReactNode;
-  /** Lines added to this chart's "?" (what the overlay is). */
-  extraHelp?: readonly string[];
 }) {
   const {color} = useTheme();
   // Other laps first, so the highlighted lap and the reference draw on top.
@@ -110,10 +106,6 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
-  const help = useHowToRead(chart.title, [
-    ...chartHelp(chart.channels),
-    ...(extraHelp ?? []),
-  ]);
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -136,7 +128,6 @@ export function ChartBlock({
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
-      {help.button}
     </View>
   );
   const valueRows = (
@@ -222,10 +213,8 @@ export function ChartBlock({
     return (
       <View style={styles.block}>
         {titleRow}
-        {help.panel}
         {plot}
         <View>{valueRows}</View>
-        <Explainer>{chart.explainer}</Explainer>
       </View>
     );
 
@@ -240,7 +229,6 @@ export function ChartBlock({
             {chart.valueRows[0].unit}
           </Text>
           {valueTexts(chart.valueRows[0])}
-          <View style={styles.help}>{help.button}</View>
         </View>
       ) : (
         <View>
@@ -248,8 +236,6 @@ export function ChartBlock({
           {valueRows}
         </View>
       )}
-      {help.panel}
-      <Explainer>{chart.explainer}</Explainer>
       {plot}
     </View>
   );
@@ -291,8 +277,6 @@ const styles = StyleSheet.create({
   block: {gap: space.xxs},
   headerRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  // Pushed to the header's far edge; the values wrap before it.
-  help: {marginLeft: 'auto', alignSelf: 'center'},
   overlayRow: {
     height: 17,
     flexDirection: 'row',
