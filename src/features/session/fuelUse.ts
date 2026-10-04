@@ -177,13 +177,6 @@ export function planMatchesLimit(
   return planLimitL != null && sameLimit(sessionLimitL, planLimitL);
 }
 
-// Behind the "?" on the Fuel use card, one sentence a line.
-export const FUEL_USE_HELP: readonly string[] = [
-  'A stint’s use is measured from the recorded fuel level over its green laps.',
-  'A stint gets a median use, and its spread (the middle half of its laps), from 4 laps or more.',
-  'One load is the fill limit, or 100 % VE, over the stint’s median use per lap.',
-];
-
 const litres = (v: number, digits = 2) => `${v.toFixed(digits)} L`;
 
 export type FuelUseRow = {

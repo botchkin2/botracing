@@ -1,7 +1,7 @@
 import {StyleSheet, View} from 'react-native';
 
 import {size, space, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {type StintVsStintModel} from '../desktopModel';
 
@@ -23,7 +23,6 @@ export function StintCornerBars({model}: {model: StintVsStintModel}) {
           Σ {model.total} s
         </Text>
       </View>
-      <Explainer>{model.explainer}</Explainer>
       <View style={styles.rows}>
         {model.rows.map(r => (
           <View key={r.key} style={styles.row}>

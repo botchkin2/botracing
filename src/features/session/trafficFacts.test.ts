@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type LapTraffic} from '@/src/data/sessions';
 
-import {PACE_RULE, setText, trafficRows} from './trafficFacts';
+import {setText, trafficRows} from './trafficFacts';
 
 const base: LapTraffic = {
   draftS: 6.14,
@@ -59,14 +59,5 @@ describe('setText', () => {
       '1:49.800 · 4 of 14 laps',
     );
     expect(setText({laps: 2, medianS: null}, 14)).toBeNull();
-  });
-});
-
-describe('PACE_RULE', () => {
-  it('prints the stored clean rule, not "TRAF or BLUE"', () => {
-    expect(PACE_RULE).toContain('no pass suffered');
-    expect(PACE_RULE).toContain('1.5 s behind');
-    expect(PACE_RULE).toContain('under 2 s within 1 s of a same-class car');
-    expect(PACE_RULE).not.toMatch(/\b(better|worse|should|good|bad)\b/i);
   });
 });

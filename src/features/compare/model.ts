@@ -74,7 +74,6 @@ export type {ChannelId} from '@/src/state/comparePrefs';
 type ChannelSpec = {
   label: string;
   unit: string;
-  explainer: string;
   /** Shared scale for channels of the same kind. */
   kind: 'time' | 'speed' | 'pedal' | 'steer' | 'gear';
   /** In a window, the y range snaps outward to this step (see domainOf). */
@@ -88,13 +87,11 @@ type ChannelSpec = {
   native?: NativeChannel;
 };
 
-// Heights and copy from the handoff (Compare chart heights, chart descs).
+// Heights from the handoff (Compare chart heights).
 export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   timeDiff: {
     label: 'Time diff',
     unit: 's',
-    explainer:
-      'Running gap to the reference. Line rising = losing time there, falling = gaining.',
     kind: 'time',
     height: 62,
     desktopHeight: 96,
@@ -104,8 +101,6 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   speed: {
     label: 'Speed',
     unit: 'km/h',
-    explainer:
-      'Grey band = where your race laps usually are (10th–90th percentile).',
     kind: 'speed',
     ySnap: 20,
     height: 104,
@@ -117,7 +112,6 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   throttle: {
     label: 'Throttle',
     unit: '%',
-    explainer: 'Throttle pedal, 0–100%.',
     kind: 'pedal',
     height: 50,
     desktopHeight: 106,
@@ -128,7 +122,6 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   brake: {
     label: 'Brake',
     unit: '%',
-    explainer: 'Brake pedal, 0–100%. Where it starts is the brake point.',
     kind: 'pedal',
     height: 50,
     desktopHeight: 106,
@@ -140,7 +133,6 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     label: 'Steering',
     // LMU records steering as % of lock, not degrees (docs/LMU_SYNC_NOTES.md).
     unit: '% lock',
-    explainer: 'Steering, as % of full lock. Extra wiggles are corrections.',
     kind: 'steer',
     ySnap: 10,
     height: 56,
@@ -152,7 +144,6 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   gear: {
     label: 'Gear',
     unit: '',
-    explainer: 'Gear selected.',
     kind: 'gear',
     height: 44,
     desktopHeight: 60,
@@ -248,7 +239,6 @@ export type ChartModel = {
   key: string;
   channels: ChannelId[];
   title: string;
-  explainer: string;
   height: number;
   desktopHeight: number;
   lines: ChartLine[];
@@ -263,7 +253,6 @@ export type ChartModel = {
 };
 
 export type CornerGridModel = {
-  explainer: string;
   corners: number[];
   rows: {
     key: string;
@@ -943,28 +932,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           ? band.throttlePct
           : band.brakePct
         : null;
-    const explainer = pedals
-      ? 'Line = throttle, filled area = brake, both 0–100%. Bottom band = steering, % of full lock.'
-      : chs.length === 1
-      ? CHANNELS[chs[0]].explainer
-      : chs.every(c => CHANNELS[c].kind === CHANNELS[chs[0]].kind)
-      ? `${chs
-          .map(
-            (c, i) =>
-              `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
-          )
-          .join(', ')}. Same scale.`
-      : `${chs
-          .map(
-            (c, i) =>
-              `${CHANNELS[c].label} ${['solid', 'dashed', 'dotted'][i]}`,
-          )
-          .join(', ')}. Each channel keeps its own scale.`;
     return {
       key: chs.join('+'),
       channels: chs,
       title: chs.map(labelOf).join(' + '),
-      explainer,
       height: pedals
         ? PEDALS_H
         : Math.max(...chs.map(c => CHANNELS[c].height)) +
@@ -1009,11 +980,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     ? sectionNs
     : Array.from({length: cornerCount}, (_, i) => i + 1);
   // Against windows, a lap cut at other boundaries (or analysed before them)
-  // has section times cut elsewhere: no cells for it, and the header says so.
-  const staleLaps = (rowLaps: Lap[]) =>
-    table.kind === 'lap' || !map
-      ? []
-      : rowLaps.filter(l => !onCurrentBoundaries(l, map));
+  // has section times cut elsewhere: no cells for it.
   const diffRow = (lap: Lap) =>
     corners.map((n, i) => {
       if (table.kind !== 'lap' && map && !onCurrentBoundaries(lap, map))
@@ -1073,25 +1040,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       ];
     }
   }
-  const pendingNote = (names: string[]) =>
-    names.length > 0
-      ? ` ${names.join(', ')} ${
-          names.length > 1 ? 'are' : 'is'
-        } pending re-analysis: no cells.`
-      : '';
   const grid: CornerGridModel | null =
     gridRows.length && ref
       ? {
-          explainer: `Time in each section vs ${
-            table.label
-          }, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section to open it.${pendingNote(
-            staleLaps(
-              gridRows.flatMap(r => {
-                const l = r.lapId == null ? undefined : byId.get(r.lapId);
-                return l ? [l] : [];
-              }),
-            ).map(nameOf),
-          )}`,
           corners,
           rows: gridRows,
         }

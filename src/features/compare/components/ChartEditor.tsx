@@ -50,11 +50,6 @@ export function ChartEditor({
       bodyStyle={styles.rows}
       header={
         <>
-          <Text variant='explainer' tone='textMuted'>
-            Each row is one chart. Put up to 3 channels on a chart to overlay
-            them. The first is solid, the second dashed, the third dotted. Laps
-            keep their colors.
-          </Text>
           <View style={styles.wrap}>
             <Text variant='label' tone='textMuted'>
               Presets

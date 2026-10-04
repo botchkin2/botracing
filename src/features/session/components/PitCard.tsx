@@ -3,7 +3,7 @@ import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {SplitBar} from '@/src/charts';
 import {size, space, useTheme} from '@/src/design';
-import {Explainer, Text, useHowToRead} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {
   type FuelCard,
@@ -12,7 +12,6 @@ import {
   type StopsCard,
   type WheelWear,
 } from '../pitCard';
-import {PIT_REVIEW_HELP} from '../pitReview';
 
 /**
  * The race's Pit stops card (round 5 item 3): a "Fuel" card when nothing was
@@ -36,21 +35,9 @@ export function PitCard({
   focusLapIndex?: number | null;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('the pit stops', PIT_REVIEW_HELP);
   return (
     <View style={styles.card}>
-      <View style={styles.title}>
-        <Text variant='label'>
-          {card.kind === 'fuel' ? 'Fuel' : 'Pit stops'}
-        </Text>
-        {help.button}
-      </View>
-      <Explainer>
-        {card.kind === 'fuel'
-          ? 'No stops. What was in the car at the start, what was used, and what was left.'
-          : 'Per stop: what was left on the way in, what was added, time in the pit lane, and tyres.'}
-      </Explainer>
-      {help.panel}
+      <Text variant='label'>{card.kind === 'fuel' ? 'Fuel' : 'Pit stops'}</Text>
       {card.kind === 'fuel' ? (
         <FuelBody card={card} width={width} />
       ) : (

@@ -123,7 +123,6 @@ export type CornerModel = {
   title: string;
   subtitle: string;
   mode: LapMode;
-  explainer: string;
   rows: CornerRow[];
   strips: StripModel[] | null;
   /** The section's window, split and compared; null until the track has boundaries. */
@@ -192,28 +191,6 @@ export function cornerLapIds(
 }
 
 /**
- * Definition copy. Some stored parts have the apex on the segment edge
- * (entry = apex, or apex = exit); print equal points once, not as if distinct.
- */
-export function cornerExplainer(
-  sec: {entryM: number; apexM: number; exitM: number},
-  nextEntry: {entryM: number},
-): string {
-  const apex = formatDistance(sec.apexM);
-  const next = `the next corner's entry (${formatDistance(nextEntry.entryM)})`;
-  const span =
-    sec.apexM === sec.entryM
-      ? `this corner's entry, which is also its apex (${apex}), to ${next}`
-      : `this corner's entry (${formatDistance(sec.entryM)}) to ${next}`;
-  const apexRef = sec.apexM === sec.entryM ? 'the apex' : `the apex (${apex})`;
-  const edge =
-    sec.apexM === sec.exitM && sec.apexM !== sec.entryM
-      ? ' The apex is at the corner’s exit.'
-      : '';
-  return `Time in corner runs from ${span}, the same stretch of track for every lap. Brake point is metres before ${apexRef}; full throttle is metres after it.${edge}`;
-}
-
-/**
  * The corner's own window, in lap metres: its part's, or the section's when
  * the section is one corner. Null until the reference lap is cut at the
  * boundaries the map carries now (a lap cut at older ones, or before windows
@@ -234,16 +211,6 @@ function ownWindow(
     own: {fromM: at.fromM, toM: at.toM},
     section: {fromM: w.fromM, toM: w.toM},
   };
-}
-
-/** The text under "Time in corner" when the corner has a window of its own. */
-export function windowExplainer(window: CornerStretch, isPart: boolean) {
-  const span = `${formatDistance(window.fromM)} to ${formatDistance(
-    window.toM,
-  )}`;
-  return `Time in corner runs from ${span}, the same stretch of track for every lap: from where laps still run alike before the braking or lift, to where the next ${
-    isPart ? 'part' : 'corner'
-  } starts. Brake point is metres before the apex; full throttle is metres after it.`;
 }
 
 /** One chip per section (a compound one reads "S5 (T8–T10)") and the parts of the current one. */
@@ -302,7 +269,6 @@ export function buildCornerModel(input: {
   const idx = all.findIndex(c => c.n === corner);
   if (idx < 0) return null;
   const sec = all[idx];
-  const nextSec = all[(idx + 1) % all.length];
   const byId = new Map(laps.map(l => [l.id, l]));
   const selected = lapIds
     .map(id => byId.get(id))
@@ -503,14 +469,6 @@ export function buildCornerModel(input: {
       .filter(Boolean)
       .join(' · '),
     mode,
-    // The stored map gives every section a parts array, so "a part" is a
-    // section with more than one corner (hairpin #1781).
-    explainer: own
-      ? windowExplainer(
-          own,
-          all.filter(c => c.sectionN === sec.sectionN).length > 1,
-        )
-      : cornerExplainer(sec, nextSec),
     rows,
     strips,
     window: buildSectionWindow({

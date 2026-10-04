@@ -2,9 +2,9 @@ import {StyleSheet, View} from 'react-native';
 
 import {FuelScatter} from '@/src/charts';
 import {space} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
-import {WEAR_SCATTER_KEY, type WearScatterModel} from '../wearScatter';
+import {type WearScatterModel} from '../wearScatter';
 
 const PANEL_H = 150;
 
@@ -22,7 +22,6 @@ export function WearScatter({
   return (
     <View style={styles.box}>
       <Text variant='label'>Lap time and wear</Text>
-      <Explainer>{WEAR_SCATTER_KEY}</Explainer>
       <Text variant='dataSmall' tone='textSecondary'>
         {model.headline}
       </Text>
@@ -50,8 +49,8 @@ export function WearScatter({
       ))}
       <Text variant='dataSmall' tone='textMuted'>
         {model.flagged == null
-          ? `${model.n} green laps; no other cars were recorded, so tow and traffic are not known.`
-          : `${model.n} green laps; ${model.flagged} had a tow, traffic or blue flag and are included.`}
+          ? `${model.n} green laps`
+          : `${model.n} green laps · ${model.flagged} with tow, traffic or blue flag`}
       </Text>
     </View>
   );

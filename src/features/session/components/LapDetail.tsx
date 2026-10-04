@@ -67,11 +67,6 @@ export function LapDetail({
           ))}
         </View>
       )}
-      {detail.why && (
-        <Text variant='explainer' tone='textMuted'>
-          {detail.why}
-        </Text>
-      )}
       {extra}
       <View style={styles.action}>
         <Button

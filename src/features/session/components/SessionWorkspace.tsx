@@ -11,18 +11,10 @@ import {
 
 import {space, useLayout, useTheme} from '@/src/design';
 import {trackHref} from '@/src/nav/routes';
-import {
-  Explainer,
-  PANEL_DIVIDER_W,
-  PanelDivider,
-  Text,
-  useHowToRead,
-} from '@/src/ui';
+import {PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';
-import {OPTIMUM_HELP} from '../optimumFacts';
-import {PACE_RULE_LINES} from '../trafficFacts';
 
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapDistribution} from './LapDistribution';
@@ -85,8 +77,6 @@ export function SessionWorkspace({
   const {color} = useTheme();
   const router = useRouter();
   const layout = useLayout();
-  const paceHelp = useHowToRead('clean and traffic', PACE_RULE_LINES);
-  const optimumHelp = useHowToRead('the summed windows', OPTIMUM_HELP);
   const listRef = useRef<FlatList<RowModel>>(null);
   const sideRef = useRef<ScrollView>(null);
   const cardsY = useRef(0);
@@ -157,16 +147,6 @@ export function SessionWorkspace({
               }
             />
           ) : null}
-          {/* The rules are help lines, not a column: a "?" opens them across the head. */}
-          {model.paceRule ? (
-            <View style={styles.helpRow}>
-              <Text variant='dataSmall' tone='textMuted'>
-                Clean and traffic medians
-              </Text>
-              {paceHelp.button}
-            </View>
-          ) : null}
-          {model.paceRule ? paceHelp.panel : null}
           {model.optimum.length > 0 ? (
             <>
               <View style={styles.optimum}>
@@ -180,9 +160,7 @@ export function SessionWorkspace({
                     </Text>
                   </View>
                 ))}
-                {optimumHelp.button}
               </View>
-              {optimumHelp.panel}
             </>
           ) : null}
         </View>
@@ -205,7 +183,9 @@ export function SessionWorkspace({
           )}
           ListFooterComponent={
             <View style={styles.footer}>
-              <Explainer>{tagKey}</Explainer>
+              <Text variant='dataSmall' tone='textMuted'>
+                {tagKey}
+              </Text>
             </View>
           }
         />
@@ -232,12 +212,7 @@ export function SessionWorkspace({
             onHighlight={onHighlight}
             cards={cards}
           />
-          {detail ?? (
-            <Explainer>
-              Click a bar, a row or a dot to see that lap, and tick laps to
-              compare.
-            </Explainer>
-          )}
+          {detail}
         </ScrollView>
         {tray && (
           <View
@@ -299,7 +274,7 @@ const styles = StyleSheet.create({
   },
   facts: {marginLeft: 'auto', flexDirection: 'row', gap: space.xxl},
   factValue: {fontSize: 15},
-  // Under the stats row: the help lines and the optimal-lap facts.
+  // Under the stats row: the optimal-lap facts.
   extra: {paddingHorizontal: PAD_X, paddingTop: space.sm, gap: space.sm},
   helpRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   optimum: {

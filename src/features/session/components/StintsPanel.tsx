@@ -1,7 +1,7 @@
 import {StyleSheet, View} from 'react-native';
 
 import {space, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {type StintTableRow} from '../desktopModel';
 
@@ -14,11 +14,6 @@ export function StintsPanel({rows}: {rows: StintTableRow[]}) {
   return (
     <View>
       <Text variant='label'>Stints</Text>
-      <Explainer>
-        Comparable laps only. Median, best and spread (standard deviation) in
-        seconds; fall-off is the stored lap-time trend per lap, where the
-        uploader recorded one.
-      </Explainer>
       <View style={[styles.row, styles.head, {borderColor: color.lineHeader}]}>
         <View style={{width: COL.name}} />
         <Text variant='tableHeader' tone='textMuted' style={{width: COL.n}}>

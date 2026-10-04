@@ -1,14 +1,13 @@
 import {StyleSheet, View} from 'react-native';
 
 import {space, useTheme} from '@/src/design';
-import {Explainer, Text, useHowToRead} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {
   type Cell,
   type SectionWindowModel,
   type SectionWindowRow,
 } from './sectionWindow';
-import {SECTION_WINDOW_HELP} from './sectionWindowHelp';
 
 /**
  * The section's window (pit-wall thread 45): the time boundary to boundary,
@@ -19,17 +18,14 @@ import {SECTION_WINDOW_HELP} from './sectionWindowHelp';
  */
 export function SectionWindowCard({window}: {window: SectionWindowModel}) {
   const {color} = useTheme();
-  const help = useHowToRead('the corner window', SECTION_WINDOW_HELP);
   return (
     <View style={styles.card}>
       <View style={styles.title}>
         <Text variant='label'>Window · {window.label}</Text>
-        {help.button}
+        <Text variant='dataSmall' tone='textMuted'>
+          {window.span}
+        </Text>
       </View>
-      <Explainer>
-        {`${window.span}, boundary to boundary: time split into run-in, corner and exit.`}
-      </Explainer>
-      {help.panel}
       {window.parts.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted'>
           {window.parts.map(p => p.label).join(' · ')} inside

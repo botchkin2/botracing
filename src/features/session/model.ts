@@ -24,7 +24,6 @@ import {buildTiresCard, type TiresCard} from './tireCard';
 import {buildWearScatter, type WearScatterModel} from './wearScatter';
 import {lapTraffic, orderTags, trafficTags} from './lapTags';
 import {
-  PACE_RULE,
   setText,
   stintTrafficText,
   type TrafficRow,
@@ -113,7 +112,6 @@ export type DetailModel = {
   title: string;
   status: string;
   excluded: boolean;
-  why: string | null;
   /** Fuel and Virtual Energy on the lap, one line each (fuelLines.ts). */
   fuel: string[];
   /** Seconds and counts from the field; null on a lap without one (round 7, 2B). */
@@ -135,8 +133,6 @@ export type SessionScreenModel = {
   facts: Fact[];
   /** Best sections summed and the sum of window medians per stint; empty before the windows or under 5 laps. */
   optimum: Fact[];
-  /** What "clean" and "traffic" mean, when either is shown; null otherwise. */
-  paceRule: string | null;
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
   rows: RowModel[];
@@ -242,42 +238,6 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
 /** Off-track time a comparable lap may carry (handoff exclusion copy). */
 export const OFF_TRACK_TOLERANCE_S = 1.0;
 
-/** The one-sentence reason in the detail panel (handoff "Exclusion reason copy"). */
-export function reasonText(lap: Lap, stintMedianS: number | null): string {
-  const parts: string[] = [];
-  if (lap.pitOut)
-    parts.push('Starts in the pit lane, so it includes pit exit time.');
-  else if (lap.pitIn)
-    parts.push('Ends in the pit lane, so it includes pit entry time.');
-  else if (lap.endedInReset)
-    parts.push('Ends in a reset to the garage, so the lap is incomplete.');
-  else if (lap.partialWhy === 'grid')
-    parts.push(
-      'Starts parked (the grid or the garage), so this is the roll to the line, not a lap.',
-    );
-  else if (lap.partial || lap.reasons.includes('untimed'))
-    parts.push('Timing started partway round, so the lap is incomplete.');
-  else if (lap.reasons.includes('slow') && lap.timeS != null && stintMedianS)
-    parts.push(
-      `${formatGap(
-        lap.timeS - stintMedianS,
-        2,
-      )} s vs the stint median, so it is excluded as a slow outlier.`,
-    );
-  if (lap.offTrackS >= 0.1) {
-    const off = `Off track for ${lap.offTrackS.toFixed(1)} s`;
-    parts.push(
-      lap.comparable && lap.offTrackS < OFF_TRACK_TOLERANCE_S
-        ? `${off}, under the ${OFF_TRACK_TOLERANCE_S.toFixed(
-            1,
-          )} s tolerance, so the lap still counts.`
-        : `${off}.`,
-    );
-  }
-  if (lap.hadImpact) parts.push('Impact detected, possible damage.');
-  return parts.join(' ');
-}
-
 function statusFor(lap: Lap, medianS: number | null): string {
   if (!lap.comparable) {
     const why = lap.pitOut
@@ -311,7 +271,6 @@ export function buildSessionModel(
     const i = selection.laps.indexOf(id);
     return i < 0 ? null : i;
   };
-  const stintMedian = new Map(session.stints.map(s => [s.n, s.medianTimeS]));
   const car = carLabel(session.car);
   const started = new Date(session.startedAt);
 
@@ -440,7 +399,6 @@ export function buildSessionModel(
     title: `${lapLabel(hlLap)} · ${timeOrDash(hlLap.timeS)}`,
     status: statusFor(hlLap, median),
     excluded: !hlLap.comparable,
-    why: reasonText(hlLap, stintMedian.get(hlLap.stint) ?? null) || null,
     fuel: lapFuelLines(hlLap),
     traffic: trafficRows(hlLap.traffic),
     action:
@@ -501,7 +459,6 @@ export function buildSessionModel(
       map ? sessionOptimum(laps, map) : null,
       session.stints.length,
     ),
-    paceRule: session.traffic && trafficPace.length > 0 ? PACE_RULE : null,
     chart,
     noComparable,
     rows,

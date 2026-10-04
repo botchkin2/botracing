@@ -32,7 +32,6 @@ import {type TraceLoad} from '@/src/data/traces';
 import {
   Checkbox,
   Chip,
-  Explainer,
   PANEL_DIVIDER_W,
   PanelDivider,
   Segment,
@@ -72,7 +71,6 @@ const MAP_ASPECT = 220 / 320;
 const OVERVIEW_H = 58;
 
 export type WorkspaceProps = {
-  sessionId: string;
   /** Every car at 5 Hz, once loaded; the radar panel needs it. */
   field?: Field;
   model: CompareModel;
@@ -208,7 +206,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
         ))}
         {model.manyChip && <Chip label={model.manyChip} dashed />}
         <Text variant='dataSmall' tone='textFaint'>
-          {`Times vs ${model.tableReference.chips}. REF is the lap the traces and the map follow; tap another lap’s Ref to change it.`}
+          {`Times vs ${model.tableReference.chips}`}
         </Text>
         <Text variant='label' tone='textMuted' style={styles.gapTop}>
           All laps
@@ -358,10 +356,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             <Text variant='label' tone='textMuted'>
               Whole lap
             </Text>
-            <Explainer>
-              Running gap to the reference over the whole lap. The frame is the
-              detail window; click or drag to move it.
-            </Explainer>
             <TraceChart
               width={centreW}
               height={OVERVIEW_H}
@@ -468,7 +462,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             width={mapW}
             height={Math.round(mapW * MAP_ASPECT)}
             map={model.map}
-            sessionId={p.sessionId}
             openSection={selection.corner ?? null}
             lapStyle={lapStyle}
             onPressSection={p.onOpenSection}
@@ -513,9 +506,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
         {model.grid && (
           <View style={styles.section}>
             <Text variant='label' tone='textMuted'>
-              Time per section
+              {`Time per section vs ${model.tableReference.grid}`}
             </Text>
-            <Explainer>{model.grid.explainer}</Explainer>
             <View style={styles.tableRow}>
               <View style={styles.sectionHead} />
               {model.grid.rows.map(r => (

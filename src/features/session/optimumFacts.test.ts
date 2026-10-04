@@ -18,7 +18,7 @@ const optimum = (over: Partial<SessionOptimum['stints'][number]> = {}) =>
         ...over,
       },
     ],
-  }) as SessionOptimum;
+  } as SessionOptimum);
 
 describe('optimumFacts', () => {
   it('is empty before the windows', () => {

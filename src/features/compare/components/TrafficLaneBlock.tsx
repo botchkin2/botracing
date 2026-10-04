@@ -3,15 +3,11 @@ import {StyleSheet, View} from 'react-native';
 import {type TimedGrid} from '@/src/analysis/window';
 import {TrafficLane} from '@/src/charts';
 import {size, space} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {type TrafficLaneModel} from '../model';
 import {type LapStyle} from './ChartBlock';
 
-// Round 7, 2C/2D. Copy from the design; "passed you" is "passed" here (an
-// instrument names the data, not the driver).
-const EXPLAINER =
-  'Within 1.0 s of a car ahead, per lap, same axis as above. White ticks: BLUE = a faster-class car passed, PASS = a pass within the car’s class.';
 export const NO_FIELD = 'No other cars recorded in this session';
 
 /** The car-ahead lane under the last chart. */
@@ -43,7 +39,6 @@ export function TrafficLaneBlock({
         </View>
       ) : (
         <>
-          <Explainer>{EXPLAINER}</Explainer>
           <TrafficLane
             width={width}
             windowM={windowM}

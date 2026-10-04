@@ -32,12 +32,10 @@ import {type TraceLoad} from '@/src/data/traces';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {
   Chip,
-  Explainer,
   PANEL_DIVIDER_W,
   PanelDivider,
   StatusBanner,
   Text,
-  useHowToRead,
 } from '@/src/ui';
 
 import {
@@ -51,7 +49,6 @@ import {
   sortRows,
 } from './model';
 import {MAX_ON_LAPS, toggleLap} from './keyLaps';
-import {STRIPS_HELP} from './stripsHelp';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -185,7 +182,6 @@ function CornerView({
   const [notice, setNotice] = useState<string | null>(null);
   // Phone: the lap table is one tap away, the strips stay the first read.
   const [tableOpen, setTableOpen] = useState(false);
-  const stripsHelp = useHowToRead('the dot strips', STRIPS_HELP);
   const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
@@ -318,15 +314,6 @@ function CornerView({
       {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
-          <View style={styles.row}>
-            <Text variant='explainer' tone='textMuted' style={styles.flex}>
-              {canToggle
-                ? 'Coloured dots are the laps on; grey dots are the other comparable laps. Tap a dot to turn that lap on or off.'
-                : 'Coloured dots are the laps on; grey dots are the other laps. Tap a dot to highlight it.'}
-            </Text>
-            {stripsHelp.button}
-          </View>
-          {stripsHelp.panel}
           {canToggle && selection.laps.length >= 2 ? (
             <View style={styles.row}>
               <Chip
@@ -455,7 +442,6 @@ function CornerView({
           onPressRow={highlight}
         />
       )}
-      <Explainer>{model.explainer}</Explainer>
     </View>
   );
 
@@ -687,7 +673,7 @@ function BrakeMapPanel({
   return (
     <View style={styles.gap}>
       <Text variant='label' tone='textMuted'>
-        Where each lap braked
+        Brake ● · full throttle ■
       </Text>
       <BrakeMap
         width={width}
@@ -699,10 +685,6 @@ function BrakeMapPanel({
         ticks={map.ticks}
         markers={markers}
       />
-      <Explainer>
-        Circles are brake points and squares are full-throttle points, placed on
-        the reference lap’s line at that distance. The laps on are in colour.
-      </Explainer>
     </View>
   );
 }
