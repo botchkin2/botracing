@@ -15,6 +15,7 @@
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
+//   node tools/sessions/sync.mjs --sim iracing        iRacing .ibt (default lmu)
 //   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
 //   node tools/sessions/sync.mjs --capture <dir>      tools/capture's output, if not
 //                                                     %LOCALAPPDATA%\lap-capture
@@ -35,6 +36,7 @@ import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
+import * as iracing from './iracing.mjs';
 import {reusableInfo} from './describeCache.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
@@ -66,7 +68,10 @@ function arg(name, fallback) {
 }
 const flag = name => process.argv.includes(name);
 
-const adapter = lmu;
+const sims = {lmu, iracing};
+const simName = arg('--sim', process.env.LAP_SIM || 'lmu');
+const adapter = sims[simName];
+if (!adapter) throw new Error(`unknown sim "${simName}"`);
 const folder = arg(
   '--folder',
   process.env.LMU_TELEMETRY || adapter.defaultFolder,
@@ -208,16 +213,16 @@ function group(files) {
     a.info.recordedAt.localeCompare(b.info.recordedAt),
   )) {
     const {info} = file;
-    const key = [
-      ownerId,
-      info.sim,
-      info.layout,
-      info.car,
-      info.sessionType,
-    ].join('|');
+    const key =
+      info.groupId ||
+      [ownerId, info.sim, info.layout, info.car, info.sessionType].join('|');
     const list = byKey.get(key) || [];
     const last = list[list.length - 1];
-    if (last && sameSession(last.files[last.files.length - 1].info, info)) {
+    if (
+      last &&
+      (info.groupId ||
+        sameSession(last.files[last.files.length - 1].info, info))
+    ) {
       last.files.push(file);
     } else {
       list.push({key, files: [file]});
@@ -245,7 +250,7 @@ function group(files) {
 }
 
 function slugId(sim, name) {
-  return `${sim}-${lmu.slug(name)}`;
+  return `${sim}-${adapter.slug(name)}`;
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
