@@ -140,7 +140,8 @@ export const dash = {
 } as const;
 
 /**
- * Stroke for the lap at `index` in the selection (0 = reference).
+ * Stroke for the lap at `index` in the selection (0 = reference, negative =
+ * the median basis, neutral).
  * In tinted/grey modes only the reference and the highlighted lap are key laps.
  */
 export function lapStroke(
@@ -150,6 +151,13 @@ export function lapStroke(
   highlighted: boolean,
 ): LapStroke {
   const mode = lapMode(count);
+  if (index < 0)
+    return {
+      color: lapMuted[scheme],
+      width: stroke.selected,
+      opacity: 1,
+      key: true,
+    };
   if (index === 0)
     return {
       color: lapColors[scheme][0],

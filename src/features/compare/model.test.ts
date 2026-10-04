@@ -10,7 +10,9 @@ import {
 } from '@/src/data/sessions/adapters';
 
 import {
+  BASIS_ID,
   buildCompareModel,
+  medianBasisOf,
   snapOut,
   cornerPlace,
   pedalsDomains,
@@ -175,7 +177,6 @@ describe('buildCompareModel', () => {
       ['L2', '+0.400', false],
       ['L3', '−0.100', true],
     ]);
-    expect(m.manyChip).toBeNull();
   });
 
   it('builds the default chart set with time diff on a zero line', () => {
@@ -203,7 +204,12 @@ describe('buildCompareModel', () => {
 
   it('reads values at the cursor for every shown lap', () => {
     const speed = build().charts[1].valueRows[0];
-    expect(speed.values.map(v => v.text)).toEqual(['180', '176', '181']);
+    expect(speed.values.map(v => v.text)).toEqual([
+      '180',
+      '180',
+      '176',
+      '181',
+    ]);
   });
 
   it('grid shows each lap vs the reference per corner', () => {
@@ -276,9 +282,9 @@ describe('chart window', () => {
     const l2 = td.lines.find(l => l.label === 'L2')!;
     const whole = build().charts[0].lines.find(l => l.label === 'L2')!;
     expect(l2.values).toEqual(whole.values);
-    expect(parseFloat(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    expect(parseFloat(td.valueRows[0].values[2].text)).toBeGreaterThan(0.2);
     // The readout says seconds, and the label names the reference lap.
-    expect(td.valueRows[0].values[1].text).toMatch(/ s$/);
+    expect(td.valueRows[0].values[2].text).toMatch(/ s$/);
     expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
   });
@@ -346,7 +352,12 @@ describe('desktop pieces', () => {
       'Steering',
       'Gear',
     ]);
-    expect(rows[1].values.map(v => v.text)).toEqual(['180', '176', '181']);
+    expect(rows[1].values.map(v => v.text)).toEqual([
+      '180',
+      '180',
+      '176',
+      '181',
+    ]);
     expect(rows[0].values[0].text).toBe('±0.000 s');
   });
 
@@ -387,9 +398,61 @@ describe('many laps', () => {
 
   it('tinted mode above 6 laps: only ref and highlighted are key', () => {
     expect(m.mode).toBe('tinted');
-    expect(m.chips.map(c => c.label)).toEqual(['L1', 'L4']);
-    expect(m.manyChip).toBe('+7 laps, tinted');
+    // Every checked lap has a chip; the readout holds the key laps.
+    expect(m.chips).toHaveLength(8);
     expect(m.charts[1].valueRows[0].values).toHaveLength(2);
+  });
+
+  it('median mode, 11 laps, nothing highlighted: chips for all, readout leads with the basis', () => {
+    const eleven = toLaps(
+      Array.from({length: 11}, (_, i) =>
+        rawLap(`e${i}`, 20 + i / 10, [5 + i / 10, 5]),
+      ),
+    );
+    const elevenTraces = new Map(
+      eleven.map(l => [
+        l.id,
+        resampleTrace(circleLap(180 - l.lapIndex), LENGTH_M, 5, 10),
+      ]),
+    );
+    const out = buildCompareModel({
+      session,
+      laps: eleven,
+      traces: elevenTraces,
+      band: null,
+      map,
+      selection: sel({laps: eleven.map(l => l.id)}),
+    });
+    expect(out.chips).toHaveLength(11);
+    expect(out.readouts.map(r => r.lapId)).toEqual([BASIS_ID]);
+    const speed = out.charts[1].valueRows[0];
+    expect(speed.values).toHaveLength(1);
+    expect(speed.values[0].lapId).toBe(BASIS_ID);
+    expect(out.charts[0].valueRows[0].values[0].text).toBe('±0.000 s');
+  });
+
+  it('colour slots: the Ref lap is slot 0, the others follow in lap order', () => {
+    const out = build(sel({ref: 'b'}));
+    expect(out.chips.map(c => [c.label, c.selIndex])).toEqual([
+      ['L1', 1],
+      ['L2', 0],
+      ['L3', 2],
+    ]);
+    expect(build().chips.map(c => c.selIndex)).toEqual([0, 1, 2]);
+  });
+
+  it('takes the median trace from the caller when given, and builds it when not', () => {
+    const own = build(sel());
+    const given = buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel(),
+      basisTrace: medianBasisOf(laps, traces),
+    });
+    expect(given.refGrid!.timeS.at(-1)).toBe(own.refGrid!.timeS.at(-1));
   });
 
   it('grid shows the median row plus the highlighted lap', () => {

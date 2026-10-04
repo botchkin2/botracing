@@ -203,7 +203,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             )}
           </View>
         ))}
-        {model.manyChip && <Chip label={model.manyChip} dashed />}
         <Text variant='dataSmall' tone='textFaint'>
           {`Times vs ${model.tableReference.chips}`}
         </Text>

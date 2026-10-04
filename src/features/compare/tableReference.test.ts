@@ -105,9 +105,22 @@ describe('tableReference', () => {
     expect(r.totalS).toBe(4 + 9 + 12);
   });
 
-  it("falls back to the reference lap's stint medians under 3 checked laps", () => {
+  it('reads the midpoint of 2 checked laps', () => {
     const r = tableReference({
       selected: pick('a', 'b'),
+      sessionLaps: laps,
+      map: map(),
+      refName: 'L1',
+    });
+    expect(r.kind).toBe('set');
+    expect(r.label).toBe('median of 2 checked laps');
+    expect(r.sectionS.get(1)).toBe(8.5);
+    expect(r.sectionS.get(2)).toBe(12);
+  });
+
+  it("falls back to the lap's stint medians under 2 checked laps", () => {
+    const r = tableReference({
+      selected: pick('a'),
       sessionLaps: laps,
       map: map(),
       refName: 'L1',
@@ -155,10 +168,9 @@ describe('tableReference', () => {
       map: map(),
       refName: 'L1',
     });
-    // S1 has 2 times (under the floor of 3): no median, so no total; S2 has 3.
-    expect(r.sectionS.has(1)).toBe(false);
+    // S1 has 2 times (the pit lap's is left out): their midpoint; S2 has 3.
+    expect(r.sectionS.get(1)).toBe(8.5);
     expect(r.sectionS.get(2)).toBe(12);
-    expect(r.totalS).toBeNull();
   });
 });
 
@@ -202,12 +214,15 @@ describe('Compare tables against the checked set', () => {
     expect(g.rows[2].cells).toEqual([1, 0]);
   });
 
-  it('names the stint when fewer than 3 laps are checked', () => {
+  it('two checked laps are a set: their midpoint, not the first lap', () => {
     const m = build(['a', 'b']);
-    expect(m.tableReference.grid).toBe('stint 1 medians, n = 5');
-    // The median of 24 s and 25 s is 24.5 s.
+    expect(m.tableReference.grid).toBe('median of 2 checked laps');
     expect(m.tableReference.chips).toBe('median of 2');
+    // The median of 24 s and 25 s is 24.5 s.
     expect(m.chips[0].delta).toBe('−0.500');
+    // S1 8 and 9 give 8.5: a is -0.5, b is +0.5, whichever is checked first.
+    expect(m.grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
+    expect(build(['b', 'a']).grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
   });
 
   it('gives a lap cut at other boundaries no cells, and says so', () => {

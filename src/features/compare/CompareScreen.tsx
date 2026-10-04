@@ -450,7 +450,6 @@ function CompareView({
           }
         />
       ))}
-      {model.manyChip && <Chip label={model.manyChip} dashed />}
       {model.notFound > 0 && (
         <Chip
           label={`${model.notFound} lap${

@@ -1,11 +1,10 @@
 // What Compare's tables (the chip deltas and the time per section) read each
 // lap against (pit-wall thread 44 #1833 and #1835, Botkin: "the tables and
 // everything just run against all checked boxes"). The checked laps' median
-// per corner window; under 3 checked laps, the first lap's stint medians;
-// failing both (a session not resynced yet), that lap itself. With a Ref lap
-// picked on purpose, that lap alone. Pure: laps and the map in, a named
-// reference out; every header prints `label`.
-import {MIN_CHECKED_LAPS} from '@/src/analysis/sectionOptimum';
+// per corner window (two laps are a set: their midpoint); failing that (a
+// session not resynced yet), the first lap's stint medians, then that lap
+// itself. With a Ref lap picked on purpose, that lap alone. Pure: laps and
+// the map in, a named reference out; every header prints `label`.
 import {
   checkedWindowMedians,
   type Lap,
@@ -13,6 +12,8 @@ import {
   type TrackMapData,
   type WindowReference,
 } from '@/src/data/sessions';
+
+const MIN_SET_LAPS = 2;
 
 export type TableReferenceKind = 'set' | 'stint' | 'lap';
 
@@ -61,9 +62,9 @@ export function tableReference(input: {
     totalS: null,
   };
   if (input.refLap || !map?.boundaries) return lapRef;
-  if (selected.length >= MIN_CHECKED_LAPS) {
-    const set = checkedWindowMedians(selected, map);
-    if (set && set.laps >= MIN_CHECKED_LAPS) {
+  if (selected.length >= MIN_SET_LAPS) {
+    const set = checkedWindowMedians(selected, map, MIN_SET_LAPS);
+    if (set && set.laps >= MIN_SET_LAPS) {
       const m = fromWindows(set);
       if (m.sectionS.size > 0)
         return {

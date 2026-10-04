@@ -347,7 +347,6 @@ export type CompareModel = {
    */
   tableReference: {chips: string; grid: string};
   chips: Chip[];
-  manyChip: string | null;
   map: MapModel | null;
   position: {
     place: string;
@@ -493,6 +492,8 @@ export type CompareInputs = {
   window?: ChartWindow;
   /** Follow geometry for this selection, built once per selection. */
   followGeometry?: FollowGeometry | null;
+  /** The median of the checked laps' traces (`medianBasisOf`), memoized by the caller; built here when omitted. */
+  basisTrace?: GridTrace;
 };
 
 // Map lines are drawn every 20 m: plenty at phone size, a fifth of the points.
@@ -658,29 +659,22 @@ const wrapCache = {
   after: new WeakMap<object, NativeSamples>(),
 };
 
-// The median trace of the checked laps, rebuilt only when the set of loaded
-// traces changes: the cursor moves every frame and the model with it.
-let lastBasis: {
-  traces: GridTrace[];
-  lapTimesS: (number | null)[];
-  out: GridTrace;
-} | null = null;
-
-function medianBasis(traces: GridTrace[], laps: Lap[]): GridTrace | undefined {
-  if (traces.length === 0) return undefined;
-  const lapTimesS = laps.map(l => l.timeS);
-  const prev = lastBasis;
-  if (
-    prev &&
-    prev.traces.length === traces.length &&
-    prev.traces.every((t, i) => t === traces[i]) &&
-    prev.lapTimesS.every((t, i) => t === lapTimesS[i])
-  )
-    return prev.out;
-  const known = lapTimesS.every((t): t is number => t != null);
-  const out = medianTrace(traces, known ? (lapTimesS as number[]) : undefined);
-  lastBasis = {traces, lapTimesS, out};
-  return out;
+/**
+ * The median trace of the checked laps whose traces are in. Pure; the hook
+ * memoizes it per set of loaded traces, since the cursor moves every frame
+ * and the model is rebuilt with it.
+ */
+export function medianBasisOf(
+  laps: Lap[],
+  traces: Map<string, GridTrace>,
+): GridTrace | undefined {
+  const loaded = laps.filter(l => traces.has(l.id));
+  if (loaded.length === 0) return undefined;
+  const times = loaded.map(l => l.timeS);
+  return medianTrace(
+    loaded.map(l => traces.get(l.id)!),
+    times.every((t): t is number => t != null) ? times : undefined,
+  );
 }
 
 export function buildCompareModel(input: CompareInputs): CompareModel {
@@ -719,25 +713,37 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
 
   // The basis every "vs" is measured against: the Ref lap, or the median of
   // the checked laps whose traces are in.
+  // The median describes the laps whose traces are in, so the header number,
+  // the label and the trace are one set while traces stream in.
   const loaded = selected.filter(l => traces.has(l.id));
+  const medianSet = loaded.length > 0 ? loaded : selected;
   const medianLapS = median(
-    selected.flatMap(l => (l.timeS != null ? [l.timeS] : [])),
+    medianSet.flatMap(l => (l.timeS != null ? [l.timeS] : [])),
   );
-  const basisName = refLap ? nameOf(refLap) : `median of ${count}`;
+  const basisName = refLap ? nameOf(refLap) : `median of ${medianSet.length}`;
   const basisLapS = refLap ? refLap.timeS : medianLapS;
   const basisTrace = refLap
     ? traces.get(refLap.id)
-    : medianBasis(loaded.map(l => traces.get(l.id)!), loaded);
+    : input.basisTrace ?? medianBasisOf(selected, traces);
   // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && count > 0
       ? `${CHANNELS[ch].label} vs ${basisName}`
       : CHANNELS[ch].label;
 
+  // Colour slot: the Ref lap is slot 0 (the reference stroke); the others
+  // follow in lap-number order. Without a Ref lap the slots are plain order.
+  const slots = refLap
+    ? selected.map(l =>
+        l.id === refLap.id
+          ? 0
+          : 1 + selected.filter(o => o.id !== refLap.id).indexOf(l),
+      )
+    : selected.map((_, i) => i);
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
     label: nameOf(l),
-    selIndex: i,
+    selIndex: slots[i],
     isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
     key: l.id === refLap?.id || l.id === hlId || mode === 'individual',
@@ -785,9 +791,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     : [];
   // Every chip is the lap's time against the basis time; the Ref lap's own
   // reads REF.
-  const chips: Chip[] = lapRefs
-    .filter(r => mode === 'individual' || r.key)
-    .map(r => {
+  const chips: Chip[] = lapRefs.map(r => {
       const lap = byId.get(r.lapId)!;
       const d =
         lap.timeS != null && basisLapS != null ? lap.timeS - basisLapS : null;
@@ -797,10 +801,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         faster: d != null && d < 0,
       };
     });
-  const manyChip =
-    mode === 'individual'
-      ? null
-      : `+${count - 1} laps, ${mode === 'grey' ? 'shown grey' : 'tinted'}`;
 
   // --- charts -----------------------------------------------------------------
   const diffs = new Map<string, number[]>();
@@ -835,6 +835,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   };
   // A readout is the nearest recorded sample, never an in-between value
   // (Botkin, thread 26 #392); the time diff is a grid quantity.
+  // Without a Ref lap the readout leads with the basis: the median's own
+  // values, and zero for the time diff.
+  const basisGrid = !refLap && basisTrace ? basisTrace : null;
+  const basisValues = (ch: ChannelId) =>
+    basisGrid
+      ? ch === 'timeDiff'
+        ? basisGrid.timeS.map(() => 0)
+        : CHANNELS[ch].pick(basisGrid)
+      : [];
   const readAt = (ch: ChannelId, lapId: string, m: number) => {
     const own = samplesOf(ch, lapId);
     if (own) return nearestSample(own, m);
@@ -1004,15 +1013,32 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         // The readout text carries the time diff's unit.
         unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
         overlay,
-        values: keyRefs.map(r => {
-          const v = readAt(ch, r.lapId, cursorM);
-          return {
-            lapId: r.lapId,
-            selIndex: r.selIndex,
-            highlighted: r.highlighted,
-            text: v == null ? '—' : readoutText(ch, v),
-          };
-        }),
+        values: [
+          ...(basisGrid
+            ? [
+                {
+                  lapId: BASIS_ID,
+                  selIndex: BASIS_SLOT,
+                  highlighted: false,
+                  text: readoutText(
+                    ch,
+                    basisValues(ch)[
+                      Math.min(basisGrid.timeS.length - 1, Math.round(cursorM / stepM))
+                    ],
+                  ),
+                },
+              ]
+            : []),
+          ...keyRefs.map(r => {
+            const v = readAt(ch, r.lapId, cursorM);
+            return {
+              lapId: r.lapId,
+              selIndex: r.selIndex,
+              highlighted: r.highlighted,
+              text: v == null ? '—' : readoutText(ch, v),
+            };
+          }),
+        ],
       })),
     };
   });
@@ -1160,7 +1186,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       grid: table.label,
     },
     chips,
-    manyChip,
     map: mapModel,
     position: {
       place: cornerPlace(map?.sections ?? [], cursorM),
@@ -1201,7 +1226,27 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       selected
         .filter(l => l.timeS != null)
         .sort((a, b) => a.timeS! - b.timeS!)[0]?.id ?? null,
-    readouts: keyRefs.map(r => ({
+    readouts: [
+      ...(basisGrid
+        ? [
+            {
+              lapId: BASIS_ID,
+              selIndex: BASIS_SLOT,
+              highlighted: false,
+              channels: Object.fromEntries(
+                CHANNEL_IDS.map(ch => [ch, basisValues(ch)]),
+              ) as Record<ChannelId, number[]>,
+              // Grid points, not recorded samples: the median is not a lap.
+              samples: Object.fromEntries(
+                CHANNEL_IDS.flatMap(ch => {
+                  const k = CHANNELS[ch].native;
+                  return k ? [[ch, basisGrid.samples[k]]] : [];
+                }),
+              ),
+            },
+          ]
+        : []),
+      ...keyRefs.map(r => ({
       lapId: r.lapId,
       selIndex: r.selIndex,
       highlighted: r.highlighted,
@@ -1215,6 +1260,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         }),
       ),
     })),
+    ],
     overview: lapRefs.flatMap(r => {
       const values = diffs.get(r.lapId);
       return values
@@ -1290,6 +1336,10 @@ export function toggleCompared(
     ? removeLap(sel, lapId)
     : {...sel, laps: [...sel.laps, lapId]};
 }
+
+/** The median basis as a readout row: not a lap, drawn in the neutral basis colour. */
+export const BASIS_ID = 'median';
+export const BASIS_SLOT = -1;
 
 /** Draw order: other laps, then the highlighted lap, then the Ref lap on top. */
 export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
