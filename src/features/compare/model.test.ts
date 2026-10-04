@@ -16,10 +16,11 @@ import {
   pedalsDomains,
   followPlace,
   type CompareSelection,
-  makeReference,
+  clearRef,
   canRemoveLap,
   removeLap,
-  setReference,
+  setRef,
+  toggleHighlight,
   toggleCompared,
   valuesAt,
   withDefaultLaps,
@@ -92,6 +93,7 @@ const traces = new Map([
 
 const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
   laps: ['a', 'b', 'c'],
+  ref: null,
   hl: null,
   corner: null,
   cursorM: 600,
@@ -109,7 +111,8 @@ describe('start/finish wrap', () => {
       traces,
       band: null,
       map,
-      selection: sel({laps: lapIds, cursorM}),
+      // The wrap is drawn against the Ref lap's neighbours; the median has none.
+      selection: sel({laps: lapIds, ref: lapIds[0], cursorM}),
       charts: [['speed'], ['timeDiff']],
       window: {mode: 'distance', size: 200},
     });
@@ -154,8 +157,18 @@ describe('start/finish wrap', () => {
 });
 
 describe('buildCompareModel', () => {
-  it('names the reference and signs each chip against it', () => {
+  it('names the median basis and signs each chip against its time', () => {
     const m = build();
+    expect(m.reference).toBe('median of 3 · 0:20.000');
+    expect(m.chips.map(c => [c.label, c.isRef])).toEqual([
+      ['L1', false],
+      ['L2', false],
+      ['L3', false],
+    ]);
+  });
+
+  it('names the Ref lap and signs each chip against it', () => {
+    const m = build(sel({ref: 'a'}));
     expect(m.reference).toBe('L1 · 0:20.000 · Race best');
     expect(m.chips.map(c => [c.label, c.delta, c.faster])).toEqual([
       ['L1', 'REF', false],
@@ -168,7 +181,7 @@ describe('buildCompareModel', () => {
   it('builds the default chart set with time diff on a zero line', () => {
     const m = build();
     expect(m.charts.map(c => c.title)).toEqual([
-      'Time diff vs L1',
+      'Time diff vs median of 3',
       'Speed',
       'Throttle + Brake + Steering',
       'Gear',
@@ -211,9 +224,11 @@ describe('buildCompareModel', () => {
     expect(mm.sectionApexes.map(s => s.n)).toEqual([1, 2]);
     expect(mm.marks.sections.map(s => s.n)).toEqual([1, 2]);
     expect(mm.pitLane).toEqual([]);
-    // Reference drawn last (on top), highlighted (L2 by default) just below.
-    expect(mm.lines.map(l => l.label)).toEqual(['L3', 'L2', 'L1']);
-    expect(mm.dots.map(d => d.label)).toEqual(['L3', 'L2', 'L1']);
+    // No Ref lap and nothing highlighted: lap-number order, none on top.
+    expect(mm.lines.map(l => l.label)).toEqual(['L1', 'L2', 'L3']);
+    // Dots are for key laps only: the Ref lap, the highlighted one, or all
+    // laps when there are few; here all three.
+    expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
   });
 
   it('position row names the corner under the cursor', () => {
@@ -264,7 +279,7 @@ describe('chart window', () => {
     expect(parseFloat(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
     // The readout says seconds, and the label names the reference lap.
     expect(td.valueRows[0].values[1].text).toMatch(/ s$/);
-    expect(td.valueRows[0].label).toBe('Time diff vs L1');
+    expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
   });
 
@@ -341,10 +356,11 @@ describe('desktop pieces', () => {
     expect(m.sectionEntryM).toEqual({1: 100, 2: 500});
   });
 
-  it('toggling a lap adds or removes it, never the reference', () => {
+  it('toggling a lap adds or removes it, never the Ref lap', () => {
     expect(toggleCompared(sel({laps: ['a']}), 'b').laps).toEqual(['a', 'b']);
     expect(toggleCompared(sel(), 'b').laps).toEqual(['a', 'c']);
-    expect(toggleCompared(sel(), 'a').laps).toEqual(['a', 'b', 'c']);
+    expect(toggleCompared(sel(), 'a').laps).toEqual(['b', 'c']);
+    expect(toggleCompared(sel({ref: 'a'}), 'a').laps).toEqual(['a', 'b', 'c']);
   });
 });
 
@@ -366,7 +382,7 @@ describe('many laps', () => {
     traces: manyTraces,
     band: null,
     map,
-    selection: sel({laps: many.map(l => l.id), hl: 'm3'}),
+    selection: sel({laps: many.map(l => l.id), ref: 'm0', hl: 'm3'}),
   });
 
   it('tinted mode above 6 laps: only ref and highlighted are key', () => {
@@ -470,27 +486,33 @@ describe('a URL with no laps', () => {
 });
 
 describe('selection edits', () => {
-  it('making a lap the reference moves it first', () => {
-    expect(makeReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+  it('setting the Ref lap reorders nothing', () => {
+    expect(setRef(sel(), 'c')).toEqual(sel({ref: 'c'}));
+    expect(setRef(sel({ref: 'c'}), 'a')).toEqual(sel({ref: 'a'}));
   });
-  it('setting a lap as the reference adds it first when it is not compared', () => {
+  it('setting a lap that is not checked checks it', () => {
     // 'x' is in All laps but not in the comparison.
-    const out = setReference(sel(), 'x');
-    expect(out.laps).toEqual(['x', 'a', 'b', 'c']);
-    // A compared lap just moves; the old reference stays as an ordinary lap.
-    expect(setReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
-    // The reference itself: nothing changes.
-    expect(setReference(sel(), 'a')).toEqual(sel());
+    expect(setRef(sel(), 'x')).toEqual(
+      sel({laps: ['a', 'b', 'c', 'x'], ref: 'x'}),
+    );
   });
-  it('the reference cannot be removed', () => {
-    expect(removeLap(sel(), 'a')).toEqual(sel());
-    expect(removeLap(sel(), 'b').laps).toEqual(['a', 'c']);
+  it('clearing the Ref lap goes back to the median', () => {
+    expect(clearRef(sel({ref: 'b'}))).toEqual(sel());
+    expect(clearRef(sel())).toEqual(sel());
   });
-  it('the last compared lap stays', () => {
-    expect(canRemoveLap(sel(), 'a')).toBe(false);
-    expect(canRemoveLap(sel(), 'b')).toBe(true);
-    const two = {...sel(), laps: ['a', 'b']};
-    expect(canRemoveLap(two, 'b')).toBe(false);
+  it('highlighting toggles', () => {
+    expect(toggleHighlight(sel(), 'b').hl).toBe('b');
+    expect(toggleHighlight(sel({hl: 'b'}), 'b').hl).toBeNull();
+  });
+  it('the Ref lap cannot be removed, while another lap can', () => {
+    expect(removeLap(sel({ref: 'a'}), 'a')).toEqual(sel({ref: 'a'}));
+    expect(removeLap(sel({ref: 'a'}), 'b').laps).toEqual(['a', 'c']);
+    expect(removeLap(sel(), 'a').laps).toEqual(['b', 'c']);
+  });
+  it('two checked laps stay', () => {
+    expect(canRemoveLap(sel(), 'a')).toBe(true);
+    expect(canRemoveLap(sel({ref: 'a'}), 'a')).toBe(false);
+    expect(canRemoveLap(sel({laps: ['a', 'b']}), 'b')).toBe(false);
   });
 });
 
@@ -719,7 +741,7 @@ describe('laps of another session', () => {
     traces: withTrace,
     band: null,
     map,
-    selection: sel({laps: [fid, 'a'], hl: 'a'}),
+    selection: sel({laps: [fid, 'a'], ref: fid, hl: 'a'}),
   });
 
   it('is the reference, named with its session so two L1s are not confused', () => {
@@ -740,11 +762,11 @@ describe('laps of another session', () => {
       traces: withTrace,
       band: null,
       map,
-      selection: sel({laps: [fid, 'a'], hl: 'a'}),
+      selection: sel({laps: [fid, 'a'], ref: fid, hl: 'a'}),
     });
     expect(tagged.chips.map(c => c.label)).toEqual([
-      'L1 · 25 Sep',
       'L1 · 26 Sep Race',
+      'L1 · 25 Sep',
     ]);
     // Without a foreign lap in the view, nothing is tagged.
     expect(build().chips.every(c => !c.label.includes('·'))).toBe(true);
