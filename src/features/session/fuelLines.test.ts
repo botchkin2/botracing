@@ -10,6 +10,7 @@ const stop: PitStop = {
   added: {fuelL: 41.72, vePct: 60.1},
   inPitS: 90.5,
   lapsLeftAtEntry: {fuel: 13.9, ve: 11.1},
+  visit: null,
   tyres: null,
 };
 
@@ -35,6 +36,7 @@ describe('pitLine', () => {
         ...stop,
         atEntry: {fuelL: 7.18, vePct: null},
         lapsLeftAtEntry: {fuel: 0.9, ve: null},
+        visit: null,
       }),
     ).toBe('Pit: 7.2 L left (0.9 laps) · +41.7 L · 91 s');
   });

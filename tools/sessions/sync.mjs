@@ -54,6 +54,7 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
+import {damageFor} from './playerDamage.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
@@ -367,11 +368,23 @@ function build(
     });
   }
 
+  const last = s.files[s.files.length - 1].info;
+  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
+  const span = {
+    tracks: [first.track, first.layout],
+    startMs: Date.parse(first.recordedAt),
+    endMs,
+  };
+  // The car's damage from the live capture, to tell a repair from a penalty
+  // (pitVisit.mjs); null where the capture is gone.
+  const damage = foldOnly ? null : damageFor(captureRoot, span);
   const a = analyzeSession(recs, {
     trackMap,
     boundaries,
     sessionId: s.id,
     foldOnly,
+    carDamage: damage,
+    sessionType: first.sessionType,
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
@@ -394,16 +407,10 @@ function build(
   const lapId = lap =>
     `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
 
-  const last = s.files[s.files.length - 1].info;
-  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
   // Every car in the session, when tools/capture recorded it (field.mjs).
   const fieldOut = fieldFor(
     captureRoot,
-    {
-      tracks: [first.track, first.layout],
-      startMs: Date.parse(first.recordedAt),
-      endMs,
-    },
+    span,
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
   );
   // Traffic around the player per lap, from the field (lapTraffic.mjs). The

@@ -42,6 +42,7 @@ const stop = (over: Partial<PitStop> = {}): PitStop => ({
   added: {fuelL: 40.1, vePct: 62},
   inPitS: 51.2,
   lapsLeftAtEntry: {fuel: 2.6, ve: 1.1},
+  visit: null,
   tyres: {
     changed: true,
     wheels: ['FL', 'FR', 'RL', 'RR'],
@@ -243,6 +244,7 @@ describe('buildPitCard', () => {
             pitStop: stop({
               added: {fuelL: 0, vePct: 0},
               lapsLeftAtEntry: {fuel: 2.6, ve: 1.1},
+              visit: null,
             }),
           }
         : l,
@@ -543,6 +545,7 @@ describe('buildPitCard', () => {
             atEntry: {...l.pitStop.atEntry, vePct: null},
             added: {...l.pitStop.added, vePct: null},
             lapsLeftAtEntry: {...l.pitStop.lapsLeftAtEntry, ve: null},
+            visit: null,
           }
         : null,
     });

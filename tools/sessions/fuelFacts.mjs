@@ -14,6 +14,8 @@
 // nearest 20 Hz samples: at most one 20 Hz step from a recorded value, about
 // 0.003 L driving and 0.2 L while refuelling.
 
+import {classifyVisit, repaired, stationaryS} from './pitVisit.mjs';
+
 // A pit window that starts within this long of the recording's start is the
 // drive off the grid or out of the garage, not a stop (Daytona 09-29: 7 to
 // 11 s, no service).
@@ -167,7 +169,14 @@ function wearAt(s, at) {
  * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
  * recording is not a stop. `added` can be 0: a drive-through or a penalty.
  */
-export function lapPitStop(s, startT, endT, pits, compoundEvents = []) {
+export function lapPitStop(
+  s,
+  startT,
+  endT,
+  pits,
+  compoundEvents = [],
+  {damage = null, race = false} = {},
+) {
   const t0 = s.t[0];
   const enter = pits.find(
     ([a]) => a - t0 >= SESSION_START_S && a > startT && a <= endT,
@@ -183,17 +192,29 @@ export function lapPitStop(s, startT, endT, pits, compoundEvents = []) {
   const at = (values, digits) => (values ? round(values[from], digits) : null);
   const added = (values, digits) =>
     values ? round(addedInPits(values, s.t, from, to, [[a, b]]), digits) : null;
+  const addedNow = {
+    fuelL: added(s.fuel_l, 2),
+    vePct: added(s.virtual_energy_pct, 2),
+  };
+  const tyres = pitTyres(s, a, b, compoundEvents);
+  const inPitS = b === Infinity ? null : round(b - a, 1);
   return {
     atEntry: {
       fuelL: at(s.fuel_l, 2),
       vePct: at(s.virtual_energy_pct, 2),
     },
-    added: {
-      fuelL: added(s.fuel_l, 2),
-      vePct: added(s.virtual_energy_pct, 2),
-    },
-    inPitS: b === Infinity ? null : round(b - a, 1),
-    tyres: pitTyres(s, a, b, compoundEvents),
+    added: addedNow,
+    inPitS,
+    tyres,
+    // Why the car was in the lane: service, repair, penalty or unknown (pitVisit.mjs).
+    visit: classifyVisit({
+      inPitS,
+      stationaryS: s.speed_kmh ? stationaryS(s.t, s.speed_kmh, a, b) : null,
+      added: addedNow,
+      tyresChanged: tyres ? tyres.changed : false,
+      repaired: b === Infinity ? null : repaired(damage, a, b),
+      race,
+    }),
     // Filled in once the stint's median is known.
     lapsLeftAtEntry: {fuel: null, ve: null},
   };

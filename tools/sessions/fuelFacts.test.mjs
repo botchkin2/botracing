@@ -496,3 +496,80 @@ test('a full set reads its compound from the game event: start for 0, other for 
     null,
   );
 });
+
+// The same recording with a speed trace: moving, except stood still from 205 s
+// to 215 s (the service) or for the whole window when `still` is given.
+function withSpeed(s, stillFrom, stillTo) {
+  const speed = Float64Array.from(s.t, t =>
+    t >= stillFrom && t <= stillTo ? 0 : 60,
+  );
+  return {...s, speed_kmh: speed};
+}
+
+test('a stop carries its visit: stood still and refuelled is a service', () => {
+  const s = withSpeed(recording(), 205, 215);
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.equal(stop.visit.kind, 'service');
+  assert.deepEqual(stop.visit.did, ['refuel']);
+  assert.ok(Math.abs(stop.visit.stationaryS - 10) < 0.2);
+});
+
+test('a stop where damage dropped is a repair, and says it also refuelled', () => {
+  const s = withSpeed(recording(), 205, 215);
+  const damage = {et: [190, 215], dent: [2, 0], detached: [1, 0]};
+  const stop = lapPitStop(s, 150, 300, pits, [], {damage, race: true});
+  assert.equal(stop.visit.kind, 'repair');
+  assert.deepEqual(stop.visit.did, ['refuel', 'repair']);
+});
+
+test('standing still with nothing added is a stop-go when the capture shows no repair', () => {
+  const s = withSpeed(recording({service: false}), 205, 215);
+  const damage = {et: [190, 230], dent: [0, 0], detached: [0, 0]};
+  const stop = lapPitStop(s, 150, 300, pits, [], {damage, race: true});
+  assert.equal(stop.visit.kind, 'penalty');
+  assert.equal(stop.visit.detail, 'stop-go');
+});
+
+test('the same stop without a capture is unknown, never guessed', () => {
+  const s = withSpeed(recording({service: false}), 205, 215);
+  const stop = lapPitStop(s, 150, 300, pits);
+  assert.equal(stop.visit.kind, 'unknown');
+});
+
+test('a recording without a speed channel reads the visit as unknown', () => {
+  const stop = lapPitStop(recording(), 150, 300, pits);
+  assert.equal(stop.visit.kind, 'unknown');
+  assert.equal(stop.visit.stationaryS, null);
+});
+
+test('outside a race a run through the lane is "through", not a penalty, and a stop with nothing done is unknown', () => {
+  const through = lapPitStop(
+    withSpeed(recording({service: false}), 900, 901),
+    150,
+    300,
+    pits,
+    [],
+    {race: false},
+  );
+  assert.equal(through.visit.kind, 'through');
+  const raced = lapPitStop(
+    withSpeed(recording({service: false}), 900, 901),
+    150,
+    300,
+    pits,
+    [],
+    {race: true},
+  );
+  assert.equal(raced.visit.kind, 'penalty');
+  assert.equal(raced.visit.detail, 'drive-through');
+  const damage = {et: [190, 215], dent: [0, 0], detached: [0, 0]};
+  const stopped = lapPitStop(
+    withSpeed(recording({service: false}), 205, 215),
+    150,
+    300,
+    pits,
+    [],
+    {damage, race: false},
+  );
+  assert.equal(stopped.visit.kind, 'unknown');
+});

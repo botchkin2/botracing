@@ -461,6 +461,22 @@ export type PitTyres = {
   compound: 'start' | 'other' | null;
 };
 
+/**
+ * Why the car was in the pit lane (tools/sessions/pitVisit.mjs): a service
+ * (fuel, VE or tyres), a repair, a penalty served in a race (detail: stop-go
+ * or drive-through), a run through the lane outside a race, or unknown when the recording cannot say. `did` is
+ * everything that happened in the visit; a repair that also refuelled is
+ * kind repair with did [refuel, repair].
+ */
+export type PitVisit = {
+  kind: 'service' | 'repair' | 'penalty' | 'through' | 'unknown';
+  detail: 'stop-go' | 'drive-through' | null;
+  did: ('refuel' | 'tyres' | 'repair')[];
+  /** Seconds the car stood still in the lane; null without a speed channel. */
+  stationaryS: number | null;
+  evidence: string[];
+};
+
 /** A pit stop: what was left at pit entry, what was added, how long. */
 export type PitStop = {
   atEntry: {fuelL: number | null; vePct: number | null};
@@ -470,6 +486,8 @@ export type PitStop = {
   lapsLeftAtEntry: {fuel: number | null; ve: number | null};
   /** Null on sessions analysed before analysisVersion 15, or without a wear channel. */
   tyres: PitTyres | null;
+  /** Null on sessions analysed before block version pitVisit 1. */
+  visit: PitVisit | null;
 };
 
 /**
@@ -740,6 +758,36 @@ function toPitStop(v: unknown): PitStop | null {
     inPitS: num(x.inPitS),
     lapsLeftAtEntry: {fuel: num(left.fuel), ve: num(left.ve)},
     tyres: toPitTyres(x.tyres),
+    visit: toPitVisit(x.visit),
+  };
+}
+
+const VISIT_KINDS = [
+  'service',
+  'repair',
+  'penalty',
+  'through',
+  'unknown',
+] as const;
+const VISIT_DID = ['refuel', 'tyres', 'repair'] as const;
+
+function toPitVisit(v: unknown): PitVisit | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const kind = VISIT_KINDS.find(k => k === x.kind);
+  if (!kind) return null;
+  const did = Array.isArray(x.did)
+    ? VISIT_DID.filter(d => (x.did as unknown[]).includes(d))
+    : [];
+  return {
+    kind,
+    detail:
+      x.detail === 'stop-go' || x.detail === 'drive-through' ? x.detail : null,
+    did,
+    stationaryS: num(x.stationaryS),
+    evidence: Array.isArray(x.evidence)
+      ? x.evidence.filter((e): e is string => typeof e === 'string')
+      : [],
   };
 }
 
