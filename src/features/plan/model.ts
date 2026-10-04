@@ -519,17 +519,17 @@ function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
     const left = row.leftAtMedian;
     const leftParts = [
       left.fuelL != null && left.fuelLaps != null
-        ? `${l2(left.fuelL)} = ${left.fuelLaps.toFixed(1)} laps of fuel`
+        ? `${l2(left.fuelL)} = ${left.fuelLaps.toFixed(1)} laps fuel`
         : null,
       left.vePct != null && left.veLaps != null
-        ? `${pct2(left.vePct)} = ${left.veLaps.toFixed(1)} laps of VE`
+        ? `${pct2(left.vePct)} = ${left.veLaps.toFixed(1)} laps VE`
         : null,
     ].filter(Boolean);
     out.push({
       label: `${lapsText}, p90 use`,
       value: loadText(row.atP90),
       note: leftParts.length
-        ? `at the median you would finish with ${leftParts.join(' and ')} left`
+        ? `left at median: ${leftParts.join(' · ')}`
         : undefined,
     });
   }
@@ -560,12 +560,10 @@ export function driftRowOf(d: HistoryDrift): Row {
   const others = d.droppedSessions + d.keptSessions - 1;
   const of = `${others} other ${others === 1 ? 'session' : 'sessions'}`;
   const note = d.applied
-    ? `not in line with your ${of}: the plan uses the ${
-        d.keptLaps
-      } laps of the ${d.keptSessions} ${
-        d.keptSessions === 1 ? 'session' : 'sessions'
-      } since the change`
-    : `lower than your ${of}, and not used for the plan: it switches once a second session in a row agrees`;
+    ? `differs from ${of} · plan uses the last ${d.keptLaps} laps (${
+        d.keptSessions
+      } ${d.keptSessions === 1 ? 'session' : 'sessions'})`
+    : `lower than ${of} · not used until a second session agrees`;
   return {label: 'Newest session', value: meters.join(NL), note};
 }
 
@@ -663,9 +661,7 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
-        note: lapTimeS
-          ? `all green laps · n ${lapTimeS.n} · sets race laps`
-          : undefined,
+        note: lapTimeS ? `all green laps · n ${lapTimeS.n}` : undefined,
       },
       ...(history.traffic?.clean.medianS != null
         ? [
@@ -763,7 +759,7 @@ export function planView(
             value: `no data  (n = ${c.n})`,
             note:
               c.lowestFuelL != null || c.lowestVePct != null
-                ? `your lowest tenth used ${[
+                ? `lowest tenth: ${[
                     shown === 'fuel' && c.lowestFuelL != null
                       ? l2(c.lowestFuelL)
                       : null,

@@ -149,31 +149,20 @@ function raceCard(
   const median = plan.perLap.lapTimeS?.median ?? null;
   let working: string | null = null;
   if (race && rules.lengthMin != null && median != null) {
-    const seconds = rules.lengthMin * 60;
     const pit = race.pit;
-    const clock = pit
-      ? `(${seconds.toLocaleString('en-GB')} s - ${Math.round(
-          pit.totalS,
-        )} s in the pits)`
-      : `${seconds.toLocaleString('en-GB')} s`;
-    working = `At the median lap, ${formatLapTime(
-      median,
-    )}: ${clock} ÷ ${median.toFixed(1)} s = ${(
-      (seconds - (pit?.totalS ?? 0)) /
-      median
-    ).toFixed(1)}, so ${race.estimate} laps.${
-      race.oneMore == null ? '' : ` Late flag: ${race.oneMore} laps.`
-    } ${
+    working = [
+      `${race.estimate} laps`,
+      race.oneMore == null ? null : `late flag ${race.oneMore}`,
+      `median ${formatLapTime(median)}`,
       pit
-        ? `Pit time: ${pit.stops} ${
-            pit.stops === 1 ? 'stop' : 'stops'
-          } × ${Math.round(pit.baseS)} s loss + ${pit.refuelL.toFixed(
-            0,
-          )} L ÷ ${REFUEL_L_PER_S} L/s = ${Math.round(pit.totalS)} s; ${
-            pit.lapsWithout
-          } laps without it.`
-        : 'No pit time.'
-    }${race.settled ? '' : ' Longest pit time used.'}`;
+        ? `pit ${Math.round(pit.totalS)} s (${pit.stops} × ${Math.round(
+            pit.baseS,
+          )} s + ${pit.refuelL.toFixed(0)} L at ${REFUEL_L_PER_S} L/s)`
+        : null,
+      race.settled ? null : 'longest pit time used',
+    ]
+      .filter(Boolean)
+      .join(' · ');
   }
   return {
     laps: race ? race.estimate : null,
@@ -385,7 +374,7 @@ function lateFlagNote(
   if (first90 == null || stint90 == null || first90 <= 0 || stint90 <= 0)
     return null;
   if (fullTankStops(first90, stint90, safeLaps).needed === 0) return null;
-  const base = `If the flag falls late, one load does not reach: one stop`;
+  const base = 'Late flag: one stop';
   const late = (plan.loadToFinish ?? []).find(r => r.laps === safeLaps);
   if (!late) return `${base}.`;
   const burnLaps = safeLaps + (rules.formationLap ? 1 : 0);
@@ -395,7 +384,7 @@ function lateFlagNote(
       ? null
       : `${(rules.vePct / burnLaps).toFixed(2)} % a lap`
     : `${(rules.fuelL / burnLaps).toFixed(2)} L a lap`;
-  return atMost == null ? `${base}.` : `${base}, or use at most ${atMost}.`;
+  return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }
 
 /** Whether the refuelling time is known for the class: seconds, else litres. */
@@ -456,11 +445,11 @@ function lateFlagMargin(
   if (oneMore == null || use == null || stops === 0) return null;
   const litres =
     unit === 've' ? (ratioPerPctL == null ? null : use * ratioPerPctL) : use;
-  return `If the flag falls late (${oneMore} laps): one more lap uses ${use.toFixed(
-    1,
-  )} ${unit === 've' ? '% VE' : 'L'} at p90 use${
-    litres == null ? '' : `, ${litres.toFixed(1)} L more at the last stop`
-  }.`;
+  return `Late flag ${oneMore} laps · +1 lap ${use.toFixed(1)} ${
+    unit === 've' ? '% VE' : 'L'
+  } at p90${
+    litres == null ? '' : ` · +${litres.toFixed(1)} L at the last stop`
+  }`;
 }
 
 function stopsCard(

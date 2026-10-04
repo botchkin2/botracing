@@ -43,9 +43,7 @@ describe('buildPlanCards', () => {
     expect(cards.race.oneMore).toBe(73);
     expect(cards.race.stops).toBe(2);
     expect(cards.race.stopAfter).toEqual(['L28', 'L56']);
-    expect(cards.race.working).toBe(
-      'At the median lap, 1:41.200: 7,200 s ÷ 101.2 s = 71.1, so 72 laps. Late flag: 73 laps. No pit time.',
-    );
+    expect(cards.race.working).toBe('72 laps · late flag 73 · median 1:41.200');
   });
 
   it('the Race card counts the pit time when a pit model is given, and says how', () => {
@@ -57,7 +55,7 @@ describe('buildPlanCards', () => {
     );
     expect(withPit.race.laps).toBe(71);
     expect(withPit.race.working).toBe(
-      'At the median lap, 1:41.200: (7,200 s - 111 s in the pits) ÷ 101.2 s = 70.0, so 71 laps. Late flag: 72 laps. Pit time: 2 stops × 45 s loss + 71 L ÷ 3.4 L/s = 111 s; 72 laps without it.',
+      '71 laps · late flag 72 · median 1:41.200 · pit 111 s (2 × 45 s + 71 L at 3.4 L/s)',
     );
   });
 
@@ -218,7 +216,7 @@ describe('buildPlanCards', () => {
     expect(stops.windows[0].earliest).toBe(atEstimate.earliest);
     // The lap the flag can add is a fact with its numbers, not a stop.
     expect(stops.lateFlag).toBe(
-      'If the flag falls late (73 laps): one more lap uses 3.5 % VE at p90 use, 2.4 L more at the last stop.',
+      'Late flag 73 laps · +1 lap 3.5 % VE at p90 · +2.4 L at the last stop',
     );
     // A race counted in laps has no late flag: no margin line.
     const lapsRace: PlanRules = {...rules, lengthMin: null, lengthLaps: 72};
@@ -251,7 +249,7 @@ describe('buildPlanCards', () => {
     const atMost = (short.vePct / (late.laps + 1)).toFixed(2);
     expect(atMost).toBe('3.45');
     expect(stops.windowNote).toBe(
-      `If the flag falls late, one load does not reach: one stop, or use at most ${atMost} % a lap.`,
+      `Late flag: one stop, or at most ${atMost} % a lap.`,
     );
   });
 

@@ -667,7 +667,7 @@ describe('planView', () => {
     const rows = withTraffic.cards[0].rows;
     const time = rows.find(r => r.label === 'Lap time')!;
     expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
-    expect(time.note).toBe('all green laps · n 10 · sets race laps');
+    expect(time.note).toBe('all green laps · n 10');
     const clean = rows.find(r => r.label === 'Clean laps')!;
     expect([clean.value, clean.note]).toEqual(['1:48.200', 'n 4']);
     const traffic = rows.find(r => r.label === 'Traffic laps')!;
@@ -857,7 +857,7 @@ describe('driftRowOf', () => {
       '2.88 L a lap against 2.31 L\n4.30 %/lap against 3.33 %',
     );
     expect(row.note).toBe(
-      'not in line with your 23 other sessions: the plan uses the 15 laps of the 3 sessions since the change',
+      'differs from 23 other sessions · plan uses the last 15 laps (3 sessions)',
     );
   });
 
@@ -872,8 +872,8 @@ describe('driftRowOf', () => {
       droppedSessions: 1,
     });
     expect(row.value).toBe('4.30 %/lap against 3.33 %');
-    expect(row.note).toContain('1 other session:');
-    expect(row.note).toContain('the 6 laps of the 1 session since');
+    expect(row.note).toContain('1 other session ·');
+    expect(row.note).toContain('the last 6 laps (1 session)');
   });
 
   it('says a lower session is not used, and what switches it', () => {
@@ -888,7 +888,7 @@ describe('driftRowOf', () => {
     });
     expect(row.value).toBe('2.10 L a lap against 2.40 L');
     expect(row.note).toBe(
-      'lower than your 4 other sessions, and not used for the plan: it switches once a second session in a row agrees',
+      'lower than 4 other sessions · not used until a second session agrees',
     );
   });
 });
