@@ -14,12 +14,7 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
-import {
-  CLEAN_AHEAD_S,
-  CLEAN_BATTLE_S,
-  type SessionTraffic,
-  TRAFFIC_AHEAD_S,
-} from '@/src/analysis/traffic';
+import {type SessionTraffic} from '@/src/analysis/traffic';
 import {trackInfo} from '@/src/data/tracks';
 import {
   carLabel,
@@ -458,8 +453,14 @@ export type Row = {label: string; value: string; note?: string};
 export type Card = {
   key: string;
   title: string;
-  explainer: string;
   rows: Row[];
+};
+
+/** The Load to finish card: one row per race length, the median and p90 loads side by side. */
+export type LoadTable = {
+  title: string;
+  head: string[];
+  rows: {label: string; median: string; p90: string}[];
 };
 
 export type PlanView = {
@@ -468,8 +469,8 @@ export type PlanView = {
   /** "preset 75 L · last race 84 L" when the preset may be stale. */
   stale: string | null;
   cards: Card[];
-  /** What is not modelled. */
-  footnote: string;
+  /** Set when the race fits one load. */
+  loadTable: LoadTable | null;
 };
 
 const NL = String.fromCharCode(10);
@@ -504,49 +505,34 @@ function ratioNote(
   return `at ${ratio.perPctL.toFixed(3)} L per 1 % VE, ${src}`;
 }
 
-function loadText(l: Load): string {
+function loadCell(l: Load): string {
   const parts = [
-    l.fuelL != null ? l2(l.fuelL) : null,
     l.vePct != null ? pct2(l.vePct) : null,
+    l.fuelL != null ? l2(l.fuelL) : null,
   ].filter(Boolean);
-  const limit =
-    l.limitedBy === 'fuel' ? 'fuel' : l.limitedBy === 've' ? 'VE' : null;
-  return `${parts.join('  ·  ')}${
-    limit ? `  (${limit} closer to its cap)` : ''
-  }${l.fits ? '' : '  (over the rules)'}`;
+  return `${parts.join(' · ')}${l.fits ? '' : ' · over'}`;
 }
 
-/** A race that fits one load, read the other way round (thread 35 #1015). */
-function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
-  const out: Row[] = [];
-  for (const row of rows) {
-    const lapsText = `${row.laps} laps${
-      r.formationLap ? ' + formation lap' : ''
-    }`;
-    out.push({label: `${lapsText}, median use`, value: loadText(row.atMedian)});
-    const left = row.leftAtMedian;
-    const leftParts = [
-      left.fuelL != null && left.fuelLaps != null
-        ? `${l2(left.fuelL)} = ${left.fuelLaps.toFixed(1)} laps of fuel`
-        : null,
-      left.vePct != null && left.veLaps != null
-        ? `${pct2(left.vePct)} = ${left.veLaps.toFixed(1)} laps of VE`
-        : null,
-    ].filter(Boolean);
-    out.push({
-      label: `${lapsText}, p90 use`,
-      value: loadText(row.atP90),
-      note: leftParts.length
-        ? `at the median you would finish with ${leftParts.join(' and ')} left`
-        : undefined,
-    });
-  }
+/** A race that fits one load, read the other way round (thread 35 #1015): one row per race length. */
+function loadTable(rows: LoadToFinish[], r: PlanRules): LoadTable {
+  const limits = new Set(rows.map(row => row.atP90.limitedBy));
+  const only = limits.size === 1 ? [...limits][0] : null;
   return {
-    key: 'load',
     title: 'Load to finish',
-    explainer:
-      'The race fits one load, so this is the Stops table read the other way: what the laps need at your median and at your heavy laps (p90), with the formation lap. The note says what is left if you carried the p90 load and ran the median. A number, not advice about what to load.',
-    rows: out,
+    head: [
+      '',
+      'Median',
+      only === 'fuel'
+        ? 'p90 · fuel limits'
+        : only === 've'
+        ? 'p90 · VE limits'
+        : 'p90',
+    ],
+    rows: rows.map(row => ({
+      label: `${row.laps} laps${r.formationLap ? ' + form.' : ''}`,
+      median: loadCell(row.atMedian),
+      p90: loadCell(row.atP90),
+    })),
   };
 }
 
@@ -570,12 +556,10 @@ export function driftRowOf(d: HistoryDrift): Row {
   const others = d.droppedSessions + d.keptSessions - 1;
   const of = `${others} other ${others === 1 ? 'session' : 'sessions'}`;
   const note = d.applied
-    ? `not in line with your ${of}: the plan uses the ${
-        d.keptLaps
-      } laps of the ${d.keptSessions} ${
-        d.keptSessions === 1 ? 'session' : 'sessions'
-      } since the change`
-    : `lower than your ${of}, and not used for the plan: it switches once a second session in a row agrees`;
+    ? `differs from ${of} · plan uses the last ${d.keptLaps} laps (${
+        d.keptSessions
+      } ${d.keptSessions === 1 ? 'session' : 'sessions'})`
+    : `lower than ${of} · not used until a second session agrees`;
   return {label: 'Newest session', value: meters.join(NL), note};
 }
 
@@ -660,7 +644,6 @@ export function planView(
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
-    explainer: `Green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, no car passing, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
     rows: [
       ...(driftRow ? [driftRow] : []),
       ...(shown === 'fuel' ? [fuelRow] : []),
@@ -674,9 +657,7 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
-        note: lapTimeS
-          ? `all green laps · n ${lapTimeS.n} · sets race laps`
-          : undefined,
+        note: lapTimeS ? `all green laps · n ${lapTimeS.n}` : undefined,
       },
       ...(history.traffic?.clean.medianS != null
         ? [
@@ -709,7 +690,6 @@ export function planView(
 
   // A race that fits one load reads the Stops card the other way round; every
   // other race's Race, Per tank and Stops cards are typed (`planCards.ts`).
-  if (plan.loadToFinish) cards.push(loadCard(plan.loadToFinish, r));
 
   const d = plan.dropStop;
   if (d) {
@@ -774,7 +754,7 @@ export function planView(
             value: `no data  (n = ${c.n})`,
             note:
               c.lowestFuelL != null || c.lowestVePct != null
-                ? `your lowest tenth used ${[
+                ? `lowest tenth: ${[
                     shown === 'fuel' && c.lowestFuelL != null
                       ? l2(c.lowestFuelL)
                       : null,
@@ -790,8 +770,6 @@ export function planView(
     cards.push({
       key: 'dropStop',
       title: 'To drop a stop',
-      explainer:
-        'The most one lap may use for the stints to reach with one fewer stop, and how your own laps at that use compare. A correlation from your laps, not a cost: traffic and pace are mixed in. Nothing here says how long a stop takes.',
       rows,
     });
   }
@@ -800,7 +778,6 @@ export function planView(
     rulesLine,
     stale,
     cards,
-    footnote:
-      'Not modelled: tyres and double-stinting, full-course yellows, weather, and how long a stop takes, except in a timed race, where the time of a stop is the pit loss measured from your own stops here plus refuelling (not counted without two such stops).',
+    loadTable: plan.loadToFinish ? loadTable(plan.loadToFinish, r) : null,
   };
 }

@@ -4,7 +4,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {radius, size, space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {Explainer, Skeleton, Text} from '@/src/ui';
+import {Skeleton, Text} from '@/src/ui';
 
 import {type Combo, rulesFor} from '../../plan/model';
 import {usePlanHistory, usePlanLimits} from '../../plan/usePlanHistory';
@@ -21,7 +21,6 @@ export function PlanBlock({combos}: {combos: Combo[]}) {
   return (
     <View style={styles.block}>
       <Text variant='label'>Plan</Text>
-      <Explainer>One per car driven here.</Explainer>
       {combos.map(combo => (
         <PlanCard key={combo.key} combo={combo} />
       ))}

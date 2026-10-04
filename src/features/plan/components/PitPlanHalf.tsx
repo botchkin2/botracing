@@ -5,11 +5,11 @@ import {planRace, type RaceFacts} from '@/src/analysis/fuelPlan';
 import {useSessions} from '@/src/data/sessions';
 import {size, space, useTheme} from '@/src/design';
 import {type PitCard} from '@/src/features/session/pitCard';
-import {Explainer, Text, useHowToRead} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {planCombos} from '../model';
 import {seriesWeek} from '../planEvent';
-import {buildPlanHalf, PLAN_HALF_HELP, type PlanHalf} from '../planHalf';
+import {buildPlanHalf, type PlanHalf} from '../planHalf';
 import {raceRules} from '../planVsRace';
 import {usePlanHistory, usePlanLimits} from '../usePlanHistory';
 
@@ -86,17 +86,18 @@ export function PlanHalfView({
   failed?: number;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('plan vs what happened', PLAN_HALF_HELP);
   return (
     <View style={styles.card}>
       <View style={styles.title}>
         <Text variant='label'>Plan vs what happened</Text>
-        {help.button}
       </View>
-      {help.panel}
       {half ? (
         <>
-          <Explainer>{half.desc}</Explainer>
+          {half.note ? (
+            <Text variant='dataSmall' tone='textMuted'>
+              {half.note}
+            </Text>
+          ) : null}
           {half.rows.length > 0 ? (
             <View>
               <View style={styles.row}>

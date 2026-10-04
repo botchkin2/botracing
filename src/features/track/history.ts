@@ -29,7 +29,6 @@ export type HistoryModel = {
   cars: {name: string; laps: string}[];
   trend: {
     title: string;
-    explainer: string;
     bars: TrendBar[];
     from: string;
     to: string;
@@ -111,9 +110,6 @@ function buildTrend(newestFirst: SessionSummary[]): HistoryModel['trend'] {
   const label = carLabel(timed[0].car);
   return {
     title: `Best lap per session · ${label.model}`,
-    explainer: `Each bar is one session, oldest left. Taller = faster, from ${formatLapTime(
-      floor,
-    )} at the floor. Purple = best.`,
     bars: times.map(t => ({height01: (floor - t) / span, best: t === fastest})),
     from: formatDate(timed[0].startedAt),
     to: formatDate(timed[timed.length - 1].startedAt),

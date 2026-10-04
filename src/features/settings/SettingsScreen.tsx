@@ -50,10 +50,6 @@ export function SettingsScreen() {
             <Dot on={false} />
             <Text variant='bodyStrong'>No uploader has reported yet</Text>
           </View>
-          <Text tone='textSecondary'>
-            When the uploader runs on your sim PC, its status shows here: when
-            it was last seen, its last upload and any error.
-          </Text>
         </View>
       )}
       {u.state === 'ready' &&

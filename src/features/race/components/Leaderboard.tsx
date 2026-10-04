@@ -36,7 +36,6 @@ export const Leaderboard = memo(function Leaderboard({
   mode,
   paged,
   nearby,
-  showKey = true,
   fallbackNote,
 }: {
   groups: RaceGroup[];
@@ -50,8 +49,6 @@ export const Leaderboard = memo(function Leaderboard({
   paged?: boolean;
   /** Offer the Nearby filter: the field mode, with you on the road. */
   nearby?: boolean;
-  /** The column key under the filter; the phone folds it away with the legend. */
-  showKey?: boolean;
   /** Said when All is shown where Nearby was asked for. */
   fallbackNote?: string | null;
 }) {
@@ -86,13 +83,6 @@ export const Leaderboard = memo(function Leaderboard({
       {fallbackNote ? (
         <Text variant='dataSmall' tone='textSecondary' style={styles.key}>
           {fallbackNote}
-        </Text>
-      ) : null}
-      {showKey ? (
-        <Text variant='explainer' tone='textFaint' style={styles.key}>
-          {mode === 'race'
-            ? 'At the playback position. Gap = to the class leader. PIT = stops so far; IN = in the pit lane now.'
-            : 'At the playback position. Road = seconds along the track from you, + ahead, \u2212 behind. PIT = stops so far; IN = in the pit lane now.'}
         </Text>
       ) : null}
       <View style={[styles.head, {borderColor: color.line}]}>

@@ -17,7 +17,7 @@ export function AboutBlock({
         {about.text}
       </Text>
       <View style={styles.credit}>
-        <Text variant='explainer' tone='textFaint'>
+        <Text variant='dataSmall' tone='textFaint'>
           From {about.attribution.replace(', ', ' · ')}
         </Text>
         <Pressable

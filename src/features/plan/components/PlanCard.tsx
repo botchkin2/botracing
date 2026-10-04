@@ -2,7 +2,7 @@ import {type ReactNode} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {radius, space, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 /** A titled block of the Plan: the label, then its content. */
 export function Section({
@@ -22,14 +22,12 @@ export function Section({
   );
 }
 
-/** A card: the title, the content in a surface box, and the explainer under it. */
+/** A card: the title and the content in a surface box. */
 export function PlanCard({
   title,
-  explainer,
   children,
 }: {
   title: string;
-  explainer?: string;
   children: ReactNode;
 }) {
   const {color} = useTheme();
@@ -42,7 +40,6 @@ export function PlanCard({
         ]}>
         {children}
       </View>
-      {explainer ? <Explainer>{explainer}</Explainer> : null}
     </Section>
   );
 }

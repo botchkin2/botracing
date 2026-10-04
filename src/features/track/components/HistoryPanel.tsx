@@ -2,7 +2,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Rect} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {type HistoryModel} from '../history';
 
@@ -43,10 +43,6 @@ export function HistoryPanel({
       {history.bests.length > 0 ? (
         <View>
           <Text variant='label'>Best lap by car</Text>
-          <Explainer>
-            Purple = your best with that car, from comparable laps. Tap to open
-            the session.
-          </Explainer>
           {history.bests.map(b => (
             <Pressable
               key={b.key}
@@ -63,7 +59,7 @@ export function HistoryPanel({
                     {b.carClass}
                   </Text>
                 ) : null}
-                <Text variant='explainer' tone='textMuted' numberOfLines={1}>
+                <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
                   {b.car} · {b.date}
                 </Text>
               </View>
@@ -81,7 +77,6 @@ export function HistoryPanel({
       {trend ? (
         <View>
           <Text variant='label'>{trend.title}</Text>
-          <Explainer>{trend.explainer}</Explainer>
           <View
             style={[
               styles.trend,

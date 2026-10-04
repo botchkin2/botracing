@@ -157,7 +157,7 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
             u.recorder.gameVersion ? ` on LMU ${u.recorder.gameVersion}` : ''
           }: ${
             u.recorder.layoutReason ??
-            'it did not recognise the game data layout'
+            'it did not recognize the game data layout'
           }.`
         : null,
   };
