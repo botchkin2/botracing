@@ -47,16 +47,23 @@ test('Lone/Open Qualify map to Qualify, Warmup to Practice', () => {
 });
 
 test('game lap time is the LastLapTime that settles after the crossing', () => {
-  const t = [0, 1, 2, 80, 81, 82, 83, 160, 161];
-  const lap = [1, 1, 1, 2, 2, 2, 2, 3, 3];
-  // At the 1→2 crossing (t=80) LastLapTime still holds 0, then becomes 79.15.
-  const last = [0, 0, 0, 0, 0, 79.15, 79.15, 79.15, 79.97];
+  const t = [0, 80, 81, 82, 160, 161, 162];
+  const lap = [1, 2, 2, 2, 3, 3, 3];
+  const last = [0, 0, 0, 79.15, 79.15, 79.15, 79.97];
   const ev = gameLapTimes(t, lap, last);
-  assert.equal(ev.length, 2);
-  assert.equal(ev[0][0], 80);
-  assert.equal(ev[0][2], 79.15);
-  assert.equal(ev[1][0], 160);
-  assert.equal(ev[1][2], 79.97);
+  const timed = ev.filter(e => e[2] > 0);
+  assert.equal(timed.length, 1);
+  assert.equal(timed[0][0], 160);
+  assert.equal(timed[0][2], 79.97);
+});
+
+test('LastLapTime reused at the next crossing is dropped', () => {
+  const t = [0, 80, 160];
+  const lap = [1, 2, 3];
+  const last = [0, 0, 111.266];
+  const xs = lapCrossings(t, lap, last);
+  assert.equal(xs[0].time, 0);
+  assert.equal(xs[1].time, 0);
 });
 
 test('a Lap that goes backwards keeps a monotonic session number', () => {

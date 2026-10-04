@@ -123,13 +123,26 @@ export function lapCrossings(t, laps, lastTimes) {
   for (let i = 1; i < laps.length; i++) {
     if (laps[i] === laps[i - 1]) continue;
     if (!(laps[i] > 0) && !(laps[i - 1] > 0)) continue;
+    const span = t[i] - t[prevCross];
+    if (prevCross > 0 && span < 8) continue;
     if (laps[i] > seq) seq = laps[i];
     else seq += 1;
     const held = lastTimes[i];
+    let nextCross = laps.length;
+    for (let k = i + 1; k < laps.length; k++) {
+      if (laps[k] !== laps[i]) {
+        nextCross = k;
+        break;
+      }
+    }
+    const tLimit = t[i] + 3;
     let j = i;
-    while (j < lastTimes.length && lastTimes[j] === held) j++;
-    let time = j < lastTimes.length && lastTimes[j] > 0 ? lastTimes[j] : 0;
-    if (!(time > 0) && t[i] - t[prevCross] > 0.5) time = t[i] - t[prevCross];
+    while (j < nextCross && t[j] <= tLimit && lastTimes[j] === held) j++;
+    const v =
+      j < nextCross && t[j] <= tLimit && lastTimes[j] !== held && lastTimes[j] > 0
+        ? lastTimes[j]
+        : 0;
+    const time = v > 0 && Math.abs(v - span) <= 0.05 ? v : 0;
     out.push({t: t[i], lap: seq, time, i});
     prevCross = i;
   }

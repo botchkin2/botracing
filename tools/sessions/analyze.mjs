@@ -809,7 +809,8 @@ export function analyzeSession(
     openStint(change);
     let first = true;
     let recOffset = 0;
-    for (const seg of segments(rec)) {
+    const segs = segments(rec);
+    for (const [si, seg] of segs.entries()) {
       // A later file of the same session may restart its lap counter. Keep
       // one sequence across recordings (iRacing split .ibt, thread 49).
       if (
@@ -820,6 +821,8 @@ export function analyzeSession(
       ) {
         recOffset = laps[laps.length - 1].lapNumber - seg.lapNumber + 1;
       }
+      if (r > 0 && si === 0) seg.partial = true;
+      if (r < recs.length - 1 && si === segs.length - 1) seg.partial = true;
       const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
       lap.lapNumber = seg.lapNumber + recOffset;
       lap.endedInReset = false;
