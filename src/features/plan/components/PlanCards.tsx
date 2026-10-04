@@ -26,7 +26,7 @@ export function Pair({wide, children}: {wide: boolean; children: ReactNode[]}) {
 /** A card of label / value / note rows, as `planView` gives them. */
 export function RowsCard({card}: {card: PlanView['cards'][number]}) {
   return (
-    <PlanCard title={card.title} explainer={card.explainer}>
+    <PlanCard title={card.title}>
       {card.rows.map((row, i) => (
         <View key={i} style={styles.rowBox}>
           <Text variant='label' tone='textMuted'>

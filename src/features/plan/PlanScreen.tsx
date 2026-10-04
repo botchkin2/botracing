@@ -15,14 +15,7 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {
-  EmptyState,
-  Explainer,
-  Segment,
-  Skeleton,
-  StatusBanner,
-  Text,
-} from '@/src/ui';
+import {EmptyState, Segment, Skeleton, StatusBanner, Text} from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
@@ -130,13 +123,6 @@ export function PlanScreen() {
   // never run a lap-based race, pit-wall thread 44 #1954). The newest race of
   // the planned event prefills the fill limit and the start chips, not the length.
   const lastRace = useLastRaceHere(combo, data.limits.event);
-  const prefillLine = !lastRace
-    ? null
-    : preset
-    ? 'Length and rules are from the rule set ' +
-      preset.name +
-      ', not from this race.'
-    : 'The fill limit below is prefilled from it; the length is yours.';
 
   const wide = layout.isDesktop;
   // Phone: one column. Desktop: the setup on the left and the results beside
@@ -235,11 +221,6 @@ export function PlanScreen() {
                   ' · ' +
                   lastRaceLine(lastRace)}
               </Text>
-              {prefillLine ? (
-                <Text variant='dataSmall' tone='textMuted'>
-                  {prefillLine}
-                </Text>
-              ) : null}
             </View>
             <Pressable
               accessibilityRole='link'
@@ -344,21 +325,13 @@ export function PlanScreen() {
   const results = !combo ? null : (
     <>
       {rules == null ? (
-        <EmptyState
-          title='Max fuel is needed'
-          body='These sessions have no fill limit or tank on record. Make a preset with the max fuel of the event.'
-        />
+        <EmptyState title='Max fuel is needed' />
       ) : view && plan && plan.history.laps === 0 && !lapsOf.pending ? (
         <EmptyState
           title={
             history.length === 0 && !detailsPending
               ? `No sessions here at ${rules.rules.fuelL} L`
               : 'No fuel data for this combination yet'
-          }
-          body={
-            history.length === 0 && !detailsPending
-              ? 'The plan uses only sessions at the fill limit of these rules, because a balance-of-performance change moves fuel use. A session that started part-full is not counted either. Change the max fuel, or drive here at this limit.'
-              : 'Fuel use is added to sessions when they are analysed. It arrives with the next resync of your history.'
           }
         />
       ) : view ? (
@@ -370,11 +343,7 @@ export function PlanScreen() {
               </PlanCard>
             ) : null}
             {data.cards ? (
-              <PlanCard
-                title='Per tank'
-                explainer={
-                  data.fuelOnly ? TANK_EXPLAINER_FUEL_ONLY : TANK_EXPLAINER
-                }>
+              <PlanCard title='Per tank'>
                 <TankCardView card={data.cards.tank} />
               </PlanCard>
             ) : null}
@@ -404,7 +373,7 @@ export function PlanScreen() {
               ) : null}
             </>
           ) : data.cards ? (
-            <PlanCard title='Stops' explainer={STOPS_EXPLAINER}>
+            <PlanCard title='Stops'>
               <StopsCardView
                 card={data.cards.stops}
                 carClass={combo.sessions[0]?.carClass ?? ''}
@@ -432,7 +401,6 @@ export function PlanScreen() {
                 .map(card => <RowsCard key={card.key} card={card} />),
             )}
           </Pair>
-          <Explainer>{view.footnote}</Explainer>
         </>
       ) : null}
     </>
@@ -447,19 +415,12 @@ export function PlanScreen() {
       <View style={[styles.column, {width}]}>
         <View style={styles.head}>
           <Text variant='display'>Plan</Text>
-          <Explainer>
-            Your own clean laps at a track and car, worked through one set of
-            event rules. Numbers only: it recommends nothing.
-          </Explainer>
         </View>
 
         {sessions.isPending ? (
           <Skeleton height={size.hit} />
         ) : combos.length === 0 || !combo ? (
-          <EmptyState
-            title='No sessions to plan from'
-            body='Drive and upload a session at a track first: the plan uses your laps there.'
-          />
+          <EmptyState title='No sessions to plan from' />
         ) : wide ? (
           <View style={styles.split}>
             <View style={[styles.stack, {width: size.planSetup}]}>{setup}</View>
@@ -483,13 +444,6 @@ export function PlanScreen() {
     </ScrollView>
   );
 }
-
-const TANK_EXPLAINER =
-  'Laps one full load lasts. Bar = median use per lap, notch = p90 use. The shorter meter sets the stint length.';
-const TANK_EXPLAINER_FUEL_ONLY =
-  'Laps one full load lasts. Bar = median use per lap, notch = p90 use. This car has no VE; fuel sets the stint length.';
-const STOPS_EXPLAINER =
-  'Full tank: each stint runs until the meter that runs out first is empty, at median use. Equal stints are shown for comparison.';
 
 const styles = StyleSheet.create({
   page: {alignItems: 'center'},

@@ -64,7 +64,7 @@ export function TrackMapPanel({
             startFinish={map.startFinish}
           />
           {map.note ? (
-            <Text variant='explainer' tone='textMuted' style={styles.note}>
+            <Text variant='dataSmall' tone='textMuted' style={styles.note}>
               {map.note}
             </Text>
           ) : attribution && map.real ? (
@@ -75,10 +75,8 @@ export function TrackMapPanel({
         </>
       ) : (
         <View style={styles.empty}>
-          <Text variant='explainer' tone='textMuted'>
-            {loading
-              ? 'Loading the map…'
-              : 'The map appears once a session here has a best lap.'}
+          <Text variant='dataSmall' tone='textMuted'>
+            {loading ? 'Loading the map…' : 'No map yet'}
           </Text>
         </View>
       )}

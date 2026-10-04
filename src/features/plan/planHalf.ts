@@ -11,13 +11,14 @@ import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
 import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
 
-import {dateOf, plural, type PlanBasis} from './planVsRace';
+import {type PlanBasis} from './planVsRace';
 
 export type PlanHalfRow = {k: string; p: string; a: string};
 
 export type PlanHalf = {
   /** "Plan = ..." or the reason there is no plan. */
-  desc: string;
+  /** Why there is no plan, a few words; null when there is one. */
+  note: string | null;
   rows: PlanHalfRow[];
 };
 
@@ -72,32 +73,24 @@ export function buildPlanHalf(input: {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
   if (facts.limitL == null || !rules)
     return {
-      desc: 'No fill limit on record for this race, so there is no plan.',
+      note: 'No fill limit on record for this race.',
       rows: [],
     };
   const limit = facts.limitL.toFixed(0);
   if (!plan || basis.laps === 0)
     return {
-      desc: `No earlier laps at the ${limit} L limit, so there is no plan for this race.`,
+      note: `No earlier laps at the ${limit} L limit.`,
       rows: [],
     };
   const use = (hasVe ? plan.perLap.ve : plan.perLap.fuel)?.median ?? null;
   const option = plan.atMedian;
   if (use == null || use <= 0 || option.stops == null)
     return {
-      desc: `The earlier laps do not give a ${
-        hasVe ? 'Virtual Energy' : 'fuel'
-      } use to plan the stops from.`,
+      note: `No ${hasVe ? 'VE' : 'fuel'} use in the earlier laps.`,
       rows: [],
     };
   const capacity = hasVe ? rules.vePct : rules.fuelL;
   const stopLaps = option.stopLaps;
-  const desc = `Plan = full-tank strategy at the median use, for this race’s ${limit} L limit and ${plural(
-    facts.raceLaps,
-    'lap',
-  )}, from the ${plural(basis.laps, 'green lap')} recorded before ${dateOf(
-    facts.startedAt,
-  )}.`;
 
   const rows: PlanHalfRow[] = [];
   const count = Math.max(stopLaps.length, stops.length);
@@ -148,7 +141,7 @@ export function buildPlanHalf(input: {
     a: end ? left(hasVe, end, end.lapsLeft) : MISSING,
   });
   rows.push(...own);
-  return {desc, rows};
+  return {note: null, rows};
 }
 
 function perLapRow(
@@ -160,11 +153,3 @@ function perLapRow(
   if (planned == null || own == null) return null;
   return {k, p: fmt(planned), a: fmt(own)};
 }
-
-// Behind the "?" on the plan half (thread 33 #1119), one sentence a line.
-export const PLAN_HALF_HELP: readonly string[] = [
-  'The planner was given only laps from before this race, at this race’s fill limit and its length in laps, the formation lap not counted.',
-  'Plan cells are at the median use per lap, the Plan screen’s own number: what the load leaves before each planned stop and at the flag.',
-  'Laps are named as in the lap table: L1 is the formation lap, and a stop is on the lap the pit lane is entered.',
-  'Stops are lined up by order; a stop only one side made reads “—” on the other.',
-];

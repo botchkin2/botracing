@@ -14,12 +14,7 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
-import {
-  CLEAN_AHEAD_S,
-  CLEAN_BATTLE_S,
-  type SessionTraffic,
-  TRAFFIC_AHEAD_S,
-} from '@/src/analysis/traffic';
+import {type SessionTraffic} from '@/src/analysis/traffic';
 import {trackInfo} from '@/src/data/tracks';
 import {
   carLabel,
@@ -458,7 +453,6 @@ export type Row = {label: string; value: string; note?: string};
 export type Card = {
   key: string;
   title: string;
-  explainer: string;
   rows: Row[];
 };
 
@@ -468,8 +462,6 @@ export type PlanView = {
   /** "preset 75 L · last race 84 L" when the preset may be stale. */
   stale: string | null;
   cards: Card[];
-  /** What is not modelled. */
-  footnote: string;
 };
 
 const NL = String.fromCharCode(10);
@@ -544,8 +536,6 @@ function loadCard(rows: LoadToFinish[], r: PlanRules): Card {
   return {
     key: 'load',
     title: 'Load to finish',
-    explainer:
-      'The race fits one load, so this is the Stops table read the other way: what the laps need at your median and at your heavy laps (p90), with the formation lap. The note says what is left if you carried the p90 load and ran the median. A number, not advice about what to load.',
     rows: out,
   };
 }
@@ -660,7 +650,6 @@ export function planView(
   cards.push({
     key: 'perLap',
     title: 'Per green lap',
-    explainer: `Green laps at this track and car, at the fill limit of these rules: not the first lap, in or out laps, full-course yellows or laps cut short by a reset. Median, and p10 to p90 in brackets. The all-green median sets the race laps, because a race includes traffic. Clean laps: no car within ${CLEAN_AHEAD_S} s ahead, no car passing, no blue flag, under ${CLEAN_BATTLE_S} s of battle. Traffic laps: ${TRAFFIC_AHEAD_S} s or more behind a car. Shown from 3 laps.`,
     rows: [
       ...(driftRow ? [driftRow] : []),
       ...(shown === 'fuel' ? [fuelRow] : []),
@@ -790,8 +779,6 @@ export function planView(
     cards.push({
       key: 'dropStop',
       title: 'To drop a stop',
-      explainer:
-        'The most one lap may use for the stints to reach with one fewer stop, and how your own laps at that use compare. A correlation from your laps, not a cost: traffic and pace are mixed in. Nothing here says how long a stop takes.',
       rows,
     });
   }
@@ -800,7 +787,5 @@ export function planView(
     rulesLine,
     stale,
     cards,
-    footnote:
-      'Not modelled: tyres and double-stinting, full-course yellows, weather, and how long a stop takes, except in a timed race, where the time of a stop is the pit loss measured from your own stops here plus refuelling (not counted without two such stops).',
   };
 }

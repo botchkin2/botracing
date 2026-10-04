@@ -677,8 +677,6 @@ describe('planView', () => {
     expect(labels.indexOf('Lap time')).toBeLessThan(
       labels.indexOf('Clean laps'),
     );
-    expect(withTraffic.cards[0].explainer).toContain('sets the race laps');
-    expect(withTraffic.cards[0].explainer).toContain('2 s ahead');
   });
 
   it('Per green lap: a set under 3 laps, or no field, adds no row', () => {
@@ -796,7 +794,6 @@ describe('planView', () => {
     });
     expect(v.stale).toBeNull();
     expect(v.rulesLine).toBe('Rules: last race here (84 L fill limit)');
-    expect(v.footnote).toContain('tyres');
   });
 
   it('shows no data without history', () => {

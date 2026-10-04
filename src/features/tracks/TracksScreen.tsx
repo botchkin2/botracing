@@ -7,7 +7,7 @@ import {useSessions} from '@/src/data/sessions';
 import {trackCatalog} from '@/src/data/tracks';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref, trackHref} from '@/src/nav/routes';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {buildTracksModel} from './model';
 
@@ -44,9 +44,6 @@ export function TracksScreen() {
       ) : null}
       <View style={styles.head}>
         <Text variant='pageTitle'>Tracks</Text>
-        <Explainer>
-          Every layout in the game. The ones you have driven come first.
-        </Explainer>
       </View>
       <View style={{borderTopWidth: 1, borderColor: color.lineStrong}}>
         {rows.map(r => (
@@ -63,7 +60,7 @@ export function TracksScreen() {
               <Text variant='bodyStrong' numberOfLines={1}>
                 {r.name}
               </Text>
-              <Text variant='explainer' tone='textMuted' numberOfLines={1}>
+              <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
                 {r.place}
               </Text>
             </View>

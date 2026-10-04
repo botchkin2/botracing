@@ -27,7 +27,7 @@ export function FactTiles({
             {f.value}
           </Text>
           {f.sub ? (
-            <Text variant='explainer' tone='textMuted' numberOfLines={1}>
+            <Text variant='dataSmall' tone='textMuted' numberOfLines={1}>
               {f.sub}
             </Text>
           ) : null}

@@ -2,9 +2,8 @@ import {StyleSheet, View} from 'react-native';
 
 import {refuelScope} from '@/src/analysis/refuel';
 import {space, useTheme} from '@/src/design';
-import {Text, useHowToRead} from '@/src/ui';
+import {Text} from '@/src/ui';
 
-import {PIT_WINDOW_HELP} from '../pitWindowHelp';
 import {type StintLine, type StopRow, type StopsCard} from '../planCards';
 
 /**
@@ -13,8 +12,7 @@ import {type StintLine, type StopRow, type StopsCard} from '../planCards';
  * uses in the unit shown, what the stop that ends it refuels, and the lap that
  * stop comes after. The full-tank plan is at full ink, equal stints under it
  * as the comparison in secondary ink. The formation lap has its own row, so
- * "after L10" after a first stint of 9 reads as L1 plus nine racing laps. The
- * pit window's long explanation is behind its "?".
+ * "after L10" after a first stint of 9 reads as L1 plus nine racing laps.
  */
 export function StopsCardView({
   card,
@@ -24,7 +22,6 @@ export function StopsCardView({
   carClass: string;
 }) {
   const {color} = useTheme();
-  const help = useHowToRead('the pit window', PIT_WINDOW_HELP);
   if (!card.full && !card.equal)
     return (
       <Text variant='dataSmall' tone='textMuted'>
@@ -92,9 +89,7 @@ export function StopsCardView({
             <Text variant='label' tone='textMuted'>
               Pit window
             </Text>
-            {help.button}
           </View>
-          {help.panel}
           {card.windows.map(w => (
             <Text key={w.stop} variant='dataStrong' tone='textSecondary'>
               {w.text}
