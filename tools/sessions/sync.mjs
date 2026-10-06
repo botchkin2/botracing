@@ -10,7 +10,8 @@
 //                                                     sessions: fingerprints, staleness, fold plan.
 //                                                     Analyses and writes nothing; exits 1 on a throw
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
-//   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
+//   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map (--local only; curated
+//                                                     maps change with tools/curate/curate.mjs)
 //   node tools/sessions/sync.mjs --jobs 4             sessions analyzed at once
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
@@ -82,11 +83,14 @@ const folder = arg(
 // keeps it fresh), and the owner is whatever key the server holds for that user.
 const remote = !flag('--local') && (flag('--remote') || !!process.env.LAP_API);
 // Track data (corner maps, boundaries, surface) is curated by Botkin, not made
-// by users' syncs (pit wall thread 2 #155): a remote sync reads the catalog and
-// never builds, folds, rebuilds or uploads any of it.
-if (remote && arg('--rebuild-track', '')) {
+// by users' syncs (pit wall thread 2 #155, #210): a sync that uploads, remote or
+// with Admin credentials, reads the catalog and never builds, folds, rebuilds or
+// uploads any of it. A map comes from `tools/curate/curate.mjs plan-add`. Only
+// `--local` (nothing leaves the machine) still builds maps, for trying things.
+const catalogOnly = !flag('--local');
+if (catalogOnly && arg('--rebuild-track', '')) {
   console.error(
-    '--rebuild-track is not available with --remote: track maps are curated. Use the admin sync on the curator PC.',
+    '--rebuild-track is not available except with --local: track maps are curated. Use tools/curate/curate.mjs plan-replace.',
   );
   process.exit(2);
 }
@@ -190,7 +194,9 @@ async function trackMapFor(trackId, store) {
   const path = resolve(work, 'tracks', `${trackId}.json`);
   // A remote sync reads the curated catalog every time, never a local copy.
   let map =
-    !remote && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+    !catalogOnly && existsSync(path)
+      ? JSON.parse(readFileSync(path, 'utf8'))
+      : null;
   if (!map && store) map = await store.getTrack(trackId);
   // A map from an older mapVersion is no map: the session rebuilds it. Say so
   // here, not only inside the analysis, so a parallel sync runs that track
@@ -224,7 +230,9 @@ async function boundariesFor(trackId, store) {
   if (boundaryStates.has(trackId)) return boundaryStates.get(trackId);
   const path = boundariesPath(trackId);
   let doc =
-    !remote && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+    !catalogOnly && existsSync(path)
+      ? JSON.parse(readFileSync(path, 'utf8'))
+      : null;
   if (!doc && store) doc = await store.getBoundaries(trackId);
   const state = doc ? unpackState(doc) : null;
   boundaryStates.set(trackId, state);
@@ -334,7 +342,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
-    catalogOnly: remote,
+    catalogOnly,
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
@@ -706,7 +714,7 @@ async function main() {
   // per run, newest first. The stamp is read once per track from the catalog.
   const stamps = new Map();
   const catalogStale = new Set();
-  if (remote && !force && !check) {
+  if (catalogOnly && !force && !check) {
     const synced = [...sessions]
       .reverse()
       .filter(s => state.sessions[s.id] === s.fingerprint)
@@ -757,7 +765,7 @@ async function main() {
   // map yet is built by its first session in the main pass, the rest settle.
   const needFold = [];
   // A remote sync folds nothing: the boundaries are the curator's.
-  for (const s of remote ? [] : todo) {
+  for (const s of catalogOnly ? [] : todo) {
     const trackId = trackOf(s);
     if (!(await trackMapFor(trackId, store))) continue;
     const kept = await boundariesFor(trackId, store);
@@ -915,7 +923,7 @@ async function runPool(
         if (!local) {
           state.sessions[s.id] = s.fingerprint;
           if (r.rev != null) state.revs[s.id] = r.rev;
-          if (remote) state.stamps[s.id] = await stampFor(trackId, store);
+          if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
           saveState(state);
         }
       } else {
@@ -975,7 +983,7 @@ async function processSession(
   const out = build(s, trackMap, boundaries, eventWindows, {fresh});
   // The analysis is told not to make track data; if any ever comes out, it
   // must not go anywhere.
-  if (remote && (out.track || out.boundaries))
+  if (catalogOnly && (out.track || out.boundaries))
     throw new Error(
       'a remote sync produced track data: refusing to keep or upload it',
     );

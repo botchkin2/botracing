@@ -1108,6 +1108,8 @@ export function analyzeSession(
         : null,
     newTrackMap,
     trackMapSource,
+    // Clean laps the built map used (null when none was built); the curator needs it.
+    trackMapLaps: built?.laps ?? null,
     trackMapMismatch: Boolean(trackMap && !fits),
     consistency: {
       summary: consistency.summary,
