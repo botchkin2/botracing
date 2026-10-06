@@ -30,7 +30,7 @@ node ops/backups/restoreDrill.mjs            # newest backup -> scratch database
 node ops/backups/restoreDrill.mjs --files    # also: write, delete, restore and read back one object under backup-drill/
 ```
 
-Production is only read. The restored copy must hold at least what the live database says existed when the backup was taken (sessions last written before the snapshot, with their laps and recordings) and no more than live now, so uploads during the drill do not make it flake. It exits 1 on any failure; `--keep` leaves the scratch database (it is billed: delete it).
+Production is only read. The restored copy must hold at least what the live database says existed when the backup was taken (sessions last written before the snapshot, with their laps and recordings) and no more than live now, so uploads during the drill do not make it flake. Counts say "present", so it also **compares content**: up to five sessions nothing has written since the snapshot, and up to three laps of each, must be identical field for field in both databases (a PASS means restorable, not just present); with no such session it fails, because nothing was proven. `--files` checks that the restored object's bytes equal what was written. It exits 1 on any failure; `--keep` leaves the scratch database (it is billed: delete it).
 
 ## Check every day
 

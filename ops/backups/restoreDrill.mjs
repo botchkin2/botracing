@@ -21,7 +21,9 @@ import {
   COLLECTIONS,
   CONFIG,
   compareDrill,
+  compareSample,
   drillLowerBounds,
+  sampleIds,
   scratchName,
 } from './lib.mjs';
 
@@ -104,13 +106,47 @@ export async function runDrill({
         .collection('sessions')
         .select('updatedAt', 'lapCount', 'recordingIds')
         .get()
-    ).docs.map(d => d.data());
+    ).docs.map(d => ({id: d.id, ...d.data()}));
     const bounds = drillLowerBounds(sessionDocs, backup.snapshotTime);
     result = compareDrill({live, restored, bounds});
     for (const row of result.rows)
       log(
         `${row.pass ? 'PASS' : 'FAIL'} ${row.collection.padEnd(16)} ${row.why}`,
       );
+
+    // Counts say "present"; this says "restorable": a few sessions that
+    // nothing has written since the snapshot, and some of their laps, must be
+    // identical in both databases.
+    const pairs = [];
+    const read = async (db, path) => {
+      const snap = await db.doc(path).get();
+      return snap.exists ? snap.data() : null;
+    };
+    for (const id of sampleIds(sessionDocs, backup.snapshotTime)) {
+      pairs.push({
+        path: `sessions/${id}`,
+        live: await read(liveDb, `sessions/${id}`),
+        restored: await read(restoredDb, `sessions/${id}`),
+      });
+      const laps = await liveDb
+        .collection('laps')
+        .where('sessionId', '==', id)
+        .limit(3)
+        .get();
+      for (const lap of laps.docs)
+        pairs.push({
+          path: `laps/${lap.id}`,
+          live: lap.data(),
+          restored: await read(restoredDb, `laps/${lap.id}`),
+        });
+    }
+    const sample = compareSample(pairs);
+    if (sample.rows.length === 0) log(`FAIL content sample: ${sample.why}`);
+    for (const row of sample.rows)
+      log(
+        `${row.pass ? 'PASS' : 'FAIL'} content sample ${row.path}: ${row.why}`,
+      );
+    result = {...result, pass: result.pass && sample.pass, sample};
   } finally {
     if (keep) {
       log(
@@ -148,7 +184,8 @@ export function runFileDrill({
   const object = `gs://${config.bucket}/backup-drill/${scratchName(now)}.txt`;
   const dir = mkdtempSync(join(tmpdir(), 'backup-drill-'));
   const local = join(dir, 'probe.txt');
-  writeFileSync(local, `backup drill ${now.toISOString()}\n`);
+  const expected = `backup drill ${now.toISOString()}\n`;
+  writeFileSync(local, expected);
   const stage = (label, fn) => {
     try {
       const out = fn();
@@ -192,8 +229,8 @@ export function runFileDrill({
         object,
         `--project=${config.project}`,
       ]);
-      if (!String(text).startsWith('backup drill'))
-        throw new Error('content does not match');
+      if (String(text) !== expected)
+        throw new Error('content does not match what was written');
     });
     run(['storage', 'rm', object, `--project=${config.project}`]);
     return {pass: true};

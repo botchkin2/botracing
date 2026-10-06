@@ -281,6 +281,61 @@ export function drillLowerBounds(sessions, snapshotTime) {
 }
 
 /**
+ * Which sessions to deep-compare after a restore: those last written at or
+ * before the snapshot, so nothing since then can legitimately differ. The first
+ * `n` by id, so a re-run looks at the same ones. `sessions` is
+ * [{id, updatedAt}].
+ */
+export function sampleIds(sessions, snapshotTime, n = 5) {
+  const cutoff = Date.parse(snapshotTime);
+  return sessions
+    .filter(s => Date.parse(s.updatedAt) <= cutoff)
+    .map(s => s.id)
+    .sort()
+    .slice(0, n);
+}
+
+/**
+ * A restore that has the right COUNTS can still be wrong (empty or garbled
+ * documents). pairs: [{path, live, restored}], each side a plain object or
+ * null when the document is missing. A PASS here means the sampled documents
+ * are identical, field for field. No sample at all is a failure: nothing was
+ * proven (marshal #194).
+ */
+export function compareSample(pairs) {
+  if (pairs.length === 0)
+    return {
+      pass: false,
+      rows: [],
+      why: 'no session was last written before the snapshot, so there is nothing to compare: run the drill again after the next backup',
+    };
+  const rows = pairs.map(({path, live, restored}) => {
+    if (restored === null || restored === undefined)
+      return {path, pass: false, why: 'missing in the restored copy'};
+    const same =
+      JSON.stringify(sortKeys(live)) === JSON.stringify(sortKeys(restored));
+    return {
+      path,
+      pass: same,
+      why: same ? 'identical' : 'differs from the live document',
+    };
+  });
+  return {pass: rows.every(r => r.pass), rows};
+}
+
+// Key order is not content.
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map(k => [k, sortKeys(value[k])]),
+    );
+  return value;
+}
+
+/**
  * live and restored: {collection: count}. bounds from drillLowerBounds.
  * Returns {pass, rows} with one row per collection and why it passed or failed.
  */

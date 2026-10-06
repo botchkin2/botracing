@@ -5,6 +5,7 @@ import {gatherState, gcloudRunner, quoteForWindows} from './gcloud.mjs';
 import {
   CONFIG,
   compareDrill,
+  compareSample,
   drillLowerBounds,
   evaluateStatus,
   planEnable,
@@ -12,6 +13,7 @@ import {
   readBucket,
   readDatabase,
   readSchedules,
+  sampleIds,
   scratchName,
   seconds,
 } from './lib.mjs';
@@ -505,9 +507,61 @@ test('status: exit-worthy result, sizes parsed, gcloud notes shown', () => {
 
 // -- the drill ---------------------------------------------------------------------
 
-function fakeDbs({live, restored, sessions}) {
+test('sampleIds: only sessions written by the snapshot, the first n by id', () => {
+  const snapshot = hoursAgo(5);
+  const sessions = [
+    {id: 'c', updatedAt: hoursAgo(10)},
+    {id: 'a', updatedAt: hoursAgo(6)},
+    {id: 'z', updatedAt: hoursAgo(1)}, // written after the snapshot
+    {id: 'b', updatedAt: hoursAgo(9)},
+  ];
+  assert.deepEqual(sampleIds(sessions, snapshot), ['a', 'b', 'c']);
+  assert.deepEqual(sampleIds(sessions, snapshot, 2), ['a', 'b']);
+  assert.deepEqual(sampleIds([], snapshot), []);
+});
+
+test('compareSample: identical documents pass whatever the key order; anything else fails', () => {
+  const same = compareSample([
+    {
+      path: 'sessions/a',
+      live: {x: 1, y: {p: 1, q: [1, 2]}},
+      restored: {y: {q: [1, 2], p: 1}, x: 1},
+    },
+    {path: 'laps/l1', live: {t: 90.5}, restored: {t: 90.5}},
+  ]);
+  assert.equal(same.pass, true);
+  const diff = compareSample([
+    {path: 'laps/l1', live: {t: 90.5}, restored: {t: 90.4}},
+  ]);
+  assert.equal(diff.pass, false);
+  assert.equal(diff.rows[0].why, 'differs from the live document');
+  const missing = compareSample([
+    {path: 'sessions/a', live: {x: 1}, restored: null},
+  ]);
+  assert.equal(missing.pass, false);
+  assert.match(missing.rows[0].why, /missing in the restored copy/);
+  // An array order change is content.
+  assert.equal(
+    compareSample([{path: 'p', live: {a: [1, 2]}, restored: {a: [2, 1]}}]).pass,
+    false,
+  );
+});
+
+test('compareSample: nothing to sample is a failure, not a pass', () => {
+  const none = compareSample([]);
+  assert.equal(none.pass, false);
+  assert.match(none.why, /nothing to compare/);
+});
+
+function fakeDbs({live, restored, sessions, liveDocs = {}, restoredDocs}) {
   const writes = [];
-  const handle = counts => ({
+  const handle = (counts, store) => ({
+    doc: path => ({
+      get: async () => ({
+        exists: store[path] !== undefined,
+        data: () => store[path],
+      }),
+    }),
     collection: name => ({
       count: () => ({
         get: async () => ({data: () => ({count: counts[name] ?? 0})}),
@@ -515,19 +569,39 @@ function fakeDbs({live, restored, sessions}) {
       select: () => ({
         get: async () => ({
           docs: (name === 'sessions' ? sessions : []).map(d => ({
-            data: () => d,
+            id: d.id,
+            data: () => {
+              const {id, ...rest} = d;
+              return rest;
+            },
           })),
+        }),
+      }),
+      where: (field, _op, value) => ({
+        limit: n => ({
+          get: async () => ({
+            docs: Object.entries(store)
+              .filter(
+                ([path, data]) =>
+                  path.startsWith(name + '/') && data[field] === value,
+              )
+              .slice(0, n)
+              .map(([path, data]) => ({
+                id: path.split('/')[1],
+                data: () => data,
+              })),
+          }),
         }),
       }),
       set: () => writes.push(['set', name]),
       add: () => writes.push(['add', name]),
-      doc: () => ({
-        set: () => writes.push(['doc-set', name]),
-        delete: () => writes.push(['doc-delete', name]),
-      }),
     }),
   });
-  return {liveDb: handle(live), openRestored: () => handle(restored), writes};
+  return {
+    liveDb: handle(live, liveDocs),
+    openRestored: () => handle(restored, restoredDocs ?? liveDocs),
+    writes,
+  };
 }
 
 const GOOD_LIVE = {
@@ -539,38 +613,64 @@ const GOOD_LIVE = {
   users: 2,
   uploaders: 1,
 };
+const GOOD_RESTORED = {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12};
+const session = (id, hours, lapCount = 0, recordingIds = []) => ({
+  id,
+  updatedAt: hoursAgo(hours),
+  lapCount,
+  recordingIds,
+});
 const SNAP_SESSIONS = [
-  {updatedAt: hoursAgo(10), lapCount: 100, recordingIds: Array(12).fill('r')},
-  {updatedAt: hoursAgo(9), lapCount: 0, recordingIds: []},
-  ...Array.from({length: 8}, () => ({
-    updatedAt: hoursAgo(8),
-    lapCount: 0,
-    recordingIds: [],
-  })),
-  {updatedAt: hoursAgo(1), lapCount: 30, recordingIds: ['n']},
-  {updatedAt: hoursAgo(1), lapCount: 0, recordingIds: ['m', 'o']},
+  session('s01', 10, 100, Array(12).fill('r')),
+  session('s02', 9),
+  ...Array.from({length: 8}, (_, i) =>
+    session('s' + String(i + 3).padStart(2, '0'), 8),
+  ),
+  session('s11', 1, 30, ['n']), // written after the snapshot
+  session('s12', 1, 0, ['m', 'o']),
 ];
+// What both databases hold for them: the restore is faithful by default.
+const SNAP_DOCS = {
+  ...Object.fromEntries(
+    SNAP_SESSIONS.map(s => [
+      'sessions/' + s.id,
+      {...s, track: 'monza', best: 90.5},
+    ]),
+  ),
+  'laps/s01-001': {sessionId: 's01', lapTime: 91.2, ownerId: 'botkin'},
+  'laps/s01-002': {sessionId: 's01', lapTime: 90.5, ownerId: 'botkin'},
+  'laps/s02-001': {sessionId: 's02', lapTime: 95, ownerId: 'botkin'},
+};
 const DRILL_TABLE = tableFor({
   db: DB_ON,
   schedules: [SCHEDULE],
   backups: [backup('b2', 5)],
   bucket: BUCKET_ON,
 });
-
-test('drill: restores into a scratch database, passes, deletes the scratch, never writes to live', async () => {
-  const run = fakeRun(DRILL_TABLE);
+const drillWith = (overrides = {}, options = {}) => {
+  const run = fakeRun(options.table ?? DRILL_TABLE);
   const dbs = fakeDbs({
     live: GOOD_LIVE,
-    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    restored: GOOD_RESTORED,
     sessions: SNAP_SESSIONS,
+    liveDocs: SNAP_DOCS,
+    ...overrides,
   });
   const lines = [];
-  const result = await runDrill({
-    run,
-    ...dbs,
-    now: new Date(NOW),
-    log: l => lines.push(l),
-  });
+  const go = () =>
+    runDrill({
+      run,
+      ...dbs,
+      now: new Date(NOW),
+      log: l => lines.push(l),
+      ...options.args,
+    });
+  return {run, dbs, lines, go};
+};
+
+test('drill: restores into a scratch database, passes, deletes the scratch, never writes to live', async () => {
+  const {run, dbs, lines, go} = drillWith();
+  const result = await go();
   assert.equal(result.pass, true, lines.join('\n'));
   const restore = run.log.find(a => a[1] === 'databases' && a[2] === 'restore');
   assert.ok(restore.includes('--destination-database=drill-20261006-1200'));
@@ -584,78 +684,107 @@ test('drill: restores into a scratch database, passes, deletes the scratch, neve
   const del = run.log.find(a => a[1] === 'databases' && a[2] === 'delete');
   assert.ok(del.includes('--database=drill-20261006-1200'));
   assert.equal(dbs.writes.length, 0, 'production was written');
+  // The content sample ran: sessions written before the snapshot, and laps.
+  assert.match(lines.join('\n'), /PASS content sample sessions\/s01/);
+  assert.match(lines.join('\n'), /PASS content sample laps\/s01-001/);
+  // Sessions written after the snapshot are not compared (they may differ).
+  assert.doesNotMatch(lines.join('\n'), /content sample sessions\/s11/);
+});
+
+test('drill: right counts but a garbled or missing document fails (PASS means restorable)', async () => {
+  const garbled = {
+    ...SNAP_DOCS,
+    'sessions/s01': {...SNAP_DOCS['sessions/s01'], best: 99},
+  };
+  const a = drillWith({restoredDocs: garbled});
+  const bad = await a.go();
+  assert.equal(bad.pass, false);
+  assert.match(
+    a.lines.join('\n'),
+    /FAIL content sample sessions\/s01: differs/,
+  );
+  assert.ok(
+    a.run.log.some(x => x[2] === 'delete'),
+    'scratch still deleted',
+  );
+
+  const {'laps/s01-002': _gone, ...withoutLap} = SNAP_DOCS;
+  const b = drillWith({restoredDocs: withoutLap});
+  assert.equal((await b.go()).pass, false);
+  assert.match(
+    b.lines.join('\n'),
+    /FAIL content sample laps\/s01-002: missing/,
+  );
+});
+
+test('drill: with no session older than the snapshot there is nothing to prove, so it fails', async () => {
+  const fresh = [session('s01', 1, 5), session('s02', 2, 5)];
+  const t = drillWith({
+    sessions: fresh,
+    liveDocs: {'sessions/s01': fresh[0], 'sessions/s02': fresh[1]},
+    restored: {...GOOD_LIVE, sessions: 0, laps: 0, recordings: 0},
+  });
+  const result = await t.go();
+  assert.equal(result.pass, false);
+  assert.match(
+    t.lines.join('\n'),
+    /FAIL content sample: no session was last written before the snapshot/,
+  );
 });
 
 test('drill: a short restore fails the drill, and the scratch database is still deleted', async () => {
-  const run = fakeRun(DRILL_TABLE);
-  const dbs = fakeDbs({
-    live: GOOD_LIVE,
+  const t = drillWith({
     restored: {...GOOD_LIVE, sessions: 4, laps: 10, recordings: 3},
-    sessions: SNAP_SESSIONS,
   });
-  const result = await runDrill({
-    run,
-    ...dbs,
-    now: new Date(NOW),
-    log: () => {},
-  });
+  const result = await t.go();
   assert.equal(result.pass, false);
-  assert.ok(run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
+  assert.ok(t.run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
 });
 
 test('drill: if the restore itself blows up the scratch database is still cleaned up', async () => {
-  const run = fakeRun({
-    ...DRILL_TABLE,
-    'firestore databases restore': new Error('FAILED_PRECONDITION'),
-  });
-  const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
-  await assert.rejects(
-    runDrill({run, ...dbs, now: new Date(NOW), log: () => {}}),
-    /FAILED_PRECONDITION/,
+  const t = drillWith(
+    {},
+    {
+      table: {
+        ...DRILL_TABLE,
+        'firestore databases restore': new Error('FAILED_PRECONDITION'),
+      },
+    },
   );
-  assert.ok(run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
+  await assert.rejects(t.go(), /FAILED_PRECONDITION/);
+  assert.ok(t.run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
 });
 
 test('drill: --keep leaves the scratch database and says how to delete it', async () => {
-  const run = fakeRun(DRILL_TABLE);
-  const dbs = fakeDbs({
-    live: GOOD_LIVE,
-    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
-    sessions: SNAP_SESSIONS,
-  });
-  const lines = [];
-  await runDrill({
-    run,
-    ...dbs,
-    now: new Date(NOW),
-    keep: true,
-    log: l => lines.push(l),
-  });
+  const t = drillWith({}, {args: {keep: true}});
+  await t.go();
   assert.equal(
-    run.log.some(a => a[1] === 'databases' && a[2] === 'delete'),
+    t.run.log.some(a => a[1] === 'databases' && a[2] === 'delete'),
     false,
   );
   assert.match(
-    lines.join('\n'),
+    t.lines.join('\n'),
     /gcloud firestore databases delete --database=drill-20261006-1200/,
   );
 });
 
 test('drill: no backup, or a stale one, never starts a restore', async () => {
   for (const backups of [[], [backup('b', 40)], [backup('b', 5, 'CREATING')]]) {
-    const run = fakeRun(
-      tableFor({db: DB_ON, schedules: [SCHEDULE], backups, bucket: BUCKET_ON}),
+    const t = drillWith(
+      {},
+      {
+        table: tableFor({
+          db: DB_ON,
+          schedules: [SCHEDULE],
+          backups,
+          bucket: BUCKET_ON,
+        }),
+      },
     );
-    const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
-    const result = await runDrill({
-      run,
-      ...dbs,
-      now: new Date(NOW),
-      log: () => {},
-    });
+    const result = await t.go();
     assert.equal(result.pass, false);
     assert.equal(
-      run.log.some(a => a[2] === 'restore' || a[2] === 'delete'),
+      t.run.log.some(a => a[2] === 'restore' || a[2] === 'delete'),
       false,
     );
   }
@@ -689,7 +818,7 @@ test('the drill only ever touches a drill database', () => {
   );
 });
 
-test('file drill: write, delete, find it soft-deleted, restore, read back, clean up', () => {
+test('file drill: write, delete, find it soft-deleted, restore, read back exactly, clean up', () => {
   const object = 'gs://botracing-61-lmu/backup-drill/drill-20261006-1200.txt';
   const calls = [];
   const run = args => {
@@ -712,11 +841,24 @@ test('file drill: write, delete, find it soft-deleted, restore, read back, clean
   ]);
 });
 
+test('file drill: content that is not exactly what was written fails', () => {
+  const object = 'gs://botracing-61-lmu/backup-drill/drill-20261006-1200.txt';
+  const run = args => {
+    if (args[1] === 'ls') return `${object}#1\n`;
+    if (args[1] === 'cat') return 'backup drill (some other time)\n';
+    return '';
+  };
+  assert.equal(
+    runFileDrill({run, now: new Date(NOW), log: () => {}}).pass,
+    false,
+  );
+});
+
 test('file drill: an object that never shows as soft-deleted fails the drill and is removed', () => {
   const calls = [];
   const run = args => {
     calls.push(args[1]);
-    return args[1] === 'ls' ? '' : '';
+    return '';
   };
   const result = runFileDrill({run, now: new Date(NOW), log: () => {}});
   assert.equal(result.pass, false);
