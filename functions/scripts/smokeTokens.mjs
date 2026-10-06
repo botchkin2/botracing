@@ -2,15 +2,18 @@
 // this script creates and deletes. For Botkin to run himself: account creation
 // is not something a coding session does.
 //
-// One-time setup (as an owner of botracing-61):
+// One-time setup (PowerShell, as an owner of botracing-61):
 //   gcloud auth application-default login
 //   gcloud auth application-default set-quota-project botracing-61
 //   gcloud iam service-accounts list --project botracing-61
-//       -> note the firebase-adminsdk-...@botracing-61.iam.gserviceaccount.com
-//   gcloud iam service-accounts add-iam-policy-binding <that email> //       --member user:<your email> --role roles/iam.serviceAccountTokenCreator
+//     (note the firebase-adminsdk-...@botracing-61.iam.gserviceaccount.com)
+//   gcloud iam service-accounts add-iam-policy-binding <that email> `
+//     --member user:<your email> --role roles/iam.serviceAccountTokenCreator
 //
-// Run:
-//   SMOKE_SERVICE_ACCOUNT=<that email> FIREBASE_WEB_API_KEY=<web api key> //     node functions/scripts/smokeTokens.mjs
+// Run (PowerShell, from the repo root):
+//   $env:SMOKE_SERVICE_ACCOUNT = "<that email>"
+//   $env:FIREBASE_WEB_API_KEY = "<web api key>"
+//   node functions/scripts/smokeTokens.mjs
 //
 // Both variables are required. A personal login cannot sign a custom token
 // itself and a PC has no metadata server, so the script signs as the Admin SDK
