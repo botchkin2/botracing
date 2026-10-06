@@ -3,12 +3,10 @@
 // uploadCore.ts; this binds them to Firebase Auth, Firestore and Storage.
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
-import {gzipSync} from 'zlib';
 import {
   DocStore,
   FileStore,
   Json,
-  MAX_FILE_BYTES,
   UploadDeps,
   handleUpload,
 } from './uploadCore';
@@ -18,6 +16,7 @@ if (!admin.apps.length) {
 }
 
 const BUCKET = 'botracing-61-lmu';
+const MAX_BODY_BYTES = 8_000_000;
 
 function firebaseDocs(): DocStore {
   const db = admin.firestore();
@@ -74,15 +73,28 @@ function firebaseFiles(): FileStore {
       const [meta] = await file.getMetadata();
       return {md5Hash: String(meta.md5Hash), size: Number(meta.size)};
     },
-    async put(path, bytes, meta) {
-      await bucket.file(path).save(Buffer.from(bytes), {
-        resumable: false,
-        metadata: {
-          contentType: meta.contentType,
-          contentEncoding: meta.contentEncoding,
-          cacheControl: 'private, max-age=31536000',
+    async signedUpload(
+      path,
+      {contentType, contentEncoding, maxBytes, expiresMs},
+    ) {
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
+        'Cache-Control': 'private, max-age=31536000',
+        'x-goog-content-length-range': `0,${maxBytes}`,
+      };
+      if (contentEncoding) headers['Content-Encoding'] = contentEncoding;
+      const [url] = await bucket.file(path).getSignedUrl({
+        version: 'v4',
+        action: 'write',
+        expires: Date.now() + expiresMs,
+        contentType,
+        extensionHeaders: {
+          'cache-control': headers['Cache-Control'],
+          'x-goog-content-length-range': headers['x-goog-content-length-range'],
+          ...(contentEncoding ? {'content-encoding': contentEncoding} : {}),
         },
       });
+      return {url, headers};
     },
     async read(path) {
       const file = bucket.file(path);
@@ -108,7 +120,6 @@ const deps: UploadDeps = {
   },
   docs: firebaseDocs(),
   files: firebaseFiles(),
-  gzip: bytes => gzipSync(bytes, {level: 9}),
 };
 
 // The /api/upload prefix the hosting rewrite adds.
@@ -119,18 +130,15 @@ function subPath(req: {path?: string; url?: string}): string {
 }
 
 export const uploadApi = onRequest(
-  // The request cap is 32 MB; MAX_FILE_BYTES stays under it.
-  {memory: '512MiB', timeoutSeconds: 120, cors: false},
+  // Bodies are small JSON; file bytes never come through here.
+  {memory: '256MiB', timeoutSeconds: 60, cors: false},
   async (req, res) => {
-    // Cheap early refusal before anything is parsed or verified.
-    const length = Number(req.headers['content-length'] ?? 0);
-    if (length > MAX_FILE_BYTES + 100_000) {
+    // Bodies are JSON docs (at most 400 ops); file bytes go to Storage by
+    // signed URL, so a big request is a mistake or an attack.
+    if (Number(req.headers['content-length'] ?? 0) > MAX_BODY_BYTES) {
       res.status(413).json({error: 'request too large'});
       return;
     }
-    const isJson = String(req.headers['content-type'] ?? '').includes(
-      'application/json',
-    );
     const query: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(req.query))
       query[k] = typeof v === 'string' ? v : undefined;
@@ -140,9 +148,7 @@ export const uploadApi = onRequest(
         path: subPath(req),
         query,
         authorization: req.headers.authorization,
-        contentType: req.headers['content-type'],
-        json: isJson ? req.body : undefined,
-        body: isJson ? undefined : req.rawBody,
+        json: req.body,
       });
       if (out.bytes) {
         res

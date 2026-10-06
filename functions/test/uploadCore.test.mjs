@@ -15,6 +15,7 @@ function world(tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'}) {
   const docs = new Map([['users/uidK', {ownerKey: 'botkin'}]]);
   const files = new Map();
   const usage = new Map();
+  const signed = new Map();
   const deps = {
     verifyToken: async t => {
       if (!tokens[t]) throw new Error('bad');
@@ -65,14 +66,24 @@ function world(tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'}) {
               size: files.get(p).bytes.length,
             }
           : null,
-      put: async (p, bytes, meta) => files.set(p, {bytes, meta}),
+      // What Storage would do with the signed URL; the test's put() below plays
+      // the client's PUT against it.
+      signedUpload: async (p, opts) => {
+        signed.set(`fake://${p}`, {path: p, ...opts});
+        return {
+          url: `fake://${p}`,
+          headers: {
+            'Content-Type': opts.contentType,
+            'x-goog-content-length-range': `0,${opts.maxBytes}`,
+          },
+        };
+      },
       read: async p => files.get(p)?.bytes ?? null,
       remove: async p => files.delete(p),
       list: async prefix => [...files.keys()].filter(k => k.startsWith(prefix)),
     },
-    gzip: b => gzipSync(b),
   };
-  return {deps, docs, files, usage};
+  return {deps, docs, files, usage, signed};
 }
 
 const call = (w, token, method, path, rest = {}) =>
@@ -85,12 +96,19 @@ const call = (w, token, method, path, rest = {}) =>
   });
 const write = (w, token, ops) =>
   call(w, token, 'POST', '/docs/write', {json: {ops}});
-const put = (w, token, dest, body, extra = {}) =>
-  call(w, token, 'PUT', '/file', {
-    query: {dest, ...extra},
-    body: Buffer.from(body),
-    contentType: 'text/csv',
+// The client's two steps: ask for a signed URL (the client gzips first and
+// sends the final size), then PUT the bytes to it.
+const put = async (w, token, dest, text, {gzip = false} = {}) => {
+  const bytes = gzip ? gzipSync(Buffer.from(text)) : Buffer.from(text);
+  const res = await call(w, token, 'POST', '/file/upload-url', {
+    json: {dest, contentType: 'text/csv', gzip, size: bytes.length},
   });
+  if (res.status !== 200) return res;
+  const grant = w.signed.get(res.json.url);
+  assert.ok(bytes.length <= grant.maxBytes, 'Storage would refuse this body');
+  w.files.set(grant.path, {bytes, meta: grant});
+  return {status: 204};
+};
 const lap = (id, owner, sessionId = 's1') => ({
   op: 'set',
   coll: 'laps',
@@ -314,14 +332,14 @@ test('archive files are stored under the owner, except the legacy owner', async 
   assert.deepEqual(md5.json, {md5: null});
 });
 
-test('file calls: md5, gzip=1, read, delete, list scoped to the owner', async () => {
+test('file calls: md5, signed upload with gzip, read, delete, list scoped to the owner', async () => {
   const w = world();
   const dest = 'bands/uidA/s1/v1.json.gz';
   assert.deepEqual(
     (await call(w, 'tok-a', 'GET', '/file/md5', {query: {dest}})).json,
     {md5: null},
   );
-  await put(w, 'tok-a', dest, '{"a":1}', {gzip: '1'});
+  await put(w, 'tok-a', dest, '{"a":1}', {gzip: true});
   const stored = w.files.get(dest);
   assert.equal(stored.meta.contentEncoding, 'gzip');
   assert.equal(gunzipSync(stored.bytes).toString(), '{"a":1}');
@@ -365,14 +383,18 @@ test('file calls: md5, gzip=1, read, delete, list scoped to the owner', async ()
 
 test('a file over the size cap is refused and not stored', async () => {
   const w = world();
-  const res = await put(
-    w,
-    'tok-a',
-    'traces/uidA/l1/big',
-    Buffer.alloc(MAX_FILE_BYTES + 1),
-  );
-  assert.equal(res.status, 413);
-  assert.equal(w.files.size, 0);
+  const ask = size =>
+    call(w, 'tok-a', 'POST', '/file/upload-url', {
+      json: {dest: 'traces/uidA/l1/big', contentType: 'text/csv', size},
+    });
+  assert.equal((await ask(MAX_FILE_BYTES + 1)).status, 413);
+  for (const size of [-1, 1.5, '9', null])
+    assert.equal((await ask(size)).status, 400, String(size));
+  const res = await call(w, 'tok-a', 'POST', '/file/upload-url', {
+    json: {dest: 'traces/uidA/l1/big', contentType: 'text/html; x', size: 1},
+  });
+  assert.equal(res.status, 400);
+  assert.equal(w.signed.size, 0);
   assert.equal(w.usage.has('uidA'), false);
 });
 
@@ -409,4 +431,63 @@ test('unknown endpoints and methods are 404', async () => {
   assert.equal((await call(w, 'tok-a', 'POST', '/me')).status, 404);
   assert.equal((await call(w, 'tok-a', 'GET', '/docs/write')).status, 404);
   assert.equal((await call(w, 'tok-a', 'GET', '/nope')).status, 404);
+});
+
+test("the legacy owner's archive path cannot reach another owner's archive folder", async () => {
+  const w = world();
+  for (const dest of [
+    'archive/uidA/lmu/s1/r1/samples.parquet',
+    'archive/other/s1/r1/samples.parquet',
+  ]) {
+    assert.equal((await put(w, 'tok-k', dest, 'x')).status, 403, dest);
+    assert.equal(
+      (await call(w, 'tok-k', 'GET', '/file', {query: {dest}})).status,
+      403,
+    );
+  }
+  assert.equal(
+    (
+      await call(w, 'tok-k', 'GET', '/files', {
+        query: {prefix: 'archive/uidA/'},
+      })
+    ).status,
+    403,
+  );
+  assert.equal(w.signed.size, 0);
+});
+
+test('a signed upload is for the server-built path, with the size bound and encoding', async () => {
+  const w = world();
+  const res = await call(w, 'tok-a', 'POST', '/file/upload-url', {
+    json: {
+      dest: 'archive/lmu/s1/r1/samples.parquet',
+      contentType: 'application/vnd.apache.parquet',
+      gzip: false,
+      size: 1234,
+    },
+  });
+  assert.equal(res.status, 200);
+  const grant = w.signed.get(res.json.url);
+  assert.equal(grant.path, 'archive/uidA/lmu/s1/r1/samples.parquet');
+  assert.equal(grant.maxBytes, 1234);
+  assert.equal(grant.contentEncoding, undefined);
+  assert.equal(res.json.headers['x-goog-content-length-range'], '0,1234');
+  const gz = await call(w, 'tok-a', 'POST', '/file/upload-url', {
+    json: {
+      dest: 'bands/uidA/s1/v1.json.gz',
+      contentType: 'application/json',
+      gzip: true,
+      size: 9,
+    },
+  });
+  assert.equal(w.signed.get(gz.json.url).contentEncoding, 'gzip');
+});
+
+test('a document is limited by its bytes, not its characters', async () => {
+  const w = world();
+  // 400,000 three-byte characters: 400k chars but over 1.2 MB.
+  const res = await write(w, 'tok-a', [
+    {op: 'set', coll: 'tracks', id: 't', data: {name: '€'.repeat(400_000)}},
+  ]);
+  assert.equal(res.status, 413);
 });

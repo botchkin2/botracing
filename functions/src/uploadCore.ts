@@ -22,7 +22,10 @@
 // owners get archive/{ownerKey}/.
 export const LEGACY_OWNER = 'botkin';
 export const MAX_DOC_BYTES = 900_000; // Firestore's own limit is 1 MiB
-export const MAX_FILE_BYTES = 30_000_000; // Functions' request cap is 32 MB
+// Files go straight to Storage by signed URL, not through the function; this
+// bounds what a signed URL will accept.
+export const MAX_FILE_BYTES = 200_000_000;
+const UPLOAD_URL_MS = 15 * 60_000;
 export const MAX_OPS = 400; // Firestore's batch limit is 500
 const MAX_JSON_DEPTH = 20;
 
@@ -36,6 +39,9 @@ const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
 // Bucket folders (docs/STORAGE.md) and which carry the owner key as segment 2.
 const OWNER_SCOPED = ['traces', 'bands', 'field', 'slices'];
 
+const CONTENT_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
+// The sims tools/sessions writes under archive/{sim}/.
+const SIMS = ['lmu', 'iracing'];
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 
 export type Json =
@@ -73,11 +79,17 @@ export interface DocStore {
 
 export interface FileStore {
   stat(path: string): Promise<{md5Hash: string; size: number} | null>;
-  put(
+  // A short-lived URL that accepts one PUT to `path`, with exactly these
+  // headers; Storage refuses a body over maxBytes (x-goog-content-length-range).
+  signedUpload(
     path: string,
-    bytes: Uint8Array,
-    meta: {contentType: string; contentEncoding?: string},
-  ): Promise<void>;
+    options: {
+      contentType: string;
+      contentEncoding?: string;
+      maxBytes: number;
+      expiresMs: number;
+    },
+  ): Promise<{url: string; headers: Record<string, string>}>;
   read(path: string): Promise<Uint8Array | null>;
   remove(path: string): Promise<void>;
   list(prefix: string): Promise<string[]>;
@@ -87,7 +99,6 @@ export interface UploadDeps {
   verifyToken(idToken: string): Promise<{uid: string}>;
   docs: DocStore;
   files: FileStore;
-  gzip(bytes: Uint8Array): Uint8Array;
 }
 
 export interface UploadRequest {
@@ -95,9 +106,7 @@ export interface UploadRequest {
   path: string; // after /api/upload
   query: Record<string, string | undefined>;
   authorization: string | undefined;
-  contentType?: string;
   json?: unknown;
-  body?: Uint8Array;
 }
 
 // 204 has no body; a file read has bytes; everything else has json.
@@ -154,10 +163,14 @@ function filePath(ownerKey: string, dest: unknown): string {
       return refuse(403, 'file belongs to another owner');
     return dest;
   }
-  if (folder === 'archive')
+  if (folder === 'archive') {
+    // The sim segment is allow-listed so the legacy owner's unscoped path
+    // cannot name another owner's archive/{ownerKey}/ folder.
+    if (!SIMS.includes(segments[1])) return refuse(403, 'unknown sim');
     return isLegacy(ownerKey)
       ? dest
       : `archive/${ownerKey}/${segments.slice(1).join('/')}`;
+  }
   return refuse(403, 'file folder not allowed');
 }
 
@@ -201,12 +214,12 @@ function cleanDoc(data: unknown): Doc {
   if (typeof data !== 'object' || data === null || Array.isArray(data))
     return refuse(400, 'document data must be an object');
   checkJson(data);
-  if (JSON.stringify(data).length > MAX_DOC_BYTES)
-    refuse(413, 'document too large');
+  if (sizeOf(data) > MAX_DOC_BYTES) refuse(413, 'document too large');
   return {...(data as Doc)};
 }
 
-const sizeOf = (doc: unknown) => JSON.stringify(doc).length;
+// Bytes, not characters: Firestore's limit is on bytes.
+const sizeOf = (doc: unknown) => Buffer.byteLength(JSON.stringify(doc));
 
 const isTheirs = (existing: Doc | null, ownerKey: string, coll: string) =>
   existing !== null && OWNED.includes(coll) && existing.ownerId !== ownerKey;
@@ -368,24 +381,32 @@ async function route(
     const stat = await deps.files.stat(filePath(ownerKey, query.dest));
     return {status: 200, json: {md5: stat ? stat.md5Hash : null}};
   }
-  if (method === 'PUT' && path === '/file') {
-    const full = filePath(ownerKey, query.dest);
-    let bytes = req.body ?? new Uint8Array();
-    if (bytes.length > MAX_FILE_BYTES) return refuse(413, 'file too large');
-    const gzipped = query.gzip === '1';
-    if (gzipped) bytes = deps.gzip(bytes);
+  if (method === 'POST' && path === '/file/upload-url') {
+    const full = filePath(ownerKey, body.dest);
+    const size = body.size;
+    if (typeof size !== 'number' || !Number.isInteger(size) || size < 0)
+      return refuse(400, 'size must be a whole number of bytes');
+    if (size > MAX_FILE_BYTES) return refuse(413, 'file too large');
+    const type = body.contentType;
+    if (typeof type !== 'string' || !CONTENT_TYPE.test(type))
+      return refuse(400, 'bad contentType');
     const before = await deps.files.stat(full);
-    await deps.files.put(full, bytes, {
-      contentType: req.contentType || 'application/octet-stream',
-      contentEncoding: gzipped ? 'gzip' : undefined,
+    const signed = await deps.files.signedUpload(full, {
+      contentType: type,
+      contentEncoding: body.gzip === true ? 'gzip' : undefined,
+      maxBytes: size,
+      expiresMs: UPLOAD_URL_MS,
     });
+    // Counted when the URL is issued, at the most Storage will accept for it:
+    // the bytes arrive later, straight from the client, and an abandoned
+    // upload over-counts until the next recount.
     await deps.docs.addUsage(uid, {
       docs: 0,
       docBytes: 0,
       files: before ? 0 : 1,
-      fileBytes: bytes.length - (before?.size ?? 0),
+      fileBytes: size - (before?.size ?? 0),
     });
-    return {status: 204};
+    return {status: 200, json: signed};
   }
   if (method === 'GET' && path === '/file') {
     const bytes = await deps.files.read(filePath(ownerKey, query.dest));
