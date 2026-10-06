@@ -135,7 +135,11 @@ export const uploadApi = onRequest(
   async (req, res) => {
     // Bodies are JSON docs (at most 400 ops); file bytes go to Storage by
     // signed URL, so a big request is a mistake or an attack.
-    if (Number(req.headers['content-length'] ?? 0) > MAX_BODY_BYTES) {
+    // A chunked request has no content-length, so the received bytes count too.
+    if (
+      Number(req.headers['content-length'] ?? 0) > MAX_BODY_BYTES ||
+      (req.rawBody?.length ?? 0) > MAX_BODY_BYTES
+    ) {
       res.status(413).json({error: 'request too large'});
       return;
     }
