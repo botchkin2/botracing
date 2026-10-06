@@ -5,6 +5,7 @@ import {queryClient} from '@/src/utils/queryClient';
 import {type AuthState} from './authState';
 import {applyAuthState, useAuthStore} from './authStore';
 import {firebaseAuth} from './firebase';
+import {signInMessage} from './signInResult';
 import {finishRedirect} from './signIn.web';
 import {
   beginAuthWait,
@@ -18,6 +19,9 @@ import {
 // before anything renders. (Not in Node: the web export renders there.)
 if (typeof window !== 'undefined') beginAuthWait();
 
+/** The web build signs in: signed out, it shows the login screen. */
+export const signInRequired = true;
+
 /**
  * Starts following the Firebase sign-in (web). Called once from the root
  * layout's effect; returns the stop function. Until the SDK has read its
@@ -29,8 +33,11 @@ export function startAuthSession(): () => void {
   const auth = firebaseAuth();
   setUnauthorizedListener(() => useAuthStore.getState().markUnauthorized());
   // A redirect sign-in ends on a fresh page load; onAuthStateChanged below
-  // reports the user it produced, this only surfaces a failure to the log.
-  void finishRedirect();
+  // reports the user it produced, this only surfaces a failure to the person.
+  void finishRedirect().then(result => {
+    const message = result ? signInMessage(result) : null;
+    if (message) useAuthStore.getState().setNotice(message);
+  });
   const stop = onAuthStateChanged(auth, user => {
     const next: AuthState = user
       ? {kind: 'signed-in', uid: user.uid, email: user.email}

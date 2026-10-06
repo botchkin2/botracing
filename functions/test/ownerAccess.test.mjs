@@ -3,7 +3,6 @@ import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {
   ANONYMOUS_OWNER,
-  LEGACY_OWNER,
   Unauthorized,
   pathInsideOwner,
   resolveOwner,
@@ -19,13 +18,13 @@ const deps = (mapping = {}) => ({
   readOwnerKey: async uid => mapping[uid] ?? null,
 });
 
-test('no Authorization header reads as the legacy owner, as today', async () => {
-  assert.equal(ANONYMOUS_OWNER, LEGACY_OWNER);
-  assert.equal(await resolveOwner(deps(), undefined), 'botkin');
+test('no Authorization header is refused: anonymous access is closed', async () => {
+  assert.equal(ANONYMOUS_OWNER, null);
+  await assert.rejects(resolveOwner(deps(), undefined), Unauthorized);
 });
 
-test('with anonymous access removed, no header is Unauthorized', async () => {
-  await assert.rejects(resolveOwner(deps(), undefined, null), Unauthorized);
+test('a deliberate bridge can still name an anonymous owner', async () => {
+  assert.equal(await resolveOwner(deps(), undefined, 'botkin'), 'botkin');
 });
 
 test('a verified token is the uid, or the admin-mapped key', async () => {
