@@ -45,7 +45,7 @@ export function chunked(ops) {
   let chunk = [];
   let bytes = 0;
   for (const op of ordered) {
-    const size = JSON.stringify(op).length;
+    const size = Buffer.byteLength(JSON.stringify(op));
     if (
       chunk.length > 0 &&
       (chunk.length >= CHUNK_OPS || bytes + size > CHUNK_BYTES)
