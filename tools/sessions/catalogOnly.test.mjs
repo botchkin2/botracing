@@ -256,19 +256,33 @@ test('the HTTP store refuses to send a write to track data, and nothing leaves t
   server.close();
 });
 
-test('--remote with --rebuild-track is refused before anything else happens', () => {
+test('--rebuild-track is refused before anything else happens, for a remote sync and an Admin sync alike; only --local may still build maps', () => {
   const sync = fileURLToPath(new URL('./sync.mjs', import.meta.url));
-  const r = spawnSync(
+  const refused =
+    /--rebuild-track is not available except with --local: track maps are curated/;
+  for (const args of [['--remote'], []]) {
+    const r = spawnSync(
+      process.execPath,
+      [sync, ...args, '--rebuild-track', 'lmu-road-atlanta'],
+      {
+        encoding: 'utf8',
+        env: {...process.env, LAP_TOKEN_FILE: '', LAP_API: ''},
+      },
+    );
+    assert.equal(r.status, 2, `${args} ${r.stderr}`);
+    assert.match(r.stderr, refused);
+  }
+  const local = spawnSync(
     process.execPath,
-    [sync, '--remote', '--rebuild-track', 'lmu-road-atlanta'],
-    {
-      encoding: 'utf8',
-      env: {...process.env, LAP_TOKEN_FILE: '', LAP_API: ''},
-    },
+    [
+      sync,
+      '--local',
+      '--rebuild-track',
+      'lmu-road-atlanta',
+      '--folder',
+      '/nope',
+    ],
+    {encoding: 'utf8', env: {...process.env, LAP_API: ''}},
   );
-  assert.equal(r.status, 2, r.stderr);
-  assert.match(
-    r.stderr,
-    /--rebuild-track is not available with --remote: track maps are curated/,
-  );
+  assert.doesNotMatch(local.stderr, refused, 'local is for trying things');
 });
