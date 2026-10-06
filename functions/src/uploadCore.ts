@@ -63,6 +63,9 @@ export interface Usage {
   docBytes: number;
   files: number;
   fileBytes: number;
+  // Status pings are counted apart: the quota that caps will be based on is
+  // docs and bytes, and must not fill with heartbeats (marshal #236).
+  heartbeats?: number;
 }
 
 export interface DocStore {
@@ -99,6 +102,7 @@ export interface UploadDeps {
   verifyToken(idToken: string): Promise<{uid: string}>;
   docs: DocStore;
   files: FileStore;
+  now?: () => number;
 }
 
 export interface UploadRequest {
@@ -114,17 +118,28 @@ export interface UploadResponse {
   status: number;
   json?: Json;
   bytes?: Uint8Array;
+  headers?: Record<string, string>;
 }
 
 class Refused extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  headers?: Record<string, string>;
+  constructor(
+    status: number,
+    message: string,
+    headers?: Record<string, string>,
+  ) {
     super(message);
     this.status = status;
+    this.headers = headers;
   }
 }
-const refuse = (status: number, message: string): never => {
-  throw new Refused(status, message);
+const refuse = (
+  status: number,
+  message: string,
+  headers?: Record<string, string>,
+): never => {
+  throw new Refused(status, message, headers);
 };
 
 // -- paths ------------------------------------------------------------------
@@ -305,6 +320,132 @@ async function updateDocs(
   return failed;
 }
 
+// -- uploader status (heartbeats) ----------------------------------------------
+// The tray's status, as Settings reads it (docs/API.md /uploaders), written
+// through the endpoint with the owner from the token: uploaders/{ownerKey}__{hostId}.
+
+// A host may write its status at most this often; a faster one is answered
+// 429 with Retry-After and the tray sends its LATEST state when allowed.
+export const HEARTBEAT_MIN_MS = 30_000;
+const HEARTBEAT_STATES = [
+  'idle',
+  'waiting-for-game',
+  'in-game',
+  'syncing',
+  'retrying',
+  'error',
+];
+const MAX_HEARTBEAT_BYTES = 8_000;
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v: unknown, max: number): v is string =>
+  typeof v === 'string' && v.length <= max;
+const count = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e15;
+// A time as the app reads it: ISO text, epoch milliseconds, or none.
+const when = (v: unknown): boolean =>
+  v === null || (typeof v === 'string' && v.length <= 40) || count(v);
+
+// One validator per field the Settings card reads; anything else is dropped.
+const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
+  label: v => str(v, 64),
+  version: v => str(v, 32),
+  lmuFound: v => typeof v === 'boolean',
+  state: v => typeof v === 'string' && HEARTBEAT_STATES.includes(v),
+  lastUploadAt: when,
+  lastSessionId: v => v === null || str(v, 64),
+  queue: count,
+  progress: v =>
+    v === null ||
+    (isObj(v) &&
+      count(v.done) &&
+      count(v.total) &&
+      (v.phase === undefined || str(v.phase, 32))),
+  retryAt: when,
+  sessionsDone: count,
+  lastError: v =>
+    v === null ||
+    (isObj(v) &&
+      when(v.at) &&
+      str(v.message, 300) &&
+      (v.path === null || v.path === undefined || str(v.path, 300))),
+  disk: v => isObj(v) && count(v.captureBytes) && count(v.freeBytes),
+  recorder: v =>
+    v === null ||
+    (isObj(v) &&
+      str(v.state, 32) &&
+      (v.gameVersion === null ||
+        v.gameVersion === undefined ||
+        str(v.gameVersion, 64)) &&
+      (v.layoutOk === null ||
+        v.layoutOk === undefined ||
+        typeof v.layoutOk === 'boolean') &&
+      (v.layoutReason === null ||
+        v.layoutReason === undefined ||
+        str(v.layoutReason, 200)) &&
+      (v.lastChunkAt === null ||
+        v.lastChunkAt === undefined ||
+        when(v.lastChunkAt)) &&
+      (v.updatedAt === null || v.updatedAt === undefined || when(v.updatedAt))),
+};
+const HEARTBEAT_REQUIRED = ['label', 'version', 'lmuFound', 'state'];
+
+async function heartbeat(
+  uid: string,
+  ownerKey: string,
+  deps: UploadDeps,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const hostId = body.hostId;
+  // Part of a document id: the same rule as every other id.
+  if (
+    typeof hostId !== 'string' ||
+    hostId.length > 64 ||
+    !SAFE_SEGMENT.test(hostId) ||
+    hostId.includes('..')
+  )
+    return refuse(400, 'bad hostId');
+  const doc: Doc = {};
+  for (const [field, valid] of Object.entries(HEARTBEAT_FIELDS)) {
+    if (body[field] === undefined) {
+      if (HEARTBEAT_REQUIRED.includes(field))
+        return refuse(400, `missing ${field}`);
+      continue;
+    }
+    if (!valid(body[field])) return refuse(400, `bad ${field}`);
+    doc[field] = body[field] as Json;
+  }
+  if (JSON.stringify(doc).length > MAX_HEARTBEAT_BYTES)
+    return refuse(413, 'status too large');
+
+  const path = `uploaders/${ownerKey}__${hostId}`;
+  const now = (deps.now ?? Date.now)();
+  const before = await deps.docs.get(path);
+  const last =
+    typeof before?.serverUpdatedAt === 'string'
+      ? Date.parse(before.serverUpdatedAt)
+      : NaN;
+  if (Number.isFinite(last) && now - last < HEARTBEAT_MIN_MS) {
+    const wait = Math.ceil((HEARTBEAT_MIN_MS - (now - last)) / 1000);
+    return refuse(429, 'too often', {'Retry-After': String(wait)});
+  }
+  // The server's clock and owner, not the client's.
+  const stamp = new Date(now).toISOString();
+  doc.hostId = hostId;
+  doc.lastSeenAt = stamp;
+  doc.serverUpdatedAt = stamp;
+  doc.ownerId = ownerKey;
+  await deps.docs.commit([{op: 'set', path, data: doc, merge: false}]);
+  await deps.docs.addUsage(uid, {
+    docs: 0,
+    docBytes: 0,
+    files: 0,
+    fileBytes: 0,
+    heartbeats: 1,
+  });
+}
+
 // -- the handler ------------------------------------------------------------
 
 export async function handleUpload(
@@ -332,7 +473,11 @@ export async function handleUpload(
     return await route(uid, ownerKey, deps, req);
   } catch (error) {
     if (error instanceof Refused)
-      return {status: error.status, json: {error: error.message}};
+      return {
+        status: error.status,
+        json: {error: error.message},
+        headers: error.headers,
+      };
     throw error;
   }
 }
@@ -360,6 +505,10 @@ async function route(
   }
   if (method === 'POST' && path === '/docs/write') {
     await writeDocs(uid, ownerKey, deps, body.ops);
+    return {status: 204};
+  }
+  if (method === 'POST' && path === '/heartbeat') {
+    await heartbeat(uid, ownerKey, deps, body);
     return {status: 204};
   }
   if (method === 'POST' && path === '/docs/update')

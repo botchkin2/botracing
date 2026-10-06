@@ -54,6 +54,7 @@ function firebaseDocs(): DocStore {
             docBytes: inc(delta.docBytes),
             files: inc(delta.files),
             fileBytes: inc(delta.fileBytes),
+            heartbeats: inc(delta.heartbeats ?? 0),
           },
           usageUpdatedAt: new Date().toISOString(),
         },
@@ -154,6 +155,8 @@ export const uploadApi = onRequest(
         authorization: req.headers.authorization,
         json: req.body,
       });
+      for (const [name, value] of Object.entries(out.headers ?? {}))
+        res.set(name, value);
       if (out.bytes) {
         res
           .status(200)
