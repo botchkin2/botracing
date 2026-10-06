@@ -547,8 +547,15 @@ test('the real client works against the handler: docs, files, laps, events', asy
       id: 's1',
       data: {ownerId: 'uidA', series: 'x'},
     },
-    {op: 'set', coll: 'tracks', id: 't1', data: {v: 1}, merge: true},
   ]);
+  // Track data is curated: the client refuses to write it (storeClient.mjs).
+  await assert.rejects(
+    a.writeDocs([
+      {op: 'set', coll: 'tracks', id: 't1', data: {v: 1}, merge: true},
+    ]),
+    /must not write track data \(tracks\)/,
+  );
+  assert.equal(w.docs.has('tracks/t1'), false);
   assert.deepEqual(await a.sessionLapIds('s1'), ['l1']);
   assert.equal((await a.getDoc('sessions', 's1')).series, 'x');
   assert.equal(await a.getDoc('sessions', 'nope'), null);

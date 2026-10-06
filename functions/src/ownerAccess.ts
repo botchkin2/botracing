@@ -3,10 +3,10 @@
 // lmuApi.ts binds it to Admin Auth and Firestore.
 
 export const LEGACY_OWNER = 'botkin';
-// A request with no Authorization header is read as the legacy owner, as it
-// always was, so the app keeps working for Botkin until he signs in on the
-// web app. Set to null to require sign-in (the next step after he has).
-export const ANONYMOUS_OWNER: string | null = LEGACY_OWNER;
+// A request with no Authorization header is refused: every read needs a
+// signed-in owner. (It was the legacy owner until Botkin signed in; keep a
+// value here only as a deliberate bridge.)
+export const ANONYMOUS_OWNER: string | null = null;
 
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 
