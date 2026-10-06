@@ -1,17 +1,18 @@
-import {applyAuthState, useAuthStore} from './authStore';
-import {setIdTokenProvider, setUnauthorizedListener} from '../data/tokenSource';
+import {beginAuthWait} from '../data/tokenSource';
 
-/** This build cannot sign in yet, so it never shows the login screen. */
-export const signInRequired = false;
+import {firebaseAuth} from './firebase';
+import {followFirebaseAuth} from './followFirebase';
 
-/**
- * The Android app has no sign-in yet (signIn.ts): it is signed out, and a 401
- * from the API shows the prompt that says so. The web build follows Firebase
- * in authSession.web.ts.
- */
+// Requests wait for Firebase's first answer (data/tokenSource.ts). Opened when
+// this module loads, before anything renders, because child effects run before
+// the root layout's.
+beginAuthWait();
+
+/** The Android app signs in (signIn.ts): signed out, it shows the login screen. */
+export const signInRequired = true;
+
+/** Starts following the Firebase sign-in, restored from storage on launch. */
 export function startAuthSession(): () => void {
-  setIdTokenProvider(null);
-  setUnauthorizedListener(() => useAuthStore.getState().markUnauthorized());
-  applyAuthState({kind: 'signed-out'}, () => {});
-  return () => setUnauthorizedListener(null);
+  beginAuthWait();
+  return followFirebaseAuth(firebaseAuth());
 }

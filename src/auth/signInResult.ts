@@ -31,3 +31,47 @@ export function signInMessage(result: SignInResult): string | null {
       return `Sign-in failed: ${result.message}`;
   }
 }
+
+/**
+ * What an error from the Android Google sign-in means, in a line a person can
+ * act on that still quotes the cause. The codes are Google Play services'
+ * (the library passes them through as strings): 12501 the person backed out,
+ * 7 network, 10 the app is not registered with Google (the developer error:
+ * wrong package or signing key in the Google Cloud console), 12500 a generic
+ * failure. An unknown code is shown as it came.
+ */
+export function nativeSignInFailure(
+  code: string,
+  message: string,
+): SignInResult {
+  switch (code) {
+    case '12501':
+    case 'SIGN_IN_CANCELLED':
+      return {kind: 'cancelled'};
+    case 'ASYNC_OP_IN_PROGRESS':
+    case 'IN_PROGRESS':
+      return {kind: 'cancelled'};
+    case '7':
+      return {
+        kind: 'failed',
+        message: 'No connection to Google. Check the network and try again.',
+      };
+    case '10':
+      return {
+        kind: 'failed',
+        message:
+          'Google does not know this build of the app (DEVELOPER_ERROR 10): its package and signing key must be registered in the Google Cloud console.',
+      };
+    case 'PLAY_SERVICES_NOT_AVAILABLE':
+      return {
+        kind: 'failed',
+        message:
+          'Google Play services is missing or out of date on this phone.',
+      };
+    default:
+      return {
+        kind: 'failed',
+        message: code ? `${message} (code ${code})` : message,
+      };
+  }
+}
