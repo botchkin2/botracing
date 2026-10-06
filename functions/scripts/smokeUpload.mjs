@@ -1,7 +1,8 @@
 // Smoke test of the deployed upload endpoint, with two throwaway accounts.
 //
-//   SMOKE_TOKEN_A=<ID token> SMOKE_TOKEN_B=<ID token of another user> \
-//     node functions/scripts/smokeUpload.mjs [https://botracing-61.web.app/api/upload]
+//   $env:SMOKE_TOKEN_A = "<ID token>"
+//   $env:SMOKE_TOKEN_B = "<ID token of another user>"
+//   node functions/scripts/smokeUpload.mjs [https://botracing-61.web.app/api/upload]
 //
 // Runs the real client (tools/sessions/storeClient.mjs): who am I, a small doc
 // write and read-back, one signed-URL PUT and read-back, then B refused on A's
