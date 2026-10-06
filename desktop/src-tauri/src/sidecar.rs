@@ -27,13 +27,34 @@ impl Paths {
     }
 }
 
+const SCRIPT: &str = "tools/uploader/watch.mjs";
+
+/// Where the uploader's files are, whatever folder the app was started from:
+/// BOTRACING_ROOT if set, else the installed resources (<resources>/app), else
+/// the repo this binary was built in (a build folder is
+/// <repo>/desktop/src-tauri/target/<profile>/). The first that holds the
+/// script wins; with none, the installed path, so the error names it.
+pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf {
+    let installed = resources.join("app");
+    let mut candidates: Vec<PathBuf> = env.into_iter().collect();
+    candidates.push(installed.clone());
+    candidates.extend(exe.ancestors().skip(1).take(6).map(Path::to_path_buf));
+    candidates
+        .into_iter()
+        .find(|dir| dir.join(SCRIPT).is_file())
+        .unwrap_or(installed)
+}
+
 pub fn paths(resources: &Path) -> Paths {
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let root = std::env::var_os("BOTRACING_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| resources.join("app"));
+    let exe = std::env::current_exe().unwrap_or_default();
+    let root = find_root(
+        std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
+        resources,
+        &exe,
+    );
     let node = std::env::var_os("BOTRACING_NODE")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -53,7 +74,7 @@ pub fn paths(resources: &Path) -> Paths {
 
 fn command(p: &Paths) -> Command {
     let mut cmd = Command::new(&p.node);
-    cmd.arg(p.root.join("tools/uploader/watch.mjs"))
+    cmd.arg(p.root.join(SCRIPT))
         .arg("--")
         .arg("--remote")
         .current_dir(&p.root)
@@ -248,6 +269,16 @@ impl Supervisor {
             self.failed(format!("Can't start the uploader: {error}"));
             return;
         }
+        let script = p.root.join(SCRIPT);
+        if !script.is_file() {
+            // Nothing to wait for: a retry finds the same thing.
+            self.problem = Some(format!(
+                "Can't find the uploader files ({} is missing)",
+                script.display()
+            ));
+            self.retry_at = Some(Instant::now() + backoff(4));
+            return;
+        }
         trim_status(&p.status_file());
         match Running::spawn(command(p)) {
             Ok(running) => {
@@ -345,6 +376,53 @@ mod tests {
     fn without_the_job_the_grandchild_outlives_the_parent() {
         let (after_stop, later) = sizes_after_stop(false);
         assert!(later > after_stop, "the grandchild stopped by itself");
+    }
+
+    fn touch(path: &Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "").unwrap();
+    }
+
+    #[test]
+    fn the_uploader_files_are_found_from_any_start_folder() {
+        let base = std::env::temp_dir().join(format!("botracing-root-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        // A repo with a build folder, and an unrelated resources folder.
+        let repo = base.join("repo");
+        touch(&repo.join(SCRIPT));
+        let exe = repo.join("desktop/src-tauri/target/release/botracing.exe");
+        let resources = base.join("resources");
+        let env_root = base.join("elsewhere");
+        touch(&env_root.join(SCRIPT));
+
+        // The environment wins.
+        assert_eq!(
+            find_root(Some(env_root.clone()), &resources, &exe),
+            env_root
+        );
+        // Then the installed resources.
+        touch(&resources.join("app").join(SCRIPT));
+        assert_eq!(find_root(None, &resources, &exe), resources.join("app"));
+        // Then the repo the binary was built in.
+        std::fs::remove_dir_all(&resources).unwrap();
+        assert_eq!(find_root(None, &resources, &exe), repo);
+        // None: the installed path, so the message names where it looked.
+        let lost = base.join("nowhere/botracing.exe");
+        assert_eq!(find_root(None, &resources, &lost), resources.join("app"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn missing_uploader_files_are_named_not_swallowed() {
+        let mut p = paths(Path::new("."));
+        p.root = std::env::temp_dir().join(format!("botracing-noroot-{}", std::process::id()));
+        let mut s = Supervisor::new();
+        s.tick(&p);
+        let problem = s.problem.unwrap_or_default();
+        assert!(
+            problem.starts_with("Can't find the uploader files"),
+            "{problem}"
+        );
     }
 
     #[test]
