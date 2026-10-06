@@ -35,7 +35,7 @@ import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
-import {reusableInfo} from './describeCache.mjs';
+import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
   analysisVersion,
@@ -133,17 +133,6 @@ const jobs = Math.max(
   ),
 );
 
-// Recordings of one session that are further apart than this start a new one.
-const SESSION_GAP_H = 6;
-const RESTART_MAX_SEC = 5 * 60;
-const RESTART_GAP_SEC = 2 * 60;
-// Shorter recordings hold no lap: a menu, a reset, a false start. Skip them.
-const MIN_RECORDING_SEC = 30;
-
-function hash(...parts) {
-  return createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 16);
-}
-
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -167,107 +156,23 @@ function log(line) {
   console.log(line);
 }
 
-// Describe every recording, reusing earlier results for files that have not changed.
+// Describe every recording, reusing earlier results for files that have not changed
+// (sessionFiles.mjs: the scan and the grouping are shared with the curator).
 function scan(state) {
-  if (!existsSync(folder)) throw new Error(`No telemetry folder at ${folder}`);
-  const out = [];
-  let skippedQuiet = 0;
-  for (const name of readdirSync(folder)) {
-    const path = resolve(folder, name);
-    if (!adapter.isRecording(path)) continue;
-    if (only && !name.includes(only)) continue;
-    const stat = statSync(path);
-    if (Date.now() - stat.mtimeMs < quietMin * 60 * 1000) {
-      skippedQuiet++;
-      continue;
-    }
-    const known = state.files[name];
-    // A cached result is reused only for an unchanged file described by this
-    // version of describe(); otherwise the file is described again.
-    let info = reusableInfo(known, stat, adapter.describeVersion);
-    if (!info) {
-      try {
-        info = adapter.describe(path);
-      } catch (error) {
-        log(`skip ${name}: ${String(error.message).split('\n')[0]}`);
-        continue;
-      }
-      state.files[name] = {
-        size: stat.size,
-        mtimeMs: stat.mtimeMs,
-        describeVersion: adapter.describeVersion,
-        info,
-      };
-    }
-    if (!info.recordedAt || info.endT - info.startT < MIN_RECORDING_SEC) {
-      continue;
-    }
-    if (since && info.recordedAt.slice(0, 10) < since) continue;
-    out.push({path, size: stat.size, info});
-  }
-  if (skippedQuiet)
-    log(`${skippedQuiet} file(s) still being written, skipped for now`);
-  return out;
-}
-
-// A session is recordings with the same owner, sim, track layout, car, and
-// session type that belong to one run of the game's session. A later file
-// belongs to the same session when the game's session timer advanced with the
-// wall clock since the previous file (practice runs back to the pits), or when
-// it restarted with the same session clock (a race restart).
-function sameSession(prev, next) {
-  const wall =
-    (Date.parse(next.recordedAt) - Date.parse(prev.recordedAt)) / 1000;
-  if (wall > SESSION_GAP_H * 3600) return false;
-  if (Math.abs(next.startT - prev.startT - wall) < 90) return true;
-  // Same start clock only means a restart when the previous file was a short
-  // false start, or the next one began right after it. The default race clock
-  // repeats, so two real races would otherwise merge.
-  if (next.sessionClock !== prev.sessionClock) return false;
-  const prevSec = prev.endT - prev.startT;
-  return prevSec < RESTART_MAX_SEC || wall < prevSec + RESTART_GAP_SEC;
+  return scanFolder({folder, adapter, state, only, since, quietMin, log});
 }
 
 function group(files) {
-  const byKey = new Map();
-  for (const file of files.sort((a, b) =>
-    a.info.recordedAt.localeCompare(b.info.recordedAt),
-  )) {
-    const {info} = file;
-    const key = [
-      ownerId,
-      info.sim,
-      info.layout,
-      info.car,
-      info.sessionType,
-    ].join('|');
-    const list = byKey.get(key) || [];
-    const last = list[list.length - 1];
-    if (last && sameSession(last.files[last.files.length - 1].info, info)) {
-      last.files.push(file);
-    } else {
-      list.push({key, files: [file]});
-    }
-    byKey.set(key, list);
+  const sessions = groupFiles(files, ownerId);
+  // What a change of analysis or of a file's size makes a different session
+  // fingerprint: the unchanged ones are not analysed again.
+  for (const s of sessions) {
+    s.fingerprint = hash(
+      versionKey(analysisVersion, blockVersions),
+      ...s.files.map(f => `${f.info.source}:${f.size}`),
+    );
   }
-  const sessions = [];
-  for (const list of byKey.values()) {
-    for (const s of list) {
-      const first = s.files[0].info;
-      s.id = hash(s.key, first.recordedAt);
-      s.fingerprint = hash(
-        versionKey(analysisVersion, blockVersions),
-        ...s.files.map(f => `${f.info.source}:${f.size}`),
-      );
-      for (const f of s.files) {
-        f.id = hash(ownerId, first.sim, f.info.source, f.info.recordedAt);
-      }
-      sessions.push(s);
-    }
-  }
-  return sessions.sort((a, b) =>
-    a.files[0].info.recordedAt.localeCompare(b.files[0].info.recordedAt),
-  );
+  return sessions;
 }
 
 function slugId(sim, name) {
