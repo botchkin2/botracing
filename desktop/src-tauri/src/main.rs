@@ -6,6 +6,7 @@ mod account;
 mod auth;
 mod sidecar;
 mod status;
+mod window;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -13,7 +14,6 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
-const WEB_APP: &str = "https://botracing-61.web.app";
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 type Shared<T> = Arc<Mutex<T>>;
@@ -63,6 +63,15 @@ fn main() {
                 &paths.data,
                 Box::new(account::CredentialManager),
             )));
+            // Debug builds only: BOTRACING_OPEN_ON_START opens the window at
+            // start, so it can be checked without clicking the tray.
+            #[cfg(debug_assertions)]
+            if std::env::var_os("BOTRACING_OPEN_ON_START").is_some() {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let _ = window::open(&handle);
+                });
+            }
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
 
@@ -118,7 +127,14 @@ fn main() {
                         });
                     }
                     "open" => {
-                        let _ = tauri_plugin_opener::open_url(WEB_APP, None::<&str>);
+                        // Off this thread: building a window from a menu
+                        // handler can deadlock on Windows.
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            if let Err(e) = window::open(&app) {
+                                eprintln!("could not open the BotRacing window: {e}");
+                            }
+                        });
                     }
                     "folder" => {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
@@ -191,8 +207,17 @@ fn main() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("BotRacing failed to start");
+        .build(tauri::generate_context!())
+        .expect("BotRacing failed to start")
+        .run(|_app, event| {
+            // Closing the BotRacing window must not end the tray app: only
+            // Quit does (it exits with a code).
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
+        });
 }
 
 /// The first line of the menu: what a person needs to know right now.
