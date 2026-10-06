@@ -79,7 +79,13 @@ impl Running {
     /// Starts `cmd` quietly and puts it in a kill-on-close job. A process
     /// that starts its own children before the assignment below is the one
     /// gap; node takes far longer than that to get to its first child.
-    pub fn spawn(mut cmd: Command) -> std::io::Result<Running> {
+    pub fn spawn(cmd: Command) -> std::io::Result<Running> {
+        Running::spawn_inner(cmd, true)
+    }
+
+    // `job` false exists for the test that shows the job is what ends the
+    // tree.
+    fn spawn_inner(mut cmd: Command, job: bool) -> std::io::Result<Running> {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -91,6 +97,16 @@ impl Running {
             use windows_sys::Win32::System::JobObjects::*;
             cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
             let mut child = cmd.spawn()?;
+            if !job {
+                return Ok(Running {
+                    child,
+                    job: std::ptr::null_mut(),
+                });
+            }
+            // Between spawn() above and the assignment below the child is in
+            // no job, and anything it starts in that window is outside it.
+            // Starting suspended would close the window; node takes far
+            // longer than the few microseconds here to start its first child.
             unsafe {
                 let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
                 if job.is_null() {
@@ -116,6 +132,7 @@ impl Running {
         }
         #[cfg(not(windows))]
         {
+            let _ = job;
             Ok(Running {
                 child: cmd.spawn()?,
             })
@@ -138,11 +155,16 @@ impl Running {
 #[cfg(windows)]
 impl Drop for Running {
     fn drop(&mut self) {
-        unsafe {
-            windows_sys::Win32::Foundation::CloseHandle(self.job);
+        if !self.job.is_null() {
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(self.job);
+            }
         }
     }
 }
+
+/// How long a watcher must stay up before an earlier failure streak is forgotten.
+const HEALTHY_AFTER: Duration = Duration::from_secs(60);
 
 /// Seconds to wait before the n-th restart in a row: 5, 10, 20, ... up to 60.
 pub fn backoff(failures: u32) -> Duration {
@@ -153,6 +175,7 @@ pub fn backoff(failures: u32) -> Duration {
 /// is not.
 pub struct Supervisor {
     running: Option<Running>,
+    started_at: Option<Instant>,
     paused: bool,
     failures: u32,
     retry_at: Option<Instant>,
@@ -164,6 +187,7 @@ impl Supervisor {
     pub fn new() -> Supervisor {
         Supervisor {
             running: None,
+            started_at: None,
             paused: false,
             failures: 0,
             retry_at: Some(Instant::now()),
@@ -201,6 +225,14 @@ impl Supervisor {
         }
         if let Some(running) = self.running.as_mut() {
             let Some(status) = running.exited() else {
+                // A watcher that has run for a while is healthy: the next
+                // stop starts the backoff over rather than continuing it.
+                if self
+                    .started_at
+                    .is_some_and(|at| at.elapsed() > HEALTHY_AFTER)
+                {
+                    self.failures = 0;
+                }
                 return;
             };
             self.running = None;
@@ -220,6 +252,7 @@ impl Supervisor {
         match Running::spawn(command(p)) {
             Ok(running) => {
                 self.running = Some(running);
+                self.started_at = Some(Instant::now());
                 self.problem = None;
                 self.retry_at = None;
             }
@@ -254,39 +287,64 @@ mod tests {
         assert_eq!(secs, [5, 10, 20, 40, 60, 60, 60]);
     }
 
-    // Pause and Quit must end what the watcher started too, not only the
-    // watcher: a stand-in parent starts a grandchild that appends to a file
-    // every 50 ms; after stop() the file must stop growing.
+    // A stand-in parent (cmd.exe) starts a grandchild (node) that appends to a
+    // file every 50 ms, and exits by itself after 5 s so a test that leaves it
+    // running cleans up. The parent is cmd, not node, on purpose: node ties the
+    // children it starts to its own death on Windows, which would end the
+    // grandchild whatever our job does. Returns the file's size right after
+    // the tree was stopped and again a moment later.
     #[cfg(windows)]
-    #[test]
-    fn stop_ends_the_whole_tree() {
-        let dir = std::env::temp_dir().join(format!("botracing-job-{}", std::process::id()));
+    fn sizes_after_stop(job: bool) -> (u64, u64) {
+        use std::os::windows::process::CommandExt;
+        let dir = std::env::temp_dir().join(format!("botracing-job-{}-{job}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let beat = dir.join("beat.txt");
         let _ = std::fs::remove_file(&beat);
-        let grandchild = format!(
-            "setInterval(()=>require('fs').appendFileSync({:?},'x'),50)",
-            beat.to_string_lossy()
-        );
-        let parent = format!(
-            "require('child_process').spawn(process.execPath,['-e',{:?}],{{stdio:'ignore'}});setInterval(()=>{{}},1000)",
-            grandchild
-        );
-        let mut cmd = Command::new("node");
-        cmd.args(["-e", &parent]);
-        let running = Running::spawn(cmd).expect("node on PATH");
+        let script = dir.join("grandchild.js");
+        std::fs::write(
+            &script,
+            format!(
+                "setTimeout(()=>process.exit(),5000);setInterval(()=>require('fs').appendFileSync({:?},'x'),50)",
+                beat.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        let mut cmd = Command::new("cmd");
+        cmd.raw_arg(format!(
+            "/c start /b node \"{}\" & ping -n 30 127.0.0.1 >nul",
+            script.display()
+        ));
+        let running = Running::spawn_inner(cmd, job).expect("cmd starts");
 
         std::thread::sleep(Duration::from_millis(1500));
-        let before = std::fs::metadata(&beat).map(|m| m.len()).unwrap_or(0);
-        assert!(before > 0, "the grandchild never ran");
-
+        assert!(
+            std::fs::metadata(&beat).map(|m| m.len()).unwrap_or(0) > 0,
+            "the grandchild never ran"
+        );
         running.stop();
         std::thread::sleep(Duration::from_millis(500));
         let after_stop = std::fs::metadata(&beat).unwrap().len();
         std::thread::sleep(Duration::from_millis(800));
         let later = std::fs::metadata(&beat).unwrap().len();
+        (after_stop, later)
+    }
+
+    // Pause and Quit must end what the watcher started too, not only the
+    // watcher.
+    #[cfg(windows)]
+    #[test]
+    fn stop_ends_the_whole_tree() {
+        let (after_stop, later) = sizes_after_stop(true);
         assert_eq!(after_stop, later, "the grandchild is still writing");
-        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // The control: without the job, stopping the parent leaves the grandchild
+    // running, so the test above proves something.
+    #[cfg(windows)]
+    #[test]
+    fn without_the_job_the_grandchild_outlives_the_parent() {
+        let (after_stop, later) = sizes_after_stop(false);
+        assert!(later > after_stop, "the grandchild stopped by itself");
     }
 
     #[test]
