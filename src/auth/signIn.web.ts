@@ -12,6 +12,10 @@ import {type SignInResult, popupFallsBackToRedirect} from './signInResult';
 export async function signIn(): Promise<SignInResult> {
   const auth = firebaseAuth();
   const provider = new GoogleAuthProvider();
+  // Always show Google's account chooser. Without it a browser that is signed
+  // in to one Google account signs in as that one with no choice, which is
+  // wrong for anyone with several (and for signing in as someone else).
+  provider.setCustomParameters({prompt: 'select_account'});
   try {
     await signInWithPopup(auth, provider);
     return {kind: 'ok'};
