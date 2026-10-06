@@ -62,6 +62,19 @@ export const DUCKDB = {
 
 // What the watcher starts: itself, and sync.mjs (which starts workers from
 // itself). store.mjs is a dynamic import in sync.mjs.
+// A package a shipped file may require although the installer has no
+// node_modules: reached only in a mode the installed app never uses. Each entry
+// says why; anything else that requires a package fails the build.
+export const ADMIN_ONLY = new Map([
+  [
+    'tools/sessions/store.mjs',
+    {
+      spec: 'firebase-admin',
+      why: 'connect(): Admin credentials, the PC uploader; the tray syncs with --remote and never calls it',
+    },
+  ],
+]);
+
 export const ENTRIES = [
   'tools/uploader/watch.mjs',
   'tools/sessions/sync.mjs',
@@ -79,14 +92,25 @@ export function withoutComments(text) {
 // `import {type A, b} from '...'` is not: the import itself stays.
 const TYPE_ONLY = /\b(?:import|export)\s+type\b[^;'"]*?\bfrom\s*['"][^'"]+['"]/g;
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)['"]([^'"]+)['"]/g;
+// require('x') through createRequire, which an import scan would miss.
+// The lookbehind keeps `createRequire(` itself from matching.
+const REQUIRE = /(?<![\w$.])require\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
+const REQUIRE_ANY = /(?<![\w$.])require\s*\(\s*([^)]*)\)/g;
 const DYNAMIC_ANY = /\bimport\s*\(\s*([^)]*)\)/g;
 const WORKER = /\bnew\s+Worker\s*\(([^;]*?)[,)]/g;
 
 /** The specifiers a file loads at runtime, and anything the scan cannot follow. */
 export function scan(source) {
   const text = withoutComments(source).replace(TYPE_ONLY, '');
-  const imports = [...text.matchAll(IMPORT)].map(match => match[1]);
+  const imports = [
+    ...[...text.matchAll(IMPORT)].map(match => match[1]),
+    ...[...text.matchAll(REQUIRE)].map(match => match[2]),
+  ];
   const unfollowable = [];
+  for (const match of text.matchAll(REQUIRE_ANY)) {
+    if (!/^\s*['"][^'"]*['"]\s*$/.test(match[1]))
+      unfollowable.push(`require(${match[1].trim()})`);
+  }
   for (const match of text.matchAll(DYNAMIC_ANY)) {
     if (!/^\s*['"][^'"]*['"]\s*$/.test(match[1]))
       unfollowable.push(`import(${match[1].trim()})`);
@@ -126,7 +150,10 @@ export function closure(root = repoRoot, entries = ENTRIES) {
     const found = scan(readFileSync(file, 'utf8'));
     for (const spec of [...found.imports, ...found.workers]) {
       if (spec.startsWith('.')) queue.push(resolve(dirname(file), spec));
-      else if (!spec.startsWith('node:')) bare.add(spec);
+      else if (!spec.startsWith('node:')) {
+        if (ADMIN_ONLY.get(rel)?.spec === spec) continue;
+        bare.add(spec);
+      }
     }
     for (const what of found.unfollowable) unfollowable.push(`${rel}: ${what}`);
   }
@@ -171,7 +198,7 @@ async function duckdbExe(env) {
   mkdirSync(unpacked, {recursive: true});
   // Windows' own bsdtar reads zips; a GNU tar earlier on PATH (Git Bash) does not
   // understand C:\ paths.
-  const tar = resolve(env.SystemRoot || 'C:\Windows', 'System32', 'tar.exe');
+  const tar = resolve(env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
   const result = spawnSync(tar, ['-xf', zip, '-C', unpacked], {encoding: 'utf8'});
   if (result.status !== 0) throw new Error(`could not unpack ${zip}: ${result.stderr}`);
   const exe = resolve(unpacked, 'duckdb.exe');

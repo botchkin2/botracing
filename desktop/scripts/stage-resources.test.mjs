@@ -3,7 +3,7 @@ import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
-import {closure, scan, sha256, verified, withoutComments} from './stage-resources.mjs';
+import {ADMIN_ONLY, closure, scan, sha256, verified, withoutComments} from './stage-resources.mjs';
 
 test('words in comments are not imports', () => {
   const src = `// import x from './nope'\n/* import('./also-nope') */\nimport a from './real.mjs'; // from 'trailing'\nconst u = 'https://example.com/x';`;
@@ -58,4 +58,27 @@ test('the real uploader closure is complete and needs no npm package', () => {
   }
   // Nothing of the test suite or the other tools goes into the installer.
   assert.ok(c.files.every(f => !f.includes('.test.') && !f.includes('fixtures')));
+});
+
+test('a require() of a package is an import, and createRequire itself is not', () => {
+  const src = [
+    "import {createRequire} from 'node:module';",
+    'const require = createRequire(import.meta.url);',
+    "const a = require('firebase-admin');",
+    "const b = require('./local.cjs');",
+  ].join('\n');
+  assert.deepEqual(scan(src).imports, ['node:module', 'firebase-admin', './local.cjs']);
+  assert.deepEqual(scan(src).unfollowable, []);
+  assert.deepEqual(scan('const x = require(name);').unfollowable, ['require(name)']);
+});
+
+test('the one allowed package require is named, with a reason, and nothing else is', () => {
+  assert.deepEqual([...ADMIN_ONLY.keys()], ['tools/sessions/store.mjs']);
+  assert.ok(ADMIN_ONLY.get('tools/sessions/store.mjs').why.length > 20);
+  const root = mkdtempSync(join(tmpdir(), 'stage-'));
+  mkdirSync(join(root, 'tools/sessions'), {recursive: true});
+  writeFileSync(join(root, 'tools/sessions/store.mjs'), "const a = require('firebase-admin');");
+  writeFileSync(join(root, 'tools/sessions/other.mjs'), "const a = require('firebase-admin');");
+  assert.deepEqual(closure(root, ['tools/sessions/store.mjs']).bare, [], 'allowed in store.mjs');
+  assert.deepEqual(closure(root, ['tools/sessions/other.mjs']).bare, ['firebase-admin'], 'not allowed anywhere else');
 });
