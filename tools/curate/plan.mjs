@@ -96,6 +96,12 @@ function checkBuilt(plan, built, samples) {
     plan.refusals.push(
       'this session has no GPS (Lat/Lon), so no map can be made from it',
     );
+  // A map without its boundaries looks curated, but a catalog-only analysis
+  // needs this map's boundaries too (#293), so every tray would give "none".
+  if (!built.boundaries)
+    plan.refusals.push(
+      'no corner boundaries could be made with this map (the session gave none): a map without its boundaries would leave every analysis without corners',
+    );
   if (built.lapsUsed < MIN_LAPS_FOR_MAP)
     plan.refusals.push(
       `only ${built.lapsUsed} clean laps of one length, ${MIN_LAPS_FOR_MAP} are needed for a map`,
