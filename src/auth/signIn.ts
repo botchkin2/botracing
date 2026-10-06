@@ -13,6 +13,9 @@ import {firebaseAuth} from './firebase';
 import {GOOGLE_WEB_CLIENT_ID} from './googleClient';
 import {type SignInResult, nativeSignInFailure} from './signInResult';
 
+// The library's free version uses Google's legacy Sign-In SDK on Android, which
+// Google has deprecated: moving off it before a public release is issue #298.
+//
 // The Android sign-in: the Google account picker, which gives a Google ID
 // token, which Firebase Auth turns into the signed-in user (the same user the
 // web build and the tray sign in as, so the same sessions).
