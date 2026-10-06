@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {test} from 'node:test';
 import {gunzipSync, gzipSync} from 'node:zlib';
+import {httpBackend} from '../../tools/sessions/storeClient.mjs';
 import {
   MAX_DOC_BYTES,
   MAX_FILE_BYTES,
@@ -490,4 +491,108 @@ test('a document is limited by its bytes, not its characters', async () => {
     {op: 'set', coll: 'tracks', id: 't', data: {name: '€'.repeat(400_000)}},
   ]);
   assert.equal(res.status, 413);
+});
+
+// The real client (tools/sessions/storeClient.mjs) against the real handler,
+// with fetch wired in-process: what #275 sends is what #274 accepts.
+function clientFor(w, tokenName) {
+  const fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    if (u.protocol === 'fake:') {
+      // The signed URL: Storage takes the PUT.
+      const grant = w.signed.get(
+        `fake://${decodeURIComponent(u.hostname + u.pathname)}`,
+      );
+      assert.ok(grant, 'PUT to a URL the server did not sign');
+      assert.ok(init.body.length <= grant.maxBytes);
+      w.files.set(grant.path, {bytes: Buffer.from(init.body), meta: grant});
+      return new Response(null, {status: 200});
+    }
+    const headers = Object.fromEntries(
+      Object.entries(init.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
+    );
+    const out = await handleUpload(w.deps, {
+      method: init.method ?? 'GET',
+      path: u.pathname.replace('/api/upload', ''),
+      query: Object.fromEntries(u.searchParams),
+      authorization: headers.authorization,
+      json: init.body ? JSON.parse(init.body) : undefined,
+    });
+    if (out.bytes) return new Response(out.bytes, {status: 200});
+    if (out.json === undefined) return new Response(null, {status: out.status});
+    return Response.json(out.json, {status: out.status});
+  };
+  return httpBackend({
+    api: 'https://x.test/api/upload',
+    token: () => tokenName,
+    fetch,
+  });
+}
+
+test('the real client works against the handler: docs, files, laps, events', async () => {
+  const w = world();
+  const a = clientFor(w, 'tok-a');
+  assert.deepEqual(await a.me(), {ownerKey: 'uidA'});
+  await a.writeDocs([
+    {
+      op: 'set',
+      coll: 'laps',
+      id: 'l1',
+      data: {ownerId: 'uidA', sessionId: 's1'},
+    },
+    {op: 'set', coll: 'recordings', id: 'r1', data: {ownerId: 'uidA'}},
+    {
+      op: 'set',
+      coll: 'sessions',
+      id: 's1',
+      data: {ownerId: 'uidA', series: 'x'},
+    },
+    {op: 'set', coll: 'tracks', id: 't1', data: {v: 1}, merge: true},
+  ]);
+  assert.deepEqual(await a.sessionLapIds('s1'), ['l1']);
+  assert.equal((await a.getDoc('sessions', 's1')).series, 'x');
+  assert.equal(await a.getDoc('sessions', 'nope'), null);
+  assert.deepEqual(
+    await a.updateDocs([{coll: 'sessions', id: 's1', data: {series: 'y'}}]),
+    [],
+  );
+  assert.equal(w.docs.get('sessions/s1').series, 'y');
+
+  const dest = 'archive/lmu/s1/r1/samples.parquet';
+  assert.equal(await a.fileMd5(dest), null);
+  await a.putFile(
+    dest,
+    {body: Buffer.from('parquet-bytes')},
+    {contentType: 'application/vnd.apache.parquet', gzip: false},
+  );
+  const stored = w.files.get('archive/uidA/lmu/s1/r1/samples.parquet');
+  assert.equal(stored.bytes.toString(), 'parquet-bytes');
+  assert.equal(
+    await a.fileMd5(dest),
+    createHash('md5').update(stored.bytes).digest('base64'),
+  );
+  await a.putFile(
+    'bands/uidA/s1/v1.json.gz',
+    {body: Buffer.from('{"a":1}')},
+    {contentType: 'application/json', gzip: true},
+  );
+  assert.equal(
+    gunzipSync(await a.getFile('bands/uidA/s1/v1.json.gz')).toString(),
+    '{"a":1}',
+  );
+  assert.deepEqual(await a.listFiles('archive/lmu/s1/'), [dest]);
+  await a.deleteFile(dest);
+  assert.equal(await a.getFile(dest), null);
+
+  // Another user sees none of it, and cannot touch it.
+  const b = clientFor(w, 'tok-b');
+  assert.equal(await b.getDoc('sessions', 's1'), null);
+  assert.deepEqual(await b.sessionLapIds('s1'), []);
+  await assert.rejects(
+    b.writeDocs([
+      {op: 'set', coll: 'sessions', id: 's1', data: {ownerId: 'uidB'}},
+    ]),
+    /403/,
+  );
+  await assert.rejects(b.getFile('traces/uidA/l1/v2.csv.gz'), /403/);
 });
