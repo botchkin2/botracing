@@ -22,3 +22,20 @@ Unknown ids return 404. Lat/Lon in traces are the sim's coordinates. Real metres
 ## v1 (legacy, for the current screens)
 
 `GET /tracks` and `GET /laps?age=&tracks=&event=` return laps in the old Garage 61-style shape. They go away with the old screens.
+
+## Upload endpoint (`/api/upload`, `uploadApi`)
+
+The authenticated write side for PCs without Admin credentials (the BotRacing tray, `tools/sessions/storeClient.mjs`). Rules and limits: `functions/src/uploadCore.ts`; tests: `node --test functions/test/uploadCore.test.mjs`. Every request carries `Authorization: Bearer <Firebase ID token>`. The owner comes only from the token: `users/{uid}.ownerKey` if an admin set it (Botkin's is `botkin`; never writable from any endpoint, and Firestore rules still deny all clients), else the uid.
+
+| Call                                                          | Does                                                                                                                                         |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /me`                                                     | `{ownerKey}`                                                                                                                                 |
+| `GET /doc/{coll}/{id}`                                        | A doc, coll in `tracks`, `trackBoundaries`, `sessions`. 404 for another owner's.                                                             |
+| `POST /docs/write` `{ops}`                                    | `set` (with `merge`) or `delete`, up to 400 ops, coll in `recordings`, `sessions`, `laps`, `tracks`, `trackBoundaries`. 204. All or nothing. |
+| `POST /docs/update` `{ops}`                                   | Merge `series`, `eventId`, `event` into existing sessions/recordings. `{failed}` lists missing ones.                                         |
+| `GET /laps?sessionId=`                                        | `{ids}` of this owner's laps                                                                                                                 |
+| `GET /file/md5?dest=`                                         | `{md5}` (base64) or `null`                                                                                                                   |
+| `POST /file/upload-url` `{dest, contentType, gzip, size}` | A signed Storage URL (15 min) for the server-built path, with the headers to send; Storage refuses a body over `size` (max 200 MB). The client gzips first. The size counts toward usage when the URL is issued. |
+| `GET /file?dest=`, `DELETE /file?dest=`, `GET /files?prefix=` | Read, remove, list. 404 when absent.                                                                                                         |
+
+Where things land: `recordings`, `sessions` and `laps` stay top-level with `ownerId` (the readers filter on it); an existing doc with another `ownerId` is never read, written or deleted by someone else (a read is 404). `tracks` and `trackBoundaries` are per owner (`users/{ownerKey}/...`, except the legacy owner's shared docs). Bucket paths `traces|bands|field|slices/{ownerKey}/...` must carry the caller's own key; `archive/...` is stored as `archive/{ownerKey}/...` (unchanged for `botkin`). Usage per uid (`docs`, `docBytes`, `files`, `fileBytes`) is counted server-side on `users/{uid}.usage`.
