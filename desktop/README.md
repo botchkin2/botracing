@@ -4,7 +4,7 @@ A Tauri tray icon (no windows) that runs the Node watcher, `tools/uploader/watch
 
 What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state and log).
 
-Menu: a status line, Open BotRacing, Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
+Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
 Not built yet: sign-in (nothing writes `token` yet), the installer with node and a pruned `node_modules` as resources, a folder picker, iRacing.
 
