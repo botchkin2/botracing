@@ -13,19 +13,16 @@ use tauri::Manager;
 
 const WEB_APP: &str = "https://botracing-61.web.app";
 
-fn stop(slot: &mut Option<std::process::Child>) {
-    if let Some(mut c) = slot.take() {
-        let _ = c.kill();
-        let _ = c.wait();
-    }
-}
-
 fn main() {
     tauri::Builder::default()
+        // A second launch ends at once: two watchers would fight over the
+        // same telemetry and the same state.
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
-            let child = Arc::new(Mutex::new(sidecar::start(&paths).ok()));
+            let supervisor = Arc::new(Mutex::new(sidecar::Supervisor::new()));
+            supervisor.lock().unwrap().tick(&paths);
 
             let status_item = MenuItem::with_id(app, "status", "Starting…", false, None::<&str>)?;
             let open = MenuItem::with_id(app, "open", "Open BotRacing", true, None::<&str>)?;
@@ -45,8 +42,8 @@ fn main() {
                 ],
             )?;
 
-            let (paths_menu, child_menu, pause_menu) =
-                (paths.clone(), child.clone(), pause.clone());
+            let (paths_menu, sup_menu, pause_menu) =
+                (paths.clone(), supervisor.clone(), pause.clone());
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip("BotRacing")
@@ -59,15 +56,16 @@ fn main() {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
                     }
                     "pause" => {
-                        let mut slot = child_menu.lock().unwrap();
+                        let mut sup = sup_menu.lock().unwrap();
                         if pause_menu.is_checked().unwrap_or(false) {
-                            stop(&mut slot);
-                        } else if slot.is_none() {
-                            *slot = sidecar::start(&paths_menu).ok();
+                            sup.pause();
+                        } else {
+                            sup.resume();
+                            sup.tick(&paths_menu);
                         }
                     }
                     "quit" => {
-                        stop(&mut child_menu.lock().unwrap());
+                        sup_menu.lock().unwrap().stop();
                         app.exit(0);
                     }
                     _ => {}
@@ -75,11 +73,18 @@ fn main() {
                 .build(app)?;
 
             std::thread::spawn(move || loop {
-                let text = if pause.is_checked().unwrap_or(false) {
-                    "Paused".to_string()
-                } else {
-                    let file = std::fs::read_to_string(paths.status_file()).unwrap_or_default();
-                    status::line(status::last_beat(&file).as_ref())
+                let text = {
+                    let mut sup = supervisor.lock().unwrap();
+                    sup.tick(&paths);
+                    if sup.paused() {
+                        "Paused".to_string()
+                    } else if let Some(problem) = &sup.problem {
+                        problem.clone()
+                    } else {
+                        status::line(
+                            status::last_beat(&status::read_tail(&paths.status_file())).as_ref(),
+                        )
+                    }
                 };
                 let _ = status_item.set_text(text);
                 std::thread::sleep(Duration::from_secs(5));
