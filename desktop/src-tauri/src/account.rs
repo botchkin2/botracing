@@ -34,7 +34,7 @@ pub struct CredentialManager;
 
 impl CredentialManager {
     fn entry() -> Result<keyring::Entry, keyring::Error> {
-        keyring::Entry::new("BotRacing", "account")
+        keyring::Entry::new(&crate::profile::keyring_service(), "account")
     }
 }
 
@@ -333,9 +333,18 @@ impl Account {
             | Done::Refresh(Err(RefreshError::Rejected(why))) => self.sign_in_lost(&why),
             Done::Restore(Err(RefreshError::Transient(why)))
             | Done::Refresh(Err(RefreshError::Transient(why))) => {
-                // Nothing says the credential is bad: keep it and try again.
+                // The network failed. Nothing says the credential is bad: keep
+                // it and try again.
                 self.retry_after = Some(SystemTime::now() + RETRY_AFTER);
                 self.message = Some(format!("Offline, will retry ({why})"));
+            }
+            Done::Restore(Err(RefreshError::Service(why)))
+            | Done::Refresh(Err(RefreshError::Service(why))) => {
+                // Firebase answered with something that does not end a
+                // sign-in (a wrong web key, a 5xx, a 429): kept the same way,
+                // but "offline" would be the wrong thing to tell the user.
+                self.retry_after = Some(SystemTime::now() + RETRY_AFTER);
+                self.message = Some(format!("Sign-in service problem, will retry ({why})"));
             }
             Done::Owner(Ok(key)) => {
                 self.owner_key = Some(key);
@@ -605,13 +614,19 @@ mod tests {
 
     #[test]
     fn a_server_error_or_no_network_keeps_the_sign_in_and_tries_again() {
-        for (name, base) in [
+        for (name, base, says) in [
             (
                 "5xx",
                 stub(|_, _| (503, r#"{"error":{"message":"unavailable"}}"#.into())).0,
+                // The service answered: not "offline".
+                "Sign-in service problem, will retry",
             ),
             // Nothing listens here: a refused connection.
-            ("offline", "http://127.0.0.1:9".to_string()),
+            (
+                "offline",
+                "http://127.0.0.1:9".to_string(),
+                "Offline, will retry",
+            ),
         ] {
             let dir = data_dir(&format!("transient-{name}"));
             let mem = Memory::default();
@@ -626,10 +641,7 @@ mod tests {
             assert!(acct.session.is_none(), "{name}: not signed in yet");
             assert!(mem.get().is_some(), "{name}: the credential must be kept");
             let message = acct.message.clone().unwrap_or_default();
-            assert!(
-                message.starts_with("Offline, will retry"),
-                "{name}: {message}"
-            );
+            assert!(message.starts_with(says), "{name}: {message}");
             assert!(!acct.should_run(), "{name}");
             assert!(
                 acct.plan().is_none(),
@@ -660,7 +672,8 @@ mod tests {
         );
         let message = acct.message.clone().unwrap_or_default();
         assert!(
-            message.starts_with("Offline, will retry") && message.contains("API_KEY_INVALID"),
+            message.starts_with("Sign-in service problem, will retry")
+                && message.contains("API_KEY_INVALID"),
             "{message}"
         );
         assert!(!acct.take_prompt(), "and no browser is opened");

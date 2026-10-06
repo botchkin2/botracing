@@ -5,6 +5,7 @@
 mod account;
 mod auth;
 mod menu;
+mod profile;
 mod sidecar;
 mod status;
 mod window;
@@ -54,15 +55,22 @@ fn start_sign_in(account: Shared<account::Account>) {
 }
 
 fn main() {
-    tauri::Builder::default()
-        // A second launch ends at once (two watchers would fight over the
-        // same telemetry and state) and shows the BotRacing window instead.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    let builder = tauri::Builder::default();
+    // A second launch ends at once (two watchers would fight over the same
+    // telemetry and state) and shows the BotRacing window instead. A profile
+    // (BOTRACING_PROFILE, for walkthroughs) is a separate copy that runs next
+    // to the real tray, so it is not held to this.
+    let builder = if profile::is_default() {
+        builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let app = app.clone();
             std::thread::spawn(move || {
                 let _ = window::open(&app);
             });
         }))
+    } else {
+        builder
+    };
+    builder
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
@@ -121,7 +129,7 @@ fn main() {
             );
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
-                .tooltip("BotRacing")
+                .tooltip(profile::tooltip())
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "signin" => {

@@ -319,13 +319,21 @@ pub fn firebase_sign_in(
 pub enum RefreshError {
     /// Firebase answered 400, 401 or 403: TOKEN_EXPIRED, USER_DISABLED, ...
     Rejected(String),
+    /// The network failed: no connection, a timeout.
     Transient(String),
+    /// Firebase answered, but not with one of the errors that end a sign-in
+    /// (a wrong web key, a 5xx, a 429, a body that is not what it should be):
+    /// the credential is kept and the call tried again, and the user is told
+    /// the service is the problem, not their connection.
+    Service(String),
 }
 
 impl std::fmt::Display for RefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RefreshError::Rejected(m) | RefreshError::Transient(m) => f.write_str(m),
+            RefreshError::Rejected(m) | RefreshError::Transient(m) | RefreshError::Service(m) => {
+                f.write_str(m)
+            }
         }
     }
 }
@@ -365,7 +373,7 @@ fn refresh_error(error: ureq::Error) -> RefreshError {
             if ends_sign_in(message) {
                 RefreshError::Rejected(text)
             } else {
-                RefreshError::Transient(text)
+                RefreshError::Service(text)
             }
         }
         other => RefreshError::Transient(other.to_string()),
@@ -384,8 +392,8 @@ pub fn refresh(cfg: &Config, previous: &Session) -> Result<Session, RefreshError
         ])
         .map_err(refresh_error)?
         .into_json()
-        .map_err(|e| RefreshError::Transient(e.to_string()))?;
-    session_from(&body, &previous.email).map_err(RefreshError::Transient)
+        .map_err(|e| RefreshError::Service(e.to_string()))?;
+    session_from(&body, &previous.email).map_err(RefreshError::Service)
 }
 
 /// The owner key the server keeps for this user (GET /me).
@@ -781,7 +789,7 @@ Host: x
             let (base, _) = stub(move |_, _| (status, body.to_string()));
             let err = refresh(&cfg(&base), &old_session()).unwrap_err();
             assert!(
-                matches!(err, RefreshError::Transient(_)),
+                matches!(err, RefreshError::Service(_)),
                 "{status} {body}: {err:?}"
             );
         }
