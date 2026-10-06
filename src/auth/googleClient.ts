@@ -3,7 +3,7 @@
 // console of project botracing-61, so they are set here once someone has made
 // them, not guessed.
 //
-// WEB: the project's "Web client" (APIs & Services > Credentials; Firebase
+// WEB (set, apex #242): the project's "Web client" (APIs & Services > Credentials; Firebase
 // creates one named "Web client (auto created by Google Service)" when Google
 // sign-in is turned on), of the form
 //   702873435846-xxxxxxxxxxxxxxxx.apps.googleusercontent.com
@@ -14,4 +14,5 @@
 // key the APK is signed with, `eas credentials -p android`) is created in the
 // same console; it has no id to put here, but without it Google answers
 // DEVELOPER_ERROR and sign-in cannot work.
-export const GOOGLE_WEB_CLIENT_ID = '';
+export const GOOGLE_WEB_CLIENT_ID =
+  '702873435846-tjos2tvit21oah6urp0frli01uedpgu4.apps.googleusercontent.com';
