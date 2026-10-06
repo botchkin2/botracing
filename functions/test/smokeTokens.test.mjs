@@ -93,3 +93,71 @@ test('if the second user cannot be created, the first is deleted', async () => {
   assert.equal(f.users.size, 0);
   assert.equal(f.usageDeleted.length, 1);
 });
+
+test('Ctrl+C while the smoke runs: the run stops and both users are still deleted', async () => {
+  const f = fakes();
+  const abort = new AbortController();
+  const code = await smokeWithTemporaryUsers({
+    ...f,
+    apiKey: 'KEY',
+    log: () => {},
+    signal: abort.signal,
+    runSmoke: (_env, signal) =>
+      new Promise((_done, fail) => {
+        signal.addEventListener('abort', () => fail(signal.reason));
+        abort.abort(); // the user presses Ctrl+C
+      }),
+  });
+  assert.notEqual(code, 0);
+  assert.equal(f.users.size, 0);
+  assert.equal(f.usageDeleted.length, 2);
+});
+
+test('Ctrl+C before the first user is created creates nothing', async () => {
+  const f = fakes();
+  const abort = new AbortController();
+  abort.abort();
+  let ran = false;
+  const code = await smokeWithTemporaryUsers({
+    ...f,
+    apiKey: 'KEY',
+    log: () => {},
+    signal: abort.signal,
+    runSmoke: async () => {
+      ran = true;
+      return 0;
+    },
+  });
+  assert.notEqual(code, 0);
+  assert.equal(ran, false);
+  assert.equal(f.users.size, 0);
+  assert.equal(f.usageDeleted.length, 0);
+});
+
+test('whatever the smoke left under each user is swept before the user is deleted', async () => {
+  const f = fakes();
+  const swept = [];
+  await smokeWithTemporaryUsers({
+    ...f,
+    apiKey: 'KEY',
+    log: () => {},
+    runSmoke: async () => 1,
+    sweep: async uid => {
+      assert.ok(f.users.has(uid), 'swept while the user still exists');
+      swept.push(uid);
+    },
+  });
+  assert.equal(swept.length, 2);
+  // A failing sweep must not stop the users being deleted.
+  const g = fakes();
+  await smokeWithTemporaryUsers({
+    ...g,
+    apiKey: 'KEY',
+    log: () => {},
+    runSmoke: async () => 0,
+    sweep: async () => {
+      throw new Error('bucket down');
+    },
+  });
+  assert.equal(g.users.size, 0);
+});
