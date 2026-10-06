@@ -37,6 +37,7 @@ import {versionKey} from '../sessions/versionKey.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
+import {parentGone} from './parentGuard.mjs';
 import {
   isProgressLine,
   newSyncResult,
@@ -56,7 +57,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const syncScript =
   process.env.LAP_SYNC_SCRIPT || resolve(here, '../sessions/sync.mjs');
 const local = process.env.LOCALAPPDATA || homedir();
-const home = resolve(local, 'lap-uploader');
+// LAP_UPLOADER_HOME: the tray app keeps its own state, apart from the logon task's.
+const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
@@ -272,6 +274,10 @@ async function main() {
   };
 
   for (;;) {
+    if (parentGone()) {
+      log('the tray app is gone, stopping');
+      process.exit(0); // the lock pipe would keep the process alive otherwise
+    }
     try {
       const running = gameRunning();
       const recs = recordings(watch.lastRunAtMs);
