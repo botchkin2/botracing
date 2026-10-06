@@ -197,7 +197,8 @@ pub fn backoff(failures: u32) -> Duration {
 pub struct Supervisor {
     running: Option<Running>,
     started_at: Option<Instant>,
-    paused: bool,
+    /// Uploads are allowed: signed in and not paused (account.rs decides).
+    allowed: bool,
     failures: u32,
     retry_at: Option<Instant>,
     /// Why there is no watcher right now, for the tray.
@@ -209,27 +210,27 @@ impl Supervisor {
         Supervisor {
             running: None,
             started_at: None,
-            paused: false,
+            allowed: false,
             failures: 0,
             retry_at: Some(Instant::now()),
             problem: None,
         }
     }
 
-    pub fn paused(&self) -> bool {
-        self.paused
-    }
-
-    pub fn pause(&mut self) {
-        self.paused = true;
+    /// Starts or stops the watcher to match what the account allows. Not
+    /// allowed: the watcher and everything it started end now.
+    pub fn set_allowed(&mut self, allowed: bool) {
+        if allowed == self.allowed {
+            return;
+        }
+        self.allowed = allowed;
         self.problem = None;
-        self.stop();
-    }
-
-    pub fn resume(&mut self) {
-        self.paused = false;
-        self.failures = 0;
-        self.retry_at = Some(Instant::now());
+        if allowed {
+            self.failures = 0;
+            self.retry_at = Some(Instant::now());
+        } else {
+            self.stop();
+        }
     }
 
     pub fn stop(&mut self) {
@@ -241,7 +242,7 @@ impl Supervisor {
     /// Called every few seconds: notices a watcher that ended and starts
     /// another (after a wait that grows), or reports why it cannot.
     pub fn tick(&mut self, p: &Paths) {
-        if self.paused {
+        if !self.allowed {
             return;
         }
         if let Some(running) = self.running.as_mut() {
@@ -417,6 +418,7 @@ mod tests {
         let mut p = paths(Path::new("."));
         p.root = std::env::temp_dir().join(format!("botracing-noroot-{}", std::process::id()));
         let mut s = Supervisor::new();
+        s.set_allowed(true);
         s.tick(&p);
         let problem = s.problem.unwrap_or_default();
         assert!(
@@ -438,6 +440,7 @@ mod tests {
         p.root = base.join("root");
         p.data = base.join("data");
         let mut s = Supervisor::new();
+        s.set_allowed(true);
         s.tick(&p);
         assert!(
             s.problem.is_none(),
@@ -461,6 +464,7 @@ mod tests {
         p.node = PathBuf::from("definitely-not-a-real-node-binary");
         p.data = std::env::temp_dir().join(format!("botracing-miss-{}", std::process::id()));
         let mut s = Supervisor::new();
+        s.set_allowed(true);
         s.tick(&p);
         assert!(s
             .problem
