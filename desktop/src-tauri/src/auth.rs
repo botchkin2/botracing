@@ -364,7 +364,10 @@ pub fn owner_key(cfg: &Config, id_token: &str) -> Result<String, String> {
         .call()
         .map_err(describe)?
         .into_json()
-        .map_err(|e| e.to_string())?;
+        // A 200 that is not JSON is another page answering (the web app's
+        // index.html when the /api/upload route is not deployed), not a server
+        // that cannot be reached.
+        .map_err(|_| "unexpected answer from the server (not JSON)".to_string())?;
     body["ownerKey"]
         .as_str()
         .map(str::to_string)
@@ -700,6 +703,19 @@ Host: x
             .contains("bearer tok"));
         let (base, _) = stub(|_, _| (200, "{}".into()));
         assert!(owner_key(&cfg(&base), "TOK").is_err());
+    }
+
+    #[test]
+    fn a_page_instead_of_json_is_an_unexpected_answer_not_unreachable() {
+        let (base, _) = stub(|_, _| (200, "<!doctype html><title>BotRacing</title>".into()));
+        let err = owner_key(&cfg(&base), "TOK").unwrap_err();
+        assert!(
+            err.starts_with("unexpected answer from the server"),
+            "{err}"
+        );
+        let (down, _) = stub(|_, _| (503, r#"{"error":{"message":"overloaded"}}"#.into()));
+        let err = owner_key(&cfg(&down), "TOK").unwrap_err();
+        assert!(err.contains("503"), "{err}");
     }
 
     #[test]

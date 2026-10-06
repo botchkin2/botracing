@@ -139,6 +139,8 @@ pub struct Account {
     secrets: Box<dyn SecretStore>,
     pub session: Option<Session>,
     pub owner_key: Option<String>,
+    /// Why the owner key is not known, for the menu.
+    pub owner_error: Option<String>,
     owner_checked: Option<SystemTime>,
     stored: Option<Stored>,
     retry_after: Option<SystemTime>,
@@ -168,6 +170,7 @@ impl Account {
             secrets,
             session: None,
             owner_key: None,
+            owner_error: None,
             owner_checked: None,
             stored,
             retry_after: None,
@@ -306,10 +309,14 @@ impl Account {
                 self.retry_after = Some(SystemTime::now() + RETRY_AFTER);
                 self.message = Some(format!("Offline, will retry ({why})"));
             }
-            Done::Owner(Ok(key)) => self.owner_key = Some(key),
+            Done::Owner(Ok(key)) => {
+                self.owner_key = Some(key);
+                self.owner_error = None;
+            }
             Done::Owner(Err(e)) => {
                 self.owner_key = None;
                 eprintln!("could not read the owner key: {e}");
+                self.owner_error = Some(e);
             }
         }
     }
@@ -331,7 +338,10 @@ impl Account {
     /// confirming means having seen the owner.
     pub fn set_paused(&mut self, paused: bool) -> Result<(), String> {
         if !paused && self.unconfirmed() && self.owner_key.is_none() {
-            return Err("Can't un-pause: the owner key is not known yet".into());
+            return Err(match &self.owner_error {
+                Some(why) => format!("Can't un-pause: the owner key is not known ({why})"),
+                None => "Can't un-pause: the owner key is not known yet".into(),
+            });
         }
         self.settings.paused = paused;
         if !paused {
@@ -462,9 +472,33 @@ mod tests {
         assert!(acct.owner_key.is_none());
         let err = acct.set_paused(false).unwrap_err();
         assert!(err.contains("owner key is not known"), "{err}");
+        assert!(err.contains("500"), "the reason is in the message: {err}");
+        assert!(acct.owner_error.is_some());
         assert!(acct.settings.paused, "still paused");
         assert_eq!(acct.settings.confirmed_uid, None, "nothing confirmed");
         assert!(!acct.should_run());
+    }
+
+    #[test]
+    fn a_page_instead_of_json_shows_the_real_reason_for_the_unknown_owner() {
+        let dir = data_dir("html");
+        let (base, _) = stub(|path, _| {
+            if path.contains("/me") {
+                (200, "<!doctype html>".into())
+            } else {
+                (200, REFRESHED.into())
+            }
+        });
+        let a = account(&base, &dir, &Memory::default());
+        a.lock().unwrap().signed_in(session("u1", 3600));
+        maintain(&a);
+        let acct = a.lock().unwrap();
+        assert!(acct.owner_key.is_none());
+        let why = acct.owner_error.clone().unwrap_or_default();
+        assert!(
+            why.starts_with("unexpected answer from the server"),
+            "{why}"
+        );
     }
 
     #[test]

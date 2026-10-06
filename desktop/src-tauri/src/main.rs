@@ -164,7 +164,10 @@ fn main() {
                             format!("uid {}", who.map_or("—", |s| s.uid.as_str())),
                             match (who, &acct.owner_key) {
                                 (Some(_), Some(key)) => format!("owner {key}"),
-                                (Some(_), None) => "owner unknown (server not reachable)".into(),
+                                (Some(_), None) => match &acct.owner_error {
+                                    Some(why) => format!("owner unknown: {why}"),
+                                    None => "owner unknown (not read yet)".into(),
+                                },
                                 (None, _) => "owner —".into(),
                             },
                             if who.is_some() {
