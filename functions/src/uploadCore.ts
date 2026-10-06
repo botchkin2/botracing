@@ -15,9 +15,10 @@
 //     here; usage is counted here from what was written.
 //
 // Layout (docs/STORAGE.md): recordings, sessions and laps are top-level and
-// carry ownerId, as the readers expect. Track maps are per owner, so one
-// user's track data cannot reach another's: the legacy owner keeps the shared
-// tracks/ docs, everyone else gets users/{ownerKey}/tracks/. Bucket files are
+// carry ownerId, as the readers expect. Track data (tracks, trackBoundaries,
+// and the surface and outline files they point at) is app data, curated by
+// Botkin only (pit wall thread 2, #155): a user can read the shared docs and
+// can never write them, so a write op naming one is refused. Bucket files are
 // owner-scoped by their own path; archive/ has no owner segment, so non-legacy
 // owners get archive/{ownerKey}/.
 export const LEGACY_OWNER = 'botkin';
@@ -30,9 +31,10 @@ export const MAX_OPS = 400; // Firestore's batch limit is 500
 const MAX_JSON_DEPTH = 20;
 
 const OWNED = ['recordings', 'sessions', 'laps'];
-const PER_OWNER = ['tracks', 'trackBoundaries'];
-const WRITABLE = [...OWNED, ...PER_OWNER];
-const READABLE = ['tracks', 'trackBoundaries', 'sessions'];
+// Shared, read-only to everyone here; written by the admin tools only.
+const TRACK_DATA = ['tracks', 'trackBoundaries'];
+const WRITABLE = OWNED;
+const READABLE = [...TRACK_DATA, 'sessions'];
 // update merges into an existing doc: only what the events pass sets.
 const UPDATABLE = ['sessions', 'recordings'];
 const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
@@ -146,11 +148,7 @@ function checkId(coll: unknown, id: unknown, allowed: string[]): void {
 
 const isLegacy = (ownerKey: string) => ownerKey === LEGACY_OWNER;
 
-function docPath(ownerKey: string, coll: string, id: string): string {
-  return PER_OWNER.includes(coll) && !isLegacy(ownerKey)
-    ? `users/${ownerKey}/${coll}/${id}`
-    : `${coll}/${id}`;
-}
+const docPath = (coll: string, id: string): string => `${coll}/${id}`;
 
 // The client's bucket path -> where it is stored, or a refusal.
 function filePath(ownerKey: string, dest: unknown): string {
@@ -247,9 +245,13 @@ async function writeDocs(
   // Counted once per document, at the last write in this request.
   const seen = new Map<string, {before: number | null; after: number | null}>();
   for (const op of ops as Array<Record<string, unknown>>) {
+    // A named refusal, not "collection not allowed": a client that still sends
+    // track data is found by this message. Checked before any op is applied.
+    if (TRACK_DATA.includes(op?.coll as string))
+      return refuse(403, 'track data is curated, not uploaded');
     checkId(op?.coll, op?.id, WRITABLE);
     const coll = op.coll as string;
-    const path = docPath(ownerKey, coll, op.id as string);
+    const path = docPath(coll, op.id as string);
     const existing = await deps.docs.get(path);
     mustBeMine(existing, ownerKey, coll);
     const prior = seen.get(path);
@@ -291,7 +293,7 @@ async function updateDocs(
   for (const op of ops as Array<Record<string, unknown>>) {
     checkId(op?.coll, op?.id, UPDATABLE);
     const coll = op.coll as string;
-    const path = docPath(ownerKey, coll, op.id as string);
+    const path = docPath(coll, op.id as string);
     const data = cleanDoc(op.data);
     for (const key of Object.keys(data))
       if (!UPDATE_FIELDS.has(key))
@@ -352,7 +354,7 @@ async function route(
   const doc = path.match(/^\/doc\/([^/]+)\/([^/]+)$/);
   if (method === 'GET' && doc) {
     checkId(doc[1], doc[2], READABLE);
-    const data = await deps.docs.get(docPath(ownerKey, doc[1], doc[2]));
+    const data = await deps.docs.get(docPath(doc[1], doc[2]));
     // 404, not 403, so another owner's ids do not leak.
     if (!data || isTheirs(data, ownerKey, doc[1]))
       return refuse(404, 'no such document');

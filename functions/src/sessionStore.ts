@@ -79,13 +79,10 @@ function toAppLap(lap: any, session: any) {
   };
 }
 
-// A track's doc: the legacy owner's are the shared tracks/ docs the PC tools
-// write; everyone else's live under their own user doc (uploadCore.ts).
-function trackDoc(owner: string, trackId: string) {
-  const db = admin.firestore();
-  return owner === LEGACY_OWNER
-    ? db.collection('tracks').doc(trackId)
-    : db.collection('users').doc(owner).collection('tracks').doc(trackId);
+// A track's doc: shared app data in tracks/, the same for every owner and
+// written only by the admin tools.
+function trackDoc(trackId: string) {
+  return admin.firestore().collection('tracks').doc(trackId);
 }
 
 async function sessionsSince(
@@ -369,8 +366,8 @@ export async function readSurfaceGzip(
   const trackId = session.get('trackId');
   if (!session.exists || session.get('ownerId') !== owner || !trackId)
     return null;
-  const track = await trackDoc(owner, trackId).get();
-  const path = trustedTrackPath(owner, track.get('surface.path'));
+  const track = await trackDoc(trackId).get();
+  const path = trustedTrackPath(track.get('surface.path'));
   if (!path) return null;
   try {
     const [body] = await admin
@@ -398,10 +395,10 @@ export async function readTrackMap(
   const trackId = session.get('trackId');
   if (!session.exists || session.get('ownerId') !== owner || !trackId)
     return null;
-  const doc = await trackDoc(owner, trackId).get();
+  const doc = await trackDoc(trackId).get();
   const track = doc.exists ? doc.data() || {} : {};
   let outline = null;
-  const outlinePath = trustedTrackPath(owner, track.outline?.path);
+  const outlinePath = trustedTrackPath(track.outline?.path);
   if (outlinePath) {
     try {
       const [body] = await admin

@@ -84,13 +84,13 @@ test('a path is followed only inside the right folder of the owner', () => {
     assert.equal(pathInsideOwner(kind, owner, path), null, String(path));
 });
 
-test("a track doc's file paths are only trusted for the legacy owner", () => {
+test('the file paths on a track doc are trusted, only the admin tools write them', () => {
   assert.equal(
-    trustedTrackPath('botkin', 'surface/lmu-road/v1.json.gz'),
+    trustedTrackPath('surface/lmu-road/v1.json.gz'),
     'surface/lmu-road/v1.json.gz',
   );
-  assert.equal(trustedTrackPath('uidB', 'traces/botkin/l1/v2.csv.gz'), null);
-  assert.equal(trustedTrackPath('botkin', undefined), null);
+  for (const bad of [undefined, null, '', 42, {path: 'x'}])
+    assert.equal(trustedTrackPath(bad), null, String(bad));
 });
 
 // The readers are bound to Firestore and Storage, which no test here can run,

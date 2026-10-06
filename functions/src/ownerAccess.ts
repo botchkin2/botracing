@@ -77,9 +77,9 @@ export function pathInsideOwner(
   return segments[0] === FOLDER[kind] && segments[1] === owner ? path : null;
 }
 
-// Track docs: the legacy owner's are shared and written by tools on this PC,
-// so their paths stand. Anyone else's track doc is user-written, and the
-// surface and outline folders are not per-owner yet: those paths are ignored.
-export function trustedTrackPath(owner: string, path: unknown): string | null {
-  return owner === LEGACY_OWNER && typeof path === 'string' ? path : null;
+// Track docs are app data, written only by the admin tools (the upload
+// endpoint refuses every track write), so the surface and outline paths they
+// name are trusted for every signed-in owner.
+export function trustedTrackPath(path: unknown): string | null {
+  return typeof path === 'string' && path.length > 0 ? path : null;
 }
