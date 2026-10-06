@@ -55,7 +55,9 @@ export function readDatabase(json) {
     pitr: pitrText.includes('ENABLED') && !pitrText.includes('DISABLED'),
     pitrRetentionSeconds: seconds(json.versionRetentionPeriod),
     deleteProtection:
-      protectText === '' ? null : protectText.includes('ENABLED') && !protectText.includes('DISABLED'),
+      protectText === ''
+        ? null
+        : protectText.includes('ENABLED') && !protectText.includes('DISABLED'),
   };
 }
 
@@ -76,7 +78,10 @@ export function readSchedules(json) {
 /** From `gcloud firestore backups list --location=L --format=json`, newest first. */
 export function readBackups(json, database = CONFIG.database) {
   if (!Array.isArray(json)) return {known: false, items: []};
-  const wanted = database === '(default)' ? '/databases/(default)' : `/databases/${database}`;
+  const wanted =
+    database === '(default)'
+      ? '/databases/(default)'
+      : `/databases/${database}`;
   const items = json
     .filter(b => String(b.database ?? '').endsWith(wanted))
     .map(b => ({
@@ -91,10 +96,12 @@ export function readBackups(json, database = CONFIG.database) {
 
 /** From `gcloud storage buckets describe gs://B --format=json`. */
 export function readBucket(json) {
-  if (!json || typeof json !== 'object') return {known: false, softDeleteSeconds: null};
+  if (!json || typeof json !== 'object')
+    return {known: false, softDeleteSeconds: null};
   const policy = json.soft_delete_policy ?? json.softDeletePolicy;
   if (policy === undefined) return {known: false, softDeleteSeconds: null};
-  const raw = policy?.retention_duration_seconds ?? policy?.retentionDurationSeconds;
+  const raw =
+    policy?.retention_duration_seconds ?? policy?.retentionDurationSeconds;
   return {known: true, softDeleteSeconds: seconds(raw) ?? 0};
 }
 
@@ -120,13 +127,17 @@ export function planEnable(state, config = CONFIG) {
   });
   steps.push({
     id: 'delete-protection',
-    title: 'Firestore delete protection (the database cannot be deleted by accident)',
+    title:
+      'Firestore delete protection (the database cannot be deleted by accident)',
     known: state.database.deleteProtection !== null,
     done: state.database.deleteProtection === true,
     args: ['firestore', 'databases', 'update', ...db, '--delete-protection'],
   });
   const dailyOk = state.schedules.items.some(
-    s => s.daily && s.retentionSeconds !== null && s.retentionSeconds >= wantSeconds,
+    s =>
+      s.daily &&
+      s.retentionSeconds !== null &&
+      s.retentionSeconds >= wantSeconds,
   );
   steps.push({
     id: 'backup-schedule',
@@ -176,23 +187,38 @@ export function evaluateStatus(state, config = CONFIG, now = Date.now()) {
   check(
     'Firestore PITR',
     state.database.known && state.database.pitr === true,
-    state.database.known ? (state.database.pitr ? 'enabled' : 'DISABLED') : 'could not read the database',
+    state.database.known
+      ? state.database.pitr
+        ? 'enabled'
+        : 'DISABLED'
+      : 'could not read the database',
   );
   check(
     'Firestore delete protection',
     state.database.deleteProtection === true,
-    state.database.deleteProtection === null ? 'unknown' : state.database.deleteProtection ? 'enabled' : 'DISABLED',
+    state.database.deleteProtection === null
+      ? 'unknown'
+      : state.database.deleteProtection
+      ? 'enabled'
+      : 'DISABLED',
   );
   const daily = state.schedules.items.filter(s => s.daily);
   check(
     'Firestore backup schedule',
     daily.some(s => (s.retentionSeconds ?? 0) >= want),
     daily.length
-      ? daily.map(s => `daily, kept ${Math.round((s.retentionSeconds ?? 0) / DAY_S)} d`).join('; ')
+      ? daily
+          .map(
+            s =>
+              `daily, kept ${Math.round((s.retentionSeconds ?? 0) / DAY_S)} d`,
+          )
+          .join('; ')
       : 'no daily schedule',
   );
   if (daily.length > 1)
-    lines.push(`warn ${daily.length} daily schedules: each one is billed; keep one`);
+    lines.push(
+      `warn ${daily.length} daily schedules: each one is billed; keep one`,
+    );
   const newest = state.backups.items.find(b => b.state === 'READY');
   if (!newest) {
     check('Newest backup', false, 'none READY');
@@ -201,14 +227,18 @@ export function evaluateStatus(state, config = CONFIG, now = Date.now()) {
     check(
       'Newest backup',
       ageH <= config.maxBackupAgeHours,
-      `${newest.snapshotTime} (${ageH.toFixed(1)} h old, limit ${config.maxBackupAgeHours} h)`,
+      `${newest.snapshotTime} (${ageH.toFixed(1)} h old, limit ${
+        config.maxBackupAgeHours
+      } h)`,
     );
   }
   check(
     'Bucket soft delete',
     (state.bucket.softDeleteSeconds ?? 0) >= want,
     state.bucket.known
-      ? `${Math.round((state.bucket.softDeleteSeconds ?? 0) / DAY_S)} d (want ${days})`
+      ? `${Math.round(
+          (state.bucket.softDeleteSeconds ?? 0) / DAY_S,
+        )} d (want ${days})`
       : 'could not read the bucket',
   );
   return {ok: problems.length === 0, problems, lines};
@@ -220,7 +250,9 @@ const pad = n => String(n).padStart(2, '0');
 
 /** drill-YYYYMMDD-HHMM, a valid Firestore database id. */
 export function scratchName(date = new Date()) {
-  return `drill-${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}`;
+  return `drill-${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(
+    date.getUTCDate(),
+  )}-${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}`;
 }
 
 /**

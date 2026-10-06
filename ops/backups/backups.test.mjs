@@ -16,6 +16,7 @@ import {
   seconds,
 } from './lib.mjs';
 import {
+  assertScratch,
   parseArgs as parseDrill,
   runDrill,
   runFileDrill,
@@ -95,25 +96,50 @@ test('the readers understand gcloud output, and say "unknown" for anything else'
   assert.equal(readBucket({}).known, false);
   // gcloud storage has also printed camelCase.
   assert.equal(
-    readBucket({softDeletePolicy: {retentionDurationSeconds: '604800'}}).softDeleteSeconds,
+    readBucket({softDeletePolicy: {retentionDurationSeconds: '604800'}})
+      .softDeleteSeconds,
     604800,
   );
 });
 
 test('backups are the default database only, newest first, and need a snapshot time', () => {
-  const other = {...backup('x', 1), database: 'projects/botracing-61/databases/drill-1'};
+  const other = {
+    ...backup('x', 1),
+    database: 'projects/botracing-61/databases/drill-1',
+  };
   const noTime = {...backup('y', 2), snapshotTime: undefined};
-  const read = readBackups([backup('old', 30), other, backup('new', 3), noTime]);
-  assert.deepEqual(read.items.map(b => b.name.split('/').pop()), ['new', 'old']);
+  const read = readBackups([
+    backup('old', 30),
+    other,
+    backup('new', 3),
+    noTime,
+  ]);
+  assert.deepEqual(
+    read.items.map(b => b.name.split('/').pop()),
+    ['new', 'old'],
+  );
 });
 
 test('planEnable: everything is needed on a bare project, in a safe order', () => {
-  const bare = stateOf({db: DB_OFF, schedules: [], backups: [], bucket: BUCKET_OFF});
+  const bare = stateOf({
+    db: DB_OFF,
+    schedules: [],
+    backups: [],
+    bucket: BUCKET_OFF,
+  });
   const steps = planEnable(bare);
-  assert.deepEqual(steps.map(s => s.id), ['pitr', 'delete-protection', 'backup-schedule', 'soft-delete']);
+  assert.deepEqual(
+    steps.map(s => s.id),
+    ['pitr', 'delete-protection', 'backup-schedule', 'soft-delete'],
+  );
   assert.ok(steps.every(s => !s.done && s.known));
   assert.deepEqual(steps[0].args, [
-    'firestore', 'databases', 'update', '--database=(default)', '--project=botracing-61', '--enable-pitr',
+    'firestore',
+    'databases',
+    'update',
+    '--database=(default)',
+    '--project=botracing-61',
+    '--enable-pitr',
   ]);
   assert.ok(steps[2].args.includes('--recurrence=daily'));
   assert.ok(steps[2].args.includes('--retention=7d'));
@@ -138,24 +164,40 @@ test('planEnable: what is already on is done, a too-short schedule or soft delet
   });
   const weekly = stateOf({
     db: DB_ON,
-    schedules: [{name: 'w', retention: '604800s', weeklyRecurrence: {day: 'MONDAY'}}],
+    schedules: [
+      {name: 'w', retention: '604800s', weeklyRecurrence: {day: 'MONDAY'}},
+    ],
     backups: [],
     bucket: BUCKET_ON,
   });
-  assert.equal(planEnable(weekly).find(s => s.id === 'backup-schedule').done, false);
+  assert.equal(
+    planEnable(weekly).find(s => s.id === 'backup-schedule').done,
+    false,
+  );
 });
 
 test('evaluateStatus: healthy is ok; each failure is named', () => {
   assert.equal(evaluateStatus(HEALTHY, CONFIG, NOW).ok, true);
   const fails = (patch, text) => {
-    const result = evaluateStatus(stateOf({
-      db: DB_ON, schedules: [SCHEDULE], backups: [backup('b', 5)], bucket: BUCKET_ON, ...patch,
-    }), CONFIG, NOW);
+    const result = evaluateStatus(
+      stateOf({
+        db: DB_ON,
+        schedules: [SCHEDULE],
+        backups: [backup('b', 5)],
+        bucket: BUCKET_ON,
+        ...patch,
+      }),
+      CONFIG,
+      NOW,
+    );
     assert.equal(result.ok, false, text);
     assert.match(result.problems.join('\n'), text);
   };
   fails({db: DB_OFF}, /PITR/);
-  fails({db: {...DB_ON, deleteProtectionState: 'DELETE_PROTECTION_DISABLED'}}, /delete protection/i);
+  fails(
+    {db: {...DB_ON, deleteProtectionState: 'DELETE_PROTECTION_DISABLED'}},
+    /delete protection/i,
+  );
   fails({schedules: []}, /backup schedule/);
   fails({backups: []}, /Newest backup: none READY/);
   fails({backups: [backup('b', 27)]}, /Newest backup.*27\.0 h old/);
@@ -164,15 +206,32 @@ test('evaluateStatus: healthy is ok; each failure is named', () => {
 });
 
 test('evaluateStatus: a backup at the 26 h limit passes, just past it fails; two schedules warn', () => {
-  const at = h => evaluateStatus(stateOf({
-    db: DB_ON, schedules: [SCHEDULE], backups: [backup('b', h)], bucket: BUCKET_ON,
-  }), CONFIG, NOW).ok;
+  const at = h =>
+    evaluateStatus(
+      stateOf({
+        db: DB_ON,
+        schedules: [SCHEDULE],
+        backups: [backup('b', h)],
+        bucket: BUCKET_ON,
+      }),
+      CONFIG,
+      NOW,
+    ).ok;
   assert.equal(at(26), true);
   assert.equal(at(26.1), false);
-  const two = evaluateStatus(stateOf({
-    db: DB_ON, schedules: [SCHEDULE, SCHEDULE], backups: [backup('b', 5)], bucket: BUCKET_ON,
-  }), CONFIG, NOW);
-  assert.ok(two.lines.some(l => l.startsWith('warn') && /2 daily schedules/.test(l)));
+  const two = evaluateStatus(
+    stateOf({
+      db: DB_ON,
+      schedules: [SCHEDULE, SCHEDULE],
+      backups: [backup('b', 5)],
+      bucket: BUCKET_ON,
+    }),
+    CONFIG,
+    NOW,
+  );
+  assert.ok(
+    two.lines.some(l => l.startsWith('warn') && /2 daily schedules/.test(l)),
+  );
 });
 
 test('scratch names are valid, drill-prefixed and never the live database', () => {
@@ -189,18 +248,41 @@ test('drill bounds: only sessions written by the snapshot count, with their laps
     {updatedAt: hoursAgo(1), lapCount: 40, recordingIds: ['d', 'e', 'f']}, // after the snapshot
     {updatedAt: hoursAgo(9), lapCount: undefined, recordingIds: undefined},
   ];
-  assert.deepEqual(drillLowerBounds(sessions, snapshot), {sessions: 3, laps: 15, recordings: 3});
+  assert.deepEqual(drillLowerBounds(sessions, snapshot), {
+    sessions: 3,
+    laps: 15,
+    recordings: 3,
+  });
 });
 
 test('the drill does not flake when live grows while it runs (marshal #176)', () => {
   const bounds = {sessions: 10, laps: 100, recordings: 12};
-  const live = {sessions: 12, laps: 130, recordings: 15, tracks: 17, trackBoundaries: 17, users: 2, uploaders: 1};
+  const live = {
+    sessions: 12,
+    laps: 130,
+    recordings: 15,
+    tracks: 17,
+    trackBoundaries: 17,
+    users: 2,
+    uploaders: 1,
+  };
   // Two sessions were uploaded after the backup: restored is lower than live, above the bound.
-  const restored = {sessions: 10, laps: 100, recordings: 12, tracks: 17, trackBoundaries: 17, users: 2, uploaders: 1};
+  const restored = {
+    sessions: 10,
+    laps: 100,
+    recordings: 12,
+    tracks: 17,
+    trackBoundaries: 17,
+    users: 2,
+    uploaders: 1,
+  };
   const result = compareDrill({live, restored, bounds});
   assert.equal(result.pass, true);
   // Live moving by a lot more while the drill ran changes nothing.
-  assert.equal(compareDrill({live: {...live, laps: 999}, restored, bounds}).pass, true);
+  assert.equal(
+    compareDrill({live: {...live, laps: 999}, restored, bounds}).pass,
+    true,
+  );
 });
 
 test('the drill fails when the restore is short, empty or larger than live', () => {
@@ -208,19 +290,32 @@ test('the drill fails when the restore is short, empty or larger than live', () 
   const live = {sessions: 12, laps: 130, recordings: 15, tracks: 17};
   const ok = {sessions: 10, laps: 100, recordings: 12, tracks: 17};
   assert.equal(compareDrill({live, restored: ok, bounds}).pass, true);
-  const failing = restored => compareDrill({live, restored, bounds}).rows.filter(r => !r.pass).map(r => r.collection);
+  const failing = restored =>
+    compareDrill({live, restored, bounds})
+      .rows.filter(r => !r.pass)
+      .map(r => r.collection);
   assert.deepEqual(failing({...ok, laps: 99}), ['laps']);
   assert.deepEqual(failing({...ok, tracks: 0}), ['tracks']); // live has some, restored none
   assert.deepEqual(failing({...ok, sessions: 13}), ['sessions']); // more than live
   assert.deepEqual(failing({}), ['sessions', 'laps', 'recordings', 'tracks']);
   // An empty collection that is empty live is fine.
-  const quiet = compareDrill({live: {...live, uploaders: 0}, restored: {...ok, uploaders: 0}, bounds});
+  const quiet = compareDrill({
+    live: {...live, uploaders: 0},
+    restored: {...ok, uploaders: 0},
+    bounds,
+  });
   assert.equal(quiet.pass, true);
 });
 
 test('Windows quoting: safe words stay, parentheses and spaces are quoted', () => {
-  assert.equal(quoteForWindows('--project=botracing-61'), '--project=botracing-61');
-  assert.equal(quoteForWindows('--database=(default)'), '"--database=(default)"');
+  assert.equal(
+    quoteForWindows('--project=botracing-61'),
+    '--project=botracing-61',
+  );
+  assert.equal(
+    quoteForWindows('--database=(default)'),
+    '"--database=(default)"',
+  );
   assert.equal(quoteForWindows('a b'), '"a b"');
   assert.equal(quoteForWindows('say "hi"'), '"say \\"hi\\""');
 });
@@ -233,7 +328,11 @@ test('the runner: gcloud.cmd through a shell on Windows, plain gcloud elsewhere,
   };
   const win = gcloudRunner({exec, platform: 'win32'});
   assert.deepEqual(win(['x', '--database=(default)', '--format=json']), {a: 1});
-  assert.deepEqual(calls[0], {bin: 'gcloud.cmd', args: ['x', '"--database=(default)"', '--format=json'], shell: true});
+  assert.deepEqual(calls[0], {
+    bin: 'gcloud.cmd',
+    args: ['x', '"--database=(default)"', '--format=json'],
+    shell: true,
+  });
   const unix = gcloudRunner({exec, platform: 'linux'});
   assert.equal(unix(['y']), 'text');
   assert.deepEqual(calls[1], {bin: 'gcloud', args: ['y'], shell: false});
@@ -261,11 +360,25 @@ const tableFor = ({db, schedules, backups, bucket}) => ({
 
 test('gatherState reads all four places, and a failing read is "unknown", not a crash', () => {
   const ok = gatherState(
-    fakeRun(tableFor({db: DB_ON, schedules: [SCHEDULE], backups: [backup('b', 5)], bucket: BUCKET_ON})),
+    fakeRun(
+      tableFor({
+        db: DB_ON,
+        schedules: [SCHEDULE],
+        backups: [backup('b', 5)],
+        bucket: BUCKET_ON,
+      }),
+    ),
   );
   assert.equal(evaluateStatus(ok, CONFIG, NOW).ok, true);
   const denied = gatherState(
-    fakeRun(tableFor({db: new Error('PERMISSION_DENIED: nope\nmore'), schedules: [], backups: [], bucket: BUCKET_ON})),
+    fakeRun(
+      tableFor({
+        db: new Error('PERMISSION_DENIED: nope\nmore'),
+        schedules: [],
+        backups: [],
+        bucket: BUCKET_ON,
+      }),
+    ),
   );
   assert.equal(denied.database.known, false);
   assert.equal(denied.database.error, 'PERMISSION_DENIED: nope');
@@ -273,8 +386,15 @@ test('gatherState reads all four places, and a failing read is "unknown", not a 
   assert.equal(denied.backups.known, false);
 });
 
-const BARE = tableFor({db: DB_OFF, schedules: [], backups: [], bucket: BUCKET_OFF});
-const isChange = a => ['update', 'create', 'restore', 'delete'].includes(a[2]) || a[1] === 'buckets' && a[2] === 'update';
+const BARE = tableFor({
+  db: DB_OFF,
+  schedules: [],
+  backups: [],
+  bucket: BUCKET_OFF,
+});
+const isChange = a =>
+  ['update', 'create', 'restore', 'delete'].includes(a[2]) ||
+  (a[1] === 'buckets' && a[2] === 'update');
 
 test('enable: a dry run reads and prints but changes nothing', () => {
   const run = fakeRun(BARE);
@@ -289,45 +409,94 @@ test('enable: a dry run reads and prints but changes nothing', () => {
 test('enable --apply runs each missing step once, in order, and skips what is set', () => {
   const run = fakeRun(BARE);
   enableBackups({run, apply: true, log: () => {}});
-  const changes = run.log.filter(a => a.includes('--enable-pitr') || a.includes('--delete-protection') || a.includes('--recurrence=daily') || a.some(x => x.startsWith('--soft-delete-duration')));
+  const changes = run.log.filter(
+    a =>
+      a.includes('--enable-pitr') ||
+      a.includes('--delete-protection') ||
+      a.includes('--recurrence=daily') ||
+      a.some(x => x.startsWith('--soft-delete-duration')),
+  );
   assert.equal(changes.length, 4);
   assert.ok(changes[0].includes('--enable-pitr'));
   assert.ok(changes[1].includes('--delete-protection'));
   assert.ok(changes[2].includes('--recurrence=daily'));
   assert.ok(changes[3].some(x => x.startsWith('--soft-delete-duration')));
 
-  const healthy = fakeRun(tableFor({db: DB_ON, schedules: [SCHEDULE], backups: [backup('b', 5)], bucket: BUCKET_ON}));
+  const healthy = fakeRun(
+    tableFor({
+      db: DB_ON,
+      schedules: [SCHEDULE],
+      backups: [backup('b', 5)],
+      bucket: BUCKET_ON,
+    }),
+  );
   const again = enableBackups({run: healthy, apply: true, log: () => {}});
   assert.equal(again.ran, 0);
-  assert.equal(healthy.log.filter(a => a.includes('--enable-pitr') || a.includes('--recurrence=daily')).length, 0);
+  assert.equal(
+    healthy.log.filter(
+      a => a.includes('--enable-pitr') || a.includes('--recurrence=daily'),
+    ).length,
+    0,
+  );
 });
 
 test('enable refuses to act on what it could not read, unless forced', () => {
-  const table = tableFor({db: DB_ON, schedules: new Error('PERMISSION_DENIED'), backups: [], bucket: BUCKET_ON});
+  // Only the READ of the schedules is denied; creating one would work.
+  const table = tableFor({
+    db: DB_ON,
+    schedules: args => {
+      if (args[3] === 'list') throw new Error('PERMISSION_DENIED');
+      return '';
+    },
+    backups: [],
+    bucket: BUCKET_ON,
+  });
   const run = fakeRun(table);
   const result = enableBackups({run, apply: true, log: () => {}});
   assert.equal(result.refused, 1);
   assert.equal(run.log.filter(a => a.includes('--recurrence=daily')).length, 0);
   const forced = fakeRun(table);
   enableBackups({run: forced, apply: true, force: true, log: () => {}});
-  assert.equal(forced.log.filter(a => a.includes('--recurrence=daily')).length, 1);
+  assert.equal(
+    forced.log.filter(a => a.includes('--recurrence=daily')).length,
+    1,
+  );
 });
 
 test('the command lines accept only their own options', () => {
   assert.deepEqual(parseEnable([]), {apply: false, force: false});
-  assert.deepEqual(parseEnable(['--apply', '--force']), {apply: true, force: true});
+  assert.deepEqual(parseEnable(['--apply', '--force']), {
+    apply: true,
+    force: true,
+  });
   assert.throws(() => parseEnable(['--yes']), /unknown option/);
-  assert.deepEqual(parseDrill(['--files', '--keep']), {files: true, keep: true});
+  assert.deepEqual(parseDrill(['--files', '--keep']), {
+    files: true,
+    keep: true,
+  });
   assert.throws(() => parseDrill(['--force']), /unknown option/);
 });
 
 test('status: exit-worthy result, sizes parsed, gcloud notes shown', () => {
   const run = fakeRun({
-    ...tableFor({db: DB_ON, schedules: [SCHEDULE], backups: [backup('b', 40)], bucket: BUCKET_ON}),
-    'storage du --summarize': args => (args.at(-1).endsWith('/archive') ? '5000000000  gs://x/archive/' : '12000  gs://x/other/'),
+    ...tableFor({
+      db: DB_ON,
+      schedules: [SCHEDULE],
+      backups: [backup('b', 40)],
+      bucket: BUCKET_ON,
+    }),
+    'storage du --summarize': args =>
+      args.at(-1).endsWith('/archive')
+        ? '5000000000  gs://x/archive/'
+        : '12000  gs://x/other/',
   });
   const lines = [];
-  const result = showStatus({run, sizes: true, now: NOW, log: l => lines.push(l)});
+  const result = showStatus({
+    run,
+    sizes: true,
+    now: NOW,
+    log: l => lines.push(l),
+  });
   assert.equal(result.ok, false); // the newest backup is 40 h old
   assert.match(lines.join('\n'), /archive +5\.00 GB/);
   assert.equal(parseDu('123  gs://b/x'), 123);
@@ -340,25 +509,53 @@ function fakeDbs({live, restored, sessions}) {
   const writes = [];
   const handle = counts => ({
     collection: name => ({
-      count: () => ({get: async () => ({data: () => ({count: counts[name] ?? 0})})}),
-      select: () => ({get: async () => ({docs: (name === 'sessions' ? sessions : []).map(d => ({data: () => d}))})}),
+      count: () => ({
+        get: async () => ({data: () => ({count: counts[name] ?? 0})}),
+      }),
+      select: () => ({
+        get: async () => ({
+          docs: (name === 'sessions' ? sessions : []).map(d => ({
+            data: () => d,
+          })),
+        }),
+      }),
       set: () => writes.push(['set', name]),
       add: () => writes.push(['add', name]),
-      doc: () => ({set: () => writes.push(['doc-set', name]), delete: () => writes.push(['doc-delete', name])}),
+      doc: () => ({
+        set: () => writes.push(['doc-set', name]),
+        delete: () => writes.push(['doc-delete', name]),
+      }),
     }),
   });
   return {liveDb: handle(live), openRestored: () => handle(restored), writes};
 }
 
-const GOOD_LIVE = {sessions: 12, laps: 130, recordings: 15, tracks: 17, trackBoundaries: 17, users: 2, uploaders: 1};
+const GOOD_LIVE = {
+  sessions: 12,
+  laps: 130,
+  recordings: 15,
+  tracks: 17,
+  trackBoundaries: 17,
+  users: 2,
+  uploaders: 1,
+};
 const SNAP_SESSIONS = [
   {updatedAt: hoursAgo(10), lapCount: 100, recordingIds: Array(12).fill('r')},
   {updatedAt: hoursAgo(9), lapCount: 0, recordingIds: []},
-  ...Array.from({length: 8}, () => ({updatedAt: hoursAgo(8), lapCount: 0, recordingIds: []})),
+  ...Array.from({length: 8}, () => ({
+    updatedAt: hoursAgo(8),
+    lapCount: 0,
+    recordingIds: [],
+  })),
   {updatedAt: hoursAgo(1), lapCount: 30, recordingIds: ['n']},
   {updatedAt: hoursAgo(1), lapCount: 0, recordingIds: ['m', 'o']},
 ];
-const DRILL_TABLE = tableFor({db: DB_ON, schedules: [SCHEDULE], backups: [backup('b2', 5)], bucket: BUCKET_ON});
+const DRILL_TABLE = tableFor({
+  db: DB_ON,
+  schedules: [SCHEDULE],
+  backups: [backup('b2', 5)],
+  bucket: BUCKET_ON,
+});
 
 test('drill: restores into a scratch database, passes, deletes the scratch, never writes to live', async () => {
   const run = fakeRun(DRILL_TABLE);
@@ -368,11 +565,22 @@ test('drill: restores into a scratch database, passes, deletes the scratch, neve
     sessions: SNAP_SESSIONS,
   });
   const lines = [];
-  const result = await runDrill({run, ...dbs, now: new Date(NOW), log: l => lines.push(l)});
+  const result = await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    log: l => lines.push(l),
+  });
   assert.equal(result.pass, true, lines.join('\n'));
   const restore = run.log.find(a => a[1] === 'databases' && a[2] === 'restore');
   assert.ok(restore.includes('--destination-database=drill-20261006-1200'));
-  assert.ok(restore.some(x => x.startsWith('--source-backup=projects/botracing-61/locations/nam5/backups/b2')));
+  assert.ok(
+    restore.some(x =>
+      x.startsWith(
+        '--source-backup=projects/botracing-61/locations/nam5/backups/b2',
+      ),
+    ),
+  );
   const del = run.log.find(a => a[1] === 'databases' && a[2] === 'delete');
   assert.ok(del.includes('--database=drill-20261006-1200'));
   assert.equal(dbs.writes.length, 0, 'production was written');
@@ -385,7 +593,12 @@ test('drill: a short restore fails the drill, and the scratch database is still 
     restored: {...GOOD_LIVE, sessions: 4, laps: 10, recordings: 3},
     sessions: SNAP_SESSIONS,
   });
-  const result = await runDrill({run, ...dbs, now: new Date(NOW), log: () => {}});
+  const result = await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    log: () => {},
+  });
   assert.equal(result.pass, false);
   assert.ok(run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
 });
@@ -396,50 +609,107 @@ test('drill: if the restore itself blows up the scratch database is still cleane
     'firestore databases restore': new Error('FAILED_PRECONDITION'),
   });
   const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
-  await assert.rejects(runDrill({run, ...dbs, now: new Date(NOW), log: () => {}}), /FAILED_PRECONDITION/);
+  await assert.rejects(
+    runDrill({run, ...dbs, now: new Date(NOW), log: () => {}}),
+    /FAILED_PRECONDITION/,
+  );
   assert.ok(run.log.some(a => a[1] === 'databases' && a[2] === 'delete'));
 });
 
 test('drill: --keep leaves the scratch database and says how to delete it', async () => {
   const run = fakeRun(DRILL_TABLE);
-  const dbs = fakeDbs({live: GOOD_LIVE, restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12}, sessions: SNAP_SESSIONS});
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
   const lines = [];
-  await runDrill({run, ...dbs, now: new Date(NOW), keep: true, log: l => lines.push(l)});
-  assert.equal(run.log.some(a => a[1] === 'databases' && a[2] === 'delete'), false);
-  assert.match(lines.join('\n'), /gcloud firestore databases delete --database=drill-20261006-1200/);
+  await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    keep: true,
+    log: l => lines.push(l),
+  });
+  assert.equal(
+    run.log.some(a => a[1] === 'databases' && a[2] === 'delete'),
+    false,
+  );
+  assert.match(
+    lines.join('\n'),
+    /gcloud firestore databases delete --database=drill-20261006-1200/,
+  );
 });
 
 test('drill: no backup, or a stale one, never starts a restore', async () => {
   for (const backups of [[], [backup('b', 40)], [backup('b', 5, 'CREATING')]]) {
-    const run = fakeRun(tableFor({db: DB_ON, schedules: [SCHEDULE], backups, bucket: BUCKET_ON}));
+    const run = fakeRun(
+      tableFor({db: DB_ON, schedules: [SCHEDULE], backups, bucket: BUCKET_ON}),
+    );
     const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
-    const result = await runDrill({run, ...dbs, now: new Date(NOW), log: () => {}});
+    const result = await runDrill({
+      run,
+      ...dbs,
+      now: new Date(NOW),
+      log: () => {},
+    });
     assert.equal(result.pass, false);
-    assert.equal(run.log.some(a => a[2] === 'restore' || a[2] === 'delete'), false);
+    assert.equal(
+      run.log.some(a => a[2] === 'restore' || a[2] === 'delete'),
+      false,
+    );
   }
 });
 
-test('the drill only ever deletes a drill database', async () => {
-  const run = fakeRun(DRILL_TABLE);
-  const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
-  await assert.rejects(
-    runDrill({run, ...dbs, now: new Date(NOW), config: {...CONFIG, database: 'drill-20261006-1200'}, log: () => {}}),
+test('the drill only ever touches a drill database', () => {
+  assert.doesNotThrow(() => assertScratch('drill-20261006-1200', CONFIG));
+  for (const bad of [
+    '(default)',
+    'default',
+    'botracing',
+    'drill-1',
+    'drill-20261006-1200x',
+    'xdrill-20261006-1200',
+    '',
+    'prod-20261006-1200',
+  ])
+    assert.throws(
+      () => assertScratch(bad, CONFIG),
+      /not a drill database/,
+      bad,
+    );
+  // Even a well-formed name is refused when it is the configured live database.
+  assert.throws(
+    () =>
+      assertScratch('drill-20261006-1200', {
+        ...CONFIG,
+        database: 'drill-20261006-1200',
+      }),
     /not a drill database/,
   );
-  assert.equal(run.log.some(a => a[2] === 'delete'), false);
 });
 
 test('file drill: write, delete, find it soft-deleted, restore, read back, clean up', () => {
   const object = 'gs://botracing-61-lmu/backup-drill/drill-20261006-1200.txt';
   const calls = [];
   const run = args => {
-    calls.push(args.slice(0, 3).join(' '));
+    calls.push(args.slice(0, 2).join(' '));
     if (args[1] === 'ls') return `${object}#1759752000000000\n`;
     if (args[1] === 'cat') return 'backup drill 2026-10-06T12:00:00.000Z\n';
     return '';
   };
-  assert.equal(runFileDrill({run, now: new Date(NOW), log: () => {}}).pass, true);
-  assert.deepEqual(calls, ['storage cp', 'storage rm', 'storage ls', 'storage restore', 'storage cat', 'storage rm']);
+  assert.equal(
+    runFileDrill({run, now: new Date(NOW), log: () => {}}).pass,
+    true,
+  );
+  assert.deepEqual(calls, [
+    'storage cp',
+    'storage rm',
+    'storage ls',
+    'storage restore',
+    'storage cat',
+    'storage rm',
+  ]);
 });
 
 test('file drill: an object that never shows as soft-deleted fails the drill and is removed', () => {

@@ -44,13 +44,20 @@ const attempt = (fn, fallback) => {
 /** Everything status, enable and the drill need to know, read-only. */
 export function gatherState(run, config = CONFIG) {
   const {project, database, bucket} = config;
-  const dbArgs = [`--database=${database}`, `--project=${project}`, '--format=json'];
+  const dbArgs = [
+    `--database=${database}`,
+    `--project=${project}`,
+    '--format=json',
+  ];
   const db = attempt(
     () => readDatabase(run(['firestore', 'databases', 'describe', ...dbArgs])),
     {known: false, location: null, pitr: null, deleteProtection: null},
   );
   const schedules = attempt(
-    () => readSchedules(run(['firestore', 'backups', 'schedules', 'list', ...dbArgs])),
+    () =>
+      readSchedules(
+        run(['firestore', 'backups', 'schedules', 'list', ...dbArgs]),
+      ),
     {known: false, items: []},
   );
   const backups = db.location
@@ -73,7 +80,14 @@ export function gatherState(run, config = CONFIG) {
   const bucketState = attempt(
     () =>
       readBucket(
-        run(['storage', 'buckets', 'describe', `gs://${bucket}`, `--project=${project}`, '--format=json']),
+        run([
+          'storage',
+          'buckets',
+          'describe',
+          `gs://${bucket}`,
+          `--project=${project}`,
+          '--format=json',
+        ]),
       ),
     {known: false, softDeleteSeconds: null},
   );

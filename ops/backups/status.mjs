@@ -10,11 +10,21 @@ import {pathToFileURL} from 'node:url';
 import {gatherState, gcloudRunner} from './gcloud.mjs';
 import {CONFIG, evaluateStatus} from './lib.mjs';
 
-const FOLDERS = ['archive', 'traces', 'bands', 'field', 'slices', 'surface', 'trackmaps'];
+const FOLDERS = [
+  'archive',
+  'traces',
+  'bands',
+  'field',
+  'slices',
+  'surface',
+  'trackmaps',
+];
 
 /** `gcloud storage du --summarize` prints "<bytes>  gs://...". */
 export function parseDu(text) {
-  const match = String(text).trim().match(/^(\d+)\s/);
+  const match = String(text)
+    .trim()
+    .match(/^(\d+)\s/);
   return match ? Number(match[1]) : null;
 }
 
@@ -25,7 +35,13 @@ const human = bytes =>
     ? `${(bytes / 1e9).toFixed(2)} GB`
     : `${(bytes / 1e6).toFixed(1)} MB`;
 
-export function showStatus({run, sizes = false, config = CONFIG, now = Date.now(), log = console.log}) {
+export function showStatus({
+  run,
+  sizes = false,
+  config = CONFIG,
+  now = Date.now(),
+  log = console.log,
+}) {
   const state = gatherState(run, config);
   const result = evaluateStatus(state, config, now);
   log(result.lines.join('\n'));
@@ -38,7 +54,14 @@ export function showStatus({run, sizes = false, config = CONFIG, now = Date.now(
     for (const folder of FOLDERS) {
       let bytes = null;
       try {
-        bytes = parseDu(run(['storage', 'du', '--summarize', `gs://${config.bucket}/${folder}`]));
+        bytes = parseDu(
+          run([
+            'storage',
+            'du',
+            '--summarize',
+            `gs://${config.bucket}/${folder}`,
+          ]),
+        );
       } catch {
         // an empty or missing folder is not an error here
       }
@@ -48,13 +71,19 @@ export function showStatus({run, sizes = false, config = CONFIG, now = Date.now(
   return result;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const args = process.argv.slice(2);
   const bad = args.filter(a => a !== '--sizes');
   if (bad.length) {
     console.error(`unknown option: ${bad[0]}`);
     process.exit(2);
   }
-  const result = showStatus({run: gcloudRunner(), sizes: args.includes('--sizes')});
+  const result = showStatus({
+    run: gcloudRunner(),
+    sizes: args.includes('--sizes'),
+  });
   process.exit(result.ok ? 0 : 1);
 }

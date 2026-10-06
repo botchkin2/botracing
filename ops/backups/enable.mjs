@@ -24,7 +24,13 @@ export function parseArgs(argv) {
 
 const shown = args => 'gcloud ' + args.join(' ');
 
-export function enableBackups({run, apply = false, force = false, config = CONFIG, log = console.log}) {
+export function enableBackups({
+  run,
+  apply = false,
+  force = false,
+  config = CONFIG,
+  log = console.log,
+}) {
   const before = gatherState(run, config);
   const steps = planEnable(before, config);
   let refused = 0;
@@ -36,16 +42,23 @@ export function enableBackups({run, apply = false, force = false, config = CONFI
     }
     if (!step.known && !force) {
       refused++;
-      log(`CANNOT TELL   ${step.title}: the current state could not be read, so not changing it (use --force to go ahead)`);
+      log(
+        `CANNOT TELL   ${step.title}: the current state could not be read, so not changing it (use --force to go ahead)`,
+      );
       continue;
     }
-    log(`${apply ? 'running      ' : 'would run    '} ${step.title}\n              ${shown(step.args)}`);
+    log(
+      `${apply ? 'running      ' : 'would run    '} ${
+        step.title
+      }\n              ${shown(step.args)}`,
+    );
     if (apply) {
       run(step.args);
       ran++;
     }
   }
-  if (!apply) log('\nDry run: nothing was changed. Add --apply to run the steps above.');
+  if (!apply)
+    log('\nDry run: nothing was changed. Add --apply to run the steps above.');
   const after = apply && ran > 0 ? gatherState(run, config) : before;
   const status = evaluateStatus(after, config);
   log('\n' + status.lines.join('\n'));
@@ -55,7 +68,10 @@ export function enableBackups({run, apply = false, force = false, config = CONFI
   return {steps, ran, refused, status};
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     const opts = parseArgs(process.argv.slice(2));
     const result = enableBackups({run: gcloudRunner(), ...opts});

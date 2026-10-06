@@ -27,7 +27,8 @@ import {
 
 export function parseArgs(argv) {
   const known = new Set(['--files', '--keep']);
-  for (const a of argv) if (!known.has(a)) throw new Error(`unknown option: ${a}`);
+  for (const a of argv)
+    if (!known.has(a)) throw new Error(`unknown option: ${a}`);
   return {files: argv.includes('--files'), keep: argv.includes('--keep')};
 }
 
@@ -35,9 +36,11 @@ const countOf = async (db, name) =>
   (await db.collection(name).count().get()).data().count;
 
 // A deletion must only ever name the scratch database this run created.
-function assertScratch(name, config) {
+export function assertScratch(name, config) {
   if (!/^drill-\d{8}-\d{4}$/.test(name) || name === config.database)
-    throw new Error(`refusing to touch database '${name}': not a drill database`);
+    throw new Error(
+      `refusing to touch database '${name}': not a drill database`,
+    );
 }
 
 /**
@@ -56,19 +59,29 @@ export async function runDrill({
   const state = gatherState(run, config);
   const backup = state.backups.items.find(b => b.state === 'READY');
   if (!backup) {
-    log('FAIL no READY backup to restore (is the schedule on, and has a day passed?)');
+    log(
+      'FAIL no READY backup to restore (is the schedule on, and has a day passed?)',
+    );
     return {pass: false, reason: 'no backup'};
   }
   const ageH = (now.getTime() - Date.parse(backup.snapshotTime)) / 3_600_000;
-  log(`Newest backup: ${backup.name}\n  snapshot ${backup.snapshotTime} (${ageH.toFixed(1)} h old)`);
+  log(
+    `Newest backup: ${backup.name}\n  snapshot ${
+      backup.snapshotTime
+    } (${ageH.toFixed(1)} h old)`,
+  );
   if (ageH > config.maxBackupAgeHours) {
-    log(`FAIL the newest backup is older than ${config.maxBackupAgeHours} h: the schedule has stopped`);
+    log(
+      `FAIL the newest backup is older than ${config.maxBackupAgeHours} h: the schedule has stopped`,
+    );
     return {pass: false, reason: 'backup too old'};
   }
 
   const scratch = scratchName(now);
   assertScratch(scratch, config);
-  log(`Restoring into scratch database '${scratch}' (production is not written)...`);
+  log(
+    `Restoring into scratch database '${scratch}' (production is not written)...`,
+  );
   let result;
   try {
     run([
@@ -95,16 +108,30 @@ export async function runDrill({
     const bounds = drillLowerBounds(sessionDocs, backup.snapshotTime);
     result = compareDrill({live, restored, bounds});
     for (const row of result.rows)
-      log(`${row.pass ? 'PASS' : 'FAIL'} ${row.collection.padEnd(16)} ${row.why}`);
+      log(
+        `${row.pass ? 'PASS' : 'FAIL'} ${row.collection.padEnd(16)} ${row.why}`,
+      );
   } finally {
     if (keep) {
-      log(`Kept '${scratch}'. Delete it when done: gcloud firestore databases delete --database=${scratch} --project=${config.project}`);
+      log(
+        `Kept '${scratch}'. Delete it when done: gcloud firestore databases delete --database=${scratch} --project=${config.project}`,
+      );
     } else {
       try {
-        run(['firestore', 'databases', 'delete', `--database=${scratch}`, `--project=${config.project}`]);
+        run([
+          'firestore',
+          'databases',
+          'delete',
+          `--database=${scratch}`,
+          `--project=${config.project}`,
+        ]);
         log(`Deleted scratch database '${scratch}'.`);
       } catch (error) {
-        log(`COULD NOT DELETE '${scratch}' (${String(error.message).split('\n')[0]}): delete it by hand, it is billed.`);
+        log(
+          `COULD NOT DELETE '${scratch}' (${
+            String(error.message).split('\n')[0]
+          }): delete it by hand, it is billed.`,
+        );
       }
     }
   }
@@ -112,7 +139,12 @@ export async function runDrill({
 }
 
 /** Soft delete, proven with one tiny object under backup-drill/. */
-export function runFileDrill({run, config = CONFIG, now = new Date(), log = console.log}) {
+export function runFileDrill({
+  run,
+  config = CONFIG,
+  now = new Date(),
+  log = console.log,
+}) {
   const object = `gs://${config.bucket}/backup-drill/${scratchName(now)}.txt`;
   const dir = mkdtempSync(join(tmpdir(), 'backup-drill-'));
   const local = join(dir, 'probe.txt');
@@ -128,18 +160,40 @@ export function runFileDrill({run, config = CONFIG, now = new Date(), log = cons
     }
   };
   try {
-    stage('write a probe object', () => run(['storage', 'cp', local, object, `--project=${config.project}`]));
-    stage('delete it (it goes to soft delete)', () => run(['storage', 'rm', object, `--project=${config.project}`]));
+    stage('write a probe object', () =>
+      run(['storage', 'cp', local, object, `--project=${config.project}`]),
+    );
+    stage('delete it (it goes to soft delete)', () =>
+      run(['storage', 'rm', object, `--project=${config.project}`]),
+    );
     const listing = stage('see it among the soft-deleted objects', () => {
-      const out = run(['storage', 'ls', '--soft-deleted', object, `--project=${config.project}`]);
-      if (!String(out).includes(`${object}#`)) throw new Error('not listed as soft-deleted');
+      const out = run([
+        'storage',
+        'ls',
+        '--soft-deleted',
+        object,
+        `--project=${config.project}`,
+      ]);
+      if (!String(out).includes(`${object}#`))
+        throw new Error('not listed as soft-deleted');
       return String(out);
     });
-    const versioned = listing.split(/\r?\n/).find(l => l.startsWith(`${object}#`)).trim();
-    stage('restore it', () => run(['storage', 'restore', versioned, `--project=${config.project}`]));
+    const versioned = listing
+      .split(/\r?\n/)
+      .find(l => l.startsWith(`${object}#`))
+      .trim();
+    stage('restore it', () =>
+      run(['storage', 'restore', versioned, `--project=${config.project}`]),
+    );
     stage('read it back', () => {
-      const text = run(['storage', 'cat', object, `--project=${config.project}`]);
-      if (!String(text).startsWith('backup drill')) throw new Error('content does not match');
+      const text = run([
+        'storage',
+        'cat',
+        object,
+        `--project=${config.project}`,
+      ]);
+      if (!String(text).startsWith('backup drill'))
+        throw new Error('content does not match');
     });
     run(['storage', 'rm', object, `--project=${config.project}`]);
     return {pass: true};
@@ -153,11 +207,16 @@ export function runFileDrill({run, config = CONFIG, now = new Date(), log = cons
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     const opts = parseArgs(process.argv.slice(2));
     const here = dirname(fileURLToPath(import.meta.url));
-    const require = createRequire(resolve(here, '../../functions/package.json'));
+    const require = createRequire(
+      resolve(here, '../../functions/package.json'),
+    );
     const admin = require('firebase-admin');
     const {getFirestore} = require('firebase-admin/firestore');
     process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= CONFIG.project;
