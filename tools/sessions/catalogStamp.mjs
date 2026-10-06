@@ -18,16 +18,22 @@ import {mapKeyOf} from './layoutBoundaries.mjs';
  * The state of one track's curated data: 'none' when the catalog has no map for
  * it, otherwise the map version, the boundaries' rev, and a short hash of the
  * map the boundaries belong to (a re-cut map with the same rev still changes it).
+ * A curated edit also carries the track's `catalogRev`: it is appended only
+ * when it is above 0, so every stamp recorded before curation existed stays
+ * valid, and a curated change that moves no boundary (a corner renamed, a map
+ * replaced with the same starts) still changes the stamp.
  */
 export function catalogStamp(trackMap, boundaries) {
-  if (!trackMap) return 'none';
+  // A track document with no corners (the curator undid the only map) is no map.
+  if (!trackMap || !trackMap.corners?.length) return 'none';
   const key = createHash('sha1')
     .update(mapKeyOf(trackMap.corners ?? []))
     .digest('hex')
     .slice(0, 8);
+  const rev = trackMap.catalogRev > 0 ? `:r${trackMap.catalogRev}` : '';
   return `m${trackMap.mapVersion ?? 0}:b${
     boundaries ? boundaries.rev : 'none'
-  }:${key}`;
+  }:${key}${rev}`;
 }
 
 export const DEFAULT_RESYNC_CAP = 25;
