@@ -6,7 +6,13 @@ import {join} from 'node:path';
 import {test} from 'node:test';
 import {gunzipSync} from 'node:zlib';
 import {createStore} from './store.mjs';
-import {httpBackend, httpStore, uidOfToken} from './storeClient.mjs';
+import {
+  CHUNK_OPS,
+  chunked,
+  httpBackend,
+  httpStore,
+  uidOfToken,
+} from './storeClient.mjs';
 import {openRemoteStore} from './remoteStore.mjs';
 
 const jwt = claims =>
@@ -202,4 +208,53 @@ test('upload writes the session, and a resync with fewer laps drops the rest', a
     'sessions/s1',
   ]);
   assert.ok(backend.files.has('traces/o/l1/v2.csv.gz'));
+});
+
+test('a big write goes in chunks, the session document last', async () => {
+  const s = await stub();
+  const backend = httpBackend({api: s.api, token: () => 't'});
+  const laps = Array.from({length: CHUNK_OPS * 2 + 5}, (_, i) => ({
+    op: 'set',
+    coll: 'laps',
+    id: `l${i}`,
+    data: {sessionId: 's1'},
+  }));
+  const session = {op: 'set', coll: 'sessions', id: 's1', data: {id: 's1'}};
+  await backend.writeDocs([
+    session,
+    ...laps,
+    {op: 'delete', coll: 'laps', id: 'old'},
+  ]);
+  const sizes = s.seen.map(r => JSON.parse(r.body).ops.length);
+  assert.deepEqual(sizes, [CHUNK_OPS, CHUNK_OPS, 7]);
+  const last = JSON.parse(s.seen.at(-1).body).ops;
+  assert.deepEqual(last.at(-1), session);
+  assert.ok(
+    s.seen
+      .slice(0, -1)
+      .every(r => JSON.parse(r.body).ops.every(o => o.coll !== 'sessions')),
+  );
+  s.close();
+});
+
+test('chunks also split on size', () => {
+  const big = i => ({
+    op: 'set',
+    coll: 'laps',
+    id: `l${i}`,
+    data: {x: 'y'.repeat(1_500_000)},
+  });
+  assert.deepEqual(
+    chunked([big(1), big(2), big(3)]).map(c => c.length),
+    [2, 1],
+  );
+});
+
+test('an unknown user is an error, not a null owner', async () => {
+  const s = await stub(() => [404]);
+  await assert.rejects(
+    httpStore({api: s.api, token: () => 't'}).me(),
+    /no owner key/,
+  );
+  s.close();
 });

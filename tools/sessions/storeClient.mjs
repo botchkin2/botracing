@@ -29,6 +29,38 @@ import {withNetRetry} from './netRetry.mjs';
 
 export const defaultApi = 'https://botracing-61.web.app/api/upload';
 
+// A request holds at most this many ops and about this many bytes: the
+// function caps both (400 ops, 32 MB), and a session is a lap doc per lap.
+export const CHUNK_OPS = 200;
+export const CHUNK_BYTES = 4_000_000;
+
+// The ops in request-sized chunks, the session documents last: a session doc
+// is what the app lists, so it must not point at laps that were not written.
+export function chunked(ops) {
+  const ordered = [
+    ...ops.filter(o => !(o.op === 'set' && o.coll === 'sessions')),
+    ...ops.filter(o => o.op === 'set' && o.coll === 'sessions'),
+  ];
+  const chunks = [];
+  let chunk = [];
+  let bytes = 0;
+  for (const op of ordered) {
+    const size = JSON.stringify(op).length;
+    if (
+      chunk.length > 0 &&
+      (chunk.length >= CHUNK_OPS || bytes + size > CHUNK_BYTES)
+    ) {
+      chunks.push(chunk);
+      chunk = [];
+      bytes = 0;
+    }
+    chunk.push(op);
+    bytes += size;
+  }
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks;
+}
+
 class HttpError extends Error {
   constructor(status, method, path, text) {
     super(`${method} ${path}: ${status} ${text.slice(0, 200)}`);
@@ -71,7 +103,14 @@ export function httpBackend({
     return res ? res.json() : null;
   };
   return {
-    me: () => jsonOf('/me'),
+    async me() {
+      const me = await jsonOf('/me');
+      if (!me?.ownerKey)
+        throw new Error(
+          'the server knows no owner key for this user (GET /me)',
+        );
+      return me;
+    },
     getDoc: (coll, id) =>
       jsonOf(`/doc/${encodeURIComponent(coll)}/${encodeURIComponent(id)}`),
     async writeDocs(ops) {
@@ -86,7 +125,9 @@ export function httpBackend({
         else writer.set({path: `${coll}/${id}`}, data);
       }
       await writer.close();
-      await call('POST', '/docs/write', {json: {ops}});
+      for (const chunk of chunked(ops)) {
+        await call('POST', '/docs/write', {json: {ops: chunk}});
+      }
     },
     async updateDocs(ops) {
       const res = await call('POST', '/docs/update', {json: {ops}});
