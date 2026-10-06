@@ -20,7 +20,8 @@ export function useSignIn() {
     } catch (error) {
       result = {kind: 'failed', message: (error as Error).message};
     }
-    setBusy(false);
+    // A redirect leaves the page: the button stays busy until it does.
+    if (result.kind !== 'redirecting') setBusy(false);
     setMessage(signInMessage(result));
     if (result.kind === 'ok') {
       // Signing in again after a refused token: ask the API afresh.
