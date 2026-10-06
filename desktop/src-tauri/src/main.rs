@@ -126,7 +126,11 @@ fn main() {
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);
                         let mut acct = account_menu.lock().unwrap();
-                        acct.set_paused(paused);
+                        match acct.set_paused(paused) {
+                            Ok(()) => acct.message = None,
+                            // The checkbox is put back from settings next tick.
+                            Err(why) => acct.message = Some(why),
+                        }
                         sup_menu.lock().unwrap().set_allowed(acct.should_run());
                     }
                     "quit" => {
@@ -138,15 +142,11 @@ fn main() {
                 .build(app)?;
 
             std::thread::spawn(move || {
-                let mut first = true;
                 loop {
+                    // The network part runs without the account lock held.
+                    account::maintain(&account);
                     let (status, account_text, uid, owner, sign, checked, signing) = {
-                        let mut acct = account.lock().unwrap();
-                        if first {
-                            acct.restore();
-                            first = false;
-                        }
-                        acct.maintain();
+                        let acct = account.lock().unwrap();
                         let mut sup = supervisor.lock().unwrap();
                         sup.set_allowed(acct.should_run());
                         sup.tick(&paths);
@@ -198,10 +198,10 @@ fn status_text(
     sup: &sidecar::Supervisor,
     paths: &sidecar::Paths,
 ) -> String {
+    if let Some(message) = &acct.message {
+        return message.clone();
+    }
     if acct.session.is_none() {
-        if let Some(message) = &acct.message {
-            return message.clone();
-        }
         return match acct.config().missing() {
             Some(reason) => format!("Can't sign in: {reason}"),
             None => "Sign in to start uploading".into(),

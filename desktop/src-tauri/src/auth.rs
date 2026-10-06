@@ -312,7 +312,35 @@ pub fn firebase_sign_in(
     }
 }
 
-pub fn refresh(cfg: &Config, previous: &Session) -> Result<Session, String> {
+/// Why a refresh failed. Only a refusal from Firebase means the sign-in is
+/// over; a dropped connection, a timeout or a 5xx says nothing about the
+/// credential, so it is kept and tried again (marshal #85).
+#[derive(Debug, PartialEq)]
+pub enum RefreshError {
+    /// Firebase answered 400, 401 or 403: TOKEN_EXPIRED, USER_DISABLED, ...
+    Rejected(String),
+    Transient(String),
+}
+
+impl std::fmt::Display for RefreshError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RefreshError::Rejected(m) | RefreshError::Transient(m) => f.write_str(m),
+        }
+    }
+}
+
+fn refresh_error(error: ureq::Error) -> RefreshError {
+    let definitive = matches!(&error, ureq::Error::Status(400..=403, _));
+    let message = describe(error);
+    if definitive {
+        RefreshError::Rejected(message)
+    } else {
+        RefreshError::Transient(message)
+    }
+}
+
+pub fn refresh(cfg: &Config, previous: &Session) -> Result<Session, RefreshError> {
     let body: Value = agent()
         .post(&format!(
             "{}?key={}",
@@ -322,10 +350,10 @@ pub fn refresh(cfg: &Config, previous: &Session) -> Result<Session, String> {
             ("grant_type", "refresh_token"),
             ("refresh_token", &previous.refresh_token),
         ])
-        .map_err(describe)?
+        .map_err(refresh_error)?
         .into_json()
-        .map_err(|e| e.to_string())?;
-    session_from(&body, &previous.email)
+        .map_err(|e| RefreshError::Transient(e.to_string()))?;
+    session_from(&body, &previous.email).map_err(RefreshError::Transient)
 }
 
 /// The owner key the server keeps for this user (GET /me).
