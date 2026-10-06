@@ -60,6 +60,11 @@ import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
+import {
+  DEFAULT_RESYNC_CAP,
+  catalogStamp,
+  staleByCatalog,
+} from './catalogStamp.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -90,6 +95,10 @@ const ownerId = remote
   ? (await remoteStore.me()).ownerKey
   : arg('--owner', process.env.LAP_OWNER || 'botkin');
 const since = arg('--since', '');
+// A remote sync analyses again at most this many sessions per run because the
+// curated track catalog changed (newest first), so one edit does not send every
+// session of a busy track through the upload at once.
+const resyncCap = Number(arg('--catalog-resync-cap', DEFAULT_RESYNC_CAP));
 const only = arg('--only', '');
 // Session ids to leave alone this pass: the watcher's failed sessions still
 // waiting on their backoff.
@@ -315,6 +324,21 @@ async function boundariesFor(trackId, store) {
   const state = doc ? unpackState(doc) : null;
   boundaryStates.set(trackId, state);
   return state;
+}
+
+// The state of a track's curated data in the catalog this run read, once per
+// track (catalogStamp.mjs): what a session is recorded as analysed under.
+const catalogStamps = new Map();
+async function stampFor(trackId, store) {
+  if (!catalogStamps.has(trackId))
+    catalogStamps.set(
+      trackId,
+      catalogStamp(
+        await trackMapFor(trackId, store),
+        await boundariesFor(trackId, store),
+      ),
+    );
+  return catalogStamps.get(trackId);
 }
 
 function keepBoundaries(trackId, state) {
@@ -755,6 +779,7 @@ async function main() {
   // Newest first: recent sessions matter most, and a long backfill fills in
   // the past last.
   state.revs ??= {};
+  state.stamps ??= {};
   // A session whose corner times were cut at boundaries that have since moved
   // is re-analysed, even though nothing about its files changed.
   const boundariesMoved = async s => {
@@ -771,6 +796,37 @@ async function main() {
         stale.add(s.id);
     }
   }
+  // A remote sync reads the curated catalog and re-analyses the sessions
+  // whose track changed in it (a map added, a map edited), per track, capped
+  // per run, newest first. The stamp is read once per track from the catalog.
+  const stamps = new Map();
+  const catalogStale = new Set();
+  if (remote && !force && !check) {
+    const synced = [...sessions]
+      .reverse()
+      .filter(s => state.sessions[s.id] === s.fingerprint)
+      .map(s => ({id: s.id, trackId: trackOf(s)}));
+    for (const {trackId} of synced)
+      if (!stamps.has(trackId))
+        stamps.set(trackId, await stampFor(trackId, store));
+    const found = staleByCatalog({
+      sessions: synced,
+      stamps: state.stamps,
+      current: stamps,
+      cap: resyncCap,
+    });
+    for (const [id, stamp] of found.adopt) state.stamps[id] = stamp;
+    if (found.adopt.size) saveState(state);
+    for (const id of found.stale) catalogStale.add(id);
+    if (catalogStale.size)
+      log(
+        `${catalogStale.size} session(s) on a track whose curated data changed`,
+      );
+    if (found.deferred)
+      log(
+        `${found.deferred} more wait for a later run (cap ${resyncCap} per run)`,
+      );
+  }
   let todo = [...sessions]
     .reverse()
     .filter(
@@ -778,7 +834,8 @@ async function main() {
         force ||
         local ||
         state.sessions[s.id] !== s.fingerprint ||
-        stale.has(s.id),
+        stale.has(s.id) ||
+        catalogStale.has(s.id),
     );
   if (stale.size) log(`${stale.size} session(s) on older corner boundaries`);
   const waiting = todo.filter(s => skipIds.has(s.id));
@@ -953,6 +1010,7 @@ async function runPool(
         if (!local) {
           state.sessions[s.id] = s.fingerprint;
           if (r.rev != null) state.revs[s.id] = r.rev;
+          if (remote) state.stamps[s.id] = await stampFor(trackId, store);
           saveState(state);
         }
       } else {
