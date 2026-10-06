@@ -23,7 +23,12 @@ export const FUNCTIONS_PATHS = [
   /^\.github\/workflows\/firebase-functions-deploy\.yml$/,
 ];
 
+// The compare API lists at most 300 files; a list that long may be cut off,
+// so it is read as "might touch functions" and the push waits to be safe.
+export const COMPARE_FILE_CAP = 300;
+
 export const touchesFunctions = files =>
+  files.length >= COMPARE_FILE_CAP ||
   files.some(file => FUNCTIONS_PATHS.some(pattern => pattern.test(file)));
 
 // What to do with the workflow runs listed for this commit:

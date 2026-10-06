@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {
+  COMPARE_FILE_CAP,
   FUNCTIONS_PATHS,
   decide,
   touchesFunctions,
@@ -31,6 +32,12 @@ test('functions, rules, indexes, firebase.json and the workflow itself do wait',
     touchesFunctions(['functions-notes.md', 'firestore.rules.md']),
     false,
   );
+});
+
+test('a file list at the compare API cap may be cut off, so it waits', () => {
+  const app = n => Array.from({length: n}, (_, i) => `src/f${i}.ts`);
+  assert.equal(touchesFunctions(app(COMPARE_FILE_CAP - 1)), false);
+  assert.equal(touchesFunctions(app(COMPARE_FILE_CAP)), true);
 });
 
 test('the paths match the functions workflow file', () => {
