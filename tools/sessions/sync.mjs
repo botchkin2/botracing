@@ -76,6 +76,15 @@ const folder = arg(
 // signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
 // keeps it fresh), and the owner is whatever key the server holds for that user.
 const remote = !flag('--local') && (flag('--remote') || !!process.env.LAP_API);
+// Track data (corner maps, boundaries, surface) is curated by Botkin, not made
+// by users' syncs (pit wall thread 2 #155): a remote sync reads the catalog and
+// never builds, folds, rebuilds or uploads any of it.
+if (remote && arg('--rebuild-track', '')) {
+  console.error(
+    '--rebuild-track is not available with --remote: track maps are curated. Use the admin sync on the curator PC.',
+  );
+  process.exit(2);
+}
 const remoteStore = remote ? await openRemoteStore() : null;
 const ownerId = remote
   ? (await remoteStore.me()).ownerKey
@@ -265,7 +274,9 @@ async function trackMapFor(trackId, store) {
   if (trackMaps.has(trackId)) return trackMaps.get(trackId);
   if (trackId === rebuildTrack) return null;
   const path = resolve(work, 'tracks', `${trackId}.json`);
-  let map = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  // A remote sync reads the curated catalog every time, never a local copy.
+  let map =
+    !remote && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
   if (!map && store) map = await store.getTrack(trackId);
   // A map from an older mapVersion is no map: the session rebuilds it. Say so
   // here, not only inside the analysis, so a parallel sync runs that track
@@ -298,7 +309,8 @@ const boundariesPath = trackId =>
 async function boundariesFor(trackId, store) {
   if (boundaryStates.has(trackId)) return boundaryStates.get(trackId);
   const path = boundariesPath(trackId);
-  let doc = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  let doc =
+    !remote && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
   if (!doc && store) doc = await store.getBoundaries(trackId);
   const state = doc ? unpackState(doc) : null;
   boundaryStates.set(trackId, state);
@@ -393,6 +405,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
+    catalogOnly: remote,
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
@@ -781,7 +794,8 @@ async function main() {
   // of one, a session folded by an earlier run) are skipped; a track without a
   // map yet is built by its first session in the main pass, the rest settle.
   const needFold = [];
-  for (const s of todo) {
+  // A remote sync folds nothing: the boundaries are the curator's.
+  for (const s of remote ? [] : todo) {
     const trackId = trackOf(s);
     if (!(await trackMapFor(trackId, store))) continue;
     const kept = await boundariesFor(trackId, store);
@@ -996,6 +1010,12 @@ async function processSession(
 ) {
   lines.push(`${s.id} ${describeSession(s)}`);
   const out = build(s, trackMap, boundaries, eventWindows, {fresh});
+  // The analysis is told not to make track data; if any ever comes out, it
+  // must not go anywhere.
+  if (remote && (out.track || out.boundaries))
+    throw new Error(
+      'a remote sync produced track data: refusing to keep or upload it',
+    );
   const trackId = trackOf(s);
   if (out.track) {
     lines.push(
