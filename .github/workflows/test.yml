@@ -30,7 +30,23 @@ jobs:
       - name: App lint
         run: npx eslint src app
       - name: Uploader and session tools
-        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs
+        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs
+  # The functions had no CI of their own: their types and tests (the upload
+  # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
+  functions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --prefix functions
+      - name: Types
+        working-directory: functions
+        run: npx tsc --noEmit
+      - name: Functions tests
+        run: node --test functions/test/*.test.mjs
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 10
