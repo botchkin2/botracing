@@ -259,6 +259,36 @@ test('a map is refused for too few laps, no GPS, no map, a wrong length, or when
   );
 });
 
+test('a map without boundaries is refused, for add and for replace', () => {
+  const noBoundaries = built({boundaries: null});
+  const re = /no corner boundaries could be made with this map/;
+  assert.match(
+    planAdd({
+      trackId: 't',
+      current: NONE,
+      built: noBoundaries,
+      samples,
+      blast: {sessions: 1},
+    }).refusals.join('|'),
+    re,
+  );
+  const live = {
+    track: {...MAP, catalogRev: 1},
+    boundaries: null,
+    catalogRev: 1,
+  };
+  assert.match(
+    planReplace({
+      trackId: 't',
+      current: live,
+      built: noBoundaries,
+      samples,
+      blast: {sessions: 1},
+    }).refusals.join('|'),
+    re,
+  );
+});
+
 test('with too few user sessions to compare the length, that is a warning, not a refusal', () => {
   const p = planAdd({
     trackId: 't',
