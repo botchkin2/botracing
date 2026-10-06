@@ -2,8 +2,10 @@
 // and hand them back in the lap shape the app already reads.
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
+import {LEGACY_OWNER, pathInsideOwner, trustedTrackPath} from './ownerAccess';
 
-const OWNER = 'botkin';
+// Every reader takes the owner key of the request (ownerAccess.ts): the
+// signed-in user's, or the legacy owner's for a request with no token.
 const BUCKET = 'botracing-61-lmu';
 // Firestore caps `in` at 30 values.
 const IN_LIMIT = 30;
@@ -77,11 +79,23 @@ function toAppLap(lap: any, session: any) {
   };
 }
 
-async function sessionsSince(cutoffIso: string | null): Promise<any[]> {
+// A track's doc: the legacy owner's are the shared tracks/ docs the PC tools
+// write; everyone else's live under their own user doc (uploadCore.ts).
+function trackDoc(owner: string, trackId: string) {
+  const db = admin.firestore();
+  return owner === LEGACY_OWNER
+    ? db.collection('tracks').doc(trackId)
+    : db.collection('users').doc(owner).collection('tracks').doc(trackId);
+}
+
+async function sessionsSince(
+  owner: string,
+  cutoffIso: string | null,
+): Promise<any[]> {
   let query = admin
     .firestore()
     .collection('sessions')
-    .where('ownerId', '==', OWNER)
+    .where('ownerId', '==', owner)
     .orderBy('startedAt', 'desc');
   if (cutoffIso) query = query.where('startedAt', '>=', cutoffIso);
   const snap = await query
@@ -91,11 +105,11 @@ async function sessionsSince(cutoffIso: string | null): Promise<any[]> {
 }
 
 // Whether the store has anything yet (the old manifest answers until it does).
-export async function storeHasSessions(): Promise<boolean> {
+export async function storeHasSessions(owner: string): Promise<boolean> {
   const snap = await admin
     .firestore()
     .collection('sessions')
-    .where('ownerId', '==', OWNER)
+    .where('ownerId', '==', owner)
     .limit(1)
     .select()
     .get();
@@ -103,15 +117,17 @@ export async function storeHasSessions(): Promise<boolean> {
 }
 
 // Status of each PC uploader (tools/uploader/heartbeat.mjs writes them).
-export async function listUploaders(): Promise<any[]> {
+// The docs carry no owner, so only the legacy owner's PC is shown.
+export async function listUploaders(owner: string): Promise<any[]> {
+  if (owner !== LEGACY_OWNER) return [];
   const snap = await admin.firestore().collection('uploaders').get();
   return snap.docs.map(doc => ({hostId: doc.id, ...doc.data()}));
 }
 
 // Tracks the owner has driven, for the track picker.
-export async function listTracks(): Promise<any[]> {
+export async function listTracks(owner: string): Promise<any[]> {
   const byId = new Map<number, any>();
-  for (const session of await sessionsSince(null)) {
+  for (const session of await sessionsSince(owner, null)) {
     const track = trackOf(session);
     byId.set(track.id, track);
   }
@@ -120,21 +136,27 @@ export async function listTracks(): Promise<any[]> {
 
 // Laps in the app's shape. `ageDays` limits by session start, `trackIds` are
 // the app's numeric track ids, `event` is one session id.
-export async function listLaps(opts: {
-  ageDays?: number;
-  trackIds?: number[];
-  event?: string;
-}): Promise<any[]> {
+export async function listLaps(
+  owner: string,
+  opts: {
+    ageDays?: number;
+    trackIds?: number[];
+    event?: string;
+  },
+): Promise<any[]> {
   const db = admin.firestore();
   let sessions: any[];
   if (opts.event) {
     const doc = await db.collection('sessions').doc(opts.event).get();
-    sessions = doc.exists ? [{id: doc.id, ...doc.data()}] : [];
+    sessions =
+      doc.exists && doc.get('ownerId') === owner
+        ? [{id: doc.id, ...doc.data()}]
+        : [];
   } else {
     const days =
       opts.ageDays && opts.ageDays > 0 ? opts.ageDays : DEFAULT_AGE_DAYS;
     const cutoff = new Date(Date.now() - days * 86400000).toISOString();
-    sessions = await sessionsSince(cutoff);
+    sessions = await sessionsSince(owner, cutoff);
   }
   if (opts.trackIds && opts.trackIds.length > 0) {
     const wanted = new Set(opts.trackIds);
@@ -148,13 +170,19 @@ export async function listLaps(opts: {
   }
   const snaps = await Promise.all(
     chunks.map(chunk =>
-      db.collection('laps').where('sessionId', 'in', chunk).get(),
+      db
+        .collection('laps')
+        .where('sessionId', 'in', chunk)
+        .where('ownerId', '==', owner)
+        .get(),
     ),
   );
   const laps: any[] = [];
   for (const snap of snaps) {
     for (const doc of snap.docs) {
       const lap = doc.data();
+      // Second guard behind the query: never another owner's lap.
+      if (lap.ownerId !== owner) continue;
       laps.push(toAppLap(lap, byId.get(lap.sessionId)));
     }
   }
@@ -195,17 +223,20 @@ const SESSION_LIST_FIELDS = [
   'updatedAt',
 ];
 
-export async function listSessions(opts: {
-  ageDays?: number;
-  trackId?: string;
-}): Promise<any[]> {
+export async function listSessions(
+  owner: string,
+  opts: {
+    ageDays?: number;
+    trackId?: string;
+  },
+): Promise<any[]> {
   const days =
     opts.ageDays && opts.ageDays > 0 ? opts.ageDays : DEFAULT_AGE_DAYS;
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
   let query = admin
     .firestore()
     .collection('sessions')
-    .where('ownerId', '==', OWNER);
+    .where('ownerId', '==', owner);
   if (opts.trackId) query = query.where('trackId', '==', opts.trackId);
   const snap = await query
     .where('startedAt', '>=', cutoff)
@@ -215,27 +246,34 @@ export async function listSessions(opts: {
   return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
 }
 
-export async function readSession(id: string): Promise<any | null> {
+export async function readSession(
+  owner: string,
+  id: string,
+): Promise<any | null> {
   const doc = await admin.firestore().collection('sessions').doc(id).get();
   if (!doc.exists) return null;
   const data = doc.data() || {};
-  if (data.ownerId !== OWNER) return null;
+  if (data.ownerId !== owner) return null;
   return {id: doc.id, ...data};
 }
 
 // Every lap doc of a session, in order: sectors, stint, exclusion and why,
 // off-track, conditions, per-section facts with their parts, trace pointer.
-export async function readSessionLaps(id: string): Promise<any | null> {
+export async function readSessionLaps(
+  owner: string,
+  id: string,
+): Promise<any | null> {
   const snap = await admin
     .firestore()
     .collection('laps')
     .where('sessionId', '==', id)
+    .where('ownerId', '==', owner)
     .orderBy('lapNumber')
     .get();
-  if (snap.empty) return (await readSession(id)) ? {items: []} : null;
+  if (snap.empty) return (await readSession(owner, id)) ? {items: []} : null;
   const items = snap.docs
     .map(doc => doc.data())
-    .filter(lap => lap.ownerId === OWNER)
+    .filter(lap => lap.ownerId === owner)
     // A session can span recordings; lap numbers restart per recording.
     .sort(
       (a, b) =>
@@ -246,15 +284,12 @@ export async function readSessionLaps(id: string): Promise<any | null> {
 
 // The precomputed consistency band: median and p10/p90 of speed, throttle and
 // brake every stepM metres over the session's comparable laps.
-export async function readBand(id: string): Promise<any | null> {
-  const session = await readSession(id);
-  if (!session?.band?.path) return null;
+export async function readBand(owner: string, id: string): Promise<any | null> {
+  const session = await readSession(owner, id);
+  const path = pathInsideOwner('band', owner, session?.band?.path);
+  if (!path) return null;
   try {
-    const [body] = await admin
-      .storage()
-      .bucket(BUCKET)
-      .file(session.band.path)
-      .download();
+    const [body] = await admin.storage().bucket(BUCKET).file(path).download();
     return JSON.parse(body.toString('utf8'));
   } catch (error: any) {
     if (error?.code === 404) return null;
@@ -267,17 +302,19 @@ export async function readBand(id: string): Promise<any | null> {
 // decompresses it anyway (the route sends Content-Encoding: gzip).
 // With a hash, only that version: a stale URL gets a 404, not other content.
 export async function readFieldGzip(
+  owner: string,
   id: string,
   hash?: string,
 ): Promise<Buffer | null> {
-  const session = await readSession(id);
-  if (!session?.field?.path) return null;
+  const session = await readSession(owner, id);
+  const path = pathInsideOwner('field', owner, session?.field?.path);
+  if (!path) return null;
   if (hash && session.field.hash !== hash) return null;
   try {
     const [body] = await admin
       .storage()
       .bucket(BUCKET)
-      .file(session.field.path)
+      .file(path)
       .download({decompress: false});
     return body;
   } catch (error: any) {
@@ -291,19 +328,26 @@ export async function readFieldGzip(
 // content: with a hash, only that version, so a stale URL gets a 404 and a
 // resync never serves an old slice from cache.
 export async function readCornerSlicesGzip(
+  owner: string,
   id: string,
   corner: number,
   hash?: string,
 ): Promise<Buffer | null> {
-  const session = await readSession(id);
+  const session = await readSession(owner, id);
   const slices = session?.slices;
   if (!slices?.prefix || !slices.corners?.includes(corner)) return null;
   if (hash && slices.hash !== hash) return null;
+  const file = pathInsideOwner(
+    'slices',
+    owner,
+    `${slices.prefix}/c${corner}.json.gz`,
+  );
+  if (!file) return null;
   try {
     const [body] = await admin
       .storage()
       .bucket(BUCKET)
-      .file(`${slices.prefix}/c${corner}.json.gz`)
+      .file(file)
       .download({decompress: false});
     return body;
   } catch (error: any) {
@@ -316,13 +360,17 @@ export async function readCornerSlicesGzip(
 // trackSurface.ts): the stored gzip as is, per 10 m bin sums the app turns into
 // the centre path and edges. It grows as sessions are folded in, so it is
 // always revalidated. Null when the track has none yet.
-export async function readSurfaceGzip(sessionId: string): Promise<Buffer | null> {
+export async function readSurfaceGzip(
+  owner: string,
+  sessionId: string,
+): Promise<Buffer | null> {
   const db = admin.firestore();
   const session = await db.collection('sessions').doc(sessionId).get();
   const trackId = session.get('trackId');
-  if (!session.exists || !trackId) return null;
-  const track = await db.collection('tracks').doc(trackId).get();
-  const path = track.get('surface.path');
+  if (!session.exists || session.get('ownerId') !== owner || !trackId)
+    return null;
+  const track = await trackDoc(owner, trackId).get();
+  const path = trustedTrackPath(owner, track.get('surface.path'));
   if (!path) return null;
   try {
     const [body] = await admin
@@ -341,20 +389,25 @@ export async function readSurfaceGzip(sessionId: string): Promise<Buffer | null>
 // src/analysis/corners.ts), and when a real-map fit exists (tools/track-fit),
 // the georef that places the recording's coordinates on the real world plus
 // the OSM outline. quality 'poor' means: don't draw it on a real basemap.
-export async function readTrackMap(sessionId: string): Promise<any | null> {
+export async function readTrackMap(
+  owner: string,
+  sessionId: string,
+): Promise<any | null> {
   const db = admin.firestore();
   const session = await db.collection('sessions').doc(sessionId).get();
   const trackId = session.get('trackId');
-  if (!session.exists || !trackId) return null;
-  const doc = await db.collection('tracks').doc(trackId).get();
+  if (!session.exists || session.get('ownerId') !== owner || !trackId)
+    return null;
+  const doc = await trackDoc(owner, trackId).get();
   const track = doc.exists ? doc.data() || {} : {};
   let outline = null;
-  if (track.outline?.path) {
+  const outlinePath = trustedTrackPath(owner, track.outline?.path);
+  if (outlinePath) {
     try {
       const [body] = await admin
         .storage()
         .bucket(BUCKET)
-        .file(track.outline.path)
+        .file(outlinePath)
         .download();
       outline = JSON.parse(body.toString('utf8'));
     } catch (error: any) {
@@ -378,12 +431,15 @@ export async function readTrackMap(sessionId: string): Promise<any | null> {
 }
 
 // The lap's chart trace. Stored gzip-encoded; the client library unzips it.
-export async function readTrace(lapId: string): Promise<string | null> {
+export async function readTrace(
+  owner: string,
+  lapId: string,
+): Promise<string | null> {
   if (!/^[0-9a-f]{16}-\d{3}$/.test(lapId)) return null;
   const file = admin
     .storage()
     .bucket(BUCKET)
-    .file(`traces/${OWNER}/${lapId}/v2.csv.gz`);
+    .file(`traces/${owner}/${lapId}/v2.csv.gz`);
   try {
     const [body] = await file.download();
     return body.toString('utf8');

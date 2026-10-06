@@ -37,6 +37,23 @@
       "collectionGroup": "laps",
       "queryScope": "COLLECTION",
       "fields": [
+        {"fieldPath": "sessionId", "order": "ASCENDING"},
+        {"fieldPath": "ownerId", "order": "ASCENDING"},
+        {"fieldPath": "lapNumber", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "laps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "sessionId", "order": "ASCENDING"},
+        {"fieldPath": "ownerId", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "laps",
+      "queryScope": "COLLECTION",
+      "fields": [
         {"fieldPath": "ownerId", "order": "ASCENDING"},
         {"fieldPath": "trackId", "order": "ASCENDING"},
         {"fieldPath": "carId", "order": "ASCENDING"},
