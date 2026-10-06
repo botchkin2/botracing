@@ -14,3 +14,10 @@ export async function openRemoteStore(env = process.env) {
   uidOfToken(token()); // a file that is not a token fails here, not mid-upload
   return httpStore({api: env.LAP_API || defaultApi, token});
 }
+
+// The measured surface is folded after a sync (surface.mjs), which reads and
+// writes Firestore with Admin credentials (store.connect). A remote sync has
+// none, so it must not try: it would only log "surface: not updated" on every
+// run. The PC uploader, which has the credentials, does the fold.
+export const foldsSurface = ({local, remote, tracks}) =>
+  !local && !remote && tracks > 0;

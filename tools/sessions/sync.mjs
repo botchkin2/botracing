@@ -59,7 +59,7 @@ import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
-import {openRemoteStore} from './remoteStore.mjs';
+import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -849,7 +849,8 @@ async function main() {
     }`,
   );
   if (failed) process.exitCode = 1;
-  if (!local && tracks.size > 0) await foldSurfaceAfterSync([...tracks]);
+  if (foldsSurface({local, remote, tracks: tracks.size}))
+    await foldSurfaceAfterSync([...tracks]);
 }
 
 // The tracks just uploaded get their new sessions folded into the measured
