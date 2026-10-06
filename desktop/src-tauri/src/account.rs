@@ -639,6 +639,34 @@ mod tests {
     }
 
     #[test]
+    fn a_wrong_web_key_keeps_every_stored_sign_in_and_says_why() {
+        // A rotated or wrong Firebase web key answers 400 API_KEY_INVALID to
+        // every refresh. It must not sign anyone out (marshal #186).
+        let dir = data_dir("wrong-key");
+        let mem = Memory::default();
+        mem.set(r#"{"uid":"u1","email":"u1@x.y","refresh":"REF-u1"}"#)
+            .unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("token"), "OLD-TOKEN").unwrap();
+        let (base, _) = stub(|_, _| (400, r#"{"error":{"message":"API_KEY_INVALID"}}"#.into()));
+        let a = account(&base, &dir, &mem);
+        maintain(&a);
+        let mut acct = a.lock().unwrap();
+        assert!(mem.get().is_some(), "the stored sign-in must survive");
+        assert!(dir.join("token").exists(), "and the token file");
+        assert!(
+            acct.has_stored() && !acct.needs_sign_in(),
+            "still waiting, not signed out"
+        );
+        let message = acct.message.clone().unwrap_or_default();
+        assert!(
+            message.starts_with("Offline, will retry") && message.contains("API_KEY_INVALID"),
+            "{message}"
+        );
+        assert!(!acct.take_prompt(), "and no browser is opened");
+    }
+
+    #[test]
     fn a_stored_sign_in_is_continued_when_the_network_is_back() {
         let dir = data_dir("back");
         let mem = Memory::default();

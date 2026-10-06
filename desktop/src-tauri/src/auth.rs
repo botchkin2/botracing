@@ -330,13 +330,45 @@ impl std::fmt::Display for RefreshError {
     }
 }
 
+/// The Firebase errors that mean this user's sign-in is over: the refresh
+/// token has expired or been revoked, or the account is gone or disabled.
+/// Anything else, including other 4xx answers such as a wrong or rotated web
+/// key (400 API_KEY_INVALID), says nothing about the user's credential and must
+/// never delete it (marshal #186).
+pub const ENDS_SIGN_IN: [&str; 4] = [
+    "TOKEN_EXPIRED",
+    "INVALID_REFRESH_TOKEN",
+    "USER_DISABLED",
+    "USER_NOT_FOUND",
+];
+
+/// Whether a Firebase error message names one of those. The code is the first
+/// word: Firebase sometimes adds " : details" after it.
+pub fn ends_sign_in(message: &str) -> bool {
+    let code = message
+        .split(|c: char| c == ' ' || c == ':')
+        .next()
+        .unwrap_or("");
+    ENDS_SIGN_IN.contains(&code)
+}
+
 fn refresh_error(error: ureq::Error) -> RefreshError {
-    let definitive = matches!(&error, ureq::Error::Status(400..=403, _));
-    let message = describe(error);
-    if definitive {
-        RefreshError::Rejected(message)
-    } else {
-        RefreshError::Transient(message)
+    match error {
+        ureq::Error::Status(status, response) => {
+            let body: Value = response.into_json().unwrap_or(Value::Null);
+            let message = body["error"]["message"]
+                .as_str()
+                .or_else(|| body["error_description"].as_str())
+                .or_else(|| body["error"].as_str())
+                .unwrap_or("no details");
+            let text = format!("{status}: {message}");
+            if ends_sign_in(message) {
+                RefreshError::Rejected(text)
+            } else {
+                RefreshError::Transient(text)
+            }
+        }
+        other => RefreshError::Transient(other.to_string()),
     }
 }
 
@@ -691,6 +723,72 @@ Host: x
         assert!(seen[0]
             .1
             .contains("grant_type=refresh_token&refresh_token=OLDREF"));
+    }
+
+    fn old_session() -> Session {
+        Session {
+            id_token: "OLD".into(),
+            refresh_token: "OLDREF".into(),
+            uid: "UID1".into(),
+            email: "a@b.c".into(),
+            expires_at: SystemTime::now(),
+        }
+    }
+
+    #[test]
+    fn only_the_errors_that_mean_the_sign_in_is_over_reject_it() {
+        for code in [
+            "TOKEN_EXPIRED",
+            "INVALID_REFRESH_TOKEN",
+            "USER_DISABLED",
+            "USER_NOT_FOUND",
+        ] {
+            let (base, _) =
+                stub(move |_, _| (400, format!(r#"{{"error":{{"message":"{code}"}}}}"#)));
+            let err = refresh(&cfg(&base), &old_session()).unwrap_err();
+            assert!(matches!(err, RefreshError::Rejected(_)), "{code}: {err:?}");
+        }
+        // Firebase sometimes adds details after the code.
+        let (base, _) = stub(|_, _| {
+            (
+                400,
+                r#"{"error":{"message":"TOKEN_EXPIRED : the token is stale"}}"#.into(),
+            )
+        });
+        assert!(matches!(
+            refresh(&cfg(&base), &old_session()).unwrap_err(),
+            RefreshError::Rejected(_)
+        ));
+    }
+
+    #[test]
+    fn a_wrong_key_or_any_other_answer_never_ends_a_sign_in() {
+        // The same HTTP statuses as the real refusals, with other codes: a
+        // wrong or rotated web key is a 400 too.
+        for (status, body) in [
+            (400, r#"{"error":{"message":"API_KEY_INVALID"}}"#),
+            (400, r#"{"error":{"message":"INVALID_GRANT_TYPE"}}"#),
+            (400, r#"{"error":{"message":"MISSING_REFRESH_TOKEN"}}"#),
+            (403, r#"{"error":{"message":"PERMISSION_DENIED"}}"#),
+            (401, r#"{"error":{"message":"UNAUTHENTICATED"}}"#),
+            (400, "not json at all"),
+            (400, r#"{"error":{}}"#),
+            (
+                429,
+                r#"{"error":{"message":"TOO_MANY_ATTEMPTS_TRY_LATER"}}"#,
+            ),
+        ] {
+            let (base, _) = stub(move |_, _| (status, body.to_string()));
+            let err = refresh(&cfg(&base), &old_session()).unwrap_err();
+            assert!(
+                matches!(err, RefreshError::Transient(_)),
+                "{status} {body}: {err:?}"
+            );
+        }
+        assert!(!ends_sign_in("API_KEY_INVALID"));
+        assert!(!ends_sign_in("TOKEN_EXPIRED_SOON"));
+        assert!(!ends_sign_in(""));
+        assert!(ends_sign_in("USER_DISABLED"));
     }
 
     #[test]
