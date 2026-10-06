@@ -4,11 +4,11 @@
 
 mod account;
 mod auth;
+mod browser;
 mod menu;
 mod profile;
 mod sidecar;
 mod status;
-mod window;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -57,14 +57,13 @@ fn start_sign_in(account: Shared<account::Account>) {
 fn main() {
     let builder = tauri::Builder::default();
     // A second launch ends at once (two watchers would fight over the same
-    // telemetry and state) and shows the BotRacing window instead. A profile
-    // (BOTRACING_PROFILE, for walkthroughs) is a separate copy that runs next
-    // to the real tray, so it is not held to this.
+    // telemetry and state) and opens BotRacing in the browser instead. A
+    // profile (BOTRACING_PROFILE, for walkthroughs) is a separate copy that
+    // runs next to the real tray, so it is not held to this.
     let builder = if profile::is_default() {
-        builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let app = app.clone();
-            std::thread::spawn(move || {
-                let _ = window::open(&app);
+        builder.plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+            std::thread::spawn(|| {
+                let _ = browser::open();
             });
         }))
     } else {
@@ -79,15 +78,6 @@ fn main() {
                 &paths.data,
                 Box::new(account::CredentialManager),
             )));
-            // Debug builds only: BOTRACING_OPEN_ON_START opens the window at
-            // start, so it can be checked without clicking the tray.
-            #[cfg(debug_assertions)]
-            if std::env::var_os("BOTRACING_OPEN_ON_START").is_some() {
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    let _ = window::open(&handle);
-                });
-            }
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
 
@@ -144,12 +134,12 @@ fn main() {
                         });
                     }
                     "open" => {
-                        // Off this thread: building a window from a menu
-                        // handler can deadlock on Windows.
-                        let app = app.clone();
+                        // The system browser, off this thread. If it cannot
+                        // be opened, the status line says so.
+                        let account = account_menu.clone();
                         std::thread::spawn(move || {
-                            if let Err(e) = window::open(&app) {
-                                eprintln!("could not open the BotRacing window: {e}");
+                            if let Err(why) = browser::open() {
+                                account.lock().unwrap().message = Some(why);
                             }
                         });
                     }
@@ -224,8 +214,9 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("BotRacing failed to start")
         .run(|_app, event| {
-            // Closing the BotRacing window must not end the tray app: only
-            // Quit does (it exits with a code).
+            // The tray has no windows, so the app would exit the moment it
+            // looked like the last one closed: only Quit ends it (it exits
+            // with a code).
             if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
                 if code.is_none() {
                     api.prevent_exit();
