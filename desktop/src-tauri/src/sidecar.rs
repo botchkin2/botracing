@@ -81,6 +81,7 @@ fn command(p: &Paths) -> Command {
         .env("LAP_TOKEN_FILE", p.token_file())
         .env("LAP_HEARTBEAT_FILE", p.status_file())
         .env("LAP_UPLOADER_HOME", p.data.join("uploader"))
+        .env("LAP_VERSION", env!("CARGO_PKG_VERSION"))
         .env("LAP_PARENT_PID", std::process::id().to_string())
         .env("LAP_LOCK_PIPE", r"\\.\pipe\botracing-watch");
     cmd

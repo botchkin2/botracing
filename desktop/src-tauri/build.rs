@@ -12,5 +12,12 @@ fn main() {
         let value = std::env::var(name).unwrap_or_default();
         println!("cargo:rustc-env={name}={value}");
     }
+    // tauri.conf.json bundles resources/app and resources/node, which
+    // scripts/stage-resources.mjs fills before an installer build. A plain
+    // `cargo build` or `cargo test` has nothing staged, and tauri-build refuses
+    // a resource path that does not exist, so make the folders exist (empty).
+    for dir in ["resources/app", "resources/node"] {
+        std::fs::create_dir_all(dir).expect("could not create the resources folder");
+    }
     tauri_build::build()
 }
