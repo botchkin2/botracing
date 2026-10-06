@@ -13,9 +13,13 @@
 //   - the uid is not a Firebase Auth user (a typo);
 //   - the key is not a safe path segment (uploadCore.ts SAFE_SEGMENT);
 //   - users/{uid} already maps to a different key (it never overwrites one);
-//   - any session already has ownerId == uid: the user has uploaded under
-//     their uid, so mapping now would split their data across two owners;
-//   - another user is already mapped to the same key.
+//   - anything already exists under the uid: a session, lap or recording with
+//     ownerId == uid, or a file under traces|bands|slices|field|archive/{uid}/.
+//     The user uploaded under their uid, so mapping now would split their data
+//     across two owners. Laps, recordings and files are checked too: the
+//     session doc is written last, so an interrupted first upload has none;
+//   - another user is already mapped to the same key, or the key is another
+//     Firebase user's uid (an unmapped user's implicit key is their uid).
 // --dry-run prints the same before/plan and writes nothing.
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
@@ -23,17 +27,24 @@ import {dirname, resolve} from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PROJECT = 'botracing-61';
+const BUCKET = 'botracing-61-lmu';
 // Same rule the endpoint applies to an owner key (functions/src/uploadCore.ts).
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
+
+// Where an unmapped user's uploads land (functions/src/uploadCore.ts): the
+// owner-scoped folders carry the owner key, and archive/ is prefixed with it.
+const OWNER_FOLDERS = ['traces', 'bands', 'slices', 'field', 'archive'];
 
 export class Refusal extends Error {}
 
 // auth.getUser(uid); firestore: doc(path).get()/set(), collection(name).where()
-// .limit().get(). Returns {changed, before, after}; throws Refusal when it
-// will not write.
+// .limit().get(); hasFiles(prefix) says whether the bucket holds anything
+// there. Returns {changed, before, after}; throws Refusal when it will not
+// write.
 export async function setOwnerKey({
   auth,
   firestore,
+  hasFiles,
   uid,
   ownerKey,
   dryRun = false,
@@ -64,15 +75,37 @@ export async function setOwnerKey({
       `users/${uid} is already mapped to '${before.ownerKey}'; refusing to overwrite it with '${ownerKey}'`,
     );
 
-  const split = await firestore
-    .collection('sessions')
-    .where('ownerId', '==', uid)
-    .limit(1)
-    .get();
-  if (!split.empty)
-    throw new Refusal(
-      `sessions already exist with ownerId == ${uid}: this user has uploaded under their uid, so mapping now would split their data. Sort those out first.`,
+  // Anything already written under the uid is a split in waiting.
+  for (const collection of ['sessions', 'laps', 'recordings']) {
+    const found = await firestore
+      .collection(collection)
+      .where('ownerId', '==', uid)
+      .limit(1)
+      .get();
+    if (!found.empty)
+      throw new Refusal(
+        `${collection} already exist with ownerId == ${uid}: this user has uploaded under their uid, so mapping now would split their data. Sort those out first.`,
+      );
+  }
+  for (const folder of OWNER_FOLDERS) {
+    if (await hasFiles(`${folder}/${uid}/`))
+      throw new Refusal(
+        `files already exist under ${folder}/${uid}/: this user has uploaded under their uid, so mapping now would split their data. Sort those out first.`,
+      );
+  }
+
+  // An unmapped user's key is their uid: mapping onto another user's uid
+  // would merge this user into theirs.
+  if (ownerKey !== uid) {
+    const isAnotherUser = await auth.getUser(ownerKey).then(
+      () => true,
+      () => false,
     );
+    if (isAnotherUser)
+      throw new Refusal(
+        `owner key '${ownerKey}' is the uid of another Firebase user; their data lives under it`,
+      );
+  }
 
   const taken = await firestore
     .collection('users')
@@ -117,11 +150,16 @@ if (
   process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= PROJECT;
   const require = createRequire(resolve(here, '../package.json'));
   const admin = require('firebase-admin');
-  admin.initializeApp({projectId: PROJECT});
+  admin.initializeApp({projectId: PROJECT, storageBucket: BUCKET});
+  const bucket = admin.storage().bucket();
   try {
     await setOwnerKey({
       auth: admin.auth(),
       firestore: admin.firestore(),
+      hasFiles: async prefix => {
+        const [files] = await bucket.getFiles({prefix, maxResults: 1});
+        return files.length > 0;
+      },
       uid,
       ownerKey,
       dryRun,

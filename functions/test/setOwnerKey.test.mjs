@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import {Refusal, setOwnerKey} from '../scripts/setOwnerKey.mjs';
 
 // docs: path -> data. Queries match top-level collections by field equality.
-function fakes({users = ['uidK'], docs = {}} = {}) {
+function fakes({users = ['uidK'], docs = {}, files = []} = {}) {
   const store = new Map(Object.entries(docs));
   const writes = [];
   const auth = {
@@ -40,13 +40,15 @@ function fakes({users = ['uidK'], docs = {}} = {}) {
       where: (field, _op, value) => query(name, field, value),
     }),
   };
-  return {auth, firestore, store, writes, log: () => {}};
+  const hasFiles = async prefix => files.some(name => name.startsWith(prefix));
+  return {auth, firestore, hasFiles, store, writes, log: () => {}};
 }
 
 const run = (f, extra = {}) =>
   setOwnerKey({
     auth: f.auth,
     firestore: f.firestore,
+    hasFiles: f.hasFiles,
     log: f.log,
     uid: 'uidK',
     ownerKey: 'botkin',
@@ -125,4 +127,40 @@ test('a write that does not stick is reported', async () => {
   const realDoc = f.firestore.doc;
   f.firestore.doc = path => ({...realDoc(path), set: async () => {}});
   await assert.rejects(run(f), /did not stick/);
+});
+
+test('a lap or recording with no session (an interrupted first upload) is a split too', async () => {
+  for (const doc of ['laps/l1', 'recordings/r1']) {
+    const f = fakes({docs: {[doc]: {ownerId: 'uidK'}}});
+    await assert.rejects(run(f), /already exist with ownerId == uidK/, doc);
+    assert.equal(f.writes.length, 0);
+  }
+});
+
+test('files left under the uid (no session, no docs) are a split too', async () => {
+  for (const name of [
+    'traces/uidK/l1/v2.csv.gz',
+    'bands/uidK/s1/v1.json.gz',
+    'slices/uidK/s1/h/c1.json.gz',
+    'field/uidK/s1/h.json.gz',
+    'archive/uidK/lmu/s1/r1/samples.parquet',
+  ]) {
+    const f = fakes({files: [name]});
+    await assert.rejects(run(f), /files already exist under/, name);
+    assert.equal(f.writes.length, 0);
+  }
+  // Another user's files do not count.
+  const f = fakes({files: ['traces/uidOther/l1/v2.csv.gz']});
+  assert.equal((await run(f)).changed, true);
+});
+
+test("refuses a key that is another Firebase user's uid", async () => {
+  const f = fakes({users: ['uidK', 'uidOther']});
+  await assert.rejects(
+    run(f, {ownerKey: 'uidOther'}),
+    /uid of another Firebase user/,
+  );
+  assert.equal(f.writes.length, 0);
+  // Mapping a user to their own uid is allowed (it just pins the default).
+  assert.equal((await run(fakes(), {ownerKey: 'uidK'})).changed, true);
 });
