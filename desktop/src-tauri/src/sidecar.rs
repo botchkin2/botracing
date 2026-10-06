@@ -425,6 +425,36 @@ mod tests {
         );
     }
 
+    // A watcher that starts and dies at once (the way a missing dependency or
+    // a bad root does): the next tick must say so and schedule a restart, not
+    // leave the last status on screen.
+    #[test]
+    fn a_watcher_that_dies_is_reported_and_restarts_later() {
+        let base = std::env::temp_dir().join(format!("botracing-die-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        touch(&base.join("root").join(SCRIPT));
+        std::fs::write(base.join("root").join(SCRIPT), "process.exit(3)").unwrap();
+        let mut p = paths(Path::new("."));
+        p.root = base.join("root");
+        p.data = base.join("data");
+        let mut s = Supervisor::new();
+        s.tick(&p);
+        assert!(
+            s.problem.is_none(),
+            "it should have started: {:?}",
+            s.problem
+        );
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        let problem = s.problem.clone().unwrap_or_default();
+        assert!(problem.starts_with("Uploader stopped"), "{problem}");
+        assert!(problem.contains("restarting"), "{problem}");
+        // The wait before the restart has not passed yet, so no second start.
+        s.tick(&p);
+        assert!(s.problem.is_some());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     #[test]
     fn a_missing_node_is_reported_not_swallowed() {
         let mut p = paths(Path::new("."));
