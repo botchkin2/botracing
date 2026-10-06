@@ -10,6 +10,8 @@ import {applyAuthState, type AuthStore} from './authStore';
 import {popupFallsBackToRedirect, signInMessage} from './signInResult';
 import {
   authHeaders,
+  beginAuthWait,
+  endAuthWait,
   bearer,
   reportUnauthorized,
   setIdTokenProvider,
@@ -90,6 +92,17 @@ describe('applyAuthState', () => {
     expect(clear).toHaveBeenCalledTimes(1);
   });
 
+  it('drops what was fetched while loading once the person is known', () => {
+    // Requests that went out before Firebase answered carried no token.
+    const clear = jest.fn();
+    applyAuthState(a, clear, fakeStore(loading));
+    expect(clear).toHaveBeenCalledTimes(1);
+    // Loading then signed out: the anonymous answers are what signed-out sees.
+    const none = jest.fn();
+    applyAuthState(out, none, fakeStore(loading));
+    expect(none).not.toHaveBeenCalled();
+  });
+
   it('leaves the cache alone when nothing changed', () => {
     const clear = jest.fn();
     const store = fakeStore(a);
@@ -144,6 +157,47 @@ describe('tokenSource', () => {
     expect(await authHeaders()).toEqual({Authorization: 'Bearer tok-2'});
     setIdTokenProvider(null);
     expect(await authHeaders()).toEqual({});
+  });
+
+  it('a request started before Firebase answers carries the restored token', async () => {
+    beginAuthWait();
+    const early = authHeaders(); // the app's first query, before the user is known
+    let settled = false;
+    void early.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    // The session sets the provider first, then opens the gate.
+    setIdTokenProvider(async () => 'restored');
+    endAuthWait();
+    expect(await early).toEqual({Authorization: 'Bearer restored'});
+  });
+
+  it('a request started before Firebase answers goes out signed-out when there is no user', async () => {
+    beginAuthWait();
+    const early = authHeaders();
+    endAuthWait();
+    expect(await early).toEqual({});
+  });
+
+  it('does not wait once Firebase has answered, and beginAuthWait is idempotent', async () => {
+    beginAuthWait();
+    beginAuthWait();
+    endAuthWait();
+    setIdTokenProvider(async () => 'tok');
+    expect(await authHeaders()).toEqual({Authorization: 'Bearer tok'});
+  });
+
+  it('stops waiting for a stuck SDK after a while', async () => {
+    jest.useFakeTimers();
+    try {
+      beginAuthWait();
+      const stuck = authHeaders();
+      await jest.advanceTimersByTimeAsync(10_001);
+      expect(await stuck).toEqual({});
+    } finally {
+      endAuthWait();
+      jest.useRealTimers();
+    }
   });
 
   it('sends no header, rather than throwing, when the refresh fails', async () => {
