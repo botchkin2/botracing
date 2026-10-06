@@ -10,7 +10,7 @@
 // The Google sign-in library asks for an ID token for THIS client, which is
 // what Firebase Auth accepts.
 //
-// The Android client (package com.anonymous.botracing61 plus the SHA-1 of the
+// The Android client (package app.botracing.android plus the SHA-1 of the
 // key the APK is signed with, `eas credentials -p android`) is created in the
 // same console; it has no id to put here, but without it Google answers
 // DEVELOPER_ERROR and sign-in cannot work.

@@ -93,7 +93,7 @@ Should list connected Android devices.
 
 ### Package Name
 
-The package is currently `com.anonymous.botracing61` (suitable for sideloading). Before any Play Store release, rename it to a real package name.
+The package is `app.botracing.android` (apex #225; it was Expo's placeholder `com.anonymous.botracing61`). The package is the app's identity: the Google OAuth client for sign-in, the signing key and every install are tied to it, so a different package is a different app. The old APK does not update to it: it installs beside it with its own data, and is uninstalled once by hand. The first EAS build under this package creates its own signing key; Google sign-in needs an Android OAuth client for this package and that key's SHA-1 (`eas credentials -p android`). The URL scheme in `app.json` (`botracing61`) is separate and unchanged.
 
 ## Phone Setup
 
