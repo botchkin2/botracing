@@ -14,6 +14,12 @@ const boundaries = {rev: 4, mapKey: mapKeyOf(map.corners)};
 test('a track with no map in the catalog is "none"; otherwise map version, boundaries rev and map', () => {
   assert.equal(catalogStamp(null, null), 'none');
   assert.equal(catalogStamp(null, boundaries), 'none');
+  assert.equal(
+    catalogStamp({georef: 1}, boundaries),
+    'none',
+    'a track document with no corners is no map',
+  );
+  assert.equal(catalogStamp({corners: []}, boundaries), 'none');
   const s = catalogStamp(trackMap, boundaries);
   assert.match(s, /^m3:b4:[0-9a-f]{8}$/);
   assert.equal(
@@ -25,6 +31,22 @@ test('a track with no map in the catalog is "none"; otherwise map version, bound
     catalogStamp(trackMap, null),
     /^m3:bnone:/,
     'a map without boundaries is its own state',
+  );
+});
+
+test('the curator catalogRev moves the stamp only once it is above 0, so old stamps stay valid', () => {
+  const base = catalogStamp(trackMap, boundaries);
+  assert.equal(catalogStamp({...trackMap, catalogRev: 0}, boundaries), base);
+  assert.equal(
+    catalogStamp({...trackMap, catalogRev: undefined}, boundaries),
+    base,
+  );
+  const r1 = catalogStamp({...trackMap, catalogRev: 1}, boundaries);
+  assert.equal(r1, base + ':r1');
+  assert.notEqual(
+    catalogStamp({...trackMap, catalogRev: 2}, boundaries),
+    r1,
+    'every curated apply is visible even when no start moved',
   );
 });
 
