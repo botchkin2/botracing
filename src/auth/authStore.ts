@@ -8,6 +8,9 @@ export type AuthStore = {
   state: AuthState;
   /** The API answered 401 since the last user change or sign-in. */
   unauthorized: boolean;
+  /** A line for the login screen: why a redirect sign-in did not finish. */
+  notice: string | null;
+  setNotice: (notice: string | null) => void;
   markUnauthorized: () => void;
   clearUnauthorized: () => void;
   setState: (next: AuthState) => void;
@@ -16,6 +19,8 @@ export type AuthStore = {
 export const useAuthStore = create<AuthStore>(set => ({
   state: {kind: 'loading'},
   unauthorized: false,
+  notice: null,
+  setNotice: notice => set({notice}),
   markUnauthorized: () => set({unauthorized: true}),
   clearUnauthorized: () => set({unauthorized: false}),
   setState: next => set({state: next}),

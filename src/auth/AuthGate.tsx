@@ -4,41 +4,49 @@ import {StyleSheet, View} from 'react-native';
 import {space, useTheme} from '@/src/design';
 import {Button, Text} from '@/src/ui';
 
-import {unauthorizedPrompt} from './authState';
+import {gateView, unauthorizedPrompt} from './authState';
+import {signInRequired} from './authSession';
 import {useAuthStore} from './authStore';
+import {LoginScreen} from './LoginScreen';
 import {useSignIn} from './useSignIn';
 
 /**
- * Covers the app while the sign-in is being read, and with a sign-in prompt
- * when the API has refused a request (a 401). The app underneath stays mounted
- * (the router must keep its navigator); only a cover goes over it. Before the
- * API closes to anonymous requests a 401 never happens, so a signed-out person
- * sees what they always did.
+ * What the app shows for the sign-in state (authState.ts gateView):
+ *   - while the stored sign-in is read: a blank screen, never the login screen;
+ *   - signed out, in a build that can sign in (the web build): the login
+ *     screen INSTEAD of the app, so nothing is mounted or fetched for a
+ *     stranger;
+ *   - otherwise the app, with a prompt over it when the API answers 401: a
+ *     refused token ("sign in again"), or, in a build that cannot sign in yet
+ *     (the Android app), a plain line saying an update is needed.
+ * The app stays mounted under that prompt so the router keeps its navigator.
  */
 export function AuthGate({children}: {children: ReactNode}) {
   const {color} = useTheme();
   const state = useAuthStore(s => s.state);
   const unauthorized = useAuthStore(s => s.unauthorized);
   const {busy, message, signIn} = useSignIn();
+  const view = gateView(state, signInRequired);
 
+  if (view === 'blank')
+    return <View style={[styles.fill, {backgroundColor: color.bg}]} />;
+  if (view === 'login') return <LoginScreen />;
   return (
     <View style={styles.fill}>
       {children}
-      {/* The SDK is still reading the stored sign-in. */}
-      {state.kind === 'loading' && (
-        <View style={[styles.cover, {backgroundColor: color.bg}]} />
-      )}
-      {state.kind !== 'loading' && unauthorized && (
+      {unauthorized && (
         <View
           style={[styles.cover, styles.center, {backgroundColor: color.bg}]}>
           <Text variant='bodyStrong' style={styles.text}>
-            {unauthorizedPrompt(state)}
+            {unauthorizedPrompt(state, signInRequired)}
           </Text>
-          <Button
-            label={busy ? 'Signing in…' : 'Sign in with Google'}
-            onPress={() => void signIn()}
-            disabled={busy}
-          />
+          {signInRequired ? (
+            <Button
+              label={busy ? 'Signing in…' : 'Sign in with Google'}
+              onPress={() => void signIn()}
+              disabled={busy}
+            />
+          ) : null}
           {message ? (
             <Text tone='textMuted' style={styles.text}>
               {message}

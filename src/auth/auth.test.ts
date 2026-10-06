@@ -3,6 +3,7 @@ import {afterEach, describe, expect, it, jest} from '@jest/globals';
 import {
   type AuthState,
   accountLabel,
+  gateView,
   unauthorizedPrompt,
   userChanged,
 } from './authState';
@@ -32,8 +33,37 @@ describe('accountLabel and unauthorizedPrompt', () => {
   });
 
   it('tells signed-out from a refused token', () => {
-    expect(unauthorizedPrompt(out)).toBe('Sign in to see your sessions.');
-    expect(unauthorizedPrompt(a)).toMatch(/Sign in again/);
+    expect(unauthorizedPrompt(out, true)).toBe('Sign in to see your sessions.');
+    expect(unauthorizedPrompt(a, true)).toMatch(/Sign in again/);
+  });
+
+  it('says plainly that a build without sign-in needs an update', () => {
+    for (const state of [out, a]) {
+      const text = unauthorizedPrompt(state, false);
+      expect(text).toMatch(/cannot sign in yet/);
+      expect(text).toMatch(/update/);
+      expect(text).not.toMatch(/Sign in with/);
+    }
+  });
+});
+
+describe('gateView: what the app shows', () => {
+  it('web (sign-in required): blank while loading, login when signed out, app when signed in', () => {
+    expect(gateView(loading, true)).toBe('blank');
+    expect(gateView(out, true)).toBe('login');
+    expect(gateView(a, true)).toBe('app');
+    expect(gateView(b, true)).toBe('app');
+  });
+
+  it('never shows the login screen to a signed-in person or while the answer is unknown', () => {
+    // Marshal #180: a login flash on every load is a bug of its own.
+    for (const state of [loading, a, b])
+      expect(gateView(state, true)).not.toBe('login');
+  });
+
+  it('a build that cannot sign in yet (the Android app) always shows the app', () => {
+    for (const state of [loading, out, a])
+      expect(gateView(state, false)).toBe('app');
   });
 });
 
@@ -66,6 +96,8 @@ function fakeStore(state: AuthState): AuthStore & {
     state,
     unauthorized: true,
     calls,
+    notice: null,
+    setNotice: () => void calls.push('notice'),
     markUnauthorized: () => void calls.push('mark'),
     clearUnauthorized: () => void calls.push('clearUnauthorized'),
     setState: (next: AuthState) => {
