@@ -143,12 +143,16 @@ function recordings(sinceMs) {
   return {newestMtimeMs, newer};
 }
 
+// LAP_VERSION: set by the tray app, which is installed without git.
 function version() {
+  if (process.env.LAP_VERSION) return process.env.LAP_VERSION;
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
       cwd: here,
       encoding: 'utf8',
       windowsHide: true,
+      // Not a repository (an installed copy): no "fatal:" line on stderr.
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     return 'unknown';
