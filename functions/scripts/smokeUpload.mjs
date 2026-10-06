@@ -38,6 +38,14 @@ async function run() {
     meB.ownerKey,
     'A and B must be different users',
   );
+  // lmuApi lists the legacy owner's sessions, so a stub doc under it would
+  // show in the live app until cleanup.
+  for (const key of [meA.ownerKey, meB.ownerKey])
+    assert.notEqual(
+      key,
+      'botkin',
+      'throwaway accounts only, not the legacy owner',
+    );
   step(`me: A=${meA.ownerKey} B=${meB.ownerKey}`);
 
   const sessionId = `${tag}`;
