@@ -164,3 +164,122 @@ test("refuses a key that is another Firebase user's uid", async () => {
   // Mapping a user to their own uid is allowed (it just pins the default).
   assert.equal((await run(fakes(), {ownerKey: 'uidK'})).changed, true);
 });
+
+// -- --replace: the switch after an owner copy, and its rollback -----------------
+
+const replaceRun = (f, extra = {}) =>
+  run(f, {ownerKey: 'uidK', replace: 'botkin', ...extra});
+const copied = {'sessions/s1': {ownerId: 'uidK'}};
+
+test('replace switches a mapped user to the new key once the key holds data, and keeps the rest of the doc', async () => {
+  const f = fakes({
+    docs: {'users/uidK': {ownerKey: 'botkin', usage: {files: 3}}, ...copied},
+  });
+  const res = await replaceRun(f);
+  assert.equal(res.changed, true);
+  assert.deepEqual(f.store.get('users/uidK'), {
+    ownerKey: 'uidK',
+    usage: {files: 3},
+  });
+  assert.deepEqual(f.writes[0].options, {merge: true});
+});
+
+test('replace --dry-run says what it would do and writes nothing', async () => {
+  const lines = [];
+  const f = fakes({docs: {'users/uidK': {ownerKey: 'botkin'}, ...copied}});
+  f.log = l => lines.push(l);
+  const res = await replaceRun(f, {dryRun: true});
+  assert.equal(res.changed, false);
+  assert.equal(f.writes.length, 0);
+  assert.ok(
+    lines.some(l =>
+      l.includes("would replace users/uidK.ownerKey 'botkin' with 'uidK'"),
+    ),
+  );
+});
+
+test('replace refuses when the current key is not the one the runbook expected', async () => {
+  const f = fakes({docs: {'users/uidK': {ownerKey: 'botkin'}, ...copied}});
+  await assert.rejects(
+    replaceRun(f, {replace: 'someone'}),
+    err =>
+      err instanceof Refusal &&
+      /current owner key is 'botkin', not the expected 'someone'/.test(
+        err.message,
+      ),
+  );
+  assert.equal(f.writes.length, 0);
+});
+
+test('replace will not switch a user onto a key that holds no data', async () => {
+  const f = fakes({docs: {'users/uidK': {ownerKey: 'botkin'}}});
+  await assert.rejects(
+    replaceRun(f),
+    err =>
+      err instanceof Refusal &&
+      /no session has ownerId == 'uidK'/.test(err.message),
+  );
+  assert.equal(f.writes.length, 0);
+});
+
+test('replace with the key the user already has does nothing and says so', async () => {
+  const f = fakes({docs: {'users/uidK': {ownerKey: 'uidK'}, ...copied}});
+  await assert.rejects(
+    replaceRun(f, {replace: 'uidK'}),
+    err => err instanceof Refusal && /already 'uidK'/.test(err.message),
+  );
+});
+
+test("replace refuses another user's uid and a key another user is mapped to", async () => {
+  const other = fakes({
+    users: ['uidK', 'uidO'],
+    docs: {
+      'users/uidK': {ownerKey: 'botkin'},
+      'sessions/s9': {ownerId: 'uidO'},
+    },
+  });
+  await assert.rejects(
+    replaceRun(other, {ownerKey: 'uidO'}),
+    err =>
+      err instanceof Refusal &&
+      /uid of another Firebase user/.test(err.message),
+  );
+  const mapped = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'botkin'},
+      'users/uidZ': {ownerKey: 'team'},
+      'sessions/s7': {ownerId: 'team'},
+    },
+  });
+  await assert.rejects(
+    replaceRun(mapped, {ownerKey: 'team'}),
+    err =>
+      err instanceof Refusal && /already mapped to user uidZ/.test(err.message),
+  );
+});
+
+test('the rollback is the same command the other way: an unmapped user is expected to have their uid as key', async () => {
+  const f = fakes({docs: {'sessions/old': {ownerId: 'botkin'}}});
+  const res = await run(f, {ownerKey: 'botkin', replace: 'uidK'});
+  assert.equal(res.changed, true);
+  assert.equal(f.store.get('users/uidK').ownerKey, 'botkin');
+  // And it names what it expects: a runbook that thinks the user is on 'botkin' is refused.
+  const g = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'uidK'},
+      'sessions/old': {ownerId: 'botkin'},
+    },
+  });
+  await assert.rejects(
+    run(g, {ownerKey: 'botkin', replace: 'botkin'}),
+    err => err instanceof Refusal,
+  );
+});
+
+test('without --replace an existing mapping is still never overwritten', async () => {
+  const f = fakes({docs: {'users/uidK': {ownerKey: 'botkin'}}});
+  await assert.rejects(
+    run(f, {ownerKey: 'uidK'}),
+    err => err instanceof Refusal && /refusing to overwrite/.test(err.message),
+  );
+});

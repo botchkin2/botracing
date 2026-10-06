@@ -111,6 +111,8 @@ export function ownerData(owner) {
       track: {name: 'Road Atlanta', variant: 'Road Atlanta'},
       car: {name: recs[0].car},
       startedAt: recs[0].recordedAt,
+      updatedAt: `2026-09-${startDay}T12:00:00.000Z`,
+      analysisVersion: 7,
       recordingIds: recs.map(r => r.id),
       bestLapId: laps[1].id,
       series: 'Botkin Cup',
@@ -185,11 +187,42 @@ export function memoryBackend({docs, files}) {
     get writes() {
       return writes;
     },
-    async listDocs(coll, ownerId) {
+    reads: {sessionsListed: 0, bySession: 0, stats: 0, fileReads: 0},
+    async *iterDocs(coll, ownerId) {
+      const all = [...docs]
+        .filter(
+          ([path, data]) =>
+            path.startsWith(`${coll}/`) && data.ownerId === ownerId,
+        )
+        .map(([path, data]) => ({
+          id: path.slice(coll.length + 1),
+          data: structuredClone(data),
+        }));
+      backend.reads.sessionsListed += coll === 'sessions' ? all.length : 0;
+      for (const doc of all) yield doc;
+    },
+    async listIds(coll, ownerId) {
       return [...docs]
         .filter(
           ([path, data]) =>
             path.startsWith(`${coll}/`) && data.ownerId === ownerId,
+        )
+        .map(([path]) => path.slice(coll.length + 1));
+    },
+    async countDocs(coll, ownerId) {
+      return [...docs].filter(
+        ([path, data]) =>
+          path.startsWith(`${coll}/`) && data.ownerId === ownerId,
+      ).length;
+    },
+    async listBySession(coll, sessionId, ownerId) {
+      backend.reads.bySession++;
+      return [...docs]
+        .filter(
+          ([path, data]) =>
+            path.startsWith(`${coll}/`) &&
+            data.sessionId === sessionId &&
+            data.ownerId === ownerId,
         )
         .map(([path, data]) => ({
           id: path.slice(coll.length + 1),
@@ -204,10 +237,12 @@ export function memoryBackend({docs, files}) {
       docs.set(path, structuredClone(data));
     },
     async statFile(path) {
+      backend.reads.stats++;
       const f = files.get(path);
       return f ? {size: f.bytes.length, md5: md5(f.bytes), ...f.meta} : null;
     },
     async readFile(path) {
+      backend.reads.fileReads++;
       const f = files.get(path);
       return f ? {bytes: Buffer.from(f.bytes), meta: {...f.meta}} : null;
     },

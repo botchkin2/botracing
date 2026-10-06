@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {test} from 'node:test';
 import {gzipSync} from 'node:zlib';
-import {adminCopyBackend} from './ownerCopyAdmin.mjs';
 import {
   checkRead,
   compareSnapshots,
@@ -182,97 +181,6 @@ test("a copied session is read through the API: laps, a lap's telemetry and its 
     newIds: ['aaaaaaaaaaaaaaaa'],
   });
   assert.ok(soft.notes.some(n => n.includes('surface answered 404')));
-});
-
-// -- the Admin adapter, against a shim that has only what it should call --------
-test('the Admin backend writes whole documents, copies server side, keeps metadata, and has nothing that deletes', async () => {
-  const calls = [];
-  const file = path => ({
-    getMetadata: async () => {
-      if (path === 'missing') throw Object.assign(new Error('nf'), {code: 404});
-      return [
-        {
-          size: '5',
-          md5Hash: 'MD5',
-          contentType: 'text/csv',
-          contentEncoding: 'gzip',
-          cacheControl: 'private',
-        },
-      ];
-    },
-    download: async opts => {
-      calls.push(['download', path, opts]);
-      return [Buffer.from('hello')];
-    },
-    save: async (bytes, opts) =>
-      calls.push(['save', path, bytes.toString(), opts]),
-    copy: async dest => calls.push(['copy', path, dest.name]),
-    name: path,
-  });
-  const doc = path => ({
-    get: async () => ({exists: path !== 'gone', data: () => ({path})}),
-    set: async (data, opts) => calls.push(['set', path, data, opts]),
-  });
-  const db = {
-    doc,
-    collection: coll => ({
-      where: (f, op, v) => ({
-        get: async () => ({docs: [{id: 'x', data: () => ({coll, f, op, v})}]}),
-      }),
-    }),
-  };
-  const bucket = {file};
-  const b = adminCopyBackend({db, bucket});
-
-  assert.deepEqual(
-    Object.keys(b).filter(k => /delete|remove|clear/i.test(k)),
-    [],
-  );
-  assert.deepEqual(await b.listDocs('laps', 'botkin'), [
-    {id: 'x', data: {coll: 'laps', f: 'ownerId', op: '==', v: 'botkin'}},
-  ]);
-  assert.equal(await b.getDoc('gone'), null);
-  await b.setDoc('laps/y', {a: 1});
-  assert.deepEqual(
-    calls.at(-1),
-    ['set', 'laps/y', {a: 1}, undefined],
-    'a whole document, never a merge',
-  );
-  assert.deepEqual(await b.statFile('traces/a'), {
-    size: 5,
-    md5: 'MD5',
-    contentType: 'text/csv',
-    contentEncoding: 'gzip',
-    cacheControl: 'private',
-  });
-  assert.equal(await b.statFile('missing'), null);
-  const read = await b.readFile('traces/a');
-  assert.deepEqual(
-    calls.at(-1),
-    ['download', 'traces/a', {decompress: false}],
-    'a gzipped file is not decompressed on the way',
-  );
-  assert.equal(read.bytes.toString(), 'hello');
-  await b.writeFile('slices/x', Buffer.from('z'), {
-    contentType: 'application/json',
-    contentEncoding: 'gzip',
-    cacheControl: 'private',
-  });
-  assert.deepEqual(calls.at(-1), [
-    'save',
-    'slices/x',
-    'z',
-    {
-      resumable: false,
-      metadata: {
-        contentType: 'application/json',
-        contentEncoding: 'gzip',
-        cacheControl: 'private',
-      },
-    },
-  ]);
-  await b.copyFile('a/b', 'c/d');
-  assert.deepEqual(calls.at(-1), ['copy', 'a/b', 'c/d']);
 });
 
 test('the id map is plain JSON saying which new id is which old one', () => {

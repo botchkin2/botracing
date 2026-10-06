@@ -1,9 +1,13 @@
 // The Admin SDK behind ownerCopyRun.mjs's backend: Firestore and the bucket,
 // with the credentials of whoever runs it. Only what the copy needs. There is
 // no delete here either, and nothing that merges: a document is written whole.
-import {gunzipSync} from 'node:zlib';
-
+//
+// Reads are paged and narrow so an owner with tens of thousands of laps is
+// never held in memory: sessions come a page at a time, ids come without
+// fields, counts come from the database, and a session's laps and recordings
+// are read by that session only.
 const isNotFound = error => error?.code === 404 || error?.code === 5;
+const PAGE = 100;
 
 /** db: a Firestore, bucket: a Storage bucket (store.mjs connect()). */
 export function adminCopyBackend({db, bucket}) {
@@ -14,10 +18,34 @@ export function adminCopyBackend({db, bucket}) {
     contentEncoding: m.contentEncoding ?? null,
     cacheControl: m.cacheControl ?? null,
   });
+  const owned = (coll, ownerId) =>
+    db.collection(coll).where('ownerId', '==', ownerId);
   return {
-    async listDocs(coll, ownerId) {
+    // Pages by document id, so a long list is read a hundred at a time.
+    async *iterDocs(coll, ownerId) {
+      let last = null;
+      for (;;) {
+        let query = owned(coll, ownerId).orderBy('__name__').limit(PAGE);
+        if (last) query = query.startAfter(last);
+        const snap = await query.get();
+        for (const doc of snap.docs) yield {id: doc.id, data: doc.data()};
+        if (snap.docs.length < PAGE) return;
+        last = snap.docs[snap.docs.length - 1];
+      }
+    },
+    // Ids only: no field is read.
+    async listIds(coll, ownerId) {
+      const snap = await owned(coll, ownerId).select().get();
+      return snap.docs.map(doc => doc.id);
+    },
+    async countDocs(coll, ownerId) {
+      const snap = await owned(coll, ownerId).count().get();
+      return snap.data().count;
+    },
+    async listBySession(coll, sessionId, ownerId) {
       const snap = await db
         .collection(coll)
+        .where('sessionId', '==', sessionId)
         .where('ownerId', '==', ownerId)
         .get();
       return snap.docs.map(doc => ({id: doc.id, data: doc.data()}));
@@ -67,6 +95,3 @@ export function adminCopyBackend({db, bucket}) {
     },
   };
 }
-
-// gunzip is exported for the tool's report of a file's size on disk.
-export const gunzipText = bytes => gunzipSync(bytes).toString('utf8');

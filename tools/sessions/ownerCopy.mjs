@@ -304,7 +304,9 @@ const OWNER_FOLDERS = new Set(['traces', 'bands', 'field', 'slices']);
  * The word itself elsewhere (a driver name, an event title) is not a leftover.
  */
 export function residual(value, m, where = '$') {
-  const oldIds = new Set([...m.rec.keys(), ...m.ses.keys()]);
+  // m.oldIds: every old id of the owner (the copy runs a session at a time and
+  // hands in the whole set); else just the ones in these maps.
+  const oldIds = m.oldIds ?? new Set([...m.rec.keys(), ...m.ses.keys()]);
   const found = [];
   const check = (text, at) => {
     for (const token of text.match(HEX16) ?? []) {

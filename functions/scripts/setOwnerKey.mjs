@@ -21,6 +21,16 @@
 //   - another user is already mapped to the same key, or the key is another
 //     Firebase user's uid (an unmapped user's implicit key is their uid).
 // --dry-run prints the same before/plan and writes nothing.
+//
+// Changing a mapping that exists (the switch after an owner copy, and its
+// rollback) is a separate, explicit act:
+//   node functions/scripts/setOwnerKey.mjs <uid> <newOwnerKey> --replace <expectedOldKey> [--dry-run]
+// It changes the key only when the user's CURRENT key is exactly the one named
+// (an unmapped user's current key is their uid), so a stale runbook cannot
+// replace something else; the new key must already hold data (a session with
+// ownerId == newOwnerKey), so it cannot switch a user onto nothing; it is not
+// another user's uid nor another user's key. Same before/after print, same
+// --dry-run. Rolling back is the same command the other way round.
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
@@ -37,6 +47,71 @@ const OWNER_FOLDERS = ['traces', 'bands', 'slices', 'field', 'archive'];
 
 export class Refusal extends Error {}
 
+// --replace: the key a user already has becomes another one.
+async function replaceKey({
+  firestore,
+  auth,
+  uid,
+  ownerKey,
+  replace,
+  before,
+  ref,
+  dryRun,
+  log,
+}) {
+  const current = before?.ownerKey ?? uid;
+  if (current !== replace)
+    throw new Refusal(
+      `users/${uid}'s current owner key is '${current}', not the expected '${replace}'; nothing changed`,
+    );
+  if (current === ownerKey)
+    throw new Refusal(
+      `the owner key is already '${ownerKey}'; nothing to replace`,
+    );
+  const holds = await firestore
+    .collection('sessions')
+    .where('ownerId', '==', ownerKey)
+    .limit(1)
+    .get();
+  if (holds.empty)
+    throw new Refusal(
+      `no session has ownerId == '${ownerKey}': switching this user onto a key that holds no data would make everything disappear for them`,
+    );
+  if (ownerKey !== uid) {
+    const isAnotherUser = await auth.getUser(ownerKey).then(
+      () => true,
+      () => false,
+    );
+    if (isAnotherUser)
+      throw new Refusal(
+        `owner key '${ownerKey}' is the uid of another Firebase user; their data lives under it`,
+      );
+  }
+  const taken = await firestore
+    .collection('users')
+    .where('ownerKey', '==', ownerKey)
+    .limit(1)
+    .get();
+  if (!taken.empty && taken.docs[0].id !== uid)
+    throw new Refusal(
+      `owner key '${ownerKey}' is already mapped to user ${taken.docs[0].id}`,
+    );
+  if (dryRun) {
+    log(
+      `dry run: would replace users/${uid}.ownerKey '${current}' with '${ownerKey}' (merge; other fields untouched)`,
+    );
+    return {changed: false, before, after: before};
+  }
+  await ref.set({ownerKey}, {merge: true});
+  const after = (await ref.get()).data();
+  log(`users/${uid} after:  ${JSON.stringify(after)}`);
+  if (after?.ownerKey !== ownerKey)
+    throw new Error(
+      'the write did not stick: ownerKey is not the new key after the write',
+    );
+  return {changed: true, before, after};
+}
+
 // auth.getUser(uid); firestore: doc(path).get()/set(), collection(name).where()
 // .limit().get(); hasFiles(prefix) says whether the bucket holds anything
 // there. Returns {changed, before, after}; throws Refusal when it will not
@@ -47,6 +122,7 @@ export async function setOwnerKey({
   hasFiles,
   uid,
   ownerKey,
+  replace,
   dryRun = false,
   log = console.log,
 }) {
@@ -65,6 +141,19 @@ export async function setOwnerKey({
   const snap = await ref.get();
   const before = snap.exists ? snap.data() : null;
   log(`users/${uid} before: ${JSON.stringify(before)}`);
+
+  if (replace !== undefined)
+    return replaceKey({
+      firestore,
+      auth,
+      uid,
+      ownerKey,
+      replace,
+      before,
+      ref,
+      dryRun,
+      log,
+    });
 
   if (before?.ownerKey === ownerKey) {
     log(`already mapped to '${ownerKey}'; nothing to do`);
@@ -140,10 +229,18 @@ if (
 ) {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const [uid, ownerKey] = args.filter(a => !a.startsWith('--'));
+  const at = args.indexOf('--replace');
+  const replace = at === -1 ? undefined : args[at + 1];
+  if (at !== -1 && (!replace || replace.startsWith('--'))) {
+    console.error('--replace needs the key the user is expected to have now');
+    process.exit(2);
+  }
+  const [uid, ownerKey] = args.filter(
+    (a, i) => !a.startsWith('--') && i !== at + 1,
+  );
   if (!uid || !ownerKey) {
     console.error(
-      'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--dry-run]',
+      'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--replace <expectedOldKey>] [--dry-run]',
     );
     process.exit(2);
   }
@@ -162,6 +259,7 @@ if (
       },
       uid,
       ownerKey,
+      replace,
       dryRun,
     });
   } catch (error) {
