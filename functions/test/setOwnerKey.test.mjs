@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {Refusal, setOwnerKey} from '../scripts/setOwnerKey.mjs';
+import {Refusal, parseArgs, setOwnerKey} from '../scripts/setOwnerKey.mjs';
 
 // docs: path -> data. Queries match top-level collections by field equality.
 function fakes({users = ['uidK'], docs = {}, files = []} = {}) {
@@ -12,17 +12,24 @@ function fakes({users = ['uidK'], docs = {}, files = []} = {}) {
       return {uid};
     },
   };
+  const matching = (collection, field, value) =>
+    [...store]
+      .filter(
+        ([path, data]) =>
+          path.startsWith(collection + '/') && data[field] === value,
+      )
+      .map(([path, data]) => ({id: path.split('/')[1], data: () => data}));
   const query = (collection, field, value) => ({
     limit: () => ({
       get: async () => {
-        const hits = [...store]
-          .filter(
-            ([path, data]) =>
-              path.startsWith(`${collection}/`) && data[field] === value,
-          )
-          .map(([path, data]) => ({id: path.split('/')[1], data: () => data}));
+        const hits = matching(collection, field, value);
         return {empty: hits.length === 0, docs: hits};
       },
+    }),
+    count: () => ({
+      get: async () => ({
+        data: () => ({count: matching(collection, field, value).length}),
+      }),
     }),
   });
   const firestore = {
@@ -281,5 +288,168 @@ test('without --replace an existing mapping is still never overwritten', async (
   await assert.rejects(
     run(f, {ownerKey: 'uidK'}),
     err => err instanceof Refusal && /refusing to overwrite/.test(err.message),
+  );
+});
+
+// -- the command line: the plain form must keep working (it once dropped the uid) --
+
+test('the plain two-argument form parses, with and without --dry-run', () => {
+  assert.deepEqual(parseArgs(['uidX', 'botkin']), {
+    uid: 'uidX',
+    ownerKey: 'botkin',
+    replace: undefined,
+    allowFewer: false,
+    dryRun: false,
+  });
+  const dry = parseArgs(['uidX', 'botkin', '--dry-run']);
+  assert.equal(dry.uid, 'uidX');
+  assert.equal(dry.ownerKey, 'botkin');
+  assert.equal(dry.dryRun, true);
+  // Flags first or between, too.
+  assert.equal(parseArgs(['--dry-run', 'uidX', 'botkin']).uid, 'uidX');
+});
+
+test('the replace form parses and its value is not taken for an argument', () => {
+  const p = parseArgs(['uidX', 'uidX', '--replace', 'botkin', '--dry-run']);
+  assert.deepEqual(
+    [p.uid, p.ownerKey, p.replace, p.dryRun, p.allowFewer],
+    ['uidX', 'uidX', 'botkin', true, false],
+  );
+  const q = parseArgs(['--replace', 'botkin', 'uidX', 'uidX', '--allow-fewer']);
+  assert.deepEqual(
+    [q.uid, q.ownerKey, q.replace, q.allowFewer],
+    ['uidX', 'uidX', 'botkin', true],
+  );
+});
+
+test('bad command lines are errors, not guesses', () => {
+  for (const args of [
+    [],
+    ['uidX'],
+    ['uidX', 'a', 'b'],
+    ['uidX', 'botkin', '--replace'],
+    ['uidX', 'botkin', '--replace', '--dry-run'],
+    ['uidX', 'botkin', '--bogus'],
+    ['uidX', 'botkin', '--allow-fewer'],
+  ]) {
+    assert.ok(parseArgs(args).error, JSON.stringify(args));
+  }
+});
+
+// -- the switch compares counts ----------------------------------------------------
+
+const sessionsOf = (key, n) =>
+  Object.fromEntries(
+    Array.from({length: n}, (_, i) => [
+      'sessions/' + key + '-s' + i,
+      {ownerId: key},
+    ]),
+  );
+
+test('the switch is refused when the new key holds fewer sessions than the key being left', async () => {
+  const lines = [];
+  const f = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'botkin'},
+      ...sessionsOf('botkin', 3),
+      ...sessionsOf('uidK', 2),
+    },
+  });
+  f.log = l => lines.push(l);
+  await assert.rejects(
+    replaceRun(f),
+    err =>
+      err instanceof Refusal &&
+      /holds 2 sessions, fewer than the 3 under 'botkin': 1 would no longer be shown/.test(
+        err.message,
+      ) &&
+      /--allow-fewer/.test(err.message),
+  );
+  assert.equal(f.writes.length, 0);
+  assert.ok(
+    lines.some(l =>
+      l.includes("3 under 'botkin' (the key being left), 2 under 'uidK'"),
+    ),
+  );
+});
+
+test('as many sessions as the key being left is enough, and the dry run shows both counts', async () => {
+  const lines = [];
+  const f = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'botkin'},
+      ...sessionsOf('botkin', 3),
+      ...sessionsOf('uidK', 3),
+    },
+  });
+  f.log = l => lines.push(l);
+  const dry = await replaceRun(f, {dryRun: true});
+  assert.equal(dry.changed, false);
+  assert.ok(
+    lines.some(l =>
+      l.includes("3 under 'botkin' (the key being left), 3 under 'uidK'"),
+    ),
+  );
+  assert.equal((await replaceRun(f)).changed, true);
+});
+
+test('--allow-fewer lets a deliberate partial switch through, and says how many sessions it hides', async () => {
+  const lines = [];
+  const f = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'botkin'},
+      ...sessionsOf('botkin', 5),
+      ...sessionsOf('uidK', 2),
+    },
+  });
+  f.log = l => lines.push(l);
+  const res = await replaceRun(f, {allowFewer: true});
+  assert.equal(res.changed, true);
+  assert.ok(
+    lines.some(
+      l =>
+        l.includes('--allow-fewer: 3 more sessions under') &&
+        l.includes('no longer be shown'),
+    ),
+  );
+});
+
+test('a rollback after new uploads under the uid is refused without --allow-fewer: it would hide them', async () => {
+  // The user has been on 'uidK' for a while: 5 sessions there, 3 old ones under 'botkin'.
+  const docs = {
+    'users/uidK': {ownerKey: 'uidK'},
+    ...sessionsOf('botkin', 3),
+    ...sessionsOf('uidK', 5),
+  };
+  const refused = fakes({docs});
+  await assert.rejects(
+    run(refused, {ownerKey: 'botkin', replace: 'uidK'}),
+    err =>
+      err instanceof Refusal &&
+      /holds 3 sessions, fewer than the 5 under 'uidK': 2 would no longer be shown/.test(
+        err.message,
+      ),
+  );
+  const lines = [];
+  const allowed = fakes({docs});
+  allowed.log = l => lines.push(l);
+  const res = await run(allowed, {
+    ownerKey: 'botkin',
+    replace: 'uidK',
+    allowFewer: true,
+  });
+  assert.equal(res.changed, true);
+  assert.ok(lines.some(l => l.includes('2 more sessions under')));
+  // Before any new upload, a rollback is clean: the counts are equal.
+  const clean = fakes({
+    docs: {
+      'users/uidK': {ownerKey: 'uidK'},
+      ...sessionsOf('botkin', 3),
+      ...sessionsOf('uidK', 3),
+    },
+  });
+  assert.equal(
+    (await run(clean, {ownerKey: 'botkin', replace: 'uidK'})).changed,
+    true,
   );
 });

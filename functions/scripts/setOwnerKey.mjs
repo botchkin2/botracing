@@ -24,11 +24,14 @@
 //
 // Changing a mapping that exists (the switch after an owner copy, and its
 // rollback) is a separate, explicit act:
-//   node functions/scripts/setOwnerKey.mjs <uid> <newOwnerKey> --replace <expectedOldKey> [--dry-run]
+//   node functions/scripts/setOwnerKey.mjs <uid> <newOwnerKey> --replace <expectedOldKey> [--allow-fewer] [--dry-run]
 // It changes the key only when the user's CURRENT key is exactly the one named
 // (an unmapped user's current key is their uid), so a stale runbook cannot
-// replace something else; the new key must already hold data (a session with
-// ownerId == newOwnerKey), so it cannot switch a user onto nothing; it is not
+// replace something else; the new key must hold at least as many sessions as
+// the key being left (counted at that moment, with the tray paused), so a copy
+// that stopped early is refused, unless --allow-fewer says it is deliberate;
+// it prints both counts. Rolling back after new uploads under the new key is
+// exactly that case: it would hide them. It is not
 // another user's uid nor another user's key. Same before/after print, same
 // --dry-run. Rolling back is the same command the other way round.
 import {createRequire} from 'node:module';
@@ -45,6 +48,40 @@ const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 // owner-scoped folders carry the owner key, and archive/ is prefixed with it.
 const OWNER_FOLDERS = ['traces', 'bands', 'slices', 'field', 'archive'];
 
+/**
+ * The command line: <uid> <ownerKey> [--replace <expectedOldKey>] [--allow-fewer]
+ * [--dry-run]. Walks the arguments, so a flag's value is never mistaken for a
+ * positional one and the plain two-argument form is untouched. Returns
+ * {uid, ownerKey, replace, allowFewer, dryRun} or {error}.
+ */
+export function parseArgs(args) {
+  const out = {replace: undefined, allowFewer: false, dryRun: false};
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--allow-fewer') out.allowFewer = true;
+    else if (a === '--replace') {
+      const value = args[i + 1];
+      if (!value || value.startsWith('--'))
+        return {
+          error: '--replace needs the key the user is expected to have now',
+        };
+      out.replace = value;
+      i++;
+    } else if (a.startsWith('--')) return {error: 'unknown option ' + a};
+    else positional.push(a);
+  }
+  if (positional.length !== 2)
+    return {
+      error:
+        'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--replace <expectedOldKey>] [--allow-fewer] [--dry-run]',
+    };
+  if (out.allowFewer && out.replace === undefined)
+    return {error: '--allow-fewer only goes with --replace'};
+  return {uid: positional[0], ownerKey: positional[1], ...out};
+}
+
 export class Refusal extends Error {}
 
 // --replace: the key a user already has becomes another one.
@@ -54,6 +91,7 @@ async function replaceKey({
   uid,
   ownerKey,
   replace,
+  allowFewer,
   before,
   ref,
   dryRun,
@@ -68,15 +106,40 @@ async function replaceKey({
     throw new Refusal(
       `the owner key is already '${ownerKey}'; nothing to replace`,
     );
-  const holds = await firestore
-    .collection('sessions')
-    .where('ownerId', '==', ownerKey)
-    .limit(1)
-    .get();
-  if (holds.empty)
+  // Counts, taken now (the tray should be paused): the new key must hold at
+  // least as many sessions as the one being left, so "the copy verified" and
+  // "the switch will go ahead" are the same fact. A copy that stopped early
+  // is refused; a deliberate partial switch says so with --allow-fewer.
+  const countOf = async key =>
+    (
+      await firestore
+        .collection('sessions')
+        .where('ownerId', '==', key)
+        .count()
+        .get()
+    ).data().count;
+  const leaving = await countOf(current);
+  const arriving = await countOf(ownerKey);
+  log(
+    `sessions: ${leaving} under '${current}' (the key being left), ${arriving} under '${ownerKey}'`,
+  );
+  if (arriving === 0)
     throw new Refusal(
       `no session has ownerId == '${ownerKey}': switching this user onto a key that holds no data would make everything disappear for them`,
     );
+  if (arriving < leaving) {
+    if (!allowFewer)
+      throw new Refusal(
+        `'${ownerKey}' holds ${arriving} sessions, fewer than the ${leaving} under '${current}': ${
+          leaving - arriving
+        } would no longer be shown to this user. A copy that is not finished, or a rollback after new uploads, looks like this. Pass --allow-fewer only for a deliberate partial switch`,
+      );
+    log(
+      `--allow-fewer: ${
+        leaving - arriving
+      } more sessions under '${current}' than under '${ownerKey}' will no longer be shown to this user (they stay where they are)`,
+    );
+  }
   if (ownerKey !== uid) {
     const isAnotherUser = await auth.getUser(ownerKey).then(
       () => true,
@@ -123,6 +186,7 @@ export async function setOwnerKey({
   uid,
   ownerKey,
   replace,
+  allowFewer = false,
   dryRun = false,
   log = console.log,
 }) {
@@ -149,6 +213,7 @@ export async function setOwnerKey({
       uid,
       ownerKey,
       replace,
+      allowFewer,
       before,
       ref,
       dryRun,
@@ -227,23 +292,12 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const at = args.indexOf('--replace');
-  const replace = at === -1 ? undefined : args[at + 1];
-  if (at !== -1 && (!replace || replace.startsWith('--'))) {
-    console.error('--replace needs the key the user is expected to have now');
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.error) {
+    console.error(parsed.error);
     process.exit(2);
   }
-  const [uid, ownerKey] = args.filter(
-    (a, i) => !a.startsWith('--') && i !== at + 1,
-  );
-  if (!uid || !ownerKey) {
-    console.error(
-      'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--replace <expectedOldKey>] [--dry-run]',
-    );
-    process.exit(2);
-  }
+  const {uid, ownerKey, replace, allowFewer, dryRun} = parsed;
   process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= PROJECT;
   const require = createRequire(resolve(here, '../package.json'));
   const admin = require('firebase-admin');
@@ -260,6 +314,7 @@ if (
       uid,
       ownerKey,
       replace,
+      allowFewer,
       dryRun,
     });
   } catch (error) {

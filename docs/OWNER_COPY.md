@@ -51,7 +51,7 @@ Prerequisites: a backup of Firestore and the bucket that has been **restored onc
 6. **Switch the mapping** (Botkin's sign-off): `users/<uid>.ownerKey` is `botkin` today; the switch makes his key the uid. Dry run first, then for real:
    `node functions/scripts/setOwnerKey.mjs <uid> <uid> --replace botkin --dry-run`
    `node functions/scripts/setOwnerKey.mjs <uid> <uid> --replace botkin`
-   It changes the key only if the user's current key is exactly the one named after `--replace` (so a stale runbook cannot replace something else), only if the new key already holds data (it cannot switch a user onto nothing), and never onto another user's uid or key. It prints the document before and after. (Without `--replace`, `setOwnerKey.mjs` still never overwrites an existing mapping.)
+   It changes the key only if the user's current key is exactly the one named after `--replace` (so a stale runbook cannot replace something else), only if the new key holds **at least as many sessions as the key being left** (both counts are taken at that moment with the tray paused, printed, and compared: a copy that stopped early is refused, so "verify passed" and "the switch will go ahead" are the same fact; `--allow-fewer` is the explicit way to switch anyway), and never onto another user's uid or key. It prints the document before and after. (Without `--replace`, `setOwnerKey.mjs` still never overwrites an existing mapping; the plain `setOwnerKey <uid> <key>` form is unchanged.)
 7. **Check what the user sees.** With his token (a file holding a current ID token):
    `node tools/sessions/migrateOwner.mjs verify-api --to <uid> --token-file token.txt --baseline before.json`
    The API's session list with his token must equal the baseline apart from ids (same count, same content), and a sample of the copies is read through the API (laps, a lap's telemetry, the track's surface). If a track's surface or outline is not readable, the readers have not yet been changed to serve the shared track catalog to a signed-in user: roll back (below) before step 8.
@@ -60,7 +60,7 @@ Prerequisites: a backup of Firestore and the bucket that has been **restored onc
 ## Rollback
 
 The originals were never touched. Rolling back is the same command the other way round, an instant change of one field:
-`node functions/scripts/setOwnerKey.mjs <uid> botkin --replace <uid> --dry-run`, then without `--dry-run`. (A user with no mapping is expected to have their uid as key, which is what `--replace <uid>` names.) Uploads made under the uid after the switch stay under the uid; they are not in the `botkin` data.
+`node functions/scripts/setOwnerKey.mjs <uid> botkin --replace <uid> --dry-run`, then without `--dry-run`. (A user with no mapping is expected to have their uid as key, which is what `--replace <uid>` names.) **A rollback is only clean before anything new is uploaded under the uid.** Once uploads exist under the uid, the key being left holds more sessions than `botkin` does, so the command refuses without `--allow-fewer`, and with it prints how many sessions will no longer be shown to the user (they stay where they are, orphaned from the user's view: the split the first-mapping guard exists to prevent). The dry run prints both counts; read it before choosing.
 
 ## Limits, honestly
 
