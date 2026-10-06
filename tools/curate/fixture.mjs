@@ -44,7 +44,7 @@ export function memoryCatalog({
       trackId,
       expectedRev,
       newRev,
-      history,
+      history: entry,
       set,
       deleteFields,
       boundaries: b,
@@ -56,11 +56,11 @@ export function memoryCatalog({
           currentRev: current,
         });
       }
-      const key = `${trackId}__${history.rev}`;
+      const key = `${trackId}__${entry.rev}`;
       if (state.history.has(key))
         throw new Error(`history ${key} already exists`);
       // Nothing is written before every check has passed.
-      state.history.set(key, structuredClone(history));
+      state.history.set(key, structuredClone(entry));
       const doc = {...(state.tracks.get(trackId) ?? {})};
       for (const k of deleteFields) delete doc[k];
       Object.assign(doc, structuredClone(set));
