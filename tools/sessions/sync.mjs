@@ -59,6 +59,7 @@ import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
+import {openRemoteStore} from './remoteStore.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -71,7 +72,14 @@ const folder = arg(
   '--folder',
   process.env.LMU_TELEMETRY || adapter.defaultFolder,
 );
-const ownerId = arg('--owner', process.env.LAP_OWNER || 'botkin');
+// --remote: no Admin credentials. The store is the upload function (storeClient.mjs),
+// signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
+// keeps it fresh), and the owner is whatever key the server holds for that user.
+const remote = !flag('--local') && (flag('--remote') || !!process.env.LAP_API);
+const remoteStore = remote ? await openRemoteStore() : null;
+const ownerId = remote
+  ? (await remoteStore.me()).ownerKey
+  : arg('--owner', process.env.LAP_OWNER || 'botkin');
 const since = arg('--since', '');
 const only = arg('--only', '');
 // Session ids to leave alone this pass: the watcher's failed sessions still
@@ -709,7 +717,7 @@ async function main() {
   log(`${eventWindows.length} online event joins known`);
 
   let store = null;
-  if (!local) store = await import('./store.mjs');
+  if (!local) store = remoteStore ?? (await import('./store.mjs'));
 
   if (flag('--events-only')) {
     const items = sessions
@@ -1031,7 +1039,7 @@ async function processSession(
 }
 
 async function worker() {
-  const store = local ? null : await import('./store.mjs');
+  const store = local ? null : remoteStore ?? (await import('./store.mjs'));
   parentPort.on('message', async message => {
     const {op, s, trackMap, boundaries, eventWindows, fresh} = message;
     const lines = [];

@@ -70,69 +70,124 @@ export function connect() {
   return cached;
 }
 
-async function putFile(bucket, localPath, dest, contentType) {
+// The storage seam. Everything this file decides (what to skip, what to keep
+// from the stored session, what to delete afterwards) runs against a backend:
+// a handful of primitives over Firestore documents and bucket files. The
+// Admin backend below is the PC uploader of today; storeClient.mjs is the same
+// primitives over HTTP, for machines that hold no Admin credentials.
+//
+// A backend is:
+//   getDoc(coll, id)            -> data | null
+//   writeDocs(ops)              -> void; ops are {op: 'set', coll, id, data, merge?}
+//                                  or {op: 'delete', coll, id}; none are written
+//                                  if the shape check refuses one
+//   updateDocs(ops)             -> string[]; {coll, id, data}, merged into a document
+//                                  that must exist; returns the writes that failed
+//   sessionLapIds(sessionId)    -> string[]
+//   fileMd5(dest)               -> base64 md5 | null
+//   putFile(dest, {localPath} | {body}, {contentType, gzip})
+//   getFile(dest)               -> Buffer (as stored, gzipped) | null
+//   deleteFile(dest)
+//   listFiles(prefix)           -> string[] of dest names
+
+async function putAdminFile(bucket, dest, source, {contentType, gzip}) {
+  const metadata = {contentType, cacheControl: 'private, max-age=31536000'};
+  if (source.localPath) {
+    await withNetRetry(() =>
+      bucket.upload(source.localPath, {
+        destination: dest,
+        resumable: false,
+        metadata,
+      }),
+    );
+    return;
+  }
+  const body = gzip ? gzipSync(source.body, {level: 9}) : source.body;
+  if (gzip) metadata.contentEncoding = 'gzip';
   await withNetRetry(() =>
-    bucket.upload(localPath, {
-      destination: dest,
-      resumable: false,
-      metadata: {contentType, cacheControl: 'private, max-age=31536000'},
-    }),
+    bucket.file(dest).save(body, {resumable: false, metadata}),
   );
 }
 
-async function sameAsRemote(bucket, localPath, dest) {
-  try {
-    const [meta] = await withNetRetry(() => bucket.file(dest).getMetadata());
-    const local = createHash('md5')
-      .update(readFileSync(localPath))
-      .digest('base64');
-    return meta.md5Hash === local;
-  } catch (error) {
-    if (error?.code === 404) return false;
-    throw error;
-  }
-}
+// gRPC codes worth retrying: deadline, exhausted, aborted, internal, unavailable.
+const TRANSIENT = new Set([4, 8, 10, 13, 14]);
 
-// The field file already in the bucket (the capture is gone after 7 days,
-// the uploaded file is not). A failure is a log line and null: the next sync
-// tries again.
-async function readStoredField(bucket, path, log) {
-  try {
-    const [gz] = await bucket.file(path).download({decompress: false});
-    return JSON.parse(gunzipSync(gz).toString('utf8'));
-  } catch (e) {
-    log(`  field: could not read the stored one: ${e.message}`);
-    return null;
-  }
-}
-
-async function putGzip(bucket, dest, text, contentType) {
-  const body = gzipSync(Buffer.from(text, 'utf8'), {level: 9});
-  await withNetRetry(() =>
-    bucket.file(dest).save(body, {
-      resumable: false,
-      metadata: {
-        contentType,
-        contentEncoding: 'gzip',
-        cacheControl: 'private, max-age=31536000',
-      },
-    }),
-  );
-}
-
-// A track's stored corner map, or null.
-export async function getTrack(trackId) {
-  const {db} = connect();
-  const doc = await db.collection('tracks').doc(trackId).get();
-  return doc.exists ? doc.data() : null;
-}
-
-// A track's corner boundaries (tools/sessions/layoutBoundaries.mjs), packed,
-// or null. A doc of its own: it grows with every session of the layout, and
-// the app reads only the small summary on the track doc.
-export async function getBoundaries(trackId, db = connect().db) {
-  const doc = await db.collection('trackBoundaries').doc(trackId).get();
-  return doc.exists ? doc.data() : null;
+// `bucket` is only needed for the file primitives.
+export function adminBackend({db, bucket}) {
+  const ref = (coll, id) => db.collection(coll).doc(id);
+  return {
+    async getDoc(coll, id) {
+      const doc = await ref(coll, id).get();
+      return doc.exists ? doc.data() : null;
+    },
+    async writeDocs(ops) {
+      // Every document is checked first (docShape.mjs): one Firestore would
+      // refuse fails this session with the field path, before anything is
+      // written.
+      const writer = guardedWriter(db.bulkWriter());
+      for (const {op, coll, id, data, merge} of ops) {
+        if (op === 'delete') writer.delete(ref(coll, id));
+        else writer.set(ref(coll, id), data, merge ? {merge: true} : undefined);
+      }
+      await writer.close();
+    },
+    // bulkWriter drops a failed write without rejecting close(), so they are
+    // collected here.
+    async updateDocs(ops) {
+      const writer = db.bulkWriter();
+      const failed = [];
+      writer.onWriteError(error => {
+        if (TRANSIENT.has(error.code) && error.failedAttempts < 5) return true;
+        failed.push(`${error.documentRef.path}: ${error.message}`);
+        return false;
+      });
+      // Each update's promise rejects once onWriteError gives up. The failure
+      // is already in `failed`; waiting on them keeps it from being unhandled.
+      const writes = ops.map(({coll, id, data}) =>
+        writer.update(ref(coll, id), data),
+      );
+      await writer.close();
+      await Promise.allSettled(writes);
+      return failed;
+    },
+    async sessionLapIds(sessionId) {
+      const found = await db
+        .collection('laps')
+        .where('sessionId', '==', sessionId)
+        .select()
+        .get();
+      return found.docs.map(doc => doc.id);
+    },
+    async fileMd5(dest) {
+      try {
+        const [meta] = await withNetRetry(() =>
+          bucket.file(dest).getMetadata(),
+        );
+        return meta.md5Hash;
+      } catch (error) {
+        if (error?.code === 404) return null;
+        throw error;
+      }
+    },
+    putFile: (dest, source, options) =>
+      putAdminFile(bucket, dest, source, options),
+    async getFile(dest) {
+      try {
+        const [gz] = await bucket.file(dest).download({decompress: false});
+        return gz;
+      } catch (error) {
+        if (error?.code === 404) return null;
+        throw error;
+      }
+    },
+    async deleteFile(dest) {
+      await bucket.file(dest).delete({ignoreNotFound: true});
+    },
+    async listFiles(prefix) {
+      const [files] = await bucket.getFiles({prefix});
+      return files.map(f => f.name);
+    },
+  };
 }
 
 // The layout's corner boundaries, when a session changed them: the full state
@@ -157,78 +212,73 @@ export function writeBoundaries(db, writer, {trackId, state, windows}) {
   );
 }
 
-// The same writes on their own, for the fold pass that runs before any
-// session is uploaded.
-export async function putBoundaries(boundaries, db = connect().db) {
-  const writer = guardedWriter(db.bulkWriter());
-  writeBoundaries(db, writer, boundaries);
-  await writer.close();
-}
-
-// Which online event each session was, without re-uploading anything else.
-// update, not set: a session that was never uploaded stays absent.
-// items: [{session: {id, series, eventId}, recordings: [{id, event}]}]
-// Returns the writes that failed, as "collection/id: reason". bulkWriter
-// drops a failed write without rejecting close(), so they are collected here.
-export async function updateEvents(items) {
-  const {db} = connect();
-  const writer = db.bulkWriter();
-  const failed = [];
-  // gRPC codes worth retrying: deadline, exhausted, aborted, internal, unavailable.
-  const transient = new Set([4, 8, 10, 13, 14]);
-  writer.onWriteError(error => {
-    if (transient.has(error.code) && error.failedAttempts < 5) return true;
-    failed.push(`${error.documentRef.path}: ${error.message}`);
-    return false;
-  });
-  // Each update's promise rejects once onWriteError gives up. The failure is
-  // already in `failed`; waiting on them keeps it from being unhandled.
-  const writes = [];
-  for (const {session, recordings} of items) {
-    writes.push(
-      writer.update(db.collection('sessions').doc(session.id), {
-        series: session.series,
-        eventId: session.eventId,
+// The same writes as backend ops.
+function boundaryOps(boundaries) {
+  const ops = [];
+  const shim = {
+    collection: coll => ({doc: id => ({path: `${coll}/${id}`, coll, id})}),
+  };
+  const writer = {
+    set: (r, data, options) =>
+      ops.push({
+        op: 'set',
+        coll: r.coll,
+        id: r.id,
+        data,
+        merge: options?.merge,
       }),
-    );
-    for (const rec of recordings)
-      writes.push(
-        writer.update(db.collection('recordings').doc(rec.id), {
-          event: rec.event,
-        }),
-      );
-  }
-  await writer.close();
-  await Promise.allSettled(writes);
-  return failed;
+  };
+  writeBoundaries(shim, writer, boundaries);
+  return ops;
 }
 
 // out is what sync.mjs builds: {session, recordings, laps, band, track,
 // traces, files}. track is set only when this session made a new corner map.
-export async function upload(out, {log = () => {}} = {}) {
-  const {db, bucket} = connect();
+async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
+
+  // The field file already in the bucket (the capture is gone after 7 days,
+  // the uploaded file is not). A failure is a log line and null: the next
+  // sync tries again.
+  const readStoredField = async path => {
+    try {
+      const gz = await backend.getFile(path);
+      return gz ? JSON.parse(gunzipSync(gz).toString('utf8')) : null;
+    } catch (e) {
+      log(`  field: could not read the stored one: ${e.message}`);
+      return null;
+    }
+  };
 
   // Re-running analysis (a new analysisVersion) rebuilds the same archive
   // bytes. Skip files the bucket already holds, so only the analysis uploads.
   let sent = 0;
   for (const file of out.files) {
-    if (await sameAsRemote(bucket, file.local, file.dest)) continue;
-    await putFile(
-      bucket,
-      file.local,
+    const local = createHash('md5')
+      .update(readFileSync(file.local))
+      .digest('base64');
+    if ((await backend.fileMd5(file.dest)) === local) continue;
+    await backend.putFile(
       file.dest,
-      'application/vnd.apache.parquet',
+      {localPath: file.local},
+      {contentType: 'application/vnd.apache.parquet'},
     );
     sent++;
   }
   log(`  archive ${sent} of ${out.files.length} files sent`);
 
+  const putGzip = (dest, text, contentType) =>
+    backend.putFile(
+      dest,
+      {body: Buffer.from(text, 'utf8')},
+      {contentType, gzip: true},
+    );
+
   let traces = 0;
   const queue = [...out.traces];
   const workers = Array.from({length: 8}, async () => {
     for (let job = queue.shift(); job; job = queue.shift()) {
-      await putGzip(bucket, job.dest, job.csv(), 'text/csv');
+      await putGzip(job.dest, job.csv(), 'text/csv');
       traces++;
     }
   });
@@ -237,7 +287,6 @@ export async function upload(out, {log = () => {}} = {}) {
 
   if (out.band) {
     await putGzip(
-      bucket,
       session.band.path,
       JSON.stringify(out.band),
       'application/json',
@@ -250,7 +299,6 @@ export async function upload(out, {log = () => {}} = {}) {
     await Promise.all(
       out.slices.files.map(f =>
         putGzip(
-          bucket,
           `${session.slices.prefix}/c${f.n}.json.gz`,
           f.text,
           'application/json',
@@ -261,19 +309,11 @@ export async function upload(out, {log = () => {}} = {}) {
   }
   // The field: a new one replaces the stored one (and its file goes after the
   // doc points at the new one); no new one keeps what is stored (field.mjs).
-  const before = await db.collection('sessions').doc(session.id).get();
-  const kept = fieldAfterSync(
-    session.field,
-    before.exists ? before.get('field') ?? null : null,
-  );
+  const before = await backend.getDoc('sessions', session.id);
+  const kept = fieldAfterSync(session.field, before?.field ?? null);
   session.field = kept.field;
   if (kept.upload) {
-    await putGzip(
-      bucket,
-      session.field.path,
-      out.fieldText,
-      'application/json',
-    );
+    await putGzip(session.field.path, out.fieldText, 'application/json');
   } else if (kept.field) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from
@@ -283,8 +323,8 @@ export async function upload(out, {log = () => {}} = {}) {
     // be written as null for want of the capture.
     let loaded;
     const load = async () =>
-      (loaded ??= await readStoredField(bucket, kept.field.path, log));
-    const stored = before.exists ? before.get('classLaps') ?? null : null;
+      (loaded ??= await readStoredField(kept.field.path));
+    const stored = before?.classLaps ?? null;
     if (classLapsCurrent(stored, session.sessionType)) {
       session.classLaps = stored;
     } else {
@@ -294,7 +334,7 @@ export async function upload(out, {log = () => {}} = {}) {
         : null;
     }
     // The finishing position, kept while it is this version and kind.
-    const storedResult = before.exists ? before.get('result') ?? null : null;
+    const storedResult = before?.result ?? null;
     if (finishCurrent(storedResult, session.sessionType)) {
       session.result = storedResult;
     } else {
@@ -319,54 +359,48 @@ export async function upload(out, {log = () => {}} = {}) {
     })),
   );
 
-  // Every document is checked first (docShape.mjs): one Firestore would refuse
-  // fails this session with the field path, before anything is written.
-  const writer = guardedWriter(db.bulkWriter());
+  const ops = [];
   for (const rec of out.recordings)
-    writer.set(db.collection('recordings').doc(rec.id), rec);
+    ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   for (const lap of out.laps)
-    writer.set(db.collection('laps').doc(lap.id), lap);
-  writer.set(db.collection('sessions').doc(session.id), session);
+    ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
+  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session});
   // Merge: the track doc also holds fields other tools write (the georef,
   // centerline, edges, corner names). A new corner map replaces only its own.
   if (out.track) {
-    writer.set(db.collection('tracks').doc(out.track.id), out.track, {
+    ops.push({
+      op: 'set',
+      coll: 'tracks',
+      id: out.track.id,
+      data: out.track,
       merge: true,
     });
   }
 
   // The layout's corner boundaries, when this session changed them.
-  if (out.boundaries) writeBoundaries(db, writer, out.boundaries);
+  if (out.boundaries) ops.push(...boundaryOps(out.boundaries));
 
   // A re-run can produce fewer laps (a file that was still growing). Drop leftovers.
   const keep = new Set(out.laps.map(lap => lap.id));
-  const existing = await db
-    .collection('laps')
-    .where('sessionId', '==', session.id)
-    .select()
-    .get();
   let dropped = 0;
-  for (const doc of existing.docs) {
-    if (!keep.has(doc.id)) {
-      writer.delete(doc.ref);
+  for (const id of await backend.sessionLapIds(session.id)) {
+    if (!keep.has(id)) {
+      ops.push({op: 'delete', coll: 'laps', id});
       dropped++;
     }
   }
-  await writer.close();
+  await backend.writeDocs(ops);
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.
-  if (kept.deletePath) {
-    await bucket.file(kept.deletePath).delete({ignoreNotFound: true});
-  }
+  if (kept.deletePath) await backend.deleteFile(kept.deletePath);
   // Slice folders of earlier syncs: everything under this session's slices
   // except the current hash.
-  const [old] = await bucket.getFiles({
-    prefix: `slices/${session.ownerId}/${session.id}/`,
-  });
+  const old = await backend.listFiles(
+    `slices/${session.ownerId}/${session.id}/`,
+  );
   const current = session.slices ? `${session.slices.prefix}/` : null;
-  for (const f of old) {
-    if (!current || !f.name.startsWith(current))
-      await f.delete({ignoreNotFound: true});
+  for (const name of old) {
+    if (!current || !name.startsWith(current)) await backend.deleteFile(name);
   }
   log(
     `  firestore 1 session, ${out.recordings.length} recordings, ${
@@ -374,3 +408,47 @@ export async function upload(out, {log = () => {}} = {}) {
     } laps${dropped ? `, dropped ${dropped}` : ''}`,
   );
 }
+
+// The store sync.mjs talks to, over any backend.
+export function createStore(backend) {
+  return {
+    // A track's stored corner map, or null.
+    getTrack: trackId => backend.getDoc('tracks', trackId),
+    // A track's corner boundaries (tools/sessions/layoutBoundaries.mjs),
+    // packed, or null. A doc of its own: it grows with every session of the
+    // layout, and the app reads only the small summary on the track doc.
+    getBoundaries: trackId => backend.getDoc('trackBoundaries', trackId),
+    // The same writes on their own, for the fold pass that runs before any
+    // session is uploaded.
+    putBoundaries: boundaries => backend.writeDocs(boundaryOps(boundaries)),
+    // Which online event each session was, without re-uploading anything
+    // else. update, not set: a session that was never uploaded stays absent.
+    // items: [{session: {id, series, eventId}, recordings: [{id, event}]}]
+    // Returns the writes that failed, as "collection/id: reason".
+    updateEvents(items) {
+      const ops = [];
+      for (const {session, recordings} of items) {
+        ops.push({
+          coll: 'sessions',
+          id: session.id,
+          data: {series: session.series, eventId: session.eventId},
+        });
+        for (const rec of recordings)
+          ops.push({coll: 'recordings', id: rec.id, data: {event: rec.event}});
+      }
+      return backend.updateDocs(ops);
+    },
+    upload: (out, options) => uploadSession(backend, out, options),
+  };
+}
+
+// The PC uploader's store: Admin credentials, connected on first use.
+const admin = () => createStore(adminBackend(connect()));
+
+export const getTrack = trackId => admin().getTrack(trackId);
+export const updateEvents = items => admin().updateEvents(items);
+export const upload = (out, options) => admin().upload(out, options);
+export const getBoundaries = (trackId, db) =>
+  createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
+export const putBoundaries = (boundaries, db) =>
+  createStore(adminBackend({db: db ?? connect().db})).putBoundaries(boundaries);
