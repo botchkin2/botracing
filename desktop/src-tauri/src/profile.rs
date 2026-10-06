@@ -2,6 +2,7 @@
 // real one (apex #189). Walkthroughs of the signed-out first launch, sign-out
 // and the like can be done under a profile without touching a real stored
 // sign-in. Unset (the normal case) every name below is what it always was.
+// Debug builds only: a release build ignores the variable.
 //
 // A profile has its own data folder (%LOCALAPPDATA%\BotRacing-<profile>), its
 // own Credential Manager entry, its own watcher lock, and it is not held to a
@@ -22,8 +23,17 @@ pub fn suffix_of(value: Option<&str>) -> String {
     }
 }
 
+/// Only a debug build reads the variable: a profile skips the single-instance
+/// hold, so an installed (release) tray must never honour one (marshal #196).
 fn suffix() -> String {
-    suffix_of(std::env::var("BOTRACING_PROFILE").ok().as_deref())
+    #[cfg(debug_assertions)]
+    {
+        suffix_of(std::env::var("BOTRACING_PROFILE").ok().as_deref())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        String::new()
+    }
 }
 
 /// True for the normal, real tray.
