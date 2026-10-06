@@ -52,9 +52,14 @@ fn start_sign_in(account: Shared<account::Account>) {
 
 fn main() {
     tauri::Builder::default()
-        // A second launch ends at once: two watchers would fight over the
-        // same telemetry and the same state.
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        // A second launch ends at once (two watchers would fight over the
+        // same telemetry and state) and shows the BotRacing window instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let _ = window::open(&app);
+            });
+        }))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));

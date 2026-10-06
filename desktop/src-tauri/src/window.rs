@@ -10,15 +10,22 @@
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
-pub const WEB_APP: &str = "https://botracing-61.web.app";
+/// The hosts the BotRacing web app is served from; the first is the one the
+/// window opens. Add the custom domain here when it lands: a host not in this
+/// list is treated as an outside link.
+pub const APP_HOSTS: &[&str] = &["botracing-61.web.app"];
 const LABEL: &str = "app";
 
-/// True only for the BotRacing origin itself: https, that host, the default
-/// port, and no `user@` in front (`https://botracing-61.web.app@evil.example`
-/// is a request to evil.example).
+/// True only for a BotRacing origin itself: https, exactly one of the hosts,
+/// the default port, and no `user@` in front
+/// (`https://botracing-61.web.app@evil.example` is a request to evil.example).
 pub fn is_app_url(url: &Url) -> bool {
+    is_app_url_in(url, APP_HOSTS)
+}
+
+fn is_app_url_in(url: &Url, hosts: &[&str]) -> bool {
     url.scheme() == "https"
-        && url.host_str() == Some("botracing-61.web.app")
+        && url.host_str().is_some_and(|host| hosts.contains(&host))
         && url.port().is_none()
         && url.username().is_empty()
         && url.password().is_none()
@@ -54,7 +61,9 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         let _ = window.set_focus();
         return Ok(());
     }
-    let url = WEB_APP.parse::<Url>().map_err(|e| e.to_string())?;
+    let url = format!("https://{}", APP_HOSTS[0])
+        .parse::<Url>()
+        .map_err(|e| e.to_string())?;
     WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(url))
         .title("BotRacing")
         .inner_size(1200.0, 800.0)
@@ -100,6 +109,30 @@ mod tests {
         ] {
             assert!(!is_app_url(&url(bad)), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_second_host_in_the_list_is_the_app_and_lookalikes_still_are_not() {
+        let hosts = ["botracing-61.web.app", "botracing.example"];
+        assert!(is_app_url_in(&url("https://botracing.example/x"), &hosts));
+        assert!(is_app_url_in(&url("https://botracing-61.web.app/"), &hosts));
+        assert!(!is_app_url_in(
+            &url("https://botracing.example.evil.test/"),
+            &hosts
+        ));
+        assert!(!is_app_url_in(
+            &url("https://sub.botracing.example/"),
+            &hosts
+        ));
+        assert!(!is_app_url_in(
+            &url("https://botracing.example@evil.test/"),
+            &hosts
+        ));
+        assert!(!is_app_url_in(&url("http://botracing.example/"), &hosts));
+        assert!(
+            !APP_HOSTS.is_empty(),
+            "the window needs a first host to open"
+        );
     }
 
     #[test]
