@@ -92,7 +92,7 @@ const isServiceAccount = member => member.startsWith('serviceAccount:');
  * Google can act as them. Listed as ok, not warned about, and never touched.
  */
 export const isGoogleManaged = member =>
-  /^serviceAccount:(service-\d+@|\d+@cloudservices\.gserviceaccount\.com$)/.test(
+  /^serviceAccount:(service-\d+@|\d+@(cloudservices|cloudbuild)\.gserviceaccount\.com$)/.test(
     member,
   );
 const emailOf = member => member.replace(/^[a-z]+:/i, '');
@@ -260,10 +260,23 @@ export function evaluate(state, config = CONFIG) {
     if (found.size) holders.set(member, [...found].sort());
   }
   for (const [member, perms] of holders) {
-    const text = `${emailOf(member)} can: ${perms
-      .map(p => FORBIDDEN[p])
-      .join('; ')}`;
-    if (isGoogleManaged(member))
+    // The bucket's legacy convenience members are groups, not people: every
+    // project Owner / Editor / Viewer, which includes service accounts.
+    const convenience = member.match(/^project(Owner|Editor|Viewer):/);
+    const who = convenience
+      ? `every project ${convenience[1]} (bucket convenience binding)`
+      : emailOf(member);
+    const text = `${who} can: ${perms.map(p => FORBIDDEN[p]).join('; ')}`;
+    if (convenience)
+      add(
+        convenience[1] === 'Owner' ? 'ok' : 'warn',
+        `${text}${
+          convenience[1] === 'Owner'
+            ? ''
+            : ' (includes the compute and deploy accounts until step 5 and 6)'
+        }`,
+      );
+    else if (isGoogleManaged(member))
       add('ok', `${text} (Google-managed: leave alone)`);
     else if (isServiceAccount(member)) {
       if (defaults.includes(member) || member === runtime) fail(text);

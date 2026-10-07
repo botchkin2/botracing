@@ -438,3 +438,33 @@ test('a storage.admin granted on the bucket alone shows up in who can change the
     /warn +extra@.* can: delete the bucket; turn off the bucket's soft delete/,
   );
 });
+
+test("the bucket's convenience members are groups, not people: Owner is ok, Editor warns that it includes the service accounts", () => {
+  const r = run({
+    members: AFTER,
+    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    bucketExtra: {
+      'projectOwner:botracing-61': ['roles/storage.admin'],
+      'projectEditor:botracing-61': ['roles/storage.admin'],
+    },
+  });
+  assert.match(
+    r.text,
+    /ok +every project Owner \(bucket convenience binding\) can: /,
+  );
+  assert.match(
+    r.text,
+    /warn +every project Editor \(bucket convenience binding\) can: .*includes the compute and deploy accounts/,
+  );
+  assert.doesNotMatch(r.text, /botracing-61 can: .*\(a person\)/);
+});
+
+test('the legacy Cloud Build agent is Google-managed too, and its keys are not listed', () => {
+  const build = `${NUMBER}@cloudbuild.gserviceaccount.com`;
+  const r = run({
+    members: {...AFTER, [sa(build)]: ['roles/cloudbuild.builds.builder']},
+    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+  });
+  assert.ok(!r.calls.some(c => c.join(' ').includes(`--iam-account=${build}`)));
+  assert.doesNotMatch(r.text, /keys could not be listed/);
+});

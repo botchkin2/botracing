@@ -123,3 +123,7 @@ From whatever broad role it holds to what a deploy needs: Firebase Hosting admin
 The audit has run for real once, read-only, against `botracing-61` (apex, and steward in PR 305): the readers work (`serviceConfig.serviceAccountEmail`, `projectNumber`, `includedPermissions`, `functions list --v2` finds both functions), and the functions' source needs only Firestore, one bucket's objects and `getSignedUrl`, so step 1's four grants are the complete set. Its output today is NOT done: Editor on the default compute and App Engine accounts, both functions running as the compute account.
 
 Not verified: the key listing and the bucket-policy fold-in (added after that run; tested on fixtures, 12 tests), the policy-troubleshoot command form in step 4, whether this project's builds run as the default compute account (step 5), and every grant, switch and revoke (nothing has been applied).
+
+## The bucket's legacy convenience members
+
+`projectOwner:botracing-61` and `projectEditor:botracing-61` on the bucket are groups, not people: every project Owner (people) and every project Editor, which includes the compute and App Engine accounts and the CI deploy account. They let any Editor reach the bucket's settings (soft delete, who can use it). The audit prints them as `every project Owner/Editor (bucket convenience binding)` and warns on the Editor one. Step 5 takes the default accounts out of that group; step 6 does the same for the deploy account.
