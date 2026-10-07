@@ -110,6 +110,16 @@ From whatever broad role it holds to what a deploy needs: Firebase Hosting admin
 - Until step 6 the CI deploy account can still change IAM and delete backups.
 - It does not check conditional IAM bindings (the audit lists them as a warning).
 
-## What was not verified when this was written
+## Leave the Google-managed accounts alone
 
-Nothing here has run against the project: `gcloud` is not installed on the machine this was written on, so the audit has run only against fakes (`node --test ops/iam/iam.test.mjs`, 9 tests: the project before, in the middle and after the split, a runtime account that holds Editor, unreadable calls, and that every gcloud call it makes is a read). Still to be confirmed by the first real run: the field names in `gcloud ... --format=json` (`serviceConfig.serviceAccountEmail` for second-generation functions, `includedPermissions` on a role, the project number), that `gcloud functions list --v2` lists `lmuApi` and `uploadApi` (it lists one region per row; the audit does not filter by region), whether `roles/datastore.user` and `roles/storage.objectAdmin` really lack the permissions in the audit's forbidden list (the audit reads them from the roles, so it will say), and the `--impersonate-service-account` forms.
+`<number>@cloudservices.gserviceaccount.com` (needs Editor: removing it breaks Google's own operations) and every `service-<number>@...` agent (`gcf-admin-robot`, `serverless-robot-prod`, `gcp-sa-firebase`, ...) are Google's. They have no keys and nothing outside Google can act as them. The audit prints them as `ok (Google-managed: leave alone)` and never lists keys for them; do not edit their roles.
+
+## Admin SDK scripts run as a person, never with a key
+
+`firebase-adminsdk-fbsvc@...` can delete the bucket and turn off soft delete, but it has **no user-managed keys** (steward's check), so nothing outside Google can act as it. Keep it that way: Admin SDK scripts (`tools/sessions/store.mjs`, `ops/*`) use `gcloud auth application-default login` as a person. The audit lists user-managed keys for every non-Google account (`gcloud iam service-accounts keys list --managed-by=user`, a read), so a new key shows up as a warning. Revoking Editor in step 5 does **not** stop an old Admin writer that uses a person's credentials: find any such writer (the PC's old logon-task uploader) before step 5.
+
+## What was verified and what was not
+
+The audit has run for real once, read-only, against `botracing-61` (apex, and steward in PR 305): the readers work (`serviceConfig.serviceAccountEmail`, `projectNumber`, `includedPermissions`, `functions list --v2` finds both functions), and the functions' source needs only Firestore, one bucket's objects and `getSignedUrl`, so step 1's four grants are the complete set. Its output today is NOT done: Editor on the default compute and App Engine accounts, both functions running as the compute account.
+
+Not verified: the key listing and the bucket-policy fold-in (added after that run; tested on fixtures, 12 tests), the policy-troubleshoot command form in step 4, whether this project's builds run as the default compute account (step 5), and every grant, switch and revoke (nothing has been applied).

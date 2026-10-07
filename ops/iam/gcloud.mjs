@@ -4,6 +4,7 @@
 import {gcloudRunner} from '../backups/gcloud.mjs';
 import {
   CONFIG,
+  isGoogleManaged,
   permissionsOf,
   readFunctions,
   readPolicy,
@@ -80,11 +81,36 @@ export function gatherState(run, config = CONFIG, {deployAccount = null} = {}) {
     ),
   );
 
+  // User-managed keys of every account that is not Google's own (a read).
+  const keys = new Map();
+  for (const member of policy.roles.keys()) {
+    if (!member.startsWith('serviceAccount:') || isGoogleManaged(member))
+      continue;
+    const email = member.replace('serviceAccount:', '');
+    keys.set(
+      email,
+      attempt(
+        () =>
+          run([
+            'iam',
+            'service-accounts',
+            'keys',
+            'list',
+            `--iam-account=${email}`,
+            '--managed-by=user',
+            `--project=${project}`,
+            '--format=json',
+          ]) ?? [],
+        message => (note(`keys list ${email}`, message), null),
+      ),
+    );
+  }
+
   // The real permissions of every role anyone holds, so "who can delete a
   // backup" is read from the roles themselves, not from a list of names.
   const rolesHeld = new Set();
-  for (const held of policy.roles.values())
-    for (const r of held) rolesHeld.add(r);
+  for (const source of [policy.roles, bucketPolicy.roles])
+    for (const held of source.values()) for (const r of held) rolesHeld.add(r);
   const rolePermissions = new Map();
   for (const role of rolesHeld) {
     const args = role.startsWith('projects/')
@@ -112,6 +138,7 @@ export function gatherState(run, config = CONFIG, {deployAccount = null} = {}) {
     rolePermissions,
     runtimeExists,
     bucketPolicy,
+    keys,
     deployAccount,
     notes,
   };

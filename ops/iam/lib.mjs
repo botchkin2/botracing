@@ -86,6 +86,15 @@ export function permissionsOf(json) {
 }
 
 const isServiceAccount = member => member.startsWith('serviceAccount:');
+/**
+ * Google's own service agents (service-<number>@..., and the cloudservices
+ * account): Google needs their roles, they have no keys, and nothing outside
+ * Google can act as them. Listed as ok, not warned about, and never touched.
+ */
+export const isGoogleManaged = member =>
+  /^serviceAccount:(service-\d+@|\d+@cloudservices\.gserviceaccount\.com$)/.test(
+    member,
+  );
 const emailOf = member => member.replace(/^[a-z]+:/i, '');
 const broad = role => role === 'roles/owner' || role === 'roles/editor';
 
@@ -134,7 +143,14 @@ export function evaluate(state, config = CONFIG) {
     if (!isServiceAccount(member)) continue;
     const big = [...held].filter(broad);
     const isDefault = defaults.includes(member);
-    if (big.length && isDefault)
+    if (big.length && isGoogleManaged(member))
+      add(
+        'ok',
+        `${emailOf(member)} has ${big.join(
+          ', ',
+        )} (Google-managed: leave alone)`,
+      );
+    else if (big.length && isDefault)
       fail(
         `${emailOf(member)} (a default account) still has ${big.join(', ')}`,
       );
@@ -222,7 +238,16 @@ export function evaluate(state, config = CONFIG) {
   const forbidden = Object.keys(FORBIDDEN);
   const unknownRoles = new Set();
   const holders = new Map();
-  for (const [member, held] of roles) {
+  // Project roles and the bucket's own roles together: a storage.admin on the
+  // bucket for anyone shows here too.
+  const everyRole = new Map();
+  for (const source of [roles, state.bucketPolicy?.roles ?? new Map()])
+    for (const [member, held] of source)
+      everyRole.set(
+        member,
+        new Set([...(everyRole.get(member) ?? []), ...held]),
+      );
+  for (const [member, held] of everyRole) {
     const found = new Set();
     for (const role of held) {
       const perms = state.rolePermissions?.get(role);
@@ -238,7 +263,9 @@ export function evaluate(state, config = CONFIG) {
     const text = `${emailOf(member)} can: ${perms
       .map(p => FORBIDDEN[p])
       .join('; ')}`;
-    if (isServiceAccount(member)) {
+    if (isGoogleManaged(member))
+      add('ok', `${text} (Google-managed: leave alone)`);
+    else if (isServiceAccount(member)) {
       if (defaults.includes(member) || member === runtime) fail(text);
       else add('warn', text);
     } else add('ok', `${text} (a person)`);
@@ -260,6 +287,26 @@ export function evaluate(state, config = CONFIG) {
         ', ',
       )}: conditions are not evaluated here`,
     );
+
+  // Long-lived keys: a key is a password that works from anywhere.
+  add('ok', '-- user-managed keys on service accounts --');
+  for (const member of roles.keys()) {
+    if (!isServiceAccount(member) || isGoogleManaged(member)) continue;
+    const keys = state.keys?.get(emailOf(member));
+    if (keys === undefined || keys === null)
+      add('?', `${emailOf(member)}: its keys could not be listed`);
+    else if (!keys.length)
+      add('ok', `${emailOf(member)} has no user-managed keys`);
+    else
+      add(
+        'warn',
+        `${emailOf(member)} has ${keys.length} user-managed key(s)${keys
+          .map(k => k.validAfterTime)
+          .filter(Boolean)
+          .map(t => ` (created ${t})`)
+          .join('')}`,
+      );
+  }
 
   // 5. The CI deploy account, when named.
   if (state.deployAccount) {

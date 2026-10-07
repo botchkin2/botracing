@@ -45,6 +45,11 @@ const PERMS = {
     'storage.objects.delete',
     'storage.objects.create',
   ],
+  'roles/storage.admin': [
+    'storage.buckets.update',
+    'storage.buckets.delete',
+    'storage.objects.delete',
+  ],
   'roles/iam.serviceAccountUser': ['iam.serviceAccounts.actAs'],
   'roles/firebasehosting.admin': ['firebasehosting.sites.update'],
 };
@@ -83,6 +88,8 @@ const fn = (name, email) => ({
 });
 
 function fakeRun({
+  keys = {},
+  bucketExtra = {},
   members,
   runAs,
   runtimeExists = true,
@@ -104,14 +111,25 @@ function fakeRun({
         fn('uploadApi', runAs.uploadApi),
         fn('other', COMPUTE),
       ];
+    if (
+      args[0] === 'iam' &&
+      args[1] === 'service-accounts' &&
+      args[2] === 'keys'
+    ) {
+      const email = args
+        .find(a => a.startsWith('--iam-account='))
+        .split('=')[1];
+      return keys[email] ?? [];
+    }
     if (args[0] === 'iam' && args[1] === 'service-accounts')
       return runtimeExists
         ? [{email: RUNTIME}, {email: COMPUTE}]
         : [{email: COMPUTE}];
     if (args[0] === 'storage')
-      return bucketGrant
-        ? policy({[sa(RUNTIME)]: ['roles/storage.objectAdmin']})
-        : policy({});
+      return policy({
+        ...(bucketGrant ? {[sa(RUNTIME)]: ['roles/storage.objectAdmin']} : {}),
+        ...bucketExtra,
+      });
     if (args[0] === 'iam' && args[1] === 'roles') {
       const role = args[3].startsWith('roles/')
         ? args[3]
@@ -354,4 +372,69 @@ test('arguments', () => {
   });
   assert.throws(() => parseArgs(['--deploy-account']), /needs an email/);
   assert.throws(() => parseArgs(['--apply']), /unknown option/);
+});
+
+test('Google-managed service agents are ok, not warnings, and are never asked for keys', () => {
+  const agent = `service-${NUMBER}@gcp-sa-firebase.iam.gserviceaccount.com`;
+  const cloudservices = `${NUMBER}@cloudservices.gserviceaccount.com`;
+  const members = {
+    ...AFTER,
+    [sa(agent)]: ['roles/editor'],
+    [sa(cloudservices)]: ['roles/editor'],
+  };
+  const r = run({members, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}});
+  assert.equal(r.result.ok, true, r.text);
+  assert.ok(
+    r.text.includes(
+      `${cloudservices} has roles/editor (Google-managed: leave alone)`,
+    ),
+    r.text,
+  );
+  assert.match(
+    r.text,
+    /ok +service-\d+@gcp-sa-firebase.* can: .*\(Google-managed: leave alone\)/,
+  );
+  assert.doesNotMatch(r.text, /warn +service-/);
+  assert.ok(
+    !r.calls.some(c => c.join(' ').includes(`--iam-account=${agent}`)),
+    'no key listing for a Google agent',
+  );
+});
+
+test('user-managed keys are listed: none is ok, one is a warning with its date, an unreadable listing says so', () => {
+  const key = {validAfterTime: '2026-01-28T00:00:00Z'};
+  const r = run({
+    members: AFTER,
+    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    keys: {[DEPLOY]: [key]},
+  });
+  assert.match(
+    r.text,
+    /warn +github-deploy@.* has 1 user-managed key\(s\) \(created 2026-01-28T00:00:00Z\)/,
+  );
+  assert.ok(r.text.includes(`${RUNTIME} has no user-managed keys`), r.text);
+  const base = fakeRun({
+    members: AFTER,
+    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+  });
+  const flaky = args => {
+    if (args.includes('keys')) throw new Error('PERMISSION_DENIED');
+    return base.run(args);
+  };
+  const lines = [];
+  audit({run: flaky, log: l => lines.push(l)});
+  assert.match(lines.join('\n'), /\? +.*: its keys could not be listed/);
+});
+
+test('a storage.admin granted on the bucket alone shows up in who can change the bucket', () => {
+  const other = 'extra@botracing-61.iam.gserviceaccount.com';
+  const r = run({
+    members: {...AFTER, [sa(other)]: ['roles/logging.logWriter']},
+    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    bucketExtra: {[sa(other)]: ['roles/storage.admin']},
+  });
+  assert.match(
+    r.text,
+    /warn +extra@.* can: delete the bucket; turn off the bucket's soft delete/,
+  );
 });
