@@ -112,15 +112,11 @@ test(
   },
 );
 
-test(
-  'nothing new: the next tick runs no sync',
-  {skip: !windows},
-  () => {
-    const beats = tick('crash'); // would crash if a sync ran
-    assert.ok(!beats.some(b => b.state === 'syncing'));
-    assert.equal(beats[beats.length - 1].state, 'waiting-for-game');
-  },
-);
+test('nothing new: the next tick runs no sync', {skip: !windows}, () => {
+  const beats = tick('crash'); // would crash if a sync ran
+  assert.ok(!beats.some(b => b.state === 'syncing'));
+  assert.equal(beats[beats.length - 1].state, 'waiting-for-game');
+});
 
 test(
   'a sync that crashes before its closing line shows "sync crashed" and waits',
@@ -174,5 +170,62 @@ test(
     const settled = readState();
     assert.equal(settled.retryAtMs, null);
     assert.equal(settled.failuresInRow, 0);
+  },
+);
+
+test(
+  'under the tray (a token file) the status also goes to the server: bearer token, no owner in the body, a 429 is survived',
+  {skip: !windows},
+  async () => {
+    const {createServer} = await import('node:http');
+    const {spawn} = await import('node:child_process');
+    const posts = [];
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', c => (body += c));
+      req.on('end', () => {
+        posts.push({
+          url: req.url,
+          auth: req.headers.authorization,
+          body: JSON.parse(body),
+        });
+        res.writeHead(posts.length === 1 ? 429 : 204, {'retry-after': '1'});
+        res.end();
+      });
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const tokenFile = resolve(root, 'token');
+    writeFileSync(tokenFile, 'tok-e2e\n');
+    writeFileSync(beatsPath, '');
+    const state = readState();
+    writeFileSync(
+      statePath,
+      JSON.stringify({...state, lastRunAtMs: 0, retryAtMs: null}),
+    );
+    const child = spawn(process.execPath, [watch, '--once'], {
+      env: {
+        ...process.env,
+        LOCALAPPDATA: local,
+        LMU_TELEMETRY: telemetry,
+        LAP_SYNC_SCRIPT: syncPath,
+        LAP_HEARTBEAT_FILE: beatsPath,
+        LAP_TOKEN_FILE: tokenFile,
+        LAP_API: `http://127.0.0.1:${server.address().port}/api/upload`,
+        LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-e2e-http-${process.pid}`,
+        LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+        FAKE_SYNC: 'ok',
+      },
+      stdio: 'ignore',
+    });
+    const code = await new Promise(r => child.on('close', r));
+    server.close();
+    assert.equal(code, 0);
+    assert.ok(posts.length >= 1, 'a status was posted');
+    assert.equal(posts[0].url, '/api/upload/heartbeat');
+    assert.equal(posts[0].auth, 'Bearer tok-e2e');
+    assert.equal(posts[0].body.state, 'syncing');
+    assert.equal('ownerId' in posts[0].body, false);
+    assert.equal('lastSeenAt' in posts[0].body, false);
+    assert.match(posts[0].body.hostId, /^[0-9a-f]{8}$/);
   },
 );
