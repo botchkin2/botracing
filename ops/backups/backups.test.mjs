@@ -883,3 +883,49 @@ test('whileRestoring: only a restoring error is retried, and only so long', asyn
   );
   assert.equal(calls, 5);
 });
+
+test('drill: delete protection is switched off on the scratch database only, before the delete', async () => {
+  for (const database of [null, 'drill-20261007-0329']) {
+    const run = fakeRun(DRILL_TABLE);
+    const dbs = fakeDbs({
+      live: GOOD_LIVE,
+      restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+      sessions: SNAP_SESSIONS,
+    });
+    await runDrill({run, ...dbs, now: new Date(NOW), database, log: () => {}});
+    const updates = run.log.filter(
+      a => a[1] === 'databases' && a[2] === 'update',
+    );
+    assert.equal(updates.length, 1);
+    assert.ok(updates[0].includes('--no-delete-protection'));
+    assert.match(
+      updates[0].find(x => x.startsWith('--database=')),
+      /^--database=drill-[0-9]{8}-[0-9]{4}$/,
+    );
+    const names = run.log.map(a => a[2]);
+    assert.ok(names.indexOf('update') < names.indexOf('delete'));
+    // Nothing anywhere names the production database for a write.
+    assert.equal(
+      run.log.some(
+        a =>
+          ['update', 'delete'].includes(a[2]) &&
+          a.some(x => x === '--database=(default)'),
+      ),
+      false,
+    );
+  }
+});
+
+test('drill --keep leaves delete protection alone too', async () => {
+  const run = fakeRun(DRILL_TABLE);
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  await runDrill({run, ...dbs, now: new Date(NOW), keep: true, log: () => {}});
+  assert.equal(
+    run.log.some(a => a[2] === 'update'),
+    false,
+  );
+});

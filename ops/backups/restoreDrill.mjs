@@ -189,6 +189,19 @@ export async function runDrill({
     } else {
       try {
         // After the compare (or a failure): wait out a restore still running.
+        // A restored database inherits delete protection; switch it off on
+        // the scratch database only (assertScratch ran above, and again here).
+        assertScratch(scratch, config);
+        await wait(() =>
+          run([
+            'firestore',
+            'databases',
+            'update',
+            `--database=${scratch}`,
+            '--no-delete-protection',
+            `--project=${config.project}`,
+          ]),
+        );
         await wait(() =>
           run([
             'firestore',
