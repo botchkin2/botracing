@@ -77,6 +77,24 @@ export function pathInsideOwner(
   return segments[0] === FOLDER[kind] && segments[1] === owner ? path : null;
 }
 
+/**
+ * The uploader status docs a person may see: only their own (the tray writes
+ * them through the upload endpoint with the owner stamped from its token), and
+ * without the server's bookkeeping. A doc with no ownerId (the old
+ * Admin-written ones) is shown to nobody: it ages out.
+ */
+export function uploaderItems(
+  owner: string,
+  docs: {id: string; data: Record<string, unknown>}[],
+): Record<string, unknown>[] {
+  return docs
+    .filter(({data}) => data.ownerId === owner)
+    .map(({id, data}) => {
+      const {ownerId: _owner, serverUpdatedAt: _stamp, ...visible} = data;
+      return {...visible, hostId: data.hostId ?? id};
+    });
+}
+
 // Track docs: the legacy owner's are shared and written by tools on this PC,
 // so their paths stand. Anyone else's track doc is user-written, and the
 // surface and outline folders are not per-owner yet: those paths are ignored.
