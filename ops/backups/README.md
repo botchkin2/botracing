@@ -28,9 +28,10 @@ Safe to re-run. A step whose current state could not be read is refused (a secon
 gcloud auth application-default login
 node ops/backups/restoreDrill.mjs            # newest backup -> scratch database -> counts -> delete the scratch
 node ops/backups/restoreDrill.mjs --files    # also: write, delete, restore and read back one object under backup-drill/
+node ops/backups/restoreDrill.mjs --database drill-YYYYMMDD-HHMM   # no restore: compare a scratch database an earlier run left behind
 ```
 
-Production is only read. The restored copy must hold at least what the live database says existed when the backup was taken (sessions last written before the snapshot, with their laps and recordings) and no more than live now, so uploads during the drill do not make it flake. It exits 1 on any failure; `--keep` leaves the scratch database (it is billed: delete it).
+Production is only read. The restored copy must hold at least what the live database says existed when the backup was taken (sessions last written before the snapshot, with their laps and recordings) and no more than live now, so uploads during the drill do not make it flake. A restore takes minutes and the new database refuses reads and deletes until it finishes, so the drill waits (up to 45 minutes) before counting, and deletes the scratch database only after the compare. `--database` skips the restore and compares an existing `drill-...` database (it must come from the newest backup), then deletes it unless `--keep`. It exits 1 on any failure; `--keep` leaves the scratch database (it is billed: delete it).
 
 ## Check every day
 

@@ -17,9 +17,11 @@ import {
 } from './lib.mjs';
 import {
   assertScratch,
+  isRestoring,
   parseArgs as parseDrill,
   runDrill,
   runFileDrill,
+  whileRestoring,
 } from './restoreDrill.mjs';
 import {parseDu, showStatus} from './status.mjs';
 
@@ -473,7 +475,13 @@ test('the command lines accept only their own options', () => {
   assert.deepEqual(parseDrill(['--files', '--keep']), {
     files: true,
     keep: true,
+    database: null,
   });
+  assert.equal(
+    parseDrill(['--database', 'drill-20261007-0329']).database,
+    'drill-20261007-0329',
+  );
+  assert.throws(() => parseDrill(['--database']), /needs a name/);
   assert.throws(() => parseDrill(['--force']), /unknown option/);
 });
 
@@ -722,4 +730,156 @@ test('file drill: an object that never shows as soft-deleted fails the drill and
   assert.equal(result.pass, false);
   assert.equal(calls.at(-1), 'rm');
   assert.equal(calls.includes('restore'), false);
+});
+
+// -- waiting for the restore (apex: the real run died on FAILED_PRECONDITION) ----
+
+const RESTORING = Object.assign(
+  new Error('9 FAILED_PRECONDITION: database is undergoing a restore'),
+  {code: 9},
+);
+
+/** A scratch database that refuses reads and deletes for the first N calls. */
+function restoringDbs(busyReads, events) {
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  let reads = 0;
+  const good = dbs.openRestored();
+  dbs.openRestored = () => ({
+    collection: name => ({
+      count: () => ({
+        get: async () => {
+          events.push('read');
+          if (reads++ < busyReads) throw RESTORING;
+          return good.collection(name).count().get();
+        },
+      }),
+    }),
+  });
+  return dbs;
+}
+
+test('drill: waits out the restore before counting, and deletes only after the compare', async () => {
+  const events = [];
+  const run = fakeRun(DRILL_TABLE);
+  const inner = run;
+  const traced = args => (events.push(args[2]), inner(args));
+  traced.log = run.log;
+  const dbs = restoringDbs(3, events);
+  const sleeps = [];
+  const result = await runDrill({
+    run: traced,
+    ...dbs,
+    now: new Date(NOW),
+    sleep: async ms => sleeps.push(ms),
+    intervalMs: 10,
+    maxMs: 1000,
+    log: () => {},
+  });
+  assert.equal(result.pass, true);
+  assert.equal(sleeps.length, 3, 'slept once per refused read');
+  const firstGoodRead = events.indexOf('read', events.indexOf('restore'));
+  assert.ok(events.indexOf('restore') < firstGoodRead);
+  assert.ok(events.lastIndexOf('read') < events.indexOf('delete'));
+});
+
+test('drill: a delete refused while still restoring is retried, not abandoned', async () => {
+  let refused = 2;
+  const run = fakeRun({
+    ...DRILL_TABLE,
+    'firestore databases delete': () => {
+      if (refused-- > 0) throw RESTORING;
+      return '';
+    },
+  });
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  const lines = [];
+  await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    sleep: async () => {},
+    intervalMs: 10,
+    maxMs: 1000,
+    log: l => lines.push(l),
+  });
+  assert.equal(run.log.filter(a => a[2] === 'delete').length, 3);
+  assert.match(lines.join(' | '), /Deleted scratch database/);
+});
+
+test('drill --database: compares an existing scratch database, restores nothing, then deletes it', async () => {
+  const run = fakeRun(DRILL_TABLE);
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  const result = await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    database: 'drill-20261007-0329',
+    log: () => {},
+  });
+  assert.equal(result.pass, true);
+  assert.equal(
+    run.log.some(a => a[2] === 'restore'),
+    false,
+  );
+  const del = run.log.find(a => a[2] === 'delete');
+  assert.ok(del.includes('--database=drill-20261007-0329'));
+});
+
+test('drill --database refuses anything that is not a drill database', async () => {
+  for (const database of ['(default)', 'prod', 'drill-1']) {
+    const run = fakeRun(DRILL_TABLE);
+    const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
+    await assert.rejects(
+      runDrill({run, ...dbs, now: new Date(NOW), database, log: () => {}}),
+      /not a drill database/,
+    );
+    assert.equal(
+      run.log.some(a => a[2] === 'delete'),
+      false,
+    );
+  }
+});
+
+test('whileRestoring: only a restoring error is retried, and only so long', async () => {
+  assert.equal(isRestoring(RESTORING), true);
+  assert.equal(isRestoring(new Error('permission denied')), false);
+  await assert.rejects(
+    whileRestoring(
+      async () => {
+        throw new Error('permission denied');
+      },
+      {
+        sleep: async () => {},
+      },
+    ),
+    /permission denied/,
+  );
+  let calls = 0;
+  await assert.rejects(
+    whileRestoring(
+      async () => {
+        calls++;
+        throw RESTORING;
+      },
+      {
+        sleep: async () => {},
+        intervalMs: 10,
+        maxMs: 50,
+      },
+    ),
+    /undergoing a restore/,
+  );
+  assert.equal(calls, 5);
 });
