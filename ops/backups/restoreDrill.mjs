@@ -8,6 +8,14 @@
 //                                                       tiny object under backup-drill/
 //   node ops/backups/restoreDrill.mjs --keep            leave the scratch database
 //                                                       for inspection (delete it yourself)
+//   node ops/backups/restoreDrill.mjs --database drill-YYYYMMDD-HHMM
+//                                                       do not restore: compare an
+//                                                       already-restored scratch database
+//                                                       (e.g. one a failed run left behind)
+//
+// A restore takes minutes and the new database refuses reads and deletes while
+// it runs (FAILED_PRECONDITION "undergoing a restore"), so the drill waits for it
+// to finish before counting, and deletes the scratch database only afterwards.
 //
 // Needs `gcloud auth login` and `gcloud auth application-default login` as an
 // owner of the project. Exit 0 only when every check passes.
@@ -26,10 +34,54 @@ import {
 } from './lib.mjs';
 
 export function parseArgs(argv) {
-  const known = new Set(['--files', '--keep']);
-  for (const a of argv)
-    if (!known.has(a)) throw new Error(`unknown option: ${a}`);
-  return {files: argv.includes('--files'), keep: argv.includes('--keep')};
+  const out = {files: false, keep: false, database: null};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--files') out.files = true;
+    else if (a === '--keep') out.keep = true;
+    else if (a === '--database') {
+      const v = argv[++i];
+      if (!v || v.startsWith('--')) throw new Error('--database needs a name');
+      out.database = v;
+    } else throw new Error(`unknown option: ${a}`);
+  }
+  return out;
+}
+
+/**
+ * Firestore's wording for a database that is still being restored. Other
+ * FAILED_PRECONDITIONs (delete protection, a missing index) are real errors
+ * and must not be waited on.
+ */
+export const isRestoring = error =>
+  /undergoing a restore/i.test(String(error?.message ?? error));
+
+const WAIT = {intervalMs: 15_000, maxMs: 45 * 60_000};
+const realSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Runs fn() until it stops failing with "still restoring"; any other error is
+ * thrown at once, and so is the last one after maxMs.
+ */
+export async function whileRestoring(
+  fn,
+  {
+    sleep = realSleep,
+    intervalMs = WAIT.intervalMs,
+    maxMs = WAIT.maxMs,
+    onWait,
+  } = {},
+) {
+  const attempts = Math.max(1, Math.ceil(maxMs / intervalMs));
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!isRestoring(error) || i >= attempts) throw error;
+      onWait?.(i);
+      await sleep(intervalMs);
+    }
+  }
 }
 
 const countOf = async (db, name) =>
@@ -54,8 +106,19 @@ export async function runDrill({
   config = CONFIG,
   now = new Date(),
   keep = false,
+  database = null,
+  sleep,
+  intervalMs,
+  maxMs,
   log = console.log,
 }) {
+  const wait = fn =>
+    whileRestoring(fn, {
+      sleep,
+      intervalMs,
+      maxMs,
+      onWait: i => i % 4 === 1 && log('  still restoring, waiting...'),
+    });
   const state = gatherState(run, config);
   const backup = state.backups.items.find(b => b.state === 'READY');
   if (!backup) {
@@ -77,27 +140,56 @@ export async function runDrill({
     return {pass: false, reason: 'backup too old'};
   }
 
-  const scratch = scratchName(now);
+  const scratch = database ?? scratchName(now);
   assertScratch(scratch, config);
-  log(
-    `Restoring into scratch database '${scratch}' (production is not written)...`,
-  );
-  let result;
-  try {
-    run([
+  if (database) {
+    // The lower bounds come from the newest backup, so the database must too.
+    const info = run([
       'firestore',
       'databases',
-      'restore',
-      `--source-backup=${backup.name}`,
-      `--destination-database=${scratch}`,
+      'describe',
+      `--database=${scratch}`,
       `--project=${config.project}`,
+      '--format=json',
     ]);
+    const source = info?.sourceInfo?.backup?.backup;
+    if (!source || source.split('/').pop() !== backup.name.split('/').pop()) {
+      log(
+        `FAIL '${scratch}' was not restored from the newest backup (it says: ${
+          source ?? 'no source backup'
+        }; newest: ${backup.name}). Not comparing, not deleting it.`,
+      );
+      return {pass: false, reason: 'wrong source backup', scratch, backup};
+    }
+  }
+  let result;
+  try {
+    if (database) {
+      log(
+        `Using the already-restored database '${scratch}' (no restore started; it must come from the backup above).`,
+      );
+    } else {
+      log(
+        `Restoring into scratch database '${scratch}' (production is not written)...`,
+      );
+      run([
+        'firestore',
+        'databases',
+        'restore',
+        `--source-backup=${backup.name}`,
+        `--destination-database=${scratch}`,
+        `--project=${config.project}`,
+      ]);
+    }
     const restoredDb = openRestored(scratch);
+    // The first read doubles as the wait: it fails until the restore is done.
+    await wait(() => countOf(restoredDb, COLLECTIONS[0]));
+    log('Restore finished; counting.');
     const live = {};
     const restored = {};
     for (const name of COLLECTIONS) {
       live[name] = await countOf(liveDb, name);
-      restored[name] = await countOf(restoredDb, name);
+      restored[name] = await wait(() => countOf(restoredDb, name));
     }
     const sessionDocs = (
       await liveDb
@@ -118,13 +210,29 @@ export async function runDrill({
       );
     } else {
       try {
-        run([
-          'firestore',
-          'databases',
-          'delete',
-          `--database=${scratch}`,
-          `--project=${config.project}`,
-        ]);
+        // After the compare (or a failure): wait out a restore still running.
+        // A restored database inherits delete protection; switch it off on
+        // the scratch database only (assertScratch ran above, and again here).
+        assertScratch(scratch, config);
+        await wait(() =>
+          run([
+            'firestore',
+            'databases',
+            'update',
+            `--database=${scratch}`,
+            '--no-delete-protection',
+            `--project=${config.project}`,
+          ]),
+        );
+        await wait(() =>
+          run([
+            'firestore',
+            'databases',
+            'delete',
+            `--database=${scratch}`,
+            `--project=${config.project}`,
+          ]),
+        );
         log(`Deleted scratch database '${scratch}'.`);
       } catch (error) {
         log(
@@ -227,6 +335,7 @@ if (
       liveDb: admin.firestore(),
       openRestored: name => getFirestore(admin.app(), name),
       keep: opts.keep,
+      database: opts.database,
     });
     let pass = result.pass;
     if (opts.files) pass = runFileDrill({run}).pass && pass;

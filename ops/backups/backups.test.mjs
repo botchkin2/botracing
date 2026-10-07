@@ -17,9 +17,11 @@ import {
 } from './lib.mjs';
 import {
   assertScratch,
+  isRestoring,
   parseArgs as parseDrill,
   runDrill,
   runFileDrill,
+  whileRestoring,
 } from './restoreDrill.mjs';
 import {parseDu, showStatus} from './status.mjs';
 
@@ -473,7 +475,13 @@ test('the command lines accept only their own options', () => {
   assert.deepEqual(parseDrill(['--files', '--keep']), {
     files: true,
     keep: true,
+    database: null,
   });
+  assert.equal(
+    parseDrill(['--database', 'drill-20261007-0329']).database,
+    'drill-20261007-0329',
+  );
+  assert.throws(() => parseDrill(['--database']), /needs a name/);
   assert.throws(() => parseDrill(['--force']), /unknown option/);
 });
 
@@ -722,4 +730,248 @@ test('file drill: an object that never shows as soft-deleted fails the drill and
   assert.equal(result.pass, false);
   assert.equal(calls.at(-1), 'rm');
   assert.equal(calls.includes('restore'), false);
+});
+
+// -- waiting for the restore (apex: the real run died on FAILED_PRECONDITION) ----
+
+const RESTORING = Object.assign(
+  new Error('9 FAILED_PRECONDITION: database is undergoing a restore'),
+  {code: 9},
+);
+
+/** A scratch database that refuses reads and deletes for the first N calls. */
+function restoringDbs(busyReads, events) {
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  let reads = 0;
+  const good = dbs.openRestored();
+  dbs.openRestored = () => ({
+    collection: name => ({
+      count: () => ({
+        get: async () => {
+          events.push('read');
+          if (reads++ < busyReads) throw RESTORING;
+          return good.collection(name).count().get();
+        },
+      }),
+    }),
+  });
+  return dbs;
+}
+
+test('drill: waits out the restore before counting, and deletes only after the compare', async () => {
+  const events = [];
+  const run = fakeRun(DRILL_TABLE);
+  const inner = run;
+  const traced = args => (events.push(args[2]), inner(args));
+  traced.log = run.log;
+  const dbs = restoringDbs(3, events);
+  const sleeps = [];
+  const result = await runDrill({
+    run: traced,
+    ...dbs,
+    now: new Date(NOW),
+    sleep: async ms => sleeps.push(ms),
+    intervalMs: 10,
+    maxMs: 1000,
+    log: () => {},
+  });
+  assert.equal(result.pass, true);
+  assert.equal(sleeps.length, 3, 'slept once per refused read');
+  const firstGoodRead = events.indexOf('read', events.indexOf('restore'));
+  assert.ok(events.indexOf('restore') < firstGoodRead);
+  assert.ok(events.lastIndexOf('read') < events.indexOf('delete'));
+});
+
+test('drill: a delete refused while still restoring is retried, not abandoned', async () => {
+  let refused = 2;
+  const run = fakeRun({
+    ...DRILL_TABLE,
+    'firestore databases delete': () => {
+      if (refused-- > 0) throw RESTORING;
+      return '';
+    },
+  });
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  const lines = [];
+  await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    sleep: async () => {},
+    intervalMs: 10,
+    maxMs: 1000,
+    log: l => lines.push(l),
+  });
+  assert.equal(run.log.filter(a => a[2] === 'delete').length, 3);
+  assert.match(lines.join(' | '), /Deleted scratch database/);
+});
+
+const withSource = (table, source) => ({
+  ...table,
+  'firestore databases describe': args =>
+    args.includes('--database=(default)')
+      ? table['firestore databases describe']
+      : {sourceInfo: {backup: {backup: source}}},
+});
+const NEWEST = 'projects/botracing-61/locations/nam5/backups/b2';
+
+test('drill --database: compares an existing scratch database, restores nothing, then deletes it', async () => {
+  const run = fakeRun(withSource(DRILL_TABLE, NEWEST));
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  const result = await runDrill({
+    run,
+    ...dbs,
+    now: new Date(NOW),
+    database: 'drill-20261007-0329',
+    log: () => {},
+  });
+  assert.equal(result.pass, true);
+  assert.equal(
+    run.log.some(a => a[2] === 'restore'),
+    false,
+  );
+  const del = run.log.find(a => a[2] === 'delete');
+  assert.ok(del.includes('--database=drill-20261007-0329'));
+});
+
+test('drill --database refuses anything that is not a drill database', async () => {
+  for (const database of ['(default)', 'prod', 'drill-1']) {
+    const run = fakeRun(DRILL_TABLE);
+    const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
+    await assert.rejects(
+      runDrill({run, ...dbs, now: new Date(NOW), database, log: () => {}}),
+      /not a drill database/,
+    );
+    assert.equal(
+      run.log.some(a => a[2] === 'delete'),
+      false,
+    );
+  }
+});
+
+test('drill --database refuses a database restored from an older backup, and does not delete it', async () => {
+  for (const source of [
+    'projects/botracing-61/locations/nam5/backups/b1',
+    undefined,
+  ]) {
+    const run = fakeRun(withSource(DRILL_TABLE, source));
+    const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
+    const lines = [];
+    const result = await runDrill({
+      run,
+      ...dbs,
+      now: new Date(NOW),
+      database: 'drill-20261007-0329',
+      log: l => lines.push(l),
+    });
+    assert.equal(result.pass, false);
+    assert.match(lines.join(' | '), /not restored from the newest backup/);
+    assert.equal(
+      run.log.some(a => ['delete', 'update', 'restore'].includes(a[2])),
+      false,
+    );
+  }
+});
+
+test('whileRestoring: only a restoring error is retried, and only so long', async () => {
+  assert.equal(isRestoring(RESTORING), true);
+  assert.equal(isRestoring(new Error('permission denied')), false);
+  // Delete protection and a missing index are FAILED_PRECONDITION too: not retried.
+  assert.equal(
+    isRestoring(
+      new Error(
+        '9 FAILED_PRECONDITION: database has delete protection enabled',
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    isRestoring(Object.assign(new Error('index'), {code: 9})),
+    false,
+  );
+  await assert.rejects(
+    whileRestoring(
+      async () => {
+        throw new Error('permission denied');
+      },
+      {
+        sleep: async () => {},
+      },
+    ),
+    /permission denied/,
+  );
+  let calls = 0;
+  await assert.rejects(
+    whileRestoring(
+      async () => {
+        calls++;
+        throw RESTORING;
+      },
+      {
+        sleep: async () => {},
+        intervalMs: 10,
+        maxMs: 50,
+      },
+    ),
+    /undergoing a restore/,
+  );
+  assert.equal(calls, 5);
+});
+
+test('drill: delete protection is switched off on the scratch database only, before the delete', async () => {
+  for (const database of [null, 'drill-20261007-0329']) {
+    const run = fakeRun(withSource(DRILL_TABLE, NEWEST));
+    const dbs = fakeDbs({
+      live: GOOD_LIVE,
+      restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+      sessions: SNAP_SESSIONS,
+    });
+    await runDrill({run, ...dbs, now: new Date(NOW), database, log: () => {}});
+    const updates = run.log.filter(
+      a => a[1] === 'databases' && a[2] === 'update',
+    );
+    assert.equal(updates.length, 1);
+    assert.ok(updates[0].includes('--no-delete-protection'));
+    assert.match(
+      updates[0].find(x => x.startsWith('--database=')),
+      /^--database=drill-[0-9]{8}-[0-9]{4}$/,
+    );
+    const names = run.log.map(a => a[2]);
+    assert.ok(names.indexOf('update') < names.indexOf('delete'));
+    // Nothing anywhere names the production database for a write.
+    assert.equal(
+      run.log.some(
+        a =>
+          ['update', 'delete'].includes(a[2]) &&
+          a.some(x => x === '--database=(default)'),
+      ),
+      false,
+    );
+  }
+});
+
+test('drill --keep leaves delete protection alone too', async () => {
+  const run = fakeRun(DRILL_TABLE);
+  const dbs = fakeDbs({
+    live: GOOD_LIVE,
+    restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
+    sessions: SNAP_SESSIONS,
+  });
+  await runDrill({run, ...dbs, now: new Date(NOW), keep: true, log: () => {}});
+  assert.equal(
+    run.log.some(a => a[2] === 'update'),
+    false,
+  );
 });
