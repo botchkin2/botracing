@@ -3,6 +3,7 @@
 // uploadCore.ts; this binds them to Firebase Auth, Firestore and Storage.
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
+import {RUNTIME_ACCOUNT} from './runtime';
 import {
   DocStore,
   FileStore,
@@ -132,7 +133,12 @@ function subPath(req: {path?: string; url?: string}): string {
 
 export const uploadApi = onRequest(
   // Bodies are small JSON; file bytes never come through here.
-  {memory: '256MiB', timeoutSeconds: 60, cors: false},
+  {
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    cors: false,
+    serviceAccount: RUNTIME_ACCOUNT,
+  },
   async (req, res) => {
     // Bodies are JSON docs (at most 400 ops); file bytes go to Storage by
     // signed URL, so a big request is a mistake or an attack.
