@@ -13,8 +13,9 @@ export const CONFIG = {
   project: 'botracing-61',
   services: ['lmuapi', 'uploadapi'],
   host: 'botracing-61.web.app',
-  // Uptime: a path is up when it answers 2xx, or 401 (up and refusing a caller
-  // with no token, which is what a check from outside is).
+  // Uptime: a path is up when it answers 401 with an error body (the function
+  // is running and refusing a caller with no token, which is what a check from
+  // outside is).
   paths: ['/api/upload/me', '/api/lmu/tracks'],
   // Spikes, per 5-minute window, summed over both functions.
   errors5xxPerWindow: 5,
@@ -110,13 +111,49 @@ export function planUptime(config = CONFIG) {
       useSsl: true,
       validateSsl: true,
       requestMethod: 'GET',
-      acceptedResponseStatusCodes: [
-        {statusClass: 'STATUS_CLASS_2XX'},
-        {statusValue: 401},
-      ],
+      // 401 only: an anonymous caller must be refused. A 2xx would be the
+      // hosting catch-all (** -> /index.html) answering for a lost rewrite.
+      acceptedResponseStatusCodes: [{statusValue: 401}],
     },
+    // And the refusal must come from the function (a JSON {error}).
+    contentMatchers: [{content: 'error', matcher: 'CONTAINS_STRING'}],
     period: '300s',
     timeout: '10s',
+  }));
+}
+
+/** One alert policy per uptime check; `checkIds` maps path -> check id. */
+export function planUptimePolicies(
+  config = CONFIG,
+  checkIds = {},
+  channels = [],
+) {
+  return config.paths.map(path => ({
+    displayName: `BotRacing down: ${path}`,
+    combiner: 'OR',
+    conditions: [
+      {
+        displayName: `uptime check failing for ${path}`,
+        conditionThreshold: {
+          filter: `metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND metric.label.check_id="${checkIds[path]}" AND resource.type="uptime_url"`,
+          comparison: 'COMPARISON_GT',
+          thresholdValue: 1,
+          duration: '0s',
+          aggregations: [
+            {
+              alignmentPeriod: '300s',
+              perSeriesAligner: 'ALIGN_NEXT_OLDER',
+              crossSeriesReducer: 'REDUCE_COUNT_FALSE',
+              groupByFields: ['resource.label.*'],
+            },
+          ],
+          trigger: {count: 1},
+        },
+      },
+    ],
+    notificationChannels: channels,
+    alertStrategy: {autoClose: '3600s'},
+    enabled: true,
   }));
 }
 
