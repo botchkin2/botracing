@@ -814,8 +814,17 @@ test('drill: a delete refused while still restoring is retried, not abandoned', 
   assert.match(lines.join(' | '), /Deleted scratch database/);
 });
 
+const withSource = (table, source) => ({
+  ...table,
+  'firestore databases describe': args =>
+    args.includes('--database=(default)')
+      ? table['firestore databases describe']
+      : {sourceInfo: {backup: {backup: source}}},
+});
+const NEWEST = 'projects/botracing-61/locations/nam5/backups/b2';
+
 test('drill --database: compares an existing scratch database, restores nothing, then deletes it', async () => {
-  const run = fakeRun(DRILL_TABLE);
+  const run = fakeRun(withSource(DRILL_TABLE, NEWEST));
   const dbs = fakeDbs({
     live: GOOD_LIVE,
     restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},
@@ -852,9 +861,46 @@ test('drill --database refuses anything that is not a drill database', async () 
   }
 });
 
+test('drill --database refuses a database restored from an older backup, and does not delete it', async () => {
+  for (const source of [
+    'projects/botracing-61/locations/nam5/backups/b1',
+    undefined,
+  ]) {
+    const run = fakeRun(withSource(DRILL_TABLE, source));
+    const dbs = fakeDbs({live: GOOD_LIVE, restored: GOOD_LIVE, sessions: []});
+    const lines = [];
+    const result = await runDrill({
+      run,
+      ...dbs,
+      now: new Date(NOW),
+      database: 'drill-20261007-0329',
+      log: l => lines.push(l),
+    });
+    assert.equal(result.pass, false);
+    assert.match(lines.join(' | '), /not restored from the newest backup/);
+    assert.equal(
+      run.log.some(a => ['delete', 'update', 'restore'].includes(a[2])),
+      false,
+    );
+  }
+});
+
 test('whileRestoring: only a restoring error is retried, and only so long', async () => {
   assert.equal(isRestoring(RESTORING), true);
   assert.equal(isRestoring(new Error('permission denied')), false);
+  // Delete protection and a missing index are FAILED_PRECONDITION too: not retried.
+  assert.equal(
+    isRestoring(
+      new Error(
+        '9 FAILED_PRECONDITION: database has delete protection enabled',
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    isRestoring(Object.assign(new Error('index'), {code: 9})),
+    false,
+  );
   await assert.rejects(
     whileRestoring(
       async () => {
@@ -886,7 +932,7 @@ test('whileRestoring: only a restoring error is retried, and only so long', asyn
 
 test('drill: delete protection is switched off on the scratch database only, before the delete', async () => {
   for (const database of [null, 'drill-20261007-0329']) {
-    const run = fakeRun(DRILL_TABLE);
+    const run = fakeRun(withSource(DRILL_TABLE, NEWEST));
     const dbs = fakeDbs({
       live: GOOD_LIVE,
       restored: {...GOOD_LIVE, sessions: 10, laps: 100, recordings: 12},

@@ -48,11 +48,13 @@ export function parseArgs(argv) {
   return out;
 }
 
-/** Firestore says this for a database that is still being restored (or deleted). */
+/**
+ * Firestore's wording for a database that is still being restored. Other
+ * FAILED_PRECONDITIONs (delete protection, a missing index) are real errors
+ * and must not be waited on.
+ */
 export const isRestoring = error =>
-  /FAILED_PRECONDITION|undergoing a restore|9 FAILED/i.test(
-    String(error?.message ?? error),
-  ) || error?.code === 9;
+  /undergoing a restore/i.test(String(error?.message ?? error));
 
 const WAIT = {intervalMs: 15_000, maxMs: 45 * 60_000};
 const realSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -140,6 +142,26 @@ export async function runDrill({
 
   const scratch = database ?? scratchName(now);
   assertScratch(scratch, config);
+  if (database) {
+    // The lower bounds come from the newest backup, so the database must too.
+    const info = run([
+      'firestore',
+      'databases',
+      'describe',
+      `--database=${scratch}`,
+      `--project=${config.project}`,
+      '--format=json',
+    ]);
+    const source = info?.sourceInfo?.backup?.backup;
+    if (!source || source.split('/').pop() !== backup.name.split('/').pop()) {
+      log(
+        `FAIL '${scratch}' was not restored from the newest backup (it says: ${
+          source ?? 'no source backup'
+        }; newest: ${backup.name}). Not comparing, not deleting it.`,
+      );
+      return {pass: false, reason: 'wrong source backup', scratch, backup};
+    }
+  }
   let result;
   try {
     if (database) {
