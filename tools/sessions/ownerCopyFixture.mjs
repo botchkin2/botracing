@@ -215,13 +215,13 @@ export function memoryBackend({docs, files}) {
           path.startsWith(`${coll}/`) && data.ownerId === ownerId,
       ).length;
     },
-    async listBySession(coll, sessionId, ownerId) {
+    async listBySession(coll, inSession, ownerId) {
       backend.reads.bySession++;
       return [...docs]
         .filter(
           ([path, data]) =>
             path.startsWith(`${coll}/`) &&
-            data.sessionId === sessionId &&
+            data.sessionId === inSession &&
             data.ownerId === ownerId,
         )
         .map(([path, data]) => ({

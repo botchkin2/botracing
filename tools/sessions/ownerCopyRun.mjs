@@ -313,7 +313,7 @@ export async function applySession(
     conc.docs,
     writeDoc,
   );
-  for (const d of plan.docs.filter(d => d.order === 3)) await writeDoc(d);
+  for (const last of plan.docs.filter(d => d.order === 3)) await writeDoc(last);
   return done;
 }
 
