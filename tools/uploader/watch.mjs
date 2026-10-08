@@ -37,6 +37,7 @@ import {versionKey} from '../sessions/versionKey.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
+import {parentGone} from './parentGuard.mjs';
 import {
   isProgressLine,
   newSyncResult,
@@ -44,6 +45,7 @@ import {
   queueCount,
   readSyncLine,
 } from './syncOutput.mjs';
+import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
@@ -56,7 +58,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const syncScript =
   process.env.LAP_SYNC_SCRIPT || resolve(here, '../sessions/sync.mjs');
 const local = process.env.LOCALAPPDATA || homedir();
-const home = resolve(local, 'lap-uploader');
+// LAP_UPLOADER_HOME: the tray app keeps its own state, apart from the logon task's.
+const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
@@ -141,12 +144,16 @@ function recordings(sinceMs) {
   return {newestMtimeMs, newer};
 }
 
+// LAP_VERSION: set by the tray app, which is installed without git.
 function version() {
+  if (process.env.LAP_VERSION) return process.env.LAP_VERSION;
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
       cwd: here,
       encoding: 'utf8',
       windowsHide: true,
+      // Not a repository (an installed copy): no "fatal:" line on stderr.
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     return 'unknown';
@@ -197,9 +204,22 @@ function runSync(onProgress, skipIds) {
 }
 
 let db = null;
+// Under the tray app (a token file) the status also goes to the server, which
+// stores it under the signed-in user's owner key (heartbeatSender.mjs). Not
+// awaited: a slow or refused request never holds up a sync.
+const statusSender = process.env.LAP_TOKEN_FILE
+  ? createHeartbeatSender({
+      send: httpSend({
+        api: process.env.LAP_API || undefined,
+        tokenFile: process.env.LAP_TOKEN_FILE,
+      }),
+      log: line => log(line),
+    })
+  : null;
 async function writeBeat(doc) {
   if (process.env.LAP_HEARTBEAT_FILE) {
     appendFileSync(process.env.LAP_HEARTBEAT_FILE, `${JSON.stringify(doc)}\n`);
+    void statusSender?.offer(doc);
     return;
   }
   if (!db) db = (await import('../sessions/store.mjs')).connect().db;
@@ -272,6 +292,10 @@ async function main() {
   };
 
   for (;;) {
+    if (parentGone()) {
+      log('the tray app is gone, stopping');
+      process.exit(0); // the lock pipe would keep the process alive otherwise
+    }
     try {
       const running = gameRunning();
       const recs = recordings(watch.lastRunAtMs);

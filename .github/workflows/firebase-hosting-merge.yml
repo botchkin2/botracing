@@ -24,6 +24,10 @@ on:
       - 'babel.config.js'
       - 'tsconfig.json'
       - '.github/workflows/firebase-hosting-merge.yml'
+      - 'tools/ci/waitForFunctions.mjs'
+permissions:
+  contents: read
+  actions: read
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
@@ -32,6 +36,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # A hosting rewrite to a function that is not deployed yet fails the
+      # hosting release (it did for /api/upload, #274). When this push also
+      # changes functions or Firestore config, wait for that deploy first and
+      # stop here, red, if it failed.
+      - name: Wait for the functions deploy of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node tools/ci/waitForFunctions.mjs
       - run: npm install
       - run: npm run build
       - name: Install Firebase CLI
@@ -45,3 +58,21 @@ jobs:
           channelId: live
           projectId: botracing-61
           entryPoint: .
+      # The failure behind #274: the rewrite did not take and /api/upload/**
+      # kept serving the app's index.html with a green-looking deploy. Both
+      # APIs answer JSON (a 401 is JSON too), never HTML.
+      - name: Check the API rewrites are live
+        run: |
+          for path in api/upload/me api/lmu/tracks; do
+            ok=false
+            for attempt in 1 2 3 4 5 6; do
+              type=$(curl -s -o /dev/null -w '%{content_type}' "https://botracing-61.web.app/$path")
+              case "$type" in application/json*) ok=true; break;; esac
+              sleep 10
+            done
+            if [ "$ok" != true ]; then
+              echo "::error::/$path answered '$type', not JSON: a hosting rewrite did not take"
+              exit 1
+            fi
+            echo "/$path answers JSON"
+          done

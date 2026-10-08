@@ -8,7 +8,7 @@ import {
   usePathname,
 } from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
-import {type ReactNode} from 'react';
+import {type ReactNode, useEffect} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {
   SafeAreaInsetsContext,
@@ -17,6 +17,7 @@ import {
 } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import {AuthGate, startAuthSession} from '@/src/auth';
 import {
   ThemeProvider as AppThemeProvider,
   useAppFonts,
@@ -37,11 +38,15 @@ import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
   useAppFonts();
+  // Follow the sign-in for the life of the app.
+  useEffect(() => startAuthSession(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <AppThemeProvider>
-          <Navigation />
+          <AuthGate>
+            <Navigation />
+          </AuthGate>
         </AppThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
