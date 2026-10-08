@@ -114,6 +114,16 @@ export function httpBackend({
     getDoc: (coll, id) =>
       jsonOf(`/doc/${encodeURIComponent(coll)}/${encodeURIComponent(id)}`),
     async writeDocs(ops) {
+      // Track data is curated, never written by a user's sync (thread 2 #155):
+      // the server refuses it, and this refuses to send it.
+      for (const {coll} of ops) {
+        if (coll === 'tracks' || coll === 'trackBoundaries')
+          throw new Error(
+            'a remote sync must not write track data (' +
+              coll +
+              '): it is curated',
+          );
+      }
       // The same shape check as the Admin path, before anything is sent.
       const writer = guardedWriter({
         set() {},

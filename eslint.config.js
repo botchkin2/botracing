@@ -99,6 +99,20 @@ module.exports = defineConfig([
               from: './src',
               except: ['./state', './analysis'],
             },
+            // Who is signed in: reads data, design and ui; the data layer never imports it
+            // (it only knows data/tokenSource, which auth fills in).
+            {
+              target: './src/auth',
+              from: './src',
+              except: [
+                './auth',
+                './data',
+                './design',
+                './ui',
+                './analysis',
+                './utils',
+              ],
+            },
             {target: './src/nav', from: './', except: ['./src/nav']},
             // Connected navigation: may read data, design and ui, never a feature or state.
             {

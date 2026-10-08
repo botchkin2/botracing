@@ -4,7 +4,7 @@ A Tauri tray icon (no windows) that runs the Node watcher, `tools/uploader/watch
 
 What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state and log).
 
-Menu: a status line, Open BotRacing, Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
+Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
 Not built yet: sign-in (nothing writes `token` yet), the installer with node and a pruned `node_modules` as resources, a folder picker, iRacing.
 
@@ -37,3 +37,7 @@ ode`), where `sidecar::find_root` looks first.
 - **No native Node addon and no `node_modules`:** DuckDB is the CLI exe, run by `tools/sessions/duck.mjs`; the uploader imports only its own files and Node built-ins. The stage script fails on an npm import, a missing relative import, a non-literal `import()` or a `new Worker` it cannot follow.
 - **Pinned binaries:** `node.exe` (v24.19.0, SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `NODE` / `DUCKDB` (local copies), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
 - `node scripts/stage-resources.mjs --no-duckdb` stages without DuckDB (a build that cannot analyse); `node --test scripts/stage-resources.test.mjs` tests the staging logic.
+
+## Walkthroughs without touching a real sign-in
+
+`BOTRACING_PROFILE=<name>` runs a separate copy of the tray: its own data folder (`%LOCALAPPDATA%\BotRacing-<name>`), its own Credential Manager entry (`BotRacing-<name>`), its own watcher lock pipe, and it is not held to a single instance with the real tray (the tooltip says which is which). Unset, every name is what it always was. Only letters, digits, `-` and `_` count (at most 32). **Debug builds only:** a release build (the installer) ignores the variable, because a profile skips the single-instance hold. Use it to walk the signed-out first launch, sign-out and switching accounts without a real stored sign-in being read, refreshed or deleted.

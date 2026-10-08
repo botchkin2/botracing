@@ -3,11 +3,11 @@ import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {
   ANONYMOUS_OWNER,
-  LEGACY_OWNER,
   Unauthorized,
   pathInsideOwner,
   resolveOwner,
   trustedTrackPath,
+  uploaderItems,
 } from '../src/ownerAccess.ts';
 
 const deps = (mapping = {}) => ({
@@ -19,13 +19,13 @@ const deps = (mapping = {}) => ({
   readOwnerKey: async uid => mapping[uid] ?? null,
 });
 
-test('no Authorization header reads as the legacy owner, as today', async () => {
-  assert.equal(ANONYMOUS_OWNER, LEGACY_OWNER);
-  assert.equal(await resolveOwner(deps(), undefined), 'botkin');
+test('no Authorization header is refused: anonymous access is closed', async () => {
+  assert.equal(ANONYMOUS_OWNER, null);
+  await assert.rejects(resolveOwner(deps(), undefined), Unauthorized);
 });
 
-test('with anonymous access removed, no header is Unauthorized', async () => {
-  await assert.rejects(resolveOwner(deps(), undefined, null), Unauthorized);
+test('a deliberate bridge can still name an anonymous owner', async () => {
+  assert.equal(await resolveOwner(deps(), undefined, 'botkin'), 'botkin');
 });
 
 test('a verified token is the uid, or the admin-mapped key', async () => {
@@ -161,4 +161,48 @@ test('no response is cacheable by a shared cache, and Authorization varies it', 
     assert.doesNotMatch(v, /s-maxage/);
   }
   assert.match(api, /set\('Vary', 'Authorization, Origin'\)/);
+});
+
+test("uploader status: only the owner's own machines, without the server's bookkeeping", () => {
+  const docs = [
+    {
+      id: 'uidA__pc1',
+      data: {
+        ownerId: 'uidA',
+        hostId: 'pc1',
+        state: 'idle',
+        serverUpdatedAt: 'x',
+      },
+    },
+    {id: 'uidA__pc2', data: {ownerId: 'uidA', hostId: 'pc2', state: 'syncing'}},
+    {id: 'uidB__pc1', data: {ownerId: 'uidB', hostId: 'pc1', state: 'error'}},
+    {id: 'oldhost', data: {hostId: 'oldhost', label: 'Race PC', state: 'idle'}}, // no owner: the old Admin docs
+  ];
+  const mine = uploaderItems('uidA', docs);
+  assert.deepEqual(
+    mine.map(u => u.hostId),
+    ['pc1', 'pc2'],
+  );
+  assert.deepEqual(mine[0], {hostId: 'pc1', state: 'idle'});
+  assert.equal('ownerId' in mine[0], false);
+  assert.equal('serverUpdatedAt' in mine[0], false);
+  // Nobody sees the other user's machine or the ownerless ones.
+  assert.deepEqual(
+    uploaderItems('uidB', docs).map(u => u.hostId),
+    ['pc1'],
+  );
+  assert.deepEqual(uploaderItems('botkin', docs), []);
+  assert.deepEqual(uploaderItems('uidA', []), []);
+  // A doc without a hostId field falls back to its id.
+  assert.equal(
+    uploaderItems('uidA', [{id: 'x', data: {ownerId: 'uidA'}}])[0].hostId,
+    'x',
+  );
+});
+
+test('listUploaders asks for the owner in the query and has no special owner', () => {
+  const at = store.indexOf('export async function listUploaders');
+  const fn = store.slice(at, store.indexOf('\n}\n', at));
+  assert.match(fn, /where\('ownerId', '==', owner\)/);
+  assert.doesNotMatch(fn, /LEGACY_OWNER|botkin/);
 });

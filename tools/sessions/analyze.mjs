@@ -42,6 +42,7 @@ import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {sessionKind} from '../../src/analysis/classLaps.ts';
 import {
   CORNER_BOUNDARIES_VERSION,
+  mapKeyOf,
   sessionBoundaries,
 } from './layoutBoundaries.mjs';
 import {sampleTicks} from './pedalPoints.mjs';
@@ -87,7 +88,7 @@ const SLOW_MAX_FACTOR = 1.07;
 const OFF_TRACK_SEC = 0.2;
 // A track's stored corner map is built only from a session with at least
 // this many clean laps of the same length.
-const MAP_MIN_LAPS = 8;
+export const MAP_MIN_LAPS = 8;
 // The shape of a stored corner map. A map from an older version (before
 // sections, say) is rebuilt by the next session with enough clean laps,
 // instead of being reused forever.
@@ -758,9 +759,53 @@ function startsInPits(rec) {
   return Boolean(first && first.v === 1 && first.t - rec.s.t[0] < 1);
 }
 
+/**
+ * Which track map an analysis may use, and whether it may build one.
+ * fits: the stored map matches this session's lap length (within 3%).
+ * usable: the stored map is used as it is: it fits and, for a catalog-only
+ * analysis (curated data, thread 2 #155), the stored boundaries are this very
+ * map's too, since the curated catalog is the map and its boundaries together.
+ * mayBuild: a map may be made from this session: never when catalogOnly.
+ */
+export function planTrackMap({trackMap, boundaries, distanceM, catalogOnly}) {
+  const fits = Boolean(
+    trackMap &&
+      distanceM &&
+      Math.abs(trackMap.lengthM - distanceM) <= distanceM * 0.03,
+  );
+  const usable =
+    fits &&
+    (!catalogOnly ||
+      Boolean(boundaries && boundaries.mapKey === mapKeyOf(trackMap.corners)));
+  return {fits, usable, mayBuild: !usable && !catalogOnly};
+}
+
+/**
+ * Where the map an analysis used came from: 'stored' (the stored one), 'new'
+ * (made from this session and to be stored), 'session' (made from this session
+ * for this analysis only), 'none' (catalog-only and nothing usable: no corner
+ * analysis), or null (nothing could be built).
+ */
+export function trackMapSourceOf({
+  usable,
+  catalogOnly,
+  built,
+  trackMap,
+  minLaps,
+}) {
+  if (usable) return 'stored';
+  if (catalogOnly) return 'none';
+  if (!built) return null;
+  return !trackMap && built.laps >= minLaps ? 'new' : 'session';
+}
+
 // recs: loaded recordings of one session, in time order.
 // trackMap: the track's stored corners ({lengthM, corners}), or null to find
 // them on this session. The map used is returned, so the caller can keep it.
+// catalogOnly: the track data is curated, not this session's to make (thread 2
+// #155): the stored map and boundaries are used exactly as they are, and a
+// session they do not fit, or a track with none, gets no corner analysis
+// (trackMapSource 'none'). Nothing is built, folded or returned to be stored.
 export function analyzeSession(
   recs,
   {
@@ -770,6 +815,7 @@ export function analyzeSession(
     foldOnly = false,
     carDamage = null,
     sessionType = '',
+    catalogOnly = false,
   } = {},
 ) {
   const laps = [];
@@ -893,19 +939,24 @@ export function analyzeSession(
   // enough clean laps may create the stored map.
   // A stored map of an older shape counts as no map at all.
   if (trackMap && trackMap.mapVersion !== trackMapVersion) trackMap = null;
-  const fits =
-    trackMap &&
-    best &&
-    Math.abs(trackMap.lengthM - best.distanceM) <= best.distanceM * 0.03;
-  const built = fits ? null : buildTrackMap(recs, comparable, best, gridN);
-  const map = fits ? trackMap : built?.map ?? null;
-  const trackMapSource = fits
-    ? 'stored'
-    : !built
-    ? null
-    : !trackMap && built.laps >= MAP_MIN_LAPS
-    ? 'new'
-    : 'session';
+  const plan = planTrackMap({
+    trackMap,
+    boundaries,
+    distanceM: best?.distanceM,
+    catalogOnly,
+  });
+  const fits = plan.fits;
+  const built = plan.mayBuild
+    ? buildTrackMap(recs, comparable, best, gridN)
+    : null;
+  const map = plan.usable ? trackMap : built?.map ?? null;
+  const trackMapSource = trackMapSourceOf({
+    usable: plan.usable,
+    catalogOnly,
+    built,
+    trackMap,
+    minLaps: MAP_MIN_LAPS,
+  });
   const newTrackMap = trackMapSource === 'new';
   // Corner windows (src/analysis/cornerBoundaries.ts): the layout's boundaries
   // tile the lap, and every lap is cut at them. This session's laps first
@@ -919,6 +970,7 @@ export function analyzeSession(
       map,
       stored: trackMapSource === 'session' ? null : boundaries,
       sessionId,
+      readOnly: catalogOnly,
     });
     // Only the layout's boundaries wanted (sync's fold pass, before any
     // session is cut at them): nothing past this point is needed.
@@ -1046,7 +1098,7 @@ export function analyzeSession(
     // The layout's boundaries as they stand after this session, and whether
     // they moved or changed (null: no map, or a map of this session's own).
     boundaries:
-      layout && trackMapSource !== 'session'
+      layout && trackMapSource !== 'session' && !catalogOnly
         ? {
             state: layout.state,
             windows: layout.windows,
@@ -1056,6 +1108,8 @@ export function analyzeSession(
         : null,
     newTrackMap,
     trackMapSource,
+    // Clean laps the built map used (null when none was built); the curator needs it.
+    trackMapLaps: built?.laps ?? null,
     trackMapMismatch: Boolean(trackMap && !fits),
     consistency: {
       summary: consistency.summary,

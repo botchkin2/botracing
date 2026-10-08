@@ -2,7 +2,11 @@
 // and hand them back in the lap shape the app already reads.
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
-import {LEGACY_OWNER, pathInsideOwner, trustedTrackPath} from './ownerAccess';
+import {
+  pathInsideOwner,
+  trustedTrackPath,
+  uploaderItems,
+} from './ownerAccess';
 
 // Every reader takes the owner key of the request (ownerAccess.ts): the
 // signed-in user's, or the legacy owner's for a request with no token.
@@ -113,12 +117,19 @@ export async function storeHasSessions(owner: string): Promise<boolean> {
   return !snap.empty;
 }
 
-// Status of each PC uploader (tools/uploader/heartbeat.mjs writes them).
-// The docs carry no owner, so only the legacy owner's PC is shown.
+// Status of each of the owner's PCs: the tray sends it through the upload
+// endpoint (POST /heartbeat), which stamps the owner from the token.
 export async function listUploaders(owner: string): Promise<any[]> {
-  if (owner !== LEGACY_OWNER) return [];
-  const snap = await admin.firestore().collection('uploaders').get();
-  return snap.docs.map(doc => ({hostId: doc.id, ...doc.data()}));
+  const snap = await admin
+    .firestore()
+    .collection('uploaders')
+    .where('ownerId', '==', owner)
+    .get();
+  // Second guard behind the query.
+  return uploaderItems(
+    owner,
+    snap.docs.map(doc => ({id: doc.id, data: doc.data()})),
+  );
 }
 
 // Tracks the owner has driven, for the track picker.
