@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
 import {type Lap} from '@/src/data/sessions';
+import {lapColors, lapStroke} from '@/src/design';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
   toLaps,
@@ -204,12 +205,7 @@ describe('buildCompareModel', () => {
 
   it('reads values at the cursor for every shown lap', () => {
     const speed = build().charts[1].valueRows[0];
-    expect(speed.values.map(v => v.text)).toEqual([
-      '180',
-      '180',
-      '176',
-      '181',
-    ]);
+    expect(speed.values.map(v => v.text)).toEqual(['180', '180', '176', '181']);
   });
 
   it('grid shows each lap vs the reference per corner', () => {
@@ -438,7 +434,46 @@ describe('many laps', () => {
       ['L2', 0],
       ['L3', 2],
     ]);
-    expect(build().chips.map(c => c.selIndex)).toEqual([0, 1, 2]);
+    // Median mode: no lap is the reference, so none takes slot 0.
+    expect(build().chips.map(c => c.selIndex)).toEqual([1, 2, 3]);
+  });
+
+  it('median mode never draws a lap as the reference, at 2, 6 and 11 laps', () => {
+    for (const n of [2, 6, 11]) {
+      const set = toLaps(
+        Array.from({length: n}, (_, i) =>
+          rawLap(`p${i}`, 20 + i / 10, [5 + i / 10, 5]),
+        ),
+      );
+      const out = buildCompareModel({
+        session,
+        laps: set,
+        traces: new Map(
+          set.map(l => [
+            l.id,
+            resampleTrace(circleLap(180 - l.lapIndex), LENGTH_M, 5, 10),
+          ]),
+        ),
+        band: null,
+        map,
+        selection: sel({laps: set.map(l => l.id)}),
+      });
+      const real = out.chips.filter(c => c.selIndex >= 0);
+      expect(real).toHaveLength(n);
+      expect(out.chips.some(c => c.isRef)).toBe(false);
+      expect(real.every(c => c.selIndex >= 1)).toBe(true);
+      // Individual mode (up to six laps) gives every slot its own colour;
+      // above that the tints cycle.
+      if (n <= 6)
+        for (const scheme of ['dark', 'light'] as const)
+          for (const c of real)
+            expect(lapColors[scheme][c.selIndex]).toBeDefined();
+      // And none is drawn with the reference stroke.
+      for (const c of real)
+        expect(lapStroke('dark', c.selIndex, n, false).color).not.toBe(
+          lapColors.dark[0],
+        );
+    }
   });
 
   it('takes the median trace from the caller when given, and builds it when not', () => {

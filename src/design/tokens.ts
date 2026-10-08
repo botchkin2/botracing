@@ -101,10 +101,26 @@ const light: ColorTokens = {
 
 export const colors: Record<Scheme, ColorTokens> = {dark, light};
 
-/** Fixed lap order: ref, then lap.1..lap.5. */
+/** Fixed lap order: ref, then lap.1..lap.6 (six individual laps without a Ref lap). */
 export const lapColors: Record<Scheme, readonly string[]> = {
-  dark: ['#f2f4f6', '#59a0f9', '#f476b7', '#55cec0', '#ece36d', '#87d7f7'],
-  light: ['#111316', '#0267c7', '#c32e85', '#008479', '#ad9907', '#3292b3'],
+  dark: [
+    '#f2f4f6',
+    '#59a0f9',
+    '#f476b7',
+    '#55cec0',
+    '#ece36d',
+    '#87d7f7',
+    '#f5a15a',
+  ],
+  light: [
+    '#111316',
+    '#0267c7',
+    '#c32e85',
+    '#008479',
+    '#ad9907',
+    '#3292b3',
+    '#c46a12',
+  ],
 };
 /** Tinted mode (7–19 laps), hue cycle 255, 350, 185, 105, 225. */
 const lapTints: Record<Scheme, readonly string[]> = {

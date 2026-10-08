@@ -704,9 +704,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const mode = lapMode(count);
   const refLap = selected.find(l => l.id === selection.ref);
   const hlId =
-    selection.hl && selection.laps.includes(selection.hl)
-      ? selection.hl
-      : null;
+    selection.hl && selection.laps.includes(selection.hl) ? selection.hl : null;
 
   const playing =
     selected.find(l => l.id === hlId) ?? refLap ?? selected[0] ?? null;
@@ -731,15 +729,16 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       ? `${CHANNELS[ch].label} vs ${basisName}`
       : CHANNELS[ch].label;
 
-  // Colour slot: the Ref lap is slot 0 (the reference stroke); the others
-  // follow in lap-number order. Without a Ref lap the slots are plain order.
+  // Colour slot: slot 0 is the reference stroke and belongs to the Ref lap
+  // only; the others follow in lap-number order. Without a Ref lap (median
+  // mode) no lap is the reference, so the slots start at 1.
   const slots = refLap
     ? selected.map(l =>
         l.id === refLap.id
           ? 0
           : 1 + selected.filter(o => o.id !== refLap.id).indexOf(l),
       )
-    : selected.map((_, i) => i);
+    : selected.map((_, i) => i + 1);
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
     label: nameOf(l),
@@ -792,15 +791,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // Every chip is the lap's time against the basis time; the Ref lap's own
   // reads REF.
   const chips: Chip[] = lapRefs.map(r => {
-      const lap = byId.get(r.lapId)!;
-      const d =
-        lap.timeS != null && basisLapS != null ? lap.timeS - basisLapS : null;
-      return {
-        ...r,
-        delta: r.isRef ? 'REF' : d == null ? '—' : formatGap(d),
-        faster: d != null && d < 0,
-      };
-    });
+    const lap = byId.get(r.lapId)!;
+    const d =
+      lap.timeS != null && basisLapS != null ? lap.timeS - basisLapS : null;
+    return {
+      ...r,
+      delta: r.isRef ? 'REF' : d == null ? '—' : formatGap(d),
+      faster: d != null && d < 0,
+    };
+  });
 
   // --- charts -----------------------------------------------------------------
   const diffs = new Map<string, number[]>();
@@ -1023,7 +1022,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
                   text: readoutText(
                     ch,
                     basisValues(ch)[
-                      Math.min(basisGrid.timeS.length - 1, Math.round(cursorM / stepM))
+                      Math.min(
+                        basisGrid.timeS.length - 1,
+                        Math.round(cursorM / stepM),
+                      )
                     ],
                   ),
                 },
@@ -1247,19 +1249,19 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           ]
         : []),
       ...keyRefs.map(r => ({
-      lapId: r.lapId,
-      selIndex: r.selIndex,
-      highlighted: r.highlighted,
-      channels: Object.fromEntries(
-        CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
-      ) as Record<ChannelId, number[]>,
-      samples: Object.fromEntries(
-        CHANNEL_IDS.flatMap(ch => {
-          const own = samplesOf(ch, r.lapId);
-          return own ? [[ch, own]] : [];
-        }),
-      ),
-    })),
+        lapId: r.lapId,
+        selIndex: r.selIndex,
+        highlighted: r.highlighted,
+        channels: Object.fromEntries(
+          CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
+        ) as Record<ChannelId, number[]>,
+        samples: Object.fromEntries(
+          CHANNEL_IDS.flatMap(ch => {
+            const own = samplesOf(ch, r.lapId);
+            return own ? [[ch, own]] : [];
+          }),
+        ),
+      })),
     ],
     overview: lapRefs.flatMap(r => {
       const values = diffs.get(r.lapId);
