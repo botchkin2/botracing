@@ -21,6 +21,19 @@
 //   - another user is already mapped to the same key, or the key is another
 //     Firebase user's uid (an unmapped user's implicit key is their uid).
 // --dry-run prints the same before/plan and writes nothing.
+//
+// Changing a mapping that exists (the switch after an owner copy, and its
+// rollback) is a separate, explicit act:
+//   node functions/scripts/setOwnerKey.mjs <uid> <newOwnerKey> --replace <expectedOldKey> [--allow-fewer] [--dry-run]
+// It changes the key only when the user's CURRENT key is exactly the one named
+// (an unmapped user's current key is their uid), so a stale runbook cannot
+// replace something else; the new key must hold at least as many sessions as
+// the key being left (counted at that moment, with the tray paused), so a copy
+// that stopped early is refused, unless --allow-fewer says it is deliberate;
+// it prints both counts. Rolling back after new uploads under the new key is
+// exactly that case: it would hide them. It is not
+// another user's uid nor another user's key. Same before/after print, same
+// --dry-run. Rolling back is the same command the other way round.
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
@@ -35,7 +48,132 @@ const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 // owner-scoped folders carry the owner key, and archive/ is prefixed with it.
 const OWNER_FOLDERS = ['traces', 'bands', 'slices', 'field', 'archive'];
 
+/**
+ * The command line: <uid> <ownerKey> [--replace <expectedOldKey>] [--allow-fewer]
+ * [--dry-run]. Walks the arguments, so a flag's value is never mistaken for a
+ * positional one and the plain two-argument form is untouched. Returns
+ * {uid, ownerKey, replace, allowFewer, dryRun} or {error}.
+ */
+export function parseArgs(args) {
+  const out = {replace: undefined, allowFewer: false, dryRun: false};
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--allow-fewer') out.allowFewer = true;
+    else if (a === '--replace') {
+      const value = args[i + 1];
+      if (!value || value.startsWith('--'))
+        return {
+          error: '--replace needs the key the user is expected to have now',
+        };
+      out.replace = value;
+      i++;
+    } else if (a.startsWith('--')) return {error: 'unknown option ' + a};
+    else positional.push(a);
+  }
+  if (positional.length !== 2)
+    return {
+      error:
+        'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--replace <expectedOldKey>] [--allow-fewer] [--dry-run]',
+    };
+  if (out.allowFewer && out.replace === undefined)
+    return {error: '--allow-fewer only goes with --replace'};
+  return {uid: positional[0], ownerKey: positional[1], ...out};
+}
+
 export class Refusal extends Error {}
+
+// --replace: the key a user already has becomes another one.
+async function replaceKey({
+  firestore,
+  auth,
+  uid,
+  ownerKey,
+  replace,
+  allowFewer,
+  before,
+  ref,
+  dryRun,
+  log,
+}) {
+  const current = before?.ownerKey ?? uid;
+  if (current !== replace)
+    throw new Refusal(
+      `users/${uid}'s current owner key is '${current}', not the expected '${replace}'; nothing changed`,
+    );
+  if (current === ownerKey)
+    throw new Refusal(
+      `the owner key is already '${ownerKey}'; nothing to replace`,
+    );
+  // Counts, taken now (the tray should be paused): the new key must hold at
+  // least as many sessions as the one being left, so "the copy verified" and
+  // "the switch will go ahead" are the same fact. A copy that stopped early
+  // is refused; a deliberate partial switch says so with --allow-fewer.
+  const countOf = async key =>
+    (
+      await firestore
+        .collection('sessions')
+        .where('ownerId', '==', key)
+        .count()
+        .get()
+    ).data().count;
+  const leaving = await countOf(current);
+  const arriving = await countOf(ownerKey);
+  log(
+    `sessions: ${leaving} under '${current}' (the key being left), ${arriving} under '${ownerKey}'`,
+  );
+  if (arriving === 0)
+    throw new Refusal(
+      `no session has ownerId == '${ownerKey}': switching this user onto a key that holds no data would make everything disappear for them`,
+    );
+  if (arriving < leaving) {
+    if (!allowFewer)
+      throw new Refusal(
+        `'${ownerKey}' holds ${arriving} sessions, fewer than the ${leaving} under '${current}': ${
+          leaving - arriving
+        } would no longer be shown to this user. A copy that is not finished, or a rollback after new uploads, looks like this. Pass --allow-fewer only for a deliberate partial switch`,
+      );
+    log(
+      `--allow-fewer: ${
+        leaving - arriving
+      } more sessions under '${current}' than under '${ownerKey}' will no longer be shown to this user (they stay where they are)`,
+    );
+  }
+  if (ownerKey !== uid) {
+    const isAnotherUser = await auth.getUser(ownerKey).then(
+      () => true,
+      () => false,
+    );
+    if (isAnotherUser)
+      throw new Refusal(
+        `owner key '${ownerKey}' is the uid of another Firebase user; their data lives under it`,
+      );
+  }
+  const taken = await firestore
+    .collection('users')
+    .where('ownerKey', '==', ownerKey)
+    .limit(1)
+    .get();
+  if (!taken.empty && taken.docs[0].id !== uid)
+    throw new Refusal(
+      `owner key '${ownerKey}' is already mapped to user ${taken.docs[0].id}`,
+    );
+  if (dryRun) {
+    log(
+      `dry run: would replace users/${uid}.ownerKey '${current}' with '${ownerKey}' (merge; other fields untouched)`,
+    );
+    return {changed: false, before, after: before};
+  }
+  await ref.set({ownerKey}, {merge: true});
+  const after = (await ref.get()).data();
+  log(`users/${uid} after:  ${JSON.stringify(after)}`);
+  if (after?.ownerKey !== ownerKey)
+    throw new Error(
+      'the write did not stick: ownerKey is not the new key after the write',
+    );
+  return {changed: true, before, after};
+}
 
 // auth.getUser(uid); firestore: doc(path).get()/set(), collection(name).where()
 // .limit().get(); hasFiles(prefix) says whether the bucket holds anything
@@ -47,6 +185,8 @@ export async function setOwnerKey({
   hasFiles,
   uid,
   ownerKey,
+  replace,
+  allowFewer = false,
   dryRun = false,
   log = console.log,
 }) {
@@ -65,6 +205,20 @@ export async function setOwnerKey({
   const snap = await ref.get();
   const before = snap.exists ? snap.data() : null;
   log(`users/${uid} before: ${JSON.stringify(before)}`);
+
+  if (replace !== undefined)
+    return replaceKey({
+      firestore,
+      auth,
+      uid,
+      ownerKey,
+      replace,
+      allowFewer,
+      before,
+      ref,
+      dryRun,
+      log,
+    });
 
   if (before?.ownerKey === ownerKey) {
     log(`already mapped to '${ownerKey}'; nothing to do`);
@@ -138,15 +292,12 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const [uid, ownerKey] = args.filter(a => !a.startsWith('--'));
-  if (!uid || !ownerKey) {
-    console.error(
-      'usage: node functions/scripts/setOwnerKey.mjs <uid> <ownerKey> [--dry-run]',
-    );
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.error) {
+    console.error(parsed.error);
     process.exit(2);
   }
+  const {uid, ownerKey, replace, allowFewer, dryRun} = parsed;
   process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= PROJECT;
   const require = createRequire(resolve(here, '../package.json'));
   const admin = require('firebase-admin');
@@ -162,6 +313,8 @@ if (
       },
       uid,
       ownerKey,
+      replace,
+      allowFewer,
       dryRun,
     });
   } catch (error) {
