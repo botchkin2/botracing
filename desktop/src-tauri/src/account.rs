@@ -34,7 +34,7 @@ pub struct CredentialManager;
 
 impl CredentialManager {
     fn entry() -> Result<keyring::Entry, keyring::Error> {
-        keyring::Entry::new("BotRacing", "account")
+        keyring::Entry::new(&crate::profile::keyring_service(), "account")
     }
 }
 
@@ -148,6 +148,8 @@ pub struct Account {
     /// Shown instead of the status while set ("Sign in again", an error).
     pub message: Option<String>,
     pub signing_in: bool,
+    /// The browser sign-in has been opened by the tray itself this launch.
+    prompted: bool,
 }
 
 impl Account {
@@ -177,7 +179,33 @@ impl Account {
             settings,
             message: None,
             signing_in: false,
+            prompted: false,
         }
+    }
+
+    /// Signed out for good: no session, nothing stored to continue, and no
+    /// sign-in under way. (A stored sign-in that is only waiting for the
+    /// network is not this.)
+    pub fn needs_sign_in(&self) -> bool {
+        self.session.is_none() && self.stored.is_none() && !self.signing_in
+    }
+
+    /// A stored sign-in exists that has not been continued yet.
+    pub fn has_stored(&self) -> bool {
+        self.stored.is_some()
+    }
+
+    /// True once per launch, when the tray should open the browser sign-in by
+    /// itself: the user is signed out for good and this build can sign in. A
+    /// click on the menu opens it any time; this is only the automatic one, so
+    /// a tray that starts at logon does not keep throwing browser tabs at
+    /// someone who closed the first (thread 2 #180).
+    pub fn take_prompt(&mut self) -> bool {
+        if self.prompted || !self.needs_sign_in() || self.cfg.missing().is_some() {
+            return false;
+        }
+        self.prompted = true;
+        true
     }
 
     pub fn config(&self) -> &Config {
@@ -305,9 +333,18 @@ impl Account {
             | Done::Refresh(Err(RefreshError::Rejected(why))) => self.sign_in_lost(&why),
             Done::Restore(Err(RefreshError::Transient(why)))
             | Done::Refresh(Err(RefreshError::Transient(why))) => {
-                // Nothing says the credential is bad: keep it and try again.
+                // The network failed. Nothing says the credential is bad: keep
+                // it and try again.
                 self.retry_after = Some(SystemTime::now() + RETRY_AFTER);
                 self.message = Some(format!("Offline, will retry ({why})"));
+            }
+            Done::Restore(Err(RefreshError::Service(why)))
+            | Done::Refresh(Err(RefreshError::Service(why))) => {
+                // Firebase answered with something that does not end a
+                // sign-in (a wrong web key, a 5xx, a 429): kept the same way,
+                // but "offline" would be the wrong thing to tell the user.
+                self.retry_after = Some(SystemTime::now() + RETRY_AFTER);
+                self.message = Some(format!("Sign-in service problem, will retry ({why})"));
             }
             Done::Owner(Ok(key)) => {
                 self.owner_key = Some(key);
@@ -577,13 +614,19 @@ mod tests {
 
     #[test]
     fn a_server_error_or_no_network_keeps_the_sign_in_and_tries_again() {
-        for (name, base) in [
+        for (name, base, says) in [
             (
                 "5xx",
                 stub(|_, _| (503, r#"{"error":{"message":"unavailable"}}"#.into())).0,
+                // The service answered: not "offline".
+                "Sign-in service problem, will retry",
             ),
             // Nothing listens here: a refused connection.
-            ("offline", "http://127.0.0.1:9".to_string()),
+            (
+                "offline",
+                "http://127.0.0.1:9".to_string(),
+                "Offline, will retry",
+            ),
         ] {
             let dir = data_dir(&format!("transient-{name}"));
             let mem = Memory::default();
@@ -598,16 +641,42 @@ mod tests {
             assert!(acct.session.is_none(), "{name}: not signed in yet");
             assert!(mem.get().is_some(), "{name}: the credential must be kept");
             let message = acct.message.clone().unwrap_or_default();
-            assert!(
-                message.starts_with("Offline, will retry"),
-                "{name}: {message}"
-            );
+            assert!(message.starts_with(says), "{name}: {message}");
             assert!(!acct.should_run(), "{name}");
             assert!(
                 acct.plan().is_none(),
                 "{name}: no hammering, it waits before retrying"
             );
         }
+    }
+
+    #[test]
+    fn a_wrong_web_key_keeps_every_stored_sign_in_and_says_why() {
+        // A rotated or wrong Firebase web key answers 400 API_KEY_INVALID to
+        // every refresh. It must not sign anyone out (marshal #186).
+        let dir = data_dir("wrong-key");
+        let mem = Memory::default();
+        mem.set(r#"{"uid":"u1","email":"u1@x.y","refresh":"REF-u1"}"#)
+            .unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("token"), "OLD-TOKEN").unwrap();
+        let (base, _) = stub(|_, _| (400, r#"{"error":{"message":"API_KEY_INVALID"}}"#.into()));
+        let a = account(&base, &dir, &mem);
+        maintain(&a);
+        let mut acct = a.lock().unwrap();
+        assert!(mem.get().is_some(), "the stored sign-in must survive");
+        assert!(dir.join("token").exists(), "and the token file");
+        assert!(
+            acct.has_stored() && !acct.needs_sign_in(),
+            "still waiting, not signed out"
+        );
+        let message = acct.message.clone().unwrap_or_default();
+        assert!(
+            message.starts_with("Sign-in service problem, will retry")
+                && message.contains("API_KEY_INVALID"),
+            "{message}"
+        );
+        assert!(!acct.take_prompt(), "and no browser is opened");
     }
 
     #[test]
@@ -715,5 +784,82 @@ mod tests {
             !dir.join("settings.json.tmp").exists(),
             "no temp file left behind"
         );
+    }
+
+    #[test]
+    fn the_browser_sign_in_opens_by_itself_once_per_launch() {
+        let dir = data_dir("prompt-once");
+        let a = account(&server(), &dir, &Memory::default());
+        let mut acct = a.lock().unwrap();
+        assert!(acct.take_prompt(), "signed out on launch: open it");
+        assert!(!acct.take_prompt(), "not on the next tick");
+        // The user closed the tab or it timed out: the failure is shown, the
+        // browser is not opened again by itself.
+        acct.message = Some("Sign-in failed: no answer from the browser (timed out)".into());
+        for _ in 0..5 {
+            assert!(!acct.take_prompt());
+        }
+        // Signing out later in the same launch does not re-open it either.
+        acct.signed_in(session("u1", 3600));
+        acct.sign_out(|| {});
+        assert!(!acct.take_prompt());
+    }
+
+    #[test]
+    fn a_stored_sign_in_that_is_only_offline_does_not_open_a_browser() {
+        let dir = data_dir("prompt-offline");
+        let mem = Memory::default();
+        mem.set(r#"{"uid":"u1","email":"u1@x.y","refresh":"REF-u1"}"#)
+            .unwrap();
+        let (base, _) = stub(|_, _| (503, "{}".into()));
+        let a = account(&base, &dir, &mem);
+        maintain(&a);
+        let mut acct = a.lock().unwrap();
+        assert!(acct.has_stored() && acct.session.is_none());
+        assert!(!acct.needs_sign_in());
+        assert!(!acct.take_prompt(), "offline is not signed out");
+    }
+
+    #[test]
+    fn a_sign_in_the_server_refused_does_open_it_once() {
+        let dir = data_dir("prompt-refused");
+        let mem = Memory::default();
+        mem.set(r#"{"uid":"u1","email":"u1@x.y","refresh":"REF-u1"}"#)
+            .unwrap();
+        let (base, _) = stub(|_, _| (400, r#"{"error":{"message":"TOKEN_EXPIRED"}}"#.into()));
+        let a = account(&base, &dir, &mem);
+        maintain(&a);
+        let mut acct = a.lock().unwrap();
+        assert!(acct.needs_sign_in(), "refused for good: signed out");
+        assert!(acct.take_prompt());
+        assert!(!acct.take_prompt());
+    }
+
+    #[test]
+    fn nothing_opens_while_signed_in_while_signing_in_or_in_a_build_without_the_client() {
+        let dir = data_dir("prompt-other");
+        let a = account(&server(), &dir, &Memory::default());
+        let mut acct = a.lock().unwrap();
+        acct.signing_in = true;
+        assert!(!acct.take_prompt(), "a sign-in is already under way");
+        acct.signing_in = false;
+        acct.signed_in(session("u1", 3600));
+        assert!(!acct.take_prompt(), "signed in");
+        drop(acct);
+
+        let mut cfg_missing = cfg(&server());
+        cfg_missing.client_secret.clear();
+        let mut bare = Account::new(
+            cfg_missing,
+            &data_dir("prompt-missing"),
+            Box::new(Memory::default()),
+        );
+        assert!(bare.needs_sign_in());
+        assert!(
+            !bare.take_prompt(),
+            "a build without the OAuth client cannot sign in; the status says so"
+        );
+        // The once-per-launch flag was not spent on it.
+        assert!(!bare.prompted);
     }
 }

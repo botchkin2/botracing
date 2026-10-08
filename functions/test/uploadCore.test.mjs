@@ -52,8 +52,9 @@ function world(tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'}) {
           docBytes: 0,
           files: 0,
           fileBytes: 0,
+          heartbeats: 0,
         };
-        for (const k of Object.keys(u)) u[k] += d[k];
+        for (const k of Object.keys(u)) u[k] += d[k] ?? 0;
         usage.set(uid, u);
       },
     },
@@ -547,8 +548,15 @@ test('the real client works against the handler: docs, files, laps, events', asy
       id: 's1',
       data: {ownerId: 'uidA', series: 'x'},
     },
-    {op: 'set', coll: 'tracks', id: 't1', data: {v: 1}, merge: true},
   ]);
+  // Track data is curated: the client refuses to write it (storeClient.mjs).
+  await assert.rejects(
+    a.writeDocs([
+      {op: 'set', coll: 'tracks', id: 't1', data: {v: 1}, merge: true},
+    ]),
+    /must not write track data \(tracks\)/,
+  );
+  assert.equal(w.docs.has('tracks/t1'), false);
   assert.deepEqual(await a.sessionLapIds('s1'), ['l1']);
   assert.equal((await a.getDoc('sessions', 's1')).series, 'x');
   assert.equal(await a.getDoc('sessions', 'nope'), null);
@@ -595,4 +603,198 @@ test('the real client works against the handler: docs, files, laps, events', asy
     /403/,
   );
   await assert.rejects(b.getFile('traces/uidA/l1/v2.csv.gz'), /403/);
+});
+
+// -- uploader status (heartbeats) ------------------------------------------------
+
+const beat = (overrides = {}) => ({
+  hostId: 'a1b2c3d4',
+  label: 'Race PC',
+  version: '0.1.0',
+  lmuFound: true,
+  state: 'syncing',
+  lastUploadAt: '2026-10-06T03:00:00Z',
+  lastSessionId: 'bc1d',
+  queue: 2,
+  progress: {done: 1, total: 4},
+  retryAt: null,
+  sessionsDone: 14,
+  lastError: null,
+  disk: {captureBytes: 5e9, freeBytes: 2e11},
+  recorder: {
+    state: 'recording',
+    gameVersion: '1.2',
+    layoutOk: true,
+    layoutReason: null,
+    lastChunkAt: '2026-10-06T03:00:00Z',
+    updatedAt: '2026-10-06T03:00:05Z',
+  },
+  ...overrides,
+});
+const NOW0 = Date.parse('2026-10-06T04:00:00Z');
+const clockWorld = () => {
+  const w = world();
+  w.clock = {t: NOW0};
+  w.deps.now = () => w.clock.t;
+  return w;
+};
+const send = (w, token, body) =>
+  call(w, token, 'POST', '/heartbeat', {json: body});
+
+test('a heartbeat is stored under the token owner, stamped by the server', async () => {
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      ownerId: 'botkin', // ignored
+      lastSeenAt: '1999-01-01T00:00:00Z', // the server's clock wins
+      serverUpdatedAt: 'x',
+      secret: 'dropped',
+    }),
+  );
+  assert.equal(res.status, 204);
+  const doc = w.docs.get('uploaders/uidA__a1b2c3d4');
+  assert.equal(doc.ownerId, 'uidA');
+  assert.equal(doc.hostId, 'a1b2c3d4');
+  assert.equal(doc.lastSeenAt, '2026-10-06T04:00:00.000Z');
+  assert.equal(doc.serverUpdatedAt, '2026-10-06T04:00:00.000Z');
+  assert.equal(
+    doc.secret,
+    undefined,
+    'a field the card does not read is dropped',
+  );
+  assert.equal(doc.state, 'syncing');
+  assert.deepEqual(doc.disk, {captureBytes: 5e9, freeBytes: 2e11});
+  // Nothing was written outside uploaders/.
+  assert.deepEqual(
+    [...w.docs.keys()].filter(k => !k.startsWith('users/')),
+    ['uploaders/uidA__a1b2c3d4'],
+  );
+});
+
+test("the legacy owner's heartbeat is stamped botkin, and users cannot touch each other's host", async () => {
+  const w = clockWorld();
+  await send(w, 'tok-k', beat());
+  await send(w, 'tok-a', beat({state: 'idle'}));
+  await send(w, 'tok-b', beat({state: 'error'}));
+  assert.equal(w.docs.get('uploaders/botkin__a1b2c3d4').ownerId, 'botkin');
+  // The same hostId for two users is two documents, never one overwritten.
+  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'idle');
+  assert.equal(w.docs.get('uploaders/uidB__a1b2c3d4').state, 'error');
+  assert.equal(w.docs.get('uploaders/uidB__a1b2c3d4').ownerId, 'uidB');
+});
+
+test('heartbeats are not counted as documents or bytes, only as heartbeats (marshal #236)', async () => {
+  const w = clockWorld();
+  await send(w, 'tok-a', beat());
+  w.clock.t += 40_000;
+  await send(w, 'tok-a', beat({state: 'idle'}));
+  assert.deepEqual(w.usage.get('uidA'), {
+    docs: 0,
+    docBytes: 0,
+    files: 0,
+    fileBytes: 0,
+    heartbeats: 2,
+  });
+});
+
+test('too often is 429 with Retry-After, and the latest state is accepted when allowed', async () => {
+  const w = clockWorld();
+  assert.equal((await send(w, 'tok-a', beat({state: 'syncing'}))).status, 204);
+  // sync started, then finished 5 s later: the second is turned away...
+  w.clock.t += 5_000;
+  const early = await send(w, 'tok-a', beat({state: 'idle', queue: 0}));
+  assert.equal(early.status, 429);
+  assert.equal(early.headers['Retry-After'], '25');
+  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'syncing');
+  assert.equal(
+    w.usage.get('uidA').heartbeats,
+    1,
+    'a refused beat is not counted',
+  );
+  // ...and the tray sends its LATEST state after the wait, which replaces it.
+  w.clock.t += 25_000;
+  assert.equal(
+    (await send(w, 'tok-a', beat({state: 'idle', queue: 0}))).status,
+    204,
+  );
+  assert.equal(w.docs.get('uploaders/uidA__a1b2c3d4').state, 'idle');
+  // Another host of the same user is not held up by this one.
+  assert.equal(
+    (await send(w, 'tok-a', beat({hostId: 'other-pc', state: 'idle'}))).status,
+    204,
+  );
+});
+
+test('a heartbeat needs a token and a safe host id', async () => {
+  const w = clockWorld();
+  assert.equal((await send(w, null, beat())).status, 401);
+  for (const hostId of [
+    '',
+    '../x',
+    'a/b',
+    'a\\b',
+    '.hidden',
+    'x'.repeat(65),
+    undefined,
+    42,
+    null,
+  ])
+    assert.equal(
+      (await send(w, 'tok-a', beat({hostId}))).status,
+      400,
+      String(hostId),
+    );
+  assert.equal(w.docs.size, 1, 'only the users/uidK mapping exists');
+});
+
+test('a heartbeat is checked field by field', async () => {
+  const w = clockWorld();
+  const bad = [
+    {label: undefined},
+    {version: undefined},
+    {lmuFound: 'yes'},
+    {state: 'on fire'},
+    {state: undefined},
+    {queue: -1},
+    {queue: 1.5e15},
+    {queue: '2'},
+    {sessionsDone: NaN},
+    {progress: {done: 1}},
+    {progress: 'half'},
+    {lastError: {at: 'x', message: 'm'.repeat(301)}},
+    {lastError: 'boom'},
+    {disk: {captureBytes: 1}},
+    {recorder: {state: 5}},
+    {label: 'L'.repeat(65)},
+    {lastSessionId: 'x'.repeat(65)},
+  ];
+  for (const patch of bad)
+    assert.equal(
+      (await send(w, 'tok-a', beat(patch))).status,
+      400,
+      JSON.stringify(patch),
+    );
+  // What the real tray sends is accepted, including nulls and epoch times.
+  const ok = beat({
+    lastUploadAt: 1790000000000,
+    retryAt: null,
+    progress: null,
+    recorder: null,
+    lastError: {at: '2026-10-06T03:00:00Z', message: 'EBUSY', path: null},
+    lastSessionId: null,
+  });
+  assert.equal((await send(w, 'tok-a', ok)).status, 204);
+  assert.equal(
+    w.usage.get('uidA').heartbeats,
+    1,
+    'only the accepted one counted',
+  );
+});
+
+test('the usage counters on a user that never sent a heartbeat have no heartbeats', async () => {
+  const w = clockWorld();
+  await write(w, 'tok-a', [lap('l1', 'uidA')]);
+  assert.equal(w.usage.get('uidA').heartbeats, 0);
 });

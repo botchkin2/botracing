@@ -45,6 +45,7 @@ import {
   queueCount,
   readSyncLine,
 } from './syncOutput.mjs';
+import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
@@ -203,9 +204,22 @@ function runSync(onProgress, skipIds) {
 }
 
 let db = null;
+// Under the tray app (a token file) the status also goes to the server, which
+// stores it under the signed-in user's owner key (heartbeatSender.mjs). Not
+// awaited: a slow or refused request never holds up a sync.
+const statusSender = process.env.LAP_TOKEN_FILE
+  ? createHeartbeatSender({
+      send: httpSend({
+        api: process.env.LAP_API || undefined,
+        tokenFile: process.env.LAP_TOKEN_FILE,
+      }),
+      log: line => log(line),
+    })
+  : null;
 async function writeBeat(doc) {
   if (process.env.LAP_HEARTBEAT_FILE) {
     appendFileSync(process.env.LAP_HEARTBEAT_FILE, `${JSON.stringify(doc)}\n`);
+    void statusSender?.offer(doc);
     return;
   }
   if (!db) db = (await import('../sessions/store.mjs')).connect().db;

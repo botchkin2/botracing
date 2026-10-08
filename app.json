@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.botracing61"
+      "package": "app.botracing.android"
     },
     "web": {
       "output": "single",

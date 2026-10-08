@@ -3,10 +3,10 @@
 // lmuApi.ts binds it to Admin Auth and Firestore.
 
 export const LEGACY_OWNER = 'botkin';
-// A request with no Authorization header is read as the legacy owner, as it
-// always was, so the app keeps working for Botkin until he signs in on the
-// web app. Set to null to require sign-in (the next step after he has).
-export const ANONYMOUS_OWNER: string | null = LEGACY_OWNER;
+// A request with no Authorization header is refused: every read needs a
+// signed-in owner. (It was the legacy owner until Botkin signed in; keep a
+// value here only as a deliberate bridge.)
+export const ANONYMOUS_OWNER: string | null = null;
 
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 
@@ -75,6 +75,24 @@ export function pathInsideOwner(
   for (const segment of segments)
     if (!SAFE_SEGMENT.test(segment) || segment.includes('..')) return null;
   return segments[0] === FOLDER[kind] && segments[1] === owner ? path : null;
+}
+
+/**
+ * The uploader status docs a person may see: only their own (the tray writes
+ * them through the upload endpoint with the owner stamped from its token), and
+ * without the server's bookkeeping. A doc with no ownerId (the old
+ * Admin-written ones) is shown to nobody: it ages out.
+ */
+export function uploaderItems(
+  owner: string,
+  docs: {id: string; data: Record<string, unknown>}[],
+): Record<string, unknown>[] {
+  return docs
+    .filter(({data}) => data.ownerId === owner)
+    .map(({id, data}) => {
+      const {ownerId: _owner, serverUpdatedAt: _stamp, ...visible} = data;
+      return {...visible, hostId: data.hostId ?? id};
+    });
 }
 
 // Track docs: the legacy owner's are shared and written by tools on this PC,
