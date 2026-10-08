@@ -95,9 +95,19 @@ export function uploaderItems(
     });
 }
 
-// Track docs: the legacy owner's are shared and written by tools on this PC,
-// so their paths stand. Anyone else's track doc is user-written, and the
-// surface and outline folders are not per-owner yet: those paths are ignored.
-export function trustedTrackPath(owner: string, path: unknown): string | null {
-  return owner === LEGACY_OWNER && typeof path === 'string' ? path : null;
+// Track docs are app data, written only by the admin tools (the upload
+// endpoint refuses every track write), so the files they name are served to
+// every signed-in owner. Defence in depth: only the two folders the tools write
+// (surface/{trackId}/v1.json.gz, trackmaps/{trackId}/v1.geojson.gz), exactly
+// folder/trackId/file, every segment passing the segment rule, so a bad track
+// doc still cannot name another owner's file or climb out.
+const TRACK_FOLDERS = ['surface', 'trackmaps'];
+
+export function trustedTrackPath(path: unknown): string | null {
+  if (typeof path !== 'string') return null;
+  const segments = path.split('/');
+  if (segments.length !== 3) return null;
+  for (const segment of segments)
+    if (!SAFE_SEGMENT.test(segment) || segment.includes('..')) return null;
+  return TRACK_FOLDERS.includes(segments[0]) ? path : null;
 }

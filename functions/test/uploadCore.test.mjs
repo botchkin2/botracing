@@ -229,19 +229,53 @@ test("reads of another owner's documents are 404, not 403", async () => {
     );
 });
 
-test('track maps are per owner, so one user cannot change what another sees', async () => {
+test('track data is curated: nobody uploads it, everybody signed in reads it', async () => {
   const w = world();
-  const track = v => [{op: 'set', coll: 'tracks', id: 'lmu-road', data: {v}}];
-  await write(w, 'tok-k', track(1)); // legacy owner: the shared doc
-  await write(w, 'tok-a', track(2));
-  await write(w, 'tok-b', track(3));
-  assert.equal(w.docs.get('tracks/lmu-road').v, 1);
-  assert.equal(w.docs.get('users/uidA/tracks/lmu-road').v, 2);
-  assert.equal(w.docs.get('users/uidB/tracks/lmu-road').v, 3);
+  w.docs.set('tracks/lmu-road', {v: 1, corners: [1, 2]});
+  w.docs.set('trackBoundaries/lmu-road', {rev: 3});
+  for (const token of ['tok-a', 'tok-b', 'tok-k']) {
+    for (const coll of ['tracks', 'trackBoundaries']) {
+      for (const extra of [{}, {merge: true}]) {
+        const res = await write(w, token, [
+          {op: 'set', coll, id: 'lmu-road', data: {v: 99}, ...extra},
+        ]);
+        assert.equal(res.status, 403, `${token} ${coll}`);
+        assert.match(res.json.error, /track data is curated/);
+      }
+      const del = await write(w, token, [{op: 'delete', coll, id: 'lmu-road'}]);
+      assert.equal(del.status, 403);
+    }
+  }
+  assert.deepEqual(w.docs.get('tracks/lmu-road'), {v: 1, corners: [1, 2]});
+  assert.deepEqual(w.docs.get('trackBoundaries/lmu-road'), {rev: 3});
+  // Nothing per owner is ever created either.
+  assert.equal(w.docs.has('users/uidA/tracks/lmu-road'), false);
+  // Every signed-in user reads the same shared doc; nobody signed in does not.
+  for (const token of ['tok-a', 'tok-b', 'tok-k']) {
+    const read = await call(w, token, 'GET', '/doc/tracks/lmu-road');
+    assert.deepEqual(read.json, {v: 1, corners: [1, 2]});
+  }
   assert.equal(
-    (await call(w, 'tok-b', 'GET', '/doc/tracks/lmu-road')).json.v,
+    (await call(w, null, 'GET', '/doc/tracks/lmu-road')).status,
+    401,
+  );
+  assert.equal(
+    (await call(w, 'tok-a', 'GET', '/doc/trackBoundaries/lmu-road')).json.rev,
     3,
   );
+});
+
+test('a batch with one track op writes nothing, not even its other docs', async () => {
+  const w = world();
+  const before = w.docs.size;
+  const res = await write(w, 'tok-a', [
+    lap('l1', 'uidA'),
+    {op: 'set', coll: 'tracks', id: 't', data: {v: 1}},
+    lap('l2', 'uidA'),
+  ]);
+  assert.equal(res.status, 403);
+  assert.equal(w.docs.size, before);
+  assert.equal(w.usage.has('uidA'), false);
 });
 
 test('update only merges the event fields into existing docs and reports the rest', async () => {
@@ -273,8 +307,19 @@ test('update only merges the event fields into existing docs and reports the res
 
 test('documents are checked: plain JSON, size, depth, field names, op count', async () => {
   const w = world();
+  // Objects get the caller's ownerId (sessions must carry it); anything else
+  // is sent as it is, to be refused.
+  const isObject = v =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
   const set = data =>
-    write(w, 'tok-a', [{op: 'set', coll: 'tracks', id: 't', data}]);
+    write(w, 'tok-a', [
+      {
+        op: 'set',
+        coll: 'sessions',
+        id: 's',
+        data: isObject(data) ? {...data, ownerId: 'uidA'} : data,
+      },
+    ]);
   assert.equal((await set({big: 'x'.repeat(MAX_DOC_BYTES)})).status, 413);
   assert.equal((await set('text')).status, 400);
   assert.equal((await set({'a/b': 1})).status, 400);
@@ -489,7 +534,12 @@ test('a document is limited by its bytes, not its characters', async () => {
   const w = world();
   // 400,000 three-byte characters: 400k chars but over 1.2 MB.
   const res = await write(w, 'tok-a', [
-    {op: 'set', coll: 'tracks', id: 't', data: {name: '€'.repeat(400_000)}},
+    {
+      op: 'set',
+      coll: 'sessions',
+      id: 's',
+      data: {ownerId: 'uidA', name: '€'.repeat(400_000)},
+    },
   ]);
   assert.equal(res.status, 413);
 });

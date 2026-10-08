@@ -84,13 +84,32 @@ test('a path is followed only inside the right folder of the owner', () => {
     assert.equal(pathInsideOwner(kind, owner, path), null, String(path));
 });
 
-test("a track doc's file paths are only trusted for the legacy owner", () => {
-  assert.equal(
-    trustedTrackPath('botkin', 'surface/lmu-road/v1.json.gz'),
-    'surface/lmu-road/v1.json.gz',
-  );
-  assert.equal(trustedTrackPath('uidB', 'traces/botkin/l1/v2.csv.gz'), null);
-  assert.equal(trustedTrackPath('botkin', undefined), null);
+test('a track doc names a file only in surface/ or trackmaps/, one per track', () => {
+  for (const ok of [
+    'surface/lmu-autodromo_nazionale_monza/v1.json.gz',
+    'trackmaps/lmu-algarve_international_circuit/v1.geojson.gz',
+  ])
+    assert.equal(trustedTrackPath(ok), ok);
+  const refused = [
+    'traces/botkin/l1/v2.csv.gz', // another folder
+    'bands/uidA/s1/v1.json.gz',
+    'surface/lmu-monza', // too short
+    'surface/lmu-monza/v1/extra.json.gz', // too long
+    'surface/../traces/botkin/v1', // climbs out
+    'surface/lmu-monza/../v1.json.gz',
+    'surface//v1.json.gz', // empty segment
+    'surface/.hidden/v1.json.gz', // dot-leading
+    'surfacelmu-monza\v1.json.gz', // backslashes
+    '/surface/lmu-monza/v1.json.gz',
+    'surface/lmu-monza/',
+    '',
+    undefined,
+    null,
+    42,
+    {path: 'surface/x/y'},
+  ];
+  for (const bad of refused)
+    assert.equal(trustedTrackPath(bad), null, String(bad));
 });
 
 // The readers are bound to Firestore and Storage, which no test here can run,
