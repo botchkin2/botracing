@@ -12,6 +12,7 @@
 //   node tools/sessions/surfaceAudit.mjs [--api BASE] [--out DIR] [--track ID]
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {apiAuthHeaders} from './apiAuth.mjs';
 import {
   applyGeoref,
   canDrawOnRealMap,
@@ -38,7 +39,7 @@ const MIN_LEFTOVER_M = 20;
 const JUMP_BINS = 2.5;
 
 async function get(path) {
-  const r = await fetch(`${API}${path}`);
+  const r = await fetch(`${API}${path}`, {headers: apiAuthHeaders()});
   return r.ok ? r.json() : null;
 }
 

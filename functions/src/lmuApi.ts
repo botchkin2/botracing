@@ -17,6 +17,7 @@ import {
   readFieldGzip,
   storeHasSessions,
 } from './sessionStore';
+import {LEGACY_OWNER, Unauthorized, resolveOwner} from './ownerAccess';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -110,16 +111,42 @@ export const lmuApi = onRequest(async (req, res) => {
   }
 
   const path = pathname(req);
+  // Who is asking: the signed-in user's owner key, or the legacy owner for a
+  // request with no token (ownerAccess.ts). A bad token is a 401.
+  res.set('Vary', 'Authorization, Origin');
+  let owner: string;
+  try {
+    owner = await resolveOwner(
+      {
+        verifyToken: async idToken => ({
+          uid: (await admin.auth().verifyIdToken(idToken)).uid,
+        }),
+        readOwnerKey: async uid => {
+          const key = (await admin.firestore().doc(`users/${uid}`).get()).get(
+            'ownerKey',
+          );
+          return typeof key === 'string' ? key : null;
+        },
+      },
+      req.headers.authorization,
+    );
+  } catch (error) {
+    if (error instanceof Unauthorized) {
+      res.status(401).json({error: error.message});
+      return;
+    }
+    throw error;
+  }
   try {
     // API v2, shaped for the redesigned screens (Sessions, Session, Compare,
     // Corner). Straight from the store, no legacy lap shape.
     if (/\/uploaders$/.test(path)) {
-      res.status(200).json({items: await listUploaders()});
+      res.status(200).json({items: await listUploaders(owner)});
       return;
     }
     if (/\/sessions$/.test(path)) {
       const age = Number(req.query.age);
-      const items = await listSessions({
+      const items = await listSessions(owner, {
         ageDays: Number.isFinite(age) ? age : undefined,
         trackId: req.query.track ? String(req.query.track) : undefined,
       });
@@ -131,7 +158,7 @@ export const lmuApi = onRequest(async (req, res) => {
     );
     if (field) {
       const [, id, hash] = field;
-      const gz = await readFieldGzip(id, hash);
+      const gz = await readFieldGzip(owner, id, hash);
       if (!gz) {
         res.status(404).json({error: 'Not found'});
         return;
@@ -152,7 +179,7 @@ export const lmuApi = onRequest(async (req, res) => {
     );
     if (slices) {
       const [, id, corner, hash] = slices;
-      const gz = await readCornerSlicesGzip(id, Number(corner), hash);
+      const gz = await readCornerSlicesGzip(owner, id, Number(corner), hash);
       if (!gz) {
         res.status(404).json({error: 'Not found'});
         return;
@@ -169,7 +196,7 @@ export const lmuApi = onRequest(async (req, res) => {
     }
     const surface = path.match(/\/sessions\/([0-9a-f]{16})\/surface$/);
     if (surface) {
-      const gz = await readSurfaceGzip(surface[1]);
+      const gz = await readSurfaceGzip(owner, surface[1]);
       if (!gz) {
         res.status(404).json({error: 'Not found'});
         return;
@@ -186,12 +213,12 @@ export const lmuApi = onRequest(async (req, res) => {
       const [, id, part] = v2;
       const body =
         part === 'laps'
-          ? await readSessionLaps(id)
+          ? await readSessionLaps(owner, id)
           : part === 'band'
-          ? await readBand(id)
+          ? await readBand(owner, id)
           : part === 'map'
-          ? await readTrackMap(id)
-          : await readSession(id);
+          ? await readTrackMap(owner, id)
+          : await readSession(owner, id);
       if (!body) {
         res.status(404).json({error: 'Not found'});
         return;
@@ -204,8 +231,8 @@ export const lmuApi = onRequest(async (req, res) => {
     // manifest answers only while the store is still empty; it goes away at
     // cutover.
     if (path.endsWith('/tracks')) {
-      const stored = await listTracks();
-      if (stored.length > 0) {
+      const stored = await listTracks(owner);
+      if (stored.length > 0 || owner !== LEGACY_OWNER) {
         res.status(200).json({items: stored});
         return;
       }
@@ -220,7 +247,10 @@ export const lmuApi = onRequest(async (req, res) => {
     const csv = path.match(/\/laps\/([^/]+)\/csv$/);
     if (csv) {
       const id = decodeURIComponent(csv[1]);
-      const body = (await readTrace(id)) ?? (await readLapCsv(id));
+      // The seed copy shipped with the function is the legacy owner's.
+      const body =
+        (await readTrace(owner, id)) ??
+        (owner === LEGACY_OWNER ? await readLapCsv(id) : null);
       if (!body) {
         res.status(404).json({error: 'Lap telemetry not found'});
         return;
@@ -237,12 +267,16 @@ export const lmuApi = onRequest(async (req, res) => {
         .filter(value => Number.isFinite(value) && value !== 0);
       const event = String(req.query.event || '');
       const age = Number(req.query.age);
-      const stored = await listLaps({
+      const stored = await listLaps(owner, {
         ageDays: Number.isFinite(age) ? age : undefined,
         trackIds: trackFilter,
         event: event || undefined,
       });
-      if (stored.length > 0 || (await storeHasSessions())) {
+      if (
+        stored.length > 0 ||
+        owner !== LEGACY_OWNER ||
+        (await storeHasSessions(owner))
+      ) {
         res.status(200).json({items: stored, total: stored.length});
         return;
       }
