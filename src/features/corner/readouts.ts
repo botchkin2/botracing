@@ -14,6 +14,7 @@ export type ReadoutChart =
   | 'speed'
   | 'brake'
   | 'throttle'
+  | 'gear'
   | 'steering'
   | 'line';
 
@@ -35,6 +36,7 @@ export function readoutsAt(
     speed: [],
     brake: [],
     throttle: [],
+    gear: [],
     steering: [],
     line: [],
   };
@@ -61,6 +63,8 @@ export function readoutsAt(
     add('brake', brake == null ? null : `${Math.round(brake)}`);
     const throttle = at('throttlePct');
     add('throttle', throttle == null ? null : `${Math.round(throttle)}`);
+    const gear = at('gear');
+    add('gear', gear == null ? null : `${Math.round(gear)}`);
     const steering = at('steeringPct');
     add('steering', steering == null ? null : lateralText(steering, 0));
     const lateral = at('pathLateralM');

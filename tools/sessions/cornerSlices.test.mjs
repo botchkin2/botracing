@@ -173,7 +173,7 @@ test('no map, no slices', () => {
 });
 
 test('the decoder names the field that is wrong', () => {
-  assert.throws(() => decodeCornerSlices({v: 2}), /unknown format/);
+  assert.throws(() => decodeCornerSlices({v: 3}), /unknown format/);
   const good = JSON.parse(
     build([{id: 'a', csv: () => lapCsv()}]).files[0].text,
   );

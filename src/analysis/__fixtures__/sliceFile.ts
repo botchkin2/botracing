@@ -20,6 +20,7 @@ const DIGITS: Record<string, number> = {
   steeringPct: 2,
   pathLateralM: 2,
   trackEdgeM: 2,
+  gear: 0,
 };
 
 /** A 2 km lap at 100 Hz: brake and throttle at 50 Hz, lateral at 10 Hz. */
@@ -83,7 +84,7 @@ export function sliceFileJson(
   windowM: [number, number],
 ) {
   return {
-    v: 1,
+    v: 2,
     corner: 4,
     apexM,
     lengthM: LENGTH_M,
