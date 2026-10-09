@@ -3,6 +3,7 @@ import {StyleSheet, View} from 'react-native';
 
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
+import {drawnGear} from './drawnGear';
 import {lapColors, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
@@ -121,7 +122,7 @@ export function ZoomTraces({
       l.gear.length - 1,
       Math.ceil(zoom.windowM[1] / zoom.stepM),
     );
-    return l.gear.slice(from, to + 1).filter(Number.isFinite);
+    return drawnGear(l.gear.slice(from, to + 1)).filter(Number.isFinite);
   });
   const gearLo = gearsShown.reduce((a, g) => Math.min(a, g), Infinity);
   const gearHi = gearsShown.reduce((a, g) => Math.max(a, g), -Infinity);
@@ -293,7 +294,7 @@ export function ZoomTraces({
         height={heights.gear}
         domain={gearDomain}
         yTicks={gearTicks}
-        series={series(l => ({values: l.gear})).map(s => ({
+        series={series(l => ({values: drawnGear(l.gear)})).map(s => ({
           ...s,
           stepped: true,
         }))}
