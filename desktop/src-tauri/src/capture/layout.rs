@@ -222,7 +222,7 @@ fn parse_int(value: &str) -> Result<i64, ()> {
 }
 
 fn strip_comments(text: &str) -> String {
-    let block = Regex::new(r"/\*.*?\*/").expect("block comment");
+    let block = Regex::new(r"(?s)/\*.*?\*/").expect("block comment");
     let line = Regex::new(r"//[^\n]*").expect("line comment");
     line.replace_all(&block.replace_all(text, " "), "").into_owned()
 }
