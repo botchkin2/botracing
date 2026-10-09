@@ -10,7 +10,6 @@ import {
   foldSurfaces,
   gzipSurface,
   parseSurface,
-  sessionsToFold,
   surfaceLapFromCsv,
   usableLap,
 } from './surface.mjs';
@@ -99,88 +98,47 @@ test('only whole timed comparable laps off the pit lane are used', () => {
   assert.equal(usableLap({...ok, timed: false}), false);
 });
 
-test('folding sessions in: the centre agrees, and a repeat adds nothing', () => {
+test('building from a set: the centre agrees, and a second build is identical', () => {
   const sessions = [
     {id: 'a', csvs: [csv({pl: -2, edge: -6})]},
     {id: 'b', csvs: [csv({pl: 3, edge: 6})]},
   ];
-  const first = buildSurface(null, LENGTH_M, sessions);
+  const first = buildSurface(LENGTH_M, sessions);
   assert.equal(first.sessionsAdded, 2);
   assert.equal(first.lapsAdded, 2);
   const g = surfaceGeometry(first.surface);
   assert.ok(Math.max(...g.runs[0].centre.map(p => Math.abs(p.y))) < 0.01);
   assert.ok(Math.abs(g.halfWidthM - 6) < 0.01);
-  const again = buildSurface(first.surface, LENGTH_M, sessions);
-  assert.equal(again.sessionsAdded, 0);
+  const again = buildSurface(LENGTH_M, sessions);
+  assert.equal(again.sessionsAdded, 2);
   assert.deepEqual(again.surface.bins, first.surface.bins);
 });
 
-test('a session whose traces have no lateral columns is not recorded as folded in', () => {
+test('a session whose traces have no lateral columns adds nothing', () => {
   const old = {id: 'old', csvs: [csv({pl: 0, edge: -6, columns: false})]};
-  const r = buildSurface(null, LENGTH_M, [old]);
+  const r = buildSurface(LENGTH_M, [old]);
   assert.equal(r.sessionsAdded, 0);
-  assert.deepEqual(r.surface.sessions, []);
-  // Once its traces are re-uploaded with the columns, it is picked up.
-  const later = buildSurface(r.surface, LENGTH_M, [
+  const later = buildSurface(LENGTH_M, [
     {id: 'old', csvs: [csv({pl: 0, edge: -6})]},
   ]);
   assert.equal(later.sessionsAdded, 1);
 });
 
-test('a track whose length changed is rebuilt from scratch', () => {
-  const first = buildSurface(null, LENGTH_M, [
-    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
-  ]);
-  const rebuilt = buildSurface(first.surface, 2000, [
+test('a longer track is its own surface, built only from the sessions named', () => {
+  const rebuilt = buildSurface(2000, [
     {id: 'b', csvs: [csv({pl: 0, edge: -6})]},
   ]);
-  assert.equal(rebuilt.replaced, true);
-  assert.deepEqual(rebuilt.surface.sessions, ['b']);
+  assert.equal(rebuilt.sessionsAdded, 1);
   assert.equal(rebuilt.surface.bins.length, 200);
 });
 
-test('which sessions to read: only the new ones while the artifact fits, all of them once it is rebuilt', () => {
-  const fits = buildSurface(null, LENGTH_M, [
-    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
-    {id: 'b', csvs: [csv({pl: 0, edge: -6})]},
-  ]).surface;
-  assert.deepEqual(sessionsToFold(fits, LENGTH_M, ['a', 'b', 'c']), ['c']);
-  assert.deepEqual(sessionsToFold(null, LENGTH_M, ['a', 'b', 'c']), [
-    'a',
-    'b',
-    'c',
-  ]);
-  // The track's length changed: the old artifact is discarded, so the two
-  // sessions it held must be read again along with the new one.
-  assert.deepEqual(sessionsToFold(fits, 2000, ['a', 'b', 'c']), [
-    'a',
-    'b',
-    'c',
-  ]);
-});
-
-test('a rebuild after a length change keeps every session', () => {
-  const old = buildSurface(null, LENGTH_M, [
-    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
-    {id: 'b', csvs: [csv({pl: 0, edge: -6})]},
-  ]).surface;
-  const ids = sessionsToFold(old, 2000, ['a', 'b', 'c']);
-  const rebuilt = buildSurface(
-    old,
-    2000,
-    ids.map(id => ({id, csvs: [csv({pl: 0, edge: -6})]})),
-  );
-  assert.equal(rebuilt.replaced, true);
-  assert.deepEqual(rebuilt.surface.sessions, ['a', 'b', 'c']);
-});
-
-test('the stored file round-trips and stays small', () => {
-  const {surface} = buildSurface(null, LENGTH_M, [
+test('the stored file round-trips, stays small, and names no session', () => {
+  const {surface} = buildSurface(LENGTH_M, [
     {id: 'a', csvs: [csv({pl: -2, edge: -6}), csv({pl: 3, edge: 6})]},
   ]);
   const gz = gzipSurface(surface);
   const back = parseSurface(gz);
-  assert.equal(back.sessions[0], 'a');
+  assert.equal('sessions' in back, false);
   assert.equal(back.bins.length, surface.bins.length);
   assert.ok(Math.abs(back.bins[7].sx - surface.bins[7].sx) < 0.001);
   assert.ok(gz.length < 20000);
@@ -292,7 +250,7 @@ const trackLines = lines => l => {
   if (!l.startsWith('surface ')) lines.push(l);
 };
 
-test('foldSurfaces writes the artifact and the pointer, then adds only what is new', async () => {
+test('foldSurfaces rebuilds from every session, and a second run matches', async () => {
   const store = storeWith(['s1', 's2']);
   const lines = [];
   const connectStore = async () => store;
@@ -300,29 +258,41 @@ test('foldSurfaces writes the artifact and the pointer, then adds only what is n
     parseSurface((await store.bucket.file(ARTIFACT).download())[0]);
 
   await foldSurfaces({log: trackLines(lines), connectStore});
-  assert.ok(lines[0].startsWith('trackA: +2 sessions, +4 laps'));
-  assert.deepEqual((await read()).sessions, ['s1', 's2']);
-  assert.equal(store.tracks.trackA.surface.sessions, 2);
-  assert.equal(store.written.filter(w => w.file).length, 1);
+  assert.ok(lines[0].startsWith('trackA: 2 sessions, 4 laps'));
+  assert.equal('sessions' in (await read()), false);
+  assert.equal(store.tracks.trackA.surface.laps, 4);
+  assert.equal('sessions' in store.tracks.trackA.surface, false);
+  const firstBytes = Buffer.from(store.files[ARTIFACT]);
 
-  // Nothing new: no trace is read and nothing is written.
   store.downloads.length = 0;
   store.written.length = 0;
   await foldSurfaces({log: trackLines(lines), connectStore});
-  assert.ok(lines.at(-1).startsWith('trackA: +0 sessions'));
-  assert.deepEqual(store.written, []);
-  assert.equal(store.downloads.filter(p => p.startsWith('traces/')).length, 0);
-
-  // A third session arrives: only its laps are read, and it is added.
-  addSessionTo(store, 's3');
-  store.downloads.length = 0;
-  await foldSurfaces({log: trackLines(lines), connectStore});
-  assert.equal(lines.at(-2), 'trackA: +1 sessions, +2 laps, 3 sessions in all');
+  assert.ok(lines.at(-2).startsWith('trackA: 2 sessions, 4 laps'));
   assert.deepEqual(
     store.downloads.filter(p => p.startsWith('traces/')).sort(),
-    ['traces/s3-lap1.csv.gz', 'traces/s3-lap2.csv.gz'],
+    [
+      'traces/s1-lap1.csv.gz',
+      'traces/s1-lap2.csv.gz',
+      'traces/s2-lap1.csv.gz',
+      'traces/s2-lap2.csv.gz',
+    ],
   );
-  assert.deepEqual((await read()).sessions, ['s1', 's2', 's3']);
+  assert.deepEqual(Buffer.from(store.files[ARTIFACT]), firstBytes);
+});
+
+test('a named set rebuilds from only those sessions', async () => {
+  const store = storeWith(['s1', 's2']);
+  const lines = [];
+  await foldSurfaces({
+    sessionIds: ['s2'],
+    log: trackLines(lines),
+    connectStore: async () => store,
+  });
+  assert.ok(lines[0].startsWith('trackA: 1 sessions, 2 laps'));
+  assert.deepEqual(
+    store.downloads.filter(p => p.startsWith('traces/')).sort(),
+    ['traces/s2-lap1.csv.gz', 'traces/s2-lap2.csv.gz'],
+  );
 });
 
 test('foldSurfaces on named tracks leaves the others alone, and a dry run writes nothing', async () => {
@@ -334,7 +304,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
     log: trackLines(lines),
     connectStore: async () => store,
   });
-  assert.ok(lines[0].startsWith('trackB: +0 sessions'));
+  assert.ok(lines[0].startsWith('trackB: 0 sessions'));
   assert.deepEqual(store.written, []);
   await foldSurfaces({
     trackIds: ['trackA'],
@@ -342,7 +312,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
     log: trackLines(lines),
     connectStore: async () => store,
   });
-  assert.ok(lines.at(-1).startsWith('trackA: +1 sessions'));
+  assert.ok(lines.at(-1).startsWith('trackA: 1 sessions'));
   assert.deepEqual(store.written, []);
 });
 
@@ -352,20 +322,11 @@ test('a grid lap (lap number 0) is left out: it sits at LapDistPct 0 for a minut
   assert.equal(usableLap({...ok, lapNumber: 0}), false);
 });
 
-test('an artifact built under older rules is rebuilt from every session', () => {
-  const first = buildSurface(null, LENGTH_M, [
+test('a rebuild carries the current rules whatever the old file said', () => {
+  const rebuilt = buildSurface(LENGTH_M, [
     {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
   ]);
-  assert.equal(first.surface.rules, 2);
-  const stale = {...first.surface, rules: undefined};
-  assert.deepEqual(sessionsToFold(stale, LENGTH_M, ['a', 'b']), ['a', 'b']);
-  const rebuilt = buildSurface(stale, LENGTH_M, [
-    {id: 'a', csvs: [csv({pl: 0, edge: -6})]},
-  ]);
-  assert.equal(rebuilt.replaced, true);
   assert.equal(rebuilt.surface.rules, 2);
-  const kept = buildSurface(first.surface, LENGTH_M, []);
-  assert.equal(kept.replaced, false);
 });
 
 test('foldSurfaces says how far it is, one line per track and a last one: the watcher reads them', async () => {

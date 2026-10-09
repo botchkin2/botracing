@@ -544,8 +544,7 @@ test('the whole story: unknown track, curated, edited, a mistake, undone, and th
     ],
     [1, BY, 2],
   );
-  assert.equal(afterAdd.track.source.sessionId, 'sess-1');
-  assert.ok(afterAdd.track.source.builtAt);
+  assert.equal(afterAdd.track.source, undefined);
   assert.equal(afterAdd.boundaries.mapKey, mapKeyOf(MAP.corners));
   stamps.push(await stampNow());
 

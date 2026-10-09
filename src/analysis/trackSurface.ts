@@ -153,17 +153,18 @@ export function addLap(s: TrackSurface, lap: SurfaceLap): void {
 }
 
 /**
- * Adds a session's laps once. A session id already in the surface is skipped,
- * so a resync or a re-run cannot count laps twice. Returns whether it was added.
+ * Adds a session's laps. There is no id guard: a surface is rebuilt from a
+ * named set, not folded, so the same laps passed twice are counted twice.
+ * The id is kept only on this in-memory object. The stored file leaves it out.
  */
 export function addSession(
   s: TrackSurface,
   sessionId: string,
   laps: SurfaceLap[],
 ): boolean {
-  if (s.sessions.includes(sessionId)) return false;
+  if (laps.length === 0) return false;
   for (const lap of laps) addLap(s, lap);
-  s.sessions.push(sessionId);
+  if (!s.sessions.includes(sessionId)) s.sessions.push(sessionId);
   return true;
 }
 

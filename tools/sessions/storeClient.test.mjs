@@ -13,7 +13,7 @@ import {
   httpStore,
   uidOfToken,
 } from './storeClient.mjs';
-import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
+import {openRemoteStore} from './remoteStore.mjs';
 
 const jwt = claims =>
   `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s`;
@@ -259,9 +259,4 @@ test('an unknown user is an error, not a null owner', async () => {
   s.close();
 });
 
-test('the surface is folded only by a sync that has Admin credentials', () => {
-  assert.equal(foldsSurface({local: false, remote: false, tracks: 2}), true);
-  assert.equal(foldsSurface({local: false, remote: true, tracks: 2}), false, 'remote has no Admin credentials');
-  assert.equal(foldsSurface({local: true, remote: false, tracks: 2}), false, '--local uploads nothing');
-  assert.equal(foldsSurface({local: false, remote: false, tracks: 0}), false, 'nothing uploaded');
-});
+

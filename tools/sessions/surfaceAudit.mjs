@@ -141,7 +141,8 @@ async function audit(trackId, sessionId) {
 
   const summary = {
     trackId,
-    sessions: surface.sessions.length,
+    // A rebuilt surface names no sessions. Older files still list them.
+    sessions: Array.isArray(surface.sessions) ? surface.sessions.length : 0,
     real: georef != null,
     runs: runs.length,
     closed: runs.length === 1 && runs[0].closed,

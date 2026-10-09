@@ -164,7 +164,10 @@ test('packed state has no array inside an array and unpacks to the same state', 
       : false;
   };
   assert.equal(nested(packed), false);
-  assert.deepEqual(unpackState(JSON.parse(JSON.stringify(packed))), state);
+  assert.equal('sessions' in packed, false);
+  const back = unpackState(JSON.parse(JSON.stringify(packed)));
+  assert.deepEqual(back.sessions, {});
+  assert.deepEqual(back.startsM, state.startsM);
   assert.equal(unpackState(null), null);
 });
 
