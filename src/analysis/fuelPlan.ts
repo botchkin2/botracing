@@ -55,6 +55,8 @@ export interface RaceFacts {
   startVePct?: number | null;
   /** Racing laps driven: the formation lap is not counted. */
   raceLaps: number;
+  /** How long the race is, from the capture (tools/sessions/raceLength.mjs); null where it is not known. The laps driven are not its length: a timed race ends at the flag, a lap after the clock runs out. */
+  race: {kind: 'timed'; minutes: number} | {kind: 'laps'; laps: number} | null;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */

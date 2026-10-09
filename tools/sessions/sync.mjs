@@ -61,6 +61,7 @@ import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
+import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
@@ -357,6 +358,12 @@ function build(
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
+  // How long the race is, from the capture: {kind: 'timed', minutes} or
+  // {kind: 'laps', laps}; null for other sessions and where the capture is gone.
+  const raceLength =
+    foldOnly || !/^r/i.test(first.sessionType)
+      ? null
+      : raceLengthFor(captureRoot, span);
   const a = analyzeSession(recs, {
     trackMap,
     boundaries,
@@ -525,6 +532,7 @@ function build(
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
+    race: raceLength,
     series: joined.session.series,
     eventId: joined.session.eventId,
     startedAt: first.recordedAt,

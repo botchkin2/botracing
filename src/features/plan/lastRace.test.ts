@@ -11,6 +11,7 @@ const facts: RaceFacts = {
   startL: 100,
   startVePct: 87,
   raceLaps: 72,
+  race: null,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [
     {lapIndex: 25, fuelL: 12.9, vePct: 4},

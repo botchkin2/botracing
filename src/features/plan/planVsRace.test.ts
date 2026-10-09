@@ -10,6 +10,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   limitL: 75,
   startL: 75,
   raceLaps: 30,
+  race: {kind: 'laps', laps: 30},
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
   end: {lapIndex: 30, fuelL: 13.1, vePct: 5},
@@ -17,7 +18,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
 });
 
 describe('raceRules', () => {
-  it('gives the planner this race: its fill limit, a full VE load, a formation lap, the laps driven', () => {
+  it('gives the planner this race: its fill limit, a full VE load, a formation lap, its lap count', () => {
     expect(raceRules(facts())).toEqual({
       name: 'This race',
       lengthLaps: 30,
@@ -29,8 +30,17 @@ describe('raceRules', () => {
     });
   });
 
-  it('has no rules without a fill limit', () => {
+  it('plans a timed race by its minutes, not by the laps this driver completed', () => {
+    // The 3 Oct Road Atlanta race: 40 minutes, 21 laps completed.
+    const rules = raceRules(
+      facts({race: {kind: 'timed', minutes: 40}, raceLaps: 20}),
+    );
+    expect(rules).toMatchObject({lengthMin: 40, lengthLaps: null});
+  });
+
+  it('has no rules without a fill limit or without a known length', () => {
     expect(raceRules(facts({limitL: null}))).toBeNull();
+    expect(raceRules(facts({race: null}))).toBeNull();
   });
 });
 

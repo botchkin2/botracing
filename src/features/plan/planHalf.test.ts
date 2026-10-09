@@ -13,6 +13,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   limitL: 75,
   startL: 75,
   raceLaps: 60,
+  race: {kind: 'laps', laps: 60},
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [],
   end: null,
@@ -93,7 +94,10 @@ describe('buildPlanHalf', () => {
   });
 
   it('a stop the plan did not have reads "—" on the plan side', () => {
-    const h = half({raceLaps: 30}, [actual(14), actual(26)]);
+    const h = half({raceLaps: 30, race: {kind: 'laps', laps: 30}}, [
+      actual(14),
+      actual(26),
+    ]);
     expect(h.rows.filter(r => r.k.startsWith('Stop'))).toEqual([
       {k: 'Stop 1', p: 'after L28', a: 'after L14'},
       {k: 'Stop 2', p: '—', a: 'after L26'},
@@ -102,7 +106,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('with no stop the plan is the one load to the flag', () => {
-    const h = half({raceLaps: 20}, []);
+    const h = half({raceLaps: 20, race: {kind: 'laps', laps: 20}}, []);
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
     expect(h.rows).toEqual([
       {k: 'Spare', p: '27 % VE (7.6 laps)', a: '4 % VE (1.1 laps)'},
@@ -141,6 +145,22 @@ describe('buildPlanHalf', () => {
         /a lap/.test(r.k),
       ),
     ).toBe(false);
+  });
+
+  it('plans a timed race at its own length, not the laps this driver completed', () => {
+    // 20 minutes at an 81 s median lap, though only 10 laps were completed.
+    const timed = {race: {kind: 'timed' as const, minutes: 20}, raceLaps: 10};
+    const e = planRace(raceRules(facts(timed))!, history()).raceLaps!.estimate;
+    expect(e).toBeGreaterThan(10);
+    const spare = half(timed).rows.find(r => r.k === 'Spare')!;
+    // One load, the formation lap and the plan's own laps: 100 − (e + 1) × 3.5.
+    expect(spare.p).toContain(`${Math.round(100 - (e + 1) * 3.5)} % VE`);
+  });
+
+  it('says so when the race length is not on record', () => {
+    const h = half({race: null});
+    expect(h.rows).toEqual([]);
+    expect(h.note).toBe('No race length on record.');
   });
 
   it('says why there is no plan instead of inventing one', () => {

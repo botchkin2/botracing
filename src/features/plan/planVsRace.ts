@@ -3,13 +3,18 @@
 // planHalf.ts. Pure.
 import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
-/** The rules the planner is given for this race: its fill limit, a full VE load and a formation lap. */
+/**
+ * The rules the planner is given for this race: its fill limit, its length
+ * (the minutes or laps the capture recorded, never the laps this driver
+ * completed), a full VE load and a formation lap. Null without a fill limit or
+ * a known length.
+ */
 export function raceRules(facts: RaceFacts): PlanRules | null {
-  if (facts.limitL == null) return null;
+  if (facts.limitL == null || facts.race == null) return null;
   return {
     name: 'This race',
-    lengthLaps: facts.raceLaps,
-    lengthMin: null,
+    lengthLaps: facts.race.kind === 'laps' ? facts.race.laps : null,
+    lengthMin: facts.race.kind === 'timed' ? facts.race.minutes : null,
     fuelL: facts.limitL,
     vePct: 100,
     formationLap: true,
