@@ -52,8 +52,34 @@ import {
 export type CornerSelection = {
   /** Lap ids in selection order; the first is the reference. */
   laps: string[];
+  /** Compare's Ref lap, when one is set. */
+  ref?: string | null;
   hl: string | null;
 };
+
+/**
+ * The selection with its reference first. Compare keeps the checked laps in
+ * lap-number order, so the first is not a choice: the Ref lap if there is one,
+ * else the quickest checked lap. Until Corner measures against a basis too
+ * (pit-wall thread 50), this keeps its reference from contradicting Compare's.
+ */
+export function referenceFirst(
+  selection: CornerSelection,
+  laps: Lap[],
+): CornerSelection {
+  const byId = new Map(laps.map(l => [l.id, l]));
+  const chosen =
+    selection.ref && selection.laps.includes(selection.ref)
+      ? selection.ref
+      : selection.laps
+          .filter(id => byId.get(id)?.timeS != null)
+          .sort((a, b) => byId.get(a)!.timeS! - byId.get(b)!.timeS!)[0];
+  if (!chosen || selection.laps[0] === chosen) return selection;
+  return {
+    ...selection,
+    laps: [chosen, ...selection.laps.filter(id => id !== chosen)],
+  };
+}
 
 export type Measure = 'time' | 'brake' | 'minSpeed' | 'throttle';
 

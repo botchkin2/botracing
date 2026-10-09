@@ -39,6 +39,7 @@ import {
   TraceRetryBanner,
 } from '@/src/ui';
 
+import {BasisSwitch} from './components/BasisSwitch';
 import {CarsAround} from './components/CarsAround';
 import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
@@ -50,10 +51,10 @@ import {
   type CompareModel,
   type CompareSelection,
   drawRank,
-  makeReference,
+  toggleHighlight,
   canRemoveLap,
   removeLap,
-  setReference,
+  setRef,
   toggleCompared,
   valuesAt,
 } from './model';
@@ -130,8 +131,13 @@ export function CompareWorkspace(p: WorkspaceProps) {
         style={[styles.left, {borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
         <Text variant='label' tone='textMuted'>
-          Comparing
+          Laps
         </Text>
+        <BasisSwitch
+          selection={selection}
+          fastestLapId={model.fastestLapId}
+          onSelectionChange={p.onSelectionChange}
+        />
         {model.chips.map(c => (
           <View
             key={c.lapId}
@@ -142,9 +148,9 @@ export function CompareWorkspace(p: WorkspaceProps) {
             {/* The row's own button; Ref and remove sit beside it, never inside. */}
             <Pressable
               accessibilityRole='button'
-              accessibilityLabel={`Make ${c.label} the reference`}
+              accessibilityLabel={`Highlight ${c.label}`}
               onPress={() =>
-                p.onSelectionChange(makeReference(selection, c.lapId))
+                p.onSelectionChange(toggleHighlight(selection, c.lapId))
               }
               style={styles.lapMain}>
               <View
@@ -162,24 +168,12 @@ export function CompareWorkspace(p: WorkspaceProps) {
                 style={styles.flex}>
                 {c.delta}
               </Text>
-              {c.refTag ? (
-                <Text variant='dataSmall' tone='accentInk'>
-                  REF
-                </Text>
-              ) : null}
             </Pressable>
             {!c.isRef && (
-              <Pressable
-                accessibilityRole='button'
-                accessibilityLabel={`Make ${c.label} the reference`}
-                hitSlop={space.sm}
-                onPress={() =>
-                  p.onSelectionChange(makeReference(selection, c.lapId))
-                }>
-                <Text variant='dataSmall' tone='accentInk'>
-                  Ref
-                </Text>
-              </Pressable>
+              <RefAction
+                label={`Set ${c.label} as Ref`}
+                onPress={() => p.onSelectionChange(setRef(selection, c.lapId))}
+              />
             )}
             {!c.isRef && (
               <Pressable
@@ -204,7 +198,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             )}
           </View>
         ))}
-        {model.manyChip && <Chip label={model.manyChip} dashed />}
         <Text variant='dataSmall' tone='textFaint'>
           {`Times vs ${model.tableReference.chips}`}
         </Text>
@@ -254,11 +247,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
                     {r.tag}
                   </Text>
                 )}
-                {r.selIndex !== 0 && (
+                {!r.isRef && (
                   <RefAction
-                    label={`Set ${r.label} as the reference`}
+                    label={`Set ${r.label} as Ref`}
                     onPress={() =>
-                      p.onSelectionChange(setReference(selection, r.lapId))
+                      p.onSelectionChange(setRef(selection, r.lapId))
                     }
                   />
                 )}

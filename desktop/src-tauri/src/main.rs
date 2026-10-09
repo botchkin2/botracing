@@ -9,6 +9,7 @@ mod menu;
 mod profile;
 mod sidecar;
 mod status;
+mod update;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -71,6 +72,7 @@ fn main() {
     };
     builder
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
             let account: Shared<account::Account> = Arc::new(Mutex::new(account::Account::new(
@@ -96,6 +98,15 @@ fn main() {
             let older =
                 MenuItem::with_id(app, "older", "Upload older sessions…", true, None::<&str>)?;
             let folder = MenuItem::with_id(app, "folder", "Open data folder", true, None::<&str>)?;
+            let current_version = app.package_info().version.to_string();
+            let update_item = MenuItem::with_id(
+                app,
+                "update",
+                update::menu_line(&current_version, None).0,
+                false,
+                None::<&str>,
+            )?;
+            let update_slot: update::Slot = Arc::new(Mutex::new(None));
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
                 app,
@@ -110,16 +121,27 @@ fn main() {
                     &pause,
                     &older,
                     &folder,
+                    &update_item,
                     &quit,
                 ],
             )?;
 
-            let (paths_menu, account_menu, sup_menu, pause_menu) = (
+            let (paths_menu, account_menu, sup_menu, pause_menu, slot_menu) = (
                 paths.clone(),
                 account.clone(),
                 supervisor.clone(),
                 pause.clone(),
+                update_slot.clone(),
             );
+            // Only the real tray updates itself; a walkthrough profile does not.
+            if profile::is_default() {
+                update::spawn(
+                    app.handle().clone(),
+                    paths.token_file(),
+                    paths.data.join("update"),
+                    update_slot.clone(),
+                );
+            }
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -171,8 +193,16 @@ fn main() {
                         }
                         sup_menu.lock().unwrap().set_allowed(acct.should_run());
                     }
-                    "quit" => {
+                    // Quit and "Restart to update" both stop the watcher first;
+                    // a waiting update installs here, never while uploading.
+                    "quit" | "update" => {
                         sup_menu.lock().unwrap().stop();
+                        let pending = slot_menu.lock().unwrap().take();
+                        if let Some(Err(why)) = pending.map(update::Pending::install) {
+                            account_menu.lock().unwrap().message =
+                                Some(format!("Update failed: {why}"));
+                        }
+                        // On Windows a started installer ends the process.
                         app.exit(0);
                     }
                     _ => {}
@@ -221,6 +251,14 @@ fn main() {
                     let _ = owner_item.set_text(owner);
                     let _ = signout.set_enabled(signed_in);
                     let _ = pause.set_checked(checked);
+                    let waiting = update_slot
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|p| p.version.clone());
+                    let (text, enabled) = update::menu_line(&current_version, waiting.as_deref());
+                    let _ = update_item.set_text(text);
+                    let _ = update_item.set_enabled(enabled);
                     std::thread::sleep(Duration::from_secs(5));
                 }
             });

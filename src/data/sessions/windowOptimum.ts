@@ -43,12 +43,12 @@ function countsAs(f: WindowFacts | null | undefined): number | null {
   return f.segTimeS;
 }
 
-interface Frame {
+export interface Frame {
   boundaries: MapBoundaries;
   sectionIndex: Map<number, number>;
 }
 
-function frameOf(map: TrackMapData): Frame | null {
+export function frameOf(map: TrackMapData): Frame | null {
   const boundaries = map.boundaries;
   if (!boundaries) return null;
   return {
@@ -58,7 +58,7 @@ function frameOf(map: TrackMapData): Frame | null {
 }
 
 /** Whether a lap's windows were cut at the boundaries the map carries now. */
-function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
+export function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
   const stamp = lap.cornerBoundaries;
   return (
     stamp != null && stamp.v === boundaries.v && stamp.rev === boundaries.rev
@@ -71,7 +71,7 @@ export function onCurrentBoundaries(lap: Lap, map: TrackMapData): boolean {
 }
 
 /** A lap's time in every window, null where it does not count (see the top of this file). */
-function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
+export function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
   return frame.boundaries.windows.map(w => {
     if (w.kind === 'start-straight') return countsAs(lap.startStraight);
     const i = w.section == null ? undefined : frame.sectionIndex.get(w.section);
@@ -120,6 +120,7 @@ export interface WindowReference {
 export function checkedWindowMedians(
   laps: Lap[],
   map: TrackMapData,
+  minLaps?: number,
 ): WindowReference | null {
   const frame = frameOf(map);
   if (!frame) return null;
@@ -128,7 +129,7 @@ export function checkedWindowMedians(
     .map(l => ({id: l.id, stint: l.stint, windowsS: windowTimesOf(l, frame)}));
   return {
     windows: frame.boundaries.windows,
-    medians: windowMedians(input, frame.boundaries.windows.length),
+    medians: windowMedians(input, frame.boundaries.windows.length, minLaps),
     laps: input.length,
   };
 }

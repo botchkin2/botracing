@@ -55,17 +55,20 @@ describe('routes', () => {
   it('round-trips through parseSelection', () => {
     const {params} = compareHref('s1', {
       laps: ['a', 'b'],
+      ref: 'a',
       hl: 'b',
       corner: 3,
       cursorM: 600,
     });
     expect(parseSelection(params)).toEqual({
       laps: ['a', 'b'],
+      ref: 'a',
       hl: 'b',
       corner: 3,
       cursorM: 600,
     });
     expect(parseSelection({c: 'x', t: ''})).toMatchObject({
+      ref: null,
       corner: null,
       cursorM: null,
     });

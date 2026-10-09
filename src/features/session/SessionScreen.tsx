@@ -66,6 +66,9 @@ const DESKTOP_TABLE_MAX_W = 640;
 // when the right column is dragged out: the old 600 less the divider's 10, so
 // the default 400 column still fits a 1280 window (layout.width 1000).
 const WIDE_MIN_CENTRE_W = 590;
+// Bars and lap table have nothing to fill more than this with; on a wider
+// window the right column grows instead (triage #9).
+const WIDE_MAX_CENTRE_W = 760;
 
 const TAG_KEY =
   'OUT/IN pit · PART partial · PARK parked · SLOW outlier · OFF s off track · HIT impact · TOW slipstream · TRAF traffic · BLUE blue flag · PASS passes · BTL battle';
@@ -159,6 +162,7 @@ function SessionView({
   const panel = usePanelWidth(
     'session',
     layout.width - WIDE_MIN_CENTRE_W - PANEL_DIVIDER_W,
+    layout.width - WIDE_MAX_CENTRE_W - PANEL_DIVIDER_W,
   );
   const sideW = layout.isDesktop ? DESKTOP_SIDE_W : 0;
   // A lap table has nothing to fill 800 pt with; cap it on desktop.
@@ -268,9 +272,7 @@ function SessionView({
       )
     );
 
-  const tiresCard = (
-    <TiresCard card={model.tires} scatter={model.wearScatter} width={tableW} />
-  );
+  const tiresCard = <TiresCard card={model.tires} width={tableW} />;
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
@@ -484,11 +486,7 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard
-              card={model.tires}
-              scatter={model.wearScatter}
-              width={panel.width - 2 * space.xl}
-            />
+            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

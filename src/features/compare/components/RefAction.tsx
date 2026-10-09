@@ -28,7 +28,7 @@ export function RefAction({
       onBlur={() => setLit(false)}
       onPress={onPress}>
       <Text variant='dataSmall' tone={lit ? 'accentInk' : 'textFaint'}>
-        Ref
+        Set ref
       </Text>
     </Pressable>
   );
