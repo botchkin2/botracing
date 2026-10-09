@@ -19,7 +19,9 @@ pub fn offset_of(layout: &Layout, struct_name: &str, path: &str) -> Result<usize
                 .parse()
                 .map_err(|_| format!("{struct_name}.{path}: {seg} is not a position"))?;
             if i >= *n {
-                return Err(format!("{struct_name}.{path}: {i} is past the {n} elements"));
+                return Err(format!(
+                    "{struct_name}.{path}: {i} is past the {n} elements"
+                ));
             }
             offset += i * size_align(inner).0;
             kind = Some((**inner).clone());
@@ -57,7 +59,10 @@ fn text_of(layout: &Layout, struct_name: &str, name: &str) -> Result<Text, Strin
         .iter()
         .find(|f| f.name == name)
         .ok_or_else(|| format!("{struct_name}: no field {name}"))?;
-    Ok(Text { at: f.offset, len: f.size })
+    Ok(Text {
+        at: f.offset,
+        len: f.size,
+    })
 }
 
 pub struct Probe {
@@ -144,5 +149,6 @@ pub fn u8_at(raw: &[u8], at: usize) -> u8 {
 }
 
 pub fn text_at(raw: &[u8], t: Text) -> String {
-    raw.get(t.at..t.at + t.len).map_or_else(String::new, decode_text)
+    raw.get(t.at..t.at + t.len)
+        .map_or_else(String::new, decode_text)
 }

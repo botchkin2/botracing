@@ -28,7 +28,11 @@ struct Mem(Arc<Mutex<Vec<u8>>>);
 
 impl View for Mem {
     fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>> {
-        self.0.lock().unwrap().get(offset..offset.checked_add(len)?).map(<[u8]>::to_vec)
+        self.0
+            .lock()
+            .unwrap()
+            .get(offset..offset.checked_add(len)?)
+            .map(<[u8]>::to_vec)
     }
 }
 
@@ -49,7 +53,10 @@ fn ft(t: FILETIME) -> f64 {
 }
 
 fn thread_cpu_s() -> f64 {
-    let zero = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+    let zero = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
     let (mut c, mut e, mut k, mut u) = (zero, zero, zero, zero);
     // SAFETY: out-pointers are valid locals; the pseudo handle is always valid.
     unsafe { GetThreadTimes(GetCurrentThread(), &mut c, &mut e, &mut k, &mut u) };
@@ -136,7 +143,10 @@ fn soak_the_recorder_against_a_fake_game() {
         Layout::parse(include_str!("../../../../tools/capture/tests/fixture.hpp")).unwrap()
     };
     let o = offsets(&layout);
-    let secs: u64 = std::env::var("SOAK_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(600);
+    let secs: u64 = std::env::var("SOAK_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(600);
     let mem = Mem(Arc::new(Mutex::new(vec![0u8; layout.size])));
     {
         let mut m = mem.0.lock().unwrap();
@@ -156,16 +166,22 @@ fn soak_the_recorder_against_a_fake_game() {
 
     let stop = Arc::new(AtomicBool::new(false));
     // Frames the fake game wrote, to compare with the rows on disk.
-    let (player_written, scoring_written) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicU64::new(0)));
+    let (player_written, scoring_written) =
+        (Arc::new(AtomicU64::new(0)), Arc::new(AtomicU64::new(0)));
     // SOAK_LOAD=n keeps n threads busy at normal priority beside the recorder.
-    let burners: Vec<_> = if let Some(n) = std::env::var("SOAK_LOAD").ok().and_then(|v| v.parse::<usize>().ok()) {
+    let burners: Vec<_> = if let Some(n) = std::env::var("SOAK_LOAD")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+    {
         (0..n)
             .map(|_| {
                 let stop = stop.clone();
                 std::thread::spawn(move || {
                     let mut x = 1u64;
                     while !stop.load(Ordering::Relaxed) {
-                        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                        x = x
+                            .wrapping_mul(6364136223846793005)
+                            .wrapping_add(1442695040888963407);
                         std::hint::black_box(x);
                     }
                 })
@@ -227,7 +243,13 @@ fn soak_the_recorder_against_a_fake_game() {
     let line = Arc::new(Mutex::new(Line::Starting));
     let cpu = Arc::new(Mutex::new((0.0_f64, 0.0_f64)));
     let rec_thread = {
-        let (stop, line, cpu, root, layout_dir) = (stop.clone(), line.clone(), cpu.clone(), root.clone(), header_dir());
+        let (stop, line, cpu, root, layout_dir) = (
+            stop.clone(),
+            line.clone(),
+            cpu.clone(),
+            root.clone(),
+            header_dir(),
+        );
         let mem = mem.clone();
         std::thread::spawn(move || {
             crate::capture::win::lower_priority();
@@ -249,7 +271,12 @@ fn soak_the_recorder_against_a_fake_game() {
     while start.elapsed() < Duration::from_secs(secs) {
         std::thread::sleep(Duration::from_secs(60.min(secs)));
         samples.push(working_set_mb());
-        eprintln!("{:>4} s  working set {:.1} MB  line: {}", start.elapsed().as_secs(), samples.last().unwrap(), crate::capture::runner::line(&line.lock().unwrap()));
+        eprintln!(
+            "{:>4} s  working set {:.1} MB  line: {}",
+            start.elapsed().as_secs(),
+            samples.last().unwrap(),
+            crate::capture::runner::line(&line.lock().unwrap())
+        );
     }
     stop.store(true, Ordering::SeqCst);
     rec_thread.join().unwrap();
@@ -263,21 +290,41 @@ fn soak_the_recorder_against_a_fake_game() {
     let bytes = crate::capture::store::dir_bytes(&root);
     eprintln!("recorder thread CPU {cpu_s:.1} s over {wall_s:.0} s = {pct:.2}% of one core");
     eprintln!("working set MB per minute: {samples:.1?}");
-    eprintln!("on disk {:.1} MB ({:.1} MB per minute)", bytes as f64 / 1e6, bytes as f64 / 1e6 / (wall_s / 60.0));
+    eprintln!(
+        "on disk {:.1} MB ({:.1} MB per minute)",
+        bytes as f64 / 1e6,
+        bytes as f64 / 1e6 / (wall_s / 60.0)
+    );
     // Completeness: rows on disk against frames the fake game wrote. A recorder
     // that sleeps through frames is cheap and wrong; this is what catches it.
     let rows = |kind: &str| -> u64 {
-        let duck = std::env::var("BOTRACING_DUCKDB").expect("set BOTRACING_DUCKDB for the row count");
+        let duck =
+            std::env::var("BOTRACING_DUCKDB").expect("set BOTRACING_DUCKDB for the row count");
         let glob = format!("{}/*/{kind}-*.parquet", root.display()).replace('\\', "/");
         let out = std::process::Command::new(duck)
-            .args([":memory:", "-csv", "-noheader", "-c", &format!("SELECT count(*) FROM read_parquet('{glob}')")])
+            .args([
+                ":memory:",
+                "-csv",
+                "-noheader",
+                "-c",
+                &format!("SELECT count(*) FROM read_parquet('{glob}')"),
+            ])
             .output()
             .unwrap();
-        String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0)
+        String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .parse()
+            .unwrap_or(0)
     };
     let (p_rows, f_rows) = (rows("player"), rows("field"));
-    let (p_sent, f_sent) = (player_written.load(Ordering::Relaxed), scoring_written.load(Ordering::Relaxed) * CARS as u64);
-    let (p_pct, f_pct) = (100.0 * p_rows as f64 / p_sent as f64, 100.0 * f_rows as f64 / f_sent as f64);
+    let (p_sent, f_sent) = (
+        player_written.load(Ordering::Relaxed),
+        scoring_written.load(Ordering::Relaxed) * CARS as u64,
+    );
+    let (p_pct, f_pct) = (
+        100.0 * p_rows as f64 / p_sent as f64,
+        100.0 * f_rows as f64 / f_sent as f64,
+    );
     eprintln!("player rows {p_rows} of {p_sent} written = {p_pct:.2}%");
     eprintln!("field rows {f_rows} of {f_sent} written = {f_pct:.2}%");
     // SOAK_KEEP=1 leaves the folder, to read it with the uploader's own code.
@@ -287,5 +334,8 @@ fn soak_the_recorder_against_a_fake_game() {
         let _ = std::fs::remove_dir_all(&root);
     }
     assert!(pct < 2.0, "{pct:.2}% of one core");
-    assert!(p_pct >= 99.0 && f_pct >= 99.0, "frames lost: player {p_pct:.2}%, field {f_pct:.2}%");
+    assert!(
+        p_pct >= 99.0 && f_pct >= 99.0,
+        "frames lost: player {p_pct:.2}%, field {f_pct:.2}%"
+    );
 }

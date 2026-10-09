@@ -509,7 +509,10 @@ mod tests {
         maintain(&a);
         let acct = a.lock().unwrap();
         assert_eq!(acct.owner_key.as_deref(), Some("botkin"));
-        assert!(!acct.settings.paused && acct.should_run(), "own account runs unpaused");
+        assert!(
+            !acct.settings.paused && acct.should_run(),
+            "own account runs unpaused"
+        );
         assert!(!acct.unconfirmed());
     }
 
@@ -522,11 +525,17 @@ mod tests {
         maintain(&a);
         {
             let mut acct = a.lock().unwrap();
-            assert!(!acct.settings.paused, "own account confirmed at the first read");
+            assert!(
+                !acct.settings.paused,
+                "own account confirmed at the first read"
+            );
             acct.set_paused(true).unwrap();
         }
         maintain(&a);
-        assert!(a.lock().unwrap().settings.paused, "the owner read must not undo a pause");
+        assert!(
+            a.lock().unwrap().settings.paused,
+            "the owner read must not undo a pause"
+        );
     }
 
     #[test]

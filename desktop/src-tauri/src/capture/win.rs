@@ -10,14 +10,14 @@
 use crate::capture::frame::View;
 use crate::capture::recorder::Source;
 use std::ffi::c_void;
-use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, ERROR_ALREADY_EXISTS};
+use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE};
 use windows_sys::Win32::System::Memory::{
     MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, VirtualQuery, FILE_MAP_READ,
     MEMORY_BASIC_INFORMATION,
 };
 use windows_sys::Win32::System::Threading::{
-    WaitForSingleObject, CreateMutexW, GetCurrentThread, OpenEventA, SetThreadPriority, SYNCHRONIZATION_SYNCHRONIZE,
-    THREAD_PRIORITY_BELOW_NORMAL,
+    CreateMutexW, GetCurrentThread, OpenEventA, SetThreadPriority, WaitForSingleObject,
+    SYNCHRONIZATION_SYNCHRONIZE, THREAD_PRIORITY_BELOW_NORMAL,
 };
 
 const MAPPING: &str = "LMU_Data";
@@ -111,9 +111,11 @@ impl Drop for Mapped {
     fn drop(&mut self) {
         // SAFETY: both came from the calls in `open`, and are released once.
         unsafe {
-            UnmapViewOfFile(windows_sys::Win32::System::Memory::MEMORY_MAPPED_VIEW_ADDRESS {
-                Value: self.base as *mut c_void,
-            });
+            UnmapViewOfFile(
+                windows_sys::Win32::System::Memory::MEMORY_MAPPED_VIEW_ADDRESS {
+                    Value: self.base as *mut c_void,
+                },
+            );
             CloseHandle(self.mapping);
         }
     }
@@ -225,7 +227,11 @@ fn open_whole(mapping_name: &str) -> Result<Mapped, String> {
     let mut info: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
     // SAFETY: `view` is the base of the view just mapped; `info` is writable.
     let got = unsafe {
-        VirtualQuery(view.Value, &mut info, std::mem::size_of::<MEMORY_BASIC_INFORMATION>())
+        VirtualQuery(
+            view.Value,
+            &mut info,
+            std::mem::size_of::<MEMORY_BASIC_INFORMATION>(),
+        )
     };
     let len = if got == 0 { 0 } else { info.RegionSize };
     if len == 0 {
@@ -236,7 +242,11 @@ fn open_whole(mapping_name: &str) -> Result<Mapped, String> {
         }
         return Err("the sim's mapping has no size".into());
     }
-    Ok(Mapped { mapping, base: view.Value as *const u8, len })
+    Ok(Mapped {
+        mapping,
+        base: view.Value as *const u8,
+        len,
+    })
 }
 
 pub struct Shm {
@@ -265,7 +275,11 @@ impl Source for Shm {
             unsafe { CloseHandle(mapping) };
             return Err("the game's mapping is smaller than its header says".into());
         }
-        Ok(Mapped { mapping, base: view.Value as *const u8, len: self.size })
+        Ok(Mapped {
+            mapping,
+            base: view.Value as *const u8,
+            len: self.size,
+        })
     }
 }
 

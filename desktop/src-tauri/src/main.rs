@@ -214,6 +214,13 @@ fn main() {
                 }),
             ));
 
+            // Cleanup of old recordings: once at start, then after each
+            // uploader run. Only the real tray does it (not a walkthrough).
+            let cleanup_paths = capture::prune_schedule::Paths::for_this_pc();
+            if profile::is_default() {
+                capture::prune_schedule::spawn(cleanup_paths.clone());
+            }
+
             // iRacing's recorder: the same rules, its own thread.
             let iracing: Shared<Option<capture::runner::Handle>> = Arc::new(Mutex::new(
                 (cfg!(windows)
@@ -264,6 +271,7 @@ fn main() {
             app.manage(iracing.clone());
             let recorder_menu = recorder.clone();
             let iracing_menu = iracing.clone();
+            let cleanup_menu = cleanup_paths.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -320,6 +328,12 @@ fn main() {
                             Err(why) => acct.message = Some(why),
                         }
                     }
+                    "cleanup-lmu" => change_cleanup(&cleanup_menu, |s| s.lmu = !s.lmu),
+                    "cleanup-iracing" => change_cleanup(&cleanup_menu, |s| s.iracing = !s.iracing),
+                    "cleanup-keep" => {
+                        change_cleanup(&cleanup_menu, |s| s.keep_days = s.next_keep_days())
+                    }
+                    "cleanup-cap" => change_cleanup(&cleanup_menu, |s| s.cap_gb = s.next_cap_gb()),
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);
                         let mut acct = account_menu.lock().unwrap();
@@ -353,6 +367,7 @@ fn main() {
                 })
                 .build(app)?;
 
+            let cleanup_poll = cleanup_paths.clone();
             std::thread::spawn(move || {
                 loop {
                     // The network part runs without the account lock held.
@@ -388,6 +403,12 @@ fn main() {
                     let update = update::menu_line(&current_version, waiting.as_deref());
                     let start_with_windows =
                         profile::is_default() && autostart::is_on(&autostart::Registry);
+                    let cleanup = {
+                        let s = capture::prune_settings::load(&cleanup_poll.settings);
+                        let states = capture::prune::read_states(&cleanup_poll.state);
+                        let blocked = capture::prune::blocked_sims(&s.policy(), &states);
+                        menu::Cleanup::of(&s, blocked)
+                    };
                     let state = {
                         let acct = account.lock().unwrap();
                         menu::MenuState::of(
@@ -397,6 +418,7 @@ fn main() {
                             iracing_line,
                             update,
                             start_with_windows,
+                            cleanup,
                         )
                     };
                     for spec in menu::menu_items_for(&state) {
@@ -421,6 +443,18 @@ fn main() {
                 }
             }
         });
+}
+
+/// Changes one cleanup choice and saves it; the menu shows it on the next tick.
+fn change_cleanup(
+    paths: &capture::prune_schedule::Paths,
+    change: impl FnOnce(&mut capture::prune_settings::Settings),
+) {
+    let mut s = capture::prune_settings::load(&paths.settings);
+    change(&mut s);
+    if let Err(e) = capture::prune_settings::save(&paths.settings, &s) {
+        capture::prune_schedule::log(&paths.log, &format!("cleanup settings not saved: {e}"));
+    }
 }
 
 /// The status line of the menu: what a person needs to know right now.
