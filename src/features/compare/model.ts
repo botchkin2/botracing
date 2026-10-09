@@ -1,4 +1,5 @@
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
+import {lateralText} from '@/src/charts/screenLateral';
 import {rangeOf} from '@/src/analysis/rangeIndex';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
@@ -144,7 +145,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     ySnap: 10,
     height: 56,
     desktopHeight: 84,
-    format: v => v.toFixed(0),
+    format: v => lateralText(v, 0),
     pick: t => t.steeringPct,
     native: 'steeringPct',
   },
