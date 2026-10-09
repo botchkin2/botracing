@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {test} from 'node:test';
-import {adapter, adapters} from './sims.mjs';
+import {adapter, adapters, telemetryFolder} from './sims.mjs';
 
 test('every adapter publishes sim, defaultFolder, isRecording, gameExe', () => {
   const ids = Object.keys(adapters);
@@ -33,3 +35,17 @@ test('game exe names match the processes on this PC', () => {
   assert.equal(adapter('lmu').gameExe, 'Le Mans Ultimate.exe');
   assert.equal(adapter('iracing').gameExe, 'iRacingSim64DX11.exe');
 });
+
+test("iRacing's folder is this user's Documents, not a hard-coded name", () => {
+  assert.equal(
+    adapter('iracing').defaultFolder,
+    join(homedir(), 'Documents', 'iRacing', 'telemetry'),
+  );
+});
+
+test('LMU_TELEMETRY does not redirect an iRacing sync', () => {
+  const env = {LMU_TELEMETRY: 'C:\\not-iracing'};
+  assert.equal(telemetryFolder('lmu', env), 'C:\\not-iracing');
+  assert.equal(telemetryFolder('iracing', env), adapter('iracing').defaultFolder);
+});
+
