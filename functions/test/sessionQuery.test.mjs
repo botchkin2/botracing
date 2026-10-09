@@ -51,7 +51,11 @@ test('facets count sessions per game and per track, a track once per game', () =
 
 test('a stored track object {name, variant} labels the facet with its name', () => {
   const f = foldFacets([
-    {sim: 'iracing', trackId: 'iracing-127-full_course', track: {name: 'Road Atlanta', variant: 'Full Course'}},
+    {
+      sim: 'iracing',
+      trackId: 'iracing-127-full_course',
+      track: {name: 'Road Atlanta', variant: 'Full Course'},
+    },
     {sim: 'lmu', trackId: 'lmu-x', track: {variant: 'no name'}},
   ]);
   assert.deepEqual(
@@ -59,6 +63,34 @@ test('a stored track object {name, variant} labels the facet with its name', () 
     [
       ['iracing-127-full_course', 'Road Atlanta'],
       ['lmu-x', 'lmu-x'],
+    ],
+  );
+});
+
+test('a track carries its layout as variant; the name stays plain', () => {
+  const f = foldFacets([
+    {
+      sim: 'lmu',
+      trackId: 'atl',
+      track: {name: 'Road Atlanta', variant: 'Michelin'},
+    },
+    {
+      sim: 'iracing',
+      trackId: 'atl-full',
+      track: {name: 'Road Atlanta', variant: 'Full'},
+    },
+    {
+      sim: 'iracing',
+      trackId: 'atl-short',
+      track: {name: 'Road Atlanta', variant: 'Short'},
+    },
+  ]);
+  assert.deepEqual(
+    f.tracks.map(t => [t.track, t.variant]),
+    [
+      ['Road Atlanta', 'Michelin'],
+      ['Road Atlanta', 'Full'],
+      ['Road Atlanta', 'Short'],
     ],
   );
 });

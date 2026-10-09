@@ -1149,7 +1149,14 @@ export function toTrackSurface(
 /** The owner's games and tracks over all history, with session counts: what the Sessions filter chips offer. */
 export type SessionFacets = {
   games: {sim: string; count: number}[];
-  tracks: {trackId: string; track: string; sim: string; count: number}[];
+  /** The layout (`track.variant`), '' when the session has none. */
+  tracks: {
+    trackId: string;
+    track: string;
+    sim: string;
+    count: number;
+    variant?: string;
+  }[];
 };
 
 export function toSessionFacets(raw: unknown): SessionFacets {
@@ -1166,6 +1173,7 @@ export function toSessionFacets(raw: unknown): SessionFacets {
         track: str(t.track),
         sim: str(t.sim, 'lmu'),
         count: num(t.count) ?? 0,
+        variant: str(t.variant),
       }))
       .filter(t => t.trackId !== ''),
   };

@@ -541,6 +541,158 @@ function CornerView({
   );
 }
 
+// Phone: one horizontal ScrollView holds the whole measure block (header and
+// every row), so the columns stay aligned when swiped. The lap column is pinned
+// beside it, and rows and header have fixed heights so the two stay in step.
+// Desktop (sortable) keeps CornerTable's own layout.
+const PHONE_ROW_H = 52;
+const PHONE_HEAD_H = 34;
+const PHONE_CELL_W = 84;
+const FADE = [0.15, 0.4, 0.75];
+
+function PhoneCornerTable({
+  rows,
+  lapColor,
+  onPressRow,
+}: {
+  rows: CornerRow[];
+  lapColor: (
+    onIndex: number | null,
+    selIndex: number,
+    highlighted: boolean,
+  ) => string;
+  onPressRow: (lapId: string) => void;
+}) {
+  const {color} = useTheme();
+  const [viewW, setViewW] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const [x, setX] = useState(0);
+  const more = contentW > viewW + 1 && x < contentW - viewW - 1;
+  const rowStyle = (r: CornerRow) => [
+    styles.phoneRow,
+    {borderColor: color.line},
+    r.highlighted && {backgroundColor: color.accentTint},
+  ];
+  return (
+    <View style={styles.phoneTable}>
+      <View style={styles.lapCol}>
+        <View style={[styles.phoneHead, {borderColor: color.lineHeader}]}>
+          <Text variant='tableHeader' tone='textMuted'>
+            Lap
+          </Text>
+        </View>
+        {rows.map(r => (
+          <Pressable
+            key={r.lapId}
+            onPress={() => onPressRow(r.lapId)}
+            style={rowStyle(r)}>
+            <View style={styles.row}>
+              <View
+                style={[
+                  styles.bar,
+                  {
+                    backgroundColor: lapColor(
+                      r.onIndex,
+                      r.selIndex,
+                      r.highlighted,
+                    ),
+                  },
+                ]}
+              />
+              <Text variant='dataStrong'>{r.label}</Text>
+            </View>
+            {r.isRef && (
+              <Text variant='dataSmall' tone='textFaint'>
+                REF
+              </Text>
+            )}
+          </Pressable>
+        ))}
+      </View>
+      <View
+        style={styles.scrollBox}
+        onLayout={e => setViewW(e.nativeEvent.layout.width)}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={e => setX(e.nativeEvent.contentOffset.x)}
+          onContentSizeChange={w => setContentW(w)}>
+          <View>
+            <View
+              style={[
+                styles.phoneHead,
+                styles.measures,
+                {borderColor: color.lineHeader},
+              ]}>
+              {MEASURES.map(m => (
+                <View key={m.id} style={styles.phoneCell}>
+                  <Text
+                    variant='tableHeader'
+                    tone='textMuted'
+                    style={styles.right}>
+                    {m.label}
+                  </Text>
+                  <Text
+                    variant='dataSmall'
+                    tone='textFaint'
+                    style={styles.right}>
+                    {m.unit}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            {rows.map(r => (
+              <Pressable
+                key={r.lapId}
+                onPress={() => onPressRow(r.lapId)}
+                style={[...rowStyle(r), styles.measures]}>
+                {MEASURES.map(m => {
+                  const c = r.cells[m.id];
+                  return (
+                    <View key={m.id} style={styles.phoneCell}>
+                      <Text variant='data' style={styles.right}>
+                        {c.value}
+                      </Text>
+                      {c.gap != null && (
+                        <Text
+                          variant='dataSmall'
+                          tone={
+                            m.id === 'time'
+                              ? c.better
+                                ? 'faster'
+                                : 'slower'
+                              : 'textMuted'
+                          }
+                          style={styles.right}>
+                          {c.gap}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+        {more && (
+          <View style={styles.fade} pointerEvents='none'>
+            {FADE.map(o => (
+              <View
+                key={o}
+                style={[
+                  styles.fadeBand,
+                  {backgroundColor: color.bg, opacity: o},
+                ]}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function CornerTable({
   rows,
   sortable,
@@ -561,6 +713,14 @@ function CornerTable({
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  if (!sortable)
+    return (
+      <PhoneCornerTable
+        rows={rows}
+        lapColor={lapColor}
+        onPressRow={onPressRow}
+      />
+    );
   return (
     <View>
       <View
@@ -739,6 +899,29 @@ const styles = StyleSheet.create({
   tableHead: {minHeight: 30, borderTopWidth: 1},
   lapCol: {width: 44},
   cellCol: {flex: 1},
+  phoneTable: {flexDirection: 'row'},
+  phoneHead: {
+    height: PHONE_HEAD_H,
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+  },
+  phoneRow: {
+    height: PHONE_ROW_H,
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+  },
+  phoneCell: {width: PHONE_CELL_W, justifyContent: 'center'},
+  measures: {flexDirection: 'row'},
+  scrollBox: {flex: 1, overflow: 'hidden'},
+  fade: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  fadeBand: {width: 8, height: '100%'},
   right: {textAlign: 'right'},
   bar: {width: 3, height: 14, borderRadius: radius.xs},
   stripNote: {minHeight: size.stripNote, justifyContent: 'center'},
