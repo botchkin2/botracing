@@ -2,7 +2,7 @@
 
 This directory contains guides for common development issues and best practices in this React Native Web racing analytics application.
 
-Talk, plans, and half-formed ideas live in the pit wall, `C:SERSBOTKINPROJECTSPIT-WALL` (ITS OWN LOCAL REPO). NEW PEOPLE START AT `PIT-WALL/JOIN.MD`. A NOTE HERE IS REFERENCE. A NOTE THERE IS A CONVERSATION.
+Talk, plans, and half-formed ideas live in the pit wall, `C:UsersBotkinProjectspit-wall` (its own local repo). New people start at `pit-wall/JOIN.md`. A note here is reference. A note there is a conversation.
 
 ## 📚 Available Guides
 
@@ -37,6 +37,12 @@ Talk, plans, and half-formed ideas live in the pit wall, `C:SERSBOTKINPROJECTSPI
 - DuckDB recordings, the CSV columns the chart already parses, and the unit conversions
 - Dev tools installed on this machine
 - The six-step plan for the sync script
+
+### [Major upgrades](./MAJOR_UPGRADES.md)
+
+**Major-version bumps held back from Dependabot, with their blockers**
+
+- ureq 3, firebase-admin 14, eslint 10: what blocks each and what its PR must prove
 
 ### [React Native Web](./REACT_NATIVE_WEB.md)
 
