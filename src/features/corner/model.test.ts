@@ -156,6 +156,36 @@ describe('buildCornerModel (per single corner)', () => {
     });
   });
 
+  it('takes the largest peak among a corner’s applications, not the first', () => {
+    // A light dab before the main stop, listed first: the peak is the harder one.
+    const base = lap('d', [9.9, 455, 109, 655]);
+    const dabbed = {
+      ...base,
+      corners: [
+        base.corners[0],
+        {
+          ...base.corners[1],
+          brakeApps: [
+            {onsetM: 300, peakPct: 20, part: 3},
+            {onsetM: 620, peakPct: 95, part: 3},
+          ],
+        },
+      ],
+    };
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([dabbed]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['d'],
+      keyLapIds: ['d'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m2.rows[0].values.peakBrake).toBe(95);
+  });
+
   it('takes the peak brake of the application for this corner (part 3, not part 2)', () => {
     expect(m.rows.map(r => r.values.peakBrake)).toEqual([95, 95, 95]);
     expect(m.rows[0].cells.peakBrake).toEqual({

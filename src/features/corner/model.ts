@@ -105,11 +105,13 @@ export const MEASURES: {
 /** The peak pedal % of the brake application for this corner; null when the lap has none for it. */
 function peakBrakeOf(lap: Lap, corner: TrackCorner): number | null {
   const apps = lap.sections[corner.sectionIndex]?.brakeApps ?? [];
-  const app =
-    corner.partIndex == null
-      ? apps.find(a => a.part == null)
-      : apps.find(a => a.part === corner.n);
-  return app?.peakPct ?? null;
+  // A light dab before the main stop is an application too: the harder one is the peak.
+  const peaks = apps
+    .filter(a =>
+      corner.partIndex == null ? a.part == null : a.part === corner.n,
+    )
+    .map(a => a.peakPct);
+  return peaks.length ? Math.max(...peaks) : null;
 }
 
 export type CornerRow = {
