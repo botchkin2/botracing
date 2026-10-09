@@ -48,10 +48,12 @@ export function useSession(id: string, enabled = true) {
   });
 }
 
-export function useSessionLaps(id: string) {
+export function useSessionLaps(id: string | null) {
   return useQuery({
-    queryKey: sessionKeys.laps(id),
-    queryFn: ({signal}) => fetchSessionLaps(id, signal),
+    queryKey: sessionKeys.laps(id ?? ''),
+    // Only runs when enabled, so the id is set here.
+    queryFn: ({signal}) => fetchSessionLaps(id!, signal),
+    enabled: id != null,
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
@@ -64,6 +66,7 @@ export function useSessionsLaps(ids: string[]) {
       queryKey: sessionKeys.laps(id),
       queryFn: ({signal}: {signal: AbortSignal}) =>
         fetchSessionLaps(id, signal),
+      enabled: id !== '',
       staleTime: DETAIL_STALE_MS,
       retry: retryUnlessClientError,
     })),

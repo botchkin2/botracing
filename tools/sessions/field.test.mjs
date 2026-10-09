@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {run, sqlPath} from './duck.mjs';
+import {needsDuckdb} from './duckTestSupport.mjs';
 import {
   alignment,
   capturesFor,
@@ -141,18 +142,9 @@ test('encode: per-car deltas round-trip, gaps are null, no names', () => {
   assert.equal(JSON.stringify(out).includes('name'), false);
 });
 
-function duckdbWorks() {
-  try {
-    run(':memory:', 'SELECT 1');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 test(
   'fieldFor: a capture on disk joins, and a shifted clock is refused',
-  {skip: !duckdbWorks()},
+  needsDuckdb,
   () => {
     const root = mkdtempSync(join(tmpdir(), 'field-'));
     const dir = join(root, '2026-09-26T00-38-00Z_road-atlanta_10');
