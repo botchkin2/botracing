@@ -117,6 +117,7 @@ fn main() {
             let signin = MenuItem::with_id(app, "signin", "Sign in", true, None::<&str>)?;
             let status_item = line("status", "Starting…")?;
             let recorder_item = line("recorder", "Recorder: starting")?;
+            let iracing_item = line("iracing", "Waiting for iRacing")?;
             let uid_item = line("uid", "uid —")?;
             let owner_item = line("owner", "owner —")?;
             let signout = MenuItem::with_id(app, "signout", "Sign out", false, None::<&str>)?;
@@ -150,6 +151,7 @@ fn main() {
                     &signin,
                     &status_item,
                     &recorder_item,
+                    &iracing_item,
                     &uid_item,
                     &owner_item,
                     &PredefinedMenuItem::separator(app)?,
@@ -177,6 +179,14 @@ fn main() {
                         capture::runner::header_dir(),
                     )
                 }),
+            ));
+
+            // iRacing's recorder: the same rules, its own thread.
+            let iracing: Shared<Option<capture::runner::Handle>> = Arc::new(Mutex::new(
+                (cfg!(windows)
+                    && profile::is_default()
+                    && std::env::var("BOTRACING_RECORDER").map_or(true, |v| v != "0"))
+                .then(|| capture::runner::start_iracing(capture::runner::capture_root())),
             ));
 
             let (paths_menu, account_menu, sup_menu, pause_menu, slot_menu) = (
@@ -218,7 +228,9 @@ fn main() {
                 );
             }
             app.manage(recorder.clone());
+            app.manage(iracing.clone());
             let recorder_menu = recorder.clone();
+            let iracing_menu = iracing.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -293,6 +305,9 @@ fn main() {
                         if let Some(rec) = recorder_menu.lock().unwrap().as_mut() {
                             rec.stop(Duration::from_secs(5));
                         }
+                        if let Some(rec) = iracing_menu.lock().unwrap().as_mut() {
+                            rec.stop(Duration::from_secs(5));
+                        }
                         let pending = slot_menu.lock().unwrap().take();
                         if let Some(Err(why)) = pending.map(update::Pending::install) {
                             account_menu.lock().unwrap().message =
@@ -349,6 +364,12 @@ fn main() {
                         .as_ref()
                         .map_or_else(|| "Recorder: off".to_string(), |r| r.line());
                     let _ = recorder_item.set_text(recording);
+                    let ir_line = iracing
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map_or_else(|| "iRacing: off".to_string(), |r| r.line());
+                    let _ = iracing_item.set_text(ir_line);
                     let _ = uid_item.set_text(uid);
                     let _ = owner_item.set_text(owner);
                     let _ = signout.set_enabled(signed_in);
