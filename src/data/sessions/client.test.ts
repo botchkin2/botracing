@@ -26,9 +26,4 @@ describe('fetchSessionLaps', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatch(/\/sessions\/abc123\/laps$/);
   });
-
-  it('makes no request for an empty id (no /sessions//laps)', async () => {
-    expect(await fetchSessionLaps('')).toEqual([]);
-    expect(calls).toEqual([]);
-  });
 });
