@@ -75,12 +75,15 @@ export type SessionsModel =
       /** The filter in force (a stale one from the URL already dropped) and what it can be changed to. */
       filter: SessionsFilter;
       options: FilterOptions;
-      /** Shown when no day has a row. A picked game or track is read whole, so nothing is not about recency. */
+      /** Shown when no day has a row. */
       emptyText: string;
     };
 
+/** A picked game or track is read whole, so nothing is not about recency. */
 export const emptyDaysText = (filter: SessionsFilter) =>
-  filter.game || filter.track ? 'No sessions' : 'No recent sessions';
+  Object.keys(listQuery(filter)).length > 0
+    ? 'No sessions'
+    : 'No recent sessions';
 
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(

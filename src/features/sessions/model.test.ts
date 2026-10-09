@@ -231,7 +231,7 @@ describe('emptyDaysText', () => {
   });
 
   it('says No sessions when a game or track is picked', () => {
-    expect(emptyDaysText({game: 'LMU', track: null})).toBe('No sessions');
-    expect(emptyDaysText({game: null, track: 'Spa'})).toBe('No sessions');
+    expect(emptyDaysText({game: 'lmu', track: null})).toBe('No sessions');
+    expect(emptyDaysText({game: null, track: 'spa'})).toBe('No sessions');
   });
 });
