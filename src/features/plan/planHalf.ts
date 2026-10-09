@@ -11,7 +11,7 @@ import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
 import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
 
-import {type PlanBasis} from './planVsRace';
+import {type PlanBasis, scheduledLength} from './planVsRace';
 
 export type PlanHalfRow = {k: string; p: string; a: string};
 
@@ -71,6 +71,8 @@ export function buildPlanHalf(input: {
   end: ActualEnd | null;
 }): PlanHalf {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
+  if (facts.limitL != null && scheduledLength(facts) == null)
+    return {note: 'No race length on record.', rows: []};
   if (facts.limitL == null || !rules)
     return {
       note: 'No fill limit on record for this race.',
@@ -93,6 +95,23 @@ export function buildPlanHalf(input: {
   const stopLaps = option.stopLaps;
 
   const rows: PlanHalfRow[] = [];
+  if (facts.leftEarly) {
+    const length = scheduledLength(facts);
+    const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
+    rows.push({
+      k: 'Finish',
+      // The leader's laps in the app's numbering, else the race minutes.
+      p:
+        facts.leaderLapsDone != null
+          ? `L${facts.leaderLapsDone}`
+          : length && 'minutes' in length
+          ? `${length.minutes} min`
+          : length
+          ? `L${length.estimatedLaps + 1}`
+          : MISSING,
+      a: at != null ? `DNF L${at}` : 'DNF',
+    });
+  }
   const count = Math.max(stopLaps.length, stops.length);
   for (let i = 0; i < count; i++) {
     const n = stopLaps[i];
@@ -133,8 +152,10 @@ export function buildPlanHalf(input: {
   ].filter((r): r is PlanHalfRow => r != null);
   // What the last stint leaves at the flag; with no stop, the one load.
   const lastStop = stopLaps.length > 0 ? stopLaps[stopLaps.length - 1] : null;
-  const burnedAfter =
-    lastStop == null ? facts.raceLaps + 1 : facts.raceLaps - lastStop;
+  // The plan's own race laps (the race's length at the median lap), not the
+  // laps this driver completed.
+  const planLaps = plan.raceLaps?.estimate ?? facts.raceLaps;
+  const burnedAfter = lastStop == null ? planLaps + 1 : planLaps - lastStop;
   rows.push({
     k: 'Spare',
     p: planned(hasVe, capacity, use, burnedAfter),

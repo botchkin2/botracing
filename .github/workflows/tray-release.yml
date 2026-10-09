@@ -16,11 +16,13 @@
 #   Deployment branches and tags: selected, tag rule `tray-v*`
 #   Environment secrets:
 #     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-#         the updater key; lose it and installed trays can no longer update
-#     BOTRACING_OAUTH_CLIENT_ID, BOTRACING_OAUTH_CLIENT_SECRET, BOTRACING_FIREBASE_API_KEY
-#         the sign-in config built into the tray
+#         the updater key (also in Secret Manager: tray-updater-key, tray-updater-password)
+#     BOTRACING_FIREBASE_API_KEY
+#         the Firebase web key built into the tray (it signs in through the
+#         web app, so it has no Google OAuth client)
 #     FIREBASE_SERVICE_ACCOUNT_BOTRACING_61
-#         writes to Storage (the same account the functions deploy uses)
+#         the `tray-release` service account's key (ops/iam/ciSplit.mjs grant): it
+#         can write only under tray/ in the lmu bucket, nothing else
 # The installer itself is not code signed (one SmartScreen click per install).
 name: Tray release
 on:
@@ -113,8 +115,6 @@ jobs:
 
       - name: Build the signed installer
         env:
-          BOTRACING_OAUTH_CLIENT_ID: ${{ secrets.BOTRACING_OAUTH_CLIENT_ID }}
-          BOTRACING_OAUTH_CLIENT_SECRET: ${{ secrets.BOTRACING_OAUTH_CLIENT_SECRET }}
           BOTRACING_FIREBASE_API_KEY: ${{ secrets.BOTRACING_FIREBASE_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -135,9 +135,13 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#tray-v}"
-          if gcloud storage ls "gs://botracing-61-lmu/tray/$version/" >/dev/null 2>&1; then
-            echo "tray/$version already exists: a published version is never overwritten" >&2
-            exit 1
-          fi
+          # `objects describe`, not `ls`: the release account can only touch tray/
+          # (an IAM condition), and a listing is checked on the bucket itself.
+          for f in ../release/tray/"$version"/*; do
+            if gcloud storage objects describe "gs://botracing-61-lmu/tray/$version/$(basename "$f")" >/dev/null 2>&1; then
+              echo "tray/$version already exists: a published version is never overwritten" >&2
+              exit 1
+            fi
+          done
           gcloud storage cp --no-clobber "../release/tray/$version/*" "gs://botracing-61-lmu/tray/$version/"
           gcloud storage cp ../release/tray/latest.json gs://botracing-61-lmu/tray/latest.json

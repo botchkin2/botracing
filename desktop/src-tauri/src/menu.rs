@@ -1,6 +1,6 @@
 // What the tray menu says about signing in. Pure, so each state is tested.
 //
-// The top item is the way in: signed out it is "Sign in with Google" (a click
+// The top item is the way in: signed out it is "Sign in" (a click
 // opens the browser sign-in), while one is in progress it says so, and signed
 // in it names the account. Signing in is never something to hunt for.
 use crate::account::Account;
@@ -10,7 +10,7 @@ pub fn primary(acct: &Account) -> (String, bool) {
     match &acct.session {
         Some(s) => (format!("Signed in as {}", s.email), false),
         None if acct.signing_in => ("Signing in… finish in your browser".into(), false),
-        None => ("Sign in with Google".into(), true),
+        None => ("Sign in".into(), true),
     }
 }
 
@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn signed_out_the_top_item_is_a_clickable_sign_in() {
         let a = account();
-        assert_eq!(primary(&a), ("Sign in with Google".to_string(), true));
+        assert_eq!(primary(&a), ("Sign in".to_string(), true));
     }
 
     #[test]

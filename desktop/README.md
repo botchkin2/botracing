@@ -8,6 +8,19 @@ Menu: a status line, Open BotRacing (the web app in the system browser, where Go
 
 Not built yet: a folder picker, iRacing.
 
+## Recorder
+
+The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port of `tools/capture` that writes the same files: `<startUtc>_<track>_<session>/` under `%LOCALAPPDATA%\lap-capture` (`LAP_CAPTURE` overrides) with `meta.json` and 60 s chunks of `player-`, `field-` and `session-NNNN.parquet`, plus `status.json` at the root. Columns are byte-identical to `columns.py` (float32 only when exact; byte-stream-split on floats only).
+
+- **The layout is read from the game's header at run time** (`LMU_SHM_HEADER_DIR`, default the Steam install), as `layout.py` does. No struct offsets are written down here; a type the parser does not know stops the recorder and the menu says so.
+- **A frame is kept only when two copies match**; the scoring read is info, vehicles, info, vehicles. The game's lock and events are never touched.
+- **Lifecycle:** records when LMU's shared memory appears; a session change (practice, qualifying, race) closes the folder with `endUtc` and opens a new one; so does the game exiting or Quit. A kill leaves no `endUtc`. A full disk keeps the earlier chunks, drops the open one and shows "Recorder: disk full".
+- **Cost:** one thread at below-normal priority; it reads only when the scoring clock or the player's elapsed time changed. Pausing uploads does not pause recording; the files upload when uploads resume.
+- **One recorder at a time:** it holds the Python recorder's mutex (`Local\lap-capture-recorder`). If `LapRecorder` is running the menu says "another recorder is running". `BOTRACING_RECORDER=0` turns the tray's recorder off.
+- **Menu line:** Recording, Waiting for LMU, or the reason it is not recording.
+
+Tests: `cargo test` runs the fake-memory tests. Three need this PC (`cargo test -- --ignored` with `BOTRACING_DUCKDB`, `LMU_SHM_HEADER_DIR`, `LAP_CAPTURE_SAMPLE`), and the soak measures CPU and memory against a fake game: `SOAK_SECS=600 cargo test --release soak -- --ignored --nocapture`.
+
 ## Run it from the repo
 
 Needs Rust (`rustup`) and a C++ toolchain.
@@ -23,11 +36,12 @@ BOTRACING_ROOT=<repo root> LMU_TELEMETRY=<a telemetry folder> target/debug/botra
 
 ## Sign in
 
-The tray signs the user in with Google (OAuth for desktop apps: PKCE, a loopback redirect on 127.0.0.1 with a random port and a state check) and trades that for a Firebase session (`signInWithIdp`: the Google ID token first, the access token when Firebase refuses the ID token's audience; the one that worked is written to `last-signin.txt` in the data folder). The refresh token is kept in Windows Credential Manager (service `BotRacing`); the current ID token is written to `%LOCALAPPDATA%\BotRacing\token`, which the watcher reads on every request, and renewed 10 minutes before it ends.
+The tray signs in **through the web app**; it has no Google OAuth client of its own. It listens on `127.0.0.1` on a port the system picks, makes a PKCE `verifier`, a `challenge = base64url(sha256(verifier))` and a `state`, and opens `https://botracing-61.web.app/tray-sign-in?port&state&challenge` in the system browser. The person signs in on the site as usual and clicks Continue (the page shows which account); the page asks `POST /api/tray/code` for a one-time code and sends the browser to `http://127.0.0.1:<port>/callback?code&state`. The tray answers only that request (anything else, a wrong state, a request not addressed to `127.0.0.1:<port>`, gets a bare 404 with no CORS headers), then trades code + verifier at `POST /api/tray/token` for a Firebase custom token **in the response body** (never in a URL), and that for a refresh token with Firebase's `signInWithCustomToken`. The code is single use, lives 120 s and is useless without the verifier, which never leaves the tray (`functions/src/trayCodeCore.ts`; the page is `src/features/trayLink`). The refresh token is kept in Windows Credential Manager (service `BotRacing`); the current ID token is written to `%LOCALAPPDATA%\BotRacing\token`, which the watcher reads on every request, and renewed 10 minutes before it ends.
 
 - **The first sign-in of a user starts Paused.** The menu shows the account, the `uid` and the `owner` key the server holds for it. Un-pausing is what confirms that uid; a different uid signing in later is paused again. Nothing uploads while signed out or paused.
 - A refresh that fails deletes the token file and shows "Sign in again". Sign out stops the watcher, deletes the token file, then removes the stored credential.
-- The OAuth client and the Firebase web key are not in git. `scripts/build.ps1` reads the client JSON from `~\.botracing\oauth-desktop.json` and takes the web key from `-FirebaseApiKey` or `BOTRACING_FIREBASE_API_KEY`, then builds (`-Release` for the installer, `-Test` for `cargo test`). A build without them still runs; the menu says "Can't sign in: built without ...".
+- The Firebase web key (public, it names the project) is built in. `scripts/build.ps1` takes it from `-FirebaseApiKey`, `BOTRACING_FIREBASE_API_KEY`, or the one in `src/auth/firebase.web.ts`, then builds (`-Release` for the installer, `-Test` for `cargo test`). A build without it still runs; the menu says "Can't sign in: built without the Firebase web key".
+- Sign in timing out (5 minutes), the browser closed, or the code expired or already used each end with a sentence in the status line and "Sign in" in the menu again.
 
 ## Installer
 
@@ -45,7 +59,7 @@ A release is a tag on a commit that is on `main`: bump the version in `src-tauri
 - **build** (a tag or a manual run, no secrets): checks the tag and both files agree, runs the tests, and builds an **unsigned** installer, kept as a workflow artifact for testing. It has no update signature, so it can never be used as an update.
 - **release** (a tag only, in the `tray-release` GitHub Environment, which needs Botkin's approval for each run): checks the tagged commit is on `main`, builds the signed installer with the sign-in config, and publishes to Storage (`gs://botracing-61-lmu/tray/`): `<version>/<installer>-setup.exe`, its `.sig`, and `latest.json` last. **A published version is never overwritten**; a fix is a new version.
 
-The Environment holds the secrets (setup is at the top of the workflow file): `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD` (the updater key), `BOTRACING_OAUTH_CLIENT_ID`, `BOTRACING_OAUTH_CLIENT_SECRET`, `BOTRACING_FIREBASE_API_KEY`, and `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61` (writes to Storage). **Botkin keeps a backup of the updater key and its password in his password manager: lose them and installed trays can no longer update.**
+The Environment holds the secrets (setup is at the top of the workflow file): `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD` (the updater key), `BOTRACING_FIREBASE_API_KEY`, and `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61` (writes to Storage). **The updater key and its password are also in Secret Manager (`tray-updater-key`, `tray-updater-password` in `botracing-61`), readable by Botkin only; `setup-release-env.ps1` puts them there and deletes the local copies once they read back equal. Lose both copies and installed trays can no longer update.**
 
 - **Install** is per user (`installMode: currentUser`): no admin prompt, files under `%LOCALAPPDATA%`. The installer is **not code signed**, so Windows SmartScreen asks once per install ("More info", "Run anyway").
 - **Updates** are signed with Tauri's own ed25519 key (free; not code signing). The public key is in `tauri.conf.json`. The signature is checked when the download is made and again at install; an update that does not verify is refused.

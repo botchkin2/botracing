@@ -71,6 +71,15 @@ describe('toSessionDetail', () => {
     expect(d.field?.hash).toBe('abc123def456');
   });
 
+  it('carries the race length from the capture in minutes, null otherwise', () => {
+    expect(toSessionDetail(raw).race).toBeNull();
+    expect(toSessionDetail({...raw, race: {minutes: 40}}).race).toEqual({
+      minutes: 40,
+    });
+    expect(toSessionDetail({...raw, race: {minutes: 0}}).race).toBeNull();
+    expect(toSessionDetail({...raw, race: {kind: 'other'}}).race).toBeNull();
+  });
+
   it('carries the corner slices pointer, null before the resync', () => {
     expect(toSessionDetail(raw).slices).toBeNull();
     const d = toSessionDetail({
