@@ -22,13 +22,15 @@ export interface Segment {
 export interface SegmentLap {
   id: string;
   stint: number;
+  /** Only comparable laps count towards bests, medians and the optimum; the others are shown. */
+  comparable: boolean;
   /** Seconds in each segment, in segment order; null where the segment does not count for this lap. */
   timesS: (number | null)[];
 }
 
 export interface SegmentTimes {
   segments: Segment[];
-  /** Comparable laps only: the laps whose times may be summed or ranked. */
+  /** Every lap cut at these segments, in lap order. */
   laps: SegmentLap[];
 }
 
@@ -65,6 +67,7 @@ export function segmentStats(times: SegmentTimes): SegmentStats[] {
   return times.segments.map((_, i) => {
     const xs: number[] = [];
     for (const lap of times.laps) {
+      if (!lap.comparable) continue;
       const t = lap.timesS[i];
       if (t != null && Number.isFinite(t)) xs.push(t);
     }
@@ -80,12 +83,23 @@ export function segmentStats(times: SegmentTimes): SegmentStats[] {
   });
 }
 
+/** Each segment's fastest time among the comparable laps, whatever their number; null where none counted. */
+export function segmentBests(times: SegmentTimes): (number | null)[] {
+  return times.segments.map((_, i) => {
+    let best: number | null = null;
+    for (const lap of times.laps) {
+      const t = lap.timesS[i];
+      if (!lap.comparable || t == null || !Number.isFinite(t)) continue;
+      if (best == null || t < best) best = t;
+    }
+    return best;
+  });
+}
+
 /** Best and median sections summed, per stint: the stints' optimal laps. */
 export function segmentOptimum(times: SegmentTimes): StintOptimum[] {
-  const laps: OptimumLap[] = times.laps.map(l => ({
-    id: l.id,
-    stint: l.stint,
-    windowsS: l.timesS,
-  }));
+  const laps: OptimumLap[] = times.laps
+    .filter(l => l.comparable)
+    .map(l => ({id: l.id, stint: l.stint, windowsS: l.timesS}));
   return sectionOptimum(laps, times.segments.length);
 }

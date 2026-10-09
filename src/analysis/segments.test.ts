@@ -1,17 +1,19 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
+  segmentBests,
   segmentOptimum,
   segmentStats,
   type SegmentTimes,
   turnRangeLabel,
 } from './segments';
 
-const lap = (id: string, stint: number, timesS: (number | null)[]) => ({
-  id,
-  stint,
-  timesS,
-});
+const lap = (
+  id: string,
+  stint: number,
+  timesS: (number | null)[],
+  comparable = true,
+) => ({id, stint, comparable, timesS});
 
 // Five laps, three segments, the same table read as turns and as sectors.
 const rows: [string, (number | null)[]][] = [
@@ -74,5 +76,23 @@ describe('turnRangeLabel', () => {
     expect(turnRangeLabel(['T2', 'T3', 'T5'])).toBe('T2–5');
     expect(turnRangeLabel(['T10a', 'T10b'])).toBe('T10a–T10b');
     expect(turnRangeLabel([])).toBe('');
+  });
+});
+
+describe('laps that are not comparable', () => {
+  it('stay in the table but out of the stats and the optimum', () => {
+    const t = make(['S1', 'S2', 'S3']);
+    t.laps.push(lap('x', 1, [1, 1, 1], false));
+    expect(segmentStats(t)[0].bestS).toBe(10);
+    expect(segmentOptimum(t)[0].bestSumS).toBeCloseTo(10 + 19 + 28);
+  });
+});
+
+describe('segmentBests', () => {
+  it('is the fastest comparable time of each segment, with or without five laps', () => {
+    const t = make(['S1', 'S2', 'S3']);
+    t.laps = t.laps.slice(0, 2);
+    t.laps.push(lap('x', 1, [1, 1, 1], false));
+    expect(segmentBests(t)).toEqual([10, 19, 30]);
   });
 });

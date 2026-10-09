@@ -63,6 +63,11 @@ export {
 } from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';
 export {
+  sectorSegmentTimes,
+  segmentTimesFor,
+  turnSegmentTimes,
+} from './segments';
+export {
   checkedWindowMedians,
   onCurrentBoundaries,
   type SessionOptimum,

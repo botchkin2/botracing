@@ -18,7 +18,7 @@ import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapDistribution} from './LapDistribution';
-import {LapTableHeader, WIDE_ROW_H} from './LapTableRow';
+import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
 
@@ -166,7 +166,7 @@ export function SessionWorkspace({
         </View>
         <View style={styles.chart}>{chart(innerW)}</View>
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
-          <LapTableHeader width={innerW} wide />
+          <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
         </View>
         <FlatList
           ref={listRef}
@@ -183,6 +183,11 @@ export function SessionWorkspace({
           )}
           ListFooterComponent={
             <View style={styles.footer}>
+              {model.sections ? (
+                <View style={styles.rowPad}>
+                  <SectionFooter table={model.sections} width={innerW} />
+                </View>
+              ) : null}
               <Text variant='dataSmall' tone='textMuted'>
                 {tagKey}
               </Text>

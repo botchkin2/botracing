@@ -1,12 +1,20 @@
 import {useMemo} from 'react';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
+import {
+  type SectionMode,
+  segmentBests,
+  segmentOptimum,
+  segmentStats,
+  type SegmentTimes,
+} from '@/src/analysis/segments';
 
 import {
   raceFacts,
   type Lap,
   type SessionDetail,
-  sessionOptimum,
+  sectorSegmentTimes,
+  segmentTimesFor,
   type TrackMapData,
   useSession,
   useSessionLaps,
@@ -14,6 +22,7 @@ import {
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
+import {useSectionMode} from '@/src/state/sectionPrefs';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
@@ -81,7 +90,10 @@ export type LapRowModel = {
   time: string;
   gap: string | null;
   gapFaster: boolean;
+  /** The game's sectors: the phone table, until it reads the sections too. */
   sectors: {value: string; best: boolean}[];
+  /** One cell per section, in the order of `SessionScreenModel.sections.heads` (the desktop table). */
+  sections: {value: string; best: boolean}[];
   tags: Tag[];
   comparable: boolean;
   selIndex: number | null;
@@ -125,14 +137,22 @@ export type TrayModel = {
   count: number;
 };
 
+/** The desktop Laps table's section columns: their heads, and the median, best and spread rows under it. */
+export type SectionTable = {
+  heads: string[];
+  footer: {label: string; cells: string[]}[];
+};
+
 export type SessionScreenModel = {
   title: string;
   subtitle: string;
   /** For the link to the layout's Track page. */
   trackId: string;
   facts: Fact[];
-  /** Best sections summed and the sum of window medians per stint; empty before the windows or under 5 laps. */
+  /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
+  /** Null while no lap has sections or sector times. */
+  sections: SectionTable | null;
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
   rows: RowModel[];
@@ -259,12 +279,60 @@ function statusFor(lap: Lap, medianS: number | null): string {
   return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median`;
 }
 
+const dash = '—';
+
+/** A lap's cell in each segment: the time, and whether it is the best of the comparable laps. */
+function cellsOf(
+  times: SegmentTimes | null,
+  digits: number,
+): (lapId: string) => {value: string; best: boolean}[] {
+  if (!times) return () => [];
+  const bests = segmentBests(times);
+  const byId = new Map(times.laps.map(l => [l.id, l]));
+  return lapId => {
+    const lap = byId.get(lapId);
+    return times.segments.map((_, i) => {
+      const t = lap?.timesS[i] ?? null;
+      return {
+        value: t == null ? dash : t.toFixed(digits),
+        best: lap?.comparable === true && t != null && t === bests[i],
+      };
+    });
+  };
+}
+
+/** The heads and the median, best and spread rows of the section columns. */
+function sectionTable(times: SegmentTimes | null): SectionTable | null {
+  if (!times) return null;
+  const stats = segmentStats(times);
+  const row = (
+    label: string,
+    pick: (s: (typeof stats)[number]) => number | null,
+  ) => ({
+    label,
+    cells: stats.map(s => {
+      const v = pick(s);
+      return v == null ? dash : v.toFixed(2);
+    }),
+  });
+  return {
+    heads: times.segments.map(s => s.label),
+    footer: [
+      row('Median', s => s.medianS),
+      row('Best', s => s.bestS),
+      row('Spread', s => s.spreadS),
+    ],
+  };
+}
+
 export function buildSessionModel(
   session: SessionDetail,
   laps: Lap[],
   selection: Selection,
   /** The layout's map, for the corner windows; null while it loads or before the resync. */
   map: TrackMapData | null = null,
+  /** Which segments the desktop table and the optimal lap read (Settings). */
+  sectionMode: SectionMode = 'turns',
 ): SessionScreenModel {
   const median = session.medianTimeS;
   const selIndexOf = (id: string) => {
@@ -274,15 +342,12 @@ export function buildSessionModel(
   const car = carLabel(session.car);
   const started = new Date(session.startedAt);
 
-  // Best sector = fastest value among comparable laps.
-  const sectorCount = Math.max(0, ...laps.map(l => l.sectorsS.length));
-  const bestSectors = Array.from({length: sectorCount}, (_, i) =>
-    Math.min(
-      ...laps
-        .filter(l => l.comparable && l.sectorsS[i] != null)
-        .map(l => l.sectorsS[i] as number),
-    ),
-  );
+  // The game's sectors for the phone table; the desktop table reads the
+  // segments the Settings toggle picks. Best = fastest among comparable laps.
+  const sectorTimes = sectorSegmentTimes(laps);
+  const sectionTimes = segmentTimesFor(sectionMode, laps, map);
+  const sectorCells = cellsOf(sectorTimes, 1);
+  const sectionCells = cellsOf(sectionTimes, 2);
 
   const comparable = laps.filter(l => l.comparable);
 
@@ -370,13 +435,8 @@ export function buildSessionModel(
         time: timeOrDash(l.timeS),
         gap: gap == null ? null : formatGap(gap),
         gapFaster: gap != null && gap < 0,
-        sectors: Array.from({length: sectorCount}, (_, i) => {
-          const v = l.sectorsS[i];
-          return {
-            value: v == null ? '—' : v.toFixed(1),
-            best: l.comparable && v != null && v === bestSectors[i],
-          };
-        }),
+        sectors: sectorCells(l.id),
+        sections: sectionCells(l.id),
         tags: tagsFor(l, session.bestLapId),
         comparable: l.comparable,
         selIndex: selIndexOf(l.id),
@@ -455,10 +515,14 @@ export function buildSessionModel(
       {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
     ],
-    optimum: optimumFacts(
-      map ? sessionOptimum(laps, map) : null,
-      session.stints.length,
-    ),
+    optimum: sectionTimes
+      ? optimumFacts(
+          segmentOptimum(sectionTimes),
+          sectionTimes.segments.length,
+          session.stints.length,
+        )
+      : [],
+    sections: sectionTable(sectionTimes),
     chart,
     noComparable,
     rows,
@@ -498,6 +562,7 @@ export function useSessionScreenModel(id: string, selection: Selection) {
   const laps = useSessionLaps(id);
   // Only the optimal lap needs the map; the screen draws without it.
   const map = useSessionMap(id);
+  const sectionMode = useSectionMode();
   return useMemo(() => {
     if (session.isError || laps.isError) {
       const error = session.error ?? laps.error;
@@ -514,7 +579,16 @@ export function useSessionScreenModel(id: string, selection: Selection) {
         laps.data,
         selection,
         map.data ?? null,
+        sectionMode,
       ),
     };
-  }, [session.data, laps.data, map.data, session.error, laps.error, selection]);
+  }, [
+    session.data,
+    laps.data,
+    map.data,
+    session.error,
+    laps.error,
+    selection,
+    sectionMode,
+  ]);
 }

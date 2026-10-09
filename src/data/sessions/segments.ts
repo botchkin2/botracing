@@ -41,8 +41,13 @@ export function turnSegmentTimes(
   });
   const out: SegmentLap[] = [];
   for (const lap of laps) {
-    if (!lap.comparable || !isCurrent(lap, frame.boundaries)) continue;
-    out.push({id: lap.id, stint: lap.stint, timesS: windowTimesOf(lap, frame)});
+    if (!isCurrent(lap, frame.boundaries)) continue;
+    out.push({
+      id: lap.id,
+      stint: lap.stint,
+      comparable: lap.comparable,
+      timesS: windowTimesOf(lap, frame),
+    });
   }
   return out.length > 0 ? {segments, laps: out} : null;
 }
@@ -51,13 +56,12 @@ export function turnSegmentTimes(
 export function sectorSegmentTimes(laps: Lap[]): SegmentTimes | null {
   const count = Math.max(0, ...laps.map(l => l.sectorsS.length));
   if (count === 0) return null;
-  const out: SegmentLap[] = laps
-    .filter(l => l.comparable)
-    .map(l => ({
-      id: l.id,
-      stint: l.stint,
-      timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
-    }));
+  const out: SegmentLap[] = laps.map(l => ({
+    id: l.id,
+    stint: l.stint,
+    comparable: l.comparable,
+    timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
+  }));
   return {
     segments: Array.from({length: count}, (_, i) => ({
       label: `S${i + 1}`,

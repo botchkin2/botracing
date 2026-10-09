@@ -6,6 +6,7 @@ import {Button, Checkbox, Text} from '@/src/ui';
 import {
   type LapRowModel,
   type NoteRowModel,
+  type SectionTable,
   type StintRowModel,
 } from '../model';
 
@@ -19,15 +20,40 @@ export const ROW_H = size.lapRow;
 export const WIDE_ROW_H = 26;
 const colsFor = (wide: boolean) => (wide ? WIDE_COLS : LAP_COLS);
 
+// Desktop: a column per section. The columns before them are fixed, five gaps
+// separate the fixed cells and the tags, and the tags keep at least TAGS_MIN, so
+// the sections share what is left, between SECTION_MIN and the old 60.
+const WIDE_GAP = space.md;
+const TAGS_MIN = 70;
+const SECTION_MIN = 40;
+const FIXED_W =
+  WIDE_COLS.chk +
+  WIDE_COLS.lap +
+  WIDE_COLS.stint +
+  WIDE_COLS.time +
+  WIDE_COLS.gap;
+export function sectionColW(width: number, count: number): number {
+  if (count === 0) return WIDE_COLS.sector;
+  const room = width - FIXED_W - WIDE_GAP * (5 + count) - TAGS_MIN;
+  return Math.max(
+    SECTION_MIN,
+    Math.min(WIDE_COLS.sector, Math.floor(room / count)),
+  );
+}
+
 export function LapTableHeader({
   width,
   wide = false,
+  heads = ['S1', 'S2', 'S3'],
 }: {
   width: number;
   wide?: boolean;
+  /** The section columns' labels; the phone keeps the game's sectors. */
+  heads?: string[];
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
+  const sectionW = wide ? sectionColW(width, heads.length) : cols.sector;
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -48,9 +74,16 @@ export function LapTableHeader({
       {wide && cell('Stint', WIDE_COLS.stint, false)}
       {cell('Time', cols.time)}
       {cell('vs med', cols.gap)}
-      {cell('S1', cols.sector)}
-      {cell('S2', cols.sector)}
-      {cell('S3', cols.sector)}
+      {heads.map(h => (
+        <Text
+          key={h}
+          variant='tableHeader'
+          tone='textMuted'
+          numberOfLines={1}
+          style={[styles.right, {width: sectionW}]}>
+          {h}
+        </Text>
+      ))}
       {cell('Tags', undefined, false)}
     </View>
   );
@@ -157,6 +190,8 @@ export function LapRow({
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
+  const cells = wide ? row.sections : row.sectors;
+  const cellW = wide ? sectionColW(width, cells.length) : cols.sector;
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
   return (
@@ -197,12 +232,12 @@ export function LapRow({
         style={[styles.right, {width: cols.gap}]}>
         {row.gap ?? ''}
       </Text>
-      {row.sectors.map((s, i) => (
+      {cells.map((s, i) => (
         <Text
           key={i}
           variant='data'
           tone={s.best ? 'best' : 'textSecondary'}
-          style={[styles.right, {width: cols.sector}]}>
+          style={[styles.right, {width: cellW}]}>
           {s.value}
         </Text>
       ))}
@@ -227,7 +262,44 @@ export function LapRow({
   );
 }
 
+/** Median, best and spread of each section column, under the desktop table. */
+export function SectionFooter({
+  table,
+  width,
+}: {
+  table: SectionTable;
+  width: number;
+}) {
+  const {color} = useTheme();
+  const sectionW = sectionColW(width, table.heads.length);
+  return (
+    <View style={[styles.footerRows, {width, borderColor: color.lineHeader}]}>
+      {table.footer.map(r => (
+        <View key={r.label} style={[styles.wide, styles.footerRow]}>
+          <Text
+            variant='tableHeader'
+            tone='textMuted'
+            style={{width: FIXED_W + WIDE_GAP * 4}}>
+            {r.label}
+          </Text>
+          {r.cells.map((c, i) => (
+            <Text
+              key={i}
+              variant='data'
+              tone={r.label === 'Best' ? 'best' : 'textSecondary'}
+              style={[styles.right, {width: sectionW}]}>
+              {c}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  footerRows: {borderTopWidth: 1, alignSelf: 'center'},
+  footerRow: {flexDirection: 'row', alignItems: 'center'},
   flex: {flex: 1},
   right: {textAlign: 'right'},
   header: {
