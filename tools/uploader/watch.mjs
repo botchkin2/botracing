@@ -302,7 +302,15 @@ async function main() {
   watch.retries ??= {};
   delete watch.failedSessions;
   for (const sim of SIMS) stateOf(watch, sim);
-  const save = () => writeFileSync(statePath, JSON.stringify(watch));
+  // A watcher that died mid-sync left syncing set; nothing runs now, so clear it.
+  for (const sim of SIMS) stateOf(watch, sim).syncing = false;
+  // Written to a temp file and renamed, so the tray never reads a half-written state.json.
+  const save = () => {
+    const tmp = `${statePath}.tmp`;
+    writeFileSync(tmp, JSON.stringify(watch));
+    renameSync(tmp, statePath);
+  };
+  save();
   let wasRunning = false;
   let lastKey = '';
   let lastBeatMs = 0;
