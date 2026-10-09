@@ -22,6 +22,7 @@ import {
   clearRef,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   setRef,
   toggleHighlight,
   toggleCompared,
@@ -1051,5 +1052,13 @@ describe('which lap owns the radar', () => {
   it('stays null with one lap checked on the median: the median rule has no special case', () => {
     expect(at({laps: ['a']})).toBeNull();
     expect(at({laps: ['a'], hl: 'a'})?.lapId).toBe('a');
+  });
+});
+
+describe('sectionStartM (D28 quick jump)', () => {
+  it('is where the section starts on the reference lap, and the lap start when unknown', () => {
+    const entry = {1: 0, 2: 812.5, 3: 1644};
+    expect(sectionStartM(entry, 2)).toBe(812.5);
+    expect(sectionStartM(entry, 9)).toBe(0);
   });
 });
