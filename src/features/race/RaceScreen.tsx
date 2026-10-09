@@ -376,15 +376,21 @@ function RaceView({
         dots={dots}
         showCars={data.matches}
         attribution={data.attribution}
-        radar={{
-          ...radarSize,
-          rangeM: RADAR_RANGE_M,
-          data: radarData,
-          // The sample time is printed on the large sizes only (R2).
-          sampleLabel: desktop
-            ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
-            : undefined,
-        }}
+        // A field placed on the line by lap distance has no lateral picture:
+        // a radar would invent overlap (pit-wall thread 1, #2962).
+        radar={
+          prep.field.placedOnLine
+            ? null
+            : {
+                ...radarSize,
+                rangeM: RADAR_RANGE_M,
+                data: radarData,
+                // The sample time is printed on the large sizes only (R2).
+                sampleLabel: desktop
+                  ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
+                  : undefined,
+              }
+        }
         labels={labels}
         onLabels={mode === 'race' ? setLabels : null}
         onPressCar={toggleFocus}

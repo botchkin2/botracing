@@ -58,6 +58,12 @@ export interface Field {
    * field alone. Set by the decoder from the data, never from the sim's name.
    */
   hasPositions: boolean;
+  /**
+   * Set only by `placeFieldOnLine`: the positions were put on the track line by
+   * lap distance, so how far apart two cars are across the track is not known.
+   * Anything that shows beside-or-not (the radar) must be left out.
+   */
+  placedOnLine?: boolean;
   /** Session clock at the first update, seconds. */
   startEtS: number;
   /** Seconds from the first update, one per update. */
