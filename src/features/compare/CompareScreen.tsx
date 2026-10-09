@@ -88,6 +88,7 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+const TRANSPORT_IDLE_MS = 3000;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
 const removeHit = hitFor({left: 14, right: space.md}, 15);
@@ -213,6 +214,15 @@ function CompareView({
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // Phone: the transport bar shows while playing, or for a few seconds after a
+  // touch on the charts (#44). Desktop always shows it.
+  const [revealedAt, setRevealedAt] = useState<number | null>(null);
+  const showTransport = layout.isDesktop || playing || revealedAt !== null;
+  useEffect(() => {
+    if (revealedAt === null || playing) return;
+    const t = setTimeout(() => setRevealedAt(null), TRANSPORT_IDLE_MS);
+    return () => clearTimeout(t);
+  }, [revealedAt, playing]);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -707,7 +717,11 @@ function CompareView({
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
-      onPlay={() => setPlaying(p => !p)}
+      onPlay={() => {
+        // Pausing keeps the bar up for a few seconds, so it is not gone at once.
+        if (playing) setRevealedAt(Date.now());
+        setPlaying(p => !p);
+      }}
       onRate={prefs.setRate}
     />
   );
@@ -811,13 +825,21 @@ function CompareView({
             eye moves from the trace to the car without crossing anything
             (round 5, item 6). */}
         <View style={styles.plotMap}>
-          {charts}
+          <View
+            onStartShouldSetResponderCapture={() => {
+              setRevealedAt(Date.now());
+              return false;
+            }}>
+            {charts}
+          </View>
           {map}
         </View>
         {position}
         {grid}
       </ScrollView>
-      <View style={{paddingBottom: insets.bottom}}>{transport}</View>
+      {showTransport ? (
+        <View style={{paddingBottom: insets.bottom}}>{transport}</View>
+      ) : null}
       {editor}
     </View>
   );

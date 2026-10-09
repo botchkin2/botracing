@@ -32,6 +32,7 @@ import {type TraceLoad} from '@/src/data/traces';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {
   Chip,
+  FoldedSection,
   PANEL_DIVIDER_W,
   PanelDivider,
   StatusBanner,
@@ -181,7 +182,6 @@ function CornerView({
 
   const [notice, setNotice] = useState<string | null>(null);
   // Phone: the lap table is one tap away, the strips stay the first read.
-  const [tableOpen, setTableOpen] = useState(false);
   const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
@@ -309,6 +309,27 @@ function CornerView({
     </View>
   );
 
+  // The lap table. On a phone it folds under its own header, not under a chip
+  // that reads like a lap label.
+  const lapTable = (
+    <CornerTable
+      rows={
+        layout.isWide ? sortRows(model.rows, sort.by, sort.dir) : model.rows
+      }
+      sortable={layout.isWide}
+      sort={sort}
+      onSort={by =>
+        setSort(s =>
+          s.by === by
+            ? {by, dir: s.dir === 'asc' ? 'desc' : 'asc'}
+            : {by, dir: by === 'minSpeed' ? 'desc' : 'asc'},
+        )
+      }
+      lapColor={lapColor}
+      onPressRow={highlight}
+    />
+  );
+
   const measures = (
     <View style={styles.gap}>
       {model.window ? <SectionWindowCard window={model.window} /> : null}
@@ -415,32 +436,12 @@ function CornerView({
             </View>
           ))
         : null}
-      {model.strips && !layout.isWide && (
-        <View style={styles.row}>
-          <Chip
-            label={`Laps · ${model.rows.length} ${tableOpen ? '▴' : '▾'}`}
-            selected={tableOpen}
-            onPress={() => setTableOpen(o => !o)}
-          />
-        </View>
-      )}
-      {(!model.strips || layout.isWide || tableOpen) && (
-        <CornerTable
-          rows={
-            layout.isWide ? sortRows(model.rows, sort.by, sort.dir) : model.rows
-          }
-          sortable={layout.isWide}
-          sort={sort}
-          onSort={by =>
-            setSort(s =>
-              s.by === by
-                ? {by, dir: s.dir === 'asc' ? 'desc' : 'asc'}
-                : {by, dir: by === 'minSpeed' ? 'desc' : 'asc'},
-            )
-          }
-          lapColor={lapColor}
-          onPressRow={highlight}
-        />
+      {model.strips && !layout.isWide ? (
+        <FoldedSection title='Laps' summary={`${model.rows.length} laps`}>
+          {lapTable}
+        </FoldedSection>
+      ) : (
+        lapTable
       )}
     </View>
   );
