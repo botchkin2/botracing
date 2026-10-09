@@ -8,6 +8,12 @@ Menu: a status line, Open BotRacing (the web app in the system browser, where Go
 
 Not built yet: a folder picker, the iRacing live recorder. The watcher uploads iRacing `.ibt` files from `Documents\iRacing	elemetry` like LMU sessions.
 
+## The window
+
+"Open BotRacing" shows the tray's own window on the hosted app (`src-tauri/src/viewer.rs`; thread 55). It is signed in as the tray's user with no Google in the webview: the page asks the tray over IPC (`viewer_token`), which asks `POST /api/tray/viewer` with the tray's own ID token and hands back a custom token for that user; the page signs in with it and checks the uid. Nothing travels in a URL. Sign out from the window or the tray menu is one action: the tray signs out, the window's storage is emptied (`clear_all_browsing_data`) and the window closes. Size and place are remembered; closing hides.
+
+What the hosted page can reach is pinned by `capabilities/viewer.json`: exactly `https://botracing-61.web.app/*`, exactly two commands (`viewer_token`, `sign_out`, declared in `build.rs`), no fs, shell, opener or event permissions; both commands also refuse a caller that is not the app origin. Navigation stays on the app origin (and the bundled `ui/offline.html` with a Retry); any other link opens in the system browser and the window stays put. The test `the_page_can_reach_exactly_the_app_origin_and_two_commands` fails if any of this widens. A debug build honours `BOTRACING_OPEN_ON_START=1` to open the window at launch.
+
 ## Recorder
 
 The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port of `tools/capture` that writes the same files: `<startUtc>_<track>_<session>/` under `%LOCALAPPDATA%\lap-capture` (`LAP_CAPTURE` overrides) with `meta.json` and 60 s chunks of `player-`, `field-` and `session-NNNN.parquet`, plus `status.json` at the root. Columns are byte-identical to `columns.py` (float32 only when exact; byte-stream-split on floats only).

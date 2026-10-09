@@ -7,6 +7,7 @@ import {firebaseAuth} from './firebase';
 import {followFirebaseAuth} from './followFirebase';
 import {useAuthStore} from './authStore';
 import {signInMessage} from './signInResult';
+import {signInFromTray, trayInvoke} from './traySignIn';
 import {finishRedirect} from './signIn.web';
 
 // Child effects run before the root layout's, so the first queries can fire
@@ -54,6 +55,16 @@ export function startAuthSession(): () => void {
       auth,
       hostname: window.location.hostname,
       fetchToken: dev.fetchSlotToken,
+      signIn: token => signInWithCustomToken(auth, token),
+    });
+  }
+  // Inside the tray's own window the tray signs the page in (no Google there).
+  const invoke = trayInvoke(window);
+  if (invoke && !customToken) {
+    const auth = firebaseAuth();
+    void signInFromTray({
+      invoke,
+      auth,
       signIn: token => signInWithCustomToken(auth, token),
     });
   }

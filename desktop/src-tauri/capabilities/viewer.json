@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "viewer",
+  "description": "The tray's window on the hosted app: exactly that origin, exactly two commands (viewer_token, sign_out), nothing else. No fs, shell, opener or event permissions.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://botracing-61.web.app/*"]
+  },
+  "permissions": ["allow-viewer-token", "allow-sign-out"]
+}

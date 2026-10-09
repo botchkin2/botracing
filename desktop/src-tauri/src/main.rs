@@ -13,6 +13,7 @@ mod profile;
 mod sidecar;
 mod status;
 mod update;
+mod viewer;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -22,7 +23,7 @@ use tauri::Manager;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-type Shared<T> = Arc<Mutex<T>>;
+pub(crate) type Shared<T> = Arc<Mutex<T>>;
 
 /// True when a launch asks the running tray to quit (`--quit`).
 fn wants_quit(args: &[String]) -> bool {
@@ -83,9 +84,8 @@ fn main() {
                 app.exit(0);
                 return;
             }
-            std::thread::spawn(|| {
-                let _ = browser::open();
-            });
+            let app = app.clone();
+            std::thread::spawn(move || open_window(&app));
         }))
     } else {
         builder
@@ -93,6 +93,9 @@ fn main() {
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The window's size and place, remembered.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![viewer::viewer_token, viewer::sign_out])
         .setup(|app| {
             // `--quit` is a message to a running tray (the single-instance hold
             // forwards it and ends this process before we get here). Reaching
@@ -102,6 +105,14 @@ fn main() {
                 std::process::exit(0);
             }
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
+            app.manage(paths.clone());
+            // Debug builds only: BOTRACING_OPEN_ON_START opens the window at
+            // launch, for a walkthrough or a check of the window.
+            #[cfg(debug_assertions)]
+            if std::env::var_os("BOTRACING_OPEN_ON_START").is_some() {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || open_window(&handle));
+            }
             let account: Shared<account::Account> = Arc::new(Mutex::new(account::Account::new(
                 auth::Config::from_build(),
                 &paths.data,
@@ -110,6 +121,7 @@ fn main() {
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
             app.manage(supervisor.clone());
+            app.manage(account.clone());
 
             // The top item is the way in: "Sign in" while signed
             // out (a click opens the browser), the account once signed in.
@@ -241,21 +253,17 @@ fn main() {
                         std::thread::spawn(move || start_sign_in(account));
                     }
                     "signout" => {
-                        let (account, sup) = (account_menu.clone(), sup_menu.clone());
-                        std::thread::spawn(move || {
-                            let mut acct = account.lock().unwrap();
-                            acct.sign_out(|| sup.lock().unwrap().set_allowed(false));
-                        });
+                        let (account, sup, app) =
+                            (account_menu.clone(), sup_menu.clone(), app.clone());
+                        // Also closes the window and empties its storage: the
+                        // window is never signed in as someone the tray is not.
+                        std::thread::spawn(move || viewer::sign_out_everything(&app, &account, &sup));
                     }
                     "open" => {
-                        // The system browser, off this thread. If it cannot
-                        // be opened, the status line says so.
-                        let account = account_menu.clone();
-                        std::thread::spawn(move || {
-                            if let Err(why) = browser::open() {
-                                account.lock().unwrap().message = Some(why);
-                            }
-                        });
+                        // Off this thread: a window built from a menu handler
+                        // can deadlock on Windows.
+                        let app = app.clone();
+                        std::thread::spawn(move || open_window(&app));
                     }
                     "folder" => {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
@@ -402,6 +410,19 @@ fn main() {
                 }
             }
         });
+}
+
+/// Shows the window on the hosted app. If it cannot be built the system
+/// browser takes over, and the status line says if even that fails.
+fn open_window(app: &tauri::AppHandle) {
+    let data = app.state::<Arc<sidecar::Paths>>().data.join("webview");
+    if viewer::open(app, &data).is_err() {
+        if let Err(why) = browser::open() {
+            if let Some(account) = app.try_state::<Shared<account::Account>>() {
+                account.lock().unwrap().message = Some(why);
+            }
+        }
+    }
 }
 
 /// The status line of the menu: what a person needs to know right now.

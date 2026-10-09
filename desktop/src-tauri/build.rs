@@ -15,5 +15,11 @@ fn main() {
     for dir in ["resources/app", "resources/node"] {
         std::fs::create_dir_all(dir).expect("could not create the resources folder");
     }
-    tauri_build::build()
+    // The only commands a page may call: the window's (src/viewer.rs). Declared
+    // here so each has a permission the capability can grant, and nothing else.
+    tauri_build::try_build(
+        tauri_build::Attributes::new()
+            .app_manifest(tauri_build::AppManifest::new().commands(&["viewer_token", "sign_out"])),
+    )
+    .expect("tauri build failed")
 }

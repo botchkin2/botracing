@@ -5,6 +5,7 @@ import {space, useTheme} from '@/src/design';
 import {AppMark, Button, Text} from '@/src/ui';
 
 import {useAuthStore} from './authStore';
+import {TRAY_SIGN_IN_LINE, inTrayWindow} from './traySignIn';
 import {useSignIn} from './useSignIn';
 
 const MAX_WIDTH = 360;
@@ -34,16 +35,25 @@ export function LoginScreen() {
         <Text variant='display' style={styles.center}>
           BotRacing
         </Text>
-        <Text tone='textSecondary' style={styles.center}>
-          Sign in to see your sessions.
-        </Text>
-        <View style={styles.button}>
-          <Button
-            label={busy ? 'Signing in…' : 'Sign in with Google'}
-            onPress={() => void signIn()}
-            disabled={busy}
-          />
-        </View>
+        {/* The tray's window has no Google: the tray signs it in. */}
+        {inTrayWindow() ? (
+          <Text tone='textSecondary' style={styles.center}>
+            {TRAY_SIGN_IN_LINE}
+          </Text>
+        ) : (
+          <>
+            <Text tone='textSecondary' style={styles.center}>
+              Sign in to see your sessions.
+            </Text>
+            <View style={styles.button}>
+              <Button
+                label={busy ? 'Signing in…' : 'Sign in with Google'}
+                onPress={() => void signIn()}
+                disabled={busy}
+              />
+            </View>
+          </>
+        )}
         {line ? (
           <Text tone='textMuted' style={styles.center}>
             {line}

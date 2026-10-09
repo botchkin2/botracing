@@ -8,6 +8,7 @@ import {
 
 import {firebaseAuth} from './firebase';
 import {type SignInResult, popupFallsBackToRedirect} from './signInResult';
+import {trayInvoke, traySignOut} from './traySignIn';
 
 export async function signIn(): Promise<SignInResult> {
   const auth = firebaseAuth();
@@ -48,5 +49,12 @@ export async function finishRedirect(): Promise<SignInResult | null> {
 }
 
 export async function signOut(): Promise<void> {
+  // In the tray's window, signing out is the tray's: it signs the tray out,
+  // empties this window's storage and closes it.
+  const invoke = trayInvoke(window);
+  if (invoke) {
+    await traySignOut(invoke);
+    return;
+  }
   await firebaseSignOut(firebaseAuth());
 }
