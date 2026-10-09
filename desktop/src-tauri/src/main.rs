@@ -90,6 +90,7 @@ fn main() {
             let signin =
                 MenuItem::with_id(app, "signin", "Sign in with Google", true, None::<&str>)?;
             let status_item = line("status", "Starting…")?;
+            let recorder_item = line("recorder", "Recorder: starting")?;
             let uid_item = line("uid", "uid —")?;
             let owner_item = line("owner", "owner —")?;
             let signout = MenuItem::with_id(app, "signout", "Sign out", false, None::<&str>)?;
@@ -114,6 +115,7 @@ fn main() {
                 &[
                     &signin,
                     &status_item,
+                    &recorder_item,
                     &uid_item,
                     &owner_item,
                     &PredefinedMenuItem::separator(app)?,
@@ -126,6 +128,21 @@ fn main() {
                     &quit,
                 ],
             )?;
+
+            // The recorder is local and independent of sign-in and of pausing
+            // uploads. A walkthrough profile does not record, and
+            // BOTRACING_RECORDER=0 turns it off.
+            let recorder: Shared<Option<capture::runner::Handle>> = Arc::new(Mutex::new(
+                (cfg!(windows)
+                    && profile::is_default()
+                    && std::env::var("BOTRACING_RECORDER").map_or(true, |v| v != "0"))
+                .then(|| {
+                    capture::runner::start(
+                        capture::runner::capture_root(),
+                        capture::runner::header_dir(),
+                    )
+                }),
+            ));
 
             let (paths_menu, account_menu, sup_menu, pause_menu, slot_menu) = (
                 paths.clone(),
@@ -143,6 +160,7 @@ fn main() {
                     update_slot.clone(),
                 );
             }
+            let recorder_menu = recorder.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -198,6 +216,10 @@ fn main() {
                     // a waiting update installs here, never while uploading.
                     "quit" | "update" => {
                         sup_menu.lock().unwrap().stop();
+                        // Finish the open chunk and write endUtc before exiting.
+                        if let Some(rec) = recorder_menu.lock().unwrap().as_mut() {
+                            rec.stop(Duration::from_secs(5));
+                        }
                         let pending = slot_menu.lock().unwrap().take();
                         if let Some(Err(why)) = pending.map(update::Pending::install) {
                             account_menu.lock().unwrap().message =
@@ -248,6 +270,12 @@ fn main() {
                     let _ = signin.set_text(primary);
                     let _ = signin.set_enabled(primary_enabled);
                     let _ = status_item.set_text(status);
+                    let recording = recorder
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map_or_else(|| "Recorder: off".to_string(), |r| r.line());
+                    let _ = recorder_item.set_text(recording);
                     let _ = uid_item.set_text(uid);
                     let _ = owner_item.set_text(owner);
                     let _ = signout.set_enabled(signed_in);
