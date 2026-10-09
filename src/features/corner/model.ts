@@ -87,12 +87,12 @@ export const MEASURES: {
   id: Measure;
   label: string;
   unit: string;
-  /** For the gap color and sort: which direction is better. */
-  better: 'lower' | 'higher';
+  /** For the gap color and sort: which direction is better; null for a value with no good or bad side. */
+  better: 'lower' | 'higher' | null;
 }[] = [
   {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
   {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
-  {id: 'peakBrake', label: 'Peak brake %', unit: '%', better: 'higher'},
+  {id: 'peakBrake', label: 'Peak brake %', unit: '%', better: null},
   {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
   {
     id: 'throttle',
@@ -359,7 +359,10 @@ export function buildCornerModel(input: {
                 : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(
                     Math.round(d),
                   )}`,
-            better: d != null && (m.better === 'lower' ? d < 0 : d > 0),
+            better:
+              d != null &&
+              m.better != null &&
+              (m.better === 'lower' ? d < 0 : d > 0),
           },
         ];
       }),

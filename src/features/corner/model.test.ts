@@ -10,6 +10,7 @@ import {
 import {
   buildCornerModel,
   cornerLapIds,
+  MEASURES,
   referenceFirst,
   sortRows,
   buildBrakeMap,
@@ -162,6 +163,8 @@ describe('buildCornerModel (per single corner)', () => {
       gap: null,
       better: false,
     });
+    // No good or bad side for peak pressure: the gap is shown, never coloured as better.
+    expect(MEASURES.find(x => x.id === 'peakBrake')?.better).toBeNull();
   });
 
   it('gaps to the reference; better depends on the measure', () => {
