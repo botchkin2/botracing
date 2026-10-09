@@ -16,7 +16,7 @@ export type LastRace = {
   start: {fuelL: number | null; vePct: number | null};
   leftEarly: boolean;
   playerLapsDone: number | null;
-  leaderLapsDone: number | null;
+  classLeaderLapsDone: number | null;
 };
 
 /** The race's facts as the Plan screen shows them; the stop and end laps are the app's lap names. */
@@ -37,7 +37,7 @@ export function lastRaceOf(
     start: {fuelL: facts.startL, vePct: facts.startVePct ?? null},
     leftEarly: facts.leftEarly === true,
     playerLapsDone: facts.playerLapsDone ?? null,
-    leaderLapsDone: facts.leaderLapsDone ?? null,
+    classLeaderLapsDone: facts.classLeaderLapsDone ?? null,
     end: facts.end
       ? {
           lap: `L${facts.end.lapIndex}`,
@@ -58,8 +58,10 @@ export function lastRaceOf(
  */
 export function lastRaceLine(race: LastRace): string {
   const dnf =
-    race.leftEarly && race.playerLapsDone != null && race.leaderLapsDone != null
-      ? `DNF at L${race.playerLapsDone} of ${race.leaderLapsDone}`
+    race.leftEarly &&
+    race.playerLapsDone != null &&
+    race.classLeaderLapsDone != null
+      ? `DNF at L${race.playerLapsDone} of L${race.classLeaderLapsDone}+`
       : null;
   const stops =
     race.stops.length === 0

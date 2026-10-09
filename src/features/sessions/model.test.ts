@@ -173,6 +173,7 @@ describe('finishing position', () => {
     ofClass: 14,
     lapsDone: 20,
     leaderLapsDone: 21,
+    classLeaderLapsDone: 21,
     leftEarly: false,
   };
   const rows = (...over: Partial<SessionSummary>[]): SessionRow[] =>

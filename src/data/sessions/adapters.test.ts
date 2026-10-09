@@ -488,8 +488,22 @@ describe('toFinishPlace', () => {
       ofClass: 14,
       lapsDone: 20,
       leaderLapsDone: 21,
+      classLeaderLapsDone: null,
       leftEarly: false,
     });
+  });
+
+  it('reads the class leader laps of a version 3 result', () => {
+    expect(
+      toFinishPlace(
+        doc({
+          overall: 33,
+          inClass: 20,
+          leaderLapsDone: 26,
+          classLeaderLapsDone: 23,
+        }),
+      ),
+    ).toMatchObject({leaderLapsDone: 26, classLeaderLapsDone: 23});
   });
 
   it('is null without a result, outside a race, or with a place that is not from 1', () => {
