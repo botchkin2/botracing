@@ -764,12 +764,12 @@ export function planView(
       'medianLapTimeS' in c
         ? {
             label,
-            value: `median ${lapTime(c.medianLapTimeS)}  (n = ${c.n})`,
+            value: `median ${lapTime(c.medianLapTimeS)}`,
             note: `all green laps: ${lapTime(c.allMedianLapTimeS)}`,
           }
         : {
             label,
-            value: `no data  (n = ${c.n})`,
+            value: 'no data',
             note:
               c.lowestFuelL != null || c.lowestVePct != null
                 ? `lowest tenth: ${[

@@ -735,7 +735,7 @@ describe('planView', () => {
     expect(drop[0].value).toContain('VE: at most 4.35 % a lap');
     expect(drop[0].value).not.toContain('Fuel:');
     expect(drop[1].label).toBe('Your laps at <= 4.35 % VE');
-    expect(drop[1].value).toBe('no data  (n = 0)');
+    expect(drop[1].value).toBe('no data');
   });
 
   it('shows where the VE ratio came from', () => {

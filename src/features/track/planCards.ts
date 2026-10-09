@@ -16,7 +16,7 @@ export type PlanCardModel = {
   car: string;
   /** "Last race 29 Sep 2026 · 72 laps", or that there is none yet. */
   last: string;
-  /** "Fuel 2.34 L/lap · VE 3.44 %/lap (n = 12)"; null without green laps. */
+  /** "Fuel 2.34 L/lap · VE 3.44 %/lap"; null without green laps. */
   use: string | null;
 };
 
@@ -52,11 +52,9 @@ export function perLapUseLine(laps: GreenLap[]): string | null {
   if (laps.length === 0) return null;
   const fuel = `Fuel ${median(laps.map(l => l.fuelL)).toFixed(2)} L/lap`;
   const ve = laps.flatMap(l => (l.vePct == null ? [] : [l.vePct]));
-  if (ve.length < MIN_VE_LAPS) return `${fuel} (n = ${laps.length})`;
+  if (ve.length < MIN_VE_LAPS) return fuel;
   const veText = `VE ${median(ve).toFixed(2)} %/lap`;
-  return ve.length === laps.length
-    ? `${fuel} · ${veText} (n = ${laps.length})`
-    : `${fuel} (n = ${laps.length}) · ${veText} (n = ${ve.length})`;
+  return `${fuel} · ${veText}`;
 }
 
 export function planCardModel(combo: Combo, laps: GreenLap[]): PlanCardModel {

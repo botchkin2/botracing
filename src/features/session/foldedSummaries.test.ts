@@ -14,7 +14,7 @@ const stint = (n: number) =>
 
 describe('tiresSummary', () => {
   it('says there are no channels', () => {
-    expect(tiresSummary({kind: 'absent'})).toBe('No tyre channels');
+    expect(tiresSummary({kind: 'absent'})).toBe('No tire channels');
   });
 
   it('names the last stint, the one the card opens on', () => {
