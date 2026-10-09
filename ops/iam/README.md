@@ -148,7 +148,7 @@ node ops/iam/ciSplit.mjs revoke            # dry run
 node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the repo-level secret, old keys, the dead Garage 61 secrets
 ```
 
-Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after.
+Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps one key per Environment that holds the deploy secret and deletes every older one.
 
 `grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
 
