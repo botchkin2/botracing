@@ -43,7 +43,12 @@ const map = (b: unknown = boundaries) =>
     outline: {features: []},
   });
 
-const rawLap = (id: string, i: number, comparable = true) => ({
+const rawLap = (
+  id: string,
+  i: number,
+  comparable = true,
+  traffic: unknown = null,
+) => ({
   id,
   lapTime: 100 + i,
   stint: 1,
@@ -74,7 +79,7 @@ const rawLap = (id: string, i: number, comparable = true) => ({
       pit: false,
     },
   ],
-  traffic: null,
+  traffic,
 });
 
 const laps = (extra: ReturnType<typeof rawLap>[] = []) =>
@@ -95,6 +100,50 @@ describe('turnSegmentTimes', () => {
   it('keeps laps that are not comparable, marked as such', () => {
     const t = turnSegmentTimes(laps([rawLap('slow', 9, false)]), map());
     expect(t?.laps.find(l => l.id === 'slow')?.comparable).toBe(false);
+  });
+});
+
+describe('tow and traffic per segment', () => {
+  // A car within 1 s ahead from 200 to 300 m of the field's 1000 m lap.
+  const near = {
+    aheadSpans: [{fromM: 200, toM: 300, s: 3}],
+    draftSpans: [],
+    blueSpans: [],
+    fieldLapM: 1000,
+  };
+
+  it('marks the segment the span falls in, and no other', () => {
+    const t = turnSegmentTimes(
+      toLaps([rawLap('a', 0, true, near), rawLap('b', 1)]),
+      map(),
+    );
+    expect(t?.laps[0].alone).toEqual([true, false]);
+    expect(t?.laps[1].alone).toBeUndefined();
+  });
+
+  it('scales the field’s lap distance to the map’s', () => {
+    // The field lapped 2000 m, the map is 1000 m: 200–300 m there is 100–150 m
+    // here, inside the start straight (0–150).
+    const t = turnSegmentTimes(
+      toLaps([rawLap('a', 0, true, {...near, fieldLapM: 2000})]),
+      map(),
+    );
+    expect(t?.laps[0].alone).toEqual([false, true]);
+  });
+
+  it('counts a tow the same way', () => {
+    const tow = {
+      ...near,
+      aheadSpans: [],
+      draftSpans: [{fromM: 0, toM: 100, s: 2}],
+    };
+    const t = turnSegmentTimes(toLaps([rawLap('a', 0, true, tow)]), map());
+    expect(t?.laps[0].alone).toEqual([false, true]);
+  });
+
+  it('cannot be told for the game’s sectors, which have no place on the lap', () => {
+    const t = sectorSegmentTimes(toLaps([rawLap('a', 0, true, near)]));
+    expect(t?.laps[0].alone).toBeUndefined();
   });
 });
 

@@ -24,6 +24,8 @@ export interface SegmentLap {
   stint: number;
   /** Only comparable laps count towards bests, medians and the optimum; the others are shown. */
   comparable: boolean;
+  /** Per segment: false where a car was within 1 s ahead or the lap sat in a tow. Such a time is shown but does not count, or "where to practise" would measure the other cars. Absent where it cannot be told (game sectors, a lap with no field). */
+  alone?: boolean[];
   /** Seconds in each segment, in segment order; null where the segment does not count for this lap. */
   timesS: (number | null)[];
 }
@@ -55,6 +57,13 @@ export function turnRangeLabel(corners: readonly string[]): string {
   return `${first}–${bare ? last.slice(1) : last}`;
 }
 
+/** Whether lap's time in segment i counts towards bests, medians, spread and the optimum. */
+function counts(lap: SegmentLap, i: number): number | null {
+  const t = lap.timesS[i];
+  if (!lap.comparable || lap.alone?.[i] === false) return null;
+  return t != null && Number.isFinite(t) ? t : null;
+}
+
 function percentile(sorted: number[], p: number): number {
   const at = (sorted.length - 1) * p;
   const lo = Math.floor(at);
@@ -67,9 +76,8 @@ export function segmentStats(times: SegmentTimes): SegmentStats[] {
   return times.segments.map((_, i) => {
     const xs: number[] = [];
     for (const lap of times.laps) {
-      if (!lap.comparable) continue;
-      const t = lap.timesS[i];
-      if (t != null && Number.isFinite(t)) xs.push(t);
+      const t = counts(lap, i);
+      if (t != null) xs.push(t);
     }
     if (xs.length < MIN_OPTIMUM_LAPS)
       return {n: xs.length, bestS: null, medianS: null, spreadS: null};
@@ -88,9 +96,8 @@ export function segmentBests(times: SegmentTimes): (number | null)[] {
   return times.segments.map((_, i) => {
     let best: number | null = null;
     for (const lap of times.laps) {
-      const t = lap.timesS[i];
-      if (!lap.comparable || t == null || !Number.isFinite(t)) continue;
-      if (best == null || t < best) best = t;
+      const t = counts(lap, i);
+      if (t != null && (best == null || t < best)) best = t;
     }
     return best;
   });
@@ -100,6 +107,10 @@ export function segmentBests(times: SegmentTimes): (number | null)[] {
 export function segmentOptimum(times: SegmentTimes): StintOptimum[] {
   const laps: OptimumLap[] = times.laps
     .filter(l => l.comparable)
-    .map(l => ({id: l.id, stint: l.stint, windowsS: l.timesS}));
+    .map(l => ({
+      id: l.id,
+      stint: l.stint,
+      windowsS: l.timesS.map((_, i) => counts(l, i)),
+    }));
   return sectionOptimum(laps, times.segments.length);
 }

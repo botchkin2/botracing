@@ -10,7 +10,13 @@ import {
   turnRangeLabel,
 } from '@/src/analysis/segments';
 
-import type {Lap, MapCorner, MapSection, TrackMapData} from './adapters';
+import type {
+  Lap,
+  LapTraffic,
+  MapCorner,
+  MapSection,
+  TrackMapData,
+} from './adapters';
 import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
 
 const START_LABEL = 'S/F';
@@ -19,6 +25,31 @@ const START_LABEL = 'S/F';
 function sectionLabel(s: MapSection): string {
   const name = (c: MapCorner) => c.official ?? `T${c.n}`;
   return turnRangeLabel((s.parts.length ? s.parts : [s]).map(name));
+}
+
+/**
+ * Per segment: false where a car was within 1 s ahead or the lap was in a
+ * tow. The spans are in the field's lap distance; segments are in the map's
+ * frame, so the spans are scaled by the ratio of the two lap lengths. Without
+ * a traffic block or the field's lap length nothing can be told, so nothing is
+ * left out.
+ */
+export function aloneIn(
+  traffic: LapTraffic | null,
+  mapLengthM: number,
+  segments: Segment[],
+): boolean[] | undefined {
+  if (!traffic || !traffic.fieldLapM || traffic.fieldLapM <= 0)
+    return undefined;
+  const k = mapLengthM / traffic.fieldLapM;
+  const spans = [...traffic.aheadSpans, ...traffic.draftSpans];
+  return segments.map(seg => {
+    const range = seg.range;
+    if (!range) return true;
+    return !spans.some(
+      sp => sp.fromM * k < range.toM && sp.toM * k > range.fromM,
+    );
+  });
 }
 
 /** One segment per corner window, in lap order; null before the track has windows or when no lap was cut at them. */
@@ -47,6 +78,7 @@ export function turnSegmentTimes(
       stint: lap.stint,
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
+      alone: aloneIn(lap.traffic, map.lengthM, segments),
     });
   }
   return out.length > 0 ? {segments, laps: out} : null;

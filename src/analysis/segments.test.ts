@@ -79,6 +79,24 @@ describe('turnRangeLabel', () => {
   });
 });
 
+describe('a segment with tow or traffic in it', () => {
+  it('is shown but counts for nothing on that lap', () => {
+    const t = make(['T1', 'T2', 'T3']);
+    // The fastest lap of segment 0 sat in a tow: its 10 s must not be the best.
+    t.laps[0] = {...t.laps[0], alone: [false, true, true]};
+    t.laps.push(lap('f', 1, [14, 23, 32]));
+    expect(segmentBests(t)[0]).toBe(10.5);
+    expect(segmentStats(t)[0].n).toBe(5);
+    expect(segmentStats(t)[0].bestS).toBe(10.5);
+    expect(segmentOptimum(t)[0].bestSumS).toBeCloseTo(10.5 + 19 + 28);
+  });
+
+  it('counts when it is not known whether there was anyone near', () => {
+    const t = make(['S1', 'S2', 'S3']);
+    expect(segmentBests(t)).toEqual([10, 19, 28]);
+  });
+});
+
 describe('laps that are not comparable', () => {
   it('stay in the table but out of the stats and the optimum', () => {
     const t = make(['S1', 'S2', 'S3']);
