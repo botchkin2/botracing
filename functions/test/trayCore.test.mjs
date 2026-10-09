@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
+import {buildLatest} from '../../desktop/scripts/release-manifest.mjs';
 import {
   MANIFEST_PATH,
   PLATFORM,
@@ -14,7 +15,7 @@ const release = {
   version: '0.2.0',
   notes: 'Faster sync',
   pub_date: '2026-10-09T12:00:00Z',
-  installer: 'BotRacing_0.2.0_x64-setup.exe',
+  installer: 'tray/0.2.0/BotRacing_0.2.0_x64-setup.exe',
   signature: 'dW50cnVzdGVkIGNvbW1lbnQ6',
 };
 
@@ -24,10 +25,7 @@ function bucket({manifest = release, withInstaller = true} = {}) {
   const files = new Map();
   if (manifest !== null) files.set(MANIFEST_PATH, enc(manifest));
   if (manifest && withInstaller)
-    files.set(
-      `tray/${manifest.version}/${manifest.installer}`,
-      new Uint8Array(),
-    );
+    files.set(manifest.installer, new Uint8Array());
   const signed = [];
   return {
     signed,
@@ -93,7 +91,11 @@ test('a manifest of the wrong shape is a server error, not a download', async ()
   for (const bad of [
     {...release, version: 'latest'},
     {...release, installer: '../../users/other/x.exe'},
-    {...release, installer: 'setup.sh'},
+    {...release, installer: 'tray/0.2.0/../../users/other/x.exe'},
+    {...release, installer: 'tray/0.1.0/BotRacing_0.1.0_x64-setup.exe'},
+    {...release, installer: 'tray/0.2.0/sub/x.exe'},
+    {...release, installer: 'BotRacing_0.2.0_x64-setup.exe'},
+    {...release, installer: 'tray/0.2.0/setup.sh'},
     {...release, signature: ''},
     {...release, signature: 12},
   ]) {
@@ -122,14 +124,41 @@ test('only GET, and only these two paths', async () => {
 
 test('parseRelease keeps notes and the date optional', () => {
   const r = parseRelease(
-    enc({version: '1.0.0-rc.1', installer: 'a.exe', signature: 's'}),
+    enc({version: '1.0.0-rc.1', installer: 'tray/1.0.0-rc.1/a.exe', signature: 's'}),
   );
   assert.deepEqual(r, {
     version: '1.0.0-rc.1',
     notes: '',
     pubDate: null,
-    installer: 'a.exe',
+    installer: 'tray/1.0.0-rc.1/a.exe',
     signature: 's',
   });
   assert.equal(parseRelease(new TextEncoder().encode('{nope')), null);
+});
+
+// The two halves ran against each other for the first time on 0.1.1 and did not
+// fit (the endpoint answered 500 "release is not valid"). The manifest here is
+// the one the release workflow writes: the real producer, not a copy.
+test('the manifest the release workflow writes is served', async () => {
+  const written = buildLatest({
+    version: '0.1.1',
+    installer: 'BotRacing_0.1.1_x64-setup.exe',
+    signature: 'dW50cnVzdGVkIGNvbW1lbnQ6\n',
+    pubDate: '2026-10-09T13:00:00Z',
+  });
+  assert.equal(written.installer, 'tray/0.1.1/BotRacing_0.1.1_x64-setup.exe');
+  const {deps, signed} = bucket({manifest: written});
+  const latest = await handleTray(deps, {method: 'GET', path: '/latest'});
+  assert.equal(latest.status, 200);
+  assert.equal(latest.json.version, '0.1.1');
+  assert.equal(
+    latest.json.platforms[PLATFORM].url,
+    'https://storage.example/tray/0.1.1/BotRacing_0.1.1_x64-setup.exe?sig=abc',
+  );
+  const download = await handleTray(deps, {method: 'GET', path: '/download'});
+  assert.equal(download.status, 302);
+  assert.deepEqual(signed.map(s => s.path), [
+    'tray/0.1.1/BotRacing_0.1.1_x64-setup.exe',
+    'tray/0.1.1/BotRacing_0.1.1_x64-setup.exe',
+  ]);
 });
