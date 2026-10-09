@@ -10,7 +10,9 @@
 //     preview channels and nothing else (repo secret HOSTING_PREVIEW_SERVICE_ACCOUNT).
 //   - Deploys from main use the existing account, through the `deploy`
 //     Environment (main only), with no Secret Manager or Auth admin role.
-//   - The tray-release Environment gets its own copy of the deploy key.
+//   - The tray-release Environment gets its own account, `tray-release`, which
+//     can write only under tray/ in the lmu bucket (an IAM condition). The
+//     deploy key is no longer copied there.
 //   - Nothing at project level can read secrets except the owner.
 //
 // Grant, switch, prove, then revoke (ops/iam/README.md): phase `grant` only
@@ -27,7 +29,37 @@ export const CI = {
   deploySecret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61',
   deployEnv: 'deploy',
   releaseEnv: 'tray-release',
+  /** The tray release job's own account: tray/ in the bucket and nothing else. */
+  releaseName: 'tray-release',
+  /** Same secret name as the deploy key's, so the workflow's auth step is unchanged. */
+  releaseSecret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61',
+  bucket: 'botracing-61-lmu',
 };
+
+export const releaseEmail = (c = CI) =>
+  `${c.releaseName}@${c.project}.iam.gserviceaccount.com`;
+
+/**
+ * objectUser = create, get, overwrite and delete objects (latest.json is
+ * overwritten by every release). The condition limits it to tray/. A condition
+ * on object names can't cover `storage.objects.list` (checked on the bucket),
+ * so the workflow checks for an existing version with `objects describe`.
+ * Needs uniform bucket-level access, which the bucket has.
+ */
+export const RELEASE_ROLE = 'roles/storage.objectUser';
+export const releaseCondition = (c = CI) =>
+  `resource.name.startsWith('projects/_/buckets/${c.bucket}/objects/tray/')`;
+export const RELEASE_CONDITION_TITLE = 'tray-only';
+
+/** Whether the bucket policy (gcloud JSON) already has the conditioned tray/ binding. */
+export function hasReleaseBinding(bucketPolicyJson, c = CI) {
+  return (bucketPolicyJson?.bindings ?? []).some(
+    b =>
+      b.role === RELEASE_ROLE &&
+      (b.members ?? []).includes(`serviceAccount:${releaseEmail(c)}`) &&
+      b.condition?.expression === releaseCondition(c),
+  );
+}
 
 export const previewEmail = (c = CI) =>
   `${c.previewName}@${c.project}.iam.gserviceaccount.com`;
@@ -87,6 +119,8 @@ const SECRET_READERS = new Set([
  * `state`: {
  *   policy: Map(member -> Set(role)),             the project policy
  *   previewExists: boolean,                        the hosting-preview account
+ *   releaseExists: boolean,                        the tray-release account
+ *   releaseBound: boolean,                         it has the tray/-only bucket binding
  *   deployKeys: string[],                          user-managed key ids of the deploy account
  *   envs: Set(name),                               GitHub Environments that exist
  *   repoSecrets: Set(name), envSecrets: {env: Set(name)},
@@ -136,15 +170,33 @@ export function planCiSplit(state, phase, c = CI) {
           `repos/${c.repo}/environments/${c.deployEnv}/deployment-branch-policies`,
           '-f', 'name=main', '-f', 'type=branch'],
       });
+    if (!state.envSecrets[c.deployEnv]?.has(c.deploySecret))
+      steps.push({
+        what: `a new key for the deploy account into ${c.deployEnv} secret ${c.deploySecret}`,
+        keyTo: {account: c.deployEmail, secret: c.deploySecret, env: c.deployEnv},
+      });
+    // The tray release account: tray/ in the bucket, nothing else.
+    if (!state.releaseExists)
+      steps.push({
+        what: `create the ${c.releaseName} account`,
+        run: ['iam', 'service-accounts', 'create', c.releaseName,
+          `--project=${c.project}`, '--display-name=Tray release: tray/ in the lmu bucket only'],
+      });
+    if (!state.releaseBound)
+      steps.push({
+        what: `${c.releaseName}: ${RELEASE_ROLE} on gs://${c.bucket}, only under tray/`,
+        run: ['storage', 'buckets', 'add-iam-policy-binding', `gs://${c.bucket}`,
+          `--member=serviceAccount:${releaseEmail(c)}`, `--role=${RELEASE_ROLE}`,
+          `--condition=expression=${releaseCondition(c)},title=${RELEASE_CONDITION_TITLE}`,
+          `--project=${c.project}`],
+      });
     // tray-release is made by desktop/scripts/setup-release-env.ps1; run that
-    // first, or this run skips it and says so.
-    const envs = [c.deployEnv, ...(state.envs.has(c.releaseEnv) ? [c.releaseEnv] : [])];
-    for (const env of envs)
-      if (!state.envSecrets[env]?.has(c.deploySecret))
-        steps.push({
-          what: `a new key for the deploy account into ${env} secret ${c.deploySecret}`,
-          keyTo: {account: c.deployEmail, secret: c.deploySecret, env},
-        });
+    // first, or this run skips its key and says so.
+    if (state.envs.has(c.releaseEnv) && !state.envSecrets[c.releaseEnv]?.has(c.releaseSecret))
+      steps.push({
+        what: `a key for ${c.releaseName} into ${c.releaseEnv} secret ${c.releaseSecret}`,
+        keyTo: {account: releaseEmail(c), secret: c.releaseSecret, env: c.releaseEnv},
+      });
     return steps;
   }
 
@@ -161,12 +213,11 @@ export function planCiSplit(state, phase, c = CI) {
         what: `delete repo-level secret ${c.deploySecret} (every workflow could read it)`,
         gh: ['secret', 'delete', c.deploySecret, '--repo', c.repo],
       });
-    // `grant` made one key per Environment that holds the deploy secret
-    // (tray-release only if it existed then), so keep that many of the newest.
-    // Every older user-managed key was readable by PR branches and goes. No
-    // Environment holding the secret yet: nothing is deleted.
-    const kept = [c.deployEnv, c.releaseEnv]
-      .filter(env => state.envSecrets[env]?.has(c.deploySecret)).length;
+    // `grant` made one deploy-account key, for the `deploy` Environment (the
+    // tray release has its own account), so keep the newest. Every older
+    // user-managed key was readable by PR branches and goes. No Environment
+    // holding the secret yet: nothing is deleted.
+    const kept = state.envSecrets[c.deployEnv]?.has(c.deploySecret) ? 1 : 0;
     for (const id of kept ? state.deployKeys.slice(0, -kept) : [])
       steps.push({
         what: `delete old deploy-account key ${id.slice(0, 8)}…`,

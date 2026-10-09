@@ -23,8 +23,10 @@ import {readPolicy} from './lib.mjs';
 import {
   CI,
   ciRoles,
+  hasReleaseBinding,
   planCiSplit,
   previewEmail,
+  releaseEmail,
   secretReaders,
 } from './ciSplitPlan.mjs';
 
@@ -49,6 +51,16 @@ export function readState(run, c = CI) {
       `--project=${c.project}`, '--format=json']), true),
     false,
   );
+  const releaseExists = tryOr(
+    () => (run(['iam', 'service-accounts', 'describe', releaseEmail(c),
+      `--project=${c.project}`, '--format=json']), true),
+    false,
+  );
+  const releaseBound = hasReleaseBinding(
+    tryOr(() => run(['storage', 'buckets', 'get-iam-policy', `gs://${c.bucket}`,
+      `--project=${c.project}`, '--format=json']), null),
+    c,
+  );
   const keys = run(['iam', 'service-accounts', 'keys', 'list',
     `--iam-account=${c.deployEmail}`, `--project=${c.project}`,
     '--managed-by=user', '--format=json']) ?? [];
@@ -68,11 +80,12 @@ export function readState(run, c = CI) {
   const repoSecrets = names(gh(['secret', 'list', '--repo', c.repo]));
   const secrets = (run(['secrets', 'list', `--project=${c.project}`,
     '--format=json']) ?? []).map(s => s.name.split('/').pop());
-  return {policy, previewExists, deployKeys, envs, envSecrets, repoSecrets, secrets};
+  return {policy, previewExists, releaseExists, releaseBound, deployKeys, envs, envSecrets, repoSecrets, secrets};
 }
 
 function report(state, run, c = CI, title) {
   console.log(`\n== ${title}`);
+  console.log(`  ${releaseEmail(c)}: ${state.releaseExists ? 'exists' : 'not yet'}; tray/-only bucket binding: ${state.releaseBound ? 'yes' : 'no'}`);
   for (const [email, roles] of Object.entries(ciRoles(state.policy, c)))
     console.log(`  ${email}\n    ${roles.length ? roles.join('\n    ') : '(no project roles)'}`);
   console.log('  can read any secret (project level):');

@@ -16,9 +16,10 @@
 #                                                    (made by `tauri signer generate`)
 #   the Firebase web key: -FirebaseApiKey, or the public one in src\auth\firebase.web.ts
 #   -ServiceAccountFile (optional)                   a service account key JSON that may write
-#                                                    to the botracing-61-lmu bucket. Without it
-#                                                    the release job falls back to the repo-level
-#                                                    FIREBASE_SERVICE_ACCOUNT_BOTRACING_61.
+#                                                    to the botracing-61-lmu bucket. Normally leave it
+#                                                    out: `node ops/iam/ciSplit.mjs grant --apply`
+#                                                    makes the tray-release account (tray/ only) and
+#                                                    puts its key in this Environment.
 #
 # BACK UP ~\.botracing\updater.key AND updater.key.password in your password
 # manager: lose them and installed trays can no longer update.
@@ -125,7 +126,7 @@ foreach ($name in $values.Keys) {
 }
 
 if (-not $values.Contains("FIREBASE_SERVICE_ACCOUNT_BOTRACING_61")) {
-  Write-Host "Note: no -ServiceAccountFile, so the release job uses the repo-level FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 to publish." -ForegroundColor Yellow
+  Write-Host "Note: no -ServiceAccountFile. Run 'node ops/iam/ciSplit.mjs grant --apply' next: it makes the tray-release account and puts its key here. The release job cannot publish without it." -ForegroundColor Yellow
 }
 
 if ($DryRun) { Write-Host "Dry run: nothing was changed."; exit 0 }
