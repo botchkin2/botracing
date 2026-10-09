@@ -30,6 +30,7 @@
 #
 # Also needs: `gcloud` signed in as Botkin (gcloud auth list) and the Secret Manager
 # API enabled on the project.
+#Requires -Version 7
 param(
   [string]$Repo,
   [string]$FirebaseApiKey = $env:BOTRACING_FIREBASE_API_KEY,
@@ -53,7 +54,7 @@ function Read-LatestSecret($name) {
 # The value goes to gcloud on stdin, exactly, with no trailing newline (a pipe from
 # PowerShell would add one) and no plain-text copy of the key in %TEMP%.
 function Add-SecretVersion($name, $value) {
-  $psi = [System.Diagnostics.ProcessStartInfo]::new("gcloud")
+  $psi = [System.Diagnostics.ProcessStartInfo]::new((Get-Command gcloud.cmd).Source)
   foreach ($arg in @("secrets", "versions", "add", $name, "--project", $GcpProject, "--data-file=-")) { $psi.ArgumentList.Add($arg) }
   $psi.RedirectStandardInput = $true
   $psi.RedirectStandardOutput = $true
