@@ -341,15 +341,60 @@ describe('chart window', () => {
   });
 });
 
+describe('one colour per lap, everywhere', () => {
+  // The checkbox list, the chips (legend) and the trace values must agree on
+  // each lap's slot. Median mode starts the slots at 1 (slot 0 is the Ref
+  // stroke); the checkbox list once started at 0 and drew every lap one slot off.
+  const slotsOf = (m: ReturnType<typeof build>) => {
+    const fromChips = new Map(m.chips.map(c => [c.lapId, c.selIndex]));
+    const fromRows = m.allLaps.flatMap(g =>
+      g.rows
+        .filter(r => r.selIndex != null)
+        .map(r => [r.lapId, r.selIndex!] as [string, number]),
+    );
+    const fromTraces = m.charts.flatMap(c =>
+      c.valueRows.flatMap(v =>
+        v.values
+          .filter(x => x.lapId != null)
+          .map(x => [x.lapId!, x.selIndex] as [string, number]),
+      ),
+    );
+    return {fromChips, fromRows, fromTraces};
+  };
+
+  it('median: checkbox, legend and trace slots match', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: null, hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    expect(fromRows.length).toBeGreaterThan(0);
+    for (const [id, slot] of fromRows) {
+      expect(slot).toBeGreaterThanOrEqual(1);
+      expect(fromChips.get(id)).toBe(slot);
+    }
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+
+  it('ref: checkbox, legend and trace slots match, Ref on slot 0', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: 'b', hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    expect(fromRows.find(([id]) => id === 'b')?.[1]).toBe(0);
+    for (const [id, slot] of fromRows) expect(fromChips.get(id)).toBe(slot);
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+});
+
 describe('desktop pieces', () => {
   const m = build();
 
   it('all laps by stint, with selection order', () => {
     expect(m.allLaps).toHaveLength(1);
     expect(m.allLaps[0].rows.map(r => [r.label, r.selIndex, r.tag])).toEqual([
-      ['L1', 0, 'BEST'],
-      ['L2', 1, null],
-      ['L3', 2, null],
+      ['L1', 1, 'BEST'],
+      ['L2', 2, null],
+      ['L3', 3, null],
     ]);
   });
 
