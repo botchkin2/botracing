@@ -17,6 +17,9 @@ export const sim = 'iracing';
 export const defaultFolder =
   'C:\\Users\\Botkin\\Documents\\iRacing\\telemetry';
 
+// tasklist IMAGENAME, confirmed on this PC. Disk telemetry is Alt-L in the sim.
+export const gameExe = 'iRacingSim64DX11.exe';
+
 export const describeVersion = 3;
 
 export function slug(name) {
