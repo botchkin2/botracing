@@ -5,6 +5,7 @@ import {
   toFinishPlace,
   toLaps,
   toSessionDetail,
+  toSessionFacets,
   toSessionSummary,
   toSessionTraffic,
   toTrackMap,
@@ -69,6 +70,15 @@ describe('toSessionDetail', () => {
       field: {hash: 'abc123def456', hz: 5, cars: 62, durationS: 931},
     });
     expect(d.field?.hash).toBe('abc123def456');
+  });
+
+  it('carries the race length from the capture in minutes, null otherwise', () => {
+    expect(toSessionDetail(raw).race).toBeNull();
+    expect(toSessionDetail({...raw, race: {minutes: 40}}).race).toEqual({
+      minutes: 40,
+    });
+    expect(toSessionDetail({...raw, race: {minutes: 0}}).race).toBeNull();
+    expect(toSessionDetail({...raw, race: {kind: 'other'}}).race).toBeNull();
   });
 
   it('carries the corner slices pointer, null before the resync', () => {
@@ -495,5 +505,22 @@ describe('toFinishPlace', () => {
       result: doc({overall: 2, inClass: 2}),
     });
     expect(s.finish).toMatchObject({overall: 2, inClass: 2});
+  });
+});
+
+describe('toSessionFacets', () => {
+  it('reads games and tracks, drops rows without an id, defaults the game to lmu', () => {
+    const f = toSessionFacets({
+      games: [{sim: 'lmu', count: 3}, {count: 1}],
+      tracks: [
+        {trackId: 'spa', track: 'Spa', count: 2},
+        {track: 'No id', count: 1},
+      ],
+    });
+    expect(f.games).toEqual([{sim: 'lmu', count: 3}]);
+    expect(f.tracks).toEqual([
+      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2, variant: ''},
+    ]);
+    expect(toSessionFacets(null)).toEqual({games: [], tracks: []});
   });
 });

@@ -53,7 +53,11 @@ function median(values: number[]): number | null {
  * planner and the backtest use).
  */
 export function raceFacts(
-  session: Pick<SessionDetail, 'sessionType' | 'fuel' | 'startedAt'>,
+  session: Pick<
+    SessionDetail,
+    'sessionType' | 'fuel' | 'startedAt' | 'finish'
+  > &
+    Partial<Pick<SessionDetail, 'race'>>,
   planKey: string,
   laps: Lap[],
 ): RaceFacts | null {
@@ -73,6 +77,10 @@ export function raceFacts(
       [...laps].sort((a, b) => a.lapIndex - b.lapIndex)[0]?.fuel?.veStartPct ??
       null,
     raceLaps: Math.max(0, ending.lapIndex - 1),
+    race: session.race ?? null,
+    leftEarly: session.finish?.leftEarly === true,
+    playerLapsDone: session.finish?.lapsDone ?? null,
+    leaderLapsDone: session.finish?.leaderLapsDone ?? null,
     ownUse: {
       fuelL: median(green.map(l => l.fuel!.usedL as number)),
       vePct: median(

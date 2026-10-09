@@ -80,6 +80,7 @@ function tick(fake) {
       LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-e2e-${process.pid}`,
       // No such process: the game is never running.
       LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+      LAP_SIMS: 'lmu',
       FAKE_SYNC: fake,
     },
   });
@@ -213,6 +214,7 @@ test(
         LAP_API: `http://127.0.0.1:${server.address().port}/api/upload`,
         LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-e2e-http-${process.pid}`,
         LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+        LAP_SIMS: 'lmu',
         FAKE_SYNC: 'ok',
       },
       stdio: 'ignore',
@@ -227,5 +229,61 @@ test(
     assert.equal('ownerId' in posts[0].body, false);
     assert.equal('lastSeenAt' in posts[0].body, false);
     assert.match(posts[0].body.hostId, /^[0-9a-f]{8}$/);
+  },
+);
+
+// iRacing: the watcher runs `sync --sim iracing` with a work folder of its
+// own, and never for the LMU folder's recordings.
+test(
+  'a new .ibt runs a sync for iRacing, with its own work folder',
+  {skip: !windows},
+  () => {
+    const ibtDir = resolve(root, 'ibt');
+    const calls = resolve(root, 'sync-calls.txt');
+    const echoSync = resolve(root, 'echo-sync.mjs');
+    mkdirSync(ibtDir, {recursive: true});
+    const ibt = resolve(ibtDir, 'mustang_roadatlanta 2026-10-01.ibt');
+    writeFileSync(ibt, 'x');
+    const old = new Date(Date.now() - 3600 * 1000);
+    utimesSync(ibt, old, old);
+    writeFileSync(
+      echoSync,
+      `import {appendFileSync} from 'node:fs';
+appendFileSync(${JSON.stringify(calls)}, process.argv.slice(2).join(' ') + '\\n');
+console.log('to do 1');
+console.log('bbbbbbbbbbbbbbbb 2026-10-01T20:00 Race       Road Atlanta | Mustang | 1 file(s)');
+console.log('done 1, failed 0, unchanged 0');
+`,
+    );
+    writeFileSync(beatsPath, '');
+    const r = spawnSync(
+      process.execPath,
+      [watch, '--once', '--', '--work', resolve(local, 'sessions')],
+      {
+        encoding: 'utf8',
+        timeout: 120_000,
+        env: {
+          ...process.env,
+          LOCALAPPDATA: resolve(root, 'local-ir'),
+          LAP_SIMS: 'iracing',
+          IRACING_TELEMETRY: ibtDir,
+          LAP_SYNC_SCRIPT: echoSync,
+          LAP_HEARTBEAT_FILE: beatsPath,
+          LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-e2e-ir-${process.pid}`,
+          LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+        },
+      },
+    );
+    assert.equal(r.status, 0, r.stderr);
+    const lines = readFileSync(calls, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /--sim iracing$/);
+    assert.match(lines[0], /--work \S*sessions[\\/]iracing /);
+    assert.ok(!lines[0].includes('--quiet-min'), lines[0]);
+    const beats = readFileSync(beatsPath, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
+    assert.equal(beats[beats.length - 1].sessionsDone, 1);
   },
 );

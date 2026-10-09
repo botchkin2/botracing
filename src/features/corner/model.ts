@@ -18,7 +18,6 @@ import {
   trackCorners,
 } from '@/src/data/sessions';
 import {
-  formatDistance,
   formatGap,
   lapMode,
   type LapMode,
@@ -81,17 +80,18 @@ export function referenceFirst(
   };
 }
 
-export type Measure = 'time' | 'brake' | 'minSpeed' | 'throttle';
+export type Measure = 'time' | 'brake' | 'peakBrake' | 'minSpeed' | 'throttle';
 
 export const MEASURES: {
   id: Measure;
   label: string;
   unit: string;
-  /** For the gap color and sort: which direction is better. */
-  better: 'lower' | 'higher';
+  /** For the gap color and sort: which direction is better; null for a value with no good or bad side. */
+  better: 'lower' | 'higher' | null;
 }[] = [
   {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
   {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
+  {id: 'peakBrake', label: 'Peak brake %', unit: '%', better: null},
   {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
   {
     id: 'throttle',
@@ -100,6 +100,18 @@ export const MEASURES: {
     better: 'lower',
   },
 ];
+
+/** The peak pedal % of the brake application for this corner; null when the lap has none for it. */
+function peakBrakeOf(lap: Lap, corner: TrackCorner): number | null {
+  const apps = lap.sections[corner.sectionIndex]?.brakeApps ?? [];
+  // A light dab before the main stop is an application too: the harder one is the peak.
+  const peaks = apps
+    .filter(a =>
+      corner.partIndex == null ? a.part == null : a.part === corner.n,
+    )
+    .map(a => a.peakPct);
+  return peaks.length ? Math.max(...peaks) : null;
+}
 
 export type CornerRow = {
   lapId: string;
@@ -195,6 +207,7 @@ export const AT_MIN = 'at min';
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
   brake: v => `${Math.round(v)}`,
+  peakBrake: v => `${Math.round(v)}`,
   minSpeed: v => `${Math.round(v)}`,
   throttle: v => `${Math.round(v)}`,
 };
@@ -309,6 +322,7 @@ export function buildCornerModel(input: {
     return {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
+      peakBrake: peakBrakeOf(l, sec),
       minSpeed: f?.minSpeedKph ?? null,
       // Already at full throttle at the slowest sample: no full-throttle point,
       // the search's start is not a point on the lap.
@@ -346,7 +360,10 @@ export function buildCornerModel(input: {
                 : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(
                     Math.round(d),
                   )}`,
-            better: d != null && (m.better === 'lower' ? d < 0 : d > 0),
+            better:
+              d != null &&
+              m.better != null &&
+              (m.better === 'lower' ? d < 0 : d > 0),
           },
         ];
       }),
@@ -487,7 +504,6 @@ export function buildCornerModel(input: {
     parts,
     title: `Turn ${turnNumber(corner, sec.official)}`,
     subtitle: [
-      formatDistance(sec.apexM),
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
       ref ? `compared with L${ref.lapIndex}` : null,

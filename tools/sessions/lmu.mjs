@@ -22,6 +22,18 @@ export const defaultFolder =
 // tasklist IMAGENAME. watch.mjs uses this as the game that blocks a sync.
 export const gameExe = 'Le Mans Ultimate.exe';
 
+// How tools/uploader/watch.mjs treats this sim. legacyLayout: its sync state is
+// the top level of the watcher's state.json and its sync work folder is the
+// one passed in (installs from before the second sim keep their record).
+// quietMin: --quiet-min for the sync, null for sync.mjs's default; the game
+// is closed when the watcher syncs, so nothing is still being written.
+// gameExeEnv: an env var that stands in for gameExe (a test seam).
+export const watcher = {
+  legacyLayout: true,
+  quietMin: 0,
+  gameExeEnv: 'LAP_GAME_EXE',
+};
+
 const channelNames = {
   'GPS Time': 't',
   'Ground Speed': 'speed_kmh',

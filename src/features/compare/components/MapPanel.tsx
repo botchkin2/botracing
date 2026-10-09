@@ -176,7 +176,7 @@ export function MapPanel({
         />
       )}
       {/* Track only: Follow has its inset in this corner. */}
-      {mode === 'track' && (
+      {mode === 'track' && !map.realMap && (
         <View
           style={[
             styles.chip,
@@ -186,7 +186,7 @@ export function MapPanel({
             },
           ]}>
           <Text variant='dataSmall' tone='textMuted'>
-            {map.realMap ? 'OSM outline · good' : 'Driven line'}
+            Driven line
           </Text>
         </View>
       )}

@@ -1,5 +1,5 @@
 import {type TrackCorner} from '@/src/data/sessions';
-import {formatDistance, turnLabel} from '@/src/design';
+import {turnLabel} from '@/src/design';
 
 // Which stretch of track a Corner screen is about, and what else is in view.
 // The zoomed charts and the mini-map show a window around the apex that also
@@ -72,7 +72,6 @@ export function cornerView(
   return {
     stretch,
     neighbours,
-    // The caption keeps lap metres ("4,050 → 300 m"), what the lap doc says.
     caption: viewCaption(
       turnLabel(corner.n, corner.official),
       {fromM: corner.entryM, toM: next.entryM},
@@ -83,11 +82,12 @@ export function cornerView(
 }
 
 /**
- * "Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m · T8 and T9
- * overlap here". Says what is shown and nothing else. The labels are the
- * chips' (official ones where a track has them). `overlapping` are the other
- * corners whose entry-to-exit span shares track with this one's (the Bus
- * Stop), so the overlap is named instead of left for the reader to puzzle out.
+ * "Shaded: T8 · also in view: T9 · T8 and T9 overlap here". Says what is shown
+ * and nothing else; no metres (triage #33). Labels are the chips' (official
+ * ones where a track has them). `overlapping` are the other corners whose
+ * entry-to-exit span shares track with this one's (the Bus Stop), so the
+ * overlap is named instead of left for the reader to puzzle out. Empty when
+ * there is nothing beyond the chip's own label.
  */
 export function viewCaption(
   label: string,
@@ -95,20 +95,18 @@ export function viewCaption(
   neighbours: {label: string; lapM: number}[],
   overlapping: string[] = [],
 ): string {
-  const range = `${plain(stretch.fromM)} → ${plain(stretch.toM)} m`;
-  const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
-  return [
-    `Shaded: ${label} · ${range}`,
+  const also = neighbours.map(n => n.label);
+  const rest = [
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
     overlapping.length > 0 ? overlapSentence([label, ...overlapping]) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean);
+  // Nothing beyond the chip's own label: no caption (rake, #345).
+  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
 }
 
 /**
  * The caption when the corner has a window of its own (pit-wall thread 45):
- * "Shaded: S5 (T8–T10) · 3,665 → 4,005 m · also in view: ...". A window that
+ * "Shaded: S5 (T8–T10) · also in view: ...". A window that
  * runs past the zoom window says where it really ends and that the rest is not
  * drawn, so the shading ending at the edge is not read as the window's end
  * (setup #1760).
@@ -130,26 +128,20 @@ export function windowCaption(
 ): string {
   const [startM, endM] = zoom;
   const cut = [
-    inFrame.fromM < startM
-      ? `window starts at ${plain(window.fromM)} m, not drawn`
-      : null,
-    inFrame.toM > endM
-      ? `window continues to ${plain(window.toM)} m, not drawn`
-      : null,
+    inFrame.fromM < startM ? 'window starts earlier, not drawn' : null,
+    inFrame.toM > endM ? 'window continues later, not drawn' : null,
   ].filter(Boolean);
-  const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
-  return [
-    `Shaded: ${label} · ${plain(window.fromM)} → ${plain(window.toM)} m`,
+  const also = neighbours.map(n => n.label);
+  const rest = [
     ...cut,
     deltaFrom
-      ? `delta from the start of ${deltaFrom.label} at ${plain(
-          deltaFrom.lapM,
-        )} m${deltaFrom.drawn ? '' : ' (not drawn)'}`
+      ? `delta from the start of ${deltaFrom.label}${
+          deltaFrom.drawn ? '' : ', not drawn'
+        }`
       : null,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean);
+  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
 }
 
 // "T8 and T9 overlap here", "T8, T9 and T10 overlap here".
@@ -182,11 +174,6 @@ export function overlappingLabels(
       return shifts.some(shift => a + shift < toM && fromM < b + shift);
     })
     .map(c => turnLabel(c.n, c.official));
-}
-
-// formatDistance adds the unit; the range prints one "m" after both numbers.
-function plain(m: number): string {
-  return Math.round(m).toLocaleString('en-US');
 }
 
 /**

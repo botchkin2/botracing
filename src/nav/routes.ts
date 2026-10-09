@@ -36,7 +36,16 @@ function selectionParams(
   return p;
 }
 
-export const sessionsHref = (): Href => ({pathname: '/', params: {}});
+/** The Sessions list, optionally narrowed to a game and a track (ids as the data has them). */
+export const sessionsHref = (
+  filter: {game?: string | null; track?: string | null} = {},
+): Href => ({
+  pathname: '/',
+  params: {
+    ...(filter.game ? {game: filter.game} : {}),
+    ...(filter.track ? {track: filter.track} : {}),
+  },
+});
 
 export const settingsHref = (): Href => ({pathname: '/settings', params: {}});
 

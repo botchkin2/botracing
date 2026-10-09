@@ -38,7 +38,7 @@ export function pitLine(stop: PitStop): string | null {
  * The line under a stint header: its median use per green lap and how many
  * laps that comes from. Null under 3 green laps (the uploader gives no median
  * then), so the line is left out.
- * "Fuel 2.40 L/lap · VE 3.6 %/lap (n = 15)"
+ * "Fuel 2.40 L/lap · VE 3.6 %/lap"
  */
 export function stintFuelLine(
   stint: Pick<Stint, 'medianFuelL' | 'medianVePct' | 'greenLaps'>,
@@ -47,7 +47,7 @@ export function stintFuelLine(
     stint.medianFuelL != null && `Fuel ${stint.medianFuelL.toFixed(2)} L/lap`,
     stint.medianVePct != null && `VE ${stint.medianVePct.toFixed(1)} %/lap`,
   ].filter(Boolean);
-  return parts.length ? `${parts.join(' · ')} (n = ${stint.greenLaps})` : null;
+  return parts.length ? parts.join(' · ') : null;
 }
 
 /**

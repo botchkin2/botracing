@@ -19,7 +19,7 @@ export type TableReferenceKind = 'set' | 'stint' | 'lap';
 
 export type TableReference = {
   kind: TableReferenceKind;
-  /** "median of 8 checked laps", "stint 2 medians, n = 14", or the reference lap's name. */
+  /** "median of 8 checked laps", "stint 2 medians", or the reference lap's name. */
   label: string;
   /** Section number to that section's median in seconds; empty for the lap. */
   sectionS: Map<number, number>;
@@ -83,7 +83,7 @@ export function tableReference(input: {
       if (m.sectionS.size > 0)
         return {
           kind: 'stint',
-          label: `stint ${stint.stint} medians, n = ${stint.laps}`,
+          label: `stint ${stint.stint} medians`,
           ...m,
         };
     }

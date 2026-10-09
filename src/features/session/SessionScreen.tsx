@@ -529,12 +529,13 @@ function SessionView({
               <Text variant='dataSmall' tone='textMuted'>
                 {TAG_KEY}
               </Text>
-              {/* The phone: the laps first, the cards after them, each closed to one line. */}
+              {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
               {layout.isDesktop ? null : (
                 <>
                   <FoldedSection
                     title='Tires'
-                    summary={tiresSummary(model.tires)}>
+                    summary={tiresSummary(model.tires)}
+                    defaultOpen>
                     {tiresCard}
                   </FoldedSection>
                   {model.fuelUse && fuelCard ? (

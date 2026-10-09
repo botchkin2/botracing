@@ -1,12 +1,20 @@
-import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, space, useLayout, useTheme} from '@/src/design';
+import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {Button, Segment, Text} from '@/src/ui';
 
 import {type UploaderCard, useSettingsModel} from './model';
+import {trayCard} from './trayCard';
 
 // Settings (handoff v2 M5): the uploader card per sim PC, then the app
 // version. Theme, pairing and offline data are not on the list (decision
@@ -34,6 +42,8 @@ export function SettingsScreen() {
       </View>
 
       <Account />
+
+      <WindowsApp />
 
       <Sections />
 
@@ -106,6 +116,40 @@ function Account() {
           <Text variant='dataSmall' tone='textMuted'>
             {message}
           </Text>
+        ) : null}
+      </View>
+    </>
+  );
+}
+
+// The tray app that uploads the sessions: download it here, sign in with the
+// same Google account. Settings is behind the sign-in, so this is signed-in only.
+function WindowsApp() {
+  const {color} = useTheme();
+  const release = useTrayRelease();
+  const card = trayCard({
+    isPending: release.isPending,
+    isError: release.isError,
+    data: release.data,
+  });
+  return (
+    <>
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Windows app
+      </Text>
+      <View
+        style={[
+          styles.card,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        <Text variant='data' tone='textSecondary'>
+          {card.status}
+        </Text>
+        {card.version ? (
+          <Button
+            label='Download for Windows'
+            onPress={() => void Linking.openURL(trayDownloadUrl())}
+          />
         ) : null}
       </View>
     </>

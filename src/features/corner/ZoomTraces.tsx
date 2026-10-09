@@ -82,9 +82,11 @@ export function ZoomTraces({
   const shownText = lapsShownText(lines.length, model.rows.length);
   const caption = (
     <View style={styles.gap}>
-      <Text variant='dataSmall' tone='textMuted'>
-        {zoom.caption}
-      </Text>
+      {zoom.caption ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {zoom.caption}
+        </Text>
+      ) : null}
       {shownText && (
         <Text variant='dataSmall' tone='textMuted'>
           {shownText}

@@ -49,3 +49,9 @@ test('LMU_TELEMETRY does not redirect an iRacing sync', () => {
   assert.equal(telemetryFolder('iracing', env), adapter('iracing').defaultFolder);
 });
 
+
+test('IRACING_TELEMETRY moves the iRacing folder only', () => {
+  const env = {LMU_TELEMETRY: 'L', IRACING_TELEMETRY: 'I'};
+  assert.equal(telemetryFolder('iracing', env), 'I');
+  assert.equal(telemetryFolder('lmu', env), 'L');
+});

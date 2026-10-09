@@ -10,6 +10,15 @@ const base = toLaps([fixture.laps[0]])[0];
 const session = (type: 'R' | 'P' = 'R') => ({
   sessionType: type,
   startedAt: '2026-09-26T00:38:00Z',
+  finish: null as {
+    overall: number;
+    inClass: number;
+    ofOverall: number;
+    ofClass: number;
+    lapsDone: number;
+    leaderLapsDone: number;
+    leftEarly: boolean;
+  } | null,
   fuel: {
     startL: 75,
     fillLimitL: 75,
@@ -79,6 +88,23 @@ describe('raceFacts', () => {
   it('counts racing laps from the last whole lap, the formation lap not counted', () => {
     // Last whole lap is lapIndex 6, so 5 racing laps.
     expect(raceFacts(session(), 'k', laps)?.raceLaps).toBe(5);
+  });
+
+  it('carries a DNF from the stored finish (2 Oct Road Atlanta left early)', () => {
+    const s = session();
+    s.finish = {
+      overall: 21,
+      inClass: 5,
+      ofOverall: 54,
+      ofClass: 22,
+      lapsDone: 21,
+      leaderLapsDone: 24,
+      leftEarly: true,
+    };
+    const f = raceFacts(s, 'k', laps)!;
+    expect(f.leftEarly).toBe(true);
+    expect(f.playerLapsDone).toBe(21);
+    expect(f.leaderLapsDone).toBe(24);
   });
 
   it('gives each stop as its pit-in lap number, and the fuel left at entry', () => {

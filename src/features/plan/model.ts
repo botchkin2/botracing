@@ -47,6 +47,23 @@ export type Combo = {
   sessions: SessionSummary[];
 };
 
+/**
+ * Whether `key` names a track and car driven in another sim. Plan reads LMU's
+ * energy and fuel rules, so it has nothing to say there, and must not fall back
+ * to an LMU combo under that name.
+ */
+export function isOtherSimCombo(
+  sessions: SessionSummary[],
+  key: string | null,
+): boolean {
+  if (key == null) return false;
+  return sessions.some(
+    s =>
+      s.sim !== 'lmu' &&
+      planComboKey(s.trackId, carLabel(s.car).model) === key,
+  );
+}
+
 /** Every track+car he has driven, the one he drove last first. */
 export function planCombos(sessions: SessionSummary[]): Combo[] {
   const byKey = new Map<string, Combo>();
@@ -246,6 +263,7 @@ export function greenLapsOf(
       vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
       lapTimeS: l.timeS,
       sessionId,
+      comparable: l.comparable,
       veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
       traffic: l.traffic
         ? {
@@ -756,12 +774,12 @@ export function planView(
       'medianLapTimeS' in c
         ? {
             label,
-            value: `median ${lapTime(c.medianLapTimeS)}  (n = ${c.n})`,
+            value: `median ${lapTime(c.medianLapTimeS)}`,
             note: `all green laps: ${lapTime(c.allMedianLapTimeS)}`,
           }
         : {
             label,
-            value: `no data  (n = ${c.n})`,
+            value: 'no data',
             note:
               c.lowestFuelL != null || c.lowestVePct != null
                 ? `lowest tenth: ${[

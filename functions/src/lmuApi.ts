@@ -6,6 +6,7 @@ import {
   listTracks,
   readTrace,
   readTrackMap,
+  listFacets,
   listSessions,
   readSession,
   readSessionLaps,
@@ -102,11 +103,16 @@ export const lmuApi = onRequest(
         res.status(200).json({items: await listUploaders(owner)});
         return;
       }
+      if (/\/sessions\/facets$/.test(path)) {
+        res.status(200).json(await listFacets(owner));
+        return;
+      }
       if (/\/sessions$/.test(path)) {
         const age = Number(req.query.age);
         const items = await listSessions(owner, {
           ageDays: Number.isFinite(age) ? age : undefined,
           trackId: req.query.track ? String(req.query.track) : undefined,
+          sim: req.query.sim ? String(req.query.sim) : undefined,
         });
         res.status(200).json({items, total: items.length});
         return;

@@ -397,8 +397,7 @@ function fuelCard(
         ],
         ' / ',
       ),
-      note:
-        addedL > 0.05 ? `+${litres(addedL)} added on L1` : 'loaded before L1',
+      note: addedL > 0.05 ? `+${litres(addedL)} added on L1` : null,
     },
     used: {
       value: join(
@@ -477,10 +476,9 @@ export function buildPitCard(
           last: lastLine(last, f.endL),
         }
       : null,
-    key: [
-      hasVe && '■ left ▪ added',
-      anyRefuel && '■ refuelling',
-    ].filter((l): l is string => Boolean(l)),
+    key: [hasVe && '■ left ▪ added', anyRefuel && '■ refuelling'].filter(
+      (l): l is string => Boolean(l),
+    ),
     refuelScope: anyRefuel ? scope : null,
     hasVe,
   };

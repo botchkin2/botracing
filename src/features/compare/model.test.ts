@@ -233,6 +233,37 @@ describe('buildCompareModel', () => {
     expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
   });
 
+  it('the map still draws the cursor when many laps are checked and none is key', () => {
+    // Eight laps is past the individual mode, with no Ref lap and none
+    // highlighted: no lap is a key lap, and the dot was missing (#273).
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const many = toLaps(
+      ids.map((id, i) => rawLap(id, 20 + i * 0.1, [5 + i * 0.01, 5])),
+    );
+    const manyTraces = new Map(
+      ids.map((id, i) => [
+        id,
+        resampleTrace(circleLap(180 - i), LENGTH_M, 5, 10),
+      ]),
+    );
+    const at = (s: Partial<CompareSelection>) =>
+      buildCompareModel({
+        session,
+        laps: many,
+        traces: manyTraces,
+        band: null,
+        map,
+        selection: sel({laps: ids, ...s}),
+      }).map!;
+    const median = at({});
+    expect(median.dots).toHaveLength(1);
+    expect(median.dots[0].lapId).toBe(BASIS_ID);
+    expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
+    // A Ref lap or a highlighted lap is its own dot, as before.
+    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);
+    expect(at({hl: 'e'}).dots.map(d => d.lapId)).toEqual(['e']);
+  });
+
   it('position row names the corner under the cursor', () => {
     expect(build().position.place).toBe('Section 2');
     expect(build(sel({cursorM: 850})).position.place).toBe('After Section 2');
@@ -310,15 +341,64 @@ describe('chart window', () => {
   });
 });
 
+describe('one color per lap, everywhere', () => {
+  // The checkbox list, the chips (legend) and the trace values must agree on
+  // each lap's slot. Median mode starts the slots at 1 (slot 0 is the Ref
+  // stroke); the checkbox list once started at 0 and drew every lap one slot off.
+  const slotsOf = (m: ReturnType<typeof build>) => {
+    const fromChips = new Map(m.chips.map(c => [c.lapId, c.selIndex]));
+    const fromRows = m.allLaps.flatMap(g =>
+      g.rows
+        .filter(r => r.selIndex != null)
+        .map(r => [r.lapId, r.selIndex!] as [string, number]),
+    );
+    const fromTraces = m.charts.flatMap(c =>
+      c.valueRows.flatMap(v =>
+        v.values
+          .filter(x => x.lapId != null)
+          .map(x => [x.lapId!, x.selIndex] as [string, number]),
+      ),
+    );
+    return {fromChips, fromRows, fromTraces};
+  };
+
+  it('median: checkbox, legend and trace slots match', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: null, hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
+    expect(fromRows.length).toBeGreaterThan(0);
+    for (const [id, slot] of fromRows) {
+      expect(slot).toBeGreaterThanOrEqual(1);
+      expect(fromChips.get(id)).toBe(slot);
+    }
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+
+  it('ref: checkbox, legend and trace slots match, Ref on slot 0', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: 'b', hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
+    expect(fromRows.find(([id]) => id === 'b')?.[1]).toBe(0);
+    for (const [id, slot] of fromRows) expect(fromChips.get(id)).toBe(slot);
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+});
+
 describe('desktop pieces', () => {
   const m = build();
 
   it('all laps by stint, with selection order', () => {
     expect(m.allLaps).toHaveLength(1);
     expect(m.allLaps[0].rows.map(r => [r.label, r.selIndex, r.tag])).toEqual([
-      ['L1', 0, 'BEST'],
-      ['L2', 1, null],
-      ['L3', 2, null],
+      ['L1', 1, 'BEST'],
+      ['L2', 2, null],
+      ['L3', 3, null],
     ]);
   });
 

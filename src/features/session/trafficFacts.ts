@@ -21,15 +21,13 @@ export function paceSplit(laps: Lap[]) {
   return trafficMedians(laps);
 }
 
-/** A stint header's tail: " · clean 1:49.800 (4) · traffic 1:50.900 (6)", each only from 3 laps. */
+/** A stint header's tail: " · clean 1:49.800 (4)", from 3 laps. The traffic median is not shown (triage #13). */
 export function stintTrafficText(laps: Lap[]): string {
   const split = paceSplit(laps);
   if (!split) return '';
-  const part = (name: string, set: LapSet) =>
-    set.medianS == null
-      ? ''
-      : ` · ${name} ${formatLapTime(set.medianS)} (${set.laps})`;
-  return part('clean', split.clean) + part('traffic', split.traffic);
+  return split.clean.medianS == null
+    ? ''
+    : ` · clean ${formatLapTime(split.clean.medianS)} (${split.clean.laps})`;
 }
 
 export type TrafficRow = {label: string; value: string; note?: string};

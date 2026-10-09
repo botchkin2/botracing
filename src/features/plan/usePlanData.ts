@@ -160,7 +160,7 @@ export function useLastRaceHere(
         (event == null || event.sessionIds.includes(s.id)),
     ) ?? null;
   const detail = useSession(newest?.id ?? '');
-  const laps = useSessionLaps(newest?.id ?? '');
+  const laps = useSessionLaps(newest?.id ?? null);
   if (!newest || !detail.data || !laps.data) return null;
   const key = `${detail.data.trackId}|${carLabel(detail.data.car).model}`;
   return lastRaceOf(newest.id, raceFacts(detail.data, key, laps.data));

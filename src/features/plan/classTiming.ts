@@ -102,7 +102,7 @@ export type FasterClass = {
     everyText: string;
     passes: Pass[];
   } | null;
-  /** "From 2 races, 1 practice · n = 280 laps", or the empty state's sentence. */
+  /** "From 2 races, 1 practice · 280 laps", or the empty state's sentence. */
   text: string;
 };
 
@@ -209,7 +209,7 @@ function fromText(p: Pooled): string {
     p.races > 0 && plural(p.races, 'race'),
     p.practices > 0 && plural(p.practices, 'practice'),
   ].filter(Boolean);
-  return `From ${parts.join(', ')} · n = ${thousands(p.laps)} laps${
+  return `From ${parts.join(', ')} · ${thousands(p.laps)} laps${
     p.fromPractice
       ? ` · under ${MIN_RACE_SESSIONS} races, so practice counts`
       : ''
@@ -331,11 +331,11 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
     ? {
         name: mine.name,
         classText: formatLapTime(mineClass.medianS),
-        classSrc: `${plural(mineClass.sessions, 'session')} · n = ${thousands(
+        classSrc: `${plural(mineClass.sessions, 'session')} · ${thousands(
           mineClass.laps,
         )} laps`,
         youText: formatLapTime(myLap),
-        youSrc: `n = ${plural(mine.greenLaps, 'green lap')} · ${plural(
+        youSrc: `${plural(mine.greenLaps, 'green lap')} · ${plural(
           mine.sessions,
           'session',
         )}`,

@@ -25,8 +25,11 @@
 //   node desktop/scripts/stage-resources.mjs
 //   node desktop/scripts/stage-resources.mjs --no-duckdb   (a build that cannot analyse)
 //
-// NODE and DUCKDB may name local copies (node.exe / the zip or the exe); they
-// are checked against the same pins.
+// BOTRACING_NODE_EXE and DUCKDB may name local copies (node.exe / the zip or
+// the exe); they are checked against the same pins. The variable is not
+// called NODE on purpose: npm and npx set NODE to the node that is running
+// them, which on a CI runner is whatever setup-node resolved (24.21.0 broke the
+// first tray-v0.1.0 build), and the bundle must never depend on the runner.
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {
@@ -180,10 +183,16 @@ async function download(url, to) {
   writeFileSync(to, Buffer.from(await response.arrayBuffer()));
 }
 
-/** node.exe at the pinned version: NODE if given, else the cache, else nodejs.org. */
+/** Where node.exe comes from: a local copy if BOTRACING_NODE_EXE names one, else the cache. */
+export function nodeSource(env) {
+  const local = env.BOTRACING_NODE_EXE || null;
+  return {local, path: local || resolve(cacheDir, `node-${NODE.version}.exe`)};
+}
+
+/** node.exe at the pinned version: BOTRACING_NODE_EXE if given, else the cache, else nodejs.org. */
 async function nodeExe(env) {
-  const path = env.NODE || resolve(cacheDir, `node-${NODE.version}.exe`);
-  if (!env.NODE && !existsSync(path)) await download(NODE.url, path);
+  const {local, path} = nodeSource(env);
+  if (!local && !existsSync(path)) await download(NODE.url, path);
   verified(path, NODE.sha256, 'node.exe');
   return path;
 }

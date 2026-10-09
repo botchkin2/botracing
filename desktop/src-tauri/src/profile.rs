@@ -9,6 +9,7 @@
 // single instance with the real tray.
 
 /// What a profile name may contain; anything else is dropped. At most 32 chars.
+#[cfg(any(debug_assertions, test))]
 pub fn suffix_of(value: Option<&str>) -> String {
     let clean: String = value
         .unwrap_or("")

@@ -127,3 +127,56 @@ Not verified: the key listing and the bucket-policy fold-in (added after that ru
 ## The bucket's legacy convenience members
 
 `projectOwner:botracing-61` and `projectEditor:botracing-61` on the bucket are groups, not people: every project Owner (people) and every project Editor, which includes the compute and App Engine accounts and the CI deploy account. They let any Editor reach the bucket's settings (soft delete, who can use it). The audit prints them as `every project Owner/Editor (bucket convenience binding)` and warns on the Editor one. Step 5 takes the default accounts out of that group; step 6 does the same for the deploy account.
+
+## Step 6: the CI identities (`ciSplit.mjs`)
+
+The one CI account (`github-action-1142179068@`) is behind the repo secret `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61`. The PR preview workflow runs a branch's code with that secret. On 2026-10-09 it held `secretmanager.secretAccessor` at project level and `firebaseauth.admin`, so any PR branch could read every secret and mint a sign-in for any uid (thread 54 #2610). After this step:
+
+| Who | Holds | Used by |
+| --- | --- | --- |
+| `hosting-preview@` (new) | `firebasehosting.admin`, `serviceusage.apiKeysViewer`, `serviceusage.serviceUsageConsumer`, `cloudfunctions.viewer`, `run.viewer` | PR previews and their cleanup (repo secret `HOSTING_PREVIEW_SERVICE_ACCOUNT`) |
+| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin`, **plus `cloudfunctions.admin`** (a new public HTTPS function needs `cloudfunctions.functions.setIamPolicy` for its invoker; `cloudfunctions.developer` can't, and the #326 deploy failed on it, run 37869964708) | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and nothing else (the tray release has its own account, below) |
+| `tray-release@` (new) | `roles/storage.objectUser` **on `gs://botracing-61-lmu` only, with the condition `resource.name.startsWith('projects/_/buckets/botracing-61-lmu/objects/tray/')`**; no project role | the tray release job (key in the `tray-release` Environment as `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61`). objectUser can create, read, overwrite and delete under `tray/` and nothing elsewhere in the bucket: `latest.json` is overwritten by every release. A condition can't cover listing, so the workflow checks for an existing version with `objects describe`. Needs uniform bucket-level access (on) |
+| nobody else | secret values readable at project level | only the owner |
+
+Previews are checked signed in as `seat-test` (`#ct=`, docs/TESTING.md), which needs no Auth authorized domain. Without Auth admin, the CLI can't add a preview's domain to the authorized domains, so Google sign-in on a preview won't work. That's deliberate.
+
+```
+node ops/iam/ciSplit.mjs grant             # dry run: who can do what now, and the steps
+node ops/iam/ciSplit.mjs grant --apply     # only adds: the account, its roles, keys into GitHub secrets, the deploy Environment
+# merge the workflow PR; then prove: a PR preview deploys, and a push to main deploys functions and hosting
+node ops/iam/ciSplit.mjs revoke            # dry run
+node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the repo-level secret, old keys, the dead Garage 61 secrets
+```
+
+Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets the release account's key; otherwise `grant` makes the account and binding, skips that key and says so (run `grant --apply` again after). The deploy key is not copied into `tray-release`. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps the deploy account's newest key (the one in the `deploy` Environment) and deletes every older one.
+
+**Probe the release account before the first tag** (owner, after `ciSplit.mjs grant --apply`; thread 54 #2695). It answers, before the release job runs, whether `gcloud storage cp` works with only the `tray/` binding:
+
+```powershell
+$SA="tray-release@botracing-61.iam.gserviceaccount.com"
+"probe" | Out-File $env:TEMP\probe.txt
+gcloud storage cp --no-clobber $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage objects describe gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/probe-outside.txt --impersonate-service-account=$SA
+gcloud storage rm gs://botracing-61-lmu/tray/_probe/probe.txt
+```
+
+Expected, in order: create OK; overwrite OK (the `latest.json` case); describe OK; **the write outside `tray/` fails with 403**; then the last line cleans up as yourself. If the first copy fails on a bucket-level permission, add the narrowest fix before tagging.
+
+`grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
+
+Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
+
+Next, not in this step: Workload Identity Federation (GitHub OIDC) instead of keys, so no long-lived key exists at all.
+
+### Tray sign-in codes: delete the unused ones
+
+`POST /api/tray/code` stores one-time codes in `trayCodes/{sha256(code)}` (120 s, deleted when used). The ones nobody uses are removed by a Firestore TTL policy on their `expiresAt` field. Botkin runs this once; it needs no new role for the runtime account (the codes are read and deleted with `roles/datastore.user`, and the function signs custom tokens through step 1's Token Creator on itself):
+
+```powershell
+gcloud firestore fields ttls update expiresAt --collection-group=trayCodes --enable-ttl --project=botracing-61
+```
+
+Check: `gcloud firestore fields ttls list --project=botracing-61` lists `trayCodes` as `ACTIVE`. Until it is on, unused codes sit in a collection no client can read (`firestore.rules` deny everything) and expire in the function's own check.

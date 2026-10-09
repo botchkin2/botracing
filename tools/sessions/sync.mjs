@@ -60,7 +60,9 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
+import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
+import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
@@ -354,9 +356,24 @@ function build(
     startMs: Date.parse(first.recordedAt),
     endMs,
   };
+  // iRacing: the tray's live capture against the .ibt of the same drive, lap
+  // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
+  const liveCheck =
+    foldOnly || sim !== 'iracing'
+      ? null
+      : liveLapCheck(
+          captureRoot,
+          span,
+          ibtCrossings(s.files.map(f => f.path)),
+        );
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
+  // How long the race is, from the capture: {minutes}; null for other sessions and where the capture is gone.
+  const raceLength =
+    foldOnly || !/^r/i.test(first.sessionType)
+      ? null
+      : raceLengthFor(captureRoot, span);
   const a = analyzeSession(recs, {
     trackMap,
     boundaries,
@@ -368,7 +385,9 @@ function build(
     catalogOnly,
   });
   if (foldOnly) return {a, archived};
-  const track = {name: first.track, variant: first.layout};
+  // variant is for display; the layout key stays the id (iRacing's is a number
+  // and a slug, so its adapter also gives the layout's own name).
+  const track = {name: first.track, variant: first.layoutName ?? first.layout};
   const trackId = slugId(sim, first.layout);
   // A new corner map is stored as the track's own doc, where custom sectors
   // and official turn names can attach later.
@@ -525,6 +544,7 @@ function build(
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
+    race: raceLength,
     series: joined.session.series,
     eventId: joined.session.eventId,
     startedAt: first.recordedAt,
@@ -614,6 +634,7 @@ function build(
     fieldText,
     slices,
     fieldReason: fieldOut.reason,
+    liveCheck,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
@@ -991,6 +1012,7 @@ async function processSession(
   }
   if (out.session.series)
     lines.push(`  ${out.session.series} ${out.session.eventId}`);
+  if (out.liveCheck) lines.push(`  ${describeCheck(out.liveCheck)}`);
   const f = out.session.field;
   lines.push(
     f

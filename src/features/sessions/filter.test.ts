@@ -1,0 +1,195 @@
+import {describe, expect, it} from '@jest/globals';
+import {type SessionFacets, type SessionSummary} from '@/src/data/sessions';
+
+import {
+  applyGame,
+  effectiveFilter,
+  emptyDaysText,
+  filterOptions,
+  listQuery,
+  NO_FILTER,
+} from './filter';
+
+const facets: SessionFacets = {
+  games: [
+    {sim: 'lmu', count: 5},
+    {sim: 'iracing', count: 2},
+  ],
+  tracks: [
+    {trackId: 'atlanta', track: 'Road Atlanta', sim: 'lmu', count: 2},
+    {trackId: 'monza', track: 'Monza', sim: 'lmu', count: 2},
+    {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 1},
+    {trackId: 'monza', track: 'Monza', sim: 'iracing', count: 1},
+    {trackId: 'zandvoort', track: 'Zandvoort', sim: 'iracing', count: 1},
+  ],
+};
+
+describe('filterOptions', () => {
+  it('offers every game and every track when nothing is picked; a track in two games is one chip', () => {
+    const o = filterOptions(facets, NO_FILTER);
+    expect(o.games).toEqual([
+      {key: 'iracing', label: 'iRacing', count: 2},
+      {key: 'lmu', label: 'LMU', count: 5},
+    ]);
+    expect(o.tracks.map(t => [t.key, t.count])).toEqual([
+      ['monza', 3],
+      ['atlanta', 2],
+      ['spa', 1],
+      ['zandvoort', 1],
+    ]);
+  });
+
+  it("offers only the picked game's tracks, counted within it", () => {
+    const o = filterOptions(facets, {game: 'iracing', track: null});
+    expect(o.tracks.map(t => [t.key, t.count])).toEqual([
+      ['monza', 1],
+      ['zandvoort', 1],
+    ]);
+  });
+});
+
+describe('applyGame', () => {
+  const s = (id: string, sim: string) => ({id, sim} as SessionSummary);
+  const list = [s('a', 'lmu'), s('b', 'iracing'), s('c', 'lmu')];
+  it('keeps everything with no game, and only the game otherwise', () => {
+    expect(applyGame(list, NO_FILTER)).toHaveLength(3);
+    expect(applyGame(list, {game: 'lmu', track: null}).map(x => x.id)).toEqual([
+      'a',
+      'c',
+    ]);
+  });
+});
+
+describe('effectiveFilter', () => {
+  it('keeps a filter that exists, including a track only old sessions have', () => {
+    expect(effectiveFilter(facets, {game: 'lmu', track: 'spa'})).toEqual({
+      game: 'lmu',
+      track: 'spa',
+    });
+  });
+  it('drops a game or track nothing was driven in', () => {
+    expect(effectiveFilter(facets, {game: 'acc', track: 'nowhere'})).toEqual(
+      NO_FILTER,
+    );
+  });
+  it('drops a track that is not in the picked game', () => {
+    expect(effectiveFilter(facets, {game: 'iracing', track: 'spa'})).toEqual({
+      game: 'iracing',
+      track: null,
+    });
+  });
+});
+
+describe('listQuery', () => {
+  it('reads the recent window unfiltered, and a pick on its own, all of its history', () => {
+    expect(listQuery(NO_FILTER)).toEqual({});
+    expect(listQuery({game: 'iracing', track: null})).toEqual({sim: 'iracing'});
+    expect(listQuery({game: null, track: 'spa'})).toEqual({trackId: 'spa'});
+    // A track implies its game: the track is the query.
+    expect(listQuery({game: 'lmu', track: 'spa'})).toEqual({trackId: 'spa'});
+  });
+});
+
+describe('emptyDaysText', () => {
+  it('says recent only when neither a game nor a track is picked', () => {
+    expect(emptyDaysText(NO_FILTER)).toBe('No recent sessions');
+  });
+
+  it('says No sessions for a picked game, a picked track, or both', () => {
+    expect(emptyDaysText({game: 'lmu', track: null})).toBe('No sessions');
+    expect(
+      emptyDaysText({game: null, track: 'lmu-michelin_raceway_road_atlanta'}),
+    ).toBe('No sessions');
+    expect(
+      emptyDaysText({game: 'lmu', track: 'lmu-michelin_raceway_road_atlanta'}),
+    ).toBe('No sessions');
+  });
+});
+
+describe('filterOptions track labels', () => {
+  const layouts: SessionFacets = {
+    games: [
+      {sim: 'lmu', count: 1},
+      {sim: 'iracing', count: 2},
+    ],
+    tracks: [
+      {
+        trackId: 'lmu-atl',
+        track: 'Road Atlanta',
+        sim: 'lmu',
+        count: 1,
+        variant: 'Michelin',
+      },
+      {
+        trackId: 'ir-atl-full',
+        track: 'Road Atlanta',
+        sim: 'iracing',
+        count: 1,
+        variant: 'Full',
+      },
+      {
+        trackId: 'ir-atl-short',
+        track: 'Road Atlanta',
+        sim: 'iracing',
+        count: 1,
+        variant: 'Short',
+      },
+    ],
+  };
+
+  it('labels two layouts of one name when both are on screen (All games)', () => {
+    expect(
+      filterOptions(layouts, NO_FILTER)
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual([
+      'Road Atlanta · Full',
+      'Road Atlanta · Michelin',
+      'Road Atlanta · Short',
+    ]);
+  });
+
+  it('LMU-only shows one layout, so the name stays plain', () => {
+    expect(
+      filterOptions(layouts, {game: 'lmu', track: null}).tracks.map(
+        c => c.label,
+      ),
+    ).toEqual(['Road Atlanta']);
+  });
+
+  it('iRacing only still labels its two layouts', () => {
+    expect(
+      filterOptions(layouts, {game: 'iracing', track: null})
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual(['Road Atlanta · Full', 'Road Atlanta · Short']);
+  });
+
+  it('with no layout stored, the game names the chip, not the track id', () => {
+    const noLayout: SessionFacets = {
+      games: [
+        {sim: 'lmu', count: 1},
+        {sim: 'iracing', count: 1},
+      ],
+      tracks: [
+        {
+          trackId: 'lmu-michelin_raceway_road_atlanta',
+          track: 'Road Atlanta',
+          sim: 'lmu',
+          count: 1,
+        },
+        {
+          trackId: 'iracing-127-full_course',
+          track: 'Road Atlanta',
+          sim: 'iracing',
+          count: 1,
+        },
+      ],
+    };
+    expect(
+      filterOptions(noLayout, NO_FILTER)
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual(['Road Atlanta · LMU', 'Road Atlanta · iRacing']);
+  });
+});

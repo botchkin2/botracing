@@ -42,6 +42,14 @@ describe('pooledUse', () => {
     expect(r.threshold?.x).toBe(1.9);
   });
 
+  it('leaves out laps the uploader does not call comparable, so they cannot stretch the scale', () => {
+    const slow: GreenLap = {...lap('this', 2.35, 3.45, 240), comparable: false};
+    const out = pooledUse([...laps, slow], 'this', 'fuel', null);
+    expect(out?.points.map(p => p.y)).toEqual([101, 100.5, 102]);
+    expect(out?.n).toBe(3);
+    expect(out?.yDomain[1]).toBeLessThan(110);
+  });
+
   it('frames a single lap', () => {
     const r = pooledUse([lap('a', 2.4, 3.4, 100)], 'a', 'fuel', null)!;
     expect(r.xDomain[0]).toBeLessThan(2.4);
