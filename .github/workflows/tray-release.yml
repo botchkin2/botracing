@@ -46,15 +46,15 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
 
@@ -73,7 +73,7 @@ jobs:
       - name: Build an unsigned installer
         run: npx tauri build --config src-tauri/tauri.unsigned.conf.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tray-installer-unsigned
           path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -89,7 +89,7 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -101,13 +101,13 @@ jobs:
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri
 
@@ -124,9 +124,13 @@ jobs:
         run: node scripts/release-manifest.mjs build ../release
 
       - name: Sign in to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+
+      # Windows runners don't ship gcloud; tray-v0.1.0's first publish failed on it.
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
 
       # A published version is immutable: users may already have it, so a fix is
       # a new version. The installer first, latest.json last: a half-finished

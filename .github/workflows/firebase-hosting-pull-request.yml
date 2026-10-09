@@ -38,14 +38,14 @@ jobs:
     # A healthy preview takes ~3 min; a hung deploy shouldn't block for hours.
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: npm install
       - run: npm run build
       - name: Deploy to Firebase Hosting preview
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.HOSTING_PREVIEW_SERVICE_ACCOUNT }}

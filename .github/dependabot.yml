@@ -1,0 +1,29 @@
+# Keeps every toolchain current (Botkin, 2026-10-09: stay on current versions,
+# never deprecated ones). Weekly, grouped so each ecosystem is one PR; a seat
+# reviews and merges it like any other PR, with CI green.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    groups: {actions: {patterns: ['*']}}
+  - package-ecosystem: npm
+    directory: /
+    schedule: {interval: weekly}
+    groups: {app: {patterns: ['*']}}
+  - package-ecosystem: npm
+    directory: /functions
+    schedule: {interval: weekly}
+    groups: {functions: {patterns: ['*']}}
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule: {interval: weekly}
+    groups: {desktop: {patterns: ['*']}}
+  - package-ecosystem: cargo
+    directory: /desktop/src-tauri
+    schedule: {interval: weekly}
+    groups: {tray: {patterns: ['*']}}
+  - package-ecosystem: uv
+    directory: /tools/capture
+    schedule: {interval: weekly}
+    groups: {capture: {patterns: ['*']}}
