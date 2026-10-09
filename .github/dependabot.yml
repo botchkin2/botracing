@@ -11,6 +11,20 @@ updates:
     directory: /
     schedule: {interval: weekly}
     groups: {app: {patterns: ['*']}}
+    # The Expo SDK pins these as one set; upgrade them together with
+    # `npx expo install --fix` on an SDK bump, never piecemeal.
+    ignore:
+      - dependency-name: 'expo'
+      - dependency-name: 'expo-*'
+      - dependency-name: '@expo/*'
+      - dependency-name: '@expo-google-fonts/*'
+      - dependency-name: 'react'
+      - dependency-name: 'react-dom'
+      - dependency-name: 'react-test-renderer'
+      - dependency-name: 'react-native'
+      - dependency-name: 'react-native-*'
+      - dependency-name: '@react-native/*'
+      - dependency-name: '@react-native-*/*'
   - package-ecosystem: npm
     directory: /functions
     schedule: {interval: weekly}

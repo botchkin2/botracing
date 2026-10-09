@@ -33,7 +33,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build_and_preview:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # Dependabot PRs get no repository secrets, so the deploy cannot run.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     # A healthy preview takes ~3 min; a hung deploy shouldn't block for hours.
     timeout-minutes: 12
