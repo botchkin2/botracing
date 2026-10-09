@@ -137,52 +137,19 @@ export function sessionBoundaries({
   };
 }
 
-// Stored form: Firestore takes no array inside an array, and a session's pools
-// are mostly empty bins, so each pool keeps only the bins that hold laps
-// ({"12": 3} is three laps in bin 12), by session id.
+// Stored form: the result only (starts, kinds, margin, rev). The session pools
+// the fold used are not stored, so a track document never names a session.
+// A rebuild starts from the named sessions again, not from this document.
 export function packState(state) {
-  const sparse = counts => {
-    const nz = {};
-    counts.forEach((c, i) => {
-      if (c > 0) nz[i] = c;
-    });
-    return nz;
-  };
-  const sessions = {};
-  for (const [id, pools] of Object.entries(state.sessions)) {
-    sessions[id] = pools.map(p => ({
-      laps: p.laps,
-      braked: p.braked,
-      speedKmh: p.speedKmh,
-      binFromM: p.binFromM,
-      size: p.brake.length,
-      brake: sparse(p.brake),
-      lift: sparse(p.lift),
-    }));
-  }
-  return {...state, sessions};
+  const {sessions: _sessions, ...result} = state;
+  return result;
 }
 
-/** The inverse of `packState`; null for nothing stored. */
+/** The inverse of `packState`; null for nothing stored. Sessions are empty. */
 export function unpackState(doc) {
   if (!doc) return null;
-  const dense = (nz, size) => {
-    const counts = new Array(size).fill(0);
-    for (const [i, c] of Object.entries(nz ?? {})) counts[Number(i)] = c;
-    return counts;
-  };
-  const sessions = {};
-  for (const [id, pools] of Object.entries(doc.sessions ?? {})) {
-    sessions[id] = pools.map(p => ({
-      laps: p.laps,
-      braked: p.braked,
-      speedKmh: p.speedKmh ?? null,
-      binFromM: p.binFromM,
-      brake: dense(p.brake, p.size),
-      lift: dense(p.lift, p.size),
-    }));
-  }
-  return {...doc, sessions};
+  const {sessions: _dropped, ...result} = doc;
+  return {...result, sessions: {}};
 }
 
 /**
