@@ -19,7 +19,7 @@ import {
 import {type Selection} from './model';
 
 // Desktop-only panels of the Session workspace (handoff "Desktop", D1 right
-// column): stints table, lap-time distribution, stint-vs-stint by corner.
+// column): stints table and stint-vs-stint by corner.
 // Pure; positions are fractions 0..1 so the component only scales them.
 
 export type StintTableRow = {
@@ -33,22 +33,6 @@ export type StintTableRow = {
   spread: string;
   /** "L1–L17 · fall-off +0.042 s/lap"; the trend part only when stored. */
   detail: string;
-};
-
-export type DistributionDot = {
-  lapId: string;
-  row: number;
-  /** 0 = fastest lap on the axis, 1 = slowest. */
-  x01: number;
-  selIndex: number | null;
-  best: boolean;
-  highlighted: boolean;
-};
-
-export type DistributionModel = {
-  rows: {n: number; label: string; median01: number | null}[];
-  dots: DistributionDot[];
-  axis: {x01: number; label: string}[];
 };
 
 export type StintCornerRow = {
@@ -80,12 +64,6 @@ export function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-function comparableTimes(laps: Lap[]): number[] {
-  const out: number[] = [];
-  for (const l of laps) if (l.comparable && l.timeS != null) out.push(l.timeS);
-  return out;
-}
-
 export function buildStintTable(
   session: SessionDetail,
   laps: Lap[],
@@ -110,53 +88,6 @@ export function buildStintTable(
     });
   }
   return rows;
-}
-
-/** One row per stint with comparable laps; one dot per comparable lap. */
-export function buildDistribution(
-  session: SessionDetail,
-  laps: Lap[],
-  selection: Selection,
-): DistributionModel | null {
-  const all = comparableTimes(laps);
-  if (all.length === 0) return null;
-  const lo = Math.min(...all);
-  const hi = Math.max(...all);
-  const span = hi - lo || 1;
-  const x01 = (t: number) => (t - lo) / span;
-
-  const stintNs = [...new Set(laps.map(l => l.stint))].sort((a, b) => a - b);
-  const rows: DistributionModel['rows'] = [];
-  const dots: DistributionDot[] = [];
-  for (const n of stintNs) {
-    const stintLaps = laps.filter(
-      l => l.stint === n && l.comparable && l.timeS != null,
-    );
-    if (stintLaps.length === 0) continue;
-    const row = rows.length;
-    const med = median(comparableTimes(stintLaps));
-    rows.push({
-      n,
-      label: `Stint ${n}`,
-      median01: med == null ? null : x01(med),
-    });
-    for (const l of stintLaps) {
-      const i = selection.laps.indexOf(l.id);
-      dots.push({
-        lapId: l.id,
-        row,
-        x01: x01(l.timeS as number),
-        selIndex: i < 0 ? null : i,
-        best: l.id === session.bestLapId,
-        highlighted: l.id === selection.hl,
-      });
-    }
-  }
-  const axis = [lo, (lo + hi) / 2, hi].map(t => ({
-    x01: x01(t),
-    label: formatLapTime(t),
-  }));
-  return {rows, dots, axis};
 }
 
 /**
@@ -214,7 +145,6 @@ export function buildStintVsStint(
 
 export type SessionDesktopModel = {
   stints: StintTableRow[];
-  distribution: DistributionModel | null;
   stintVsStint: StintVsStintModel | null;
 };
 
@@ -232,7 +162,6 @@ export function useSessionDesktopModel(
     const corners = map.data ? trackCorners(map.data) : null;
     return {
       stints: buildStintTable(session.data, laps.data),
-      distribution: buildDistribution(session.data, laps.data, selection),
       stintVsStint: buildStintVsStint(laps.data, corners),
     };
   }, [session.data, laps.data, map.data, selection]);

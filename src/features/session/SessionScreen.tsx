@@ -272,9 +272,7 @@ function SessionView({
       )
     );
 
-  const tiresCard = (
-    <TiresCard card={model.tires} scatter={model.wearScatter} width={tableW} />
-  );
+  const tiresCard = <TiresCard card={model.tires} width={tableW} />;
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
@@ -488,11 +486,7 @@ function SessionView({
                 }
               />
             )}
-            <TiresCard
-              card={model.tires}
-              scatter={model.wearScatter}
-              width={panel.width - 2 * space.xl}
-            />
+            <TiresCard card={model.tires} width={panel.width - 2 * space.xl} />
             {model.fuelUse && (
               <FuelUseCard
                 card={model.fuelUse}

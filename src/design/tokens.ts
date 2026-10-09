@@ -305,10 +305,6 @@ export const size = {
   railBadge: 20,
   railBar: 3,
   logo: 18,
-  // D1 right column: distribution strip and stint-vs-stint diverging bars.
-  distLabel: 62,
-  distStrip: 236,
-  distRow: 30,
   // Desktop Sessions table (apex, thread 44 #1898): fixed column widths, the
   // header row, the badge column and the widest the table grows. Text columns
   // share what is left. Body rows use `lapRow`.

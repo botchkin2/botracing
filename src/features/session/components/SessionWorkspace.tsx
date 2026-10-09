@@ -17,7 +17,6 @@ import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
 import {EnergyLineRow} from './EnergyLineRow';
-import {LapDistribution} from './LapDistribution';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
@@ -255,13 +254,6 @@ function SidePanels({
     <>
       {desk.stints.length > 0 && <StintsPanel rows={desk.stints} />}
       <View onLayout={e => onCardsY(e.nativeEvent.layout.y)}>{cards}</View>
-      {desk.distribution && (
-        <LapDistribution
-          model={desk.distribution}
-          colorOf={colorOf}
-          onPressLap={onHighlight}
-        />
-      )}
       {desk.stintVsStint && <StintCornerBars model={desk.stintVsStint} />}
     </>
   );

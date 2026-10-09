@@ -30,7 +30,6 @@ import {optimumFacts} from './optimumFacts';
 import {energyLine, type EnergyLine} from './energyLine';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
-import {buildWearScatter, type WearScatterModel} from './wearScatter';
 import {lapTraffic, orderTags, trafficTags} from './lapTags';
 import {
   setText,
@@ -164,8 +163,6 @@ export type SessionScreenModel = {
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
   tires: TiresCard;
-  /** Lap time against wear, by fuel band; null under 10 green laps. */
-  wearScatter: WearScatterModel | null;
   /** Practice with green laps only. */
   fuelUse: FuelUseCardModel | null;
   /** Races with a whole lap to end on. */
@@ -530,7 +527,6 @@ export function buildSessionModel(
     ),
     pitCard,
     tires: buildTiresCard(session, laps),
-    wearScatter: buildWearScatter(laps),
     fuelUse,
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
