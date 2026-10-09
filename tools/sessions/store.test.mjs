@@ -77,7 +77,9 @@ test('a fold is written, read back and equal; the track doc keeps its map and ga
   writeBoundaries(db, writer, asBoundaries(r));
   await writer.close();
   const read = unpackState(await getBoundaries(TRACK, db));
-  assert.deepEqual(read, r.state);
+  assert.equal('sessions' in (await getBoundaries(TRACK, db)), false);
+  assert.deepEqual(read.sessions, {});
+  assert.deepEqual(read.startsM, r.state.startsM);
   const track = db.docs.get(`tracks/${TRACK}`);
   assert.deepEqual(track.corners, [{n: 1}]);
   assert.equal(track.lengthM, LENGTH_M);
@@ -91,25 +93,21 @@ test('a fold is written, read back and equal; the track doc keeps its map and ga
   assert.deepEqual(r.windows, windowsOf(r.state, map.corners, LENGTH_M));
 });
 
-test('a resync of the same session replaces its own contribution, a second session adds its own', async () => {
+test('a stored boundary doc keeps the starts and names no session', async () => {
   const db = fakeDb();
   const first = fold(null, 's1', lapsOf([580, 1380], [590, 1390]));
   await putBoundaries(asBoundaries(first), db);
-  const stored = unpackState(await getBoundaries(TRACK, db));
-  // The same session again: nothing new, nothing doubled, nothing to write.
-  const again = fold(stored, 's1', lapsOf([580, 1380], [590, 1390]));
-  assert.equal(again.changed, false);
-  assert.equal(again.moved, false);
-  assert.deepEqual(again.state.sessions, stored.sessions);
-  // A second session joins the first.
-  const second = fold(stored, 's2', lapsOf([585, 1385]));
+  const raw = await getBoundaries(TRACK, db);
+  assert.equal('sessions' in raw, false);
+  const stored = unpackState(raw);
+  assert.deepEqual(stored.startsM, first.state.startsM);
+  assert.deepEqual(stored.sessions, {});
+  // A second session folded onto the in-memory result (which still has the
+  // pools) is a rebuild input, not something the stored doc remembers.
+  const second = fold(first.state, 's2', lapsOf([585, 1385]));
   assert.deepEqual(Object.keys(second.state.sessions).sort(), ['s1', 's2']);
   await putBoundaries(asBoundaries(second), db);
-  const reread = unpackState(await getBoundaries(TRACK, db));
-  assert.deepEqual(Object.keys(reread.sessions).sort(), ['s1', 's2']);
-  // And folding s2 again leaves the pool as it is.
-  const third = fold(reread, 's2', lapsOf([585, 1385]));
-  assert.deepEqual(third.state.sessions, reread.sessions);
+  assert.equal('sessions' in (await getBoundaries(TRACK, db)), false);
 });
 
 test('a session on an older rev is stale, one on the current rev or a layout without boundaries is not', () => {

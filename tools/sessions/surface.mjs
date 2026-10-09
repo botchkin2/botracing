@@ -1,21 +1,21 @@
 // The measured track surface artifact (pit-wall thread 40, E9).
 //
-// One file per track layout, built from every session's lap traces: the
-// centre path and the edges the game itself measured (PathLateral and
-// TrackEdge), summed per 10 m bin so a new session adds to the old ones
-// (src/analysis/trackSurface.ts has the rules and the evidence). It reads what
-// is already uploaded (trace CSVs), so it needs no analysisVersion bump and no
-// resync; run it after a sync to fold new sessions in. Sessions already in the
-// artifact are skipped, so re-running changes nothing.
+// One file per track layout, rebuilt from a named set of sessions' lap traces:
+// the centre path and the edges the game itself measured (PathLateral and
+// TrackEdge), summed per 10 m bin (src/analysis/trackSurface.ts). Each run
+// starts from an empty surface. The file does not record which sessions it
+// came from, so rebuilding twice from the same set gives the same file.
 //
 //   gs://BUCKET/surface/{trackId}/v1.json.gz
-//   Firestore tracks/{trackId}.surface = {path, format, sessions, laps, bins, updatedAt}
+//   Firestore tracks/{trackId}.surface = {path, format, laps, bins, updatedAt}
 //
 // Run:
 //   node tools/sessions/surface.mjs --api https://botracing-61.web.app/api/lmu --out DIR [--track ID]
 //       read-only from the public API, writes DIR/{trackId}.json (no cloud access)
-//   node tools/sessions/surface.mjs [--track ID] [--dry]
-//       from Firestore and the bucket, writes the artifact and the track's pointer
+//   node tools/sessions/surface.mjs [--track ID] --sessions id,id [--dry]
+//   node tools/sessions/surface.mjs [--track ID] --owner UID [--dry]
+//       rebuild from that named set. One of the two is required. Omitting
+//       both would count every owner's copy of the same laps.
 // Tests: node --test tools/sessions/surface.test.mjs
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -81,66 +81,32 @@ export function surfaceLapFromCsv(csv, lengthM) {
 }
 
 /**
- * The stored artifact when it still fits the track (same length and bin
- * step), else null: a track whose length changed (a rebuilt map) is measured
- * again from every session.
+ * Builds a track's surface from scratch. `sessions` is [{id, csvs: string[]}]
+ * (one CSV per usable lap). The same set twice returns equal bins.
  */
-export function usableSurface(existing, lengthM) {
-  return existing &&
-    existing.rules === SURFACE_RULES &&
-    existing.lengthM === lengthM &&
-    existing.stepM === SURFACE_STEP_M
-    ? existing
-    : null;
-}
-
-/**
- * Which sessions still have to be read. Decided against the artifact that is
- * kept: when it is thrown away, every session is read, or the rebuilt file
- * would lose the ones it had already folded in.
- */
-export function sessionsToFold(existing, lengthM, sessionIds) {
-  const kept = usableSurface(existing, lengthM);
-  return sessionIds.filter(id => !(kept?.sessions ?? []).includes(id));
-}
-
-/**
- * Folds sessions into a track's surface. `existing` is the stored artifact or
- * null; sessions whose id it already holds are skipped. `sessions` is
- * [{id, csvs: string[]}] (one CSV per usable lap). Returns the surface and what
- * this call added.
- */
-export function buildSurface(existing, lengthM, sessions) {
-  const usable = usableSurface(existing, lengthM);
-  const surface = usable ?? {...emptySurface(lengthM), rules: SURFACE_RULES};
+export function buildSurface(lengthM, sessions) {
+  const surface = {...emptySurface(lengthM), rules: SURFACE_RULES};
   let sessionsAdded = 0;
   let lapsAdded = 0;
   for (const s of sessions) {
-    if (surface.sessions.includes(s.id)) continue;
     const laps = s.csvs
       .map(csv => surfaceLapFromCsv(csv, lengthM))
       .filter(lap => lap != null);
-    // A session with no lap that carries the channels (an older upload) is
-    // not recorded as merged: a later resync can bring its traces up to date.
     if (laps.length === 0) continue;
     addSession(surface, s.id, laps);
     sessionsAdded += 1;
     lapsAdded += laps.length;
   }
-  return {
-    surface,
-    sessionsAdded,
-    lapsAdded,
-    replaced: existing != null && usable == null,
-  };
+  return {surface, sessionsAdded, lapsAdded};
 }
 
 // The stored file: rounded so it is small, plain JSON.
 export function serializeSurface(surface) {
   const r = v => Math.round(v * 1000) / 1000;
+  const {sessions: _ids, ...rest} = surface;
   return JSON.stringify({
-    ...surface,
-    bins: surface.bins.map(b => ({
+    ...rest,
+    bins: rest.bins.map(b => ({
       ...b,
       sx: r(b.sx),
       sy: r(b.sy),
@@ -196,7 +162,6 @@ async function fromApi(base, trackFilter, outDir) {
       input.push({id: s.id, csvs});
     }
     const {surface, sessionsAdded, lapsAdded} = buildSurface(
-      null,
       map.lengthM,
       input,
     );
@@ -212,15 +177,20 @@ async function fromApi(base, trackFilter, outDir) {
   }
 }
 
+export class SurfaceSetError extends Error {}
+
 /**
- * Folds the sessions not yet in each track's surface, from Firestore and the
- * bucket, and writes the artifact and the track's pointer. `trackIds` limits
- * it to those tracks (sync.mjs passes the ones it just uploaded); null does
- * every track. `dry` reports and writes nothing. It is idempotent: with no
- * new session a track is left as it is. `connectStore` is for tests.
+ * Rebuilds each track's surface from scratch and writes the artifact and the
+ * pointer. `trackIds` limits the tracks; null does every track. The set is
+ * `sessionIds`, or every session `ownerId` has on the track. One of those is
+ * required: every owner at once would count the same laps twice while a
+ * copied owner still exists. `dry` reports and writes nothing. The same set
+ * twice writes the same bytes. `connectStore` is for tests.
  */
 export async function foldSurfaces({
   trackIds = null,
+  sessionIds = null,
+  ownerId = null,
   dry = false,
   log = console.log,
   connectStore = async () => {
@@ -228,6 +198,12 @@ export async function foldSurfaces({
     return {...store.connect(), bucketName: store.bucketName};
   },
 } = {}) {
+  const ids = (sessionIds ?? []).filter(Boolean);
+  if (ids.length === 0 && !ownerId) {
+    throw new SurfaceSetError(
+      'a named set is required: --sessions id,id or --owner <uid>',
+    );
+  }
   const {db, bucket, bucketName} = await connectStore();
   const trackDocs = trackIds
     ? await Promise.all(
@@ -236,36 +212,23 @@ export async function foldSurfaces({
     : (await db.collection('tracks').get()).docs;
   // The uploader's watcher reads these lines for its heartbeat: "surface N/M
   // tracks" before each track (N finished so far) and once more at the end.
-  // Without them a fold of a dozen tracks looks like a stuck sync.
   const tracks = trackDocs.filter(doc => doc.exists && doc.data().lengthM);
+  const named = ids.length > 0 ? new Set(ids) : null;
   let finished = 0;
   for (const doc of tracks) {
     log(surfaceProgressLine(finished, tracks.length));
     finished += 1;
     const trackId = doc.id;
     const track = doc.data();
-    let existing = null;
-    try {
-      const [gz] = await bucket
-        .file(surfacePath(trackId))
-        .download({decompress: false});
-      existing = parseSurface(gz);
-    } catch (error) {
-      if (error?.code !== 404) throw error;
-    }
     const allSessions = (
       await db.collection('sessions').where('trackId', '==', trackId).get()
-    ).docs;
-    const todo = new Set(
-      sessionsToFold(
-        existing,
-        track.lengthM,
-        allSessions.map(s => s.id),
-      ),
+    ).docs.filter(
+      s =>
+        (!named || named.has(s.id)) &&
+        (!ownerId || s.data().ownerId === ownerId),
     );
-    const sessionDocs = allSessions.filter(s => todo.has(s.id));
     const input = [];
-    for (const s of sessionDocs) {
+    for (const s of allSessions) {
       const laps = (
         await db.collection('laps').where('sessionId', '==', s.id).get()
       ).docs
@@ -285,17 +248,14 @@ export async function foldSurfaces({
       }
       input.push({id: s.id, csvs});
     }
-    const {surface, sessionsAdded, lapsAdded, replaced} = buildSurface(
-      existing,
+    const {surface, sessionsAdded, lapsAdded} = buildSurface(
       track.lengthM,
       input,
     );
     log(
-      `${trackId}: +${sessionsAdded} sessions, +${lapsAdded} laps${
-        replaced ? ' (length or rules changed: rebuilt)' : ''
-      }, ${surface.sessions.length} sessions in all`,
+      `${trackId}: ${sessionsAdded} sessions, ${lapsAdded} laps, ${surface.bins.length} bins`,
     );
-    if (dry || (sessionsAdded === 0 && !replaced)) continue;
+    if (dry || sessionsAdded === 0) continue;
     const gz = gzipSurface(surface);
     await bucket.file(surfacePath(trackId)).save(gz, {
       resumable: false,
@@ -312,7 +272,7 @@ export async function foldSurfaces({
         surface: {
           path: surfacePath(trackId),
           format: SURFACE_FORMAT,
-          sessions: surface.sessions.length,
+          laps: lapsAdded,
           bins: surface.bins.length,
           updatedAt: new Date().toISOString(),
         },
@@ -339,8 +299,19 @@ if (
   if (arg('--api')) {
     await fromApi(arg('--api'), track, arg('--out') ?? 'surface-out');
   } else {
+    const sessions = arg('--sessions');
+    const owner = arg('--owner');
+    const sessionIds = sessions ? sessions.split(',').filter(Boolean) : [];
+    if (sessionIds.length === 0 && !owner) {
+      console.error(
+        'a named set is required: --sessions id,id or --owner <uid>',
+      );
+      process.exit(2);
+    }
     await foldSurfaces({
       trackIds: track ? [track] : null,
+      sessionIds,
+      ownerId: owner,
       dry: process.argv.includes('--dry'),
     });
   }

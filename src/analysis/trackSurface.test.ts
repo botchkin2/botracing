@@ -156,12 +156,12 @@ describe('the edges and the start/finish line', () => {
 });
 
 describe('addSession', () => {
-  it('adding the same session twice changes nothing', () => {
+  it('adding the same laps twice counts them twice: a rebuild does not skip ids', () => {
     const s = emptySurface(LENGTH_M);
     expect(addSession(s, 'a', [lap(-2, -6), lap(3, 6)])).toBe(true);
-    const once = JSON.stringify(s);
-    expect(addSession(s, 'a', [lap(-2, -6), lap(3, 6)])).toBe(false);
-    expect(JSON.stringify(s)).toBe(once);
+    const once = s.bins[0].laps;
+    expect(addSession(s, 'a', [lap(-2, -6), lap(3, 6)])).toBe(true);
+    expect(s.bins[0].laps).toBe(once * 2);
     expect(s.sessions).toEqual(['a']);
   });
 

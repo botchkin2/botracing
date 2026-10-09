@@ -14,14 +14,19 @@ import {unpackState} from '../sessions/layoutBoundaries.mjs';
 export class LoaderError extends Error {}
 
 /** The sessions in a telemetry folder, grouped as the uploader groups them. */
-export function findSessions({adapter, folder, ownerId, log}) {
+export function findSessions({adapter, folder, ownerId, ownerIds, log}) {
+  const owners = ownerIds ?? (ownerId ? [ownerId] : []);
+  if (owners.length === 0)
+    throw new LoaderError(
+      'an owner is required: --owner or --owners. There is no default.',
+    );
   const files = scanFolder({
     folder,
     adapter,
     state: {files: {}},
     log,
   });
-  return groupFiles(files, ownerId);
+  return owners.flatMap(owner => groupFiles(files, owner));
 }
 
 /** One session by id (a prefix of at least 6 characters is enough). */

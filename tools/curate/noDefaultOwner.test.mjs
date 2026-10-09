@@ -17,16 +17,16 @@ test('listing sessions without an owner is refused', async () => {
 });
 
 test('--owner is the owner the session list is grouped under', async () => {
-  let seen = '';
+  let seen = [];
   const result = await run(['sessions', '--owner', 'uid-test'], {
     ...deps,
     loader: {
-      findSessions: ({ownerId}) => {
-        seen = ownerId;
+      findSessions: ({ownerIds}) => {
+        seen = ownerIds;
         return [];
       },
     },
   });
   assert.equal(result.code, 0);
-  assert.equal(seen, 'uid-test');
+  assert.deepEqual(seen, ['uid-test']);
 });

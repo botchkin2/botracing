@@ -65,7 +65,7 @@ export function parseArgs(argv) {
 const trackIdOf = (adapter, sim, layout) => `${sim}-${adapter.slug(layout)}`;
 
 /**
- * Runs one command. deps: {backend, adapter, folder, ownerId, workDir, by, now,
+ * Runs one command. deps: {backend, adapter, folder, ownerId or ownerIds, workDir, by, now,
  * loader (stand-ins for the tests)}. Returns {code, lines}; prints nothing.
  */
 export async function run(argv, deps) {
@@ -76,15 +76,19 @@ export async function run(argv, deps) {
   const {backend, adapter} = deps;
   const loader = {buildFromSession, buildRefold, findSessions, ...deps.loader};
   const sessionsHere = () => {
-    const ownerId = flags.owner ?? deps.ownerId;
-    if (!ownerId)
-      throw new LoaderError(
-        'an owner is required: --owner <uid> or LAP_OWNER. There is no default.',
-      );
+    const fromFlag =
+      typeof flags.owners === 'string'
+        ? flags.owners.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+    const ownerIds = fromFlag.length
+      ? fromFlag
+      : flags.owner
+        ? [flags.owner]
+        : deps.ownerIds ?? (deps.ownerId ? [deps.ownerId] : []);
     return loader.findSessions({
       adapter,
       folder: flags.folder ?? deps.folder,
-      ownerId,
+      ownerIds,
       log: say,
     });
   };
