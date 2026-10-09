@@ -17,7 +17,7 @@ node functions/scripts/mintTestToken.mjs --create
 
 ## Live slots sign in by themselves
 
-A pane on a live slot (`live-1` to `live-6`) signs in as `seat-test` with no link: `tools/dev/live.mjs` sets `LIVE_SEAT_SIGNIN_PORT`, `metro.config.js` then serves `GET /__seat-token` (`tools/dev/seatToken.mjs`), and the dev build (`src/auth/devSeatSignIn.ts`) picks it up when the pane is signed out. It needs `SMOKE_SERVICE_ACCOUNT` in the environment Metro starts from (the same setup as above); without it the pane shows the login screen and the Metro log says why.
+A pane on a live slot (`live-1` to `live-6`) signs in as `seat-test` with no link: `tools/dev/live.mjs` sets `LIVE_SEAT_SIGNIN_PORT`, `metro.config.js` then serves `GET /__seat-token` (`tools/dev/seatToken.mjs`), and the dev build (`src/auth/devSeatSignIn.ts`) picks it up when the pane is signed out. `live.mjs` passes the service account's email (not a secret) and the mint impersonates it with the gcloud login on this PC. The worktree needs `npm ci --prefix functions` for `firebase-admin`. If the mint fails the pane shows the login screen and the Metro log says why (never the token).
 
 - The endpoint answers only `Host: localhost:<port>` or `127.0.0.1:<port>`, sends no CORS headers, and is `no-store`. A plain `expo start` and every export have no endpoint.
 - It mints only `seat-test`; the app checks the token's `uid` before using it and `currentUser.uid` after.

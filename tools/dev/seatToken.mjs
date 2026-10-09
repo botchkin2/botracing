@@ -12,8 +12,6 @@ import {createRequire} from 'node:module';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {TEST_UID, mintTestLinks} from '../../functions/scripts/mintTestToken.mjs';
-
 export const SEAT_TOKEN_PATH = '/__seat-token';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +22,11 @@ export async function mintSeatToken() {
   if (!serviceAccountId)
     throw new Error('SMOKE_SERVICE_ACCOUNT is not set (docs/TESTING.md)');
   process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= 'botracing-61';
+  // Imported here: that script has top-level await, which metro.config.js
+  // (CommonJS) cannot require.
+  const {TEST_UID, mintTestLinks} = await import(
+    '../../functions/scripts/mintTestToken.mjs'
+  );
   const require = createRequire(path.join(here, '../../functions/package.json'));
   const admin = require('firebase-admin');
   if (!admin.apps.length)

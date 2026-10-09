@@ -63,7 +63,9 @@ export async function signInSeatTest(
 
 /** The token the live slot serves, or null when this is not a live slot. */
 export async function fetchSlotToken(): Promise<string | null> {
-  const res = await fetch('/__seat-token', {cache: 'no-store'});
+  // `platform` keeps Expo's web history fallback (which answers every other
+  // GET with index.html) from taking the request before Metro's middleware.
+  const res = await fetch('/__seat-token?platform=seat', {cache: 'no-store'});
   if (!res.ok) return null;
   const body = (await res.json()) as {token?: unknown};
   return typeof body.token === 'string' ? body.token : null;

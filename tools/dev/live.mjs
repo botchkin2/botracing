@@ -39,6 +39,11 @@ const child = spawn(
       ...process.env,
       BROWSER: 'none',
       LIVE_SEAT_SIGNIN_PORT: String(found.port),
+      // The service account's email, not a secret (docs/TESTING.md): the mint
+      // impersonates it with the gcloud login on this PC.
+      SMOKE_SERVICE_ACCOUNT:
+        process.env.SMOKE_SERVICE_ACCOUNT ??
+        'firebase-adminsdk-fbsvc@botracing-61.iam.gserviceaccount.com',
       EXPO_PUBLIC_LMU_API_BASE: 'https://botracing-61.web.app/api/lmu',
     },
   },
