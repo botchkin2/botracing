@@ -105,3 +105,63 @@ describe('emptyDaysText', () => {
     ).toBe('No sessions');
   });
 });
+
+describe('filterOptions track labels', () => {
+  const layouts: SessionFacets = {
+    games: [
+      {sim: 'lmu', count: 1},
+      {sim: 'iracing', count: 2},
+    ],
+    tracks: [
+      {
+        trackId: 'lmu-atl',
+        track: 'Road Atlanta',
+        sim: 'lmu',
+        count: 1,
+        variant: 'Michelin',
+      },
+      {
+        trackId: 'ir-atl-full',
+        track: 'Road Atlanta',
+        sim: 'iracing',
+        count: 1,
+        variant: 'Full',
+      },
+      {
+        trackId: 'ir-atl-short',
+        track: 'Road Atlanta',
+        sim: 'iracing',
+        count: 1,
+        variant: 'Short',
+      },
+    ],
+  };
+
+  it('labels two layouts of one name when both are on screen (All games)', () => {
+    expect(
+      filterOptions(layouts, NO_FILTER)
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual([
+      'Road Atlanta · Full',
+      'Road Atlanta · Michelin',
+      'Road Atlanta · Short',
+    ]);
+  });
+
+  it('LMU-only shows one layout, so the name stays plain', () => {
+    expect(
+      filterOptions(layouts, {game: 'lmu', track: null}).tracks.map(
+        c => c.label,
+      ),
+    ).toEqual(['Road Atlanta']);
+  });
+
+  it('iRacing only still labels its two layouts', () => {
+    expect(
+      filterOptions(layouts, {game: 'iracing', track: null})
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual(['Road Atlanta · Full', 'Road Atlanta · Short']);
+  });
+});

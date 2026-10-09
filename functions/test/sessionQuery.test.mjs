@@ -67,7 +67,7 @@ test('a stored track object {name, variant} labels the facet with its name', () 
   );
 });
 
-test('two layouts of one track name get their layout in the chip label', () => {
+test('a track carries its layout as variant; the name stays plain', () => {
   const f = foldFacets([
     {
       sim: 'lmu',
@@ -84,29 +84,13 @@ test('two layouts of one track name get their layout in the chip label', () => {
       trackId: 'atl-short',
       track: {name: 'Road Atlanta', variant: 'Short'},
     },
-    {sim: 'lmu', trackId: 'spa', track: {name: 'Spa', variant: 'Full'}},
   ]);
   assert.deepEqual(
-    f.tracks.map(t => t.track),
+    f.tracks.map(t => [t.track, t.variant]),
     [
-      'Road Atlanta · Michelin',
-      'Road Atlanta · Full',
-      'Road Atlanta · Short',
-      'Spa',
+      ['Road Atlanta', 'Michelin'],
+      ['Road Atlanta', 'Full'],
+      ['Road Atlanta', 'Short'],
     ],
-  );
-});
-
-test('a track name held once keeps its plain name', () => {
-  const f = foldFacets([
-    {
-      sim: 'lmu',
-      trackId: 'atl',
-      track: {name: 'Road Atlanta', variant: 'Michelin'},
-    },
-  ]);
-  assert.deepEqual(
-    f.tracks.map(t => t.track),
-    ['Road Atlanta'],
   );
 });

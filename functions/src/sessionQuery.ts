@@ -22,7 +22,13 @@ export function listCutoff(
 
 export type Facets = {
   games: {sim: string; count: number}[];
-  tracks: {trackId: string; track: string; sim: string; count: number}[];
+  tracks: {
+    trackId: string;
+    track: string;
+    sim: string;
+    count: number;
+    variant: string;
+  }[];
 };
 
 /** The name a session stores as `track` ({name, variant}, or a bare string in old docs). */
@@ -39,8 +45,7 @@ function variantOf(track: unknown): string {
 }
 
 /** Counts of sessions per game and per track, from `{sim, trackId, track}` rows.
- * Two layouts of one track share a name: each then reads "Name · Variant", so
- * the chips can be told apart. */
+ * Each track carries its layout (`variant`); the app builds the chip label from it. */
 export function foldFacets(
   rows: {sim?: unknown; trackId?: unknown; track?: unknown}[],
 ): Facets {
@@ -70,17 +75,8 @@ export function foldFacets(
     t.count += 1;
     tracks.set(key, t);
   }
-  // Names held by more than one track (the layouts of one circuit).
-  const byName = new Map<string, number>();
-  for (const t of tracks.values())
-    byName.set(t.track, (byName.get(t.track) ?? 0) + 1);
-  const labelled = [...tracks.values()].map(({variant, ...t}) =>
-    (byName.get(t.track) ?? 0) > 1
-      ? {...t, track: `${t.track} · ${variant || t.trackId}`}
-      : t,
-  );
   return {
     games: [...games].map(([sim, count]) => ({sim, count})),
-    tracks: labelled,
+    tracks: [...tracks.values()],
   };
 }
