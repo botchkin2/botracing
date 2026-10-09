@@ -341,7 +341,7 @@ describe('stop cool-down', () => {
       ),
     );
     expect(c).toMatchObject({kind: 'absent'});
-    expect(c.kind === 'absent' && c.why).toMatch(/All four tyres changed/);
+    expect(c.kind === 'absent' && c.why).toMatch(/All four tires changed/);
   });
 
   it('says so when the stop has no reading, or no wheel has one', () => {
@@ -361,7 +361,7 @@ describe('stop cool-down', () => {
         }),
       ),
     );
-    expect(dead.kind === 'absent' && dead.why).toMatch(/kept tyres/);
+    expect(dead.kind === 'absent' && dead.why).toMatch(/kept tires/);
   });
 });
 

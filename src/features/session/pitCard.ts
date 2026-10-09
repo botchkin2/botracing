@@ -398,7 +398,7 @@ function fuelCard(
         ' / ',
       ),
       note:
-        addedL > 0.05 ? `+${litres(addedL)} added on L1` : 'loaded before L1',
+        addedL > 0.05 ? `+${litres(addedL)} added on L1` : 'Start',
     },
     used: {
       value: join(

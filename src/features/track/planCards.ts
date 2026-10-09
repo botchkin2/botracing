@@ -52,11 +52,9 @@ export function perLapUseLine(laps: GreenLap[]): string | null {
   if (laps.length === 0) return null;
   const fuel = `Fuel ${median(laps.map(l => l.fuelL)).toFixed(2)} L/lap`;
   const ve = laps.flatMap(l => (l.vePct == null ? [] : [l.vePct]));
-  if (ve.length < MIN_VE_LAPS) return `${fuel} (n = ${laps.length})`;
+  if (ve.length < MIN_VE_LAPS) return fuel;
   const veText = `VE ${median(ve).toFixed(2)} %/lap`;
-  return ve.length === laps.length
-    ? `${fuel} · ${veText} (n = ${laps.length})`
-    : `${fuel} (n = ${laps.length}) · ${veText} (n = ${ve.length})`;
+  return `${fuel} · ${veText}`;
 }
 
 export function planCardModel(combo: Combo, laps: GreenLap[]): PlanCardModel {
