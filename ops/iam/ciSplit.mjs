@@ -42,6 +42,16 @@ function tryOr(fn, fallback) {
   }
 }
 
+/** An account's user-managed key ids, oldest first. */
+function userKeys(run, email, c = CI) {
+  const keys = run(['iam', 'service-accounts', 'keys', 'list',
+    `--iam-account=${email}`, `--project=${c.project}`,
+    '--managed-by=user', '--format=json']) ?? [];
+  return keys
+    .sort((a, b) => String(a.validAfterTime).localeCompare(String(b.validAfterTime)))
+    .map(k => k.name.split('/').pop());
+}
+
 export function readState(run, c = CI) {
   const {roles: policy} = readPolicy(
     run(['projects', 'get-iam-policy', c.project, '--format=json']),
@@ -62,13 +72,9 @@ export function readState(run, c = CI) {
         false,
       ),
       bound: hasReleaseBinding(bucketPolicy, r, c),
+      keys: tryOr(() => userKeys(run, releaseEmail(r, c), c), []),
     };
-  const keys = run(['iam', 'service-accounts', 'keys', 'list',
-    `--iam-account=${c.deployEmail}`, `--project=${c.project}`,
-    '--managed-by=user', '--format=json']) ?? [];
-  const deployKeys = keys
-    .sort((a, b) => String(a.validAfterTime).localeCompare(String(b.validAfterTime)))
-    .map(k => k.name.split('/').pop());
+  const deployKeys = userKeys(run, c.deployEmail, c);
   const names = out => new Set(
     String(out).split('\n').map(l => l.split('\t')[0].trim()).filter(Boolean));
   const envs = new Set(
@@ -89,7 +95,7 @@ function report(state, run, c = CI, title) {
   console.log(`\n== ${title}`);
   for (const r of c.releases) {
     const now = state.releases[r.name];
-    console.log(`  ${releaseEmail(r, c)}: ${now.exists ? 'exists' : 'not yet'}; ${r.prefix}/-only bucket binding: ${now.bound ? 'yes' : 'no'}`);
+    console.log(`  ${releaseEmail(r, c)}: ${now.exists ? 'exists' : 'not yet'}; ${r.prefix}/-only bucket binding: ${now.bound ? 'yes' : 'no'}; user keys: ${now.keys.length}`);
   }
   for (const [email, roles] of Object.entries(ciRoles(state.policy, c)))
     console.log(`  ${email}\n    ${roles.length ? roles.join('\n    ') : '(no project roles)'}`);

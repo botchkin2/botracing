@@ -114,7 +114,7 @@ else { $missing += "the Firebase web API key (-FirebaseApiKey)" }
 
 if ($ServiceAccountFile) {
   if (Test-Path $ServiceAccountFile) {
-    $values["FIREBASE_SERVICE_ACCOUNT_BOTRACING_61"] = (Get-Content $ServiceAccountFile -Raw).Trim()
+    $values["TRAY_RELEASE_SERVICE_ACCOUNT"] = (Get-Content $ServiceAccountFile -Raw).Trim()
   } else { $missing += "the service account file ($ServiceAccountFile)" }
 }
 
@@ -171,7 +171,7 @@ foreach ($name in $values.Keys) {
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
-if (-not $values.Contains("FIREBASE_SERVICE_ACCOUNT_BOTRACING_61")) {
+if (-not $values.Contains("TRAY_RELEASE_SERVICE_ACCOUNT")) {
   Write-Host "Note: no -ServiceAccountFile. Run 'node ops/iam/ciSplit.mjs grant --apply' next: it makes the tray-release account and puts its key here. The release job cannot publish without it." -ForegroundColor Yellow
 }
 

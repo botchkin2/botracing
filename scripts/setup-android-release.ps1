@@ -14,7 +14,9 @@
 #     android-v* and tray-v* tags (a tag starts a build that spends EAS credits).
 #   - The android-release account (android/ in the lmu bucket only) and its key
 #     in `android-release` as ANDROID_RELEASE_SERVICE_ACCOUNT: `node ops/iam/ciSplit.mjs grant`, which also shows
-#     every other CI identity. It needs gcloud signed in as Botkin.
+#     every other CI identity. It needs gcloud signed in as Botkin. The same
+#     grant puts the tray account's key in `tray-release` under its own name,
+#     TRAY_RELEASE_SERVICE_ACCOUNT (ops/iam/README.md, "Moving the tray key").
 # It prints names and never a secret's value.
 #
 # Needs: `gh` signed in as the repo owner, `gcloud` signed in as Botkin, node.
