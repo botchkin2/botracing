@@ -41,6 +41,14 @@
         }
       },
       {
+        "source": "/api/tray/code",
+        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+      },
+      {
+        "source": "/api/tray/token",
+        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -52,6 +60,19 @@
           {
             "key": "Cache-Control",
             "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/tray-sign-in",
+        "headers": [
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
           }
         ]
       },

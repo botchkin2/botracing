@@ -14,8 +14,6 @@
 # Reads:
 #   ~\.botracing\updater.key, updater.key.password   the updater signing key
 #                                                    (made by `tauri signer generate`)
-#   ~\.botracing\oauth-desktop.json                  the Google "desktop app" OAuth client
-#                                                    JSON (-ClientFile to give another path)
 #   the Firebase web key: -FirebaseApiKey, or the public one in src\auth\firebase.web.ts
 #   -ServiceAccountFile (optional)                   a service account key JSON that may write
 #                                                    to the botracing-61-lmu bucket. Without it
@@ -26,7 +24,6 @@
 # manager: lose them and installed trays can no longer update.
 param(
   [string]$Repo,
-  [string]$ClientFile = (Join-Path $env:USERPROFILE ".botracing\oauth-desktop.json"),
   [string]$FirebaseApiKey = $env:BOTRACING_FIREBASE_API_KEY,
   [string]$ServiceAccountFile,
   [switch]$DryRun
@@ -56,19 +53,6 @@ if ((Test-Path $keyFile) -and (Test-Path $pwFile)) {
   $values["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = (Get-Content $pwFile -Raw).Trim()
 } else {
   $missing += "the updater key ($keyFile and $pwFile)"
-}
-
-if (Test-Path $ClientFile) {
-  $json = Get-Content $ClientFile -Raw | ConvertFrom-Json
-  $client = if ($json.installed) { $json.installed } else { $json }
-  if ($client.client_id -and $client.client_secret) {
-    $values["BOTRACING_OAUTH_CLIENT_ID"] = $client.client_id
-    $values["BOTRACING_OAUTH_CLIENT_SECRET"] = $client.client_secret
-  } else {
-    $missing += "client_id and client_secret in $ClientFile"
-  }
-} else {
-  $missing += "the Google desktop OAuth client JSON ($ClientFile; download it from Google Cloud console > APIs & Services > Credentials)"
 }
 
 if (-not $FirebaseApiKey) {
