@@ -17,6 +17,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const HEADER_FILES: [&str; 2] = ["InternalsPlugin.hpp", "SharedMemoryInterface.hpp"];
 const DEFAULT_HEADER_DIR: &str =
     r"C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\Support\SharedMemoryInterface";
+/// The Steam install whose `libraryfolders.vdf` lists the other libraries.
+const DEFAULT_STEAM_ROOT: &str = r"C:\Program Files (x86)\Steam";
 /// How often a recorder that could not start (no header, another recorder
 /// running) tries again.
 const RETRY: Duration = Duration::from_secs(10);
@@ -95,11 +97,113 @@ impl Handle {
     }
 }
 
-/// `LMU_SHM_HEADER_DIR` overrides the default Steam install.
+/// `LMU_SHM_HEADER_DIR` overrides everything. Otherwise the header folder is
+/// looked up in every Steam library listed by Steam's `libraryfolders.vdf`
+/// (Steam's root from the registry, else the default install), and the
+/// default install path is the fallback.
 pub fn header_dir() -> PathBuf {
-    std::env::var_os("LMU_SHM_HEADER_DIR")
-        .map(PathBuf::from)
+    if let Some(dir) = std::env::var_os("LMU_SHM_HEADER_DIR") {
+        return PathBuf::from(dir);
+    }
+    let steam = steam_root(steam_path_from_registry(), Path::new(DEFAULT_STEAM_ROOT));
+    let vdf = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf"))
+        .unwrap_or_default();
+    find_header_dir(&steam, &vdf, |dir| dir.join(HEADER_FILES[0]).is_file())
         .unwrap_or_else(|| PathBuf::from(DEFAULT_HEADER_DIR))
+}
+
+/// Steam's root: the registry's SteamPath when it is there, else the default.
+pub fn steam_root(registry: Option<PathBuf>, default: &Path) -> PathBuf {
+    registry.unwrap_or_else(|| default.to_path_buf())
+}
+
+/// A registry string value as a path: UTF-16 without its trailing NUL.
+pub fn path_from_wide(units: &[u16]) -> PathBuf {
+    let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
+    PathBuf::from(String::from_utf16_lossy(&units[..end]))
+}
+
+/// `HKCU\Software\Valve\Steam\SteamPath`: where Steam is installed, even when
+/// it is not on C:. None when the key is missing or unreadable.
+#[cfg(windows)]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    use std::ptr::{null, null_mut};
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE,
+    };
+    let wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+    let (key_path, value) = (wide(r"Software\Valve\Steam"), wide("SteamPath"));
+    let mut key: HKEY = null_mut();
+    // SAFETY: NUL-terminated key path, a valid out pointer; closed below.
+    let code = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, key_path.as_ptr(), 0, KEY_QUERY_VALUE, &mut key) };
+    if code != ERROR_SUCCESS {
+        return None;
+    }
+    let mut bytes: u32 = 0;
+    // SAFETY: the first call only asks for the size of the value.
+    let size = unsafe {
+        RegQueryValueExW(key, value.as_ptr(), null(), null_mut(), null_mut(), &mut bytes)
+    };
+    let mut buf = vec![0u16; (bytes as usize).div_ceil(2)];
+    let mut read = size == ERROR_SUCCESS && !buf.is_empty();
+    if read {
+        // SAFETY: `buf` has room for `bytes` bytes, as the size call reported.
+        let code = unsafe {
+            RegQueryValueExW(
+                key,
+                value.as_ptr(),
+                null(),
+                null_mut(),
+                buf.as_mut_ptr().cast(),
+                &mut bytes,
+            )
+        };
+        read = code == ERROR_SUCCESS;
+    }
+    // SAFETY: `key` was opened above and is closed once.
+    unsafe { RegCloseKey(key) };
+    read.then(|| path_from_wide(&buf))
+}
+
+#[cfg(not(windows))]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    None
+}
+
+/// The header folder in the first Steam library (the install itself first,
+/// then the libraries `vdf` lists) where `has_header` finds the header.
+pub fn find_header_dir(
+    steam_root: &Path,
+    vdf: &str,
+    has_header: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let libraries = std::iter::once(steam_root.to_path_buf()).chain(library_paths(vdf));
+    libraries
+        .map(|lib| header_under(&lib))
+        .find(|dir| has_header(dir))
+}
+
+/// Where LMU's header folder sits inside a Steam library.
+fn header_under(library: &Path) -> PathBuf {
+    library
+        .join("steamapps")
+        .join("common")
+        .join("Le Mans Ultimate")
+        .join("Support")
+        .join("SharedMemoryInterface")
+}
+
+/// The `"path"` of every library in a `libraryfolders.vdf`, in file order.
+/// Steam writes Windows paths with doubled backslashes, which come back single.
+pub fn library_paths(vdf: &str) -> Vec<PathBuf> {
+    static PATH_LINE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#""path"\s+"((?:[^"\\]|\\.)*)""#).expect("valid regex")
+    });
+    PATH_LINE
+        .captures_iter(vdf)
+        .map(|c| PathBuf::from(c[1].replace(r"\\", r"\")))
+        .collect()
 }
 
 /// `LAP_CAPTURE` overrides `%LOCALAPPDATA%\lap-capture`, the folder the
@@ -217,6 +321,71 @@ mod tests {
         s.state = state;
         s.layout_reason = reason.into();
         s
+    }
+
+    // A libraryfolders.vdf as Steam writes it: two libraries, doubled backslashes.
+    const VDF: &str = r#""libraryfolders"
+{
+	"0"
+	{
+		"path"		"C:\\Program Files (x86)\\Steam"
+		"label"		""
+	}
+	"1"
+	{
+		"path"		"D:\\SteamLibrary"
+		"label"		""
+	}
+}"#;
+
+    #[test]
+    fn library_paths_are_read_from_the_vdf_with_single_backslashes() {
+        assert_eq!(
+            library_paths(VDF),
+            vec![
+                PathBuf::from(r"C:\Program Files (x86)\Steam"),
+                PathBuf::from(r"D:\SteamLibrary"),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_header_is_found_in_a_second_library() {
+        let lmu_in_d = header_under(Path::new(r"D:\SteamLibrary"));
+        let found = find_header_dir(
+            Path::new(r"C:\Program Files (x86)\Steam"),
+            VDF,
+            |dir| dir == lmu_in_d,
+        );
+        assert_eq!(found, Some(lmu_in_d));
+    }
+
+    #[test]
+    fn the_install_itself_is_checked_first_and_missing_gives_none() {
+        let in_install = header_under(Path::new(r"C:\Program Files (x86)\Steam"));
+        let steam = Path::new(r"C:\Program Files (x86)\Steam");
+        let found = find_header_dir(steam, VDF, |dir| dir == in_install);
+        assert_eq!(found, Some(in_install));
+        assert_eq!(
+            find_header_dir(Path::new(r"C:\Program Files (x86)\Steam"), VDF, |_| false),
+            None
+        );
+    }
+
+    #[test]
+    fn the_registry_steam_root_comes_before_the_default() {
+        let default = Path::new(DEFAULT_STEAM_ROOT);
+        let from_registry = PathBuf::from(r"D:\Games\Steam");
+        assert_eq!(steam_root(Some(from_registry.clone()), default), from_registry);
+        assert_eq!(steam_root(None, default), default);
+    }
+
+    #[test]
+    fn a_registry_string_is_read_up_to_its_trailing_nul() {
+        let wide: Vec<u16> = "D:/Games/Steam\0".encode_utf16().collect();
+        assert_eq!(path_from_wide(&wide), PathBuf::from("D:/Games/Steam"));
+        let no_nul: Vec<u16> = "E:/Steam".encode_utf16().collect();
+        assert_eq!(path_from_wide(&no_nul), PathBuf::from("E:/Steam"));
     }
 
     #[test]
