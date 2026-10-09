@@ -96,11 +96,17 @@ export function buildPlanHalf(input: {
 
   const rows: PlanHalfRow[] = [];
   if (facts.leftEarly) {
-    const of = facts.leaderLapsDone;
+    const length = scheduledLength(facts);
     const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
     rows.push({
       k: 'Finish',
-      p: of != null ? `L${of}` : MISSING,
+      // Laps in the app's numbering (the formation lap is L1); a timed race by its minutes.
+      p:
+        length == null
+          ? MISSING
+          : length.kind === 'laps'
+          ? `L${length.laps + 1}`
+          : `${length.minutes} min`,
       a: at != null ? `DNF L${at}` : 'DNF',
     });
   }

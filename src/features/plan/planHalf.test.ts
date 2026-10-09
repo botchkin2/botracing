@@ -105,10 +105,25 @@ describe('buildPlanHalf', () => {
     expect(h.rows[3]).toEqual({k: 'In', p: '—', a: '4 % VE (1.1 laps)'});
   });
 
+  it('a DNF in a timed race names the finish by the race minutes', () => {
+    const h = half(
+      {
+        raceLaps: 20,
+        race: {kind: 'timed', minutes: 40},
+        leftEarly: true,
+        playerLapsDone: 21,
+        leaderLapsDone: 24,
+      },
+      [actual(14)],
+    );
+    expect(h.rows[0]).toEqual({k: 'Finish', p: '40 min', a: 'DNF L21'});
+  });
+
   it('a DNF names the finish against the race that ran, and plans that distance', () => {
     const h = half(
       {
         raceLaps: 40,
+        race: null,
         leftEarly: true,
         playerLapsDone: 41,
         leaderLapsDone: 61,
