@@ -86,8 +86,8 @@ describe('raceClock.playerAt', () => {
     expect(raceClock(f).playerAt(0)).toEqual({lapNumber: 3, distanceM: 20});
   });
 
-  it('has no clock when no car wrapped', () => {
-    const car = player(20, {from: 50, perUpdate: 0});
+  it('uses the game lapsDone when no car wrapped (no invented length)', () => {
+    const car = player(20, {from: 50, perUpdate: 0, lap0: 2});
     const f: Field = {
       version: 2,
       hz: HZ,
@@ -95,7 +95,10 @@ describe('raceClock.playerAt', () => {
       timeS: Float64Array.from({length: 20}, (_, u) => u / HZ),
       cars: [car],
     };
-    expect(raceClock(f).playerAt(1)).toBeNull();
+    expect(raceClock(f).playerAt(1)).toEqual({
+      lapNumber: 2,
+      distanceM: 50,
+    });
   });
 
   it('is null with no player or while the player is absent', () => {
