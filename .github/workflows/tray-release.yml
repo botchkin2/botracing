@@ -1,0 +1,143 @@
+# Builds the Windows tray installer, in two parts so the release secrets are
+# not reachable from just any branch:
+#
+#   build    runs on a `tray-v*` tag or by hand. It has NO secrets: tests, then an
+#            UNSIGNED installer kept as a workflow artifact for testing. That
+#            artifact has no update signature, so it can never be used as an update.
+#   release  runs only for a `tray-v*` tag, only for a commit that is on main,
+#            and only in the `tray-release` Environment, which holds the updater
+#            signing key, the build's sign-in config and the publish credentials,
+#            and needs Botkin's approval for each run. It builds the signed
+#            installer and publishes it to Storage. A version is never overwritten.
+#
+# One-time setup (Botkin, repo Settings > Environments > New environment):
+#   name: tray-release
+#   Required reviewers: Botkin
+#   Deployment branches and tags: selected, tag rule `tray-v*`
+#   Environment secrets:
+#     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#         the updater key; lose it and installed trays can no longer update
+#     BOTRACING_OAUTH_CLIENT_ID, BOTRACING_OAUTH_CLIENT_SECRET, BOTRACING_FIREBASE_API_KEY
+#         the sign-in config built into the tray
+#     FIREBASE_SERVICE_ACCOUNT_BOTRACING_61
+#         writes to Storage (the same account the functions deploy uses)
+# The installer itself is not code signed (one SmartScreen click per install).
+name: Tray release
+on:
+  push:
+    tags:
+      - 'tray-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tray-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: The tag, tauri.conf.json and Cargo.toml agree
+        if: github.ref_type == 'tag'
+        run: node scripts/release-manifest.mjs check "${{ github.ref_name }}"
+
+      - name: Tests
+        run: |
+          node --test scripts/*.test.mjs
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      # No signing key here, so no update artifacts: this installer is for testing.
+      - name: Build an unsigned installer
+        run: npx tauri build --config src-tauri/tauri.unsigned.conf.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tray-installer-unsigned
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 14
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: tray-release
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A tag can point anywhere; only reviewed, merged code is released.
+      - name: The tagged commit is on main
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: Build the signed installer
+        env:
+          BOTRACING_OAUTH_CLIENT_ID: ${{ secrets.BOTRACING_OAUTH_CLIENT_ID }}
+          BOTRACING_OAUTH_CLIENT_SECRET: ${{ secrets.BOTRACING_OAUTH_CLIENT_SECRET }}
+          BOTRACING_FIREBASE_API_KEY: ${{ secrets.BOTRACING_FIREBASE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build
+
+      - name: Lay out the release
+        run: node scripts/release-manifest.mjs build ../release
+
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+
+      # A published version is immutable: users may already have it, so a fix is
+      # a new version. The installer first, latest.json last: a half-finished
+      # upload never points the function at a missing file.
+      - name: Publish to Storage
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#tray-v}"
+          if gcloud storage ls "gs://botracing-61-lmu/tray/$version/" >/dev/null 2>&1; then
+            echo "tray/$version already exists: a published version is never overwritten" >&2
+            exit 1
+          fi
+          gcloud storage cp --no-clobber "../release/tray/$version/*" "gs://botracing-61-lmu/tray/$version/"
+          gcloud storage cp ../release/tray/latest.json gs://botracing-61-lmu/tray/latest.json

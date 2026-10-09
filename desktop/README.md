@@ -6,7 +6,7 @@ What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watch
 
 Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
-Not built yet: sign-in (nothing writes `token` yet), the installer with node and a pruned `node_modules` as resources, a folder picker, iRacing.
+Not built yet: a folder picker, iRacing.
 
 ## Run it from the repo
 
@@ -37,6 +37,20 @@ ode`), where `sidecar::find_root` looks first.
 - **No native Node addon and no `node_modules`:** DuckDB is the CLI exe, run by `tools/sessions/duck.mjs`; the uploader imports only its own files and Node built-ins. The stage script fails on an npm import, a missing relative import, a non-literal `import()` or a `new Worker` it cannot follow.
 - **Pinned binaries:** `node.exe` (v24.19.0, SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `NODE` / `DUCKDB` (local copies), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
 - `node scripts/stage-resources.mjs --no-duckdb` stages without DuckDB (a build that cannot analyse); `node --test scripts/stage-resources.test.mjs` tests the staging logic.
+
+## Releases and updates
+
+A release is a tag on a commit that is on `main`: bump the version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, merge, then `git tag tray-vX.Y.Z && git push origin tray-vX.Y.Z`. `.github/workflows/tray-release.yml` has two jobs:
+
+- **build** (a tag or a manual run, no secrets): checks the tag and both files agree, runs the tests, and builds an **unsigned** installer, kept as a workflow artifact for testing. It has no update signature, so it can never be used as an update.
+- **release** (a tag only, in the `tray-release` GitHub Environment, which needs Botkin's approval for each run): checks the tagged commit is on `main`, builds the signed installer with the sign-in config, and publishes to Storage (`gs://botracing-61-lmu/tray/`): `<version>/<installer>-setup.exe`, its `.sig`, and `latest.json` last. **A published version is never overwritten**; a fix is a new version.
+
+The Environment holds the secrets (setup is at the top of the workflow file): `TAURI_SIGNING_PRIVATE_KEY` and `_PASSWORD` (the updater key), `BOTRACING_OAUTH_CLIENT_ID`, `BOTRACING_OAUTH_CLIENT_SECRET`, `BOTRACING_FIREBASE_API_KEY`, and `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61` (writes to Storage). **Botkin keeps a backup of the updater key and its password in his password manager: lose them and installed trays can no longer update.**
+
+- **Install** is per user (`installMode: currentUser`): no admin prompt, files under `%LOCALAPPDATA%`. The installer is **not code signed**, so Windows SmartScreen asks once per install ("More info", "Run anyway").
+- **Updates** are signed with Tauri's own ed25519 key (free; not code signing). The public key is in `tauri.conf.json`. The signature is checked when the download is made and again at install; an update that does not verify is refused.
+- **The tray** (`src-tauri/src/update.rs`) checks at launch and every 6 hours, **signed in or not** (a release that broke sign-in must still be able to fix itself; the installer is useless without an account). `GET /api/tray/latest` answers anonymously in the Tauri updater format, `{version, notes, pub_date, url, signature}`, or 204 when current; the user's ID token is sent when there is one, only so the endpoint can count versions. The installer is downloaded quietly into `%LOCALAPPDATA%\BotRacing\update\<version>.exe` (not held in memory; a restart of the tray finds it). It installs when the person quits, or picks "Restart to update to X", never while uploading; the installer is started with `/R`, so the tray starts again afterwards. The menu shows `BotRacing <version>` when current.
+- A local release build needs the updater key too: `TAURI_SIGNING_PRIVATE_KEY` (the key file's path or text) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; `npx tauri build` then also writes the `.sig`. `npx tauri build --config src-tauri/tauri.unsigned.conf.json` builds without a key.
 
 ## Walkthroughs without touching a real sign-in
 
