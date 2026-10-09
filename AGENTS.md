@@ -22,6 +22,8 @@ For anything visual, run your own live dev server. `.claude/launch.json` has six
 - A live run in a worktree writes `.expo/types/router.d.ts`, which can make `npx tsc --noEmit` fail on `Href` there; delete that folder (`.expo/types`) and rerun.
 - Never start a server any other way: no `expo start` in a shell, no static server on a port. Never kill processes by hand (`Stop-Process`, `taskkill`). Those are what produced Botkin's approval prompts.
 
+The app needs a sign-in. Seats test only as `seat-test`, never with Botkin's account: sign a pane in with a link from `functions/scripts/mintTestToken.mjs` (`docs/TESTING.md`).
+
 The PR preview (its URL is in the github-actions comment) is still what the reviewer and apex check before a merge. Push early (a draft PR is fine).
 
 `.claude/settings.json` allowlists the everyday commands: git on your own branch, `gh pr create`/`comment`, tests, lint, the board, and the preview tools. Pushing to `main`, force pushes, and `gh pr merge` are denied: apex merges. If something you need still prompts, tell apex rather than working around it.

@@ -1,5 +1,8 @@
+import {signInWithCustomToken} from 'firebase/auth';
+
 import {beginAuthWait} from '../data/tokenSource';
 
+import {consumeCustomToken} from './customTokenFragment';
 import {firebaseAuth} from './firebase';
 import {followFirebaseAuth} from './followFirebase';
 import {useAuthStore} from './authStore';
@@ -10,6 +13,12 @@ import {finishRedirect} from './signIn.web';
 // before startAuthSession does: the wait opens when this module loads, which is
 // before anything renders. (Not in Node: the web export renders there.)
 if (typeof window !== 'undefined') beginAuthWait();
+
+// A test seat's `#ct=` token is taken out of the address when the module loads,
+// before the router can read or keep it; the sign-in itself waits for the
+// layout's effect.
+const customToken =
+  typeof window !== 'undefined' ? consumeCustomToken(window) : null;
 
 /** The web build signs in: signed out, it shows the login screen. */
 export const signInRequired = true;
@@ -28,5 +37,13 @@ export function startAuthSession(): () => void {
     const message = result ? signInMessage(result) : null;
     if (message) useAuthStore.getState().setNotice(message);
   });
+  if (customToken)
+    void signInWithCustomToken(firebaseAuth(), customToken).catch(error => {
+      const message = signInMessage({
+        kind: 'failed',
+        message: (error as Error).message,
+      });
+      if (message) useAuthStore.getState().setNotice(message);
+    });
   return followFirebaseAuth(firebaseAuth());
 }
