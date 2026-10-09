@@ -404,19 +404,29 @@ async function main() {
           // for 15 minutes and the heartbeat went stale). They are stopped, and
           // any write in flight awaited, before the state that follows is
           // written, even if the sync throws (syncBeats.mjs).
-          const r = await runWithBeats(
-            {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
-            beatProgress =>
-              runSync(
-                sim,
-                p => {
-                  progress = p;
-                  // One write in flight at a time; the next block catches up.
-                  beatProgress();
-                },
-                skippedIds,
-              ),
-          );
+          // The prune (tray, Rust) reads this flag and deletes nothing while a
+          // sync runs. Cleared in a finally, so a throw cannot leave it set.
+          st.syncing = true;
+          save();
+          let r;
+          try {
+            r = await runWithBeats(
+              {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
+              beatProgress =>
+                runSync(
+                  sim,
+                  p => {
+                    progress = p;
+                    // One write in flight at a time; the next block catches up.
+                    beatProgress();
+                  },
+                  skippedIds,
+                ),
+            );
+          } finally {
+            st.syncing = false;
+            save();
+          }
           progress = null;
           // A stopped sync never prints its closing "done N" line, but each
           // session's block is printed only once it is stored or has failed.
