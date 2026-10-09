@@ -21,6 +21,10 @@ export interface FieldCar {
   index: number;
   /** LMU's class ("GT3", "Hyper", "LMP2"); empty when not recorded. */
   carClass: string;
+  /** iRacing's class id; null on LMU and on a field from before it was written. */
+  classId: number | null;
+  /** iRacing's class label ("GTP", "LMP2"; tools/sessions/irClasses.mjs); null with no classId. */
+  classLabel: string | null;
   /** The car model from the recorder's map, never an entry name; null when unknown. */
   vehicle: string | null;
   /** The uploader's own car. Exactly one per field. */

@@ -1,3 +1,4 @@
+import {type ClassTable} from '@/src/analysis/fieldClasses';
 import {type Field, updateAt} from '@/src/analysis/field';
 import {type Radar, RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {type RaceClock} from '@/src/analysis/raceClock';
@@ -31,13 +32,20 @@ export function radarAtCursor(
   cursorM: number,
   width: number,
   height: number,
+  classes: ClassTable,
 ): RadarView | null {
   const t = clock.timeAtLapDistance(lapNumber, cursorM);
   if (t == null) return null;
   const at = updateAt(field.timeS, Math.floor(t * field.hz) / field.hz);
   if (at < 0) return null;
   return {
-    radar: radarAt(field, at, RADAR_RANGE_M, (RADAR_RANGE_M * width) / height),
+    radar: radarAt(
+      field,
+      at,
+      RADAR_RANGE_M,
+      (RADAR_RANGE_M * width) / height,
+      classes,
+    ),
     sampleLabel: raceClockLabel(field.timeS[at]),
   };
 }

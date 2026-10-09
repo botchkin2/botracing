@@ -5,6 +5,7 @@
 // World x is east and z is north; heading 0 points along +z and π/2 along +x
 // (the direction of atan2(Δx, Δz)), the same convention as Field.yawRad.
 
+import {type ClassSlot, type ClassTable, classOfCar} from './fieldClasses';
 import {ABSENT, type Field, type FieldCar} from './field';
 
 /** Metres shown ahead of and behind you (R2: 20–50, default 30). */
@@ -19,17 +20,18 @@ const PIT_OPACITY = 0.4;
 /** Side bar: lit when a car overlaps yours lengthwise and is this close sideways. */
 const SIDE_BAR_M = 6;
 
-export type RadarClass = 'hypercar' | 'lmp2' | 'gt3';
+/** A car's size on the radar: LMU's class, never its colour (that is the session's, fieldClasses.ts). The radar draws LMU only (it needs positions). */
+type SizeClass = 'hypercar' | 'lmp2' | 'gt3';
 
 /** Block length per class, metres (R2). */
-const LENGTH_M: Record<RadarClass, number> = {
+const LENGTH_M: Record<SizeClass, number> = {
   hypercar: 5.0,
   lmp2: 4.7,
   gt3: 4.6,
 };
 
 /** LMU's class names ("Hyper", "LMP2", "GT3"); anything else draws as GT3. */
-export function radarClass(carClass: string): RadarClass {
+export function radarClass(carClass: string): SizeClass {
   const c = carClass.toLowerCase();
   if (c.includes('hyper')) return 'hypercar';
   if (c.includes('lmp2')) return 'lmp2';
@@ -39,7 +41,8 @@ export function radarClass(carClass: string): RadarClass {
 export interface RadarCar {
   /** Index in Field.cars. */
   index: number;
-  cls: RadarClass;
+  /** The car's class colour in this session (fieldClasses.ts). */
+  slot: ClassSlot;
   /** Metres ahead (+) or behind (−) the player's centre. */
   forwardM: number;
   /** Metres to the player's right (+) or left (−). */
@@ -81,6 +84,7 @@ export function radarAt(
   at: number,
   rangeM: number,
   halfWidthM: number,
+  classes: ClassTable,
 ): Radar | null {
   const me = field.cars.find(c => c.player);
   if (!me || !me.yawRad || at < 0 || at >= field.timeS.length) return null;
@@ -106,8 +110,7 @@ export function radarAt(
     );
     const opacity = fade * (car.inPits[at] === 1 ? PIT_OPACITY : 1);
     if (opacity <= 0) continue;
-    const cls = radarClass(car.carClass);
-    const lengthM = LENGTH_M[cls];
+    const lengthM = LENGTH_M[radarClass(car.carClass)];
     // A car in the pit lane alongside on pit entry or exit is not a car to
     // look for on track, so it does not light the bars.
     const alongside =
@@ -122,7 +125,7 @@ export function radarAt(
     if (alongside === 'right') rightLit = true;
     cars.push({
       index: car.index,
-      cls,
+      slot: classes.of(classOfCar(car).key).slot,
       forwardM,
       sideM,
       relYawRad: placed.relYawRad,

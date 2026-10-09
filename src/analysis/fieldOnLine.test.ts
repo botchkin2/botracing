@@ -17,6 +17,8 @@ const car = (index: number, player: boolean, lapDist: number[]): FieldCar => {
   return {
     index,
     carClass: 'GT3',
+    classId: null,
+    classLabel: null,
     vehicle: null,
     player,
     lapDistM: Float32Array.from(lapDist),

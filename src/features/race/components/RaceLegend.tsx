@@ -1,14 +1,17 @@
 import {StyleSheet, View} from 'react-native';
 import Svg, {Circle} from 'react-native-svg';
 
-import {lapColors, space, useTheme} from '@/src/design';
+import {type FieldClass} from '@/src/analysis/fieldClasses';
+import {classColor, lapColors, space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 const GLYPH = 12;
 const C = GLYPH / 2;
 
-// R1a legend: each state's dot glyph, as drawn on the map (R1d).
-export function RaceLegend() {
+// R1a legend: each class present, fastest first, with its label (the colour
+// is a pace rank, so it is never shown without it), then each state's dot
+// glyph, as drawn on the map (R1d).
+export function RaceLegend({classes}: {classes: readonly FieldClass[]}) {
   const {color, scheme} = useTheme();
   const you = lapColors[scheme][0];
   const item = (label: string, glyph: React.ReactNode) => (
@@ -33,9 +36,7 @@ export function RaceLegend() {
   );
   return (
     <View style={styles.row}>
-      {item('Hypercar', dot(color.classHypercar))}
-      {item('LMP2', dot(color.classLmp2))}
-      {item('GT3', dot(color.classGt3))}
+      {classes.map(c => item(c.label, dot(classColor(color, c.slot))))}
       {item(
         'You',
         <>

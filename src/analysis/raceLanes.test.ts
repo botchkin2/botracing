@@ -23,6 +23,8 @@ function car(index: number, n: number, s: CarSpec): FieldCar {
   return {
     index,
     carClass: s.carClass ?? 'GT3',
+    classId: null,
+    classLabel: null,
     vehicle: null,
     player: s.player ?? false,
     lapDistM: f32(s.lapDistM),

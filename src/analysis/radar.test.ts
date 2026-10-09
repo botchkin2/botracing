@@ -1,5 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {fieldClasses} from './fieldClasses';
 import {type Field, type FieldCar} from './field';
 import {radarAt, radarClass} from './radar';
 
@@ -20,6 +21,8 @@ function car(
   return {
     index,
     carClass: over.cls ?? 'GT3',
+    classId: null,
+    classLabel: null,
     vehicle: null,
     player: over.player ?? false,
     lapDistM: new Float32Array([0]),
@@ -48,10 +51,18 @@ const me = (x = 100, z = 200, yaw = 0) =>
 
 const R = 30;
 const HALF_W = 20;
+// The radar's geometry does not depend on the classes: every car is `other` here.
+const NO_CLASSES = fieldClasses({timeS: [], cars: []});
 
 describe('radarAt', () => {
   it('puts a car ahead at +forward and to the right at +side', () => {
-    const r = radarAt(field([me(), car(1, 105, 220)]), 0, R, HALF_W)!;
+    const r = radarAt(
+      field([me(), car(1, 105, 220)]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect(r.cars).toHaveLength(1);
     expect(r.cars[0].forwardM).toBeCloseTo(20);
     expect(r.cars[0].sideM).toBeCloseTo(5);
@@ -63,6 +74,7 @@ describe('radarAt', () => {
       0,
       R,
       HALF_W,
+      NO_CLASSES,
     )!;
     expect(r.cars[0].forwardM).toBeCloseTo(0);
     expect(r.cars[0].sideM).toBeCloseTo(-10);
@@ -74,13 +86,20 @@ describe('radarAt', () => {
       0,
       R,
       HALF_W,
+      NO_CLASSES,
     )!;
     expect(r.cars[0].relYawRad).toBeCloseTo(Math.PI / 2);
   });
 
   it('fades over the last 6 m of range, dims pit cars, drops what is out', () => {
     const at = (z: number, pit = 0) =>
-      radarAt(field([me(), car(1, 100, 200 + z, {pit})]), 0, R, HALF_W)!.cars;
+      radarAt(
+        field([me(), car(1, 100, 200 + z, {pit})]),
+        0,
+        R,
+        HALF_W,
+        NO_CLASSES,
+      )!.cars;
     expect(at(20)[0].opacity).toBe(1);
     expect(at(31)[0].opacity).toBeCloseTo(0.5);
     expect(at(40)).toHaveLength(0);
@@ -88,35 +107,67 @@ describe('radarAt', () => {
   });
 
   it('leaves out cars beyond the radar sideways', () => {
-    const r = radarAt(field([me(), car(1, 130, 200)]), 0, R, HALF_W)!;
+    const r = radarAt(
+      field([me(), car(1, 130, 200)]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect(r.cars).toEqual([]);
   });
 
   it('lights the side bar for a car alongside, on its side', () => {
-    const left = radarAt(field([me(), car(1, 97, 201)]), 0, R, HALF_W)!;
+    const left = radarAt(
+      field([me(), car(1, 97, 201)]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect([left.leftLit, left.rightLit]).toEqual([true, false]);
-    const right = radarAt(field([me(), car(1, 103, 199)]), 0, R, HALF_W)!;
+    const right = radarAt(
+      field([me(), car(1, 103, 199)]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect([right.leftLit, right.rightLit]).toEqual([false, true]);
-    const behind = radarAt(field([me(), car(1, 103, 190)]), 0, R, HALF_W)!;
+    const behind = radarAt(
+      field([me(), car(1, 103, 190)]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect([behind.leftLit, behind.rightLit]).toEqual([false, false]);
   });
 
   it('does not light the side bars for a car in the pit lane', () => {
-    const r = radarAt(field([me(), car(1, 97, 201, {pit: 1})]), 0, R, HALF_W)!;
+    const r = radarAt(
+      field([me(), car(1, 97, 201, {pit: 1})]),
+      0,
+      R,
+      HALF_W,
+      NO_CLASSES,
+    )!;
     expect(r.cars).toHaveLength(1);
     expect([r.leftLit, r.rightLit]).toEqual([false, false]);
   });
 
   it('is null without a heading, a player or a position', () => {
     const noYaw = field([car(0, 1, 1, {player: true, yaw: null})]);
-    expect(radarAt(noYaw, 0, R, HALF_W)).toBeNull();
-    expect(radarAt(field([car(1, 0, 0)]), 0, R, HALF_W)).toBeNull();
-    expect(radarAt(field([me(NaN)]), 0, R, HALF_W)).toBeNull();
+    expect(radarAt(noYaw, 0, R, HALF_W, NO_CLASSES)).toBeNull();
+    expect(radarAt(field([car(1, 0, 0)]), 0, R, HALF_W, NO_CLASSES)).toBeNull();
+    expect(radarAt(field([me(NaN)]), 0, R, HALF_W, NO_CLASSES)).toBeNull();
   });
 
   it('skips cars that are absent at this update', () => {
     const gone = car(1, 100, 210, {place: -1});
-    expect(radarAt(field([me(), gone]), 0, R, HALF_W)!.cars).toEqual([]);
+    expect(
+      radarAt(field([me(), gone]), 0, R, HALF_W, NO_CLASSES)!.cars,
+    ).toEqual([]);
   });
 });
 

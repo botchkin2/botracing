@@ -33,6 +33,8 @@ function startField(cars: Start[]): Field {
       (c, i): FieldCar => ({
         index: i,
         carClass: c.class,
+        classId: null,
+        classLabel: null,
         vehicle: null,
         player: i === 0,
         lapDistM: two(c.lapDistM),
