@@ -7,6 +7,7 @@ import {
   classLapsCurrent,
   classLapsDoc,
   keptLaps,
+  MIN_CLASS_LAPS,
   type EncodedField,
   paceClass,
   sessionKind,
@@ -121,6 +122,29 @@ describe('carLaps', () => {
     const laps = carLaps(f)[0];
     expect(laps.length).toBeGreaterThanOrEqual(4);
     for (const t of laps) expect(Math.abs(t - 100)).toBeLessThan(0.3);
+  });
+
+  it('uses the wrap median as lap length when one car reports a longer lapDist', () => {
+    // Road Atlanta 2 Oct: pit-sitting cars at ~4662 m, racing wraps at ~4000 m.
+    // Against 4662 m every real wrap fails the step test and class pace is empty.
+    const f = build(
+      [
+        {class: 'GT3', lapS: 110, offsetM: 0, player: true},
+        {class: 'GT3', lapS: 111, offsetM: 400},
+        {class: 'GT3', lapS: 109, offsetM: 800},
+        {
+          class: 'Hyper',
+          lapS: 97,
+          offsetM: 0,
+          distAt: () => 4662.7,
+        },
+      ],
+      3200,
+    );
+    const c = raceLaps(f);
+    expect(c?.gt3?.cars).toBe(3);
+    expect(c?.gt3?.laps).toBeGreaterThanOrEqual(MIN_CLASS_LAPS);
+    expect(Math.abs((c?.gt3?.medianS ?? 0) - 110)).toBeLessThan(1.5);
   });
 
   it('does not take a jump bigger than one update of driving for a crossing', () => {

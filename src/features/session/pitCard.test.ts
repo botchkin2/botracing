@@ -261,6 +261,33 @@ describe('buildPitCard', () => {
     expect(card.refuelScope).toBeNull();
   });
 
+  it('a classified repair or penalty names the visit, not "nothing added"', () => {
+    const withVisit = (kind: 'repair' | 'penalty') =>
+      oneStop.map(l =>
+        l.id === 'l6'
+          ? {
+              ...l,
+              pitStop: stop({
+                added: {fuelL: 0, vePct: 0},
+                visit: {
+                  kind,
+                  detail: kind === 'penalty' ? 'stop-go' : null,
+                  did: kind === 'repair' ? ['repair'] : [],
+                  stationaryS: 10,
+                  evidence: [],
+                },
+              }),
+            }
+          : l,
+      );
+    const repair = buildPitCard('R', withVisit('repair'), session());
+    const penalty = buildPitCard('R', withVisit('penalty'), session());
+    if (repair?.kind !== 'stops' || penalty?.kind !== 'stops')
+      throw new Error('not a stops card');
+    expect(repair.columns[0].added.note).toBe('repair');
+    expect(penalty.columns[0].added.note).toBe('penalty');
+  });
+
   it('a class the rate is not measured on has the lane time alone, never a guess', () => {
     const card = buildPitCard('R', oneStop, session({carClass: 'LMP2'}));
     if (card?.kind !== 'stops') throw new Error('not a stops card');

@@ -246,8 +246,9 @@ describe('carsAt', () => {
     expect(at(f, 15 / HZ)[0]).toMatchObject({state: 'pit', pits: 0});
     expect(at(f, 60 / HZ)[0]).toMatchObject({state: 'pit', pits: 1});
     expect(at(f, 130 / HZ)[0]).toMatchObject({state: 'running', pits: 1});
-    // A stop still going when the data ends counts.
-    expect(at(f, 155 / HZ)[0]).toMatchObject({state: 'pit', pits: 2});
+    // A stay that runs to the last sample is a tow or DNF: still in the
+    // pit lane on the map, not a counted stop (2 Oct Road Atlanta).
+    expect(at(f, 155 / HZ)[0]).toMatchObject({state: 'pit', pits: 1});
     expect(at(f, 155 / HZ)[1]).toMatchObject({state: 'running', pits: 0});
   });
 

@@ -8,6 +8,7 @@
 //
 // The field is 5 Hz. Playing interpolates between two updates; paused snaps
 // to the nearest one, so every dot is a real sample (handoff R1, 5 Hz honesty).
+import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, updateAt} from './field';
 
 // Handoff R1d.
@@ -69,12 +70,7 @@ export interface RacePrep {
 
 export function prepareRace(field: Field): RacePrep {
   const n = field.timeS.length;
-  let trackM = 0;
-  for (const c of field.cars) {
-    for (let u = 0; u < n; u++) {
-      if (c.lapDistM[u] > trackM) trackM = c.lapDistM[u];
-    }
-  }
+  const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
   const progressM: Float32Array[] = [];
   const speedKmh: Float32Array[] = [];
   const slowRun: Int32Array[] = [];
@@ -116,8 +112,12 @@ export function prepareRace(field: Field): RacePrep {
       }
       slow[u] = speed[u] < STOPPED_KMH ? (u > 0 ? slow[u - 1] : 0) + 1 : 0;
       const inPit = c.inPits[u];
-      if (inPit === 1 && wasIn === 0 && stayS(field, c.inPits, u) >= MIN_PIT_S)
-        count++;
+      if (inPit === 1 && wasIn === 0) {
+        const stay = stayS(field, c.inPits, u);
+        // A stay that runs to the last sample is a tow or a DNF, not a stop
+        // (2 Oct Road Atlanta, inPits from 1903 s to EOF).
+        if (Number.isFinite(stay) && stay >= MIN_PIT_S) count++;
+      }
       if (inPit !== ABSENT) wasIn = inPit;
       pit[u] = count;
       lastDist = d;

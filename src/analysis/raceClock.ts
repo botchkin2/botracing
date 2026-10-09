@@ -8,6 +8,7 @@
 //
 // `raceClock(field)` does the per-field work once (lap numbers, lap runs);
 // keep the result for as long as the field lives and call it per frame.
+import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 
 export interface LapPlace {
@@ -67,12 +68,7 @@ function lapsOf(car: FieldCar, trackM: number): Int32Array {
 export function raceClock(field: Field): RaceClock {
   const car = field.cars.find(c => c.player);
   if (!car) return NONE;
-  // The longest distance any car has been at is the lap length to within a
-  // metre or so; the player alone would fall short by up to one step.
-  let trackM = 0;
-  for (const c of field.cars) {
-    for (const d of c.lapDistM) if (d > trackM) trackM = d;
-  }
+  const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
   const laps = lapsOf(car, trackM);
   const runs = new Map<number, Run[]>();
   for (let u = 0; u < laps.length; u++) {
