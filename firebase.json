@@ -49,6 +49,10 @@
         "function": {"functionId": "traySignInApi", "region": "us-central1"}
       },
       {
+        "source": "/api/tray/viewer",
+        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
