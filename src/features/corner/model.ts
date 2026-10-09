@@ -31,6 +31,7 @@ import {
   isCurrent,
   type SectionWindowModel,
 } from './sectionWindow';
+import {brakeZone} from './brakeZone';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
@@ -180,6 +181,8 @@ export type CornerModel = {
      *  chart). Empty without lateral data. */
     edges: {right: EdgeRun[]; left: EdgeRun[]};
     dimmed: [number, number][];
+    /** The median braking zone for the brake trace; null when no lap braked here. */
+    brakeZone: [number, number] | null;
     neighbours: NeighbourApex[];
     caption: string;
   };
@@ -536,6 +539,10 @@ export function buildCornerModel(input: {
         zoomWindow[1],
       ),
       dimmed: dimmedRanges(zoomWindow, view.stretch),
+      brakeZone: brakeZone(
+        lines,
+        band?.stepM ?? traces.values().next().value?.stepM ?? 5,
+      ),
       neighbours: view.neighbours,
       caption: view.caption,
     },

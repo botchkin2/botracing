@@ -244,6 +244,7 @@ export function ZoomTraces({
         {...common}
         height={heights.brake}
         domain={[-4, 104]}
+        stretchM={zoom.brakeZone ?? undefined}
         series={series(l => ({values: l.brakePct}))}
         marks={[...apex, ...pointMarks(l => l.brakeAtM)]}
       />
