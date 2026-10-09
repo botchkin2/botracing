@@ -21,6 +21,8 @@ pub struct Driver {
     pub car_number: String,
     pub class_id: i64,
     pub class_name: String,
+    /// `CarClassColor`, "#rrggbb" (the YAML has 0xrrggbb); empty when absent.
+    pub class_color: String,
     pub car_name: String,
     pub car_path: String,
     pub spectator: bool,
@@ -58,6 +60,16 @@ fn key_value(text: &str) -> Option<(&str, &str)> {
     }
     let value = value.trim_matches(|c| c == '"' || c == '\'');
     Some((key, value))
+}
+
+/// "0xff5888" to "#ff5888"; anything that is not six hex digits to "".
+fn hex_colour(value: &str) -> String {
+    let digits = value.trim().trim_start_matches("0x").trim_start_matches("0X");
+    if digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("#{}", digits.to_ascii_lowercase())
+    } else {
+        String::new()
+    }
 }
 
 fn int(value: &str) -> i64 {
@@ -148,6 +160,7 @@ pub fn parse(text: &str) -> SessionMeta {
                             "CarNumber" => d.car_number = value.to_string(),
                             "CarClassID" => d.class_id = int(value),
                             "CarClassShortName" => d.class_name = value.to_string(),
+                            "CarClassColor" => d.class_color = hex_colour(value),
                             "CarScreenName" => d.car_name = value.to_string(),
                             "CarPath" => d.car_path = value.to_string(),
                             "IsSpectator" => d.spectator = int(value) != 0,
@@ -179,6 +192,32 @@ impl SessionMeta {
             .map_or(true, |d| !d.pace_car && !d.spectator)
     }
 
+    /// A class's label: its short name, or, when the sim gives none (offline
+    /// sessions leave it empty), the model most of its cars drive ("Ford
+    /// Mustang GT3"). Never a person's name: cars only.
+    pub fn class_label(&self, class_id: i64) -> String {
+        let members = || self.drivers.iter().filter(|d| d.class_id == class_id && !d.pace_car && !d.spectator);
+        if let Some(named) = members().find(|d| !d.class_name.is_empty()) {
+            return named.class_name.clone();
+        }
+        let mut counts: Vec<(&str, usize)> = Vec::new();
+        for d in members().filter(|d| !d.car_name.is_empty()) {
+            match counts.iter_mut().find(|(n, _)| *n == d.car_name) {
+                Some(c) => c.1 += 1,
+                None => counts.push((d.car_name.as_str(), 1)),
+            }
+        }
+        // Most cars wins; the first seen breaks a tie.
+        counts
+            .iter()
+            .fold(None::<&(&str, usize)>, |best, c| match best {
+                Some(b) if b.1 >= c.1 => Some(b),
+                _ => Some(c),
+            })
+            .map(|(n, _)| n.to_string())
+            .unwrap_or_default()
+    }
+
     /// What goes in meta.json: no names, no ids of people.
     pub fn to_json(&self) -> Value {
         let drivers: Vec<Value> = self
@@ -191,6 +230,8 @@ impl SessionMeta {
                     "carNumber": d.car_number,
                     "classId": d.class_id,
                     "className": d.class_name,
+                    "classLabel": self.class_label(d.class_id),
+                    "classColor": d.class_color,
                     "carName": d.car_name,
                     "carPath": d.car_path,
                     "isPlayer": d.car_idx == self.player_idx,
@@ -279,5 +320,68 @@ mod tests {
         assert_eq!(m.key(1000), "local-1000:1");
         m.session_num = 2;
         assert_eq!(m.key(1000), "local-1000:2");
+    }
+
+    // Offline sessions leave CarClassShortName empty: the class is then known
+    // by its colour and by the model most of its cars drive.
+    const OFFLINE: &str = "---
+WeekendInfo:
+ TrackID: 95
+ TrackDisplayName: Sebring
+SessionInfo:
+ CurrentSessionNum: 0
+DriverInfo:
+ DriverCarIdx: 0
+ Drivers:
+ - CarIdx: 0
+   UserName: A
+   CarClassID: 4011
+   CarClassShortName: 
+   CarClassColor: 0xff5888
+   CarScreenName: Ford Mustang GT3
+ - CarIdx: 1
+   UserName: B
+   CarClassID: 2523
+   CarClassShortName: 
+   CarClassColor: 0x33ceff
+   CarScreenName: Dallara P217 LMP2
+ - CarIdx: 2
+   UserName: C
+   CarClassID: 2523
+   CarClassShortName: 
+   CarClassColor: 0x33ceff
+   CarScreenName: Dallara P217 LMP2
+ - CarIdx: 3
+   UserName: D
+   CarClassID: 2523
+   CarClassShortName: 
+   CarClassColor: 0x33ceff
+   CarScreenName: Oreca 07
+ - CarIdx: 4
+   UserName: E
+   CarClassID: 77
+   CarClassShortName: GTP
+   CarClassColor: nonsense
+   CarScreenName: Cadillac V-Series.R
+...
+";
+
+    #[test]
+    fn a_class_has_a_colour_and_a_label_even_when_the_sim_gives_no_name() {
+        let m = parse(OFFLINE);
+        assert_eq!(m.drivers[0].class_color, "#ff5888");
+        assert_eq!(m.drivers[1].class_color, "#33ceff");
+        assert_eq!(m.drivers[4].class_color, "", "not a colour: nothing");
+        // No short name: the model most of the class drives.
+        assert_eq!(m.class_label(4011), "Ford Mustang GT3");
+        assert_eq!(m.class_label(2523), "Dallara P217 LMP2");
+        // A short name wins.
+        assert_eq!(m.class_label(77), "GTP");
+        assert_eq!(m.class_label(1), "", "an unknown class has no label");
+        let json = m.to_json().to_string();
+        assert!(json.contains("\"classColor\":\"#33ceff\""), "{json}");
+        assert!(json.contains("\"classLabel\":\"Dallara P217 LMP2\""), "{json}");
+        // Still no people.
+        assert!(!json.contains("UserName"));
     }
 }
