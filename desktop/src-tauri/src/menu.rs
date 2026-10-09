@@ -29,6 +29,78 @@ pub fn waiting_status(message: Option<&str>) -> String {
     message.map_or_else(|| "Signing back in…".into(), str::to_string)
 }
 
+/// The menu as data, for tests only: the setup builds the real menu inline (its
+/// handles need set_text later), and these describe the same items so the state
+/// rules can be tested without a Tauri app.
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct MenuState {
+    pub primary: (String, bool),
+    pub signed_in: bool,
+    pub paused: bool,
+    pub status: String,
+    pub recorder: String,
+    pub update_line: String,
+    pub start_with_windows: bool,
+    pub default_profile: bool,
+}
+
+#[cfg(test)]
+impl MenuState {
+    pub fn of(acct: &Account, status: String, recorder: String, update_line: String) -> MenuState {
+        MenuState {
+            primary: primary(acct),
+            signed_in: acct.session.is_some(),
+            paused: acct.settings.paused,
+            status,
+            recorder,
+            update_line,
+            start_with_windows: false,
+            default_profile: crate::profile::is_default(),
+        }
+    }
+}
+
+/// One entry of the tray menu. `checked` is set only for a check item.
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Item {
+    pub id: &'static str,
+    pub text: String,
+    pub enabled: bool,
+    pub checked: Option<bool>,
+}
+
+#[cfg(test)]
+fn item(id: &'static str, text: impl Into<String>, enabled: bool) -> Item {
+    Item { id, text: text.into(), enabled, checked: None }
+}
+
+/// The tray menu's items in order. The status and recorder lines are the only
+/// text that varies by state beyond the sign-in item; no uid or owner line.
+#[cfg(test)]
+pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
+    vec![
+        item("signin", state.primary.0.clone(), state.primary.1),
+        item("status", state.status.clone(), false),
+        item("recorder", state.recorder.clone(), false),
+        item("separator", "", false),
+        item("signout", "Sign out", state.signed_in),
+        item("open", "Open BotRacing", true),
+        Item { id: "pause", text: "Pause uploads".into(), enabled: true, checked: Some(state.paused) },
+        Item {
+            id: "autostart",
+            text: "Start with Windows".into(),
+            enabled: state.default_profile,
+            checked: Some(state.start_with_windows),
+        },
+        item("older", "Upload older sessions…", true),
+        item("folder", "Open data folder", true),
+        item("update", state.update_line.clone(), false),
+        item("quit", "Quit", true),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +169,51 @@ mod tests {
             waiting_status(Some("Offline, will retry (x)")),
             "Offline, will retry (x)"
         );
+    }
+
+    fn state(signed_in: bool, paused: bool, primary: (&str, bool)) -> MenuState {
+        MenuState {
+            primary: (primary.0.into(), primary.1),
+            signed_in,
+            paused,
+            status: "status".into(),
+            recorder: "Recorder: off".into(),
+            update_line: "up to date".into(),
+            start_with_windows: false,
+            default_profile: true,
+        }
+    }
+
+    fn ids(items: &[Item]) -> Vec<&'static str> {
+        items.iter().map(|i| i.id).collect()
+    }
+
+    #[test]
+    fn a_fresh_own_account_is_unpaused_with_no_uid_or_owner_line() {
+        let items = menu_items_for(&state(true, false, ("Signed in as a@b.c", false)));
+        assert_eq!(
+            ids(&items),
+            ["signin", "status", "recorder", "separator", "signout", "open", "pause", "autostart", "older", "folder", "update", "quit"]
+        );
+        let pause = items.iter().find(|i| i.id == "pause").unwrap();
+        assert_eq!(pause.checked, Some(false), "no Paused for the own account");
+        assert!(items.iter().all(|i| !i.text.starts_with("uid") && !i.text.starts_with("owner")));
+    }
+
+    #[test]
+    fn another_owner_keeps_the_pause_checked() {
+        let items = menu_items_for(&state(true, true, ("Signed in as a@b.c", false)));
+        let pause = items.iter().find(|i| i.id == "pause").unwrap();
+        assert_eq!(pause.checked, Some(true));
+        assert!(items.iter().all(|i| !i.text.starts_with("owner")));
+    }
+
+    #[test]
+    fn signed_out_offers_sign_in_and_no_sign_out() {
+        let items = menu_items_for(&state(false, false, ("Sign in", true)));
+        let signin = items.iter().find(|i| i.id == "signin").unwrap();
+        assert_eq!((signin.text.as_str(), signin.enabled), ("Sign in", true));
+        let signout = items.iter().find(|i| i.id == "signout").unwrap();
+        assert!(!signout.enabled, "nothing to sign out of");
     }
 }
