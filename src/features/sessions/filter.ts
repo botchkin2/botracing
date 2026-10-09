@@ -77,7 +77,7 @@ export function listQuery(filter: SessionsFilter): SessionFilter {
   return {};
 }
 
-/** Copy for a day list with no rows: a picked game or track is read whole, so none is not about recency. */
+/** Empty-list copy: a picked game or track reads all history, so it drops "recent". */
 export function emptyDaysText(filter: SessionsFilter): string {
   return Object.keys(listQuery(filter)).length > 0
     ? 'No sessions'
