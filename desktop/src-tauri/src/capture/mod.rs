@@ -2,6 +2,7 @@
 // read at run time; this module never stores S397's struct offsets.
 pub mod columns;
 pub mod frame;
+pub mod irsdk;
 pub mod layout;
 pub mod probe;
 pub mod recorder;
