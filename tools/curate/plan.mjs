@@ -164,7 +164,6 @@ export function planAdd({trackId, current, built, samples, blast}) {
       lengthM: built.map.lengthM,
       stepM: built.map.stepM,
       corners: built.map.corners,
-      source: {sessionId: built.sessionId},
     };
     if (built.boundaries) boundariesFor(plan, built, current, built.map);
   }
@@ -204,8 +203,8 @@ export function planReplace({
       lengthM: built.map.lengthM,
       stepM: built.map.stepM,
       corners: built.map.corners,
-      source: {sessionId: built.sessionId},
     };
+    plan.deleteFields.push('source');
     if (built.boundaries) boundariesFor(plan, built, current, built.map);
   }
   return plan;

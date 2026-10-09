@@ -70,9 +70,9 @@ import {
   markDone,
   OLDER_REQUEST,
 } from './syncState.mjs';
-import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
+
 import {lapTraffic} from './lapTraffic.mjs';
-import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
+import {openRemoteStore} from './remoteStore.mjs';
 import {
   DEFAULT_RESYNC_CAP,
   catalogStamp,
@@ -514,6 +514,10 @@ function build(
     id: s.id,
     ownerId,
     sim,
+    // This is still the layout id when nobody has curated the track. The
+    // storage-rules change must not refuse that upload: store trackId null
+    // until a curator maps it, and the app shows the laps with no map and
+    // no sections.
     trackId,
     track,
     carId,
@@ -794,54 +798,15 @@ async function main() {
   }
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
-  // Fold first, then cut: every session of a track with a map has its onsets
-  // folded into the layout's boundaries before any is analysed, so each is cut
-  // once, at the boundaries they settle on. Sessions already counted (a resync
-  // of one, a session folded by an earlier run) are skipped; a track without a
-  // map yet is built by its first session in the main pass, the rest settle.
-  const needFold = [];
-  // A remote sync folds nothing: the boundaries are the curator's.
-  for (const s of catalogOnly ? [] : todo) {
-    const trackId = trackOf(s);
-    if (!(await trackMapFor(trackId, store))) continue;
-    const kept = await boundariesFor(trackId, store);
-    if (kept?.sessions?.[s.id]) continue;
-    needFold.push(s);
-  }
+  // A sync never writes a track. Boundaries and the surface are rebuilt by
+  // curate from a named set (tools/curate, tools/sessions/surface.mjs).
   if (check) {
     log(
-      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries, ${needFold.length} to fold`,
+      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries`,
     );
     return;
   }
-  let fresh = [];
-  let foldCount = 0;
-  if (needFold.length > 1) {
-    log(`${needFold.length} session(s) folded into corner boundaries first`);
-    // The watcher's total grows by what is folded first; each fold prints a
-    // session line like the pass after it.
-    log(`to do ${todo.length + needFold.length}`);
-    const folded = await runPool([...needFold], store, state, eventWindows, {
-      mode: 'fold',
-    });
-    fresh = folded.archived;
-    foldCount = folded.done + folded.failed;
-    // What the fold pass settled on is stored before any session is cut at it.
-    if (!local && folded.done > 0) {
-      for (const trackId of new Set(needFold.map(trackOf))) {
-        const kept = await boundariesFor(trackId, store);
-        const map = await trackMapFor(trackId, store);
-        if (kept && map) {
-          await store.putBoundaries({
-            trackId,
-            state: kept,
-            windows: windowsOf(kept, map.corners, map.lengthM),
-          });
-        }
-      }
-    }
-  }
-  const first = await runPool(todo, store, state, eventWindows, {fresh});
+  const first = await runPool(todo, store, state, eventWindows);
   // Sessions analysed before a later one moved their layout's boundaries were
   // cut at the old ones: once more, now that the boundaries have settled (a
   // session already counted in them folds in nothing new, so this ends).
@@ -857,7 +822,7 @@ async function main() {
   if (redo.length) {
     log(`${redo.length} session(s) cut at boundaries that moved: again`);
     // The watcher's total grows by what is redone; its progress goes on.
-    log(`to do ${foldCount + first.done + first.failed + redo.length}`);
+    log(`to do ${first.done + first.failed + redo.length}`);
     const again = await runPool(redo, store, state, eventWindows);
     done += again.done;
     failed += again.failed;
@@ -869,23 +834,6 @@ async function main() {
     }`,
   );
   if (failed) process.exitCode = 1;
-  if (foldsSurface({local, remote, tracks: tracks.size}))
-    await foldSurfaceAfterSync([...tracks]);
-}
-
-// The tracks just uploaded get their new sessions folded into the measured
-// surface (tools/sessions/surface.mjs, pit-wall thread 40), so it never needs
-// a hand-run. It reads what was just stored and skips sessions already
-// folded. It is after the closing "done" line, and a failure is a log line the
-// watcher does not read as a failed session: the sync itself succeeded.
-async function foldSurfaceAfterSync(trackIds) {
-  try {
-    const {foldSurfaces} = await import('./surface.mjs');
-    await foldSurfaces({trackIds, log});
-  } catch (error) {
-    const message = String(error?.message ?? error).split(/\r?\n/)[0];
-    log(`surface: not updated: ${message}`);
-  }
 }
 
 const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);

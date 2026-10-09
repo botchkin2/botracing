@@ -1124,7 +1124,8 @@ export function toTrackSurface(
     v: 1,
     stepM,
     lengthM,
-    sessions: Array.isArray(raw.sessions) ? raw.sessions.map(String) : [],
+    // Older files named the sessions they were folded from. A surface does not.
+    sessions: [],
     bins,
   };
 }
