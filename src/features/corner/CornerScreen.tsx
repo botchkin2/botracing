@@ -1,5 +1,5 @@
 import {useRouter} from 'expo-router';
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -541,6 +541,49 @@ function CornerView({
   );
 }
 
+// Phone: the measure columns scroll sideways under a pinned lap column, with a
+// fade on the right edge while more columns lie past it. Desktop (sortable)
+// renders its columns in place, unchanged.
+function MeasureScroll({
+  fixed,
+  children,
+}: {
+  fixed: boolean;
+  children: ReactNode;
+}) {
+  const {color} = useTheme();
+  const [viewW, setViewW] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const [x, setX] = useState(0);
+  if (fixed) return <>{children}</>;
+  const more = contentW > viewW + 1 && x < contentW - viewW - 1;
+  return (
+    <View
+      style={styles.scrollBox}
+      onLayout={e => setViewW(e.nativeEvent.layout.width)}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => setX(e.nativeEvent.contentOffset.x)}
+        onContentSizeChange={w => setContentW(w)}>
+        <View style={styles.measures}>{children}</View>
+      </ScrollView>
+      {more && (
+        <View style={styles.fade} pointerEvents='none'>
+          {FADE.map(o => (
+            <View
+              key={o}
+              style={[styles.fadeBand, {backgroundColor: color.bg, opacity: o}]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+const FADE = [0.15, 0.4, 0.75];
+
 function CornerTable({
   rows,
   sortable,
@@ -572,27 +615,29 @@ function CornerTable({
         <Text variant='tableHeader' tone='textMuted' style={styles.lapCol}>
           Lap
         </Text>
-        {MEASURES.map(m => {
-          const active = sortable && sort.by === m.id;
-          return (
-            <Pressable
-              key={m.id}
-              disabled={!sortable}
-              onPress={() => onSort(m.id)}
-              style={styles.cellCol}>
-              <Text
-                variant='tableHeader'
-                tone={active ? 'text' : 'textMuted'}
-                style={styles.right}>
-                {m.label}
-                {active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
-              </Text>
-              <Text variant='dataSmall' tone='textFaint' style={styles.right}>
-                {m.unit}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <MeasureScroll fixed={sortable}>
+          {MEASURES.map(m => {
+            const active = sortable && sort.by === m.id;
+            return (
+              <Pressable
+                key={m.id}
+                disabled={!sortable}
+                onPress={() => onSort(m.id)}
+                style={sortable ? styles.cellCol : styles.phoneCol}>
+                <Text
+                  variant='tableHeader'
+                  tone={active ? 'text' : 'textMuted'}
+                  style={styles.right}>
+                  {m.label}
+                  {active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+                </Text>
+                <Text variant='dataSmall' tone='textFaint' style={styles.right}>
+                  {m.unit}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </MeasureScroll>
       </View>
       {rows.map(r => (
         <Pressable
@@ -625,30 +670,34 @@ function CornerTable({
               </Text>
             )}
           </View>
-          {MEASURES.map(m => {
-            const c = r.cells[m.id];
-            return (
-              <View key={m.id} style={styles.cellCol}>
-                <Text variant='data' style={styles.right}>
-                  {c.value}
-                </Text>
-                {c.gap != null && (
-                  <Text
-                    variant='dataSmall'
-                    tone={
-                      m.id === 'time'
-                        ? c.better
-                          ? 'faster'
-                          : 'slower'
-                        : 'textMuted'
-                    }
-                    style={styles.right}>
-                    {c.gap}
+          <MeasureScroll fixed={sortable}>
+            {MEASURES.map(m => {
+              const c = r.cells[m.id];
+              return (
+                <View
+                  key={m.id}
+                  style={sortable ? styles.cellCol : styles.phoneCol}>
+                  <Text variant='data' style={styles.right}>
+                    {c.value}
                   </Text>
-                )}
-              </View>
-            );
-          })}
+                  {c.gap != null && (
+                    <Text
+                      variant='dataSmall'
+                      tone={
+                        m.id === 'time'
+                          ? c.better
+                            ? 'faster'
+                            : 'slower'
+                          : 'textMuted'
+                      }
+                      style={styles.right}>
+                      {c.gap}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </MeasureScroll>
         </Pressable>
       ))}
     </View>
@@ -739,6 +788,17 @@ const styles = StyleSheet.create({
   tableHead: {minHeight: 30, borderTopWidth: 1},
   lapCol: {width: 44},
   cellCol: {flex: 1},
+  phoneCol: {width: 84},
+  scrollBox: {flex: 1, overflow: 'hidden'},
+  measures: {flexDirection: 'row', gap: space.xs},
+  fade: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  fadeBand: {width: 8, height: '100%'},
   right: {textAlign: 'right'},
   bar: {width: 3, height: 14, borderRadius: radius.xs},
   stripNote: {minHeight: size.stripNote, justifyContent: 'center'},
