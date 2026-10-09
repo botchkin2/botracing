@@ -16,7 +16,7 @@ use parquet::file::properties::WriterProperties;
 use parquet::schema::types::ColumnPath;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 const WHEELS: [&str; 4] = ["fl", "fr", "rl", "rr"];
@@ -409,6 +409,7 @@ fn narrow_exact(cols: &mut HashMap<String, Column>, names: &HashSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn layout() -> Layout {
         Layout::parse(include_str!("../../../../tools/capture/tests/fixture.hpp")).unwrap()

@@ -507,8 +507,6 @@ pub(crate) mod test_support {
         });
         (base, seen)
     }
-
-    pub const FB_OK: &str = r#"{"localId":"UID1","email":"a@b.c","idToken":"FID","refreshToken":"FREF","expiresIn":"3600"}"#;
 }
 
 #[cfg(test)]

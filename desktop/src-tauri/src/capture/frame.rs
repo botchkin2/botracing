@@ -13,18 +13,6 @@ pub trait View {
     fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>>;
 }
 
-/// Two reads of the same span. None when they differ on every try, or a read fails.
-pub fn stable<V: View>(view: &mut V, offset: usize, len: usize) -> Option<Vec<u8>> {
-    for _ in 0..TRIES {
-        let first = view.read(offset, len)?;
-        let second = view.read(offset, len)?;
-        if first == second {
-            return Some(first);
-        }
-    }
-    None
-}
-
 fn f64_at(raw: &[u8], offset: usize) -> Option<f64> {
     let bytes: [u8; 8] = raw.get(offset..offset + 8)?.try_into().ok()?;
     Some(f64::from_le_bytes(bytes))
@@ -130,16 +118,19 @@ mod tests {
     #[test]
     fn a_torn_frame_is_dropped_and_a_stable_one_is_kept() {
         let lay = layout();
-        let mut stable_mem = Mem { bytes: vec![0; lay.size], tear_at: None, reads: 0 };
         let slot = lay.offsets["telemInfo"];
+        // Per try: vehicle index, has-vehicle, then the slot twice.
+        let mut stable_mem = Mem { bytes: vec![0; lay.size], tear_at: None, reads: 0 };
+        stable_mem.bytes[lay.offsets["playerHasVehicle"]] = 1;
         stable_mem.bytes[slot] = 7;
-        let got = stable(&mut stable_mem, slot, lay.telem_size).unwrap();
-        assert_eq!(got[0], 7);
-        assert_eq!(stable_mem.reads, 2);
+        let got = player(&mut stable_mem, &lay).unwrap();
+        assert_eq!(got.raw[0], 7);
+        assert_eq!(stable_mem.reads, 4);
 
         let mut torn = Mem { bytes: vec![0; lay.size], tear_at: Some(slot), reads: 0 };
-        assert!(stable(&mut torn, slot, lay.telem_size).is_none());
-        assert_eq!(torn.reads, TRIES * 2);
+        torn.bytes[lay.offsets["playerHasVehicle"]] = 1;
+        assert!(player(&mut torn, &lay).is_none());
+        assert_eq!(torn.reads, TRIES * 4);
     }
 
     #[test]
