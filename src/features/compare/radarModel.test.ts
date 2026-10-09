@@ -1,5 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {type Field, type FieldCar} from '@/src/analysis/field';
 
 import {raceClock} from '@/src/analysis/raceClock';
@@ -16,6 +17,8 @@ function build(): Field {
     ({
       index,
       carClass: 'GT3',
+      classId: null,
+      classLabel: null,
       vehicle: null,
       player,
       lapDistM: arr(i => 100 + i * 10),
@@ -38,12 +41,14 @@ function build(): Field {
   };
 }
 
+const NO_CLASSES = fieldClasses({timeS: [], cars: []});
+
 describe('radarAtCursor', () => {
   const f = build();
   const clock = raceClock(f);
 
   it('finds the sample at the cursor and the car ahead and to the right', () => {
-    const v = radarAtCursor(f, clock, 2, 300, 98, 148)!;
+    const v = radarAtCursor(f, clock, 2, 300, 98, 148, NO_CLASSES)!;
     expect(v.sampleLabel).toBe('0:04.0');
     expect(v.radar!.cars).toHaveLength(1);
     expect(v.radar!.cars[0].forwardM).toBeCloseTo(10);
@@ -52,14 +57,14 @@ describe('radarAtCursor', () => {
 
   it('snaps to the 5 Hz sample at or before the moment, not the nearest', () => {
     // 309 m on lap 2 is 4.18 s: the sample at 4.0 s, not the one at 4.2 s.
-    expect(radarAtCursor(f, clock, 2, 309, 98, 148)!.sampleLabel).toBe(
-      '0:04.0',
-    );
+    expect(
+      radarAtCursor(f, clock, 2, 309, 98, 148, NO_CLASSES)!.sampleLabel,
+    ).toBe('0:04.0');
   });
 
   it('is null for a lap the field does not cover', () => {
-    expect(radarAtCursor(f, clock, 5, 300, 98, 148)).toBeNull();
-    expect(radarAtCursor(f, clock, 2, 9000, 98, 148)).toBeNull();
+    expect(radarAtCursor(f, clock, 5, 300, 98, 148, NO_CLASSES)).toBeNull();
+    expect(radarAtCursor(f, clock, 2, 9000, 98, 148, NO_CLASSES)).toBeNull();
   });
 });
 
@@ -67,7 +72,7 @@ describe('radarHasCars', () => {
   const clock = raceClock(build());
 
   it('is true with a car in range', () => {
-    const v = radarAtCursor(build(), clock, 2, 300, 72, 108);
+    const v = radarAtCursor(build(), clock, 2, 300, 72, 108, NO_CLASSES);
     expect(radarHasCars(v)).toBe(true);
   });
 
@@ -76,11 +81,13 @@ describe('radarHasCars', () => {
     const far = build();
     far.cars[1].zM = far.cars[1].zM.map(z => z + 500);
     expect(
-      radarHasCars(radarAtCursor(far, raceClock(far), 2, 300, 72, 108)),
+      radarHasCars(
+        radarAtCursor(far, raceClock(far), 2, 300, 72, 108, NO_CLASSES),
+      ),
     ).toBe(false);
-    expect(radarHasCars(radarAtCursor(build(), clock, 5, 300, 72, 108))).toBe(
-      false,
-    );
+    expect(
+      radarHasCars(radarAtCursor(build(), clock, 5, 300, 72, 108, NO_CLASSES)),
+    ).toBe(false);
     expect(radarHasCars(null)).toBe(false);
   });
 });

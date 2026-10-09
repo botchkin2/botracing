@@ -2,10 +2,11 @@ import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {type Field} from '@/src/analysis/field';
-import {RADAR_RANGE_M, type RadarClass} from '@/src/analysis/radar';
+import {fieldClasses} from '@/src/analysis/fieldClasses';
+import {RADAR_RANGE_M} from '@/src/analysis/radar';
 import {raceClock} from '@/src/analysis/raceClock';
 import {Radar} from '@/src/charts';
-import {space, useTheme} from '@/src/design';
+import {classColor, space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {aroundYouRows} from '../aroundYou';
@@ -17,11 +18,6 @@ import {radarAtCursor} from '../radarModel';
 const RADAR_W = 150;
 const RADAR_H = 226;
 const ROW_H = 24;
-const CLASS_SHORT: Record<RadarClass, string> = {
-  hypercar: 'HY',
-  lmp2: 'P2',
-  gt3: 'GT3',
-};
 
 export function CarsAround({
   field,
@@ -37,6 +33,7 @@ export function CarsAround({
 }) {
   const {color} = useTheme();
   const clock = useMemo(() => raceClock(field), [field]);
+  const classes = useMemo(() => fieldClasses(field), [field]);
   const view = radarAtCursor(
     field,
     clock,
@@ -44,15 +41,11 @@ export function CarsAround({
     cursorM,
     RADAR_W,
     RADAR_H,
+    classes,
   );
   // The field does not cover this lap: nothing to show, not an empty radar.
   if (!view) return null;
-  const rows = view.radar ? aroundYouRows(view.radar, field) : [];
-  const classColor: Record<RadarClass, string> = {
-    hypercar: color.classHypercar,
-    lmp2: color.classLmp2,
-    gt3: color.classGt3,
-  };
+  const rows = view.radar ? aroundYouRows(view.radar, field, classes) : [];
   return (
     <View style={styles.section}>
       <Text variant='label' tone='textMuted'>
@@ -75,10 +68,13 @@ export function CarsAround({
           {rows.map(r => (
             <View key={r.index} style={styles.item}>
               <View
-                style={[styles.bar, {backgroundColor: classColor[r.cls]}]}
+                style={[
+                  styles.bar,
+                  {backgroundColor: classColor(color, r.slot)},
+                ]}
               />
               <Text variant='dataSmall' tone='textSecondary' style={styles.cls}>
-                {CLASS_SHORT[r.cls]}
+                {r.short}
               </Text>
               <Text variant='dataSmall' style={styles.fwd}>
                 {r.forwardText}

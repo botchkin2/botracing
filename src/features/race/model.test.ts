@@ -1,10 +1,14 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {
+  type ClassTable,
+  classOfCar,
+  type FieldClass,
+} from '@/src/analysis/fieldClasses';
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 
 import {
   buildRaceModel,
-  classKey,
   defaultFilter,
   displayModel,
   labelRank,
@@ -23,6 +27,7 @@ function car(
   return {
     index,
     carClass,
+    classKey: classOfCar({carClass, classId: null, classLabel: null}).key,
     vehicle: `Car ${index}`,
     player: false,
     xM: index * 10,
@@ -51,22 +56,36 @@ const field = [
   car(5, 'GT3', 0, {state: 'garage', gapS: null}),
 ];
 
-describe('classKey', () => {
-  it('maps the sim strings, else other', () => {
-    expect(
-      ['Hyper', 'LMP2', 'GT3', 'LMGT3', 'GTE', 'LMH', '', 'Odd'].map(classKey),
-    ).toEqual([
-      'hypercar',
-      'lmp2',
-      'gt3',
-      'gt3',
-      'gt3',
-      'hypercar',
-      'other',
-      'other',
-    ]);
-  });
-});
+// The LMU order of a Daytona race: Hypercar, LMP2, GT3 (fieldClasses ranks a
+// real field; these tests take its answer as given).
+const LMU: FieldClass[] = [
+  ['hypercar', 'Hypercar', 'HY'],
+  ['lmp2', 'LMP2', 'P2'],
+  ['gt3', 'GT3', 'GT3'],
+].map(([key, label, short], rank) => ({
+  key,
+  slot: (['class1', 'class2', 'class3'] as const)[rank],
+  label,
+  title: label.toUpperCase(),
+  short,
+  rank,
+  ordered: true,
+  paceS: 100 + rank,
+}));
+const CLASSES: ClassTable = {
+  list: LMU,
+  of: key =>
+    LMU.find(c => c.key === key) ?? {
+      key: 'other',
+      slot: 'other',
+      label: 'Other',
+      title: 'OTHER',
+      short: 'Other',
+      rank: LMU.length,
+      ordered: false,
+      paceS: null,
+    },
+};
 
 describe('displayModel', () => {
   it('drops the class LMU puts on the end of a model name', () => {
@@ -101,9 +120,14 @@ describe('displayModel', () => {
 
 describe('buildRaceModel', () => {
   it('All: one group per class present, with a header and the count', () => {
-    const m = buildRaceModel({cars: field, filter: 'all', focus: null});
+    const m = buildRaceModel({
+      classes: CLASSES,
+      cars: field,
+      filter: 'all',
+      focus: null,
+    });
     expect(m.filter).toBe('all');
-    expect(m.classes).toEqual(['hypercar', 'lmp2', 'gt3']);
+    expect(m.classes.map(c => c.key)).toEqual(['hypercar', 'lmp2', 'gt3']);
     expect(m.groups.map(g => g.title)).toEqual([
       'HYPERCAR · 2 CARS',
       'LMP2 · 1 CARS',
@@ -113,7 +137,12 @@ describe('buildRaceModel', () => {
   });
 
   it('a class filter shows that class alone under a Class header, garage last', () => {
-    const m = buildRaceModel({cars: field, filter: 'gt3', focus: null});
+    const m = buildRaceModel({
+      classes: CLASSES,
+      cars: field,
+      filter: 'gt3',
+      focus: null,
+    });
     expect(m.groups).toHaveLength(1);
     expect(m.groups[0].title).toBe('Class · GT3');
     expect(m.groups[0].rows.map(r => r.index)).toEqual([4, 3, 5]);
@@ -122,13 +151,22 @@ describe('buildRaceModel', () => {
   it('falls back to All when the wanted class is not in the field', () => {
     const only = field.filter(c => c.carClass === 'GT3');
     expect(
-      buildRaceModel({cars: only, filter: 'hypercar', focus: null}).filter,
+      buildRaceModel({
+        classes: CLASSES,
+        cars: only,
+        filter: 'hypercar',
+        focus: null,
+      }).filter,
     ).toBe('all');
   });
 
   it('rows: position, gap text, pit count, and the state that replaces it', () => {
-    const rows = buildRaceModel({cars: field, filter: 'gt3', focus: null})
-      .groups[0].rows;
+    const rows = buildRaceModel({
+      classes: CLASSES,
+      cars: field,
+      filter: 'gt3',
+      focus: null,
+    }).groups[0].rows;
     expect(rows[0]).toMatchObject({position: '1', gap: '', status: ''});
     expect(rows[1]).toMatchObject({
       position: '2',
@@ -146,6 +184,7 @@ describe('buildRaceModel', () => {
     const codes = ['IN', 'STOP', 'OFF'];
     states.forEach((s, i) => {
       const m = buildRaceModel({
+        classes: CLASSES,
         cars: [car(0, 'GT3', 1, {state: s, pits: 2})],
         filter: 'all',
         focus: null,
@@ -156,6 +195,7 @@ describe('buildRaceModel', () => {
 
   it('a lapped car reads +1 lap, then +2 laps, whatever its time gap', () => {
     const m = buildRaceModel({
+      classes: CLASSES,
       cars: [
         car(0, 'GT3', 2, {gapS: 130, lapsDown: 1}),
         car(1, 'GT3', 3, {gapS: 250, lapsDown: 2}),
@@ -168,6 +208,7 @@ describe('buildRaceModel', () => {
 
   it('a gap over a minute reads m:ss.s', () => {
     const m = buildRaceModel({
+      classes: CLASSES,
       cars: [car(0, 'GT3', 2, {gapS: 95.04})],
       filter: 'all',
       focus: null,
@@ -176,7 +217,12 @@ describe('buildRaceModel', () => {
   });
 
   it('dots: garage cars are off the map, the focused car and you are drawn last', () => {
-    const m = buildRaceModel({cars: field, filter: 'all', focus: 1});
+    const m = buildRaceModel({
+      classes: CLASSES,
+      cars: field,
+      filter: 'all',
+      focus: 1,
+    });
     expect(m.dots.map(d => d.index)).toEqual([0, 2, 4, 1, 3]);
     expect(m.dots.at(-1)).toMatchObject({player: true});
     expect(m.dots.find(d => d.index === 1)?.focused).toBe(true);
@@ -185,31 +231,48 @@ describe('buildRaceModel', () => {
 
   it('focus label: model, class place and gap; the garage says so', () => {
     const at = (focus: number) =>
-      buildRaceModel({cars: field, filter: 'all', focus}).focusLabel;
+      buildRaceModel({classes: CLASSES, cars: field, filter: 'all', focus})
+        .focusLabel;
     expect(at(3)).toBe('Car 3 · GT3 P2 · +3.000');
     expect(at(4)).toBe('Car 4 · GT3 P1');
     expect(at(5)).toBe('Car 5 · in the garage');
     expect(at(99)).toBeNull();
     expect(
-      buildRaceModel({cars: field, filter: 'all', focus: null}).focusLabel,
+      buildRaceModel({
+        classes: CLASSES,
+        cars: field,
+        filter: 'all',
+        focus: null,
+      }).focusLabel,
     ).toBeNull();
   });
 
   it('you: class and model, or null with no player', () => {
     expect(
-      buildRaceModel({cars: field, filter: 'all', focus: null}).you,
+      buildRaceModel({
+        classes: CLASSES,
+        cars: field,
+        filter: 'all',
+        focus: null,
+      }).you,
     ).toEqual({
-      key: 'gt3',
+      cls: CLASSES.of('gt3'),
       model: 'Car 3',
     });
     const none = field.map(c => ({...c, player: false}));
     expect(
-      buildRaceModel({cars: none, filter: 'all', focus: null}).you,
+      buildRaceModel({classes: CLASSES, cars: none, filter: 'all', focus: null})
+        .you,
     ).toBeNull();
   });
 
   it('an empty field is an empty model', () => {
-    const m = buildRaceModel({cars: [], filter: 'all', focus: null});
+    const m = buildRaceModel({
+      classes: CLASSES,
+      cars: [],
+      filter: 'all',
+      focus: null,
+    });
     expect(m).toMatchObject({groups: [], dots: [], classes: [], carCount: 0});
   });
 });
@@ -280,11 +343,11 @@ describe('field mode (practice and qualifying)', () => {
 
   it('finds the cars ahead and behind and the faster class coming', () => {
     // Every car at 200 km/h, 55.6 m/s.
-    const s = roadSummary(cars, TRACK)!;
-    expect(s.ahead).toMatchObject({key: 'gt3', metres: 120});
+    const s = roadSummary(cars, TRACK, CLASSES)!;
+    expect(s.ahead).toMatchObject({cls: {key: 'gt3'}, metres: 120});
     expect(s.ahead!.seconds).toBeCloseTo(120 / (200 / 3.6), 6);
-    expect(s.behind).toMatchObject({key: 'gt3', metres: 85});
-    expect(s.coming).toMatchObject({key: 'hypercar', metres: 180});
+    expect(s.behind).toMatchObject({cls: {key: 'gt3'}, metres: 85});
+    expect(s.coming).toMatchObject({cls: {key: 'hypercar'}, metres: 180});
     expect(s.coming!.seconds).toBeCloseTo(180 / (200 / 3.6), 6);
   });
 
@@ -304,23 +367,26 @@ describe('field mode (practice and qualifying)', () => {
       onRoad(0, 'GT3', 2000, {player: true}),
       onRoad(1, 'Hyper', 2000 - 300), // 5.4 s at 200 km/h
     ];
-    expect(roadSummary(far, TRACK)!.coming).toBeNull();
-    expect(roadSummary(far, TRACK)!.behind).toMatchObject({metres: 300});
+    expect(roadSummary(far, TRACK, CLASSES)!.coming).toBeNull();
+    expect(roadSummary(far, TRACK, CLASSES)!.behind).toMatchObject({
+      metres: 300,
+    });
   });
 
   it('counts neither the pit lane nor the garage, nor a slower class as coming', () => {
     // The car in the pit lane at +50 m is skipped.
-    expect(roadSummary(cars, TRACK)!.ahead!.metres).toBe(120);
+    expect(roadSummary(cars, TRACK, CLASSES)!.ahead!.metres).toBe(120);
     const slower = roadSummary(
       [onRoad(0, 'LMP2', 1000, {player: true}), onRoad(1, 'GT3', 900)],
       TRACK,
+      CLASSES,
     )!;
     expect(slower.coming).toBeNull();
-    expect(roadSummary([onRoad(1, 'GT3', 900)], TRACK)).toBeNull();
+    expect(roadSummary([onRoad(1, 'GT3', 900)], TRACK, CLASSES)).toBeNull();
   });
 
   it('says it in one line', () => {
-    expect(roadSummaryText(roadSummary(cars, TRACK)!)).toBe(
+    expect(roadSummaryText(roadSummary(cars, TRACK, CLASSES)!)).toBe(
       'Ahead 2.2 s (120 m) GT3 · Behind 1.5 s (85 m) GT3 · Faster class: Hypercar 3.2 s (180 m) behind',
     );
   });
@@ -331,13 +397,14 @@ describe('field mode (practice and qualifying)', () => {
       onRoad(1, 'GT3', 1120),
       onRoad(2, 'Hyper', 900),
     ];
-    const line = roadSummaryText(roadSummary(near, TRACK)!);
+    const line = roadSummaryText(roadSummary(near, TRACK, CLASSES)!);
     expect(line).toContain('Behind 1.8 s (100 m) Hypercar (faster class)');
     expect(line).not.toContain('Faster class:');
   });
 
   it('has no place, no class position on a dot, and the road gap in seconds in place of the gap', () => {
     const m = buildRaceModel({
+      classes: CLASSES,
       cars,
       filter: 'all',
       focus: null,
@@ -356,6 +423,7 @@ describe('field mode (practice and qualifying)', () => {
 
   it('orders a class from furthest ahead to furthest behind, you among them', () => {
     const m = buildRaceModel({
+      classes: CLASSES,
       cars,
       filter: 'gt3',
       focus: null,
@@ -367,6 +435,7 @@ describe('field mode (practice and qualifying)', () => {
 
   it('labels the focus without a class place', () => {
     const m = buildRaceModel({
+      classes: CLASSES,
       cars,
       filter: 'all',
       focus: 1,
@@ -377,7 +446,12 @@ describe('field mode (practice and qualifying)', () => {
   });
 
   it('is the race model unchanged by default', () => {
-    const m = buildRaceModel({cars, filter: 'all', focus: null});
+    const m = buildRaceModel({
+      classes: CLASSES,
+      cars,
+      filter: 'all',
+      focus: null,
+    });
     expect(m.road).toBeNull();
     expect(m.groups.flatMap(g => g.rows).some(r => r.position !== '')).toBe(
       true,
@@ -407,6 +481,7 @@ describe('Nearby filter (field mode)', () => {
   ];
   const model = (filter: 'nearby' | 'all', over: RaceCar[] = cars) =>
     buildRaceModel({
+      classes: CLASSES,
       cars: over,
       filter,
       focus: null,
@@ -427,12 +502,12 @@ describe('Nearby filter (field mode)', () => {
       [3, '−3.2 s'],
     ]);
     // Each row keeps its class, for the class bar.
-    expect(m.groups[0].rows.map(r => r.key)).toEqual([
-      'lmp2',
-      'gt3',
-      'gt3',
-      'gt3',
-      'hypercar',
+    expect(m.groups[0].rows.map(r => r.slot)).toEqual([
+      'class2',
+      'class3',
+      'class3',
+      'class3',
+      'class1',
     ]);
   });
 
@@ -457,8 +532,13 @@ describe('Nearby filter (field mode)', () => {
 
   it('falls back to All outside the field mode and with you off the road', () => {
     expect(
-      buildRaceModel({cars, filter: 'nearby', focus: null, mode: 'race'})
-        .filter,
+      buildRaceModel({
+        classes: CLASSES,
+        cars,
+        filter: 'nearby',
+        focus: null,
+        mode: 'race',
+      }).filter,
     ).toBe('all');
     const garage = cars.map(c =>
       c.player ? {...c, state: 'garage' as const} : c,

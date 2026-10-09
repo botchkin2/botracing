@@ -4,8 +4,8 @@ import {
   CAR_WIDTH_M,
   PLAYER_LENGTH_M,
   type Radar as RadarData,
-  type RadarClass,
 } from '@/src/analysis/radar';
+import {type ClassSlot} from '@/src/analysis/fieldClasses';
 import {dash, type as typeScale, useTheme} from '@/src/design';
 
 // Cars around you (round 3 R2): heading-up, centred on the player, every car
@@ -42,10 +42,11 @@ export function Radar({
   const pxPerM = height / (2 * rangeM);
   const cx = width / 2;
   const cy = height / 2;
-  const classColor: Record<RadarClass, string> = {
-    hypercar: color.classHypercar,
-    lmp2: color.classLmp2,
-    gt3: color.classGt3,
+  const classColor: Record<ClassSlot, string> = {
+    class1: color.class1,
+    class2: color.class2,
+    class3: color.class3,
+    other: color.textSecondary,
   };
   const ticks: number[] = [];
   for (let m = TICK_STEP_M; m <= rangeM; m += TICK_STEP_M) ticks.push(m);
@@ -128,7 +129,7 @@ export function Radar({
             width={w}
             height={l}
             rx={Math.min(2, w / 2)}
-            fill={classColor[c.cls]}
+            fill={classColor[c.slot]}
             opacity={c.opacity}
             transform={`translate(${x} ${y}) rotate(${
               (c.relYawRad * 180) / Math.PI

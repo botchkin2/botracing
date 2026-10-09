@@ -1,6 +1,7 @@
 import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
+import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {type Field} from '@/src/analysis/field';
 import {raceClock} from '@/src/analysis/raceClock';
 import {RADAR_RANGE_M} from '@/src/analysis/radar';
@@ -30,6 +31,7 @@ export function RadarOverlay({
 }) {
   // Built once per field: it scans every update.
   const clock = useMemo(() => raceClock(field), [field]);
+  const classes = useMemo(() => fieldClasses(field), [field]);
   const view = radarAtCursor(
     field,
     clock,
@@ -37,6 +39,7 @@ export function RadarOverlay({
     cursorM,
     RADAR_OVERLAY_W,
     RADAR_OVERLAY_H,
+    classes,
   );
   if (!radarHasCars(view)) return null;
   return (

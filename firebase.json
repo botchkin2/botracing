@@ -34,6 +34,20 @@
         }
       },
       {
+        "source": "/api/android/latest",
+        "function": {
+          "functionId": "androidApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/android/download",
+        "function": {
+          "functionId": "androidApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/upload/**",
         "function": {
           "functionId": "uploadApi",

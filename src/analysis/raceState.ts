@@ -8,6 +8,7 @@
 //
 // The field is 5 Hz. Playing interpolates between two updates; paused snaps
 // to the nearest one, so every dot is a real sample (handoff R1, 5 Hz honesty).
+import {classOfCar} from './fieldClasses';
 import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, updateAt} from './field';
 
@@ -26,6 +27,8 @@ export type CarState = 'running' | 'pit' | 'stopped' | 'off' | 'garage';
 export interface RaceCar {
   index: number;
   carClass: string;
+  /** The car's class in this session (fieldClasses.classOfCar): what class places, colours and labels go by. */
+  classKey: string;
   vehicle: string | null;
   player: boolean;
   xM: number;
@@ -245,6 +248,7 @@ export function carsAt(
     cars.push({
       index: c.index,
       carClass: c.carClass,
+      classKey: classOfCar(c).key,
       vehicle: c.vehicle,
       player: c.player,
       // In the garage the last position is kept but never drawn.
@@ -300,9 +304,10 @@ function standingsAt(prep: RacePrep, u: number): Standings {
   const byClass = new Map<string, number[]>();
   field.cars.forEach((c, i) => {
     if (prep.firstSeen[i] > u || stateOf(prep, i, u) === 'garage') return;
-    const list = byClass.get(c.carClass) ?? [];
+    const key = classOfCar(c).key;
+    const list = byClass.get(key) ?? [];
     list.push(i);
-    byClass.set(c.carClass, list);
+    byClass.set(key, list);
   });
   for (const list of byClass.values()) {
     list.sort((a, b) => field.cars[a].place[u] - field.cars[b].place[u]);

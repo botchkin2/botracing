@@ -28,6 +28,8 @@ function car(
   const c: FieldCar = {
     index,
     carClass,
+    classId: null,
+    classLabel: null,
     vehicle: null,
     player,
     lapDistM: new Float32Array(updates),

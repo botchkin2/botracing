@@ -7,7 +7,7 @@ import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type Radar as RadarData} from '@/src/analysis/radar';
 import {FollowMap, type MapCar, Radar, TrackMap} from '@/src/charts';
 import {measuredCentreLines, type MapPlacer} from '@/src/data/sessions';
-import {radius, space, useTheme} from '@/src/design';
+import {classColor, radius, space, useTheme} from '@/src/design';
 import {FOLLOW_SPANS_M, type MapZoom} from '@/src/state/comparePrefs';
 import {
   MAP_ZOOM_BUTTONS_W,
@@ -18,11 +18,10 @@ import {
 } from '@/src/ui';
 
 import {type RaceDot} from '../model';
-import {classColor} from './classColor';
 
-// Dot radii in points by class, from handoff R1d (desktop scale x1.15, phone
-// x0.8); "other" classes take the GT3 size.
-const RADIUS = {hypercar: 4.2, lmp2: 3.7, gt3: 3.2, other: 3.2};
+// Dot radii in points by class, fastest first, from handoff R1d (desktop
+// scale x1.15, phone x0.8); "other" takes the third size.
+const RADIUS = {class1: 4.2, class2: 3.7, class3: 3.2, other: 3.2};
 const YOU_RADIUS = 4.6;
 const PHONE_SCALE = 0.8;
 const DESKTOP_SCALE = 1.15;
@@ -138,8 +137,8 @@ export function RaceMap({
         ? dots.map((d, i) => ({
             key: String(d.index),
             at: placed[i],
-            color: classColor(color, d.key),
-            radius: (d.player ? YOU_RADIUS : RADIUS[d.key]) * scale,
+            color: classColor(color, d.slot),
+            radius: (d.player ? YOU_RADIUS : RADIUS[d.slot]) * scale,
             state: d.state === 'garage' ? 'running' : d.state,
             you: d.player,
             focused: d.focused,
