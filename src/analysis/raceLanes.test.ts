@@ -107,6 +107,22 @@ describe('raceLanes', () => {
     expect(raceLanes(distant, clock).tow).toEqual([]);
   });
 
+  it('a car whose lane is unknown (NaN) is not a tow: nothing is claimed from a missing number', () => {
+    const f = field(20, [
+      me({lane: NaN}),
+      {lapDistM: u => 100 + u * V * DT + 20, lane: NaN},
+      far,
+    ]);
+    expect(raceLanes(f, clock).tow).toEqual([]);
+    // The battle does not depend on the lane, so it still counts.
+    const near = field(20, [
+      me({lane: NaN}),
+      {lapDistM: u => 100 + u * V * DT + 5, lane: NaN},
+      far,
+    ]);
+    expect(raceLanes(near, clock).battle.length).toBeGreaterThan(0);
+  });
+
   it('a battle is a same-class car within 1 s in any lane; another class is not', () => {
     const near = (carClass: string) =>
       field(10, [

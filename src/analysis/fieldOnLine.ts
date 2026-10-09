@@ -61,6 +61,8 @@ export function placeFieldOnLine(
     const xM = new Float32Array(updates).fill(NaN);
     const zM = new Float32Array(updates).fill(NaN);
     const yawRad = new Float32Array(updates).fill(NaN);
+    // The offset from the line stays unknown (NaN), never 0: the lanes and the
+    // off-track state read it, and 0 would claim every car is in your lane.
     const pathLateralM = new Float32Array(updates).fill(NaN);
     for (let u = 0; u < updates; u++) {
       const at = pointOnLine(line, stepM, car.lapDistM[u]);
@@ -68,8 +70,6 @@ export function placeFieldOnLine(
       xM[u] = at.x;
       zM[u] = at.z;
       yawRad[u] = at.yawRad;
-      // On the line by construction: not off the track.
-      pathLateralM[u] = 0;
     }
     return {...car, xM, zM, yawRad, pathLateralM};
   });

@@ -78,7 +78,8 @@ describe('placeFieldOnLine', () => {
     expect([placed.cars[0].xM[0], placed.cars[0].zM[0]]).toEqual([2.5, 0]);
     expect([placed.cars[0].xM[1], placed.cars[0].zM[1]]).toEqual([5, 2.5]);
     expect(placed.cars[0].yawRad![0]).toBeCloseTo(Math.PI / 2);
-    expect(placed.cars[0].pathLateralM[0]).toBe(0);
+    // The offset from the line is unknown, not 0.
+    expect(Number.isNaN(placed.cars[0].pathLateralM[0])).toBe(true);
     // Absent stays absent.
     expect(Number.isNaN(placed.cars[1].xM[0])).toBe(true);
     expect(Number.isNaN(placed.cars[1].yawRad![0])).toBe(true);
