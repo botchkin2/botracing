@@ -6,9 +6,17 @@ import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 /** The rules the planner is given for this race: its fill limit, a full VE load and a formation lap. */
 export function raceRules(facts: RaceFacts): PlanRules | null {
   if (facts.limitL == null) return null;
+  // A DNF is planned as the race that was on: the leader's laps, formation
+  // not counted. The short distance driven is the actual side (triage #21).
+  const scheduled =
+    facts.leftEarly &&
+    facts.leaderLapsDone != null &&
+    facts.leaderLapsDone > 0
+      ? Math.max(0, facts.leaderLapsDone - 1)
+      : facts.raceLaps;
   return {
     name: 'This race',
-    lengthLaps: facts.raceLaps,
+    lengthLaps: scheduled,
     lengthMin: null,
     fuelL: facts.limitL,
     vePct: 100,

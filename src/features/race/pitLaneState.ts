@@ -21,7 +21,12 @@ export function markPitLane(cars: RaceCar[], placer: MapPlacer): RaceCar[] {
       .map(c => c.index),
   );
   if (onLane.size === 0) return cars;
+  // Before anyone has taken the start, the pit road is the grid, not a stop
+  // (Daytona 9b16b76, 2 Oct Road Atlanta: PIT on 18–38 cars in formation).
+  const started = cars.some(c => c.lapsDone > 0);
   return cars.map(c =>
-    onLane.has(c.index) ? {...c, state: 'pit' as const} : c,
+    onLane.has(c.index)
+      ? {...c, state: started ? ('pit' as const) : ('running' as const)}
+      : c,
   );
 }

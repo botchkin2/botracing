@@ -93,6 +93,15 @@ export function buildPlanHalf(input: {
   const stopLaps = option.stopLaps;
 
   const rows: PlanHalfRow[] = [];
+  if (facts.leftEarly) {
+    const of = facts.leaderLapsDone;
+    const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
+    rows.push({
+      k: 'Finish',
+      p: of != null ? `L${of}` : MISSING,
+      a: at != null ? `DNF L${at}` : 'DNF',
+    });
+  }
   const count = Math.max(stopLaps.length, stops.length);
   for (let i = 0; i < count; i++) {
     const n = stopLaps[i];

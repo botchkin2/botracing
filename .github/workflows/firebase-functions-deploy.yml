@@ -19,6 +19,9 @@ permissions:
 jobs:
   build_and_deploy_functions:
     runs-on: ubuntu-latest
+    # Deploy credentials live in the `deploy` Environment (main only), not at
+    # repo level where a PR branch could read them (ops/iam/ciSplit.mjs).
+    environment: deploy
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -20,6 +20,20 @@
         }
       },
       {
+        "source": "/api/tray/latest",
+        "function": {
+          "functionId": "trayApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/tray/download",
+        "function": {
+          "functionId": "trayApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/upload/**",
         "function": {
           "functionId": "uploadApi",
