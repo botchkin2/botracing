@@ -49,6 +49,8 @@ jobs:
         run: node tools/ci/waitForFunctions.mjs
       - run: npm install
       - run: npm run build
+      # The dev-only seat sign-in must never ship (pit-wall thread 54 #2742).
+      - run: node tools/ci/assertNoSeatSignIn.mjs dist
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
       - name: Install functions dependencies
