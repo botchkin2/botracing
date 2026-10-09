@@ -1,0 +1,15 @@
+{
+ "hash": "3fe81c6a5c0c0ae3",
+ "size": 6464,
+ "maxVehicles": 8,
+ "offsets": {
+  "gameVersion": 8,
+  "scoringInfo": 280,
+  "vehScoringInfo": 456,
+  "activeVehicles": 1656,
+  "playerVehicleIdx": 1657,
+  "playerHasVehicle": 1658,
+  "telemInfo": 1660
+ },
+ "note": "Produced by tools/capture/layout.py on tools/capture/tests/fixture.hpp. The fixture is ours. The game header is not in this repo."
+}
