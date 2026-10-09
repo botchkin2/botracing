@@ -245,6 +245,7 @@ export function greenLapsOf(
       vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
       lapTimeS: l.timeS,
       sessionId,
+      comparable: l.comparable,
       veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
       traffic: l.traffic
         ? {
