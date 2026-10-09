@@ -55,6 +55,15 @@ export interface RaceFacts {
   startVePct?: number | null;
   /** Racing laps driven: the formation lap is not counted. */
   raceLaps: number;
+  /**
+   * The player left before the leader's last crossing (`result.finish.leftEarly`).
+   * The plan is for the scheduled race, not the short one driven.
+   */
+  leftEarly?: boolean;
+  /** Game laps the player completed; set when `leftEarly`. */
+  playerLapsDone?: number | null;
+  /** Game laps the leader completed; the scheduled length when `leftEarly`. */
+  leaderLapsDone?: number | null;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
