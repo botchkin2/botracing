@@ -418,21 +418,25 @@ function dropStopFor(
   // The formation lap is a lap of use taken from the first load, so it is
   // shared out with the race laps: 65 laps + formation on 2 loads is 33 laps
   // of use per load (not 32.5 + 1).
-  const burn = raceLaps + (rules.formationLap ? 1 : 0);
-  const burnLaps = Math.ceil(burn / (targetStops + 1));
+  // Each meter burns its own formation lap (fuel more than a green lap).
+  const formation = formationLaps(rules);
+  const burnFuel = raceLaps + formation.fuel;
+  const burnVe = raceLaps + formation.ve;
+  const burnLapsFuel = Math.ceil(burnFuel / (targetStops + 1));
+  const burnLapsVe = Math.ceil(burnVe / (targetStops + 1));
   // A first load under the full one: the fuel to burn is the start load plus a
   // full one for each stop, shared over the laps.
   const start = startLoad(rules);
   const short = start.fuelL < rules.fuelL || start.vePct < rules.vePct;
   const fuelPerLapL = fuel
     ? short
-      ? (start.fuelL + targetStops * rules.fuelL) / burn
-      : rules.fuelL / burnLaps
+      ? (start.fuelL + targetStops * rules.fuelL) / burnFuel
+      : rules.fuelL / burnLapsFuel
     : null;
   const vePerLapPct = ve
     ? short
-      ? (start.vePct + targetStops * rules.vePct) / burn
-      : rules.vePct / burnLaps
+      ? (start.vePct + targetStops * rules.vePct) / burnVe
+      : rules.vePct / burnLapsVe
     : null;
   const saveFuelL =
     fuel && fuelPerLapL != null ? fuel.median - fuelPerLapL : null;
@@ -494,10 +498,11 @@ function loadFor(
   fuelPerLap: number | null,
   vePerLap: number | null,
 ): Load {
-  // The formation lap burns a lap of both before the race starts.
-  const burn = laps + (rules.formationLap ? 1 : 0);
-  const fuelL = fuelPerLap == null ? null : burn * fuelPerLap;
-  const vePct = vePerLap == null ? null : burn * vePerLap;
+  // The formation lap burns its share of both before the race starts.
+  const formation = formationLaps(rules);
+  const fuelL =
+    fuelPerLap == null ? null : (laps + formation.fuel) * fuelPerLap;
+  const vePct = vePerLap == null ? null : (laps + formation.ve) * vePerLap;
   // One load is the one the car starts with.
   const start = startLoad(rules);
   const fuelShare = fuelL == null ? null : fuelL / start.fuelL;
@@ -582,10 +587,15 @@ export function stopRefuels(
   /** False for a plan that is fuel only by the data. */
   useVe: boolean,
 ): StopRefuel[] {
-  const extra = (i: number) => (i === 0 && rules.formationLap ? 1 : 0);
+  const formation = formationLaps(rules);
+  const extraFuel = (i: number) => (i === 0 ? formation.fuel : 0);
+  const extraVe = (i: number) => (i === 0 ? formation.ve : 0);
   return stintLaps.slice(0, -1).flatMap((_, i, stops): StopRefuel[] => {
     if (median.fuel == null) return [];
-    let toFull = Math.min(rules.fuelL, (stintLaps[i] + extra(i)) * median.fuel);
+    let toFull = Math.min(
+      rules.fuelL,
+      (stintLaps[i] + extraFuel(i)) * median.fuel,
+    );
     // The first stop refills to a full tank: what the stint used, plus what the
     // car did not start with (parc #1915). With a full start that is just the use.
     const first = startLoad(rules);
@@ -594,7 +604,7 @@ export function stopRefuels(
       if (median.ve != null && useVe && ratioPerPctL != null) {
         const deficitL =
           (rules.vePct - first.vePct) * ratioPerPctL +
-          Math.min(rules.vePct, (stintLaps[0] + extra(0)) * median.ve) *
+          Math.min(rules.vePct, (stintLaps[0] + extraVe(0)) * median.ve) *
             ratioPerPctL;
         if (rules.vePct > first.vePct)
           toFull = Math.min(rules.fuelL, Math.max(toFull, deficitL));
@@ -606,7 +616,7 @@ export function stopRefuels(
     const veHeavy = heavy?.ve ?? median.ve;
     const fuelUsed = Math.min(
       rules.fuelL,
-      (stintLaps[i] + extra(i)) * fuelHeavy,
+      (stintLaps[i] + extraFuel(i)) * fuelHeavy,
     );
     // The first stint starts from the start load, every later one from a full tank.
     const loaded = startLoad(rules);
@@ -616,7 +626,10 @@ export function stopRefuels(
     const fuelNeed = Math.max(0, remaining * fuelHeavy - fuelLeft);
     let veNeedL = 0;
     if (veHeavy != null && useVe && ratioPerPctL != null) {
-      const veUsed = Math.min(rules.vePct, (stintLaps[i] + extra(i)) * veHeavy);
+      const veUsed = Math.min(
+        rules.vePct,
+        (stintLaps[i] + extraVe(i)) * veHeavy,
+      );
       const veLeft = Math.max(0, veAtStart - veUsed);
       veNeedL = Math.max(0, remaining * veHeavy - veLeft) * ratioPerPctL;
     }

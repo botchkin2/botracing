@@ -176,6 +176,43 @@ describe('planRace', () => {
     expect(p.atMedian.stopLaps).toEqual([19, 39]);
   });
 
+  it('burns the measured formation fuel, not one green lap, and keeps VE at one lap', () => {
+    // 3.5 L and 2 % a lap on an 84 L, 100 % load. One green lap of formation:
+    // (84 - 3.5) / 3.5 = 23 laps. At 1.4 laps of fuel (4.9 L): 22. VE stays at
+    // one lap, (100 - 2) / 2 = 49, so fuel limits both ways.
+    const plain = planRace(
+      rules({lengthLaps: 60, formationLap: true}),
+      laps(10, 3.5, 2),
+    );
+    expect(plain.atMedian.firstStint.laps).toBe(23);
+    const measured = planRace(
+      rules({
+        lengthLaps: 60,
+        formationLap: true,
+        formationFactor: {fuel: 1.4, ve: 1},
+      }),
+      laps(10, 3.5, 2),
+    );
+    expect(measured.atMedian.firstStint.laps).toBe(22);
+    expect(measured.atMedian.firstStint.fuelLaps).toBe(22);
+    expect(measured.atMedian.firstStint.veLaps).toBeCloseTo(49);
+  });
+
+  it('charges the measured formation fuel to a race that fits one load', () => {
+    const load = (factor: number) =>
+      planRace(
+        rules({
+          lengthLaps: 20,
+          formationLap: true,
+          formationFactor: {fuel: factor, ve: 1},
+        }),
+        laps(10, 3.5, 2),
+      ).loadToFinish?.[0].atMedian.fuelL;
+    // 20 laps and the formation lap, at one lap and at 1.4 laps of fuel.
+    expect(load(1)).toBeCloseTo(21 * 3.5);
+    expect(load(1.4)).toBeCloseTo(21.4 * 3.5);
+  });
+
   it('keeps the formation lap in the first even stint', () => {
     // A 20-lap tank with the formation lap: 19 laps in the first stint. In a
     // 39-lap race that is one stop and an even split of 20, but 20 laps plus

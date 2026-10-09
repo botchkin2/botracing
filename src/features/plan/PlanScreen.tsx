@@ -180,6 +180,7 @@ export function PlanScreen() {
         rules?.rules ?? null,
         hasVe,
         hist.ratio?.perPctL ?? null,
+        data.formation,
       )}
       sheet={ruleSheet}
       eventText={data.eventText}
