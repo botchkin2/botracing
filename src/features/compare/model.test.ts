@@ -67,6 +67,8 @@ const session = toSessionDetail({
 const section = (segTime: number) => ({segTime, parts: []});
 const rawLap = (id: string, lapTime: number, segs: number[]) => ({
   id,
+  // The game's lap count: a is 1, b is 2, c is 3 (the radar needs it).
+  lapNumber: id.charCodeAt(0) - 96,
   lapTime,
   comparable: true,
   reasons: [],
@@ -972,10 +974,51 @@ describe('laps of another session', () => {
       map,
       selection: sel({laps: ['a', fid], hl: fid}),
     });
-    expect(playingForeign.playing).toEqual({lapId: fid, lapNumber: null});
+    expect(playingForeign.radarLap).toBeNull();
     expect(m.allLaps.flatMap(s => s.rows.map(r => r.lapId)).includes(fid)).toBe(
       false,
     );
-    expect(m.playing?.lapId).toBe('a');
+    expect(
+      buildCompareModel({
+        session,
+        laps,
+        foreign,
+        traces: withTrace,
+        band: null,
+        map,
+        selection: sel({laps: ['a', fid], hl: 'a'}),
+      }).radarLap,
+    ).toMatchObject({lapId: 'a', label: 'L1'});
+  });
+});
+
+describe('which lap owns the radar', () => {
+  const at = (s: Partial<CompareSelection>) => build(sel(s)).radarLap;
+
+  it('is null with the median and nothing highlighted', () => {
+    expect(at({})).toBeNull();
+  });
+  it('is the highlighted lap, named like its chip', () => {
+    expect(at({hl: 'b'})).toMatchObject({lapId: 'b', label: 'L2'});
+  });
+  it('is the Ref lap when nothing is highlighted, and the highlighted lap over it', () => {
+    expect(at({ref: 'c'})?.lapId).toBe('c');
+    expect(at({ref: 'c', hl: 'a'})?.lapId).toBe('a');
+  });
+  it('is null for a lap without a game lap number: it has no place in the field', () => {
+    const noNumber = laps.map(l => (l.id === 'b' ? {...l, lapNumber: null} : l));
+    const m = buildCompareModel({
+      session,
+      laps: noNumber,
+      traces,
+      band: null,
+      map,
+      selection: sel({hl: 'b'}),
+    });
+    expect(m.radarLap).toBeNull();
+  });
+  it('stays null with one lap checked on the median: the median rule has no special case', () => {
+    expect(at({laps: ['a']})).toBeNull();
+    expect(at({laps: ['a'], hl: 'a'})?.lapId).toBe('a');
   });
 });
