@@ -49,6 +49,24 @@ test('reads every car of the DriverInfo but the pace car', () => {
   assert.deepEqual(driversOfYaml(''), []);
 });
 
+test('the driver list ends at the next top-level key', () => {
+  const withNext = `${YAML}SplitTimeInfo:
+ Sectors:
+ - SectorNum: 0
+CarSetup:
+ CarScreenName: Not a driver
+ CarClassID: 77
+`;
+  const drivers = driversOfYaml(withNext);
+  assert.equal(drivers.length, 3);
+  assert.deepEqual(drivers.at(-1), {
+    carIdx: 2,
+    classId: 4029,
+    className: '',
+    carName: 'Porsche 963 GTP',
+  });
+});
+
 test('a known id is named by its class, never by a model', () => {
   const cars = [
     {classId: 4029, className: '', carName: 'Porsche 963 GTP'},

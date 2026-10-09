@@ -327,6 +327,13 @@ impl<S: Source> Recorder<S> {
         self.view.as_mut()?.read(at, len)
     }
 
+    /// LMU's mInRealtime: true while the player is on track, not at the monitor
+    /// or in a replay. Read from the layout, not a fixed offset.
+    fn in_realtime(&mut self) -> bool {
+        let at = self.layout.offsets["scoringInfo"] + self.layout.in_realtime;
+        self.read(at, 1).map_or(false, |b| b[0] != 0)
+    }
+
     fn read_game_version(&mut self) -> Option<i32> {
         let at = self.layout.offsets["gameVersion"];
         Some(i32_at(&self.read(at, 4)?, 0))
@@ -428,6 +435,11 @@ impl<S: Source> Recorder<S> {
     fn player(&mut self, now: u64) {
         let Some(et) = self.player_clock() else { return };
         if Some(et) == self.last_player_et {
+            return;
+        }
+        // Only on track: not at the monitor, not in a replay. playerHasVehicle
+        // is checked in frame::player.
+        if !self.in_realtime() {
             return;
         }
         let layout = &self.layout;
@@ -589,10 +601,16 @@ mod tests {
             self.put(self.scoring("mTrackName"), track.as_bytes());
             self.put(self.scoring("mTrackName") + track.len(), &[0]);
             self.put(self.scoring("mSession"), &session.to_le_bytes());
+            self.put(self.scoring("mInRealtime"), &[1]);
             self.put(self.scoring("mNumVehicles"), &1_i32.to_le_bytes());
             self.put(self.scoring("mCurrentET"), &et.to_le_bytes());
             self.put(self.vehicle(0, "mVehicleName"), b"Car #1\0");
             self.put(self.vehicle(0, "mID"), &7_i32.to_le_bytes());
+        }
+
+        /// Whether the player is on track (mInRealtime) in the scoring info.
+        fn realtime(&self, on: bool) {
+            self.put(self.scoring("mInRealtime"), &[on as u8]);
         }
 
         /// The player in car 0 at elapsed time `et`, simulated.
@@ -645,6 +663,30 @@ mod tests {
         assert_eq!(rec.status.state, "no-game");
         assert!(rig.folders().is_empty());
         assert_eq!(rig.status_file()["state"], "no-game");
+    }
+
+    #[test]
+    fn lmu_menus_and_replays_are_not_recorded_and_driving_again_is_one_folder() {
+        let (rig, mut rec) = Rig::new("realtime");
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.0);
+        rec.tick(1_000);
+        let rows = |rec: &Recorder<_>| rec.capture.as_ref().unwrap().player_rows();
+        let on_track = rows(&rec);
+        // At the monitor (menu or replay): not realtime, no row added.
+        rig.field("Road Atlanta", 10, 5.2);
+        rig.realtime(false);
+        rig.player("Road Atlanta", 5.2);
+        rec.tick(1_010);
+        assert_eq!(rows(&rec), on_track, "no row while not on track");
+        rig.field("Road Atlanta", 10, 5.4);
+        rig.realtime(true);
+        rig.player("Road Atlanta", 5.4);
+        rec.tick(1_020);
+        assert!(rows(&rec) > on_track, "driving again records again");
+        rec.shutdown(5_000);
+        let folders = rig.folders();
+        assert_eq!(folders.len(), 1, "a pause never splits the session folder");
     }
 
     #[test]

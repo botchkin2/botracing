@@ -62,8 +62,17 @@ struct ScoringInfoV01
   char mTrackName[64];
   long mSession;
   double mCurrentET;
+  double mEndET;
+  long mMaxLaps;
+  double mLapDist;
   char *mResultsStream;
   long mNumVehicles;
+  unsigned char mGamePhase;
+  signed char mYellowFlagState;
+  signed char mSectorFlag[3];
+  unsigned char mStartLight;
+  unsigned char mNumRedLights;
+  bool mInRealtime;
   char mPlayerName[32];
   char mServerName[32];
   unsigned char mGameMode;
