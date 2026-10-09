@@ -23,6 +23,7 @@ import {
   onCurrentBoundaries,
   type TrackMapData,
   referenceDefaultLapIds,
+  stintSetLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -1379,10 +1380,12 @@ export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
 /**
- * A URL with no laps opens on the session's default laps (a fair reference
- * and the median lap, `referenceDefaultLapIds`), so Compare is never an empty
- * reference with no chips. Laps the URL names are kept as given, and nothing
- * changes while the session or its laps are still loading.
+ * A URL with no laps opens on a set: every comparable lap of the session's
+ * main stint against their median (`stintSetLapIds`). Under two comparable
+ * laps it opens on a fair reference and the median lap
+ * (`referenceDefaultLapIds`), so Compare is never empty. Laps the URL names
+ * are kept as given, and nothing changes while the session or its laps are
+ * still loading.
  */
 export function withDefaultLaps(
   sel: CompareSelection,
@@ -1390,7 +1393,11 @@ export function withDefaultLaps(
   session: DefaultSession | undefined,
 ): CompareSelection {
   if (sel.laps.length > 0 || !laps || !session) return sel;
-  return {...sel, laps: referenceDefaultLapIds(laps, session)};
+  const set = stintSetLapIds(laps);
+  return {
+    ...sel,
+    laps: set.length > 0 ? set : referenceDefaultLapIds(laps, session),
+  };
 }
 
 /**
