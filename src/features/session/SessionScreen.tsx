@@ -529,7 +529,7 @@ function SessionView({
               <Text variant='dataSmall' tone='textMuted'>
                 {TAG_KEY}
               </Text>
-              {/* The phone: the laps first, the cards after them, each folded to one line. */}
+              {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
               {layout.isDesktop ? null : (
                 <>
                   <FoldedSection
