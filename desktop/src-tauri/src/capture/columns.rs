@@ -1,0 +1,437 @@
+// Raw struct bytes to named columns, one chunk at a time.
+//
+// Names and the float32-when-exact rule match tools/capture/columns.py.
+// Filler the analysis never reads is left out. Char buffers become text only
+// when the caller names them; everything else stays numeric.
+
+use crate::capture::layout::{Kind, Layout, Struct};
+use arrow_array::{
+    ArrayRef, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+    Int8Array, RecordBatch, StringArray, UInt16Array, UInt32Array, UInt8Array,
+};
+use arrow_schema::{DataType, Field, Schema};
+use parquet::arrow::ArrowWriter;
+use parquet::basic::{Compression, Encoding, ZstdLevel};
+use parquet::file::properties::WriterProperties;
+use parquet::schema::types::ColumnPath;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::path::Path;
+use std::sync::Arc;
+
+const WHEELS: [&str; 4] = ["fl", "fr", "rl", "rr"];
+const SKIP_PREFIXES: [&str; 4] = [
+    "mExpansion",
+    "mUnused",
+    "mUpgradePack",
+    "mPhysicsToGraphicsOffset",
+];
+
+/// Doubles the game fills with float32 values. Stored as float32 only when
+/// that loses nothing, so a game update cannot cost precision.
+pub fn float32_player() -> &'static HashSet<String> {
+    use std::sync::OnceLock;
+    static NAMES: OnceLock<HashSet<String>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut names = HashSet::new();
+        for wheel in WHEELS {
+            for n in ["GripFract", "LateralForce", "LongitudinalForce", "TireLoad", "Wear"] {
+                names.insert(format!("{wheel}_m{n}"));
+            }
+        }
+        for n in [
+            "mBatteryChargeFraction", "mDeltaTime", "mDrag", "mElectricBoostMotorRPM",
+            "mElectricBoostMotorTemperature", "mElectricBoostMotorTorque",
+            "mElectricBoostWaterTemperature", "mEngineMaxRPM", "mEngineTorque", "mFilteredBrake",
+            "mFilteredSteering", "mFrontDownforce", "mFrontRideHeight", "mFrontWingHeight",
+            "mFuelCapacity", "mLapStartET", "mLastImpactET", "mLastImpactMagnitude",
+            "mRearDownforce", "mRearRideHeight", "mTurboBoostPressure", "mUnfilteredBrake",
+            "mUnfilteredClutch", "mUnfilteredSteering", "mUnfilteredThrottle",
+        ] {
+            names.insert(n.to_string());
+        }
+        for axis in ["x", "y", "z"] {
+            names.insert(format!("mLastImpactPos_{axis}"));
+            for n in ["mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos"] {
+                names.insert(format!("{n}_{axis}"));
+            }
+        }
+        for row in 0..3 {
+            for axis in ["x", "y", "z"] {
+                names.insert(format!("mOri_{row}_{axis}"));
+            }
+        }
+        names
+    })
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Column {
+    F64(Vec<f64>),
+    F32(Vec<f32>),
+    I64(Vec<i64>),
+    Bool(Vec<bool>),
+    Text(Vec<String>),
+}
+
+pub fn decode_text(raw: &[u8]) -> String {
+    let body = raw.split(|b| *b == 0).next().unwrap_or(raw);
+    String::from_utf8(body.to_vec()).unwrap_or_else(|_| body.iter().map(|b| *b as char).collect())
+}
+
+/// `{column: values}` for `raw`, which is `rows` of `struct_name` laid end to end.
+pub fn columns(
+    layout: &Layout,
+    struct_name: &str,
+    raw: &[u8],
+    text_fields: &[&str],
+    narrow: &HashSet<String>,
+) -> Result<HashMap<String, Column>, String> {
+    let def = layout
+        .built(struct_name)
+        .ok_or_else(|| format!("struct {struct_name} was not built"))?;
+    if def.size == 0 || raw.len() % def.size != 0 {
+        return Err(format!(
+            "{struct_name}: {} bytes is not a whole number of {}-byte structs",
+            raw.len(),
+            def.size
+        ));
+    }
+    let rows = raw.len() / def.size;
+    let mut out = HashMap::new();
+    walk(layout, def, raw, def.size, rows, 0, "", &mut out)?;
+    for name in text_fields {
+        let Some(field) = def.fields.iter().find(|f| f.name == *name) else {
+            continue;
+        };
+        let mut texts = Vec::with_capacity(rows);
+        for row in 0..rows {
+            let start = row * def.size + field.offset;
+            let end = start + field.size;
+            texts.push(decode_text(&raw[start..end]));
+        }
+        out.insert((*name).to_string(), Column::Text(texts));
+    }
+    narrow_exact(&mut out, narrow);
+    Ok(out)
+}
+
+fn walk(
+    layout: &Layout,
+    def: &Struct,
+    raw: &[u8],
+    stride: usize,
+    rows: usize,
+    base: usize,
+    prefix: &str,
+    out: &mut HashMap<String, Column>,
+) -> Result<(), String> {
+    for field in &def.fields {
+        if SKIP_PREFIXES.iter().any(|p| field.name.starts_with(p)) {
+            continue;
+        }
+        let name = if prefix.is_empty() {
+            field.name.clone()
+        } else {
+            format!("{prefix}_{}", field.name)
+        };
+        emit(layout, &field.kind, raw, stride, rows, base + field.offset, &name, out)?;
+    }
+    Ok(())
+}
+
+fn emit(
+    layout: &Layout,
+    kind: &Kind,
+    raw: &[u8],
+    stride: usize,
+    rows: usize,
+    offset: usize,
+    name: &str,
+    out: &mut HashMap<String, Column>,
+) -> Result<(), String> {
+    match kind {
+        Kind::Struct(struct_name) => {
+            let nested = layout
+                .built(struct_name)
+                .ok_or_else(|| format!("struct {struct_name} was not built"))?;
+            walk(layout, nested, raw, stride, rows, offset, name, out)
+        }
+        Kind::Array(inner, n) => {
+            let (elem, _) = crate::capture::layout::size_align(inner);
+            if name == "mWheel" && *n == 4 {
+                for i in 0..4 {
+                    emit(layout, inner, raw, stride, rows, offset + i * elem, WHEELS[i], out)?;
+                }
+            } else {
+                for i in 0..*n {
+                    emit(
+                        layout,
+                        inner,
+                        raw,
+                        stride,
+                        rows,
+                        offset + i * elem,
+                        &format!("{name}_{i}"),
+                        out,
+                    )?;
+                }
+            }
+            Ok(())
+        }
+        Kind::Bytes(_) | Kind::Char => Ok(()),
+        Kind::Pointer => Ok(()),
+        Kind::F64 => {
+            let mut values = Vec::with_capacity(rows);
+            for row in 0..rows {
+                values.push(f64::from_le_bytes(at(raw, row * stride + offset)?));
+            }
+            out.insert(name.to_string(), Column::F64(values));
+            Ok(())
+        }
+        Kind::F32 => {
+            let mut values = Vec::with_capacity(rows);
+            for row in 0..rows {
+                values.push(f32::from_le_bytes(at4(raw, row * stride + offset)?));
+            }
+            out.insert(name.to_string(), Column::F32(values));
+            Ok(())
+        }
+        Kind::Bool => {
+            let mut values = Vec::with_capacity(rows);
+            for row in 0..rows {
+                values.push(raw[row * stride + offset] != 0);
+            }
+            out.insert(name.to_string(), Column::Bool(values));
+            Ok(())
+        }
+        Kind::I8 | Kind::U8 | Kind::I16 | Kind::U16 | Kind::I32 | Kind::U32 | Kind::I64 | Kind::U64 => {
+            let mut values = Vec::with_capacity(rows);
+            for row in 0..rows {
+                values.push(read_int(kind, raw, row * stride + offset)?);
+            }
+            out.insert(name.to_string(), Column::I64(values));
+            Ok(())
+        }
+    }
+}
+
+fn at(raw: &[u8], offset: usize) -> Result<[u8; 8], String> {
+    raw.get(offset..offset + 8)
+        .and_then(|s| s.try_into().ok())
+        .ok_or_else(|| format!("read past the end at {offset}"))
+}
+
+fn at4(raw: &[u8], offset: usize) -> Result<[u8; 4], String> {
+    raw.get(offset..offset + 4)
+        .and_then(|s| s.try_into().ok())
+        .ok_or_else(|| format!("read past the end at {offset}"))
+}
+
+fn read_int(kind: &Kind, raw: &[u8], offset: usize) -> Result<i64, String> {
+    Ok(match kind {
+        Kind::I8 => raw[offset] as i8 as i64,
+        Kind::U8 => raw[offset] as i64,
+        Kind::I16 => i16::from_le_bytes(raw[offset..offset + 2].try_into().unwrap()) as i64,
+        Kind::U16 => u16::from_le_bytes(raw[offset..offset + 2].try_into().unwrap()) as i64,
+        Kind::I32 => i32::from_le_bytes(at4(raw, offset)?) as i64,
+        Kind::U32 => u32::from_le_bytes(at4(raw, offset)?) as i64,
+        Kind::I64 => i64::from_le_bytes(at(raw, offset)?),
+        Kind::U64 => u64::from_le_bytes(at(raw, offset)?) as i64,
+        _ => return Err(format!("not an integer: {kind:?}")),
+    })
+}
+
+/// One chunk, temp file then rename. Floats use byte-stream-split. Integers
+/// keep the header's width and do not. Text is dictionary-encoded.
+pub fn write_parquet(
+    path: &Path,
+    layout: &Layout,
+    struct_name: &str,
+    cols: &HashMap<String, Column>,
+) -> Result<(), String> {
+    let def = layout
+        .built(struct_name)
+        .ok_or_else(|| format!("struct {struct_name} was not built"))?;
+    let mut order = Vec::new();
+    order_of(layout, def, "", &mut order);
+    let tmp = Path::new(&format!("{}.tmp", path.display())).to_path_buf();
+    let write = (|| {
+        let mut fields = Vec::new();
+        let mut arrays: Vec<ArrayRef> = Vec::new();
+        let mut props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(ZstdLevel::default()))
+            .set_dictionary_enabled(false);
+        for (name, kind) in &order {
+            let Some(col) = cols.get(name) else { continue };
+            let (dtype, array) = arrow_of(kind, col)?;
+            if matches!(dtype, DataType::Float32 | DataType::Float64) {
+                props = props.set_column_encoding(
+                    ColumnPath::from(name.as_str()),
+                    Encoding::BYTE_STREAM_SPLIT,
+                );
+            }
+            if matches!(dtype, DataType::Utf8) {
+                props = props.set_column_dictionary_enabled(ColumnPath::from(name.as_str()), true);
+            }
+            fields.push(Field::new(name, dtype, false));
+            arrays.push(array);
+        }
+        let schema = Arc::new(Schema::new(fields));
+        let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
+        if let Some(dir) = tmp.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let file = File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut writer =
+            ArrowWriter::try_new(file, schema, Some(props.build())).map_err(|e| e.to_string())?;
+        writer.write(&batch).map_err(|e| e.to_string())?;
+        writer.close().map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    })();
+    if write.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    write
+}
+
+fn order_of(layout: &Layout, def: &Struct, prefix: &str, out: &mut Vec<(String, Kind)>) {
+    for field in &def.fields {
+        if SKIP_PREFIXES.iter().any(|p| field.name.starts_with(p)) {
+            continue;
+        }
+        let name = if prefix.is_empty() {
+            field.name.clone()
+        } else {
+            format!("{prefix}_{}", field.name)
+        };
+        order_kind(layout, &field.kind, &name, out);
+    }
+}
+
+fn order_kind(layout: &Layout, kind: &Kind, name: &str, out: &mut Vec<(String, Kind)>) {
+    match kind {
+        Kind::Struct(struct_name) => {
+            if let Some(nested) = layout.built(struct_name) {
+                order_of(layout, nested, name, out);
+            }
+        }
+        Kind::Array(inner, n) => {
+            let wheels = name == "mWheel" && *n == 4;
+            for i in 0..*n {
+                let child = if wheels { WHEELS[i].to_string() } else { format!("{name}_{i}") };
+                order_kind(layout, inner, &child, out);
+            }
+        }
+        Kind::Bytes(_) | Kind::Char => out.push((name.to_string(), kind.clone())),
+        Kind::Pointer => {}
+        other => out.push((name.to_string(), other.clone())),
+    }
+}
+
+fn arrow_of(kind: &Kind, col: &Column) -> Result<(DataType, ArrayRef), String> {
+    let array = match (kind, col) {
+        (_, Column::F32(v)) => (DataType::Float32, Arc::new(Float32Array::from(v.clone())) as ArrayRef),
+        (_, Column::F64(v)) => (DataType::Float64, Arc::new(Float64Array::from(v.clone())) as ArrayRef),
+        (_, Column::Bool(v)) => (DataType::Boolean, Arc::new(BooleanArray::from(v.clone())) as ArrayRef),
+        (_, Column::Text(v)) => (DataType::Utf8, Arc::new(StringArray::from(v.clone())) as ArrayRef),
+        (Kind::I8, Column::I64(v)) => (DataType::Int8, Arc::new(Int8Array::from(v.iter().map(|n| *n as i8).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::U8, Column::I64(v)) => (DataType::UInt8, Arc::new(UInt8Array::from(v.iter().map(|n| *n as u8).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::I16, Column::I64(v)) => (DataType::Int16, Arc::new(Int16Array::from(v.iter().map(|n| *n as i16).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::U16, Column::I64(v)) => (DataType::UInt16, Arc::new(UInt16Array::from(v.iter().map(|n| *n as u16).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::I32, Column::I64(v)) => (DataType::Int32, Arc::new(Int32Array::from(v.iter().map(|n| *n as i32).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::U32, Column::I64(v)) => (DataType::UInt32, Arc::new(UInt32Array::from(v.iter().map(|n| *n as u32).collect::<Vec<_>>())) as ArrayRef),
+        (_, Column::I64(v)) => (DataType::Int64, Arc::new(Int64Array::from(v.clone())) as ArrayRef),
+    };
+    Ok(array)
+}
+
+fn narrow_exact(cols: &mut HashMap<String, Column>, names: &HashSet<String>) {
+    for (name, col) in cols.iter_mut() {
+        if !names.contains(name.as_str()) {
+            continue;
+        }
+        let Column::F64(values) = col else { continue };
+        if values.iter().all(|v| (*v as f32) as f64 == *v || v.is_nan()) {
+            *col = Column::F32(values.iter().map(|v| *v as f32).collect());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn layout() -> Layout {
+        Layout::parse(include_str!("../../../../tools/capture/tests/fixture.hpp")).unwrap()
+    }
+
+    #[test]
+    fn a_player_row_names_wheels_and_narrows_only_exact_doubles() {
+        let lay = layout();
+        let telem = lay.built("TelemInfoV01").unwrap();
+        let mut raw = vec![0_u8; telem.size];
+        let et = telem.fields.iter().find(|f| f.name == "mElapsedTime").unwrap();
+        raw[et.offset..et.offset + 8].copy_from_slice(&1.25_f64.to_le_bytes());
+        let gear = telem.fields.iter().find(|f| f.name == "mGear").unwrap();
+        raw[gear.offset..gear.offset + 4].copy_from_slice(&4_i32.to_le_bytes());
+        let pos = telem.fields.iter().find(|f| f.name == "mPos").unwrap();
+        let vect = lay.built("TelemVect3").unwrap();
+        let x = vect.fields.iter().find(|f| f.name == "x").unwrap().offset;
+        let y = vect.fields.iter().find(|f| f.name == "y").unwrap().offset;
+        raw[pos.offset + x..pos.offset + x + 8].copy_from_slice(&1.5_f64.to_le_bytes());
+        raw[pos.offset + y..pos.offset + y + 8].copy_from_slice(&0.1_f64.to_le_bytes());
+        let name = telem.fields.iter().find(|f| f.name == "mVehicleName").unwrap();
+        raw[name.offset..name.offset + 3].copy_from_slice(b"LMU");
+
+        let cols = columns(&lay, "TelemInfoV01", &raw, &["mVehicleName"], float32_player()).unwrap();
+        assert_eq!(cols["mElapsedTime"], Column::F64(vec![1.25]));
+        assert_eq!(cols["mGear"], Column::I64(vec![4]));
+        // 1.5 is exact in float32. 0.1 is not, so it stays a double.
+        assert_eq!(cols["mPos_x"], Column::F32(vec![1.5]));
+        assert_eq!(cols["mPos_y"], Column::F64(vec![0.1]));
+        assert_eq!(cols["mVehicleName"], Column::Text(vec!["LMU".into()]));
+        assert!(!cols.keys().any(|k| k.contains("mExpansion")));
+        assert!(cols.contains_key("fl_mBrakeTemp"));
+        assert!(!cols.contains_key("mWheel_0_mBrakeTemp"));
+    }
+
+    #[test]
+    fn text_keeps_a_nul_and_falls_back_when_the_bytes_are_not_utf8() {
+        assert_eq!(decode_text(b"spa\0rest"), "spa");
+        assert_eq!(decode_text(&[0xff, 0xfe]), "\u{00ff}\u{00fe}");
+    }
+
+    #[test]
+    fn duckdb_reads_the_chunk_and_keeps_the_header_widths() {
+        let lay = layout();
+        let telem = lay.built("TelemInfoV01").unwrap();
+        let mut raw = vec![0_u8; telem.size];
+        let et = telem.fields.iter().find(|f| f.name == "mElapsedTime").unwrap();
+        raw[et.offset..et.offset + 8].copy_from_slice(&12.5_f64.to_le_bytes());
+        let gear = telem.fields.iter().find(|f| f.name == "mGear").unwrap();
+        raw[gear.offset..gear.offset + 4].copy_from_slice(&4_i32.to_le_bytes());
+        let cols = columns(&lay, "TelemInfoV01", &raw, &[], float32_player()).unwrap();
+        let dir = std::env::temp_dir().join("botracing-capture-chunk");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("player-0000.parquet");
+        write_parquet(&path, &lay, "TelemInfoV01", &cols).unwrap();
+        let duck = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
+        if !duck.is_file() {
+            return;
+        }
+        let file = path.display().to_string().replace('\\', "/");
+        let query = format!(
+            "SELECT mElapsedTime, mGear, typeof(mElapsedTime), typeof(mGear) FROM read_parquet('{file}')"
+        );
+        let done = std::process::Command::new(duck)
+            .args([":memory:", "-csv", "-c", &query])
+            .output()
+            .unwrap();
+        assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+        let text = String::from_utf8_lossy(&done.stdout);
+        assert!(text.contains("12.5"), "{text}");
+        assert!(text.contains("INTEGER"), "{text}");
+    }
+}
