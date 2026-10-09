@@ -596,7 +596,7 @@ describe('buildPitCard', () => {
       // 45.0 - 3.7 = 41.3 L; 68 - 4 = 64 % VE; over the 3 laps.
       expect(card.used).toEqual({
         value: '41.3 L / 64 % VE',
-        note: '13.77 L/lap · 21.33 %/lap · over 3 laps',
+        note: 'over 3 laps',
       });
       expect(card.end.title).toBe('End of L3');
       expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps)');

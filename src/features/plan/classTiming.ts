@@ -331,9 +331,9 @@ export function classTiming(input: ClassTimingInput): ClassTiming {
     ? {
         name: mine.name,
         classText: formatLapTime(mineClass.medianS),
-        classSrc: `${plural(mineClass.sessions, 'session')} · n = ${thousands(
-          mineClass.laps,
-        )} laps`,
+        // Says which kinds of session it pools: a class card built from a
+        // practice must not read like one built from races.
+        classSrc: fromText(mineClass),
         youText: formatLapTime(myLap),
         youSrc: `n = ${plural(mine.greenLaps, 'green lap')} · ${plural(
           mine.sessions,

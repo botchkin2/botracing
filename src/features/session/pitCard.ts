@@ -369,7 +369,6 @@ function fuelCard(
     hasVe && startVe != null && endVe != null
       ? round0(round0(startVe) + round0(addedVe) - round0(endVe))
       : null;
-  const perLapVe = usedVe != null && n > 0 ? usedVe / n : null;
   return {
     kind: 'fuel',
     hasVe,
@@ -398,11 +397,10 @@ function fuelCard(
         [litres(usedL), usedVe != null && `${pct(usedVe)} VE`],
         ' / ',
       ),
-      note: join([
-        n > 0 && `${(usedL / n).toFixed(2)} L/lap`,
-        perLapVe != null && `${perLapVe.toFixed(2)} %/lap`,
-        n > 0 && `over ${n} laps`,
-      ]),
+      // No per-lap figure: this total includes the formation lap, so a
+      // use per lap here would disagree with the stint line's green-lap
+      // median under the same label.
+      note: n > 0 ? `over ${n} laps` : '',
     },
     end: {
       title: `End of L${ending.lapIndex}`,
