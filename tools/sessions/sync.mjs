@@ -60,6 +60,7 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
+import {markUploaded} from './captureMarker.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {irFieldFor} from './irField.mjs';
 import {damageFor} from './playerDamage.mjs';
@@ -1029,7 +1030,11 @@ async function processSession(
     lines.push(`  ${out.session.consistency.overview}`);
   }
   if (local) lines.push(`  -> ${writeLocal(out)}`);
-  else await store.upload(out, {log: line => lines.push(line)});
+  else {
+    await store.upload(out, {log: line => lines.push(line)});
+    // The capture's field is in the store now: the tray may prune it.
+    markUploaded(captureRoot, out.session.field?.captures, s.id);
+  }
   return {
     track: out.track,
     boundaries: out.boundaries,
