@@ -5,6 +5,7 @@ import {
   useSessionFacets,
   useSessions,
 } from '@/src/data/sessions';
+import type {FinishPosition} from '@/src/analysis/raceResult';
 import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
 
 import {
@@ -108,6 +109,25 @@ const TYPE_LABEL: Record<SessionType, string> = {
 const timeOrDash = (timeS: number | null) =>
   timeS == null ? '—' : formatLapTime(timeS);
 
+/**
+ * The result on a race row. A race the player left early gives the class place
+ * with the class leader's laps as a floor, 'P20 GT3 · L20 of L23+' (the same
+ * label as the Plan's last-race line: a floor that counts the formation step);
+ * the class is left out when it has no name, and 'of L…+' when the class
+ * leader's laps are not known.
+ */
+export function raceResultText(finish: FinishPosition | null): string | null {
+  if (!finish) return null;
+  if (!finish.leftEarly)
+    return `P${finish.overall} · P${finish.inClass} in class`;
+  const place = `P${finish.inClass}`;
+  const laps =
+    finish.classLeaderLapsDone != null
+      ? `L${finish.lapsDone} of L${finish.classLeaderLapsDone}+`
+      : `L${finish.lapsDone}`;
+  return `${place} · ${laps} (left early)`;
+}
+
 export function buildSessionsModel(
   sessions: SessionSummary[],
   now: Date,
@@ -144,11 +164,7 @@ export function buildSessionsModel(
       laps: String(s.lapCount),
       best: timeOrDash(s.bestTimeS),
       median: timeOrDash(s.medianTimeS),
-      resultText: s.finish
-        ? s.finish.leftEarly
-          ? `P${s.finish.overall} at L${s.finish.lapsDone} of ${s.finish.leaderLapsDone} (left early)`
-          : `P${s.finish.overall} · P${s.finish.inClass} in class`
-        : null,
+      resultText: raceResultText(s.finish),
       table: {
         startedAt: s.startedAt,
         dateText: `${started.toLocaleDateString('en-GB', {
