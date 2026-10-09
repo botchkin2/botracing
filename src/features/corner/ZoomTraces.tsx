@@ -20,6 +20,7 @@ export type ZoomHeights = {
   speed: number;
   brake: number;
   throttle: number;
+  gear: number;
   // Desktop only.
   delta: number;
   steering: number;
@@ -111,6 +112,30 @@ export function ZoomTraces({
     zoom.windowM,
     zoom.stepM,
   );
+  // Gears in the window, integers: the axis runs from the lowest to the
+  // highest gear the set used, with a half-step of room either side.
+  const gearsShown = lines.flatMap(l => {
+    const from = Math.max(0, Math.floor(zoom.windowM[0] / zoom.stepM));
+    const to = Math.min(
+      l.gear.length - 1,
+      Math.ceil(zoom.windowM[1] / zoom.stepM),
+    );
+    return l.gear.slice(from, to + 1).filter(Number.isFinite);
+  });
+  const gearLo = gearsShown.reduce((a, g) => Math.min(a, g), Infinity);
+  const gearHi = gearsShown.reduce((a, g) => Math.max(a, g), -Infinity);
+  const gearOk = Number.isFinite(gearLo) && Number.isFinite(gearHi);
+  const gearDomain: [number, number] = gearOk
+    ? [gearLo - 0.5, gearHi + 0.5]
+    : [0.5, 7.5];
+  const gearTicks = gearOk
+    ? Array.from({length: gearHi - gearLo + 1}, (_, i) => gearLo + i).map(
+        v => ({
+          v,
+          label: `${v}`,
+        }),
+      )
+    : [];
   const common = {
     width,
     stepM: zoom.stepM,
@@ -260,6 +285,18 @@ export function ZoomTraces({
         domain={[-4, 104]}
         series={series(l => ({values: l.throttlePct}))}
         marks={[...apex, ...pointMarks(l => l.fullThrottleAtM)]}
+      />
+      {header('gear', 'Gear')}
+      <TraceChart
+        {...common}
+        height={heights.gear}
+        domain={gearDomain}
+        yTicks={gearTicks}
+        series={series(l => ({values: l.gear})).map(s => ({
+          ...s,
+          stepped: true,
+        }))}
+        marks={apex}
       />
       {desktop && (
         <>

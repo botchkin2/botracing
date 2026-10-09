@@ -136,6 +136,8 @@ export type ZoomLine = {
   key: boolean;
   speedKph: number[];
   brakePct: number[];
+  /** Gear on the grid: integers, stepped, never interpolated. */
+  gear: number[];
   /** The lap's own grid step, metres. */
   stepM: number;
   throttlePct: number[];
@@ -486,6 +488,7 @@ export function buildCornerModel(input: {
         key: r.onIndex != null,
         speedKph: t.speedKph,
         brakePct: t.brakePct,
+        gear: t.gear,
         stepM: t.stepM,
         throttlePct: t.throttlePct,
         // Zero at the turn's entry; the stretch is in the window's frame.
