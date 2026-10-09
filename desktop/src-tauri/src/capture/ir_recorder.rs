@@ -610,24 +610,43 @@ mod tests {
     #[ignore]
     fn live_iracing_minute() {
         use crate::capture::win::IrShm;
-        let root = std::env::temp_dir().join(format!("ir-live-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
+        // IR_LIVE_SECONDS (default 60) sets how long; IR_LIVE_KEEP=<folder>
+        // records into that folder and keeps it (a real run to compare with an
+        // .ibt), with real wall-clock times.
+        let secs: u64 = std::env::var("IR_LIVE_SECONDS").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
+        let keep = std::env::var_os("IR_LIVE_KEEP").map(PathBuf::from);
+        let root = keep.clone().unwrap_or_else(|| {
+            std::env::temp_dir().join(format!("ir-live-{}", std::process::id()))
+        });
+        if keep.is_none() {
+            let _ = std::fs::remove_dir_all(&root);
+        }
         let mut rec = IrRecorder::new(IrShm::new(), root.clone());
         let started = std::time::Instant::now();
-        let started_ms = 1_000_000u64;
-        while started.elapsed() < Duration::from_secs(60) {
-            let ms = started_ms + started.elapsed().as_millis() as u64;
+        let base_ms = if keep.is_some() {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(1_000_000, |d| d.as_millis() as u64)
+        } else {
+            1_000_000u64
+        };
+        while started.elapsed() < Duration::from_secs(secs) {
+            let ms = base_ms + started.elapsed().as_millis() as u64;
             let wait = rec.tick(ms);
             rec.src().wait(wait);
         }
-        rec.shutdown(started_ms + 61_000);
+        rec.shutdown(base_ms + secs * 1000 + 1000);
+        let started_ms = base_ms;
+        let _ = started_ms;
         let bytes = dir_bytes(&root);
-        println!("state {} ({}), wrote {} bytes in 60 s = {:.0} MB per hour",
-            rec.status.state, rec.status.reason, bytes, bytes as f64 * 60.0 / 1e6);
+        println!("state {} ({}), wrote {} bytes in {} s = {:.0} MB per hour",
+            rec.status.state, rec.status.reason, bytes, secs, bytes as f64 * 3600.0 / secs as f64 / 1e6);
         for dir in captures(&root) {
             println!("{}", std::fs::read_to_string(dir.join("meta.json")).unwrap_or_default());
         }
         assert!(bytes > 0, "nothing was recorded: is a car on track?");
-        let _ = std::fs::remove_dir_all(&root);
+        if keep.is_none() {
+            let _ = std::fs::remove_dir_all(&root);
+        }
     }
 }
