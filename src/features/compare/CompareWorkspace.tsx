@@ -532,6 +532,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
                       color: lapStyle(r.selIndex, r.lapId === selection.hl)
                         .color,
                     },
+                    // The highlighted lap's column is emphasised (#3309).
+                    r.lapId === selection.hl && styles.gridCellHl,
                   ]}>
                   {r.label}
                 </Text>
@@ -662,6 +664,7 @@ const styles = StyleSheet.create({
   tableCell: {width: 64, textAlign: 'right'},
   sectionHead: {width: 110},
   gridCell: {width: 52, textAlign: 'center'},
+  gridCellHl: {fontWeight: '700'},
   cell: {
     height: 24,
     borderRadius: radius.xs,

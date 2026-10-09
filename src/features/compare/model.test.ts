@@ -648,6 +648,16 @@ describe('many laps', () => {
     expect(m.tableReference.grid).toBe('median of 7 checked laps');
     expect(m.grid).not.toBeNull();
     expect(m.grid!.rows.map(r => r.lapId)).toEqual(ids);
+    // A highlighted lap keeps every row too (#3309): the set stays visible.
+    const hl = buildCompareModel({
+      session,
+      laps: sectionLaps,
+      traces: sectionTraces,
+      band: null,
+      map: withBoundaries,
+      selection: {laps: ids, ref: null, hl: 'c', corner: null, cursorM: 600},
+    });
+    expect(hl.grid!.rows.map(r => r.lapId)).toEqual(ids);
   });
 
   it('grid shows the median row plus the highlighted lap', () => {
