@@ -21,9 +21,16 @@ The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port o
 
 Tests: `cargo test` runs the fake-memory tests. Three need this PC (`cargo test -- --ignored` with `BOTRACING_DUCKDB`, `LMU_SHM_HEADER_DIR`, `LAP_CAPTURE_SAMPLE`), and the soak measures CPU and memory against a fake game: `SOAK_SECS=600 cargo test --release soak -- --ignored --nocapture`.
 
-## iRacing live reader (step 2 of the iRacing plan, not recording yet)
+## iRacing recorder
 
-`src-tauri/src/capture/irsdk.rs` reads iRacing's telemetry map (`Local\IRSDKMemMapFileName`) without the SDK: the header and the variable table (name, type, offset, count) are the SDK's self-describing format, so no per-variable offset is written down. A frame is the newest of the rotating buffers by tick count, kept only when that buffer's tick is unchanged after the copy (retried, never the game's lock). The session text is Windows-1252, re-read when the header's update counter moves. `win.rs` opens the map read-only and whole, and never creates it. Nothing is written to disk yet (step 3). Fake-memory tests cover a zero map, a rewritten buffer mid-copy and a torn session text; with iRacing in-car, `cargo test live_iracing -- --ignored --nocapture` reads the real sim and prints the tick rate and a few variables.
+The tray records iRacing's live telemetry the same way (`src-tauri/src/capture/irsdk.rs`, `ir_recorder.rs`, `ir_store.rs`, `ir_session.rs`) into the same folder shape (`<startUtc>_<track>_<session>/` under `%LOCALAPPDATA%\lap-capture`): `meta.json`, and 60 s chunks of `player-` (60 Hz), `field-` (every racing car, 5 Hz) and `session-` (clock, flags, weather, 5 Hz) parquet. Columns carry iRacing's own variable names from fixed whitelists (`ir_recorder.rs` PLAYER, FIELD, SESSION), never "everything".
+
+- **Reader:** the SDK's map (`Local\IRSDKMemMapFileName`) without the SDK. The header and variable table are self-describing, so no per-variable offset is written down. A frame is the newest of the rotating buffers by tick, kept only when its tick is unchanged after the copy. The recorder waits on the sim's data event (at most 32 ms) and never touches the game's lock.
+- **Session text:** Windows-1252, read every 500 ms and used only when it ends with the YAML end line (the sim rewrites it and then bumps the counter, so a half text can sit under a new counter). Only the track, the session number and type, and per car the index, number, class, car model and an isPlayer flag are kept. **Driver and team names and member ids are never read**, so they cannot reach the disk. The pace car and spectators are left out of the field, and so are slots not in the world.
+- **Session key:** `(SubSessionID, SessionNum)`, or the recording's first-seen time plus `SessionNum` when `SubSessionID` is 0 (offline: a test drive, an AI race). A new key closes the capture (`endUtc`) and opens the next.
+- **Disconnect:** the map is checked every second; a sim that exits, restarts or publishes a different table closes the capture and the view is reopened.
+- **Menu line:** "iRacing: Recording" or "Waiting for iRacing". `BOTRACING_RECORDER=0` turns both recorders off.
+- With iRacing in-car: `cargo test live_iracing -- --ignored --nocapture` reads the real map; `cargo test live_iracing_minute -- --ignored --nocapture` records a minute and prints the size per hour.
 
 ## Run it from the repo
 
