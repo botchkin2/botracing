@@ -26,6 +26,7 @@ import {
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {fileChange} from './fileChange.mjs';
+import {assignSessionLapNumbers} from './splitFileLaps.mjs';
 import {
   fillLapsLeft,
   isGreen,
@@ -770,6 +771,7 @@ export function analyzeSession(
     foldOnly = false,
     carDamage = null,
     sessionType = '',
+    splitFiles = false,
   } = {},
 ) {
   const laps = [];
@@ -795,6 +797,8 @@ export function analyzeSession(
     damage: carDamage,
     race: sessionKind(sessionType) === 'race',
   };
+  const allSegs = recs.map(rec => segments(rec));
+  const assigned = assignSessionLapNumbers(allSegs, {splitFiles});
   recs.forEach((rec, r) => {
     const pits = pitIntervals(rec.events.in_pits);
     const before = laps[laps.length - 1];
@@ -808,27 +812,12 @@ export function analyzeSession(
     if (reset) before.endedInReset = true;
     openStint(change);
     let first = true;
-    let recOffset = 0;
-    const segs = segments(rec);
-    for (const [si, seg] of segs.entries()) {
-      // A later file of the same session may restart its lap counter. Keep
-      // one sequence across recordings (iRacing split .ibt, thread 49).
-      if (
-        first &&
-        r > 0 &&
-        laps.length &&
-        seg.lapNumber <= laps[laps.length - 1].lapNumber
-      ) {
-        recOffset = laps[laps.length - 1].lapNumber - seg.lapNumber + 1;
-      }
-      if (r > 0 && si === 0) seg.partial = true;
-      if (r < recs.length - 1 && si === segs.length - 1) seg.partial = true;
+    const segs = allSegs[r];
+    for (const a of assigned.filter(row => row.r === r)) {
+      const seg = segs[a.si];
+      seg.partial = a.partial;
       const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
-      lap.lapNumber = seg.lapNumber + recOffset;
-      // The piece before the first crossing is the previous lap, not the next.
-      if (si === 0 && seg.partial) {
-        lap.lapNumber = Math.max(0, lap.lapNumber - 1);
-      }
+      lap.lapNumber = a.lapNumber;
       lap.endedInReset = false;
       lap.afterReset = first && reset;
       if (!first && lap.pitOut) openStint('pit');

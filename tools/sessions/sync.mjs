@@ -397,6 +397,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
+    splitFiles: simName === 'iracing',
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
