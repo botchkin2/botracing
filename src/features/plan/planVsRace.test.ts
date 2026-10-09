@@ -32,6 +32,19 @@ describe('raceRules', () => {
   it('has no rules without a fill limit', () => {
     expect(raceRules(facts({limitL: null}))).toBeNull();
   });
+
+  it('a DNF is planned as the scheduled race, not the short one driven', () => {
+    expect(
+      raceRules(
+        facts({
+          raceLaps: 20,
+          leftEarly: true,
+          playerLapsDone: 21,
+          leaderLapsDone: 24,
+        }),
+      )?.lengthLaps,
+    ).toBe(23);
+  });
 });
 
 describe('the words the plan half prints', () => {
