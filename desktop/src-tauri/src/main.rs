@@ -6,6 +6,7 @@ mod account;
 mod auth;
 mod autostart;
 mod browser;
+mod install;
 mod capture;
 mod menu;
 mod profile;
@@ -73,6 +74,11 @@ fn main() {
             if wants_quit(&args) {
                 if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
                     sup.lock().unwrap().stop();
+                }
+                if let Some(rec) = app.try_state::<Shared<Option<capture::runner::Handle>>>() {
+                    if let Some(rec) = rec.lock().unwrap().as_mut() {
+                        rec.stop(Duration::from_secs(5));
+                    }
                 }
                 app.exit(0);
                 return;
@@ -192,6 +198,10 @@ fn main() {
                     }
                     Err(why) => acct.message = Some(format!("Start with Windows: {why}")),
                 }
+                // The installer could not remove an old logon task: say so once.
+                if let Some(line) = install::take(&paths.data) {
+                    acct.message = Some(line);
+                }
                 drop(acct);
                 update::spawn(
                     app.handle().clone(),
@@ -200,6 +210,7 @@ fn main() {
                     update_slot.clone(),
                 );
             }
+            app.manage(recorder.clone());
             let recorder_menu = recorder.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
