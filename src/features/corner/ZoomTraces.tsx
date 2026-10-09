@@ -122,6 +122,20 @@ export function ZoomTraces({
     // One pointer for every chart; the desktop only (the phone has no hover).
     ...(desktop ? {hoverM, onHover: setHoverM} : {}),
   };
+  // The brake zone is its own band on this chart, in the reference lap's colour.
+  const refLine = lines.find(l => l.onIndex === 0);
+  const brakeBand =
+    zoom.brakeZone && refLine
+      ? {
+          fromM: zoom.brakeZone[0],
+          toM: zoom.brakeZone[1],
+          color: lapStyle(
+            refLine.onIndex,
+            refLine.selIndex,
+            refLine.highlighted,
+          ).color,
+        }
+      : undefined;
   const readouts = desktop
     ? readoutsAt(lines, zoom.stepM, hoverM ?? zoom.apexM)
     : null;
@@ -244,7 +258,7 @@ export function ZoomTraces({
         {...common}
         height={heights.brake}
         domain={[-4, 104]}
-        stretchM={zoom.brakeZone ?? undefined}
+        baseBand={brakeBand}
         series={series(l => ({values: l.brakePct}))}
         marks={[...apex, ...pointMarks(l => l.brakeAtM)]}
       />

@@ -62,6 +62,8 @@ const WRAP_OPACITY = 0.4;
 // How much the background covers what is outside a shaded stretch.
 const DIM_OPACITY = 0.6;
 const AXIS_H = 12;
+// A base band (a span along the bottom edge) is this thick, in points.
+const BASE_BAND_H = 3;
 // Labels closer than this to the right edge are dropped (handoff).
 const LABEL_EDGE_PT = 34;
 
@@ -85,6 +87,7 @@ export function TraceChart({
   marks = [],
   gridOriginM,
   stretchM,
+  baseBand,
   dimM,
   onScrub,
   onPan,
@@ -117,6 +120,8 @@ export function TraceChart({
   gridOriginM?: number;
   /** A stretch of the window to tint (Corner: this turn's own stretch). */
   stretchM?: [number, number];
+  /** A thin band along the bottom edge over a distance range, in its own colour (the brake zone). */
+  baseBand?: {fromM: number; toM: number; color: string};
   /** Ranges of the window to dim over the traces (outside that stretch). */
   dimM?: [number, number][];
   onScrub?: (distanceM: number) => void;
@@ -324,6 +329,15 @@ export function TraceChart({
             width={Math.max(0, xClamp(stretchM[1]) - xClamp(stretchM[0]))}
             height={height}
             fill={color.accentTint}
+          />
+        )}
+        {baseBand && (
+          <Rect
+            x={xClamp(baseBand.fromM)}
+            y={height - BASE_BAND_H}
+            width={Math.max(0, xClamp(baseBand.toM) - xClamp(baseBand.fromM))}
+            height={BASE_BAND_H}
+            fill={baseBand.color}
           />
         )}
         {gridMs.map(m => {
