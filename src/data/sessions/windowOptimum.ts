@@ -120,6 +120,7 @@ export interface WindowReference {
 export function checkedWindowMedians(
   laps: Lap[],
   map: TrackMapData,
+  minLaps?: number,
 ): WindowReference | null {
   const frame = frameOf(map);
   if (!frame) return null;
@@ -128,7 +129,7 @@ export function checkedWindowMedians(
     .map(l => ({id: l.id, stint: l.stint, windowsS: windowTimesOf(l, frame)}));
   return {
     windows: frame.boundaries.windows,
-    medians: windowMedians(input, frame.boundaries.windows.length),
+    medians: windowMedians(input, frame.boundaries.windows.length, minLaps),
     laps: input.length,
   };
 }

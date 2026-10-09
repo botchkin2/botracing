@@ -248,9 +248,6 @@ function StopsBody({
       {card.end ? (
         <View style={[styles.end, {borderColor: color.line}]}>
           <Text variant='bodyStrong'>{card.end.title}</Text>
-          <Text variant='dataSmall' tone='textMuted'>
-            the last whole lap
-          </Text>
           <Text variant='label' tone='textMuted'>
             Spare
           </Text>

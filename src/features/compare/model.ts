@@ -5,6 +5,7 @@ import {
   type GridTrace,
   gridIndex,
   type NativeChannel,
+  medianTrace,
   timeDiffS,
 } from '@/src/analysis/resample';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
@@ -51,12 +52,16 @@ import {
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
-// are left to the screen: each lap carries `selIndex` (0 = reference) and
-// whether it is a key lap (drawn in full color, with values shown).
+// are left to the screen: each lap carries `selIndex` (its place in lap-number
+// order), whether it is the Ref lap, and whether it is a key lap (drawn in full
+// color, with values shown). The traces, chips and tables are measured against
+// one basis: the median of the checked laps, or the Ref lap when one is set.
 
 export type CompareSelection = {
-  /** Lap ids in selection order; the first is the reference. */
+  /** The checked laps; display order is lap number, whatever order this is in. */
   laps: string[];
+  /** The Ref lap, in `laps`; null measures against the median of the checked laps. */
+  ref: string | null;
   /** The highlighted lap (tapped chip or value); defaults to the second lap. */
   hl: string | null;
   /** Open corner number, if any. */
@@ -195,7 +200,9 @@ export type LapRef = {
   lapId: string;
   label: string;
   selIndex: number;
-  /** Reference or highlighted: full color, values shown, dot on the map. */
+  /** The Ref lap (Ref mode only). */
+  isRef: boolean;
+  /** Ref or highlighted: full color, values shown, dot on the map. */
   key: boolean;
   highlighted: boolean;
 };
@@ -203,9 +210,6 @@ export type LapRef = {
 export type Chip = LapRef & {
   delta: string;
   faster: boolean;
-  isRef: boolean;
-  /** Draw REF beside the delta: the traces' lap, while the delta is against the checked set (against the lap itself the delta reads "REF"). */
-  refTag: boolean;
 };
 
 export type ChartLine = LapRef & {
@@ -343,7 +347,6 @@ export type CompareModel = {
    */
   tableReference: {chips: string; grid: string};
   chips: Chip[];
-  manyChip: string | null;
   map: MapModel | null;
   position: {
     place: string;
@@ -370,6 +373,8 @@ export type CompareModel = {
   notFound: number;
   /** Every lap in the session by stint, for picking laps (desktop). */
   allLaps: AllLapsStint[];
+  /** The quickest checked lap: what the Ref side of the Median | Ref switch picks when no lap is highlighted. */
+  fastestLapId: string | null;
   /** Absolute channels of the key laps, for reading values anywhere. */
   readouts: Readout[];
   /** Time diff over the whole lap, for the desktop overview. */
@@ -391,7 +396,9 @@ export type AllLapsStint = {
     gapFaster: boolean;
     comparable: boolean;
     tag: string | null;
+    /** Place in the checked laps' lap-number order; null when unchecked. */
     selIndex: number | null;
+    isRef: boolean;
   }[];
 };
 
@@ -485,6 +492,8 @@ export type CompareInputs = {
   window?: ChartWindow;
   /** Follow geometry for this selection, built once per selection. */
   followGeometry?: FollowGeometry | null;
+  /** The median of the checked laps' traces (`medianBasisOf`), memoized by the caller; built here when omitted. */
+  basisTrace?: GridTrace;
 };
 
 // Map lines are drawn every 20 m: plenty at phone size, a fifth of the points.
@@ -650,6 +659,24 @@ const wrapCache = {
   after: new WeakMap<object, NativeSamples>(),
 };
 
+/**
+ * The median trace of the checked laps whose traces are in. Pure; the hook
+ * memoizes it per set of loaded traces, since the cursor moves every frame
+ * and the model is rebuilt with it.
+ */
+export function medianBasisOf(
+  laps: Lap[],
+  traces: Map<string, GridTrace>,
+): GridTrace | undefined {
+  const loaded = laps.filter(l => traces.has(l.id));
+  if (loaded.length === 0) return undefined;
+  const times = loaded.map(l => l.timeS);
+  return medianTrace(
+    loaded.map(l => traces.get(l.id)!),
+    times.every((t): t is number => t != null) ? times : undefined,
+  );
+}
+
 export function buildCompareModel(input: CompareInputs): CompareModel {
   const {session, laps, traces, band, map, selection} = input;
   const foreignTags = input.foreign?.tags ?? new Map<string, string>();
@@ -663,40 +690,76 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     const tag = foreignTags.get(l.id) ?? ownTag;
     return tag ? `L${l.lapIndex} · ${tag}` : `L${l.lapIndex}`;
   };
+  // Lap-number order, this session's laps before another session's; the order
+  // the laps were checked in carries no meaning.
   const selected = selection.laps
     .map(id => byId.get(id))
-    .filter((l): l is Lap => l != null);
+    .filter((l): l is Lap => l != null)
+    .sort(
+      (a, b) =>
+        Number(foreignTags.has(a.id)) - Number(foreignTags.has(b.id)) ||
+        a.lapIndex - b.lapIndex,
+    );
   const count = selected.length;
   const mode = lapMode(count);
-  const ref = selected[0];
+  const refLap = selected.find(l => l.id === selection.ref);
   const hlId =
-    selection.hl && selection.laps.includes(selection.hl)
-      ? selection.hl
-      : selected[1]?.id ?? null;
+    selection.hl && selection.laps.includes(selection.hl) ? selection.hl : null;
 
-  const playing = selected.find(l => l.id === hlId) ?? ref ?? null;
-  // The time diff's label names the lap it is measured against.
+  const playing =
+    selected.find(l => l.id === hlId) ?? refLap ?? selected[0] ?? null;
+
+  // The basis every "vs" is measured against: the Ref lap, or the median of
+  // the checked laps whose traces are in.
+  // The median describes the laps whose traces are in, so the header number,
+  // the label and the trace are one set while traces stream in.
+  const loaded = selected.filter(l => traces.has(l.id));
+  const medianSet = loaded.length > 0 ? loaded : selected;
+  const medianLapS = median(
+    medianSet.flatMap(l => (l.timeS != null ? [l.timeS] : [])),
+  );
+  const basisName = refLap ? nameOf(refLap) : `median of ${medianSet.length}`;
+  const basisLapS = refLap ? refLap.timeS : medianLapS;
+  const basisTrace = refLap
+    ? traces.get(refLap.id)
+    : input.basisTrace ?? medianBasisOf(selected, traces);
+  // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
-    ch === 'timeDiff' && ref
-      ? `${CHANNELS[ch].label} vs ${nameOf(ref)}`
+    ch === 'timeDiff' && count > 0
+      ? `${CHANNELS[ch].label} vs ${basisName}`
       : CHANNELS[ch].label;
 
+  // Colour slot: slot 0 is the reference stroke and belongs to the Ref lap
+  // only; the others follow in lap-number order. Without a Ref lap (median
+  // mode) no lap is the reference, so the slots start at 1.
+  const slots = refLap
+    ? selected.map(l =>
+        l.id === refLap.id
+          ? 0
+          : 1 + selected.filter(o => o.id !== refLap.id).indexOf(l),
+      )
+    : selected.map((_, i) => i + 1);
   const lapRefs: LapRef[] = selected.map((l, i) => ({
     lapId: l.id,
     label: nameOf(l),
-    selIndex: i,
+    selIndex: slots[i],
+    isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
-    key: i === 0 || l.id === hlId || mode === 'individual',
+    key: l.id === refLap?.id || l.id === hlId || mode === 'individual',
   }));
   const keyRefs = lapRefs.filter(r => r.key);
 
+  // Without a Ref lap the tables use the median of the checked laps; a lap
+  // stands in only for a session not resynced yet, so its name is `ref`.
+  const ref = refLap ?? selected[0];
   const table = tableReference({
     selected,
     sessionLaps: laps,
     map,
     refName: ref ? nameOf(ref) : '',
+    refLap: refLap != null,
   });
-  const refTrace = ref ? traces.get(ref.id) : undefined;
+  const refTrace = basisTrace;
   const stepM = refTrace?.stepM ?? band?.stepM ?? 5;
   const lengthM =
     map?.lengthM || band?.lengthM || (refTrace?.distanceM.at(-1) ?? 0);
@@ -716,48 +779,27 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const fitI1 = Math.ceil(fitM[1] / stepM);
 
   // --- reference line and chips ---------------------------------------------
-  const refBits = ref
+  const refBits = count
     ? [
-        nameOf(ref),
-        ref.timeS == null ? '—' : formatLapTime(ref.timeS),
-        ref.id === session.bestLapId
+        basisName,
+        basisLapS == null ? '—' : formatLapTime(basisLapS),
+        refLap && refLap.id === session.bestLapId
           ? `${session.sessionType === 'R' ? 'Race' : 'Session'} best`
           : null,
       ]
     : [];
-  // The chips need every window's median for a total; without one they stay on
-  // the reference lap, and say so.
-  const againstSet = table.kind !== 'lap' && table.totalS != null;
-  const chips: Chip[] = lapRefs
-    .filter(r => mode === 'individual' || r.key)
-    .map(r => {
-      const lap = byId.get(r.lapId)!;
-      // Every checked lap, the reference too, against the set's total; the
-      // reference lap is marked REF beside it.
-      if (againstSet) {
-        const d = lap.timeS != null ? lap.timeS - table.totalS! : null;
-        return {
-          ...r,
-          isRef: r.selIndex === 0,
-          refTag: r.selIndex === 0,
-          delta: d == null ? '—' : formatGap(d),
-          faster: d != null && d < 0,
-        };
-      }
-      const d =
-        lap.timeS != null && ref?.timeS != null ? lap.timeS - ref.timeS : null;
-      return {
-        ...r,
-        isRef: r.selIndex === 0,
-        refTag: false,
-        delta: r.selIndex === 0 ? 'REF' : d == null ? '—' : formatGap(d),
-        faster: d != null && d < 0,
-      };
-    });
-  const manyChip =
-    mode === 'individual'
-      ? null
-      : `+${count - 1} laps, ${mode === 'grey' ? 'shown grey' : 'tinted'}`;
+  // Every chip is the lap's time against the basis time; the Ref lap's own
+  // reads REF.
+  const chips: Chip[] = lapRefs.map(r => {
+    const lap = byId.get(r.lapId)!;
+    const d =
+      lap.timeS != null && basisLapS != null ? lap.timeS - basisLapS : null;
+    return {
+      ...r,
+      delta: r.isRef ? 'REF' : d == null ? '—' : formatGap(d),
+      faster: d != null && d < 0,
+    };
+  });
 
   // --- charts -----------------------------------------------------------------
   const diffs = new Map<string, number[]>();
@@ -773,8 +815,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           timeDiffS(
             t,
             refTrace,
-            lapS != null && ref.timeS != null
-              ? {lapS, refS: ref.timeS}
+            lapS != null && basisLapS != null
+              ? {lapS, refS: basisLapS}
               : undefined,
           ),
         ),
@@ -792,6 +834,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   };
   // A readout is the nearest recorded sample, never an in-between value
   // (Botkin, thread 26 #392); the time diff is a grid quantity.
+  // Without a Ref lap the readout leads with the basis: the median's own
+  // values, and zero for the time diff.
+  const basisGrid = !refLap && basisTrace ? basisTrace : null;
+  const basisValues = (ch: ChannelId) =>
+    basisGrid
+      ? ch === 'timeDiff'
+        ? basisGrid.timeS.map(() => 0)
+        : CHANNELS[ch].pick(basisGrid)
+      : [];
   const readAt = (ch: ChannelId, lapId: string, m: number) => {
     const own = samplesOf(ch, lapId);
     if (own) return nearestSample(own, m);
@@ -813,7 +864,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       lapNeighbours(foreignTags.has(r.lapId) ? [] : laps, r.lapId),
     ]),
   );
-  const refSides = ref ? sides.get(ref.id)! : null;
+  // The median has no neighbouring laps to wrap into.
+  const refSides = refLap ? sides.get(refLap.id)! : null;
   const neighbourTrace = (side: Side | undefined) =>
     side?.kind === 'lap' ? traces.get(side.lapId) : undefined;
   // The time diff across the seam compares each lap's neighbour with the
@@ -960,15 +1012,35 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         // The readout text carries the time diff's unit.
         unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
         overlay,
-        values: keyRefs.map(r => {
-          const v = readAt(ch, r.lapId, cursorM);
-          return {
-            lapId: r.lapId,
-            selIndex: r.selIndex,
-            highlighted: r.highlighted,
-            text: v == null ? '—' : readoutText(ch, v),
-          };
-        }),
+        values: [
+          ...(basisGrid
+            ? [
+                {
+                  lapId: BASIS_ID,
+                  selIndex: BASIS_SLOT,
+                  highlighted: false,
+                  text: readoutText(
+                    ch,
+                    basisValues(ch)[
+                      Math.min(
+                        basisGrid.timeS.length - 1,
+                        Math.round(cursorM / stepM),
+                      )
+                    ],
+                  ),
+                },
+              ]
+            : []),
+          ...keyRefs.map(r => {
+            const v = readAt(ch, r.lapId, cursorM);
+            return {
+              lapId: r.lapId,
+              selIndex: r.selIndex,
+              highlighted: r.highlighted,
+              text: v == null ? '—' : readoutText(ch, v),
+            };
+          }),
+        ],
       })),
     };
   });
@@ -1005,7 +1077,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       cells: diffRow(byId.get(r.lapId)!),
     }));
   } else if (ref && cornerCount > 0) {
-    const others = lapRefs.filter(r => r.selIndex > 0);
+    const others = lapRefs.filter(r => r.lapId !== ref.id);
     if (mode === 'individual') {
       gridRows = others.map(r => ({
         key: r.lapId,
@@ -1112,11 +1184,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : null,
     reference: refBits.filter(Boolean).join(' · '),
     tableReference: {
-      chips: againstSet || !ref ? table.label : nameOf(ref),
+      chips: basisName,
       grid: table.label,
     },
     chips,
-    manyChip,
     map: mapModel,
     position: {
       place: cornerPlace(map?.sections ?? [], cursorM),
@@ -1147,21 +1218,51 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : [],
     pending: selected.filter(l => !traces.has(l.id)).length,
     notFound: selection.laps.length - selected.length,
-    allLaps: allLapsByStint(laps, session, selection.laps),
-    readouts: keyRefs.map(r => ({
-      lapId: r.lapId,
-      selIndex: r.selIndex,
-      highlighted: r.highlighted,
-      channels: Object.fromEntries(
-        CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
-      ) as Record<ChannelId, number[]>,
-      samples: Object.fromEntries(
-        CHANNEL_IDS.flatMap(ch => {
-          const own = samplesOf(ch, r.lapId);
-          return own ? [[ch, own]] : [];
-        }),
-      ),
-    })),
+    allLaps: allLapsByStint(
+      laps,
+      session,
+      selected.map(l => l.id),
+      refLap?.id ?? null,
+    ),
+    fastestLapId:
+      selected
+        .filter(l => l.timeS != null)
+        .sort((a, b) => a.timeS! - b.timeS!)[0]?.id ?? null,
+    readouts: [
+      ...(basisGrid
+        ? [
+            {
+              lapId: BASIS_ID,
+              selIndex: BASIS_SLOT,
+              highlighted: false,
+              channels: Object.fromEntries(
+                CHANNEL_IDS.map(ch => [ch, basisValues(ch)]),
+              ) as Record<ChannelId, number[]>,
+              // Grid points, not recorded samples: the median is not a lap.
+              samples: Object.fromEntries(
+                CHANNEL_IDS.flatMap(ch => {
+                  const k = CHANNELS[ch].native;
+                  return k ? [[ch, basisGrid.samples[k]]] : [];
+                }),
+              ),
+            },
+          ]
+        : []),
+      ...keyRefs.map(r => ({
+        lapId: r.lapId,
+        selIndex: r.selIndex,
+        highlighted: r.highlighted,
+        channels: Object.fromEntries(
+          CHANNEL_IDS.map(ch => [ch, valuesOf(ch, r.lapId) ?? []]),
+        ) as Record<ChannelId, number[]>,
+        samples: Object.fromEntries(
+          CHANNEL_IDS.flatMap(ch => {
+            const own = samplesOf(ch, r.lapId);
+            return own ? [[ch, own]] : [];
+          }),
+        ),
+      })),
+    ],
     overview: lapRefs.flatMap(r => {
       const values = diffs.get(r.lapId);
       return values
@@ -1184,6 +1285,7 @@ function allLapsByStint(
   laps: Lap[],
   session: SessionDetail,
   selected: string[],
+  refId: string | null,
 ): AllLapsStint[] {
   const median = session.medianTimeS;
   const stints = [...new Set(laps.map(l => l.stint))];
@@ -1220,25 +1322,30 @@ function allLapsByStint(
               ? 'SLOW'
               : null,
           selIndex: i < 0 ? null : i,
+          isRef: l.id === refId,
         };
       }),
   }));
 }
 
-/** Adds a lap to the comparison, or removes it; the reference stays. */
+/** Adds a lap to the comparison, or removes it; the Ref lap stays. */
 export function toggleCompared(
   sel: CompareSelection,
   lapId: string,
 ): CompareSelection {
-  if (sel.laps[0] === lapId) return sel;
+  if (sel.ref === lapId) return sel;
   return sel.laps.includes(lapId)
     ? removeLap(sel, lapId)
     : {...sel, laps: [...sel.laps, lapId]};
 }
 
-/** Draw order: other laps, then the highlighted lap, then the reference on top. */
-export const drawRank = (r: {selIndex: number; highlighted: boolean}) =>
-  r.selIndex === 0 ? 2 : r.highlighted ? 1 : 0;
+/** The median basis as a readout row: not a lap, drawn in the neutral basis colour. */
+export const BASIS_ID = 'median';
+export const BASIS_SLOT = -1;
+
+/** Draw order: other laps, then the highlighted lap, then the Ref lap on top. */
+export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
+  r.isRef ? 2 : r.highlighted ? 1 : 0;
 
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
@@ -1257,45 +1364,42 @@ export function withDefaultLaps(
   return {...sel, laps: referenceDefaultLapIds(laps, session)};
 }
 
-export function makeReference(
-  sel: CompareSelection,
-  lapId: string,
-): CompareSelection {
-  if (sel.laps[0] === lapId || !sel.laps.includes(lapId)) return sel;
-  const prev = sel.laps[0];
+/**
+ * Makes a lap the Ref lap (the basis for every "vs"), checking it first when
+ * it is not there (a lap from All laps). Nothing is reordered.
+ */
+export function setRef(sel: CompareSelection, lapId: string): CompareSelection {
+  if (sel.ref === lapId) return sel;
   return {
     ...sel,
-    laps: [lapId, ...sel.laps.filter(id => id !== lapId)],
-    hl: sel.hl === lapId ? prev : sel.hl,
+    laps: sel.laps.includes(lapId) ? sel.laps : [...sel.laps, lapId],
+    ref: lapId,
   };
 }
 
-/**
- * Makes a lap the reference in one step, adding it to the comparison first
- * when it is not there (a lap from All laps). The old reference stays in the
- * comparison as an ordinary lap.
- */
-export function setReference(
+/** Highlights a lap, or clears the highlight when it already is. */
+export function toggleHighlight(
   sel: CompareSelection,
   lapId: string,
 ): CompareSelection {
-  if (sel.laps[0] === lapId) return sel;
-  const added = sel.laps.includes(lapId)
-    ? sel
-    : {...sel, laps: [...sel.laps, lapId]};
-  return makeReference(added, lapId);
+  return {...sel, hl: sel.hl === lapId ? null : lapId};
 }
 
-/** The reference never goes, and neither does the last compared lap: removing it snaps the selection back to the default. */
+/** Back to the median of the checked laps. */
+export function clearRef(sel: CompareSelection): CompareSelection {
+  return sel.ref == null ? sel : {...sel, ref: null};
+}
+
+/** The Ref lap stays while it is the basis, and two laps are the least a comparison has. */
 export function canRemoveLap(sel: CompareSelection, lapId: string): boolean {
-  return sel.laps[0] !== lapId && sel.laps.length > 2;
+  return sel.ref !== lapId && sel.laps.length > 2;
 }
 
 export function removeLap(
   sel: CompareSelection,
   lapId: string,
 ): CompareSelection {
-  if (sel.laps[0] === lapId) return sel;
+  if (sel.ref === lapId) return sel;
   return {
     ...sel,
     laps: sel.laps.filter(id => id !== lapId),

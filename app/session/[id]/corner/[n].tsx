@@ -13,14 +13,15 @@ export default function CornerRoute() {
     id: string;
     n: string;
     laps?: string;
+    ref?: string;
     hl?: string;
   }>();
   const router = useRouter();
-  const {laps, hl} = params;
+  const {laps, ref, hl} = params;
   const selection = useMemo<CornerSelection>(() => {
-    const sel = parseSelection({laps, hl});
-    return {laps: sel.laps, hl: sel.hl};
-  }, [laps, hl]);
+    const sel = parseSelection({laps, ref, hl});
+    return {laps: sel.laps, ref: sel.ref, hl: sel.hl};
+  }, [laps, ref, hl]);
   return (
     <CornerScreen
       key={params.n}

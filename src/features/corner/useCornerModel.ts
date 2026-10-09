@@ -20,6 +20,7 @@ import {
   cornerLapIds,
   type CornerModel,
   type CornerSelection,
+  referenceFirst,
 } from './model';
 import {keyLapIds as keyLapsOf} from './keyLaps';
 
@@ -43,11 +44,16 @@ export type CornerResult =
 export function useCornerModel(
   sessionId: string,
   corner: number,
-  selection: CornerSelection,
+  urlSelection: CornerSelection,
   allComparable: boolean,
 ): CornerResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
+  const selection = useMemo(
+    () =>
+      laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection,
+    [urlSelection, laps.data],
+  );
   const band = useSessionBand(sessionId);
   const map = useSessionMap(sessionId);
 

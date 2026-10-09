@@ -7,7 +7,13 @@ import {
   toTrackMap,
 } from '@/src/data/sessions/adapters';
 
-import {buildCornerModel, cornerLapIds, sortRows, buildBrakeMap} from './model';
+import {
+  buildCornerModel,
+  cornerLapIds,
+  referenceFirst,
+  sortRows,
+  buildBrakeMap,
+} from './model';
 
 const session = toSessionDetail({
   id: 's1',
@@ -244,6 +250,26 @@ describe('lap choice', () => {
       'a',
     ]);
     expect(cornerLapIds([], {laps: [], hl: null}, false, null)).toEqual([]);
+  });
+
+  it('puts the Ref lap first, else the quickest checked lap', () => {
+    const timed = toLaps([
+      {...lap('a', [9.8, 460, 110, 650]), lapTime: 91},
+      {...lap('b', [10.1, 450, 106, 670]), lapTime: 90},
+      {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
+    ]);
+    const sel = (over: Partial<Parameters<typeof referenceFirst>[0]>) => ({
+      laps: ['a', 'b', 'c'],
+      hl: null,
+      ...over,
+    });
+    // Compare keeps lap-number order, so the first is not a choice.
+    expect(referenceFirst(sel({}), timed).laps).toEqual(['b', 'a', 'c']);
+    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual(['c', 'a', 'b']);
+    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual(['b', 'a', 'c']);
+    const first = sel({laps: ['b', 'a']});
+    expect(referenceFirst(first, timed)).toBe(first);
+    expect(referenceFirst(sel({laps: []}), timed).laps).toEqual([]);
   });
 
   it('sorts by a measure', () => {
