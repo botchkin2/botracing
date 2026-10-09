@@ -77,7 +77,7 @@ jobs:
           echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
       - name: Recorder tests
         working-directory: tools/capture
-        run: uv run --group dev pytest -q
+        run: uv run --locked --group dev pytest -q
   # The tray (Rust) and its release scripts had no CI: auth.rs and the
   # updater ran only by hand. Windows, because the tray is a Windows app.
   desktop:
