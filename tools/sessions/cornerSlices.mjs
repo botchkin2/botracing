@@ -40,9 +40,10 @@ import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
 export const SLICE_BEFORE_M = Math.max(ZOOM_BEFORE_M, MAP_BEFORE_M);
 export const SLICE_AFTER_M = Math.max(ZOOM_AFTER_M, MAP_AFTER_M);
 export const GRID_STEP_M = 5;
-// Still 1: the decoder reads a file's own `windowM`, so a wider window needs no
-// new format (src/analysis/cornerSlices.ts).
-export const SLICE_FORMAT = 1;
+// 2 adds gear (format 1 files have none, and the decoder reads them without it).
+// The decoder reads a file's own `windowM`, so a wider window needs no new format
+// (src/analysis/cornerSlices.ts).
+export const SLICE_FORMAT = 2;
 // A slice reaches this far past its corner window on each side, so the
 // delta from the boundary and the lines run to the window's edges (the pad
 // is shared with the screen: src/analysis/cornerWindows.ts).
@@ -60,6 +61,7 @@ const CHANNELS = [
   ['steeringPct', 2],
   ['pathLateralM', 2],
   ['trackEdgeM', 2],
+  ['gear', 0],
 ];
 
 /**

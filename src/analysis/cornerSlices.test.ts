@@ -6,7 +6,11 @@ import {
   sliceLapJson,
   syntheticRaw,
 } from './__fixtures__/sliceFile';
-import {decodeCornerSlices, gridFromSamples} from './cornerSlices';
+import {
+  decodeCornerSlices,
+  gridFromSamples,
+  steppedFromSamples,
+} from './cornerSlices';
 import {sliceSamples} from './nativeSamples';
 
 const WINDOW: [number, number] = [650, 1150];
@@ -48,7 +52,7 @@ describe('decodeCornerSlices', () => {
 
   it('names what is wrong', () => {
     expect(() => decodeCornerSlices(null)).toThrow('not an object');
-    expect(() => decodeCornerSlices({...file, v: 2})).toThrow('unknown format');
+    expect(() => decodeCornerSlices({...file, v: 3})).toThrow('unknown format');
     expect(() => decodeCornerSlices({...file, windowM: [1]})).toThrow(
       'windowM',
     );
@@ -61,6 +65,36 @@ describe('decodeCornerSlices', () => {
     expect(() => decodeCornerSlices(bad)).toThrow(
       'samples.speedKph is missing',
     );
+  });
+});
+
+describe('format 1 and gear', () => {
+  const file = sliceFileJson(
+    [sliceLapJson('lap-a', gridOf(syntheticRaw()), WINDOW)],
+    900,
+    WINDOW,
+  );
+  it('reads a format 1 file with no gear samples, as an empty gear channel', () => {
+    const v1 = JSON.parse(JSON.stringify(file));
+    v1.v = 1;
+    delete v1.laps[0].samples.gear;
+    const decoded = decodeCornerSlices(v1);
+    expect(decoded.laps[0].samples.gear).toEqual({distanceM: [], values: []});
+  });
+
+  it('a format 2 file must carry gear', () => {
+    const v2 = JSON.parse(JSON.stringify(file));
+    delete v2.laps[0].samples.gear;
+    expect(() => decodeCornerSlices(v2)).toThrow('samples.gear is missing');
+  });
+});
+
+describe('steppedFromSamples', () => {
+  it('holds each recorded gear until the next sample', () => {
+    const s = {distanceM: [10, 20, 30], values: [2, 3, 4]};
+    expect(steppedFromSamples(s, [0, 10, 15, 20, 25, 35])).toEqual([
+      2, 2, 2, 3, 3, 4,
+    ]);
   });
 });
 
