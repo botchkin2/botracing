@@ -16,7 +16,7 @@ src/
               lap classification, window math, time-diff rebase, 5 m resample.
   nav/        pure URL builders (routes.ts): every in-app link; the URL owns the selection. No imports.
   design/     tokens (dark, light), ThemeProvider, useTheme, lapPalette(mode), fonts
-  ui/         primitives with no data: Text, Button, Chip, Checkbox, Segment, Sheet, Tray, Explainer, Badge
+  ui/         primitives with no data: Text, Button, Chip, Checkbox, Segment, Sheet, Tray, Badge
   charts/     react-native-svg chart layer, pure props: Axis, Trace, Band, Cursor, Bars, DotStrip, CornerGrid
   data/<resource>/   client.ts, keys.ts, queries.ts, adapters.ts   (sessions, laps, traces, map)
   state/      zustand, persisted prefs only (chart sets, map shown, stack/one view)
