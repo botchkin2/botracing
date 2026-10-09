@@ -5,7 +5,7 @@ import type {TiresCard} from './tireCard';
 
 /** "Stint 2 · L14–L26 · 12 green laps", the last stint; the card opens on it. Short enough for one line at 375 pt. */
 export function tiresSummary(card: TiresCard): string | null {
-  if (card.kind === 'absent') return 'No tyre channels';
+  if (card.kind === 'absent') return 'No tire channels';
   const last = card.stints[card.stints.length - 1];
   return last ? `${last.title} · ${last.sub}` : null;
 }

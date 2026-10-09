@@ -50,7 +50,7 @@ describe('stintFuelLine', () => {
   it('the median use per green lap and how many laps it comes from', () => {
     expect(
       stintFuelLine({medianFuelL: 2.4, medianVePct: 3.6, greenLaps: 15}),
-    ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap (n = 15)');
+    ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap');
   });
 
   it('under 3 green laps the uploader gives no median: no line', () => {
@@ -62,7 +62,7 @@ describe('stintFuelLine', () => {
   it('fuel only, when VE is missing', () => {
     expect(
       stintFuelLine({medianFuelL: 3.4, medianVePct: null, greenLaps: 18}),
-    ).toBe('Fuel 3.40 L/lap (n = 18)');
+    ).toBe('Fuel 3.40 L/lap');
   });
 });
 

@@ -126,7 +126,7 @@ describe('tableReference', () => {
       refName: 'L1',
     });
     expect(r.kind).toBe('stint');
-    expect(r.label).toBe('stint 1 medians, n = 5');
+    expect(r.label).toBe('stint 1 medians');
     expect(r.sectionS.get(1)).toBe(10);
     expect(r.sectionS.get(2)).toBe(12);
     expect(r.totalS).toBe(4 + 10 + 12);

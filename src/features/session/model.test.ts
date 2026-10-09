@@ -243,7 +243,7 @@ describe('fuel and Virtual Energy rows', () => {
     const i = m.rows.findIndex(r => r.kind === 'stint');
     expect(m.rows[i + 1]).toMatchObject({
       kind: 'note',
-      text: 'Fuel 2.40 L/lap · VE 3.6 %/lap (n = 15)',
+      text: 'Fuel 2.40 L/lap · VE 3.6 %/lap',
     });
   });
 

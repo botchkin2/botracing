@@ -62,21 +62,21 @@ describe('lastRaceLine', () => {
 });
 
 describe('perLapUseLine', () => {
-  it('is the median of the laps the plan counts, with n', () => {
+  it('is the median of the laps the plan counts', () => {
     expect(perLapUseLine([lap(2.3, 3.4), lap(2.4, 3.5), lap(2.6, 3.9)])).toBe(
-      'Fuel 2.40 L/lap · VE 3.50 %/lap (n = 3)',
+      'Fuel 2.40 L/lap · VE 3.50 %/lap',
     );
   });
 
   it('drops VE, not zero, when no lap carries it (fuel-only)', () => {
     expect(perLapUseLine([lap(2.3, null), lap(2.5, null)])).toBe(
-      'Fuel 2.40 L/lap (n = 2)',
+      'Fuel 2.40 L/lap',
     );
   });
 
-  it('shows VE only from three laps that carry it, with its own n when fewer than fuel', () => {
+  it('shows VE only from three laps that carry it', () => {
     expect(perLapUseLine([lap(2.3, 3.0), lap(2.5, 3.2), lap(2.4, null)])).toBe(
-      'Fuel 2.40 L/lap (n = 3)',
+      'Fuel 2.40 L/lap',
     );
     expect(
       perLapUseLine([
@@ -85,7 +85,7 @@ describe('perLapUseLine', () => {
         lap(2.6, 3.5),
         lap(2.4, null),
       ]),
-    ).toBe('Fuel 2.45 L/lap (n = 4) · VE 3.50 %/lap (n = 3)');
+    ).toBe('Fuel 2.45 L/lap · VE 3.50 %/lap');
   });
 
   it('is null without laps', () => {
@@ -99,6 +99,6 @@ describe('planCardModel', () => {
     const m = planCardModel(c, [lap(2.3, 3.4), lap(2.3, 3.4), lap(2.3, 3.4)]);
     expect(m.key).toBe(c.key);
     expect(m.car).toBe(c.car);
-    expect(m.use).toBe('Fuel 2.30 L/lap · VE 3.40 %/lap (n = 3)');
+    expect(m.use).toBe('Fuel 2.30 L/lap · VE 3.40 %/lap');
   });
 });

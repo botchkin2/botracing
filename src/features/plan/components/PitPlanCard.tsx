@@ -44,7 +44,7 @@ export function PitPlanCard({
   const {color} = useTheme();
   const unit = unitProp ?? unitOf(pit);
   const finalWarning = finalStintWarning(pit);
-  const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tyre laps'];
+  const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tire laps'];
   return (
     <PlanCard title='Pit plan'>
       <View style={styles.stops}>
