@@ -5,6 +5,8 @@
 // (tools/ci/assertNoSeatSignIn.mjs). Not a bypass: only the Admin service
 // account can mint the token, and only for the seat-test uid, checked here too.
 
+/** A code string (comments do not survive a build), so CI can look for it. */
+export const SEAT_SIGNIN_MARKER = 'DEV_SEAT_SIGNIN';
 const SEAT_UID = 'seat-test';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
@@ -65,7 +67,10 @@ export async function signInSeatTest(
 export async function fetchSlotToken(): Promise<string | null> {
   // `platform` keeps Expo's web history fallback (which answers every other
   // GET with index.html) from taking the request before Metro's middleware.
-  const res = await fetch('/__seat-token?platform=seat', {cache: 'no-store'});
+  const res = await fetch('/__seat-token?platform=seat', {
+    cache: 'no-store',
+    headers: {'X-Seat-Signin': SEAT_SIGNIN_MARKER},
+  });
   if (!res.ok) return null;
   const body = (await res.json()) as {token?: unknown};
   return typeof body.token === 'string' ? body.token : null;

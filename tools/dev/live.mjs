@@ -31,7 +31,9 @@ console.log(
 );
 const child = spawn(
   process.execPath,
-  [found.cli, 'start', '--web', '--port', String(found.port)],
+  // --localhost: Metro listens on loopback only. Without it, it binds every
+  // interface and the seat-test token endpoint would be reachable from the LAN.
+  [found.cli, 'start', '--web', '--localhost', '--port', String(found.port)],
   {
     cwd: found.dir,
     stdio: 'inherit',

@@ -13,6 +13,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export const SEAT_TOKEN_PATH = '/__seat-token';
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,7 +49,14 @@ export function seatTokenMiddleware({port, mint = mintSeatToken, log = console.e
   return async (req, res, next) => {
     const url = (req.url ?? '').split('?')[0];
     if (url !== SEAT_TOKEN_PATH) return next();
-    if (req.method !== 'GET' || !hosts.has(req.headers.host ?? '')) {
+    // Host is only a header: a LAN client can forge it, so the peer must be
+    // this machine too (live.mjs also binds Metro to loopback).
+    const peer = req.socket?.remoteAddress ?? '';
+    if (
+      req.method !== 'GET' ||
+      !hosts.has(req.headers.host ?? '') ||
+      !LOOPBACK.has(peer)
+    ) {
       res.statusCode = 404;
       res.setHeader('Cache-Control', 'no-store');
       return res.end();
@@ -57,6 +65,7 @@ export function seatTokenMiddleware({port, mint = mintSeatToken, log = console.e
       const token = await mint();
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'no-store');
       res.end(JSON.stringify({token}));
     } catch (error) {

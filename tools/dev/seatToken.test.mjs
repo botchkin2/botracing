@@ -5,7 +5,7 @@ import {SEAT_TOKEN_PATH, seatTokenMiddleware} from './seatToken.mjs';
 
 const TOKEN = 'eyJhbGciOiJSUzI1NiJ9.secret.sig';
 
-const run = async ({url = SEAT_TOKEN_PATH, method = 'GET', host = 'localhost:19101', mint, port = 19101}) => {
+const run = async ({url = SEAT_TOKEN_PATH, method = 'GET', host = 'localhost:19101', peer = '127.0.0.1', mint, port = 19101}) => {
   const logs = [];
   const handler = seatTokenMiddleware({
     port,
@@ -24,7 +24,7 @@ const run = async ({url = SEAT_TOKEN_PATH, method = 'GET', host = 'localhost:191
     },
   };
   let passed = false;
-  await handler({url, method, headers: {host}}, res, () => {
+  await handler({url, method, headers: {host}, socket: {remoteAddress: peer}}, res, () => {
     passed = true;
   });
   return {res, passed, logs};
@@ -78,17 +78,33 @@ test('the token never reaches stdout or stderr', async () => {
   try {
     const handler = seatTokenMiddleware({port: 19101, mint: async () => TOKEN});
     const res = {setHeader() {}, end() {}};
-    await handler({url: SEAT_TOKEN_PATH, method: 'GET', headers: {host: 'localhost:19101'}}, res, () => {});
+    await handler({url: SEAT_TOKEN_PATH, method: 'GET', headers: {host: 'localhost:19101'}, socket: {remoteAddress: '127.0.0.1'}}, res, () => {});
     const failing = seatTokenMiddleware({
       port: 19101,
       mint: async () => {
         throw new Error('no service account');
       },
     });
-    await failing({url: SEAT_TOKEN_PATH, method: 'GET', headers: {host: 'localhost:19101'}}, res, () => {});
+    await failing({url: SEAT_TOKEN_PATH, method: 'GET', headers: {host: 'localhost:19101'}, socket: {remoteAddress: '127.0.0.1'}}, res, () => {});
   } finally {
     process.stdout.write = out;
     process.stderr.write = err;
   }
   assert.equal(seen.join('').includes('eyJ'), false);
+});
+
+test('a LAN client with a forged Host header gets 404 and no token', async () => {
+  for (const peer of ['192.168.1.20', '10.0.0.5', 'fe80::1', '']) {
+    const {res} = await run({host: 'localhost:19101', peer});
+    assert.equal(res.statusCode, 404, peer);
+    assert.equal(res.body, '');
+  }
+});
+
+test('every loopback form of the peer is served, with nosniff', async () => {
+  for (const peer of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
+    const {res} = await run({peer});
+    assert.equal(res.statusCode, 200, peer);
+    assert.equal(res.headers['x-content-type-options'], 'nosniff');
+  }
 });
