@@ -256,7 +256,9 @@ export function cornerFacts({
     : null;
 
   // Off-track, local-yellow, and full-course-yellow time by window.
-  const {local, course} = flags;
+  // Tests (and older callers) may omit course; treat a missing list as none.
+  const local = flags.local ?? [];
+  const course = flags.course ?? [];
   const windowOf = rawM => {
     const m = rawM / ratio;
     if (startWindow && m < startWindow.toM) return -1;
