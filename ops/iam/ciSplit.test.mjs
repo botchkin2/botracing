@@ -9,6 +9,7 @@ import {
   hasReleaseBinding,
   planCiSplit,
   previewEmail,
+  release,
   releaseCondition,
   releaseEmail,
   secretReaders,
@@ -16,6 +17,8 @@ import {
 
 const deploy = `serviceAccount:${CI.deployEmail}`;
 const preview = `serviceAccount:${previewEmail()}`;
+const tray = release('tray-release');
+const android = release('android-release');
 
 // The project as it was read on 2026-10-09 (thread 54 #2610).
 function today() {
@@ -29,8 +32,10 @@ function today() {
       ])],
     ]),
     previewExists: false,
-    releaseExists: false,
-    releaseBound: false,
+    releases: {
+      'tray-release': {exists: false, bound: false},
+      'android-release': {exists: false, bound: false},
+    },
     deployKeys: ['old1', 'old2'],
     envs: new Set(['tray-release']),
     envSecrets: {deploy: new Set(), 'tray-release': new Set(['TAURI_SIGNING_PRIVATE_KEY'])},
@@ -56,7 +61,7 @@ test('grant only adds: the preview account, its roles and key, the deploy Enviro
   );
   assert.deepEqual(
     steps.filter(s => s.keyTo).map(s => s.keyTo.account),
-    [previewEmail(), CI.deployEmail, releaseEmail()],
+    [previewEmail(), CI.deployEmail, releaseEmail(tray)],
     'the deploy key is not copied into tray-release: it has its own account',
   );
   assert.ok(steps.some(s => s.then?.includes('name=main')), 'deploy Environment is main only');
@@ -75,8 +80,9 @@ test('grant run again after it worked has nothing left to do', () => {
   s.envs.add('deploy');
   s.envSecrets.deploy.add(CI.deploySecret);
   s.envSecrets['tray-release'].add(CI.releaseSecret);
-  s.releaseExists = true;
-  s.releaseBound = true;
+  s.envs.add('android-release');
+  s.envSecrets['android-release'] = new Set([CI.releaseSecret]);
+  for (const r of CI.releases) s.releases[r.name] = {exists: true, bound: true};
   s.policy.get(deploy).add('roles/cloudfunctions.admin');
   assert.deepEqual(planCiSplit(s, 'grant'), []);
 });
@@ -145,30 +151,45 @@ test('without the tray-release Environment, grant makes the account and binding 
   assert.deepEqual(steps.filter(x => x.keyTo && x.keyTo.env === 'tray-release'), []);
 });
 
-test('the tray-release account may use only tray/: one conditioned objectUser binding on the bucket, no project role', () => {
+test('each release account may use only its own prefix: one conditioned objectUser binding on the bucket, no project role', () => {
   const steps = planCiSplit(today(), 'grant');
-  const binding = steps.find(x => x.run?.[1] === 'buckets');
-  assert.deepEqual(binding.run.slice(0, 4), ['storage', 'buckets', 'add-iam-policy-binding', `gs://${CI.bucket}`]);
-  assert.ok(binding.run.includes(`--member=serviceAccount:${releaseEmail()}`));
-  assert.ok(binding.run.includes(`--role=${RELEASE_ROLE}`));
   assert.equal(RELEASE_ROLE, 'roles/storage.objectUser');
-  assert.ok(
-    binding.run.some(a => a.startsWith('--condition=expression=') && a.includes(releaseCondition())),
-  );
-  assert.ok(releaseCondition().endsWith("/objects/tray/')"));
-  assert.equal(
-    steps.filter(x => x.run?.[0] === 'projects' && x.run.some(a => a.includes(releaseEmail()))).length,
-    0,
-    'no project-level role for the release account',
-  );
+  for (const [r, prefix, title] of [[tray, 'tray', 'tray-only'], [android, 'android', 'android-only']]) {
+    const bindings = steps.filter(x => x.run?.[1] === 'buckets' && x.run.includes(`--member=serviceAccount:${releaseEmail(r)}`));
+    assert.equal(bindings.length, 1, r.name);
+    const {run} = bindings[0];
+    assert.deepEqual(run.slice(0, 4), ['storage', 'buckets', 'add-iam-policy-binding', `gs://${CI.bucket}`]);
+    assert.ok(run.includes(`--role=${RELEASE_ROLE}`));
+    assert.ok(run.includes(`--condition=expression=${releaseCondition(r)},title=${title}`));
+    assert.ok(releaseCondition(r).endsWith(`/objects/${prefix}/')`));
+    assert.equal(
+      steps.filter(x => x.run?.[0] === 'projects' && x.run.some(a => a.includes(releaseEmail(r)))).length,
+      0,
+      `no project-level role for ${r.name}`,
+    );
+  }
+});
+
+test('with the android-release Environment, grant puts the android account key there, not the tray or deploy key', () => {
+  const s = today();
+  s.envs.add('android-release');
+  s.envSecrets['android-release'] = new Set();
+  const keys = planCiSplit(s, 'grant').filter(x => x.keyTo?.env === 'android-release');
+  assert.deepEqual(keys.map(x => [x.keyTo.account, x.keyTo.secret]), [[releaseEmail(android), CI.releaseSecret]]);
 });
 
 test('hasReleaseBinding is true only for the conditioned binding for that account', () => {
-  const good = {bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail()}`], condition: {expression: releaseCondition(), title: 'tray-only'}}]};
-  assert.equal(hasReleaseBinding(good), true);
-  assert.equal(hasReleaseBinding({bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail()}`]}]}), false, 'an unconditioned grant does not count');
-  assert.equal(hasReleaseBinding({bindings: [{...good.bindings[0], condition: {expression: "resource.name.startsWith('x')"}}]}), false);
-  assert.equal(hasReleaseBinding(null), false);
+  const good = {bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail(tray)}`], condition: {expression: releaseCondition(tray), title: 'tray-only'}}]};
+  assert.equal(hasReleaseBinding(good, tray), true);
+  assert.equal(hasReleaseBinding(good, android), false, "the tray's binding is not android's");
+  assert.equal(hasReleaseBinding({bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail(tray)}`]}]}, tray), false, 'an unconditioned grant does not count');
+  assert.equal(hasReleaseBinding({bindings: [{...good.bindings[0], condition: {expression: "resource.name.startsWith('x')"}}]}, tray), false);
+  assert.equal(
+    hasReleaseBinding({bindings: [{...good.bindings[0], members: [`serviceAccount:${releaseEmail(android)}`]}]}, android),
+    false,
+    'the android account bound under tray/ does not count',
+  );
+  assert.equal(hasReleaseBinding(null, tray), false);
 });
 
 test('revoke deletes the dead repo secret GARAGE61_API_TOKEN', () => {
