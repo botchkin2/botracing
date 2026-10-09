@@ -49,6 +49,14 @@ export const PREVIEW_ROLES = [
   'roles/serviceusage.serviceUsageConsumer',
 ];
 
+/**
+ * Added to the deploy account: a new public HTTPS function needs its invoker
+ * policy set (cloudfunctions.functions.setIamPolicy), which
+ * cloudfunctions.developer lacks (the #326 deploy failed on it). Acceptable
+ * because the key lives only in the main-only `deploy` Environment.
+ */
+export const DEPLOY_ROLES_ADDED = ['roles/cloudfunctions.admin'];
+
 /** Taken off the deploy account: nothing a deploy does reads a secret or acts as Auth admin. */
 export const DEPLOY_ROLES_REMOVED = [
   'roles/secretmanager.secretAccessor',
@@ -106,6 +114,13 @@ export function planCiSplit(state, phase, c = CI) {
           run: ['projects', 'add-iam-policy-binding', c.project,
             `--member=serviceAccount:${preview}`, `--role=${role}`, '--condition=None'],
         });
+    for (const role of DEPLOY_ROLES_ADDED)
+      if (!has(`serviceAccount:${c.deployEmail}`, role))
+        steps.push({
+          what: `deploy account: ${role}`,
+          run: ['projects', 'add-iam-policy-binding', c.project,
+            `--member=serviceAccount:${c.deployEmail}`, `--role=${role}`, '--condition=None'],
+        });
     if (!state.repoSecrets.has(c.previewSecret))
       steps.push({
         what: `a key for ${c.previewName} into repo secret ${c.previewSecret}`,
@@ -146,9 +161,13 @@ export function planCiSplit(state, phase, c = CI) {
         what: `delete repo-level secret ${c.deploySecret} (every workflow could read it)`,
         gh: ['secret', 'delete', c.deploySecret, '--repo', c.repo],
       });
-    // The keys made in `grant` are the newest two; every older user-managed
-    // key of the deploy account was readable by PR branches and goes.
-    for (const id of state.deployKeys.slice(0, -2))
+    // `grant` made one key per Environment that holds the deploy secret
+    // (tray-release only if it existed then), so keep that many of the newest.
+    // Every older user-managed key was readable by PR branches and goes. No
+    // Environment holding the secret yet: nothing is deleted.
+    const kept = [c.deployEnv, c.releaseEnv]
+      .filter(env => state.envSecrets[env]?.has(c.deploySecret)).length;
+    for (const id of kept ? state.deployKeys.slice(0, -kept) : [])
       steps.push({
         what: `delete old deploy-account key ${id.slice(0, 8)}…`,
         run: ['iam', 'service-accounts', 'keys', 'delete', id,
