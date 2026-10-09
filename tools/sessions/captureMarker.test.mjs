@@ -32,6 +32,7 @@ test('marks the captures a session used, and only those', () => {
     JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')),
     {
       sessionId: 's1',
+      sessionIds: ['s1'],
       uploadedUtc: '2026-10-09T15:00:00.000Z',
     },
   );
@@ -48,14 +49,19 @@ test('a capture that is gone, and no captures at all, are skipped quietly', () =
   rmSync(root, {recursive: true, force: true});
 });
 
-test('a second session using the same capture rewrites the marker', () => {
+test('a second session using the same capture is added to the marker', () => {
   const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
   capture(root, 'a');
   markUploaded(root, ['a'], 's1', new Date('2026-10-09T15:00:00Z'));
   markUploaded(root, ['a'], 's2', new Date('2026-10-09T16:00:00Z'));
-  assert.equal(
-    JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')).sessionId,
-    's2',
+  const marker = JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8'));
+  assert.equal(marker.sessionId, 's2');
+  // Every session that used the capture, so "all uploaded" can be checked.
+  assert.deepEqual(marker.sessionIds, ['s1', 's2']);
+  markUploaded(root, ['a'], 's2');
+  assert.deepEqual(
+    JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')).sessionIds,
+    ['s1', 's2'],
   );
   rmSync(root, {recursive: true, force: true});
 });
