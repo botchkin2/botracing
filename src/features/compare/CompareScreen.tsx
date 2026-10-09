@@ -62,6 +62,7 @@ import {BasisSwitch} from './components/BasisSwitch';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {CarsAround} from './components/CarsAround';
+import {NearbyList} from './components/NearbyList';
 import {RadarOverlay} from './components/RadarOverlay';
 import {TrafficLaneBlock} from './components/TrafficLaneBlock';
 import {ChartEditor} from './components/ChartEditor';
@@ -82,6 +83,9 @@ import {CompareWorkspace} from './CompareWorkspace';
 
 export type {CompareSelection} from './model';
 
+// Cars around without a radar (iRacing): cars each way, phone and desktop (apex #3210).
+const NEARBY_PHONE = 3;
+const NEARBY_DESKTOP = 5;
 // Handoff v2 M1 frames: the map area is 220 pt tall on the phone too.
 const MAP_H = 220;
 const DESKTOP_SIDE_W = 360;
@@ -210,8 +214,10 @@ function CompareView({
   const session = useSession(sessionId);
   const fieldData = useField(sessionId, session.data?.field?.hash ?? null).data;
   // The radar and the lanes read positions: a field without them (iRacing's)
-  // is left out of Compare until it has its own panel.
+  // gets the Cars around list instead (NearbyList).
   const field = fieldData?.hasPositions ? fieldData : undefined;
+  const listField =
+    fieldData && !fieldData.hasPositions ? fieldData : undefined;
   const [editing, setEditing] = useState(false);
   // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
@@ -493,6 +499,14 @@ function CompareView({
         lapLabel={model.radarLap.label}
         cursorM={cursorM}
       />
+    ) : listField != null && model.radarLap != null ? (
+      <NearbyList
+        field={listField}
+        lapNumber={model.radarLap.lapNumber}
+        lapLabel={model.radarLap.label}
+        cursorM={cursorM}
+        perSide={layout.isDesktop ? NEARBY_DESKTOP : NEARBY_PHONE}
+      />
     ) : null;
   const radarOn = !layout.isDesktop && field != null && dockLap != null;
   const map =
@@ -765,6 +779,7 @@ function CompareView({
     return (
       <CompareWorkspace
         field={field}
+        listField={listField}
         model={model}
         selection={selection}
         cursorM={cursorM}
@@ -830,6 +845,7 @@ function CompareView({
           {charts}
           {map}
         </View>
+        {listField != null ? radarPanel : null}
         {position}
         {grid}
       </ScrollView>

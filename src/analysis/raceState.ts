@@ -177,7 +177,7 @@ function stateOf(prep: RacePrep, car: number, u: number): CarState {
 // from `upTo`: the car being asked about passed that spot recently, so this is
 // a few hundred steps however long the race has run. Progress only goes
 // backwards on a spin or a reset; the latest crossing is the one that counts.
-function timeAtProgress(
+export function timeAtProgress(
   prep: RacePrep,
   car: number,
   progressM: number,

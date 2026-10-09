@@ -41,6 +41,7 @@ import {
 
 import {BasisSwitch} from './components/BasisSwitch';
 import {CarsAround} from './components/CarsAround';
+import {NearbyList} from './components/NearbyList';
 import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
@@ -64,6 +65,8 @@ import {
 // values table and time per section on the right. Same model and components
 // as the phone; this only arranges them.
 
+// Cars around without a radar (iRacing): cars each way.
+const NEARBY_WIDE = 5;
 const LEFT_W = 260;
 // The charts never get narrower than this, whatever the right column asks.
 const MIN_CENTRE_W = 480;
@@ -74,6 +77,8 @@ const OVERVIEW_H = 58;
 export type WorkspaceProps = {
   /** Every car at 5 Hz, once loaded; the radar panel needs it. */
   field?: Field;
+  /** A field with no positions (iRacing's): the Cars around list, no radar. */
+  listField?: Field;
   model: CompareModel;
   selection: CompareSelection;
   cursorM: number;
@@ -466,6 +471,15 @@ export function CompareWorkspace(p: WorkspaceProps) {
             lapNumber={model.radarLap.lapNumber}
             lapLabel={model.radarLap.label}
             cursorM={p.cursorM}
+          />
+        )}
+        {p.listField && model.radarLap && (
+          <NearbyList
+            field={p.listField}
+            lapNumber={model.radarLap.lapNumber}
+            lapLabel={model.radarLap.label}
+            cursorM={p.cursorM}
+            perSide={NEARBY_WIDE}
           />
         )}
         <View style={styles.section}>
