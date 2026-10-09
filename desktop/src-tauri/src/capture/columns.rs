@@ -293,6 +293,22 @@ pub fn write_parquet(
             .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
             .set_dictionary_enabled(false);
         let mut written = HashSet::new();
+        // wall_ms on every row; et and update on field rows. capture.py writes
+        // these ahead of the struct columns.
+        for name in ["wall_ms", "et", "update"] {
+            let Some(col) = cols.get(name) else { continue };
+            let kind = match col {
+                Column::F64(_) | Column::F32(_) => Kind::F64,
+                _ => Kind::I64,
+            };
+            let (dtype, array) = arrow_of(&kind, col)?;
+            if matches!(dtype, DataType::Float32 | DataType::Float64) {
+                props = props.set_column_encoding(ColumnPath::from(name), Encoding::BYTE_STREAM_SPLIT);
+            }
+            fields.push(Field::new(name, dtype, false));
+            arrays.push(array);
+            written.insert(name.to_string());
+        }
         for (name, kind) in &order {
             let Some(col) = cols.get(name) else { continue };
             let (dtype, array) = arrow_of(kind, col)?;
@@ -309,26 +325,7 @@ pub fn write_parquet(
             arrays.push(array);
             written.insert(name.clone());
         }
-        // wall_ms on every row; et and update on field rows. Not struct fields.
-        for name in ["wall_ms", "et", "update"] {
-            let Some(col) = cols.get(name) else { continue };
-            if written.contains(name) {
-                continue;
-            }
-            let kind = match col {
-                Column::F64(_) | Column::F32(_) => Kind::F64,
-                _ => Kind::I64,
-            };
-            let (dtype, array) = arrow_of(&kind, col)?;
-            if matches!(dtype, DataType::Float32 | DataType::Float64) {
-                props = props.set_column_encoding(
-                    ColumnPath::from(name),
-                    Encoding::BYTE_STREAM_SPLIT,
-                );
-            }
-            fields.push(Field::new(name, dtype, false));
-            arrays.push(array);
-        }
+        let _ = written;
         let schema = Arc::new(Schema::new(fields));
         let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
         if let Some(dir) = tmp.parent() {
@@ -569,7 +566,7 @@ mod tests {
             r"C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\Support\SharedMemoryInterface",
         );
         let python = Path::new(
-            r"C:\Users\Botkin\AppData\Local\lap-capture\2026-09-29T02-41-54Z_daytona-international-speedway-road-course_10",
+            r"C:\Users\Botkin\AppData\Local\lap-capture\2026-10-07T02-56-12Z_daytona-international-speedway-road-course_10",
         );
         let duck_exe = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
         if !duck_exe.is_file() || !header_dir.join("InternalsPlugin.hpp").is_file() || !python.is_dir() {
@@ -620,6 +617,7 @@ mod tests {
             eprintln!("{kind}: rust-only {only_rs:?}");
             eprintln!("{kind}: type diffs {type_diff:?}");
             assert!(only_py.is_empty(), "{kind} missing columns the Python chunk has: {only_py:?}");
+            assert!(only_rs.is_empty(), "{kind} has columns the Python chunk does not: {only_rs:?}");
             assert!(type_diff.is_empty(), "{kind} type diffs that are not float width: {type_diff:?}");
         }
     }
