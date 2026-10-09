@@ -335,6 +335,7 @@ pub fn sign_out(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     fn url(s: &str) -> Url {
         s.parse().unwrap()
@@ -499,14 +500,34 @@ mod tests {
         assert_eq!(default["windows"], serde_json::json!([]));
 
         // Only these three commands are registered, and the build declares them.
+        // Read as sets, whitespace dropped: rustfmt wraps a list when it grows.
+        let listed = |source: &str, open: &str| -> BTreeSet<String> {
+            let squeezed: String = source.split_whitespace().collect();
+            let start = squeezed.find(open).expect(open) + open.len();
+            let end = start + squeezed[start..].find(']').unwrap();
+            squeezed[start..end]
+                .split(',')
+                .filter(|s| !s.is_empty())
+                .map(|s| s.trim_matches('"').to_string())
+                .collect()
+        };
+        let set = |names: [&str; 3]| names.map(String::from).into_iter().collect::<BTreeSet<_>>();
         let main = include_str!("main.rs");
-        assert!(main.contains(
-            "generate_handler![viewer::tray_uid, viewer::viewer_token, viewer::sign_out]"
-        ));
         assert_eq!(main.matches("generate_handler!").count(), 1);
-        let build = include_str!("../build.rs");
-        assert!(build.contains(r#"&["tray_uid", "viewer_token", "sign_out"]"#));
+        assert_eq!(
+            listed(main, "generate_handler!["),
+            set([
+                "viewer::sign_out",
+                "viewer::tray_uid",
+                "viewer::viewer_token"
+            ])
+        );
+        assert_eq!(
+            listed(include_str!("../build.rs"), ".commands(&["),
+            set(["sign_out", "tray_uid", "viewer_token"])
+        );
     }
+
     #[test]
     fn a_wipe_deletes_the_storage_and_its_mark() {
         let data = std::env::temp_dir().join(format!("botracing-wipe-{}", std::process::id()));

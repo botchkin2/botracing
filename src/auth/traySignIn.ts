@@ -57,21 +57,31 @@ export type TraySignInDeps = {
   signIn: (customToken: string) => Promise<unknown>;
 };
 
+/** The tray's uid, or null when it is signed out or the answer is not a uid. */
+function toTrayUid(raw: unknown): string | null {
+  return typeof raw === 'string' && raw !== '' ? raw : null;
+}
+
 /**
- * Signs the window in as the tray's user when it is signed out. The user it
- * ends up as must be the one the tray named, or it signs out again: the window
- * is never signed in as someone the tray is not. Never throws.
+ * Makes the window's user the tray's user, on every load. A sign-in kept in
+ * this storage is checked against the tray's uid (`tray_uid`, which spends
+ * nothing of the tray's hourly allowance): the same user is kept, anyone else
+ * is signed out, and a signed-out tray means a signed-out window. Storage can
+ * outlive a tray user when a sign-out could not empty it (rake, thread 55
+ * #3161). The user it ends up as must be the one the tray named, or it signs
+ * out again. Never throws.
  */
 export async function signInFromTray(
   deps: TraySignInDeps,
-): Promise<'skipped' | 'signed-in' | 'refused' | 'failed'> {
+): Promise<'skipped' | 'signed-in' | 'signed-out' | 'refused' | 'failed'> {
   const {invoke, auth, signIn} = deps;
   try {
     await auth.authStateReady();
-    // Signed in already (Firebase keeps and renews it): nothing to ask, and
-    // nothing spent of the tray's hourly allowance. A different tray user
-    // always goes through the tray's sign-out, which empties this storage.
-    if (auth.currentUser) return 'skipped';
+    const trayUid = toTrayUid(await invoke('tray_uid'));
+    const mine = auth.currentUser?.uid ?? null;
+    if (mine != null && mine === trayUid) return 'skipped';
+    if (mine != null) await auth.signOut();
+    if (trayUid == null) return mine != null ? 'signed-out' : 'skipped';
     const token = toTrayToken(await invoke('viewer_token'));
     if (!token) return 'failed';
     await signIn(token.customToken);

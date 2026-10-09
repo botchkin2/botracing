@@ -54,9 +54,7 @@ pub fn line(l: &Line) -> String {
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
 /// The layout from an LMU install's header files.
@@ -230,26 +228,14 @@ mod tests {
         let mut fine = status("recording", "");
         fine.dropped_pct = 0.9;
         assert_eq!(line(&Line::Status(fine)), "Recording");
-        assert_eq!(
-            line(&Line::Status(status("no-game", ""))),
-            "Waiting for LMU"
-        );
-        assert_eq!(
-            line(&Line::Status(status("waiting", ""))),
-            "Waiting for LMU"
-        );
+        assert_eq!(line(&Line::Status(status("no-game", ""))), "Waiting for LMU");
+        assert_eq!(line(&Line::Status(status("waiting", ""))), "Waiting for LMU");
         assert_eq!(
             line(&Line::Status(status("refused", "disk full"))),
             "Recorder: disk full"
         );
-        assert_eq!(
-            line(&Line::Status(status("stopped", ""))),
-            "Recorder: stopped"
-        );
-        assert_eq!(
-            line(&Line::Another),
-            "Recorder: another recorder is running"
-        );
+        assert_eq!(line(&Line::Status(status("stopped", ""))), "Recorder: stopped");
+        assert_eq!(line(&Line::Another), "Recorder: another recorder is running");
         assert_eq!(
             line(&Line::Failed("no C:\\x\\InternalsPlugin.hpp".into())),
             "Recorder: no C:\\x\\InternalsPlugin.hpp"

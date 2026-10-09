@@ -9,10 +9,10 @@ pub mod irsdk;
 pub mod layout;
 pub mod probe;
 pub mod recorder;
-pub mod runner;
 pub mod sanity;
-#[cfg(all(test, windows))]
-mod soak;
 pub mod store;
+pub mod runner;
 #[cfg(windows)]
 pub mod win;
+#[cfg(all(test, windows))]
+mod soak;

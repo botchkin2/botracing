@@ -12,6 +12,7 @@ function deps(over: {
   user?: {uid: string} | null;
   answer?: unknown;
   signedInAs?: string;
+  trayUid?: string | null;
 }) {
   const auth = {
     currentUser: over.user ?? null,
@@ -20,9 +21,13 @@ function deps(over: {
       auth.currentUser = null;
     }),
   };
-  const invoke = jest.fn(async (_command: string) =>
-    over.answer === undefined ? {customToken: 'tok', uid: 'u1'} : over.answer,
-  );
+  const invoke = jest.fn(async (command: string) => {
+    if (command === 'tray_uid')
+      return over.trayUid === undefined ? 'u1' : over.trayUid;
+    return over.answer === undefined
+      ? {customToken: 'tok', uid: 'u1'}
+      : over.answer;
+  });
   const signIn = jest.fn(async (_token: string) => {
     auth.currentUser = {uid: over.signedInAs ?? 'u1'};
   });
@@ -69,10 +74,35 @@ describe('signInFromTray', () => {
     expect(d.signIn).toHaveBeenCalledWith('tok');
   });
 
-  it('leaves a window that is signed in alone and asks the tray for nothing', async () => {
+  it('keeps a window already signed in as the tray user, spending no sign-in', async () => {
     const d = deps({user: {uid: 'u1'}});
     expect(await signInFromTray(d)).toBe('skipped');
-    expect(d.invoke).not.toHaveBeenCalled();
+    expect(d.invoke).toHaveBeenCalledTimes(1);
+    expect(d.invoke).toHaveBeenCalledWith('tray_uid');
+    expect(d.auth.signOut).not.toHaveBeenCalled();
+    expect(d.signIn).not.toHaveBeenCalled();
+  });
+
+  it('replaces a sign-in kept from another user with the tray user', async () => {
+    const d = deps({user: {uid: 'stale-user'}});
+    expect(await signInFromTray(d)).toBe('signed-in');
+    expect(d.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(d.signIn).toHaveBeenCalledWith('tok');
+    expect(d.auth.currentUser).toEqual({uid: 'u1'});
+  });
+
+  it('signs the window out when the tray has no user', async () => {
+    const d = deps({user: {uid: 'u1'}, trayUid: null});
+    expect(await signInFromTray(d)).toBe('signed-out');
+    expect(d.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(d.invoke).not.toHaveBeenCalledWith('viewer_token');
+    expect(d.auth.currentUser).toBeNull();
+  });
+
+  it('asks for no sign-in when both the tray and the window are signed out', async () => {
+    const d = deps({trayUid: null});
+    expect(await signInFromTray(d)).toBe('skipped');
+    expect(d.invoke).not.toHaveBeenCalledWith('viewer_token');
     expect(d.signIn).not.toHaveBeenCalled();
   });
 
@@ -84,9 +114,10 @@ describe('signInFromTray', () => {
 
   it('is a quiet failure when the tray says no, answers badly or the call throws', async () => {
     const refused = deps({});
-    refused.invoke.mockRejectedValueOnce(
-      new Error('Sign in from the tray icon'),
-    );
+    refused.invoke.mockImplementation(async (command: string) => {
+      if (command === 'tray_uid') return 'u1';
+      throw new Error('Sign in from the tray icon');
+    });
     expect(await signInFromTray(refused)).toBe('failed');
     expect(refused.signIn).not.toHaveBeenCalled();
     const garbage = deps({answer: {nothing: true}});
