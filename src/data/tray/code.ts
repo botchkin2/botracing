@@ -1,19 +1,9 @@
-import {Platform} from 'react-native';
-
+import {trayApiUrl} from '../http';
 import {authHeaders} from '../tokenSource';
 
 // POST /api/tray/code: the tray's sign-in through the web app. The signed-in
 // person asks for a one-time code for the challenge the tray made; the code is
-// useless without the tray's verifier (functions/src/trayCodeCore.ts). Same
-// origin on the deployed web app, production from a dev server.
-const PRODUCTION = 'https://botracing-61.web.app/api/tray';
-
-const base: string =
-  Platform.OS === 'web' &&
-  typeof window !== 'undefined' &&
-  window.location?.protocol === 'https:'
-    ? `${window.location.origin}/api/tray`
-    : PRODUCTION;
+// useless without the tray's verifier (functions/src/trayCodeCore.ts).
 
 export type CodeResult =
   | {kind: 'ok'; code: string}
@@ -22,7 +12,7 @@ export type CodeResult =
 
 export async function requestTrayCode(challenge: string): Promise<CodeResult> {
   try {
-    const response = await fetch(`${base}/code`, {
+    const response = await fetch(trayApiUrl('/code'), {
       method: 'POST',
       cache: 'no-store',
       headers: {...(await authHeaders()), 'Content-Type': 'application/json'},

@@ -23,20 +23,22 @@ export const HOUR_MS = 3_600_000;
 /** What is stored for a code, under the code's hash (never the code itself). */
 export interface CodeRecord {
   uid: string;
+  /** From the ID token the code was asked with, so no Auth lookup is needed later. */
+  email: string | null;
   challenge: string;
   expiresAtMs: number;
 }
 
 export interface TrayDeps {
-  verifyToken(idToken: string): Promise<{uid: string}>;
+  verifyToken(idToken: string): Promise<{uid: string; email: string | null}>;
   /** Stores a code's record under its hash. */
   put(codeHash: string, record: CodeRecord): Promise<void>;
   /** Reads and deletes in one transaction: a code can be taken once. */
   take(codeHash: string): Promise<CodeRecord | null>;
   /** True when this user may have another code now; counts the ask. */
   allow(uid: string, nowMs: number): Promise<boolean>;
-  /** A Firebase custom token for the user, and their email if they have one. */
-  mint(uid: string): Promise<{customToken: string; email: string | null}>;
+  /** A Firebase custom token for the user. */
+  mint(uid: string): Promise<string>;
   now(): number;
   /** 32 random bytes, base64url. */
   newCode(): string;
@@ -102,8 +104,9 @@ export async function handleTray(
     const idToken = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!idToken) return fail(401, 'sign in');
     let uid: string;
+    let email: string | null;
     try {
-      uid = (await deps.verifyToken(idToken)).uid;
+      ({uid, email} = await deps.verifyToken(idToken));
     } catch {
       return fail(401, 'sign in');
     }
@@ -119,6 +122,7 @@ export async function handleTray(
     const code = deps.newCode();
     await deps.put(sha256Hex(code), {
       uid,
+      email,
       challenge,
       expiresAtMs: now + CODE_TTL_MS,
     });
@@ -147,8 +151,11 @@ export async function handleTray(
       !sameText(challengeOf(verifier), record.challenge)
     )
       return fail(400, REFUSED);
-    const {customToken, email} = await deps.mint(record.uid);
-    return {status: 200, json: {customToken, uid: record.uid, email}};
+    const customToken = await deps.mint(record.uid);
+    return {
+      status: 200,
+      json: {customToken, uid: record.uid, email: record.email},
+    };
   }
 
   return fail(404, 'not found');

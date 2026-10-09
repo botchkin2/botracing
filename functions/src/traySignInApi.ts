@@ -23,11 +23,12 @@ const db = admin.firestore();
 const deps: TrayDeps = {
   verifyToken: async idToken => {
     const decoded = await admin.auth().verifyIdToken(idToken);
-    return {uid: decoded.uid};
+    return {uid: decoded.uid, email: decoded.email ?? null};
   },
   put: async (codeHash, record) => {
     await db.doc(`trayCodes/${codeHash}`).set({
       uid: record.uid,
+      email: record.email,
       challenge: record.challenge,
       expiresAtMs: record.expiresAtMs,
       // The TTL policy reads this field (it needs a Timestamp).
@@ -42,11 +43,13 @@ const deps: TrayDeps = {
       tx.delete(ref);
       const data = snap.data() as {
         uid: string;
+        email: string | null;
         challenge: string;
         expiresAtMs: number;
       };
       return {
         uid: data.uid,
+        email: data.email ?? null,
         challenge: data.challenge,
         expiresAtMs: data.expiresAtMs,
       };
@@ -65,13 +68,9 @@ const deps: TrayDeps = {
       return true;
     });
   },
-  mint: async uid => {
-    const [customToken, user] = await Promise.all([
-      admin.auth().createCustomToken(uid),
-      admin.auth().getUser(uid),
-    ]);
-    return {customToken, email: user.email ?? null};
-  },
+  // Signs as the runtime account on itself (Token Creator, ops/iam step 1). It
+  // reads nothing from Firebase Auth: the email travelled in the code's record.
+  mint: uid => admin.auth().createCustomToken(uid),
   now: () => Date.now(),
   newCode: randomCode,
 };

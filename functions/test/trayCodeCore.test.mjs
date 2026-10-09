@@ -18,7 +18,7 @@ function world({tokens = {'id-a': 'uidA', 'id-b': 'uidB'}} = {}) {
   const deps = {
     verifyToken: async t => {
       if (!tokens[t]) throw new Error('bad token');
-      return {uid: tokens[t]};
+      return {uid: tokens[t], email: `${tokens[t]}@example.com`};
     },
     put: async (hash, record) => {
       records.set(hash, record);
@@ -38,7 +38,7 @@ function world({tokens = {'id-a': 'uidA', 'id-b': 'uidB'}} = {}) {
     },
     mint: async uid => {
       state.minted.push(uid);
-      return {customToken: `custom-for-${uid}`, email: `${uid}@example.com`};
+      return `custom-for-${uid}`;
     },
     now: () => state.nowMs,
     newCode: () => state.nextCode ?? randomBytes(32).toString('base64url'),
