@@ -135,17 +135,41 @@ jobs:
       # A published version is immutable: users may already have it, so a fix is
       # a new version. The installer first, latest.json last: a half-finished
       # upload never points the function at a missing file.
+      #
+      # One JSON API upload per object, by its full name. The release account can
+      # only touch tray/ (an IAM condition), so nothing may list: `gcloud storage
+      # cp` resolves its destination and `--no-clobber` checks it by listing,
+      # which failed tray-v0.1.0's publish. `ifGenerationMatch=0` makes Storage
+      # itself refuse (412) to replace an existing object, so no pre-check is
+      # needed. latest.json is the one object that is replaced each release.
       - name: Publish to Storage
         shell: bash
         run: |
+          set -euo pipefail
           version="${GITHUB_REF_NAME#tray-v}"
-          # `objects describe`, not `ls`: the release account can only touch tray/
-          # (an IAM condition), and a listing is checked on the bucket itself.
-          for f in ../release/tray/"$version"/*; do
-            if gcloud storage objects describe "gs://botracing-61-lmu/tray/$version/$(basename "$f")" >/dev/null 2>&1; then
-              echo "tray/$version already exists: a published version is never overwritten" >&2
+          token="$(gcloud auth print-access-token)"
+          echo "::add-mask::$token"
+          out="$RUNNER_TEMP/upload.out"
+          upload() { # <file> <object name> <content type> [create-only]
+            local extra=()
+            [ "${4:-}" = create-only ] && extra=(--url-query "ifGenerationMatch=0")
+            code="$(curl -sS -o "$out" -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $token" -H "Content-Type: $3" \
+              --data-binary @"$1" \
+              --url-query "uploadType=media" --url-query "name=$2" "${extra[@]}" \
+              "https://storage.googleapis.com/upload/storage/v1/b/botracing-61-lmu/o")"
+            if [ "$code" = 412 ]; then
+              echo "$2 already exists: a published version is never overwritten" >&2
               exit 1
             fi
+            if [ "$code" != 200 ]; then
+              echo "uploading $2 failed ($code):" >&2
+              head -c 400 "$out" >&2
+              exit 1
+            fi
+            echo "uploaded $2"
+          }
+          for f in ../release/tray/"$version"/*; do
+            upload "$f" "tray/$version/$(basename "$f")" application/octet-stream create-only
           done
-          gcloud storage cp --no-clobber "../release/tray/$version/*" "gs://botracing-61-lmu/tray/$version/"
-          gcloud storage cp ../release/tray/latest.json gs://botracing-61-lmu/tray/latest.json
+          upload ../release/tray/latest.json tray/latest.json application/json
