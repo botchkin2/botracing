@@ -11,10 +11,11 @@ import {
   isRecording,
   lapCrossings,
   mapSessionType,
+  resetTimes,
   slug,
   writeArchive,
 } from './iracing.mjs';
-import {loadRecording} from './analyze.mjs';
+import {loadRecording, splitAtResets} from './analyze.mjs';
 
 const GR86 =
   'C:\\Users\\Botkin\\Documents\\iRacing\\telemetry\\toyotagr86_virginia 2022 full 2024-10-18 11-06-57.ibt';
@@ -128,4 +129,40 @@ test('writeArchive: samples have km/h and fuel, no VE column', {skip: !existsSyn
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
+});
+
+test('a reset is the car landing in its pit stall straight from the track', () => {
+  // The Sebring practice of 2026-10-09: on track, then in the stall at 1381.5 s
+  // with no pit road before it. A normal stop drives down the pit road first.
+  const t = [1380.0, 1381.5, 1382.0, 1500.0, 1501.0, 1502.0];
+  const inStall = [0, 1, 1, 0, 0, 1];
+  const onPitRoad = [0, 1, 1, 0, 1, 1];
+  assert.deepEqual(resetTimes(t, inStall, onPitRoad), [1381.5]);
+  assert.deepEqual(resetTimes([0, 1], [1, 1], [1, 1]), [], 'starting in the stall is not a reset');
+  // The refill a tick before the stall flag is where the reset starts.
+  assert.deepEqual(
+    resetTimes([1381.483, 1381.5, 1381.517], [0, 0, 1], [0, 0, 1], [46.86, 55, 55]),
+    [1381.5],
+  );
+});
+
+test('a reset cuts the lap it falls in, and ends one it falls at the end of', () => {
+  // Sebring: a reset at 90.5 s inside the out lap, one at 1381.5 s where the
+  // lap counter also steps.
+  const segs = [
+    {start: 0, end: 174.6, lapNumber: 0, partial: true},
+    {start: 1354.8, end: 1381.5, lapNumber: 7, partial: false},
+    {start: 1381.5, end: 1522, lapNumber: 8, partial: true},
+  ];
+  const out = splitAtResets(segs, [90.5, 1381.52]);
+  assert.deepEqual(
+    out.map(s => [s.start, s.end, s.partial, s.resetAt]),
+    [
+      [0, 90.5, true, 90.5],
+      [90.5, 174.6, true, null],
+      [1354.8, 1381.5, true, 1381.52],
+      [1381.5, 1522, true, null],
+    ],
+  );
+  assert.deepEqual(splitAtResets(segs, []).map(s => s.resetAt), [null, null, null]);
 });
