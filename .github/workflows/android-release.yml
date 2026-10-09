@@ -1,0 +1,163 @@
+# Builds the Android APK in EAS and publishes it to the Settings download
+# (GET /api/android/latest, functions/src/androidCore.ts). Only an
+# `android-v*` tag runs it; nothing on merge (pit-wall thread 1 #3270 to #3272).
+#
+#   check    the tagged commit is on main, the tag is android-v + app.json's
+#            expo.version, and the tests pass. No secrets.
+#   build    in the `android-build` Environment (EXPO_TOKEN, android-v* tags
+#            only, no reviewer): EAS builds and signs the APK with the release
+#            key it holds (never in the repo or here). The APK must be signed
+#            by the key pinned in scripts/android-signer.json and carry the
+#            versionCode EAS reported, or the run stops here, so Botkin
+#            approves a real, checked build.
+#   publish  in the `android-release` Environment (Botkin approves each run,
+#            android-v* tags only; EXPO_TOKEN and ANDROID_RELEASE_SERVICE_ACCOUNT):
+#            fetches the same build from EAS, checks the APK again, writes
+#            latest.json with scripts/android-release.mjs and uploads the APK,
+#            then latest.json last. A version is never overwritten.
+#
+# If EAS fails, the run fails: there is no local-build fallback.
+# One-time setup: scripts/setup-android-release.ps1 (docs/ANDROID_BUILD.md).
+name: Android release
+on:
+  push:
+    tags:
+      - 'android-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A tag can point anywhere; only reviewed, merged code is released.
+      - name: The tagged commit is on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: The tag and app.json agree
+        run: node scripts/android-release.mjs check "$GITHUB_REF_NAME"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - run: npm ci
+
+      - name: Tests
+        run: |
+          npx tsc --noEmit
+          npx jest
+          node --test scripts/*.test.mjs
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    # eas build --wait takes 20 to 40 minutes (the queue included).
+    timeout-minutes: 90
+    environment: android-build
+    outputs:
+      id: ${{ steps.build.outputs.id }}
+      versionCode: ${{ steps.build.outputs.versionCode }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # EAS reads the app config through the project's own expo package.
+      - run: npm ci
+
+      - name: Build in EAS
+        timeout-minutes: 75
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: >
+          npx --yes eas-cli@24.8.0 build --platform android --profile release
+          --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
+
+      - name: The build EAS reported
+        id: build
+        # The APK's download link is masked: the logs of this public repo
+        # must not hand out a build before Botkin approves it.
+        run: |
+          out="$(node scripts/android-release.mjs build "$RUNNER_TEMP/eas-build.json" "$GITHUB_REF_NAME")"
+          echo "::add-mask::$(sed -n 's/^url=//p' <<<"$out")"
+          echo "$out" >> "$GITHUB_OUTPUT"
+          grep -v '^url=' <<<"$out"
+
+      - name: Download the APK
+        env:
+          APK_URL: ${{ steps.build.outputs.url }}
+        run: curl -sSfL --retry 3 -o "$RUNNER_TEMP/BotRacing.apk" "$APK_URL"
+
+      # Fails here, before anyone is asked to approve, when the signer is not
+      # the pinned release key (and on the first build, which prints the cert to pin).
+      - name: Signed by the pinned key, with EAS's versionCode
+        run: node scripts/android-release.mjs verify "$RUNNER_TEMP/BotRacing.apk" "${{ steps.build.outputs.versionCode }}"
+
+  # No workflow artifact carries the APK between jobs: the repo is public, so
+  # anyone could download it before Botkin approves (rake #3302). The approved
+  # job fetches the same build from EAS by its id.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: android-release
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - run: npm ci
+
+      - name: The same build, from EAS
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_ID: ${{ needs.build.outputs.id }}
+          VERSION_CODE: ${{ needs.build.outputs.versionCode }}
+        run: |
+          npx --yes eas-cli@24.8.0 build:view "$BUILD_ID" --json > "$RUNNER_TEMP/eas-build.json"
+          out="$(node scripts/android-release.mjs build "$RUNNER_TEMP/eas-build.json" "$GITHUB_REF_NAME")"
+          echo "::add-mask::$(sed -n 's/^url=//p' <<<"$out")"
+          grep -qx "id=$BUILD_ID" <<<"$out"
+          grep -qx "versionCode=$VERSION_CODE" <<<"$out"
+          echo "$out" >> "$GITHUB_OUTPUT"
+
+      - name: Download the APK
+        env:
+          APK_URL: ${{ steps.build.outputs.url }}
+        run: curl -sSfL --retry 3 -o "$RUNNER_TEMP/BotRacing.apk" "$APK_URL"
+
+      # Checked again on the bytes that are uploaded; latest.json carries the
+      # verified cert and EAS's versionCode.
+      - name: Lay out the release
+        run: node scripts/android-release.mjs latest "$RUNNER_TEMP/BotRacing.apk" "${{ needs.build.outputs.versionCode }}" "$RUNNER_TEMP/release"
+
+      # An Environment-only secret name: no repo-level secret of this name
+      # exists, so a missing Environment secret fails here instead of falling
+      # back to another account's key (rake #3302).
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Publish to Storage
+        run: bash scripts/publish-release.sh android "${GITHUB_REF_NAME#android-v}" "$RUNNER_TEMP/release"

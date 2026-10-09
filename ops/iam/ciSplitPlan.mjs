@@ -10,9 +10,10 @@
 //     preview channels and nothing else (repo secret HOSTING_PREVIEW_SERVICE_ACCOUNT).
 //   - Deploys from main use the existing account, through the `deploy`
 //     Environment (main only), with no Secret Manager or Auth admin role.
-//   - The tray-release Environment gets its own account, `tray-release`, which
-//     can write only under tray/ in the lmu bucket (an IAM condition). The
-//     deploy key is no longer copied there.
+//   - Each release Environment gets its own account, which can write only
+//     under its own prefix in the lmu bucket (an IAM condition): tray-release
+//     under tray/, android-release under android/. The deploy key is not
+//     copied there.
 //   - Nothing at project level can read secrets except the owner.
 //
 // Grant, switch, prove, then revoke (ops/iam/README.md): phase `grant` only
@@ -28,36 +29,47 @@ export const CI = {
   previewSecret: 'HOSTING_PREVIEW_SERVICE_ACCOUNT',
   deploySecret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61',
   deployEnv: 'deploy',
-  releaseEnv: 'tray-release',
-  /** The tray release job's own account: tray/ in the bucket and nothing else. */
-  releaseName: 'tray-release',
-  /** Same secret name as the deploy key's, so the workflow's auth step is unchanged. */
-  releaseSecret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61',
+  /**
+   * Each release job's own account, in its own Environment: its prefix in the
+   * bucket and nothing else. Each Environment is made by its kind's setup
+   * script (desktop/scripts/setup-release-env.ps1, scripts/setup-android-release.ps1).
+   * `secret` is the key's name in that Environment. A new kind uses a name no
+   * repo-level secret has, so a missing Environment secret fails the job
+   * instead of falling back to another key (rake #3302). The tray's still
+   * shares the deploy key's name.
+   */
+  releases: [
+    {name: 'tray-release', env: 'tray-release', prefix: 'tray', title: 'tray-only', label: 'Tray release',
+      secret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61'},
+    {name: 'android-release', env: 'android-release', prefix: 'android', title: 'android-only', label: 'Android release',
+      secret: 'ANDROID_RELEASE_SERVICE_ACCOUNT'},
+  ],
   bucket: 'botracing-61-lmu',
 };
 
-export const releaseEmail = (c = CI) =>
-  `${c.releaseName}@${c.project}.iam.gserviceaccount.com`;
+export const release = (name, c = CI) => c.releases.find(r => r.name === name);
+
+export const releaseEmail = (r, c = CI) =>
+  `${r.name}@${c.project}.iam.gserviceaccount.com`;
 
 /**
  * objectUser = create, get, overwrite and delete objects (latest.json is
- * overwritten by every release). The condition limits it to tray/. A condition
+ * overwritten by every release). The condition limits it to its prefix. A condition
  * on object names can't cover `storage.objects.list` (checked on the bucket),
  * so the workflow checks for an existing version with `objects describe`.
  * Needs uniform bucket-level access, which the bucket has.
  */
 export const RELEASE_ROLE = 'roles/storage.objectUser';
-export const releaseCondition = (c = CI) =>
-  `resource.name.startsWith('projects/_/buckets/${c.bucket}/objects/tray/')`;
-export const RELEASE_CONDITION_TITLE = 'tray-only';
+export const releaseCondition = (r, c = CI) =>
+  `resource.name.startsWith('projects/_/buckets/${c.bucket}/objects/${r.prefix}/')`;
 
-/** Whether the bucket policy (gcloud JSON) already has the conditioned tray/ binding. */
-export function hasReleaseBinding(bucketPolicyJson, c = CI) {
+/** Whether the bucket policy (gcloud JSON) already has this release account's conditioned binding. */
+export function hasReleaseBinding(bucketPolicyJson, r, c = CI) {
   return (bucketPolicyJson?.bindings ?? []).some(
     b =>
       b.role === RELEASE_ROLE &&
-      (b.members ?? []).includes(`serviceAccount:${releaseEmail(c)}`) &&
-      b.condition?.expression === releaseCondition(c),
+      (b.members ?? []).includes(`serviceAccount:${releaseEmail(r, c)}`) &&
+      b.condition?.expression === releaseCondition(r, c),
   );
 }
 
@@ -119,8 +131,8 @@ const SECRET_READERS = new Set([
  * `state`: {
  *   policy: Map(member -> Set(role)),             the project policy
  *   previewExists: boolean,                        the hosting-preview account
- *   releaseExists: boolean,                        the tray-release account
- *   releaseBound: boolean,                         it has the tray/-only bucket binding
+ *   releases: {[name]: {exists, bound}},           each release account, and whether it
+ *                                                  has its prefix-only bucket binding
  *   deployKeys: string[],                          user-managed key ids of the deploy account
  *   envs: Set(name),                               GitHub Environments that exist
  *   repoSecrets: Set(name), envSecrets: {env: Set(name)},
@@ -175,28 +187,31 @@ export function planCiSplit(state, phase, c = CI) {
         what: `a new key for the deploy account into ${c.deployEnv} secret ${c.deploySecret}`,
         keyTo: {account: c.deployEmail, secret: c.deploySecret, env: c.deployEnv},
       });
-    // The tray release account: tray/ in the bucket, nothing else.
-    if (!state.releaseExists)
-      steps.push({
-        what: `create the ${c.releaseName} account`,
-        run: ['iam', 'service-accounts', 'create', c.releaseName,
-          `--project=${c.project}`, '--display-name=Tray release: tray/ in the lmu bucket only'],
-      });
-    if (!state.releaseBound)
-      steps.push({
-        what: `${c.releaseName}: ${RELEASE_ROLE} on gs://${c.bucket}, only under tray/`,
-        run: ['storage', 'buckets', 'add-iam-policy-binding', `gs://${c.bucket}`,
-          `--member=serviceAccount:${releaseEmail(c)}`, `--role=${RELEASE_ROLE}`,
-          `--condition=expression=${releaseCondition(c)},title=${RELEASE_CONDITION_TITLE}`,
-          `--project=${c.project}`],
-      });
-    // tray-release is made by desktop/scripts/setup-release-env.ps1; run that
-    // first, or this run skips its key and says so.
-    if (state.envs.has(c.releaseEnv) && !state.envSecrets[c.releaseEnv]?.has(c.releaseSecret))
-      steps.push({
-        what: `a key for ${c.releaseName} into ${c.releaseEnv} secret ${c.releaseSecret}`,
-        keyTo: {account: releaseEmail(c), secret: c.releaseSecret, env: c.releaseEnv},
-      });
+    // Each release account: its prefix in the bucket, nothing else.
+    for (const r of c.releases) {
+      const now = state.releases[r.name] ?? {};
+      if (!now.exists)
+        steps.push({
+          what: `create the ${r.name} account`,
+          run: ['iam', 'service-accounts', 'create', r.name, `--project=${c.project}`,
+            `--display-name=${r.label}: ${r.prefix}/ in the lmu bucket only`],
+        });
+      if (!now.bound)
+        steps.push({
+          what: `${r.name}: ${RELEASE_ROLE} on gs://${c.bucket}, only under ${r.prefix}/`,
+          run: ['storage', 'buckets', 'add-iam-policy-binding', `gs://${c.bucket}`,
+            `--member=serviceAccount:${releaseEmail(r, c)}`, `--role=${RELEASE_ROLE}`,
+            `--condition=expression=${releaseCondition(r, c)},title=${r.title}`,
+            `--project=${c.project}`],
+        });
+      // The Environment is made by its kind's setup script; run that first,
+      // or this run skips the key and says so.
+      if (state.envs.has(r.env) && !state.envSecrets[r.env]?.has(r.secret))
+        steps.push({
+          what: `a key for ${r.name} into ${r.env} secret ${r.secret}`,
+          keyTo: {account: releaseEmail(r, c), secret: r.secret, env: r.env},
+        });
+    }
     return steps;
   }
 

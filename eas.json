@@ -16,6 +16,13 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "release": {
+      "autoIncrement": true,
+      "credentialsSource": "remote",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

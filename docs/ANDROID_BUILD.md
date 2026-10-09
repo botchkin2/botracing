@@ -117,4 +117,32 @@ All three should succeed without errors.
 
 ## Release download (server side)
 
-Released APKs are served like the tray installer (pit-wall thread 1 #3270 to #3272; the tag workflow and the Settings card come in later PRs). The release workflow writes, under `gs://botracing-61-lmu/android/`, the APK at `<version>/BotRacing-<version>.apk` and then `latest.json`, last. The manifest is written only by `scripts/android-release.mjs` (`buildLatest`): `{version, versionCode, apk, sha256, cert_sha256, published_at}`, where `versionCode` is the one EAS built. `functions/src/androidCore.ts` serves it, anonymously: `GET /api/android/latest` gives `{version, versionCode, sha256, published_at, url}` with an hour's signed URL, and `GET /api/android/download` redirects to it. Both answer 404 until a release exists. The serving rules are shared with the tray (`functions/src/releaseCore.ts`), and the functions test builds its fixture with the same `buildLatest`, so the writer and the endpoint can't drift apart. `node scripts/android-release.mjs check android-v1.2.0` fails unless the tag matches `app.json`'s `expo.version`.
+Released APKs are served like the tray installer (pit-wall thread 1 #3270 to #3272; the Settings card comes in a later PR). The release workflow writes, under `gs://botracing-61-lmu/android/`, the APK at `<version>/BotRacing-<version>.apk` and then `latest.json`, last. The manifest is written only by `scripts/android-release.mjs` (`buildLatest`): `{version, versionCode, apk, sha256, cert_sha256, published_at}`, where `versionCode` is the one EAS built. `functions/src/androidCore.ts` serves it, anonymously: `GET /api/android/latest` gives `{version, versionCode, sha256, published_at, url}` with an hour's signed URL, and `GET /api/android/download` redirects to it. Both answer 404 until a release exists. The serving rules are shared with the tray (`functions/src/releaseCore.ts`), and the functions test builds its fixture with the same `buildLatest`, so the writer and the endpoint can't drift apart. `node scripts/android-release.mjs check android-v1.2.0` fails unless the tag matches `app.json`'s `expo.version`.
+
+## Release (tag workflow)
+
+A release is an `android-v<version>` tag on main; nothing builds on merge. `.github/workflows/android-release.yml`:
+
+1. **check**: the tagged commit is on main, the tag is `android-v` + `app.json`'s `expo.version`, and the types, jest and `scripts/` tests pass.
+2. **build** (Environment `android-build`, holds `EXPO_TOKEN`, no reviewer): `eas build --profile release --wait --json` (eas-cli pinned in the workflow). The `release` profile in `eas.json` builds an APK; `autoIncrement` with `appVersionSource: remote` means EAS owns `versionCode`, and a failed build still uses one up. `scripts/android-release.mjs build` reads the finished build from EAS's JSON (id, `appBuildVersion` as versionCode, the APK URL); `verify` checks the downloaded APK with `apksigner` and `aapt2`: signed by the certificate pinned in `scripts/android-signer.json`, package `app.botracing.android`, `versionName` = the tag, `versionCode` = EAS's. Any mismatch stops the run before anyone is asked to approve. If EAS fails, the run fails; there is no local-build fallback. No workflow artifact carries the APK: the repo is public, so anyone could download it before the approval.
+3. **publish** (Environment `android-release`, Botkin approves each run; `EXPO_TOKEN` and `ANDROID_RELEASE_SERVICE_ACCOUNT`): fetches the same build from EAS by id (`eas build:view`, same id and versionCode), `latest` checks the APK again and lays out `android/<version>/BotRacing-<version>.apk` and `android/latest.json`; `scripts/publish-release.sh` uploads the APK create-only (a version is never overwritten), then `latest.json`, as the `android-release` account, which can write only under `android/` (`ops/iam/ciSplitPlan.mjs`).
+
+To release: raise `expo.version` in `app.json` in a PR; after it merges, an admin tags main:
+
+```powershell
+git fetch origin
+git tag android-v1.0.1 origin/main
+git push origin android-v1.0.1
+```
+
+then approves the publish job in Actions once the build is green. Only admins may create, move or delete `android-v*` and `tray-v*` tags (the repo ruleset `Release tags`).
+
+### One-time setup
+
+`scripts/setup-android-release.ps1` (run `-DryRun` first): the two Environments, `EXPO_TOKEN` in both (a robot token from expo.dev > botventure > Settings > Access tokens, passed as `-ExpoToken` or `$env:EXPO_TOKEN`), the `Release tags` ruleset, and `node ops/iam/ciSplit.mjs grant --apply` for the `android-release` account and its key. It prints names, never values.
+
+By hand, once:
+
+- **Back up the signing key.** EAS holds it (never the repo or GitHub). `npx eas-cli@24.8.0 credentials -p android`, profile `release`, then Keystore > Download existing keystore: it saves the `.jks` and prints its passwords. Keep both in the password manager. Lose the key and installed apps can't update; every user reinstalls.
+- **Pin its certificate.** The same `credentials` screen prints the keystore's SHA-256 fingerprint. Put it, lowercase without colons, in `scripts/android-signer.json` (`certSha256`) in a PR. Until it is pinned, the build job stops and prints the APK's certificate SHA-256, which is the same value.
+- **Google sign-in.** Google Cloud console (project botracing-61) > APIs & Services > Credentials > the Android OAuth client for `app.botracing.android`: add the keystore's SHA-1 (also on the `credentials` screen). Without it, Google sign-in on the installed APK answers DEVELOPER_ERROR (`src/auth/googleClient.ts`).
