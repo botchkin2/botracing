@@ -1,3 +1,4 @@
 // LMU shared-memory capture, ported from tools/capture. The game's header is
 // read at run time; this module never stores S397's struct offsets.
+pub mod frame;
 pub mod layout;
