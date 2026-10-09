@@ -1,3 +1,4 @@
+import {describe, expect, it} from '@jest/globals';
 import {brakeZone} from './brakeZone';
 
 // A 1 m grid: pedal at 0 except a press from 10 m to 20 m (release at 20 m).
