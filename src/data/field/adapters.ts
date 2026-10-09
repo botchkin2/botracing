@@ -169,5 +169,6 @@ export function toField(rawInput: unknown): Field {
       flag: intChannel(raw, 'flag', car, n, updates, new Int16Array(updates)),
     };
   });
-  return {version, hz, startEtS: et0, timeS, cars};
+  const hasPositions = cars.some(c => c.xM.some(v => !Number.isNaN(v)));
+  return {version, hz, hasPositions, startEtS: et0, timeS, cars};
 }

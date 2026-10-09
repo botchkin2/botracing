@@ -207,7 +207,10 @@ function CompareView({
   const prefs = useComparePrefs();
   // The field of every car (round 3): loads after the traces, never blocks them.
   const session = useSession(sessionId);
-  const field = useField(sessionId, session.data?.field?.hash ?? null).data;
+  const fieldData = useField(sessionId, session.data?.field?.hash ?? null).data;
+  // The radar and the lanes read positions: a field without them (iRacing's)
+  // is left out of Compare until it has its own panel.
+  const field = fieldData?.hasPositions ? fieldData : undefined;
   const [editing, setEditing] = useState(false);
   // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
