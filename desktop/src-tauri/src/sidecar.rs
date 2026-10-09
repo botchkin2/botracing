@@ -87,6 +87,13 @@ pub fn paths(resources: &Path) -> Paths {
     }
 }
 
+/// The uploader's folder under the tray's data folder: its state.json and the
+/// cleanup's prune.json live here. The watcher is started with it
+/// (LAP_UPLOADER_HOME) and the cleanup reads it, through this one function.
+pub fn uploader_home(data: &Path) -> PathBuf {
+    data.join("uploader")
+}
+
 fn command(p: &Paths) -> Command {
     let mut cmd = Command::new(&p.node);
     cmd.arg(p.root.join(SCRIPT))
@@ -99,7 +106,7 @@ fn command(p: &Paths) -> Command {
         .current_dir(&p.root)
         .env("LAP_TOKEN_FILE", p.token_file())
         .env("LAP_HEARTBEAT_FILE", p.status_file())
-        .env("LAP_UPLOADER_HOME", p.data.join("uploader"))
+        .env("LAP_UPLOADER_HOME", uploader_home(&p.data))
         .env("LAP_VERSION", env!("CARGO_PKG_VERSION"))
         .env("LAP_PARENT_PID", std::process::id().to_string())
         .env("LAP_LOCK_PIPE", crate::profile::lock_pipe());

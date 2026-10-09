@@ -114,10 +114,7 @@ impl IrCapture {
     }
 
     fn write_meta(&self) -> Result<(), String> {
-        write_json(
-            &self.dir.join("meta.json"),
-            &Value::Object(self.meta.clone()),
-        )
+        write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
     }
 
     /// Adds to a counter in meta.json (rewritten with the next chunk).
@@ -189,17 +186,8 @@ mod tests {
     fn rows_in(path: &Path) -> (usize, Vec<String>) {
         let file = std::fs::File::open(path).unwrap();
         let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-        let names = builder
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| f.name().clone())
-            .collect();
-        let n = builder
-            .build()
-            .unwrap()
-            .map(|b| b.unwrap().num_rows())
-            .sum();
+        let names = builder.schema().fields().iter().map(|f| f.name().clone()).collect();
+        let n = builder.build().unwrap().map(|b| b.unwrap().num_rows()).sum();
         (n, names)
     }
 
@@ -210,13 +198,7 @@ mod tests {
         meta.insert("track".into(), json!("Road Atlanta"));
         meta.insert("sessionNum".into(), json!(2));
         let mut cap = IrCapture::new(&root, meta, 1_700_000_000_000).unwrap();
-        assert!(cap
-            .dir
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .ends_with("_road-atlanta_2"));
+        assert!(cap.dir.file_name().unwrap().to_str().unwrap().ends_with("_road-atlanta_2"));
         for i in 0..3 {
             cap.player.push(vec![
                 ("wall_ms".into(), Cell::I64(i)),
@@ -224,12 +206,8 @@ mod tests {
                 ("OnPitRoad".into(), Cell::Bool(false)),
             ]);
         }
-        cap.field.push(vec![
-            ("CarIdx".into(), Cell::I64(4)),
-            ("LapDistPct".into(), Cell::F32(0.5)),
-        ]);
-        cap.session
-            .push(vec![("SessionTime".into(), Cell::F64(12.5))]);
+        cap.field.push(vec![("CarIdx".into(), Cell::I64(4)), ("LapDistPct".into(), Cell::F32(0.5))]);
+        cap.session.push(vec![("SessionTime".into(), Cell::F64(12.5))]);
         let meta_text = std::fs::read_to_string(cap.dir.join("meta.json")).unwrap();
         assert!(meta_text.contains("\"endUtc\": null"));
         assert!(cap.flush(60_000).unwrap() > 0);
@@ -244,10 +222,7 @@ mod tests {
         cap.close(1_700_000_130_000).unwrap();
         assert!(cap.dir.join("player-0001.parquet").exists());
         let end = std::fs::read_to_string(cap.dir.join("meta.json")).unwrap();
-        assert!(
-            end.contains("\"endUtc\": \"2023-11-14T22:15:30.000Z\""),
-            "{end}"
-        );
+        assert!(end.contains("\"endUtc\": \"2023-11-14T22:15:30.000Z\""), "{end}");
         assert!(end.contains("\"chunks\": 2"));
         assert!(!cap.dir.join("player-0000.parquet.tmp").exists());
         let _ = std::fs::remove_dir_all(&root);

@@ -216,7 +216,7 @@ fn main() {
 
             // Cleanup of old recordings: once at start, then after each
             // uploader run. Only the real tray does it (not a walkthrough).
-            let cleanup_paths = capture::prune_schedule::Paths::for_this_pc();
+            let cleanup_paths = capture::prune_schedule::Paths::for_tray(&paths.data);
             if profile::is_default() {
                 capture::prune_schedule::spawn(cleanup_paths.clone());
             }

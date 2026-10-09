@@ -25,17 +25,11 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// This PC's paths: the capture folder, and the uploader's folder beside
-    /// its state.json (`LAP_UPLOADER_HOME`, else `%LOCALAPPDATA%\lap-uploader`).
-    pub fn for_this_pc() -> Paths {
-        let uploader = std::env::var_os("LAP_UPLOADER_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                std::env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .unwrap_or_else(std::env::temp_dir)
-                    .join("lap-uploader")
-            });
+    /// The paths for the tray whose data folder is `data`. The uploader's folder
+    /// is the one the watcher is started with (`sidecar::uploader_home`), so the
+    /// cleanup reads the state the tray's own uploader writes.
+    pub fn for_tray(data: &Path) -> Paths {
+        let uploader = crate::sidecar::uploader_home(data);
         Paths {
             captures: runner::capture_root(),
             state: uploader.join("state.json"),
@@ -228,12 +222,27 @@ mod tests {
         assert_eq!(newest_run(&HashMap::new()), None);
     }
 
+    #[test]
+    fn cleanup_reads_the_state_the_watcher_is_started_with() {
+        let data = PathBuf::from(r"C:\Users\x\AppData\Local\BotRacing");
+        let paths = Paths::for_tray(&data);
+        // The watcher's LAP_UPLOADER_HOME comes from the same function.
+        let watcher_home = crate::sidecar::uploader_home(&data);
+        assert_eq!(paths.state, watcher_home.join("state.json"));
+        assert_eq!(paths.settings, watcher_home.join("prune.json"));
+        assert!(!paths.state.to_string_lossy().contains("lap-uploader"));
+    }
+
     /// Reads this PC's real capture folder and uploader state; deletes nothing.
     /// Run by hand: cargo test --bin botracing real_folder_dry_run -- --ignored --nocapture
     #[test]
     #[ignore = "reads this PC's real capture folder; run by hand"]
     fn real_folder_dry_run() {
-        let paths = Paths::for_this_pc();
+        let data = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .expect("LOCALAPPDATA")
+            .join(crate::profile::data_dir_name());
+        let paths = Paths::for_tray(&data);
         let line = run_once(&paths, SystemTime::now(), true);
         println!("{line}");
         assert!(line.starts_with("dry run"), "{line}");
