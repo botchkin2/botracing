@@ -91,6 +91,14 @@ describe('finishPosition', () => {
     });
   });
 
+  it('has no class leader when the player class has no name', () => {
+    const unnamed: ResultField = {
+      ...field,
+      cars: field.cars.map(c => ({...c, class: ''})),
+    };
+    expect(finishPosition(unnamed)?.classLeaderLapsDone).toBeNull();
+  });
+
   it('counts the class leader among the cars of the player class only', () => {
     // The 2 Oct Road Atlanta race (seat-test da3e67d0575d9423): a GT3 that
     // left at L20, the GT3 leader on 23 when the Hypercar leader took the

@@ -42,9 +42,11 @@ export interface FinishPosition {
    * The most laps any car of the player's class completed by the end of the
    * field: the race's length for the player's car. In a multiclass race the
    * overall leader is a faster class and runs more laps in the same minutes
-   * (2 Oct Road Atlanta: 26 overall, a GT3 ran 23).
+   * (2 Oct Road Atlanta: 26 overall, a GT3 ran 23). Null when the player's
+   * class has no name (an offline iRacing field): every car would be "the
+   * class", and the overall leader would pass for the class leader.
    */
-  classLeaderLapsDone: number;
+  classLeaderLapsDone: number | null;
   /** The leader crossed the line after the player's last crossing: the player stopped before the race did. */
   leftEarly: boolean;
 }
@@ -120,7 +122,7 @@ export function finishPosition(field: ResultField): FinishPosition | null {
     ofClass,
     lapsDone: lapsAt(field.laps[me], u),
     leaderLapsDone: leaderAtEnd,
-    classLeaderLapsDone: classLeaderAtEnd,
+    classLeaderLapsDone: myClass.trim() ? classLeaderAtEnd : null,
     leftEarly: leaderAtEnd > leaderAtCrossing,
   };
 }
