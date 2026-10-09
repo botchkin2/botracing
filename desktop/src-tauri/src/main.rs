@@ -4,6 +4,7 @@
 
 mod account;
 mod auth;
+mod autostart;
 mod browser;
 mod menu;
 mod profile;
@@ -20,6 +21,11 @@ use tauri::Manager;
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 type Shared<T> = Arc<Mutex<T>>;
+
+/// True when a launch asks the running tray to quit (`--quit`).
+fn wants_quit(args: &[String]) -> bool {
+    args.iter().skip(1).any(|a| a == "--quit")
+}
 
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
@@ -59,7 +65,17 @@ fn main() {
     // profile (BOTRACING_PROFILE, for walkthroughs) is a separate copy that
     // runs next to the real tray, so it is not held to this.
     let builder = if profile::is_default() {
-        builder.plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // `botracing.exe --quit` is how the installer and uninstaller ask
+            // the running tray to stop: the watcher is stopped first (so a
+            // recording closes with its end time), then the tray exits.
+            if wants_quit(&args) {
+                if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
+                    sup.lock().unwrap().stop();
+                }
+                app.exit(0);
+                return;
+            }
             std::thread::spawn(|| {
                 let _ = browser::open();
             });
@@ -79,6 +95,7 @@ fn main() {
             )));
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
+            app.manage(supervisor.clone());
 
             // The top item is the way in: "Sign in" while signed
             // out (a click opens the browser), the account once signed in.
@@ -91,6 +108,14 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open BotRacing", true, None::<&str>)?;
             let pause =
                 CheckMenuItem::with_id(app, "pause", "Pause uploads", true, false, None::<&str>)?;
+            let start_with_windows = CheckMenuItem::with_id(
+                app,
+                "autostart",
+                "Start with Windows",
+                profile::is_default(),
+                false,
+                None::<&str>,
+            )?;
             let older =
                 MenuItem::with_id(app, "older", "Upload older sessions…", true, None::<&str>)?;
             let folder = MenuItem::with_id(app, "folder", "Open data folder", true, None::<&str>)?;
@@ -115,6 +140,7 @@ fn main() {
                     &signout,
                     &open,
                     &pause,
+                    &start_with_windows,
                     &older,
                     &folder,
                     &update_item,
@@ -129,8 +155,26 @@ fn main() {
                 pause.clone(),
                 update_slot.clone(),
             );
-            // Only the real tray updates itself; a walkthrough profile does not.
+            let start_with_windows_menu = start_with_windows.clone();
+            // Only the real tray starts with Windows and updates itself; a
+            // walkthrough profile does neither.
             if profile::is_default() {
+                // First launch records "on"; after that the choice is kept, and
+                // the Run value follows the exe if it moved (an update).
+                let mut acct = account.lock().unwrap();
+                let choice = acct.settings.start_with_windows;
+                match std::env::current_exe()
+                    .map_err(|e| e.to_string())
+                    .and_then(|exe| autostart::reconcile(choice, &autostart::Registry, &exe))
+                {
+                    Ok(on) => {
+                        if choice != Some(on) {
+                            acct.record_start_with_windows(on);
+                        }
+                    }
+                    Err(why) => acct.message = Some(format!("Start with Windows: {why}")),
+                }
+                drop(acct);
                 update::spawn(
                     app.handle().clone(),
                     paths.token_file(),
@@ -177,6 +221,21 @@ fn main() {
                         if let Err(why) = written {
                             account_menu.lock().unwrap().message =
                                 Some(format!("Can't ask for older sessions: {why}"));
+                        }
+                    }
+                    "autostart" => {
+                        let on = start_with_windows_menu.is_checked().unwrap_or(false);
+                        let mut acct = account_menu.lock().unwrap();
+                        match std::env::current_exe()
+                            .map_err(|e| e.to_string())
+                            .and_then(|exe| autostart::set(on, &autostart::Registry, &exe))
+                        {
+                            Ok(()) => {
+                                acct.record_start_with_windows(on);
+                                acct.message = None;
+                            }
+                            // The check mark is put back from the registry next tick.
+                            Err(why) => acct.message = Some(why),
                         }
                     }
                     "pause" => {
@@ -247,6 +306,9 @@ fn main() {
                     let _ = owner_item.set_text(owner);
                     let _ = signout.set_enabled(signed_in);
                     let _ = pause.set_checked(checked);
+                    if profile::is_default() {
+                        let _ = start_with_windows.set_checked(autostart::is_on(&autostart::Registry));
+                    }
                     let waiting = update_slot
                         .lock()
                         .unwrap()
