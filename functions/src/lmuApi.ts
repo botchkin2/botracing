@@ -17,6 +17,7 @@ import {
 } from './sessionStore';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {reportError} from './problems';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -229,7 +230,7 @@ export const lmuApi = onRequest(
 
       res.status(404).json({error: 'Not found', path});
     } catch (error: unknown) {
-      console.error('lmuApi', error);
+      await reportError('lmuApi', error, {route: path});
       res.status(500).json({error: 'LMU data is not available'});
     }
   },
