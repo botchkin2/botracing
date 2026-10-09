@@ -39,7 +39,7 @@ pub const PLAYER: &[&str] = &[
     "Alt", "FuelLevel", "OnPitRoad", "PlayerCarInPitStall", "PlayerTrackSurface",
     "PlayerTrackSurfaceMaterial", "SessionFlags", "PlayerCarPosition",
     "PlayerCarClassPosition", "CarDistAhead", "CarDistBehind", "LatAccel", "LongAccel",
-    "VertAccel", "YawRate", "LFtempCM", "RFtempCM", "LRtempCM", "RRtempCM", "LFtempL",
+    "VertAccel", "YawRate", "CarLeftRight", "LFtempCM", "RFtempCM", "LRtempCM", "RRtempCM", "LFtempL",
     "RFtempL", "LRtempL", "RRtempL", "LFtempM", "RFtempM", "LRtempM", "RRtempM", "LFtempR",
     "RFtempR", "LRtempR", "RRtempR", "LFwearL", "RFwearL", "LRwearL", "RRwearL", "LFwearM",
     "RFwearM", "LRwearM", "RRwearM", "LFwearR", "RFwearR", "LRwearR", "RRwearR", "LFpressure",
