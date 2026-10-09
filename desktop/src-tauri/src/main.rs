@@ -93,6 +93,8 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open BotRacing", true, None::<&str>)?;
             let pause =
                 CheckMenuItem::with_id(app, "pause", "Pause uploads", true, false, None::<&str>)?;
+            let older =
+                MenuItem::with_id(app, "older", "Upload older sessions…", true, None::<&str>)?;
             let folder = MenuItem::with_id(app, "folder", "Open data folder", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(
@@ -106,6 +108,7 @@ fn main() {
                     &signout,
                     &open,
                     &pause,
+                    &older,
                     &folder,
                     &quit,
                 ],
@@ -145,6 +148,18 @@ fn main() {
                     }
                     "folder" => {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
+                    }
+                    "older" => {
+                        // The watcher sees this file and runs a sync that
+                        // lifts the first-run window; a failure shows in the
+                        // status line.
+                        let request = paths_menu.older_request_file();
+                        let written = std::fs::create_dir_all(paths_menu.sessions_dir())
+                            .and_then(|_| std::fs::write(&request, b""));
+                        if let Err(why) = written {
+                            account_menu.lock().unwrap().message =
+                                Some(format!("Can't ask for older sessions: {why}"));
+                        }
                     }
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);

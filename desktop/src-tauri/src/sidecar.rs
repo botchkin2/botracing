@@ -25,7 +25,22 @@ impl Paths {
     pub fn token_file(&self) -> PathBuf {
         self.data.join("token")
     }
+    /// The sync's own work folder and state, apart from the old uploader's
+    /// (%LOCALAPPDATA%/lap-sessions): its record of what was uploaded is keyed
+    /// by owner and lives only here.
+    pub fn sessions_dir(&self) -> PathBuf {
+        self.data.join("sessions")
+    }
+    /// Asks the next sync to include sessions older than the first-run window.
+    pub fn older_request_file(&self) -> PathBuf {
+        self.sessions_dir().join(OLDER_REQUEST)
+    }
 }
+
+/// The file name tools/sessions/syncState.mjs reads (OLDER_REQUEST).
+const OLDER_REQUEST: &str = "include-older";
+/// A first run uploads only recordings from this many days back.
+const FIRST_RUN_DAYS: &str = "14";
 
 const SCRIPT: &str = "tools/uploader/watch.mjs";
 
@@ -77,6 +92,10 @@ fn command(p: &Paths) -> Command {
     cmd.arg(p.root.join(SCRIPT))
         .arg("--")
         .arg("--remote")
+        .arg("--work")
+        .arg(p.sessions_dir())
+        .arg("--first-window-days")
+        .arg(FIRST_RUN_DAYS)
         .current_dir(&p.root)
         .env("LAP_TOKEN_FILE", p.token_file())
         .env("LAP_HEARTBEAT_FILE", p.status_file())
@@ -412,6 +431,31 @@ mod tests {
         let lost = base.join("nowhere/botracing.exe");
         assert_eq!(find_root(None, &resources, &lost), resources.join("app"));
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_sync_gets_its_own_state_folder_and_a_first_run_window() {
+        let mut p = paths(Path::new("."));
+        p.data = std::env::temp_dir().join("botracing-args");
+        let args: Vec<String> = command(&p)
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let at = args.iter().position(|a| a == "--work").expect("--work");
+        assert_eq!(
+            PathBuf::from(&args[at + 1]),
+            p.data.join("sessions"),
+            "{args:?}"
+        );
+        let at = args
+            .iter()
+            .position(|a| a == "--first-window-days")
+            .expect("--first-window-days");
+        assert_eq!(args[at + 1], "14");
+        assert_eq!(
+            p.older_request_file(),
+            p.data.join("sessions").join("include-older")
+        );
     }
 
     #[test]
