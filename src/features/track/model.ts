@@ -157,7 +157,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     title: info?.layout ?? sessionName ?? input.trackId,
     countryCode: info?.countryCode ?? null,
     country: info?.country ?? null,
-    facts: buildFacts(info, map, corners.length),
+    facts: buildFacts(info, map),
     corners: groups,
     selection: picked
       ? {
@@ -187,7 +187,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
 function buildFacts(
   info: TrackInfo | null,
   map: TrackMapData | null,
-  cornerCount: number,
 ): TrackFact[] {
   const facts: TrackFact[] = [];
   const lengthM =
@@ -195,13 +194,6 @@ function buildFacts(
   if (lengthM != null) {
     const len = formatLength(lengthM);
     facts.push({label: 'Length', value: len.km, sub: len.mi});
-  }
-  if (cornerCount > 0) {
-    facts.push({
-      label: 'Turns',
-      value: String(cornerCount),
-      sub: 'From the corner map',
-    });
   }
   if (info?.openedYear != null) {
     facts.push({label: 'Opened', value: String(info.openedYear), sub: null});

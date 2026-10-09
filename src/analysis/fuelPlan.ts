@@ -30,6 +30,12 @@ export interface GreenLap {
    */
   veMeasured?: boolean;
   /**
+   * The uploader's comparable flag: false for a slow, pit, off-track or yellow
+   * lap. Only the Plan's fuel chart reads it, to leave those laps out of the
+   * plot. Unset counts as comparable.
+   */
+  comparable?: boolean;
+  /**
    * The lap's traffic facts (the lap doc's `traffic`), for the clean and
    * traffic medians of the Plan's Per green lap card; null or unset without a field.
    */

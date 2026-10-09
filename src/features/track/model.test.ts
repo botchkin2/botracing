@@ -140,7 +140,8 @@ describe('buildTrackModel', () => {
     });
     expect(m.corners[1].rows.map(r => r.selected)).toEqual([false, true]);
     expect(m.selection).toEqual({n: 3, label: 'T3'});
-    expect(m.facts.find(f => f.label === 'Turns')?.value).toBe('4');
+    // No turn count: the corner-map entries do not give the labelled turns exactly.
+    expect(m.facts.find(f => f.label === 'Turns')).toBeUndefined();
     expect(m.map?.real).toBe(false);
     expect(m.map?.note).toMatch(/driven line/);
   });
