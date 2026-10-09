@@ -1300,7 +1300,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   };
 }
 
-// slotOf: the colour slot of each checked lap (the same slots the chips,
+// slotOf: the color slot of each checked lap (the same slots the chips,
 // legend and traces use), so the checkboxes match them in every mode.
 function allLapsByStint(
   laps: Lap[],

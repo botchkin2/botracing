@@ -341,7 +341,7 @@ describe('chart window', () => {
   });
 });
 
-describe('one colour per lap, everywhere', () => {
+describe('one color per lap, everywhere', () => {
   // The checkbox list, the chips (legend) and the trace values must agree on
   // each lap's slot. Median mode starts the slots at 1 (slot 0 is the Ref
   // stroke); the checkbox list once started at 0 and drew every lap one slot off.
