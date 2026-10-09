@@ -1246,7 +1246,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     allLaps: allLapsByStint(
       laps,
       session,
-      selected.map(l => l.id),
+      new Map(lapRefs.map(r => [r.lapId, r.selIndex])),
       refLap?.id ?? null,
     ),
     fastestLapId:
@@ -1306,10 +1306,12 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   };
 }
 
+// slotOf: the color slot of each checked lap (the same slots the chips,
+// legend and traces use), so the checkboxes match them in every mode.
 function allLapsByStint(
   laps: Lap[],
   session: SessionDetail,
-  selected: string[],
+  slotOf: Map<string, number>,
   refId: string | null,
 ): AllLapsStint[] {
   const median = session.medianTimeS;
@@ -1324,7 +1326,7 @@ function allLapsByStint(
           l.comparable && l.timeS != null && median != null
             ? l.timeS - median
             : null;
-        const i = selected.indexOf(l.id);
+        const slot = slotOf.get(l.id);
         return {
           lapId: l.id,
           label: `L${l.lapIndex}`,
@@ -1346,7 +1348,7 @@ function allLapsByStint(
               : l.reasons.includes('slow')
               ? 'SLOW'
               : null,
-          selIndex: i < 0 ? null : i,
+          selIndex: slot ?? null,
           isRef: l.id === refId,
         };
       }),

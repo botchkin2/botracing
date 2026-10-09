@@ -45,5 +45,17 @@ export function startAuthSession(): () => void {
       });
       if (message) useAuthStore.getState().setNotice(message);
     });
+  // A live slot (tools/dev/live.mjs) signs the pane in as seat-test. Dropped
+  // from every export with __DEV__; CI greps the build to prove it.
+  if (__DEV__ && !customToken) {
+    const dev = require('./devSeatSignIn') as typeof import('./devSeatSignIn');
+    const auth = firebaseAuth();
+    void dev.signInSeatTest({
+      auth,
+      hostname: window.location.hostname,
+      fetchToken: dev.fetchSlotToken,
+      signIn: token => signInWithCustomToken(auth, token),
+    });
+  }
   return followFirebaseAuth(firebaseAuth());
 }

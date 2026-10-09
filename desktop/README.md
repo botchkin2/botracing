@@ -6,7 +6,7 @@ What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watch
 
 Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
-Not built yet: a folder picker, iRacing.
+Not built yet: a folder picker, the iRacing live recorder. The watcher uploads iRacing `.ibt` files from `Documents\iRacing	elemetry` like LMU sessions.
 
 ## Recorder
 
@@ -20,6 +20,10 @@ The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port o
 - **Menu line:** Recording, Waiting for LMU, or the reason it is not recording.
 
 Tests: `cargo test` runs the fake-memory tests. Three need this PC (`cargo test -- --ignored` with `BOTRACING_DUCKDB`, `LMU_SHM_HEADER_DIR`, `LAP_CAPTURE_SAMPLE`), and the soak measures CPU and memory against a fake game: `SOAK_SECS=600 cargo test --release soak -- --ignored --nocapture`.
+
+## iRacing live reader (step 2 of the iRacing plan, not recording yet)
+
+`src-tauri/src/capture/irsdk.rs` reads iRacing's telemetry map (`Local\IRSDKMemMapFileName`) without the SDK: the header and the variable table (name, type, offset, count) are the SDK's self-describing format, so no per-variable offset is written down. A frame is the newest of the rotating buffers by tick count, kept only when that buffer's tick is unchanged after the copy (retried, never the game's lock). The session text is Windows-1252, re-read when the header's update counter moves. `win.rs` opens the map read-only and whole, and never creates it. Nothing is written to disk yet (step 3). Fake-memory tests cover a zero map, a rewritten buffer mid-copy and a torn session text; with iRacing in-car, `cargo test live_iracing -- --ignored --nocapture` reads the real sim and prints the tick rate and a few variables.
 
 ## Run it from the repo
 

@@ -115,7 +115,7 @@ export function SessionsScreen() {
       {model.state === 'ready' && model.days.length === 0 && (
         <View style={[styles.column, {width: contentWidth}]}>
           <Text tone='textMuted' style={styles.status}>
-            No recent sessions
+            {model.emptyText}
           </Text>
         </View>
       )}

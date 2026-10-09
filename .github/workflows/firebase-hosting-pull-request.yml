@@ -33,19 +33,22 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build_and_preview:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # Dependabot PRs get no repository secrets, so the deploy cannot run.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     # A healthy preview takes ~3 min; a hung deploy shouldn't block for hours.
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - run: npm install
       - run: npm run build
+      # The dev-only seat sign-in must never ship (pit-wall thread 54 #2742).
+      - run: node tools/ci/assertNoSeatSignIn.mjs dist
       - name: Deploy to Firebase Hosting preview
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.HOSTING_PREVIEW_SERVICE_ACCOUNT }}

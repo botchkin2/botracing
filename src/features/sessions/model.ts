@@ -12,6 +12,7 @@ import {
   effectiveFilter,
   type FilterOptions,
   filterOptions,
+  emptyDaysText,
   listQuery,
   NO_FILTER,
   type SessionsFilter,
@@ -75,6 +76,8 @@ export type SessionsModel =
       /** The filter in force (a stale one from the URL already dropped) and what it can be changed to. */
       filter: SessionsFilter;
       options: FilterOptions;
+      /** Shown when no day has a row. */
+      emptyText: string;
     };
 
 const dayKey = (d: Date) =>
@@ -268,6 +271,7 @@ export function useSessionsModel(
       state: 'ready',
       days: buildSessionsModel(applyGame(list.data.items, filter), new Date()),
       filter,
+      emptyText: emptyDaysText(filter),
       options: facets.data
         ? filterOptions(facets.data, filter)
         : {games: [], tracks: []},
