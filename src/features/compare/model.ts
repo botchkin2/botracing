@@ -1136,6 +1136,29 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       const i = gridIndex(t, m);
       return placer.place(t, i, i, 1)[0];
     };
+    // The map always shows the cursor. With many laps checked and none the Ref
+    // or highlighted lap, no lap is a key lap. `refTrace` is then the first
+    // checked lap's trace, which is also where Follow centres, so the dot goes
+    // there. It stands for the basis, in the basis colour like its readout row.
+    const dotsOf = (): MapModel['dots'] => {
+      const keyed = keyRefs
+        .filter(r => traces.has(r.lapId))
+        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
+        // Same order as the lines: the reference dot on top.
+        .sort((a, b) => drawRank(a) - drawRank(b));
+      if (keyed.length > 0) return keyed;
+      return [
+        {
+          lapId: BASIS_ID,
+          label: basisName,
+          selIndex: BASIS_SLOT,
+          isRef: false,
+          highlighted: false,
+          key: true,
+          at: pointAt(refTrace, cursorM),
+        },
+      ];
+    };
     const followGeometry = input.followGeometry ?? null;
     const split = placer.outlineUse(refTrace);
     mapModel = {
@@ -1158,11 +1181,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         geometry: followGeometry,
       },
       lines,
-      dots: keyRefs
-        .filter(r => traces.has(r.lapId))
-        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
-        // Same order as the lines: the reference dot on top.
-        .sort((a, b) => drawRank(a) - drawRank(b)),
+      dots: dotsOf(),
       followPlace: followPlace(map?.sections ?? [], cursorM),
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
