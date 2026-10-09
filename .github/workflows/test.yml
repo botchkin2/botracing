@@ -18,6 +18,21 @@ jobs:
         with:
           node-version: '24'
       - run: npm install
+      # The session tools' tests read and write real parquet through the CLI
+      # (field, live capture): on CI a missing CLI fails them, never skips.
+      - name: DuckDB CLI (cached)
+        id: duckdb
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/duckdb
+          key: duckdb-cli-1.4.2-linux-amd64
+      - name: DuckDB CLI (download)
+        if: steps.duckdb.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.4.2/duckdb_cli-linux-amd64.zip
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+      - name: DuckDB CLI (path)
+        run: echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
       - name: Types
         run: npx tsc --noEmit
       - name: App tests

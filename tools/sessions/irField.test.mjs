@@ -4,21 +4,11 @@ import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {test} from 'node:test';
 import {run} from './duck.mjs';
+import {needsDuckdb} from './duckTestSupport.mjs';
 import {undelta} from './field.mjs';
 import {irFieldFor} from './irField.mjs';
 
 const posix = p => p.replace(/\\/g, '/');
-
-// The DuckDB CLI is not on every runner (CI's app job has none).
-function duckdbWorks() {
-  try {
-    run(':memory:', 'SELECT 1');
-    return true;
-  } catch {
-    return false;
-  }
-}
-const needsDuckdb = {skip: !duckdbWorks()};
 const LENGTH = 1000;
 
 // A capture of 10 s at 5 Hz: car 0 (the player, GT3) laps at 100 m/s, car 3
