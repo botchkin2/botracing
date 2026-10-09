@@ -3,20 +3,22 @@
 // planHalf.ts. Pure.
 import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
-/** A race's length: the minutes the capture recorded, or the laps a race of that length ran (the leader's, formation not counted). */
+/** A race's length: the minutes the capture recorded, or the laps a race of that length ran (the class leader's, formation not counted). */
 export type ScheduledLength = {minutes: number} | {estimatedLaps: number};
 
 /**
  * How long the race was meant to be: the capture's minutes when it has them
- * (every race is timed), else the leader's laps as an estimate of that time,
+ * (every race is timed), else the laps the leader of the driver's class ran,
  * else unknown. The laps this driver completed are never the length: a timed
  * race ends at the flag, a lap after the clock runs out, and a DNF stops short.
+ * Nor are the overall leader's: a faster class runs more laps in the same
+ * minutes (pit-wall thread 1 #3101).
  */
 export function scheduledLength(
-  facts: Pick<RaceFacts, 'race' | 'leaderLapsDone'>,
+  facts: Pick<RaceFacts, 'race' | 'classLeaderLapsDone'>,
 ): ScheduledLength | null {
   if (facts.race) return facts.race;
-  const leader = facts.leaderLapsDone;
+  const leader = facts.classLeaderLapsDone;
   return leader != null && leader > 1 ? {estimatedLaps: leader - 1} : null;
 }
 

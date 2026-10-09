@@ -11,7 +11,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   startL: 75,
   raceLaps: 30,
   race: null,
-  leaderLapsDone: 31,
+  classLeaderLapsDone: 31,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [{lapIndex: 19, fuelL: 12.9, vePct: 0}],
   end: {lapIndex: 30, fuelL: 13.1, vePct: 5},
@@ -39,7 +39,9 @@ describe('raceRules', () => {
 
   it('has no rules without a fill limit or without a known length', () => {
     expect(raceRules(facts({limitL: null}))).toBeNull();
-    expect(raceRules(facts({race: null, leaderLapsDone: null}))).toBeNull();
+    expect(
+      raceRules(facts({race: null, classLeaderLapsDone: null})),
+    ).toBeNull();
   });
 
   it('a DNF with no capture is planned as the leader laps, not the short one driven', () => {
@@ -50,7 +52,7 @@ describe('raceRules', () => {
           raceLaps: 20,
           leftEarly: true,
           playerLapsDone: 21,
-          leaderLapsDone: 24,
+          classLeaderLapsDone: 24,
         }),
       )?.lengthLaps,
     ).toBe(23);
@@ -59,16 +61,18 @@ describe('raceRules', () => {
 
 describe('scheduledLength', () => {
   it('prefers the capture over the leader laps', () => {
-    expect(scheduledLength({race: {minutes: 40}, leaderLapsDone: 24})).toEqual({
+    expect(
+      scheduledLength({race: {minutes: 40}, classLeaderLapsDone: 24}),
+    ).toEqual({
       minutes: 40,
     });
   });
 
   it('falls back to the leader laps without the formation lap, then to nothing', () => {
-    expect(scheduledLength({race: null, leaderLapsDone: 24})).toEqual({
+    expect(scheduledLength({race: null, classLeaderLapsDone: 24})).toEqual({
       estimatedLaps: 23,
     });
-    expect(scheduledLength({race: null, leaderLapsDone: null})).toBeNull();
+    expect(scheduledLength({race: null, classLeaderLapsDone: null})).toBeNull();
     expect(scheduledLength({race: null})).toBeNull();
   });
 });

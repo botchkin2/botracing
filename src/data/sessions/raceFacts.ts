@@ -80,7 +80,7 @@ export function raceFacts(
     race: session.race ?? null,
     leftEarly: session.finish?.leftEarly === true,
     playerLapsDone: session.finish?.lapsDone ?? null,
-    leaderLapsDone: session.finish?.leaderLapsDone ?? null,
+    classLeaderLapsDone: session.finish?.classLeaderLapsDone ?? null,
     ownUse: {
       fuelL: median(green.map(l => l.fuel!.usedL as number)),
       vePct: median(

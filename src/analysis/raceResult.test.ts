@@ -43,6 +43,7 @@ describe('finishPosition', () => {
       ofClass: 3,
       lapsDone: 3,
       leaderLapsDone: 3,
+      classLeaderLapsDone: 3,
       leftEarly: false,
     });
   });
@@ -85,6 +86,32 @@ describe('finishPosition', () => {
       overall: 2,
       lapsDone: 3,
       leaderLapsDone: 10,
+      classLeaderLapsDone: 9,
+      leftEarly: true,
+    });
+  });
+
+  it('counts the class leader among the cars of the player class only', () => {
+    // The 2 Oct Road Atlanta race (seat-test da3e67d0575d9423): a GT3 that
+    // left at L20, the GT3 leader on 23 when the Hypercar leader took the
+    // flag on 26.
+    const f: ResultField = {
+      cars: [{class: 'GT3', player: true}, {class: 'Hyper'}, {class: 'GT3'}],
+      place: [
+        [3, 3, 3],
+        [1, 1, 1],
+        [2, 2, 2],
+      ],
+      laps: [
+        [19, 20, 20],
+        [20, 24, 26],
+        [19, 21, 23],
+      ],
+    };
+    expect(finishPosition(f)).toMatchObject({
+      lapsDone: 20,
+      leaderLapsDone: 26,
+      classLeaderLapsDone: 23,
       leftEarly: true,
     });
   });

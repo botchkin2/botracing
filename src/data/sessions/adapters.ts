@@ -249,6 +249,8 @@ export type FinishPlace = {
   /** The player's laps and the most any car had at that moment, to read the place against. */
   lapsDone: number;
   leaderLapsDone: number;
+  /** The most laps a car of the player's class had by the end; null on a result written before version 3. */
+  classLeaderLapsDone: number | null;
   /** The leader crossed the line after the player's last crossing: the player left before the race ended. */
   leftEarly: boolean;
 };
@@ -271,6 +273,7 @@ export function toFinishPlace(v: unknown): FinishPlace | null {
     ofClass: ofClass ?? 0,
     lapsDone: num(f.lapsDone) ?? 0,
     leaderLapsDone: num(f.leaderLapsDone) ?? 0,
+    classLeaderLapsDone: num(f.classLeaderLapsDone),
     leftEarly: f.leftEarly === true,
   };
 }

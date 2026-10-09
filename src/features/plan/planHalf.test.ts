@@ -14,7 +14,7 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   startL: 75,
   raceLaps: 60,
   race: null,
-  leaderLapsDone: 61,
+  classLeaderLapsDone: 61,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [],
   end: null,
@@ -107,14 +107,14 @@ describe('buildPlanHalf', () => {
   });
 
   it('a DNF in a timed race names the leader laps, or the minutes without them', () => {
-    const run = (leaderLapsDone: number | null) =>
+    const run = (classLeaderLapsDone: number | null) =>
       half(
         {
           raceLaps: 20,
           race: {minutes: 40},
           leftEarly: true,
           playerLapsDone: 21,
-          leaderLapsDone,
+          classLeaderLapsDone,
         },
         [actual(14)],
       ).rows[0];
@@ -129,7 +129,7 @@ describe('buildPlanHalf', () => {
         race: null,
         leftEarly: true,
         playerLapsDone: 41,
-        leaderLapsDone: 61,
+        classLeaderLapsDone: 61,
       },
       [actual(24)],
     );
@@ -142,7 +142,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('with no stop the plan is the one load to the flag', () => {
-    const h = half({raceLaps: 20, race: null, leaderLapsDone: 21}, []);
+    const h = half({raceLaps: 20, race: null, classLeaderLapsDone: 21}, []);
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
     expect(h.rows).toEqual([
       {k: 'Spare', p: '27 % VE (7.6 laps)', a: '4 % VE (1.1 laps)'},
@@ -194,7 +194,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('says so when the race length is not on record', () => {
-    const h = half({race: null, leaderLapsDone: null});
+    const h = half({race: null, classLeaderLapsDone: null});
     expect(h.rows).toEqual([]);
     expect(h.note).toBe('No race length on record.');
   });

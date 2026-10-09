@@ -100,10 +100,10 @@ export function buildPlanHalf(input: {
     const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
     rows.push({
       k: 'Finish',
-      // The leader's laps in the app's numbering, else the race minutes.
+      // The class leader's laps in the app's numbering, else the race minutes.
       p:
-        facts.leaderLapsDone != null
-          ? `L${facts.leaderLapsDone}`
+        facts.classLeaderLapsDone != null
+          ? `L${facts.classLeaderLapsDone}`
           : length && 'minutes' in length
           ? `${length.minutes} min`
           : length

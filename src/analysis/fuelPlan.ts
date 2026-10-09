@@ -70,8 +70,12 @@ export interface RaceFacts {
   leftEarly?: boolean;
   /** Game laps the player completed; set when `leftEarly`. */
   playerLapsDone?: number | null;
-  /** Game laps the leader completed; the scheduled length when `leftEarly`. */
-  leaderLapsDone?: number | null;
+  /**
+   * Game laps the leader of the player's class completed; the scheduled length
+   * when `leftEarly`. Never the overall leader's: a faster class runs more laps
+   * in the same minutes.
+   */
+  classLeaderLapsDone?: number | null;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
