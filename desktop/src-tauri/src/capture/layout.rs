@@ -291,6 +291,9 @@ pub struct Layout {
     pub scoring_et: usize,
     /// Byte offset of the vehicle count inside one scoring struct.
     pub num_vehicles: usize,
+    /// Byte offset of mInRealtime (LMU: on track, not at the monitor or in a
+    /// replay) inside one scoring struct.
+    pub in_realtime: usize,
     pub offsets: HashMap<String, usize>,
     header: Header,
     built: HashMap<String, Struct>,
@@ -313,6 +316,7 @@ impl Layout {
             telem_et: 0,
             scoring_et: 0,
             num_vehicles: 0,
+            in_realtime: 0,
             offsets: HashMap::new(),
             header,
             built: HashMap::new(),
@@ -338,6 +342,7 @@ impl Layout {
         layout.telem_et = field(&telem, "mElapsedTime")?;
         layout.scoring_et = field(&scoring_info, "mCurrentET")?;
         layout.num_vehicles = field(&scoring_info, "mNumVehicles")?;
+        layout.in_realtime = field(&scoring_info, "mInRealtime")?;
         let scoring = field(&root, "scoring")?;
         let telemetry = field(&root, "telemetry")?;
         let veh_size = layout.veh_size;
@@ -569,6 +574,9 @@ mod tests {
         assert_eq!(lay.hash, oracle["hash"].as_str().unwrap());
         assert_eq!(lay.size, oracle["size"].as_u64().unwrap() as usize);
         assert_eq!(lay.max_vehicles, oracle["maxVehicles"].as_u64().unwrap() as usize);
+        // The real header's position, as measured from the LMU install (rake, #3199).
+        assert_eq!(lay.in_realtime, 115);
+        assert_eq!(lay.num_vehicles, 104);
         for (key, value) in oracle["offsets"].as_object().unwrap() {
             assert_eq!(
                 lay.offsets.get(key).copied(),
