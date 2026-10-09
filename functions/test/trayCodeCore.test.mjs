@@ -201,3 +201,55 @@ test('other methods and paths are refused', async () => {
   );
   assert.equal((await call(deps, '/nothing', {})).status, 404);
 });
+
+// The tray's own window: the same ID token the tray uploads with buys a custom
+// token for that user and nobody else (pit-wall thread 55).
+test('/viewer signs the window in as the user whose ID token the tray holds', async () => {
+  const {deps, state} = world();
+  const out = await call(deps, '/viewer', {uid: 'uidB'}, 'Bearer id-a');
+  assert.equal(out.status, 200);
+  assert.deepEqual(out.json, {
+    customToken: 'custom-for-uidA',
+    uid: 'uidA',
+    email: 'uidA@example.com',
+  });
+  // Not the uid the body asked for.
+  assert.deepEqual(state.minted, ['uidA']);
+});
+
+test('/viewer needs a valid ID token: none, a bad one and a revoked one are 401 and mint nothing', async () => {
+  const {deps, state} = world();
+  for (const authorization of [
+    undefined,
+    '',
+    'Bearer ',
+    'Basic id-a',
+    'Bearer nope',
+  ]) {
+    const out = await call(deps, '/viewer', {}, authorization);
+    assert.equal(out.status, 401, String(authorization));
+    assert.equal(out.json.customToken, undefined);
+  }
+  assert.deepEqual(state.minted, []);
+});
+
+test('/viewer is counted on its own: ten an hour, and it does not spend the sign-in codes', async () => {
+  const {deps} = world();
+  for (let i = 0; i < CODES_PER_HOUR; i++)
+    assert.equal((await call(deps, '/viewer', {}, 'Bearer id-a')).status, 200);
+  assert.equal((await call(deps, '/viewer', {}, 'Bearer id-a')).status, 429);
+  // The same user can still ask for a code, and another user is untouched.
+  const challenge = challengeOf(verifier());
+  assert.equal((await askForCode(deps, challenge)).status, 200);
+  assert.equal((await call(deps, '/viewer', {}, 'Bearer id-b')).status, 200);
+});
+
+test('/viewer answers only POST, and the token is only in the body', async () => {
+  const {deps} = world();
+  assert.equal(
+    (await call(deps, '/viewer', {}, 'Bearer id-a', 'GET')).status,
+    405,
+  );
+  const out = await call(deps, '/viewer', {}, 'Bearer id-a');
+  assert.ok(!('location' in out), 'no redirect, so no URL carries the token');
+});
