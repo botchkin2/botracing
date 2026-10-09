@@ -14,7 +14,7 @@ use crate::capture::layout::Layout;
 use crate::capture::probe::offset_of;
 use crate::capture::recorder::{Recorder, Source};
 use crate::capture::runner::{drive, header_dir, load_layout, Line};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::FILETIME;
@@ -155,8 +155,28 @@ fn soak_the_recorder_against_a_fake_game() {
     }
 
     let stop = Arc::new(AtomicBool::new(false));
+    // Frames the fake game wrote, to compare with the rows on disk.
+    let (player_written, scoring_written) = (Arc::new(AtomicU64::new(0)), Arc::new(AtomicU64::new(0)));
+    // SOAK_LOAD=n keeps n threads busy at normal priority beside the recorder.
+    let burners: Vec<_> = if let Some(n) = std::env::var("SOAK_LOAD").ok().and_then(|v| v.parse::<usize>().ok()) {
+        (0..n)
+            .map(|_| {
+                let stop = stop.clone();
+                std::thread::spawn(move || {
+                    let mut x = 1u64;
+                    while !stop.load(Ordering::Relaxed) {
+                        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                        std::hint::black_box(x);
+                    }
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let feeder = {
         let (mem, stop) = (mem.clone(), stop.clone());
+        let (player_written, scoring_written) = (player_written.clone(), scoring_written.clone());
         let o = offsets(&layout);
         std::thread::spawn(move || {
             let mut seed = 0x9E37_79B9_7F4A_7C15_u64;
@@ -189,10 +209,12 @@ fn soak_the_recorder_against_a_fake_game() {
                     }
                     put(&mut m, o.t_gear, &3_i32.to_le_bytes());
                     next_player += Duration::from_millis(10);
+                    player_written.fetch_add(1, Ordering::Relaxed);
                 }
                 if now >= next_scoring {
                     put(&mut m, o.s_et, &et.to_le_bytes());
                     next_scoring += Duration::from_millis(200);
+                    scoring_written.fetch_add(1, Ordering::Relaxed);
                 }
                 drop(m);
                 std::thread::sleep(Duration::from_millis(1));
@@ -232,6 +254,9 @@ fn soak_the_recorder_against_a_fake_game() {
     stop.store(true, Ordering::SeqCst);
     rec_thread.join().unwrap();
     feeder.join().unwrap();
+    for b in burners {
+        b.join().unwrap();
+    }
 
     let (cpu_s, wall_s) = *cpu.lock().unwrap();
     let pct = 100.0 * cpu_s / wall_s;
@@ -239,6 +264,22 @@ fn soak_the_recorder_against_a_fake_game() {
     eprintln!("recorder thread CPU {cpu_s:.1} s over {wall_s:.0} s = {pct:.2}% of one core");
     eprintln!("working set MB per minute: {samples:.1?}");
     eprintln!("on disk {:.1} MB ({:.1} MB per minute)", bytes as f64 / 1e6, bytes as f64 / 1e6 / (wall_s / 60.0));
+    // Completeness: rows on disk against frames the fake game wrote. A recorder
+    // that sleeps through frames is cheap and wrong; this is what catches it.
+    let rows = |kind: &str| -> u64 {
+        let duck = std::env::var("BOTRACING_DUCKDB").expect("set BOTRACING_DUCKDB for the row count");
+        let glob = format!("{}/*/{kind}-*.parquet", root.display()).replace('\\', "/");
+        let out = std::process::Command::new(duck)
+            .args([":memory:", "-csv", "-noheader", "-c", &format!("SELECT count(*) FROM read_parquet('{glob}')")])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0)
+    };
+    let (p_rows, f_rows) = (rows("player"), rows("field"));
+    let (p_sent, f_sent) = (player_written.load(Ordering::Relaxed), scoring_written.load(Ordering::Relaxed) * CARS as u64);
+    let (p_pct, f_pct) = (100.0 * p_rows as f64 / p_sent as f64, 100.0 * f_rows as f64 / f_sent as f64);
+    eprintln!("player rows {p_rows} of {p_sent} written = {p_pct:.2}%");
+    eprintln!("field rows {f_rows} of {f_sent} written = {f_pct:.2}%");
     // SOAK_KEEP=1 leaves the folder, to read it with the uploader's own code.
     if std::env::var_os("SOAK_KEEP").is_some() {
         eprintln!("kept {}", root.display());
@@ -246,4 +287,5 @@ fn soak_the_recorder_against_a_fake_game() {
         let _ = std::fs::remove_dir_all(&root);
     }
     assert!(pct < 2.0, "{pct:.2}% of one core");
+    assert!(p_pct >= 99.0 && f_pct >= 99.0, "frames lost: player {p_pct:.2}%, field {f_pct:.2}%");
 }
