@@ -161,9 +161,13 @@ export function planCiSplit(state, phase, c = CI) {
         what: `delete repo-level secret ${c.deploySecret} (every workflow could read it)`,
         gh: ['secret', 'delete', c.deploySecret, '--repo', c.repo],
       });
-    // The keys made in `grant` are the newest two; every older user-managed
-    // key of the deploy account was readable by PR branches and goes.
-    for (const id of state.deployKeys.slice(0, -2))
+    // `grant` made one key per Environment that holds the deploy secret
+    // (tray-release only if it existed then), so keep that many of the newest.
+    // Every older user-managed key was readable by PR branches and goes. No
+    // Environment holding the secret yet: nothing is deleted.
+    const kept = [c.deployEnv, c.releaseEnv]
+      .filter(env => state.envSecrets[env]?.has(c.deploySecret)).length;
+    for (const id of kept ? state.deployKeys.slice(0, -kept) : [])
       steps.push({
         what: `delete old deploy-account key ${id.slice(0, 8)}…`,
         run: ['iam', 'service-accounts', 'keys', 'delete', id,

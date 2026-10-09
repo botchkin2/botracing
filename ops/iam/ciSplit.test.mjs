@@ -71,6 +71,8 @@ test('grant run again after it worked has nothing left to do', () => {
 test('revoke only removes: the three roles, the repo-level secret, the old keys and the dead secrets', () => {
   const s = today();
   s.deployKeys = ['old1', 'old2', 'newDeploy', 'newRelease'];
+  s.envSecrets.deploy.add(CI.deploySecret);
+  s.envSecrets['tray-release'].add(CI.deploySecret);
   const steps = planCiSplit(s, 'revoke');
   assert.equal(steps.filter(s2 => s2.run?.[1] === 'add-iam-policy-binding' || s2.keyTo).length, 0);
   assert.deepEqual(
@@ -84,6 +86,24 @@ test('revoke only removes: the three roles, the repo-level secret, the old keys 
     steps.filter(x => x.run?.[0] === 'secrets').map(x => x.run[2]),
     DEAD_SECRETS,
   );
+});
+
+// 2026-10-09: tray-release did not exist at grant, so grant made one key and
+// the old PR-readable key survived a revoke that kept the newest two (#2653).
+test('revoke keeps one key per Environment holding the deploy secret, and deletes the rest', () => {
+  const s = today();
+  s.envs.delete('tray-release');
+  s.envSecrets.deploy.add(CI.deploySecret);
+  s.envSecrets['tray-release'] = new Set();
+  s.deployKeys = ['oldPrReadable', 'newDeploy'];
+  const keyDeletes = planCiSplit(s, 'revoke').filter(x => x.run?.includes('keys')).map(x => x.run[4]);
+  assert.deepEqual(keyDeletes, ['oldPrReadable']);
+});
+
+test('revoke deletes no key while no Environment holds the deploy secret', () => {
+  const s = today();
+  const keyDeletes = planCiSplit(s, 'revoke').filter(x => x.run?.includes('keys'));
+  assert.deepEqual(keyDeletes, []);
 });
 
 test('the deploy account keeps what a deploy uses: hosting, rules and indexes', () => {
