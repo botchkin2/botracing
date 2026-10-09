@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -65,7 +66,7 @@ console.log('done 0, failed 0, unchanged 0');
 
 after(() => rmSync(root, {recursive: true, force: true}));
 
-function tick() {
+function tick(folder = telemetry, workDir = work, localDir = local) {
   writeFileSync(beatsPath, '');
   const r = spawnSync(
     process.execPath,
@@ -75,7 +76,7 @@ function tick() {
       '--',
       '--remote',
       '--work',
-      work,
+      workDir,
       '--first-window-days',
       '14',
     ],
@@ -84,8 +85,8 @@ function tick() {
       timeout: 120_000,
       env: {
         ...process.env,
-        LOCALAPPDATA: local,
-        LMU_TELEMETRY: telemetry,
+        LOCALAPPDATA: localDir,
+        LMU_TELEMETRY: folder,
         LAP_SYNC_SCRIPT: syncPath,
         LAP_HEARTBEAT_FILE: beatsPath,
         LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-tray-e2e-${process.pid}`,
@@ -135,5 +136,48 @@ test(
     const beats = tick();
     assert.ok(beats.some(b => b.state === 'syncing'));
     assert.equal(runs(), 2);
+  },
+);
+
+// sync.mjs filters on the session's date, the watcher can only see file times.
+// A recording touched later than it was made counts as waiting until a sync has
+// described it; the sync skips it (outside the window) but its describe cache
+// is saved, and from then on the watcher sees it as known: the queue drains.
+test(
+  'a recording touched after it was made does not stay in the queue once it has been described',
+  {skip: !windows},
+  () => {
+    const folder2 = resolve(root, 'telemetry2');
+    const work2 = resolve(root, 'work2');
+    mkdirSync(folder2, {recursive: true});
+    mkdirSync(work2, {recursive: true});
+    const file = resolve(folder2, 'touched.duckdb');
+    writeFileSync(file, 'x');
+    const t = new Date(Date.now() - 3600 * 1000);
+    utimesSync(file, t, t);
+    // Before any sync it cannot be told from a new recording.
+    const local2 = resolve(root, 'local2');
+    assert.equal(tick(folder2, work2, local2)[0].queue, 1);
+    // What sync.mjs saves after describing it and skipping it as too old.
+    const {size, mtimeMs} = statSync(file);
+    writeFileSync(
+      resolve(work2, 'state.json'),
+      JSON.stringify({
+        files: {
+          'touched.duckdb': {
+            size,
+            mtimeMs,
+            info: {recordedAt: '2026-08-01T20:00:00Z'},
+          },
+        },
+        sessions: {},
+        owners: {},
+        since: '2026-09-24',
+      }),
+    );
+    // A fresh watcher again (no last run), so the queue reads the state's files.
+    rmSync(resolve(local2, 'lap-uploader'), {recursive: true, force: true});
+    const beats = tick(folder2, work2, local2);
+    assert.equal(beats[0].queue, 0);
   },
 );

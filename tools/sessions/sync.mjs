@@ -671,6 +671,8 @@ async function main() {
   // "Upload older sessions…" in the tray: the first-run window is lifted once.
   if (existsSync(olderRequestPath)) {
     liftWindow(state);
+    // Removed before the sync runs on purpose: the lift is saved with the
+    // state right after the scan, so a sync stopped for the game keeps it.
     if (!check) rmSync(olderRequestPath);
     log('older sessions included');
   }

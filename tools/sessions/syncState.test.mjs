@@ -4,7 +4,6 @@ import {
   floorOf,
   forgetOtherOwners,
   freshState,
-  LEGACY_OWNER,
   liftWindow,
   markDone,
   ownerOf,
@@ -21,10 +20,8 @@ const botkinState = () => ({
   stamps: {s1: 'x'},
 });
 
-test('a state written before owners belongs to botkin', () => {
-  const state = botkinState();
-  assert.equal(ownerOf(state, 's1'), LEGACY_OWNER);
-  assert.equal(LEGACY_OWNER, 'botkin');
+test('a state written before owners has no owner for its sessions', () => {
+  assert.equal(ownerOf(botkinState(), 's1'), null);
 });
 
 test('signed in as the real uid, the botkin backlog counts as new', () => {
@@ -37,10 +34,18 @@ test('signed in as the real uid, the botkin backlog counts as new', () => {
   assert.deepEqual(state.files, {'a.duckdb': {size: 1, mtimeMs: 2}});
 });
 
+test('an entry with no owner is unknown: forgotten for every owner, even botkin', () => {
+  const state = botkinState();
+  assert.equal(forgetOtherOwners(state, 'botkin'), 3);
+  assert.deepEqual(state.sessions, {});
+});
+
 test('the same owner keeps what it uploaded', () => {
   const state = botkinState();
-  assert.equal(forgetOtherOwners(state, 'botkin'), 0);
-  assert.deepEqual(Object.keys(state.sessions), ['s1', 's2', 's3']);
+  markDone(state, 's1', 'f1', 'uid-9f3');
+  assert.equal(forgetOtherOwners(state, 'uid-9f3'), 2);
+  assert.deepEqual(state.sessions, {s1: 'f1'});
+  assert.equal(forgetOtherOwners(state, 'uid-9f3'), 0);
 });
 
 test('only the other owner’s sessions are forgotten', () => {

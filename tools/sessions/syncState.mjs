@@ -5,12 +5,6 @@
 // (or as the real uid after the old uploader wrote as "botkin") sends the
 // backlog again instead of skipping it. Pure: sync.mjs does the file I/O.
 
-/**
- * Entries written before owners were recorded belong to whoever the old
- * uploader ran as: its default owner.
- */
-export const LEGACY_OWNER = 'botkin';
-
 /** The file the tray menu's "Upload older sessions…" drops in the work folder; the next sync reads it and lifts the window. */
 export const OLDER_REQUEST = 'include-older';
 
@@ -31,8 +25,9 @@ export function freshState({windowDays = 0, now = new Date()} = {}) {
   };
 }
 
+/** The owner a session was uploaded for; null for an entry written before owners were recorded. */
 export function ownerOf(state, id) {
-  return state.owners?.[id] ?? LEGACY_OWNER;
+  return state.owners?.[id] ?? null;
 }
 
 /** Records a session as uploaded for `ownerId`. */
@@ -43,8 +38,11 @@ export function markDone(state, id, fingerprint, ownerId) {
 }
 
 /**
- * Forgets every session done for another owner, with its analysis revision and
- * catalog stamp, so the sync counts it as new. Returns how many it forgot.
+ * Forgets every session not done for `ownerId`, with its analysis revision and
+ * catalog stamp, so the sync counts it as new. An entry with no recorded owner
+ * (the old uploader's state) is unknown, so it is forgotten for every owner:
+ * the worst case is a session uploaded again to the id it already has, an
+ * upsert. Returns how many it forgot.
  */
 export function forgetOtherOwners(state, ownerId) {
   let forgotten = 0;
