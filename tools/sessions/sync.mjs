@@ -60,6 +60,7 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
+import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
@@ -355,6 +356,16 @@ function build(
     startMs: Date.parse(first.recordedAt),
     endMs,
   };
+  // iRacing: the tray's live capture against the .ibt of the same drive, lap
+  // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
+  const liveCheck =
+    foldOnly || sim !== 'iracing'
+      ? null
+      : liveLapCheck(
+          captureRoot,
+          span,
+          ibtCrossings(s.files.map(f => f.path)),
+        );
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
@@ -623,6 +634,7 @@ function build(
     fieldText,
     slices,
     fieldReason: fieldOut.reason,
+    liveCheck,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
@@ -1000,6 +1012,7 @@ async function processSession(
   }
   if (out.session.series)
     lines.push(`  ${out.session.series} ${out.session.eventId}`);
+  if (out.liveCheck) lines.push(`  ${describeCheck(out.liveCheck)}`);
   const f = out.session.field;
   lines.push(
     f

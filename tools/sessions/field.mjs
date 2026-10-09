@@ -30,6 +30,9 @@ export function listCaptures(root) {
     if (!existsSync(metaPath)) continue;
     try {
       const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+      // LMU's captures only: this reads LMU's columns (the iRacing tray
+      // recorder shares the folder; irCapture.mjs reads those).
+      if (meta.sim && meta.sim !== 'lmu') continue;
       const files = readdirSync(resolve(root, name))
         .filter(f => /^field-\d+\.parquet$/.test(f))
         .map(f => resolve(root, name, f));
