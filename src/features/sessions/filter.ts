@@ -31,22 +31,43 @@ export function filterOptions(
   facets: SessionFacets,
   filter: SessionsFilter,
 ): FilterOptions {
-  const tracks = new Map<string, FilterChoice>();
+  // One chip per track in the picked game. The chips are labelled here, from
+  // the chips shown: two layouts sharing a name get 'Name · Variant' only when
+  // both are on screen.
+  const tracks = new Map<
+    string,
+    {key: string; name: string; variant: string; sim: string; count: number}
+  >();
   for (const t of facets.tracks) {
     if (filter.game && t.sim !== filter.game) continue;
     const c = tracks.get(t.trackId) ?? {
       key: t.trackId,
-      label: shortTrackName(t.track),
+      name: shortTrackName(t.track),
+      variant: t.variant ?? '',
+      sim: t.sim,
       count: 0,
     };
     c.count += t.count;
     tracks.set(t.trackId, c);
   }
+  const names = new Map<string, number>();
+  for (const c of tracks.values())
+    names.set(c.name, (names.get(c.name) ?? 0) + 1);
+  const choices: FilterChoice[] = [...tracks.values()].map(c => ({
+    key: c.key,
+    // No layout stored (facets from before the variant field): the game says
+    // which chip is which, never the internal track id.
+    label:
+      (names.get(c.name) ?? 0) > 1
+        ? `${c.name} · ${c.variant || gameLabel(c.sim)}`
+        : c.name,
+    count: c.count,
+  }));
   return {
     games: facets.games
       .map(g => ({key: g.sim, label: gameLabel(g.sim), count: g.count}))
       .sort(byLabel),
-    tracks: [...tracks.values()].sort(byLabel),
+    tracks: choices.sort(byLabel),
   };
 }
 
