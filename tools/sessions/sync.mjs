@@ -63,6 +63,8 @@ import {fieldFor} from './field.mjs';
 import {capturesRead, markUploaded} from './captureMarker.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {irFieldFor} from './irField.mjs';
+import {driversOfYaml} from './irClasses.mjs';
+import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
@@ -203,6 +205,21 @@ function group(files) {
     );
   }
   return sessions;
+}
+
+// Every car's class in an iRacing session, from its .ibt (irClasses.mjs);
+// none when the file can't be read.
+function ibtDriversOf(path) {
+  try {
+    const ibt = openIbt(path);
+    try {
+      return driversOfYaml(ibt.yaml);
+    } finally {
+      ibt.close();
+    }
+  } catch {
+    return [];
+  }
 }
 
 function slugId(sim, name) {
@@ -413,10 +430,12 @@ function build(
     `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
 
   // Every car in the session, when tools/capture recorded it (field.mjs).
+  const ibtDrivers = sim === 'iracing' ? ibtDriversOf(s.files[0].path) : [];
   const fieldOut = (sim === 'iracing' ? irFieldFor : fieldFor)(
     captureRoot,
     span,
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
+    ibtDrivers,
   );
   // Traffic around the player per lap, from the field (lapTraffic.mjs). The
   // windows go out with the laps: a sync without the capture reads the
@@ -635,6 +654,9 @@ function build(
     recordings,
     laps,
     lapWindows,
+    // iRacing: every car's class from the .ibt, so a stored field from before
+    // the field carried classes gets them (store.mjs, irClasses.relabelField).
+    ibtDrivers,
     band: a.band,
     fieldText,
     slices,
