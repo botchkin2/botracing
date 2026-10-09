@@ -125,7 +125,7 @@ export function ZoomTraces({
   // The brake zone is its own band on this chart, in the median colour (the
   // set's median, not one lap's), so it needs no reference lap.
   const brakeBand = zoom.brakeZone
-    ? {fromM: zoom.brakeZone[0], toM: zoom.brakeZone[1], color: color.median}
+    ? {fromM: zoom.brakeZone[0], toM: zoom.brakeZone[1], color: color.textMuted}
     : undefined;
   const readouts = desktop
     ? readoutsAt(lines, zoom.stepM, hoverM ?? zoom.apexM)

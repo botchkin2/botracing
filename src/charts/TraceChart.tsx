@@ -63,7 +63,7 @@ const WRAP_OPACITY = 0.4;
 const DIM_OPACITY = 0.6;
 const AXIS_H = 12;
 // A base band (a span along the bottom edge) is this thick, in points.
-const BASE_BAND_H = 3;
+const BASE_BAND_H = 4;
 // Labels closer than this to the right edge are dropped (handoff).
 const LABEL_EDGE_PT = 34;
 
