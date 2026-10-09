@@ -615,7 +615,7 @@ describe('buildPitCard', () => {
       if (card?.kind !== 'fuel') throw new Error('not the fuel card');
       expect(card.start).toEqual({
         value: '45.0 L / 68 % VE',
-        note: 'loaded before L1',
+        note: null,
       });
       // 45.0 - 3.7 = 41.3 L; 68 - 4 = 64 % VE; over the 3 laps.
       expect(card.used).toEqual({

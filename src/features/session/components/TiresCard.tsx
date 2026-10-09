@@ -34,7 +34,7 @@ export function TiresCard({
     return (
       <View style={styles.card}>
         <Text variant='label'>Tires</Text>
-        <EmptyState title='No tyre channels' />
+        <EmptyState title='No tire channels' />
       </View>
     );
   }

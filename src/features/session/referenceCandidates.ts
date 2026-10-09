@@ -128,7 +128,7 @@ export function matchText(m: RefMatch): string {
     m.sameCar && 'same car',
     m.sameSession && 'same session type',
     m.fuelBand && 'load in band',
-    m.tyresKept && 'tyres kept',
+    m.tyresKept && 'tires kept',
     m.onTrack && 'on track',
   ].filter(Boolean);
   return has.length > 0 ? has.join(' · ') : 'no match on the ranking keys';

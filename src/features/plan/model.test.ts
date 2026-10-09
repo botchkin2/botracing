@@ -8,6 +8,8 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
+import {carLabel} from '@/src/design';
+import {planComboKey} from '@/src/nav/routes';
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
@@ -21,6 +23,7 @@ import {
   greenLapsOf,
   eventLoad,
   HISTORY_SESSIONS,
+  isOtherSimCombo,
   historySessions,
   limitsOfDetails,
   planCombos,
@@ -239,6 +242,28 @@ describe('rulesCells', () => {
   });
 });
 
+describe('isOtherSimCombo', () => {
+  const lmu = session('a', '2026-09-01T10:00:00Z');
+  const ir = session('b', '2026-09-02T10:00:00Z', {
+    sim: 'iracing',
+    trackId: 'iracing-127-full_course',
+    car: 'Ford Mustang GT3',
+  });
+  const key = (s: SessionSummary) =>
+    planComboKey(s.trackId, carLabel(s.car).model);
+
+  it('is true for a pair driven in another sim, false for LMU and for none', () => {
+    expect(isOtherSimCombo([lmu, ir], key(ir))).toBe(true);
+    expect(isOtherSimCombo([lmu, ir], key(lmu))).toBe(false);
+    expect(isOtherSimCombo([lmu, ir], null)).toBe(false);
+    expect(isOtherSimCombo([lmu], 'nowhere|Car')).toBe(false);
+  });
+
+  it('keeps the other sim out of the combos Plan offers', () => {
+    expect(planCombos([lmu, ir]).map(c => c.key)).toEqual([key(lmu)]);
+  });
+});
+
 describe('planCombos', () => {
   it('groups by track and car model, not livery, newest combination first', () => {
     const combos = planCombos([
@@ -341,6 +366,7 @@ describe('greenLapsOf', () => {
         vePct: 5,
         lapTimeS: 110,
         sessionId: 's1',
+        comparable: true,
         veMeasured: true,
         traffic: null,
       },
@@ -709,7 +735,7 @@ describe('planView', () => {
     expect(drop[0].value).toContain('VE: at most 4.35 % a lap');
     expect(drop[0].value).not.toContain('Fuel:');
     expect(drop[1].label).toBe('Your laps at <= 4.35 % VE');
-    expect(drop[1].value).toBe('no data  (n = 0)');
+    expect(drop[1].value).toBe('no data');
   });
 
   it('shows where the VE ratio came from', () => {

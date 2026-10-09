@@ -34,7 +34,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
-import {adapter} from '../sessions/sims.mjs';
+import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {parentGone} from './parentGuard.mjs';
@@ -73,12 +73,16 @@ function syncArg(name) {
   return i < 0 ? undefined : syncArgs[i + 1];
 }
 const syncWork = resolve(syncArg('--work') ?? resolve(local, 'lap-sessions'));
-const syncStatePath = resolve(syncWork, 'state.json');
-const olderRequestPath = resolve(syncWork, OLDER_REQUEST);
 const firstWindowDays = Number(syncArg('--first-window-days') ?? 0);
-const lmu = adapter('lmu');
-const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
-const GAME_EXE = process.env.LAP_GAME_EXE || lmu.gameExe;
+// The sims it watches, each with its own folder and its own sync (--sim).
+// LAP_SIMS narrows the list (a test seam; the default is every sim we know).
+const SIMS = (process.env.LAP_SIMS || 'lmu,iracing')
+  .split(',')
+  .map(id => id.trim())
+  .filter(Boolean)
+  .map(id => ({id, adapter: adapter(id), folder: telemetryFolder(id)}));
+const gameExeOf = ({adapter: a}) =>
+  (a.watcher.gameExeEnv && process.env[a.watcher.gameExeEnv]) || a.gameExe;
 const LOCK_PIPE =
   process.env.LAP_LOCK_PIPE || String.raw`\\.\pipe\lap-uploader-watch`;
 const TICK_SEC = 30;
@@ -120,22 +124,43 @@ function takeLock() {
   });
 }
 
-function gameRunning() {
+function exeRunning(exe) {
   const out = execFileSync(
     'tasklist',
-    ['/FI', `IMAGENAME eq ${GAME_EXE}`, '/NH', '/FO', 'CSV'],
+    ['/FI', `IMAGENAME eq ${exe}`, '/NH', '/FO', 'CSV'],
     {encoding: 'utf8', windowsHide: true},
   );
-  return out.includes(GAME_EXE);
+  return out.includes(exe);
 }
+
+// Any watched sim: a sync in the garage costs VR frames whichever game is up.
+function gameRunning() {
+  return SIMS.some(sim => exeRunning(gameExeOf(sim)));
+}
+
+// One sim's sync state: the legacy-layout sim's is the top level of the
+// watcher's state (the shape before a second sim), the others keep theirs
+// under `sims`.
+const FRESH = () => ({retries: {}});
+function stateOf(watch, sim) {
+  if (sim.adapter.watcher.legacyLayout) return watch;
+  watch.sims ??= {};
+  return (watch.sims[sim.id] ??= FRESH());
+}
+// sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,
+// so existing installs keep their record; the others get a folder of their own.
+const workOf = sim =>
+  sim.adapter.watcher.legacyLayout ? syncWork : resolve(syncWork, sim.id);
 
 // Recordings, the newest change time, and how many still need a sync: changed
 // since the last clean sync, or on a fresh watcher, not yet in sync.mjs's own
 // state (its file list, same size and time). Counting every file on a fresh
 // install made the queue read 557 for sessions long uploaded (apex #553).
-function recordings(sinceMs) {
+function recordings(sim, sinceMs) {
+  const telemetry = sim.folder;
   if (!existsSync(telemetry)) return null;
-  const syncState = sinceMs == null ? readJson(syncStatePath, null) : null;
+  const syncState =
+    sinceMs == null ? readJson(resolve(workOf(sim), 'state.json'), null) : null;
   const known = sinceMs == null ? syncState?.files ?? {} : null;
   // Recordings older than the first-run window are not waiting for a sync.
   const floor = floorOf(syncState, {windowDays: firstWindowDays});
@@ -144,7 +169,7 @@ function recordings(sinceMs) {
   let newer = 0;
   for (const name of readdirSync(telemetry)) {
     const path = resolve(telemetry, name);
-    if (!lmu.isRecording(path)) continue;
+    if (!sim.adapter.isRecording(path)) continue;
     const {mtimeMs, size} = statSync(path);
     if (newestMtimeMs == null || mtimeMs > newestMtimeMs)
       newestMtimeMs = mtimeMs;
@@ -179,9 +204,25 @@ function version() {
 // the session ids and the closing "done N, failed M" line feed the heartbeat.
 // sync.mjs skips files written in the last 3 minutes in case the game is
 // still writing them; the game is closed here, so nothing is.
-function runSync(onProgress, skipIds) {
+function syncArgsOf(sim) {
+  const {quietMin, legacyLayout} = sim.adapter.watcher;
+  const args = [...syncArgs];
+  if (!legacyLayout) {
+    const i = args.indexOf('--work');
+    if (i < 0) args.push('--work', workOf(sim));
+    else args[i + 1] = workOf(sim);
+  }
+  return [
+    ...(quietMin == null ? [] : ['--quiet-min', String(quietMin)]),
+    ...args,
+    '--sim',
+    sim.id,
+  ];
+}
+
+function runSync(sim, onProgress, skipIds) {
   return new Promise(done => {
-    const args = [syncScript, '--quiet-min', '0', ...syncArgs];
+    const args = [syncScript, ...syncArgsOf(sim)];
     if (skipIds.length) args.push('--skip', skipIds.join(','));
     const child = spawn(process.execPath, args, {windowsHide: true});
     try {
@@ -216,6 +257,12 @@ function runSync(onProgress, skipIds) {
       done({...result, code, stoppedForGame: guard.stopped()});
     });
   });
+}
+
+// The earliest of several retry times, null when none is pending.
+function earliestOf(times) {
+  const set = times.filter(t => t != null);
+  return set.length ? Math.min(...set) : null;
 }
 
 let db = null;
@@ -254,17 +301,28 @@ async function main() {
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
+  for (const sim of SIMS) stateOf(watch, sim);
   const save = () => writeFileSync(statePath, JSON.stringify(watch));
   let wasRunning = false;
   let lastKey = '';
   let lastBeatMs = 0;
   let progress = null;
-  log(`start ${hostId} ${ver}, telemetry ${telemetry}`);
+  log(
+    `start ${hostId} ${ver}, telemetry ${SIMS.map(
+      s => `${s.id} ${s.folder}`,
+    ).join(', ')}`,
+  );
 
   // force: write even when nothing changed, so lastSeenAt stays fresh through a
   // long step that prints no progress (a surface fold, one big session).
   const beat = async (state, force = false) => {
-    const recs = recordings(watch.lastRunAtMs);
+    const all = SIMS.map(sim => {
+      const st = stateOf(watch, sim);
+      return {sim, st, recs: recordings(sim, st.lastRunAtMs)};
+    });
+    const lmuRecs =
+      all.find(a => a.sim.adapter.watcher.legacyLayout)?.recs ?? null;
+    const retryIds = all.flatMap(a => Object.keys(a.st.retries ?? {}));
     let freeBytes = null;
     try {
       const fs = statfsSync(local);
@@ -276,17 +334,21 @@ async function main() {
       hostId,
       label,
       version: ver,
-      lmuFound: recs != null,
+      lmuFound: lmuRecs != null,
       state,
-      watch,
+      // Totals are shared; the error shown is the first any sim has.
+      watch: {
+        ...watch,
+        lastError: all.map(a => a.st.lastError).find(Boolean) ?? null,
+      },
       progress,
       queue: queueCount({
-        pendingFiles: recs?.newer ?? 0,
-        failedSessions: Object.keys(watch.retries),
+        pendingFiles: all.reduce((n, a) => n + (a.recs?.newer ?? 0), 0),
+        failedSessions: retryIds,
       }),
       freeBytes,
       recorder: readJson(recorderStatus, null),
-      retryAtMs: earliestRetryMs(watch.retries),
+      retryAtMs: earliestOf(all.map(a => earliestRetryMs(a.st.retries ?? {}))),
       nowMs: Date.now(),
     });
     const key = beatKey(doc);
@@ -306,113 +368,126 @@ async function main() {
     }
   };
 
-  for (;;) {
+  tick: for (;;) {
     if (parentGone()) {
       log('the tray app is gone, stopping');
       process.exit(0); // the lock pipe would keep the process alive otherwise
     }
     try {
       const running = gameRunning();
-      const recs = recordings(watch.lastRunAtMs);
-      const plan = decide({
-        gameRunning: running,
-        wasRunning,
-        newestMtimeMs: recs?.newestMtimeMs ?? null,
-        lastRunAtMs: watch.lastRunAtMs ?? null,
-        retryAtMs: watch.retryAtMs ?? null,
-        sessionRetryAtMs: earliestRetryMs(watch.retries),
-        // First run with this code, or a merge that bumped it.
-        versionChanged: watch.versionKey !== currentKey,
-        olderRequested: existsSync(olderRequestPath),
-        nowMs: Date.now(),
-      });
-      wasRunning = running;
-      if (plan.run) {
-        log(`sync: ${plan.reason}`);
-        const startedMs = Date.now();
-        const skippedIds = waitingIds(watch.retries, startedMs);
-        await beat('syncing');
-        // Beats while the sync runs: one per progress line, and every minute
-        // with or without one (a surface fold of a dozen tracks printed none
-        // for 15 minutes and the heartbeat went stale). They are stopped, and
-        // any write in flight awaited, before the state that follows is
-        // written, even if the sync throws (syncBeats.mjs).
-        const r = await runWithBeats(
-          {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
-          beatProgress =>
-            runSync(p => {
-              progress = p;
-              // One write in flight at a time; the next block catches up.
-              beatProgress();
-            }, skippedIds),
-        );
-        progress = null;
-        // A stopped sync never prints its closing "done N" line, but each
-        // session's block is printed only once it is stored or has failed.
-        // A fold block (sync's pass before the sessions) stores nothing: only
-        // the others are uploads.
-        if (r.stoppedForGame) r.done = r.stored.length - r.failedIds.length;
-        if (r.done) {
-          watch.lastUploadAt = new Date().toISOString();
-          watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
-          watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
-        }
-        if (r.stoppedForGame) {
-          // Not a failure: nothing to retry or report. The trigger still
-          // holds (new telemetry, new version), so it runs again once LMU
-          // exits, and redoes only what this pass had not stored.
+      for (const sim of SIMS) {
+        const st = stateOf(watch, sim);
+        const recs = recordings(sim, st.lastRunAtMs);
+        const plan = decide({
+          gameRunning: running,
+          wasRunning,
+          newestMtimeMs: recs?.newestMtimeMs ?? null,
+          lastRunAtMs: st.lastRunAtMs ?? null,
+          retryAtMs: st.retryAtMs ?? null,
+          sessionRetryAtMs: earliestRetryMs(st.retries),
+          // First run with this code, or a merge that bumped it.
+          versionChanged: st.versionKey !== currentKey,
+          olderRequested: existsSync(resolve(workOf(sim), OLDER_REQUEST)),
+          nowMs: Date.now(),
+        });
+        if (plan.run) {
+          log(
+            `sync${sim.adapter.watcher.legacyLayout ? '' : ` ${sim.id}`}: ${
+              plan.reason
+            }`,
+          );
+          const startedMs = Date.now();
+          const skippedIds = waitingIds(st.retries, startedMs);
+          await beat('syncing');
+          // Beats while the sync runs: one per progress line, and every minute
+          // with or without one (a surface fold of a dozen tracks printed none
+          // for 15 minutes and the heartbeat went stale). They are stopped, and
+          // any write in flight awaited, before the state that follows is
+          // written, even if the sync throws (syncBeats.mjs).
+          const r = await runWithBeats(
+            {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
+            beatProgress =>
+              runSync(
+                sim,
+                p => {
+                  progress = p;
+                  // One write in flight at a time; the next block catches up.
+                  beatProgress();
+                },
+                skippedIds,
+              ),
+          );
+          progress = null;
+          // A stopped sync never prints its closing "done N" line, but each
+          // session's block is printed only once it is stored or has failed.
+          // A fold block (sync's pass before the sessions) stores nothing: only
+          // the others are uploads.
+          if (r.stoppedForGame) r.done = r.stored.length - r.failedIds.length;
+          if (r.done) {
+            watch.lastUploadAt = new Date().toISOString();
+            watch.lastSessionId = r.stored[0] ?? watch.lastSessionId;
+            watch.sessionsDone = (watch.sessionsDone ?? 0) + r.done;
+          }
+          if (r.stoppedForGame) {
+            // Not a failure: nothing to retry or report. The trigger still
+            // holds (new telemetry, new version), so it runs again once LMU
+            // exits, and redoes only what this pass had not stored.
+            save();
+            log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
+            wasRunning = true;
+            await beat('in-game');
+            continue tick;
+          }
+          // Each failed session waits on its own backoff and is skipped until
+          // then; everything else is done, so the run and the version count as
+          // done. sync.mjs exits 1 on any failed session, so only its closing
+          // line tells a finished pass from a crash: a sync that died part way
+          // (even after a failed block) leaves sessions unreached, so it waits
+          // as a whole and records neither run time nor version.
+          if (!r.finished) {
+            st.failuresInRow = (st.failuresInRow ?? 0) + 1;
+            st.retryAtMs =
+              Date.now() + retryDelayMin(st.failuresInRow) * 60 * 1000;
+            // Shown in the app as the uploader's error: what died, and when.
+            const why =
+              r.crash ?? r.errors[0] ?? `sync exited with code ${r.code}`;
+            st.lastError = {
+              at: new Date().toISOString(),
+              message: `sync crashed: ${why}`,
+              path: 'lap-uploader/watch.log',
+            };
+            log(`sync: CRASHED, ${why}`);
+          } else {
+            st.retries = nextRetries({
+              retries: st.retries,
+              failedIds: r.failedIds,
+              skippedIds,
+              nowMs: Date.now(),
+            });
+            st.lastRunAtMs = startedMs;
+            st.versionKey = currentKey;
+            st.retryAtMs = null;
+            st.failuresInRow = 0;
+            st.lastError = r.failedIds.length
+              ? {
+                  at: new Date().toISOString(),
+                  message: r.errors[0],
+                  path: 'lap-uploader/watch.log',
+                }
+              : null;
+          }
           save();
-          log(`sync: stopped, LMU started (done ${r.done} before the stop)`);
-          wasRunning = true;
-          await beat('in-game');
-          continue;
+          log(`sync: done ${r.done}, failed ${r.failed}, exit ${r.code}`);
         }
-        // Each failed session waits on its own backoff and is skipped until
-        // then; everything else is done, so the run and the version count as
-        // done. sync.mjs exits 1 on any failed session, so only its closing
-        // line tells a finished pass from a crash: a sync that died part way
-        // (even after a failed block) leaves sessions unreached, so it waits
-        // as a whole and records neither run time nor version.
-        if (!r.finished) {
-          watch.failuresInRow = (watch.failuresInRow ?? 0) + 1;
-          watch.retryAtMs =
-            Date.now() + retryDelayMin(watch.failuresInRow) * 60 * 1000;
-          // Shown in the app as the uploader's error: what died, and when.
-          const why =
-            r.crash ?? r.errors[0] ?? `sync exited with code ${r.code}`;
-          watch.lastError = {
-            at: new Date().toISOString(),
-            message: `sync crashed: ${why}`,
-            path: 'lap-uploader/watch.log',
-          };
-          log(`sync: CRASHED, ${why}`);
-        } else {
-          watch.retries = nextRetries({
-            retries: watch.retries,
-            failedIds: r.failedIds,
-            skippedIds,
-            nowMs: Date.now(),
-          });
-          watch.lastRunAtMs = startedMs;
-          watch.versionKey = currentKey;
-          watch.retryAtMs = null;
-          watch.failuresInRow = 0;
-          watch.lastError = r.failedIds.length
-            ? {
-                at: new Date().toISOString(),
-                message: r.errors[0],
-                path: 'lap-uploader/watch.log',
-              }
-            : null;
-        }
-        save();
-        log(`sync: done ${r.done}, failed ${r.failed}, exit ${r.code}`);
       }
+      wasRunning = running;
       await beat(
         idleState({
-          crashed: watch.retryAtMs != null,
+          crashed: SIMS.some(sim => stateOf(watch, sim).retryAtMs != null),
           gameRunning: running,
-          retryPending: earliestRetryMs(watch.retries) != null,
+          retryPending: SIMS.some(
+            sim => earliestRetryMs(stateOf(watch, sim).retries) != null,
+          ),
         }),
       );
     } catch (error) {

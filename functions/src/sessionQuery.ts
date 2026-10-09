@@ -25,6 +25,13 @@ export type Facets = {
   tracks: {trackId: string; track: string; sim: string; count: number}[];
 };
 
+/** The name a session stores as `track` ({name, variant}, or a bare string in old docs). */
+function trackNameOf(track: unknown, trackId: string): string {
+  if (typeof track === 'string' && track) return track;
+  const name = (track as {name?: unknown} | null | undefined)?.name;
+  return typeof name === 'string' && name ? name : trackId;
+}
+
 /** Counts of sessions per game and per track, from `{sim, trackId, track}` rows. */
 export function foldFacets(
   rows: {sim?: unknown; trackId?: unknown; track?: unknown}[],
@@ -41,7 +48,7 @@ export function foldFacets(
     const key = `${sim}|${row.trackId}`;
     const t = tracks.get(key) ?? {
       trackId: row.trackId,
-      track: typeof row.track === 'string' ? row.track : row.trackId,
+      track: trackNameOf(row.track, row.trackId),
       sim,
       count: 0,
     };

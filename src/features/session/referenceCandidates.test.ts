@@ -134,10 +134,10 @@ describe('candidate text', () => {
       /^L11 · 25 Sep · Race · 1:20\.743 · −13\.688 s$/,
     );
     expect(matchText(c.match)).toBe(
-      'same car · same session type · load in band · tyres kept · on track',
+      'same car · same session type · load in band · tires kept · on track',
     );
     expect(matchText({...c.match, fuelBand: false, onTrack: false})).toBe(
-      'same car · same session type · tyres kept',
+      'same car · same session type · tires kept',
     );
   });
 });

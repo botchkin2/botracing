@@ -236,7 +236,7 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
   if (tyres?.changed && tyres.wheels.length === 4)
     return {
       kind: 'absent',
-      why: `All four tyres changed after L${stopLap.lapIndex}`,
+      why: `All four tires changed after L${stopLap.lapIndex}`,
     };
   if (!cool)
     return {
@@ -257,7 +257,7 @@ function coolDownBlock(all: Lap[], firstLapIndex: number): CoolDownBlock {
   if (wheels.length === 0)
     return {
       kind: 'absent',
-      why: `No cool-down reading on the kept tyres after L${stopLap.lapIndex}`,
+      why: `No cool-down reading on the kept tires after L${stopLap.lapIndex}`,
     };
   return {
     kind: 'readings',
