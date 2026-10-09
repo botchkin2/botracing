@@ -6,7 +6,7 @@ What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watch
 
 Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
-Not built yet: sign-in (nothing writes `token` yet), the installer with node and a pruned `node_modules` as resources, a folder picker, iRacing.
+Not built yet: a folder picker, iRacing.
 
 ## Run it from the repo
 
@@ -37,6 +37,16 @@ ode`), where `sidecar::find_root` looks first.
 - **No native Node addon and no `node_modules`:** DuckDB is the CLI exe, run by `tools/sessions/duck.mjs`; the uploader imports only its own files and Node built-ins. The stage script fails on an npm import, a missing relative import, a non-literal `import()` or a `new Worker` it cannot follow.
 - **Pinned binaries:** `node.exe` (v24.19.0, SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `NODE` / `DUCKDB` (local copies), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
 - `node scripts/stage-resources.mjs --no-duckdb` stages without DuckDB (a build that cannot analyse); `node --test scripts/stage-resources.test.mjs` tests the staging logic.
+
+## Releases and updates
+
+A release is a tag: bump the version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, merge, then `git tag tray-vX.Y.Z && git push origin tray-vX.Y.Z`. `.github/workflows/tray-release.yml` (Windows runner) checks that the tag and both files agree, runs the tests, builds the NSIS installer, and publishes to Storage (`gs://botracing-61-lmu/tray/`): `<version>/<installer>-setup.exe`, its `.sig`, and `latest.json` (the current version, where its installer is, its signature) last. A manual run of the workflow builds only and keeps the installer as an artifact. Nothing builds on a push to main.
+
+- **Install** is per user (`installMode: currentUser`): no admin prompt, files under `%LOCALAPPDATA%`. The installer is **not code signed**, so Windows SmartScreen asks once per install ("More info", "Run anyway").
+- **Updates** are signed with Tauri's own ed25519 key (free; not code signing). The public key is in `tauri.conf.json`; the private key and its password are Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and **Botkin keeps a backup in his password manager: lose it and installed trays can no longer update**. An update that does not verify against the public key is refused.
+- **The tray** (`src-tauri/src/update.rs`) checks at launch and every 6 hours, signed in only (the check sends the user's ID token to `GET /api/tray/latest`, which answers the Tauri updater format: `{version, notes, pub_date, url, signature}`, or 204 when current). It downloads quietly and keeps the installer; it installs when the person quits, or picks "Restart to update to X" in the menu, never while uploading. The menu shows `BotRacing <version>` when current.
+- **Secrets** for the build: `BOTRACING_OAUTH_CLIENT_ID`, `BOTRACING_OAUTH_CLIENT_SECRET`, `BOTRACING_FIREBASE_API_KEY` (the same values `scripts/build.ps1` reads from your machine), plus the two updater secrets above. `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61` (already used by the functions deploy) uploads to Storage.
+- A local release build needs the updater key too: `TAURI_SIGNING_PRIVATE_KEY` (the key file's path or text) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; `npx tauri build` then also writes the `.sig`.
 
 ## Walkthroughs without touching a real sign-in
 

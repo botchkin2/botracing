@@ -1,0 +1,90 @@
+# Builds the Windows tray installer. A `tray-v*` tag builds, signs the update
+# (Tauri's own key, not code signing) and publishes to Storage; a manual run
+# builds only, and keeps the installer as a workflow artifact. Never on a push
+# to main. The installer itself is unsigned (one SmartScreen click per install).
+#
+# Secrets (repo Settings > Secrets > Actions):
+#   BOTRACING_OAUTH_CLIENT_ID, BOTRACING_OAUTH_CLIENT_SECRET   the Google desktop client
+#   BOTRACING_FIREBASE_API_KEY                                 the Firebase web key
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD   the updater key
+#   FIREBASE_SERVICE_ACCOUNT_BOTRACING_61                     already used by the functions deploy
+# The updater private key exists only here and in Botkin's password manager:
+# lose it and installed trays can no longer update.
+name: Tray release
+on:
+  push:
+    tags:
+      - 'tray-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tray-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: The tag, tauri.conf.json and Cargo.toml agree
+        if: github.ref_type == 'tag'
+        run: node scripts/release-manifest.mjs check "${{ github.ref_name }}"
+
+      - name: Tests
+        run: |
+          node --test scripts/*.test.mjs
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build the installer
+        env:
+          BOTRACING_OAUTH_CLIENT_ID: ${{ secrets.BOTRACING_OAUTH_CLIENT_ID }}
+          BOTRACING_OAUTH_CLIENT_SECRET: ${{ secrets.BOTRACING_OAUTH_CLIENT_SECRET }}
+          BOTRACING_FIREBASE_API_KEY: ${{ secrets.BOTRACING_FIREBASE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build
+
+      - name: Lay out the release
+        run: node scripts/release-manifest.mjs build ../release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tray-installer
+          path: release/tray
+          retention-days: 14
+
+      - name: Sign in to Google Cloud
+        if: github.ref_type == 'tag'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+
+      # The installer first, latest.json last: a half-finished upload never
+      # points the function at a missing file.
+      - name: Publish to Storage
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#tray-v}"
+          gcloud storage cp "../release/tray/$version/*" "gs://botracing-61-lmu/tray/$version/"
+          gcloud storage cp ../release/tray/latest.json gs://botracing-61-lmu/tray/latest.json
