@@ -112,6 +112,7 @@ export const lmuApi = onRequest(
         const items = await listSessions(owner, {
           ageDays: Number.isFinite(age) ? age : undefined,
           trackId: req.query.track ? String(req.query.track) : undefined,
+          sim: req.query.sim ? String(req.query.sim) : undefined,
         });
         res.status(200).json({items, total: items.length});
         return;

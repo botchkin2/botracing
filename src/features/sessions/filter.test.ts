@@ -1,7 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 import {type SessionFacets, type SessionSummary} from '@/src/data/sessions';
 
-import {applyGame, effectiveFilter, filterOptions, NO_FILTER} from './filter';
+import {
+  applyGame,
+  effectiveFilter,
+  filterOptions,
+  listQuery,
+  NO_FILTER,
+} from './filter';
 
 const facets: SessionFacets = {
   games: [
@@ -70,5 +76,15 @@ describe('effectiveFilter', () => {
       game: 'iracing',
       track: null,
     });
+  });
+});
+
+describe('listQuery', () => {
+  it('reads the recent window unfiltered, and a pick on its own, all of its history', () => {
+    expect(listQuery(NO_FILTER)).toEqual({});
+    expect(listQuery({game: 'iracing', track: null})).toEqual({sim: 'iracing'});
+    expect(listQuery({game: null, track: 'spa'})).toEqual({trackId: 'spa'});
+    // A track implies its game: the track is the query.
+    expect(listQuery({game: 'lmu', track: 'spa'})).toEqual({trackId: 'spa'});
   });
 });

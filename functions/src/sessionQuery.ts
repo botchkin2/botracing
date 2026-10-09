@@ -7,16 +7,16 @@ export const DEFAULT_AGE_DAYS = 30;
 
 /**
  * The earliest `startedAt` a list reads, or null for no limit. A list for one
- * track with no age (or 0) reads that track's whole history: the
- * (ownerId, trackId, startedAt) index bounds it. Without a track, no age means
- * the default window.
+ * track or one game with no age (or 0) reads that whole history: the
+ * (ownerId, trackId, startedAt) and (ownerId, sim, startedAt) indexes bound
+ * it. With neither, no age means the default window.
  */
 export function listCutoff(
-  opts: {ageDays?: number; trackId?: string},
+  opts: {ageDays?: number; trackId?: string; sim?: string},
   now = Date.now(),
 ): string | null {
   const days = opts.ageDays && opts.ageDays > 0 ? opts.ageDays : null;
-  if (days == null && opts.trackId) return null;
+  if (days == null && (opts.trackId || opts.sim)) return null;
   return new Date(now - (days ?? DEFAULT_AGE_DAYS) * 86400000).toISOString();
 }
 

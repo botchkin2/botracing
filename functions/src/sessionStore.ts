@@ -226,6 +226,7 @@ export async function listSessions(
   opts: {
     ageDays?: number;
     trackId?: string;
+    sim?: string;
   },
 ): Promise<any[]> {
   const cutoff = listCutoff(opts);
@@ -234,6 +235,7 @@ export async function listSessions(
     .collection('sessions')
     .where('ownerId', '==', owner);
   if (opts.trackId) query = query.where('trackId', '==', opts.trackId);
+  if (opts.sim) query = query.where('sim', '==', opts.sim);
   if (cutoff) query = query.where('startedAt', '>=', cutoff);
   const snap = await query
     .orderBy('startedAt', 'desc')

@@ -111,7 +111,16 @@ export function SessionsScreen() {
         </View>
       )}
       {model.state === 'empty' && <EmptyState width={contentWidth} />}
+      {/* History exists but none in the recent window: the chips still offer the older tracks. */}
+      {model.state === 'ready' && model.days.length === 0 && (
+        <View style={[styles.column, {width: contentWidth}]}>
+          <Text tone='textMuted' style={styles.status}>
+            No recent sessions
+          </Text>
+        </View>
+      )}
       {model.state === 'ready' &&
+        model.days.length > 0 &&
         (layout.isDesktop ? (
           <SessionsTable
             rows={model.days.flatMap(d => d.rows)}

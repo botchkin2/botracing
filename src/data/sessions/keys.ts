@@ -1,4 +1,9 @@
-export type SessionFilter = {ageDays?: number; trackId?: string};
+export type SessionFilter = {
+  ageDays?: number;
+  trackId?: string;
+  /** One game's whole history, as `trackId` does for a track. */
+  sim?: string;
+};
 
 /** Every React Query key for /sessions lives here. */
 export const sessionKeys = {

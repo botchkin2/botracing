@@ -1,4 +1,8 @@
-import {type SessionFacets, type SessionSummary} from '@/src/data/sessions';
+import {
+  type SessionFacets,
+  type SessionFilter,
+  type SessionSummary,
+} from '@/src/data/sessions';
 import {shortTrackName} from '@/src/design';
 
 // The Sessions screen's Game and Track filter. The URL owns it (`?game=&track=`);
@@ -62,7 +66,18 @@ export function effectiveFilter(
   return {game, track};
 }
 
-/** The sessions of the picked game; the track is the fetch's job. */
+/**
+ * What to read: a picked track or game is read on its own, all of its history;
+ * the unfiltered list is the server's recent window. A track id already implies
+ * its game, so a game on top of a track filters the track's sessions.
+ */
+export function listQuery(filter: SessionsFilter): SessionFilter {
+  if (filter.track) return {trackId: filter.track};
+  if (filter.game) return {sim: filter.game};
+  return {};
+}
+
+/** The sessions of the picked game (a track's list is read whole, whatever the game). */
 export function applyGame(
   sessions: SessionSummary[],
   filter: SessionsFilter,

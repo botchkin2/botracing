@@ -20,6 +20,12 @@ test('a track with no age (or 0) reads its whole history: no cutoff', () => {
   assert.equal(listCutoff({trackId: 'spa', ageDays: 0}, NOW), null);
 });
 
+test('a game with no age (or 0) reads its whole history too', () => {
+  assert.equal(listCutoff({sim: 'iracing'}, NOW), null);
+  assert.equal(listCutoff({sim: 'iracing', ageDays: 0}, NOW), null);
+  assert.equal(listCutoff({sim: 'iracing', ageDays: 7}, NOW), daysAgo(7));
+});
+
 test('facets count sessions per game and per track, a track once per game', () => {
   const f = foldFacets([
     {sim: 'lmu', trackId: 'atl', track: 'Road Atlanta'},

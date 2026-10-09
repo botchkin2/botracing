@@ -28,6 +28,7 @@ export async function fetchSessions(
   const params = new URLSearchParams();
   if (filter.ageDays) params.set('age', String(filter.ageDays));
   if (filter.trackId) params.set('track', filter.trackId);
+  if (filter.sim) params.set('sim', filter.sim);
   const query = params.toString();
   const body = await getJson<SessionListResponse>(
     `/sessions${query ? `?${query}` : ''}`,

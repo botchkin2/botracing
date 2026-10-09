@@ -12,6 +12,7 @@ import {
   effectiveFilter,
   type FilterOptions,
   filterOptions,
+  listQuery,
   NO_FILTER,
   type SessionsFilter,
 } from './filter';
@@ -247,35 +248,29 @@ export function useSessionsModel(
   wanted: SessionsFilter = NO_FILTER,
 ): SessionsModel {
   const facets = useSessionFacets();
+  // Both reads start at once. The list comes from the URL; the facets only
+  // correct it when the URL names a game or track nothing was driven in.
   const filter = useMemo(
-    () => (facets.data ? effectiveFilter(facets.data, wanted) : NO_FILTER),
+    () => (facets.data ? effectiveFilter(facets.data, wanted) : wanted),
     [facets.data, wanted.game, wanted.track],
   );
-  // The unfiltered list is the server's recent window; a picked track is read
-  // on its own, all of its history, so the filter never hides older sessions.
-  const list = useSessions(
-    filter.track ? {trackId: filter.track} : {},
-    facets.isSuccess,
-  );
+  const list = useSessions(listQuery(filter));
   return useMemo(() => {
-    if (facets.isPending || (facets.isSuccess && list.isPending))
-      return {state: 'loading'};
-    const failed = facets.isError ? facets : list.isError ? list : null;
-    if (failed)
+    if (list.isPending) return {state: 'loading'};
+    if (list.isError)
       return {
         state: 'error',
         message:
-          failed.error instanceof Error
-            ? failed.error.message
-            : String(failed.error),
+          list.error instanceof Error ? list.error.message : String(list.error),
       };
-    if (!facets.data || !list.data) return {state: 'loading'};
-    if (facets.data.games.length === 0) return {state: 'empty'};
+    if (facets.data && facets.data.games.length === 0) return {state: 'empty'};
     return {
       state: 'ready',
       days: buildSessionsModel(applyGame(list.data.items, filter), new Date()),
       filter,
-      options: filterOptions(facets.data, filter),
+      options: facets.data
+        ? filterOptions(facets.data, filter)
+        : {games: [], tracks: []},
     };
-  }, [facets.status, facets.data, list.status, list.data, filter]);
+  }, [list.status, list.data, list.error, facets.data, filter]);
 }
