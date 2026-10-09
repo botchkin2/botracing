@@ -5,4 +5,4 @@ The tray's sign-in page, `/tray-sign-in?port&state&challenge`. The tray (Windows
 - `model.ts`: pure. `parseTrayLink` takes only an integer port 1024-65535 and a state and challenge of the right shape; `callbackUrl` builds `http://127.0.0.1:<port>/callback?code&state` itself. The page never takes a host or a URL from the address.
 - `TrayLinkScreen.tsx`: the page. Shows the account and asks; a click is required (no auto-redirect), so a hostile page cannot silently connect a tray to another account. "Use another account" signs out; the app's gate then shows the login screen and the page returns here.
 - The code is sent in the redirect; the custom token never is. The page URL holds only the port, state and challenge, none secret, and `Referrer-Policy: no-referrer` is set for it in `firebase.json`.
-- Imports: `auth`, `data/tray`, `design`, `ui`.
+- Imports: `auth`, `data/tray/code.ts`, `design`, `ui`.

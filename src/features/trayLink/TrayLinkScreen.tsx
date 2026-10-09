@@ -4,7 +4,7 @@ import {StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
-import {requestTrayCode} from '@/src/data/tray/client';
+import {requestTrayCode} from '@/src/data/tray/code';
 import {space, useTheme} from '@/src/design';
 import {AppMark, Button, Text} from '@/src/ui';
 

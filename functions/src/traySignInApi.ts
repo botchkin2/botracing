@@ -1,5 +1,5 @@
 // POST /api/tray/code and /api/tray/token: the tray's sign-in through the web
-// app. The rules are in trayCodeCore.ts; this binds them to Firebase Auth and
+// app (the read side, /latest and /download, is trayApi). The rules are in trayCodeCore.ts; this binds them to Firebase Auth and
 // Firestore. Codes live in `trayCodes/{sha256(code)}` (an Admin-only
 // collection: firestore.rules deny every client), with a TTL policy on
 // `expiresAt` that deletes the ones nobody used (ops/iam/README.md).
@@ -83,7 +83,7 @@ function subPath(req: {path?: string; url?: string}): string {
   return at === -1 ? full : full.slice(at + '/api/tray'.length) || '/';
 }
 
-export const trayApi = onRequest(
+export const traySignInApi = onRequest(
   {
     memory: '256MiB',
     timeoutSeconds: 30,

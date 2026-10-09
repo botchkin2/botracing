@@ -1,6 +1,14 @@
-// Sign in with Google for a desktop app, then trade that for a Firebase
-// session: OAuth authorization code with PKCE on a loopback redirect, then
-// Firebase `signInWithIdp`. Refresh is Firebase's own token endpoint.
+// Sign in through the web app, with no Google client of the tray's own. The tray
+// opens the site's /tray-sign-in page in the browser (the person signs in there
+// as on the rest of the site and confirms); the page sends the browser back to
+// a loopback port of this tray with a ONE-TIME CODE. The code is useless
+// without the verifier that only this process holds (PKCE, the same shape as
+// OAuth's authorization code), so a code read from history or a log signs
+// nobody in. The tray trades code + verifier for a Firebase custom token in a
+// response body (never a URL), then for a refresh token with Firebase's own
+// `signInWithCustomToken`. Refresh is Firebase's own token endpoint.
+// The rules are in functions/src/trayCodeCore.ts; the page is
+// src/features/trayLink.
 //
 // Nothing here touches the disk or the tray; account.rs keeps what it returns.
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -15,13 +23,13 @@ use std::time::{Duration, SystemTime};
 /// them at a local stub.
 #[derive(Clone)]
 pub struct Config {
-    pub client_id: String,
-    pub client_secret: String,
     pub firebase_key: String,
-    pub google_auth: String,
-    pub google_token: String,
-    pub firebase_idp: String,
+    pub firebase_custom: String,
     pub firebase_refresh: String,
+    /// The site's page the tray opens in the browser.
+    pub web_sign_in: String,
+    /// `POST <tray_api>/token` trades the code and verifier for a custom token.
+    pub tray_api: String,
     pub api: String,
 }
 
@@ -29,22 +37,19 @@ impl Config {
     /// What the build embedded (build.rs). Empty when it was built without.
     pub fn from_build() -> Config {
         Config {
-            client_id: env!("BOTRACING_OAUTH_CLIENT_ID").into(),
-            client_secret: env!("BOTRACING_OAUTH_CLIENT_SECRET").into(),
             firebase_key: env!("BOTRACING_FIREBASE_API_KEY").into(),
-            google_auth: "https://accounts.google.com/o/oauth2/v2/auth".into(),
-            google_token: "https://oauth2.googleapis.com/token".into(),
-            firebase_idp: "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp".into(),
+            firebase_custom:
+                "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken".into(),
             firebase_refresh: "https://securetoken.googleapis.com/v1/token".into(),
+            web_sign_in: "https://botracing-61.web.app/tray-sign-in".into(),
+            tray_api: "https://botracing-61.web.app/api/tray".into(),
             api: "https://botracing-61.web.app/api/upload".into(),
         }
     }
 
     /// Why sign-in cannot work in this build, if it cannot.
     pub fn missing(&self) -> Option<&'static str> {
-        if self.client_id.is_empty() || self.client_secret.is_empty() {
-            Some("built without the Google OAuth client")
-        } else if self.firebase_key.is_empty() {
+        if self.firebase_key.is_empty() {
             Some("built without the Firebase web key")
         } else {
             None
@@ -72,13 +77,6 @@ impl Session {
     }
 }
 
-/// What Google handed back for the authorization code.
-#[derive(Debug, PartialEq)]
-pub struct GoogleTokens {
-    pub id_token: String,
-    pub access_token: String,
-}
-
 /// RFC 7636: BASE64URL(SHA256(verifier)), no padding.
 pub fn pkce_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
@@ -92,51 +90,65 @@ pub fn random_token(bytes: usize) -> String {
     URL_SAFE_NO_PAD.encode(buf)
 }
 
-pub fn auth_url(cfg: &Config, redirect: &str, challenge: &str, state: &str) -> String {
-    use urlencoding::encode;
+/// The page the tray opens: the site's sign-in page with this tray's loopback
+/// port, a `state` the answer must echo, and the PKCE challenge. None of the
+/// three is secret (the verifier never leaves this process).
+pub fn sign_in_url(cfg: &Config, port: u16, state: &str, challenge: &str) -> String {
     format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&state={}&access_type=online&prompt=select_account",
-        cfg.google_auth,
-        encode(&cfg.client_id),
-        encode(redirect),
-        encode("openid email profile"),
-        challenge,
-        state
+        "{}?port={port}&state={state}&challenge={challenge}",
+        cfg.web_sign_in
     )
 }
 
-/// The authorization code in the browser's redirect, from the request's first
-/// line ("GET /?code=...&state=... HTTP/1.1"). A wrong state, or an error from
-/// Google, is an Err with a sentence for the user.
-pub fn parse_redirect(request: &str, state: &str) -> Result<String, String> {
-    let target = request
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .ok_or("the browser sent something that is not a request")?;
-    let query = target.split_once('?').map(|(_, q)| q).unwrap_or("");
+/// The one-time code in the browser's request, only if it is exactly what the
+/// sign-in page sends: `GET /callback?code=..&state=..` for OUR state, to our
+/// own address (`Host: 127.0.0.1:<port>`, which also refuses a page that
+/// reaches this port through a name it controls). Anything else is None and
+/// the caller answers it with a 404.
+pub fn parse_callback(request: &str, state: &str, port: u16) -> Option<String> {
+    let mut lines = request.lines();
+    let mut first = lines.next()?.split_whitespace();
+    if first.next()? != "GET" {
+        return None;
+    }
+    let target = first.next()?;
+    let (path, query) = target.split_once('?')?;
+    if path != "/callback" {
+        return None;
+    }
+    let host_ok = lines
+        .take_while(|l| !l.is_empty())
+        .filter_map(|l| l.split_once(':'))
+        .any(|(name, value)| {
+            name.eq_ignore_ascii_case("host") && value.trim() == format!("127.0.0.1:{port}")
+        });
+    if !host_ok {
+        return None;
+    }
     let get = |name: &str| -> Option<String> {
         query.split('&').find_map(|pair| {
             let (k, v) = pair.split_once('=')?;
             (k == name).then(|| urlencoding::decode(v).map(|c| c.into_owned()).ok())?
         })
     };
-    if let Some(error) = get("error") {
-        return Err(format!("Google said: {error}"));
-    }
     if get("state").as_deref() != Some(state) {
-        return Err("the sign-in answer was not for this request".into());
+        return None;
     }
-    get("code").ok_or_else(|| "Google sent no code".into())
+    get("code").filter(|code| !code.is_empty())
 }
 
-/// Waits on the loopback listener for the redirect, answers the browser with a
-/// page saying so, and returns the code.
-pub fn wait_for_code(
+/// Waits on the loopback listener for the sign-in page's callback, answers the
+/// browser with a page saying so, and returns the code. The listener is the
+/// caller's (bound to 127.0.0.1 only). Any other request, a favicon, a probe,
+/// a wrong state, gets a bare 404 and the wait goes on; a hostile page can
+/// probe the port but cannot end or complete the sign-in. Gives up at the
+/// deadline.
+pub fn wait_for_callback(
     listener: &TcpListener,
     state: &str,
     timeout: Duration,
 ) -> Result<String, String> {
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     let deadline = std::time::Instant::now() + timeout;
     loop {
@@ -147,25 +159,23 @@ pub fn wait_for_code(
                 let mut buf = [0u8; 4096];
                 let n = stream.read(&mut buf).unwrap_or(0);
                 let request = String::from_utf8_lossy(&buf[..n]).into_owned();
-                // The browser also asks for /favicon.ico; only a request that
-                // carries a code or an error is the answer.
-                if !request.contains("code=") && !request.contains("error=") {
-                    let _ =
-                        stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-                    continue;
+                match parse_callback(&request, state, port) {
+                    Some(code) => {
+                        let body = "<h3>Signed in to BotRacing.</h3><p>You can close this tab.</p>";
+                        let _ = write!(
+                            stream,
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        return Ok(code);
+                    }
+                    None => {
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        );
+                    }
                 }
-                let result = parse_redirect(&request, state);
-                let body = match &result {
-                    Ok(_) => "<h3>Signed in to BotRacing.</h3><p>You can close this tab.</p>",
-                    Err(_) => "<h3>BotRacing could not sign you in.</h3><p>Go back to the tray app and try again.</p>",
-                };
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                return result;
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 if std::time::Instant::now() > deadline {
@@ -203,30 +213,57 @@ fn describe(error: ureq::Error) -> String {
     }
 }
 
-pub fn exchange_code(
-    cfg: &Config,
-    code: &str,
-    verifier: &str,
-    redirect: &str,
-) -> Result<GoogleTokens, String> {
-    let body: Value = agent()
-        .post(&cfg.google_token)
-        .send_form(&[
-            ("client_id", &cfg.client_id),
-            ("client_secret", &cfg.client_secret),
-            ("code", code),
-            ("code_verifier", verifier),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect),
-        ])
+/// What the server hands back for a valid code and verifier.
+#[derive(Debug, PartialEq)]
+pub struct Exchanged {
+    pub custom_token: String,
+    pub uid: String,
+    pub email: String,
+}
+
+/// Trades the one-time code and this tray's verifier for a Firebase custom
+/// token. The answer is in the response body, never a URL. A refusal (the code
+/// expired, was used, or is not this tray's) is one sentence.
+pub fn exchange_code(cfg: &Config, code: &str, verifier: &str) -> Result<Exchanged, String> {
+    let body: Value = match agent()
+        .post(&format!("{}/token", cfg.tray_api))
+        .send_json(serde_json::json!({"code": code, "verifier": verifier}))
+    {
+        Ok(response) => response.into_json().map_err(|e| e.to_string())?,
+        Err(ureq::Error::Status(400, _)) => {
+            return Err("the sign-in expired or was already used: sign in again".into())
+        }
+        Err(other) => return Err(describe(other)),
+    };
+    let text = |k: &str| body[k].as_str().unwrap_or_default().to_string();
+    let custom_token = text("customToken");
+    let uid = text("uid");
+    if custom_token.is_empty() || uid.is_empty() {
+        return Err("the server's answer was missing the sign-in".into());
+    }
+    Ok(Exchanged {
+        custom_token,
+        uid,
+        email: text("email"),
+    })
+}
+
+/// Firebase's `signInWithCustomToken`: the custom token for a session with a
+/// refresh token. The answer carries no uid or email, so those come from the
+/// exchange.
+pub fn custom_sign_in(cfg: &Config, exchanged: &Exchanged) -> Result<Session, String> {
+    let mut body: Value = agent()
+        .post(&format!("{}?key={}", cfg.firebase_custom, cfg.firebase_key))
+        .send_json(serde_json::json!({
+            "token": exchanged.custom_token,
+            "returnSecureToken": true,
+        }))
         .map_err(describe)?
         .into_json()
         .map_err(|e| e.to_string())?;
-    let text = |k: &str| body[k].as_str().unwrap_or_default().to_string();
-    Ok(GoogleTokens {
-        id_token: text("id_token"),
-        access_token: text("access_token"),
-    })
+    body["localId"] = Value::String(exchanged.uid.clone());
+    body["email"] = Value::String(exchanged.email.clone());
+    session_from(&body, "")
 }
 
 fn session_from(body: &Value, fallback_email: &str) -> Result<Session, String> {
@@ -267,49 +304,6 @@ fn session_from(body: &Value, fallback_email: &str) -> Result<Session, String> {
         email,
         expires_at: SystemTime::now() + Duration::from_secs(seconds),
     })
-}
-
-/// Which Google token Firebase accepted, for the PR note (marshal #75): the
-/// ID token first, the access token when Firebase rejects the ID token's
-/// audience.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum Accepted {
-    IdToken,
-    AccessToken,
-}
-
-pub fn firebase_sign_in(
-    cfg: &Config,
-    google: &GoogleTokens,
-) -> Result<(Session, Accepted), String> {
-    let attempt = |post_body: String| -> Result<Session, String> {
-        let body: Value = agent()
-            .post(&format!("{}?key={}", cfg.firebase_idp, cfg.firebase_key))
-            .send_json(serde_json::json!({
-                "postBody": post_body,
-                "requestUri": "http://localhost",
-                "returnIdpCredential": true,
-                "returnSecureToken": true,
-            }))
-            .map_err(describe)?
-            .into_json()
-            .map_err(|e| e.to_string())?;
-        session_from(&body, "")
-    };
-    let by_id = attempt(format!(
-        "id_token={}&providerId=google.com",
-        urlencoding::encode(&google.id_token)
-    ));
-    match by_id {
-        Ok(session) => Ok((session, Accepted::IdToken)),
-        Err(first) if !google.access_token.is_empty() => attempt(format!(
-            "access_token={}&providerId=google.com",
-            urlencoding::encode(&google.access_token)
-        ))
-        .map(|session| (session, Accepted::AccessToken))
-        .map_err(|second| format!("id_token: {first}; access_token: {second}")),
-        Err(first) => Err(first),
-    }
 }
 
 /// Why a refresh failed. Only a refusal from Firebase means the sign-in is
@@ -414,29 +408,29 @@ pub fn owner_key(cfg: &Config, id_token: &str) -> Result<String, String> {
         .ok_or_else(|| "the server sent no owner key".into())
 }
 
-/// The whole interactive sign-in: loopback listener, browser, code, tokens.
-/// `open` shows the URL to the user (their default browser).
+/// The whole interactive sign-in: loopback listener on an ephemeral port,
+/// the site's page in the browser, the one-time code, the tokens. `open` shows
+/// the URL to the user (their default browser).
 pub fn sign_in(
     cfg: &Config,
     open: impl FnOnce(&str),
     timeout: Duration,
-) -> Result<(Session, Accepted), String> {
+) -> Result<Session, String> {
     if let Some(reason) = cfg.missing() {
         return Err(format!("Can't sign in: {reason}"));
     }
+    // 127.0.0.1 only, never 0.0.0.0, and a port the system picks: a port that
+    // is taken is never a failure.
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
-    let redirect = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let verifier = random_token(32);
     let state = random_token(16);
-    open(&auth_url(
-        cfg,
-        &redirect,
-        &pkce_challenge(&verifier),
-        &state,
-    ));
-    let code = wait_for_code(&listener, &state, timeout)?;
-    let google = exchange_code(cfg, &code, &verifier, &redirect)?;
-    firebase_sign_in(cfg, &google)
+    open(&sign_in_url(cfg, port, &state, &pkce_challenge(&verifier)));
+    let code = wait_for_callback(&listener, &state, timeout)?;
+    // Done listening: nothing else may reach this port.
+    drop(listener);
+    let exchanged = exchange_code(cfg, &code, &verifier)?;
+    custom_sign_in(cfg, &exchanged)
 }
 
 #[cfg(test)]
@@ -446,13 +440,11 @@ pub(crate) mod test_support {
 
     pub fn cfg(base: &str) -> Config {
         Config {
-            client_id: "cid.apps.googleusercontent.com".into(),
-            client_secret: "shh".into(),
             firebase_key: "fbkey".into(),
-            google_auth: "https://accounts.example/auth".into(),
-            google_token: format!("{base}/google/token"),
-            firebase_idp: format!("{base}/idp"),
+            firebase_custom: format!("{base}/custom"),
             firebase_refresh: format!("{base}/refresh"),
+            web_sign_in: "https://site.example/tray-sign-in".into(),
+            tray_api: format!("{base}/api/tray"),
             api: format!("{base}/api/upload"),
         }
     }
@@ -532,178 +524,6 @@ mod tests {
         let v = random_token(32);
         assert_eq!(v.len(), 43);
         assert_ne!(v, random_token(32));
-    }
-
-    #[test]
-    fn the_auth_url_carries_pkce_state_and_the_loopback_redirect() {
-        let url = auth_url(&cfg("x"), "http://127.0.0.1:5555", "CHAL", "ST");
-        for part in [
-            "client_id=cid.apps.googleusercontent.com",
-            "redirect_uri=http%3A%2F%2F127.0.0.1%3A5555",
-            "response_type=code",
-            "scope=openid%20email%20profile",
-            "code_challenge=CHAL",
-            "code_challenge_method=S256",
-            "state=ST",
-        ] {
-            assert!(url.contains(part), "{part} missing from {url}");
-        }
-        assert!(!url.contains("shh"), "the secret must not be in the URL");
-    }
-
-    #[test]
-    fn a_redirect_gives_its_code_only_for_our_state() {
-        let ok = "GET /?state=ST&code=4%2F0AbC&scope=x HTTP/1.1\r\nHost: 127.0.0.1\r\n";
-        assert_eq!(parse_redirect(ok, "ST").unwrap(), "4/0AbC");
-        assert!(parse_redirect(ok, "OTHER")
-            .unwrap_err()
-            .contains("not for this request"));
-        let denied = "GET /?error=access_denied&state=ST HTTP/1.1\r\n";
-        assert_eq!(
-            parse_redirect(denied, "ST").unwrap_err(),
-            "Google said: access_denied"
-        );
-        assert!(parse_redirect("GET / HTTP/1.1\r\n", "ST").is_err());
-        assert!(parse_redirect("", "ST").is_err());
-    }
-
-    #[test]
-    fn the_loopback_listener_answers_the_browser_and_ignores_favicon() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let browser = std::thread::spawn(move || {
-            let get = |path: &str| {
-                let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
-                write!(s, "GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
-                let mut out = String::new();
-                s.read_to_string(&mut out).unwrap();
-                out
-            };
-            let favicon = get("/favicon.ico");
-            let answer = get("/?state=ST&code=THE_CODE");
-            (favicon, answer)
-        });
-        let code = wait_for_code(&listener, "ST", Duration::from_secs(5)).unwrap();
-        assert_eq!(code, "THE_CODE");
-        let (favicon, answer) = browser.join().unwrap();
-        assert!(favicon.starts_with("HTTP/1.1 404"));
-        assert!(answer.contains("Signed in to BotRacing"));
-    }
-
-    #[test]
-    fn the_listener_refuses_an_answer_for_another_state() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let browser = std::thread::spawn(move || {
-            let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
-            write!(
-                s,
-                "GET /?state=FORGED&code=EVIL HTTP/1.1
-Host: x
-
-"
-            )
-            .unwrap();
-            let mut out = String::new();
-            s.read_to_string(&mut out).unwrap();
-            out
-        });
-        let err = wait_for_code(&listener, "ST", Duration::from_secs(5)).unwrap_err();
-        assert!(err.contains("not for this request"), "{err}");
-        assert!(browser.join().unwrap().contains("could not sign you in"));
-    }
-
-    #[test]
-    fn the_listener_times_out_when_nobody_answers() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let err = wait_for_code(&listener, "ST", Duration::from_millis(300)).unwrap_err();
-        assert!(err.contains("timed out"));
-    }
-
-    #[test]
-    fn the_code_is_exchanged_with_the_verifier_and_the_secret() {
-        let (base, seen) = stub(|_, _| (200, r#"{"id_token":"GID","access_token":"GACC"}"#.into()));
-        let t = exchange_code(&cfg(&base), "CODE", "VERIF", "http://127.0.0.1:1").unwrap();
-        assert_eq!(
-            t,
-            GoogleTokens {
-                id_token: "GID".into(),
-                access_token: "GACC".into()
-            }
-        );
-        let seen = seen.lock().unwrap();
-        let body = &seen[0].1;
-        for part in [
-            "code=CODE",
-            "code_verifier=VERIF",
-            "client_secret=shh",
-            "grant_type=authorization_code",
-        ] {
-            assert!(body.contains(part), "{part} missing from {body}");
-        }
-    }
-
-    #[test]
-    fn firebase_takes_the_id_token_first() {
-        let (base, seen) = stub(|_, _| (200, FB_OK.into()));
-        let google = GoogleTokens {
-            id_token: "GID".into(),
-            access_token: "GACC".into(),
-        };
-        let (s, accepted) = firebase_sign_in(&cfg(&base), &google).unwrap();
-        assert_eq!(accepted, Accepted::IdToken);
-        assert_eq!(
-            (s.uid.as_str(), s.email.as_str(), s.id_token.as_str()),
-            ("UID1", "a@b.c", "FID")
-        );
-        assert!(!s.expires_within(Duration::from_secs(3000)));
-        assert!(s.expires_within(Duration::from_secs(4000)));
-        let seen = seen.lock().unwrap();
-        assert_eq!(seen.len(), 1);
-        assert!(seen[0].0.contains("key=fbkey"));
-        assert!(seen[0].1.contains("id_token=GID&providerId=google.com"));
-    }
-
-    #[test]
-    fn firebase_falls_back_to_the_access_token_when_the_id_token_is_refused() {
-        let (base, seen) = stub(|_, body| {
-            if body.contains("id_token=") {
-                (
-                    400,
-                    r#"{"error":{"message":"INVALID_IDP_RESPONSE : audience mismatch"}}"#.into(),
-                )
-            } else {
-                (200, FB_OK.into())
-            }
-        });
-        let google = GoogleTokens {
-            id_token: "GID".into(),
-            access_token: "GACC".into(),
-        };
-        let (s, accepted) = firebase_sign_in(&cfg(&base), &google).unwrap();
-        assert_eq!(accepted, Accepted::AccessToken);
-        assert_eq!(s.uid, "UID1");
-        assert_eq!(seen.lock().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn a_firebase_refusal_is_a_sentence_with_both_reasons() {
-        let (base, _) = stub(|_, _| {
-            (
-                400,
-                r#"{"error":{"message":"OPERATION_NOT_ALLOWED"}}"#.into(),
-            )
-        });
-        let google = GoogleTokens {
-            id_token: "GID".into(),
-            access_token: "GACC".into(),
-        };
-        let err = firebase_sign_in(&cfg(&base), &google).unwrap_err();
-        assert!(err.contains("OPERATION_NOT_ALLOWED"), "{err}");
-        assert!(
-            err.contains("id_token") && err.contains("access_token"),
-            "{err}"
-        );
     }
 
     #[test]
@@ -825,9 +645,233 @@ Host: x
     }
 
     #[test]
-    fn a_build_without_the_client_refuses_to_sign_in() {
+    fn the_sign_in_url_carries_port_state_and_challenge_and_nothing_secret() {
+        let url = sign_in_url(&cfg("x"), 5555, "ST", "CHAL");
+        assert_eq!(
+            url,
+            "https://site.example/tray-sign-in?port=5555&state=ST&challenge=CHAL"
+        );
+    }
+
+    fn get(target: &str, host: &str) -> String {
+        format!("GET {target} HTTP/1.1\r\nHost: {host}\r\nAccept: */*\r\n\r\n")
+    }
+
+    #[test]
+    fn a_callback_gives_its_code_only_for_our_state_path_and_address() {
+        let own = "127.0.0.1:5555";
+        let ok = get("/callback?code=4%2F0AbC_x&state=ST", own);
+        assert_eq!(parse_callback(&ok, "ST", 5555).as_deref(), Some("4/0AbC_x"));
+        // Wrong state, wrong path, no code, an empty code.
+        for target in [
+            "/callback?code=C&state=NO",
+            "/?code=C&state=ST",
+            "/callback/x?code=C&state=ST",
+            "/callback?state=ST",
+            "/callback?code=&state=ST",
+            "/callback",
+        ] {
+            assert_eq!(
+                parse_callback(&get(target, own), "ST", 5555),
+                None,
+                "{target}"
+            );
+        }
+        // Not GET.
+        let post = "POST /callback?code=C&state=ST HTTP/1.1\r\nHost: 127.0.0.1:5555\r\n\r\n";
+        assert_eq!(parse_callback(post, "ST", 5555), None);
+        // Reached through a name or port that is not this tray's own address.
+        for host in [
+            "evil.example",
+            "evil.example:5555",
+            "localhost:5555",
+            "127.0.0.1:5556",
+            "127.0.0.1",
+            "",
+        ] {
+            let request = get("/callback?code=C&state=ST", host);
+            assert_eq!(parse_callback(&request, "ST", 5555), None, "{host}");
+        }
+        assert_eq!(parse_callback("", "ST", 5555), None);
+        assert_eq!(parse_callback("garbage", "ST", 5555), None);
+    }
+
+    #[test]
+    fn the_listener_answers_only_the_callback_and_404s_everything_else() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let browser = std::thread::spawn(move || {
+            let ask = |target: &str, host: String| {
+                let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+                write!(s, "{}", get(target, &host)).unwrap();
+                let mut out = String::new();
+                s.read_to_string(&mut out).unwrap();
+                out
+            };
+            let own = format!("127.0.0.1:{port}");
+            let favicon = ask("/favicon.ico", own.clone());
+            let forged = ask("/callback?code=EVIL&state=FORGED", own.clone());
+            let rebound = ask("/callback?code=EVIL&state=ST", "evil.example".into());
+            let answer = ask("/callback?code=THE_CODE&state=ST", own);
+            (favicon, forged, rebound, answer)
+        });
+        let code = wait_for_callback(&listener, "ST", Duration::from_secs(5)).unwrap();
+        assert_eq!(code, "THE_CODE");
+        let (favicon, forged, rebound, answer) = browser.join().unwrap();
+        for refused in [&favicon, &forged, &rebound] {
+            assert!(refused.starts_with("HTTP/1.1 404"));
+            // No CORS headers: a page cannot read what the port says.
+            assert!(!refused.to_lowercase().contains("access-control"));
+        }
+        assert!(answer.starts_with("HTTP/1.1 200"));
+        assert!(answer.contains("Signed in to BotRacing"));
+        assert!(!answer.to_lowercase().contains("access-control"));
+    }
+
+    #[test]
+    fn the_listener_times_out_when_nobody_answers() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let err = wait_for_callback(&listener, "ST", Duration::from_millis(300)).unwrap_err();
+        assert!(err.contains("timed out"));
+    }
+
+    #[test]
+    fn the_code_is_traded_with_the_verifier_and_nothing_else_secret() {
+        let (base, seen) = stub(|_, _| {
+            (
+                200,
+                r#"{"customToken":"CT","uid":"UID1","email":"a@b.c"}"#.into(),
+            )
+        });
+        let got = exchange_code(&cfg(&base), "CODE1", "VERIF1").unwrap();
+        assert_eq!(
+            got,
+            Exchanged {
+                custom_token: "CT".into(),
+                uid: "UID1".into(),
+                email: "a@b.c".into()
+            }
+        );
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen[0].0, "/api/tray/token");
+        let body: Value = serde_json::from_str(&seen[0].1).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({"code": "CODE1", "verifier": "VERIF1"})
+        );
+    }
+
+    #[test]
+    fn a_refused_code_is_one_sentence_to_sign_in_again() {
+        let (base, _) = stub(|_, _| (400, r#"{"error":"sign in again"}"#.into()));
+        let err = exchange_code(&cfg(&base), "C", "V").unwrap_err();
+        assert!(err.contains("sign in again"), "{err}");
+        let (down, _) = stub(|_, _| (503, r#"{"error":"overloaded"}"#.into()));
+        assert!(exchange_code(&cfg(&down), "C", "V")
+            .unwrap_err()
+            .contains("503"));
+        let (empty, _) = stub(|_, _| (200, "{}".into()));
+        assert!(exchange_code(&cfg(&empty), "C", "V").is_err());
+    }
+
+    #[test]
+    fn firebase_turns_the_custom_token_into_a_session_for_that_user() {
+        let (base, seen) = stub(|_, _| {
+            (
+                200,
+                r#"{"idToken":"FID","refreshToken":"FREF","expiresIn":"3600"}"#.into(),
+            )
+        });
+        let exchanged = Exchanged {
+            custom_token: "CT".into(),
+            uid: "UID1".into(),
+            email: "a@b.c".into(),
+        };
+        let s = custom_sign_in(&cfg(&base), &exchanged).unwrap();
+        assert_eq!(
+            (
+                s.uid.as_str(),
+                s.email.as_str(),
+                s.id_token.as_str(),
+                s.refresh_token.as_str()
+            ),
+            ("UID1", "a@b.c", "FID", "FREF")
+        );
+        assert!(!s.expires_within(Duration::from_secs(3000)));
+        let seen = seen.lock().unwrap();
+        assert!(seen[0].0.contains("key=fbkey"));
+        let body: Value = serde_json::from_str(&seen[0].1).unwrap();
+        assert_eq!(body["token"], "CT");
+        assert_eq!(body["returnSecureToken"], true);
+    }
+
+    #[test]
+    fn the_whole_sign_in_goes_through_the_browser_and_the_server_with_no_token_in_a_url() {
+        let (base, seen) = stub(|path, _| {
+            if path.starts_with("/api/tray/token") {
+                (
+                    200,
+                    r#"{"customToken":"CT-SECRET","uid":"UID1","email":"a@b.c"}"#.into(),
+                )
+            } else {
+                (
+                    200,
+                    r#"{"idToken":"FID","refreshToken":"FREF","expiresIn":"3600"}"#.into(),
+                )
+            }
+        });
+        let opened = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let seen_url = opened.clone();
+        let session = sign_in(
+            &cfg(&base),
+            move |url| {
+                *seen_url.lock().unwrap() = url.to_string();
+                // The page does what the site's page does: sends the browser
+                // to the tray's own address with a code and the state.
+                let query = url.split_once('?').unwrap().1.to_string();
+                let param = |name: &str| {
+                    query
+                        .split('&')
+                        .find_map(|p| p.strip_prefix(&format!("{name}=")).map(str::to_string))
+                        .unwrap()
+                };
+                let (port, state) = (param("port"), param("state"));
+                std::thread::spawn(move || {
+                    let mut s = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+                    write!(
+                        s,
+                        "GET /callback?code=CODE1&state={state} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n"
+                    )
+                    .unwrap();
+                    let mut out = String::new();
+                    s.read_to_string(&mut out).unwrap();
+                });
+            },
+            Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(
+            (session.uid.as_str(), session.email.as_str()),
+            ("UID1", "a@b.c")
+        );
+        // The verifier sent to the server is the one the challenge in the URL
+        // was made from, and it never appeared in the URL.
+        let url = opened.lock().unwrap().clone();
+        let challenge = url.split("challenge=").nth(1).unwrap().to_string();
+        let seen = seen.lock().unwrap();
+        let body: Value = serde_json::from_str(&seen[0].1).unwrap();
+        let verifier = body["verifier"].as_str().unwrap();
+        assert_eq!(pkce_challenge(verifier), challenge);
+        assert!(!url.contains(verifier));
+        // The custom token is in a response body and a request body, in no URL.
+        assert!(seen.iter().all(|(path, _, _)| !path.contains("CT-SECRET")));
+        assert!(!url.contains("CT-SECRET"));
+    }
+
+    #[test]
+    fn a_build_without_the_firebase_key_refuses_to_sign_in() {
         let mut c = cfg("x");
-        c.client_secret.clear();
+        c.firebase_key.clear();
         assert!(c.missing().is_some());
         let err = sign_in(
             &c,

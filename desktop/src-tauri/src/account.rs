@@ -258,15 +258,6 @@ impl Account {
         }
     }
 
-    /// Which Google token Firebase accepted, kept in the data folder so the
-    /// PR note can say (marshal #75). Not secret: only the word.
-    pub fn record_accepted(&self, accepted: auth::Accepted) {
-        let _ = std::fs::write(
-            self.data.join("last-signin.txt"),
-            format!("firebase accepted: {accepted:?}\n"),
-        );
-    }
-
     /// A completed sign-in: keep it, write the token, and pause when this uid
     /// has not been confirmed. The owner key is read by the next `plan`.
     pub fn signed_in(&mut self, session: Session) {
@@ -848,7 +839,7 @@ mod tests {
         drop(acct);
 
         let mut cfg_missing = cfg(&server());
-        cfg_missing.client_secret.clear();
+        cfg_missing.firebase_key.clear();
         let mut bare = Account::new(
             cfg_missing,
             &data_dir("prompt-missing"),
@@ -857,7 +848,7 @@ mod tests {
         assert!(bare.needs_sign_in());
         assert!(
             !bare.take_prompt(),
-            "a build without the OAuth client cannot sign in; the status says so"
+            "a build without the Firebase key cannot sign in; the status says so"
         );
         // The once-per-launch flag was not spent on it.
         assert!(!bare.prompted);

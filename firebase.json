@@ -27,11 +27,12 @@
         }
       },
       {
-        "source": "/api/tray/**",
-        "function": {
-          "functionId": "trayApi",
-          "region": "us-central1"
-        }
+        "source": "/api/tray/code",
+        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+      },
+      {
+        "source": "/api/tray/token",
+        "function": {"functionId": "traySignInApi", "region": "us-central1"}
       },
       {
         "source": "**",
