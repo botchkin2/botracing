@@ -12,6 +12,7 @@ import {
   effectiveFilter,
   type FilterOptions,
   filterOptions,
+  emptyDaysText,
   listQuery,
   NO_FILTER,
   type SessionsFilter,
@@ -78,12 +79,6 @@ export type SessionsModel =
       /** Shown when no day has a row. */
       emptyText: string;
     };
-
-/** A picked game or track is read whole, so nothing is not about recency. */
-export const emptyDaysText = (filter: SessionsFilter) =>
-  Object.keys(listQuery(filter)).length > 0
-    ? 'No sessions'
-    : 'No recent sessions';
 
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
