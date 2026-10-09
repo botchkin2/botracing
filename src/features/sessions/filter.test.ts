@@ -164,4 +164,32 @@ describe('filterOptions track labels', () => {
         .sort(),
     ).toEqual(['Road Atlanta · Full', 'Road Atlanta · Short']);
   });
+
+  it('with no layout stored, the game names the chip, not the track id', () => {
+    const noLayout: SessionFacets = {
+      games: [
+        {sim: 'lmu', count: 1},
+        {sim: 'iracing', count: 1},
+      ],
+      tracks: [
+        {
+          trackId: 'lmu-michelin_raceway_road_atlanta',
+          track: 'Road Atlanta',
+          sim: 'lmu',
+          count: 1,
+        },
+        {
+          trackId: 'iracing-127-full_course',
+          track: 'Road Atlanta',
+          sim: 'iracing',
+          count: 1,
+        },
+      ],
+    };
+    expect(
+      filterOptions(noLayout, NO_FILTER)
+        .tracks.map(c => c.label)
+        .sort(),
+    ).toEqual(['Road Atlanta · LMU', 'Road Atlanta · iRacing']);
+  });
 });

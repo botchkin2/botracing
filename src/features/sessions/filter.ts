@@ -36,7 +36,7 @@ export function filterOptions(
   // both are on screen.
   const tracks = new Map<
     string,
-    {key: string; name: string; variant: string; count: number}
+    {key: string; name: string; variant: string; sim: string; count: number}
   >();
   for (const t of facets.tracks) {
     if (filter.game && t.sim !== filter.game) continue;
@@ -44,6 +44,7 @@ export function filterOptions(
       key: t.trackId,
       name: shortTrackName(t.track),
       variant: t.variant ?? '',
+      sim: t.sim,
       count: 0,
     };
     c.count += t.count;
@@ -54,9 +55,11 @@ export function filterOptions(
     names.set(c.name, (names.get(c.name) ?? 0) + 1);
   const choices: FilterChoice[] = [...tracks.values()].map(c => ({
     key: c.key,
+    // No layout stored (facets from before the variant field): the game says
+    // which chip is which, never the internal track id.
     label:
       (names.get(c.name) ?? 0) > 1
-        ? `${c.name} · ${c.variant || c.key}`
+        ? `${c.name} · ${c.variant || gameLabel(c.sim)}`
         : c.name,
     count: c.count,
   }));
