@@ -36,14 +36,14 @@ const mainRoot =
 if (mainRoot) {
   const mainWorktrees = path
     .join(mainRoot, '.claude', 'worktrees')
-    .split(/[\/]/)
+    .split(/[\\/]/)
     .map(escapeRe)
-    .join('[\\/]')
+    .join('[\\\\/]')
     .replace(/^([A-Za-z]):/, (_, d) => `[${d.toLowerCase()}${d.toUpperCase()}]:`);
   const own = escapeRe(path.basename(__dirname));
   config.resolver.blockList = [
     ...config.resolver.blockList,
-    new RegExp(`^${mainWorktrees}[\\/](?!${own}(?:[\\/]|$)).*`),
+    new RegExp(`^${mainWorktrees}[\\\\/](?!${own}(?:[\\\\/]|$)).*`),
   ];
   config.watchFolders = [...(config.watchFolders ?? []), mainRoot];
   config.resolver.nodeModulesPaths = [
