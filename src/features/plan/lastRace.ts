@@ -58,9 +58,7 @@ export function lastRaceOf(
  */
 export function lastRaceLine(race: LastRace): string {
   const dnf =
-    race.leftEarly &&
-    race.playerLapsDone != null &&
-    race.leaderLapsDone != null
+    race.leftEarly && race.playerLapsDone != null && race.leaderLapsDone != null
       ? `DNF at L${race.playerLapsDone} of ${race.leaderLapsDone}`
       : null;
   const stops =
