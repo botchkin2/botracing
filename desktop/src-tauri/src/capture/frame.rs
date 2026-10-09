@@ -60,21 +60,31 @@ pub fn player<V: View>(view: &mut V, layout: &Layout) -> Option<Sample> {
     Some(Sample { raw, et })
 }
 
-/// Scoring info plus the vehicle array, or None when the count is impossible or a copy tore.
+/// Scoring info plus the vehicle array.
+///
+/// The four reads are info, vehicles, info, vehicles. Two separate stable
+/// copies can pair info from one frame with vehicles from the next.
+/// None when the count is impossible or the two copies of either span differ.
 pub fn scoring<V: View>(view: &mut V, layout: &Layout) -> Option<FieldSample> {
-    let info = stable(view, layout.offsets["scoringInfo"], layout.scoring_size)?;
-    let n = i32_at(&info, layout.num_vehicles)?;
-    if n < 0 || n as usize > layout.max_vehicles {
-        return None;
+    let info_at = layout.offsets["scoringInfo"];
+    let veh_at = layout.offsets["vehScoringInfo"];
+    for _ in 0..TRIES {
+        let info = view.read(info_at, layout.scoring_size)?;
+        let n = i32_at(&info, layout.num_vehicles)?;
+        if n < 0 || n as usize > layout.max_vehicles {
+            return None;
+        }
+        let count = n as usize;
+        let span = count * layout.veh_size;
+        let vehicles = view.read(veh_at, span)?;
+        let info_again = view.read(info_at, layout.scoring_size)?;
+        let vehicles_again = view.read(veh_at, span)?;
+        if info == info_again && vehicles == vehicles_again {
+            let et = f64_at(&info, layout.scoring_et)?;
+            return Some(FieldSample { info, vehicles, count, et });
+        }
     }
-    let count = n as usize;
-    let vehicles = stable(
-        view,
-        layout.offsets["vehScoringInfo"],
-        count * layout.veh_size,
-    )?;
-    let et = f64_at(&info, layout.scoring_et)?;
-    Some(FieldSample { info, vehicles, count, et })
+    None
 }
 
 #[cfg(test)]
@@ -150,5 +160,43 @@ mod tests {
         assert_eq!(got.info.len(), lay.scoring_size);
         assert_eq!(got.vehicles.len(), lay.veh_size);
         assert_eq!(got.et, 0.0);
+    }
+
+    /// Vehicles change once the info span has been read twice. Two separate
+    /// stable copies would still succeed and pair the old info with the new
+    /// vehicles. The interleaved read must drop it.
+    struct Drift {
+        bytes: Vec<u8>,
+        info_at: usize,
+        veh_at: usize,
+        info_reads: u32,
+    }
+
+    impl View for Drift {
+        fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>> {
+            let end = offset.checked_add(len)?;
+            let out = self.bytes.get(offset..end)?.to_vec();
+            if offset == self.info_at {
+                self.info_reads += 1;
+                if self.info_reads % 2 == 0 {
+                    self.bytes[self.veh_at] = self.bytes[self.veh_at].wrapping_add(1);
+                }
+            }
+            Some(out)
+        }
+    }
+
+    #[test]
+    fn scoring_does_not_pair_info_from_one_frame_with_vehicles_from_the_next() {
+        let lay = layout();
+        let mut drift = Drift {
+            bytes: vec![0; lay.size],
+            info_at: lay.offsets["scoringInfo"],
+            veh_at: lay.offsets["vehScoringInfo"],
+            info_reads: 0,
+        };
+        let at = drift.info_at + lay.num_vehicles;
+        drift.bytes[at..at + 4].copy_from_slice(&1_i32.to_le_bytes());
+        assert!(scoring(&mut drift, &lay).is_none());
     }
 }
