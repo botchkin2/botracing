@@ -93,6 +93,8 @@ export async function signInFromTray(
     }
     return 'signed-in';
   } catch {
+    // Fail closed: a user the tray could not vouch for is not kept (rake #3178).
+    if (auth.currentUser) await auth.signOut().catch(() => undefined);
     return 'failed';
   }
 }

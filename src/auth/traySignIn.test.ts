@@ -126,6 +126,17 @@ describe('signInFromTray', () => {
   });
 });
 
+describe('signInFromTray fails closed', () => {
+  it('signs a kept sign-in out when the tray cannot say who it is', async () => {
+    const d = deps({user: {uid: 'stale-user'}});
+    d.invoke.mockRejectedValue(new Error('tray_uid not allowed'));
+    expect(await signInFromTray(d)).toBe('failed');
+    expect(d.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(d.auth.currentUser).toBeNull();
+    expect(d.signIn).not.toHaveBeenCalled();
+  });
+});
+
 describe('traySignOut', () => {
   it('is the tray command, so the tray signs out too', async () => {
     const invoke = jest.fn(async (_command: string) => null);
