@@ -79,6 +79,8 @@ export type WorkspaceProps = {
   field?: Field;
   /** A field with no positions (iRacing's): the Cars around list, no radar. */
   listField?: Field;
+  /** The session is a race: Cars around shows laps up and down. */
+  race: boolean;
   model: CompareModel;
   selection: CompareSelection;
   cursorM: number;
@@ -480,6 +482,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
             lapLabel={model.radarLap.label}
             cursorM={p.cursorM}
             perSide={NEARBY_WIDE}
+            race={p.race}
           />
         )}
         <View style={styles.section}>

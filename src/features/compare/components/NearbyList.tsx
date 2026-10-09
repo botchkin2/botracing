@@ -22,6 +22,7 @@ export function NearbyList({
   lapLabel,
   cursorM,
   perSide,
+  race,
 }: {
   field: Field;
   lapNumber: number;
@@ -30,6 +31,8 @@ export function NearbyList({
   cursorM: number;
   /** Cars each way, pit-lane cars not counted. */
   perSide: number;
+  /** A race: laps up and down are shown. */
+  race: boolean;
 }) {
   const {color} = useTheme();
   // Built once per field: each scans every update.
@@ -43,6 +46,7 @@ export function NearbyList({
     cursorM,
     classes,
     perSide,
+    race,
   );
   // The field does not cover this moment: nothing to show, not an empty list.
   if (!view) return null;

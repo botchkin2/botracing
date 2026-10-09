@@ -33,6 +33,8 @@ describe('nearbyRow', () => {
 
   it('leaves the time out when none is known, and names a car with no model by its class', () => {
     expect(nearbyRow(car({intervalS: null})).gapText).toBe('');
+    // Parked in the pit lane: no gap, the row says IN.
+    expect(nearbyRow(car({pit: true, intervalS: 72.3})).gapText).toBe('');
     expect(nearbyRow(car({vehicle: null})).label).toBe('GT3');
   });
 });

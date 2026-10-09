@@ -78,7 +78,7 @@ describe('nearbyCars', () => {
   ]);
   const prep = prepareRace(f);
   const classes = fieldClasses(f);
-  const near = nearbyCars(prep, AT, classes, 2)!;
+  const near = nearbyCars(prep, AT, classes, 2, true)!;
 
   it('lists the nearest ahead and behind, a pit-lane car not counted', () => {
     expect(near.ahead.map(c => c.index)).toEqual([5, 4, 1]);
@@ -91,7 +91,7 @@ describe('nearbyCars', () => {
       [...near.ahead, ...near.behind].find(c => c.index === i)!;
     expect(by(1).intervalS).toBeCloseTo(2.0, 1);
     expect(by(2).intervalS).toBeCloseTo(-1.0, 1);
-    const slow = nearbyCars(prep, AT, classes, 5)!.ahead.find(
+    const slow = nearbyCars(prep, AT, classes, 5, true)!.ahead.find(
       c => c.index === 3,
     )!;
     expect(slow.metres).toBeCloseTo(150, 0);
@@ -104,14 +104,25 @@ describe('nearbyCars', () => {
     expect(near.ahead.find(c => c.index === 4)!.metres).toBeCloseTo(30, 0);
   });
 
+  it('marks no laps outside a race, where each car counts its own', () => {
+    const practice = nearbyCars(prep, AT, classes, 2, false)!;
+    expect(practice.ahead.every(c => c.lapsUp === 0)).toBe(true);
+  });
+
+  it('has no time where the field never saw the car cross your spot, and no speed to fall back on', () => {
+    // At the first update nothing has a history and you have no speed yet.
+    const first = nearbyCars(prep, 0, classes, 2, true)!;
+    expect(first.ahead.find(c => c.index === 1)!.intervalS).toBeNull();
+  });
+
   it('carries the class colour and label', () => {
     expect(near.behind[0]).toMatchObject({slot: 'class3', short: 'GT3'});
   });
 
   it('is null with you in the pit lane or not in the field', () => {
     const inPit = field([car(0, you, {player: true}, () => true)]);
-    expect(nearbyCars(prepareRace(inPit), AT, classes, 2)).toBeNull();
+    expect(nearbyCars(prepareRace(inPit), AT, classes, 2, true)).toBeNull();
     const noYou = field([car(1, you)]);
-    expect(nearbyCars(prepareRace(noYou), AT, classes, 2)).toBeNull();
+    expect(nearbyCars(prepareRace(noYou), AT, classes, 2, true)).toBeNull();
   });
 });

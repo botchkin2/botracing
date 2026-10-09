@@ -506,6 +506,7 @@ function CompareView({
         lapLabel={model.radarLap.label}
         cursorM={cursorM}
         perSide={layout.isDesktop ? NEARBY_DESKTOP : NEARBY_PHONE}
+        race={session.data?.sessionType === 'R'}
       />
     ) : null;
   const radarOn = !layout.isDesktop && field != null && dockLap != null;
@@ -780,6 +781,7 @@ function CompareView({
       <CompareWorkspace
         field={field}
         listField={listField}
+        race={session.data?.sessionType === 'R'}
         model={model}
         selection={selection}
         cursorM={cursorM}

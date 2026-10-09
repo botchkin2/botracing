@@ -9,7 +9,7 @@
 // hold through braking zones, where metres over speed is far off. Metres over
 // your speed is the fallback only when the field does not cover the crossing.
 import {classOfCar, type ClassSlot, type ClassTable} from './fieldClasses';
-import {type RacePrep, timeAtProgress} from './raceState';
+import {type RacePrep} from './raceState';
 
 export interface NearbyCar {
   /** Index in Field.cars. */
@@ -24,7 +24,7 @@ export interface NearbyCar {
   metres: number;
   /** Ahead (+) or behind (−), seconds; null when neither the history nor a speed gives one. */
   intervalS: number | null;
-  /** Whole laps the car is ahead of you (+1) or behind (−1); 0 on your lap. */
+  /** Whole laps the car is ahead of you (+1) or behind (−1); 0 on your lap, and always 0 outside a race. */
   lapsUp: number;
   /** In the pit lane: shown dimmed, and not counted in `perSide`. */
   pit: boolean;
@@ -38,6 +38,35 @@ export interface NearbyCars {
 
 /** Below this you are standing still, and metres over speed is not a time. */
 const MOVING_KMH = 5;
+
+/**
+ * When the car's progress was last below and then at `progressM`, up to
+ * update `upTo`, by linear interpolation; null when the field has no reading
+ * of it below that point (it was already past it when first seen).
+ */
+function timePassed(
+  prep: RacePrep,
+  car: number,
+  progressM: number,
+  upTo: number,
+): number | null {
+  const prog = prep.progressM[car];
+  const times = prep.field.timeS;
+  let after = -1;
+  for (let u = upTo; u >= 0; u--) {
+    const p = prog[u];
+    if (Number.isNaN(p)) continue;
+    if (p >= progressM) {
+      after = u;
+      continue;
+    }
+    if (after < 0) return null;
+    const span = prog[after] - p;
+    const f = span > 0 ? (progressM - p) / span : 1;
+    return times[u] + f * (times[after] - times[u]);
+  }
+  return null;
+}
 
 /**
  * When the car's progress reaches `progressM` after update `from`, by linear
@@ -59,7 +88,7 @@ function timeReaching(
       before = u;
       continue;
     }
-    if (before < 0) return times[u];
+    if (before < 0) return null;
     const span = p - prog[before];
     const f = span > 0 ? (progressM - prog[before]) / span : 1;
     return times[before] + f * (times[u] - times[before]);
@@ -89,6 +118,8 @@ export function nearbyCars(
   at: number,
   classes: ClassTable,
   perSide: number,
+  /** Laps up and down mean something only in a race: elsewhere each car's lap counter is its own. */
+  race: boolean,
 ): NearbyCars | null {
   const {field, trackM} = prep;
   const me = field.cars.findIndex(c => c.player);
@@ -112,7 +143,7 @@ export function nearbyCars(
     const atYourSpot = theirs - metres;
     const crossing =
       metres >= 0
-        ? timeAtProgress(prep, i, atYourSpot, at)
+        ? timePassed(prep, i, atYourSpot, at)
         : timeReaching(prep, i, atYourSpot, at);
     const intervalS =
       crossing != null
@@ -129,7 +160,7 @@ export function nearbyCars(
       vehicle: car.vehicle,
       metres,
       intervalS,
-      lapsUp: lapsAway,
+      lapsUp: race ? lapsAway : 0,
       pit: car.inPits[at] === 1,
     });
   });

@@ -15,7 +15,7 @@ export interface NearbyRow {
   short: string;
   /** The car model, else the class label. */
   label: string;
-  /** "+1.2 s" ahead, "−0.8 s" behind; "" when no time is known. */
+  /** "+1.2 s" ahead, "−0.8 s" behind; "" when no time is known and in the pit lane. */
   gapText: string;
   /** "+123 m" / "−45 m". */
   metresText: string;
@@ -40,7 +40,11 @@ export function nearbyRow(car: NearbyCar): NearbyRow {
     slot: car.slot,
     short: car.short,
     label: car.vehicle ?? car.classLabel,
-    gapText: car.intervalS == null ? '' : `${formatGap(car.intervalS, 1)} s`,
+    // A car in the pit lane is not racing you: its time to your spot is not a gap.
+    gapText:
+      car.pit || car.intervalS == null
+        ? ''
+        : `${formatGap(car.intervalS, 1)} s`,
     metresText: signed(car.metres, `${Math.abs(Math.round(car.metres))} m`),
     lapsText:
       car.lapsUp === 0 ? '' : signed(car.lapsUp, `${Math.abs(car.lapsUp)}L`),
@@ -60,12 +64,13 @@ export function nearbyAtCursor(
   cursorM: number,
   classes: ClassTable,
   perSide: number,
+  race: boolean,
 ): NearbyView | null {
   const t = clock.timeAtLapDistance(lapNumber, cursorM);
   if (t == null) return null;
   const {field} = prep;
   const at = updateAt(field.timeS, Math.floor(t * field.hz) / field.hz);
-  const near = nearbyCars(prep, at, classes, perSide);
+  const near = nearbyCars(prep, at, classes, perSide, race);
   if (!near) return null;
   return {
     ahead: near.ahead.map(nearbyRow),
