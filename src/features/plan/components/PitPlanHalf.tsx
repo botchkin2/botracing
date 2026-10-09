@@ -1,12 +1,13 @@
 import {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import {planRace, type RaceFacts} from '@/src/analysis/fuelPlan';
+import {planRace, type RaceFacts, usage} from '@/src/analysis/fuelPlan';
 import {useSessions} from '@/src/data/sessions';
 import {size, space, useTheme} from '@/src/design';
 import {type PitCard} from '@/src/features/session/pitCard';
 import {Text} from '@/src/ui';
 
+import {formationBurnOf} from '../formation';
 import {planCombos} from '../model';
 import {seriesWeek} from '../planEvent';
 import {buildPlanHalf, type PlanHalf} from '../planHalf';
@@ -50,8 +51,16 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
     null,
     eventIds,
   );
-  const rules = raceRules(facts);
   const laps = hist.chosen.laps;
+  // The formation lap burns what the driver's earlier races say.
+  const baseRules = raceRules(facts);
+  const rules = baseRules && {
+    ...baseRules,
+    formationFactor: formationBurnOf(
+      hist.raceLaps,
+      usage(laps.map(l => l.fuelL))?.median ?? null,
+    ).factor,
+  };
   const plan = rules && laps.length > 0 ? planRace(rules, laps) : null;
 
   const loading = sessions.isPending || limits.pending || hist.lapsOf.pending;

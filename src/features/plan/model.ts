@@ -25,6 +25,7 @@ import {
 import {planComboKey} from '@/src/nav/routes';
 import {type FuelPreset, type RaceLength} from '@/src/state/fuelPresets';
 
+import {type FormationBurn, formationText} from './formation';
 import {effectiveUnit, type Unit} from './unit';
 
 // The pre-race planner screen's model (pit wall thread 35): which track+car
@@ -385,6 +386,8 @@ export function rulesCells(
   hasVe: boolean,
   /** Litres one % of VE is worth; null without VE. */
   ratioPerPctL: number | null,
+  /** What the formation lap burns, measured or estimated (`formation.ts`); unset reads "1 lap". */
+  formation: FormationBurn | null = null,
 ): RulesCell[] {
   if (!rules) return [];
   return [
@@ -399,7 +402,14 @@ export function rulesCells(
         rules.mandatoryStops === 1 ? 'stop' : 'stops'
       }`,
     },
-    {label: 'Formation', value: rules.formationLap ? '1 lap' : 'none'},
+    {
+      label: 'Formation',
+      value: !rules.formationLap
+        ? 'none'
+        : formation
+        ? formationText(formation)
+        : '1 lap',
+    },
   ];
 }
 

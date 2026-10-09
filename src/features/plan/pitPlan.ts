@@ -1,6 +1,7 @@
 import {
   type FuelPlan,
   type PitModel,
+  formationLaps,
   type PlanRules,
   startLoad,
 } from '@/src/analysis/fuelPlan';
@@ -150,7 +151,6 @@ function work(
     after.map(lapName),
     plan.perLap.fuel?.median ?? null,
     plan.perLap.ve?.median ?? null,
-    rules.formationLap,
     rules,
     fuelOnly,
     ratioPerPctL,
@@ -234,11 +234,15 @@ export function pitPlan(
   const stints: PitStint[] = worked.stints.map((laps, i) => {
     sinceStart += laps;
     // The formation lap is burnt from the first load.
-    const burn = laps + (i === 0 && rules.formationLap ? 1 : 0);
+    const formation = formationLaps(rules);
+    const burnFuel = laps + (i === 0 ? formation.fuel : 0);
+    const burnVe = laps + (i === 0 ? formation.ve : 0);
     const fuelL = fuel
-      ? {median: burn * fuel.median, p90: burn * fuel.p90}
+      ? {median: burnFuel * fuel.median, p90: burnFuel * fuel.p90}
       : null;
-    const vePct = ve ? {median: burn * ve.median, p90: burn * ve.p90} : null;
+    const vePct = ve
+      ? {median: burnVe * ve.median, p90: burnVe * ve.p90}
+      : null;
     // The first stint is tested against what the car starts with (parc #1902),
     // every later one against a full load.
     const loaded = i === 0 ? startLoad(rules) : rules;

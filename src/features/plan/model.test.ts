@@ -237,6 +237,27 @@ describe('rulesCells', () => {
     expect(cells[2].value).toBe('none');
   });
 
+  it('names what the formation lap burns: measured, or an estimate called one', () => {
+    const value = (b: Parameters<typeof rulesCells>[3]) =>
+      rulesCells(rules, true, 0.9, b).find(c => c.label === 'Formation')?.value;
+    expect(
+      value({
+        factor: {fuel: 1.4, ve: 1},
+        kind: 'measured',
+        races: 3,
+        burnL: 3.4,
+      }),
+    ).toBe('3.4 L · 3 races');
+    expect(
+      value({
+        factor: {fuel: 1.4, ve: 1},
+        kind: 'estimate',
+        races: 0,
+        burnL: null,
+      }),
+    ).toBe('1.4 laps of fuel · estimate');
+  });
+
   it('is empty without rules', () => {
     expect(rulesCells(null, true, 0.9)).toEqual([]);
   });
