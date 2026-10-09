@@ -10,3 +10,5 @@ pub mod store;
 pub mod runner;
 #[cfg(windows)]
 pub mod win;
+#[cfg(all(test, windows))]
+mod soak;
