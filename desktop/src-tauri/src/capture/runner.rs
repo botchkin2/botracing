@@ -38,6 +38,9 @@ pub fn line(l: &Line) -> String {
         Line::Another => "Recorder: another recorder is running".into(),
         Line::Failed(why) => format!("Recorder: {why}"),
         Line::Status(s) => match s.state {
+            "recording" if s.dropped_pct > 1.0 => {
+                format!("Recording ({:.0}% dropped)", s.dropped_pct)
+            }
             "recording" => "Recording".into(),
             "refused" => format!("Recorder: {}", s.layout_reason),
             "stopped" => "Recorder: stopped".into(),
@@ -189,6 +192,12 @@ mod tests {
     #[test]
     fn the_menu_line_says_what_the_recorder_is_doing() {
         assert_eq!(line(&Line::Status(status("recording", ""))), "Recording");
+        let mut lossy = status("recording", "");
+        lossy.dropped_pct = 3.4;
+        assert_eq!(line(&Line::Status(lossy)), "Recording (3% dropped)");
+        let mut fine = status("recording", "");
+        fine.dropped_pct = 0.9;
+        assert_eq!(line(&Line::Status(fine)), "Recording");
         assert_eq!(line(&Line::Status(status("no-game", ""))), "Waiting for LMU");
         assert_eq!(line(&Line::Status(status("waiting", ""))), "Waiting for LMU");
         assert_eq!(

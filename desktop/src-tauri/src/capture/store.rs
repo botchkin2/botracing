@@ -109,6 +109,13 @@ impl Capture {
         all.insert("headerHash".into(), json!(layout.hash));
         all.insert("layoutBytes".into(), json!(layout.size));
         all.insert("suspectFrames".into(), json!(0));
+        // Player frames missed between two reads (a step in mElapsedTime above
+        // 1.5 x the 10 ms period, under 1 s), so a loss shows up as a number.
+        all.insert("missedFrames".into(), json!(0));
+        all.insert("playerFrames".into(), json!(0));
+        // The same for scoring updates (5 Hz): written, and missed by the clock.
+        all.insert("scoringUpdates".into(), json!(0));
+        all.insert("missedUpdates".into(), json!(0));
         // Car id -> model, from the telemetry slots (the field upload labels
         // cars with this, never with the entry name).
         all.insert("vehicleModels".into(), json!({}));
@@ -140,6 +147,12 @@ impl Capture {
     pub fn note_suspect(&mut self) {
         let n = self.meta.get("suspectFrames").and_then(Value::as_u64).unwrap_or(0);
         self.meta.insert("suspectFrames".into(), json!(n + 1));
+    }
+
+    /// Adds to a counter in meta.json (rewritten with the next chunk).
+    pub fn count(&mut self, key: &str, n: u64) {
+        let now = self.meta.get(key).and_then(Value::as_u64).unwrap_or(0);
+        self.meta.insert(key.into(), json!(now + n));
     }
 
     /// Car id -> model; adds the ones not known yet.

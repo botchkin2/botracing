@@ -46,6 +46,8 @@ pub struct Status {
     pub last_chunk_at: Option<String>,
     pub session_dir: Option<String>,
     pub capture_bytes: u64,
+    /// Share of the open capture's player frames missed, in percent.
+    pub dropped_pct: f64,
 }
 
 impl Status {
@@ -58,6 +60,7 @@ impl Status {
             last_chunk_at: None,
             session_dir: None,
             capture_bytes: 0,
+            dropped_pct: 0.0,
         }
     }
 
@@ -70,6 +73,7 @@ impl Status {
             "lastChunkAt": self.last_chunk_at,
             "sessionDir": self.session_dir,
             "captureBytes": self.capture_bytes,
+            "droppedPct": self.dropped_pct,
             "pid": std::process::id(),
             "updatedAt": iso(now),
         })
@@ -103,6 +107,10 @@ pub struct Recorder<S: Source> {
     last_field: Option<(Vec<u8>, Vec<u8>, usize)>,
     /// (elapsed time, speed, position) of the last player frame.
     prev_motion: Option<(f64, f64, [f64; 3])>,
+    /// Player frames written and missed in the open capture.
+    frames: (u64, u64),
+    /// Frames missed before the frame being added (set by `suspect`).
+    missed: u64,
     pub status: Status,
     status_written: Option<u64>,
     recounted: Option<u64>,
@@ -131,6 +139,8 @@ impl<S: Source> Recorder<S> {
             last_game_check: None,
             last_field: None,
             prev_motion: None,
+            frames: (0, 0),
+            missed: 0,
             status,
             status_written: None,
             recounted: None,
@@ -177,7 +187,9 @@ impl<S: Source> Recorder<S> {
                 self.key = Some(key);
                 self.player_ok = None;
                 self.prev_motion = None;
+                self.frames = (0, 0);
                 self.set(now, |s| {
+                    s.dropped_pct = 0.0;
                     s.state = "recording";
                     s.session_dir = dir;
                 });
@@ -346,6 +358,11 @@ impl<S: Source> Recorder<S> {
         let Some(sample) = frame::scoring(view, layout) else { return };
         let (info, vehicles, n, et) = (sample.info, sample.vehicles, sample.count, sample.et);
         let restarted = self.last_scoring_et.is_some_and(|last| et < last - 1.0);
+        // Steps of 0.3 to 1 s on the 200 ms scoring clock are updates slept through.
+        let skipped = self.last_scoring_et.map_or(0, |last| {
+            let step = et - last;
+            if step > 0.3 && step < 1.0 { ((step / 0.2).round() as u64).saturating_sub(1) } else { 0 }
+        });
         self.last_scoring_et = Some(et);
         self.last_scoring_ms = now;
         if n == 0 {
@@ -375,6 +392,8 @@ impl<S: Source> Recorder<S> {
         }
         let Some(capture) = self.capture.as_mut() else { return };
         capture.add_scoring(&info, &vehicles, n, et, now);
+        capture.count("scoringUpdates", 1);
+        capture.count("missedUpdates", skipped);
         self.last_field = Some((info, vehicles, n));
         self.note_models();
     }
@@ -429,11 +448,23 @@ impl<S: Source> Recorder<S> {
             }
         }
         let suspect = self.suspect(&sample.raw);
+        let missed = std::mem::take(&mut self.missed);
+        self.frames.0 += 1;
+        self.frames.1 += missed;
+        let pct = 100.0 * self.frames.1 as f64 / (self.frames.0 + self.frames.1) as f64;
         if let Some(capture) = self.capture.as_mut() {
             if suspect {
                 capture.note_suspect();
             }
+            capture.count("playerFrames", 1);
+            capture.count("missedFrames", missed);
             capture.add_player(&sample.raw, now);
+        }
+        // The menu shows it only past 1%: set on a change of whole percent.
+        if pct.floor() != self.status.dropped_pct.floor() {
+            self.set(now, |s| s.dropped_pct = pct);
+        } else {
+            self.status.dropped_pct = pct;
         }
     }
 
@@ -447,6 +478,11 @@ impl<S: Source> Recorder<S> {
         let prev = self.prev_motion.replace((et, speed, pos));
         let Some((prev_et, prev_speed, prev_pos)) = prev else { return false };
         let dt = et - prev_et;
+        // A step over 1.5 periods, under a second, is frames the loop slept
+        // through; longer is a pause or a reset.
+        if dt > 0.015 && dt < 1.0 {
+            self.missed = ((dt / 0.01).round() as u64).saturating_sub(1);
+        }
         if !(0.0 < dt && dt < 0.1) {
             return false; // a pause or a reset, not a torn read
         }
@@ -713,6 +749,31 @@ mod tests {
         assert_eq!(rig.meta(&folder)["chunks"], 2);
         assert!(rig.root.join(&folder).join("player-0001.parquet").is_file());
         assert!(rec.status.capture_bytes > 0);
+    }
+
+    #[test]
+    fn a_gap_in_the_player_clock_is_counted_as_missed_frames_and_shown_past_one_percent() {
+        let (rig, mut rec) = Rig::new("missed");
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.00);
+        rec.tick(1_000);
+        rig.player("Road Atlanta", 5.01);
+        rec.tick(1_010);
+        // 40 ms later: three frames were slept through.
+        rig.player("Road Atlanta", 5.05);
+        rec.tick(1_050);
+        // A 5 s jump is a pause, not loss.
+        rig.player("Road Atlanta", 10.05);
+        rec.tick(1_060);
+        rec.shutdown(2_000);
+        let folder = rig.folders().remove(0);
+        let meta = rig.meta(&folder);
+        assert_eq!(meta["missedFrames"], 3);
+        assert_eq!(meta["playerFrames"], 4);
+        assert_eq!(meta["scoringUpdates"], 1);
+        assert_eq!(meta["missedUpdates"], 0);
+        // 3 of 7 is 43%.
+        assert!(rec.status.dropped_pct > 40.0 && rec.status.dropped_pct < 45.0, "{}", rec.status.dropped_pct);
     }
 
     #[test]
