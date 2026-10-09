@@ -141,6 +141,10 @@ export function encode(r, cars) {
       class: c.class,
       vehicle: c.vehicle,
       player: c.player,
+      // iRacing's class id and label (irClasses.mjs); LMU names its class.
+      ...(c.classId != null
+        ? {classId: c.classId, classLabel: c.classLabel}
+        : {}),
     })),
     lapDistDm: grid(),
     pathLateralDm: grid(),

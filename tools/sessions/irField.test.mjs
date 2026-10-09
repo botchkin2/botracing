@@ -94,6 +94,20 @@ test(
         ['LMP2', 'Oreca 07', false],
       ],
     );
+    // This capture has no class ids (written before the tray did), so none
+    // reach the file without the .ibt; with it, every car's class does.
+    assert.equal(r.field.cars[0].classId, undefined);
+    const withIbt = irFieldFor(root, span, ibtRecs(), [
+      {carIdx: 0, classId: 4011, className: '', carName: 'Ford Mustang GT3'},
+      {carIdx: 3, classId: 2523, className: '', carName: 'Oreca 07'},
+    ]);
+    assert.deepEqual(
+      withIbt.field.cars.map(c => [c.classId, c.classLabel]),
+      [
+        [4011, 'GT3'],
+        [2523, 'LMP2'],
+      ],
+    );
     // Lap distance, decimetres: the player at 100 m/s... 20 m per update.
     const player = undelta(r.field.lapDistDm[0]);
     assert.equal(player[0], 0);

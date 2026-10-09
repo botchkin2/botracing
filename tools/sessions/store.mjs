@@ -21,6 +21,7 @@ import {gunzipSync, gzipSync} from 'node:zlib';
 import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
+import {relabelField} from './irClasses.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -310,10 +311,44 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // The field: a new one replaces the stored one (and its file goes after the
   // doc points at the new one); no new one keeps what is stored (field.mjs).
   const before = await backend.getDoc('sessions', session.id);
+  // An iRacing field uploaded before fields carried classes, its capture gone:
+  // the stored file with every car's class from the .ibt, as a new file that
+  // replaces it (irClasses.relabelField).
+  let relabeled = null;
+  if (!session.field && before?.field && out.ibtDrivers?.length) {
+    const stored = await readStoredField(before.field.path);
+    relabeled = stored && relabelField(stored, out.ibtDrivers);
+    if (relabeled) {
+      out.fieldText = JSON.stringify(relabeled);
+      const hash = createHash('sha1')
+        .update(out.fieldText)
+        .digest('hex')
+        .slice(0, 12);
+      session.field = {
+        ...before.field,
+        path: `field/${session.ownerId}/${session.id}/${hash}.json.gz`,
+        hash,
+      };
+      session.classLaps = classLapsDoc(relabeled, session.sessionType);
+      session.result = finishDoc(relabeled, session.sessionType);
+      log('  field: classes added from the .ibt');
+    }
+  }
   const kept = fieldAfterSync(session.field, before?.field ?? null);
   session.field = kept.field;
   if (kept.upload) {
     await putGzip(session.field.path, out.fieldText, 'application/json');
+    if (relabeled) {
+      const traffic = await lapTrafficFrom({
+        fresh: relabeled,
+        stored: null,
+        load: null,
+        windows: out.lapWindows,
+      });
+      out.laps.forEach((lap, k) => {
+        lap.traffic = traffic[k];
+      });
+    }
   } else if (kept.field) {
     log('  field: kept the stored one');
     // Everything computed from the field is kept or worked out again from

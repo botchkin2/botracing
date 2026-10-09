@@ -15,6 +15,7 @@ import {readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {columns, sqlPath} from './duck.mjs';
 import {FIELD_HZ, MAX_ALIGN_M, alignment, encode} from './field.mjs';
+import {carClasses} from './irClasses.mjs';
 import {iracingCapturesFor, listIracingCaptures} from './irCapture.mjs';
 
 // Recordings start and stop in the pits; keep the field a little either side.
@@ -55,8 +56,12 @@ function concat(parts) {
   return out;
 }
 
-/** The session's field, or {field: null, reason}. Same contract as fieldFor. */
-export function irFieldFor(root, span, recs) {
+/**
+ * The session's field, or {field: null, reason}. Same contract as fieldFor.
+ * `ibtDrivers` (irClasses.driversOfYaml of the session's .ibt) names the
+ * classes when the capture predates the tray writing them.
+ */
+export function irFieldFor(root, span, recs, ibtDrivers = []) {
   const found = iracingCapturesFor(listIracingCaptures(root), {
     track: span.tracks[0],
     startMs: span.startMs,
@@ -74,13 +79,15 @@ export function irFieldFor(root, span, recs) {
   c.flag = c.et.map(() => 0);
 
   // Cars: their class and model from the capture's own list (no names), the
-  // player marked. Cars the list does not know keep an empty class.
+  // player marked. Cars the list does not know keep an empty class. The class
+  // id and its label come from the capture, else from the .ibt (irClasses.mjs).
   const known = new Map();
   let playerIdx = -1;
   for (const f of found) {
     if (f.meta.playerCarIdx != null) playerIdx = f.meta.playerCarIdx;
     for (const car of f.meta.cars ?? []) known.set(car.carIdx, car);
   }
+  const classes = carClasses([...known.values()], ibtDrivers);
   const firstSeen = new Map();
   c.id.forEach((id, k) => {
     if (!firstSeen.has(id)) firstSeen.set(id, c.et[k]);
@@ -92,6 +99,7 @@ export function irFieldFor(root, span, recs) {
       class: known.get(id)?.className ?? '',
       vehicle: known.get(id)?.carName || null,
       player: id === playerIdx,
+      ...(classes.has(id) ? classes.get(id) : {}),
     }));
 
   const player = {et: [], lapDist: []};
