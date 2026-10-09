@@ -26,10 +26,13 @@ const CLASS_SHORT: Record<RadarClass, string> = {
 export function CarsAround({
   field,
   lapNumber,
+  lapLabel,
   cursorM,
 }: {
   field: Field;
   lapNumber: number;
+  /** The lap the radar belongs to, as its chip names it ("L7"). */
+  lapLabel: string;
   cursorM: number;
 }) {
   const {color} = useTheme();
@@ -53,7 +56,7 @@ export function CarsAround({
   return (
     <View style={styles.section}>
       <Text variant='label' tone='textMuted'>
-        Cars around you
+        {`Cars around ${lapLabel}`}
       </Text>
       <View style={styles.row}>
         <Radar
