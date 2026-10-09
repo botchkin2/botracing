@@ -26,6 +26,7 @@ function startField(cars: Start[]): Field {
   return {
     version: 2,
     hz: 5,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.of(0, 0.2),
     cars: cars.map(

@@ -71,6 +71,7 @@ function field(updates: number, cars: FieldCar[]): Field {
   return {
     version: 2,
     hz: HZ,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.from({length: updates}, (_, u) => u / HZ),
     cars,

@@ -41,6 +41,7 @@ function field(n: number, cars: CarSpec[]): Field {
   return {
     version: 2,
     hz: 1 / DT,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.from({length: n}, (_, u) => u * DT),
     cars: cars.map((c, i) => car(i, n, c)),

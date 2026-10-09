@@ -158,10 +158,14 @@ export function encode(r, cars) {
     const u = at.get(r.et[k]);
     if (car === undefined) continue;
     out.lapDistDm[car][u] = dm(r.lapDist[k]);
-    out.pathLateralDm[car][u] = dm(r.pathLateral[k]);
-    out.xDm[car][u] = dm(r.x[k]);
-    out.zDm[car][u] = dm(r.z[k]);
-    out.yawCrad[car][u] = yawCrad(r.oriX[k], r.oriZ[k]);
+    // A sim that gives no position (iRacing: lap distance only) leaves these
+    // channels null: absent, not zero.
+    if (r.pathLateral) out.pathLateralDm[car][u] = dm(r.pathLateral[k]);
+    if (r.x && r.z) {
+      out.xDm[car][u] = dm(r.x[k]);
+      out.zDm[car][u] = dm(r.z[k]);
+    }
+    if (r.oriX && r.oriZ) out.yawCrad[car][u] = yawCrad(r.oriX[k], r.oriZ[k]);
     out.place[car][u] = r.place[k];
     out.laps[car][u] = r.laps[k];
     out.inPits[car][u] = r.inPits[k] ? 1 : 0;
