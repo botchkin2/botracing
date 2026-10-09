@@ -379,7 +379,11 @@ mod tests {
             let meta = dir.join(META);
             fs::write(&meta, br#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#).unwrap();
             let when = at(age_days, now);
-            let file = if marked { dir.join(UPLOADED_MARKER) } else { meta };
+            let file = if marked {
+                dir.join(UPLOADED_MARKER)
+            } else {
+                meta
+            };
             if marked {
                 fs::write(&file, b"{}").unwrap();
             }
@@ -398,7 +402,10 @@ mod tests {
             },
         )]);
         let removed = prune(&root, now, &policy(14, u64::MAX), &states).unwrap();
-        let mut names: Vec<_> = removed.iter().map(|p| p.file_name().unwrap().to_owned()).collect();
+        let mut names: Vec<_> = removed
+            .iter()
+            .map(|p| p.file_name().unwrap().to_owned())
+            .collect();
         names.sort();
         assert_eq!(names, vec!["old-marked", "old-unmarked"]);
         assert!(!root.join("old-marked").exists());
