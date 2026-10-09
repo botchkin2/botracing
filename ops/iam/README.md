@@ -127,3 +127,29 @@ Not verified: the key listing and the bucket-policy fold-in (added after that ru
 ## The bucket's legacy convenience members
 
 `projectOwner:botracing-61` and `projectEditor:botracing-61` on the bucket are groups, not people: every project Owner (people) and every project Editor, which includes the compute and App Engine accounts and the CI deploy account. They let any Editor reach the bucket's settings (soft delete, who can use it). The audit prints them as `every project Owner/Editor (bucket convenience binding)` and warns on the Editor one. Step 5 takes the default accounts out of that group; step 6 does the same for the deploy account.
+
+## Step 6: the CI identities (`ciSplit.mjs`)
+
+The one CI account (`github-action-1142179068@`) is behind the repo secret `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61`. The PR preview workflow runs a branch's code with that secret. On 2026-10-09 it held `secretmanager.secretAccessor` at project level and `firebaseauth.admin`, so any PR branch could read every secret and mint a sign-in for any uid (thread 54 #2610). After this step:
+
+| Who | Holds | Used by |
+| --- | --- | --- |
+| `hosting-preview@` (new) | `firebasehosting.admin`, `serviceusage.apiKeysViewer`, `serviceusage.serviceUsageConsumer`, `cloudfunctions.viewer`, `run.viewer` | PR previews and their cleanup (repo secret `HOSTING_PREVIEW_SERVICE_ACCOUNT`) |
+| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin` | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and tray publish (a copy in `tray-release`) |
+| nobody else | secret values readable at project level | only the owner |
+
+Previews are checked signed in as `seat-test` (`#ct=`, docs/TESTING.md), which needs no Auth authorized domain. Without Auth admin, the CLI can't add a preview's domain to the authorized domains, so Google sign-in on a preview won't work. That's deliberate.
+
+```
+node ops/iam/ciSplit.mjs grant             # dry run: who can do what now, and the steps
+node ops/iam/ciSplit.mjs grant --apply     # only adds: the account, its roles, keys into GitHub secrets, the deploy Environment
+# merge the workflow PR; then prove: a PR preview deploys, and a push to main deploys functions and hosting
+node ops/iam/ciSplit.mjs revoke            # dry run
+node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the repo-level secret, old keys, the dead Garage 61 secrets
+```
+
+Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after.
+
+Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
+
+Next, not in this step: Workload Identity Federation (GitHub OIDC) instead of keys, so no long-lived key exists at all.

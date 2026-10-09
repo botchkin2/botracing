@@ -14,6 +14,15 @@ export const apiBaseUrl: string =
     ? `${window.location.origin}/api/lmu`
     : PRODUCTION_API);
 
+/**
+ * The tray's own routes (/api/tray/*), next to the lap API: the same origin
+ * on the deployed app, production otherwise. They answer without a sign-in.
+ */
+const trayRoot = apiBaseUrl.endsWith('/lmu')
+  ? apiBaseUrl.slice(0, -'/lmu'.length)
+  : 'https://botracing-61.web.app/api';
+export const trayApiUrl = (path: string): string => `${trayRoot}/tray${path}`;
+
 export class HttpError extends Error {
   constructor(readonly status: number, readonly path: string) {
     super(`GET ${path} → ${status}`);

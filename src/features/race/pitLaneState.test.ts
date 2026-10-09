@@ -59,9 +59,18 @@ describe('markPitLane on the real start of the Daytona race', () => {
     );
   });
 
-  it('with the pit lane from the map, they are in the pit lane', () => {
+  it('with the pit lane from the map, they are on the grid, not IN', () => {
     const fixed = markPitLane(cars, placer);
     expect(fixed.filter(c => c.state === 'off')).toHaveLength(0);
+    expect(fixed.filter(c => c.state === 'pit')).toHaveLength(0);
+    expect(fixed.filter(c => c.state === 'running').length).toBeGreaterThanOrEqual(
+      58,
+    );
+  });
+
+  it('after the start, the same cars on the pit road are IN', () => {
+    const racing = cars.map(c => ({...c, lapsDone: 1}));
+    const fixed = markPitLane(racing, placer);
     expect(fixed.filter(c => c.state === 'pit').length).toBeGreaterThanOrEqual(
       58,
     );
@@ -82,8 +91,14 @@ describe('markPitLane', () => {
         pts.map(p => ({x: p.x, y: p.z})),
       pitLane,
     } as unknown as MapPlacer);
-  const car = (index: number, x: number, z: number, state: 'off' | 'running') =>
-    ({index, xM: x, zM: z, state} as unknown as (typeof cars)[number]);
+  const car = (
+    index: number,
+    x: number,
+    z: number,
+    state: 'off' | 'running',
+    lapsDone = 1,
+  ) =>
+    ({index, xM: x, zM: z, state, lapsDone} as unknown as (typeof cars)[number]);
 
   it('moves only off-track cars that sit on the lane', () => {
     const out = markPitLane(

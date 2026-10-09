@@ -14,6 +14,9 @@ export type LastRace = {
   end: {lap: string; fuelL: number | null; vePct: number | null} | null;
   /** What the car started the race with: litres, and % of the full VE load; null without the channel. */
   start: {fuelL: number | null; vePct: number | null};
+  leftEarly: boolean;
+  playerLapsDone: number | null;
+  leaderLapsDone: number | null;
 };
 
 /** The race's facts as the Plan screen shows them; the stop and end laps are the app's lap names. */
@@ -32,6 +35,9 @@ export function lastRaceOf(
       vePct: s.vePct,
     })),
     start: {fuelL: facts.startL, vePct: facts.startVePct ?? null},
+    leftEarly: facts.leftEarly === true,
+    playerLapsDone: facts.playerLapsDone ?? null,
+    leaderLapsDone: facts.leaderLapsDone ?? null,
     end: facts.end
       ? {
           lap: `L${facts.end.lapIndex}`,
@@ -51,6 +57,12 @@ export function lastRaceOf(
  * "2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73"
  */
 export function lastRaceLine(race: LastRace): string {
+  const dnf =
+    race.leftEarly &&
+    race.playerLapsDone != null &&
+    race.leaderLapsDone != null
+      ? `DNF at L${race.playerLapsDone} of ${race.leaderLapsDone}`
+      : null;
   const stops =
     race.stops.length === 0
       ? 'no stop'
@@ -67,5 +79,5 @@ export function lastRaceLine(race: LastRace): string {
     race.end && left.length > 0
       ? ` · ${left.join(' / ')} left at the end of ${race.end.lap}`
       : '';
-  return `${stops}${end}`;
+  return dnf ? `${dnf} · ${stops}${end}` : `${stops}${end}`;
 }

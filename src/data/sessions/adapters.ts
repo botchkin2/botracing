@@ -543,6 +543,8 @@ export type CornerFacts = {
   offTrackS: number;
   /** Seconds under a local yellow in this window; 0 on laps analysed before it. */
   localYellowS: number;
+  /** Seconds of full-course yellow in this window; 0 on laps analysed before it. */
+  courseYellowS: number;
   /**
    * The corner window (pit-wall thread 45): boundary to the next boundary in
    * the map's frame, with `segTimeS` its time, split at the lap's own onset
@@ -587,6 +589,7 @@ export type StartStraightFacts = {
   toM: number;
   offTrackS: number;
   localYellowS: number;
+  courseYellowS: number;
   pit: boolean;
 };
 
@@ -671,6 +674,7 @@ function toStartStraight(raw: unknown): StartStraightFacts | null {
     toM,
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
+    courseYellowS: num(x.courseYellowSec) ?? 0,
     pit: x.pit === true,
   };
 }
@@ -689,6 +693,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
+    courseYellowS: num(x.courseYellowSec) ?? 0,
     window: toWindowFacts(x),
   };
 }

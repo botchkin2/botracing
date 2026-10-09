@@ -58,7 +58,11 @@ function lap({id, lapNumber, stint: stintNo, stintLap, segs, ...rest}) {
     impactMax: 0,
     tyreCarcassC: 80,
     courseYellowSec: 0,
-    corners: segs.map(segTime => ({segTime, localYellowSec: 0})),
+    corners: segs.map(segTime => ({
+      segTime,
+      localYellowSec: 0,
+      courseYellowSec: 0,
+    })),
     ...rest,
   };
 }
