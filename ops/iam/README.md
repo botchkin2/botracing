@@ -135,7 +135,7 @@ The one CI account (`github-action-1142179068@`) is behind the repo secret `FIRE
 | Who | Holds | Used by |
 | --- | --- | --- |
 | `hosting-preview@` (new) | `firebasehosting.admin`, `serviceusage.apiKeysViewer`, `serviceusage.serviceUsageConsumer`, `cloudfunctions.viewer`, `run.viewer` | PR previews and their cleanup (repo secret `HOSTING_PREVIEW_SERVICE_ACCOUNT`) |
-| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin` | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and tray publish (a copy in `tray-release`) |
+| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin`, **plus `cloudfunctions.admin`** (a new public HTTPS function needs `cloudfunctions.functions.setIamPolicy` for its invoker; `cloudfunctions.developer` can't, and the #326 deploy failed on it, run 37869964708) | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and tray publish (a copy in `tray-release`) |
 | nobody else | secret values readable at project level | only the owner |
 
 Previews are checked signed in as `seat-test` (`#ct=`, docs/TESTING.md), which needs no Auth authorized domain. Without Auth admin, the CLI can't add a preview's domain to the authorized domains, so Google sign-in on a preview won't work. That's deliberate.
@@ -149,6 +149,8 @@ node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the 
 ```
 
 Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after.
+
+`grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
 
 Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
 
