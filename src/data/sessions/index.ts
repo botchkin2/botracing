@@ -61,6 +61,7 @@ export {
   type DefaultSession,
   defaultLapIds,
   referenceDefaultLapIds,
+  stintSetLapIds,
   refLapOf,
 } from './defaultLaps';
 export {endingLap, raceFacts, racePitLaps} from './raceFacts';

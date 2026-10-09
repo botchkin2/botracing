@@ -8,7 +8,8 @@ Agreed in pit-wall thread 24 (`decisions/lap/2026-09-27-app-architecture.md`). T
 app/                              routes only: parse params, render features/<x>/<X>Screen
   index.tsx                       Sessions
   session/[id]/index.tsx          Session
-  session/[id]/compare.tsx        Compare   (?laps=ref,a,b&hl=&c=&t=&w=)
+  session/[id]/compare.tsx        Compare   (?laps=ref,a,b&hl=&c=&t=&w=; no laps: every comparable lap
+                                  of the stint with the most of them, vs their median: stintSetLapIds)
   session/[id]/corner/[n].tsx     Corner
   settings.tsx                    cache management, uploader status
 src/
