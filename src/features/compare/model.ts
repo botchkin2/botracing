@@ -1,4 +1,5 @@
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
+import {rangeOf} from '@/src/analysis/rangeIndex';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
 import {
@@ -574,16 +575,15 @@ function domainOf(
   const fitWindow = windowed && kind !== 'gear';
   let lo = Infinity;
   let hi = -Infinity;
-  for (const a of arrays)
-    for (
-      let i = fitWindow ? Math.max(0, from) : 0;
-      i <= Math.min(a.length - 1, fitWindow ? to : Infinity);
-      i++
-    ) {
-      const v = a[i];
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
-    }
+  // Cached per array (rangeIndex.ts): a cursor step reads block extremes,
+  // not every lap's every sample.
+  for (const a of arrays) {
+    const [l, h] = fitWindow
+      ? rangeOf(a, from, to)
+      : rangeOf(a, 0, a.length - 1);
+    if (l < lo) lo = l;
+    if (h > hi) hi = h;
+  }
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
     // Whole lap: symmetric around 0; the floor keeps a flat line from
