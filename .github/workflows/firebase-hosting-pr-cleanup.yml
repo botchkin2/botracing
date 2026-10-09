@@ -37,7 +37,7 @@ jobs:
         run: npm install -g firebase-tools
       - name: Delete this PR's preview channel(s)
         env:
-          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+          SERVICE_ACCOUNT: ${{ secrets.HOSTING_PREVIEW_SERVICE_ACCOUNT }}
           PR: ${{ github.event.pull_request.number || inputs.pr }}
         run: |
           echo "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
