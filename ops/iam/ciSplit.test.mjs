@@ -5,8 +5,12 @@ import {
   DEAD_SECRETS,
   DEPLOY_ROLES_REMOVED,
   PREVIEW_ROLES,
+  RELEASE_ROLE,
+  hasReleaseBinding,
   planCiSplit,
   previewEmail,
+  releaseCondition,
+  releaseEmail,
   secretReaders,
 } from './ciSplitPlan.mjs';
 
@@ -25,6 +29,8 @@ function today() {
       ])],
     ]),
     previewExists: false,
+    releaseExists: false,
+    releaseBound: false,
     deployKeys: ['old1', 'old2'],
     envs: new Set(['tray-release']),
     envSecrets: {deploy: new Set(), 'tray-release': new Set(['TAURI_SIGNING_PRIVATE_KEY'])},
@@ -35,7 +41,7 @@ function today() {
 
 const whats = steps => steps.map(s => s.what);
 
-test('grant only adds: the preview account, its three roles, its key, the deploy Environment and two deploy keys', () => {
+test('grant only adds: the preview account, its roles and key, the deploy Environment and key, and the tray-release account', () => {
   const steps = planCiSplit(today(), 'grant');
   assert.equal(steps.filter(s => s.run?.[1] === 'remove-iam-policy-binding').length, 0);
   assert.equal(steps.filter(s => s.gh?.[1] === 'delete' || s.run?.includes('delete')).length, 0);
@@ -46,7 +52,12 @@ test('grant only adds: the preview account, its three roles, its key, the deploy
   assert.ok(whats(steps).some(w => w.startsWith('create the hosting-preview account')));
   assert.deepEqual(
     steps.filter(s => s.keyTo).map(s => [s.keyTo.secret, s.keyTo.env]),
-    [[CI.previewSecret, null], [CI.deploySecret, 'deploy'], [CI.deploySecret, 'tray-release']],
+    [[CI.previewSecret, null], [CI.deploySecret, 'deploy'], [CI.releaseSecret, 'tray-release']],
+  );
+  assert.deepEqual(
+    steps.filter(s => s.keyTo).map(s => s.keyTo.account),
+    [previewEmail(), CI.deployEmail, releaseEmail()],
+    'the deploy key is not copied into tray-release: it has its own account',
   );
   assert.ok(steps.some(s => s.then?.includes('name=main')), 'deploy Environment is main only');
 });
@@ -63,16 +74,18 @@ test('grant run again after it worked has nothing left to do', () => {
   s.repoSecrets.add(CI.previewSecret);
   s.envs.add('deploy');
   s.envSecrets.deploy.add(CI.deploySecret);
-  s.envSecrets['tray-release'].add(CI.deploySecret);
+  s.envSecrets['tray-release'].add(CI.releaseSecret);
+  s.releaseExists = true;
+  s.releaseBound = true;
   s.policy.get(deploy).add('roles/cloudfunctions.admin');
   assert.deepEqual(planCiSplit(s, 'grant'), []);
 });
 
 test('revoke only removes: the three roles, the repo-level secret, the old keys and the dead secrets', () => {
   const s = today();
-  s.deployKeys = ['old1', 'old2', 'newDeploy', 'newRelease'];
+  s.deployKeys = ['old1', 'old2', 'newDeploy'];
   s.envSecrets.deploy.add(CI.deploySecret);
-  s.envSecrets['tray-release'].add(CI.deploySecret);
+  s.envSecrets['tray-release'].add(CI.releaseSecret);
   const steps = planCiSplit(s, 'revoke');
   assert.equal(steps.filter(s2 => s2.run?.[1] === 'add-iam-policy-binding' || s2.keyTo).length, 0);
   assert.deepEqual(
@@ -81,7 +94,7 @@ test('revoke only removes: the three roles, the repo-level secret, the old keys 
   );
   assert.ok(steps.some(x => x.gh?.join(' ') === `secret delete ${CI.deploySecret} --repo ${CI.repo}`));
   const keyDeletes = steps.filter(x => x.run?.includes('keys')).map(x => x.run[4]);
-  assert.deepEqual(keyDeletes, ['old1', 'old2'], 'the two newest keys (made by grant) stay');
+  assert.deepEqual(keyDeletes, ['old1', 'old2'], 'the newest key (made by grant) stays');
   assert.deepEqual(
     steps.filter(x => x.run?.[0] === 'secrets').map(x => x.run[2]),
     DEAD_SECRETS,
@@ -90,11 +103,9 @@ test('revoke only removes: the three roles, the repo-level secret, the old keys 
 
 // 2026-10-09: tray-release did not exist at grant, so grant made one key and
 // the old PR-readable key survived a revoke that kept the newest two (#2653).
-test('revoke keeps one key per Environment holding the deploy secret, and deletes the rest', () => {
+test('revoke keeps one deploy-account key (for the deploy Environment), and deletes the rest', () => {
   const s = today();
-  s.envs.delete('tray-release');
   s.envSecrets.deploy.add(CI.deploySecret);
-  s.envSecrets['tray-release'] = new Set();
   s.deployKeys = ['oldPrReadable', 'newDeploy'];
   const keyDeletes = planCiSplit(s, 'revoke').filter(x => x.run?.includes('keys')).map(x => x.run[4]);
   assert.deepEqual(keyDeletes, ['oldPrReadable']);
@@ -125,11 +136,39 @@ test('an unknown phase stops', () => {
   assert.throws(() => planCiSplit(today(), 'all'), /grant or revoke/);
 });
 
-test('without the tray-release Environment, grant sets the deploy key only there and skips it', () => {
+test('without the tray-release Environment, grant makes the account and binding but skips its key', () => {
   const s = today();
   s.envs.delete('tray-release');
-  const envs = planCiSplit(s, 'grant').filter(x => x.keyTo?.secret === CI.deploySecret).map(x => x.keyTo.env);
-  assert.deepEqual(envs, ['deploy']);
+  const steps = planCiSplit(s, 'grant');
+  assert.ok(whats(steps).some(w => w.startsWith('create the tray-release account')));
+  assert.ok(steps.some(x => x.run?.[1] === 'buckets'));
+  assert.deepEqual(steps.filter(x => x.keyTo && x.keyTo.env === 'tray-release'), []);
+});
+
+test('the tray-release account may use only tray/: one conditioned objectUser binding on the bucket, no project role', () => {
+  const steps = planCiSplit(today(), 'grant');
+  const binding = steps.find(x => x.run?.[1] === 'buckets');
+  assert.deepEqual(binding.run.slice(0, 4), ['storage', 'buckets', 'add-iam-policy-binding', `gs://${CI.bucket}`]);
+  assert.ok(binding.run.includes(`--member=serviceAccount:${releaseEmail()}`));
+  assert.ok(binding.run.includes(`--role=${RELEASE_ROLE}`));
+  assert.equal(RELEASE_ROLE, 'roles/storage.objectUser');
+  assert.ok(
+    binding.run.some(a => a.startsWith('--condition=expression=') && a.includes(releaseCondition())),
+  );
+  assert.ok(releaseCondition().endsWith("/objects/tray/')"));
+  assert.equal(
+    steps.filter(x => x.run?.[0] === 'projects' && x.run.some(a => a.includes(releaseEmail()))).length,
+    0,
+    'no project-level role for the release account',
+  );
+});
+
+test('hasReleaseBinding is true only for the conditioned binding for that account', () => {
+  const good = {bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail()}`], condition: {expression: releaseCondition(), title: 'tray-only'}}]};
+  assert.equal(hasReleaseBinding(good), true);
+  assert.equal(hasReleaseBinding({bindings: [{role: RELEASE_ROLE, members: [`serviceAccount:${releaseEmail()}`]}]}), false, 'an unconditioned grant does not count');
+  assert.equal(hasReleaseBinding({bindings: [{...good.bindings[0], condition: {expression: "resource.name.startsWith('x')"}}]}), false);
+  assert.equal(hasReleaseBinding(null), false);
 });
 
 test('revoke deletes the dead repo secret GARAGE61_API_TOKEN', () => {

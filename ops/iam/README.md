@@ -135,7 +135,8 @@ The one CI account (`github-action-1142179068@`) is behind the repo secret `FIRE
 | Who | Holds | Used by |
 | --- | --- | --- |
 | `hosting-preview@` (new) | `firebasehosting.admin`, `serviceusage.apiKeysViewer`, `serviceusage.serviceUsageConsumer`, `cloudfunctions.viewer`, `run.viewer` | PR previews and their cleanup (repo secret `HOSTING_PREVIEW_SERVICE_ACCOUNT`) |
-| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin`, **plus `cloudfunctions.admin`** (a new public HTTPS function needs `cloudfunctions.functions.setIamPolicy` for its invoker; `cloudfunctions.developer` can't, and the #326 deploy failed on it, run 37869964708) | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and tray publish (a copy in `tray-release`) |
+| `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin`, **plus `cloudfunctions.admin`** (a new public HTTPS function needs `cloudfunctions.functions.setIamPolicy` for its invoker; `cloudfunctions.developer` can't, and the #326 deploy failed on it, run 37869964708) | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and nothing else (the tray release has its own account, below) |
+| `tray-release@` (new) | `roles/storage.objectUser` **on `gs://botracing-61-lmu` only, with the condition `resource.name.startsWith('projects/_/buckets/botracing-61-lmu/objects/tray/')`**; no project role | the tray release job (key in the `tray-release` Environment as `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61`). objectUser can create, read, overwrite and delete under `tray/` and nothing elsewhere in the bucket: `latest.json` is overwritten by every release. A condition can't cover listing, so the workflow checks for an existing version with `objects describe`. Needs uniform bucket-level access (on) |
 | nobody else | secret values readable at project level | only the owner |
 
 Previews are checked signed in as `seat-test` (`#ct=`, docs/TESTING.md), which needs no Auth authorized domain. Without Auth admin, the CLI can't add a preview's domain to the authorized domains, so Google sign-in on a preview won't work. That's deliberate.
@@ -148,7 +149,21 @@ node ops/iam/ciSplit.mjs revoke            # dry run
 node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the repo-level secret, old keys, the dead Garage 61 secrets
 ```
 
-Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps one key per Environment that holds the deploy secret and deletes every older one.
+Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets the release account's key; otherwise `grant` makes the account and binding, skips that key and says so (run `grant --apply` again after). The deploy key is not copied into `tray-release`. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps the deploy account's newest key (the one in the `deploy` Environment) and deletes every older one.
+
+**Probe the release account before the first tag** (owner, after `ciSplit.mjs grant --apply`; thread 54 #2695). It answers, before the release job runs, whether `gcloud storage cp` works with only the `tray/` binding:
+
+```powershell
+$SA="tray-release@botracing-61.iam.gserviceaccount.com"
+"probe" | Out-File $env:TEMP\probe.txt
+gcloud storage cp --no-clobber $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage objects describe gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/probe-outside.txt --impersonate-service-account=$SA
+gcloud storage rm gs://botracing-61-lmu/tray/_probe/probe.txt
+```
+
+Expected, in order: create OK; overwrite OK (the `latest.json` case); describe OK; **the write outside `tray/` fails with 403**; then the last line cleans up as yourself. If the first copy fails on a bucket-level permission, add the narrowest fix before tagging.
 
 `grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
 
