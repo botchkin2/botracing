@@ -3,3 +3,7 @@
 pub mod columns;
 pub mod frame;
 pub mod layout;
+pub mod probe;
+pub mod recorder;
+pub mod sanity;
+pub mod store;
