@@ -19,6 +19,7 @@
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
+//   node tools/sessions/sync.mjs --sim iracing        iRacing .ibt (default lmu)
 //   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
 //   node tools/sessions/sync.mjs --capture <dir>      tools/capture's output, if not
 //                                                     %LOCALAPPDATA%\lap-capture
@@ -39,7 +40,7 @@ import {
 import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
-import * as lmu from './lmu.mjs';
+import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
 import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
@@ -84,11 +85,9 @@ function arg(name, fallback) {
 }
 const flag = name => process.argv.includes(name);
 
-const adapter = lmu;
-const folder = arg(
-  '--folder',
-  process.env.LMU_TELEMETRY || adapter.defaultFolder,
-);
+const simName = arg('--sim', process.env.LAP_SIM || 'lmu');
+const adapter = adapterOf(simName);
+const folder = arg('--folder', telemetryFolder(simName));
 // --remote: no Admin credentials. The store is the upload function (storeClient.mjs),
 // signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
 // keeps it fresh), and the owner is whatever key the server holds for that user.
@@ -203,7 +202,7 @@ function group(files) {
 }
 
 function slugId(sim, name) {
-  return `${sim}-${lmu.slug(name)}`;
+  return `${sim}-${adapter.slug(name)}`;
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
@@ -365,6 +364,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
+    splitFiles: simName === 'iracing',
     catalogOnly,
   });
   if (foldOnly) return {a, archived};

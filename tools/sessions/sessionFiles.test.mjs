@@ -70,6 +70,41 @@ test('grouping does not reorder or change the array it is given', () => {
   assert.deepEqual(given, copy);
 });
 
+test('groupId joins iRacing split files even when the wall clock would split them', () => {
+  const gid = 'iracing|88284244|2';
+  const first = file(0, {
+    sim: 'iracing',
+    groupId: gid,
+    sessionClock: '88284244:2',
+    startT: 100,
+    endT: 1000,
+  });
+  const later = file(1, {
+    sim: 'iracing',
+    groupId: gid,
+    sessionClock: '88284244:2',
+    recordedAt: new Date(
+      Date.parse(first.info.recordedAt) + 3 * 3600_000,
+    ).toISOString(),
+    startT: 400,
+    endT: 8000,
+  });
+  assert.equal(sameSession(first.info, later.info), false);
+  assert.equal(groupFiles([later, first], 'botkin').length, 1);
+  const [session] = groupFiles([later, first], 'botkin');
+  assert.deepEqual(
+    session.files.map(f => f.info.startT),
+    [100, 400],
+  );
+  assert.equal(
+    groupFiles(
+      [first, file(2, {sim: 'iracing', groupId: 'iracing|88284244|1'})],
+      'botkin',
+    ).length,
+    2,
+  );
+});
+
 // -- scanning a folder ---------------------------------------------------------------------
 
 function fakeAdapter(infos) {
