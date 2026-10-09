@@ -4,7 +4,9 @@
 // installer is the same file for everyone. CI publishes two things to Storage
 // (the tray release workflow): `tray/latest.json` =
 // {version, notes, pub_date, installer, signature} and the installer itself at
-// `tray/<version>/<installer>`. This turns them into Tauri's updater manifest
+// the object path `installer` names: `tray/<version>/<file>.exe`, written by
+// desktop/scripts/release-manifest.mjs (buildLatest), the one producer. This
+// turns them into Tauri's updater manifest
 // with a short-lived signed URL, and into a redirect for the Download button.
 // Pure over `TrayDeps`, so it is tested without Firebase.
 
@@ -36,13 +38,23 @@ export const MANIFEST_PATH = 'tray/latest.json';
 export const PLATFORM = 'windows-x86_64';
 
 const VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
-// A file name only: it becomes part of a Storage path.
-const INSTALLER = /^[A-Za-z0-9._-]+\.exe$/;
+// The installer's object path in the bucket, exactly `tray/<version>/<file>`:
+// the file name is plain characters (no `/`, no `..`), and the version is the
+// manifest's own, so a manifest cannot point at another release or folder.
+const FILE = /^[A-Za-z0-9._-]+\.exe$/;
+
+function installerOf(version: string, path: unknown): string | null {
+  const prefix = `tray/${version}/`;
+  if (typeof path !== 'string' || !path.startsWith(prefix)) return null;
+  const file = path.slice(prefix.length);
+  return FILE.test(file) && !file.includes('..') ? path : null;
+}
 
 export interface Release {
   version: string;
   notes: string;
   pubDate: string | null;
+  /** The installer's object path, `tray/<version>/<file>.exe`. */
   installer: string;
   signature: string;
 }
@@ -58,19 +70,19 @@ export function parseRelease(bytes: Uint8Array): Release | null {
   if (raw == null || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   if (typeof o.version !== 'string' || !VERSION.test(o.version)) return null;
-  if (typeof o.installer !== 'string' || !INSTALLER.test(o.installer))
-    return null;
+  const installer = installerOf(o.version, o.installer);
+  if (installer == null) return null;
   if (typeof o.signature !== 'string' || o.signature.length === 0) return null;
   return {
     version: o.version,
     notes: typeof o.notes === 'string' ? o.notes : '',
     pubDate: typeof o.pub_date === 'string' ? o.pub_date : null,
-    installer: o.installer,
+    installer,
     signature: o.signature,
   };
 }
 
-export const installerPath = (r: Release) => `tray/${r.version}/${r.installer}`;
+export const installerPath = (r: Release) => r.installer;
 
 async function latest(
   deps: TrayDeps,
