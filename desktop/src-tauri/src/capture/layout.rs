@@ -93,6 +93,8 @@ pub struct Field {
     pub name: String,
     pub offset: usize,
     pub size: usize,
+    // Only the layout tests read it (the wheel's alignment pin).
+    #[allow(dead_code)]
     pub align: usize,
     pub kind: Kind,
 }

@@ -13,6 +13,7 @@ pub trait View {
     fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>>;
 }
 
+#[cfg(test)]
 /// Two reads of the same span. None when they differ on every try, or a read fails.
 pub fn stable<V: View>(view: &mut V, offset: usize, len: usize) -> Option<Vec<u8>> {
     for _ in 0..TRIES {
