@@ -245,6 +245,22 @@ describe('carsAt', () => {
     expect(Number.isNaN(prep.progressM[0][1])).toBe(true);
   });
 
+  it('formation in the pit lane is not IN and not a counted stop', () => {
+    // 2 Oct Road Atlanta: inPits goes 0 at t=0 then 1 for ~54 s while
+    // lapsDone is still 0. That is the grid, not a stop.
+    const f = field(80, [
+      car(
+        0,
+        'GT3',
+        80,
+        u => ({d: u * 10, pit: u >= 5 && u < 70, laps: 0}),
+        true,
+      ),
+      car(1, 'GT3', 80, u => ({d: (3900 + u * 200) % 4000, laps: 0})),
+    ]);
+    expect(at(f, 20 / HZ)[0]).toMatchObject({state: 'running', pits: 0});
+  });
+
   it('counts pit stops, not a start in the pit lane or a short blip', () => {
     // 5 Hz: a 15 s stop is 75 updates. Out of the pits from the start, a
     // 2 s blip at update 10 (the whole-field blip at the Daytona start), a
@@ -252,8 +268,14 @@ describe('carsAt', () => {
     const inPit = (u: number) =>
       (u >= 10 && u < 20) || (u >= 40 && u < 115) || u >= 150;
     const f = field(160, [
-      car(0, 'GT3', 160, u => ({d: u * 10, pit: inPit(u)}), true),
-      car(1, 'GT3', 160, u => ({d: u * 10, pit: u < 2})),
+      car(
+        0,
+        'GT3',
+        160,
+        u => ({d: u * 10, pit: inPit(u), laps: 1}),
+        true,
+      ),
+      car(1, 'GT3', 160, u => ({d: u * 10, pit: u < 2, laps: 1})),
     ]);
     expect(at(f, 15 / HZ)[0]).toMatchObject({state: 'pit', pits: 0});
     expect(at(f, 60 / HZ)[0]).toMatchObject({state: 'pit', pits: 1});
@@ -268,7 +290,11 @@ describe('carsAt', () => {
     const still = Math.ceil(STOPPED_FOR_S * HZ) + 2;
     const f = field(still + 6, [
       car(0, 'GT3', still + 6, u => ({d: u < 3 ? u * 10 : 30}), true),
-      car(1, 'GT3', still + 6, u => ({d: u < 3 ? u * 10 : 30, pit: true})),
+      car(1, 'GT3', still + 6, u => ({
+        d: u < 3 ? u * 10 : 30,
+        pit: true,
+        laps: 1,
+      })),
     ]);
     // The last move is update 2 to 3; updates 4 to 13 are 10 slow ones = 2 s.
     expect(at(f, 13 / HZ)[0].state).toBe('stopped');
