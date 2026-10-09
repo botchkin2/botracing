@@ -3,9 +3,30 @@ import {test} from 'node:test';
 import {
   DELETE,
   boundaryUserRefPatch,
+  fieldValueFrom,
   stripTrackAppData,
   trackUserRefPatch,
 } from './stripTrackAppData.mjs';
+
+function fakeDb(writes) {
+  const docs = rows => ({
+    docs: rows.map(([id, data]) => ({
+      id,
+      data: () => data,
+      ref: {update: async patch => writes.push([id, patch])},
+    })),
+  });
+  return {
+    collection: name => ({
+      get: async () =>
+        docs(
+          name === 'tracks'
+            ? [['lmu-road', {ownerId: 'botkin', name: 'Road Atlanta'}]]
+            : [['lmu-road', {v: 2, sessions: {s1: []}}]],
+        ),
+    }),
+  };
+}
 
 test('a track doc loses its owner, session list, session id and surface session count', () => {
   const patch = trackUserRefPatch({
@@ -48,25 +69,37 @@ test('boundary docs lose the session map and nothing else', () => {
   assert.deepEqual(boundaryUserRefPatch({v: 2, rev: 4}), {});
 });
 
+test('--apply without FieldValue writes nothing', async () => {
+  const writes = [];
+  await assert.rejects(
+    () => stripTrackAppData({db: fakeDb(writes), apply: true, log: () => {}}),
+    /FieldValue\.delete is missing/,
+  );
+  assert.deepEqual(writes, []);
+});
+
+test('the apply path deletes with admin.firestore.FieldValue', async () => {
+  const writes = [];
+  function firestore() {
+    return {};
+  }
+  firestore.FieldValue = {delete: () => 'DEL'};
+  const FieldValue = fieldValueFrom({firestore});
+  await stripTrackAppData({
+    db: fakeDb(writes),
+    FieldValue,
+    apply: true,
+    log: () => {},
+  });
+  assert.deepEqual(writes, [
+    ['lmu-road', {ownerId: 'DEL'}],
+    ['lmu-road', {sessions: 'DEL'}],
+  ]);
+});
+
 test('the dry run lists the documents and writes nothing; --apply writes', async () => {
   const writes = [];
-  const docs = (rows) => ({
-    docs: rows.map(([id, data]) => ({
-      id,
-      data: () => data,
-      ref: {update: async patch => writes.push([id, patch])},
-    })),
-  });
-  const db = {
-    collection: name => ({
-      get: async () =>
-        docs(
-          name === 'tracks'
-            ? [['lmu-road', {ownerId: 'botkin', name: 'Road Atlanta'}]]
-            : [['lmu-road', {v: 2, sessions: {s1: []}}]],
-        ),
-    }),
-  };
+  const db = fakeDb(writes);
   const FieldValue = {delete: () => 'DEL'};
   const dry = await stripTrackAppData({db, FieldValue, log: () => {}});
   assert.deepEqual(writes, []);

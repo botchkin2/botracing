@@ -9,10 +9,22 @@
 //   node tools/sessions/stripTrackAppData.mjs
 //   node tools/sessions/stripTrackAppData.mjs --apply
 
-import {resolve} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {createRequire} from 'node:module';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 export const DELETE = Symbol('delete');
+
+/** admin.firestore.FieldValue. connect() does not return it. */
+export function fieldValueFrom(admin) {
+  const FieldValue = admin?.firestore?.FieldValue;
+  if (typeof FieldValue?.delete !== 'function') {
+    throw new Error(
+      'firebase-admin FieldValue.delete is missing; --apply wrote nothing',
+    );
+  }
+  return FieldValue;
+}
 
 /** Fields to remove from one tracks/{id} document. Values are DELETE or a replacement. */
 export function trackUserRefPatch(data) {
@@ -65,6 +77,11 @@ export async function stripTrackAppData({
   apply = false,
   log = console.log,
 }) {
+  if (apply && typeof FieldValue?.delete !== 'function') {
+    throw new Error(
+      'FieldValue.delete is missing, so --apply wrote nothing',
+    );
+  }
   const lines = [];
   const say = line => {
     lines.push(line);
@@ -105,10 +122,14 @@ if (
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   const {connect} = await import('./store.mjs');
-  const {db, FieldValue} = connect();
+  const here = dirname(fileURLToPath(import.meta.url));
+  const admin = createRequire(resolve(here, '../../functions/package.json'))(
+    'firebase-admin',
+  );
+  const {db} = connect();
   await stripTrackAppData({
     db,
-    FieldValue,
+    FieldValue: fieldValueFrom(admin),
     apply: process.argv.includes('--apply'),
   });
 }
