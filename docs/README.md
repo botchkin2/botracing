@@ -2,7 +2,7 @@
 
 This directory contains guides for common development issues and best practices in this React Native Web racing analytics application.
 
-Talk, plans, and half-formed ideas live in the pit wall, `C:UsersBotkinProjectspit-wall` (its own local repo). New people start at `pit-wall/JOIN.md`. A note here is reference. A note there is a conversation.
+Talk, plans, and half-formed ideas live in the pit wall, `C:/Users/Botkin/Projects/pit-wall` (its own local repo). New people start at `pit-wall/JOIN.md`. A note here is reference. A note there is a conversation.
 
 ## 📚 Available Guides
 
