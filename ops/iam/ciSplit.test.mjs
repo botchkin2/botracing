@@ -57,7 +57,7 @@ test('grant only adds: the preview account, its roles and key, the deploy Enviro
   assert.ok(whats(steps).some(w => w.startsWith('create the hosting-preview account')));
   assert.deepEqual(
     steps.filter(s => s.keyTo).map(s => [s.keyTo.secret, s.keyTo.env]),
-    [[CI.previewSecret, null], [CI.deploySecret, 'deploy'], [CI.releaseSecret, 'tray-release']],
+    [[CI.previewSecret, null], [CI.deploySecret, 'deploy'], [tray.secret, 'tray-release']],
   );
   assert.deepEqual(
     steps.filter(s => s.keyTo).map(s => s.keyTo.account),
@@ -79,9 +79,9 @@ test('grant run again after it worked has nothing left to do', () => {
   s.repoSecrets.add(CI.previewSecret);
   s.envs.add('deploy');
   s.envSecrets.deploy.add(CI.deploySecret);
-  s.envSecrets['tray-release'].add(CI.releaseSecret);
+  s.envSecrets['tray-release'].add(tray.secret);
   s.envs.add('android-release');
-  s.envSecrets['android-release'] = new Set([CI.releaseSecret]);
+  s.envSecrets['android-release'] = new Set([android.secret]);
   for (const r of CI.releases) s.releases[r.name] = {exists: true, bound: true};
   s.policy.get(deploy).add('roles/cloudfunctions.admin');
   assert.deepEqual(planCiSplit(s, 'grant'), []);
@@ -91,7 +91,7 @@ test('revoke only removes: the three roles, the repo-level secret, the old keys 
   const s = today();
   s.deployKeys = ['old1', 'old2', 'newDeploy'];
   s.envSecrets.deploy.add(CI.deploySecret);
-  s.envSecrets['tray-release'].add(CI.releaseSecret);
+  s.envSecrets['tray-release'].add(tray.secret);
   const steps = planCiSplit(s, 'revoke');
   assert.equal(steps.filter(s2 => s2.run?.[1] === 'add-iam-policy-binding' || s2.keyTo).length, 0);
   assert.deepEqual(
@@ -175,7 +175,12 @@ test('with the android-release Environment, grant puts the android account key t
   s.envs.add('android-release');
   s.envSecrets['android-release'] = new Set();
   const keys = planCiSplit(s, 'grant').filter(x => x.keyTo?.env === 'android-release');
-  assert.deepEqual(keys.map(x => [x.keyTo.account, x.keyTo.secret]), [[releaseEmail(android), CI.releaseSecret]]);
+  assert.deepEqual(keys.map(x => [x.keyTo.account, x.keyTo.secret]), [[releaseEmail(android), 'ANDROID_RELEASE_SERVICE_ACCOUNT']]);
+});
+
+test("android-release's key has a name no repo-level or other Environment secret has, so it can't fall back to another key", () => {
+  const others = [CI.deploySecret, CI.previewSecret, tray.secret, ...today().repoSecrets];
+  assert.ok(!others.includes(android.secret), android.secret);
 });
 
 test('hasReleaseBinding is true only for the conditioned binding for that account', () => {

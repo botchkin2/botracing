@@ -8,10 +8,11 @@
 #            only, no reviewer): EAS builds and signs the APK with the release
 #            key it holds (never in the repo or here). The APK must be signed
 #            by the key pinned in scripts/android-signer.json and carry the
-#            versionCode EAS reported, or the run stops here. It is kept as a
-#            workflow artifact, so Botkin approves a real build.
+#            versionCode EAS reported, or the run stops here, so Botkin
+#            approves a real, checked build.
 #   publish  in the `android-release` Environment (Botkin approves each run,
-#            android-v* tags only): checks the same APK again, writes
+#            android-v* tags only; EXPO_TOKEN and ANDROID_RELEASE_SERVICE_ACCOUNT):
+#            fetches the same build from EAS, checks the APK again, writes
 #            latest.json with scripts/android-release.mjs and uploads the APK,
 #            then latest.json last. A version is never overwritten.
 #
@@ -67,6 +68,7 @@ jobs:
     timeout-minutes: 90
     environment: android-build
     outputs:
+      id: ${{ steps.build.outputs.id }}
       versionCode: ${{ steps.build.outputs.versionCode }}
     steps:
       - uses: actions/checkout@v7
@@ -106,17 +108,13 @@ jobs:
       - name: Signed by the pinned key, with EAS's versionCode
         run: node scripts/android-release.mjs verify "$RUNNER_TEMP/BotRacing.apk" "${{ steps.build.outputs.versionCode }}"
 
-      - uses: actions/upload-artifact@v7
-        with:
-          name: android-apk
-          path: ${{ runner.temp }}/BotRacing.apk
-          retention-days: 7
-          if-no-files-found: error
-
+  # No workflow artifact carries the APK between jobs: the repo is public, so
+  # anyone could download it before Botkin approves (rake #3302). The approved
+  # job fetches the same build from EAS by its id.
   publish:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment: android-release
     steps:
       - uses: actions/checkout@v7
@@ -125,20 +123,39 @@ jobs:
         with:
           node-version: '24'
 
-      - uses: actions/download-artifact@v7
-        with:
-          name: android-apk
-          path: ${{ runner.temp }}/apk
+      - run: npm ci
+
+      - name: The same build, from EAS
+        id: build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          BUILD_ID: ${{ needs.build.outputs.id }}
+          VERSION_CODE: ${{ needs.build.outputs.versionCode }}
+        run: |
+          npx --yes eas-cli@24.8.0 build:view "$BUILD_ID" --json > "$RUNNER_TEMP/eas-build.json"
+          out="$(node scripts/android-release.mjs build "$RUNNER_TEMP/eas-build.json" "$GITHUB_REF_NAME")"
+          echo "::add-mask::$(sed -n 's/^url=//p' <<<"$out")"
+          grep -qx "id=$BUILD_ID" <<<"$out"
+          grep -qx "versionCode=$VERSION_CODE" <<<"$out"
+          echo "$out" >> "$GITHUB_OUTPUT"
+
+      - name: Download the APK
+        env:
+          APK_URL: ${{ steps.build.outputs.url }}
+        run: curl -sSfL --retry 3 -o "$RUNNER_TEMP/BotRacing.apk" "$APK_URL"
 
       # Checked again on the bytes that are uploaded; latest.json carries the
       # verified cert and EAS's versionCode.
       - name: Lay out the release
-        run: node scripts/android-release.mjs latest "$RUNNER_TEMP/apk/BotRacing.apk" "${{ needs.build.outputs.versionCode }}" "$RUNNER_TEMP/release"
+        run: node scripts/android-release.mjs latest "$RUNNER_TEMP/BotRacing.apk" "${{ needs.build.outputs.versionCode }}" "$RUNNER_TEMP/release"
 
+      # An Environment-only secret name: no repo-level secret of this name
+      # exists, so a missing Environment secret fails here instead of falling
+      # back to another account's key (rake #3302).
       - name: Sign in to Google Cloud
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+          credentials_json: ${{ secrets.ANDROID_RELEASE_SERVICE_ACCOUNT }}
 
       - uses: google-github-actions/setup-gcloud@v3
 

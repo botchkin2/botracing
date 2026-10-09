@@ -33,13 +33,17 @@ export const CI = {
    * Each release job's own account, in its own Environment: its prefix in the
    * bucket and nothing else. Each Environment is made by its kind's setup
    * script (desktop/scripts/setup-release-env.ps1, scripts/setup-android-release.ps1).
+   * `secret` is the key's name in that Environment. A new kind uses a name no
+   * repo-level secret has, so a missing Environment secret fails the job
+   * instead of falling back to another key (rake #3302). The tray's still
+   * shares the deploy key's name.
    */
   releases: [
-    {name: 'tray-release', env: 'tray-release', prefix: 'tray', title: 'tray-only', label: 'Tray release'},
-    {name: 'android-release', env: 'android-release', prefix: 'android', title: 'android-only', label: 'Android release'},
+    {name: 'tray-release', env: 'tray-release', prefix: 'tray', title: 'tray-only', label: 'Tray release',
+      secret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61'},
+    {name: 'android-release', env: 'android-release', prefix: 'android', title: 'android-only', label: 'Android release',
+      secret: 'ANDROID_RELEASE_SERVICE_ACCOUNT'},
   ],
-  /** Same secret name as the deploy key's, so the workflows' auth step is unchanged. */
-  releaseSecret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61',
   bucket: 'botracing-61-lmu',
 };
 
@@ -202,10 +206,10 @@ export function planCiSplit(state, phase, c = CI) {
         });
       // The Environment is made by its kind's setup script; run that first,
       // or this run skips the key and says so.
-      if (state.envs.has(r.env) && !state.envSecrets[r.env]?.has(c.releaseSecret))
+      if (state.envs.has(r.env) && !state.envSecrets[r.env]?.has(r.secret))
         steps.push({
-          what: `a key for ${r.name} into ${r.env} secret ${c.releaseSecret}`,
-          keyTo: {account: releaseEmail(r, c), secret: c.releaseSecret, env: r.env},
+          what: `a key for ${r.name} into ${r.env} secret ${r.secret}`,
+          keyTo: {account: releaseEmail(r, c), secret: r.secret, env: r.env},
         });
     }
     return steps;

@@ -8,11 +8,12 @@
 #   - Environment `android-build`, deployable from android-v* tags only, no
 #     reviewer, with the secret EXPO_TOKEN (the EAS build).
 #   - Environment `android-release`, deployable from android-v* tags only, with
-#     Botkin (the signed-in `gh` user) as the required reviewer (the publish).
+#     Botkin (the signed-in `gh` user) as the required reviewer (the publish),
+#     with EXPO_TOKEN too: the approved job fetches the build from EAS itself.
 #   - The repo ruleset `Release tags`: only admins may create, move or delete
 #     android-v* and tray-v* tags (a tag starts a build that spends EAS credits).
 #   - The android-release account (android/ in the lmu bucket only) and its key
-#     in `android-release`: `node ops/iam/ciSplit.mjs grant`, which also shows
+#     in `android-release` as ANDROID_RELEASE_SERVICE_ACCOUNT: `node ops/iam/ciSplit.mjs grant`, which also shows
 #     every other CI identity. It needs gcloud signed in as Botkin.
 # It prints names and never a secret's value.
 #
@@ -57,8 +58,10 @@ if (-not $Repo) { $Repo = (gh repo view --json nameWithOwner --jq .nameWithOwner
 if (-not $Repo) { Fail "could not tell which repo: pass -Repo owner/name" }
 
 $envs = @(gh api "repos/$Repo/environments" --jq '.environments[].name')
-$haveToken = ($envs -contains $BuildEnv) -and
-  (@(gh secret list --env $BuildEnv --repo $Repo --json name --jq '.[].name') -contains "EXPO_TOKEN")
+$TokenEnvs = @($BuildEnv, $ReleaseEnv)
+$haveToken = @($TokenEnvs | Where-Object {
+    ($envs -contains $_) -and (@(gh secret list --env $_ --repo $Repo --json name --jq '.[].name') -contains "EXPO_TOKEN")
+  }).Count -eq $TokenEnvs.Count
 if (-not $ExpoToken -and -not $haveToken) {
   Write-Host "Missing, nothing was changed:" -ForegroundColor Yellow
   Write-Host "  - the Expo robot token: -ExpoToken, or `$env:EXPO_TOKEN (expo.dev > botventure > Settings > Access tokens)"
@@ -97,18 +100,18 @@ Set-TagOnlyEnvironment $BuildEnv $false
 Set-TagOnlyEnvironment $ReleaseEnv $true
 
 # --- EXPO_TOKEN: to gh on stdin from a temporary file, never on a command line
-if ($ExpoToken) {
-  Step "secret EXPO_TOKEN in $BuildEnv ($($ExpoToken.Length) characters)"
-  if (-not $DryRun) {
-    $tmp = New-TemporaryFile
-    try {
-      [System.IO.File]::WriteAllText($tmp, $ExpoToken)
-      $p = Start-Process gh -ArgumentList @("secret", "set", "EXPO_TOKEN", "--env", $BuildEnv, "--repo", $Repo) `
-        -RedirectStandardInput $tmp -NoNewWindow -Wait -PassThru
-      if ($p.ExitCode -ne 0) { Fail "could not set EXPO_TOKEN" }
-    } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
-  }
-} else { Step "secret EXPO_TOKEN in $BuildEnv : already set, kept" }
+foreach ($name in $TokenEnvs) {
+  if (-not $ExpoToken) { Step "secret EXPO_TOKEN in $name : already set, kept"; continue }
+  Step "secret EXPO_TOKEN in $name ($($ExpoToken.Length) characters)"
+  if ($DryRun) { continue }
+  $tmp = New-TemporaryFile
+  try {
+    [System.IO.File]::WriteAllText($tmp, $ExpoToken)
+    $p = Start-Process gh -ArgumentList @("secret", "set", "EXPO_TOKEN", "--env", $name, "--repo", $Repo) `
+      -RedirectStandardInput $tmp -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) { Fail "could not set EXPO_TOKEN in $name" }
+  } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+}
 
 # --- release tags: only admins create, move or delete them
 $ruleset = @{
