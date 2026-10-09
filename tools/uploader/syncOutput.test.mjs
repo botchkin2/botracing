@@ -23,6 +23,9 @@ const output = [
 test('reads which session failed, not just how many', () => {
   const r = run(output);
   assert.deepEqual(r.failedIds, ['bbbbbbbbbbbbbbbb']);
+  assert.deepEqual(r.failureOf, {
+    bbbbbbbbbbbbbbbb: 'Error: upload timed out | at x',
+  });
   assert.equal(r.done, 1);
   assert.equal(r.failed, 1);
   assert.equal(r.sessions[0], 'aaaaaaaaaaaaaaaa');

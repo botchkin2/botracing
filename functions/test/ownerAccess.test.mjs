@@ -6,6 +6,7 @@ import {
   pathInsideOwner,
   resolveOwner,
   trustedTrackPath,
+  NOT_SEEN_MS,
   uploaderItems,
 } from '../src/ownerAccess.ts';
 
@@ -17,6 +18,8 @@ const deps = (mapping = {}) => ({
   },
   readOwnerKey: async uid => mapping[uid] ?? null,
 });
+
+const NOW = Date.parse('2026-10-09T20:00:00Z');
 
 test('no Authorization header is refused', async () => {
   await assert.rejects(resolveOwner(deps(), undefined), Unauthorized);
@@ -172,24 +175,24 @@ test("uploader status: only the owner's own machines, without the server's bookk
     {id: 'uidB__pc1', data: {ownerId: 'uidB', hostId: 'pc1', state: 'error'}},
     {id: 'oldhost', data: {hostId: 'oldhost', label: 'Race PC', state: 'idle'}}, // no owner: the old Admin docs
   ];
-  const mine = uploaderItems('uidA', docs);
+  const mine = uploaderItems('uidA', docs, NOW);
   assert.deepEqual(
     mine.map(u => u.hostId),
     ['pc1', 'pc2'],
   );
-  assert.deepEqual(mine[0], {hostId: 'pc1', state: 'idle'});
+  assert.deepEqual(mine[0], {hostId: 'pc1', state: 'idle', problems: []});
   assert.equal('ownerId' in mine[0], false);
   assert.equal('serverUpdatedAt' in mine[0], false);
   // Nobody sees the other user's machine or the ownerless ones.
   assert.deepEqual(
-    uploaderItems('uidB', docs).map(u => u.hostId),
+    uploaderItems('uidB', docs, NOW).map(u => u.hostId),
     ['pc1'],
   );
-  assert.deepEqual(uploaderItems('botkin', docs), []);
-  assert.deepEqual(uploaderItems('uidA', []), []);
+  assert.deepEqual(uploaderItems('botkin', docs, NOW), []);
+  assert.deepEqual(uploaderItems('uidA', [], NOW), []);
   // A doc without a hostId field falls back to its id.
   assert.equal(
-    uploaderItems('uidA', [{id: 'x', data: {ownerId: 'uidA'}}])[0].hostId,
+    uploaderItems('uidA', [{id: 'x', data: {ownerId: 'uidA'}}], NOW)[0].hostId,
     'x',
   );
 });
@@ -208,4 +211,37 @@ test('listUploaders asks for the owner in the query and has no special owner', (
   const fn = store.slice(at, store.indexOf('\n}\n', at));
   assert.match(fn, /where\('ownerId', '==', owner\)/);
   assert.doesNotMatch(fn, /LEGACY_OWNER|botkin/);
+});
+
+test('a PC silent for 3 days gets a not-seen problem ahead of its own; a recent one does not', () => {
+  const at = ms => new Date(NOW - ms).toISOString();
+  const own = [{kind: 'sync-crashed', at: null, message: 'x'}];
+  const docs = [
+    {
+      id: 'a',
+      data: {
+        ownerId: 'u',
+        hostId: 'a',
+        lastSeenAt: at(NOT_SEEN_MS + 1),
+        problems: own,
+      },
+    },
+    {
+      id: 'b',
+      data: {
+        ownerId: 'u',
+        hostId: 'b',
+        lastSeenAt: at(NOT_SEEN_MS - 1),
+        problems: own,
+      },
+    },
+    {id: 'c', data: {ownerId: 'u', hostId: 'c'}},
+  ];
+  const [a, b, c] = uploaderItems('u', docs, NOW);
+  assert.deepEqual(a.problems, [
+    {kind: 'not-seen', at: at(NOT_SEEN_MS + 1)},
+    ...own,
+  ]);
+  assert.deepEqual(b.problems, own);
+  assert.deepEqual(c.problems, [], 'never seen: nothing to say yet');
 });

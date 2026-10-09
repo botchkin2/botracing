@@ -1,4 +1,5 @@
 import * as Application from 'expo-application';
+import {useRouter} from 'expo-router';
 import {
   ActivityIndicator,
   Linking,
@@ -17,7 +18,7 @@ import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {Button, Segment, Text} from '@/src/ui';
 
 import {androidCard, androidSurface, INSTALL_NOTE} from './androidCard';
-import {type UploaderCard, useSettingsModel} from './model';
+import {type ProblemRow, type UploaderCard, useSettingsModel} from './model';
 import {trayCard} from './trayCard';
 
 // Settings (handoff v2 M5): the uploader card per sim PC, then the app
@@ -52,6 +53,8 @@ export function SettingsScreen() {
       <WindowsApp />
 
       <Sections />
+
+      <Problems rows={model.problems} />
 
       <Text variant='label' tone='textMuted' style={styles.section}>
         Uploader
@@ -241,6 +244,36 @@ function Dot({on}: {on: boolean}) {
   );
 }
 
+// What is wrong on the PCs now (thread 1 #3327): data rows, a session's opens
+// it. Hidden when there is nothing.
+function Problems({rows}: {rows: ProblemRow[]}) {
+  const router = useRouter();
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Problems
+      </Text>
+      {rows.map(r =>
+        r.sessionId ? (
+          <Text
+            key={r.key}
+            variant='dataSmall'
+            tone='textSecondary'
+            accessibilityRole='link'
+            onPress={() => router.push(`/session/${r.sessionId}`)}>
+            {r.text}
+          </Text>
+        ) : (
+          <Text key={r.key} variant='dataSmall' tone='textSecondary'>
+            {r.text}
+          </Text>
+        ),
+      )}
+    </>
+  );
+}
+
 function Card({card}: {card: UploaderCard}) {
   const {color} = useTheme();
   return (
@@ -262,38 +295,6 @@ function Card({card}: {card: UploaderCard}) {
           {l}
         </Text>
       ))}
-      {card.recorderWarning && (
-        <View
-          style={[
-            styles.notice,
-            {
-              backgroundColor: color.surfaceOverlay,
-              borderColor: color.lineStrong,
-            },
-          ]}>
-          <Text tone='textSecondary'>{card.recorderWarning}</Text>
-        </View>
-      )}
-      {card.error && (
-        <View
-          style={[
-            styles.notice,
-            {
-              backgroundColor: color.surfaceOverlay,
-              borderColor: color.lineStrong,
-            },
-          ]}>
-          <Text variant='dataSmall' tone='textMuted'>
-            Last error{card.error.when ? ` · ${card.error.when}` : ''}
-          </Text>
-          <Text>{card.error.message}</Text>
-          {card.error.path && (
-            <Text variant='dataSmall' tone='textSecondary' selectable>
-              {card.error.path}
-            </Text>
-          )}
-        </View>
-      )}
     </View>
   );
 }
@@ -315,12 +316,4 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   dot: {width: 8, height: 8, borderRadius: 4},
-  // Neutral, never amber or red (handoff v2 M3: status banners).
-  notice: {
-    marginTop: space.sm,
-    padding: space.md,
-    gap: space.xxs,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-  },
 });
