@@ -12,6 +12,7 @@ import {
 
 import {
   BASIS_ID,
+  BASIS_DOT_ID,
   buildCompareModel,
   medianBasisOf,
   snapOut,
@@ -231,6 +232,37 @@ describe('buildCompareModel', () => {
     // Dots are for key laps only: the Ref lap, the highlighted one, or all
     // laps when there are few; here all three.
     expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
+  });
+
+  it('the map still draws the cursor when many laps are checked and none is key', () => {
+    // Eight laps is past the individual mode, with no Ref lap and none
+    // highlighted: no lap is a key lap, and the dot was missing (#273).
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const many = toLaps(
+      ids.map((id, i) => rawLap(id, 20 + i * 0.1, [5 + i * 0.01, 5])),
+    );
+    const manyTraces = new Map(
+      ids.map((id, i) => [
+        id,
+        resampleTrace(circleLap(180 - i), LENGTH_M, 5, 10),
+      ]),
+    );
+    const at = (s: Partial<CompareSelection>) =>
+      buildCompareModel({
+        session,
+        laps: many,
+        traces: manyTraces,
+        band: null,
+        map,
+        selection: sel({laps: ids, ...s}),
+      }).map!;
+    const median = at({});
+    expect(median.dots).toHaveLength(1);
+    expect(median.dots[0].lapId).toBe(BASIS_DOT_ID);
+    expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
+    // A Ref lap or a highlighted lap is its own dot, as before.
+    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);
+    expect(at({hl: 'e'}).dots.map(d => d.lapId)).toEqual(['e']);
   });
 
   it('position row names the corner under the cursor', () => {

@@ -196,6 +196,9 @@ export function pedalsDomains(steerM: number): {
   };
 }
 
+/** The map's cursor dot when no lap is a key lap: the basis, not a lap. */
+export const BASIS_DOT_ID = 'basis';
+
 export type LapRef = {
   lapId: string;
   label: string;
@@ -1136,6 +1139,28 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       const i = gridIndex(t, m);
       return placer.place(t, i, i, 1)[0];
     };
+    // The map always shows the cursor. With many laps checked and none the Ref
+    // or highlighted lap, no lap is a key lap; the basis (the median) is what
+    // Follow centres on, so the dot goes there, in the reference stroke.
+    const dotsOf = (): MapModel['dots'] => {
+      const keyed = keyRefs
+        .filter(r => traces.has(r.lapId))
+        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
+        // Same order as the lines: the reference dot on top.
+        .sort((a, b) => drawRank(a) - drawRank(b));
+      if (keyed.length > 0) return keyed;
+      return [
+        {
+          lapId: BASIS_DOT_ID,
+          label: basisName,
+          selIndex: 0,
+          isRef: false,
+          highlighted: false,
+          key: true,
+          at: pointAt(refTrace, cursorM),
+        },
+      ];
+    };
     const followGeometry = input.followGeometry ?? null;
     const split = placer.outlineUse(refTrace);
     mapModel = {
@@ -1158,11 +1183,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         geometry: followGeometry,
       },
       lines,
-      dots: keyRefs
-        .filter(r => traces.has(r.lapId))
-        .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
-        // Same order as the lines: the reference dot on top.
-        .sort((a, b) => drawRank(a) - drawRank(b)),
+      dots: dotsOf(),
       followPlace: followPlace(map?.sections ?? [], cursorM),
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
