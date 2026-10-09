@@ -714,8 +714,6 @@ function CompareView({
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
       onPlay={() => {
-        // Pausing keeps the bar up for a few seconds, so it is not gone at once.
-        if (playing) seek.reveal();
         setPlaying(p => !p);
       }}
       onRate={prefs.setRate}

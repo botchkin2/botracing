@@ -1,11 +1,10 @@
-import {useCallback, useEffect, useState} from 'react';
-
-import {scheduleHide} from './autoHide';
+import {useCallback, useEffect, useRef, useState} from 'react';
 
 /**
- * A control that is shown on demand and hides after `idleMs` with no touch.
- * `holdOpen` keeps it shown (while playing). `reveal` shows it and restarts
- * the countdown. Nothing is stored.
+ * A control shown on demand that hides after `idleMs` with no touch. While
+ * `holdOpen` is true it stays shown; when that drops (a pause from anywhere)
+ * it counts down from there, so it never vanishes at once. `reveal` shows it
+ * and restarts the countdown. Nothing is stored.
  */
 export function useAutoHide(idleMs: number, holdOpen: boolean) {
   const [hidden, setHidden] = useState(true);
@@ -14,9 +13,18 @@ export function useAutoHide(idleMs: number, holdOpen: boolean) {
     setHidden(false);
     setTouches(n => n + 1);
   }, []);
+
+  const wasHeld = useRef(holdOpen);
+  useEffect(() => {
+    if (wasHeld.current && !holdOpen) reveal();
+    wasHeld.current = holdOpen;
+  }, [holdOpen, reveal]);
+
   useEffect(() => {
     if (holdOpen || hidden) return;
-    return scheduleHide(idleMs, () => setHidden(true));
+    const timer = setTimeout(() => setHidden(true), idleMs);
+    return () => clearTimeout(timer);
   }, [touches, holdOpen, hidden, idleMs]);
+
   return {visible: holdOpen || !hidden, reveal};
 }
