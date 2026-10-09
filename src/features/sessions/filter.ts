@@ -32,8 +32,8 @@ export function filterOptions(
   filter: SessionsFilter,
 ): FilterOptions {
   // One chip per track in the picked game. The chips are labelled here, from
-  // the chips shown: two layouts sharing a name get 'Name · Variant' only when
-  // both are on screen.
+  // the chips shown. A name shared by two games gets the game ('Name · iRacing');
+  // a name with two layouts in one game also gets the layout ('Name · Full').
   const tracks = new Map<
     string,
     {key: string; name: string; variant: string; sim: string; count: number}
@@ -50,19 +50,23 @@ export function filterOptions(
     c.count += t.count;
     tracks.set(t.trackId, c);
   }
-  const names = new Map<string, number>();
-  for (const c of tracks.values())
-    names.set(c.name, (names.get(c.name) ?? 0) + 1);
-  const choices: FilterChoice[] = [...tracks.values()].map(c => ({
-    key: c.key,
+  const gamesOf = new Map<string, Set<string>>();
+  const layoutsIn = new Map<string, number>();
+  for (const c of tracks.values()) {
+    gamesOf.set(c.name, (gamesOf.get(c.name) ?? new Set()).add(c.sim));
+    const k = `${c.name}\u0000${c.sim}`;
+    layoutsIn.set(k, (layoutsIn.get(k) ?? 0) + 1);
+  }
+  const choices: FilterChoice[] = [...tracks.values()].map(c => {
+    const acrossGames = (gamesOf.get(c.name)?.size ?? 0) > 1;
+    const inGame = (layoutsIn.get(`${c.name}\u0000${c.sim}`) ?? 0) > 1;
+    const parts = [c.name];
+    if (acrossGames) parts.push(gameLabel(c.sim));
     // No layout stored (facets from before the variant field): the game says
     // which chip is which, never the internal track id.
-    label:
-      (names.get(c.name) ?? 0) > 1
-        ? `${c.name} · ${c.variant || gameLabel(c.sim)}`
-        : c.name,
-    count: c.count,
-  }));
+    if (inGame) parts.push(c.variant || gameLabel(c.sim));
+    return {key: c.key, label: parts.join(' · '), count: c.count};
+  });
   return {
     games: facets.games
       .map(g => ({key: g.sim, label: gameLabel(g.sim), count: g.count}))

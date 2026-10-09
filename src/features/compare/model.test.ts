@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
-import {type Lap} from '@/src/data/sessions';
+import {type Lap, referenceDefaultLapIds} from '@/src/data/sessions';
 import {lapColors, lapStroke} from '@/src/design';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
@@ -584,11 +584,13 @@ describe('a URL with no laps', () => {
     timeS: number | null,
     comparable = true,
     startL: number | null = null,
+    stint = 1,
   ) =>
     ({
       id,
       timeS,
       comparable,
+      stint,
       partial: false,
       pitIn: false,
       pitOut: false,
@@ -607,12 +609,39 @@ describe('a URL with no laps', () => {
   ];
   const facts = {id: 's1', bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
-  it('opens on a fair reference and the median comparable lap', () => {
+  it('opens on every comparable lap against their median, never a pair', () => {
     const out = withDefaultLaps(sel({laps: []}), laps, facts);
-    // c is the median of b, c, a; b is the fastest fair lap for it.
-    expect(out.laps).toEqual(['b', 'c']);
+    expect(out.laps).toEqual(['a', 'b', 'c']);
+    expect(out.ref).toBeNull();
     // The rest of the selection is untouched.
     expect(out.cursorM).toBe(600);
+  });
+
+  it('takes the stint with the most comparable laps, the later one on a tie', () => {
+    // The 1 Oct race: a long first stint, a one-lap stint, a shorter last one.
+    const race = [
+      lap('s1a', 81.3, true, null, 1),
+      lap('s1b', 81.2, true, null, 1),
+      lap('s1c', 81.8, true, null, 1),
+      lap('s2a', 82.0, true, null, 2),
+      lap('s3a', 81.0, true, null, 3),
+      lap('s3b', 80.9, true, null, 3),
+    ];
+    expect(withDefaultLaps(sel({laps: []}), race, facts).laps).toEqual([
+      's1a',
+      's1b',
+      's1c',
+    ]);
+    const tie = race.filter(l => l.id !== 's1c');
+    expect(withDefaultLaps(sel({laps: []}), tie, facts).laps).toEqual([
+      's3a',
+      's3b',
+    ]);
+  });
+
+  it('a fair reference: the median lap and the fastest fair lap for it', () => {
+    // c is the median of b, c, a; b is the fastest fair lap for it.
+    expect(referenceDefaultLapIds(laps, facts)).toEqual(['b', 'c']);
   });
 
   it('a quicker lap on a lighter load is not the reference', () => {
@@ -625,20 +654,20 @@ describe('a URL with no laps', () => {
     // Median is m1 (100.1 s, 62 L): the fastest lap at that load is m1's
     // neighbour m2, not the 98.0 s lap with a third of the fuel.
     expect(
-      withDefaultLaps(sel({laps: []}), race, {...facts, bestLapId: 'light'})
-        .laps,
+      referenceDefaultLapIds(race, {...facts, bestLapId: 'light'}),
     ).toEqual(['m2', 'm1']);
   });
 
-  it('with fewer than three comparable laps it is the best lap and the fastest other', () => {
+  it('two comparable laps are still a set; the fair reference falls back to best and fastest other', () => {
     const few = [lap('a', 92.4), lap('b', 91.1), lap('x', 90, false)];
     expect(withDefaultLaps(sel({laps: []}), few, facts).laps).toEqual([
+      'a',
+      'b',
+    ]);
+    expect(referenceDefaultLapIds(few, {...facts, bestLapId: null})).toEqual([
       'b',
       'a',
     ]);
-    expect(
-      withDefaultLaps(sel({laps: []}), few, {...facts, bestLapId: null}).laps,
-    ).toEqual(['b', 'a']);
   });
 
   it('keeps the laps the URL names, and waits while the session or its laps load', () => {
@@ -1006,7 +1035,9 @@ describe('which lap owns the radar', () => {
     expect(at({ref: 'c', hl: 'a'})?.lapId).toBe('a');
   });
   it('is null for a lap without a game lap number: it has no place in the field', () => {
-    const noNumber = laps.map(l => (l.id === 'b' ? {...l, lapNumber: null} : l));
+    const noNumber = laps.map(l =>
+      l.id === 'b' ? {...l, lapNumber: null} : l,
+    );
     const m = buildCompareModel({
       session,
       laps: noNumber,

@@ -1,7 +1,16 @@
+const fs = require('fs');
 const path = require('path');
 const {getDefaultConfig} = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
+
+// The transform cache is shared by every checkout on this PC, and its key does
+// not hold the project root, yet expo-router inlines the app folder's path
+// relative to that root (EXPO_ROUTER_APP_ROOT in its _ctx module). One
+// checkout's cached _ctx then points another at a folder that is not its own:
+// a worktree served "Welcome to Expo" with paddock-compare's app path baked in
+// (pit-wall thread 1 #3256). Each root keys its own cache.
+config.cacheVersion = `${config.cacheVersion ?? ''}:${__dirname}`;
 
 // Seats work in worktrees under <repo>/.claude/worktrees. From the main
 // checkout, Metro would crawl every one of them (a full copy of src each), and
@@ -39,7 +48,10 @@ if (mainRoot) {
     .split(/[\\/]/)
     .map(escapeRe)
     .join('[\\\\/]')
-    .replace(/^([A-Za-z]):/, (_, d) => `[${d.toLowerCase()}${d.toUpperCase()}]:`);
+    .replace(
+      /^([A-Za-z]):/,
+      (_, d) => `[${d.toLowerCase()}${d.toUpperCase()}]:`,
+    );
   const own = escapeRe(path.basename(__dirname));
   config.resolver.blockList = [
     ...config.resolver.blockList,
@@ -50,6 +62,30 @@ if (mainRoot) {
     ...(config.resolver.nodeModulesPaths ?? []),
     path.join(mainRoot, 'node_modules'),
   ];
+  // The bundle's entry is asked for as a path under this root
+  // ('./node_modules/expo-router/entry', from package.json's "main"), not as a
+  // package, so nodeModulesPaths never sees it and the page's script 404s
+  // (pit-wall thread 1 #3256). Without a node_modules of its own, such a path
+  // is answered from the main checkout's.
+  // Expo itself, not the folder: Metro's first run leaves node_modules/.cache
+  // behind in a worktree that has no packages.
+  if (!fs.existsSync(path.join(__dirname, 'node_modules', 'expo'))) {
+    const mainModules = path.join(mainRoot, 'node_modules');
+    const upstream = config.resolver.resolveRequest;
+    config.resolver.resolveRequest = (context, moduleName, platform) => {
+      // Only the root's own requests (the entry is asked from "<root>/."):
+      // a file deeper in that names ./node_modules means a folder of its own.
+      // path.relative, not ===: Windows paths differ in drive-letter case.
+      const rel = path.relative(__dirname, context.originModulePath);
+      const fromRoot = rel === '' || !/[\\/]|^\.\./.test(rel);
+      const under =
+        fromRoot && moduleName.match(/^\.[\\/]node_modules[\\/](.+)$/);
+      const name = under ? path.join(mainModules, under[1]) : moduleName;
+      return upstream
+        ? upstream(context, name, platform)
+        : context.resolveRequest(context, name, platform);
+    };
+  }
 }
 
 // Only live.mjs sets this: a live slot signs its pane in as seat-test

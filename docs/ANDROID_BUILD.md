@@ -114,3 +114,7 @@ npx eas-cli whoami
 ```
 
 All three should succeed without errors.
+
+## Release download (server side)
+
+Released APKs are served like the tray installer (pit-wall thread 1 #3270 to #3272; the tag workflow and the Settings card come in later PRs). The release workflow writes, under `gs://botracing-61-lmu/android/`, the APK at `<version>/BotRacing-<version>.apk` and then `latest.json`, last. The manifest is written only by `scripts/android-release.mjs` (`buildLatest`): `{version, versionCode, apk, sha256, cert_sha256, published_at}`, where `versionCode` is the one EAS built. `functions/src/androidCore.ts` serves it, anonymously: `GET /api/android/latest` gives `{version, versionCode, sha256, published_at, url}` with an hour's signed URL, and `GET /api/android/download` redirects to it. Both answer 404 until a release exists. The serving rules are shared with the tray (`functions/src/releaseCore.ts`), and the functions test builds its fixture with the same `buildLatest`, so the writer and the endpoint can't drift apart. `node scripts/android-release.mjs check android-v1.2.0` fails unless the tag matches `app.json`'s `expo.version`.
