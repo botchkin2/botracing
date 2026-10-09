@@ -23,6 +23,35 @@ config.resolver.blockList = [
   blocked,
 ];
 
+// In a worktree, packages come from the main checkout's node_modules: the
+// worktree has none (tools/dev/liveSlots.mjs checks the lockfile first).
+// Metro needs main in watchFolders and its node_modules on the resolver path.
+// Main's other worktrees stay blocked; this one stays open.
+const worktreesDir = path.dirname(__dirname);
+const mainRoot =
+  path.basename(worktreesDir) === 'worktrees' &&
+  path.basename(path.dirname(worktreesDir)) === '.claude'
+    ? path.dirname(path.dirname(worktreesDir))
+    : null;
+if (mainRoot) {
+  const mainWorktrees = path
+    .join(mainRoot, '.claude', 'worktrees')
+    .split(/[\\/]/)
+    .map(escapeRe)
+    .join('[\\\\/]')
+    .replace(/^([A-Za-z]):/, (_, d) => `[${d.toLowerCase()}${d.toUpperCase()}]:`);
+  const own = escapeRe(path.basename(__dirname));
+  config.resolver.blockList = [
+    ...config.resolver.blockList,
+    new RegExp(`^${mainWorktrees}[\\\\/](?!${own}(?:[\\\\/]|$)).*`),
+  ];
+  config.watchFolders = [...(config.watchFolders ?? []), mainRoot];
+  config.resolver.nodeModulesPaths = [
+    ...(config.resolver.nodeModulesPaths ?? []),
+    path.join(mainRoot, 'node_modules'),
+  ];
+}
+
 // Only live.mjs sets this: a live slot signs its pane in as seat-test
 // (tools/dev/seatToken.mjs). A plain `expo start` or an export has no endpoint.
 const seatPort = process.env.LIVE_SEAT_SIGNIN_PORT;

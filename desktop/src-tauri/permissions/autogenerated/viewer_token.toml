@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-viewer-token"
+description = "Enables the viewer_token command without any pre-configured scope."
+commands.allow = ["viewer_token"]
+
+[[permission]]
+identifier = "deny-viewer-token"
+description = "Denies the viewer_token command without any pre-configured scope."
+commands.deny = ["viewer_token"]
