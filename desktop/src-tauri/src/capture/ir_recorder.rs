@@ -117,6 +117,18 @@ struct Open<V> {
     player: Vec<Var>,
     field: Vec<Var>,
     session: Vec<Var>,
+    gate: Vec<Var>,
+}
+
+/// Whether the player is on track and not watching a replay: only then is a
+/// tick written. A sim that does not publish a flag is taken as on track.
+fn on_track(frame: &Frame, gate: &[Var]) -> bool {
+    let flag = |name: &str| {
+        gate.iter()
+            .find(|v| v.name == name)
+            .and_then(|v| frame.bool(v, 0))
+    };
+    flag("IsOnTrack").unwrap_or(true) && !flag("IsReplayPlaying").unwrap_or(false)
 }
 
 fn pick(reader: &Reader, names: &[&str]) -> Vec<Var> {
@@ -214,7 +226,15 @@ impl<S: IrSource> IrRecorder<S> {
             };
             let (player, field, session) =
                 (pick(&reader, PLAYER), pick(&reader, FIELD), pick(&reader, SESSION));
-            self.open = Some(Open { view, reader, player, field, session });
+            let gate = pick(&reader, &["IsOnTrack", "IsReplayPlaying"]);
+            self.open = Some(Open {
+                view,
+                reader,
+                player,
+                field,
+                session,
+                gate,
+            });
             self.last_alive_ms = ms;
             self.last_info_ms = 0;
         }
@@ -247,6 +267,11 @@ impl<S: IrSource> IrRecorder<S> {
             }
         }
         self.last_tick = Some(frame.tick);
+        // Menus and replays are not recorded. The session stays open, so a
+        // pause never starts a new session folder.
+        if !on_track(&frame, &open.gate) {
+            return POLL;
+        }
         let player: Vec<&Var> = open.player.iter().collect();
         let mut row = cells(&frame, &player, 0);
         row.push(("wall_ms".into(), Cell::I64(ms as i64)));
@@ -366,19 +391,22 @@ mod tests {
     const VARS_AT: usize = 112;
     const VAR_LEN: usize = 144;
     const BUF_LEN: usize = 256;
-    const INFO_AT: usize = 1024;
+    const INFO_AT: usize = 1536;
     const BUF0: usize = 4096;
     const SLOTS: usize = 4;
 
     // (name, type code, offset, count): Speed f32, Lap i32, SessionTime f64,
     // SessionNum i32, CarIdxLapDistPct f32[4], CarIdxPosition i32[4].
-    const VARS: [(&str, i32, i32, i32); 6] = [
+    const VARS: [(&str, i32, i32, i32); 8] = [
         ("Speed", 4, 0, 1),
         ("Lap", 2, 4, 1),
         ("SessionTime", 5, 8, 1),
         ("SessionNum", 2, 16, 1),
         ("CarIdxLapDistPct", 4, 24, SLOTS as i32),
         ("CarIdxPosition", 2, 40, SLOTS as i32),
+        // bool: one byte each, after the arrays
+        ("IsOnTrack", 1, 56, 1),
+        ("IsReplayPlaying", 1, 57, 1),
     ];
 
     const TEXT: &str = "---\nWeekendInfo:\n TrackID: 127\n TrackDisplayName: Road Atlanta\n TrackConfigName: Full Course\n SubSessionID: 99\nSessionInfo:\n CurrentSessionNum: 0\n Sessions:\n - SessionNum: 0\n   SessionType: Race\nDriverInfo:\n DriverCarIdx: 0\n Drivers:\n - CarIdx: 0\n   UserName: Secret Name\n   CarNumber: \"5\"\n   CarScreenName: Ford Mustang GT3\n - CarIdx: 1\n   UserName: Other Person\n   CarNumber: \"6\"\n - CarIdx: 2\n   UserName: Pace\n   CarIsPaceCar: 1\n...\n";
@@ -418,6 +446,11 @@ mod tests {
     /// Writes tick `t` into buffer slot t % 3 (speed = t, lap = 3, session
     /// time = t / 60, lap distance pct per car as given).
     fn frame(m: &mut [u8], t: i32, pcts: [f32; SLOTS]) {
+        frame_with(m, t, pcts, true, false);
+    }
+
+    /// As `frame`, with the player on track or not and in a replay or not.
+    fn frame_with(m: &mut [u8], t: i32, pcts: [f32; SLOTS], on_track: bool, replay: bool) {
         let slot = (t as usize) % 3;
         let at = BUF0 + slot * BUF_LEN;
         m[at..at + 4].copy_from_slice(&(t as f32).to_le_bytes());
@@ -428,6 +461,8 @@ mod tests {
             m[at + 24 + i * 4..at + 28 + i * 4].copy_from_slice(&p.to_le_bytes());
             put(m, at + 40 + i * 4, i as i32 + 1);
         }
+        m[at + 56] = on_track as u8;
+        m[at + 57] = replay as u8;
         put(m, 48 + slot * 16, t);
     }
 
@@ -500,6 +535,32 @@ mod tests {
         rec.tick(1010);
         assert!(captures(&root).is_empty());
         assert_eq!(rec.status.state, "waiting");
+    }
+
+    #[test]
+    fn menus_and_replays_are_not_recorded_and_the_session_stays_one_folder() {
+        let (mut rec, sim, root) = setup("gate", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        // 10 on track, 10 in a menu, 10 in a replay, 10 on track again.
+        for (range, on, replay) in [
+            (1..=10, true, false),
+            (11..=20, false, false),
+            (21..=30, true, true),
+            (31..=40, true, false),
+        ] {
+            for t in range {
+                frame_with(&mut sim.borrow_mut().mem, t, [0.1, 0.2, -1.0, 0.4], on, replay);
+                rec.tick(ms);
+                ms += 17;
+            }
+        }
+        sim.borrow_mut().running = false;
+        rec.tick(ms);
+        let dirs = captures(&root);
+        assert_eq!(dirs.len(), 1, "a pause never splits the session folder");
+        let (n, _) = rows(&dirs[0].join("player-0000.parquet"));
+        assert_eq!(n, 20, "only the on-track ticks are written");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
