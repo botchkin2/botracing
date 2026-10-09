@@ -17,6 +17,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 const HEADER_FILES: [&str; 2] = ["InternalsPlugin.hpp", "SharedMemoryInterface.hpp"];
 const DEFAULT_HEADER_DIR: &str =
     r"C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\Support\SharedMemoryInterface";
+/// The Steam install whose `libraryfolders.vdf` lists the other libraries.
+const DEFAULT_STEAM_ROOT: &str = r"C:\Program Files (x86)\Steam";
 /// How often a recorder that could not start (no header, another recorder
 /// running) tries again.
 const RETRY: Duration = Duration::from_secs(10);
@@ -95,11 +97,53 @@ impl Handle {
     }
 }
 
-/// `LMU_SHM_HEADER_DIR` overrides the default Steam install.
+/// `LMU_SHM_HEADER_DIR` overrides everything. Otherwise the header folder is
+/// looked up in every Steam library listed by the default Steam install's
+/// `libraryfolders.vdf`, and the default install path is the fallback.
 pub fn header_dir() -> PathBuf {
-    std::env::var_os("LMU_SHM_HEADER_DIR")
-        .map(PathBuf::from)
+    if let Some(dir) = std::env::var_os("LMU_SHM_HEADER_DIR") {
+        return PathBuf::from(dir);
+    }
+    let steam = Path::new(DEFAULT_STEAM_ROOT);
+    let vdf = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf"))
+        .unwrap_or_default();
+    find_header_dir(steam, &vdf, |dir| dir.join(HEADER_FILES[0]).is_file())
         .unwrap_or_else(|| PathBuf::from(DEFAULT_HEADER_DIR))
+}
+
+/// The header folder in the first Steam library (the install itself first,
+/// then the libraries `vdf` lists) where `has_header` finds the header.
+pub fn find_header_dir(
+    steam_root: &Path,
+    vdf: &str,
+    has_header: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let libraries = std::iter::once(steam_root.to_path_buf()).chain(library_paths(vdf));
+    libraries
+        .map(|lib| header_under(&lib))
+        .find(|dir| has_header(dir))
+}
+
+/// Where LMU's header folder sits inside a Steam library.
+fn header_under(library: &Path) -> PathBuf {
+    library
+        .join("steamapps")
+        .join("common")
+        .join("Le Mans Ultimate")
+        .join("Support")
+        .join("SharedMemoryInterface")
+}
+
+/// The `"path"` of every library in a `libraryfolders.vdf`, in file order.
+/// Steam writes Windows paths with doubled backslashes, which come back single.
+pub fn library_paths(vdf: &str) -> Vec<PathBuf> {
+    static PATH_LINE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#""path"\s+"((?:[^"\\]|\\.)*)""#).expect("valid regex")
+    });
+    PATH_LINE
+        .captures_iter(vdf)
+        .map(|c| PathBuf::from(c[1].replace(r"\\", r"\")))
+        .collect()
 }
 
 /// `LAP_CAPTURE` overrides `%LOCALAPPDATA%\lap-capture`, the folder the
@@ -217,6 +261,55 @@ mod tests {
         s.state = state;
         s.layout_reason = reason.into();
         s
+    }
+
+    // A libraryfolders.vdf as Steam writes it: two libraries, doubled backslashes.
+    const VDF: &str = r#""libraryfolders"
+{
+	"0"
+	{
+		"path"		"C:\\Program Files (x86)\\Steam"
+		"label"		""
+	}
+	"1"
+	{
+		"path"		"D:\\SteamLibrary"
+		"label"		""
+	}
+}"#;
+
+    #[test]
+    fn library_paths_are_read_from_the_vdf_with_single_backslashes() {
+        assert_eq!(
+            library_paths(VDF),
+            vec![
+                PathBuf::from(r"C:\Program Files (x86)\Steam"),
+                PathBuf::from(r"D:\SteamLibrary"),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_header_is_found_in_a_second_library() {
+        let lmu_in_d = header_under(Path::new(r"D:\SteamLibrary"));
+        let found = find_header_dir(
+            Path::new(r"C:\Program Files (x86)\Steam"),
+            VDF,
+            |dir| dir == lmu_in_d,
+        );
+        assert_eq!(found, Some(lmu_in_d));
+    }
+
+    #[test]
+    fn the_install_itself_is_checked_first_and_missing_gives_none() {
+        let in_install = header_under(Path::new(r"C:\Program Files (x86)\Steam"));
+        let steam = Path::new(r"C:\Program Files (x86)\Steam");
+        let found = find_header_dir(steam, VDF, |dir| dir == in_install);
+        assert_eq!(found, Some(in_install));
+        assert_eq!(
+            find_header_dir(Path::new(r"C:\Program Files (x86)\Steam"), VDF, |_| false),
+            None
+        );
     }
 
     #[test]
