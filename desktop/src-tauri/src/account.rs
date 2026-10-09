@@ -59,6 +59,8 @@ pub struct Settings {
     pub paused: bool,
     /// The uid whose owner key a person has seen and un-paused for.
     pub confirmed_uid: Option<String>,
+    /// Start with Windows: `None` until the first launch records it (on).
+    pub start_with_windows: Option<bool>,
 }
 
 impl Settings {
@@ -70,13 +72,18 @@ impl Settings {
         Settings {
             paused: value["paused"].as_bool().unwrap_or(false),
             confirmed_uid: value["confirmedUid"].as_str().map(str::to_string),
+            start_with_windows: value["startWithWindows"].as_bool(),
         }
     }
 
     /// Written whole to a neighbour file and renamed over, so a crash never
     /// leaves half a settings file (which would read as "not paused").
     fn save(&self, file: &Path) {
-        let value = json!({"paused": self.paused, "confirmedUid": self.confirmed_uid});
+        let value = json!({
+            "paused": self.paused,
+            "confirmedUid": self.confirmed_uid,
+            "startWithWindows": self.start_with_windows,
+        });
         let tmp = file.with_extension("json.tmp");
         if std::fs::write(&tmp, value.to_string()).is_ok() {
             let _ = std::fs::rename(&tmp, file);
@@ -379,6 +386,13 @@ impl Account {
         }
         self.settings.save(&self.settings_file());
         Ok(())
+    }
+
+    /// Records the Start with Windows choice (the Run value itself is
+    /// `autostart`'s).
+    pub fn record_start_with_windows(&mut self, on: bool) {
+        self.settings.start_with_windows = Some(on);
+        self.settings.save(&self.settings_file());
     }
 
     /// Stops the watcher (`stop`), deletes the token file, then removes the
