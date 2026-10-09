@@ -144,7 +144,7 @@ describe('windowCaption', () => {
         [{label: 'T2', lapM: 580}],
         zoom,
       ),
-    ).toBe('Shaded: T3 · also in view: T2 apex 580 m');
+    ).toBe('Shaded: T3 · also in view: T2');
   });
 
   it('says where a window runs past the drawn stretch, so the edge is not its end', () => {
@@ -156,7 +156,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toBe('Shaded: T10 · window continues to 4,300 m, not drawn');
+    ).toBe('Shaded: T10 · window continues past the drawn stretch, not drawn');
     expect(
       windowCaption(
         'T1',
@@ -165,7 +165,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toContain('window starts at 100 m, not drawn');
+    ).toContain('window starts before the drawn stretch, not drawn');
   });
 });
 
@@ -187,7 +187,7 @@ describe('the Corner model with windows', () => {
     expect(t3.zoom.stretch.fromM).toBe(700);
     expect(t3.zoom.deltaFromM).toBe(500);
     expect(t3.zoom.windowM[0]).toBeLessThanOrEqual(500);
-    expect(t3.zoom.caption).toContain('delta from the start of S2 at 500 m');
+    expect(t3.zoom.caption).toContain('delta from the start of S2');
     expect(t3.zoom.caption).not.toContain('not drawn');
     // The first part starts where its section does: nothing to add.
     const t2 = build(m, {v: 1, rev: 3}, 2)!;

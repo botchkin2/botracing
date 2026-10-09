@@ -17,7 +17,7 @@ import {
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
-import {formatDistance, formatGap, turnLabel} from '@/src/design';
+import {formatGap, turnLabel} from '@/src/design';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -183,11 +183,9 @@ export function buildSectionWindow(input: {
     const minWhere =
       facts.minSpeedKph == null || w.minSpeedAtM == null
         ? ''
-        : ` at ${formatDistance(w.minSpeedAtM)}${
-            w.minSpeedPart != null
-              ? ` in ${labelOf(w.minSpeedPart) ?? `T${w.minSpeedPart}`}`
-              : ''
-          }`;
+        : w.minSpeedPart != null
+        ? ` in ${labelOf(w.minSpeedPart) ?? `T${w.minSpeedPart}`}`
+        : '';
     return {
       ...base,
       time: gapFrom(facts.segTimeS, refFacts?.segTimeS),

@@ -152,7 +152,7 @@ describe('buildSectionWindow', () => {
     expect(b.exit.gap).toBe('+0.200');
     expect(a.speeds).toEqual({
       onset: '280 km/h',
-      min: '70 km/h at 660 m in T3',
+      min: '70 km/h in T3',
       fullThrottle: '120 km/h',
       end: '250 km/h',
     });

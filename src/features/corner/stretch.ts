@@ -1,5 +1,5 @@
 import {type TrackCorner} from '@/src/data/sessions';
-import {formatDistance, turnLabel} from '@/src/design';
+import {turnLabel} from '@/src/design';
 
 // Which stretch of track a Corner screen is about, and what else is in view.
 // The zoomed charts and the mini-map show a window around the apex that also
@@ -95,14 +95,13 @@ export function viewCaption(
   neighbours: {label: string; lapM: number}[],
   overlapping: string[] = [],
 ): string {
-  const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
-  return [
-    `Shaded: ${label}`,
+  const also = neighbours.map(n => n.label);
+  const rest = [
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
     overlapping.length > 0 ? overlapSentence([label, ...overlapping]) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean);
+  // Nothing beyond the chip's own label: no caption (rake, #345).
+  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
 }
 
 /**
@@ -130,25 +129,23 @@ export function windowCaption(
   const [startM, endM] = zoom;
   const cut = [
     inFrame.fromM < startM
-      ? `window starts at ${plain(window.fromM)} m, not drawn`
+      ? 'window starts before the drawn stretch, not drawn'
       : null,
     inFrame.toM > endM
-      ? `window continues to ${plain(window.toM)} m, not drawn`
+      ? 'window continues past the drawn stretch, not drawn'
       : null,
   ].filter(Boolean);
-  const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
-  return [
-    `Shaded: ${label}`,
+  const also = neighbours.map(n => n.label);
+  const rest = [
     ...cut,
     deltaFrom
-      ? `delta from the start of ${deltaFrom.label} at ${plain(
-          deltaFrom.lapM,
-        )} m${deltaFrom.drawn ? '' : ' (not drawn)'}`
+      ? `delta from the start of ${deltaFrom.label}${
+          deltaFrom.drawn ? '' : ' (not drawn)'
+        }`
       : null,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  ].filter(Boolean);
+  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
 }
 
 // "T8 and T9 overlap here", "T8, T9 and T10 overlap here".
@@ -181,11 +178,6 @@ export function overlappingLabels(
       return shifts.some(shift => a + shift < toM && fromM < b + shift);
     })
     .map(c => turnLabel(c.n, c.official));
-}
-
-// formatDistance adds the unit; the range prints one "m" after both numbers.
-function plain(m: number): string {
-  return Math.round(m).toLocaleString('en-US');
 }
 
 /**
