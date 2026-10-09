@@ -111,7 +111,11 @@ export function useRaceData(sessionId: string): RaceData {
   const title = `${shortTrackName(detail.track)} · ${
     SESSION_TITLE[detail.sessionType]
   }`;
-  if (hash === null) return {kind: 'no-field', title};
+  // iRacing's field has lap distances but no positions, so the screen has
+  // nothing to draw it with yet (the map line and the lap-distance placement
+  // come next, pit-wall thread 1 #2962): it says there is no field, rather than
+  // loading for ever.
+  if (hash === null || detail.sim !== 'lmu') return {kind: 'no-field', title};
   if (field.isError) {
     return {kind: 'field-error', title, retry: () => void field.refetch()};
   }
