@@ -4,6 +4,7 @@ import {type SessionSummary} from '@/src/data/sessions';
 import {
   buildSessionsModel,
   DEFAULT_SORT,
+  emptyDaysText,
   nextSort,
   type SessionRow,
   sortRows,
@@ -221,5 +222,16 @@ describe('finishing position', () => {
       's2',
       's1',
     ]);
+  });
+});
+
+describe('emptyDaysText', () => {
+  it('says recent only when no game or track is picked', () => {
+    expect(emptyDaysText({game: null, track: null})).toBe('No recent sessions');
+  });
+
+  it('says No sessions when a game or track is picked', () => {
+    expect(emptyDaysText({game: 'LMU', track: null})).toBe('No sessions');
+    expect(emptyDaysText({game: null, track: 'Spa'})).toBe('No sessions');
   });
 });

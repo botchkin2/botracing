@@ -115,10 +115,7 @@ export function SessionsScreen() {
       {model.state === 'ready' && model.days.length === 0 && (
         <View style={[styles.column, {width: contentWidth}]}>
           <Text tone='textMuted' style={styles.status}>
-            {/* A picked game or track is read whole, so nothing is not about recency. */}
-            {model.filter.game || model.filter.track
-              ? 'No sessions'
-              : 'No recent sessions'}
+            {model.emptyText}
           </Text>
         </View>
       )}
