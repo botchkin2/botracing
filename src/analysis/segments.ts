@@ -40,7 +40,7 @@ export interface SegmentStats {
   /** All null under MIN_OPTIMUM_LAPS. */
   bestS: number | null;
   medianS: number | null;
-  /** p90 − p10 of the times. */
+  /** p75 − p25 of the times: robust to one bad lap, unlike a deviation. */
   spreadS: number | null;
 }
 
@@ -78,7 +78,7 @@ export function segmentStats(times: SegmentTimes): SegmentStats[] {
       n: xs.length,
       bestS: xs[0],
       medianS: percentile(xs, 0.5),
-      spreadS: percentile(xs, 0.9) - percentile(xs, 0.1),
+      spreadS: percentile(xs, 0.75) - percentile(xs, 0.25),
     };
   });
 }

@@ -84,7 +84,12 @@ export function LapTableHeader({
           {h}
         </Text>
       ))}
-      {cell('Tags', undefined, false)}
+      <Text
+        variant='tableHeader'
+        tone='textMuted'
+        style={[styles.flex, wide && styles.tagsWide]}>
+        Tags
+      </Text>
     </View>
   );
 }
@@ -160,9 +165,10 @@ export function StintRow({
         wide && styles.wide,
         {width, borderColor: color.line},
       ]}>
+      {/* The button sits beside the label, not at the far end of the row (triage #10). */}
       <Text
         variant='dataSmall'
-        style={[styles.flex, styles.stintLabel]}
+        style={[styles.stintText, styles.stintLabel]}
         numberOfLines={1}>
         {row.label}
       </Text>
@@ -241,7 +247,10 @@ export function LapRow({
           {s.value}
         </Text>
       ))}
-      <Text variant='dataSmall' numberOfLines={1} style={styles.flex}>
+      <Text
+        variant='dataSmall'
+        numberOfLines={1}
+        style={[styles.flex, wide && styles.tagsWide]}>
         {shownTags.map((t, i) => (
           <Text
             key={t.code}
@@ -319,6 +328,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   stintLabel: {fontFamily: fonts.monoBold, fontSize: 10},
+  stintText: {flexShrink: 1},
   // 10 pt like the tags: the longest line, a pit line with laps left and the
   // time in the pits, is 363 pt at 11 pt and the phone row is 343.
   noteText: {fontSize: 10, flex: 1},
@@ -340,5 +350,7 @@ const styles = StyleSheet.create({
   },
   hlBar: {position: 'absolute', left: -space.xl, top: 0, bottom: 0, width: 3},
   tag: {fontSize: 10},
+  // Air between the last section column and the tags (triage #8).
+  tagsWide: {marginLeft: space.lg},
   wide: {height: WIDE_ROW_H, gap: space.md},
 });

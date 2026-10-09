@@ -47,13 +47,13 @@ describe('segmentOptimum', () => {
 });
 
 describe('segmentStats', () => {
-  it('gives best, median and p90 − p10 per segment', () => {
+  it('gives best, median and p75 − p25 per segment', () => {
     const [s1] = segmentStats(make(['S1', 'S2', 'S3']));
     expect(s1.n).toBe(5);
     expect(s1.bestS).toBe(10);
     expect(s1.medianS).toBe(11);
-    // sorted 10, 10.5, 11, 12, 13: p10 = 10.2, p90 = 12.6
-    expect(s1.spreadS).toBeCloseTo(2.4);
+    // sorted 10, 10.5, 11, 12, 13: p25 = 10.5, p75 = 12
+    expect(s1.spreadS).toBeCloseTo(1.5);
   });
 
   it('leaves a segment under the floor empty, and skips null times', () => {

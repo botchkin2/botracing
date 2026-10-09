@@ -207,11 +207,11 @@ function buildFuelUseCard(
 }
 
 /**
- * The clean and traffic medians beside the overall median, never instead of
- * it (Botkin, pit-wall thread 44 #1563): the headline pace stays every
- * comparable lap. Each shows the laps it uses and is left out under the 3-lap
- * floor or before a field's traffic block is analysed. A session with no
- * field says so, once.
+ * The clean median beside the overall median, never instead of it (Botkin,
+ * pit-wall thread 44 #1563): the headline pace stays every comparable lap. It
+ * shows the laps it uses and is left out under the 3-lap floor or before a
+ * field's traffic block is analysed. A session with no field says so, once.
+ * The traffic median is gone: it was accented and told him nothing (triage #13).
  */
 export function trafficPaceFacts(session: SessionDetail): Fact[] {
   const {traffic, field} = session;
@@ -220,13 +220,8 @@ export function trafficPaceFacts(session: SessionDetail): Fact[] {
       ? [{label: 'Clean median', value: 'No other cars recorded'}]
       : [];
   const facts: Fact[] = [];
-  for (const [label, set] of [
-    ['Clean median', traffic.clean],
-    ['Traffic median', traffic.traffic],
-  ] as const) {
-    const value = setText(set, session.comparableCount);
-    if (value) facts.push({label, value});
-  }
+  const value = setText(traffic.clean, session.comparableCount);
+  if (value) facts.push({label: 'Clean median', value});
   return facts;
 }
 
