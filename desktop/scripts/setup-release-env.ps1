@@ -14,8 +14,6 @@
 # Reads:
 #   ~\.botracing\updater.key, updater.key.password   the updater signing key
 #                                                    (made by `tauri signer generate`)
-#   ~\.botracing\oauth-desktop.json                  the Google "desktop app" OAuth client
-#                                                    JSON (-ClientFile to give another path)
 #   the Firebase web key: -FirebaseApiKey, or the public one in src\auth\firebase.web.ts
 #   -ServiceAccountFile (optional)                   a service account key JSON that may write
 #                                                    to the botracing-61-lmu bucket. Without it
@@ -34,7 +32,6 @@
 # API enabled on the project.
 param(
   [string]$Repo,
-  [string]$ClientFile = (Join-Path $env:USERPROFILE ".botracing\oauth-desktop.json"),
   [string]$FirebaseApiKey = $env:BOTRACING_FIREBASE_API_KEY,
   [string]$ServiceAccountFile,
   [string]$GcpProject = "botracing-61",
@@ -52,6 +49,23 @@ function Read-LatestSecret($name) {
   $v = gcloud secrets versions access latest --secret $name --project $GcpProject 2>$null
   if ($LASTEXITCODE -ne 0 -or -not $v) { return $null }
   return ($v -join "`n").Trim()
+}
+# The value goes to gcloud on stdin, exactly, with no trailing newline (a pipe from
+# PowerShell would add one) and no plain-text copy of the key in %TEMP%.
+function Add-SecretVersion($name, $value) {
+  $psi = [System.Diagnostics.ProcessStartInfo]::new("gcloud")
+  foreach ($arg in @("secrets", "versions", "add", $name, "--project", $GcpProject, "--data-file=-")) { $psi.ArgumentList.Add($arg) }
+  $psi.RedirectStandardInput = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $proc = [System.Diagnostics.Process]::Start($psi)
+  $proc.StandardInput.Write($value)
+  $proc.StandardInput.Close()
+  [void]$proc.StandardOutput.ReadToEnd()
+  [void]$proc.StandardError.ReadToEnd()
+  $proc.WaitForExit()
+  return ($proc.ExitCode -eq 0)
 }
 function Step($message) { Write-Host $(if ($DryRun) { "[dry run] $message" } else { $message }) }
 
@@ -84,19 +98,6 @@ if ($haveFiles) {
   } else {
     $missing += "the updater key ($keyFile and $pwFile, or Secret Manager $KeySecret and $PasswordSecret)"
   }
-}
-
-if (Test-Path $ClientFile) {
-  $json = Get-Content $ClientFile -Raw | ConvertFrom-Json
-  $client = if ($json.installed) { $json.installed } else { $json }
-  if ($client.client_id -and $client.client_secret) {
-    $values["BOTRACING_OAUTH_CLIENT_ID"] = $client.client_id
-    $values["BOTRACING_OAUTH_CLIENT_SECRET"] = $client.client_secret
-  } else {
-    $missing += "client_id and client_secret in $ClientFile"
-  }
-} else {
-  $missing += "the Google desktop OAuth client JSON ($ClientFile; download it from Google Cloud console > APIs & Services > Credentials)"
 }
 
 if (-not $FirebaseApiKey) {
@@ -192,12 +193,7 @@ foreach ($secret in $copies.Keys) {
     if ($LASTEXITCODE -ne 0) { Fail "could not create secret $secret (is the Secret Manager API enabled?)" }
   }
   if ((Read-LatestSecret $secret) -ne $value) {
-    $tmp = New-TemporaryFile
-    try {
-      [System.IO.File]::WriteAllText($tmp, $value)
-      gcloud secrets versions add $secret --project $GcpProject --data-file $tmp *> $null
-      if ($LASTEXITCODE -ne 0) { Fail "could not add a version to $secret" }
-    } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+    if (-not (Add-SecretVersion $secret $value)) { Fail "could not add a version to $secret" }
   }
   # Secret-level binding for this user only; no project-level role is granted.
   gcloud secrets add-iam-policy-binding $secret --project $GcpProject `

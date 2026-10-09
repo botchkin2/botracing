@@ -155,3 +155,13 @@ Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` ex
 Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
 
 Next, not in this step: Workload Identity Federation (GitHub OIDC) instead of keys, so no long-lived key exists at all.
+
+### Tray sign-in codes: delete the unused ones
+
+`POST /api/tray/code` stores one-time codes in `trayCodes/{sha256(code)}` (120 s, deleted when used). The ones nobody uses are removed by a Firestore TTL policy on their `expiresAt` field. Botkin runs this once; it needs no new role for the runtime account (the codes are read and deleted with `roles/datastore.user`, and the function signs custom tokens through step 1's Token Creator on itself):
+
+```powershell
+gcloud firestore fields ttls update expiresAt --collection-group=trayCodes --enable-ttl --project=botracing-61
+```
+
+Check: `gcloud firestore fields ttls list --project=botracing-61` lists `trayCodes` as `ACTIVE`. Until it is on, unused codes sit in a collection no client can read (`firestore.rules` deny everything) and expire in the function's own check.
