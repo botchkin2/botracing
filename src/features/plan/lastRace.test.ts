@@ -33,6 +33,9 @@ describe('lastRaceOf', () => {
       end: {lap: 'L73', fuelL: 4.9, vePct: 3},
       // What the car started the race with: offered to the Plan, not applied.
       start: {fuelL: 100, vePct: 87},
+      leftEarly: false,
+      playerLapsDone: null,
+      leaderLapsDone: null,
     });
   });
 
@@ -68,5 +71,18 @@ describe('lastRaceLine', () => {
 
   it('leaves the end out when there is no fuel level', () => {
     expect(lastRaceLine({...race, end: null})).toBe('2 stops at L25, L49');
+  });
+
+  it('a DNF names the lap against the race that finished', () => {
+    expect(
+      lastRaceLine({
+        ...race,
+        leftEarly: true,
+        playerLapsDone: 21,
+        leaderLapsDone: 24,
+      }),
+    ).toBe(
+      'DNF at L21 of 24 · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
+    );
   });
 });

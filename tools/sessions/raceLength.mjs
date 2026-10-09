@@ -19,7 +19,7 @@ export const NO_LAP_LIMIT = 2147483647;
 export const FIRST_RACE_SESSION = 10;
 /** mGamePhase while the race is green. */
 const GREEN = 5;
-/** Bump when the rule changes: it re-analyses every session once (analyze.mjs blockVersions). */
+/** Bump when the rule changes: it reanalyzes every session once (analyze.mjs blockVersions). */
 export const RACE_LENGTH_VERSION = 1;
 
 /**

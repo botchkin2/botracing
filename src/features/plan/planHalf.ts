@@ -11,7 +11,7 @@ import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
 import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
 
-import {type PlanBasis} from './planVsRace';
+import {type PlanBasis, scheduledLength} from './planVsRace';
 
 export type PlanHalfRow = {k: string; p: string; a: string};
 
@@ -71,7 +71,7 @@ export function buildPlanHalf(input: {
   end: ActualEnd | null;
 }): PlanHalf {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
-  if (facts.limitL != null && facts.race == null)
+  if (facts.limitL != null && scheduledLength(facts) == null)
     return {note: 'No race length on record.', rows: []};
   if (facts.limitL == null || !rules)
     return {
@@ -95,6 +95,15 @@ export function buildPlanHalf(input: {
   const stopLaps = option.stopLaps;
 
   const rows: PlanHalfRow[] = [];
+  if (facts.leftEarly) {
+    const of = facts.leaderLapsDone;
+    const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
+    rows.push({
+      k: 'Finish',
+      p: of != null ? `L${of}` : MISSING,
+      a: at != null ? `DNF L${at}` : 'DNF',
+    });
+  }
   const count = Math.max(stopLaps.length, stops.length);
   for (let i = 0; i < count; i++) {
     const n = stopLaps[i];

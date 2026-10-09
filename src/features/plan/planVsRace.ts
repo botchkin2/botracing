@@ -4,17 +4,31 @@
 import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
 /**
+ * How long the race was meant to be: the capture's length when it has one, else
+ * the leader's laps (formation not counted), else unknown. The laps this driver
+ * completed are never the length: a timed race ends at the flag, a lap after
+ * the clock runs out, and a DNF stops short.
+ */
+export function scheduledLength(
+  facts: Pick<RaceFacts, 'race' | 'leaderLapsDone'>,
+): NonNullable<RaceFacts['race']> | null {
+  if (facts.race) return facts.race;
+  const leader = facts.leaderLapsDone;
+  return leader != null && leader > 1 ? {kind: 'laps', laps: leader - 1} : null;
+}
+
+/**
  * The rules the planner is given for this race: its fill limit, its length
- * (the minutes or laps the capture recorded, never the laps this driver
- * completed), a full VE load and a formation lap. Null without a fill limit or
- * a known length.
+ * (`scheduledLength`), a full VE load and a formation lap. Null without a fill
+ * limit or a known length.
  */
 export function raceRules(facts: RaceFacts): PlanRules | null {
-  if (facts.limitL == null || facts.race == null) return null;
+  const length = scheduledLength(facts);
+  if (facts.limitL == null || length == null) return null;
   return {
     name: 'This race',
-    lengthLaps: facts.race.kind === 'laps' ? facts.race.laps : null,
-    lengthMin: facts.race.kind === 'timed' ? facts.race.minutes : null,
+    lengthLaps: length.kind === 'laps' ? length.laps : null,
+    lengthMin: length.kind === 'timed' ? length.minutes : null,
     fuelL: facts.limitL,
     vePct: 100,
     formationLap: true,

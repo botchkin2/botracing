@@ -31,6 +31,8 @@ permissions:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+    # Deploy credentials live in the `deploy` Environment (main only).
+    environment: deploy
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

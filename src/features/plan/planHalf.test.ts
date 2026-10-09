@@ -105,6 +105,24 @@ describe('buildPlanHalf', () => {
     expect(h.rows[3]).toEqual({k: 'In', p: '—', a: '4 % VE (1.1 laps)'});
   });
 
+  it('a DNF names the finish against the race that ran, and plans that distance', () => {
+    const h = half(
+      {
+        raceLaps: 40,
+        leftEarly: true,
+        playerLapsDone: 41,
+        leaderLapsDone: 61,
+      },
+      [actual(24)],
+    );
+    expect(h.rows[0]).toEqual({k: 'Finish', p: 'L61', a: 'DNF L41'});
+    // Scheduled 60 racing laps: two stops, not a 40-lap one-stop.
+    expect(h.rows.filter(r => r.k.startsWith('Stop'))).toEqual([
+      {k: 'Stop 1', p: 'after L28', a: 'after L24'},
+      {k: 'Stop 2', p: 'after L56', a: '—'},
+    ]);
+  });
+
   it('with no stop the plan is the one load to the flag', () => {
     const h = half({raceLaps: 20, race: {kind: 'laps', laps: 20}}, []);
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.

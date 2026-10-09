@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
-import {dateOf, plural, raceRules} from './planVsRace';
+import {dateOf, plural, raceRules, scheduledLength} from './planVsRace';
 
 const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   planKey: 't|c',
@@ -41,6 +41,37 @@ describe('raceRules', () => {
   it('has no rules without a fill limit or without a known length', () => {
     expect(raceRules(facts({limitL: null}))).toBeNull();
     expect(raceRules(facts({race: null}))).toBeNull();
+  });
+
+  it('a DNF with no capture is planned as the leader laps, not the short one driven', () => {
+    expect(
+      raceRules(
+        facts({
+          race: null,
+          raceLaps: 20,
+          leftEarly: true,
+          playerLapsDone: 21,
+          leaderLapsDone: 24,
+        }),
+      )?.lengthLaps,
+    ).toBe(23);
+  });
+});
+
+describe('scheduledLength', () => {
+  it('prefers the capture over the leader laps', () => {
+    expect(
+      scheduledLength({race: {kind: 'timed', minutes: 40}, leaderLapsDone: 24}),
+    ).toEqual({kind: 'timed', minutes: 40});
+  });
+
+  it('falls back to the leader laps without the formation lap, then to nothing', () => {
+    expect(scheduledLength({race: null, leaderLapsDone: 24})).toEqual({
+      kind: 'laps',
+      laps: 23,
+    });
+    expect(scheduledLength({race: null, leaderLapsDone: null})).toBeNull();
+    expect(scheduledLength({race: null})).toBeNull();
   });
 });
 
