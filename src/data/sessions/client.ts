@@ -58,6 +58,9 @@ export async function fetchSessionLaps(
   id: string,
   signal?: AbortSignal,
 ): Promise<Lap[]> {
+  // No session open (the Sessions list, a track page): nothing to ask for.
+  // An empty id made the request '/sessions//laps' on every page.
+  if (!id) return [];
   const body = await getJson<SessionLapsResponse>(
     `/sessions/${encodeURIComponent(id)}/laps`,
     signal,
