@@ -542,7 +542,7 @@ export function buildCornerModel(input: {
         zoomWindow[1],
       ),
       dimmed: dimmedRanges(zoomWindow, view.stretch),
-      brakeZone: brakeZone(lines, zoomWindow[1]),
+      brakeZone: brakeZone(lines, view.stretch.toM),
       neighbours: view.neighbours,
       caption: view.caption,
     },

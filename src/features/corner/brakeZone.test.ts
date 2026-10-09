@@ -63,6 +63,16 @@ describe('brakeZone', () => {
     ).toBeNull();
   });
 
+  it("does not read past the stretch: a heavier stop in the next corner is not this corner's peak", () => {
+    // T1: 40 % at 10–20 m. T2 starts at 40 m with a 90 % stop. The stretch ends at 30 m.
+    const pct = Array.from({length: 60}, (_, i) =>
+      i >= 10 && i < 20 ? 40 : i >= 40 && i < 55 ? 90 : 0,
+    );
+    expect(brakeZone([{brakeAtM: 10, brakePct: pct, stepM: 1}], 30)).toEqual([
+      10, 20,
+    ]);
+  });
+
   it('reads each lap on its own grid step', () => {
     // 5 m grid: onset at 50 m is index 10; pedal held to index 14 (70 m).
     const fiveM = Array.from({length: 30}, (_, i) =>
