@@ -29,10 +29,8 @@ pub fn waiting_status(message: Option<&str>) -> String {
     message.map_or_else(|| "Signing back in…".into(), str::to_string)
 }
 
-/// The menu as data, for tests only: the setup builds the real menu inline (its
-/// handles need set_text later), and these describe the same items so the state
-/// rules can be tested without a Tauri app.
-#[cfg(test)]
+/// The menu as data. The live tray is built from `menu_items_for` and updated
+/// from it, so a test of this list covers what ships.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MenuState {
     pub primary: (String, bool),
@@ -40,21 +38,42 @@ pub struct MenuState {
     pub paused: bool,
     pub status: String,
     pub recorder: String,
-    pub update_line: String,
+    /// The update line and whether it can be clicked.
+    pub update: (String, bool),
     pub start_with_windows: bool,
     pub default_profile: bool,
 }
 
-#[cfg(test)]
 impl MenuState {
-    pub fn of(acct: &Account, status: String, recorder: String, update_line: String) -> MenuState {
+    /// The state from the account and the live lines the setup computes.
+    pub fn of(
+        acct: &Account,
+        status: String,
+        recorder: String,
+        update: (String, bool),
+        start_with_windows: bool,
+    ) -> MenuState {
         MenuState {
             primary: primary(acct),
             signed_in: acct.session.is_some(),
             paused: acct.settings.paused,
             status,
             recorder,
-            update_line,
+            update,
+            start_with_windows,
+            default_profile: crate::profile::is_default(),
+        }
+    }
+
+    /// The state before the first poll: signed out, starting up.
+    pub fn initial(update: (String, bool)) -> MenuState {
+        MenuState {
+            primary: ("Sign in".into(), true),
+            signed_in: false,
+            paused: false,
+            status: "Starting…".into(),
+            recorder: "Recorder: starting".into(),
+            update,
             start_with_windows: false,
             default_profile: crate::profile::is_default(),
         }
@@ -62,7 +81,6 @@ impl MenuState {
 }
 
 /// One entry of the tray menu. `checked` is set only for a check item.
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Item {
     pub id: &'static str,
@@ -71,14 +89,12 @@ pub struct Item {
     pub checked: Option<bool>,
 }
 
-#[cfg(test)]
 fn item(id: &'static str, text: impl Into<String>, enabled: bool) -> Item {
     Item { id, text: text.into(), enabled, checked: None }
 }
 
 /// The tray menu's items in order. The status and recorder lines are the only
 /// text that varies by state beyond the sign-in item; no uid or owner line.
-#[cfg(test)]
 pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
     vec![
         item("signin", state.primary.0.clone(), state.primary.1),
@@ -96,7 +112,7 @@ pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
         },
         item("older", "Upload older sessions…", true),
         item("folder", "Open data folder", true),
-        item("update", state.update_line.clone(), false),
+        item("update", state.update.0.clone(), state.update.1),
         item("quit", "Quit", true),
     ]
 }
@@ -178,7 +194,7 @@ mod tests {
             paused,
             status: "status".into(),
             recorder: "Recorder: off".into(),
-            update_line: "up to date".into(),
+            update: ("up to date".into(), false),
             start_with_windows: false,
             default_profile: true,
         }
