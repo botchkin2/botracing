@@ -115,8 +115,8 @@ export const defaultThresholds: Thresholds = {
   // A lap is in wet conditions from this much racing-line wetness (percent).
   wetPct: 5,
   // A pass through a section with this much off-track time does not count
-  // as that section's best.
-  cleanOffSec: 0.2,
+  // as that section's best. ≥2 wheels on loose for 0.3 s (triage #49).
+  cleanOffSec: 0.3,
 };
 
 // Laps are only compared with laps driven in the same conditions: the same
