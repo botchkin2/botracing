@@ -171,7 +171,11 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         // The window's size and place, remembered.
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![viewer::viewer_token, viewer::sign_out])
+        .invoke_handler(tauri::generate_handler![
+            viewer::tray_uid,
+            viewer::viewer_token,
+            viewer::sign_out
+        ])
         .setup(|app| {
             // `--quit` is a message to a running tray (the single-instance hold
             // forwards it and ends this process before we get here). Reaching
@@ -296,7 +300,9 @@ fn main() {
                             (account_menu.clone(), sup_menu.clone(), app.clone());
                         // Also closes the window and empties its storage: the
                         // window is never signed in as someone the tray is not.
-                        std::thread::spawn(move || viewer::sign_out_everything(&app, &account, &sup));
+                        std::thread::spawn(move || {
+                            viewer::sign_out_everything(&app, &account, &sup)
+                        });
                     }
                     "open" => {
                         // Off this thread: a window built from a menu handler
@@ -440,7 +446,7 @@ fn main() {
 /// Shows the window on the hosted app. If it cannot be built the system
 /// browser takes over, and the status line says if even that fails.
 fn open_window(app: &tauri::AppHandle) {
-    let data = app.state::<Arc<sidecar::Paths>>().data.join("webview");
+    let data = viewer::webview_dir(&app.state::<Arc<sidecar::Paths>>().data);
     if viewer::open(app, &data).is_err() {
         if let Err(why) = browser::open() {
             if let Some(account) = app.try_state::<Shared<account::Account>>() {
@@ -491,7 +497,10 @@ mod tests {
     fn only_a_debug_build_opens_the_window_at_launch() {
         assert!(opens_on_start(true, true));
         assert!(!opens_on_start(true, false));
-        assert!(!opens_on_start(false, true), "a release build ignores BOTRACING_OPEN_ON_START");
+        assert!(
+            !opens_on_start(false, true),
+            "a release build ignores BOTRACING_OPEN_ON_START"
+        );
         assert!(!opens_on_start(false, false));
     }
 

@@ -92,7 +92,7 @@ impl Settings {
 }
 
 /// How soon before its end an ID token is replaced.
-const REFRESH_MARGIN: Duration = Duration::from_secs(10 * 60);
+pub const REFRESH_MARGIN: Duration = Duration::from_secs(10 * 60);
 /// How often the owner key is read again.
 const OWNER_EVERY: Duration = Duration::from_secs(5 * 60);
 /// How long to wait after a network failure before trying again.
@@ -125,6 +125,25 @@ pub fn run(cfg: &Config, work: Work) -> Done {
         Work::Restore(old) => Done::Restore(auth::refresh(cfg, &old)),
         Work::Refresh(old) => Done::Refresh(auth::refresh(cfg, &old)),
         Work::Owner(id_token) => Done::Owner(auth::owner_key(cfg, &id_token)),
+    }
+}
+
+/// Renews this session's ID token now, for a caller that cannot wait for the
+/// tray's loop (the window's `viewer_token`). Same rules as the loop: the
+/// network step without the lock, the result through `apply`, so a refusal
+/// signs out exactly as it would there. The session in force afterwards.
+pub fn refresh_now(
+    account: &crate::Shared<Account>,
+    cfg: &Config,
+    session: Session,
+) -> Result<Session, String> {
+    let done = run(cfg, Work::Refresh(session));
+    let mut acct = account.lock().unwrap();
+    acct.apply(done);
+    match &acct.session {
+        Some(s) if !s.expires_within(Duration::ZERO) => Ok(s.clone()),
+        Some(_) => Err("couldn't reach BotRacing: try again".into()),
+        None => Err("Sign in from the tray icon".into()),
     }
 }
 
@@ -509,7 +528,10 @@ mod tests {
         maintain(&a);
         let acct = a.lock().unwrap();
         assert_eq!(acct.owner_key.as_deref(), Some("botkin"));
-        assert!(!acct.settings.paused && acct.should_run(), "own account runs unpaused");
+        assert!(
+            !acct.settings.paused && acct.should_run(),
+            "own account runs unpaused"
+        );
         assert!(!acct.unconfirmed());
     }
 
@@ -522,11 +544,17 @@ mod tests {
         maintain(&a);
         {
             let mut acct = a.lock().unwrap();
-            assert!(!acct.settings.paused, "own account confirmed at the first read");
+            assert!(
+                !acct.settings.paused,
+                "own account confirmed at the first read"
+            );
             acct.set_paused(true).unwrap();
         }
         maintain(&a);
-        assert!(a.lock().unwrap().settings.paused, "the owner read must not undo a pause");
+        assert!(
+            a.lock().unwrap().settings.paused,
+            "the owner read must not undo a pause"
+        );
     }
 
     #[test]

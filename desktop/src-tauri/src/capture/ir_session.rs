@@ -65,7 +65,10 @@ fn key_value(text: &str) -> Option<(&str, &str)> {
 /// "0xff5888" to "#ff5888"; a short value is padded with zeros ("0x5888" is
 /// "#005888"); anything that is not 1 to 6 hex digits is "".
 fn hex_colour(value: &str) -> String {
-    let digits = value.trim().trim_start_matches("0x").trim_start_matches("0X");
+    let digits = value
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
     if (1..=6).contains(&digits.len()) && digits.chars().all(|c| c.is_ascii_hexdigit()) {
         format!("#{:0>6}", digits.to_ascii_lowercase())
     } else {
@@ -155,7 +158,10 @@ pub fn parse(text: &str) -> SessionMeta {
                 } else if in_drivers {
                     if key == "CarIdx" && item.is_some() {
                         push_driver(&mut driver, &mut meta.drivers);
-                        driver = Some(Driver { car_idx: int(value), ..Driver::default() });
+                        driver = Some(Driver {
+                            car_idx: int(value),
+                            ..Driver::default()
+                        });
                     } else if let Some(d) = driver.as_mut() {
                         match key {
                             "CarNumber" => d.car_number = value.to_string(),
@@ -197,7 +203,11 @@ impl SessionMeta {
     /// sessions leave it empty), the model most of its cars drive ("Ford
     /// Mustang GT3"). Never a person's name: cars only.
     pub fn class_label(&self, class_id: i64) -> String {
-        let members = || self.drivers.iter().filter(|d| d.class_id == class_id && !d.pace_car && !d.spectator);
+        let members = || {
+            self.drivers
+                .iter()
+                .filter(|d| d.class_id == class_id && !d.pace_car && !d.spectator)
+        };
         if let Some(named) = members().find(|d| !d.class_name.is_empty()) {
             return named.class_name.clone();
         }
@@ -276,7 +286,10 @@ mod tests {
         assert_eq!((m.track_id, m.track_name.as_str()), (127, "Road Atlanta"));
         assert_eq!(m.track_config, "Full Course");
         assert!((m.track_length_m - 4060.0).abs() < 1e-6);
-        assert_eq!((m.series_id, m.sub_session_id, m.session_num), (447, 88284244, 1));
+        assert_eq!(
+            (m.series_id, m.sub_session_id, m.session_num),
+            (447, 88284244, 1)
+        );
         assert_eq!(m.session_type, "Race");
         assert_eq!(m.player_idx, 2);
         assert_eq!(m.drivers.len(), 4);
@@ -289,8 +302,14 @@ mod tests {
     #[test]
     fn what_is_written_has_no_names_or_ids_of_people() {
         let text = parse(TEXT).to_json().to_string();
-        for secret in ["Dupont", "toiles", "Botkin", "Watcher", "111", "222", "333", "UserName", "CustID", "TeamName"] {
-            assert!(!text.contains(secret), "{secret} reached the output: {text}");
+        for secret in [
+            "Dupont", "toiles", "Botkin", "Watcher", "111", "222", "333", "UserName", "CustID",
+            "TeamName",
+        ] {
+            assert!(
+                !text.contains(secret),
+                "{secret} reached the output: {text}"
+            );
         }
         assert!(text.contains("Ford Mustang GT3"));
         assert!(text.contains("\"isPlayer\":true"));
@@ -384,7 +403,10 @@ DriverInfo:
         assert_eq!(m.class_label(1), "", "an unknown class has no label");
         let json = m.to_json().to_string();
         assert!(json.contains("\"classColor\":\"#33ceff\""), "{json}");
-        assert!(json.contains("\"classLabel\":\"Dallara P217 LMP2\""), "{json}");
+        assert!(
+            json.contains("\"classLabel\":\"Dallara P217 LMP2\""),
+            "{json}"
+        );
         // Still no people.
         assert!(!json.contains("UserName"));
     }

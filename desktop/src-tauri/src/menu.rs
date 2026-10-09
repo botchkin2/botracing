@@ -95,7 +95,12 @@ pub struct Item {
 }
 
 fn item(id: &'static str, text: impl Into<String>, enabled: bool) -> Item {
-    Item { id, text: text.into(), enabled, checked: None }
+    Item {
+        id,
+        text: text.into(),
+        enabled,
+        checked: None,
+    }
 }
 
 /// The tray menu's items in order. The status and recorder lines are the only
@@ -109,7 +114,12 @@ pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
         item("separator", "", false),
         item("signout", "Sign out", state.signed_in),
         item("open", "Open BotRacing", true),
-        Item { id: "pause", text: "Pause uploads".into(), enabled: true, checked: Some(state.paused) },
+        Item {
+            id: "pause",
+            text: "Pause uploads".into(),
+            enabled: true,
+            checked: Some(state.paused),
+        },
         Item {
             id: "autostart",
             text: "Start with Windows".into(),
@@ -216,11 +226,27 @@ mod tests {
         let items = menu_items_for(&state(true, false, ("Signed in as a@b.c", false)));
         assert_eq!(
             ids(&items),
-            ["signin", "status", "recorder", "iracing", "separator", "signout", "open", "pause", "autostart", "older", "folder", "update", "quit"]
+            [
+                "signin",
+                "status",
+                "recorder",
+                "iracing",
+                "separator",
+                "signout",
+                "open",
+                "pause",
+                "autostart",
+                "older",
+                "folder",
+                "update",
+                "quit"
+            ]
         );
         let pause = items.iter().find(|i| i.id == "pause").unwrap();
         assert_eq!(pause.checked, Some(false), "no Paused for the own account");
-        assert!(items.iter().all(|i| !i.text.starts_with("uid") && !i.text.starts_with("owner")));
+        assert!(items
+            .iter()
+            .all(|i| !i.text.starts_with("uid") && !i.text.starts_with("owner")));
     }
 
     #[test]

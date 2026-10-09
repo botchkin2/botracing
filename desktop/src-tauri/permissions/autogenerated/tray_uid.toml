@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tray-uid"
+description = "Enables the tray_uid command without any pre-configured scope."
+commands.allow = ["tray_uid"]
+
+[[permission]]
+identifier = "deny-tray-uid"
+description = "Denies the tray_uid command without any pre-configured scope."
+commands.deny = ["tray_uid"]

@@ -17,9 +17,8 @@ fn main() {
     }
     // The only commands a page may call: the window's (src/viewer.rs). Declared
     // here so each has a permission the capability can grant, and nothing else.
-    tauri_build::try_build(
-        tauri_build::Attributes::new()
-            .app_manifest(tauri_build::AppManifest::new().commands(&["viewer_token", "sign_out"])),
-    )
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&["tray_uid", "viewer_token", "sign_out"]),
+    ))
     .expect("tauri build failed")
 }

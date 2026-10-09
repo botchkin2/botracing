@@ -3,22 +3,23 @@
 // signed in as the tray's user with no Google in the webview.
 //
 // The page is remote content, so what it can reach is small and pinned down:
-// - the capability `viewer.json` names exactly the app origin and exactly two
-//   commands, `viewer_token` and `sign_out`; nothing else (no fs, shell,
+// - the capability `viewer.json` names exactly the app origin and exactly three
+//   commands, `tray_uid`, `viewer_token` and `sign_out`; nothing else (no fs, shell,
 //   opener, events). Whatever the page can call, an XSS on it could call too;
-//   `viewer_token` gives it only the user's own session and `sign_out` ends it;
-// - both commands refuse a caller that is not the app origin;
+//   `tray_uid` and `viewer_token` give it only the user's own session, `sign_out` ends it;
+// - the commands refuse a caller that is not the app origin;
 // - navigation stays on the app origin; any other link opens in the system
 //   browser and the window stays where it is (never accounts.google.com);
 // - the custom token reaches the page over IPC and never in a URL, so it is not
 //   in WebView2's history.
-use crate::account::Account;
+use crate::account::{self, Account};
 use crate::browser::{app_url, APP_HOSTS};
-use crate::sidecar::Supervisor;
+use crate::sidecar::{Paths, Supervisor};
 use crate::Shared;
 use serde::Serialize;
 use serde_json::Value;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::webview::NewWindowResponse;
 use tauri::{
@@ -79,11 +80,15 @@ fn is_offline_page(url: &Url) -> bool {
         && url.path() == format!("/{OFFLINE_PAGE}")
 }
 
+/// How long "Open BotRacing" waits on the site before it shows the offline
+/// page: the window appears within this even with no network (rake #3161).
+const REACHABLE_WAIT: Duration = Duration::from_millis(1500);
+
 /// Whether the app's site answers: a failed load in the webview would show
 /// WebView2's own error page, so the tray checks first.
 fn reachable(url: &str) -> bool {
     ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(5))
+        .timeout(REACHABLE_WAIT)
         .build()
         .head(url)
         .call()
@@ -91,8 +96,7 @@ fn reachable(url: &str) -> bool {
 }
 
 /// Tauri's own WebView2 arguments on Windows; any we add must keep them.
-const DEFAULT_BROWSER_ARGS: &str =
-    "--disable-features=msWebOoUI,msPdfOOUI,msSmartScreenProtection";
+const DEFAULT_BROWSER_ARGS: &str = "--disable-features=msWebOoUI,msPdfOOUI,msSmartScreenProtection";
 
 /// The WebView2 arguments for a debug build with `BOTRACING_DEVTOOLS_PORT`
 /// set: a CDP port on loopback, for a proof of the window. Any local process
@@ -103,15 +107,21 @@ fn devtools_args(debug_build: bool, port: Option<&str>) -> Option<String> {
     debug_build.then(|| format!("{DEFAULT_BROWSER_ARGS} --remote-debugging-port={port}"))
 }
 
+/// One open at a time: two quick clicks of "Open BotRacing" would both find no
+/// window, and the second build would fail on the taken label.
+static OPENING: Mutex<()> = Mutex::new(());
+
 /// Shows the window, creating it the first time. Call off the main thread: a
 /// window built from a menu handler on Windows can deadlock.
 pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
+    let _one = OPENING.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
         return Ok(());
     }
+    wipe_if_owed(webview_data);
     let url = app_url();
     let target = if reachable(&url) {
         WebviewUrl::External(url.parse::<Url>().map_err(|e| e.to_string())?)
@@ -167,7 +177,7 @@ pub fn parse_viewer_answer(body: &Value, expected_uid: &str) -> Result<ViewerTok
     if uid != expected_uid {
         return Err("the server answered for another user".into());
     }
-    Ok(ViewerToken {custom_token, uid})
+    Ok(ViewerToken { custom_token, uid })
 }
 
 fn request_viewer_token(
@@ -200,28 +210,41 @@ fn from_app(webview: &Webview) -> Result<(), String> {
     }
 }
 
+/// Who the tray is signed in as, or null. The page compares its own user with
+/// this on every load: a sign-in kept in the webview from another tray user
+/// (or one left by a sign-out that could not empty the folder) is signed out
+/// (rake #3161). The uid only, nothing that signs anyone in.
+#[tauri::command]
+pub fn tray_uid(
+    webview: Webview,
+    account: State<'_, Shared<Account>>,
+) -> Result<Option<String>, String> {
+    from_app(&webview)?;
+    let acct = account.lock().unwrap();
+    Ok(acct.session.as_ref().map(|s| s.uid.clone()))
+}
+
 /// The page asks for a sign-in on load when it is signed out. Fresh each call:
-/// nothing is kept.
+/// nothing is kept. An ID token about to run out is renewed first, the same
+/// renewal the tray's own loop makes.
 #[tauri::command(async)]
 pub fn viewer_token(
     webview: Webview,
     account: State<'_, Shared<Account>>,
 ) -> Result<ViewerToken, String> {
     from_app(&webview)?;
-    // The network call runs without the account lock held.
-    let (api, id_token, uid) = {
+    // The network calls run without the account lock held.
+    let (cfg, session) = {
         let acct = account.lock().unwrap();
-        let session = acct
-            .session
-            .as_ref()
-            .ok_or("Sign in from the tray icon")?;
-        (
-            acct.config().tray_api.clone(),
-            session.id_token.clone(),
-            session.uid.clone(),
-        )
+        let session = acct.session.clone().ok_or("Sign in from the tray icon")?;
+        (acct.config().clone(), session)
     };
-    request_viewer_token(&api, &id_token, &uid)
+    let session = if session.expires_within(account::REFRESH_MARGIN) {
+        account::refresh_now(&account, &cfg, session)?
+    } else {
+        session
+    };
+    request_viewer_token(&cfg.tray_api, &session.id_token, &session.uid)
 }
 
 /// Signs the tray out and forgets the window's sign-in. Same as the tray menu's
@@ -238,13 +261,62 @@ pub fn sign_out_everything(
     forget(app);
 }
 
-/// Empties the window's storage and closes it, so nothing of the sign-in is
-/// left in the webview profile.
+/// Closes the window and deletes its storage folder, so nothing of the sign-in
+/// is left in the webview profile. Always, whether or not the window was
+/// opened in this run: a sign-in persisted by an earlier run lives in the
+/// folder, not in the window (rake #3161).
 pub fn forget(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.clear_all_browsing_data();
         // `destroy`, not `close`: close only hides it (see `open`).
         let _ = window.destroy();
+    }
+    if let Some(paths) = app.try_state::<Arc<Paths>>() {
+        let dir = webview_dir(&paths.data);
+        // WebView2 lets go of its files a moment after the window goes.
+        std::thread::spawn(move || {
+            wipe(&dir, WIPE_TRIES, Duration::from_millis(250));
+        });
+    }
+}
+
+/// The window's storage, under the tray's own (per profile) data folder.
+pub fn webview_dir(data: &Path) -> PathBuf {
+    data.join("webview")
+}
+
+const WIPE_TRIES: u32 = 20;
+
+/// The mark that a wipe is owed: left when the folder could not be deleted
+/// yet, and honoured before the next window is built.
+fn wipe_mark(dir: &Path) -> PathBuf {
+    dir.with_extension("wipe")
+}
+
+/// Deletes the storage folder, trying again while WebView2 still holds it.
+/// The mark goes first and stays until the folder is gone, so a wipe cut short
+/// (the tray quit, a file still locked) is finished by the next `open`. True
+/// once the folder is gone.
+pub fn wipe(dir: &Path, tries: u32, wait: Duration) -> bool {
+    let mark = wipe_mark(dir);
+    let _ = std::fs::write(&mark, b"");
+    for attempt in 0..tries.max(1) {
+        match std::fs::remove_dir_all(dir) {
+            Ok(()) => break,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
+            Err(_) if attempt + 1 < tries => std::thread::sleep(wait),
+            Err(_) => return false,
+        }
+    }
+    let _ = std::fs::remove_file(&mark);
+    true
+}
+
+/// Finishes a wipe an earlier sign-out could not: no window exists here, so
+/// nothing holds the folder.
+fn wipe_if_owed(dir: &Path) {
+    if wipe_mark(dir).exists() {
+        wipe(dir, 3, Duration::from_millis(100));
     }
 }
 
@@ -272,11 +344,22 @@ mod tests {
     fn only_a_debug_build_opens_a_devtools_port() {
         let args = devtools_args(true, Some("9333")).unwrap();
         assert!(args.ends_with(" --remote-debugging-port=9333"));
-        assert!(args.starts_with(DEFAULT_BROWSER_ARGS), "Tauri's own arguments stay");
-        assert_eq!(devtools_args(false, Some("9333")), None, "a release build never opens one");
+        assert!(
+            args.starts_with(DEFAULT_BROWSER_ARGS),
+            "Tauri's own arguments stay"
+        );
+        assert_eq!(
+            devtools_args(false, Some("9333")),
+            None,
+            "a release build never opens one"
+        );
         assert_eq!(devtools_args(true, None), None);
         for bad in ["", "0", "x", "70000", "9333 --no-sandbox"] {
-            assert_eq!(devtools_args(true, Some(bad)), None, "{bad:?} is not a port");
+            assert_eq!(
+                devtools_args(true, Some(bad)),
+                None,
+                "{bad:?} is not a port"
+            );
         }
     }
 
@@ -314,7 +397,10 @@ mod tests {
             &url("https://botracing.example.evil.test/"),
             &hosts
         ));
-        assert!(!is_app_url_in(&url("https://sub.botracing.example/"), &hosts));
+        assert!(!is_app_url_in(
+            &url("https://sub.botracing.example/"),
+            &hosts
+        ));
         assert!(!is_app_url_in(&url("http://botracing.example/"), &hosts));
     }
 
@@ -337,8 +423,12 @@ mod tests {
 
     #[test]
     fn the_window_navigates_only_within_the_app_and_its_offline_page() {
-        assert!(navigation_allowed(&url("https://botracing-61.web.app/plan")));
-        assert!(navigation_allowed(&url("http://tauri.localhost/offline.html")));
+        assert!(navigation_allowed(&url(
+            "https://botracing-61.web.app/plan"
+        )));
+        assert!(navigation_allowed(&url(
+            "http://tauri.localhost/offline.html"
+        )));
         // Every other address is refused (and, for a web link, sent out).
         for refused in [
             "https://accounts.google.com/signin",
@@ -357,7 +447,10 @@ mod tests {
         let ok = serde_json::json!({"customToken": "t", "uid": "u1", "email": "a@b.example"});
         assert_eq!(
             parse_viewer_answer(&ok, "u1"),
-            Ok(ViewerToken {custom_token: "t".into(), uid: "u1".into()})
+            Ok(ViewerToken {
+                custom_token: "t".into(),
+                uid: "u1".into()
+            })
         );
         assert!(parse_viewer_answer(&ok, "someone-else").is_err());
         for missing in [
@@ -372,10 +465,10 @@ mod tests {
 
     // What the page can reach is pinned here, replacing the "no embedded page"
     // test from #292: the capability names exactly the app origin and exactly
-    // the two commands, with no other permission; the commands are the only
+    // the three commands, with no other permission; the commands are the only
     // ones registered; navigation refuses everything else.
     #[test]
-    fn the_page_can_reach_exactly_the_app_origin_and_two_commands() {
+    fn the_page_can_reach_exactly_the_app_origin_and_three_commands() {
         let caps: serde_json::Value =
             serde_json::from_str(include_str!("../capabilities/viewer.json")).unwrap();
         assert_eq!(caps["windows"], serde_json::json!([LABEL]));
@@ -393,7 +486,10 @@ mod tests {
             .map(|p| p.as_str().unwrap().to_string())
             .collect();
         permissions.sort();
-        assert_eq!(permissions, ["allow-sign-out", "allow-viewer-token"]);
+        assert_eq!(
+            permissions,
+            ["allow-sign-out", "allow-tray-uid", "allow-viewer-token"]
+        );
 
         // The tray's other capability grants nothing and names no window.
         let default: serde_json::Value =
@@ -402,11 +498,44 @@ mod tests {
         assert_eq!(default["permissions"], serde_json::json!([]));
         assert_eq!(default["windows"], serde_json::json!([]));
 
-        // Only these two commands are registered, and the build declares them.
+        // Only these three commands are registered, and the build declares them.
         let main = include_str!("main.rs");
-        assert!(main.contains("generate_handler![viewer::viewer_token, viewer::sign_out]"));
+        assert!(main.contains(
+            "generate_handler![viewer::tray_uid, viewer::viewer_token, viewer::sign_out]"
+        ));
         assert_eq!(main.matches("generate_handler!").count(), 1);
         let build = include_str!("../build.rs");
-        assert!(build.contains(r#"&["viewer_token", "sign_out"]"#));
+        assert!(build.contains(r#"&["tray_uid", "viewer_token", "sign_out"]"#));
+    }
+    #[test]
+    fn a_wipe_deletes_the_storage_and_its_mark() {
+        let data = std::env::temp_dir().join(format!("botracing-wipe-{}", std::process::id()));
+        let dir = webview_dir(&data);
+        std::fs::create_dir_all(dir.join("EBWebView/Default/IndexedDB")).unwrap();
+        std::fs::write(dir.join("EBWebView/Default/IndexedDB/x.log"), b"session").unwrap();
+        assert!(wipe(&dir, 3, Duration::from_millis(1)));
+        assert!(!dir.exists());
+        assert!(!wipe_mark(&dir).exists());
+        // Nothing to delete is a finished wipe too.
+        assert!(wipe(&dir, 1, Duration::ZERO));
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn a_wipe_that_cannot_finish_leaves_its_mark_for_the_next_open() {
+        let data = std::env::temp_dir().join(format!("botracing-wipe-owed-{}", std::process::id()));
+        std::fs::create_dir_all(&data).unwrap();
+        // A file where the folder should be: remove_dir_all fails on it every time.
+        let dir = webview_dir(&data);
+        std::fs::write(&dir, b"not a folder").unwrap();
+        assert!(!wipe(&dir, 2, Duration::from_millis(1)));
+        assert!(
+            wipe_mark(&dir).exists(),
+            "the mark stays until the folder is gone"
+        );
+        std::fs::remove_file(&dir).unwrap();
+        wipe_if_owed(&dir);
+        assert!(!wipe_mark(&dir).exists());
+        let _ = std::fs::remove_dir_all(&data);
     }
 }

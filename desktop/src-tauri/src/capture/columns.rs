@@ -35,24 +35,54 @@ pub fn float32_player() -> &'static HashSet<String> {
     NAMES.get_or_init(|| {
         let mut names = HashSet::new();
         for wheel in WHEELS {
-            for n in ["GripFract", "LateralForce", "LongitudinalForce", "TireLoad", "Wear"] {
+            for n in [
+                "GripFract",
+                "LateralForce",
+                "LongitudinalForce",
+                "TireLoad",
+                "Wear",
+            ] {
                 names.insert(format!("{wheel}_m{n}"));
             }
         }
         for n in [
-            "mBatteryChargeFraction", "mDeltaTime", "mDrag", "mElectricBoostMotorRPM",
-            "mElectricBoostMotorTemperature", "mElectricBoostMotorTorque",
-            "mElectricBoostWaterTemperature", "mEngineMaxRPM", "mEngineTorque", "mFilteredBrake",
-            "mFilteredSteering", "mFrontDownforce", "mFrontRideHeight", "mFrontWingHeight",
-            "mFuelCapacity", "mLapStartET", "mLastImpactET", "mLastImpactMagnitude",
-            "mRearDownforce", "mRearRideHeight", "mTurboBoostPressure", "mUnfilteredBrake",
-            "mUnfilteredClutch", "mUnfilteredSteering", "mUnfilteredThrottle",
+            "mBatteryChargeFraction",
+            "mDeltaTime",
+            "mDrag",
+            "mElectricBoostMotorRPM",
+            "mElectricBoostMotorTemperature",
+            "mElectricBoostMotorTorque",
+            "mElectricBoostWaterTemperature",
+            "mEngineMaxRPM",
+            "mEngineTorque",
+            "mFilteredBrake",
+            "mFilteredSteering",
+            "mFrontDownforce",
+            "mFrontRideHeight",
+            "mFrontWingHeight",
+            "mFuelCapacity",
+            "mLapStartET",
+            "mLastImpactET",
+            "mLastImpactMagnitude",
+            "mRearDownforce",
+            "mRearRideHeight",
+            "mTurboBoostPressure",
+            "mUnfilteredBrake",
+            "mUnfilteredClutch",
+            "mUnfilteredSteering",
+            "mUnfilteredThrottle",
         ] {
             names.insert(n.to_string());
         }
         for axis in ["x", "y", "z"] {
             names.insert(format!("mLastImpactPos_{axis}"));
-            for n in ["mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos"] {
+            for n in [
+                "mLocalAccel",
+                "mLocalRotAccel",
+                "mLocalRot",
+                "mLocalVel",
+                "mPos",
+            ] {
                 names.insert(format!("{n}_{axis}"));
             }
         }
@@ -72,14 +102,32 @@ pub fn float32_field() -> &'static HashSet<String> {
     NAMES.get_or_init(|| {
         let mut names = HashSet::new();
         for n in [
-            "mBestLapTime", "mBestSector1", "mBestSector2", "mCurSector1", "mCurSector2",
-            "mEstimatedLapTime", "mLapDist", "mLapStartET", "mLastLapTime", "mLastSector1",
-            "mLastSector2", "mPathLateral", "mTimeBehindLeader", "mTimeBehindNext",
-            "mTimeIntoLap", "mTrackEdge",
+            "mBestLapTime",
+            "mBestSector1",
+            "mBestSector2",
+            "mCurSector1",
+            "mCurSector2",
+            "mEstimatedLapTime",
+            "mLapDist",
+            "mLapStartET",
+            "mLastLapTime",
+            "mLastSector1",
+            "mLastSector2",
+            "mPathLateral",
+            "mTimeBehindLeader",
+            "mTimeBehindNext",
+            "mTimeIntoLap",
+            "mTrackEdge",
         ] {
             names.insert(n.to_string());
         }
-        for n in ["mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos"] {
+        for n in [
+            "mLocalAccel",
+            "mLocalRotAccel",
+            "mLocalRot",
+            "mLocalVel",
+            "mPos",
+        ] {
             for axis in ["x", "y", "z"] {
                 names.insert(format!("{n}_{axis}"));
             }
@@ -163,7 +211,16 @@ fn walk(
         } else {
             format!("{prefix}_{}", field.name)
         };
-        emit(layout, &field.kind, raw, stride, rows, base + field.offset, &name, out)?;
+        emit(
+            layout,
+            &field.kind,
+            raw,
+            stride,
+            rows,
+            base + field.offset,
+            &name,
+            out,
+        )?;
     }
     Ok(())
 }
@@ -189,7 +246,16 @@ fn emit(
             let (elem, _) = crate::capture::layout::size_align(inner);
             if name == "mWheel" && *n == 4 {
                 for i in 0..4 {
-                    emit(layout, inner, raw, stride, rows, offset + i * elem, WHEELS[i], out)?;
+                    emit(
+                        layout,
+                        inner,
+                        raw,
+                        stride,
+                        rows,
+                        offset + i * elem,
+                        WHEELS[i],
+                        out,
+                    )?;
                 }
             } else {
                 for i in 0..*n {
@@ -233,7 +299,14 @@ fn emit(
             out.insert(name.to_string(), Column::Bool(values));
             Ok(())
         }
-        Kind::I8 | Kind::U8 | Kind::I16 | Kind::U16 | Kind::I32 | Kind::U32 | Kind::I64 | Kind::U64 => {
+        Kind::I8
+        | Kind::U8
+        | Kind::I16
+        | Kind::U16
+        | Kind::I32
+        | Kind::U32
+        | Kind::I64
+        | Kind::U64 => {
             let mut values = Vec::with_capacity(rows);
             for row in 0..rows {
                 values.push(read_int(kind, raw, row * stride + offset)?);
@@ -290,7 +363,9 @@ pub fn write_parquet(
         // pyarrow's zstd default is level 1. A higher level writes less per
         // minute than the Python recorder and fills the disk faster.
         let mut props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
+            .set_compression(Compression::ZSTD(
+                ZstdLevel::try_new(1).expect("zstd level 1"),
+            ))
             .set_dictionary_enabled(false);
         // wall_ms on every row; et and update on field rows. capture.py writes
         // these ahead of the struct columns.
@@ -302,7 +377,8 @@ pub fn write_parquet(
             };
             let (dtype, array) = arrow_of(&kind, col)?;
             if matches!(dtype, DataType::Float32 | DataType::Float64) {
-                props = props.set_column_encoding(ColumnPath::from(name), Encoding::BYTE_STREAM_SPLIT);
+                props =
+                    props.set_column_encoding(ColumnPath::from(name), Encoding::BYTE_STREAM_SPLIT);
             }
             fields.push(Field::new(name, dtype, false));
             arrays.push(array);
@@ -349,7 +425,9 @@ pub fn write_columns(path: &Path, cols: &[(String, Column)]) -> Result<(), Strin
         let mut fields = Vec::new();
         let mut arrays: Vec<ArrayRef> = Vec::new();
         let mut props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
+            .set_compression(Compression::ZSTD(
+                ZstdLevel::try_new(1).expect("zstd level 1"),
+            ))
             .set_dictionary_enabled(false);
         for (name, col) in cols {
             let kind = match col {
@@ -361,7 +439,10 @@ pub fn write_columns(path: &Path, cols: &[(String, Column)]) -> Result<(), Strin
             };
             let (dtype, array) = arrow_of(&kind, col)?;
             if matches!(dtype, DataType::Float32 | DataType::Float64) {
-                props = props.set_column_encoding(ColumnPath::from(name.as_str()), Encoding::BYTE_STREAM_SPLIT);
+                props = props.set_column_encoding(
+                    ColumnPath::from(name.as_str()),
+                    Encoding::BYTE_STREAM_SPLIT,
+                );
             }
             fields.push(Field::new(name, dtype, false));
             arrays.push(array);
@@ -408,7 +489,11 @@ fn order_kind(layout: &Layout, kind: &Kind, name: &str, out: &mut Vec<(String, K
         Kind::Array(inner, n) => {
             let wheels = name == "mWheel" && *n == 4;
             for i in 0..*n {
-                let child = if wheels { WHEELS[i].to_string() } else { format!("{name}_{i}") };
+                let child = if wheels {
+                    WHEELS[i].to_string()
+                } else {
+                    format!("{name}_{i}")
+                };
                 order_kind(layout, inner, &child, out);
             }
         }
@@ -420,19 +505,69 @@ fn order_kind(layout: &Layout, kind: &Kind, name: &str, out: &mut Vec<(String, K
 
 fn arrow_of(kind: &Kind, col: &Column) -> Result<(DataType, ArrayRef), String> {
     let array = match (kind, col) {
-        (_, Column::F32(v)) => (DataType::Float32, Arc::new(Float32Array::from(v.clone())) as ArrayRef),
-        (_, Column::F64(v)) => (DataType::Float64, Arc::new(Float64Array::from(v.clone())) as ArrayRef),
-        (_, Column::Bool(v)) => (DataType::Boolean, Arc::new(BooleanArray::from(v.clone())) as ArrayRef),
-        (_, Column::Text(v)) => (DataType::Utf8, Arc::new(StringArray::from(v.clone())) as ArrayRef),
-        (Kind::I8, Column::I64(v)) => (DataType::Int8, Arc::new(Int8Array::from(v.iter().map(|n| *n as i8).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::U8, Column::I64(v)) => (DataType::UInt8, Arc::new(UInt8Array::from(v.iter().map(|n| *n as u8).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::I16, Column::I64(v)) => (DataType::Int16, Arc::new(Int16Array::from(v.iter().map(|n| *n as i16).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::U16, Column::I64(v)) => (DataType::UInt16, Arc::new(UInt16Array::from(v.iter().map(|n| *n as u16).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::I32, Column::I64(v)) => (DataType::Int32, Arc::new(Int32Array::from(v.iter().map(|n| *n as i32).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::U32, Column::I64(v)) => (DataType::UInt32, Arc::new(UInt32Array::from(v.iter().map(|n| *n as u32).collect::<Vec<_>>())) as ArrayRef),
+        (_, Column::F32(v)) => (
+            DataType::Float32,
+            Arc::new(Float32Array::from(v.clone())) as ArrayRef,
+        ),
+        (_, Column::F64(v)) => (
+            DataType::Float64,
+            Arc::new(Float64Array::from(v.clone())) as ArrayRef,
+        ),
+        (_, Column::Bool(v)) => (
+            DataType::Boolean,
+            Arc::new(BooleanArray::from(v.clone())) as ArrayRef,
+        ),
+        (_, Column::Text(v)) => (
+            DataType::Utf8,
+            Arc::new(StringArray::from(v.clone())) as ArrayRef,
+        ),
+        (Kind::I8, Column::I64(v)) => (
+            DataType::Int8,
+            Arc::new(Int8Array::from(
+                v.iter().map(|n| *n as i8).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::U8, Column::I64(v)) => (
+            DataType::UInt8,
+            Arc::new(UInt8Array::from(
+                v.iter().map(|n| *n as u8).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::I16, Column::I64(v)) => (
+            DataType::Int16,
+            Arc::new(Int16Array::from(
+                v.iter().map(|n| *n as i16).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::U16, Column::I64(v)) => (
+            DataType::UInt16,
+            Arc::new(UInt16Array::from(
+                v.iter().map(|n| *n as u16).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::I32, Column::I64(v)) => (
+            DataType::Int32,
+            Arc::new(Int32Array::from(
+                v.iter().map(|n| *n as i32).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::U32, Column::I64(v)) => (
+            DataType::UInt32,
+            Arc::new(UInt32Array::from(
+                v.iter().map(|n| *n as u32).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
         // The bits of a u64 are kept in the i64 column and written back unsigned.
-        (Kind::U64, Column::I64(v)) => (DataType::UInt64, Arc::new(UInt64Array::from(v.iter().map(|n| *n as u64).collect::<Vec<_>>())) as ArrayRef),
-        (Kind::I64, Column::I64(v)) => (DataType::Int64, Arc::new(Int64Array::from(v.clone())) as ArrayRef),
+        (Kind::U64, Column::I64(v)) => (
+            DataType::UInt64,
+            Arc::new(UInt64Array::from(
+                v.iter().map(|n| *n as u64).collect::<Vec<_>>(),
+            )) as ArrayRef,
+        ),
+        (Kind::I64, Column::I64(v)) => (
+            DataType::Int64,
+            Arc::new(Int64Array::from(v.clone())) as ArrayRef,
+        ),
         _ => return Err(format!("cannot write {kind:?} from {col:?}")),
     };
     Ok(array)
@@ -444,7 +579,10 @@ fn narrow_exact(cols: &mut HashMap<String, Column>, names: &HashSet<String>) {
             continue;
         }
         let Column::F64(values) = col else { continue };
-        if values.iter().all(|v| (*v as f32) as f64 == *v || v.is_nan()) {
+        if values
+            .iter()
+            .all(|v| (*v as f32) as f64 == *v || v.is_nan())
+        {
             *col = Column::F32(values.iter().map(|v| *v as f32).collect());
         }
     }
@@ -464,7 +602,11 @@ mod tests {
         let lay = layout();
         let telem = lay.built("TelemInfoV01").unwrap();
         let mut raw = vec![0_u8; telem.size];
-        let et = telem.fields.iter().find(|f| f.name == "mElapsedTime").unwrap();
+        let et = telem
+            .fields
+            .iter()
+            .find(|f| f.name == "mElapsedTime")
+            .unwrap();
         raw[et.offset..et.offset + 8].copy_from_slice(&1.25_f64.to_le_bytes());
         let gear = telem.fields.iter().find(|f| f.name == "mGear").unwrap();
         raw[gear.offset..gear.offset + 4].copy_from_slice(&4_i32.to_le_bytes());
@@ -474,10 +616,21 @@ mod tests {
         let y = vect.fields.iter().find(|f| f.name == "y").unwrap().offset;
         raw[pos.offset + x..pos.offset + x + 8].copy_from_slice(&1.5_f64.to_le_bytes());
         raw[pos.offset + y..pos.offset + y + 8].copy_from_slice(&0.1_f64.to_le_bytes());
-        let name = telem.fields.iter().find(|f| f.name == "mVehicleName").unwrap();
+        let name = telem
+            .fields
+            .iter()
+            .find(|f| f.name == "mVehicleName")
+            .unwrap();
         raw[name.offset..name.offset + 3].copy_from_slice(b"LMU");
 
-        let cols = columns(&lay, "TelemInfoV01", &raw, &["mVehicleName"], float32_player()).unwrap();
+        let cols = columns(
+            &lay,
+            "TelemInfoV01",
+            &raw,
+            &["mVehicleName"],
+            float32_player(),
+        )
+        .unwrap();
         assert_eq!(cols["mElapsedTime"], Column::F64(vec![1.25]));
         assert_eq!(cols["mGear"], Column::I64(vec![4]));
         // 1.5 is exact in float32. 0.1 is not, so it stays a double.
@@ -501,7 +654,11 @@ mod tests {
         let lay = layout();
         let telem = lay.built("TelemInfoV01").unwrap();
         let mut raw = vec![0_u8; telem.size];
-        let et = telem.fields.iter().find(|f| f.name == "mElapsedTime").unwrap();
+        let et = telem
+            .fields
+            .iter()
+            .find(|f| f.name == "mElapsedTime")
+            .unwrap();
         raw[et.offset..et.offset + 8].copy_from_slice(&12.5_f64.to_le_bytes());
         let gear = telem.fields.iter().find(|f| f.name == "mGear").unwrap();
         raw[gear.offset..gear.offset + 4].copy_from_slice(&4_i32.to_le_bytes());
@@ -535,7 +692,11 @@ mod tests {
             .args([":memory:", "-csv", "-c", query])
             .output()
             .unwrap();
-        assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+        assert!(
+            done.status.success(),
+            "{}",
+            String::from_utf8_lossy(&done.stderr)
+        );
         String::from_utf8_lossy(&done.stdout).to_string()
     }
 
@@ -572,7 +733,14 @@ mod tests {
 
         let vehicle = lay.built("VehicleScoringInfoV01").unwrap();
         let field_raw = vec![0_u8; vehicle.size];
-        let mut field = columns(&lay, "VehicleScoringInfoV01", &field_raw, &["mVehicleName"], float32_player()).unwrap();
+        let mut field = columns(
+            &lay,
+            "VehicleScoringInfoV01",
+            &field_raw,
+            &["mVehicleName"],
+            float32_player(),
+        )
+        .unwrap();
         field.insert("wall_ms".into(), Column::I64(vec![5]));
         field.insert("et".into(), Column::F64(vec![3.5]));
         field.insert("update".into(), Column::I64(vec![9]));
@@ -594,7 +762,10 @@ mod tests {
             .filter(|line| !line.is_empty())
             .map(|line| {
                 let mut cols = line.split(',');
-                (cols.next().unwrap_or("").to_string(), cols.next().unwrap_or("").to_string())
+                (
+                    cols.next().unwrap_or("").to_string(),
+                    cols.next().unwrap_or("").to_string(),
+                )
             })
             .collect()
     }
@@ -616,13 +787,27 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         let telem = lay.built("TelemInfoV01").unwrap().size;
-        let mut player = columns(&lay, "TelemInfoV01", &vec![0; telem], &["mFrontTireCompoundName", "mRearTireCompoundName"], float32_player()).unwrap();
+        let mut player = columns(
+            &lay,
+            "TelemInfoV01",
+            &vec![0; telem],
+            &["mFrontTireCompoundName", "mRearTireCompoundName"],
+            float32_player(),
+        )
+        .unwrap();
         player.insert("wall_ms".into(), Column::I64(vec![1]));
         let player_path = dir.join("player-0000.parquet");
         write_parquet(&player_path, &lay, "TelemInfoV01", &player).unwrap();
 
         let veh = lay.built("VehicleScoringInfoV01").unwrap().size;
-        let mut field = columns(&lay, "VehicleScoringInfoV01", &vec![0; veh], &["mVehicleName", "mVehicleClass", "mDriverName"], float32_field()).unwrap();
+        let mut field = columns(
+            &lay,
+            "VehicleScoringInfoV01",
+            &vec![0; veh],
+            &["mVehicleName", "mVehicleClass", "mDriverName"],
+            float32_field(),
+        )
+        .unwrap();
         field.insert("wall_ms".into(), Column::I64(vec![1]));
         field.insert("et".into(), Column::F64(vec![1.0]));
         field.insert("update".into(), Column::I64(vec![0]));
@@ -645,13 +830,27 @@ mod tests {
                     _ => {}
                 }
             }
-            let only_rs: Vec<_> = rs.iter().map(|(n, _)| n).filter(|n| !py_names.contains(*n)).cloned().collect();
+            let only_rs: Vec<_> = rs
+                .iter()
+                .map(|(n, _)| n)
+                .filter(|n| !py_names.contains(*n))
+                .cloned()
+                .collect();
             eprintln!("{kind}: python-only {only_py:?}");
             eprintln!("{kind}: rust-only {only_rs:?}");
             eprintln!("{kind}: type diffs {type_diff:?}");
-            assert!(only_py.is_empty(), "{kind} missing columns the Python chunk has: {only_py:?}");
-            assert!(only_rs.is_empty(), "{kind} has columns the Python chunk does not: {only_rs:?}");
-            assert!(type_diff.is_empty(), "{kind} type diffs that are not float width: {type_diff:?}");
+            assert!(
+                only_py.is_empty(),
+                "{kind} missing columns the Python chunk has: {only_py:?}"
+            );
+            assert!(
+                only_rs.is_empty(),
+                "{kind} has columns the Python chunk does not: {only_rs:?}"
+            );
+            assert!(
+                type_diff.is_empty(),
+                "{kind} type diffs that are not float width: {type_diff:?}"
+            );
         }
     }
 
