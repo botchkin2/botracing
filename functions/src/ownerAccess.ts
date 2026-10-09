@@ -2,12 +2,6 @@
 // imports, so node --test runs it (functions/test/ownerAccess.test.mjs);
 // lmuApi.ts binds it to Admin Auth and Firestore.
 
-export const LEGACY_OWNER = 'botkin';
-// A request with no Authorization header is refused: every read needs a
-// signed-in owner. (It was the legacy owner until Botkin signed in; keep a
-// value here only as a deliberate bridge.)
-export const ANONYMOUS_OWNER: string | null = null;
-
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 
 export class Unauthorized extends Error {}
@@ -18,18 +12,14 @@ export interface OwnerDeps {
   readOwnerKey(uid: string): Promise<string | null>;
 }
 
-// The owner key for a request. A bad or expired token is Unauthorized and
-// never falls back to the anonymous owner. Same mapping rule as the upload
-// endpoint (uploadCore.ts): the admin-set key, else the uid.
+// The owner key for a request. No token, or a bad or expired one, is
+// Unauthorized. Same mapping rule as the upload endpoint (uploadCore.ts):
+// the admin-set key, else the uid.
 export async function resolveOwner(
   deps: OwnerDeps,
   authorization: string | undefined,
-  anonymousOwner: string | null = ANONYMOUS_OWNER,
 ): Promise<string> {
-  if (!authorization) {
-    if (anonymousOwner) return anonymousOwner;
-    throw new Unauthorized('sign in');
-  }
+  if (!authorization) throw new Unauthorized('sign in');
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice(7).trim()
     : '';
