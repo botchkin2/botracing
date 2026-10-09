@@ -8,6 +8,7 @@
 //
 // `raceClock(field)` does the per-field work once (lap numbers, lap runs);
 // keep the result for as long as the field lives and call it per frame.
+import {trackLengthM} from './classLaps';
 import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 
 export interface LapPlace {
@@ -55,6 +56,12 @@ function lapsOf(car: FieldCar, trackM: number): Int32Array {
       before = NaN;
       continue;
     }
+    if (trackM === 0) {
+      lap = car.lapsDone[u];
+      laps[u] = lap;
+      before = d;
+      continue;
+    }
     const nearLine = d < trackM * 0.25 || d > trackM * 0.75;
     if (!nearLine || Number.isNaN(before)) lap = car.lapsDone[u];
     else if (before > trackM * 0.75 && d < trackM * 0.25) lap++;
@@ -67,12 +74,7 @@ function lapsOf(car: FieldCar, trackM: number): Int32Array {
 export function raceClock(field: Field): RaceClock {
   const car = field.cars.find(c => c.player);
   if (!car) return NONE;
-  // The longest distance any car has been at is the lap length to within a
-  // metre or so; the player alone would fall short by up to one step.
-  let trackM = 0;
-  for (const c of field.cars) {
-    for (const d of c.lapDistM) if (d > trackM) trackM = d;
-  }
+  const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
   const laps = lapsOf(car, trackM);
   const runs = new Map<number, Run[]>();
   for (let u = 0; u < laps.length; u++) {
@@ -108,7 +110,12 @@ export function raceClock(field: Field): RaceClock {
         let fromD = from >= run.first ? car.lapDistM[from] : NaN;
         // Before the lap's first sample: the last sample of the lap before,
         // if it is the update just ahead of this run.
-        if (lo === run.first && lo > 0 && laps[lo - 1] === lapNumber - 1) {
+        if (
+          trackM > 0 &&
+          lo === run.first &&
+          lo > 0 &&
+          laps[lo - 1] === lapNumber - 1
+        ) {
           from = lo - 1;
           fromD = car.lapDistM[from] - trackM;
         }

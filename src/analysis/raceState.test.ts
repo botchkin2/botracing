@@ -100,10 +100,12 @@ describe('carsAt', () => {
   it('gap and interval come from when each car passed the same progress', () => {
     // The leader drives 10 m per update. The second car is 20 m behind, the
     // third 50 m behind: they reach the leader's spot 2 and 5 updates later.
+    // A fourth car wraps so the lap length is real, not a sitting-car max.
     const f = field(30, [
       car(0, 'GT3', 30, u => ({d: 300 + u * 10, place: 1})),
       car(1, 'GT3', 30, u => ({d: 280 + u * 10, place: 2})),
       car(2, 'GT3', 30, u => ({d: 250 + u * 10, place: 3})),
+      car(3, 'GT3', 30, u => ({d: (3900 + u * 200) % 4000, place: 4})),
     ]);
     const [a, b, c] = at(f, 20 / HZ);
     expect(a.gapS).toBe(0);
@@ -121,6 +123,7 @@ describe('carsAt', () => {
       car(0, 'GT3', 10, u => ({d: 500 + u * 50, laps: 1, place: 1})),
       car(1, 'GT3', 10, u => ({d: 300 + u * 50, laps: 0, place: 2})),
       car(2, 'GT3', 10, u => ({d: 480 + u * 50, laps: 1, place: 3})),
+      car(3, 'GT3', 10, u => ({d: (3900 + u * 200) % 4000, place: 4})),
     ]);
     const [a, b, c] = at(f, 5 / HZ);
     expect([a.lapsDown, b.lapsDown, c.lapsDown]).toEqual([0, 1, 0]);
@@ -233,6 +236,15 @@ describe('carsAt', () => {
     expect(at(f, 4 / HZ).map(c => c.index)).toEqual([0, 1]);
   });
 
+  it('does not invent a lap length when no car wrapped', () => {
+    const f = field(20, [
+      car(0, 'GT3', 20, () => ({d: 4662.7, place: 1}), true),
+    ]);
+    const prep = prepareRace(f);
+    expect(prep.trackM).toBe(0);
+    expect(Number.isNaN(prep.progressM[0][1])).toBe(true);
+  });
+
   it('counts pit stops, not a start in the pit lane or a short blip', () => {
     // 5 Hz: a 15 s stop is 75 updates. Out of the pits from the start, a
     // 2 s blip at update 10 (the whole-field blip at the Daytona start), a
@@ -246,8 +258,9 @@ describe('carsAt', () => {
     expect(at(f, 15 / HZ)[0]).toMatchObject({state: 'pit', pits: 0});
     expect(at(f, 60 / HZ)[0]).toMatchObject({state: 'pit', pits: 1});
     expect(at(f, 130 / HZ)[0]).toMatchObject({state: 'running', pits: 1});
-    // A stop still going when the data ends counts.
-    expect(at(f, 155 / HZ)[0]).toMatchObject({state: 'pit', pits: 2});
+    // A stay that runs to the last sample is a tow or DNF: still in the
+    // pit lane on the map, not a counted stop (2 Oct Road Atlanta).
+    expect(at(f, 155 / HZ)[0]).toMatchObject({state: 'pit', pits: 1});
     expect(at(f, 155 / HZ)[1]).toMatchObject({state: 'running', pits: 0});
   });
 

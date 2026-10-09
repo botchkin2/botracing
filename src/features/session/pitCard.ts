@@ -169,7 +169,14 @@ function inCell(stop: PitStop, hasVe: boolean): Cell {
 
 function addedCell(stop: PitStop, hasVe: boolean): Cell {
   const {fuelL, vePct} = stop.added;
-  // Nothing added: a drive-through or a penalty, said as it is.
+  const kind = stop.visit?.kind;
+  if (kind === 'repair')
+    return {value: `+${litres(fuelL ?? 0)}`, note: 'repair'};
+  if (kind === 'penalty')
+    return {value: `+${litres(fuelL ?? 0)}`, note: 'penalty'};
+  if (kind === 'through')
+    return {value: `+${litres(fuelL ?? 0)}`, note: 'drive-through'};
+  // Nothing added, and the visit was not classified: still the fuel fact.
   if (fuelL === 0) return {value: `+${litres(0)}`, note: 'nothing added'};
   return {
     value:
