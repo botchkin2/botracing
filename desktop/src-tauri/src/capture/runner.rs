@@ -98,17 +98,77 @@ impl Handle {
 }
 
 /// `LMU_SHM_HEADER_DIR` overrides everything. Otherwise the header folder is
-/// looked up in every Steam library listed by the default Steam install's
-/// `libraryfolders.vdf`, and the default install path is the fallback.
+/// looked up in every Steam library listed by Steam's `libraryfolders.vdf`
+/// (Steam's root from the registry, else the default install), and the
+/// default install path is the fallback.
 pub fn header_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("LMU_SHM_HEADER_DIR") {
         return PathBuf::from(dir);
     }
-    let steam = Path::new(DEFAULT_STEAM_ROOT);
+    let steam = steam_root(steam_path_from_registry(), Path::new(DEFAULT_STEAM_ROOT));
     let vdf = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf"))
         .unwrap_or_default();
-    find_header_dir(steam, &vdf, |dir| dir.join(HEADER_FILES[0]).is_file())
+    find_header_dir(&steam, &vdf, |dir| dir.join(HEADER_FILES[0]).is_file())
         .unwrap_or_else(|| PathBuf::from(DEFAULT_HEADER_DIR))
+}
+
+/// Steam's root: the registry's SteamPath when it is there, else the default.
+pub fn steam_root(registry: Option<PathBuf>, default: &Path) -> PathBuf {
+    registry.unwrap_or_else(|| default.to_path_buf())
+}
+
+/// A registry string value as a path: UTF-16 without its trailing NUL.
+pub fn path_from_wide(units: &[u16]) -> PathBuf {
+    let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
+    PathBuf::from(String::from_utf16_lossy(&units[..end]))
+}
+
+/// `HKCU\Software\Valve\Steam\SteamPath`: where Steam is installed, even when
+/// it is not on C:. None when the key is missing or unreadable.
+#[cfg(windows)]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    use std::ptr::{null, null_mut};
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE,
+    };
+    let wide = |s: &str| -> Vec<u16> { s.encode_utf16().chain(std::iter::once(0)).collect() };
+    let (key_path, value) = (wide(r"Software\Valve\Steam"), wide("SteamPath"));
+    let mut key: HKEY = null_mut();
+    // SAFETY: NUL-terminated key path, a valid out pointer; closed below.
+    let code = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, key_path.as_ptr(), 0, KEY_QUERY_VALUE, &mut key) };
+    if code != ERROR_SUCCESS {
+        return None;
+    }
+    let mut bytes: u32 = 0;
+    // SAFETY: the first call only asks for the size of the value.
+    let size = unsafe {
+        RegQueryValueExW(key, value.as_ptr(), null(), null_mut(), null_mut(), &mut bytes)
+    };
+    let mut buf = vec![0u16; (bytes as usize).div_ceil(2)];
+    let mut read = size == ERROR_SUCCESS && !buf.is_empty();
+    if read {
+        // SAFETY: `buf` has room for `bytes` bytes, as the size call reported.
+        let code = unsafe {
+            RegQueryValueExW(
+                key,
+                value.as_ptr(),
+                null(),
+                null_mut(),
+                buf.as_mut_ptr().cast(),
+                &mut bytes,
+            )
+        };
+        read = code == ERROR_SUCCESS;
+    }
+    // SAFETY: `key` was opened above and is closed once.
+    unsafe { RegCloseKey(key) };
+    read.then(|| path_from_wide(&buf))
+}
+
+#[cfg(not(windows))]
+fn steam_path_from_registry() -> Option<PathBuf> {
+    None
 }
 
 /// The header folder in the first Steam library (the install itself first,
@@ -310,6 +370,22 @@ mod tests {
             find_header_dir(Path::new(r"C:\Program Files (x86)\Steam"), VDF, |_| false),
             None
         );
+    }
+
+    #[test]
+    fn the_registry_steam_root_comes_before_the_default() {
+        let default = Path::new(DEFAULT_STEAM_ROOT);
+        let from_registry = PathBuf::from(r"D:\Games\Steam");
+        assert_eq!(steam_root(Some(from_registry.clone()), default), from_registry);
+        assert_eq!(steam_root(None, default), default);
+    }
+
+    #[test]
+    fn a_registry_string_is_read_up_to_its_trailing_nul() {
+        let wide: Vec<u16> = "D:/Games/Steam\0".encode_utf16().collect();
+        assert_eq!(path_from_wide(&wide), PathBuf::from("D:/Games/Steam"));
+        let no_nul: Vec<u16> = "E:/Steam".encode_utf16().collect();
+        assert_eq!(path_from_wide(&no_nul), PathBuf::from("E:/Steam"));
     }
 
     #[test]
