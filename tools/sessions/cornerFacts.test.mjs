@@ -11,7 +11,7 @@ import {
   unpackState,
 } from './layoutBoundaries.mjs';
 
-const flags = {local: []};
+const flags = {local: [], course: []};
 const layoutOf = laps =>
   sessionBoundaries({
     laps: laps.map(l => l.lap),

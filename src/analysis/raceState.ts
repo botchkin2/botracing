@@ -118,7 +118,14 @@ export function prepareRace(field: Field): RacePrep {
         const stay = stayS(field, c.inPits, u);
         // A stay that runs to the last sample is a tow or a DNF, not a stop
         // (2 Oct Road Atlanta, inPits from 1903 s to EOF).
-        if (Number.isFinite(stay) && stay >= MIN_PIT_S) count++;
+        // Formation: LMU sets inPits after t=0 while lapsDone is still 0
+        // (38 of 54 cars at 10 s on that race). Not a stop.
+        if (
+          raceHasStarted(field, u) &&
+          Number.isFinite(stay) &&
+          stay >= MIN_PIT_S
+        )
+          count++;
       }
       if (inPit !== ABSENT) wasIn = inPit;
       pit[u] = count;
@@ -144,10 +151,19 @@ function stayS(field: Field, inPits: Int8Array, u: number): number {
   return field.timeS[end + 1] - field.timeS[u];
 }
 
+function raceHasStarted(field: Field, u: number): boolean {
+  for (const c of field.cars) {
+    if (c.lapsDone[u] > 0) return true;
+  }
+  return false;
+}
+
 function stateOf(prep: RacePrep, car: number, u: number): CarState {
   const c = prep.field.cars[car];
   if (Number.isNaN(c.lapDistM[u])) return 'garage';
-  if (c.inPits[u] === 1) return 'pit';
+  if (c.inPits[u] === 1) {
+    return raceHasStarted(prep.field, u) ? 'pit' : 'running';
+  }
   if (prep.slowRun[car][u] / prep.field.hz >= STOPPED_FOR_S) return 'stopped';
   if (Math.abs(c.pathLateralM[u]) > OFF_TRACK_M) return 'off';
   return 'running';

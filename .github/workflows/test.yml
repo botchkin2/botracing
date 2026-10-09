@@ -13,11 +13,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - run: npm install
+      # The session tools' tests read and write real parquet through the CLI
+      # (field, live capture): on CI a missing CLI fails them, never skips.
+      - name: DuckDB CLI (cached)
+        id: duckdb
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/duckdb
+          key: duckdb-cli-1.4.2-linux-amd64
+      - name: DuckDB CLI (download)
+        if: steps.duckdb.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.4.2/duckdb_cli-linux-amd64.zip
+          echo "fae3ba93eedf20b08bca4b23aeac1ba94c446f1c10d029c193e2fc4b4e0bc1bc  duckdb.zip" | sha256sum -c -
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+      - name: DuckDB CLI (path)
+        run: echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
       - name: Types
         run: npx tsc --noEmit
       - name: App tests
@@ -30,15 +46,15 @@ jobs:
       - name: App lint
         run: npx eslint src app
       - name: Uploader and session tools
-        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs
+        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - run: npm ci --prefix functions
@@ -51,8 +67,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       # The writer tests read every column back with the DuckDB CLI (#140).
       - name: DuckDB CLI
         run: |
@@ -62,3 +78,23 @@ jobs:
       - name: Recorder tests
         working-directory: tools/capture
         run: uv run --group dev pytest -q
+  # The tray (Rust) and its release scripts had no CI: auth.rs and the
+  # updater ran only by hand. Windows, because the tray is a Windows app.
+  desktop:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Tray tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Release script tests
+        run: node --test scripts/*.test.mjs

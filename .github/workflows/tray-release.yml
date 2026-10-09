@@ -1,0 +1,175 @@
+# Builds the Windows tray installer, in two parts so the release secrets are
+# not reachable from just any branch:
+#
+#   build    runs on a `tray-v*` tag or by hand. It has NO secrets: tests, then an
+#            UNSIGNED installer kept as a workflow artifact for testing. That
+#            artifact has no update signature, so it can never be used as an update.
+#   release  runs only for a `tray-v*` tag, only for a commit that is on main,
+#            and only in the `tray-release` Environment, which holds the updater
+#            signing key, the build's sign-in config and the publish credentials,
+#            and needs Botkin's approval for each run. It builds the signed
+#            installer and publishes it to Storage. A version is never overwritten.
+#
+# One-time setup (Botkin, repo Settings > Environments > New environment):
+#   name: tray-release
+#   Required reviewers: Botkin
+#   Deployment branches and tags: selected, tag rule `tray-v*`
+#   Environment secrets:
+#     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#         the updater key (also in Secret Manager: tray-updater-key, tray-updater-password)
+#     BOTRACING_FIREBASE_API_KEY
+#         the Firebase web key built into the tray (it signs in through the
+#         web app, so it has no Google OAuth client)
+#     FIREBASE_SERVICE_ACCOUNT_BOTRACING_61
+#         the `tray-release` service account's key (ops/iam/ciSplit.mjs grant): it
+#         can write only under tray/ in the lmu bucket, nothing else
+# The installer itself is not code signed (one SmartScreen click per install).
+name: Tray release
+on:
+  push:
+    tags:
+      - 'tray-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tray-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: The tag, tauri.conf.json and Cargo.toml agree
+        if: github.ref_type == 'tag'
+        run: node scripts/release-manifest.mjs check "${{ github.ref_name }}"
+
+      - name: Tests
+        run: |
+          node --test scripts/*.test.mjs
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      # No signing key here, so no update artifacts: this installer is for testing.
+      - name: Build an unsigned installer
+        run: npx tauri build --config src-tauri/tauri.unsigned.conf.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tray-installer-unsigned
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 14
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: tray-release
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A tag can point anywhere; only reviewed, merged code is released.
+      - name: The tagged commit is on main
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: Build the signed installer
+        env:
+          BOTRACING_FIREBASE_API_KEY: ${{ secrets.BOTRACING_FIREBASE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build
+
+      - name: Lay out the release
+        run: node scripts/release-manifest.mjs build ../release
+
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+
+      # Windows runners don't ship gcloud; tray-v0.1.0's first publish failed on it.
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      # A published version is immutable: users may already have it, so a fix is
+      # a new version. The installer first, latest.json last: a half-finished
+      # upload never points the function at a missing file.
+      #
+      # One JSON API upload per object, by its full name. The release account can
+      # only touch tray/ (an IAM condition), so nothing may list: `gcloud storage
+      # cp` resolves its destination and `--no-clobber` checks it by listing,
+      # which failed tray-v0.1.0's publish. `ifGenerationMatch=0` makes Storage
+      # itself refuse (412) to replace an existing object, so no pre-check is
+      # needed. latest.json is the one object that is replaced each release.
+      - name: Publish to Storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#tray-v}"
+          token="$(gcloud auth print-access-token)"
+          echo "::add-mask::$token"
+          out="$RUNNER_TEMP/upload.out"
+          upload() { # <file> <object name> <content type> [create-only]
+            local extra=()
+            [ "${4:-}" = create-only ] && extra=(--url-query "ifGenerationMatch=0")
+            code="$(curl -sS -o "$out" -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $token" -H "Content-Type: $3" \
+              --data-binary @"$1" \
+              --url-query "uploadType=media" --url-query "name=$2" "${extra[@]}" \
+              "https://storage.googleapis.com/upload/storage/v1/b/botracing-61-lmu/o")"
+            if [ "$code" = 412 ]; then
+              echo "$2 already exists: a published version is never overwritten" >&2
+              exit 1
+            fi
+            if [ "$code" != 200 ]; then
+              echo "uploading $2 failed ($code):" >&2
+              head -c 400 "$out" >&2
+              exit 1
+            fi
+            echo "uploaded $2"
+          }
+          for f in ../release/tray/"$version"/*; do
+            upload "$f" "tray/$version/$(basename "$f")" application/octet-stream create-only
+          done
+          upload ../release/tray/latest.json tray/latest.json application/json

@@ -302,7 +302,17 @@ export type SessionDetail = SessionSummary & {
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
+  /** How long the race is, from the capture; null for other sessions, and for a race with no capture. */
+  race: RaceLength | null;
 };
+
+/** The scheduled length of a race, in minutes. */
+export type RaceLength = {minutes: number};
+
+function toRaceLength(v: unknown): RaceLength | null {
+  const minutes = num(obj(v).minutes);
+  return minutes != null && minutes > 0 ? {minutes} : null;
+}
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
@@ -317,6 +327,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
@@ -543,6 +554,8 @@ export type CornerFacts = {
   offTrackS: number;
   /** Seconds under a local yellow in this window; 0 on laps analysed before it. */
   localYellowS: number;
+  /** Seconds of full-course yellow in this window; 0 on laps analysed before it. */
+  courseYellowS: number;
   /**
    * The corner window (pit-wall thread 45): boundary to the next boundary in
    * the map's frame, with `segTimeS` its time, split at the lap's own onset
@@ -587,6 +600,7 @@ export type StartStraightFacts = {
   toM: number;
   offTrackS: number;
   localYellowS: number;
+  courseYellowS: number;
   pit: boolean;
 };
 
@@ -671,6 +685,7 @@ function toStartStraight(raw: unknown): StartStraightFacts | null {
     toM,
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
+    courseYellowS: num(x.courseYellowSec) ?? 0,
     pit: x.pit === true,
   };
 }
@@ -689,6 +704,7 @@ function toCornerFacts(raw: unknown): CornerFacts {
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
+    courseYellowS: num(x.courseYellowSec) ?? 0,
     window: toWindowFacts(x),
   };
 }
@@ -1127,5 +1143,38 @@ export function toTrackSurface(
     // Older files named the sessions they were folded from. A surface does not.
     sessions: [],
     bins,
+  };
+}
+
+/** The owner's games and tracks over all history, with session counts: what the Sessions filter chips offer. */
+export type SessionFacets = {
+  games: {sim: string; count: number}[];
+  /** The layout (`track.variant`), '' when the session has none. */
+  tracks: {
+    trackId: string;
+    track: string;
+    sim: string;
+    count: number;
+    variant?: string;
+  }[];
+};
+
+export function toSessionFacets(raw: unknown): SessionFacets {
+  const o = obj(raw);
+  const list = (v: unknown): Record<string, unknown>[] =>
+    Array.isArray(v) ? v.map(obj) : [];
+  return {
+    games: list(o.games)
+      .map(g => ({sim: str(g.sim), count: num(g.count) ?? 0}))
+      .filter(g => g.sim !== ''),
+    tracks: list(o.tracks)
+      .map(t => ({
+        trackId: str(t.trackId),
+        track: str(t.track),
+        sim: str(t.sim, 'lmu'),
+        count: num(t.count) ?? 0,
+        variant: str(t.variant),
+      }))
+      .filter(t => t.trackId !== ''),
   };
 }

@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
 import {type Lap} from '@/src/data/sessions';
+import {lapColors, lapStroke} from '@/src/design';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
   toLaps,
@@ -10,16 +11,19 @@ import {
 } from '@/src/data/sessions/adapters';
 
 import {
+  BASIS_ID,
   buildCompareModel,
+  medianBasisOf,
   snapOut,
   cornerPlace,
   pedalsDomains,
   followPlace,
   type CompareSelection,
-  makeReference,
+  clearRef,
   canRemoveLap,
   removeLap,
-  setReference,
+  setRef,
+  toggleHighlight,
   toggleCompared,
   valuesAt,
   withDefaultLaps,
@@ -92,6 +96,7 @@ const traces = new Map([
 
 const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
   laps: ['a', 'b', 'c'],
+  ref: null,
   hl: null,
   corner: null,
   cursorM: 600,
@@ -109,7 +114,8 @@ describe('start/finish wrap', () => {
       traces,
       band: null,
       map,
-      selection: sel({laps: lapIds, cursorM}),
+      // The wrap is drawn against the Ref lap's neighbours; the median has none.
+      selection: sel({laps: lapIds, ref: lapIds[0], cursorM}),
       charts: [['speed'], ['timeDiff']],
       window: {mode: 'distance', size: 200},
     });
@@ -154,21 +160,30 @@ describe('start/finish wrap', () => {
 });
 
 describe('buildCompareModel', () => {
-  it('names the reference and signs each chip against it', () => {
+  it('names the median basis and signs each chip against its time', () => {
     const m = build();
+    expect(m.reference).toBe('median of 3 · 0:20.000');
+    expect(m.chips.map(c => [c.label, c.isRef])).toEqual([
+      ['L1', false],
+      ['L2', false],
+      ['L3', false],
+    ]);
+  });
+
+  it('names the Ref lap and signs each chip against it', () => {
+    const m = build(sel({ref: 'a'}));
     expect(m.reference).toBe('L1 · 0:20.000 · Race best');
     expect(m.chips.map(c => [c.label, c.delta, c.faster])).toEqual([
       ['L1', 'REF', false],
       ['L2', '+0.400', false],
       ['L3', '−0.100', true],
     ]);
-    expect(m.manyChip).toBeNull();
   });
 
   it('builds the default chart set with time diff on a zero line', () => {
     const m = build();
     expect(m.charts.map(c => c.title)).toEqual([
-      'Time diff vs L1',
+      'Time diff vs median of 3',
       'Speed',
       'Throttle + Brake + Steering',
       'Gear',
@@ -190,7 +205,7 @@ describe('buildCompareModel', () => {
 
   it('reads values at the cursor for every shown lap', () => {
     const speed = build().charts[1].valueRows[0];
-    expect(speed.values.map(v => v.text)).toEqual(['180', '176', '181']);
+    expect(speed.values.map(v => v.text)).toEqual(['180', '180', '176', '181']);
   });
 
   it('grid shows each lap vs the reference per corner', () => {
@@ -211,9 +226,42 @@ describe('buildCompareModel', () => {
     expect(mm.sectionApexes.map(s => s.n)).toEqual([1, 2]);
     expect(mm.marks.sections.map(s => s.n)).toEqual([1, 2]);
     expect(mm.pitLane).toEqual([]);
-    // Reference drawn last (on top), highlighted (L2 by default) just below.
-    expect(mm.lines.map(l => l.label)).toEqual(['L3', 'L2', 'L1']);
-    expect(mm.dots.map(d => d.label)).toEqual(['L3', 'L2', 'L1']);
+    // No Ref lap and nothing highlighted: lap-number order, none on top.
+    expect(mm.lines.map(l => l.label)).toEqual(['L1', 'L2', 'L3']);
+    // Dots are for key laps only: the Ref lap, the highlighted one, or all
+    // laps when there are few; here all three.
+    expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
+  });
+
+  it('the map still draws the cursor when many laps are checked and none is key', () => {
+    // Eight laps is past the individual mode, with no Ref lap and none
+    // highlighted: no lap is a key lap, and the dot was missing (#273).
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const many = toLaps(
+      ids.map((id, i) => rawLap(id, 20 + i * 0.1, [5 + i * 0.01, 5])),
+    );
+    const manyTraces = new Map(
+      ids.map((id, i) => [
+        id,
+        resampleTrace(circleLap(180 - i), LENGTH_M, 5, 10),
+      ]),
+    );
+    const at = (s: Partial<CompareSelection>) =>
+      buildCompareModel({
+        session,
+        laps: many,
+        traces: manyTraces,
+        band: null,
+        map,
+        selection: sel({laps: ids, ...s}),
+      }).map!;
+    const median = at({});
+    expect(median.dots).toHaveLength(1);
+    expect(median.dots[0].lapId).toBe(BASIS_ID);
+    expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
+    // A Ref lap or a highlighted lap is its own dot, as before.
+    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);
+    expect(at({hl: 'e'}).dots.map(d => d.lapId)).toEqual(['e']);
   });
 
   it('position row names the corner under the cursor', () => {
@@ -261,10 +309,10 @@ describe('chart window', () => {
     const l2 = td.lines.find(l => l.label === 'L2')!;
     const whole = build().charts[0].lines.find(l => l.label === 'L2')!;
     expect(l2.values).toEqual(whole.values);
-    expect(parseFloat(td.valueRows[0].values[1].text)).toBeGreaterThan(0.2);
+    expect(parseFloat(td.valueRows[0].values[2].text)).toBeGreaterThan(0.2);
     // The readout says seconds, and the label names the reference lap.
-    expect(td.valueRows[0].values[1].text).toMatch(/ s$/);
-    expect(td.valueRows[0].label).toBe('Time diff vs L1');
+    expect(td.valueRows[0].values[2].text).toMatch(/ s$/);
+    expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
   });
 
@@ -293,15 +341,64 @@ describe('chart window', () => {
   });
 });
 
+describe('one color per lap, everywhere', () => {
+  // The checkbox list, the chips (legend) and the trace values must agree on
+  // each lap's slot. Median mode starts the slots at 1 (slot 0 is the Ref
+  // stroke); the checkbox list once started at 0 and drew every lap one slot off.
+  const slotsOf = (m: ReturnType<typeof build>) => {
+    const fromChips = new Map(m.chips.map(c => [c.lapId, c.selIndex]));
+    const fromRows = m.allLaps.flatMap(g =>
+      g.rows
+        .filter(r => r.selIndex != null)
+        .map(r => [r.lapId, r.selIndex!] as [string, number]),
+    );
+    const fromTraces = m.charts.flatMap(c =>
+      c.valueRows.flatMap(v =>
+        v.values
+          .filter(x => x.lapId != null)
+          .map(x => [x.lapId!, x.selIndex] as [string, number]),
+      ),
+    );
+    return {fromChips, fromRows, fromTraces};
+  };
+
+  it('median: checkbox, legend and trace slots match', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: null, hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
+    expect(fromRows.length).toBeGreaterThan(0);
+    for (const [id, slot] of fromRows) {
+      expect(slot).toBeGreaterThanOrEqual(1);
+      expect(fromChips.get(id)).toBe(slot);
+    }
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+
+  it('ref: checkbox, legend and trace slots match, Ref on slot 0', () => {
+    const m = build(sel({laps: ['a', 'b', 'c'], ref: 'b', hl: null}));
+    const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
+    expect(fromRows.find(([id]) => id === 'b')?.[1]).toBe(0);
+    for (const [id, slot] of fromRows) expect(fromChips.get(id)).toBe(slot);
+    // The median basis row is not a lap: it has no chip and no slot.
+    for (const [id, slot] of fromTraces)
+      if (fromChips.has(id)) expect(fromChips.get(id)).toBe(slot);
+  });
+});
+
 describe('desktop pieces', () => {
   const m = build();
 
   it('all laps by stint, with selection order', () => {
     expect(m.allLaps).toHaveLength(1);
     expect(m.allLaps[0].rows.map(r => [r.label, r.selIndex, r.tag])).toEqual([
-      ['L1', 0, 'BEST'],
-      ['L2', 1, null],
-      ['L3', 2, null],
+      ['L1', 1, 'BEST'],
+      ['L2', 2, null],
+      ['L3', 3, null],
     ]);
   });
 
@@ -331,7 +428,12 @@ describe('desktop pieces', () => {
       'Steering',
       'Gear',
     ]);
-    expect(rows[1].values.map(v => v.text)).toEqual(['180', '176', '181']);
+    expect(rows[1].values.map(v => v.text)).toEqual([
+      '180',
+      '180',
+      '176',
+      '181',
+    ]);
     expect(rows[0].values[0].text).toBe('±0.000 s');
   });
 
@@ -341,10 +443,11 @@ describe('desktop pieces', () => {
     expect(m.sectionEntryM).toEqual({1: 100, 2: 500});
   });
 
-  it('toggling a lap adds or removes it, never the reference', () => {
+  it('toggling a lap adds or removes it, never the Ref lap', () => {
     expect(toggleCompared(sel({laps: ['a']}), 'b').laps).toEqual(['a', 'b']);
     expect(toggleCompared(sel(), 'b').laps).toEqual(['a', 'c']);
-    expect(toggleCompared(sel(), 'a').laps).toEqual(['a', 'b', 'c']);
+    expect(toggleCompared(sel(), 'a').laps).toEqual(['b', 'c']);
+    expect(toggleCompared(sel({ref: 'a'}), 'a').laps).toEqual(['a', 'b', 'c']);
   });
 });
 
@@ -366,14 +469,105 @@ describe('many laps', () => {
     traces: manyTraces,
     band: null,
     map,
-    selection: sel({laps: many.map(l => l.id), hl: 'm3'}),
+    selection: sel({laps: many.map(l => l.id), ref: 'm0', hl: 'm3'}),
   });
 
   it('tinted mode above 6 laps: only ref and highlighted are key', () => {
     expect(m.mode).toBe('tinted');
-    expect(m.chips.map(c => c.label)).toEqual(['L1', 'L4']);
-    expect(m.manyChip).toBe('+7 laps, tinted');
+    // Every checked lap has a chip; the readout holds the key laps.
+    expect(m.chips).toHaveLength(8);
     expect(m.charts[1].valueRows[0].values).toHaveLength(2);
+  });
+
+  it('median mode, 11 laps, nothing highlighted: chips for all, readout leads with the basis', () => {
+    const eleven = toLaps(
+      Array.from({length: 11}, (_, i) =>
+        rawLap(`e${i}`, 20 + i / 10, [5 + i / 10, 5]),
+      ),
+    );
+    const elevenTraces = new Map(
+      eleven.map(l => [
+        l.id,
+        resampleTrace(circleLap(180 - l.lapIndex), LENGTH_M, 5, 10),
+      ]),
+    );
+    const out = buildCompareModel({
+      session,
+      laps: eleven,
+      traces: elevenTraces,
+      band: null,
+      map,
+      selection: sel({laps: eleven.map(l => l.id)}),
+    });
+    expect(out.chips).toHaveLength(11);
+    expect(out.readouts.map(r => r.lapId)).toEqual([BASIS_ID]);
+    const speed = out.charts[1].valueRows[0];
+    expect(speed.values).toHaveLength(1);
+    expect(speed.values[0].lapId).toBe(BASIS_ID);
+    expect(out.charts[0].valueRows[0].values[0].text).toBe('±0.000 s');
+  });
+
+  it('colour slots: the Ref lap is slot 0, the others follow in lap order', () => {
+    const out = build(sel({ref: 'b'}));
+    expect(out.chips.map(c => [c.label, c.selIndex])).toEqual([
+      ['L1', 1],
+      ['L2', 0],
+      ['L3', 2],
+    ]);
+    // Median mode: no lap is the reference, so none takes slot 0.
+    expect(build().chips.map(c => c.selIndex)).toEqual([1, 2, 3]);
+  });
+
+  it('median mode never draws a lap as the reference, at 2, 6 and 11 laps', () => {
+    for (const n of [2, 6, 11]) {
+      const set = toLaps(
+        Array.from({length: n}, (_, i) =>
+          rawLap(`p${i}`, 20 + i / 10, [5 + i / 10, 5]),
+        ),
+      );
+      const out = buildCompareModel({
+        session,
+        laps: set,
+        traces: new Map(
+          set.map(l => [
+            l.id,
+            resampleTrace(circleLap(180 - l.lapIndex), LENGTH_M, 5, 10),
+          ]),
+        ),
+        band: null,
+        map,
+        selection: sel({laps: set.map(l => l.id)}),
+      });
+      const real = out.chips.filter(c => c.selIndex >= 0);
+      expect(real).toHaveLength(n);
+      expect(out.chips.some(c => c.isRef)).toBe(false);
+      expect(real.every(c => c.selIndex >= 1)).toBe(true);
+      // Individual mode (up to six laps) gives every slot its own colour;
+      // above that the tints cycle.
+      if (n <= 6)
+        for (const scheme of ['dark', 'light'] as const)
+          for (const c of real)
+            expect(lapColors[scheme][c.selIndex]).toBeDefined();
+      // And none is drawn with the reference stroke.
+      for (const c of real)
+        expect(lapStroke('dark', c.selIndex, n, false).color).not.toBe(
+          lapColors.dark[0],
+        );
+    }
+  });
+
+  it('takes the median trace from the caller when given, and builds it when not', () => {
+    const own = build(sel());
+    const given = buildCompareModel({
+      session,
+      laps,
+      traces,
+      band: null,
+      map,
+      selection: sel(),
+      basisTrace: medianBasisOf(laps, traces),
+    });
+    expect(given.refGrid!.timeS.at(-1)).toBe(own.refGrid!.timeS.at(-1));
   });
 
   it('grid shows the median row plus the highlighted lap', () => {
@@ -470,27 +664,33 @@ describe('a URL with no laps', () => {
 });
 
 describe('selection edits', () => {
-  it('making a lap the reference moves it first', () => {
-    expect(makeReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
+  it('setting the Ref lap reorders nothing', () => {
+    expect(setRef(sel(), 'c')).toEqual(sel({ref: 'c'}));
+    expect(setRef(sel({ref: 'c'}), 'a')).toEqual(sel({ref: 'a'}));
   });
-  it('setting a lap as the reference adds it first when it is not compared', () => {
+  it('setting a lap that is not checked checks it', () => {
     // 'x' is in All laps but not in the comparison.
-    const out = setReference(sel(), 'x');
-    expect(out.laps).toEqual(['x', 'a', 'b', 'c']);
-    // A compared lap just moves; the old reference stays as an ordinary lap.
-    expect(setReference(sel(), 'c').laps).toEqual(['c', 'a', 'b']);
-    // The reference itself: nothing changes.
-    expect(setReference(sel(), 'a')).toEqual(sel());
+    expect(setRef(sel(), 'x')).toEqual(
+      sel({laps: ['a', 'b', 'c', 'x'], ref: 'x'}),
+    );
   });
-  it('the reference cannot be removed', () => {
-    expect(removeLap(sel(), 'a')).toEqual(sel());
-    expect(removeLap(sel(), 'b').laps).toEqual(['a', 'c']);
+  it('clearing the Ref lap goes back to the median', () => {
+    expect(clearRef(sel({ref: 'b'}))).toEqual(sel());
+    expect(clearRef(sel())).toEqual(sel());
   });
-  it('the last compared lap stays', () => {
-    expect(canRemoveLap(sel(), 'a')).toBe(false);
-    expect(canRemoveLap(sel(), 'b')).toBe(true);
-    const two = {...sel(), laps: ['a', 'b']};
-    expect(canRemoveLap(two, 'b')).toBe(false);
+  it('highlighting toggles', () => {
+    expect(toggleHighlight(sel(), 'b').hl).toBe('b');
+    expect(toggleHighlight(sel({hl: 'b'}), 'b').hl).toBeNull();
+  });
+  it('the Ref lap cannot be removed, while another lap can', () => {
+    expect(removeLap(sel({ref: 'a'}), 'a')).toEqual(sel({ref: 'a'}));
+    expect(removeLap(sel({ref: 'a'}), 'b').laps).toEqual(['a', 'c']);
+    expect(removeLap(sel(), 'a').laps).toEqual(['b', 'c']);
+  });
+  it('two checked laps stay', () => {
+    expect(canRemoveLap(sel(), 'a')).toBe(true);
+    expect(canRemoveLap(sel({ref: 'a'}), 'a')).toBe(false);
+    expect(canRemoveLap(sel({laps: ['a', 'b']}), 'b')).toBe(false);
   });
 });
 
@@ -719,7 +919,7 @@ describe('laps of another session', () => {
     traces: withTrace,
     band: null,
     map,
-    selection: sel({laps: [fid, 'a'], hl: 'a'}),
+    selection: sel({laps: [fid, 'a'], ref: fid, hl: 'a'}),
   });
 
   it('is the reference, named with its session so two L1s are not confused', () => {
@@ -740,11 +940,11 @@ describe('laps of another session', () => {
       traces: withTrace,
       band: null,
       map,
-      selection: sel({laps: [fid, 'a'], hl: 'a'}),
+      selection: sel({laps: [fid, 'a'], ref: fid, hl: 'a'}),
     });
     expect(tagged.chips.map(c => c.label)).toEqual([
-      'L1 · 25 Sep',
       'L1 · 26 Sep Race',
+      'L1 · 25 Sep',
     ]);
     // Without a foreign lap in the view, nothing is tagged.
     expect(build().chips.every(c => !c.label.includes('·'))).toBe(true);

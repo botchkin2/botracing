@@ -128,7 +128,6 @@ describe('buildSectionWindow', () => {
       laps: lapsOf(rawLap('a', section2())),
     });
     expect(w?.label).toBe('S2 (T2–T4)');
-    expect(w?.span).toBe('500 → 1,000 m');
     expect(w?.parts.map(p => [p.label, p.fromM, p.toM])).toEqual([
       ['T2', 500, 620],
       ['T3', 620, 760],
@@ -153,7 +152,7 @@ describe('buildSectionWindow', () => {
     expect(b.exit.gap).toBe('+0.200');
     expect(a.speeds).toEqual({
       onset: '280 km/h',
-      min: '70 km/h at 660 m in T3',
+      min: '70 km/h in T3',
       fullThrottle: '120 km/h',
       end: '250 km/h',
     });

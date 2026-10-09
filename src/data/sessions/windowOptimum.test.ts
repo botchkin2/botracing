@@ -32,6 +32,7 @@ interface Over {
   pit?: boolean;
   offTrackSec?: number;
   localYellowSec?: number;
+  courseYellowSec?: number;
   flagged?: boolean;
 }
 
@@ -48,6 +49,7 @@ const rawLap = (id: string, o: Over = {}) => ({
     toM: 150,
     offTrackSec: 0,
     localYellowSec: 0,
+    courseYellowSec: 0,
     pit: false,
   },
   corners: [
@@ -55,6 +57,7 @@ const rawLap = (id: string, o: Over = {}) => ({
       segTime: o.sectionS ?? 95,
       offTrackSec: o.offTrackSec ?? 0,
       localYellowSec: o.localYellowSec ?? 0,
+      courseYellowSec: o.courseYellowSec ?? 0,
       parts: [],
       brakeApps: [],
       fromM: 150,
@@ -90,24 +93,23 @@ describe('sessionOptimum', () => {
     expect(s?.[0].medianSumS).toBe(5 + 2 + 95 + 2);
   });
 
-  it('leaves out a window that crosses the pit lane, off track or under a yellow', () => {
-    // One lap of six per cause: that window loses a time, the rest stay.
+  it('leaves out a window that crosses the pit lane, is off track, or is under a full-course yellow', () => {
     const laps = [
       ...five(),
       rawLap('pit', {pit: true, sectionS: 80}),
-      rawLap('off', {offTrackSec: 0.2, sectionS: 80}),
-      rawLap('yel', {localYellowSec: 0.5, sectionS: 80}),
+      rawLap('off', {offTrackSec: 0.3, sectionS: 80}),
+      rawLap('fcy', {courseYellowSec: 0.5, sectionS: 80}),
     ];
     const w = optimum(laps)?.stints[0].windows;
     expect(w?.[1]).toMatchObject({n: 5, bestS: 95});
     expect(w?.[0].n).toBe(8);
   });
 
-  it('keeps a touch of the white line and a brief yellow', () => {
+  it('keeps a sector-level local yellow and a 0.2 s off as times, tagged not dropped', () => {
     const laps = [
       ...five(),
-      rawLap('a', {offTrackSec: 0.19, sectionS: 80}),
-      rawLap('b', {localYellowSec: 0.49, sectionS: 81}),
+      rawLap('a', {offTrackSec: 0.2, sectionS: 80}),
+      rawLap('b', {localYellowSec: 0.5, sectionS: 81}),
     ];
     const w = optimum(laps)?.stints[0].windows[1];
     expect(w).toMatchObject({n: 7, bestS: 80, bestLapId: 'a'});

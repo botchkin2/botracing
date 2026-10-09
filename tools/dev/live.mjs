@@ -31,13 +31,21 @@ console.log(
 );
 const child = spawn(
   process.execPath,
-  [found.cli, 'start', '--web', '--port', String(found.port)],
+  // --localhost: Metro listens on loopback only. Without it, it binds every
+  // interface and the seat-test token endpoint would be reachable from the LAN.
+  [found.cli, 'start', '--web', '--localhost', '--port', String(found.port)],
   {
     cwd: found.dir,
     stdio: 'inherit',
     env: {
       ...process.env,
       BROWSER: 'none',
+      LIVE_SEAT_SIGNIN_PORT: String(found.port),
+      // The service account's email, not a secret (docs/TESTING.md): the mint
+      // impersonates it with the gcloud login on this PC.
+      SMOKE_SERVICE_ACCOUNT:
+        process.env.SMOKE_SERVICE_ACCOUNT ??
+        'firebase-adminsdk-fbsvc@botracing-61.iam.gserviceaccount.com',
       EXPO_PUBLIC_LMU_API_BASE: 'https://botracing-61.web.app/api/lmu',
     },
   },

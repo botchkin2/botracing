@@ -1,12 +1,14 @@
-// Every in-app URL is built here. The URL owns the selection (laps with the
-// reference first, highlighted lap, open corner, cursor), so a link carries
-// the whole view. Pure: imports only ./lapRef, importable from features and routes.
+// Every in-app URL is built here. The URL owns the selection (checked laps,
+// the Ref lap if one is set, highlighted lap, open corner, cursor), so a link
+// carries the whole view. Pure: imports only ./lapRef, importable from features and routes.
 
 import {isForeignLapId, ownLapIds} from './lapRef';
 
 export type LapSelectionParams = {
-  /** Lap ids; the first is the reference. */
+  /** Checked lap ids. */
   laps?: string[];
+  /** The Ref lap id; absent measures against the median of the checked laps. */
+  ref?: string | null;
   /** Highlighted lap id. */
   hl?: string | null;
   /** Open corner number. */
@@ -27,13 +29,23 @@ function selectionParams(
   const p: Record<string, string> = {};
   const laps = keepForeign ? sel.laps : sel.laps && ownLapIds(sel.laps);
   if (laps?.length) p.laps = laps.join(',');
+  if (sel.ref && (keepForeign || !isForeignLapId(sel.ref))) p.ref = sel.ref;
   if (sel.hl && (keepForeign || !isForeignLapId(sel.hl))) p.hl = sel.hl;
   if (sel.corner != null) p.c = String(sel.corner);
   if (sel.cursorM != null) p.t = String(Math.round(sel.cursorM));
   return p;
 }
 
-export const sessionsHref = (): Href => ({pathname: '/', params: {}});
+/** The Sessions list, optionally narrowed to a game and a track (ids as the data has them). */
+export const sessionsHref = (
+  filter: {game?: string | null; track?: string | null} = {},
+): Href => ({
+  pathname: '/',
+  params: {
+    ...(filter.game ? {game: filter.game} : {}),
+    ...(filter.track ? {track: filter.track} : {}),
+  },
+});
 
 export const settingsHref = (): Href => ({pathname: '/settings', params: {}});
 
@@ -102,6 +114,7 @@ export const trackHref = (
 /** Reads the shared params back; unknown or empty values drop out. */
 export function parseSelection(params: {
   laps?: string;
+  ref?: string;
   hl?: string;
   c?: string;
   t?: string;
@@ -110,6 +123,7 @@ export function parseSelection(params: {
   const cursorM = params.t ? Number(params.t) : NaN;
   return {
     laps: params.laps ? params.laps.split(',').filter(Boolean) : [],
+    ref: params.ref || null,
     hl: params.hl || null,
     corner: Number.isFinite(corner) ? corner : null,
     cursorM: Number.isFinite(cursorM) ? cursorM : null,

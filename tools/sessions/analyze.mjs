@@ -41,6 +41,7 @@ import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
 import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
+import {RACE_LENGTH_VERSION} from './raceLength.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
   mapKeyOf,
@@ -73,6 +74,11 @@ export const analysisVersion = 17;
 // bump re-analyses every session once, and each block's doc carries its key as
 // `v`. Each key is the constant that sits next to its block's rules (the
 // history of what each number meant is there).
+// ≥2 wheels on a loose surface for this long is an off (triage #49).
+// A one-wheel kiss of the white line is not.
+export const OFF_TRACK_VERSION = 1;
+const OFF_TRACK_SEC = 0.3;
+
 export const blockVersions = {
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
@@ -81,13 +87,14 @@ export const blockVersions = {
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
   pitVisit: PIT_VISIT_VERSION,
   classLaps: CLASS_LAPS_VERSION,
+  offTrack: OFF_TRACK_VERSION,
+  raceLength: RACE_LENGTH_VERSION,
 };
 
 const GRID_M = 5;
 const SLOW_SIGMAS = 3;
 const SLOW_MIN_SEC = 1.5;
 const SLOW_MAX_FACTOR = 1.07;
-const OFF_TRACK_SEC = 0.2;
 // A track's stored corner map is built only from a session with at least
 // this many clean laps of the same length.
 export const MAP_MIN_LAPS = 8;
@@ -334,9 +341,10 @@ function sectorTimes(events, start, end, lapTime) {
 
 function isLoose(event) {
   if (!event) return false;
-  return [event.v, event.v2, event.v3, event.v4].some(v =>
+  const n = [event.v, event.v2, event.v3, event.v4].filter(v =>
     LOOSE_SURFACES.has(v),
-  );
+  ).length;
+  return n >= 2;
 }
 
 // Start/finish segments of one recording, as tick ranges.

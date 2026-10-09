@@ -4,6 +4,7 @@ import {retryUnlessClientError} from '../http';
 
 import {
   fetchSession,
+  fetchSessionFacets,
   fetchSessionBand,
   fetchSessionLaps,
   fetchSessionMap,
@@ -26,6 +27,16 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
   });
 }
 
+/** Games and tracks over all history, for the Sessions filter chips. */
+export function useSessionFacets() {
+  return useQuery({
+    queryKey: sessionKeys.facets,
+    queryFn: ({signal}) => fetchSessionFacets(signal),
+    staleTime: 60_000,
+    retry: retryUnlessClientError,
+  });
+}
+
 /** `enabled` false skips the fetch, for callers that only sometimes have an id. */
 export function useSession(id: string, enabled = true) {
   return useQuery({
@@ -37,10 +48,12 @@ export function useSession(id: string, enabled = true) {
   });
 }
 
-export function useSessionLaps(id: string) {
+export function useSessionLaps(id: string | null) {
   return useQuery({
-    queryKey: sessionKeys.laps(id),
-    queryFn: ({signal}) => fetchSessionLaps(id, signal),
+    queryKey: sessionKeys.laps(id ?? ''),
+    // Only runs when enabled, so the id is set here.
+    queryFn: ({signal}) => fetchSessionLaps(id!, signal),
+    enabled: id != null,
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
@@ -53,6 +66,7 @@ export function useSessionsLaps(ids: string[]) {
       queryKey: sessionKeys.laps(id),
       queryFn: ({signal}: {signal: AbortSignal}) =>
         fetchSessionLaps(id, signal),
+      enabled: id !== '',
       staleTime: DETAIL_STALE_MS,
       retry: retryUnlessClientError,
     })),

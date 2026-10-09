@@ -7,7 +7,14 @@ import {
   toTrackMap,
 } from '@/src/data/sessions/adapters';
 
-import {buildCornerModel, cornerLapIds, sortRows, buildBrakeMap} from './model';
+import {
+  buildCornerModel,
+  cornerLapIds,
+  MEASURES,
+  referenceFirst,
+  sortRows,
+  buildBrakeMap,
+} from './model';
 
 const session = toSessionDetail({
   id: 's1',
@@ -55,6 +62,11 @@ const lap = (
     {
       segTime: 99,
       brakeAtM: 1,
+      // One brake application per corner, each by the corner it is for.
+      brakeApps: [
+        {onsetM: 450, peakPct: 80, part: 2},
+        {onsetM: 620, peakPct: 95, part: 3},
+      ],
       parts: [
         {segTime: 1, brakeAtM: 480},
         {
@@ -122,7 +134,7 @@ describe('buildCornerModel (per single corner)', () => {
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
     expect(m.subtitle).toBe(
-      '640 m · in S2 (T2–T3) · 3 laps · compared with L1',
+      'in S2 (T2–T3) · 3 laps · compared with L1',
     );
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
@@ -138,9 +150,51 @@ describe('buildCornerModel (per single corner)', () => {
     expect(m.rows[0].values).toEqual({
       time: 9.8,
       brake: 180,
+      peakBrake: 95,
       minSpeed: 110,
       throttle: 10,
     });
+  });
+
+  it('takes the largest peak among a corner’s applications, not the first', () => {
+    // A light dab before the main stop, listed first: the peak is the harder one.
+    const base = lap('d', [9.9, 455, 109, 655]);
+    const dabbed = {
+      ...base,
+      corners: [
+        base.corners[0],
+        {
+          ...base.corners[1],
+          brakeApps: [
+            {onsetM: 300, peakPct: 20, part: 3},
+            {onsetM: 620, peakPct: 95, part: 3},
+          ],
+        },
+      ],
+    };
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([dabbed]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['d'],
+      keyLapIds: ['d'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m2.rows[0].values.peakBrake).toBe(95);
+  });
+
+  it('takes the peak brake of the application for this corner (part 3, not part 2)', () => {
+    expect(m.rows.map(r => r.values.peakBrake)).toEqual([95, 95, 95]);
+    expect(m.rows[0].cells.peakBrake).toEqual({
+      value: '95',
+      gap: null,
+      better: false,
+    });
+    // No good or bad side for peak pressure: the gap is shown, never coloured as better.
+    expect(MEASURES.find(x => x.id === 'peakBrake')?.better).toBeNull();
   });
 
   it('gaps to the reference; better depends on the measure', () => {
@@ -244,6 +298,26 @@ describe('lap choice', () => {
       'a',
     ]);
     expect(cornerLapIds([], {laps: [], hl: null}, false, null)).toEqual([]);
+  });
+
+  it('puts the Ref lap first, else the quickest checked lap', () => {
+    const timed = toLaps([
+      {...lap('a', [9.8, 460, 110, 650]), lapTime: 91},
+      {...lap('b', [10.1, 450, 106, 670]), lapTime: 90},
+      {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
+    ]);
+    const sel = (over: Partial<Parameters<typeof referenceFirst>[0]>) => ({
+      laps: ['a', 'b', 'c'],
+      hl: null,
+      ...over,
+    });
+    // Compare keeps lap-number order, so the first is not a choice.
+    expect(referenceFirst(sel({}), timed).laps).toEqual(['b', 'a', 'c']);
+    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual(['c', 'a', 'b']);
+    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual(['b', 'a', 'c']);
+    const first = sel({laps: ['b', 'a']});
+    expect(referenceFirst(first, timed)).toBe(first);
+    expect(referenceFirst(sel({laps: []}), timed).laps).toEqual([]);
   });
 
   it('sorts by a measure', () => {

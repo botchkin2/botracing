@@ -159,6 +159,7 @@ export function cornerFacts({
       endSpeedKmh:
         s.speed_kmh[toTick] == null ? null : round(s.speed_kmh[toTick], 1),
       localYellowSec: 0,
+      courseYellowSec: 0,
       offTrackSec: 0,
       pit: pits.some(([a, b]) => a <= t1 && b >= t0),
       minSpeedKmh: round(s.speed_kmh[minTick], 1),
@@ -245,6 +246,7 @@ export function cornerFacts({
         fromM: 0,
         toM: round(startWindow.toM, 1),
         localYellowSec: 0,
+        courseYellowSec: 0,
         offTrackSec: 0,
         pit: pits.some(
           ([a, b]) =>
@@ -253,8 +255,10 @@ export function cornerFacts({
       }
     : null;
 
-  // Off-track and local-yellow time by window, from the full-rate ticks.
-  const {local} = flags;
+  // Off-track, local-yellow, and full-course-yellow time by window.
+  // Tests (and older callers) may omit course; treat a missing list as none.
+  const local = flags.local ?? [];
+  const course = flags.course ?? [];
   const windowOf = rawM => {
     const m = rawM / ratio;
     if (startWindow && m < startWindow.toM) return -1;
@@ -273,16 +277,20 @@ export function cornerFacts({
     while (li < local.length && local[li][1] < s.t[i]) li++;
     if (li < local.length && local[li][0] <= s.t[i])
       target.localYellowSec += dt;
+    if (course.some(([a, b]) => a <= s.t[i] && s.t[i] < b))
+      target.courseYellowSec += dt;
   }
   for (const f of [startStraight, ...corners].filter(Boolean)) {
     f.offTrackSec = round(f.offTrackSec, 2);
     f.localYellowSec = round(f.localYellowSec, 2);
+    f.courseYellowSec = round(f.courseYellowSec, 2);
   }
   // A part's off-track and yellow time: by its own window inside its section.
   corners.forEach((f, k) => {
     for (const p of f.parts ?? []) {
       p.offTrackSec = 0;
       p.localYellowSec = 0;
+      p.courseYellowSec = 0;
     }
     if (!f.parts) return;
     let pl = 0;
@@ -296,10 +304,13 @@ export function cornerFacts({
       while (pl < local.length && local[pl][1] < s.t[i]) pl++;
       if (pl < local.length && local[pl][0] <= s.t[i])
         f.parts[pi].localYellowSec += dt;
+      if (course.some(([a, b]) => a <= s.t[i] && s.t[i] < b))
+        f.parts[pi].courseYellowSec += dt;
     }
     for (const p of f.parts) {
       p.offTrackSec = round(p.offTrackSec, 2);
       p.localYellowSec = round(p.localYellowSec, 2);
+      p.courseYellowSec = round(p.courseYellowSec, 2);
     }
   });
   return {corners, startStraight};

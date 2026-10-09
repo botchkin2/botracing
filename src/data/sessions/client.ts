@@ -5,6 +5,7 @@ import {getJson, HttpError} from '../http';
 import {
   type Lap,
   type SessionDetail,
+  type SessionFacets,
   type SessionLapsResponse,
   type SessionListResponse,
   type SessionSummary,
@@ -15,6 +16,7 @@ import {
   toTrackMap,
   toTrackSurface,
   toSessionDetail,
+  toSessionFacets,
   toSessionSummary,
 } from './adapters';
 import {type SessionFilter} from './keys';
@@ -26,12 +28,19 @@ export async function fetchSessions(
   const params = new URLSearchParams();
   if (filter.ageDays) params.set('age', String(filter.ageDays));
   if (filter.trackId) params.set('track', filter.trackId);
+  if (filter.sim) params.set('sim', filter.sim);
   const query = params.toString();
   const body = await getJson<SessionListResponse>(
     `/sessions${query ? `?${query}` : ''}`,
     signal,
   );
   return {items: body.items.map(toSessionSummary), total: body.total};
+}
+
+export async function fetchSessionFacets(
+  signal?: AbortSignal,
+): Promise<SessionFacets> {
+  return toSessionFacets(await getJson<unknown>('/sessions/facets', signal));
 }
 
 export async function fetchSession(

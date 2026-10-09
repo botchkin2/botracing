@@ -38,6 +38,7 @@ export function DotStrip({
   coincidentWithin,
   minLabel,
   maxLabel,
+  unit,
   resolution,
   leftWord,
   rightWord,
@@ -55,6 +56,8 @@ export function DotStrip({
   coincidentWithin: number;
   minLabel: string;
   maxLabel: string;
+  /** Printed after each end value, so the scale reads in units. */
+  unit: string;
   resolution: string | null;
   leftWord: string;
   rightWord: string;
@@ -87,6 +90,7 @@ export function DotStrip({
   const [leftVal, rightVal] = flipped
     ? [maxLabel, minLabel]
     : [minLabel, maxLabel];
+  const withUnit = (v: string) => (unit ? `${v} ${unit}` : v);
   return (
     <View>
       <View style={{width, height: h}}>
@@ -141,7 +145,7 @@ export function DotStrip({
       </View>
       <View style={[styles.ends, {width}]}>
         <Text variant='axis' tone='textSecondary'>
-          {leftVal}
+          {withUnit(leftVal)}
         </Text>
         {resolution ? (
           <Text variant='axis' tone='textFaint'>
@@ -149,7 +153,7 @@ export function DotStrip({
           </Text>
         ) : null}
         <Text variant='axis' tone='textSecondary'>
-          {rightVal}
+          {withUnit(rightVal)}
         </Text>
       </View>
       <View style={[styles.ends, {width}]}>

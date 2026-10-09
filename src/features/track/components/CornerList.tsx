@@ -1,13 +1,13 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {size, space, useTheme, turnLabel, turnNumber} from '@/src/design';
+import {size, space, useTheme, turnLabel} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type TrackCornerGroup} from '../model';
 
-// Corner list (handoff T1 column 2, phone 05): No. | Name | Dir | Dist.
-// Grouped corners sit under their section heading. Tapping a row toggles
-// the selection shared with the map badges.
+// Corner picker (handoff T1 column 2, phone 05): one line per corner, its turn
+// name or the turn label. Grouped corners sit under their section heading.
+// Tapping a row toggles the selection shared with the map badges.
 export function CornerList({
   groups,
   compact,
@@ -22,25 +22,6 @@ export function CornerList({
   const rowH = compact ? size.cornerRowDesk : size.hit;
   return (
     <View>
-      <View
-        style={[
-          styles.row,
-          styles.header,
-          {backgroundColor: color.surface, borderColor: color.lineHeader},
-        ]}>
-        <Text variant='tableHeader' tone='textMuted' style={styles.no}>
-          No.
-        </Text>
-        <Text variant='tableHeader' tone='textMuted' style={styles.name}>
-          Name
-        </Text>
-        <Text variant='tableHeader' tone='textMuted' style={styles.dir}>
-          Dir
-        </Text>
-        <Text variant='tableHeader' tone='textMuted' style={styles.dist}>
-          Dist
-        </Text>
-      </View>
       {groups.map((g, gi) => (
         <View key={g.title ?? `g${gi}`}>
           {g.title ? (
@@ -72,24 +53,12 @@ export function CornerList({
                 pressed &&
                   !r.selected && {backgroundColor: color.surfaceRaised},
               ]}>
-              <Text variant='dataStrong' style={styles.no}>
-                {turnNumber(r.n, r.official ?? undefined)}
-              </Text>
               <Text
-                variant={compact ? 'body' : 'body'}
+                variant='body'
                 tone={r.name ? 'text' : 'textMuted'}
                 numberOfLines={1}
                 style={styles.name}>
                 {r.name ?? turnLabel(r.n, r.official ?? undefined)}
-              </Text>
-              <Text variant='dataSmall' tone='textMuted' style={styles.dir}>
-                {r.turn ?? ''}
-              </Text>
-              <Text
-                variant='dataSmall'
-                tone='textSecondary'
-                style={styles.dist}>
-                {r.dist}
               </Text>
             </Pressable>
           ))}
@@ -109,14 +78,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  header: {paddingVertical: space.sm, borderTopWidth: 1},
   groupTitle: {
     paddingHorizontal: space.xl,
     paddingTop: space.md,
     paddingBottom: space.xxs,
   },
-  no: {width: 26},
   name: {flex: 1, minWidth: 0},
-  dir: {width: 40},
-  dist: {width: 62, textAlign: 'right'},
 });

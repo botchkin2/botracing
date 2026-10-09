@@ -79,7 +79,7 @@ describe('classTiming', () => {
     expect(hyper.estimate?.gainText).toBe('12.0 s');
     expect(hyper.estimate?.everyText).toBe('~8 laps');
     expect(hyper.text).toBe(
-      'From 2 races, 1 practice · n = 270 laps · under 3 races, so practice counts',
+      'From 2 races, 1 practice · 270 laps · under 3 races, so practice counts',
     );
   });
 
@@ -99,7 +99,7 @@ describe('classTiming', () => {
     );
     const hyper = t.faster.find(c => c.key === 'hypercar')!;
     expect(hyper.estimate?.lapText).toBe('1:38.000');
-    expect(hyper.text).toBe('From 3 races · n = 270 laps');
+    expect(hyper.text).toBe('From 3 races · 270 laps');
   });
 
   it('the first catch is a range from the p10 to the p90 lap, and assumes a level start', () => {
@@ -195,9 +195,9 @@ describe('classTiming', () => {
     expect(t.yours).toEqual({
       name: 'GT3',
       classText: '1:51.000',
-      classSrc: 'From 3 races · n = 300 laps',
+      classSrc: 'From 3 races · 300 laps',
       youText: '1:49.500',
-      youSrc: 'n = 25 green laps · 3 sessions',
+      youSrc: '25 green laps · 3 sessions',
     });
   });
 });

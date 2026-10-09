@@ -17,8 +17,7 @@ import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
 import {EnergyLineRow} from './EnergyLineRow';
-import {LapDistribution} from './LapDistribution';
-import {LapTableHeader, WIDE_ROW_H} from './LapTableRow';
+import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
 
@@ -27,7 +26,7 @@ const PAD_X = space.xl + space.xs;
 
 /**
  * Desktop (≥1280) D1 Session workspace: centre (header, lap-time bars, wide
- * lap table) and a 340 pt right column (stints, distribution, stint vs stint,
+ * lap table) and a 340 pt right column (stints, stint vs stint,
  * lap detail, compare tray). The rail sits left of it in the route. Only
  * rearranges the phone's components; the screen passes them in.
  */
@@ -166,7 +165,7 @@ export function SessionWorkspace({
         </View>
         <View style={styles.chart}>{chart(innerW)}</View>
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
-          <LapTableHeader width={innerW} wide />
+          <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
         </View>
         <FlatList
           ref={listRef}
@@ -183,6 +182,11 @@ export function SessionWorkspace({
           )}
           ListFooterComponent={
             <View style={styles.footer}>
+              {model.sections ? (
+                <View style={styles.rowPad}>
+                  <SectionFooter table={model.sections} width={innerW} />
+                </View>
+              ) : null}
               <Text variant='dataSmall' tone='textMuted'>
                 {tagKey}
               </Text>
@@ -250,13 +254,6 @@ function SidePanels({
     <>
       {desk.stints.length > 0 && <StintsPanel rows={desk.stints} />}
       <View onLayout={e => onCardsY(e.nativeEvent.layout.y)}>{cards}</View>
-      {desk.distribution && (
-        <LapDistribution
-          model={desk.distribution}
-          colorOf={colorOf}
-          onPressLap={onHighlight}
-        />
-      )}
       {desk.stintVsStint && <StintCornerBars model={desk.stintVsStint} />}
     </>
   );

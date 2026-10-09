@@ -5,7 +5,6 @@ import {WHEELS} from '@/src/analysis/tyres';
 import {space, useTheme} from '@/src/design';
 import {EmptyState, Segment, Text} from '@/src/ui';
 
-import type {WearScatterModel} from '../wearScatter';
 import {
   treadScale,
   type TreadZone,
@@ -15,7 +14,6 @@ import {AxleLines} from './AxleLines';
 import {CoolDown} from './CoolDown';
 import {TireGrid} from './TireGrid';
 import {TreadZones} from './TreadZones';
-import {WearScatter} from './WearScatter';
 
 /**
  * The Session Tires card (round 7 1A, 1C, 1D): one stint at a time. Wear per
@@ -24,12 +22,9 @@ import {WearScatter} from './WearScatter';
  */
 export function TiresCard({
   card,
-  scatter,
   width,
 }: {
   card: TiresCardModel;
-  /** Lap time against wear over the whole race; null with too few laps. */
-  scatter: WearScatterModel | null;
   /** The width the card may use, in points. */
   width: number;
 }) {
@@ -39,7 +34,7 @@ export function TiresCard({
     return (
       <View style={styles.card}>
         <Text variant='label'>Tires</Text>
-        <EmptyState title='No tyre channels' />
+        <EmptyState title='No tire channels' />
       </View>
     );
   }
@@ -132,7 +127,6 @@ export function TiresCard({
         <CoolDown block={stint.coolDown} width={width} />
       </View>
       {stint.tread ? <TreadBlock zones={stint.tread} width={width} /> : null}
-      {scatter ? <WearScatter model={scatter} width={width} /> : null}
     </View>
   );
 }

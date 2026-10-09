@@ -119,7 +119,7 @@ function StopsBody({
     {key: 'added', label: 'Added', h: size.pitRow},
     ...(card.hasVe ? [{key: 'veOut', label: 'VE out', h: size.pitBarRow}] : []),
     {key: 'lane', label: 'Pit lane', h: size.pitBarRow},
-    {key: 'tyres', label: 'Tyres', h: size.pitTyreRow},
+    {key: 'tyres', label: 'Tires', h: size.pitTyreRow},
   ];
   const cellOf = (c: PitColumn, key: string) => {
     switch (key) {
@@ -248,9 +248,6 @@ function StopsBody({
       {card.end ? (
         <View style={[styles.end, {borderColor: color.line}]}>
           <Text variant='bodyStrong'>{card.end.title}</Text>
-          <Text variant='dataSmall' tone='textMuted'>
-            the last whole lap
-          </Text>
           <Text variant='label' tone='textMuted'>
             Spare
           </Text>
@@ -284,7 +281,7 @@ function WheelGrid({wheels}: {wheels: WheelWear[]}) {
       : `${pct(w.beforePct ?? w.afterPct)}${star}`;
   };
   const label = (w: WheelWear) =>
-    `${w.wheel} ${w.changed ? 'new tyre' : 'kept'}, ${text(w).replace(
+    `${w.wheel} ${w.changed ? 'new tire' : 'kept'}, ${text(w).replace(
       '→',
       ' to ',
     )} percent left${

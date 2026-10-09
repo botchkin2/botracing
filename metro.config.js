@@ -23,4 +23,17 @@ config.resolver.blockList = [
   blocked,
 ];
 
+// Only live.mjs sets this: a live slot signs its pane in as seat-test
+// (tools/dev/seatToken.mjs). A plain `expo start` or an export has no endpoint.
+const seatPort = process.env.LIVE_SEAT_SIGNIN_PORT;
+if (seatPort) {
+  const {seatTokenMiddleware} = require('./tools/dev/seatToken.mjs');
+  const handler = seatTokenMiddleware({port: seatPort});
+  const enhance = config.server.enhanceMiddleware;
+  config.server.enhanceMiddleware = (middleware, server) => {
+    const inner = enhance ? enhance(middleware, server) : middleware;
+    return (req, res, next) => handler(req, res, () => inner(req, res, next));
+  };
+}
+
 module.exports = config;

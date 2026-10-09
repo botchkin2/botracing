@@ -1,8 +1,11 @@
 // Feeds src/analysis/sectionOptimum.ts from a session's laps and the layout's
 // corner windows: which lap times count in which window. A window counts for a
-// comparable lap cut at the current boundaries unless the pit lane crosses it
-// or the lap went off track or under a local yellow in it. Tow, traffic and
-// blue flags never remove a time (decisions/lap/2026-10-01-corner-windows.md).
+// comparable lap cut at the current boundaries unless the pit lane crosses it,
+// the lap went off track in it, or a full-course yellow ran through it. A
+// sector-level local yellow is a tag, not an exclusion: LMU's sector flag is
+// a third of the lap, so any incident in that third used to empty race
+// tables (thread 54, da3e67). Tow, traffic and blue flags never remove a
+// time (decisions/lap/2026-10-01-corner-windows.md).
 import {
   type OptimumLap,
   sectionOptimum,
@@ -19,8 +22,9 @@ import type {
 } from './adapters';
 
 // The same cut-offs the consistency tags use (src/analysis/consistency.ts
-// cleanOffSec and yellowSec): a touch of the white line is not an off.
-export const OPTIMUM_OFF_TRACK_S = 0.2;
+// cleanOffSec and yellowSec). Off is ≥2 wheels on loose for this long
+// (triage #49). Full-course yellow uses yellowSec; local yellow does not drop.
+export const OPTIMUM_OFF_TRACK_S = 0.3;
 export const OPTIMUM_YELLOW_S = 0.5;
 
 export interface SessionOptimum {
@@ -33,22 +37,23 @@ interface WindowFacts {
   segTimeS: number | null;
   offTrackS: number;
   localYellowS: number;
+  courseYellowS: number;
   pit: boolean;
 }
 
 function countsAs(f: WindowFacts | null | undefined): number | null {
   if (!f || f.segTimeS == null) return null;
   if (f.pit || f.offTrackS >= OPTIMUM_OFF_TRACK_S) return null;
-  if (f.localYellowS >= OPTIMUM_YELLOW_S) return null;
+  if (f.courseYellowS >= OPTIMUM_YELLOW_S) return null;
   return f.segTimeS;
 }
 
-interface Frame {
+export interface Frame {
   boundaries: MapBoundaries;
   sectionIndex: Map<number, number>;
 }
 
-function frameOf(map: TrackMapData): Frame | null {
+export function frameOf(map: TrackMapData): Frame | null {
   const boundaries = map.boundaries;
   if (!boundaries) return null;
   return {
@@ -58,7 +63,7 @@ function frameOf(map: TrackMapData): Frame | null {
 }
 
 /** Whether a lap's windows were cut at the boundaries the map carries now. */
-function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
+export function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
   const stamp = lap.cornerBoundaries;
   return (
     stamp != null && stamp.v === boundaries.v && stamp.rev === boundaries.rev
@@ -71,7 +76,7 @@ export function onCurrentBoundaries(lap: Lap, map: TrackMapData): boolean {
 }
 
 /** A lap's time in every window, null where it does not count (see the top of this file). */
-function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
+export function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
   return frame.boundaries.windows.map(w => {
     if (w.kind === 'start-straight') return countsAs(lap.startStraight);
     const i = w.section == null ? undefined : frame.sectionIndex.get(w.section);
@@ -120,6 +125,7 @@ export interface WindowReference {
 export function checkedWindowMedians(
   laps: Lap[],
   map: TrackMapData,
+  minLaps?: number,
 ): WindowReference | null {
   const frame = frameOf(map);
   if (!frame) return null;
@@ -128,7 +134,7 @@ export function checkedWindowMedians(
     .map(l => ({id: l.id, stint: l.stint, windowsS: windowTimesOf(l, frame)}));
   return {
     windows: frame.boundaries.windows,
-    medians: windowMedians(input, frame.boundaries.windows.length),
+    medians: windowMedians(input, frame.boundaries.windows.length, minLaps),
     laps: input.length,
   };
 }

@@ -30,6 +30,12 @@ export interface GreenLap {
    */
   veMeasured?: boolean;
   /**
+   * The uploader's comparable flag: false for a slow, pit, off-track or yellow
+   * lap. Only the Plan's fuel chart reads it, to leave those laps out of the
+   * plot. Unset counts as comparable.
+   */
+  comparable?: boolean;
+  /**
    * The lap's traffic facts (the lap doc's `traffic`), for the clean and
    * traffic medians of the Plan's Per green lap card; null or unset without a field.
    */
@@ -55,6 +61,17 @@ export interface RaceFacts {
   startVePct?: number | null;
   /** Racing laps driven: the formation lap is not counted. */
   raceLaps: number;
+  /** How long the race is, from the capture (tools/sessions/raceLength.mjs); null where it is not known. The laps driven are not its length: a timed race ends at the flag, a lap after the clock runs out. */
+  race: {minutes: number} | null;
+  /**
+   * The player left before the leader's last crossing (`result.finish.leftEarly`).
+   * The plan is for the scheduled race, not the short one driven.
+   */
+  leftEarly?: boolean;
+  /** Game laps the player completed; set when `leftEarly`. */
+  playerLapsDone?: number | null;
+  /** Game laps the leader completed; the scheduled length when `leftEarly`. */
+  leaderLapsDone?: number | null;
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */

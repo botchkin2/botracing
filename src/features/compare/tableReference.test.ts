@@ -105,15 +105,28 @@ describe('tableReference', () => {
     expect(r.totalS).toBe(4 + 9 + 12);
   });
 
-  it("falls back to the reference lap's stint medians under 3 checked laps", () => {
+  it('reads the midpoint of 2 checked laps', () => {
     const r = tableReference({
       selected: pick('a', 'b'),
       sessionLaps: laps,
       map: map(),
       refName: 'L1',
     });
+    expect(r.kind).toBe('set');
+    expect(r.label).toBe('median of 2 checked laps');
+    expect(r.sectionS.get(1)).toBe(8.5);
+    expect(r.sectionS.get(2)).toBe(12);
+  });
+
+  it("falls back to the lap's stint medians under 2 checked laps", () => {
+    const r = tableReference({
+      selected: pick('a'),
+      sessionLaps: laps,
+      map: map(),
+      refName: 'L1',
+    });
     expect(r.kind).toBe('stint');
-    expect(r.label).toBe('stint 1 medians, n = 5');
+    expect(r.label).toBe('stint 1 medians');
     expect(r.sectionS.get(1)).toBe(10);
     expect(r.sectionS.get(2)).toBe(12);
     expect(r.totalS).toBe(4 + 10 + 12);
@@ -155,16 +168,16 @@ describe('tableReference', () => {
       map: map(),
       refName: 'L1',
     });
-    // S1 has 2 times (under the floor of 3): no median, so no total; S2 has 3.
-    expect(r.sectionS.has(1)).toBe(false);
+    // S1 has 2 times (the pit lap's is left out): their midpoint; S2 has 3.
+    expect(r.sectionS.get(1)).toBe(8.5);
     expect(r.sectionS.get(2)).toBe(12);
-    expect(r.totalS).toBeNull();
   });
 });
 
 describe('Compare tables against the checked set', () => {
   const sel = (ids: string[]): CompareSelection => ({
     laps: ids,
+    ref: null,
     hl: null,
     corner: null,
     cursorM: 600,
@@ -179,15 +192,15 @@ describe('Compare tables against the checked set', () => {
       selection: sel(ids),
     });
 
-  it("prints every lap's chip delta against the set and marks the reference", () => {
+  it("prints every lap's chip delta against the median lap time", () => {
     const m = build(['a', 'b', 'c']);
     expect(m.tableReference).toEqual({
-      chips: 'median of 3 checked laps',
+      chips: 'median of 3',
       grid: 'median of 3 checked laps',
     });
-    // Medians total 25 s: a is 24 (-1.000), b 25 (+0.000), c 26 (+1.000).
+    // The median lap is 25 s: a is 24 (-1.000), b 25 (+0.000), c 26 (+1.000).
     expect(m.chips.map(c => [c.label, c.delta, c.isRef])).toEqual([
-      ['L1', '−1.000', true],
+      ['L1', '−1.000', false],
       ['L2', '±0.000', false],
       ['L3', '+1.000', false],
     ]);
@@ -201,11 +214,15 @@ describe('Compare tables against the checked set', () => {
     expect(g.rows[2].cells).toEqual([1, 0]);
   });
 
-  it('names the stint when fewer than 3 laps are checked', () => {
+  it('two checked laps are a set: their midpoint, not the first lap', () => {
     const m = build(['a', 'b']);
-    expect(m.tableReference.chips).toBe('stint 1 medians, n = 5');
-    // a is 24 s against 4 + 10 + 12 = 26.
-    expect(m.chips[0].delta).toBe('−2.000');
+    expect(m.tableReference.grid).toBe('median of 2 checked laps');
+    expect(m.tableReference.chips).toBe('median of 2');
+    // The median of 24 s and 25 s is 24.5 s.
+    expect(m.chips[0].delta).toBe('−0.500');
+    // S1 8 and 9 give 8.5: a is -0.5, b is +0.5, whichever is checked first.
+    expect(m.grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
+    expect(build(['b', 'a']).grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
   });
 
   it('gives a lap cut at other boundaries no cells, and says so', () => {
@@ -226,25 +243,32 @@ describe('Compare tables against the checked set', () => {
     expect(row.cells).toEqual([null, null]);
     expect(m.grid!.rows.find(r => r.lapId === 'a')!.cells).toEqual([-1, 0]);
     // The chip delta is a lap time, which does not depend on the cut.
-    expect(m.chips.find(c => c.lapId === 'x')!.delta).toBe('+39.000');
+    expect(m.chips.find(c => c.lapId === 'x')!.delta).toBe('+38.500');
   });
 
-  it('marks REF on the reference chip only against the set', () => {
-    expect(build(['a', 'b', 'c']).chips.map(c => c.refTag)).toEqual([
-      true,
-      false,
-      false,
+  it('measures against one lap alone when it is the Ref lap', () => {
+    const m = buildCompareModel({
+      session,
+      laps,
+      traces: new Map(),
+      band: null,
+      map: map(),
+      selection: {...sel(['a', 'b', 'c']), ref: 'b'},
+    });
+    expect(m.tableReference).toEqual({chips: 'L2', grid: 'L2'});
+    expect(m.chips.map(c => [c.label, c.delta, c.isRef])).toEqual([
+      ['L1', '−1.000', false],
+      ['L2', 'REF', true],
+      ['L3', '+1.000', false],
     ]);
-    expect(build(['a', 'b', 'c'], map(null)).chips.map(c => c.refTag)).toEqual([
-      false,
-      false,
-      false,
-    ]);
+    // Section deltas are against L2's own sections.
+    expect(m.grid!.rows.map(r => r.label)).toEqual(['L1', 'L3']);
   });
 
-  it('stays on the reference lap without windows, as before', () => {
+  it('keeps the median basis without windows, the tables on a lap', () => {
     const m = build(['a', 'b', 'c'], map(null));
-    expect(m.tableReference.chips).toBe('L1');
-    expect(m.chips.map(c => c.delta)).toEqual(['REF', '+1.000', '+2.000']);
+    expect(m.tableReference.chips).toBe('median of 3');
+    expect(m.tableReference.grid).toBe('L1');
+    expect(m.chips.map(c => c.delta)).toEqual(['−1.000', '±0.000', '+1.000']);
   });
 });

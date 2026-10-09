@@ -1,4 +1,3 @@
-import {cornerTurn, type CornerTurn} from '@/src/analysis/cornerShape';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {matchCornerNames} from '@/src/analysis/cornerNames';
 import {applyGeoref, canDrawOnRealMap} from '@/src/analysis/geo';
@@ -12,7 +11,7 @@ import {
   type Xy,
 } from '@/src/data/sessions';
 import {type TrackInfo} from '@/src/data/tracks';
-import {formatDistance, formatLength, turnLabel} from '@/src/design';
+import {formatLength, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
 
@@ -28,8 +27,6 @@ export type TrackCornerRow = {
   official: string | null;
   /** OSM name, or null: the row then shows "T7" muted. */
   name: string | null;
-  turn: string | null;
-  dist: string;
   selected: boolean;
 };
 
@@ -74,13 +71,6 @@ export type TrackInputs = {
   selectedCorner: number | null;
 };
 
-const TURN_LABEL: Record<CornerTurn, string> = {
-  L: 'Left',
-  R: 'Right',
-  'L-R': 'L-R',
-  'R-L': 'R-L',
-};
-
 const NO_OUTLINE_NOTE = 'No outline yet: your driven line';
 
 /**
@@ -111,7 +101,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     map && refTrace ? placeLine(map, input.surface ?? null, refTrace) : null;
 
   const names = new Map<number, string>();
-  const turns = new Map<number, string>();
   const corners = map
     ? map.sections.flatMap(s => (s.parts.length ? s.parts : [s]))
     : [];
@@ -130,12 +119,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
         names.set(n, name);
       }
     }
-    const line = {
-      stepM: refTrace.stepM,
-      x: shape.line.map(p => p.x),
-      y: shape.line.map(p => p.y),
-    };
-    for (const c of corners) turns.set(c.n, TURN_LABEL[cornerTurn(line, c)]);
   }
 
   const row = (c: {
@@ -146,8 +129,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     n: c.n,
     official: c.official ?? null,
     name: names.get(c.n) ?? null,
-    turn: turns.get(c.n) ?? null,
-    dist: formatDistance(c.apexM),
     selected: c.n === selectedCorner,
   });
   const groups: TrackCornerGroup[] = [];
@@ -176,14 +157,14 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
     title: info?.layout ?? sessionName ?? input.trackId,
     countryCode: info?.countryCode ?? null,
     country: info?.country ?? null,
-    facts: buildFacts(info, map, corners.length),
+    facts: buildFacts(info, map),
     corners: groups,
     selection: picked
       ? {
           n: picked.n,
           label: `${turnLabel(picked.n, picked.official)}${
             pickedName ? ` ${pickedName}` : ''
-          } · ${formatDistance(picked.apexM)}`,
+          }`,
         }
       : null,
     map: map && shape ? shape.model : null,
@@ -206,7 +187,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
 function buildFacts(
   info: TrackInfo | null,
   map: TrackMapData | null,
-  cornerCount: number,
 ): TrackFact[] {
   const facts: TrackFact[] = [];
   const lengthM =
@@ -214,13 +194,6 @@ function buildFacts(
   if (lengthM != null) {
     const len = formatLength(lengthM);
     facts.push({label: 'Length', value: len.km, sub: len.mi});
-  }
-  if (cornerCount > 0) {
-    facts.push({
-      label: 'Turns',
-      value: String(cornerCount),
-      sub: 'From the corner map',
-    });
   }
   if (info?.openedYear != null) {
     facts.push({label: 'Opened', value: String(info.openedYear), sub: null});

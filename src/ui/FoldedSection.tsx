@@ -15,14 +15,17 @@ export function FoldedSection({
   title,
   summary,
   children,
+  defaultOpen = false,
 }: {
   title: string;
   /** One line of what is in it; null shows only the title. */
   summary: string | null;
   children: ReactNode;
+  /** Starts open when true; closed by default. */
+  defaultOpen?: boolean;
 }) {
   const {color} = useTheme();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <View>
       <Pressable

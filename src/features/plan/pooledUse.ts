@@ -78,9 +78,11 @@ export function pooledUse(
   threshold: {x: number; label: string} | null,
 ): PooledUse | null {
   const use = (l: GreenLap) => (measure === 'fuel' ? l.fuelL : l.vePct);
+  // Slow, pit, off-track and yellow laps are not drawn at all: one 3-minute lap
+  // would squash the lap-time scale for every other lap.
   const drawn = laps.flatMap((l, i) => {
     const x = use(l);
-    return x == null
+    return x == null || l.comparable === false
       ? []
       : [
           {

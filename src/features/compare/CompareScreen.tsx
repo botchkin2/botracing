@@ -58,6 +58,7 @@ import {
   TraceRetryBanner,
 } from '@/src/ui';
 
+import {BasisSwitch} from './components/BasisSwitch';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {RadarOverlay} from './components/RadarOverlay';
@@ -68,7 +69,8 @@ import {
   CHANNELS,
   type CompareModel,
   type CompareSelection,
-  makeReference,
+  setRef,
+  toggleHighlight,
   canRemoveLap,
   removeLap,
   withDefaultLaps,
@@ -351,21 +353,29 @@ function CompareView({
     </View>
   );
 
+  const refChip = model.chips.find(c => c.isRef);
   const reference = (
     <View style={styles.refRow}>
       <Text variant='label' tone='textMuted'>
-        Reference
+        Vs
       </Text>
-      <Svg width={14} height={4}>
-        <Line
-          x1={0}
-          x2={14}
-          y1={2}
-          y2={2}
-          stroke={lapStyle(0, false).color}
-          strokeWidth={2.3}
-        />
-      </Svg>
+      <BasisSwitch
+        selection={selection}
+        fastestLapId={model.fastestLapId}
+        onSelectionChange={onSelectionChange}
+      />
+      {refChip && (
+        <Svg width={14} height={4}>
+          <Line
+            x1={0}
+            x2={14}
+            y1={2}
+            y2={2}
+            stroke={lapStyle(refChip.selIndex, false).color}
+            strokeWidth={2.3}
+          />
+        </Svg>
+      )}
       <Text variant='dataStrong' numberOfLines={1} style={styles.flex}>
         {model.reference}
       </Text>
@@ -384,7 +394,7 @@ function CompareView({
           key={c.lapId}
           label={c.label}
           selected={c.isRef}
-          onPress={() => onSelectionChange(makeReference(selection, c.lapId))}
+          onPress={() => onSelectionChange(toggleHighlight(selection, c.lapId))}
           leading={
             <View
               style={[
@@ -400,27 +410,25 @@ function CompareView({
                 tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}>
                 {c.delta}
               </Text>
-              {c.refTag ? (
-                <Text variant='dataSmall' tone='accentInk'>
-                  REF
-                </Text>
-              ) : null}
             </>
           }
           actions={
             !c.isRef ? (
               <>
-                <Pressable
-                  accessibilityRole='button'
-                  accessibilityLabel={`Make ${c.label} the reference`}
-                  {...refHit}
-                  onPress={() =>
-                    onSelectionChange(makeReference(selection, c.lapId))
-                  }>
-                  <Text variant='dataSmall' tone='accentInk'>
-                    Ref
-                  </Text>
-                </Pressable>
+                {/* Only the tapped chip offers it: "Ref" on every chip read as if every lap were the Ref. */}
+                {c.highlighted && (
+                  <Pressable
+                    accessibilityRole='button'
+                    accessibilityLabel={`Set ${c.label} as Ref`}
+                    {...refHit}
+                    onPress={() =>
+                      onSelectionChange(setRef(selection, c.lapId))
+                    }>
+                    <Text variant='dataSmall' tone='accentInk'>
+                      Set ref
+                    </Text>
+                  </Pressable>
+                )}
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
                   accessibilityState={{
@@ -447,7 +455,6 @@ function CompareView({
           }
         />
       ))}
-      {model.manyChip && <Chip label={model.manyChip} dashed />}
       {model.notFound > 0 && (
         <Chip
           label={`${model.notFound} lap${
