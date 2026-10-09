@@ -48,7 +48,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
+          firebaseServiceAccount: ${{ secrets.HOSTING_PREVIEW_SERVICE_ACCOUNT }}
           projectId: botracing-61
           entryPoint: .
           # Backstop for channels the cleanup workflow misses. A PR idle for
