@@ -137,15 +137,15 @@ describe('filterOptions track labels', () => {
     ],
   };
 
-  it('labels two layouts of one name when both are on screen (All games)', () => {
+  it('names the game when one name is in two games, and the layout only within a game (All games)', () => {
     expect(
       filterOptions(layouts, NO_FILTER)
         .tracks.map(c => c.label)
         .sort(),
     ).toEqual([
-      'Road Atlanta · Full',
-      'Road Atlanta · Michelin',
-      'Road Atlanta · Short',
+      'Road Atlanta · LMU',
+      'Road Atlanta · iRacing · Full',
+      'Road Atlanta · iRacing · Short',
     ]);
   });
 

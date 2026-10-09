@@ -5,6 +5,7 @@ import {
   buildSessionsModel,
   DEFAULT_SORT,
   nextSort,
+  raceResultText,
   type SessionRow,
   sortRows,
 } from './model';
@@ -193,17 +194,37 @@ describe('finishing position', () => {
     expect(without.table.place).toBeNull();
   });
 
-  it('says "left early" with the lap, not a result, when the player stopped first', () => {
+  it('says "left early" with the class place and the class leader laps', () => {
+    const left = {
+      ...finish,
+      overall: 26,
+      inClass: 20,
+      lapsDone: 20,
+      classLeaderLapsDone: 21,
+      leftEarly: true,
+    };
+    expect(raceResultText(left, 'GT3')).toBe(
+      'P20 GT3 · L20 of 21 (left early)',
+    );
+    // No class name (an offline iRacing field): the place without it.
+    expect(raceResultText({...left, classLeaderLapsDone: null}, null)).toBe(
+      'P20 · L20 (left early)',
+    );
+  });
+
+  it('never mixes the overall place with the overall leader laps', () => {
     const [r] = rows({
       finish: {
         ...finish,
-        overall: 12,
-        lapsDone: 6,
-        leaderLapsDone: 7,
+        overall: 26,
+        inClass: 20,
+        lapsDone: 20,
+        classLeaderLapsDone: 21,
         leftEarly: true,
       },
     });
-    expect(r.resultText).toBe('P12 at L6 of 7 (left early)');
+    expect(r.resultText).not.toContain('of 26');
+    expect(r.resultText).not.toContain('P26');
   });
 
   it('sorts by the overall place, with sessions that have none last both ways', () => {
