@@ -403,6 +403,7 @@ function CornerView({
                   coincidentWithin={s.coincidentWithin}
                   minLabel={s.minLabel}
                   maxLabel={s.maxLabel}
+                  unit={s.unit}
                   resolution={s.resolution}
                   leftWord={s.leftWord}
                   rightWord={s.rightWord}
@@ -585,6 +586,9 @@ function CornerTable({
                 style={styles.right}>
                 {m.label}
                 {active ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
+              </Text>
+              <Text variant='dataSmall' tone='textFaint' style={styles.right}>
+                {m.unit}
               </Text>
             </Pressable>
           );
