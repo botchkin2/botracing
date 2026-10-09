@@ -43,6 +43,7 @@ import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
 import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
+import {SLICE_FORMAT} from './cornerSlices.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
   mapKeyOf,
@@ -96,6 +97,8 @@ export const blockVersions = {
   raceLength: RACE_LENGTH_VERSION,
   finish: FINISH_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
+  // Gear in the slices (format 2): the watcher re-syncs every session once.
+  cornerSlices: SLICE_FORMAT,
 };
 
 const GRID_M = 5;

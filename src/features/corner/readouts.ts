@@ -1,4 +1,5 @@
 import {nearestSample} from '@/src/analysis/nativeSamples';
+import {lateralText} from '@/src/charts/screenLateral';
 import {formatGap} from '@/src/design';
 
 import {type ZoomLine} from './model';
@@ -23,9 +24,6 @@ export type Readout = {
   onIndex: number;
   text: string;
 };
-
-const signed = (v: number, digits: number) =>
-  `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(digits)}`;
 
 /** Readouts for every chart at distance `m`, for the laps that are on. */
 export function readoutsAt(
@@ -68,9 +66,9 @@ export function readoutsAt(
     const gear = at('gear');
     add('gear', gear == null ? null : `${Math.round(gear)}`);
     const steering = at('steeringPct');
-    add('steering', steering == null ? null : signed(steering, 0));
+    add('steering', steering == null ? null : lateralText(steering, 0));
     const lateral = at('pathLateralM');
-    add('line', lateral == null ? null : `${signed(lateral, 1)} m`);
+    add('line', lateral == null ? null : lateralText(lateral, 1, 'm'));
   }
   return out;
 }

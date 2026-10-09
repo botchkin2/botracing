@@ -51,11 +51,11 @@ describe('readoutsAt', () => {
   it('takes the nearest recorded sample, never an in-between value', () => {
     const r = readoutsAt([line({})], 5, 4);
     expect(r.speed[0].text).toBe('100');
-    expect(r.steering[0].text).toBe('−12');
-    expect(r.line[0].text).toBe('+3.4 m');
+    expect(r.steering[0].text).toBe('12 L');
+    expect(r.line[0].text).toBe('3.4 m R');
     expect(readoutsAt([line({})], 5, 12).speed[0].text).toBe('110');
     expect(readoutsAt([line({})], 5, 16).speed[0].text).toBe('120');
-    expect(readoutsAt([line({})], 5, 16).line[0].text).toBe('−2.2 m');
+    expect(readoutsAt([line({})], 5, 16).line[0].text).toBe('2.2 m L');
   });
 
   it('reads the time difference on the grid, signed', () => {

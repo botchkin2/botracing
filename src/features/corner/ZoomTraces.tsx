@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {TraceChart, type TraceSeries} from '@/src/charts';
+import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
 import {lapColors, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
@@ -309,10 +310,14 @@ export function ZoomTraces({
               10,
             )}
             series={series(
-              l => ({values: l.steeringPct, samples: l.samples.steeringPct}),
+              l => ({
+                values: l.steeringPct.map(toScreenLateral),
+                samples: screenLateral(l.samples.steeringPct),
+              }),
               w => Math.min(w, STEERING_WIDTH),
             )}
             zeroLine
+            sideLabels={{above: 'L', below: 'R'}}
             marks={apex}
           />
           {header('line', 'Racing line, m from the game’s centre path')}
@@ -329,9 +334,12 @@ export function ZoomTraces({
               )}
               series={[
                 ...edgeSeries(zoom.edges, color.textFaint),
-                ...series(l => ({samples: l.samples.pathLateralM})),
+                ...series(l => ({
+                  samples: screenLateral(l.samples.pathLateralM),
+                })),
               ]}
               zeroLine
+              sideLabels={{above: 'L', below: 'R'}}
               marks={apex}
             />
           ) : (
@@ -357,7 +365,7 @@ function edgeSeries(
   ].map(e => ({
     key: e.key,
     values: [],
-    samples: e.samples,
+    samples: screenLateral(e.samples),
     color: colour,
     width: 1,
     opacity: 0.6,
