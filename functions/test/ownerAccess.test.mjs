@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {
-  ANONYMOUS_OWNER,
   Unauthorized,
   pathInsideOwner,
   resolveOwner,
@@ -19,13 +18,8 @@ const deps = (mapping = {}) => ({
   readOwnerKey: async uid => mapping[uid] ?? null,
 });
 
-test('no Authorization header is refused: anonymous access is closed', async () => {
-  assert.equal(ANONYMOUS_OWNER, null);
+test('no Authorization header is refused', async () => {
   await assert.rejects(resolveOwner(deps(), undefined), Unauthorized);
-});
-
-test('a deliberate bridge can still name an anonymous owner', async () => {
-  assert.equal(await resolveOwner(deps(), undefined, 'botkin'), 'botkin');
 });
 
 test('a verified token is the uid, or the admin-mapped key', async () => {
@@ -36,7 +30,7 @@ test('a verified token is the uid, or the admin-mapped key', async () => {
   );
 });
 
-test('a bad token never falls back to the anonymous owner', async () => {
+test('a bad token is refused', async () => {
   for (const header of [
     'Bearer nope',
     'Bearer ',
@@ -198,6 +192,15 @@ test("uploader status: only the owner's own machines, without the server's bookk
     uploaderItems('uidA', [{id: 'x', data: {ownerId: 'uidA'}}])[0].hostId,
     'x',
   );
+});
+
+test('the read API has no seed fallback and does not return error text', () => {
+  assert.doesNotMatch(
+    api,
+    /lmu-seed|readManifest|readLapCsv|storeHasSessions|LEGACY_OWNER|ANONYMOUS_OWNER/,
+  );
+  assert.doesNotMatch(api, /message:\s*error/);
+  assert.doesNotMatch(store, /storeHasSessions/);
 });
 
 test('listUploaders asks for the owner in the query and has no special owner', () => {

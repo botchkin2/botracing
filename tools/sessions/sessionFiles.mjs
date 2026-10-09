@@ -106,20 +106,24 @@ export function sameSession(prev, next) {
  */
 export function groupFiles(files, ownerId) {
   const byKey = new Map();
-  for (const file of [...files].sort((a, b) =>
-    a.info.recordedAt.localeCompare(b.info.recordedAt),
-  )) {
+  for (const file of [...files].sort((a, b) => {
+    const byWall = a.info.recordedAt.localeCompare(b.info.recordedAt);
+    if (byWall) return byWall;
+    return a.info.startT - b.info.startT;
+  })) {
     const {info} = file;
-    const key = [
-      ownerId,
-      info.sim,
-      info.layout,
-      info.car,
-      info.sessionType,
-    ].join('|');
+    // iRacing: SubSessionID + session number is one weekend session even when
+    // the wall clock would split the files (PR 272). LMU has no groupId.
+    const key =
+      info.groupId ||
+      [ownerId, info.sim, info.layout, info.car, info.sessionType].join('|');
     const list = byKey.get(key) || [];
     const last = list[list.length - 1];
-    if (last && sameSession(last.files[last.files.length - 1].info, info)) {
+    if (
+      last &&
+      (info.groupId ||
+        sameSession(last.files[last.files.length - 1].info, info))
+    ) {
       last.files.push(file);
     } else {
       list.push({key, files: [file]});
@@ -131,6 +135,11 @@ export function groupFiles(files, ownerId) {
     for (const s of list) {
       const first = s.files[0].info;
       s.id = hash(s.key, first.recordedAt);
+      s.files.sort(
+        (a, b) =>
+          a.info.startT - b.info.startT ||
+          a.info.recordedAt.localeCompare(b.info.recordedAt),
+      );
       for (const f of s.files) {
         f.id = hash(ownerId, first.sim, f.info.source, f.info.recordedAt);
       }

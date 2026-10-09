@@ -10,7 +10,9 @@
 //
 // Every plan command is a dry run: it prints the plan and writes nothing. Add
 // `--apply --reason "why"` to write it (needs Admin credentials today:
-// `gcloud auth application-default login`). `--by <name>` is who is recorded.
+// `gcloud auth application-default login`). `--by <name>` (or LAP_CURATOR) is
+// who is recorded. Reading local sessions needs `--owner <uid>` (or LAP_OWNER).
+// Neither has a default.
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -63,7 +65,7 @@ export function parseArgs(argv) {
 const trackIdOf = (adapter, sim, layout) => `${sim}-${adapter.slug(layout)}`;
 
 /**
- * Runs one command. deps: {backend, adapter, folder, ownerId, workDir, by, now,
+ * Runs one command. deps: {backend, adapter, folder, ownerId or ownerIds, workDir, by, now,
  * loader (stand-ins for the tests)}. Returns {code, lines}; prints nothing.
  */
 export async function run(argv, deps) {
@@ -73,13 +75,23 @@ export async function run(argv, deps) {
   const say = line => lines.push(line);
   const {backend, adapter} = deps;
   const loader = {buildFromSession, buildRefold, findSessions, ...deps.loader};
-  const sessionsHere = () =>
-    loader.findSessions({
+  const sessionsHere = () => {
+    const fromFlag =
+      typeof flags.owners === 'string'
+        ? flags.owners.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+    const ownerIds = fromFlag.length
+      ? fromFlag
+      : flags.owner
+        ? [flags.owner]
+        : deps.ownerIds ?? (deps.ownerId ? [deps.ownerId] : []);
+    return loader.findSessions({
       adapter,
       folder: flags.folder ?? deps.folder,
-      ownerId: flags.owner ?? deps.ownerId,
+      ownerIds,
       log: say,
     });
+  };
   try {
     if (cmd === 'sessions') {
       for (const s of sessionsHere()) {
@@ -194,9 +206,14 @@ export async function run(argv, deps) {
       );
       return {code: plan.refusals.length ? 1 : 0, lines};
     }
+    const by = typeof flags.by === 'string' ? flags.by : deps.by;
+    if (!by)
+      throw new LoaderError(
+        'a curator name is required: --by <name> or LAP_CURATOR.',
+      );
     const out = await applyPlan(backend, plan, {
       reason: typeof flags.reason === 'string' ? flags.reason : '',
-      by: typeof flags.by === 'string' ? flags.by : deps.by,
+      by,
       now: deps.now,
     });
     say(
@@ -237,12 +254,12 @@ if (
     backend: adminBackend({db, FieldValue: admin.firestore.FieldValue}),
     adapter: lmu,
     folder: process.env.LMU_TELEMETRY || lmu.defaultFolder,
-    ownerId: process.env.LAP_OWNER || 'botkin',
+    ownerId: process.env.LAP_OWNER,
     workDir:
       typeof flags.work === 'string'
         ? flags.work
         : resolve(tmpdir(), 'curate-work'),
-    by: process.env.LAP_CURATOR || 'botkin',
+    by: process.env.LAP_CURATOR,
     now: () => new Date().toISOString(),
   });
   console.log(result.lines.join('\n'));

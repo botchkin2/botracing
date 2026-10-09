@@ -277,6 +277,8 @@ test('--rebuild-track is refused before anything else happens, for a remote sync
     [
       sync,
       '--local',
+      '--owner',
+      'uid-test',
       '--rebuild-track',
       'lmu-road-atlanta',
       '--folder',
@@ -285,4 +287,14 @@ test('--rebuild-track is refused before anything else happens, for a remote sync
     {encoding: 'utf8', env: {...process.env, LAP_API: ''}},
   );
   assert.doesNotMatch(local.stderr, refused, 'local is for trying things');
+});
+
+test('a non-remote sync refuses to run without an owner', () => {
+  const sync = fileURLToPath(new URL('./sync.mjs', import.meta.url));
+  const r = spawnSync(process.execPath, [sync, '--local', '--folder', '/nope'], {
+    encoding: 'utf8',
+    env: {...process.env, LAP_OWNER: '', LAP_API: '', LAP_TOKEN_FILE: ''},
+  });
+  assert.equal(r.status, 2, r.stderr);
+  assert.match(r.stderr, /An owner is required/);
 });

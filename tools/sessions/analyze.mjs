@@ -26,6 +26,7 @@ import {
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {fileChange} from './fileChange.mjs';
+import {assignSessionLapNumbers} from './splitFileLaps.mjs';
 import {
   fillLapsLeft,
   isGreen,
@@ -815,6 +816,7 @@ export function analyzeSession(
     foldOnly = false,
     carDamage = null,
     sessionType = '',
+    splitFiles = false,
     catalogOnly = false,
   } = {},
 ) {
@@ -841,6 +843,8 @@ export function analyzeSession(
     damage: carDamage,
     race: sessionKind(sessionType) === 'race',
   };
+  const allSegs = recs.map(rec => segments(rec));
+  const assigned = assignSessionLapNumbers(allSegs, {splitFiles});
   recs.forEach((rec, r) => {
     const pits = pitIntervals(rec.events.in_pits);
     const before = laps[laps.length - 1];
@@ -854,8 +858,12 @@ export function analyzeSession(
     if (reset) before.endedInReset = true;
     openStint(change);
     let first = true;
-    for (const seg of segments(rec)) {
+    const segs = allSegs[r];
+    for (const a of assigned.filter(row => row.r === r)) {
+      const seg = segs[a.si];
+      seg.partial = a.partial;
       const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
+      lap.lapNumber = a.lapNumber;
       lap.endedInReset = false;
       lap.afterReset = first && reset;
       if (!first && lap.pitOut) openStint('pit');

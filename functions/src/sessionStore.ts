@@ -8,8 +8,8 @@ import {
   uploaderItems,
 } from './ownerAccess';
 
-// Every reader takes the owner key of the request (ownerAccess.ts): the
-// signed-in user's, or the legacy owner's for a request with no token.
+// Every reader takes the owner key of the request (ownerAccess.ts). A request
+// with no token is refused before it gets here.
 const BUCKET = 'botracing-61-lmu';
 // Firestore caps `in` at 30 values.
 const IN_LIMIT = 30;
@@ -103,18 +103,6 @@ async function sessionsSince(
     .select('sim', 'track', 'trackId', 'startedAt', 'sessionType')
     .get();
   return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-}
-
-// Whether the store has anything yet (the old manifest answers until it does).
-export async function storeHasSessions(owner: string): Promise<boolean> {
-  const snap = await admin
-    .firestore()
-    .collection('sessions')
-    .where('ownerId', '==', owner)
-    .limit(1)
-    .select()
-    .get();
-  return !snap.empty;
 }
 
 // Status of each of the owner's PCs: the tray sends it through the upload

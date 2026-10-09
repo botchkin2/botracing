@@ -19,6 +19,9 @@ export const sim = 'lmu';
 export const defaultFolder =
   'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\UserData\\Telemetry';
 
+// tasklist IMAGENAME. watch.mjs uses this as the game that blocks a sync.
+export const gameExe = 'Le Mans Ultimate.exe';
+
 const channelNames = {
   'GPS Time': 't',
   'Ground Speed': 'speed_kmh',

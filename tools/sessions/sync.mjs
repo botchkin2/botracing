@@ -1,6 +1,9 @@
 // Find new recordings, group them into sessions, archive, analyze, upload.
 //
-//   node tools/sessions/sync.mjs                      upload what changed
+//   node tools/sessions/sync.mjs --owner <uid>        upload what changed.
+//                                                     Required unless --remote
+//                                                     (the token's owner) or
+//                                                     LAP_OWNER is set.
 //   node tools/sessions/sync.mjs --local              write everything to the work
 //                                                     folder, upload nothing
 //   node tools/sessions/sync.mjs --since 2026-09-20   only sessions from that day on
@@ -16,6 +19,7 @@
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
 //                                                     uploaded sessions were; no analysis
+//   node tools/sessions/sync.mjs --sim iracing        iRacing .ibt (default lmu)
 //   node tools/sessions/sync.mjs --log-folder <dir>   the sim's logs, if not the default
 //   node tools/sessions/sync.mjs --capture <dir>      tools/capture's output, if not
 //                                                     %LOCALAPPDATA%\lap-capture
@@ -30,12 +34,13 @@ import {
   readFileSync,
   statSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
-import * as lmu from './lmu.mjs';
+import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
 import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
@@ -58,9 +63,16 @@ import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
-import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
+import {
+  forgetOtherOwners,
+  freshState,
+  liftWindow,
+  markDone,
+  OLDER_REQUEST,
+} from './syncState.mjs';
+
 import {lapTraffic} from './lapTraffic.mjs';
-import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
+import {openRemoteStore} from './remoteStore.mjs';
 import {
   DEFAULT_RESYNC_CAP,
   catalogStamp,
@@ -73,11 +85,9 @@ function arg(name, fallback) {
 }
 const flag = name => process.argv.includes(name);
 
-const adapter = lmu;
-const folder = arg(
-  '--folder',
-  process.env.LMU_TELEMETRY || adapter.defaultFolder,
-);
+const simName = arg('--sim', process.env.LAP_SIM || 'lmu');
+const adapter = adapterOf(simName);
+const folder = arg('--folder', telemetryFolder(simName));
 // --remote: no Admin credentials. The store is the upload function (storeClient.mjs),
 // signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
 // keeps it fresh), and the owner is whatever key the server holds for that user.
@@ -97,8 +107,18 @@ if (catalogOnly && arg('--rebuild-track', '')) {
 const remoteStore = remote ? await openRemoteStore() : null;
 const ownerId = remote
   ? (await remoteStore.me()).ownerKey
-  : arg('--owner', process.env.LAP_OWNER || 'botkin');
-const since = arg('--since', '');
+  : arg('--owner', process.env.LAP_OWNER || '');
+if (!remote && !ownerId) {
+  console.error(
+    'An owner is required: pass --owner <uid> or set LAP_OWNER. A remote sync takes the owner from the signed-in token.',
+  );
+  process.exit(2);
+}
+// `since` also takes the state's first-run window once the state is read
+// (main), unless --since says otherwise.
+let since = arg('--since', '');
+// A fresh state limits its first run to this many days back (the tray: 14).
+const firstWindowDays = Number(arg('--first-window-days', '0'));
 // A remote sync analyses again at most this many sessions per run because the
 // curated track catalog changed (newest first), so one edit does not send every
 // session of a busy track through the upload at once.
@@ -118,6 +138,7 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
+const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -142,7 +163,8 @@ function plain(value) {
 }
 
 function readState() {
-  if (!existsSync(statePath)) return {files: {}, sessions: {}};
+  if (!existsSync(statePath))
+    return freshState({windowDays: firstWindowDays, now: new Date()});
   return JSON.parse(readFileSync(statePath, 'utf8'));
 }
 
@@ -180,7 +202,7 @@ function group(files) {
 }
 
 function slugId(sim, name) {
-  return `${sim}-${lmu.slug(name)}`;
+  return `${sim}-${adapter.slug(name)}`;
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
@@ -342,6 +364,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
+    splitFiles: simName === 'iracing',
     catalogOnly,
   });
   if (foldOnly) return {a, archived};
@@ -491,6 +514,10 @@ function build(
     id: s.id,
     ownerId,
     sim,
+    // This is still the layout id when nobody has curated the track. The
+    // storage-rules change must not refuse that upload: store trackId null
+    // until a curator maps it, and the app shows the laps with no map and
+    // no sections.
     trackId,
     track,
     carId,
@@ -650,6 +677,19 @@ function describeSession(s) {
 
 async function main() {
   const state = readState();
+  // A session uploaded for another account counts as new for this one.
+  const forgotten = forgetOtherOwners(state, ownerId);
+  if (forgotten)
+    log(`${forgotten} session(s) were uploaded for another account: new here`);
+  // "Upload older sessions…" in the tray: the first-run window is lifted once.
+  if (existsSync(olderRequestPath)) {
+    liftWindow(state);
+    // Removed before the sync runs on purpose: the lift is saved with the
+    // state right after the scan, so a sync stopped for the game keeps it.
+    if (!check) rmSync(olderRequestPath);
+    log('older sessions included');
+  }
+  if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);
   const sessions = group(files);
@@ -758,54 +798,15 @@ async function main() {
   }
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
-  // Fold first, then cut: every session of a track with a map has its onsets
-  // folded into the layout's boundaries before any is analysed, so each is cut
-  // once, at the boundaries they settle on. Sessions already counted (a resync
-  // of one, a session folded by an earlier run) are skipped; a track without a
-  // map yet is built by its first session in the main pass, the rest settle.
-  const needFold = [];
-  // A remote sync folds nothing: the boundaries are the curator's.
-  for (const s of catalogOnly ? [] : todo) {
-    const trackId = trackOf(s);
-    if (!(await trackMapFor(trackId, store))) continue;
-    const kept = await boundariesFor(trackId, store);
-    if (kept?.sessions?.[s.id]) continue;
-    needFold.push(s);
-  }
+  // A sync never writes a track. Boundaries and the surface are rebuilt by
+  // curate from a named set (tools/curate, tools/sessions/surface.mjs).
   if (check) {
     log(
-      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries, ${needFold.length} to fold`,
+      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries`,
     );
     return;
   }
-  let fresh = [];
-  let foldCount = 0;
-  if (needFold.length > 1) {
-    log(`${needFold.length} session(s) folded into corner boundaries first`);
-    // The watcher's total grows by what is folded first; each fold prints a
-    // session line like the pass after it.
-    log(`to do ${todo.length + needFold.length}`);
-    const folded = await runPool([...needFold], store, state, eventWindows, {
-      mode: 'fold',
-    });
-    fresh = folded.archived;
-    foldCount = folded.done + folded.failed;
-    // What the fold pass settled on is stored before any session is cut at it.
-    if (!local && folded.done > 0) {
-      for (const trackId of new Set(needFold.map(trackOf))) {
-        const kept = await boundariesFor(trackId, store);
-        const map = await trackMapFor(trackId, store);
-        if (kept && map) {
-          await store.putBoundaries({
-            trackId,
-            state: kept,
-            windows: windowsOf(kept, map.corners, map.lengthM),
-          });
-        }
-      }
-    }
-  }
-  const first = await runPool(todo, store, state, eventWindows, {fresh});
+  const first = await runPool(todo, store, state, eventWindows);
   // Sessions analysed before a later one moved their layout's boundaries were
   // cut at the old ones: once more, now that the boundaries have settled (a
   // session already counted in them folds in nothing new, so this ends).
@@ -821,7 +822,7 @@ async function main() {
   if (redo.length) {
     log(`${redo.length} session(s) cut at boundaries that moved: again`);
     // The watcher's total grows by what is redone; its progress goes on.
-    log(`to do ${foldCount + first.done + first.failed + redo.length}`);
+    log(`to do ${first.done + first.failed + redo.length}`);
     const again = await runPool(redo, store, state, eventWindows);
     done += again.done;
     failed += again.failed;
@@ -833,23 +834,6 @@ async function main() {
     }`,
   );
   if (failed) process.exitCode = 1;
-  if (foldsSurface({local, remote, tracks: tracks.size}))
-    await foldSurfaceAfterSync([...tracks]);
-}
-
-// The tracks just uploaded get their new sessions folded into the measured
-// surface (tools/sessions/surface.mjs, pit-wall thread 40), so it never needs
-// a hand-run. It reads what was just stored and skips sessions already
-// folded. It is after the closing "done" line, and a failure is a log line the
-// watcher does not read as a failed session: the sync itself succeeded.
-async function foldSurfaceAfterSync(trackIds) {
-  try {
-    const {foldSurfaces} = await import('./surface.mjs');
-    await foldSurfaces({trackIds, log});
-  } catch (error) {
-    const message = String(error?.message ?? error).split(/\r?\n/)[0];
-    log(`surface: not updated: ${message}`);
-  }
 }
 
 const trackOf = s => slugId(s.files[0].info.sim, s.files[0].info.layout);
@@ -921,7 +905,7 @@ async function runPool(
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
         if (!local) {
-          state.sessions[s.id] = s.fingerprint;
+          markDone(state, s.id, s.fingerprint, ownerId);
           if (r.rev != null) state.revs[s.id] = r.rev;
           if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
           saveState(state);
