@@ -46,8 +46,10 @@ describe('window stepper', () => {
   it('steps through sizes, then Lap', () => {
     expect(windowSize('time', 2)).toBe(2);
     expect(windowSize('distance', 2)).toBe(200);
-    expect(stepWindow('time', 3, 1)).toBe('lap');
-    expect(stepWindow('time', 'lap', -1)).toBe(3);
+    expect(stepWindow('time', 3, 1)).toBe(4);
+    expect(stepWindow('time', 4, 1)).toBe('lap');
+    expect(stepWindow('time', 'lap', -1)).toBe(4);
+    expect(windowSize('time', 4)).toBe(15);
     expect(stepWindow('time', 0, -1)).toBe(0);
     expect(windowSize('time', 'lap')).toBeNull();
   });
