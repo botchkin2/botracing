@@ -86,6 +86,18 @@ describe('raceClock.playerAt', () => {
     expect(raceClock(f).playerAt(0)).toEqual({lapNumber: 3, distanceM: 20});
   });
 
+  it('has no clock when no car wrapped', () => {
+    const car = player(20, {from: 50, perUpdate: 0});
+    const f: Field = {
+      version: 2,
+      hz: HZ,
+      startEtS: 0,
+      timeS: Float64Array.from({length: 20}, (_, u) => u / HZ),
+      cars: [car],
+    };
+    expect(raceClock(f).playerAt(1)).toBeNull();
+  });
+
   it('is null with no player or while the player is absent', () => {
     const noPlayer = field({...player(5), player: false}, 5);
     expect(raceClock(noPlayer).playerAt(0)).toBeNull();

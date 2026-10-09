@@ -93,7 +93,9 @@ export function prepareRace(field: Field): RacePrep {
         continue;
       }
       if (firstSeen[i] === n) firstSeen[i] = u;
-      if (Number.isNaN(lastProg)) {
+      if (trackM === 0) {
+        prog[u] = NaN;
+      } else if (Number.isNaN(lastProg)) {
         // First sight. A car still behind the start line on the first lap can
         // report a distance near the lap's end (or a negative one, as LMU
         // does on the grid): it is behind the line, not a lap ahead.

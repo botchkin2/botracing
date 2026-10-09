@@ -67,8 +67,9 @@ export interface ClassLapStats {
 export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
 
 /**
- * Bump when the rules below change: a stored `classLaps` from an older
- * version is recomputed from the uploaded field (tools/sessions/store.mjs).
+ * Bump when the rules below change: it is `blockVersions.classLaps`, so the
+ * tray re-uploads sessions in the 14-day window. Older stored docs stay until
+ * then (Plan reads the stored numbers).
  * 3: a car's lap is no longer left out for the game's blue flag (the flag
  * only reads 0 or blue): that dropped every AI lap with a faster car close
  * behind, and at Daytona that is many GT3 laps. Blue is a flag, never a
@@ -93,6 +94,11 @@ export const MIN_CLASS_LAPS = 3;
 // The wrap: from the last 30% of the lap to the first 30%.
 const WRAP_FROM = 0.7;
 const WRAP_TO = 0.3;
+// Finding the lap length: a wrap lands in the first 30% of the previous
+// distance and drops more than half of it. Scale-free: a 100 m test wrap
+// and a 4 km Road Atlanta wrap both count; a 1 m glitch does not.
+const WRAP_END_FRAC = 0.3;
+const WRAP_DROP_FRAC = 0.5;
 // A crossing lands at a distance of zero or more. At the start of the
 // Daytona races of 2026-09-29/30 every car's lap distance drops by one lap, to
 // about -450 m, at the same update (120.8 s): the counter changes over 450 m
@@ -153,11 +159,11 @@ type CarCrossings = {laps: number[]; firstT: number | null};
  * Metres of one lap. Cars wrap at the line; a car sitting in the pits can
  * report a longer lapDist, so the max is not the length. Each wrap's
  * (distance before + distance after) is a length sample; the median of those
- * is the line. Falls back to the max when nothing wrapped.
+ * is the line. 0 when nothing wrapped: callers show nothing rather than a
+ * wrong length.
  */
 export function trackLengthM(lapDistM: (number | null)[][]): number {
   const wraps: number[] = [];
-  let max = 0;
   for (const row of lapDistM) {
     let prev: number | null = null;
     for (const d of row) {
@@ -165,13 +171,17 @@ export function trackLengthM(lapDistM: (number | null)[][]): number {
         prev = null;
         continue;
       }
-      if (d > max) max = d;
-      if (prev !== null && d >= 0 && d < 0.3 * prev && prev - d > 500)
+      if (
+        prev !== null &&
+        d >= 0 &&
+        d < WRAP_END_FRAC * prev &&
+        prev - d > WRAP_DROP_FRAC * prev
+      )
         wraps.push(prev + d);
       prev = d;
     }
   }
-  if (wraps.length === 0) return max;
+  if (wraps.length === 0) return 0;
   wraps.sort((a, b) => a - b);
   return wraps[Math.floor(wraps.length / 2)];
 }

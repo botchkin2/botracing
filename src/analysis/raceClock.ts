@@ -69,6 +69,7 @@ export function raceClock(field: Field): RaceClock {
   const car = field.cars.find(c => c.player);
   if (!car) return NONE;
   const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
+  if (trackM === 0) return NONE;
   const laps = lapsOf(car, trackM);
   const runs = new Map<number, Run[]>();
   for (let u = 0; u < laps.length; u++) {

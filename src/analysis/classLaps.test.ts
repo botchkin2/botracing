@@ -147,6 +147,22 @@ describe('carLaps', () => {
     expect(Math.abs((c?.gt3?.medianS ?? 0) - 110)).toBeLessThan(1.5);
   });
 
+  it('has no class pace when no car wrapped', () => {
+    const f = build(
+      [
+        {
+          class: 'GT3',
+          lapS: 110,
+          offsetM: 0,
+          distAt: () => 4662.7,
+          player: true,
+        },
+      ],
+      400,
+    );
+    expect(classLaps(f, 'race')).toBeNull();
+  });
+
   it('does not take a jump bigger than one update of driving for a crossing', () => {
     const f = build(
       [
