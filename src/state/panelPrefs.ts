@@ -63,15 +63,17 @@ export const usePanelPrefs = create<PanelPrefs & Actions>()(
  * A side column's width for a page: the live value while the divider is
  * dragged, else the saved one, else the default; clamped to the limits and to
  * `room`. `onCommit` remembers the width, `reset` goes back to the default.
+ * `preferred` is a wider default for a page that wants its centre column
+ * capped and the rest given to this one; it never goes below the limits'.
  */
-export function usePanelWidth(id: PanelId, room: number) {
+export function usePanelWidth(id: PanelId, room: number, preferred = 0) {
   const saved = usePanelPrefs(s => s.widths[id]);
   const setWidth = usePanelPrefs(s => s.setWidth);
   const resetWidth = usePanelPrefs(s => s.resetWidth);
   const [drag, setDrag] = useState<number | null>(null);
   const width = clampPanelW(
     id,
-    drag ?? saved ?? PANEL_LIMITS[id].default,
+    drag ?? saved ?? Math.max(PANEL_LIMITS[id].default, preferred),
     room,
   );
   const onCommit = useCallback(

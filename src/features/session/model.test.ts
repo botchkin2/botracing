@@ -283,16 +283,12 @@ describe('trafficPaceFacts', () => {
     expect(trafficPaceFacts({...session, field})).toEqual([]);
   });
 
-  it('shows each median with the laps behind it, and the rule', () => {
+  it('shows the clean median with the laps behind it, and no traffic median', () => {
     const s = withTraffic(set(12, 81.5), set(4, 83));
     expect(trafficPaceFacts(s)).toEqual([
       {
         label: 'Clean median',
         value: `1:21.500 · 12 of ${session.comparableCount} laps`,
-      },
-      {
-        label: 'Traffic median',
-        value: `1:23.000 · 4 of ${session.comparableCount} laps`,
       },
     ]);
   });

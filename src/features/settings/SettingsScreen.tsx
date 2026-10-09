@@ -3,7 +3,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, space, useLayout, useTheme} from '@/src/design';
-import {Button, Text} from '@/src/ui';
+import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
+import {Button, Segment, Text} from '@/src/ui';
 
 import {type UploaderCard, useSettingsModel} from './model';
 
@@ -33,6 +34,8 @@ export function SettingsScreen() {
       </View>
 
       <Account />
+
+      <Sections />
 
       <Text variant='label' tone='textMuted' style={styles.section}>
         Uploader
@@ -105,6 +108,24 @@ function Account() {
           </Text>
         ) : null}
       </View>
+    </>
+  );
+}
+
+const SECTION_MODES = [
+  {value: 'turns', label: 'Turns'},
+  {value: 'sectors', label: 'Game sectors'},
+] as const;
+
+function Sections() {
+  const mode = useSectionPrefs(s => sectionModeOf(s.mode));
+  const setMode = useSectionPrefs(s => s.setMode);
+  return (
+    <>
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Sections
+      </Text>
+      <Segment options={SECTION_MODES} value={mode} onChange={setMode} />
     </>
   );
 }
