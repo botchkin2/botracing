@@ -20,7 +20,7 @@ const posix = p => p.replace(/\\/g, '/');
 
 // A 60 Hz player stream: laps cross at 100 s, 200 s and 300 s (the sim's own
 // times for the first two: `times`), the held value showing for 2 ticks first.
-function writePlayer(dir, times, {sim = 'iracing', track = 'Sebring', start = '2026-10-09T14:00:00.000Z', end = '2026-10-09T14:06:00.000Z'} = {}) {
+function writePlayer(dir, times, {sim = 'iracing', track = 'Sebring', start = '2026-10-09T14:00:00.000Z', end = '2026-10-09T14:06:00.000Z', session = 0} = {}) {
   mkdirSync(dir, {recursive: true});
   writeFileSync(
     resolve(dir, 'meta.json'),
@@ -29,6 +29,7 @@ function writePlayer(dir, times, {sim = 'iracing', track = 'Sebring', start = '2
   const [a, b] = times;
   const sql =
     `COPY (SELECT i AS tick, i / 60.0 AS SessionTime, ` +
+    `${session}::INTEGER AS SessionNum, ` +
     `(CASE WHEN i < 6000 THEN 1 WHEN i < 12000 THEN 2 ELSE 3 END)::INTEGER AS Lap, ` +
     `(CASE WHEN i < 6000 + 2 THEN 0.0 WHEN i < 12000 + 2 THEN ${a} ELSE ${b} END)::FLOAT AS LapLastLapTime ` +
     `FROM range(0, 18000) t(i)) TO '${posix(resolve(dir, 'player-0000.parquet'))}' (FORMAT parquet)`;
@@ -77,12 +78,12 @@ test('the live lap times are read like the .ibt ones, and agree when they are th
 
 test('a lap more than 5 ms apart is named, one inside the tolerance is not', () => {
   const live = [
-    {t: 100, lap: 2, time: 100.0},
-    {t: 200, lap: 3, time: 100.0},
+    {t: 100, lap: 2, time: 100.0, sn: 0},
+    {t: 200, lap: 3, time: 100.0, sn: 0},
   ];
   const ibt = [
-    {t: 100.0166, lap: 2, time: 100.004},
-    {t: 200.0166, lap: 3, time: 100.012},
+    {t: 100.0166, lap: 2, time: 100.004, sn: 0},
+    {t: 200.0166, lap: 3, time: 100.012, sn: 0},
   ];
   const r = compareLaps(live, ibt);
   assert.equal(r.compared, 2);
@@ -90,8 +91,13 @@ test('a lap more than 5 ms apart is named, one inside the tolerance is not', () 
   assert.ok(Math.abs(r.bad[0].diffS - 0.012) < 1e-9);
   assert.ok(LAP_TOLERANCE_S === 0.005);
   assert.match(describeCheck(r), /1 of 2 laps differ by more than 5 ms: L3 12\.0 ms/);
+  // The same clock time in another session of the weekend is another lap.
+  assert.equal(
+    compareLaps([{t: 100, lap: 2, time: 100, sn: 0}], [{t: 100, lap: 2, time: 90, sn: 1}]).compared,
+    0,
+  );
   // A lap one side has no time for is left out, not counted as a match.
-  assert.equal(compareLaps([{t: 1, lap: 1, time: 0}], [{t: 1, lap: 1, time: 90}]).compared, 0);
+  assert.equal(compareLaps([{t: 1, lap: 1, time: 0, sn: 0}], [{t: 1, lap: 1, time: 90, sn: 0}]).compared, 0);
   assert.equal(describeCheck({compared: 0, worstS: 0, bad: []}), 'live check: no lap in both');
 });
 

@@ -52,7 +52,9 @@ export function iracingCapturesFor(captures, {track, startMs, endMs}) {
   });
 }
 
-const NEEDED = ['SessionTime', 'Lap', 'LapLastLapTime'];
+// SessionNum too: the session clock restarts with every session of a weekend,
+// so a time alone could pair a lap with another session's lap.
+const NEEDED = ['SessionTime', 'SessionNum', 'Lap', 'LapLastLapTime'];
 
 /** The player stream's lap columns, in tick order, across the chunks. */
 export function readLapColumns(files) {
@@ -65,10 +67,10 @@ export function readLapColumns(files) {
   return c.SessionTime ? c : null;
 }
 
-/** Lap crossings, [{t, lap, time}] (time 0 where the sim gave none). */
+/** Lap crossings, [{t, lap, time, sn}] (time 0 where the sim gave none). */
 export function crossingsOf(c) {
   return lapCrossings(c.SessionTime, c.Lap, c.LapLastLapTime).map(
-    ({t, lap, time}) => ({t, lap, time}),
+    ({t, lap, time, i}) => ({t, lap, time, sn: c.SessionNum?.[i] ?? 0}),
   );
 }
 
@@ -93,7 +95,9 @@ export function compareLaps(live, ibt, tolerance = LAP_TOLERANCE_S) {
   const bad = [];
   for (const a of live) {
     if (!(a.time > 0)) continue;
-    const b = ibt.find(x => Math.abs(x.t - a.t) <= SAME_CROSSING_S);
+    const b = ibt.find(
+      x => x.sn === a.sn && Math.abs(x.t - a.t) <= SAME_CROSSING_S,
+    );
     if (!b || !(b.time > 0)) continue;
     compared++;
     const diff = Math.abs(a.time - b.time);
