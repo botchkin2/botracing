@@ -32,14 +32,28 @@ function trackNameOf(track: unknown, trackId: string): string {
   return typeof name === 'string' && name ? name : trackId;
 }
 
-/** Counts of sessions per game and per track, from `{sim, trackId, track}` rows. */
+/** The layout a session stores as `track.variant`, or '' for a bare string or none. */
+function variantOf(track: unknown): string {
+  const variant = (track as {variant?: unknown} | null | undefined)?.variant;
+  return typeof variant === 'string' ? variant : '';
+}
+
+/** Counts of sessions per game and per track, from `{sim, trackId, track}` rows.
+ * Two layouts of one track share a name: each then reads "Name · Variant", so
+ * the chips can be told apart. */
 export function foldFacets(
   rows: {sim?: unknown; trackId?: unknown; track?: unknown}[],
 ): Facets {
   const games = new Map<string, number>();
   const tracks = new Map<
     string,
-    {trackId: string; track: string; sim: string; count: number}
+    {
+      trackId: string;
+      track: string;
+      sim: string;
+      count: number;
+      variant: string;
+    }
   >();
   for (const row of rows) {
     const sim = typeof row.sim === 'string' && row.sim ? row.sim : 'lmu';
@@ -51,12 +65,22 @@ export function foldFacets(
       track: trackNameOf(row.track, row.trackId),
       sim,
       count: 0,
+      variant: variantOf(row.track),
     };
     t.count += 1;
     tracks.set(key, t);
   }
+  // Names held by more than one track (the layouts of one circuit).
+  const byName = new Map<string, number>();
+  for (const t of tracks.values())
+    byName.set(t.track, (byName.get(t.track) ?? 0) + 1);
+  const labelled = [...tracks.values()].map(({variant, ...t}) =>
+    (byName.get(t.track) ?? 0) > 1
+      ? {...t, track: `${t.track} · ${variant || t.trackId}`}
+      : t,
+  );
   return {
     games: [...games].map(([sim, count]) => ({sim, count})),
-    tracks: [...tracks.values()],
+    tracks: labelled,
   };
 }
