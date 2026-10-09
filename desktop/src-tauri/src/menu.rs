@@ -4,6 +4,7 @@
 // opens the browser sign-in), while one is in progress it says so, and signed
 // in it names the account. Signing in is never something to hunt for.
 use crate::account::Account;
+use crate::capture::prune_settings::Settings;
 
 /// The top menu item: its text, and whether it can be clicked.
 pub fn primary(acct: &Account) -> (String, bool) {
@@ -29,6 +30,49 @@ pub fn waiting_status(message: Option<&str>) -> String {
     message.map_or_else(|| "Signing back in…".into(), str::to_string)
 }
 
+/// The cleanup choices as the menu shows them, and the sims whose cleanup is
+/// waiting on an upload that keeps failing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cleanup {
+    pub lmu: bool,
+    pub iracing: bool,
+    pub keep_days: u32,
+    pub cap_gb: u32,
+    pub blocked: Vec<String>,
+}
+
+impl Cleanup {
+    pub fn of(s: &Settings, blocked: Vec<String>) -> Cleanup {
+        Cleanup {
+            lmu: s.lmu,
+            iracing: s.iracing,
+            keep_days: s.keep_days,
+            cap_gb: s.cap_gb,
+            blocked,
+        }
+    }
+
+    /// One line: on schedule, or which sims' cleanup waits on a failing upload.
+    pub fn status(&self) -> String {
+        if self.blocked.is_empty() {
+            return "Cleanup: on schedule".into();
+        }
+        let sims: Vec<&str> = self.blocked.iter().map(|s| sim_label(s)).collect();
+        format!(
+            "Cleanup waiting: uploads keep failing for {}",
+            sims.join(", ")
+        )
+    }
+}
+
+fn sim_label(sim: &str) -> &str {
+    match sim {
+        "lmu" => "LMU",
+        "iracing" => "iRacing",
+        other => other,
+    }
+}
+
 /// The menu as data. The live tray is built from `menu_items_for` and updated
 /// from it, so a test of this list covers what ships.
 #[derive(Clone, Debug, PartialEq)]
@@ -44,6 +88,7 @@ pub struct MenuState {
     pub update: (String, bool),
     pub start_with_windows: bool,
     pub default_profile: bool,
+    pub cleanup: Cleanup,
 }
 
 impl MenuState {
@@ -55,6 +100,7 @@ impl MenuState {
         iracing: String,
         update: (String, bool),
         start_with_windows: bool,
+        cleanup: Cleanup,
     ) -> MenuState {
         MenuState {
             primary: primary(acct),
@@ -66,6 +112,7 @@ impl MenuState {
             update,
             start_with_windows,
             default_profile: crate::profile::is_default(),
+            cleanup,
         }
     }
 
@@ -81,6 +128,7 @@ impl MenuState {
             update,
             start_with_windows: false,
             default_profile: crate::profile::is_default(),
+            cleanup: Cleanup::of(&Settings::default(), Vec::new()),
         }
     }
 }
@@ -127,6 +175,29 @@ pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
             checked: Some(state.start_with_windows),
         },
         item("older", "Upload older sessions…", true),
+        item("cleanup-status", state.cleanup.status(), false),
+        Item {
+            id: "cleanup-lmu",
+            text: "Clean up LMU recordings".into(),
+            enabled: true,
+            checked: Some(state.cleanup.lmu),
+        },
+        Item {
+            id: "cleanup-iracing",
+            text: "Clean up iRacing recordings".into(),
+            enabled: true,
+            checked: Some(state.cleanup.iracing),
+        },
+        item(
+            "cleanup-keep",
+            format!("Keep recordings {} days", state.cleanup.keep_days),
+            true,
+        ),
+        item(
+            "cleanup-cap",
+            format!("Size cap {} GB", state.cleanup.cap_gb),
+            true,
+        ),
         item("folder", "Open data folder", true),
         item("update", state.update.0.clone(), state.update.1),
         item("quit", "Quit", true),
@@ -214,6 +285,7 @@ mod tests {
             update: ("up to date".into(), false),
             start_with_windows: false,
             default_profile: true,
+            cleanup: cleanup(&[]),
         }
     }
 
@@ -237,6 +309,11 @@ mod tests {
                 "pause",
                 "autostart",
                 "older",
+                "cleanup-status",
+                "cleanup-lmu",
+                "cleanup-iracing",
+                "cleanup-keep",
+                "cleanup-cap",
                 "folder",
                 "update",
                 "quit"
@@ -264,5 +341,43 @@ mod tests {
         assert_eq!((signin.text.as_str(), signin.enabled), ("Sign in", true));
         let signout = items.iter().find(|i| i.id == "signout").unwrap();
         assert!(!signout.enabled, "nothing to sign out of");
+    }
+
+    fn cleanup(blocked: &[&str]) -> Cleanup {
+        Cleanup::of(
+            &Settings::default(),
+            blocked.iter().map(|s| s.to_string()).collect(),
+        )
+    }
+
+    #[test]
+    fn the_cleanup_line_says_on_schedule_or_names_the_failing_sims() {
+        assert_eq!(cleanup(&[]).status(), "Cleanup: on schedule");
+        assert_eq!(
+            cleanup(&["lmu", "iracing"]).status(),
+            "Cleanup waiting: uploads keep failing for LMU, iRacing"
+        );
+    }
+
+    #[test]
+    fn the_cleanup_items_show_the_choices_and_stay_clickable() {
+        let mut state = MenuState::initial(("update".into(), false));
+        state.cleanup = Cleanup::of(
+            &Settings {
+                lmu: false,
+                iracing: true,
+                keep_days: 30,
+                cap_gb: 5,
+            },
+            Vec::new(),
+        );
+        let items = menu_items_for(&state);
+        let find = |id: &str| items.iter().find(|i| i.id == id).unwrap().clone();
+        assert_eq!(find("cleanup-lmu").checked, Some(false));
+        assert_eq!(find("cleanup-iracing").checked, Some(true));
+        assert_eq!(find("cleanup-keep").text, "Keep recordings 30 days");
+        assert_eq!(find("cleanup-cap").text, "Size cap 5 GB");
+        assert!(find("cleanup-keep").enabled && find("cleanup-cap").enabled);
+        assert!(!find("cleanup-status").enabled, "a line, not a button");
     }
 }

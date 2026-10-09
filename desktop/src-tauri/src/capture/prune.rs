@@ -229,6 +229,34 @@ fn size_of(path: &Path) -> io::Result<u64> {
     Ok(total)
 }
 
+/// The switched-on sims whose cleanup waits on a retry: the tray says so.
+pub fn blocked_sims(policy: &Policy, states: &HashMap<String, SimState>) -> Vec<String> {
+    policy
+        .sims
+        .iter()
+        .filter(|s| states.get(*s).map_or(false, |st| st.retry_pending))
+        .cloned()
+        .collect()
+}
+
+/// What `prune` would delete under `root`, as (captures, bytes). Nothing is
+/// deleted.
+pub fn dry_run(
+    root: &Path,
+    now: SystemTime,
+    policy: &Policy,
+    states: &HashMap<String, SimState>,
+) -> io::Result<(usize, u64)> {
+    let entries = scan(root)?;
+    let doomed = plan(&entries, now, policy, states);
+    let bytes = entries
+        .iter()
+        .filter(|e| doomed.contains(&e.path))
+        .map(|e| e.bytes)
+        .sum();
+    Ok((doomed.len(), bytes))
+}
+
 /// Deletes what `plan` chooses under `root` and returns the paths removed.
 pub fn prune(
     root: &Path,
@@ -492,6 +520,80 @@ mod tests {
         assert!(!root.join("old-unmarked").exists());
         assert!(root.join("cut-short-marked").exists());
         assert!(root.join("recent-marked").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_sim_with_a_retry_pending_is_reported_as_blocked() {
+        let policy = Policy {
+            keep: DAY * 14,
+            cap_bytes: u64::MAX,
+            sims: vec!["lmu".into(), "iracing".into()],
+        };
+        let states = HashMap::from([
+            (
+                "lmu".to_string(),
+                SimState {
+                    retry_pending: true,
+                    ..Default::default()
+                },
+            ),
+            ("iracing".to_string(), SimState::default()),
+        ]);
+        assert_eq!(blocked_sims(&policy, &states), vec!["lmu".to_string()]);
+        // A sim switched off is not reported, even if it is retrying.
+        let lmu_off = Policy {
+            sims: vec!["iracing".into()],
+            ..policy
+        };
+        assert!(blocked_sims(&lmu_off, &states).is_empty());
+    }
+
+    #[test]
+    fn dry_run_counts_what_prune_would_delete_and_deletes_nothing() {
+        let root = std::env::temp_dir().join(format!("botracing-dry-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        for (name, uploaded) in [("old-a", true), ("old-b", false)] {
+            let dir = root.join(name);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("chunk.bin"), vec![0u8; 100]).unwrap();
+            let meta = dir.join(META);
+            fs::write(&meta, r#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#).unwrap();
+            let file = if uploaded {
+                let marker = dir.join(UPLOADED_MARKER);
+                fs::write(&marker, b"{}").unwrap();
+                marker
+            } else {
+                meta
+            };
+            let now = SystemTime::now();
+            fs::File::options()
+                .write(true)
+                .open(&file)
+                .unwrap()
+                .set_modified(now - DAY * 30)
+                .unwrap();
+        }
+        let now = SystemTime::now();
+        let states = HashMap::from([(
+            "lmu".to_string(),
+            SimState {
+                last_run: Some(now - DAY),
+                ..Default::default()
+            },
+        )]);
+        let policy = Policy {
+            keep: DAY * 14,
+            cap_bytes: u64::MAX,
+            sims: vec!["lmu".into()],
+        };
+        let (count, bytes) = dry_run(&root, now, &policy, &states).unwrap();
+        assert_eq!(count, 2);
+        // Each folder: chunk.bin (100), its meta.json; old-a also its marker ("{}").
+        let meta_len = r#"{"sim":"lmu","endUtc":"2026-09-01T00:00:00Z"}"#.len() as u64;
+        assert_eq!(bytes, (100 + meta_len + 2) + (100 + meta_len));
+        assert!(root.join("old-a").exists());
+        assert!(root.join("old-b").exists());
         let _ = fs::remove_dir_all(&root);
     }
 }
