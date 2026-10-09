@@ -9,11 +9,13 @@ pub mod irsdk;
 pub mod layout;
 pub mod prune;
 pub mod probe;
+pub mod prune_schedule;
+pub mod prune_settings;
 pub mod recorder;
-pub mod sanity;
-pub mod store;
 pub mod runner;
-#[cfg(windows)]
-pub mod win;
+pub mod sanity;
 #[cfg(all(test, windows))]
 mod soak;
+pub mod store;
+#[cfg(windows)]
+pub mod win;

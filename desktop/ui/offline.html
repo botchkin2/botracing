@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BotRacing</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: #0b0e12;
+    color: #e6e8eb;
+    font-family: system-ui, sans-serif;
+  }
+  button {
+    font: inherit;
+    padding: 10px 20px;
+    border: 1px solid #f6a623;
+    border-radius: 6px;
+    background: transparent;
+    color: #f6a623;
+    cursor: pointer;
+  }
+</style>
+<body>
+  <div>Can't reach BotRacing</div>
+  <button id="retry">Retry</button>
+  <script>
+    // A plain navigation to the app: the window allows exactly that (and this
+    // page), so the retry needs nothing from the tray.
+    document.getElementById('retry').addEventListener('click', function () {
+      location.href = 'https://botracing-61.web.app';
+    });
+  </script>
+</body>

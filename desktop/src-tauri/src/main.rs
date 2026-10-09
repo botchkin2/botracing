@@ -13,6 +13,7 @@ mod profile;
 mod sidecar;
 mod status;
 mod update;
+mod viewer;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -22,11 +23,18 @@ use tauri::Manager;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-type Shared<T> = Arc<Mutex<T>>;
+pub(crate) type Shared<T> = Arc<Mutex<T>>;
 
 /// True when a launch asks the running tray to quit (`--quit`).
 fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
+}
+
+/// True when the window opens at launch: a debug build with
+/// `BOTRACING_OPEN_ON_START` set, for a walkthrough or a check of the window.
+/// A release build never does.
+fn opens_on_start(debug_build: bool, env_set: bool) -> bool {
+    debug_build && env_set
 }
 
 /// Sign in on a thread of its own: the browser step waits on a person. The
@@ -145,16 +153,15 @@ fn main() {
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
-            // second tab of its own: the one already open is the way in.
+            // window or tab of its own: the sign-in page is the way in.
             let signing_in = app
                 .try_state::<Shared<account::Account>>()
                 .is_some_and(|a| a.lock().unwrap().signing_in);
             if signing_in {
                 return;
             }
-            std::thread::spawn(|| {
-                let _ = browser::open();
-            });
+            let app = app.clone();
+            std::thread::spawn(move || open_window(&app));
         }))
     } else {
         builder
@@ -162,6 +169,13 @@ fn main() {
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The window's size and place, remembered.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            viewer::tray_uid,
+            viewer::viewer_token,
+            viewer::sign_out
+        ])
         .setup(|app| {
             // `--quit` is a message to a running tray (the single-instance hold
             // forwards it and ends this process before we get here). Reaching
@@ -171,6 +185,14 @@ fn main() {
                 std::process::exit(0);
             }
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
+            app.manage(paths.clone());
+            if opens_on_start(
+                cfg!(debug_assertions),
+                std::env::var_os("BOTRACING_OPEN_ON_START").is_some(),
+            ) {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || open_window(&handle));
+            }
             let account: Shared<account::Account> = Arc::new(Mutex::new(account::Account::new(
                 auth::Config::from_build(),
                 &paths.data,
@@ -213,6 +235,13 @@ fn main() {
                     )
                 }),
             ));
+
+            // Cleanup of old recordings: once at start, then after each
+            // uploader run. Only the real tray does it (not a walkthrough).
+            let cleanup_paths = capture::prune_schedule::Paths::for_tray(&paths.data);
+            if profile::is_default() {
+                capture::prune_schedule::spawn(cleanup_paths.clone());
+            }
 
             // iRacing's recorder: the same rules, its own thread.
             let iracing: Shared<Option<capture::runner::Handle>> = Arc::new(Mutex::new(
@@ -264,6 +293,7 @@ fn main() {
             app.manage(iracing.clone());
             let recorder_menu = recorder.clone();
             let iracing_menu = iracing.clone();
+            let cleanup_menu = cleanup_paths.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -274,21 +304,19 @@ fn main() {
                         std::thread::spawn(move || start_sign_in(account));
                     }
                     "signout" => {
-                        let (account, sup) = (account_menu.clone(), sup_menu.clone());
+                        let (account, sup, app) =
+                            (account_menu.clone(), sup_menu.clone(), app.clone());
+                        // Also closes the window and empties its storage: the
+                        // window is never signed in as someone the tray is not.
                         std::thread::spawn(move || {
-                            let mut acct = account.lock().unwrap();
-                            acct.sign_out(|| sup.lock().unwrap().set_allowed(false));
+                            viewer::sign_out_everything(&app, &account, &sup)
                         });
                     }
                     "open" => {
-                        // The system browser, off this thread. If it cannot
-                        // be opened, the status line says so.
-                        let account = account_menu.clone();
-                        std::thread::spawn(move || {
-                            if let Err(why) = browser::open() {
-                                account.lock().unwrap().message = Some(why);
-                            }
-                        });
+                        // Off this thread: a window built from a menu handler
+                        // can deadlock on Windows.
+                        let app = app.clone();
+                        std::thread::spawn(move || open_window(&app));
                     }
                     "folder" => {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
@@ -320,6 +348,12 @@ fn main() {
                             Err(why) => acct.message = Some(why),
                         }
                     }
+                    "cleanup-lmu" => change_cleanup(&cleanup_menu, |s| s.lmu = !s.lmu),
+                    "cleanup-iracing" => change_cleanup(&cleanup_menu, |s| s.iracing = !s.iracing),
+                    "cleanup-keep" => {
+                        change_cleanup(&cleanup_menu, |s| s.keep_days = s.next_keep_days())
+                    }
+                    "cleanup-cap" => change_cleanup(&cleanup_menu, |s| s.cap_gb = s.next_cap_gb()),
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);
                         let mut acct = account_menu.lock().unwrap();
@@ -353,6 +387,7 @@ fn main() {
                 })
                 .build(app)?;
 
+            let cleanup_poll = cleanup_paths.clone();
             std::thread::spawn(move || {
                 loop {
                     // The network part runs without the account lock held.
@@ -388,6 +423,12 @@ fn main() {
                     let update = update::menu_line(&current_version, waiting.as_deref());
                     let start_with_windows =
                         profile::is_default() && autostart::is_on(&autostart::Registry);
+                    let cleanup = {
+                        let s = capture::prune_settings::load(&cleanup_poll.settings);
+                        let states = capture::prune::read_states(&cleanup_poll.state);
+                        let blocked = capture::prune::blocked_sims(&s.policy(), &states);
+                        menu::Cleanup::of(&s, blocked)
+                    };
                     let state = {
                         let acct = account.lock().unwrap();
                         menu::MenuState::of(
@@ -397,6 +438,7 @@ fn main() {
                             iracing_line,
                             update,
                             start_with_windows,
+                            cleanup,
                         )
                     };
                     for spec in menu::menu_items_for(&state) {
@@ -421,6 +463,31 @@ fn main() {
                 }
             }
         });
+}
+
+/// Changes one cleanup choice and saves it; the menu shows it on the next tick.
+fn change_cleanup(
+    paths: &capture::prune_schedule::Paths,
+    change: impl FnOnce(&mut capture::prune_settings::Settings),
+) {
+    let mut s = capture::prune_settings::load(&paths.settings);
+    change(&mut s);
+    if let Err(e) = capture::prune_settings::save(&paths.settings, &s) {
+        capture::prune_schedule::log(&paths.log, &format!("cleanup settings not saved: {e}"));
+    }
+}
+
+/// Shows the window on the hosted app. If it cannot be built the system
+/// browser takes over, and the status line says if even that fails.
+fn open_window(app: &tauri::AppHandle) {
+    let data = viewer::webview_dir(&app.state::<Arc<sidecar::Paths>>().data);
+    if viewer::open(app, &data).is_err() {
+        if let Err(why) = browser::open() {
+            if let Some(account) = app.try_state::<Shared<account::Account>>() {
+                account.lock().unwrap().message = Some(why);
+            }
+        }
+    }
 }
 
 /// The status line of the menu: what a person needs to know right now.
@@ -458,7 +525,18 @@ fn status_text(
 
 #[cfg(test)]
 mod tests {
-    use super::wants_quit;
+    use super::{opens_on_start, wants_quit};
+
+    #[test]
+    fn only_a_debug_build_opens_the_window_at_launch() {
+        assert!(opens_on_start(true, true));
+        assert!(!opens_on_start(true, false));
+        assert!(
+            !opens_on_start(false, true),
+            "a release build ignores BOTRACING_OPEN_ON_START"
+        );
+        assert!(!opens_on_start(false, false));
+    }
 
     #[test]
     fn only_a_quit_argument_asks_the_tray_to_quit() {
