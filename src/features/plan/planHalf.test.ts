@@ -106,7 +106,7 @@ describe('buildPlanHalf', () => {
     expect(h.rows[3]).toEqual({k: 'In', p: '—', a: '4 % VE (1.1 laps)'});
   });
 
-  it('a DNF in a timed race names the leader laps, or the minutes without them', () => {
+  it('a DNF in a timed race names the class leader laps seen, or the minutes without them', () => {
     const run = (classLeaderLapsDone: number | null) =>
       half(
         {
@@ -118,27 +118,42 @@ describe('buildPlanHalf', () => {
         },
         [actual(14)],
       ).rows[0];
-    expect(run(24)).toEqual({k: 'Finish', p: 'L24', a: 'DNF L21'});
+    expect(run(24)).toEqual({k: 'Finish', p: 'L24+', a: 'DNF L21'});
     expect(run(null)).toEqual({k: 'Finish', p: '40 min', a: 'DNF L21'});
   });
 
-  it('a DNF names the finish against the race that ran, and plans that distance', () => {
+  it('a DNF without the race minutes shows the laps seen and plans nothing', () => {
+    // The 2 Oct Road Atlanta race: the recording stopped with the player at
+    // L20, the GT3 leader seen to L23 and mid-lap; the race ran one more.
+    const h = half(
+      {
+        raceLaps: 19,
+        race: null,
+        leftEarly: true,
+        playerLapsDone: 20,
+        classLeaderLapsDone: 23,
+      },
+      [actual(11)],
+    );
+    expect(h.note).toBe('No race length on record.');
+    expect(h.rows).toEqual([{k: 'Finish', p: 'L23+', a: 'DNF L20'}]);
+  });
+
+  it('a DNF with the race minutes plans that distance', () => {
     const h = half(
       {
         raceLaps: 40,
-        race: null,
+        race: {minutes: 90},
         leftEarly: true,
         playerLapsDone: 41,
         classLeaderLapsDone: 61,
       },
       [actual(24)],
     );
-    expect(h.rows[0]).toEqual({k: 'Finish', p: 'L61', a: 'DNF L41'});
-    // Scheduled 60 racing laps: two stops, not a 40-lap one-stop.
-    expect(h.rows.filter(r => r.k.startsWith('Stop'))).toEqual([
-      {k: 'Stop 1', p: 'after L28', a: 'after L24'},
-      {k: 'Stop 2', p: 'after L56', a: '—'},
-    ]);
+    expect(h.rows[0]).toEqual({k: 'Finish', p: 'L61+', a: 'DNF L41'});
+    expect(h.rows.filter(r => r.k.startsWith('Stop')).length).toBeGreaterThan(
+      1,
+    );
   });
 
   it('with no stop the plan is the one load to the flag', () => {

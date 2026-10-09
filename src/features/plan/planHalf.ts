@@ -38,6 +38,27 @@ function left(
 }
 
 /**
+ * The Finish row of a DNF: the furthest lap the class leader was seen to
+ * finish, in the lap table's labels (L1 is the formation lap), with a "+"
+ * because the recording stops with the player, mid-lap for the leader
+ * (pit-wall thread 1 #3136). Else the race minutes.
+ */
+export function finishRow(facts: RaceFacts): PlanHalfRow {
+  const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
+  const leader = facts.classLeaderLapsDone;
+  return {
+    k: 'Finish',
+    p:
+      leader != null
+        ? `L${leader}+`
+        : facts.race
+        ? `${facts.race.minutes} min`
+        : MISSING,
+    a: at != null ? `DNF L${at}` : 'DNF',
+  };
+}
+
+/**
  * What the load leaves after burning `burned` laps at `use` a lap, in the
  * card's meter. Never below zero: a planned stop is at the last lap the load
  * reaches, so the rest is a fraction of a lap.
@@ -72,7 +93,10 @@ export function buildPlanHalf(input: {
 }): PlanHalf {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
   if (facts.limitL != null && scheduledLength(facts) == null)
-    return {note: 'No race length on record.', rows: []};
+    return {
+      note: 'No race length on record.',
+      rows: facts.leftEarly ? [finishRow(facts)] : [],
+    };
   if (facts.limitL == null || !rules)
     return {
       note: 'No fill limit on record for this race.',
@@ -95,23 +119,7 @@ export function buildPlanHalf(input: {
   const stopLaps = option.stopLaps;
 
   const rows: PlanHalfRow[] = [];
-  if (facts.leftEarly) {
-    const length = scheduledLength(facts);
-    const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
-    rows.push({
-      k: 'Finish',
-      // The class leader's laps in the app's numbering, else the race minutes.
-      p:
-        facts.classLeaderLapsDone != null
-          ? `L${facts.classLeaderLapsDone}`
-          : length && 'minutes' in length
-          ? `${length.minutes} min`
-          : length
-          ? `L${length.estimatedLaps + 1}`
-          : MISSING,
-      a: at != null ? `DNF L${at}` : 'DNF',
-    });
-  }
+  if (facts.leftEarly) rows.push(finishRow(facts));
   const count = Math.max(stopLaps.length, stops.length);
   for (let i = 0; i < count; i++) {
     const n = stopLaps[i];

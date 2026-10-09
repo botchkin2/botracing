@@ -12,12 +12,16 @@ export type ScheduledLength = {minutes: number} | {estimatedLaps: number};
  * else unknown. The laps this driver completed are never the length: a timed
  * race ends at the flag, a lap after the clock runs out, and a DNF stops short.
  * Nor are the overall leader's: a faster class runs more laps in the same
- * minutes (pit-wall thread 1 #3101).
+ * minutes (pit-wall thread 1 #3101). After a DNF the recording stops with the
+ * player, mid-lap for the leader, so its laps are a floor: one lap short is
+ * the error that runs a car dry, so a DNF without the minutes has no length
+ * (rake #3138).
  */
 export function scheduledLength(
-  facts: Pick<RaceFacts, 'race' | 'classLeaderLapsDone'>,
+  facts: Pick<RaceFacts, 'race' | 'classLeaderLapsDone' | 'leftEarly'>,
 ): ScheduledLength | null {
   if (facts.race) return facts.race;
+  if (facts.leftEarly) return null;
   const leader = facts.classLeaderLapsDone;
   return leader != null && leader > 1 ? {estimatedLaps: leader - 1} : null;
 }

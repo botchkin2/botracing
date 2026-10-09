@@ -61,7 +61,7 @@ export function lastRaceLine(race: LastRace): string {
     race.leftEarly &&
     race.playerLapsDone != null &&
     race.classLeaderLapsDone != null
-      ? `DNF at L${race.playerLapsDone} of ${race.classLeaderLapsDone}`
+      ? `DNF at L${race.playerLapsDone} of L${race.classLeaderLapsDone}+`
       : null;
   const stops =
     race.stops.length === 0

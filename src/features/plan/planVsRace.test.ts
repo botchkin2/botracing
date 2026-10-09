@@ -44,7 +44,7 @@ describe('raceRules', () => {
     ).toBeNull();
   });
 
-  it('a DNF with no capture is planned as the leader laps, not the short one driven', () => {
+  it('a DNF with no capture is not planned: the laps seen are a floor', () => {
     expect(
       raceRules(
         facts({
@@ -54,8 +54,16 @@ describe('raceRules', () => {
           playerLapsDone: 21,
           classLeaderLapsDone: 24,
         }),
-      )?.lengthLaps,
-    ).toBe(23);
+      ),
+    ).toBeNull();
+  });
+
+  it('a DNF with the capture is planned by its minutes', () => {
+    expect(
+      raceRules(
+        facts({race: {minutes: 40}, leftEarly: true, classLeaderLapsDone: 24}),
+      ),
+    ).toMatchObject({lengthMin: 40, lengthLaps: null});
   });
 });
 
@@ -74,6 +82,19 @@ describe('scheduledLength', () => {
     });
     expect(scheduledLength({race: null, classLeaderLapsDone: null})).toBeNull();
     expect(scheduledLength({race: null})).toBeNull();
+  });
+
+  it('has no length for a DNF without the capture: the recording stopped mid-lap for the leader', () => {
+    expect(
+      scheduledLength({race: null, classLeaderLapsDone: 23, leftEarly: true}),
+    ).toBeNull();
+    expect(
+      scheduledLength({
+        race: {minutes: 30},
+        classLeaderLapsDone: 23,
+        leftEarly: true,
+      }),
+    ).toEqual({minutes: 30});
   });
 });
 

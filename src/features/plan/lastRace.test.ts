@@ -82,7 +82,7 @@ describe('lastRaceLine', () => {
         classLeaderLapsDone: 24,
       }),
     ).toBe(
-      'DNF at L21 of 24 · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
+      'DNF at L21 of L24+ · 2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73',
     );
   });
 });
