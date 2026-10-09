@@ -62,7 +62,7 @@ export function DesktopChrome() {
     planCombo: plan.key,
   });
   const {data: session} = useSession(sessionId ?? '', sessionId != null);
-  const lapData = useSessionLaps(sessionId ?? '');
+  const lapData = useSessionLaps(sessionId);
   const map = useSessionMap(sessionId ?? '');
 
   const content =

@@ -32,14 +32,8 @@ fn wants_quit(args: &[String]) -> bool {
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
 fn start_sign_in(account: Shared<account::Account>) {
-    let cfg = {
-        let mut acct = account.lock().unwrap();
-        if acct.signing_in || acct.session.is_some() {
-            return;
-        }
-        acct.signing_in = true;
-        acct.message = None;
-        acct.config().clone()
+    let Some(cfg) = account.lock().unwrap().begin_sign_in() else {
+        return;
     };
     std::thread::spawn(move || {
         let result = auth::sign_in(
@@ -83,6 +77,14 @@ fn main() {
                 app.exit(0);
                 return;
             }
+            // A second launch while the browser sign-in is open must not add a
+            // second tab of its own: the one already open is the way in.
+            let signing_in = app
+                .try_state::<Shared<account::Account>>()
+                .is_some_and(|a| a.lock().unwrap().signing_in);
+            if signing_in {
+                return;
+            }
             std::thread::spawn(|| {
                 let _ = browser::open();
             });
@@ -110,6 +112,7 @@ fn main() {
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
             app.manage(supervisor.clone());
+            app.manage(account.clone());
 
             // The top item is the way in: "Sign in" while signed
             // out (a click opens the browser), the account once signed in.

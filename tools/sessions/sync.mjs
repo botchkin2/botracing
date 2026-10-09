@@ -366,7 +366,11 @@ function build(
   const liveCheck =
     foldOnly || sim !== 'iracing'
       ? null
-      : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
+      : liveLapCheck(
+          captureRoot,
+          span,
+          ibtCrossings(s.files.map(f => f.path)),
+        );
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
