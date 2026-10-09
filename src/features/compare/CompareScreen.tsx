@@ -76,6 +76,7 @@ import {
   withDefaultLaps,
 } from './model';
 import {type PlayInputs, playTicker} from './playback';
+import {useAutoHide} from './useAutoHide';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
@@ -214,15 +215,9 @@ function CompareView({
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  // Phone: the transport bar shows while playing, or for a few seconds after a
-  // touch on the charts (#44). Desktop always shows it.
-  const [revealedAt, setRevealedAt] = useState<number | null>(null);
-  const showTransport = layout.isDesktop || playing || revealedAt !== null;
-  useEffect(() => {
-    if (revealedAt === null || playing) return;
-    const t = setTimeout(() => setRevealedAt(null), TRANSPORT_IDLE_MS);
-    return () => clearTimeout(t);
-  }, [revealedAt, playing]);
+  // Phone: the window and step controls fade after a few seconds with no touch
+  // on the charts; Play stays. They keep their space, so nothing reflows (#44).
+  const seek = useAutoHide(TRANSPORT_IDLE_MS, playing);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -712,6 +707,7 @@ function CompareView({
       }
       spanLabel={spanLabel}
       playing={playing}
+      seekVisible={layout.isDesktop || seek.visible}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
@@ -719,7 +715,7 @@ function CompareView({
       }
       onPlay={() => {
         // Pausing keeps the bar up for a few seconds, so it is not gone at once.
-        if (playing) setRevealedAt(Date.now());
+        if (playing) seek.reveal();
         setPlaying(p => !p);
       }}
       onRate={prefs.setRate}
@@ -827,7 +823,7 @@ function CompareView({
         <View style={styles.plotMap}>
           <View
             onStartShouldSetResponderCapture={() => {
-              setRevealedAt(Date.now());
+              seek.reveal();
               return false;
             }}>
             {charts}
@@ -837,9 +833,7 @@ function CompareView({
         {position}
         {grid}
       </ScrollView>
-      {showTransport ? (
-        <View style={{paddingBottom: insets.bottom}}>{transport}</View>
-      ) : null}
+      <View style={{paddingBottom: insets.bottom}}>{transport}</View>
       {editor}
     </View>
   );

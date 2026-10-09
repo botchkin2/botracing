@@ -22,6 +22,7 @@ export function TransportBar({
   sizeLabel,
   spanLabel,
   playing,
+  seekVisible,
   rate,
   onMode,
   onStep,
@@ -36,6 +37,8 @@ export function TransportBar({
   /** "≈ 87 m", "fixed" or "whole lap". */
   spanLabel: string;
   playing: boolean;
+  /** The window and step row. Hidden rows keep their space and take no touches. */
+  seekVisible: boolean;
   rate: PlayRate;
   onMode: (m: WindowMode) => void;
   onStep: (dir: -1 | 1) => void;
@@ -71,7 +74,9 @@ export function TransportBar({
     </View>
   );
   const windowRow = (
-    <View style={styles.row}>
+    <View
+      style={[styles.row, !seekVisible && styles.faded]}
+      pointerEvents={seekVisible ? 'auto' : 'none'}>
       <Text variant='label' tone='textMuted'>
         Window
       </Text>
@@ -140,6 +145,7 @@ const styles = StyleSheet.create({
   },
   oneRow: {flexDirection: 'row-reverse', justifyContent: 'space-between'},
   row: {flexDirection: 'row', alignItems: 'center', gap: space.md},
+  faded: {opacity: 0},
   flex: {flex: 1},
   stepper: {
     flexDirection: 'row',
