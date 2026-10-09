@@ -186,12 +186,15 @@ export function PlanScreen() {
       compact={compact}
     />
   );
-  // The order of 07a: the chips (track, car, rules on the phone), the last
-  // race under them, then the length. Desktop (D6a) gives the rules their own
-  // block with its numbers under the length.
+  // The phone has one purpose, how many stops and when for the next race
+  // (Botkin, pit-wall thread 54 #2533): the chips (track, car, rules), the
+  // length, then the Race card and the Pit plan. The units switch, the last
+  // race, the start load, the per-tank, class timing and per-lap cards are
+  // desktop. Desktop (D6a) gives the rules their own block with its numbers
+  // under the length.
   const setup = !combo ? null : (
     <>
-      {hasVe ? (
+      {wide && hasVe ? (
         <Section title='Units'>
           <Segment options={UNITS} value={unit} onChange={setUnit} />
         </Section>
@@ -212,7 +215,7 @@ export function PlanScreen() {
         />
       ) : null}
 
-      {lastRace ? (
+      {wide && lastRace ? (
         <Section title='Your last race here'>
           <View style={styles.lastRace}>
             <View style={styles.lastText}>
@@ -256,7 +259,7 @@ export function PlanScreen() {
         />
       </Section>
 
-      {rules ? (
+      {wide && rules ? (
         <Section title='Start'>
           <StartLoad
             hasVe={hasVe}
@@ -342,7 +345,7 @@ export function PlanScreen() {
                 <RaceCardView card={data.cards.race} />
               </PlanCard>
             ) : null}
-            {data.cards ? (
+            {wide && data.cards ? (
               <PlanCard title='Per tank'>
                 <TankCardView card={data.cards.tank} />
               </PlanCard>
@@ -360,7 +363,9 @@ export function PlanScreen() {
           ) : null}
           {plan?.loadToFinish ? (
             <>
-              {view.loadTable ? <LoadTableCard table={view.loadTable} /> : null}
+              {wide && view.loadTable ? (
+                <LoadTableCard table={view.loadTable} />
+              ) : null}
               {/* No stop planned: the late-flag run-dry case, if any. */}
               {data.cards?.stops.windowNote ? (
                 <Text variant='dataSmall' tone='textSecondary'>
@@ -368,7 +373,7 @@ export function PlanScreen() {
                 </Text>
               ) : null}
             </>
-          ) : data.cards ? (
+          ) : data.cards && (wide || !slider.pit) ? (
             <PlanCard title='Stops'>
               <StopsCardView
                 card={data.cards.stops}
@@ -376,7 +381,7 @@ export function PlanScreen() {
               />
             </PlanCard>
           ) : null}
-          {data.cards ? (
+          {wide && data.cards ? (
             <ClassTimingSection
               timing={classTiming}
               // The stop line is where the slider has it.
@@ -390,13 +395,15 @@ export function PlanScreen() {
               wide={wide}
             />
           ) : null}
-          <Pair wide={wide}>
-            {['dropStop', 'perLap'].flatMap(key =>
-              view.cards
-                .filter(c => c.key === key)
-                .map(card => <RowsCard key={card.key} card={card} />),
-            )}
-          </Pair>
+          {wide ? (
+            <Pair wide={wide}>
+              {['dropStop', 'perLap'].flatMap(key =>
+                view.cards
+                  .filter(c => c.key === key)
+                  .map(card => <RowsCard key={card.key} card={card} />),
+              )}
+            </Pair>
+          ) : null}
         </>
       ) : null}
     </>
