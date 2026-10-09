@@ -15,6 +15,15 @@ node functions/scripts/mintTestToken.mjs --create
 
 `--create` makes the `seat-test` user. Nothing else does.
 
+## Live slots sign in by themselves
+
+A pane on a live slot (`live-1` to `live-6`) signs in as `seat-test` with no link: `tools/dev/live.mjs` sets `LIVE_SEAT_SIGNIN_PORT`, `metro.config.js` then serves `GET /__seat-token` (`tools/dev/seatToken.mjs`), and the dev build (`src/auth/devSeatSignIn.ts`) picks it up when the pane is signed out. It needs `SMOKE_SERVICE_ACCOUNT` in the environment Metro starts from (the same setup as above); without it the pane shows the login screen and the Metro log says why.
+
+- The endpoint answers only `Host: localhost:<port>` or `127.0.0.1:<port>`, sends no CORS headers, and is `no-store`. A plain `expo start` and every export have no endpoint.
+- It mints only `seat-test`; the app checks the token's `uid` before using it and `currentUser.uid` after.
+- The token is never logged. CI greps the web export (`tools/ci/assertNoSeatSignIn.mjs`) and fails if the endpoint path or marker is in it.
+- A pane on a live slot is `seat-test` by design. Botkin never signs in there with his own account.
+
 ## Signing a pane in
 
 ```bash

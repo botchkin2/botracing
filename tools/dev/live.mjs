@@ -38,6 +38,7 @@ const child = spawn(
     env: {
       ...process.env,
       BROWSER: 'none',
+      LIVE_SEAT_SIGNIN_PORT: String(found.port),
       EXPO_PUBLIC_LMU_API_BASE: 'https://botracing-61.web.app/api/lmu',
     },
   },
