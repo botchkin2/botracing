@@ -330,10 +330,13 @@ export function PlanScreen() {
       {rules == null ? (
         <EmptyState title='Max fuel is needed' />
       ) : view && plan && plan.history.laps === 0 && !lapsOf.pending ? (
+        // A track and car never driven (or with no usable laps): the chips and
+        // the length stay, and one plain line replaces the Race card (chief's
+        // review of #318, triage #55).
         <EmptyState
           title={
             history.length === 0 && !detailsPending
-              ? `No sessions here at ${rules.rules.fuelL} L`
+              ? 'No laps at this track with this car'
               : 'No fuel data for this combination yet'
           }
         />
