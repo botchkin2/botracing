@@ -69,6 +69,7 @@ const LMU: FieldClass[] = [
   title: label.toUpperCase(),
   short,
   rank,
+  ordered: true,
   paceS: 100 + rank,
 }));
 const CLASSES: ClassTable = {
@@ -81,6 +82,7 @@ const CLASSES: ClassTable = {
       title: 'OTHER',
       short: 'Other',
       rank: LMU.length,
+      ordered: false,
       paceS: null,
     },
 };

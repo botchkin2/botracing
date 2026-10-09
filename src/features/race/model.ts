@@ -121,7 +121,7 @@ export function roadSummary(
             cls,
             metres: m,
             seconds: roadGapS(c, you, m),
-            faster: cls.paceS != null && cls.rank < mine.rank,
+            faster: cls.ordered && mine.ordered && cls.rank < mine.rank,
           },
         ];
   });

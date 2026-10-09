@@ -60,7 +60,7 @@ describe('classOfCar', () => {
 });
 
 describe('fieldClasses', () => {
-  it('ranks the classes by pace and gives the colours fastest first (the LMU Daytona order)', () => {
+  it('gives the known classes their fixed colours (the LMU Daytona order)', () => {
     const t = fieldClasses({
       timeS,
       cars: [
@@ -77,16 +77,48 @@ describe('fieldClasses', () => {
     expect(t.of('lmp2').title).toBe('LMP2');
   });
 
-  it('on a GT3-only server GT3 takes the first colour', () => {
-    const t = fieldClasses({
+  it('keeps a known class colour in every race and both sims', () => {
+    // A GT3-only iRacing server: GT3 is still class3.
+    const gt3Only = fieldClasses({
       timeS,
       cars: [
         car({classId: 4011, classLabel: 'GT3'}, 12),
         car({classId: 4011, classLabel: 'GT3'}, 13),
       ],
     });
-    expect(t.list.map(c => [c.key, c.slot, c.paceS])).toEqual([
-      ['ir:4011', 'class1', 12.5],
+    expect(gt3Only.list.map(c => [c.key, c.slot, c.paceS])).toEqual([
+      ['ir:4011', 'class3', 12.5],
+    ]);
+    // A two-class LMU race: GT3 stays class3, Hypercar class1.
+    const twoClass = fieldClasses({
+      timeS,
+      cars: [car({carClass: 'GT3'}, 12), car({carClass: 'Hyper'}, 10)],
+    });
+    expect(twoClass.list.map(c => [c.label, c.slot])).toEqual([
+      ['Hypercar', 'class1'],
+      ['GT3', 'class3'],
+    ]);
+    // A known class with too few laps keeps its colour too.
+    const fewLaps = fieldClasses({
+      timeS,
+      cars: [car({classId: 4029, classLabel: 'GTP'}, 25)],
+    });
+    expect(fewLaps.list[0]).toMatchObject({slot: 'class1', ordered: true});
+  });
+
+  it('gives another class a colour the known ones leave free, in pace order', () => {
+    const t = fieldClasses({
+      timeS,
+      cars: [
+        car({classId: 4029, classLabel: 'GTP'}, 10),
+        car({classId: 2268, classLabel: 'GT4'}, 14),
+        car({classId: 4011, classLabel: 'GT3'}, 12),
+      ],
+    });
+    expect(t.list.map(c => [c.label, c.slot])).toEqual([
+      ['GTP', 'class1'],
+      ['GT3', 'class3'],
+      ['GT4', 'class2'],
     ]);
   });
 
@@ -94,16 +126,16 @@ describe('fieldClasses', () => {
     const t = fieldClasses({
       timeS,
       cars: [
-        car({classId: 4011, classLabel: 'GT3'}, 12),
+        car({classId: 9, classLabel: 'Cup'}, 12),
         // A single fast car that pitted: 2 clean laps, not enough to rank.
-        car({classId: 4029, classLabel: 'GTP'}, 25),
-        car({classId: 2523, classLabel: 'LMP2'}, 11),
+        car({classId: 4018, classLabel: 'LMP3'}, 25),
+        car({classId: 2268, classLabel: 'GT4'}, 11),
       ],
     });
-    expect(t.list.map(c => [c.label, c.slot, c.paceS])).toEqual([
-      ['LMP2', 'class1', 11],
-      ['GT3', 'class2', 12],
-      ['GTP', 'class3', null],
+    expect(t.list.map(c => [c.label, c.slot, c.paceS, c.ordered])).toEqual([
+      ['GT4', 'class1', 11, true],
+      ['Cup', 'class2', 12, true],
+      ['LMP3', 'class3', null, false],
     ]);
   });
 

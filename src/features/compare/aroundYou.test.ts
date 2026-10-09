@@ -43,6 +43,7 @@ const classOf = (key: string): FieldClass =>
         title: 'HYPERCAR',
         short: 'HY',
         rank: 0,
+        ordered: true,
         paceS: 100,
       }
     : {
@@ -52,6 +53,7 @@ const classOf = (key: string): FieldClass =>
         title: 'GT3',
         short: 'GT3',
         rank: 2,
+        ordered: true,
         paceS: 110,
       };
 const classes: ClassTable = {list: [], of: classOf};
