@@ -60,7 +60,7 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
-import {markUploaded} from './captureMarker.mjs';
+import {capturesRead, markUploaded} from './captureMarker.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
 import {irFieldFor} from './irField.mjs';
 import {damageFor} from './playerDamage.mjs';
@@ -360,14 +360,13 @@ function build(
   };
   // iRacing: the tray's live capture against the .ibt of the same drive, lap
   // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
+  // Every capture this session read (field, damage, race length, the player
+  // stream): once it is uploaded they are the tray's to prune.
+  const capturesUsed = foldOnly ? [] : capturesRead(captureRoot, sim, span);
   const liveCheck =
     foldOnly || sim !== 'iracing'
       ? null
-      : liveLapCheck(
-          captureRoot,
-          span,
-          ibtCrossings(s.files.map(f => f.path)),
-        );
+      : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
@@ -637,6 +636,7 @@ function build(
     slices,
     fieldReason: fieldOut.reason,
     liveCheck,
+    capturesUsed,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
@@ -1032,8 +1032,8 @@ async function processSession(
   if (local) lines.push(`  -> ${writeLocal(out)}`);
   else {
     await store.upload(out, {log: line => lines.push(line)});
-    // The capture's field is in the store now: the tray may prune it.
-    markUploaded(captureRoot, out.session.field?.captures, s.id);
+    // What the captures gave is in the store now: the tray may prune them.
+    markUploaded(captureRoot, out.capturesUsed, s.id);
   }
   return {
     track: out.track,

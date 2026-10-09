@@ -1,11 +1,14 @@
-// "This capture's field is in the store": after a sync uploads a session, each
-// capture folder whose field went with it gets <capture>/uploaded.json
-// ({sessionId, uploadedUtc}). The tray's prune (desktop/src-tauri) deletes a
-// capture only when this marker exists (pit-wall thread 1, apex #3003); a
-// capture without one is never deleted, so a session that did not upload keeps
-// its capture.
+// "What this capture gave is in the store". After a sync uploads a session,
+// every capture folder that session read (field, damage, race length, the
+// player stream) gets <capture>/uploaded.json ({sessionId, uploadedUtc}). The
+// tray's prune (desktop/src-tauri) deletes a capture that has the marker once
+// it is old or over the size cap (pit-wall thread 1, apex #3003, #3007). One
+// without it is one no uploaded session ever read (a menu or a replay that
+// slipped through), which the prune may also delete once it is old.
 import {existsSync, renameSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {capturesFor, listCaptures} from './field.mjs';
+import {iracingCapturesFor, listIracingCaptures} from './irCapture.mjs';
 
 export const MARKER = 'uploaded.json';
 
@@ -28,4 +31,20 @@ export function markUploaded(root, names, sessionId, now = new Date()) {
     marked.push(name);
   }
   return marked;
+}
+
+/**
+ * The names of the captures a session read: those of its sim whose track and
+ * time overlap it. `span` is {tracks, startMs, endMs} as sync builds it.
+ */
+export function capturesRead(root, sim, span) {
+  const found =
+    sim === 'iracing'
+      ? iracingCapturesFor(listIracingCaptures(root), {
+          track: span.tracks[0],
+          startMs: span.startMs,
+          endMs: span.endMs,
+        })
+      : capturesFor(listCaptures(root), span);
+  return found.map(c => c.name);
 }
