@@ -22,7 +22,13 @@ export function listCutoff(
 
 export type Facets = {
   games: {sim: string; count: number}[];
-  tracks: {trackId: string; track: string; sim: string; count: number}[];
+  tracks: {
+    trackId: string;
+    track: string;
+    sim: string;
+    count: number;
+    variant: string;
+  }[];
 };
 
 /** The name a session stores as `track` ({name, variant}, or a bare string in old docs). */
@@ -32,14 +38,27 @@ function trackNameOf(track: unknown, trackId: string): string {
   return typeof name === 'string' && name ? name : trackId;
 }
 
-/** Counts of sessions per game and per track, from `{sim, trackId, track}` rows. */
+/** The layout a session stores as `track.variant`, or '' for a bare string or none. */
+function variantOf(track: unknown): string {
+  const variant = (track as {variant?: unknown} | null | undefined)?.variant;
+  return typeof variant === 'string' ? variant : '';
+}
+
+/** Counts of sessions per game and per track, from `{sim, trackId, track}` rows.
+ * Each track carries its layout (`variant`); the app builds the chip label from it. */
 export function foldFacets(
   rows: {sim?: unknown; trackId?: unknown; track?: unknown}[],
 ): Facets {
   const games = new Map<string, number>();
   const tracks = new Map<
     string,
-    {trackId: string; track: string; sim: string; count: number}
+    {
+      trackId: string;
+      track: string;
+      sim: string;
+      count: number;
+      variant: string;
+    }
   >();
   for (const row of rows) {
     const sim = typeof row.sim === 'string' && row.sim ? row.sim : 'lmu';
@@ -51,6 +70,7 @@ export function foldFacets(
       track: trackNameOf(row.track, row.trackId),
       sim,
       count: 0,
+      variant: variantOf(row.track),
     };
     t.count += 1;
     tracks.set(key, t);

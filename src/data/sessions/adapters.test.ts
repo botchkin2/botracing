@@ -519,7 +519,7 @@ describe('toSessionFacets', () => {
     });
     expect(f.games).toEqual([{sim: 'lmu', count: 3}]);
     expect(f.tracks).toEqual([
-      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2},
+      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2, variant: ''},
     ]);
     expect(toSessionFacets(null)).toEqual({games: [], tracks: []});
   });
