@@ -82,12 +82,12 @@ export function cornerView(
 }
 
 /**
- * "Shaded: T8 · also in view: T9 apex 3,925 m · T8 and T9 overlap here". Says
- * what is shown and nothing else. The span is not printed: metres into the track
- * mean nothing to a driver (triage #33). The labels are the
- * chips' (official ones where a track has them). `overlapping` are the other
- * corners whose entry-to-exit span shares track with this one's (the Bus
- * Stop), so the overlap is named instead of left for the reader to puzzle out.
+ * "Shaded: T8 · also in view: T9 · T8 and T9 overlap here". Says what is shown
+ * and nothing else; no metres (triage #33). Labels are the chips' (official
+ * ones where a track has them). `overlapping` are the other corners whose
+ * entry-to-exit span shares track with this one's (the Bus Stop), so the
+ * overlap is named instead of left for the reader to puzzle out. Empty when
+ * there is nothing beyond the chip's own label.
  */
 export function viewCaption(
   label: string,
@@ -128,19 +128,15 @@ export function windowCaption(
 ): string {
   const [startM, endM] = zoom;
   const cut = [
-    inFrame.fromM < startM
-      ? 'window starts before the drawn stretch, not drawn'
-      : null,
-    inFrame.toM > endM
-      ? 'window continues past the drawn stretch, not drawn'
-      : null,
+    inFrame.fromM < startM ? 'window starts earlier, not drawn' : null,
+    inFrame.toM > endM ? 'window continues later, not drawn' : null,
   ].filter(Boolean);
   const also = neighbours.map(n => n.label);
   const rest = [
     ...cut,
     deltaFrom
       ? `delta from the start of ${deltaFrom.label}${
-          deltaFrom.drawn ? '' : ' (not drawn)'
+          deltaFrom.drawn ? '' : ', not drawn'
         }`
       : null,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,

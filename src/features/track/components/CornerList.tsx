@@ -1,6 +1,6 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {size, space, useTheme, turnLabel, turnNumber} from '@/src/design';
+import {size, space, useTheme, turnLabel} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type TrackCornerGroup} from '../model';

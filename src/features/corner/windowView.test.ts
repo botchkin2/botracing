@@ -156,7 +156,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toBe('Shaded: T10 · window continues past the drawn stretch, not drawn');
+    ).toBe('Shaded: T10 · window continues later, not drawn');
     expect(
       windowCaption(
         'T1',
@@ -165,7 +165,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toContain('window starts before the drawn stretch, not drawn');
+    ).toContain('window starts earlier, not drawn');
   });
 });
 
