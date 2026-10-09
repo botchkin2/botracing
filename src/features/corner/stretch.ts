@@ -72,7 +72,6 @@ export function cornerView(
   return {
     stretch,
     neighbours,
-    // The caption keeps lap metres ("4,050 → 300 m"), what the lap doc says.
     caption: viewCaption(
       turnLabel(corner.n, corner.official),
       {fromM: corner.entryM, toM: next.entryM},
@@ -83,8 +82,9 @@ export function cornerView(
 }
 
 /**
- * "Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m · T8 and T9
- * overlap here". Says what is shown and nothing else. The labels are the
+ * "Shaded: T8 · also in view: T9 apex 3,925 m · T8 and T9 overlap here". Says
+ * what is shown and nothing else. The span is not printed: metres into the track
+ * mean nothing to a driver (triage #33). The labels are the
  * chips' (official ones where a track has them). `overlapping` are the other
  * corners whose entry-to-exit span shares track with this one's (the Bus
  * Stop), so the overlap is named instead of left for the reader to puzzle out.
@@ -95,10 +95,9 @@ export function viewCaption(
   neighbours: {label: string; lapM: number}[],
   overlapping: string[] = [],
 ): string {
-  const range = `${plain(stretch.fromM)} → ${plain(stretch.toM)} m`;
   const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
   return [
-    `Shaded: ${label} · ${range}`,
+    `Shaded: ${label}`,
     also.length > 0 ? `also in view: ${also.join(', ')}` : null,
     overlapping.length > 0 ? overlapSentence([label, ...overlapping]) : null,
   ]
@@ -108,7 +107,7 @@ export function viewCaption(
 
 /**
  * The caption when the corner has a window of its own (pit-wall thread 45):
- * "Shaded: S5 (T8–T10) · 3,665 → 4,005 m · also in view: ...". A window that
+ * "Shaded: S5 (T8–T10) · also in view: ...". A window that
  * runs past the zoom window says where it really ends and that the rest is not
  * drawn, so the shading ending at the edge is not read as the window's end
  * (setup #1760).
@@ -139,7 +138,7 @@ export function windowCaption(
   ].filter(Boolean);
   const also = neighbours.map(n => `${n.label} apex ${formatDistance(n.lapM)}`);
   return [
-    `Shaded: ${label} · ${plain(window.fromM)} → ${plain(window.toM)} m`,
+    `Shaded: ${label}`,
     ...cut,
     deltaFrom
       ? `delta from the start of ${deltaFrom.label} at ${plain(

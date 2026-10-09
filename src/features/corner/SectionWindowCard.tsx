@@ -22,9 +22,6 @@ export function SectionWindowCard({window}: {window: SectionWindowModel}) {
     <View style={styles.card}>
       <View style={styles.title}>
         <Text variant='label'>Window · {window.label}</Text>
-        <Text variant='dataSmall' tone='textMuted'>
-          {window.span}
-        </Text>
       </View>
       {window.parts.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted'>

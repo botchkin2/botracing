@@ -75,8 +75,6 @@ export type WindowOptimumRow = {
 export type SectionWindowModel = {
   /** "S5 (T8–T10)". */
   label: string;
-  /** "3,665 → 4,005 m". */
-  span: string;
   fromM: number;
   toM: number;
   /** The parts of a compound section to drill into; empty for one corner. */
@@ -218,9 +216,6 @@ export function buildSectionWindow(input: {
 
   return {
     label: sectionLabel(section),
-    span: `${Math.round(window.fromM).toLocaleString('en-US')} → ${Math.round(
-      window.toM,
-    ).toLocaleString('en-US')} m`,
     fromM: window.fromM,
     toM: window.toM,
     parts: window.parts.map(p => {

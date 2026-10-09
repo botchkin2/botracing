@@ -128,7 +128,6 @@ describe('buildSectionWindow', () => {
       laps: lapsOf(rawLap('a', section2())),
     });
     expect(w?.label).toBe('S2 (T2–T4)');
-    expect(w?.span).toBe('500 → 1,000 m');
     expect(w?.parts.map(p => [p.label, p.fromM, p.toM])).toEqual([
       ['T2', 500, 620],
       ['T3', 620, 760],
@@ -322,8 +321,8 @@ describe('buildSectionWindow optimum', () => {
 
   it('is empty under 5 laps', () => {
     const laps = sixLaps().slice(0, 4);
-    expect(
-      buildSectionWindow({map: m, sectionN: 2, laps})?.optimum,
-    ).toEqual([]);
+    expect(buildSectionWindow({map: m, sectionN: 2, laps})?.optimum).toEqual(
+      [],
+    );
   });
 });
