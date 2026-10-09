@@ -100,13 +100,15 @@ export function buildPlanHalf(input: {
     const at = facts.playerLapsDone ?? facts.end?.lapIndex ?? null;
     rows.push({
       k: 'Finish',
-      // Laps in the app's numbering (the formation lap is L1); a timed race by its minutes.
+      // The leader's laps in the app's numbering, else the race minutes.
       p:
-        length == null
-          ? MISSING
-          : length.kind === 'laps'
-          ? `L${length.laps + 1}`
-          : `${length.minutes} min`,
+        facts.leaderLapsDone != null
+          ? `L${facts.leaderLapsDone}`
+          : length && 'minutes' in length
+          ? `${length.minutes} min`
+          : length
+          ? `L${length.estimatedLaps + 1}`
+          : MISSING,
       a: at != null ? `DNF L${at}` : 'DNF',
     });
   }

@@ -3,18 +3,21 @@
 // planHalf.ts. Pure.
 import type {PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
+/** A race's length: the minutes the capture recorded, or the laps a race of that length ran (the leader's, formation not counted). */
+export type ScheduledLength = {minutes: number} | {estimatedLaps: number};
+
 /**
- * How long the race was meant to be: the capture's length when it has one, else
- * the leader's laps (formation not counted), else unknown. The laps this driver
- * completed are never the length: a timed race ends at the flag, a lap after
- * the clock runs out, and a DNF stops short.
+ * How long the race was meant to be: the capture's minutes when it has them
+ * (every race is timed), else the leader's laps as an estimate of that time,
+ * else unknown. The laps this driver completed are never the length: a timed
+ * race ends at the flag, a lap after the clock runs out, and a DNF stops short.
  */
 export function scheduledLength(
   facts: Pick<RaceFacts, 'race' | 'leaderLapsDone'>,
-): NonNullable<RaceFacts['race']> | null {
+): ScheduledLength | null {
   if (facts.race) return facts.race;
   const leader = facts.leaderLapsDone;
-  return leader != null && leader > 1 ? {kind: 'laps', laps: leader - 1} : null;
+  return leader != null && leader > 1 ? {estimatedLaps: leader - 1} : null;
 }
 
 /**
@@ -27,8 +30,8 @@ export function raceRules(facts: RaceFacts): PlanRules | null {
   if (facts.limitL == null || length == null) return null;
   return {
     name: 'This race',
-    lengthLaps: length.kind === 'laps' ? length.laps : null,
-    lengthMin: length.kind === 'timed' ? length.minutes : null,
+    lengthLaps: 'estimatedLaps' in length ? length.estimatedLaps : null,
+    lengthMin: 'minutes' in length ? length.minutes : null,
     fuelL: facts.limitL,
     vePct: 100,
     formationLap: true,

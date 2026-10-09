@@ -13,7 +13,8 @@ const facts = (over: Partial<RaceFacts> = {}): RaceFacts => ({
   limitL: 75,
   startL: 75,
   raceLaps: 60,
-  race: {kind: 'laps', laps: 60},
+  race: null,
+  leaderLapsDone: 61,
   ownUse: {fuelL: 2.4, vePct: 3.5},
   stops: [],
   end: null,
@@ -94,7 +95,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('a stop the plan did not have reads "—" on the plan side', () => {
-    const h = half({raceLaps: 30, race: {kind: 'laps', laps: 30}}, [
+    const h = half({raceLaps: 30, race: {minutes: 40}}, [
       actual(14),
       actual(26),
     ]);
@@ -105,18 +106,20 @@ describe('buildPlanHalf', () => {
     expect(h.rows[3]).toEqual({k: 'In', p: '—', a: '4 % VE (1.1 laps)'});
   });
 
-  it('a DNF in a timed race names the finish by the race minutes', () => {
-    const h = half(
-      {
-        raceLaps: 20,
-        race: {kind: 'timed', minutes: 40},
-        leftEarly: true,
-        playerLapsDone: 21,
-        leaderLapsDone: 24,
-      },
-      [actual(14)],
-    );
-    expect(h.rows[0]).toEqual({k: 'Finish', p: '40 min', a: 'DNF L21'});
+  it('a DNF in a timed race names the leader laps, or the minutes without them', () => {
+    const run = (leaderLapsDone: number | null) =>
+      half(
+        {
+          raceLaps: 20,
+          race: {minutes: 40},
+          leftEarly: true,
+          playerLapsDone: 21,
+          leaderLapsDone,
+        },
+        [actual(14)],
+      ).rows[0];
+    expect(run(24)).toEqual({k: 'Finish', p: 'L24', a: 'DNF L21'});
+    expect(run(null)).toEqual({k: 'Finish', p: '40 min', a: 'DNF L21'});
   });
 
   it('a DNF names the finish against the race that ran, and plans that distance', () => {
@@ -139,7 +142,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('with no stop the plan is the one load to the flag', () => {
-    const h = half({raceLaps: 20, race: {kind: 'laps', laps: 20}}, []);
+    const h = half({raceLaps: 20, race: null, leaderLapsDone: 21}, []);
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
     expect(h.rows).toEqual([
       {k: 'Spare', p: '27 % VE (7.6 laps)', a: '4 % VE (1.1 laps)'},
@@ -182,7 +185,7 @@ describe('buildPlanHalf', () => {
 
   it('plans a timed race at its own length, not the laps this driver completed', () => {
     // 20 minutes at an 81 s median lap, though only 10 laps were completed.
-    const timed = {race: {kind: 'timed' as const, minutes: 20}, raceLaps: 10};
+    const timed = {race: {minutes: 20}, raceLaps: 10};
     const e = planRace(raceRules(facts(timed))!, history()).raceLaps!.estimate;
     expect(e).toBeGreaterThan(10);
     const spare = half(timed).rows.find(r => r.k === 'Spare')!;
@@ -191,7 +194,7 @@ describe('buildPlanHalf', () => {
   });
 
   it('says so when the race length is not on record', () => {
-    const h = half({race: null});
+    const h = half({race: null, leaderLapsDone: null});
     expect(h.rows).toEqual([]);
     expect(h.note).toBe('No race length on record.');
   });

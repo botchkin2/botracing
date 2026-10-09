@@ -71,15 +71,12 @@ describe('toSessionDetail', () => {
     expect(d.field?.hash).toBe('abc123def456');
   });
 
-  it('carries the race length from the capture: timed minutes or a lap count, null otherwise', () => {
+  it('carries the race length from the capture in minutes, null otherwise', () => {
     expect(toSessionDetail(raw).race).toBeNull();
-    const timed = {...raw, race: {kind: 'timed', minutes: 40}};
-    expect(toSessionDetail(timed).race).toEqual({kind: 'timed', minutes: 40});
-    const laps = {...raw, race: {kind: 'laps', laps: 30}};
-    expect(toSessionDetail(laps).race).toEqual({kind: 'laps', laps: 30});
-    expect(
-      toSessionDetail({...raw, race: {kind: 'timed', minutes: 0}}).race,
-    ).toBeNull();
+    expect(toSessionDetail({...raw, race: {minutes: 40}}).race).toEqual({
+      minutes: 40,
+    });
+    expect(toSessionDetail({...raw, race: {minutes: 0}}).race).toBeNull();
     expect(toSessionDetail({...raw, race: {kind: 'other'}}).race).toBeNull();
   });
 

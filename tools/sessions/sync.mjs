@@ -358,8 +358,7 @@ function build(
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
-  // How long the race is, from the capture: {kind: 'timed', minutes} or
-  // {kind: 'laps', laps}; null for other sessions and where the capture is gone.
+  // How long the race is, from the capture: {minutes}; null for other sessions and where the capture is gone.
   const raceLength =
     foldOnly || !/^r/i.test(first.sessionType)
       ? null

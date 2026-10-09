@@ -56,7 +56,7 @@ export interface RaceFacts {
   /** Racing laps driven: the formation lap is not counted. */
   raceLaps: number;
   /** How long the race is, from the capture (tools/sessions/raceLength.mjs); null where it is not known. The laps driven are not its length: a timed race ends at the flag, a lap after the clock runs out. */
-  race: {kind: 'timed'; minutes: number} | {kind: 'laps'; laps: number} | null;
+  race: {minutes: number} | null;
   /**
    * The player left before the leader's last crossing (`result.finish.leftEarly`).
    * The plan is for the scheduled race, not the short one driven.

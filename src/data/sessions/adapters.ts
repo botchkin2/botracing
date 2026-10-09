@@ -306,22 +306,12 @@ export type SessionDetail = SessionSummary & {
   race: RaceLength | null;
 };
 
-/** The scheduled length of a race: timed (minutes) or a lap count. */
-export type RaceLength =
-  | {kind: 'timed'; minutes: number}
-  | {kind: 'laps'; laps: number};
+/** The scheduled length of a race, in minutes. */
+export type RaceLength = {minutes: number};
 
 function toRaceLength(v: unknown): RaceLength | null {
-  const o = obj(v);
-  if (o.kind === 'timed') {
-    const minutes = num(o.minutes);
-    return minutes != null && minutes > 0 ? {kind: 'timed', minutes} : null;
-  }
-  if (o.kind === 'laps') {
-    const laps = num(o.laps);
-    return laps != null && laps > 0 ? {kind: 'laps', laps} : null;
-  }
-  return null;
+  const minutes = num(obj(v).minutes);
+  return minutes != null && minutes > 0 ? {minutes} : null;
 }
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
