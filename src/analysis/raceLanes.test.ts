@@ -41,6 +41,7 @@ function field(n: number, cars: CarSpec[]): Field {
   return {
     version: 2,
     hz: 1 / DT,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.from({length: n}, (_, u) => u * DT),
     cars: cars.map((c, i) => car(i, n, c)),
@@ -104,6 +105,39 @@ describe('raceLanes', () => {
       far,
     ]);
     expect(raceLanes(distant, clock).tow).toEqual([]);
+  });
+
+  it('a car whose lane is unknown (NaN) is not a tow: nothing is claimed from a missing number', () => {
+    const f = field(20, [
+      me({lane: NaN}),
+      {lapDistM: u => 100 + u * V * DT + 20, lane: NaN},
+      far,
+    ]);
+    expect(raceLanes(f, clock).tow).toEqual([]);
+    // The battle does not depend on the lane, so it still counts.
+    const near = field(20, [
+      me({lane: NaN}),
+      {lapDistM: u => 100 + u * V * DT + 5, lane: NaN},
+      far,
+    ]);
+    expect(raceLanes(near, clock).battle.length).toBeGreaterThan(0);
+  });
+
+  it('a field placed by lap distance has no lanes, so it has no tows', () => {
+    // Same geometry as the tow test above, which does tow with real lanes.
+    const cars = [
+      me({lane: NaN}),
+      {lapDistM: (u: number) => 100 + u * V * DT + 20, lane: NaN},
+      far,
+    ];
+    const placed: Field = {...field(20, cars), placedOnLine: true};
+    expect(raceLanes(placed, clock).tow).toEqual([]);
+    const control = field(20, [
+      me(),
+      {lapDistM: u => 100 + u * V * DT + 20, lane: 1.5},
+      far,
+    ]);
+    expect(raceLanes(control, clock).tow.length).toBe(1);
   });
 
   it('a battle is a same-class car within 1 s in any lane; another class is not', () => {

@@ -58,6 +58,34 @@ const plain = (a: ArrayLike<number> | null, digits = 1) =>
   a && Array.from(a, v => (Number.isNaN(v) ? null : +v.toFixed(digits)));
 
 describe('toField', () => {
+  it('says whether the cars have positions, from the data and not the sim', () => {
+    expect(toField(raw()).hasPositions).toBe(true);
+    // iRacing's field: lap distance only, every position channel absent.
+    const lapDistOnly = {
+      ...raw(),
+      pathLateralDm: [
+        [null, null, null],
+        [null, null, null],
+      ],
+      xDm: [
+        [null, null, null],
+        [null, null, null],
+      ],
+      zDm: [
+        [null, null, null],
+        [null, null, null],
+      ],
+      yawCrad: [
+        [null, null, null],
+        [null, null, null],
+      ],
+    };
+    const f = toField(lapDistOnly);
+    expect(f.hasPositions).toBe(false);
+    expect(Number.isNaN(f.cars[0].xM[0])).toBe(true);
+    expect(f.cars[0].lapDistM[0]).toBeCloseTo(100);
+  });
+
   it('sums the deltas into metres and radians, keeping gaps absent', () => {
     const f = toField(raw());
     expect(f.version).toBe(2);

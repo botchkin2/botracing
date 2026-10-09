@@ -1,5 +1,6 @@
 import {useMemo} from 'react';
 
+import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {raceClock, type RaceClock} from '@/src/analysis/raceClock';
 import {type OutlineUse} from '@/src/analysis/outlineUse';
 import {type RacePrep, prepareRace} from '@/src/analysis/raceState';
@@ -9,6 +10,7 @@ import {
   mapPlacer,
   type MapPlacer,
   useSession,
+  useSessionBand,
   useSessionLaps,
   useSessionMap,
   useSessionSurface,
@@ -63,39 +65,50 @@ export function useRaceData(sessionId: string): RaceData {
   const detail = session.data;
   const hash = detail?.field?.hash ?? null;
   const field = useField(sessionId, hash);
-  const lengthM = map.data?.lengthM ?? 0;
+  const band = useSessionBand(sessionId);
+  // A track with no map of its own (iRacing's) still has the lap's length.
+  // (Its map document exists but holds no length: 0, not missing.)
+  const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
   const [refTrace] = useLapTraces(detail?.bestLapId ? [detail.bestLapId] : [], {
     lengthM,
     stepM: GRID_STEP_M,
   });
-  const prep = useMemo(
-    () => (field.data ? prepareRace(field.data) : null),
-    [field.data],
-  );
-  const clock = useMemo(
-    () => (field.data ? raceClock(field.data) : null),
-    [field.data],
-  );
   const placer = useMemo(
     () => mapPlacer(map.data ?? null, surface.data ?? null),
     [map.data, surface.data],
   );
+  const stored = field.data;
   const noBestLap = detail != null && !detail.bestLapId;
   const line = useMemo(() => {
     if (refTrace && refTrace.lat.length > 2) {
       return placer.place(refTrace, 0, refTrace.lat.length - 1, 1);
     }
     // No timed lap to draw the track from: the player's own path will do.
-    const player = field.data?.cars.find(c => c.player);
-    if (!noBestLap || !player) return null;
+    const player = stored?.cars.find(c => c.player);
+    if (!noBestLap || !player || !stored?.hasPositions) return null;
     const pts = [];
     for (let u = 0; u < player.xM.length; u += MATCH_STEP) {
       if (!Number.isNaN(player.xM[u]))
         pts.push({x: player.xM[u], z: player.zM[u]});
     }
     return pts.length > 2 ? placer.placeWorld(pts) : null;
-  }, [refTrace, placer, noBestLap, field.data]);
+  }, [refTrace, placer, noBestLap, stored]);
+  // iRacing: placed by lap distance, not position. A field with no positions
+  // is put on the reference line at each car's lap distance (fieldOnLine.ts);
+  // the stored field is left as it is.
+  const placed = useMemo(
+    () =>
+      stored && !stored.hasPositions && line
+        ? placeFieldOnLine(stored, line, GRID_STEP_M)
+        : null,
+    [stored, line],
+  );
+  const used = stored?.hasPositions ? stored : placed;
+  const prep = useMemo(() => (used ? prepareRace(used) : null), [used]);
+  const clock = useMemo(() => (used ? raceClock(used) : null), [used]);
   const matchM = useMemo(() => {
+    // Placed on the line: on it by construction.
+    if (placed) return 0;
     const player = field.data?.cars.find(c => c.player);
     if (!player || !line) return null;
     const pts = [];
@@ -104,7 +117,7 @@ export function useRaceData(sessionId: string): RaceData {
         pts.push({x: player.xM[u], z: player.zM[u]});
     }
     return worldMatchM(placer.placeWorld(pts), line);
-  }, [field.data, line, placer]);
+  }, [field.data, line, placer, placed]);
 
   if (session.isPending) return {kind: 'loading'};
   if (!detail) return {kind: 'error', message: 'Could not load this session.'};
@@ -115,6 +128,10 @@ export function useRaceData(sessionId: string): RaceData {
   if (field.isError) {
     return {kind: 'field-error', title, retry: () => void field.refetch()};
   }
+  // No positions and no line to put the cars on (no timed lap to draw it
+  // from): there is nothing to draw them with.
+  if (stored && !stored.hasPositions && !line && !refTrace && noBestLap)
+    return {kind: 'no-field', title};
   // Lap numbers are needed to open on Compare's cursor; a failed laps request
   // only means the clock opens at the start.
   if (!prep || !clock || !line || laps.isPending) {

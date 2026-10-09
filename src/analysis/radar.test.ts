@@ -37,6 +37,7 @@ function car(
 const field = (cars: FieldCar[]): Field => ({
   version: 2,
   hz: 5,
+  hasPositions: true,
   startEtS: 0,
   timeS: new Float64Array([0]),
   cars,

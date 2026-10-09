@@ -60,7 +60,9 @@ import {
 import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
+import {capturesRead, markUploaded} from './captureMarker.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
+import {irFieldFor} from './irField.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
@@ -358,6 +360,9 @@ function build(
   };
   // iRacing: the tray's live capture against the .ibt of the same drive, lap
   // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
+  // Every capture this session read (field, damage, race length, the player
+  // stream): once it is uploaded they are the tray's to prune.
+  const capturesUsed = foldOnly ? [] : capturesRead(captureRoot, sim, span);
   const liveCheck =
     foldOnly || sim !== 'iracing'
       ? null
@@ -408,7 +413,7 @@ function build(
     `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
 
   // Every car in the session, when tools/capture recorded it (field.mjs).
-  const fieldOut = fieldFor(
+  const fieldOut = (sim === 'iracing' ? irFieldFor : fieldFor)(
     captureRoot,
     span,
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
@@ -635,6 +640,7 @@ function build(
     slices,
     fieldReason: fieldOut.reason,
     liveCheck,
+    capturesUsed,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
@@ -1028,7 +1034,11 @@ async function processSession(
     lines.push(`  ${out.session.consistency.overview}`);
   }
   if (local) lines.push(`  -> ${writeLocal(out)}`);
-  else await store.upload(out, {log: line => lines.push(line)});
+  else {
+    await store.upload(out, {log: line => lines.push(line)});
+    // What the captures gave is in the store now: the tray may prune them.
+    markUploaded(captureRoot, out.capturesUsed, s.id);
+  }
   return {
     track: out.track,
     boundaries: out.boundaries,

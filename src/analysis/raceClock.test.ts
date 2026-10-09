@@ -69,6 +69,7 @@ function field(car: FieldCar, updates: number): Field {
   return {
     version: 2,
     hz: HZ,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.from({length: updates}, (_, u) => u / HZ),
     cars: [car, marker],
@@ -91,6 +92,7 @@ describe('raceClock.playerAt', () => {
     const f: Field = {
       version: 2,
       hz: HZ,
+      hasPositions: true,
       startEtS: 0,
       timeS: Float64Array.from({length: 20}, (_, u) => u / HZ),
       cars: [car],

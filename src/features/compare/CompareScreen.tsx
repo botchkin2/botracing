@@ -61,6 +61,7 @@ import {
 import {BasisSwitch} from './components/BasisSwitch';
 import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
+import {CarsAround} from './components/CarsAround';
 import {RadarOverlay} from './components/RadarOverlay';
 import {TrafficLaneBlock} from './components/TrafficLaneBlock';
 import {ChartEditor} from './components/ChartEditor';
@@ -207,7 +208,10 @@ function CompareView({
   const prefs = useComparePrefs();
   // The field of every car (round 3): loads after the traces, never blocks them.
   const session = useSession(sessionId);
-  const field = useField(sessionId, session.data?.field?.hash ?? null).data;
+  const fieldData = useField(sessionId, session.data?.field?.hash ?? null).data;
+  // The radar and the lanes read positions: a field without them (iRacing's)
+  // is left out of Compare until it has its own panel.
+  const field = fieldData?.hasPositions ? fieldData : undefined;
   const [editing, setEditing] = useState(false);
   // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
@@ -476,9 +480,20 @@ function CompareView({
     </ScrollView>
   );
 
-  // Phone: the radar is on the Follow map while a car is in range; without
-  // field data for the playing lap there is none.
-  const dockLap = model.playing?.lapNumber ?? null;
+  // Phone: the radar is on the Follow map while a car is in range; it belongs
+  // to one real lap (model.radarLap), and without field data for it there is none.
+  const dockLap = model.radarLap?.lapNumber ?? null;
+  // From 900 up (desktop but not wide) the panel sits under the map, as the
+  // wide layout's right column does.
+  const radarPanel =
+    layout.isDesktop && field != null && model.radarLap != null ? (
+      <CarsAround
+        field={field}
+        lapNumber={model.radarLap.lapNumber}
+        lapLabel={model.radarLap.label}
+        cursorM={cursorM}
+      />
+    ) : null;
   const radarOn = !layout.isDesktop && field != null && dockLap != null;
   const map =
     model.map &&
@@ -784,6 +799,7 @@ function CompareView({
             {referenceHint}
             {chips}
             {map}
+            {radarPanel}
             {position}
             {grid}
           </ScrollView>

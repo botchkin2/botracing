@@ -2,6 +2,7 @@
 // Race, Per tank and Stops as numbers, before any layout. Pure. The screen
 // draws them; the old row text (`planView`) stays until the screen switches.
 import {
+  formationLaps,
   fullTankStops,
   type FuelPlan,
   plannedStints,
@@ -222,9 +223,14 @@ function startLoadOf(
   const first = plan.atP90.firstStint.laps;
   if (first == null || plan.atP90.stops == null || plan.atP90.stops < 1)
     return null;
-  const burn = first + (rules.formationLap ? 1 : 0);
-  const fuelL = fuel ? Math.min(rules.fuelL, burn * fuel.p90) : null;
-  const vePct = ve && !fuelOnly ? Math.min(rules.vePct, burn * ve.p90) : null;
+  const formation = formationLaps(rules);
+  const fuelL = fuel
+    ? Math.min(rules.fuelL, (first + formation.fuel) * fuel.p90)
+    : null;
+  const vePct =
+    ve && !fuelOnly
+      ? Math.min(rules.vePct, (first + formation.ve) * ve.p90)
+      : null;
   const value = loadText(fuelL, vePct, shown, rules.fuelL);
   if (value == null) return null;
   return {
@@ -284,7 +290,6 @@ export function stopRow(
   stopAfter: string[],
   fuelPerLap: number | null,
   vePerLap: number | null,
-  formation: boolean,
   rules: PlanRules,
   fuelOnly: boolean,
   ratioPerPctL: number | null,
@@ -296,11 +301,14 @@ export function stopRow(
    */
   heavy: {fuelPerLap: number | null; vePerLap: number | null} | null = null,
 ): StopRow {
-  const extra = (i: number) => (i === 0 && formation ? 1 : 0);
+  const formation = formationLaps(rules);
   const fuelOf = (i: number) =>
     fuelPerLap == null
       ? null
-      : Math.min(rules.fuelL, (stintLaps[i] + extra(i)) * fuelPerLap);
+      : Math.min(
+          rules.fuelL,
+          (stintLaps[i] + (i === 0 ? formation.fuel : 0)) * fuelPerLap,
+        );
   return {
     kind,
     stopAfter,
@@ -312,7 +320,10 @@ export function stopRow(
       vePerLap == null || fuelOnly
         ? []
         : stintLaps.map((_, i) =>
-            Math.min(rules.vePct, (stintLaps[i] + extra(i)) * vePerLap),
+            Math.min(
+              rules.vePct,
+              (stintLaps[i] + (i === 0 ? formation.ve : 0)) * vePerLap,
+            ),
           ),
     // The rule is `stopRefuels` (analysis/fuelPlan.ts), which the pit time of a
     // timed race reads too.
@@ -365,13 +376,13 @@ function lateFlagNote(
   const base = 'Late flag: one stop';
   const late = (plan.loadToFinish ?? []).find(r => r.laps === safeLaps);
   if (!late) return `${base}.`;
-  const burnLaps = safeLaps + (rules.formationLap ? 1 : 0);
+  const formation = formationLaps(rules);
   const byVe = late.atP90.limitedBy === 've' || late.atP90.fuelL == null;
   const atMost = byVe
     ? late.atP90.vePct == null
       ? null
-      : `${(rules.vePct / burnLaps).toFixed(2)} % a lap`
-    : `${(rules.fuelL / burnLaps).toFixed(2)} L a lap`;
+      : `${(rules.vePct / (safeLaps + formation.ve)).toFixed(2)} % a lap`
+    : `${(rules.fuelL / (safeLaps + formation.fuel)).toFixed(2)} L a lap`;
   return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }
 
@@ -485,7 +496,6 @@ function stopsCard(
       planned.stopLaps.map(lapName),
       fuelPerLap,
       vePerLap,
-      rules.formationLap,
       rules,
       fuelOnly,
       ratioPerPctL,
@@ -511,7 +521,6 @@ function stopsCard(
       after,
       fuelPerLap,
       vePerLap,
-      rules.formationLap,
       rules,
       fuelOnly,
       ratioPerPctL,
@@ -553,8 +562,12 @@ function stopsCard(
       ? NO_WINDOW_NOTE
       : null;
   const shownUnit = effectiveUnit(unit, !fuelOnly && vePerLap != null);
+  const burnt = formationLaps(rules);
   const formation = rules.formationLap
-    ? {fuelL: fuelPerLap, vePct: fuelOnly ? null : vePerLap}
+    ? {
+        fuelL: fuelPerLap == null ? null : fuelPerLap * burnt.fuel,
+        vePct: fuelOnly || vePerLap == null ? null : vePerLap * burnt.ve,
+      }
     : null;
   return {
     full: full && describeRow(full, unit, carClass, formation),

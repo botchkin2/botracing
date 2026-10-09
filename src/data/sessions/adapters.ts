@@ -249,6 +249,8 @@ export type FinishPlace = {
   /** The player's laps and the most any car had at that moment, to read the place against. */
   lapsDone: number;
   leaderLapsDone: number;
+  /** The most laps a car of the player's class had by the end; null on a result written before version 3. */
+  classLeaderLapsDone: number | null;
   /** The leader crossed the line after the player's last crossing: the player left before the race ended. */
   leftEarly: boolean;
 };
@@ -271,6 +273,7 @@ export function toFinishPlace(v: unknown): FinishPlace | null {
     ofClass: ofClass ?? 0,
     lapsDone: num(f.lapsDone) ?? 0,
     leaderLapsDone: num(f.leaderLapsDone) ?? 0,
+    classLeaderLapsDone: num(f.classLeaderLapsDone),
     leftEarly: f.leftEarly === true,
   };
 }
@@ -1149,7 +1152,14 @@ export function toTrackSurface(
 /** The owner's games and tracks over all history, with session counts: what the Sessions filter chips offer. */
 export type SessionFacets = {
   games: {sim: string; count: number}[];
-  tracks: {trackId: string; track: string; sim: string; count: number}[];
+  /** The layout (`track.variant`), '' when the session has none. */
+  tracks: {
+    trackId: string;
+    track: string;
+    sim: string;
+    count: number;
+    variant?: string;
+  }[];
 };
 
 export function toSessionFacets(raw: unknown): SessionFacets {
@@ -1166,6 +1176,7 @@ export function toSessionFacets(raw: unknown): SessionFacets {
         track: str(t.track),
         sim: str(t.sim, 'lmu'),
         count: num(t.count) ?? 0,
+        variant: str(t.variant),
       }))
       .filter(t => t.trackId !== ''),
   };

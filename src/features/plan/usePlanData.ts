@@ -1,9 +1,10 @@
-import {planRace} from '@/src/analysis/fuelPlan';
+import {planRace, usage} from '@/src/analysis/fuelPlan';
 import {trafficMedians} from '@/src/analysis/traffic';
 import {raceFacts, useSession, useSessionLaps} from '@/src/data/sessions';
 import {carLabel} from '@/src/design';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
+import {formationBurnOf} from './formation';
 import {lastRaceOf} from './lastRace';
 import {pitLaneBase, pitModelOf} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
@@ -33,8 +34,8 @@ export function usePlanData(
   const preset = presets.find(p => p.id === activeId) ?? null;
 
   const limits = usePlanLimits(combo, eventWeek);
-  const rules = rulesFor(preset, length, limits.lastFuel, start);
-  const wantedL = rules?.rules.fuelL ?? null;
+  const baseRules = rulesFor(preset, length, limits.lastFuel, start);
+  const wantedL = baseRules?.rules.fuelL ?? null;
   const hist = usePlanHistory(
     combo,
     limits.limitsL,
@@ -49,6 +50,15 @@ export function usePlanData(
       )
     : null;
   const greenLaps = hist.chosen.laps;
+  // The formation lap burns what the driver's own races say, not a green lap.
+  const formation = formationBurnOf(
+    hist.raceLaps,
+    usage(greenLaps.map(l => l.fuelL))?.median ?? null,
+  );
+  const rules = baseRules && {
+    ...baseRules,
+    rules: {...baseRules.rules, formationFactor: formation.factor},
+  };
   // The lane base comes from his own race stops here; the Plan counts no pit
   // time without it (fewer than two stops, or a class the refuel rate is not
   // measured for).
@@ -127,6 +137,7 @@ export function usePlanData(
     pitBase,
     view,
     cards,
+    formation,
     fuelOnly: noVe,
     eventText,
   };

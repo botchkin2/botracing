@@ -26,7 +26,13 @@ pub struct Config {
     pub firebase_key: String,
     pub firebase_custom: String,
     pub firebase_refresh: String,
-    /// The site's page the tray opens in the browser.
+    /// The site's page the tray opens in the browser. On the **Firebase auth
+    /// domain** (`firebaseapp.com`, the `authDomain` in src/auth/firebase.web.ts),
+    /// not `web.app`: Google's popup and redirect hand the result back through
+    /// that domain, and a page on another one loses it where the browser splits
+    /// third-party storage (Chrome): one tab hangs and the sign-in lands on the
+    /// app instead of this page (Botkin's two tabs on 0.1.1). The same site
+    /// serves both hosts.
     pub web_sign_in: String,
     /// `POST <tray_api>/token` trades the code and verifier for a custom token.
     pub tray_api: String,
@@ -41,7 +47,7 @@ impl Config {
             firebase_custom:
                 "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken".into(),
             firebase_refresh: "https://securetoken.googleapis.com/v1/token".into(),
-            web_sign_in: "https://botracing-61.web.app/tray-sign-in".into(),
+            web_sign_in: "https://botracing-61.firebaseapp.com/tray-sign-in".into(),
             tray_api: "https://botracing-61.web.app/api/tray".into(),
             api: "https://botracing-61.web.app/api/upload".into(),
         }
@@ -143,6 +149,10 @@ pub fn parse_callback(request: &str, state: &str, port: u16) -> Option<String> {
 /// a wrong state, gets a bare 404 and the wait goes on; a hostile page can
 /// probe the port but cannot end or complete the sign-in. Gives up at the
 /// deadline.
+/// The page the browser lands on after sign-in: one self-contained document, dark
+/// like the app, no external URL (the test below holds that line).
+const SIGNED_IN_PAGE: &str = include_str!("signed_in.html");
+
 pub fn wait_for_callback(
     listener: &TcpListener,
     state: &str,
@@ -161,8 +171,7 @@ pub fn wait_for_callback(
                 let request = String::from_utf8_lossy(&buf[..n]).into_owned();
                 match parse_callback(&request, state, port) {
                     Some(code) => {
-                        let body =
-                            "<h3>Back to the BotRacing tray.</h3><p>You can close this tab.</p>";
+                        let body = SIGNED_IN_PAGE;
                         let _ = write!(
                             stream,
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -515,6 +524,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_signed_in_page_names_no_external_url() {
+        assert!(
+            !SIGNED_IN_PAGE.contains("http"),
+            "no external URL in the page"
+        );
+        assert!(
+            !SIGNED_IN_PAGE.contains("src="),
+            "no external script or image"
+        );
+        assert!(!SIGNED_IN_PAGE.contains("<link"), "no external stylesheet");
+    }
+
+    #[test]
     fn pkce_matches_the_rfc_7636_example() {
         assert_eq!(
             pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
@@ -723,7 +745,7 @@ mod tests {
             assert!(!refused.to_lowercase().contains("access-control"));
         }
         assert!(answer.starts_with("HTTP/1.1 200"));
-        assert!(answer.contains("Back to the BotRacing tray"));
+        assert!(answer.contains("Signed in"));
         assert!(!answer.to_lowercase().contains("access-control"));
     }
 
@@ -879,5 +901,25 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.starts_with("Can't sign in"));
+    }
+
+    // The tray's sign-in page and the web app's Firebase auth domain are one
+    // host, or the Google step's result does not get back to the page (see
+    // Config::web_sign_in). The test reads the web app's own config.
+    #[test]
+    fn the_sign_in_page_is_on_the_web_apps_auth_domain() {
+        let host = Config::from_build()
+            .web_sign_in
+            .trim_start_matches("https://")
+            .split('/')
+            .next()
+            .unwrap()
+            .to_string();
+        let web = include_str!("../../../src/auth/firebase.web.ts");
+        assert!(
+            web.contains(&format!("authDomain: '{host}'")),
+            "web.rs authDomain is not {host}"
+        );
+        assert!(Config::from_build().web_sign_in.starts_with("https://"));
     }
 }

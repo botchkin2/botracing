@@ -31,6 +31,7 @@ import {
   isCurrent,
   type SectionWindowModel,
 } from './sectionWindow';
+import {brakeZone} from './brakeZone';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
 import {
@@ -135,6 +136,8 @@ export type ZoomLine = {
   key: boolean;
   speedKph: number[];
   brakePct: number[];
+  /** The lap's own grid step, metres. */
+  stepM: number;
   throttlePct: number[];
   /** Seconds behind the reference, zero at this turn's entry (desktop). */
   deltaS: number[];
@@ -180,6 +183,8 @@ export type CornerModel = {
      *  chart). Empty without lateral data. */
     edges: {right: EdgeRun[]; left: EdgeRun[]};
     dimmed: [number, number][];
+    /** The median braking zone for the brake trace; null when no lap braked here. */
+    brakeZone: [number, number] | null;
     neighbours: NeighbourApex[];
     caption: string;
   };
@@ -481,6 +486,7 @@ export function buildCornerModel(input: {
         key: r.onIndex != null,
         speedKph: t.speedKph,
         brakePct: t.brakePct,
+        stepM: t.stepM,
         throttlePct: t.throttlePct,
         // Zero at the turn's entry; the stretch is in the window's frame.
         deltaS: deltaFromEntry(t, refTrace, anchorM),
@@ -536,6 +542,7 @@ export function buildCornerModel(input: {
         zoomWindow[1],
       ),
       dimmed: dimmedRanges(zoomWindow, view.stretch),
+      brakeZone: brakeZone(lines, view.stretch.toM),
       neighbours: view.neighbours,
       caption: view.caption,
     },

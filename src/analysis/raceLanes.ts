@@ -135,8 +135,11 @@ export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
           passes.push({timeS: field.timeS[u], made: last > 0});
         if (g === 0 && last !== undefined) gapNow.set(j, last);
       }
+      // A lane gap that is NaN is unknown (a field placed by lap distance has
+      // none): never the same lane, so no tow is claimed from it.
       const lane = Math.abs(c.pathLateralM[u] - player.pathLateralM[u]);
-      if (lane < SAME_LANE_M && g > 0) gapAhead = Math.min(gapAhead, g);
+      if (!Number.isNaN(lane) && lane < SAME_LANE_M && g > 0)
+        gapAhead = Math.min(gapAhead, g);
     }
     prevGap = gapNow;
 

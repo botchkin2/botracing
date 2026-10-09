@@ -17,6 +17,7 @@ const session = (type: 'R' | 'P' = 'R') => ({
     ofClass: number;
     lapsDone: number;
     leaderLapsDone: number;
+    classLeaderLapsDone: number | null;
     leftEarly: boolean;
   } | null,
   fuel: {
@@ -98,13 +99,14 @@ describe('raceFacts', () => {
       ofOverall: 54,
       ofClass: 22,
       lapsDone: 21,
-      leaderLapsDone: 24,
+      leaderLapsDone: 26,
+      classLeaderLapsDone: 24,
       leftEarly: true,
     };
     const f = raceFacts(s, 'k', laps)!;
     expect(f.leftEarly).toBe(true);
     expect(f.playerLapsDone).toBe(21);
-    expect(f.leaderLapsDone).toBe(24);
+    expect(f.classLeaderLapsDone).toBe(24);
   });
 
   it('gives each stop as its pit-in lap number, and the fuel left at entry', () => {

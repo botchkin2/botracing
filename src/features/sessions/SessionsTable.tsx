@@ -24,6 +24,8 @@ const COLS: {
   /** Fixed width, or flexible with this weight. */
   width?: number;
   flex?: number;
+  /** A fixed column that may narrow when the window is too small for all of them. */
+  shrink?: true;
   align?: 'right';
 }[] = [
   {key: 'date', title: 'Date', width: size.sessionsTable.date},
@@ -31,7 +33,12 @@ const COLS: {
   {key: 'car', title: 'Car', flex: 1.8},
   {key: 'type', title: 'Session', width: size.sessionsTable.session},
   {key: 'class', title: 'Class', width: size.sessionsTable.class},
-  {key: 'result', title: 'Result', width: size.sessionsTable.result},
+  {
+    key: 'result',
+    title: 'Result',
+    width: size.sessionsTable.result,
+    shrink: true,
+  },
   {key: 'laps', title: 'Laps', width: size.sessionsTable.laps, align: 'right'},
   {key: 'best', title: 'Best', width: size.sessionsTable.time, align: 'right'},
   {
@@ -44,10 +51,14 @@ const COLS: {
 const BADGE_W = size.sessionsTable.badge;
 const HEAD_H = size.sessionsTable.head;
 
-const cellStyle = (c: (typeof COLS)[number]) =>
-  c.width != null
-    ? {width: c.width}
-    : {flex: c.flex ?? 1, minWidth: 0, flexBasis: 0};
+// At 900 pt the fixed columns are wider than the table; only `shrink` columns
+// give way, so the numbers on the right are never cut.
+const cellStyle = (c: (typeof COLS)[number]) => {
+  if (c.width == null) return {flex: c.flex ?? 1, minWidth: 0, flexBasis: 0};
+  return c.shrink
+    ? {width: c.width, flexShrink: 1, minWidth: 96}
+    : {width: c.width};
+};
 
 export function SessionsTable({
   rows,

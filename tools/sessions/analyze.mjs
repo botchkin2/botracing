@@ -41,6 +41,7 @@ import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
 import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
+import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
@@ -89,6 +90,7 @@ export const blockVersions = {
   classLaps: CLASS_LAPS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
+  finish: FINISH_VERSION,
 };
 
 const GRID_M = 5;

@@ -120,5 +120,9 @@ export function usePlanHistory(
     ratio,
     chosen,
     usedSessions,
+    // The driver's own races here, whose first laps give the formation burn.
+    raceLaps: history.flatMap((s, i) =>
+      s.sessionType === 'R' && lapsOf.laps[i] ? [lapsOf.laps[i]] : [],
+    ),
   };
 }

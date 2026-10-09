@@ -195,7 +195,7 @@ describe('classTiming', () => {
     expect(t.yours).toEqual({
       name: 'GT3',
       classText: '1:51.000',
-      classSrc: '3 sessions · 300 laps',
+      classSrc: 'From 3 races · 300 laps',
       youText: '1:49.500',
       youSrc: '25 green laps · 3 sessions',
     });

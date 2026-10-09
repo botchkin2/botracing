@@ -1,0 +1,96 @@
+import assert from 'node:assert/strict';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {resolve} from 'node:path';
+import {test} from 'node:test';
+import {MARKER, capturesRead, markUploaded} from './captureMarker.mjs';
+
+const capture = (root, name) => {
+  mkdirSync(resolve(root, name), {recursive: true});
+  writeFileSync(resolve(root, name, 'meta.json'), '{}');
+};
+
+test('marks the captures a session used, and only those', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'a');
+  capture(root, 'b');
+  const marked = markUploaded(
+    root,
+    ['a'],
+    's1',
+    new Date('2026-10-09T15:00:00Z'),
+  );
+  assert.deepEqual(marked, ['a']);
+  assert.deepEqual(
+    JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')),
+    {
+      sessionId: 's1',
+      sessionIds: ['s1'],
+      uploadedUtc: '2026-10-09T15:00:00.000Z',
+    },
+  );
+  assert.ok(!readdirSync(resolve(root, 'b')).includes(MARKER));
+  assert.ok(!readdirSync(resolve(root, 'a')).some(f => f.endsWith('.tmp')));
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a capture that is gone, and no captures at all, are skipped quietly', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  assert.deepEqual(markUploaded(root, ['pruned'], 's1'), []);
+  assert.deepEqual(markUploaded(root, undefined, 's1'), []);
+  assert.deepEqual(markUploaded(resolve(root, 'nope'), ['x'], 's1'), []);
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a second session using the same capture is added to the marker', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  capture(root, 'a');
+  markUploaded(root, ['a'], 's1', new Date('2026-10-09T15:00:00Z'));
+  markUploaded(root, ['a'], 's2', new Date('2026-10-09T16:00:00Z'));
+  const marker = JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8'));
+  assert.equal(marker.sessionId, 's2');
+  // Every session that used the capture, so "all uploaded" can be checked.
+  assert.deepEqual(marker.sessionIds, ['s1', 's2']);
+  markUploaded(root, ['a'], 's2');
+  assert.deepEqual(
+    JSON.parse(readFileSync(resolve(root, 'a', MARKER), 'utf8')).sessionIds,
+    ['s1', 's2'],
+  );
+  rmSync(root, {recursive: true, force: true});
+});
+
+test('a session reads the captures of its own sim, track and time', () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'marker-'));
+  const meta = (name, m, files) => {
+    const dir = resolve(root, name);
+    mkdirSync(dir, {recursive: true});
+    writeFileSync(resolve(dir, 'meta.json'), JSON.stringify(m));
+    for (const f of files) writeFileSync(resolve(dir, f), '');
+  };
+  const when = {
+    startUtc: '2026-10-09T14:00:00.000Z',
+    endUtc: '2026-10-09T14:10:00.000Z',
+  };
+  meta('lmu-sebring', {track: 'Sebring', ...when}, ['field-0000.parquet']);
+  meta('ir-sebring', {sim: 'iracing', track: 'Sebring', ...when}, [
+    'player-0000.parquet',
+  ]);
+  meta('ir-monza', {sim: 'iracing', track: 'Monza', ...when}, [
+    'player-0000.parquet',
+  ]);
+  const span = {
+    tracks: ['Sebring', 'layout'],
+    startMs: Date.parse('2026-10-09T14:02:00Z'),
+    endMs: Date.parse('2026-10-09T14:05:00Z'),
+  };
+  assert.deepEqual(capturesRead(root, 'iracing', span), ['ir-sebring']);
+  assert.deepEqual(capturesRead(root, 'lmu', span), ['lmu-sebring']);
+  rmSync(root, {recursive: true, force: true});
+});

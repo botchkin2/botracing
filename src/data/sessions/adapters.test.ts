@@ -488,8 +488,22 @@ describe('toFinishPlace', () => {
       ofClass: 14,
       lapsDone: 20,
       leaderLapsDone: 21,
+      classLeaderLapsDone: null,
       leftEarly: false,
     });
+  });
+
+  it('reads the class leader laps of a version 3 result', () => {
+    expect(
+      toFinishPlace(
+        doc({
+          overall: 33,
+          inClass: 20,
+          leaderLapsDone: 26,
+          classLeaderLapsDone: 23,
+        }),
+      ),
+    ).toMatchObject({leaderLapsDone: 26, classLeaderLapsDone: 23});
   });
 
   it('is null without a result, outside a race, or with a place that is not from 1', () => {
@@ -519,7 +533,7 @@ describe('toSessionFacets', () => {
     });
     expect(f.games).toEqual([{sim: 'lmu', count: 3}]);
     expect(f.tracks).toEqual([
-      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2},
+      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2, variant: ''},
     ]);
     expect(toSessionFacets(null)).toEqual({games: [], tracks: []});
   });
