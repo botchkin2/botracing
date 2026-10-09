@@ -7,7 +7,7 @@
 use crate::capture::layout::{Kind, Layout, Struct};
 use arrow_array::{
     ArrayRef, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
-    Int8Array, RecordBatch, StringArray, UInt16Array, UInt32Array, UInt8Array,
+    Int8Array, RecordBatch, StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
 use arrow_schema::{DataType, Field, Schema};
 use parquet::arrow::ArrowWriter;
@@ -53,6 +53,34 @@ pub fn float32_player() -> &'static HashSet<String> {
         for axis in ["x", "y", "z"] {
             names.insert(format!("mLastImpactPos_{axis}"));
             for n in ["mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos"] {
+                names.insert(format!("{n}_{axis}"));
+            }
+        }
+        for row in 0..3 {
+            for axis in ["x", "y", "z"] {
+                names.insert(format!("mOri_{row}_{axis}"));
+            }
+        }
+        names
+    })
+}
+
+/// Field-row doubles the game fills with float32. Same rule as the player set.
+pub fn float32_field() -> &'static HashSet<String> {
+    use std::sync::OnceLock;
+    static NAMES: OnceLock<HashSet<String>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        let mut names = HashSet::new();
+        for n in [
+            "mBestLapTime", "mBestSector1", "mBestSector2", "mCurSector1", "mCurSector2",
+            "mEstimatedLapTime", "mLapDist", "mLapStartET", "mLastLapTime", "mLastSector1",
+            "mLastSector2", "mPathLateral", "mTimeBehindLeader", "mTimeBehindNext",
+            "mTimeIntoLap", "mTrackEdge",
+        ] {
+            names.insert(n.to_string());
+        }
+        for n in ["mLocalAccel", "mLocalRotAccel", "mLocalRot", "mLocalVel", "mPos"] {
+            for axis in ["x", "y", "z"] {
                 names.insert(format!("{n}_{axis}"));
             }
         }
@@ -259,9 +287,12 @@ pub fn write_parquet(
     let write = (|| {
         let mut fields = Vec::new();
         let mut arrays: Vec<ArrayRef> = Vec::new();
+        // pyarrow's zstd default is level 1. A higher level writes less per
+        // minute than the Python recorder and fills the disk faster.
         let mut props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::default()))
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
             .set_dictionary_enabled(false);
+        let mut written = HashSet::new();
         for (name, kind) in &order {
             let Some(col) = cols.get(name) else { continue };
             let (dtype, array) = arrow_of(kind, col)?;
@@ -273,6 +304,27 @@ pub fn write_parquet(
             }
             if matches!(dtype, DataType::Utf8) {
                 props = props.set_column_dictionary_enabled(ColumnPath::from(name.as_str()), true);
+            }
+            fields.push(Field::new(name, dtype, false));
+            arrays.push(array);
+            written.insert(name.clone());
+        }
+        // wall_ms on every row; et and update on field rows. Not struct fields.
+        for name in ["wall_ms", "et", "update"] {
+            let Some(col) = cols.get(name) else { continue };
+            if written.contains(name) {
+                continue;
+            }
+            let kind = match col {
+                Column::F64(_) | Column::F32(_) => Kind::F64,
+                _ => Kind::I64,
+            };
+            let (dtype, array) = arrow_of(&kind, col)?;
+            if matches!(dtype, DataType::Float32 | DataType::Float64) {
+                props = props.set_column_encoding(
+                    ColumnPath::from(name),
+                    Encoding::BYTE_STREAM_SPLIT,
+                );
             }
             fields.push(Field::new(name, dtype, false));
             arrays.push(array);
@@ -341,7 +393,10 @@ fn arrow_of(kind: &Kind, col: &Column) -> Result<(DataType, ArrayRef), String> {
         (Kind::U16, Column::I64(v)) => (DataType::UInt16, Arc::new(UInt16Array::from(v.iter().map(|n| *n as u16).collect::<Vec<_>>())) as ArrayRef),
         (Kind::I32, Column::I64(v)) => (DataType::Int32, Arc::new(Int32Array::from(v.iter().map(|n| *n as i32).collect::<Vec<_>>())) as ArrayRef),
         (Kind::U32, Column::I64(v)) => (DataType::UInt32, Arc::new(UInt32Array::from(v.iter().map(|n| *n as u32).collect::<Vec<_>>())) as ArrayRef),
-        (_, Column::I64(v)) => (DataType::Int64, Arc::new(Int64Array::from(v.clone())) as ArrayRef),
+        // The bits of a u64 are kept in the i64 column and written back unsigned.
+        (Kind::U64, Column::I64(v)) => (DataType::UInt64, Arc::new(UInt64Array::from(v.iter().map(|n| *n as u64).collect::<Vec<_>>())) as ArrayRef),
+        (Kind::I64, Column::I64(v)) => (DataType::Int64, Arc::new(Int64Array::from(v.clone())) as ArrayRef),
+        _ => return Err(format!("cannot write {kind:?} from {col:?}")),
     };
     Ok(array)
 }
@@ -433,5 +488,144 @@ mod tests {
         let text = String::from_utf8_lossy(&done.stdout);
         assert!(text.contains("12.5"), "{text}");
         assert!(text.contains("INTEGER"), "{text}");
+    }
+
+    fn duck(query: &str) -> String {
+        let duck = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
+        let done = std::process::Command::new(duck)
+            .args([":memory:", "-csv", "-c", query])
+            .output()
+            .unwrap();
+        assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+        String::from_utf8_lossy(&done.stdout).to_string()
+    }
+
+    #[test]
+    fn a_chunk_adds_wall_ms_et_update_and_the_compound_names() {
+        let duck_exe = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
+        if !duck_exe.is_file() {
+            return;
+        }
+        let lay = layout();
+        let telem = lay.built("TelemInfoV01").unwrap();
+        let mut raw = vec![0_u8; telem.size];
+        for name in ["mFrontTireCompoundName", "mRearTireCompoundName"] {
+            let field = telem.fields.iter().find(|f| f.name == name).unwrap();
+            raw[field.offset..field.offset + 4].copy_from_slice(b"soft");
+        }
+        let mut cols = columns(
+            &lay,
+            "TelemInfoV01",
+            &raw,
+            &["mFrontTireCompoundName", "mRearTireCompoundName"],
+            float32_player(),
+        )
+        .unwrap();
+        cols.insert("wall_ms".into(), Column::I64(vec![1_700_000_000_000]));
+        let dir = std::env::temp_dir().join("botracing-capture-extra");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("player-0000.parquet");
+        write_parquet(&path, &lay, "TelemInfoV01", &cols).unwrap();
+        let file = path.display().to_string().replace('\\', "/");
+        let text = duck(&format!(
+            "SELECT wall_ms, mFrontTireCompoundName, mRearTireCompoundName FROM read_parquet('{file}')"
+        ));
+        assert!(text.contains("1700000000000"), "{text}");
+        assert!(text.contains("soft"), "{text}");
+
+        let vehicle = lay.built("VehicleScoringInfoV01").unwrap();
+        let field_raw = vec![0_u8; vehicle.size];
+        let mut field = columns(&lay, "VehicleScoringInfoV01", &field_raw, &["mVehicleName"], float32_player()).unwrap();
+        field.insert("wall_ms".into(), Column::I64(vec![5]));
+        field.insert("et".into(), Column::F64(vec![3.5]));
+        field.insert("update".into(), Column::I64(vec![9]));
+        let field_path = dir.join("field-0000.parquet");
+        write_parquet(&field_path, &lay, "VehicleScoringInfoV01", &field).unwrap();
+        let field_file = field_path.display().to_string().replace('\\', "/");
+        let field_text = duck(&format!(
+            "SELECT wall_ms, et, update FROM read_parquet('{field_file}')"
+        ));
+        assert!(field_text.contains("3.5"), "{field_text}");
+        assert!(field_text.contains("9"), "{field_text}");
+    }
+
+    fn describe(path: &Path) -> Vec<(String, String)> {
+        let file = path.display().to_string().replace('\\', "/");
+        let text = duck(&format!("DESCRIBE SELECT * FROM read_parquet('{file}')"));
+        text.lines()
+            .skip(1)
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let mut cols = line.split(',');
+                (cols.next().unwrap_or("").to_string(), cols.next().unwrap_or("").to_string())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn rust_chunk_schema_matches_a_python_chunk_on_disk() {
+        let header_dir = Path::new(
+            r"C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\Support\SharedMemoryInterface",
+        );
+        let python = Path::new(
+            r"C:\Users\Botkin\AppData\Local\lap-capture\2026-09-29T02-41-54Z_daytona-international-speedway-road-course_10",
+        );
+        let duck_exe = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
+        if !duck_exe.is_file() || !header_dir.join("InternalsPlugin.hpp").is_file() || !python.is_dir() {
+            return;
+        }
+        let mut text = String::new();
+        for name in ["InternalsPlugin.hpp", "SharedMemoryInterface.hpp"] {
+            text.push_str(&std::fs::read_to_string(header_dir.join(name)).unwrap());
+            text.push('\n');
+        }
+        let lay = Layout::parse(&text).unwrap();
+        let dir = std::env::temp_dir().join("botracing-capture-describe");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let telem = lay.built("TelemInfoV01").unwrap().size;
+        let mut player = columns(&lay, "TelemInfoV01", &vec![0; telem], &["mFrontTireCompoundName", "mRearTireCompoundName"], float32_player()).unwrap();
+        player.insert("wall_ms".into(), Column::I64(vec![1]));
+        let player_path = dir.join("player-0000.parquet");
+        write_parquet(&player_path, &lay, "TelemInfoV01", &player).unwrap();
+
+        let veh = lay.built("VehicleScoringInfoV01").unwrap().size;
+        let mut field = columns(&lay, "VehicleScoringInfoV01", &vec![0; veh], &["mVehicleName", "mVehicleClass", "mDriverName"], float32_field()).unwrap();
+        field.insert("wall_ms".into(), Column::I64(vec![1]));
+        field.insert("et".into(), Column::F64(vec![1.0]));
+        field.insert("update".into(), Column::I64(vec![0]));
+        let field_path = dir.join("field-0000.parquet");
+        write_parquet(&field_path, &lay, "VehicleScoringInfoV01", &field).unwrap();
+
+        for (kind, rust_path) in [("player", &player_path), ("field", &field_path)] {
+            let py = describe(&python.join(format!("{kind}-0000.parquet")));
+            let rs = describe(rust_path);
+            let py_names: HashSet<_> = py.iter().map(|(n, _)| n.clone()).collect();
+            let rs_map: HashMap<_, _> = rs.iter().cloned().collect();
+            let mut only_py = Vec::new();
+            let mut type_diff = Vec::new();
+            for (name, ty) in &py {
+                match rs_map.get(name) {
+                    None => only_py.push(name.clone()),
+                    Some(other) if other != ty && !both_float(ty, other) => {
+                        type_diff.push(format!("{name}: python {ty}, rust {other}"));
+                    }
+                    _ => {}
+                }
+            }
+            let only_rs: Vec<_> = rs.iter().map(|(n, _)| n).filter(|n| !py_names.contains(*n)).cloned().collect();
+            eprintln!("{kind}: python-only {only_py:?}");
+            eprintln!("{kind}: rust-only {only_rs:?}");
+            eprintln!("{kind}: type diffs {type_diff:?}");
+            assert!(only_py.is_empty(), "{kind} missing columns the Python chunk has: {only_py:?}");
+            assert!(type_diff.is_empty(), "{kind} type diffs that are not float width: {type_diff:?}");
+        }
+    }
+
+    fn both_float(a: &str, b: &str) -> bool {
+        let float = |t: &str| t.eq_ignore_ascii_case("FLOAT") || t.eq_ignore_ascii_case("DOUBLE");
+        float(a) && float(b)
     }
 }

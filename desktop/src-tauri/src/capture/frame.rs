@@ -47,17 +47,27 @@ pub struct FieldSample {
     pub et: f64,
 }
 
-/// The player car, or None when the slot is empty or the two copies tore.
+/// The player car, or None when the slot is empty, out of range, or the copies tore.
+///
+/// The slot index is read inside the retry. A stale index past the telemetry
+/// array would otherwise copy whatever bytes sit after it, and both copies
+/// would agree.
 pub fn player<V: View>(view: &mut V, layout: &Layout) -> Option<Sample> {
-    let idx = view.read(layout.offsets["playerVehicleIdx"], 1)?[0] as usize;
-    let has = view.read(layout.offsets["playerHasVehicle"], 1)?[0];
-    if has == 0 {
-        return None;
+    for _ in 0..TRIES {
+        let idx = view.read(layout.offsets["playerVehicleIdx"], 1)?[0] as usize;
+        let has = view.read(layout.offsets["playerHasVehicle"], 1)?[0];
+        if has == 0 || idx >= layout.max_vehicles {
+            return None;
+        }
+        let slot = layout.offsets["telemInfo"] + idx * layout.telem_size;
+        let first = view.read(slot, layout.telem_size)?;
+        let second = view.read(slot, layout.telem_size)?;
+        if first == second {
+            let et = f64_at(&first, layout.telem_et)?;
+            return Some(Sample { raw: first, et });
+        }
     }
-    let slot = layout.offsets["telemInfo"] + idx * layout.telem_size;
-    let raw = stable(view, slot, layout.telem_size)?;
-    let et = f64_at(&raw, layout.telem_et)?;
-    Some(Sample { raw, et })
+    None
 }
 
 /// Scoring info plus the vehicle array.
@@ -144,6 +154,9 @@ mod tests {
         let sample = player(&mut mem, &lay).unwrap();
         assert_eq!(sample.et, 12.5);
         assert_eq!(sample.raw.len(), lay.telem_size);
+
+        mem.bytes[lay.offsets["playerVehicleIdx"]] = 255;
+        assert!(player(&mut mem, &lay).is_none());
     }
 
     #[test]
