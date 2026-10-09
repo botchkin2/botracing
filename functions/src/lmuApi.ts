@@ -1,7 +1,5 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
-import {existsSync, readFileSync} from 'fs';
-import {join} from 'path';
 import {
   listLaps,
   listUploaders,
@@ -15,20 +13,17 @@ import {
   readCornerSlicesGzip,
   readSurfaceGzip,
   readFieldGzip,
-  storeHasSessions,
 } from './sessionStore';
-import {LEGACY_OWNER, Unauthorized, resolveOwner} from './ownerAccess';
+import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const BUCKET = 'botracing-61-lmu';
-
-// The API is read-only and public, so any local dev server (any port) and any
-// PR preview channel may read it. Seats kept building proxies because only
-// three localhost ports were allowed.
+// The API is read-only. Any local dev server (any port) and any PR preview
+// channel may call it with a signed-in token. Seats kept building proxies
+// because only three localhost ports were allowed.
 const ALLOWED_ORIGIN =
   /^(https:\/\/botracing-61(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
 
@@ -60,46 +55,6 @@ function pathname(req: any): string {
   return path;
 }
 
-const SEED = join(__dirname, '../lmu-seed');
-
-function readSeedManifest(): any[] {
-  const file = join(SEED, 'manifest.json');
-  if (!existsSync(file)) return [];
-  const parsed = JSON.parse(readFileSync(file, 'utf8'));
-  return Array.isArray(parsed) ? parsed : [];
-}
-
-async function readManifest(): Promise<any[]> {
-  try {
-    const [buf] = await admin
-      .storage()
-      .bucket(BUCKET)
-      .file('lmu/manifest.json')
-      .download();
-    const parsed = JSON.parse(buf.toString('utf8'));
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-  } catch {
-    // Bucket is empty until the PC uploader runs. The seed ships with the function.
-  }
-  return readSeedManifest();
-}
-
-async function readLapCsv(id: string): Promise<string | null> {
-  try {
-    const file = admin.storage().bucket(BUCKET).file(`lmu/laps/${id}.csv`);
-    const [exists] = await file.exists();
-    if (exists) {
-      const [body] = await file.download();
-      return body.toString('utf8');
-    }
-  } catch {
-    // Fall through to the copy that deployed with the function.
-  }
-  const seeded = join(SEED, 'laps', `${id}.csv`);
-  if (!existsSync(seeded)) return null;
-  return readFileSync(seeded, 'utf8');
-}
-
 export const lmuApi = onRequest(
   {serviceAccount: RUNTIME_ACCOUNT},
   async (req, res) => {
@@ -114,8 +69,8 @@ export const lmuApi = onRequest(
     }
 
     const path = pathname(req);
-    // Who is asking: the signed-in user's owner key, or the legacy owner for a
-    // request with no token (ownerAccess.ts). A bad token is a 401.
+    // Who is asking: the signed-in user's owner key (ownerAccess.ts). A missing
+    // or bad token is a 401.
     res.set('Vary', 'Authorization, Origin');
     let owner: string;
     try {
@@ -232,30 +187,15 @@ export const lmuApi = onRequest(
         return;
       }
 
-      // The lasting store (sessions/laps in Firestore) is the source. The old
-      // manifest answers only while the store is still empty; it goes away at
-      // cutover.
       if (path.endsWith('/tracks')) {
-        const stored = await listTracks(owner);
-        if (stored.length > 0 || owner !== LEGACY_OWNER) {
-          res.status(200).json({items: stored});
-          return;
-        }
-        const byId = new Map<number, any>();
-        for (const lap of await readManifest()) {
-          if (lap.track?.id != null) byId.set(lap.track.id, lap.track);
-        }
-        res.status(200).json({items: Array.from(byId.values())});
+        res.status(200).json({items: await listTracks(owner)});
         return;
       }
 
       const csv = path.match(/\/laps\/([^/]+)\/csv$/);
       if (csv) {
         const id = decodeURIComponent(csv[1]);
-        // The seed copy shipped with the function is the legacy owner's.
-        const body =
-          (await readTrace(owner, id)) ??
-          (owner === LEGACY_OWNER ? await readLapCsv(id) : null);
+        const body = await readTrace(owner, id);
         if (!body) {
           res.status(404).json({error: 'Lap telemetry not found'});
           return;
@@ -277,31 +217,14 @@ export const lmuApi = onRequest(
           trackIds: trackFilter,
           event: event || undefined,
         });
-        if (
-          stored.length > 0 ||
-          owner !== LEGACY_OWNER ||
-          (await storeHasSessions(owner))
-        ) {
-          res.status(200).json({items: stored, total: stored.length});
-          return;
-        }
-        const items = (await readManifest()).filter(lap => {
-          if (event && lap.event !== event) return false;
-          if (trackFilter.length > 0 && !trackFilter.includes(lap.track?.id)) {
-            return false;
-          }
-          return true;
-        });
-        res.status(200).json({items, total: items.length});
+        res.status(200).json({items: stored, total: stored.length});
         return;
       }
 
       res.status(404).json({error: 'Not found', path});
-    } catch (error: any) {
-      res.status(500).json({
-        error: 'LMU data is not available',
-        message: error?.message || String(error),
-      });
+    } catch (error: unknown) {
+      console.error('lmuApi', error);
+      res.status(500).json({error: 'LMU data is not available'});
     }
   },
 );
