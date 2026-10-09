@@ -10,8 +10,9 @@
 // written, the copy stops and says which one.
 import {createHash} from 'node:crypto';
 
-// The owner key whose archive and track files are not in a per-owner folder
-// (functions/src/uploadCore.ts LEGACY_OWNER).
+// The old single-user owner key. Its archive was unscoped (archive/{sim}/).
+// The upload path no longer special-cases it. These copy tools still do, until
+// those documents are deleted.
 export const LEGACY_OWNER = 'botkin';
 
 // sync.mjs hash(): sha1 of the parts joined by '|', first 16 hex.

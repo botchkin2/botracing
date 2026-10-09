@@ -1,6 +1,9 @@
 // Find new recordings, group them into sessions, archive, analyze, upload.
 //
-//   node tools/sessions/sync.mjs                      upload what changed
+//   node tools/sessions/sync.mjs --owner <uid>        upload what changed.
+//                                                     Required unless --remote
+//                                                     (the token's owner) or
+//                                                     LAP_OWNER is set.
 //   node tools/sessions/sync.mjs --local              write everything to the work
 //                                                     folder, upload nothing
 //   node tools/sessions/sync.mjs --since 2026-09-20   only sessions from that day on
@@ -105,7 +108,13 @@ if (catalogOnly && arg('--rebuild-track', '')) {
 const remoteStore = remote ? await openRemoteStore() : null;
 const ownerId = remote
   ? (await remoteStore.me()).ownerKey
-  : arg('--owner', process.env.LAP_OWNER || 'botkin');
+  : arg('--owner', process.env.LAP_OWNER || '');
+if (!remote && !ownerId) {
+  console.error(
+    'An owner is required: pass --owner <uid> or set LAP_OWNER. A remote sync takes the owner from the signed-in token.',
+  );
+  process.exit(2);
+}
 // `since` also takes the state's first-run window once the state is read
 // (main), unless --since says otherwise.
 let since = arg('--since', '');

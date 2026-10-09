@@ -363,16 +363,23 @@ test('file paths: allow-listed folders, owner segment must be mine, no traversal
   assert.equal(w.files.size, 1);
 });
 
-test('archive files are stored under the owner, except the legacy owner', async () => {
+test('archive files are stored under archive/{owner}/ for every owner', async () => {
   const w = world();
   await put(w, 'tok-a', 'archive/lmu/s1/r1/samples.parquet', 'p', {});
   await put(w, 'tok-k', 'archive/lmu/s1/r1/samples.parquet', 'k', {});
   assert.ok(w.files.has('archive/uidA/lmu/s1/r1/samples.parquet'));
-  assert.ok(w.files.has('archive/lmu/s1/r1/samples.parquet'));
+  assert.ok(w.files.has('archive/botkin/lmu/s1/r1/samples.parquet'));
+  assert.equal(w.files.has('archive/lmu/s1/r1/samples.parquet'), false);
   const list = await call(w, 'tok-a', 'GET', '/files', {
     query: {prefix: 'archive/lmu/s1/'},
   });
   assert.deepEqual(list.json, {names: ['archive/lmu/s1/r1/samples.parquet']});
+  const listedK = await call(w, 'tok-k', 'GET', '/files', {
+    query: {prefix: 'archive/lmu/s1/'},
+  });
+  assert.deepEqual(listedK.json, {
+    names: ['archive/lmu/s1/r1/samples.parquet'],
+  });
   const md5 = await call(w, 'tok-b', 'GET', '/file/md5', {
     query: {dest: 'archive/lmu/s1/r1/samples.parquet'},
   });
@@ -480,7 +487,7 @@ test('unknown endpoints and methods are 404', async () => {
   assert.equal((await call(w, 'tok-a', 'GET', '/nope')).status, 404);
 });
 
-test("the legacy owner's archive path cannot reach another owner's archive folder", async () => {
+test('an archive path cannot name another owner folder', async () => {
   const w = world();
   for (const dest of [
     'archive/uidA/lmu/s1/r1/samples.parquet',
