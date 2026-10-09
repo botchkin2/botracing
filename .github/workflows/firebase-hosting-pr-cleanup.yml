@@ -25,12 +25,12 @@ jobs:
     steps:
       # The Firebase CLI refuses to run without firebase.json. Take only that
       # file, from main, so no PR code is checked out next to the secret.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           sparse-checkout: firebase.json
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Install Firebase CLI

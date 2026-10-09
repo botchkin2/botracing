@@ -34,8 +34,8 @@ jobs:
     # Deploy credentials live in the `deploy` Environment (main only).
     environment: deploy
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       # A hosting rewrite to a function that is not deployed yet fails the
@@ -54,7 +54,7 @@ jobs:
       - name: Install functions dependencies
         run: cd functions && npm install
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 }}
           channelId: live
