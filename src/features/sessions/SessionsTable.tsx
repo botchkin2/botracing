@@ -61,7 +61,7 @@ export function SessionsTable({
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort]);
   return (
-    <View style={{width, flex: 1}}>
+    <View style={[styles.table, {width}]}>
       <View
         style={[
           styles.head,
@@ -151,6 +151,8 @@ function Cell({col, row}: {col: (typeof COLS)[number]; row: SessionRow}) {
 }
 
 const styles = StyleSheet.create({
+  // Centred like the title above it, so a window wider than the table's limit leaves equal margins.
+  table: {flex: 1, alignSelf: 'center'},
   head: {
     flexDirection: 'row',
     alignItems: 'center',

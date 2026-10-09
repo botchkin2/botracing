@@ -1,11 +1,21 @@
 import {useMemo} from 'react';
 
 import {
-  type SessionFilter,
   type SessionSummary,
+  useSessionFacets,
   useSessions,
 } from '@/src/data/sessions';
 import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
+
+import {
+  applyGame,
+  effectiveFilter,
+  type FilterOptions,
+  filterOptions,
+  listQuery,
+  NO_FILTER,
+  type SessionsFilter,
+} from './filter';
 
 // Sessions screen view model: sessions grouped by local day, newest first.
 // buildSessionsModel is pure and unit-tested; useSessionsModel wires it to data.
@@ -59,7 +69,13 @@ export type SessionsModel =
   | {state: 'loading'}
   | {state: 'error'; message: string}
   | {state: 'empty'}
-  | {state: 'ready'; days: DayGroup[]};
+  | {
+      state: 'ready';
+      days: DayGroup[];
+      /** The filter in force (a stale one from the URL already dropped) and what it can be changed to. */
+      filter: SessionsFilter;
+      options: FilterOptions;
+    };
 
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -228,22 +244,33 @@ export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
   });
 }
 
-export function useSessionsModel(filter: SessionFilter = {}): SessionsModel {
-  const query = useSessions(filter);
+export function useSessionsModel(
+  wanted: SessionsFilter = NO_FILTER,
+): SessionsModel {
+  const facets = useSessionFacets();
+  // Both reads start at once. The list comes from the URL; the facets only
+  // correct it when the URL names a game or track nothing was driven in.
+  const filter = useMemo(
+    () => (facets.data ? effectiveFilter(facets.data, wanted) : wanted),
+    [facets.data, wanted.game, wanted.track],
+  );
+  const list = useSessions(listQuery(filter));
   return useMemo(() => {
-    if (query.isPending) return {state: 'loading'};
-    if (query.isError)
+    if (list.isPending) return {state: 'loading'};
+    if (list.isError)
       return {
         state: 'error',
         message:
-          query.error instanceof Error
-            ? query.error.message
-            : String(query.error),
+          list.error instanceof Error ? list.error.message : String(list.error),
       };
-    if (query.data.items.length === 0) return {state: 'empty'};
+    if (facets.data && facets.data.games.length === 0) return {state: 'empty'};
     return {
       state: 'ready',
-      days: buildSessionsModel(query.data.items, new Date()),
+      days: buildSessionsModel(applyGame(list.data.items, filter), new Date()),
+      filter,
+      options: facets.data
+        ? filterOptions(facets.data, filter)
+        : {games: [], tracks: []},
     };
-  }, [query.isPending, query.isError, query.error, query.data]);
+  }, [list.status, list.data, list.error, facets.data, filter]);
 }

@@ -1145,3 +1145,28 @@ export function toTrackSurface(
     bins,
   };
 }
+
+/** The owner's games and tracks over all history, with session counts: what the Sessions filter chips offer. */
+export type SessionFacets = {
+  games: {sim: string; count: number}[];
+  tracks: {trackId: string; track: string; sim: string; count: number}[];
+};
+
+export function toSessionFacets(raw: unknown): SessionFacets {
+  const o = obj(raw);
+  const list = (v: unknown): Record<string, unknown>[] =>
+    Array.isArray(v) ? v.map(obj) : [];
+  return {
+    games: list(o.games)
+      .map(g => ({sim: str(g.sim), count: num(g.count) ?? 0}))
+      .filter(g => g.sim !== ''),
+    tracks: list(o.tracks)
+      .map(t => ({
+        trackId: str(t.trackId),
+        track: str(t.track),
+        sim: str(t.sim, 'lmu'),
+        count: num(t.count) ?? 0,
+      }))
+      .filter(t => t.trackId !== ''),
+  };
+}

@@ -20,6 +20,7 @@ export type {
   SectionFacts,
   SessionBand,
   SessionDetail,
+  SessionFacets,
   SessionFuel,
   SessionSummary,
   SessionType,
@@ -32,6 +33,7 @@ export type {
 } from './adapters';
 export {type SessionFilter, sessionKeys} from './keys';
 export {
+  useSessionFacets,
   useSession,
   useSessionBand,
   useSessionLaps,
