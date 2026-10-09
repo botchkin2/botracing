@@ -12,8 +12,10 @@
 // Run:
 //   node tools/sessions/surface.mjs --api https://botracing-61.web.app/api/lmu --out DIR [--track ID]
 //       read-only from the public API, writes DIR/{trackId}.json (no cloud access)
-//   node tools/sessions/surface.mjs [--track ID] [--sessions id,id] [--dry]
-//       rebuild each track from those sessions, or from every session on it
+//   node tools/sessions/surface.mjs [--track ID] --sessions id,id [--dry]
+//   node tools/sessions/surface.mjs [--track ID] --owner UID [--dry]
+//       rebuild from that named set. One of the two is required. Omitting
+//       both would count every owner's copy of the same laps.
 // Tests: node --test tools/sessions/surface.test.mjs
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
@@ -175,16 +177,20 @@ async function fromApi(base, trackFilter, outDir) {
   }
 }
 
+export class SurfaceSetError extends Error {}
+
 /**
  * Rebuilds each track's surface from scratch and writes the artifact and the
- * pointer. `trackIds` limits the tracks; null does every track. `sessionIds`
- * is the named set; null is every session on the track. `dry` reports and
- * writes nothing. The same set twice writes the same bytes. `connectStore`
- * is for tests.
+ * pointer. `trackIds` limits the tracks; null does every track. The set is
+ * `sessionIds`, or every session `ownerId` has on the track. One of those is
+ * required: every owner at once would count the same laps twice while a
+ * copied owner still exists. `dry` reports and writes nothing. The same set
+ * twice writes the same bytes. `connectStore` is for tests.
  */
 export async function foldSurfaces({
   trackIds = null,
   sessionIds = null,
+  ownerId = null,
   dry = false,
   log = console.log,
   connectStore = async () => {
@@ -192,6 +198,12 @@ export async function foldSurfaces({
     return {...store.connect(), bucketName: store.bucketName};
   },
 } = {}) {
+  const ids = (sessionIds ?? []).filter(Boolean);
+  if (ids.length === 0 && !ownerId) {
+    throw new SurfaceSetError(
+      'a named set is required: --sessions id,id or --owner <uid>',
+    );
+  }
   const {db, bucket, bucketName} = await connectStore();
   const trackDocs = trackIds
     ? await Promise.all(
@@ -201,7 +213,7 @@ export async function foldSurfaces({
   // The uploader's watcher reads these lines for its heartbeat: "surface N/M
   // tracks" before each track (N finished so far) and once more at the end.
   const tracks = trackDocs.filter(doc => doc.exists && doc.data().lengthM);
-  const named = sessionIds ? new Set(sessionIds) : null;
+  const named = ids.length > 0 ? new Set(ids) : null;
   let finished = 0;
   for (const doc of tracks) {
     log(surfaceProgressLine(finished, tracks.length));
@@ -210,7 +222,11 @@ export async function foldSurfaces({
     const track = doc.data();
     const allSessions = (
       await db.collection('sessions').where('trackId', '==', trackId).get()
-    ).docs.filter(s => !named || named.has(s.id));
+    ).docs.filter(
+      s =>
+        (!named || named.has(s.id)) &&
+        (!ownerId || s.data().ownerId === ownerId),
+    );
     const input = [];
     for (const s of allSessions) {
       const laps = (
@@ -284,9 +300,18 @@ if (
     await fromApi(arg('--api'), track, arg('--out') ?? 'surface-out');
   } else {
     const sessions = arg('--sessions');
+    const owner = arg('--owner');
+    const sessionIds = sessions ? sessions.split(',').filter(Boolean) : [];
+    if (sessionIds.length === 0 && !owner) {
+      console.error(
+        'a named set is required: --sessions id,id or --owner <uid>',
+      );
+      process.exit(2);
+    }
     await foldSurfaces({
       trackIds: track ? [track] : null,
-      sessionIds: sessions ? sessions.split(',').filter(Boolean) : null,
+      sessionIds,
+      ownerId: owner,
       dry: process.argv.includes('--dry'),
     });
   }

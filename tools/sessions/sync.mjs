@@ -514,6 +514,10 @@ function build(
     id: s.id,
     ownerId,
     sim,
+    // This is still the layout id when nobody has curated the track. The
+    // storage-rules change must not refuse that upload: store trackId null
+    // until a curator maps it, and the app shows the laps with no map and
+    // no sections.
     trackId,
     track,
     carId,

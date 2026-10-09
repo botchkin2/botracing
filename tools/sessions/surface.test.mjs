@@ -1,6 +1,8 @@
 // Run: node --test tools/sessions/surface.test.mjs
 import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
 import {test} from 'node:test';
+import {fileURLToPath} from 'node:url';
 import {Buffer} from 'node:buffer';
 import {gzipSync} from 'node:zlib';
 import {fromLocalMetres, LMU_FAKE_ORIGIN} from '../../src/analysis/geo.ts';
@@ -250,14 +252,18 @@ const trackLines = lines => l => {
   if (!l.startsWith('surface ')) lines.push(l);
 };
 
-test('foldSurfaces rebuilds from every session, and a second run matches', async () => {
+test('foldSurfaces rebuilds from the named set, and a second run matches', async () => {
   const store = storeWith(['s1', 's2']);
   const lines = [];
   const connectStore = async () => store;
   const read = async () =>
     parseSurface((await store.bucket.file(ARTIFACT).download())[0]);
 
-  await foldSurfaces({log: trackLines(lines), connectStore});
+  await foldSurfaces({
+    sessionIds: ['s1', 's2'],
+    log: trackLines(lines),
+    connectStore,
+  });
   assert.ok(lines[0].startsWith('trackA: 2 sessions, 4 laps'));
   assert.equal('sessions' in (await read()), false);
   assert.equal(store.tracks.trackA.surface.laps, 4);
@@ -266,7 +272,11 @@ test('foldSurfaces rebuilds from every session, and a second run matches', async
 
   store.downloads.length = 0;
   store.written.length = 0;
-  await foldSurfaces({log: trackLines(lines), connectStore});
+  await foldSurfaces({
+    sessionIds: ['s1', 's2'],
+    log: trackLines(lines),
+    connectStore,
+  });
   assert.ok(lines.at(-2).startsWith('trackA: 2 sessions, 4 laps'));
   assert.deepEqual(
     store.downloads.filter(p => p.startsWith('traces/')).sort(),
@@ -278,6 +288,39 @@ test('foldSurfaces rebuilds from every session, and a second run matches', async
     ],
   );
   assert.deepEqual(Buffer.from(store.files[ARTIFACT]), firstBytes);
+});
+
+test('a rebuild with no named set is refused and writes nothing', async () => {
+  const store = storeWith(['s1', 's2']);
+  await assert.rejects(
+    () => foldSurfaces({connectStore: async () => store}),
+    /named set is required/,
+  );
+  assert.deepEqual(store.written, []);
+});
+
+test('--owner rebuilds that owner only, so a copied owner is not counted twice', async () => {
+  const store = storeWith(['s1', 's2']);
+  store.sessions.s1.ownerId = 'uid-a';
+  store.sessions.s2.ownerId = 'uid-b';
+  const lines = [];
+  await foldSurfaces({
+    ownerId: 'uid-a',
+    log: trackLines(lines),
+    connectStore: async () => store,
+  });
+  assert.ok(lines[0].startsWith('trackA: 1 sessions, 2 laps'));
+  assert.deepEqual(
+    store.downloads.filter(p => p.startsWith('traces/')).sort(),
+    ['traces/s1-lap1.csv.gz', 'traces/s1-lap2.csv.gz'],
+  );
+});
+
+test('the command exits non-zero without --sessions or --owner', () => {
+  const script = fileURLToPath(new URL('./surface.mjs', import.meta.url));
+  const r = spawnSync(process.execPath, [script], {encoding: 'utf8'});
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /named set is required/);
 });
 
 test('a named set rebuilds from only those sessions', async () => {
@@ -301,6 +344,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
   const lines = [];
   await foldSurfaces({
     trackIds: ['trackB'],
+    sessionIds: ['s1'],
     log: trackLines(lines),
     connectStore: async () => store,
   });
@@ -308,6 +352,7 @@ test('foldSurfaces on named tracks leaves the others alone, and a dry run writes
   assert.deepEqual(store.written, []);
   await foldSurfaces({
     trackIds: ['trackA'],
+    sessionIds: ['s1'],
     dry: true,
     log: trackLines(lines),
     connectStore: async () => store,
@@ -335,6 +380,7 @@ test('foldSurfaces says how far it is, one line per track and a last one: the wa
   store.tracks.noLength = {};
   const lines = [];
   await foldSurfaces({
+    sessionIds: ['s1'],
     log: l => lines.push(l),
     connectStore: async () => store,
   });
@@ -359,6 +405,7 @@ test('foldSurfaces with nothing to fold prints no progress line', async () => {
   const lines = [];
   await foldSurfaces({
     trackIds: ['noSuchTrack'],
+    sessionIds: ['s1'],
     log: l => lines.push(l),
     connectStore: async () => store,
   });
