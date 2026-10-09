@@ -31,9 +31,9 @@ describe('buildStintTable', () => {
     ]);
   });
 
-  it('fall-off only where the session doc stores a trend', () => {
+  it('gives the laps of the stint and no fall-off', () => {
     expect(rows[0].detail).toBe('L1–L17');
-    expect(rows[1].detail).toBe('L18–L22 · fall-off ±0.000 s/lap');
+    expect(rows[1].detail).toBe('L18–L22');
   });
 });
 

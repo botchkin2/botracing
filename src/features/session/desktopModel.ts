@@ -31,7 +31,7 @@ export type StintTableRow = {
   best: string;
   /** Standard deviation of comparable lap times, "0.91". */
   spread: string;
-  /** "L1–L17 · fall-off +0.042 s/lap"; the trend part only when stored. */
+  /** "L1–L17". The fall-off trend is not shown (triage #20). */
   detail: string;
 };
 
@@ -75,8 +75,6 @@ export function buildStintTable(
     const first = stintLaps[0].lapIndex;
     const last = stintLaps[stintLaps.length - 1].lapIndex;
     const detail = [`L${first}–L${last}`];
-    if (s.trendSPerLap != null)
-      detail.push(`fall-off ${formatGap(s.trendSPerLap)} s/lap`);
     rows.push({
       n: s.n,
       name: `Stint ${s.n}`,

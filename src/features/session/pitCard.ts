@@ -477,10 +477,9 @@ export function buildPitCard(
           last: lastLine(last, f.endL),
         }
       : null,
-    key: [
-      hasVe && '■ left ▪ added',
-      anyRefuel && '■ refuelling',
-    ].filter((l): l is string => Boolean(l)),
+    key: [hasVe && '■ left ▪ added', anyRefuel && '■ refuelling'].filter(
+      (l): l is string => Boolean(l),
+    ),
     refuelScope: anyRefuel ? scope : null,
     hasVe,
   };
