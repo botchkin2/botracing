@@ -19,21 +19,6 @@ import {
 
 const posix = p => p.replace(/\\/g, '/');
 
-<<<<<<< HEAD
-// The DuckDB CLI is not on every runner (CI's app job has none): the tests
-// that write and read real parquet are skipped there, like field.test.mjs.
-function duckdbWorks() {
-  try {
-    run(':memory:', 'SELECT 1');
-    return true;
-  } catch {
-    return false;
-  }
-}
-const needsDuckdb = {skip: !duckdbWorks()};
-
-=======
->>>>>>> origin/slipknot/iracing-sync-field
 // A capture folder with only what listing and matching read: meta.json and the
 // name of a player chunk.
 function writeStub(dir, meta) {
