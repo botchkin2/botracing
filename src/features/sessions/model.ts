@@ -111,9 +111,10 @@ const timeOrDash = (timeS: number | null) =>
 
 /**
  * The result on a race row. A race the player left early gives the class place
- * with the class leader's laps ('P20 GT3 · L20 of 21'), so the laps compare
- * within the class; the class is left out when it has no name, and 'of N' when
- * the class leader's laps are not known.
+ * with the class leader's laps as a floor, 'P20 GT3 · L20 of L23+' (the same
+ * label as the Plan's last-race line: a floor that counts the formation step);
+ * the class is left out when it has no name, and 'of L…+' when the class
+ * leader's laps are not known.
  */
 export function raceResultText(
   finish: FinishPosition | null,
@@ -125,7 +126,7 @@ export function raceResultText(
   const place = [`P${finish.inClass}`, carClass].filter(Boolean).join(' ');
   const laps =
     finish.classLeaderLapsDone != null
-      ? `L${finish.lapsDone} of ${finish.classLeaderLapsDone}`
+      ? `L${finish.lapsDone} of L${finish.classLeaderLapsDone}+`
       : `L${finish.lapsDone}`;
   return `${place} · ${laps} (left early)`;
 }

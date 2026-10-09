@@ -204,7 +204,7 @@ describe('finishing position', () => {
       leftEarly: true,
     };
     expect(raceResultText(left, 'GT3')).toBe(
-      'P20 GT3 · L20 of 21 (left early)',
+      'P20 GT3 · L20 of L21+ (left early)',
     );
     // No class name (an offline iRacing field): the place without it.
     expect(raceResultText({...left, classLeaderLapsDone: null}, null)).toBe(
