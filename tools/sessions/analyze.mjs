@@ -40,7 +40,7 @@ import {
 import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
 import {PIT_VISIT_VERSION} from './pitVisit.mjs';
-import {sessionKind} from '../../src/analysis/classLaps.ts';
+import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
 import {
   CORNER_BOUNDARIES_VERSION,
   mapKeyOf,
@@ -80,6 +80,7 @@ export const blockVersions = {
   hybrid: HYBRID_VERSION,
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
   pitVisit: PIT_VISIT_VERSION,
+  classLaps: CLASS_LAPS_VERSION,
 };
 
 const GRID_M = 5;

@@ -67,14 +67,19 @@ export interface ClassLapStats {
 export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
 
 /**
- * Bump when the rules below change: a stored `classLaps` from an older
- * version is recomputed from the uploaded field (tools/sessions/store.mjs).
+ * Bump when the rules below change: it is `blockVersions.classLaps`, so the
+ * tray re-uploads sessions in the 14-day window. Older stored docs stay until
+ * then (Plan reads the stored numbers).
  * 3: a car's lap is no longer left out for the game's blue flag (the flag
  * only reads 0 or blue): that dropped every AI lap with a faster car close
  * behind, and at Daytona that is many GT3 laps. Blue is a flag, never a
  * filter (Botkin, pit-wall thread 44 #1789).
+ * 4: lap length is the median wrap, not the longest lapDist any car reports.
+ * A car sitting in the pits at Road Atlanta reported 4662 m while the field
+ * wrapped at ~4080 m; every real crossing then looked like a teleport
+ * (2 Oct race b4e55e, 0 of 922 crossings).
  */
-export const CLASS_LAPS_VERSION = 3;
+export const CLASS_LAPS_VERSION = 4;
 
 // A lap slower than this times the class median is a spin, a slow car or an
 // unflagged crash, not pace.
@@ -89,6 +94,11 @@ export const MIN_CLASS_LAPS = 3;
 // The wrap: from the last 30% of the lap to the first 30%.
 const WRAP_FROM = 0.7;
 const WRAP_TO = 0.3;
+// Finding the lap length: a wrap lands in the first 30% of the previous
+// distance and drops more than half of it. Scale-free: a 100 m test wrap
+// and a 4 km Road Atlanta wrap both count; a 1 m glitch does not.
+const WRAP_END_FRAC = 0.3;
+const WRAP_DROP_FRAC = 0.5;
 // A crossing lands at a distance of zero or more. At the start of the
 // Daytona races of 2026-09-29/30 every car's lap distance drops by one lap, to
 // about -450 m, at the same update (120.8 s): the counter changes over 450 m
@@ -145,14 +155,43 @@ export function carLaps(field: EncodedField): number[][] {
 /** A car's green laps and when it first crossed the line (session clock, s); null when it never did. */
 type CarCrossings = {laps: number[]; firstT: number | null};
 
+/**
+ * Metres of one lap. Cars wrap at the line; a car sitting in the pits can
+ * report a longer lapDist, so the max is not the length. Each wrap's
+ * (distance before + distance after) is a length sample; the median of those
+ * is the line. 0 when nothing wrapped: callers show nothing rather than a
+ * wrong length.
+ */
+export function trackLengthM(lapDistM: (number | null)[][]): number {
+  const wraps: number[] = [];
+  for (const row of lapDistM) {
+    let prev: number | null = null;
+    for (const d of row) {
+      if (d === null || Number.isNaN(d)) {
+        prev = null;
+        continue;
+      }
+      if (
+        prev !== null &&
+        d >= 0 &&
+        d < WRAP_END_FRAC * prev &&
+        prev - d > WRAP_DROP_FRAC * prev
+      )
+        wraps.push(prev + d);
+      prev = d;
+    }
+  }
+  if (wraps.length === 0) return 0;
+  wraps.sort((a, b) => a - b);
+  return wraps[Math.floor(wraps.length / 2)];
+}
+
 function crossings(field: EncodedField): CarCrossings[] {
   const etS = field.tDs.map(d => d / 10);
   const lapDist = field.lapDistDm.map(row =>
     undelta(row).map(v => (v === null ? null : v / 10)),
   );
-  let lengthM = 0;
-  for (const row of lapDist)
-    for (const d of row) if (d !== null && d > lengthM) lengthM = d;
+  const lengthM = trackLengthM(lapDist);
   if (lengthM === 0) return field.cars.map(() => ({laps: [], firstT: null}));
 
   return field.cars.map((_, i) => {

@@ -192,7 +192,7 @@ export async function listLaps(
 
 // Fields of the session list. The full doc (lap table, consistency, corners)
 // is on /sessions/{id}.
-const SESSION_LIST_FIELDS = [
+export const SESSION_LIST_FIELDS = [
   'sim',
   'trackId',
   'track',
@@ -215,6 +215,9 @@ const SESSION_LIST_FIELDS = [
   // Five numbers per class, so the Plan can pool class pace without opening
   // every session's full doc.
   'classLaps',
+  // Player finish (overall / in class). Without this the Sessions Result
+  // column is always empty even when the full doc has `result`.
+  'result',
   'analysisVersion',
   'updatedAt',
 ];
