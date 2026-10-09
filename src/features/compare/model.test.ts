@@ -12,7 +12,6 @@ import {
 
 import {
   BASIS_ID,
-  BASIS_DOT_ID,
   buildCompareModel,
   medianBasisOf,
   snapOut,
@@ -258,7 +257,7 @@ describe('buildCompareModel', () => {
       }).map!;
     const median = at({});
     expect(median.dots).toHaveLength(1);
-    expect(median.dots[0].lapId).toBe(BASIS_DOT_ID);
+    expect(median.dots[0].lapId).toBe(BASIS_ID);
     expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
     // A Ref lap or a highlighted lap is its own dot, as before.
     expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);

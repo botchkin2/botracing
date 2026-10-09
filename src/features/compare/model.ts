@@ -196,9 +196,6 @@ export function pedalsDomains(steerM: number): {
   };
 }
 
-/** The map's cursor dot when no lap is a key lap: the basis, not a lap. */
-export const BASIS_DOT_ID = 'basis';
-
 export type LapRef = {
   lapId: string;
   label: string;
@@ -1142,8 +1139,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     // The map always shows the cursor. With many laps checked and none the Ref
     // or highlighted lap, no lap is a key lap. `refTrace` is then the first
     // checked lap's trace, which is also where Follow centres, so the dot goes
-    // there. Slot 0 is the reference ink and no lap holds it without a Ref lap
-    // (the laps start at slot 1), so the dot is not mistaken for a lap's.
+    // there. It stands for the basis, in the basis colour like its readout row.
     const dotsOf = (): MapModel['dots'] => {
       const keyed = keyRefs
         .filter(r => traces.has(r.lapId))
@@ -1153,9 +1149,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       if (keyed.length > 0) return keyed;
       return [
         {
-          lapId: BASIS_DOT_ID,
+          lapId: BASIS_ID,
           label: basisName,
-          selIndex: 0,
+          selIndex: BASIS_SLOT,
           isRef: false,
           highlighted: false,
           key: true,
