@@ -32,14 +32,8 @@ fn wants_quit(args: &[String]) -> bool {
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
 fn start_sign_in(account: Shared<account::Account>) {
-    let cfg = {
-        let mut acct = account.lock().unwrap();
-        if acct.signing_in || acct.session.is_some() {
-            return;
-        }
-        acct.signing_in = true;
-        acct.message = None;
-        acct.config().clone()
+    let Some(cfg) = account.lock().unwrap().begin_sign_in() else {
+        return;
     };
     std::thread::spawn(move || {
         let result = auth::sign_in(
@@ -150,6 +144,14 @@ fn main() {
                 app.exit(0);
                 return;
             }
+            // A second launch while the browser sign-in is open must not add a
+            // second tab of its own: the one already open is the way in.
+            let signing_in = app
+                .try_state::<Shared<account::Account>>()
+                .is_some_and(|a| a.lock().unwrap().signing_in);
+            if signing_in {
+                return;
+            }
             std::thread::spawn(|| {
                 let _ = browser::open();
             });
@@ -177,6 +179,7 @@ fn main() {
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
             app.manage(supervisor.clone());
+            app.manage(account.clone());
 
             // The tray menu is built from `menu::menu_items_for`, and every
             // update below goes through the same list, so the menu that ships
@@ -209,6 +212,14 @@ fn main() {
                         capture::runner::header_dir(),
                     )
                 }),
+            ));
+
+            // iRacing's recorder: the same rules, its own thread.
+            let iracing: Shared<Option<capture::runner::Handle>> = Arc::new(Mutex::new(
+                (cfg!(windows)
+                    && profile::is_default()
+                    && std::env::var("BOTRACING_RECORDER").map_or(true, |v| v != "0"))
+                .then(|| capture::runner::start_iracing(capture::runner::capture_root())),
             ));
 
             let (paths_menu, account_menu, sup_menu, pause_menu, slot_menu) = (
@@ -250,7 +261,9 @@ fn main() {
                 );
             }
             app.manage(recorder.clone());
+            app.manage(iracing.clone());
             let recorder_menu = recorder.clone();
+            let iracing_menu = iracing.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -325,6 +338,9 @@ fn main() {
                         if let Some(rec) = recorder_menu.lock().unwrap().as_mut() {
                             rec.stop(Duration::from_secs(5));
                         }
+                        if let Some(rec) = iracing_menu.lock().unwrap().as_mut() {
+                            rec.stop(Duration::from_secs(5));
+                        }
                         let pending = slot_menu.lock().unwrap().take();
                         if let Some(Err(why)) = pending.map(update::Pending::install) {
                             account_menu.lock().unwrap().message =
@@ -359,6 +375,11 @@ fn main() {
                         .unwrap()
                         .as_ref()
                         .map_or_else(|| "Recorder: off".to_string(), |r| r.line());
+                    let iracing_line = iracing
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map_or_else(|| "iRacing: off".to_string(), |r| r.line());
                     let waiting = update_slot
                         .lock()
                         .unwrap()
@@ -369,7 +390,14 @@ fn main() {
                         profile::is_default() && autostart::is_on(&autostart::Registry);
                     let state = {
                         let acct = account.lock().unwrap();
-                        menu::MenuState::of(&acct, status, recording, update, start_with_windows)
+                        menu::MenuState::of(
+                            &acct,
+                            status,
+                            recording,
+                            iracing_line,
+                            update,
+                            start_with_windows,
+                        )
                     };
                     for spec in menu::menu_items_for(&state) {
                         if let Some(item) = live.iter().find(|l| l.id == spec.id) {

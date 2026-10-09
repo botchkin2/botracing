@@ -9,8 +9,6 @@
 //
 // Pure over a `View`, so the fake-memory tests need no sim.
 
-#![allow(dead_code)] // the recorder uses it from the next step
-
 use crate::capture::frame::View;
 
 const HEADER_LEN: usize = 112;
@@ -230,6 +228,16 @@ impl Reader {
         Some(Reader { header, vars })
     }
 
+    /// Still the same sim: connected, with the table's size and the buffer's
+    /// unchanged. A restarted sim that published a different table fails this,
+    /// and so does a map that went zero when the sim exited.
+    pub fn alive<V: View>(&self, view: &mut V) -> bool {
+        let Some(raw) = view.read(0, HEADER_LEN) else { return false };
+        Header::parse(&raw).is_some_and(|h| {
+            h.connected() && h.num_vars == self.header.num_vars && h.buf_len == self.header.buf_len
+        })
+    }
+
     pub fn var(&self, name: &str) -> Option<&Var> {
         self.vars.iter().find(|v| v.name == name)
     }
@@ -378,6 +386,20 @@ pub(crate) mod tests {
 
     fn fake(mem: Vec<u8>) -> Fake {
         Fake { mem, reads: 0, on_read: None }
+    }
+
+    #[test]
+    fn alive_notices_a_zero_map_a_disconnect_and_a_different_table() {
+        let mut view = fake(sim([1, 2, 3]));
+        let r = Reader::open(&mut view).unwrap();
+        assert!(r.alive(&mut view));
+        let mut different = sim([1, 2, 3]);
+        put(&mut different, 36, 128);
+        assert!(!r.alive(&mut fake(different)));
+        let mut off = sim([1, 2, 3]);
+        put(&mut off, 4, 0);
+        assert!(!r.alive(&mut fake(off)));
+        assert!(!r.alive(&mut fake(vec![0u8; 4096])));
     }
 
     #[test]

@@ -26,7 +26,13 @@ pub struct Config {
     pub firebase_key: String,
     pub firebase_custom: String,
     pub firebase_refresh: String,
-    /// The site's page the tray opens in the browser.
+    /// The site's page the tray opens in the browser. On the **Firebase auth
+    /// domain** (`firebaseapp.com`, the `authDomain` in src/auth/firebase.web.ts),
+    /// not `web.app`: Google's popup and redirect hand the result back through
+    /// that domain, and a page on another one loses it where the browser splits
+    /// third-party storage (Chrome): one tab hangs and the sign-in lands on the
+    /// app instead of this page (Botkin's two tabs on 0.1.1). The same site
+    /// serves both hosts.
     pub web_sign_in: String,
     /// `POST <tray_api>/token` trades the code and verifier for a custom token.
     pub tray_api: String,
@@ -41,7 +47,7 @@ impl Config {
             firebase_custom:
                 "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken".into(),
             firebase_refresh: "https://securetoken.googleapis.com/v1/token".into(),
-            web_sign_in: "https://botracing-61.web.app/tray-sign-in".into(),
+            web_sign_in: "https://botracing-61.firebaseapp.com/tray-sign-in".into(),
             tray_api: "https://botracing-61.web.app/api/tray".into(),
             api: "https://botracing-61.web.app/api/upload".into(),
         }
@@ -895,5 +901,25 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.starts_with("Can't sign in"));
+    }
+
+    // The tray's sign-in page and the web app's Firebase auth domain are one
+    // host, or the Google step's result does not get back to the page (see
+    // Config::web_sign_in). The test reads the web app's own config.
+    #[test]
+    fn the_sign_in_page_is_on_the_web_apps_auth_domain() {
+        let host = Config::from_build()
+            .web_sign_in
+            .trim_start_matches("https://")
+            .split('/')
+            .next()
+            .unwrap()
+            .to_string();
+        let web = include_str!("../../../src/auth/firebase.web.ts");
+        assert!(
+            web.contains(&format!("authDomain: '{host}'")),
+            "web.rs authDomain is not {host}"
+        );
+        assert!(Config::from_build().web_sign_in.starts_with("https://"));
     }
 }

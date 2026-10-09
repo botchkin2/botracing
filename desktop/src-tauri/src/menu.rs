@@ -38,6 +38,8 @@ pub struct MenuState {
     pub paused: bool,
     pub status: String,
     pub recorder: String,
+    /// The iRacing recorder's line, its own sim's status.
+    pub iracing: String,
     /// The update line and whether it can be clicked.
     pub update: (String, bool),
     pub start_with_windows: bool,
@@ -50,6 +52,7 @@ impl MenuState {
         acct: &Account,
         status: String,
         recorder: String,
+        iracing: String,
         update: (String, bool),
         start_with_windows: bool,
     ) -> MenuState {
@@ -59,6 +62,7 @@ impl MenuState {
             paused: acct.settings.paused,
             status,
             recorder,
+            iracing,
             update,
             start_with_windows,
             default_profile: crate::profile::is_default(),
@@ -73,6 +77,7 @@ impl MenuState {
             paused: false,
             status: "Starting…".into(),
             recorder: "Recorder: starting".into(),
+            iracing: "iRacing: starting".into(),
             update,
             start_with_windows: false,
             default_profile: crate::profile::is_default(),
@@ -100,6 +105,7 @@ pub fn menu_items_for(state: &MenuState) -> Vec<Item> {
         item("signin", state.primary.0.clone(), state.primary.1),
         item("status", state.status.clone(), false),
         item("recorder", state.recorder.clone(), false),
+        item("iracing", state.iracing.clone(), false),
         item("separator", "", false),
         item("signout", "Sign out", state.signed_in),
         item("open", "Open BotRacing", true),
@@ -194,6 +200,7 @@ mod tests {
             paused,
             status: "status".into(),
             recorder: "Recorder: off".into(),
+            iracing: "iRacing: off".into(),
             update: ("up to date".into(), false),
             start_with_windows: false,
             default_profile: true,
@@ -209,7 +216,7 @@ mod tests {
         let items = menu_items_for(&state(true, false, ("Signed in as a@b.c", false)));
         assert_eq!(
             ids(&items),
-            ["signin", "status", "recorder", "separator", "signout", "open", "pause", "autostart", "older", "folder", "update", "quit"]
+            ["signin", "status", "recorder", "iracing", "separator", "signout", "open", "pause", "autostart", "older", "folder", "update", "quit"]
         );
         let pause = items.iter().find(|i| i.id == "pause").unwrap();
         assert_eq!(pause.checked, Some(false), "no Paused for the own account");
