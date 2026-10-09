@@ -5,6 +5,7 @@ import {
   toFinishPlace,
   toLaps,
   toSessionDetail,
+  toSessionFacets,
   toSessionSummary,
   toSessionTraffic,
   toTrackMap,
@@ -504,5 +505,22 @@ describe('toFinishPlace', () => {
       result: doc({overall: 2, inClass: 2}),
     });
     expect(s.finish).toMatchObject({overall: 2, inClass: 2});
+  });
+});
+
+describe('toSessionFacets', () => {
+  it('reads games and tracks, drops rows without an id, defaults the game to lmu', () => {
+    const f = toSessionFacets({
+      games: [{sim: 'lmu', count: 3}, {count: 1}],
+      tracks: [
+        {trackId: 'spa', track: 'Spa', count: 2},
+        {track: 'No id', count: 1},
+      ],
+    });
+    expect(f.games).toEqual([{sim: 'lmu', count: 3}]);
+    expect(f.tracks).toEqual([
+      {trackId: 'spa', track: 'Spa', sim: 'lmu', count: 2},
+    ]);
+    expect(toSessionFacets(null)).toEqual({games: [], tracks: []});
   });
 });

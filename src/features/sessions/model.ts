@@ -1,10 +1,14 @@
 import {useMemo} from 'react';
 
-import {type SessionSummary, useSessions} from '@/src/data/sessions';
+import {
+  type SessionSummary,
+  useSessionFacets,
+  useSessions,
+} from '@/src/data/sessions';
 import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
 
 import {
-  applyFilter,
+  applyGame,
   effectiveFilter,
   type FilterOptions,
   filterOptions,
@@ -242,32 +246,36 @@ export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
 export function useSessionsModel(
   wanted: SessionsFilter = NO_FILTER,
 ): SessionsModel {
-  const query = useSessions();
+  const facets = useSessionFacets();
+  const filter = useMemo(
+    () => (facets.data ? effectiveFilter(facets.data, wanted) : NO_FILTER),
+    [facets.data, wanted.game, wanted.track],
+  );
+  // The unfiltered list is the server's recent window; a picked track is read
+  // on its own, all of its history, so the filter never hides older sessions.
+  const list = useSessions(
+    filter.track ? {trackId: filter.track} : {},
+    facets.isSuccess,
+  );
   return useMemo(() => {
-    if (query.isPending) return {state: 'loading'};
-    if (query.isError)
+    if (facets.isPending || (facets.isSuccess && list.isPending))
+      return {state: 'loading'};
+    const failed = facets.isError ? facets : list.isError ? list : null;
+    if (failed)
       return {
         state: 'error',
         message:
-          query.error instanceof Error
-            ? query.error.message
-            : String(query.error),
+          failed.error instanceof Error
+            ? failed.error.message
+            : String(failed.error),
       };
-    const sessions = query.data.items;
-    if (sessions.length === 0) return {state: 'empty'};
-    const filter = effectiveFilter(sessions, wanted);
+    if (!facets.data || !list.data) return {state: 'loading'};
+    if (facets.data.games.length === 0) return {state: 'empty'};
     return {
       state: 'ready',
-      days: buildSessionsModel(applyFilter(sessions, filter), new Date()),
+      days: buildSessionsModel(applyGame(list.data.items, filter), new Date()),
       filter,
-      options: filterOptions(sessions, filter),
+      options: filterOptions(facets.data, filter),
     };
-  }, [
-    query.isPending,
-    query.isError,
-    query.error,
-    query.data,
-    wanted.game,
-    wanted.track,
-  ]);
+  }, [facets.status, facets.data, list.status, list.data, filter]);
 }

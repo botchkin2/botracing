@@ -10,17 +10,15 @@ const base = toLaps([fixture.laps[0]])[0];
 const session = (type: 'R' | 'P' = 'R') => ({
   sessionType: type,
   startedAt: '2026-09-26T00:38:00Z',
-  finish: null as
-    | {
-        overall: number;
-        inClass: number;
-        ofOverall: number;
-        ofClass: number;
-        lapsDone: number;
-        leaderLapsDone: number;
-        leftEarly: boolean;
-      }
-    | null,
+  finish: null as {
+    overall: number;
+    inClass: number;
+    ofOverall: number;
+    ofClass: number;
+    lapsDone: number;
+    leaderLapsDone: number;
+    leftEarly: boolean;
+  } | null,
   fuel: {
     startL: 75,
     fillLimitL: 75,

@@ -4,6 +4,7 @@ import {retryUnlessClientError} from '../http';
 
 import {
   fetchSession,
+  fetchSessionFacets,
   fetchSessionBand,
   fetchSessionLaps,
   fetchSessionMap,
@@ -21,6 +22,16 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
     enabled,
     queryKey: sessionKeys.list(filter),
     queryFn: ({signal}) => fetchSessions(filter, signal),
+    staleTime: 60_000,
+    retry: retryUnlessClientError,
+  });
+}
+
+/** Games and tracks over all history, for the Sessions filter chips. */
+export function useSessionFacets() {
+  return useQuery({
+    queryKey: sessionKeys.facets,
+    queryFn: ({signal}) => fetchSessionFacets(signal),
     staleTime: 60_000,
     retry: retryUnlessClientError,
   });

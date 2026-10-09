@@ -2,6 +2,7 @@
 // and hand them back in the lap shape the app already reads.
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
+import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
 import {
   pathInsideOwner,
   trustedTrackPath,
@@ -13,8 +14,6 @@ import {
 const BUCKET = 'botracing-61-lmu';
 // Firestore caps `in` at 30 values.
 const IN_LIMIT = 30;
-// A request without an age still stops here, never scanning all history.
-const DEFAULT_AGE_DAYS = 30;
 
 // The app filters tracks and cars by number. Same hash the old pack used,
 // so ids stay stable across the switch.
@@ -229,20 +228,32 @@ export async function listSessions(
     trackId?: string;
   },
 ): Promise<any[]> {
-  const days =
-    opts.ageDays && opts.ageDays > 0 ? opts.ageDays : DEFAULT_AGE_DAYS;
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+  const cutoff = listCutoff(opts);
   let query = admin
     .firestore()
     .collection('sessions')
     .where('ownerId', '==', owner);
   if (opts.trackId) query = query.where('trackId', '==', opts.trackId);
+  if (cutoff) query = query.where('startedAt', '>=', cutoff);
   const snap = await query
-    .where('startedAt', '>=', cutoff)
     .orderBy('startedAt', 'desc')
     .select(...SESSION_LIST_FIELDS)
     .get();
   return snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+}
+
+// The Sessions filter chips: the owner's games and tracks over all history, so
+// a track driven months ago is pickable although the default list is 30 days.
+// One read per session (three fields each). When an owner has a few thousand
+// sessions, keep a per-owner track summary that sync writes and read that.
+export async function listFacets(owner: string) {
+  const snap = await admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', owner)
+    .select('sim', 'trackId', 'track')
+    .get();
+  return foldFacets(snap.docs.map(doc => doc.data()));
 }
 
 export async function readSession(

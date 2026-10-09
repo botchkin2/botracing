@@ -6,6 +6,7 @@ import {
   listTracks,
   readTrace,
   readTrackMap,
+  listFacets,
   listSessions,
   readSession,
   readSessionLaps,
@@ -100,6 +101,10 @@ export const lmuApi = onRequest(
       // Corner). Straight from the store, no legacy lap shape.
       if (/\/uploaders$/.test(path)) {
         res.status(200).json({items: await listUploaders(owner)});
+        return;
+      }
+      if (/\/sessions\/facets$/.test(path)) {
+        res.status(200).json(await listFacets(owner));
         return;
       }
       if (/\/sessions$/.test(path)) {

@@ -5,6 +5,7 @@ import {getJson, HttpError} from '../http';
 import {
   type Lap,
   type SessionDetail,
+  type SessionFacets,
   type SessionLapsResponse,
   type SessionListResponse,
   type SessionSummary,
@@ -15,6 +16,7 @@ import {
   toTrackMap,
   toTrackSurface,
   toSessionDetail,
+  toSessionFacets,
   toSessionSummary,
 } from './adapters';
 import {type SessionFilter} from './keys';
@@ -32,6 +34,12 @@ export async function fetchSessions(
     signal,
   );
   return {items: body.items.map(toSessionSummary), total: body.total};
+}
+
+export async function fetchSessionFacets(
+  signal?: AbortSignal,
+): Promise<SessionFacets> {
+  return toSessionFacets(await getJson<unknown>('/sessions/facets', signal));
 }
 
 export async function fetchSession(
