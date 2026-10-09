@@ -10,7 +10,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref, trackHref, tracksHref} from '@/src/nav/routes';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';
@@ -28,11 +28,6 @@ import {useTrackModel} from './useTrackModel';
 // its corners and the driver's own history there. Phone: one scrolling
 // column (05). Desktop ≥1280: map | corners | history (T1); 900–1279: map
 // and corners, history under the corners.
-
-const MAP_EXPLAINER =
-  'Numbers are corners. The thin line is the pit lane; the white tick is start/finish.';
-const CORNERS_EXPLAINER =
-  'Distance is from the start/finish line. Turns are numbered by this app from its corner map, so they can differ from the circuit’s official numbers. Grouped turns are one section on the Corner screen.';
 
 type Actions = {
   toggleCorner: (n: number) => void;
@@ -168,10 +163,6 @@ function TrackPhone({
       {model.corners.length > 0 ? (
         <View>
           <Text variant='label'>Corners</Text>
-          <Explainer>
-            Distance is from the start/finish line. Tap a corner to find it on
-            the map.
-          </Explainer>
           <View style={styles.bleed}>
             <CornerList
               groups={model.corners}
@@ -242,7 +233,6 @@ function TrackDesktop({
     <View style={styles.cornersCol}>
       <View style={styles.colHead}>
         <Text variant='label'>Corners</Text>
-        <Explainer>{CORNERS_EXPLAINER}</Explainer>
       </View>
       <ScrollView style={styles.fill}>
         <CornerList
@@ -273,11 +263,7 @@ function TrackDesktop({
               </Pressable>
             ) : null}
           </>
-        ) : (
-          <Text variant='explainer' tone='textFaint'>
-            Select a corner to open your passes on the Corner screen.
-          </Text>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -296,7 +282,6 @@ function TrackDesktop({
           contentContainerStyle={styles.mapColBody}>
           <View style={styles.mapHead}>
             <Text variant='label'>Track map</Text>
-            <Explainer>{MAP_EXPLAINER}</Explainer>
           </View>
           <TrackMapPanel
             map={model.map}

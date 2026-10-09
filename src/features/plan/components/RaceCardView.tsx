@@ -40,11 +40,6 @@ export function RaceCardView({card}: {card: RaceCard}) {
       {card.startLoad ? (
         <View style={styles.load}>
           <Text variant='dataStrong'>{`Start load ${card.startLoad.covers}: ${card.startLoad.value}`}</Text>
-          <Text variant='dataSmall' tone='textSecondary'>
-            {[card.startLoad.basis, card.startLoad.plusOne]
-              .filter(Boolean)
-              .join('; ')}
-          </Text>
         </View>
       ) : null}
       {card.medianNote ? (

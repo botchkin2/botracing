@@ -4,15 +4,10 @@ import {StyleSheet, View} from 'react-native';
 import {FuelScatter} from '@/src/charts';
 import {useSessions} from '@/src/data/sessions';
 import {space} from '@/src/design';
-import {Explainer, Segment, Skeleton, Text, useHowToRead} from '@/src/ui';
+import {Segment, Skeleton, Text} from '@/src/ui';
 
 import {planCombos} from '../model';
-import {
-  POOLED_USE_HELP,
-  pooledUse,
-  thresholdOf,
-  type UseMeasure,
-} from '../pooledUse';
+import {pooledUse, thresholdOf, type UseMeasure} from '../pooledUse';
 import {usePlanData} from '../usePlanData';
 
 // Every session he has driven, like the Plan screen's.
@@ -45,7 +40,6 @@ export function PooledUseCard({
 }) {
   const [own, setMeasure] = useState<UseMeasure>('fuel');
   const measure = asked ?? own;
-  const help = useHowToRead('use and lap time', POOLED_USE_HELP);
   const sessions = useSessions({ageDays: ALL_TIME_DAYS});
   const combo = useMemo(
     () =>
@@ -70,13 +64,7 @@ export function PooledUseCard({
     <View style={styles.card}>
       <View style={styles.title}>
         <Text variant='label'>Use and lap time</Text>
-        {help.button}
       </View>
-      <Explainer>
-        One dot per green lap here in this car, all sessions. Right = more used
-        per lap. Up = faster lap.
-      </Explainer>
-      {help.panel}
       {asked ? null : (
         <Segment options={MEASURES} value={measure} onChange={setMeasure} />
       )}
@@ -93,9 +81,7 @@ export function PooledUseCard({
             xTicks={chart.xTicks}
             yTicks={chart.yTicks}
             xTitle={
-              measure === 'fuel'
-                ? 'Fuel used per lap, L (the axis does not start at zero)'
-                : 'VE used per lap, % (the axis does not start at zero)'
+              measure === 'fuel' ? 'Fuel used per lap, L' : 'VE used per lap, %'
             }
             yTitle={Y_TITLE}
             refX={chart.threshold}
@@ -106,9 +92,7 @@ export function PooledUseCard({
         </>
       ) : (
         <Text variant='dataSmall' tone='textMuted'>
-          {measure === 've'
-            ? 'No green laps here recorded Virtual Energy.'
-            : 'No green laps for the plan here yet.'}
+          {measure === 've' ? 'No VE recorded' : 'No green laps'}
         </Text>
       )}
     </View>

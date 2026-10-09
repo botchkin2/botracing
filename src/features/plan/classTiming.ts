@@ -132,10 +132,9 @@ export type ClassTiming =
       stopsAfter: number[];
     };
 
-export const NO_FIELD_TEXT = 'No other cars recorded at this track yet.';
-export const NO_LAPS_TEXT =
-  'Class timing needs green laps of yours here to set the gain against.';
-export const NO_FASTER_TEXT = 'No faster class was recorded at this track.';
+export const NO_FIELD_TEXT = 'No other cars recorded here';
+export const NO_LAPS_TEXT = 'No green laps of yours here';
+export const NO_FASTER_TEXT = 'No faster class here';
 
 const LABELS: Record<PaceClass, string> = {
   hypercar: 'Hypercar',

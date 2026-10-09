@@ -9,7 +9,6 @@ import {
   buildWearScatter,
   flaggedCount,
   MIN_SCATTER_LAPS,
-  WEAR_SCATTER_KEY,
   wearLaps,
 } from './wearScatter';
 
@@ -118,7 +117,7 @@ describe('buildWearScatter', () => {
     expect(m?.panels).toHaveLength(1);
     expect(m?.panels[0].fit).not.toBeNull();
     expect(m?.panels[0].note).toBe('8 laps');
-    expect(m?.headline).toBe('No number: fewer than 10 laps.');
+    expect(m?.headline).toBe('No number · fewer than 10 laps');
     expect(m?.xDomain[0]).toBe(0);
     expect(m?.flagged).toBeNull();
   });
@@ -126,7 +125,7 @@ describe('buildWearScatter', () => {
   it('one stint with wear and fuel locked together has no number, and says why', () => {
     const laps = Array.from({length: 12}, (_, i) => lap(i + 1));
     expect(buildWearScatter(laps)?.headline).toMatch(
-      /^No number: wear and fuel fall together/,
+      /^No number · wear and fuel fall together/,
     );
   });
 
@@ -145,12 +144,5 @@ describe('buildWearScatter', () => {
     const h = buildWearScatter(two)?.headline ?? '';
     expect(h).toMatch(/^\+0\.0\d\d ± 0\.\d{3} s per 1 % lost, fuel held fixed/);
     expect(h).not.toContain('loose');
-  });
-
-  it('the key says track changes are not separated and no cause is shown', () => {
-    expect(WEAR_SCATTER_KEY).toMatch(
-      /Track changes over the race are not separated/,
-    );
-    expect(WEAR_SCATTER_KEY).toMatch(/not that one causes the other/);
   });
 });

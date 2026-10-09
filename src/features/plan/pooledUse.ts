@@ -114,9 +114,3 @@ export function pooledUse(
     thisSession: drawn.filter(p => !p.muted).length,
   };
 }
-
-export const POOLED_USE_HELP: readonly string[] = [
-  'One dot per green lap at this track and car, from every session the plan reads. This session’s laps are at full ink, earlier sessions muted.',
-  'Right is more used per lap. Up is a faster lap. The axis does not start at zero.',
-  'The dashed line is the use per lap at which the plan’s stints reach with one stop fewer, at the plan’s rules.',
-];

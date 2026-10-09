@@ -69,7 +69,7 @@ describe('buildSessionModel', () => {
     expect(r.chart?.resets).toEqual([13]);
   });
 
-  it('a parked start reads PARK, not PART, with its own reason', () => {
+  it('a parked start reads PARK, not PART, ', () => {
     const raw = fixture.laps.map((l, i) =>
       i === 12
         ? {...l, partial: true, partialWhy: 'grid', comparable: false}
@@ -82,7 +82,6 @@ describe('buildSessionModel', () => {
     const ids = raw.map(l => l.id);
     const d = buildSessionModel(session, toLaps(raw), {laps: [], hl: ids[12]});
     expect(d.detail).toMatchObject({status: 'Excluded · Parked start'});
-    expect(d.detail!.why).toMatch(/^Starts parked/);
   });
 
   it('tags pit, partial, slow, off-track and best laps', () => {
@@ -107,7 +106,7 @@ describe('buildSessionModel', () => {
 describe('selection', () => {
   const ids = laps.map(l => l.id);
 
-  it('detail explains an excluded lap', () => {
+  it('detail carries the status of an excluded lap', () => {
     const m = buildSessionModel(session, laps, {laps: [], hl: ids[16]});
     expect(m.detail).toMatchObject({
       title: 'L17 · 1:30.261',
@@ -115,7 +114,6 @@ describe('selection', () => {
       excluded: true,
       action: 'add',
     });
-    expect(m.detail!.why).toMatch(/^Ends in the pit lane/);
   });
 
   it('first selected lap is the reference and cannot be toggled off', () => {
@@ -297,13 +295,11 @@ describe('trafficPaceFacts', () => {
         value: `1:23.000 · 4 of ${session.comparableCount} laps`,
       },
     ]);
-    expect(buildSessionModel(s, laps, none).paceRule).toContain('Clean:');
   });
 
-  it('leaves a set out under the lap floor, and the rule with it', () => {
+  it('leaves a set out under the lap floor', () => {
     const s = withTraffic(set(2, null), set(1, null));
     expect(trafficPaceFacts(s)).toEqual([]);
-    expect(buildSessionModel(s, laps, none).paceRule).toBeNull();
   });
 });
 

@@ -65,8 +65,8 @@ export function CarsAround({
         />
         <View style={styles.list}>
           {rows.length === 0 && (
-            <Text variant='explainer' tone='textMuted'>
-              No cars within {RADAR_RANGE_M} m at this sample.
+            <Text variant='dataSmall' tone='textMuted'>
+              None within {RADAR_RANGE_M} m
             </Text>
           )}
           {rows.map(r => (

@@ -50,7 +50,6 @@ import {type TraceLoad} from '@/src/data/traces';
 import {
   Button,
   Chip,
-  Explainer,
   hitFor,
   Segment,
   Skeleton,
@@ -63,7 +62,6 @@ import {MapPanel} from './components/MapPanel';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {RadarOverlay} from './components/RadarOverlay';
 import {TrafficLaneBlock} from './components/TrafficLaneBlock';
-import {RADAR_HELP} from './chartHelp';
 import {ChartEditor} from './components/ChartEditor';
 import {TransportBar} from './components/TransportBar';
 import {
@@ -209,7 +207,7 @@ function CompareView({
   const session = useSession(sessionId);
   const field = useField(sessionId, session.data?.field?.hash ?? null).data;
   const [editing, setEditing] = useState(false);
-  // Phone, One chart view: chart tabs, overlay pills and the explainer sit
+  // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -375,7 +373,7 @@ function CompareView({
   );
   const referenceHint = (
     <Text variant='dataSmall' tone='textFaint'>
-      {`Times vs ${model.tableReference.chips}. REF is the lap the traces and the map follow; tap another lap’s Ref to change it.`}
+      {`Times vs ${model.tableReference.chips}`}
     </Text>
   );
 
@@ -482,7 +480,6 @@ function CompareView({
         width={sideW}
         height={layout.isDesktop ? DESKTOP_MAP_H : MAP_H}
         map={model.map}
-        sessionId={sessionId}
         openSection={selection.corner ?? null}
         lapStyle={lapStyle}
         onPressSection={openCorner}
@@ -518,7 +515,7 @@ function CompareView({
   );
 
   const grid = model.grid && !oneChart && (
-    <Section title='Time per section' explainer={model.grid.explainer}>
+    <Section title={`Time per section vs ${model.tableReference.grid}`}>
       <CornerGrid
         width={sideW}
         corners={model.grid.corners}
@@ -614,8 +611,8 @@ function CompareView({
           ))}
         </View>
       </ScrollView>
-      <Text variant='explainer' tone='textMuted'>
-        Overlay on this chart (up to {MAX_OVERLAY}):
+      <Text variant='label' tone='textMuted'>
+        Overlay
       </Text>
       <View style={styles.chipsWrap}>
         {CHANNEL_IDS.map(ch => {
@@ -654,7 +651,7 @@ function CompareView({
         </View>
       ),
   );
-  // The last chart keeps its values and explainer above the plot (the chart
+  // The last chart keeps its values above the plot (the chart
   // header), so nothing sits between the plot and the Follow map under it
   // (round 5, item 6); the others are plot first, numbers below (thread 41
   // #1178).
@@ -669,7 +666,6 @@ function CompareView({
         chart={c}
         {...chartProps(h)}
         plotFirst={!layout.isDesktop && !last}
-        extraHelp={radarOn && last ? RADAR_HELP : undefined}
       />
     );
   };
@@ -720,13 +716,6 @@ function CompareView({
           onRetry={onRetryTraces}
         />
       )}
-      {(!oneChart || chartsOpen) && (
-        <Explainer>
-          {windowed
-            ? 'Charts show a short window around the cursor. Drag any chart to move through the lap, or press play. Change the window size below. Lines join the recorded samples; their positions come from integrated speed.'
-            : 'Drag any chart to move through the lap. The cursor, map dots and values follow it.'}
-        </Explainer>
-      )}
       {chartList}
       {!noTraces && model.trafficLane && (!oneChart || chartsOpen) ? (
         <TrafficLaneBlock
@@ -753,7 +742,6 @@ function CompareView({
   if (layout.isWide)
     return (
       <CompareWorkspace
-        sessionId={sessionId}
         field={field}
         model={model}
         selection={selection}
@@ -828,21 +816,12 @@ function CompareView({
   );
 }
 
-function Section({
-  title,
-  explainer,
-  children,
-}: {
-  title: string;
-  explainer: string;
-  children: ReactNode;
-}) {
+function Section({title, children}: {title: string; children: ReactNode}) {
   return (
     <View style={styles.section}>
       <Text variant='label' tone='textMuted'>
         {title}
       </Text>
-      <Explainer>{explainer}</Explainer>
       {children}
     </View>
   );

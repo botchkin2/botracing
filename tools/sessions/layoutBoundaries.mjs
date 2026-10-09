@@ -49,7 +49,9 @@ export const mapKeyOf = sections =>
  * laps: the session's laps with a grid that fit the map (`cornersFit`); map:
  * the track map ({lengthM, corners}); stored: the layout's boundaries as kept
  * (or null); sessionId: this session, replaced on a resync; fold: the model's
- * minimums (`minLaps`, `minSessions`), for tests.
+ * minimums (`minLaps`, `minSessions`), for tests. readOnly: the curated
+ * boundaries are used exactly as they are and nothing is folded in (a sync that
+ * may not change track data, thread 2 #155): `stored` must be this map's.
  * Returns {state, windows, onsets, moved, changed}: state is what to keep
  * (null when nothing can be measured), windows the CornerWindows its laps are
  * cut at, onsets per lap (a Map from the lap) the per-section onsets in the
@@ -61,10 +63,37 @@ export function sessionBoundaries({
   stored,
   sessionId,
   fold: opts = {},
+  readOnly = false,
 }) {
   const sections = map.corners;
   const lengthM = map.lengthM;
   const key = mapKeyOf(sections);
+  if (readOnly) {
+    if (!stored || stored.mapKey !== key)
+      throw new Error(
+        'read-only boundaries need the stored boundaries of this very map',
+      );
+    const prev = k => (k > 0 ? sections[k - 1].exitM : 0);
+    const kinds = stored.kinds;
+    const onsets = new Map(
+      laps.map(l => {
+        const trace = pedalTrace(l, lengthM);
+        return [
+          l,
+          sections.map(
+            (s, k) => onsetsOfLaps([trace], s, prev(k), kinds[k]).onsetsM[0],
+          ),
+        ];
+      }),
+    );
+    return {
+      state: stored,
+      windows: windowsOf(stored, sections, lengthM),
+      onsets,
+      moved: false,
+      changed: false,
+    };
+  }
   // Boundaries kept for another map are replaced, with a higher rev.
   const usable = stored && stored.mapKey === key ? stored : null;
   const old = stored && !usable ? {...stored, v: 0} : stored;

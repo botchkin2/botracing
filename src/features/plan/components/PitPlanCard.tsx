@@ -8,7 +8,6 @@ import {lapName} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
-  PIT_PLAN_EXPLAINER,
   stintRow,
   stopLine,
   stopWarning,
@@ -47,7 +46,7 @@ export function PitPlanCard({
   const finalWarning = finalStintWarning(pit);
   const headers = ['Stint', 'Laps', unit === 've' ? 'VE' : 'Fuel', 'Tyre laps'];
   return (
-    <PlanCard title='Pit plan' explainer={PIT_PLAN_EXPLAINER}>
+    <PlanCard title='Pit plan'>
       <View style={styles.stops}>
         {pit.stops.map(s => {
           const warning = stopWarning(s);

@@ -5,10 +5,9 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {Explainer, Text, useHowToRead} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {
-  FUEL_USE_HELP,
   fuelUseRows,
   limitText,
   planLinkText,
@@ -20,8 +19,8 @@ import {type FuelUseCardModel} from '../model';
 
 /**
  * The practice fuel card (pit-wall thread 36): one row per stint, the laps as
- * a scatter, and the plan these laps belong to. Numbers only; when the stints
- * do not differ it says so and marks no median.
+ * a scatter, and the plan these laps belong to. When the stints do not
+ * differ it says so and marks no median.
  */
 export function FuelUseCard({
   card,
@@ -33,7 +32,6 @@ export function FuelUseCard({
 }) {
   const {color} = useTheme();
   const router = useRouter();
-  const help = useHowToRead('fuel use', FUEL_USE_HELP);
   const {fuelUse: fu} = card;
   const rows = fuelUseRows(fu);
   const presets = useFuelPresets(s => s.presets);
@@ -52,12 +50,7 @@ export function FuelUseCard({
   const inPlan = planMatchesLimit(fu.limitL, planLimitL ?? fu.limitL);
   return (
     <View style={styles.card}>
-      <View style={styles.title}>
-        <Text variant='label'>Fuel use</Text>
-        {help.button}
-      </View>
-      <Explainer>Fuel and VE used per lap, stint by stint.</Explainer>
-      {help.panel}
+      <Text variant='label'>Fuel use</Text>
       <Text variant='dataSmall' tone='textSecondary'>
         {verdictText(fu)}
       </Text>
@@ -106,7 +99,6 @@ export function FuelUseCard({
 
 const styles = StyleSheet.create({
   card: {gap: space.xs},
-  title: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   row: {gap: space.xxs, paddingVertical: space.md, borderTopWidth: 1},
   link: {minHeight: 44, justifyContent: 'center'},
 });

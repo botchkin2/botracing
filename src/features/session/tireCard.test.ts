@@ -10,8 +10,6 @@ import {
   MIN_TREND_LAPS,
   setAges,
   setAgeText,
-  NO_TYRE_CHANNELS,
-  TIRES_HELP,
   type StintTires,
   treadScale,
 } from './tireCard';
@@ -54,7 +52,6 @@ describe('buildTiresCard', () => {
   it('is absent when no lap carries tyre facts', () => {
     const laps = [lap(1, 99, {tyres: null}), lap(2, 98, {tyres: null})];
     expect(buildTiresCard({stints: []}, laps)).toEqual({kind: 'absent'});
-    expect(NO_TYRE_CHANNELS).toMatch(/still work/);
   });
 
   it('a trend needs five green laps; fewer lists the readings', () => {
@@ -201,14 +198,6 @@ describe('buildTiresCard', () => {
   });
 });
 
-describe('TIRES_HELP', () => {
-  it('states what a mark is and never advises or addresses the driver', () => {
-    const text = TIRES_HELP.join(' ');
-    expect(TIRES_HELP.length).toBeLessThanOrEqual(4);
-    expect(text).not.toMatch(/\b(you|your|should|try|avoid|improve)\b/i);
-  });
-});
-
 describe('setAges', () => {
   const laps = (n: number) => Array.from({length: n}, (_, i) => lap(i + 1, 99));
 
@@ -341,7 +330,7 @@ describe('stop cool-down', () => {
   it('says there is no stop before the first stint', () => {
     expect(stints(race(stop()))[0].coolDown).toEqual({
       kind: 'absent',
-      why: 'There is no stop before this stint.',
+      why: 'No stop before this stint',
     });
   });
 
@@ -352,12 +341,14 @@ describe('stop cool-down', () => {
       ),
     );
     expect(c).toMatchObject({kind: 'absent'});
-    expect(c.kind === 'absent' && c.why).toMatch(/All four tyres were changed/);
+    expect(c.kind === 'absent' && c.why).toMatch(/All four tyres changed/);
   });
 
   it('says so when the stop has no reading, or no wheel has one', () => {
     const none = second(race(stop({coolDown: null})));
-    expect(none.kind === 'absent' && none.why).toMatch(/no cool-down reading/);
+    expect(none.kind === 'absent' && none.why).toMatch(
+      /No cool-down reading after/,
+    );
     const dead = second(
       race(
         stop({
@@ -370,7 +361,7 @@ describe('stop cool-down', () => {
         }),
       ),
     );
-    expect(dead.kind === 'absent' && dead.why).toMatch(/kept/);
+    expect(dead.kind === 'absent' && dead.why).toMatch(/kept tyres/);
   });
 });
 

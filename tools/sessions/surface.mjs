@@ -25,6 +25,7 @@ import {gunzipSync, gzipSync} from 'node:zlib';
 import {LMU_FAKE_ORIGIN, toLocalMetres} from '../../src/analysis/geo.ts';
 import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
 import {surfaceProgressLine} from './surfaceProgress.mjs';
+import {apiAuthHeaders} from './apiAuth.mjs';
 import {
   addSession,
   emptySurface,
@@ -162,7 +163,7 @@ export function parseSurface(gz) {
 // ---------------------------------------------------------------------------
 
 async function apiJson(base, path) {
-  const res = await fetch(`${base}${path}`);
+  const res = await fetch(`${base}${path}`, {headers: apiAuthHeaders()});
   if (!res.ok) throw new Error(`${path}: ${res.status}`);
   return res.json();
 }
@@ -187,7 +188,9 @@ async function fromApi(base, trackFilter, outDir) {
       const {items: laps} = await apiJson(base, `/sessions/${s.id}/laps`);
       const csvs = [];
       for (const lap of laps.filter(usableLap)) {
-        const res = await fetch(`${base}/laps/${lap.id}/csv`);
+        const res = await fetch(`${base}/laps/${lap.id}/csv`, {
+          headers: apiAuthHeaders(),
+        });
         if (res.ok) csvs.push(await res.text());
       }
       input.push({id: s.id, csvs});

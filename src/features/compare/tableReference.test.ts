@@ -195,7 +195,6 @@ describe('Compare tables against the checked set', () => {
 
   it('shows the time per section against the set, the reference as a row too', () => {
     const g = build(['a', 'b', 'c']).grid!;
-    expect(g.explainer).toContain('vs median of 3 checked laps');
     expect(g.rows.map(r => r.label)).toEqual(['L1', 'L2', 'L3']);
     // S1 median 9, S2 median 12: a is 8 and 12, c is 10 and 12.
     expect(g.rows[0].cells).toEqual([-1, 0]);
@@ -226,7 +225,6 @@ describe('Compare tables against the checked set', () => {
     const row = m.grid!.rows.find(r => r.lapId === 'x')!;
     expect(row.cells).toEqual([null, null]);
     expect(m.grid!.rows.find(r => r.lapId === 'a')!.cells).toEqual([-1, 0]);
-    expect(m.grid!.explainer).toContain('L4 is pending re-analysis: no cells.');
     // The chip delta is a lap time, which does not depend on the cut.
     expect(m.chips.find(c => c.lapId === 'x')!.delta).toBe('+39.000');
   });

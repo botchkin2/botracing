@@ -1,8 +1,9 @@
 import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, space, useLayout, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Button, Text} from '@/src/ui';
 
 import {type UploaderCard, useSettingsModel} from './model';
 
@@ -31,7 +32,9 @@ export function SettingsScreen() {
         <Text variant='display'>Settings</Text>
       </View>
 
-      <Text variant='label' tone='textMuted'>
+      <Account />
+
+      <Text variant='label' tone='textMuted' style={styles.section}>
         Uploader
       </Text>
       {u.state === 'loading' && <ActivityIndicator color={color.accent} />}
@@ -50,10 +53,6 @@ export function SettingsScreen() {
             <Dot on={false} />
             <Text variant='bodyStrong'>No uploader has reported yet</Text>
           </View>
-          <Text tone='textSecondary'>
-            When the uploader runs on your sim PC, its status shows here: when
-            it was last seen, its last upload and any error.
-          </Text>
         </View>
       )}
       {u.state === 'ready' &&
@@ -66,6 +65,47 @@ export function SettingsScreen() {
         Version {model.version}
       </Text>
     </ScrollView>
+  );
+}
+
+// Who the sessions on screen belong to. Signing in is what ties this app to
+// the sessions the PC uploader sent for the same Google account.
+function Account() {
+  const {color} = useTheme();
+  const state = useAuthStore(s => s.state);
+  const {busy, message, signIn, signOut} = useSignIn();
+  return (
+    <>
+      <Text variant='label' tone='textMuted'>
+        Account
+      </Text>
+      <View
+        style={[
+          styles.card,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        <Text variant='bodyStrong'>{accountLabel(state)}</Text>
+        {state.kind === 'signed-in' ? (
+          <Button
+            label='Sign out'
+            kind='outline'
+            onPress={() => void signOut()}
+            disabled={busy}
+          />
+        ) : (
+          <Button
+            label={busy ? 'Signing in…' : 'Sign in with Google'}
+            onPress={() => void signIn()}
+            disabled={busy || state.kind === 'loading'}
+          />
+        )}
+        {message ? (
+          <Text variant='dataSmall' tone='textMuted'>
+            {message}
+          </Text>
+        ) : null}
+      </View>
+    </>
   );
 }
 

@@ -4,15 +4,8 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {lapColors, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
-import {
-  Skeleton,
-  StatusBanner,
-  Text,
-  TraceRetryBanner,
-  useHowToRead,
-} from '@/src/ui';
+import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
 
-import {CORNER_CHART_HELP} from './chartHelp';
 import {type CornerModel, type ZoomLine} from './model';
 import {type ReadoutChart, readoutsAt} from './readouts';
 import {lapsShownText, noBrakeIn} from './traceFacts';
@@ -62,13 +55,6 @@ export function ZoomTraces({
   const {zoom} = model;
   const {color, scheme} = useTheme();
   const [hoverM, setHoverM] = useState<number | null>(null);
-  const helps = {
-    delta: useHowToRead('the delta chart', CORNER_CHART_HELP.delta),
-    speed: useHowToRead('the speed chart', CORNER_CHART_HELP.speed),
-    brake: useHowToRead('the brake chart', CORNER_CHART_HELP.brake),
-    throttle: useHowToRead('the throttle chart', CORNER_CHART_HELP.throttle),
-    steering: useHowToRead('the steering chart', CORNER_CHART_HELP.steering),
-  };
   const rank = (l: ZoomLine) =>
     l.onIndex === 0 ? 2 : l.onIndex != null ? 1 : 0;
   const lines = [...zoom.lines].sort((a, b) => rank(a) - rank(b));
@@ -139,14 +125,12 @@ export function ZoomTraces({
     : null;
   // A chart's label, its unit, and the laps' values at the pointer.
   const header = (chart: ReadoutChart, label: string) => {
-    const help = chart === 'line' ? null : helps[chart];
     return (
       <>
         <View style={styles.header}>
           <Text variant='label' tone='textMuted'>
             {label}
           </Text>
-          {help?.button}
           {readouts && (
             <View style={styles.readouts}>
               {readouts[chart].map(r => (
@@ -160,7 +144,6 @@ export function ZoomTraces({
             </View>
           )}
         </View>
-        {help?.panel}
       </>
     );
   };
@@ -288,11 +271,6 @@ export function ZoomTraces({
             marks={apex}
           />
           {header('line', 'Racing line, m from the game’s centre path')}
-          <Text variant='explainer' tone='textMuted'>
-            Left ← → right. Compare the laps with each other: the centre path is
-            the game’s approximate one, not the middle of the track. The edge
-            lines show the side the laps were on.
-          </Text>
           {lateralAny ? (
             <TraceChart
               {...common}

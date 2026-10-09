@@ -2,7 +2,7 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Circle, Line, Text as SvgText} from 'react-native-svg';
 
 import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
-import {Explainer, Text} from '@/src/ui';
+import {Text} from '@/src/ui';
 
 import {type DistributionModel} from '../desktopModel';
 
@@ -39,10 +39,6 @@ export function LapDistribution({
   return (
     <View>
       <Text variant='label'>Lap-time distribution</Text>
-      <Explainer>
-        Each dot is a comparable lap; ticks are stint medians. Faster to the
-        left. Click a dot to highlight the lap.
-      </Explainer>
       <View style={styles.grid}>
         <View style={{width: size.distLabel, height: h}}>
           {model.rows.map((r, i) => (

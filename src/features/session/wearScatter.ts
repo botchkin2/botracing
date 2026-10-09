@@ -91,9 +91,9 @@ export function flaggedCount(laps: Lap[], used: Set<string>): number | null {
 
 function noteOf(b: WearBand): string {
   if (b.empty === 'few-laps')
-    return `${b.laps.length} laps: too few for a line (5 needed).`;
+    return `${b.laps.length} laps · too few for a line`;
   if (b.empty === 'one-set')
-    return `${b.laps.length} laps, but all on about the same wear: a line needs tyres run across two stints.`;
+    return `${b.laps.length} laps · same wear throughout, no line`;
   return `${b.laps.length} laps`;
 }
 
@@ -104,21 +104,17 @@ export function headlineOf(fit: JointFit): string {
   if (fit.kind === 'fit') {
     const loose =
       Math.abs(fit.corr) >= LOOSE_CORR
-        ? ` Wear and fuel move together over these laps (r = ${fit.corr.toFixed(
-            2,
-          )}), so the number is loose.`
+        ? ` · r = ${fit.corr.toFixed(2)}, loose`
         : '';
     return `${signed(fit.sPerPct)} ± ${fit.seSPerPct.toFixed(
       3,
     )} s per 1 % lost, fuel held fixed (${signed(
       fit.sPerL,
-    )} s per litre at the start of the lap) · ${fit.n} laps.${loose}`;
+    )} s per litre at lap start) · ${fit.n} laps${loose}`;
   }
-  if (fit.why === 'locked')
-    return 'No number: wear and fuel fall together over these laps (tyres were not carried across a stop), so their effects cannot be told apart.';
-  if (fit.why === 'one-set')
-    return 'No number: the laps span too little wear; it needs tyres run across two stints.';
-  return `No number: fewer than ${MIN_FIT_LAPS} laps.`;
+  if (fit.why === 'locked') return 'No number · wear and fuel fall together';
+  if (fit.why === 'one-set') return 'No number · too little wear range';
+  return `No number · fewer than ${MIN_FIT_LAPS} laps`;
 }
 
 function padded([lo, hi]: [number, number]): [number, number] {
@@ -159,6 +155,3 @@ export function buildWearScatter(laps: Lap[]): WearScatterModel | null {
     headline: headlineOf(jointFit(pts)),
   };
 }
-
-export const WEAR_SCATTER_KEY =
-  'Green laps, whole race. Right = more worn (mean of four wheels), up = faster. Split by fuel at the start of the lap so the fuel effect is not counted as wear. The number is one fit over all the laps with fuel held fixed; the dashed line in each panel is the line for that band alone. It shows the two move together, not that one causes the other. Track changes over the race are not separated.';
