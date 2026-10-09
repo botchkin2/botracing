@@ -30,7 +30,10 @@ export const KNOWN_CLASSES = new Map([
  * carName}. The pace car and spectators are left out: they are not a class.
  */
 export function driversOfYaml(yaml) {
-  const list = (yaml ?? '').split(/\n\s*Drivers:\s*\n/)[1] ?? '';
+  const after = (yaml ?? '').split(/\n\s*Drivers:\s*\n/)[1] ?? '';
+  // The list ends at the next top-level key (SplitTimeInfo:, CarSetup:...), so
+  // the last driver never reads a field from the section after it (rake #3188).
+  const list = after.split(/\n(?=\S)/)[0];
   const out = [];
   for (const block of list.split(/(?:^|\n)\s*- CarIdx:/)) {
     const idx = block.match(/^\s*(\d+)/);
