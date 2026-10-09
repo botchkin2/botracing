@@ -18,9 +18,45 @@ import {
 
 const posix = p => p.replace(/\\/g, '/');
 
+// The DuckDB CLI is not on every runner (CI's app job has none): the tests
+// that write and read real parquet are skipped there, like field.test.mjs.
+function duckdbWorks() {
+  try {
+    run(':memory:', 'SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+const needsDuckdb = {skip: !duckdbWorks()};
+
+// A capture folder with only what listing and matching read: meta.json and the
+// name of a player chunk.
+function writeStub(dir, meta) {
+  mkdirSync(dir, {recursive: true});
+  writeFileSync(resolve(dir, 'meta.json'), JSON.stringify(meta));
+  writeFileSync(resolve(dir, 'player-0000.parquet'), '');
+}
+const IR = {
+  sim: 'iracing',
+  track: 'Sebring',
+  startUtc: '2026-10-09T14:00:00.000Z',
+  endUtc: '2026-10-09T14:06:00.000Z',
+};
+
 // A 60 Hz player stream: laps cross at 100 s, 200 s and 300 s (the sim's own
 // times for the first two: `times`), the held value showing for 2 ticks first.
-function writePlayer(dir, times, {sim = 'iracing', track = 'Sebring', start = '2026-10-09T14:00:00.000Z', end = '2026-10-09T14:06:00.000Z', session = 0} = {}) {
+function writePlayer(
+  dir,
+  times,
+  {
+    sim = 'iracing',
+    track = 'Sebring',
+    start = '2026-10-09T14:00:00.000Z',
+    end = '2026-10-09T14:06:00.000Z',
+    session = 0,
+  } = {},
+) {
   mkdirSync(dir, {recursive: true});
   writeFileSync(
     resolve(dir, 'meta.json'),
@@ -32,7 +68,9 @@ function writePlayer(dir, times, {sim = 'iracing', track = 'Sebring', start = '2
     `${session}::INTEGER AS SessionNum, ` +
     `(CASE WHEN i < 6000 THEN 1 WHEN i < 12000 THEN 2 ELSE 3 END)::INTEGER AS Lap, ` +
     `(CASE WHEN i < 6000 + 2 THEN 0.0 WHEN i < 12000 + 2 THEN ${a} ELSE ${b} END)::FLOAT AS LapLastLapTime ` +
-    `FROM range(0, 18000) t(i)) TO '${posix(resolve(dir, 'player-0000.parquet'))}' (FORMAT parquet)`;
+    `FROM range(0, 18000) t(i)) TO '${posix(
+      resolve(dir, 'player-0000.parquet'),
+    )}' (FORMAT parquet)`;
   run(':memory:', sql, {readonly: false});
 }
 
@@ -40,41 +78,68 @@ const tmp = () => mkdtempSync(resolve(tmpdir(), 'ir-capture-'));
 
 test('only iRacing captures are listed, and only by their own reader', () => {
   const root = tmp();
-  writePlayer(resolve(root, 'ir'), [100, 100]);
+  writeStub(resolve(root, 'ir'), IR);
   mkdirSync(resolve(root, 'lmu'));
-  writeFileSync(resolve(root, 'lmu', 'meta.json'), JSON.stringify({track: 'Sebring', startUtc: 'x'}));
-  assert.deepEqual(listIracingCaptures(root).map(c => c.name), ['ir']);
+  writeFileSync(
+    resolve(root, 'lmu', 'meta.json'),
+    JSON.stringify({track: 'Sebring', startUtc: 'x'}),
+  );
+  assert.deepEqual(
+    listIracingCaptures(root).map(c => c.name),
+    ['ir'],
+  );
   // The LMU reader (field, damage, race length) skips the iRacing capture:
   // its columns are not LMU's, and reading them was a Binder Error.
-  assert.deepEqual(listCaptures(root).map(c => c.name), []);
+  assert.deepEqual(
+    listCaptures(root).map(c => c.name),
+    [],
+  );
   rmSync(root, {recursive: true, force: true});
 });
 
 test('a capture belongs to a session of its track and time, not another', () => {
   const root = tmp();
-  writePlayer(resolve(root, 'ir'), [100, 100]);
+  writeStub(resolve(root, 'ir'), IR);
   const all = listIracingCaptures(root);
-  const span = {track: 'Sebring', startMs: Date.parse('2026-10-09T14:01:00Z'), endMs: Date.parse('2026-10-09T14:04:00Z')};
+  const span = {
+    track: 'Sebring',
+    startMs: Date.parse('2026-10-09T14:01:00Z'),
+    endMs: Date.parse('2026-10-09T14:04:00Z'),
+  };
   assert.equal(iracingCapturesFor(all, span).length, 1);
   assert.equal(iracingCapturesFor(all, {...span, track: 'Monza'}).length, 0);
-  assert.equal(iracingCapturesFor(all, {...span, startMs: Date.parse('2026-10-09T15:00:00Z'), endMs: Date.parse('2026-10-09T15:30:00Z')}).length, 0);
+  assert.equal(
+    iracingCapturesFor(all, {
+      ...span,
+      startMs: Date.parse('2026-10-09T15:00:00Z'),
+      endMs: Date.parse('2026-10-09T15:30:00Z'),
+    }).length,
+    0,
+  );
   rmSync(root, {recursive: true, force: true});
 });
 
-test('the live lap times are read like the .ibt ones, and agree when they are the same', () => {
-  const root = tmp();
-  writePlayer(resolve(root, 'ir'), [100.0, 100.003]);
-  const [cap] = listIracingCaptures(root);
-  const cols = readLapColumns(cap.player);
-  const live = crossingsOf(cols);
-  assert.equal(live.length, 2);
-  assert.ok(Math.abs(live[0].time - 100) < 1e-4);
-  const same = compareLaps(live, live.map(c => ({...c})));
-  assert.equal(same.compared, 2);
-  assert.equal(same.bad.length, 0);
-  assert.match(describeCheck(same), /2 laps match the \.ibt/);
-  rmSync(root, {recursive: true, force: true});
-});
+test(
+  'the live lap times are read like the .ibt ones, and agree when they are the same',
+  needsDuckdb,
+  () => {
+    const root = tmp();
+    writePlayer(resolve(root, 'ir'), [100.0, 100.003]);
+    const [cap] = listIracingCaptures(root);
+    const cols = readLapColumns(cap.player);
+    const live = crossingsOf(cols);
+    assert.equal(live.length, 2);
+    assert.ok(Math.abs(live[0].time - 100) < 1e-4);
+    const same = compareLaps(
+      live,
+      live.map(c => ({...c})),
+    );
+    assert.equal(same.compared, 2);
+    assert.equal(same.bad.length, 0);
+    assert.match(describeCheck(same), /2 laps match the \.ibt/);
+    rmSync(root, {recursive: true, force: true});
+  },
+);
 
 test('a lap more than 5 ms apart is named, one inside the tolerance is not', () => {
   const live = [
@@ -87,29 +152,55 @@ test('a lap more than 5 ms apart is named, one inside the tolerance is not', () 
   ];
   const r = compareLaps(live, ibt);
   assert.equal(r.compared, 2);
-  assert.deepEqual(r.bad.map(b => b.lap), [3]);
+  assert.deepEqual(
+    r.bad.map(b => b.lap),
+    [3],
+  );
   assert.ok(Math.abs(r.bad[0].diffS - 0.012) < 1e-9);
   assert.ok(LAP_TOLERANCE_S === 0.005);
-  assert.match(describeCheck(r), /1 of 2 laps differ by more than 5 ms: L3 12\.0 ms/);
+  assert.match(
+    describeCheck(r),
+    /1 of 2 laps differ by more than 5 ms: L3 12\.0 ms/,
+  );
   // The same clock time in another session of the weekend is another lap.
   assert.equal(
-    compareLaps([{t: 100, lap: 2, time: 100, sn: 0}], [{t: 100, lap: 2, time: 90, sn: 1}]).compared,
+    compareLaps(
+      [{t: 100, lap: 2, time: 100, sn: 0}],
+      [{t: 100, lap: 2, time: 90, sn: 1}],
+    ).compared,
     0,
   );
   // A lap one side has no time for is left out, not counted as a match.
-  assert.equal(compareLaps([{t: 1, lap: 1, time: 0, sn: 0}], [{t: 1, lap: 1, time: 90, sn: 0}]).compared, 0);
-  assert.equal(describeCheck({compared: 0, worstS: 0, bad: []}), 'live check: no lap in both');
+  assert.equal(
+    compareLaps(
+      [{t: 1, lap: 1, time: 0, sn: 0}],
+      [{t: 1, lap: 1, time: 90, sn: 0}],
+    ).compared,
+    0,
+  );
+  assert.equal(
+    describeCheck({compared: 0, worstS: 0, bad: []}),
+    'live check: no lap in both',
+  );
 });
 
-test('liveLapCheck finds the capture of the drive and says nothing without one', () => {
-  const root = tmp();
-  const span = {tracks: ['Sebring', '95-international'], startMs: Date.parse('2026-10-09T14:01:00Z'), endMs: Date.parse('2026-10-09T14:04:00Z')};
-  assert.equal(liveLapCheck(root, span, []), null);
-  writePlayer(resolve(root, 'ir'), [100.0, 100.003]);
-  const [cap] = listIracingCaptures(root);
-  const ibt = crossingsOf(readLapColumns(cap.player));
-  const r = liveLapCheck(root, span, ibt);
-  assert.equal(r.compared, 2);
-  assert.equal(r.bad.length, 0);
-  rmSync(root, {recursive: true, force: true});
-});
+test(
+  'liveLapCheck finds the capture of the drive and says nothing without one',
+  needsDuckdb,
+  () => {
+    const root = tmp();
+    const span = {
+      tracks: ['Sebring', '95-international'],
+      startMs: Date.parse('2026-10-09T14:01:00Z'),
+      endMs: Date.parse('2026-10-09T14:04:00Z'),
+    };
+    assert.equal(liveLapCheck(root, span, []), null);
+    writePlayer(resolve(root, 'ir'), [100.0, 100.003]);
+    const [cap] = listIracingCaptures(root);
+    const ibt = crossingsOf(readLapColumns(cap.player));
+    const r = liveLapCheck(root, span, ibt);
+    assert.equal(r.compared, 2);
+    assert.equal(r.bad.length, 0);
+    rmSync(root, {recursive: true, force: true});
+  },
+);
