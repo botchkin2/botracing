@@ -4,15 +4,17 @@ import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
-import {buildCompareModel, medianBasisOf} from './model';
+import {buildCompareModel, buildCompareSet, medianBasisOf} from './model';
 
 // A cursor step at 60 laps (pit-wall thread 1 #3243 to #3245): Compare
 // rebuilds its model on every step, and a full scan of every lap per chart
 // made that 46 ms on a desktop CPU. The ceiling is loose so CI noise never
-// flakes it; the measured number on the 7900X is about 1.3 ms.
+// flakes it. On the 7900X a whole rebuild is about 1.3 ms and a cursor step
+// on a kept set (buildCompareSet, what the screen does) about 0.25 ms.
 const LAPS = 60;
 const LENGTH_M = 4000;
 const STEP_CEILING_MS = 10;
+const CURSOR_CEILING_MS = 2;
 
 // A lap with speed, pedals and steering that vary along it, as real ones do.
 function lap(seed: number): RawTrace {
@@ -80,5 +82,27 @@ describe('Compare at 60 laps', () => {
     const t0 = performance.now();
     for (let i = 0; i < n; i++) step();
     expect((performance.now() - t0) / n).toBeLessThan(STEP_CEILING_MS);
+  });
+
+  it(`a cursor step on a kept set stays under ${CURSOR_CEILING_MS} ms`, () => {
+    const set = buildCompareSet({
+      session,
+      laps,
+      traces,
+      band: null,
+      map: null,
+      basisTrace,
+      selection: {laps: ids, ref: null, hl: null, corner: null},
+    });
+    let cursorM = 0;
+    const step = () => {
+      cursorM = (cursorM + 37) % LENGTH_M;
+      set.atCursor(cursorM);
+    };
+    for (let i = 0; i < 20; i++) step();
+    const n = 200;
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) step();
+    expect((performance.now() - t0) / n).toBeLessThan(CURSOR_CEILING_MS);
   });
 });

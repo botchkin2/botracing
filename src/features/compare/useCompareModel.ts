@@ -17,7 +17,7 @@ import {parseLapRef} from '@/src/nav/lapRef';
 import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
-  buildCompareModel,
+  buildCompareSet,
   medianBasisOf,
   type ForeignLaps,
   type ChannelId,
@@ -172,7 +172,62 @@ export function useCompareModel(
   const {refetch: refetchSession} = session;
   const {refetch: refetchLaps} = laps;
   const error = [session, laps].find(q => q.isError)?.error;
-  return useMemo(() => {
+  // The set (laps, basis, lines, tables) is built once per selection and
+  // kept while the cursor moves; a cursor step builds only what it moves
+  // (buildCompareSet, pit-wall thread 1 #3245). The cursor is not in its key.
+  const lapsKey = selection.laps.join(',');
+  const setSelection = useMemo(
+    () => ({
+      laps: lapsKey ? lapsKey.split(',') : [],
+      ref: selection.ref,
+      hl: selection.hl,
+      corner: selection.corner,
+    }),
+    [lapsKey, selection.ref, selection.hl, selection.corner],
+  );
+  const waitingOnForeign =
+    foreignSessionIds.length > 0 &&
+    (foreignLaps.pending || foreignDetails.pending);
+  const ready =
+    !error && session.data && laps.data && !map.isPending && !waitingOnForeign;
+  const set = useMemo(
+    () =>
+      ready && session.data && laps.data
+        ? buildCompareSet({
+            session: session.data,
+            laps: laps.data,
+            foreign,
+            traces,
+            band: band.data ?? null,
+            map: map.data ?? null,
+            surface: surface.data ?? null,
+            surfacePending: surface.isPending,
+            selection: setSelection,
+            charts,
+            window,
+            followGeometry,
+            basisTrace,
+          })
+        : null,
+    [
+      ready,
+      session.data,
+      laps.data,
+      foreign,
+      traces,
+      band.data,
+      map.data,
+      surface.data,
+      surface.isPending,
+      setSelection,
+      charts,
+      window,
+      followGeometry,
+      basisTrace,
+    ],
+  );
+  const cursorM = selection.cursorM;
+  return useMemo((): CompareResult => {
     if (error)
       return {
         state: 'error',
@@ -184,50 +239,17 @@ export function useCompareModel(
       };
     // A lap of another session is found once its session has loaded; until
     // then it would read as "not found".
-    const waitingOnForeign =
-      foreignSessionIds.length > 0 &&
-      (foreignLaps.pending || foreignDetails.pending);
-    if (!session.data || !laps.data || map.isPending || waitingOnForeign)
-      return {state: 'loading'};
+    if (!set) return {state: 'loading'};
     return {
       state: 'ready',
       traceLoad,
       retryTraces,
-      model: buildCompareModel({
-        session: session.data,
-        laps: laps.data,
-        foreign,
-        traces,
-        band: band.data ?? null,
-        map: map.data ?? null,
-        surface: surface.data ?? null,
-        surfacePending: surface.isPending,
-        selection,
-        charts,
-        window,
-        followGeometry,
-        basisTrace,
-      }),
+      model: set.atCursor(cursorM),
     };
   }, [
     error,
-    foreignSessionIds,
-    foreignLaps.pending,
-    foreignDetails.pending,
-    session.data,
-    laps.data,
-    foreign,
-    map.isPending,
-    map.data,
-    surface.data,
-    surface.isPending,
-    band.data,
-    traces,
-    basisTrace,
-    selection,
-    charts,
-    window,
-    followGeometry,
+    set,
+    cursorM,
     traceLoad,
     retryTraces,
     refetchSession,
