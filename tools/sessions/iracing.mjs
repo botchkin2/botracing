@@ -1,8 +1,8 @@
 // iRacing adapter: one .ibt recording → sim-neutral archive.
 // Analysis never reads iRacing names. Conversions live in CHANNELS.
 import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
-import {basename, dirname} from 'node:path';
-import {tmpdir} from 'node:os';
+import {basename, dirname, join} from 'node:path';
+import {homedir, tmpdir} from 'node:os';
 import {run, sqlPath} from './duck.mjs';
 import {
   openIbt,
@@ -14,8 +14,15 @@ import {
 
 export const sim = 'iracing';
 
-export const defaultFolder =
-  'C:\\Users\\Botkin\\Documents\\iRacing\\telemetry';
+export const defaultFolder = join(
+  homedir(),
+  'Documents',
+  'iRacing',
+  'telemetry',
+);
+
+// tasklist IMAGENAME, confirmed on this PC. Disk telemetry is Alt-L in the sim.
+export const gameExe = 'iRacingSim64DX11.exe';
 
 export const describeVersion = 3;
 

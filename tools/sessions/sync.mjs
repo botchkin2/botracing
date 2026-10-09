@@ -40,8 +40,7 @@ import {
 import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
-import * as lmu from './lmu.mjs';
-import * as iracing from './iracing.mjs';
+import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
 import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
@@ -86,14 +85,9 @@ function arg(name, fallback) {
 }
 const flag = name => process.argv.includes(name);
 
-const sims = {lmu, iracing};
 const simName = arg('--sim', process.env.LAP_SIM || 'lmu');
-const adapter = sims[simName];
-if (!adapter) throw new Error(`unknown sim "${simName}"`);
-const folder = arg(
-  '--folder',
-  process.env.LMU_TELEMETRY || adapter.defaultFolder,
-);
+const adapter = adapterOf(simName);
+const folder = arg('--folder', telemetryFolder(simName));
 // --remote: no Admin credentials. The store is the upload function (storeClient.mjs),
 // signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
 // keeps it fresh), and the owner is whatever key the server holds for that user.
