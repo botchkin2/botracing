@@ -16,7 +16,7 @@ use parquet::file::properties::WriterProperties;
 use parquet::schema::types::ColumnPath;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const WHEELS: [&str; 4] = ["fl", "fr", "rl", "rr"];
@@ -292,7 +292,6 @@ pub fn write_parquet(
         let mut props = WriterProperties::builder()
             .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
             .set_dictionary_enabled(false);
-        let mut written = HashSet::new();
         // wall_ms on every row; et and update on field rows. capture.py writes
         // these ahead of the struct columns.
         for name in ["wall_ms", "et", "update"] {
@@ -307,7 +306,6 @@ pub fn write_parquet(
             }
             fields.push(Field::new(name, dtype, false));
             arrays.push(array);
-            written.insert(name.to_string());
         }
         for (name, kind) in &order {
             let Some(col) = cols.get(name) else { continue };
@@ -323,9 +321,7 @@ pub fn write_parquet(
             }
             fields.push(Field::new(name, dtype, false));
             arrays.push(array);
-            written.insert(name.clone());
         }
-        let _ = written;
         let schema = Arc::new(Schema::new(fields));
         let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
         if let Some(dir) = tmp.parent() {
@@ -455,6 +451,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs BOTRACING_DUCKDB (the DuckDB CLI)"]
     fn duckdb_reads_the_chunk_and_keeps_the_header_widths() {
         let lay = layout();
         let telem = lay.built("TelemInfoV01").unwrap();
@@ -469,26 +466,26 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("player-0000.parquet");
         write_parquet(&path, &lay, "TelemInfoV01", &cols).unwrap();
-        let duck = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
-        if !duck.is_file() {
-            return;
-        }
         let file = path.display().to_string().replace('\\', "/");
-        let query = format!(
+        let text = duck(&format!(
             "SELECT mElapsedTime, mGear, typeof(mElapsedTime), typeof(mGear) FROM read_parquet('{file}')"
-        );
-        let done = std::process::Command::new(duck)
-            .args([":memory:", "-csv", "-c", &query])
-            .output()
-            .unwrap();
-        assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
-        let text = String::from_utf8_lossy(&done.stdout);
+        ));
         assert!(text.contains("12.5"), "{text}");
         assert!(text.contains("INTEGER"), "{text}");
     }
 
+    /// A path a local-only test needs, from the environment. These tests are
+    /// #[ignore]: they run with `cargo test -- --ignored` on a PC that has the
+    /// DuckDB CLI, the LMU header or a Python capture, and fail loudly if the
+    /// variable is missing rather than passing without checking anything.
+    fn env_path(var: &str) -> PathBuf {
+        PathBuf::from(
+            std::env::var(var).unwrap_or_else(|_| panic!("set {var} to run the ignored tests")),
+        )
+    }
+
     fn duck(query: &str) -> String {
-        let duck = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
+        let duck = env_path("BOTRACING_DUCKDB");
         let done = std::process::Command::new(duck)
             .args([":memory:", "-csv", "-c", query])
             .output()
@@ -498,11 +495,8 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs BOTRACING_DUCKDB (the DuckDB CLI)"]
     fn a_chunk_adds_wall_ms_et_update_and_the_compound_names() {
-        let duck_exe = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
-        if !duck_exe.is_file() {
-            return;
-        }
         let lay = layout();
         let telem = lay.built("TelemInfoV01").unwrap();
         let mut raw = vec![0_u8; telem.size];
@@ -561,17 +555,11 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "needs BOTRACING_DUCKDB, LMU_SHM_HEADER_DIR and LAP_CAPTURE_SAMPLE"]
     fn rust_chunk_schema_matches_a_python_chunk_on_disk() {
-        let header_dir = Path::new(
-            r"C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\Support\SharedMemoryInterface",
-        );
-        let python = Path::new(
-            r"C:\Users\Botkin\AppData\Local\lap-capture\2026-10-07T02-56-12Z_daytona-international-speedway-road-course_10",
-        );
-        let duck_exe = Path::new(r"C:\Users\Botkin\AppData\Local\Temp\duckdb-cli\duckdb.exe");
-        if !duck_exe.is_file() || !header_dir.join("InternalsPlugin.hpp").is_file() || !python.is_dir() {
-            return;
-        }
+        let header_dir = env_path("LMU_SHM_HEADER_DIR");
+        // A capture folder the Python recorder wrote, with player-0000 and field-0000 in it.
+        let python = env_path("LAP_CAPTURE_SAMPLE");
         let mut text = String::new();
         for name in ["InternalsPlugin.hpp", "SharedMemoryInterface.hpp"] {
             text.push_str(&std::fs::read_to_string(header_dir.join(name)).unwrap());
@@ -606,7 +594,7 @@ mod tests {
             for (name, ty) in &py {
                 match rs_map.get(name) {
                     None => only_py.push(name.clone()),
-                    Some(other) if other != ty && !both_float(ty, other) => {
+                    Some(other) if other != ty && !(both_float(ty, other) && narrowable(name)) => {
                         type_diff.push(format!("{name}: python {ty}, rust {other}"));
                     }
                     _ => {}
@@ -622,8 +610,32 @@ mod tests {
         }
     }
 
+    /// float32 or double is a per-chunk choice (a column narrows only when every
+    /// value is exact) for these names and no others.
+    fn narrowable(name: &str) -> bool {
+        float32_player().contains(name) || float32_field().contains(name)
+    }
+
     fn both_float(a: &str, b: &str) -> bool {
         let float = |t: &str| t.eq_ignore_ascii_case("FLOAT") || t.eq_ignore_ascii_case("DOUBLE");
         float(a) && float(b)
+    }
+
+    /// columns.py's FLOAT32_PLAYER and FLOAT32_FIELD, dumped to JSON, are the
+    /// sets written here; a name added to one side only changes the schema.
+    #[test]
+    fn the_float32_sets_equal_columns_py() {
+        let dump: serde_json::Value =
+            serde_json::from_str(include_str!("float32_sets.json")).unwrap();
+        let set = |key: &str| -> HashSet<String> {
+            dump[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap().to_string())
+                .collect()
+        };
+        assert_eq!(&set("player"), float32_player());
+        assert_eq!(&set("field"), float32_field());
     }
 }
