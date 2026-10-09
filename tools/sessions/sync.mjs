@@ -61,6 +61,7 @@ import {classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldFor} from './field.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
+import {irFieldFor} from './irField.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {checkDoc} from './docShape.mjs';
@@ -408,7 +409,7 @@ function build(
     `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
 
   // Every car in the session, when tools/capture recorded it (field.mjs).
-  const fieldOut = fieldFor(
+  const fieldOut = (sim === 'iracing' ? irFieldFor : fieldFor)(
     captureRoot,
     span,
     recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
