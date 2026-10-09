@@ -62,11 +62,12 @@ fn key_value(text: &str) -> Option<(&str, &str)> {
     Some((key, value))
 }
 
-/// "0xff5888" to "#ff5888"; anything that is not six hex digits to "".
+/// "0xff5888" to "#ff5888"; a short value is padded with zeros ("0x5888" is
+/// "#005888"); anything that is not 1 to 6 hex digits is "".
 fn hex_colour(value: &str) -> String {
     let digits = value.trim().trim_start_matches("0x").trim_start_matches("0X");
-    if digits.len() == 6 && digits.chars().all(|c| c.is_ascii_hexdigit()) {
-        format!("#{}", digits.to_ascii_lowercase())
+    if (1..=6).contains(&digits.len()) && digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("#{:0>6}", digits.to_ascii_lowercase())
     } else {
         String::new()
     }
@@ -372,6 +373,9 @@ DriverInfo:
         assert_eq!(m.drivers[0].class_color, "#ff5888");
         assert_eq!(m.drivers[1].class_color, "#33ceff");
         assert_eq!(m.drivers[4].class_color, "", "not a colour: nothing");
+        assert_eq!(hex_colour("0x5888"), "#005888", "short values are padded");
+        assert_eq!(hex_colour("0x0"), "#000000");
+        assert_eq!(hex_colour("0xff58880"), "", "too long is not a colour");
         // No short name: the model most of the class drives.
         assert_eq!(m.class_label(4011), "Ford Mustang GT3");
         assert_eq!(m.class_label(2523), "Dallara P217 LMP2");
