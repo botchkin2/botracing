@@ -7,8 +7,7 @@
 // thread 2 (#8):
 //   - The uid comes only from the verified ID token. Nothing in a request names
 //     an owner. The owner key is the uid, or what an admin put in
-//     users/{uid}.ownerKey (Botkin's is 'botkin', so his existing data keeps
-//     its ids and paths). A client cannot write the users collection.
+//     users/{uid}.ownerKey. A client cannot write the users collection.
 //   - Documents are stamped with the owner key; a document or file another
 //     owner holds is refused, never overwritten.
 //   - Paths come from allow-lists plus a safe id; size and shape are checked
@@ -19,9 +18,8 @@
 // and the surface and outline files they point at) is app data, curated by
 // Botkin only (pit wall thread 2, #155): a user can read the shared docs and
 // can never write them, so a write op naming one is refused. Bucket files are
-// owner-scoped by their own path; archive/ has no owner segment, so non-legacy
-// owners get archive/{ownerKey}/.
-export const LEGACY_OWNER = 'botkin';
+// owner-scoped by their own path. The client spells an archive file
+// archive/{sim}/...; it is stored as archive/{ownerKey}/{sim}/...
 export const MAX_DOC_BYTES = 900_000; // Firestore's own limit is 1 MiB
 // Files go straight to Storage by signed URL, not through the function; this
 // bounds what a signed URL will accept.
@@ -161,8 +159,6 @@ function checkId(coll: unknown, id: unknown, allowed: string[]): void {
     refuse(400, 'bad document id');
 }
 
-const isLegacy = (ownerKey: string) => ownerKey === LEGACY_OWNER;
-
 const docPath = (coll: string, id: string): string => `${coll}/${id}`;
 
 // The client's bucket path -> where it is stored, or a refusal.
@@ -177,12 +173,10 @@ function filePath(ownerKey: string, dest: unknown): string {
     return dest;
   }
   if (folder === 'archive') {
-    // The sim segment is allow-listed so the legacy owner's unscoped path
-    // cannot name another owner's archive/{ownerKey}/ folder.
+    // The sim segment is allow-listed so a client path cannot name another
+    // owner's archive/{ownerKey}/ folder.
     if (!SIMS.includes(segments[1])) return refuse(403, 'unknown sim');
-    return isLegacy(ownerKey)
-      ? dest
-      : `archive/${ownerKey}/${segments.slice(1).join('/')}`;
+    return `archive/${ownerKey}/${segments.slice(1).join('/')}`;
   }
   return refuse(403, 'file folder not allowed');
 }
@@ -190,7 +184,7 @@ function filePath(ownerKey: string, dest: unknown): string {
 // A stored name back to the client's spelling (for /files).
 function clientName(ownerKey: string, stored: string): string {
   const mine = `archive/${ownerKey}/`;
-  return !isLegacy(ownerKey) && stored.startsWith(mine)
+  return stored.startsWith(mine)
     ? `archive/${stored.slice(mine.length)}`
     : stored;
 }
