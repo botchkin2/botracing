@@ -1,6 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type RawTrace, gridIndex, resampleTrace, timeDiffS} from './resample';
+import {
+  type RawTrace,
+  gridIndex,
+  medianTrace,
+  resampleTrace,
+  timeDiffS,
+} from './resample';
 
 // A lap at constant speed over a 1000 m track, sampled at 10 Hz.
 function constantLap(speedKph: number, lengthM = 1000): RawTrace {
@@ -128,5 +134,42 @@ describe('gridIndex', () => {
     expect(gridIndex(g, 12)).toBe(2);
     expect(gridIndex(g, -3)).toBe(0);
     expect(gridIndex(g, 5000)).toBe(200);
+  });
+});
+
+describe('medianTrace', () => {
+  const lapAt = (kph: number) => resampleTrace(constantLap(kph), 1000, 5, 10);
+
+  it('takes the median of each channel at every grid point', () => {
+    const m = medianTrace([lapAt(150), lapAt(180), lapAt(240)]);
+    expect(m.distanceM).toHaveLength(201);
+    expect(m.speedKph[100]).toBeCloseTo(180);
+    expect(m.gear[10]).toBe(3);
+    expect(m.gear[190]).toBe(4);
+  });
+
+  it('ends its elapsed time on the median official lap time', () => {
+    const laps = [lapAt(150), lapAt(180), lapAt(240)];
+    const official = [24.4, 20.2, 15.1];
+    const m = medianTrace(laps, official);
+    expect(m.timeS[200]).toBeCloseTo(20.2, 6);
+    expect(m.timeS[0]).toBeCloseTo(0, 1);
+  });
+
+  it('is the midpoint of two laps', () => {
+    const m = medianTrace([lapAt(150), lapAt(210)], [24, 17]);
+    expect(m.timeS[200]).toBeCloseTo(20.5, 6);
+    expect(m.speedKph[100]).toBeCloseTo(180);
+  });
+
+  it('stops where the shortest trace stops', () => {
+    const short = lapAt(180);
+    short.distanceM = short.distanceM.slice(0, 100);
+    short.timeS = short.timeS.slice(0, 100);
+    expect(medianTrace([short, lapAt(180)]).distanceM).toHaveLength(100);
+  });
+
+  it('refuses an empty set', () => {
+    expect(() => medianTrace([])).toThrow();
   });
 });

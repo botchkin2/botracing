@@ -147,10 +147,7 @@ describe('buildPitCard', () => {
         'refuel at 3.4 L/s · GT3, measured on 5 stops',
       );
       expect(card.hasVe).toBe(true);
-      expect(card.key).toEqual([
-        'VE out: what was left (bright) and what the stop added (dim), of a full load.',
-        'Pit lane: the time in the lane, with the refuelling inside it (bright).',
-      ]);
+      expect(card.key).toEqual(['■ left ▪ added', '■ refuelling']);
     });
   });
 
@@ -257,7 +254,7 @@ describe('buildPitCard', () => {
     });
     expect(card.columns[0].lane?.refuelS).toBeNull();
     expect(card.columns[0].lane?.note).toBeNull();
-    expect(card.key[1]).toBe('Pit lane: the time in the lane.');
+    expect(card.key).toEqual(['■ left ▪ added']);
     expect(card.refuelScope).toBeNull();
   });
 
@@ -592,7 +589,7 @@ describe('buildPitCard', () => {
       expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps'});
       expect(c.added).toEqual({value: '+40.1 L', note: null});
       expect(c.lane?.value).toBe('51.2 s');
-      expect(card.key).toEqual(['Pit lane: the time in the lane.']);
+      expect(card.key).toEqual([]);
       expect(card.end?.spare).toBe('3.7 L (1.5 laps)');
     });
   });

@@ -18,6 +18,7 @@ import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareModel,
+  medianBasisOf,
   type ForeignLaps,
   type ChannelId,
   type CompareModel,
@@ -157,6 +158,16 @@ export function useCompareModel(
     [map.data, surface.data, traces, knownIds],
   );
 
+  // The median of the checked laps changes with the set of loaded traces, not
+  // with the cursor, so it is built here and handed to the pure model.
+  const basisTrace = useMemo(() => {
+    const own = laps.data ?? [];
+    const checked = selection.laps
+      .map(id => [...own, ...foreign.laps].find(l => l.id === id))
+      .filter((l): l is Lap => l != null);
+    return medianBasisOf(checked, traces);
+  }, [laps.data, foreign.laps, selection.laps, traces]);
+
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = session;
   const {refetch: refetchLaps} = laps;
@@ -195,6 +206,7 @@ export function useCompareModel(
         charts,
         window,
         followGeometry,
+        basisTrace,
       }),
     };
   }, [
@@ -211,6 +223,7 @@ export function useCompareModel(
     surface.isPending,
     band.data,
     traces,
+    basisTrace,
     selection,
     charts,
     window,

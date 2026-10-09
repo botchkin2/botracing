@@ -198,3 +198,64 @@ export function gridIndex(trace: GridTrace, distanceM: number): number {
   const i = Math.round(distanceM / trace.stepM);
   return Math.max(0, Math.min(trace.distanceM.length - 1, i));
 }
+
+function medianOf(values: number[]): number {
+  const v = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (v.length === 0) return NaN;
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+// The basis of a set of laps: at every grid point, the median of each channel
+// and of elapsed time. With `lapTimesS` (the official lap times, one per
+// trace) each lap's elapsed time is first stretched linearly so it ends on its
+// official time, as timeDiffS does; the median's time at the line is then the
+// median lap time exactly, so a header number and the trace agree. Traces must
+// share the grid; the median stops where the shortest one stops. The median
+// path is not a real lap: `samples` holds its grid points, nothing recorded.
+export function medianTrace(
+  traces: GridTrace[],
+  lapTimesS?: number[],
+): GridTrace {
+  if (traces.length === 0) throw new Error('medianTrace needs at least one trace');
+  const first = traces[0];
+  const n = Math.min(...traces.map(t => t.distanceM.length));
+  const timed = traces.map((t, k) => {
+    const official = lapTimesS?.[k];
+    if (official === undefined || n < 2) return t.timeS;
+    const residual = official - t.timeS[n - 1];
+    return t.timeS.map((s, i) => s + (residual * i) / (n - 1));
+  });
+  const at = (pick: (t: GridTrace, k: number) => number[]) =>
+    Array.from({length: n}, (_, i) =>
+      medianOf(traces.map((t, k) => pick(t, k)[i])),
+    );
+  const distanceM = first.distanceM.slice(0, n);
+  const speedKph = at(t => t.speedKph);
+  const throttlePct = at(t => t.throttlePct);
+  const brakePct = at(t => t.brakePct);
+  const steeringPct = at(t => t.steeringPct);
+  const gear = at(t => t.gear).map(Math.round);
+  const grid = (values: number[]) => ({distanceM, values});
+  return {
+    stepM: first.stepM,
+    distanceM,
+    speedKph,
+    throttlePct,
+    brakePct,
+    steeringPct,
+    gear,
+    lat: at(t => t.lat),
+    lon: at(t => t.lon),
+    timeS: at((_, k) => timed[k]),
+    samples: {
+      speedKph: grid(speedKph),
+      throttlePct: grid(throttlePct),
+      brakePct: grid(brakePct),
+      steeringPct: grid(steeringPct),
+      gear: grid(gear),
+      pathLateralM: {distanceM: [], values: []},
+      trackEdgeM: {distanceM: [], values: []},
+    },
+  };
+}

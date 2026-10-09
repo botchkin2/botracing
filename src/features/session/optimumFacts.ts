@@ -1,32 +1,38 @@
-// The Session line for the optimal lap (pit-wall thread 46, #1771 as
-// corrected in #1802): per stint, best sections summed and the sum of window
-// medians, each with the laps and windows behind it. Neither is a lap anyone
-// drove, so neither is called one, and neither is shown as a target
-// (CODE_STANDARDS §7).
-import {type SessionOptimum} from '@/src/data/sessions';
+// The Session lines for the optimal lap and its gap (decisions/lap/2026-10-04-
+// sections-and-compare.md, triage #4/#5): per stint, the best time of every
+// sector summed ("Optimal lap"), the median of every sector summed ("Typical
+// lap"), and Σ(median − best) between them, with the laps behind it. The gap is
+// time lost to inconsistency, and it is only comparable within a session
+// (the optimum falls with every lap driven). Neither lap was driven, and
+// none is a target (CODE_STANDARDS §7).
+import {type StintOptimum} from '@/src/analysis/sectionOptimum';
 import {formatLapTime} from '@/src/design';
 
 import type {Fact} from './model';
 
-/** Two facts per stint with enough laps; empty before the windows or under the floor. */
+/** Three facts per stint with enough laps; empty before the sectors or under the floor. */
 export function optimumFacts(
-  optimum: SessionOptimum | null,
+  stints: StintOptimum[],
+  sectorCount: number,
   stintCount: number,
 ): Fact[] {
-  if (!optimum) return [];
   const facts: Fact[] = [];
-  for (const s of optimum.stints) {
+  for (const s of stints) {
     if (s.bestSumS == null || s.medianSumS == null) continue;
     const where = stintCount > 1 ? ` · stint ${s.stint}` : '';
-    const n = `${s.lapCount} laps, ${s.windows.length} windows`;
+    const laps = `${s.lapCount} laps`;
     facts.push(
       {
-        label: `Best sections summed${where}`,
-        value: `${formatLapTime(s.bestSumS)} · ${n}`,
+        label: `Optimal lap${where}`,
+        value: `${formatLapTime(s.bestSumS)} · ${laps}, ${sectorCount} sectors`,
       },
       {
-        label: `Sum of window medians${where}`,
-        value: `${formatLapTime(s.medianSumS)} · ${n}`,
+        label: `Typical lap${where}`,
+        value: `${formatLapTime(s.medianSumS)} · ${laps}`,
+      },
+      {
+        label: `Inconsistency${where}`,
+        value: `+${(s.medianSumS - s.bestSumS).toFixed(3)} s · ${laps}`,
       },
     );
   }

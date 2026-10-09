@@ -4,12 +4,7 @@ import {describe, expect, it} from '@jest/globals';
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
-import {
-  buildDistribution,
-  buildStintTable,
-  buildStintVsStint,
-  median,
-} from './desktopModel';
+import {buildStintTable, buildStintVsStint, median} from './desktopModel';
 
 // Road Atlanta race, 2026-09-26: 22 laps, stint 1 = L1–L17, stint 2 = L18–L22.
 // consistency.stints only stores stint 2 (trendPerLap 0).
@@ -39,45 +34,6 @@ describe('buildStintTable', () => {
   it('fall-off only where the session doc stores a trend', () => {
     expect(rows[0].detail).toBe('L1–L17');
     expect(rows[1].detail).toBe('L18–L22 · fall-off ±0.000 s/lap');
-  });
-});
-
-describe('buildDistribution', () => {
-  const sel = {laps: ['a367e0c6253951e8-003'], hl: 'a367e0c6253951e8-020'};
-  const d = buildDistribution(session, laps, sel)!;
-
-  it('a row per stint and a dot per comparable lap', () => {
-    expect(d.rows.map(r => r.label)).toEqual(['Stint 1', 'Stint 2']);
-    expect(d.dots).toHaveLength(16);
-    expect(d.dots.filter(x => x.row === 1)).toHaveLength(3);
-  });
-
-  it('fastest lap at 0, slowest at 1, medians inside', () => {
-    const xs = d.dots.map(x => x.x01);
-    expect(Math.min(...xs)).toBe(0);
-    expect(Math.max(...xs)).toBe(1);
-    for (const r of d.rows) {
-      expect(r.median01).toBeGreaterThanOrEqual(0);
-      expect(r.median01).toBeLessThanOrEqual(1);
-    }
-    expect(d.axis.map(a => a.x01)).toEqual([0, 0.5, 1]);
-    expect(d.axis[0].label).toBe('1:20.763');
-  });
-
-  it('marks best, selected and highlighted laps', () => {
-    const best = d.dots.find(x => x.best)!;
-    expect(best.lapId).toBe(session.bestLapId);
-    expect(best.highlighted).toBe(true);
-    expect(best.x01).toBe(0);
-    const selected = d.dots.filter(x => x.selIndex != null);
-    expect(selected.map(x => [x.lapId, x.selIndex])).toEqual([
-      ['a367e0c6253951e8-003', 0],
-    ]);
-  });
-
-  it('null when no lap is comparable', () => {
-    const none = laps.map(l => ({...l, comparable: false}));
-    expect(buildDistribution(session, none, {laps: [], hl: null})).toBeNull();
   });
 });
 
