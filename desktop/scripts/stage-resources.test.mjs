@@ -3,7 +3,7 @@ import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
-import {ADMIN_ONLY, closure, scan, sha256, verified, withoutComments} from './stage-resources.mjs';
+import {ADMIN_ONLY, NODE, closure, nodeSource, scan, sha256, verified, withoutComments} from './stage-resources.mjs';
 
 test('words in comments are not imports', () => {
   const src = `// import x from './nope'\n/* import('./also-nope') */\nimport a from './real.mjs'; // from 'trailing'\nconst u = 'https://example.com/x';`;
@@ -81,4 +81,14 @@ test('the one allowed package require is named, with a reason, and nothing else 
   writeFileSync(join(root, 'tools/sessions/other.mjs'), "const a = require('firebase-admin');");
   assert.deepEqual(closure(root, ['tools/sessions/store.mjs']).bare, [], 'allowed in store.mjs');
   assert.deepEqual(closure(root, ['tools/sessions/other.mjs']).bare, ['firebase-admin'], 'not allowed anywhere else');
+});
+
+// npm and npx set NODE to the node that runs them: on the runner that was
+// 24.21.0, and the first tray-v0.1.0 build refused it against the pin.
+test('the bundled node never comes from NODE, only from the pin (or BOTRACING_NODE_EXE)', () => {
+  const runner = nodeSource({NODE: 'C:/hostedtoolcache/node/24.21.0/x64/node.exe'});
+  assert.equal(runner.local, null);
+  assert.ok(runner.path.endsWith(`node-${NODE.version}.exe`), runner.path);
+  const given = nodeSource({NODE: 'C:/runner/node.exe', BOTRACING_NODE_EXE: 'D:/mine/node.exe'});
+  assert.equal(given.local, 'D:/mine/node.exe');
 });
