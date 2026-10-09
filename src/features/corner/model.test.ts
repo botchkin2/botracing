@@ -61,6 +61,11 @@ const lap = (
     {
       segTime: 99,
       brakeAtM: 1,
+      // One brake application per corner, each by the corner it is for.
+      brakeApps: [
+        {onsetM: 450, peakPct: 80, part: 2},
+        {onsetM: 620, peakPct: 95, part: 3},
+      ],
       parts: [
         {segTime: 1, brakeAtM: 480},
         {
@@ -144,8 +149,18 @@ describe('buildCornerModel (per single corner)', () => {
     expect(m.rows[0].values).toEqual({
       time: 9.8,
       brake: 180,
+      peakBrake: 95,
       minSpeed: 110,
       throttle: 10,
+    });
+  });
+
+  it('takes the peak brake of the application for this corner (part 3, not part 2)', () => {
+    expect(m.rows.map(r => r.values.peakBrake)).toEqual([95, 95, 95]);
+    expect(m.rows[0].cells.peakBrake).toEqual({
+      value: '95',
+      gap: null,
+      better: false,
     });
   });
 

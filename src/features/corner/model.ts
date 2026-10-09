@@ -81,7 +81,7 @@ export function referenceFirst(
   };
 }
 
-export type Measure = 'time' | 'brake' | 'minSpeed' | 'throttle';
+export type Measure = 'time' | 'brake' | 'peakBrake' | 'minSpeed' | 'throttle';
 
 export const MEASURES: {
   id: Measure;
@@ -92,6 +92,7 @@ export const MEASURES: {
 }[] = [
   {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
   {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
+  {id: 'peakBrake', label: 'Peak brake %', unit: '%', better: 'higher'},
   {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
   {
     id: 'throttle',
@@ -100,6 +101,16 @@ export const MEASURES: {
     better: 'lower',
   },
 ];
+
+/** The peak pedal % of the brake application for this corner; null when the lap has none for it. */
+function peakBrakeOf(lap: Lap, corner: TrackCorner): number | null {
+  const apps = lap.sections[corner.sectionIndex]?.brakeApps ?? [];
+  const app =
+    corner.partIndex == null
+      ? apps.find(a => a.part == null)
+      : apps.find(a => a.part === corner.n);
+  return app?.peakPct ?? null;
+}
 
 export type CornerRow = {
   lapId: string;
@@ -195,6 +206,7 @@ export const AT_MIN = 'at min';
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
   brake: v => `${Math.round(v)}`,
+  peakBrake: v => `${Math.round(v)}`,
   minSpeed: v => `${Math.round(v)}`,
   throttle: v => `${Math.round(v)}`,
 };
@@ -309,6 +321,7 @@ export function buildCornerModel(input: {
     return {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
+      peakBrake: peakBrakeOf(l, sec),
       minSpeed: f?.minSpeedKph ?? null,
       // Already at full throttle at the slowest sample: no full-throttle point,
       // the search's start is not a point on the lap.
