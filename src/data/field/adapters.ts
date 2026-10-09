@@ -140,6 +140,9 @@ export function toField(rawInput: unknown): Field {
     return {
       index: car,
       carClass: typeof c.class === 'string' ? c.class : '',
+      // iRacing only (tools/sessions/irClasses.mjs).
+      classId: typeof c.classId === 'number' ? c.classId : null,
+      classLabel: typeof c.classLabel === 'string' ? c.classLabel : null,
       vehicle: typeof c.vehicle === 'string' ? c.vehicle : null,
       player: c.player === true,
       lapDistM: floatChannel(raw, 'lapDistDm', car, n, updates, DM),

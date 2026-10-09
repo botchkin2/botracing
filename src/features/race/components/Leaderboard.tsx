@@ -1,18 +1,16 @@
 import {memo, useEffect, useRef} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 
-import {radius, size, space, useTheme} from '@/src/design';
+import {type FieldClass} from '@/src/analysis/fieldClasses';
+import {classColor, radius, size, space, useTheme} from '@/src/design';
 import {Segment, Text} from '@/src/ui';
 
 import {
-  CLASS_SHORT,
   type ClassFilter,
-  type ClassKey,
   type RaceGroup,
   type RaceMode,
   type RaceRow,
 } from '../model';
-import {classColor} from './classColor';
 
 // Handoff R1a: rows 32 pt on the phone, 24 pt on desktop (R1b); a 3 pt class
 // bar; the car's model in place of a number (the field carries no numbers).
@@ -39,7 +37,7 @@ export const Leaderboard = memo(function Leaderboard({
   fallbackNote,
 }: {
   groups: RaceGroup[];
-  classes: readonly ClassKey[];
+  classes: readonly FieldClass[];
   filter: ClassFilter;
   onFilter: (f: ClassFilter) => void;
   onFocus: (index: number) => void;
@@ -74,7 +72,7 @@ export const Leaderboard = memo(function Leaderboard({
           options={[
             ...(nearby ? [{value: 'nearby' as const, label: 'Nearby'}] : []),
             {value: 'all', label: 'All'},
-            ...classes.map(k => ({value: k, label: CLASS_SHORT[k]})),
+            ...classes.map(k => ({value: k.key, label: k.short})),
           ]}
           value={filter}
           onChange={onFilter}
@@ -165,7 +163,10 @@ const Row = memo(function Row({
         {row.position}
       </Text>
       <View
-        style={[styles.classBar, {backgroundColor: classColor(color, row.key)}]}
+        style={[
+          styles.classBar,
+          {backgroundColor: classColor(color, row.slot)},
+        ]}
       />
       <Text
         variant='body'

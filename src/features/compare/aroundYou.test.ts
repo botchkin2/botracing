@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type Field} from '@/src/analysis/field';
+import {type ClassTable, type FieldClass} from '@/src/analysis/fieldClasses';
 import {type Radar, type RadarCar} from '@/src/analysis/radar';
 
 import {aroundYouRows} from './aroundYou';
@@ -12,7 +13,7 @@ const rc = (
   over = {},
 ): RadarCar => ({
   index,
-  cls: 'gt3',
+  slot: 'class3',
   forwardM,
   sideM,
   relYawRad: 0,
@@ -32,6 +33,29 @@ const field = {
   ],
 } as unknown as Field;
 
+// Hypercar first, GT3 third, as on a Daytona race.
+const classOf = (key: string): FieldClass =>
+  key === 'hypercar'
+    ? {
+        key,
+        slot: 'class1',
+        label: 'Hypercar',
+        title: 'HYPERCAR',
+        short: 'HY',
+        rank: 0,
+        paceS: 100,
+      }
+    : {
+        key,
+        slot: 'class3',
+        label: 'GT3',
+        title: 'GT3',
+        short: 'GT3',
+        rank: 2,
+        paceS: 110,
+      };
+const classes: ClassTable = {list: [], of: classOf};
+
 describe('aroundYouRows', () => {
   const radar: Radar = {
     cars: [
@@ -42,7 +66,7 @@ describe('aroundYouRows', () => {
     leftLit: false,
     rightLit: true,
   };
-  const rows = aroundYouRows(radar, field);
+  const rows = aroundYouRows(radar, field, classes);
 
   it('lists the nearest car first', () => {
     expect(rows.map(r => r.index)).toEqual([3, 2, 1]);
@@ -59,12 +83,19 @@ describe('aroundYouRows', () => {
   it('carries the alongside flag, and the model or else the class as its name', () => {
     expect(rows[0].alongside).toBe('right');
     expect(rows[2].label).toBe('Ferrari 296 GT3');
-    expect(rows[1].label).toBe('Hyper');
+    expect(rows[1].label).toBe('Hypercar');
+    // The class label goes with its colour.
+    expect(rows[1].short).toBe('HY');
+    expect(rows[2].short).toBe('GT3');
   });
 
   it('is empty with no cars', () => {
     expect(
-      aroundYouRows({cars: [], leftLit: false, rightLit: false}, field),
+      aroundYouRows(
+        {cars: [], leftLit: false, rightLit: false},
+        field,
+        classes,
+      ),
     ).toEqual([]);
   });
 });

@@ -53,9 +53,11 @@ const dark = {
   // line or a number. From oklch(0.62 0.20 25), (0.66 0.14 250), (0.73 0.16 48).
   // Round 3 R2: the radar drawn over the race map (rgba(13,15,18,.9)).
   radarInset: 'rgba(13,15,18,0.9)',
-  classHypercar: '#e64343',
-  classLmp2: '#4697e4',
-  classGt3: '#f68443',
+  // A session's classes by pace, fastest first (src/analysis/fieldClasses.ts):
+  // always shown with the class label beside them.
+  class1: '#e64343',
+  class2: '#4697e4',
+  class3: '#f68443',
   // Desktop chrome and rail (handoff "Desktop", D1).
   chrome: '#0b0d10',
   tabActive: '#1b1f24',

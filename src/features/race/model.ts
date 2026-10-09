@@ -1,52 +1,24 @@
-import {paceClass, paceOf} from '@/src/analysis/classLaps';
+import {
+  type ClassSlot,
+  type ClassTable,
+  type FieldClass,
+} from '@/src/analysis/fieldClasses';
 import {type CarState, type RaceCar} from '@/src/analysis/raceState';
 import {formatRaceGap} from '@/src/design';
 
 // The Race screen's model (handoff R1): the leaderboard rows and the map dots
 // at one moment. Pure: `RaceScreen` gathers the field and the clock, this
-// turns cars into what is drawn.
+// turns cars into what is drawn. Classes, their order, names and colours come
+// from the session's class table (analysis/fieldClasses.ts), one rule for LMU
+// and iRacing.
 
-export type ClassKey = 'hypercar' | 'lmp2' | 'gt3' | 'other';
-/** 'nearby' (field mode): every class, the cars within NEARBY_S of you on the road. */
-export type ClassFilter = 'all' | 'nearby' | ClassKey;
+/** 'nearby' (field mode): every class, the cars within NEARBY_S of you on the road; else a class key. */
+export type ClassFilter = 'all' | 'nearby' | string;
 
 /** The Nearby filter's reach, seconds along the road either way (apex, thread 44 #1822). */
 export const NEARBY_S = 10;
 /** Where a time is not known (the car that sets it stands still), metres instead. */
 export const NEARBY_STILL_M = 150;
-
-// Field order, top of the leaderboard down.
-export const CLASS_ORDER: ClassKey[] = ['hypercar', 'lmp2', 'gt3', 'other'];
-export const CLASS_TITLE: Record<ClassKey, string> = {
-  hypercar: 'HYPERCAR',
-  lmp2: 'LMP2',
-  gt3: 'GT3',
-  other: 'OTHER',
-};
-/** Class names in running text (the road summary), as the rest of the app writes them. */
-const CLASS_NAME: Record<ClassKey, string> = {
-  hypercar: 'Hypercar',
-  lmp2: 'LMP2',
-  gt3: 'GT3',
-  other: 'Other',
-};
-/** Short names for the class filter. */
-export const CLASS_SHORT: Record<ClassKey, string> = {
-  hypercar: 'HY',
-  lmp2: 'P2',
-  gt3: 'GT3',
-  other: 'Other',
-};
-
-/**
- * LMU's class strings to the three the design colours. GTE takes the GT3
- * colour here; class timing keeps it apart (`paceClass`), so the parsing of
- * the sim's strings is in one place.
- */
-export function classKey(carClass: string): ClassKey {
-  const pace = paceClass(carClass);
-  return pace === 'gte' ? 'gt3' : pace;
-}
 
 // LMU names a car's model with its class on the end ("Porsche 911 GT3 R
 // LMGT3", "Chevrolet Corvette Z06 LMGT3.", "... AMR LMGT" cut at 30 characters),
@@ -110,7 +82,7 @@ export function roadGapS(
 const signed = (v: number, text: string) => `${v < 0 ? '−' : '+'}${text}`;
 
 export type RoadNeighbour = {
-  key: ClassKey;
+  cls: FieldClass;
   metres: number;
   /** Null when the car that sets the time is standing still. */
   seconds: number | null;
@@ -126,27 +98,30 @@ export type RoadSummary = {
 
 /**
  * Cars on the road around you: cars in the pit lane or the garage are not on
- * it. Null without you on the road. `coming` is a faster class by `paceOf`'s
- * rank, so GT3 and GTE count as one class here.
+ * it. Null without you on the road. `coming` is a class ranked faster than
+ * yours in the session's class table; a class not ranked on pace, and cars
+ * with no class, are never `coming`.
  */
 export function roadSummary(
   cars: RaceCar[],
   trackM: number,
+  classes: ClassTable,
 ): RoadSummary | null {
   const you = cars.find(c => c.player);
   if (!you || you.state === 'garage' || you.state === 'pit') return null;
-  const mine = paceOf(you.carClass).rank;
+  const mine = classes.of(you.classKey);
   const around = cars.flatMap(c => {
     if (c.player || c.state === 'garage' || c.state === 'pit') return [];
     const m = roadOffsetM(c, you, trackM);
+    const cls = classes.of(c.classKey);
     return m === null
       ? []
       : [
           {
-            key: classKey(c.carClass),
+            cls,
             metres: m,
             seconds: roadGapS(c, you, m),
-            rank: paceOf(c.carClass).rank,
+            faster: cls.paceS != null && cls.rank < mine.rank,
           },
         ];
   });
@@ -157,7 +132,7 @@ export function roadSummary(
       Math.abs(b.metres) < Math.abs(a.metres) ? b : a,
     );
     return {
-      key: best.key,
+      cls: best.cls,
       metres: Math.abs(best.metres),
       seconds: best.seconds,
     };
@@ -168,8 +143,7 @@ export function roadSummary(
     behind: nearest(behind),
     coming: nearest(
       behind.filter(
-        c =>
-          c.rank > mine && c.seconds !== null && c.seconds <= COMING_WITHIN_S,
+        c => c.faster && c.seconds !== null && c.seconds <= COMING_WITHIN_S,
       ),
     ),
   };
@@ -187,17 +161,13 @@ export function roadSummaryText(s: RoadSummary): string {
   const sameCar =
     s.coming != null &&
     s.behind != null &&
-    s.coming.key === s.behind.key &&
+    s.coming.cls.key === s.behind.cls.key &&
     s.coming.metres === s.behind.metres;
   const one = (label: string, n: RoadNeighbour | null, note = '') =>
-    n ? [`${label} ${distanceText(n)} ${CLASS_NAME[n.key]}${note}`] : [];
+    n ? [`${label} ${distanceText(n)} ${n.cls.label}${note}`] : [];
   const faster =
     s.coming && !sameCar
-      ? [
-          `Faster class: ${CLASS_NAME[s.coming.key]} ${distanceText(
-            s.coming,
-          )} behind`,
-        ]
+      ? [`Faster class: ${s.coming.cls.label} ${distanceText(s.coming)} behind`]
       : [];
   return [
     ...one('Ahead', s.ahead),
@@ -208,7 +178,8 @@ export function roadSummaryText(s: RoadSummary): string {
 
 export type RaceRow = {
   index: number;
-  key: ClassKey;
+  /** The class colour (fieldClasses.ts). */
+  slot: ClassSlot;
   /** Place in the class, "" in the garage and in the field mode. */
   position: string;
   model: string;
@@ -225,7 +196,7 @@ export type RaceGroup = {title: string | null; rows: RaceRow[]};
 
 export type RaceDot = {
   index: number;
-  key: ClassKey;
+  slot: ClassSlot;
   state: CarState;
   player: boolean;
   focused: boolean;
@@ -241,12 +212,12 @@ export type RaceModel = {
   groups: RaceGroup[];
   /** Draw order: the field, then the focused car, then you last (R1d). */
   dots: RaceDot[];
-  /** The classes present, in order, for the filter. */
-  classes: ClassKey[];
+  /** The classes present, fastest first, for the filter and the legend. */
+  classes: FieldClass[];
   /** The filter in effect: the wanted one if present, else All. */
   filter: ClassFilter;
   carCount: number;
-  you: {key: ClassKey; model: string} | null;
+  you: {cls: FieldClass; model: string} | null;
   /** The focus chip's text: "Ferrari 296 GT3 · GT3 P5 · +3.412". */
   focusLabel: string | null;
   /** Field mode only: who is near you on the road; null in a race or without you on it. */
@@ -277,7 +248,7 @@ export function defaultFilter(
 ): ClassFilter {
   if (opts.nearby) return 'nearby';
   const you = cars.find(c => c.player);
-  return you ? classKey(you.carClass) : 'all';
+  return you ? you.classKey : 'all';
 }
 
 /** Why the road list is not available: where you are instead. */
@@ -309,7 +280,12 @@ export function gapText(car: RaceCar): string {
   return car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '';
 }
 
-type Frame = {mode: RaceMode; you: RaceCar | undefined; trackM: number};
+type Frame = {
+  mode: RaceMode;
+  you: RaceCar | undefined;
+  trackM: number;
+  classes: ClassTable;
+};
 
 /** The row's gap column: the gap to the class leader in a race, in the field mode the road gap from you in seconds ("+1.5 s"), metres where the time is not known. */
 function gapOf(car: RaceCar, frame: Frame): string {
@@ -329,7 +305,7 @@ function rowOf(car: RaceCar, focus: number | null, frame: Frame): RaceRow {
   const garage = car.state === 'garage';
   return {
     index: car.index,
-    key: classKey(car.carClass),
+    slot: frame.classes.of(car.classKey).slot,
     position: garage || frame.mode === 'field' ? '' : String(car.classPlace),
     model: displayModel(car.vehicle),
     gap: gapOf(car, frame),
@@ -369,11 +345,11 @@ function focusText(car: RaceCar, frame: Frame): string {
   if (car.state === 'garage') {
     parts.push('in the garage');
   } else if (frame.mode === 'field') {
-    parts.push(CLASS_TITLE[classKey(car.carClass)]);
+    parts.push(frame.classes.of(car.classKey).title);
     const gap = gapOf(car, frame);
     if (gap) parts.push(gap);
   } else {
-    parts.push(`${CLASS_TITLE[classKey(car.carClass)]} P${car.classPlace}`);
+    parts.push(`${frame.classes.of(car.classKey).title} P${car.classPlace}`);
     const gap = gapText(car);
     if (gap) parts.push(gap);
   }
@@ -396,7 +372,7 @@ export function labelRank(
       : car.player
       ? 1
       : you &&
-        classKey(car.carClass) === classKey(you.carClass) &&
+        car.classKey === you.classKey &&
         Math.abs(car.classPlace - you.classPlace) <= 3
       ? 2
       : car.classPlace === 1
@@ -413,15 +389,18 @@ export function buildRaceModel(input: {
   mode?: RaceMode;
   /** The track's length in metres, for the road offsets of the field mode. */
   trackM?: number;
+  /** The session's classes (fieldClasses), built once per field. */
+  classes: ClassTable;
 }): RaceModel {
   const {cars, focus} = input;
   const frame: Frame = {
     mode: input.mode ?? 'race',
     you: cars.find(c => c.player),
     trackM: input.trackM ?? 0,
+    classes: input.classes,
   };
-  const present = CLASS_ORDER.filter(k =>
-    cars.some(c => classKey(c.carClass) === k),
+  const present = input.classes.list.filter(k =>
+    cars.some(c => c.classKey === k.key),
   );
   // Nearby needs the field mode and you on the road; otherwise All.
   const nearbyOk =
@@ -434,7 +413,7 @@ export function buildRaceModel(input: {
       ? nearbyOk
         ? 'nearby'
         : 'all'
-      : input.filter !== 'all' && present.includes(input.filter)
+      : input.filter !== 'all' && present.some(k => k.key === input.filter)
       ? input.filter
       : 'all';
   const near = cars
@@ -446,16 +425,20 @@ export function buildRaceModel(input: {
     rows: near.map(c => rowOf(c, focus, frame)),
   };
   const shown =
-    filter === 'all' ? present : filter === 'nearby' ? [] : [filter];
+    filter === 'all'
+      ? present
+      : filter === 'nearby'
+      ? []
+      : present.filter(k => k.key === filter);
   const classGroups: RaceGroup[] = shown.map(k => {
     const inClass = cars
-      .filter(c => classKey(c.carClass) === k)
+      .filter(c => c.classKey === k.key)
       .sort((a, b) => byOrder(a, b, frame));
     return {
       title:
         filter === 'all'
-          ? `${CLASS_TITLE[k]} · ${inClass.length} CARS`
-          : `Class · ${CLASS_TITLE[k]}`,
+          ? `${k.title} · ${inClass.length} CARS`
+          : `Class · ${k.title}`,
       rows: inClass.map(c => rowOf(c, focus, frame)),
     };
   });
@@ -463,7 +446,7 @@ export function buildRaceModel(input: {
   const youCar = cars.find(c => c.player);
   const dot = (c: RaceCar): RaceDot => ({
     index: c.index,
-    key: classKey(c.carClass),
+    slot: input.classes.of(c.classKey).slot,
     state: c.state,
     player: c.player,
     focused: c.index === focus,
@@ -481,7 +464,10 @@ export function buildRaceModel(input: {
   const focused = focus == null ? undefined : cars.find(c => c.index === focus);
   return {
     focusLabel: focused ? focusText(focused, frame) : null,
-    road: frame.mode === 'field' ? roadSummary(cars, frame.trackM) : null,
+    road:
+      frame.mode === 'field'
+        ? roadSummary(cars, frame.trackM, input.classes)
+        : null,
     fallbackNote:
       input.filter === 'nearby' && frame.mode === 'field' && !nearbyOk
         ? notOnRoad(frame.you)
@@ -492,7 +478,7 @@ export function buildRaceModel(input: {
     filter,
     carCount: cars.length,
     you: you
-      ? {key: classKey(you.carClass), model: displayModel(you.vehicle)}
+      ? {cls: input.classes.of(you.classKey), model: displayModel(you.vehicle)}
       : null,
   };
 }

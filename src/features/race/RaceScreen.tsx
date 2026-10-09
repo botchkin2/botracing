@@ -5,6 +5,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
+import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
@@ -38,7 +39,6 @@ import {RaceTransport} from './components/RaceTransport';
 import {RaceLanesBlock} from './components/RaceLanesBlock';
 import {
   buildRaceModel,
-  CLASS_TITLE,
   type ClassFilter,
   defaultFilter,
   roadSummaryText,
@@ -257,6 +257,8 @@ function RaceView({
     () => raceLanes(prep.field, data.clock),
     [prep.field, data.clock],
   );
+  // The session's classes, fastest first, with their colours and labels.
+  const classes = useMemo(() => fieldClasses(prep.field), [prep.field]);
   const [zoom, setZoom] = useState<LaneZoom>('l10');
   const [focus, setFocus] = useState<number | null>(null);
   const [wanted, setWanted] = useState<ClassFilter | null>(null);
@@ -297,12 +299,15 @@ function RaceView({
         focus,
         mode,
         trackM: prep.trackM,
+        classes,
       }),
-    [sampleCars, filter, focus, mode, prep.trackM],
+    [sampleCars, filter, focus, mode, prep.trackM, classes],
   );
   const dots = useMemo(
-    () => buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM}).dots,
-    [cars, filter, focus, mode, prep.trackM],
+    () =>
+      buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
+        .dots,
+    [cars, filter, focus, mode, prep.trackM, classes],
   );
 
   // The radar shows the 5 Hz sample at or before the clock, even while the
@@ -325,8 +330,9 @@ function RaceView({
         radarU,
         RADAR_RANGE_M,
         (RADAR_RANGE_M * radarSize.width) / radarSize.height,
+        classes,
       ),
-    [prep, radarU, radarSize],
+    [prep, radarU, radarSize, classes],
   );
   // Desktop: the map takes everything left of the leaderboard and the height
   // left after the legend, lanes and transport, so both are measured, not set.
@@ -357,7 +363,7 @@ function RaceView({
   );
   const count = `${rows.carCount} cars \u00b7 ${rows.classes.length} classes`;
   const sub = rows.you
-    ? `${count} \u00b7 you ${rows.you.model} ${CLASS_TITLE[rows.you.key]}`
+    ? `${count} \u00b7 you ${rows.you.model} ${rows.you.cls.title}`
     : count;
   // Outside a race: who is near you on the road, in place of a position.
   const roadLine = rows.road ? roadSummaryText(rows.road) : '';
@@ -510,7 +516,7 @@ function RaceView({
             }>
             {mapBox.width > 0 && mapBox.height > 0 ? map : null}
           </View>
-          <RaceLegend />
+          <RaceLegend classes={rows.classes} />
           {lanesBlock}
           {controls}
           {layout.isWide ? null : (
@@ -563,7 +569,7 @@ function RaceView({
             </Text>
           ) : null}
           {map}
-          {keyOpen ? <RaceLegend /> : null}
+          {keyOpen ? <RaceLegend classes={rows.classes} /> : null}
         </View>
         {boardPaged}
         <View style={styles.phoneLanes}>{lanesBlock}</View>

@@ -9,6 +9,7 @@ function car(over: Partial<RaceCar>): RaceCar {
   return {
     index: 0,
     carClass: 'GT3',
+    classKey: 'gt3',
     vehicle: null,
     player: false,
     xM: 0,
