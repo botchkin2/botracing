@@ -45,12 +45,9 @@ fn start_sign_in(account: Shared<account::Account>) {
         let mut acct = account.lock().unwrap();
         acct.signing_in = false;
         match result {
-            Ok((session, accepted)) => {
-                acct.record_accepted(accepted);
-                acct.signed_in(session);
-            }
-            // Cancelled, timed out or refused: the top item stays "Sign in
-            // with Google" and the status says why.
+            Ok(session) => acct.signed_in(session),
+            // Cancelled, timed out or refused: the top item stays "Sign in"
+            // and the status says why.
             Err(e) => acct.message = Some(format!("Sign-in failed: {e}")),
         }
     });
@@ -84,11 +81,10 @@ fn main() {
             let supervisor: Shared<sidecar::Supervisor> =
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
 
-            // The top item is the way in: "Sign in with Google" while signed
+            // The top item is the way in: "Sign in" while signed
             // out (a click opens the browser), the account once signed in.
             let line = |id: &str, text: &str| MenuItem::with_id(app, id, text, false, None::<&str>);
-            let signin =
-                MenuItem::with_id(app, "signin", "Sign in with Google", true, None::<&str>)?;
+            let signin = MenuItem::with_id(app, "signin", "Sign in", true, None::<&str>)?;
             let status_item = line("status", "Starting…")?;
             let recorder_item = line("recorder", "Recorder: starting")?;
             let uid_item = line("uid", "uid —")?;

@@ -302,7 +302,17 @@ export type SessionDetail = SessionSummary & {
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
    *  later), or null for a session not yet resynced. */
   slices: SlicePointer | null;
+  /** How long the race is, from the capture; null for other sessions, and for a race with no capture. */
+  race: RaceLength | null;
 };
+
+/** The scheduled length of a race, in minutes. */
+export type RaceLength = {minutes: number};
+
+function toRaceLength(v: unknown): RaceLength | null {
+  const minutes = num(obj(v).minutes);
+  return minutes != null && minutes > 0 ? {minutes} : null;
+}
 
 export function toSessionDetail(raw: RawSession): SessionDetail {
   const stints = Array.isArray(raw.stints) ? raw.stints : [];
@@ -317,6 +327,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     field: toFieldPointer(raw.field),
+    race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),

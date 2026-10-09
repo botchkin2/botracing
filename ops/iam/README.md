@@ -148,10 +148,20 @@ node ops/iam/ciSplit.mjs revoke            # dry run
 node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the repo-level secret, old keys, the dead Garage 61 secrets
 ```
 
-Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after.
+Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets its copy of the deploy key; otherwise `grant` skips it and says so. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps one key per Environment that holds the deploy secret and deletes every older one.
 
 `grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
 
 Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
 
 Next, not in this step: Workload Identity Federation (GitHub OIDC) instead of keys, so no long-lived key exists at all.
+
+### Tray sign-in codes: delete the unused ones
+
+`POST /api/tray/code` stores one-time codes in `trayCodes/{sha256(code)}` (120 s, deleted when used). The ones nobody uses are removed by a Firestore TTL policy on their `expiresAt` field. Botkin runs this once; it needs no new role for the runtime account (the codes are read and deleted with `roles/datastore.user`, and the function signs custom tokens through step 1's Token Creator on itself):
+
+```powershell
+gcloud firestore fields ttls update expiresAt --collection-group=trayCodes --enable-ttl --project=botracing-61
+```
+
+Check: `gcloud firestore fields ttls list --project=botracing-61` lists `trayCodes` as `ACTIVE`. Until it is on, unused codes sit in a collection no client can read (`firestore.rules` deny everything) and expire in the function's own check.
