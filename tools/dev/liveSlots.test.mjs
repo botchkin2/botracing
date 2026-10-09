@@ -82,3 +82,32 @@ test('a path outside .claude/worktrees that merely starts with it is refused', (
   });
   assert.match(r.message, /not the main checkout/);
 });
+
+test('a worktree with no install uses the main checkout packages when the lockfile matches', () => {
+  const lock = '{"lockfileVersion":3}';
+  const files = {
+    [path.join(root, SLOTS_FILE)]: JSON.stringify({1: wt}),
+    [path.join(wt, 'package-lock.json')]: lock,
+    [path.join(root, 'package-lock.json')]: lock,
+  };
+  const r = resolveSlot({root, slot: 1, fs: fsOf(files, [wt, cliOf(root)])});
+  assert.equal(r.dir, wt);
+  assert.equal(r.cli, cliOf(root));
+});
+
+test('a worktree whose lockfile differs from main keeps the npm ci error', () => {
+  const files = {
+    [path.join(root, SLOTS_FILE)]: JSON.stringify({1: wt}),
+    [path.join(wt, 'package-lock.json')]: '{"a":1}',
+    [path.join(root, 'package-lock.json')]: '{"a":2}',
+  };
+  const r = resolveSlot({root, slot: 1, fs: fsOf(files, [wt, cliOf(root)])});
+  assert.ok(r instanceof Error);
+  assert.match(r.message, /package-lock\.json differs/);
+});
+
+test('the main checkout with no install still gets the npm ci error', () => {
+  const r = resolveSlot({root, slot: 2, fs: fsOf({}, [root])});
+  assert.ok(r instanceof Error);
+  assert.match(r.message, /Run npm ci/);
+});

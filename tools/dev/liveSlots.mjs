@@ -50,8 +50,20 @@ export function resolveSlot({root, slot, fs}) {
   const ok = same(dir, root) || inside(dir, path.join(root, '.claude', 'worktrees'));
   if (!ok)
     return new Error(`live: ${dir} is not the main checkout or one of its .claude/worktrees folders`);
-  const cli = path.join(dir, 'node_modules', 'expo', 'bin', 'cli');
-  if (!fs.exists(cli))
-    return new Error(`live: ${dir} has no node_modules (expo is missing). Run npm ci there, or link the main checkout's node_modules; nothing is installed for you`);
+  let cli = path.join(dir, 'node_modules', 'expo', 'bin', 'cli');
+  if (!fs.exists(cli)) {
+    // A worktree with no install borrows the main checkout's packages, but
+    // only while its lockfile matches main's: a branch that changed
+    // dependencies needs its own `npm ci`.
+    if (same(dir, root))
+      return new Error(`live: ${dir} has no node_modules (expo is missing). Run npm ci there; nothing is installed for you`);
+    if (fs.read(lockOf(dir)) !== fs.read(lockOf(root)))
+      return new Error(`live: ${dir} has no node_modules and its package-lock.json differs from main's (dependencies changed on this branch). Run npm ci in that worktree; nothing is installed for you`);
+    cli = path.join(root, 'node_modules', 'expo', 'bin', 'cli');
+    if (!fs.exists(cli))
+      return new Error(`live: ${dir} has no node_modules and the main checkout has none either (expo is missing). Run npm ci in the main checkout's worktree of your own, not there; nothing is installed for you`);
+  }
   return {dir, cli, claimed: !same(dir, root), port: BASE_PORT + slot};
 }
+
+const lockOf = dir => path.join(dir, 'package-lock.json');
