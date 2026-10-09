@@ -81,9 +81,8 @@ const SIMS = (process.env.LAP_SIMS || 'lmu,iracing')
   .map(id => id.trim())
   .filter(Boolean)
   .map(id => ({id, adapter: adapter(id), folder: telemetryFolder(id)}));
-// LAP_GAME_EXE stands in for LMU only.
-const gameExeOf = sim =>
-  (sim.id === 'lmu' && process.env.LAP_GAME_EXE) || sim.adapter.gameExe;
+const gameExeOf = ({adapter: a}) =>
+  (a.watcher.gameExeEnv && process.env[a.watcher.gameExeEnv]) || a.gameExe;
 const LOCK_PIPE =
   process.env.LAP_LOCK_PIPE || String.raw`\\.\pipe\lap-uploader-watch`;
 const TICK_SEC = 30;
@@ -139,17 +138,19 @@ function gameRunning() {
   return SIMS.some(sim => exeRunning(gameExeOf(sim)));
 }
 
-// One sim's sync state: LMU's is the top level of the watcher's state (the
-// shape before iRacing), the others keep theirs under `sims`.
+// One sim's sync state: the legacy-layout sim's is the top level of the
+// watcher's state (the shape before a second sim), the others keep theirs
+// under `sims`.
 const FRESH = () => ({retries: {}});
 function stateOf(watch, sim) {
-  if (sim.id === 'lmu') return watch;
+  if (sim.adapter.watcher.legacyLayout) return watch;
   watch.sims ??= {};
   return (watch.sims[sim.id] ??= FRESH());
 }
-// sync.mjs's work folder per sim: LMU's is the one passed in, so existing
-// installs keep their record; the others get a folder of their own.
-const workOf = sim => (sim.id === 'lmu' ? syncWork : resolve(syncWork, sim.id));
+// sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,
+// so existing installs keep their record; the others get a folder of their own.
+const workOf = sim =>
+  sim.adapter.watcher.legacyLayout ? syncWork : resolve(syncWork, sim.id);
 
 // Recordings, the newest change time, and how many still need a sync: changed
 // since the last clean sync, or on a fresh watcher, not yet in sync.mjs's own
@@ -204,15 +205,19 @@ function version() {
 // sync.mjs skips files written in the last 3 minutes in case the game is
 // still writing them; the game is closed here, so nothing is.
 function syncArgsOf(sim) {
-  if (sim.id === 'lmu')
-    return ['--quiet-min', '0', ...syncArgs, '--sim', 'lmu'];
-  // Another sim: its own work folder, and sync.mjs's default quiet time, so a
-  // recording the game is still writing is left until it is closed.
+  const {quietMin, legacyLayout} = sim.adapter.watcher;
   const args = [...syncArgs];
-  const i = args.indexOf('--work');
-  if (i < 0) args.push('--work', workOf(sim));
-  else args[i + 1] = workOf(sim);
-  return [...args, '--sim', sim.id];
+  if (!legacyLayout) {
+    const i = args.indexOf('--work');
+    if (i < 0) args.push('--work', workOf(sim));
+    else args[i + 1] = workOf(sim);
+  }
+  return [
+    ...(quietMin == null ? [] : ['--quiet-min', String(quietMin)]),
+    ...args,
+    '--sim',
+    sim.id,
+  ];
 }
 
 function runSync(sim, onProgress, skipIds) {
@@ -315,7 +320,8 @@ async function main() {
       const st = stateOf(watch, sim);
       return {sim, st, recs: recordings(sim, st.lastRunAtMs)};
     });
-    const lmuRecs = all.find(a => a.sim.id === 'lmu')?.recs ?? null;
+    const lmuRecs =
+      all.find(a => a.sim.adapter.watcher.legacyLayout)?.recs ?? null;
     const retryIds = all.flatMap(a => Object.keys(a.st.retries ?? {}));
     let freeBytes = null;
     try {
@@ -385,7 +391,11 @@ async function main() {
           nowMs: Date.now(),
         });
         if (plan.run) {
-          log(`sync${sim.id === 'lmu' ? '' : ` ${sim.id}`}: ${plan.reason}`);
+          log(
+            `sync${sim.adapter.watcher.legacyLayout ? '' : ` ${sim.id}`}: ${
+              plan.reason
+            }`,
+          );
           const startedMs = Date.now();
           const skippedIds = waitingIds(st.retries, startedMs);
           await beat('syncing');

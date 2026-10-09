@@ -24,6 +24,14 @@ export const defaultFolder = join(
 // tasklist IMAGENAME, confirmed on this PC. Disk telemetry is Alt-L in the sim.
 export const gameExe = 'iRacingSim64DX11.exe';
 
+// See lmu.mjs. A .ibt still being written is left until it is closed, by
+// sync.mjs's own quiet time.
+export const watcher = {
+  legacyLayout: false,
+  quietMin: null,
+  gameExeEnv: null,
+};
+
 export const describeVersion = 3;
 
 export function slug(name) {
