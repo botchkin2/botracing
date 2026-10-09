@@ -63,6 +63,15 @@ export interface RaceFacts {
   end: {lapIndex: number; fuelL: number | null; vePct: number | null} | null;
 }
 
+/** Laps of use a formation lap burns, per meter. */
+export interface FormationFactor {
+  fuel: number;
+  ve: number;
+}
+
+/** Fuel burnt by the formation lap against a median green lap, where nothing was measured: the ratio seen on the 2 Oct and 3 Oct Road Atlanta races (3.27 and 3.54 L against 2.43 and 2.45 L). */
+export const FORMATION_FUEL_ESTIMATE = 1.4;
+
 export interface PlanRules {
   name: string;
   /** Exactly one of lengthLaps / lengthMin is set. */
@@ -72,8 +81,15 @@ export interface PlanRules {
   fuelL: number;
   /** VE at the start, % of the full load (100 unless the event caps it). */
   vePct: number;
-  /** LMU runs one formation lap, burning one median lap of fuel and VE. */
+  /** LMU runs one formation lap before the start; what it burns is `formationFactor`. */
   formationLap: boolean;
+  /**
+   * What the formation lap burns, as a multiple of one median green lap, per
+   * meter. Unset is 1 of each. Measured from the driver's own races where
+   * there are some (the grid procedure burns more fuel than a green lap), else
+   * an estimate (pit-wall thread 54 #2572).
+   */
+  formationFactor?: FormationFactor;
   mandatoryStops: number;
   /**
    * What the car starts with when that is less than the load it can hold (a
@@ -83,6 +99,12 @@ export interface PlanRules {
    */
   startFuelL?: number | null;
   startVePct?: number | null;
+}
+
+/** The laps of use the formation lap burns per meter: none without one, else the measured factor, else one lap of each. */
+export function formationLaps(rules: PlanRules): FormationFactor {
+  if (!rules.formationLap) return {fuel: 0, ve: 0};
+  return rules.formationFactor ?? {fuel: 1, ve: 1};
 }
 
 /** The first load: the start values where set (never above the caps), else the full load. */
@@ -339,13 +361,12 @@ function optionFor(
   // The formation lap is burnt from the first load, before lap 1. The first
   // load is what the car starts with, which can be less than a full one.
   const start = startLoad(rules);
+  const formation = formationLaps(rules);
   const first = stintFor(
-    rules.formationLap && fuelPerLap != null
-      ? start.fuelL - fuelPerLap
+    fuelPerLap != null
+      ? start.fuelL - fuelPerLap * formation.fuel
       : start.fuelL,
-    rules.formationLap && vePerLap != null
-      ? start.vePct - vePerLap
-      : start.vePct,
+    vePerLap != null ? start.vePct - vePerLap * formation.ve : start.vePct,
     fuelPerLap,
     vePerLap,
   );
@@ -360,7 +381,6 @@ function optionFor(
   const firstLaps = Math.min(evenLaps, first.laps);
   const laps =
     stops > 0 ? Math.ceil((raceLaps - firstLaps) / stops) : firstLaps;
-  const formation = rules.formationLap ? 1 : 0;
   return {
     firstStint: first,
     stint,
@@ -373,9 +393,11 @@ function optionFor(
         : {
             firstLaps,
             firstFuelL:
-              fuelPerLap == null ? null : (firstLaps + formation) * fuelPerLap,
+              fuelPerLap == null
+                ? null
+                : (firstLaps + formation.fuel) * fuelPerLap,
             firstVePct:
-              vePerLap == null ? null : (firstLaps + formation) * vePerLap,
+              vePerLap == null ? null : (firstLaps + formation.ve) * vePerLap,
             laps,
             fuelL: fuelPerLap == null ? null : laps * fuelPerLap,
             vePct: vePerLap == null ? null : laps * vePerLap,
