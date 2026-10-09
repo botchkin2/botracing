@@ -94,6 +94,13 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            // `--quit` is a message to a running tray (the single-instance hold
+            // forwards it and ends this process before we get here). Reaching
+            // setup means there was none: exit, never start a tray in the
+            // middle of an uninstall.
+            if wants_quit(&std::env::args().collect::<Vec<_>>()) {
+                std::process::exit(0);
+            }
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
             let account: Shared<account::Account> = Arc::new(Mutex::new(account::Account::new(
                 auth::Config::from_build(),
@@ -406,4 +413,18 @@ fn status_text(
         return problem.clone();
     }
     status::line(status::last_beat(&status::read_tail(&paths.status_file())).as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wants_quit;
+
+    #[test]
+    fn only_a_quit_argument_asks_the_tray_to_quit() {
+        let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(wants_quit(&args(&["botracing.exe", "--quit"])));
+        assert!(!wants_quit(&args(&["botracing.exe"])));
+        assert!(!wants_quit(&args(&["--quit"])), "argument 0 is the exe, never a request");
+        assert!(!wants_quit(&args(&["botracing.exe", "--quiet"])));
+    }
 }
