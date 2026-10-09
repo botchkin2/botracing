@@ -113,7 +113,7 @@ export function TiresCard({
         unit='kPa'
         series={stint.pressure}
         width={width}
-        medianLabel='median of the stabilised hot pressure, green laps'
+        medianLabel='median hot pressure, green laps'
       />
       <AxleLines
         title='Rubber temperature'
@@ -131,8 +131,7 @@ export function TiresCard({
   );
 }
 
-const SHORT_STINT_NOTE =
-  "A trend needs 5 green laps. The readings are listed instead: wear left at each lap's end.";
+const SHORT_STINT_NOTE = 'Under 5 green laps: readings only';
 
 const styles = StyleSheet.create({
   card: {gap: space.md},

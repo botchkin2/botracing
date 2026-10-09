@@ -102,7 +102,7 @@ describe('buildFuelUse', () => {
     ];
     const fu = buildFuelUse(session(), laps)!;
     expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toContain('vary more than that');
+    expect(verdictText(fu)).toContain('Same use');
   });
 
   it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
@@ -208,15 +208,13 @@ describe('the plan line', () => {
 });
 
 describe('planLinkText', () => {
-  it('says the laps feed the plan, or why they do not', () => {
+  it('says whether the laps are in the plan', () => {
     expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toContain(
-      'These 12 green laps feed your Road Atlanta · 911 GT3 R plan',
+      '12 green laps in Road Atlanta · 911 GT3 R ›',
     );
     expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toContain(
-      'This session ran at the 75 L limit; your Road Atlanta · 911 GT3 R plan uses 79 L, so these 12 green laps are not in it',
+      '12 green laps: not in Road Atlanta · 911 GT3 R (79 L) ›',
     );
-    expect(planLinkText(12, 'X', null, 79)).toContain(
-      'has no fill limit on record',
-    );
+    expect(planLinkText(12, 'X', null, 79)).toContain('12 green laps');
   });
 });
