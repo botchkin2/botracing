@@ -30,7 +30,7 @@ jobs:
       - name: App lint
         run: npx eslint src app
       - name: Uploader and session tools
-        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs
+        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:

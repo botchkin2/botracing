@@ -12,7 +12,8 @@ use crate::capture::recorder::Source;
 use std::ffi::c_void;
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, ERROR_ALREADY_EXISTS};
 use windows_sys::Win32::System::Memory::{
-    MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_READ,
+    MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, VirtualQuery, FILE_MAP_READ,
+    MEMORY_BASIC_INFORMATION,
 };
 use windows_sys::Win32::System::Threading::{
     CreateMutexW, GetCurrentThread, OpenEventA, SetThreadPriority, SYNCHRONIZATION_SYNCHRONIZE,
@@ -118,6 +119,62 @@ impl Drop for Mapped {
     }
 }
 
+/// iRacing's telemetry map and the event it signals each tick (SDK names).
+const IRSDK_MAPPING: &str = "Local\\IRSDKMemMapFileName";
+const IRSDK_EVENT: &[u8] = b"Local\\IRSDKDataValidEvent\0";
+
+/// The sim is up: its data event exists while it runs (the map file can outlive
+/// the sim, and is zero-filled until a car is on track).
+#[allow(dead_code)] // the recorder in the next step
+pub fn iracing_running() -> bool {
+    // SAFETY: IRSDK_EVENT is NUL-terminated.
+    let handle = unsafe { OpenEventA(SYNCHRONIZATION_SYNCHRONIZE, 0, IRSDK_EVENT.as_ptr()) };
+    if handle.is_null() {
+        return false;
+    }
+    // SAFETY: handle came from OpenEventA.
+    unsafe { CloseHandle(handle) };
+    true
+}
+
+/// iRacing's map, read-only, whole. Never creates it.
+#[allow(dead_code)] // the recorder in the next step
+pub fn open_iracing() -> Result<Mapped, String> {
+    open_whole(IRSDK_MAPPING)
+}
+
+fn open_whole(mapping_name: &str) -> Result<Mapped, String> {
+    let name = wide(mapping_name);
+    // SAFETY: `name` is NUL-terminated and outlives the call.
+    let mapping = unsafe { OpenFileMappingW(FILE_MAP_READ, 0, name.as_ptr()) };
+    if mapping.is_null() {
+        return Err(format!("{mapping_name} is not there (sim not running)"));
+    }
+    // SAFETY: `mapping` is a valid mapping handle; length 0 maps the whole file.
+    let view = unsafe { MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0) };
+    if view.Value.is_null() {
+        // SAFETY: handle came from OpenFileMappingW.
+        unsafe { CloseHandle(mapping) };
+        return Err("the sim's mapping could not be mapped".into());
+    }
+    // SAFETY: an all-zero MEMORY_BASIC_INFORMATION is a valid out-parameter.
+    let mut info: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: `view` is the base of the view just mapped; `info` is writable.
+    let got = unsafe {
+        VirtualQuery(view.Value, &mut info, std::mem::size_of::<MEMORY_BASIC_INFORMATION>())
+    };
+    let len = if got == 0 { 0 } else { info.RegionSize };
+    if len == 0 {
+        // SAFETY: both came from the calls above.
+        unsafe {
+            UnmapViewOfFile(view);
+            CloseHandle(mapping);
+        }
+        return Err("the sim's mapping has no size".into());
+    }
+    Ok(Mapped { mapping, base: view.Value as *const u8, len })
+}
+
 pub struct Shm {
     /// The layout's size: the view must cover the whole header's struct.
     pub size: usize,
@@ -195,6 +252,36 @@ mod tests {
             CloseHandle(event);
         }
         assert!(!shm.game_running());
+    }
+
+    /// Stands in for the sim: a zero-filled map under its name, as it leaves it
+    /// until a car is on track. Skips when a real sim is up.
+    #[test]
+    fn opens_iracings_map_whole_and_a_zero_map_is_not_a_sim() {
+        if iracing_running() || open_iracing().is_ok() {
+            return;
+        }
+        let name = wide(IRSDK_MAPPING);
+        // SAFETY: the name is NUL-terminated; the handle is closed below.
+        let map = unsafe {
+            CreateFileMappingW(
+                -1isize as HANDLE,
+                std::ptr::null(),
+                PAGE_READWRITE,
+                0,
+                8192,
+                name.as_ptr(),
+            )
+        };
+        assert!(!map.is_null());
+        let mut view = open_iracing().expect("opens the map");
+        assert!(view.read(0, 8192).is_some(), "maps the whole file");
+        assert!(view.read(8190, 16).is_none());
+        assert!(crate::capture::irsdk::Reader::open(&mut view).is_none());
+        drop(view);
+        // SAFETY: the handle came from CreateFileMappingW.
+        unsafe { CloseHandle(map) };
+        assert!(open_iracing().is_err());
     }
 
     #[test]

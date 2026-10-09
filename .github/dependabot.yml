@@ -1,16 +1,23 @@
 # Keeps every toolchain current (Botkin, 2026-10-09: stay on current versions,
 # never deprecated ones). Weekly, grouped so each ecosystem is one PR; a seat
 # reviews and merges it like any other PR, with CI green.
+#
+# Minor and patch updates only. Major versions are deliberate work, not Monday
+# noise: each one is a real PR with its blocker and migration noted in
+# docs/MAJOR_UPGRADES.md. Every ecosystem ignores majors below.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
-    groups: {actions: {patterns: ['*']}}
+    groups: {actions: {patterns: ['*'], update-types: [minor, patch]}}
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: npm
     directory: /
     schedule: {interval: weekly}
-    groups: {app: {patterns: ['*']}}
+    groups: {app: {patterns: ['*'], update-types: [minor, patch]}}
     # The Expo SDK pins these as one set; upgrade them together with
     # `npx expo install --fix` on an SDK bump, never piecemeal.
     ignore:
@@ -25,19 +32,33 @@ updates:
       - dependency-name: 'react-native-*'
       - dependency-name: '@react-native/*'
       - dependency-name: '@react-native-*/*'
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: npm
     directory: /functions
     schedule: {interval: weekly}
-    groups: {functions: {patterns: ['*']}}
+    groups: {functions: {patterns: ['*'], update-types: [minor, patch]}}
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: npm
     directory: /desktop
     schedule: {interval: weekly}
-    groups: {desktop: {patterns: ['*']}}
+    groups: {desktop: {patterns: ['*'], update-types: [minor, patch]}}
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule: {interval: weekly}
-    groups: {tray: {patterns: ['*']}}
+    groups: {tray: {patterns: ['*'], update-types: [minor, patch]}}
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: uv
     directory: /tools/capture
     schedule: {interval: weekly}
-    groups: {capture: {patterns: ['*']}}
+    groups: {capture: {patterns: ['*'], update-types: [minor, patch]}}
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']

@@ -36,9 +36,13 @@ export function usePlanCombo(
   const driven = (sessions.data?.items ?? []).filter(
     s => s.sim === 'lmu' && s.lapCount > 0,
   );
+  // A session of another sim has no plan: Plan reads LMU's rules, so the link
+  // and the label stay on what was driven in LMU.
   const named =
     sessionId != null && session.data
-      ? session.data
+      ? session.data.sim === 'lmu'
+        ? session.data
+        : undefined
       : trackId != null
       ? driven.find(s => s.trackId === trackId)
       : undefined;

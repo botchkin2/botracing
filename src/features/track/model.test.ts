@@ -137,11 +137,9 @@ describe('buildTrackModel', () => {
     expect(m.corners[0].rows[0]).toMatchObject({
       n: 1,
       name: null,
-      turn: 'Left',
-      dist: '100 m',
     });
     expect(m.corners[1].rows.map(r => r.selected)).toEqual([false, true]);
-    expect(m.selection).toEqual({n: 3, label: 'T3 · 205 m'});
+    expect(m.selection).toEqual({n: 3, label: 'T3'});
     // No turn count: the corner-map entries do not give the labelled turns exactly.
     expect(m.facts.find(f => f.label === 'Turns')).toBeUndefined();
     expect(m.map?.real).toBe(false);

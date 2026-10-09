@@ -8,6 +8,8 @@ import {
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
+import {carLabel} from '@/src/design';
+import {planComboKey} from '@/src/nav/routes';
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
@@ -21,6 +23,7 @@ import {
   greenLapsOf,
   eventLoad,
   HISTORY_SESSIONS,
+  isOtherSimCombo,
   historySessions,
   limitsOfDetails,
   planCombos,
@@ -236,6 +239,28 @@ describe('rulesCells', () => {
 
   it('is empty without rules', () => {
     expect(rulesCells(null, true, 0.9)).toEqual([]);
+  });
+});
+
+describe('isOtherSimCombo', () => {
+  const lmu = session('a', '2026-09-01T10:00:00Z');
+  const ir = session('b', '2026-09-02T10:00:00Z', {
+    sim: 'iracing',
+    trackId: 'iracing-127-full_course',
+    car: 'Ford Mustang GT3',
+  });
+  const key = (s: SessionSummary) =>
+    planComboKey(s.trackId, carLabel(s.car).model);
+
+  it('is true for a pair driven in another sim, false for LMU and for none', () => {
+    expect(isOtherSimCombo([lmu, ir], key(ir))).toBe(true);
+    expect(isOtherSimCombo([lmu, ir], key(lmu))).toBe(false);
+    expect(isOtherSimCombo([lmu, ir], null)).toBe(false);
+    expect(isOtherSimCombo([lmu], 'nowhere|Car')).toBe(false);
+  });
+
+  it('keeps the other sim out of the combos Plan offers', () => {
+    expect(planCombos([lmu, ir]).map(c => c.key)).toEqual([key(lmu)]);
   });
 });
 

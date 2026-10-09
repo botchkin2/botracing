@@ -4,6 +4,7 @@ import {type SessionFacets, type SessionSummary} from '@/src/data/sessions';
 import {
   applyGame,
   effectiveFilter,
+  emptyDaysText,
   filterOptions,
   listQuery,
   NO_FILTER,
@@ -86,5 +87,21 @@ describe('listQuery', () => {
     expect(listQuery({game: null, track: 'spa'})).toEqual({trackId: 'spa'});
     // A track implies its game: the track is the query.
     expect(listQuery({game: 'lmu', track: 'spa'})).toEqual({trackId: 'spa'});
+  });
+});
+
+describe('emptyDaysText', () => {
+  it('says recent only when neither a game nor a track is picked', () => {
+    expect(emptyDaysText(NO_FILTER)).toBe('No recent sessions');
+  });
+
+  it('says No sessions for a picked game, a picked track, or both', () => {
+    expect(emptyDaysText({game: 'lmu', track: null})).toBe('No sessions');
+    expect(
+      emptyDaysText({game: null, track: 'lmu-michelin_raceway_road_atlanta'}),
+    ).toBe('No sessions');
+    expect(
+      emptyDaysText({game: 'lmu', track: 'lmu-michelin_raceway_road_atlanta'}),
+    ).toBe('No sessions');
   });
 });

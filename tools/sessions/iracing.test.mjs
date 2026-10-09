@@ -87,6 +87,9 @@ test('describe: VIR test file, track key is sim-TrackID-config', {skip: !existsS
   const info = describe(GR86);
   assert.equal(info.sim, 'iracing');
   assert.match(info.layout, /^\d+-[a-z0-9_]+$/);
+  // The layout's own name is for display (the key above is a slug).
+  assert.equal(typeof info.layoutName, 'string');
+  assert.notEqual(info.layoutName, info.layout);
   assert.equal(info.groupId.split('|')[0], 'iracing');
   assert.ok(info.trackLengthM > 5000);
   assert.ok(!info.channels.some(c => c.name === 'virtual_energy_pct'));

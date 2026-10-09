@@ -91,6 +91,7 @@ function tick(folder = telemetry, workDir = work, localDir = local) {
         LAP_HEARTBEAT_FILE: beatsPath,
         LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-tray-e2e-${process.pid}`,
         LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
+        LAP_SIMS: 'lmu',
       },
     },
   );

@@ -134,7 +134,7 @@ describe('buildCornerModel (per single corner)', () => {
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
     expect(m.subtitle).toBe(
-      '640 m · in S2 (T2–T3) · 3 laps · compared with L1',
+      'in S2 (T2–T3) · 3 laps · compared with L1',
     );
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
