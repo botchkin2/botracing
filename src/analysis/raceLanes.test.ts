@@ -123,6 +123,23 @@ describe('raceLanes', () => {
     expect(raceLanes(near, clock).battle.length).toBeGreaterThan(0);
   });
 
+  it('a field placed by lap distance has no lanes, so it has no tows', () => {
+    // Same geometry as the tow test above, which does tow with real lanes.
+    const cars = [
+      me({lane: NaN}),
+      {lapDistM: (u: number) => 100 + u * V * DT + 20, lane: NaN},
+      far,
+    ];
+    const placed: Field = {...field(20, cars), placedOnLine: true};
+    expect(raceLanes(placed, clock).tow).toEqual([]);
+    const control = field(20, [
+      me(),
+      {lapDistM: u => 100 + u * V * DT + 20, lane: 1.5},
+      far,
+    ]);
+    expect(raceLanes(control, clock).tow.length).toBe(1);
+  });
+
   it('a battle is a same-class car within 1 s in any lane; another class is not', () => {
     const near = (carClass: string) =>
       field(10, [
