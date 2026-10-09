@@ -27,6 +27,13 @@
         }
       },
       {
+        "source": "/api/tray/**",
+        "function": {
+          "functionId": "trayApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
