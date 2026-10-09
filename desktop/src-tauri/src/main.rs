@@ -13,6 +13,7 @@ mod profile;
 mod sidecar;
 mod status;
 mod update;
+mod viewer;
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -22,11 +23,18 @@ use tauri::Manager;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
-type Shared<T> = Arc<Mutex<T>>;
+pub(crate) type Shared<T> = Arc<Mutex<T>>;
 
 /// True when a launch asks the running tray to quit (`--quit`).
 fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
+}
+
+/// True when the window opens at launch: a debug build with
+/// `BOTRACING_OPEN_ON_START` set, for a walkthrough or a check of the window.
+/// A release build never does.
+fn opens_on_start(debug_build: bool, env_set: bool) -> bool {
+    debug_build && env_set
 }
 
 /// Sign in on a thread of its own: the browser step waits on a person. The
@@ -145,16 +153,15 @@ fn main() {
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
-            // second tab of its own: the one already open is the way in.
+            // window or tab of its own: the sign-in page is the way in.
             let signing_in = app
                 .try_state::<Shared<account::Account>>()
                 .is_some_and(|a| a.lock().unwrap().signing_in);
             if signing_in {
                 return;
             }
-            std::thread::spawn(|| {
-                let _ = browser::open();
-            });
+            let app = app.clone();
+            std::thread::spawn(move || open_window(&app));
         }))
     } else {
         builder
@@ -162,6 +169,13 @@ fn main() {
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The window's size and place, remembered.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            viewer::tray_uid,
+            viewer::viewer_token,
+            viewer::sign_out
+        ])
         .setup(|app| {
             // `--quit` is a message to a running tray (the single-instance hold
             // forwards it and ends this process before we get here). Reaching
@@ -171,6 +185,14 @@ fn main() {
                 std::process::exit(0);
             }
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
+            app.manage(paths.clone());
+            if opens_on_start(
+                cfg!(debug_assertions),
+                std::env::var_os("BOTRACING_OPEN_ON_START").is_some(),
+            ) {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || open_window(&handle));
+            }
             let account: Shared<account::Account> = Arc::new(Mutex::new(account::Account::new(
                 auth::Config::from_build(),
                 &paths.data,
@@ -274,21 +296,19 @@ fn main() {
                         std::thread::spawn(move || start_sign_in(account));
                     }
                     "signout" => {
-                        let (account, sup) = (account_menu.clone(), sup_menu.clone());
+                        let (account, sup, app) =
+                            (account_menu.clone(), sup_menu.clone(), app.clone());
+                        // Also closes the window and empties its storage: the
+                        // window is never signed in as someone the tray is not.
                         std::thread::spawn(move || {
-                            let mut acct = account.lock().unwrap();
-                            acct.sign_out(|| sup.lock().unwrap().set_allowed(false));
+                            viewer::sign_out_everything(&app, &account, &sup)
                         });
                     }
                     "open" => {
-                        // The system browser, off this thread. If it cannot
-                        // be opened, the status line says so.
-                        let account = account_menu.clone();
-                        std::thread::spawn(move || {
-                            if let Err(why) = browser::open() {
-                                account.lock().unwrap().message = Some(why);
-                            }
-                        });
+                        // Off this thread: a window built from a menu handler
+                        // can deadlock on Windows.
+                        let app = app.clone();
+                        std::thread::spawn(move || open_window(&app));
                     }
                     "folder" => {
                         let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
@@ -423,6 +443,19 @@ fn main() {
         });
 }
 
+/// Shows the window on the hosted app. If it cannot be built the system
+/// browser takes over, and the status line says if even that fails.
+fn open_window(app: &tauri::AppHandle) {
+    let data = viewer::webview_dir(&app.state::<Arc<sidecar::Paths>>().data);
+    if viewer::open(app, &data).is_err() {
+        if let Err(why) = browser::open() {
+            if let Some(account) = app.try_state::<Shared<account::Account>>() {
+                account.lock().unwrap().message = Some(why);
+            }
+        }
+    }
+}
+
 /// The status line of the menu: what a person needs to know right now.
 fn status_text(
     acct: &account::Account,
@@ -458,7 +491,18 @@ fn status_text(
 
 #[cfg(test)]
 mod tests {
-    use super::wants_quit;
+    use super::{opens_on_start, wants_quit};
+
+    #[test]
+    fn only_a_debug_build_opens_the_window_at_launch() {
+        assert!(opens_on_start(true, true));
+        assert!(!opens_on_start(true, false));
+        assert!(
+            !opens_on_start(false, true),
+            "a release build ignores BOTRACING_OPEN_ON_START"
+        );
+        assert!(!opens_on_start(false, false));
+    }
 
     #[test]
     fn only_a_quit_argument_asks_the_tray_to_quit() {
