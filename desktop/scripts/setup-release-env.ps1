@@ -22,21 +22,37 @@
 #                                                    the release job falls back to the repo-level
 #                                                    FIREBASE_SERVICE_ACCOUNT_BOTRACING_61.
 #
-# BACK UP ~\.botracing\updater.key AND updater.key.password in your password
-# manager: lose them and installed trays can no longer update.
+# The updater key and password also go to Secret Manager (project botracing-61,
+# secrets tray-updater-key and tray-updater-password), readable by the signed-in
+# gcloud account only: the secrets get their own secret-level binding and nothing
+# at project level (thread 54 #2610: no runtime or CI identity reads them). Once
+# both copies are read back and match, ~\.botracing\updater.key and .password are
+# deleted. Lose the key and installed trays can no longer update; this is its
+# backup. A later run with the files gone reads the key from Secret Manager.
+#
+# Also needs: `gcloud` signed in as Botkin (gcloud auth list) and the Secret Manager
+# API enabled on the project.
 param(
   [string]$Repo,
   [string]$ClientFile = (Join-Path $env:USERPROFILE ".botracing\oauth-desktop.json"),
   [string]$FirebaseApiKey = $env:BOTRACING_FIREBASE_API_KEY,
   [string]$ServiceAccountFile,
+  [string]$GcpProject = "botracing-61",
   [switch]$DryRun
 )
 $ErrorActionPreference = "Stop"
 $EnvName = "tray-release"
+$KeySecret = "tray-updater-key"
+$PasswordSecret = "tray-updater-password"
 $botracing = Join-Path $env:USERPROFILE ".botracing"
 $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 
 function Fail($message) { Write-Host "STOP: $message" -ForegroundColor Red; exit 1 }
+function Read-LatestSecret($name) {
+  $v = gcloud secrets versions access latest --secret $name --project $GcpProject 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $v) { return $null }
+  return ($v -join "`n").Trim()
+}
 function Step($message) { Write-Host $(if ($DryRun) { "[dry run] $message" } else { $message }) }
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Fail "gh (GitHub CLI) is not installed" }
@@ -44,6 +60,9 @@ gh auth status *> $null
 if ($LASTEXITCODE -ne 0) { Fail "gh is not signed in: run gh auth login" }
 if (-not $Repo) { $Repo = (gh repo view --json nameWithOwner --jq .nameWithOwner) }
 if (-not $Repo) { Fail "could not tell which repo: pass -Repo owner/name" }
+if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Fail "gcloud is not installed (the updater key backup goes to Secret Manager)" }
+$gcloudUser = (gcloud config get-value account 2>$null)
+if (-not $gcloudUser) { Fail "gcloud is not signed in: run gcloud auth login as yourself" }
 
 # --- the values, read now so a missing file stops the script before it changes anything
 $values = [ordered]@{}
@@ -51,11 +70,20 @@ $missing = @()
 
 $keyFile = Join-Path $botracing "updater.key"
 $pwFile = Join-Path $botracing "updater.key.password"
-if ((Test-Path $keyFile) -and (Test-Path $pwFile)) {
+$haveFiles = (Test-Path $keyFile) -and (Test-Path $pwFile)
+if ($haveFiles) {
   $values["TAURI_SIGNING_PRIVATE_KEY"] = (Get-Content $keyFile -Raw).Trim()
   $values["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = (Get-Content $pwFile -Raw).Trim()
 } else {
-  $missing += "the updater key ($keyFile and $pwFile)"
+  # Files already moved to Secret Manager by an earlier run: read them back from there.
+  $fromKey = Read-LatestSecret $KeySecret
+  $fromPw = Read-LatestSecret $PasswordSecret
+  if ($fromKey -and $fromPw) {
+    $values["TAURI_SIGNING_PRIVATE_KEY"] = $fromKey
+    $values["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] = $fromPw
+  } else {
+    $missing += "the updater key ($keyFile and $pwFile, or Secret Manager $KeySecret and $PasswordSecret)"
+  }
 }
 
 if (Test-Path $ClientFile) {
@@ -144,7 +172,46 @@ if (-not $values.Contains("FIREBASE_SERVICE_ACCOUNT_BOTRACING_61")) {
   Write-Host "Note: no -ServiceAccountFile, so the release job uses the repo-level FIREBASE_SERVICE_ACCOUNT_BOTRACING_61 to publish." -ForegroundColor Yellow
 }
 
+# --- the updater key's second copy: Secret Manager, readable by $gcloudUser only
+$copies = [ordered]@{
+  $KeySecret = "TAURI_SIGNING_PRIVATE_KEY"
+  $PasswordSecret = "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+}
+foreach ($secret in $copies.Keys) {
+  Step "Secret Manager $GcpProject/${secret}: new version if the value differs; $gcloudUser the only reader (secret-level)"
+}
+if ($haveFiles) { Step "after both copies read back equal: delete $keyFile and $pwFile" }
 if ($DryRun) { Write-Host "Dry run: nothing was changed."; exit 0 }
+
+$verified = $true
+foreach ($secret in $copies.Keys) {
+  $value = $values[$copies[$secret]]
+  gcloud secrets describe $secret --project $GcpProject *> $null
+  if ($LASTEXITCODE -ne 0) {
+    gcloud secrets create $secret --project $GcpProject --replication-policy automatic --quiet *> $null
+    if ($LASTEXITCODE -ne 0) { Fail "could not create secret $secret (is the Secret Manager API enabled?)" }
+  }
+  if ((Read-LatestSecret $secret) -ne $value) {
+    $tmp = New-TemporaryFile
+    try {
+      [System.IO.File]::WriteAllText($tmp, $value)
+      gcloud secrets versions add $secret --project $GcpProject --data-file $tmp *> $null
+      if ($LASTEXITCODE -ne 0) { Fail "could not add a version to $secret" }
+    } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+  }
+  # Secret-level binding for this user only; no project-level role is granted.
+  gcloud secrets add-iam-policy-binding $secret --project $GcpProject `
+    --member "user:$gcloudUser" --role roles/secretmanager.admin --quiet *> $null
+  if ($LASTEXITCODE -ne 0) { Fail "could not grant $gcloudUser on $secret" }
+  if ((Read-LatestSecret $secret) -eq $value) { Write-Host "  Secret Manager $secret : read back, matches" }
+  else { Write-Host "  Secret Manager $secret : DOES NOT MATCH, local files kept" -ForegroundColor Red; $verified = $false }
+}
+if ($haveFiles) {
+  if ($verified) {
+    Remove-Item $keyFile, $pwFile -Force
+    Write-Host "  deleted $keyFile and $pwFile (their copy is in Secret Manager)"
+  } else { Fail "Secret Manager copy did not verify; $keyFile and $pwFile were kept" }
+}
 
 # --- what is there now (names only)
 Write-Host ""
@@ -154,4 +221,4 @@ gh api "repos/$Repo/environments/$EnvName/deployment-branch-policies" --jq '.bra
 Write-Host "  secrets set:"
 gh secret list --env $EnvName --repo $Repo | ForEach-Object { Write-Host "    $_" }
 Write-Host ""
-Write-Host "Next: back up ~\.botracing\updater.key and updater.key.password in your password manager."
+Write-Host "The updater key lives in Secret Manager ($KeySecret, $PasswordSecret) and the GitHub Environment. A local release build reads it: gcloud secrets versions access latest --secret $KeySecret --project $GcpProject"

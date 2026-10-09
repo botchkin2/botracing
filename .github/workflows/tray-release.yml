@@ -16,7 +16,7 @@
 #   Deployment branches and tags: selected, tag rule `tray-v*`
 #   Environment secrets:
 #     TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-#         the updater key; lose it and installed trays can no longer update
+#         the updater key (also in Secret Manager: tray-updater-key, tray-updater-password)
 #     BOTRACING_OAUTH_CLIENT_ID, BOTRACING_OAUTH_CLIENT_SECRET, BOTRACING_FIREBASE_API_KEY
 #         the sign-in config built into the tray
 #     FIREBASE_SERVICE_ACCOUNT_BOTRACING_61
