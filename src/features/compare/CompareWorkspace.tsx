@@ -460,10 +460,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
             onPressSection={p.onOpenSection}
           />
         )}
-        {p.field && model.playing?.lapNumber != null && (
+        {p.field && model.radarLap && (
           <CarsAround
             field={p.field}
-            lapNumber={model.playing.lapNumber}
+            lapNumber={model.radarLap.lapNumber}
+            lapLabel={model.radarLap.label}
             cursorM={p.cursorM}
           />
         )}

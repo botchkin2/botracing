@@ -51,6 +51,13 @@ export interface Field {
   /** File version: 1 has no heading. */
   version: number;
   hz: number;
+  /**
+   * Whether the cars have world positions (xM, zM). LMU's do; iRacing gives lap
+   * distance only, so its x and z are all NaN and anything that draws or
+   * measures by position (the map dots, the radar, the lanes) must leave the
+   * field alone. Set by the decoder from the data, never from the sim's name.
+   */
+  hasPositions: boolean;
   /** Session clock at the first update, seconds. */
   startEtS: number;
   /** Seconds from the first update, one per update. */

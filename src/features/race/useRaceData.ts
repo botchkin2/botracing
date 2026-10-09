@@ -115,6 +115,10 @@ export function useRaceData(sessionId: string): RaceData {
   if (field.isError) {
     return {kind: 'field-error', title, retry: () => void field.refetch()};
   }
+  // A field with lap distances but no positions (iRacing's) cannot be drawn
+  // here yet (the line and the lap-distance placement come next, pit-wall
+  // thread 1 #2962): it says there is no field, rather than loading for ever.
+  if (field.data && !field.data.hasPositions) return {kind: 'no-field', title};
   // Lap numbers are needed to open on Compare's cursor; a failed laps request
   // only means the clock opens at the start.
   if (!prep || !clock || !line || laps.isPending) {

@@ -215,6 +215,19 @@ impl Account {
         true
     }
 
+    /// Starts a browser sign-in: the config to use, or None when one is under
+    /// way or the tray is signed in. The only way in, so two clicks, a click
+    /// and the launch prompt, or a click and a second launch can never open two
+    /// browser pages.
+    pub fn begin_sign_in(&mut self) -> Option<Config> {
+        if self.signing_in || self.session.is_some() {
+            return None;
+        }
+        self.signing_in = true;
+        self.message = None;
+        Some(self.cfg.clone())
+    }
+
     pub fn config(&self) -> &Config {
         &self.cfg
     }
@@ -347,12 +360,30 @@ impl Account {
             Done::Owner(Ok(key)) => {
                 self.owner_key = Some(key);
                 self.owner_error = None;
+                self.confirm_own_account();
             }
             Done::Owner(Err(e)) => {
                 self.owner_key = None;
                 eprintln!("could not read the owner key: {e}");
                 self.owner_error = Some(e);
             }
+        }
+    }
+
+    /// The first sign-in pauses until the owner is known. When the owner is
+    /// the signed-in uid (the person's own account), it is confirmed here and
+    /// the uploads start without a word; another owner keeps the pause.
+    fn confirm_own_account(&mut self) {
+        let Some(session) = &self.session else { return };
+        // Only once per uid: a pause the person set after confirming stays put.
+        let unconfirmed = self.settings.confirmed_uid.as_deref() != Some(session.uid.as_str());
+        if unconfirmed
+            && self.settings.paused
+            && self.owner_key.as_deref() == Some(session.uid.as_str())
+        {
+            self.settings.paused = false;
+            self.settings.confirmed_uid = Some(session.uid.clone());
+            self.settings.save(&self.settings_file());
         }
     }
 
@@ -467,6 +498,35 @@ mod tests {
 
     fn account(base: &str, dir: &Path, mem: &Memory) -> Mutex<Account> {
         Mutex::new(Account::new(cfg(base), dir, Box::new(mem.clone())))
+    }
+
+    #[test]
+    fn the_owners_own_sign_in_starts_unpaused_and_says_nothing() {
+        let dir = data_dir("own");
+        let mem = Memory::default();
+        let a = account(&server(), &dir, &mem);
+        a.lock().unwrap().signed_in(session("botkin", 3600));
+        maintain(&a);
+        let acct = a.lock().unwrap();
+        assert_eq!(acct.owner_key.as_deref(), Some("botkin"));
+        assert!(!acct.settings.paused && acct.should_run(), "own account runs unpaused");
+        assert!(!acct.unconfirmed());
+    }
+
+    #[test]
+    fn a_pause_the_person_sets_after_confirming_survives_the_next_owner_read() {
+        let dir = data_dir("repause");
+        let mem = Memory::default();
+        let a = account(&server(), &dir, &mem);
+        a.lock().unwrap().signed_in(session("botkin", 3600));
+        maintain(&a);
+        {
+            let mut acct = a.lock().unwrap();
+            assert!(!acct.settings.paused, "own account confirmed at the first read");
+            acct.set_paused(true).unwrap();
+        }
+        maintain(&a);
+        assert!(a.lock().unwrap().settings.paused, "the owner read must not undo a pause");
     }
 
     #[test]
@@ -838,6 +898,30 @@ mod tests {
         assert!(acct.needs_sign_in(), "refused for good: signed out");
         assert!(acct.take_prompt());
         assert!(!acct.take_prompt());
+    }
+
+    // Botkin's two tabs on 0.1.1: whatever asks for a sign-in (the launch prompt,
+    // a menu click, a second click), only one gets to open a browser page.
+    #[test]
+    fn only_one_browser_sign_in_can_begin_at_a_time() {
+        let dir = data_dir("begin-once");
+        let a = account(&server(), &dir, &Memory::default());
+        let mut acct = a.lock().unwrap();
+        let mut opened = 0;
+        for _ in 0..5 {
+            if acct.begin_sign_in().is_some() {
+                opened += 1;
+            }
+        }
+        assert_eq!(opened, 1, "five asks, one browser page");
+        assert!(acct.signing_in);
+        // Once it ended (cancelled or timed out), the next ask may begin.
+        acct.signing_in = false;
+        assert!(acct.begin_sign_in().is_some());
+        acct.signing_in = false;
+        // Signed in: nothing to begin.
+        acct.signed_in(session("u1", 3600));
+        assert!(acct.begin_sign_in().is_none());
     }
 
     #[test]

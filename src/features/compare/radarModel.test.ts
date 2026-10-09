@@ -31,6 +31,7 @@ function build(): Field {
   return {
     version: 2,
     hz: 5,
+    hasPositions: true,
     startEtS: 0,
     timeS: Float64Array.from({length: n}, (_, i) => i * 0.2),
     cars: [car(0, true, 0, 0), car(1, false, 10, 3)],
