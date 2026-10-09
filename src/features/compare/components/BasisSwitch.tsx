@@ -17,8 +17,7 @@ export function BasisSwitch({
   fastestLapId: string | null;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
-  const hl =
-    selection.hl && selection.laps.includes(selection.hl) ? selection.hl : null;
+  const hl = selection.hl && selection.laps.includes(selection.hl) ? selection.hl : null;
   return (
     <Segment<Basis>
       options={[

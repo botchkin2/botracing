@@ -342,10 +342,10 @@ export type CompareModel = {
    * ("L7"): the highlighted lap, else the Ref lap. Null with the median and
    * nothing highlighted (the median is no lap anyone drove, so no cars are
    * around it), and for a lap of another session (this session's field is not
-   * its field). `lapNumber` is the game's lap count, null for a lap without one:
-   * it has no place in the field, so the screens show no radar.
+   * its field), and for a lap without a game lap count (it has no place in the
+   * field). The screens only render what is here.
    */
-  radarLap: {lapId: string; label: string; lapNumber: number | null} | null;
+  radarLap: {lapId: string; label: string; lapNumber: number} | null;
   reference: string;
   /**
    * What the chip deltas and the time per section are measured against, in
@@ -1200,7 +1200,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   return {
     mode,
     radarLap:
-      radarOwner && !foreignTags.has(radarOwner.id)
+      radarOwner &&
+      radarOwner.lapNumber != null &&
+      !foreignTags.has(radarOwner.id)
         ? {
             lapId: radarOwner.id,
             label: nameOf(radarOwner),
