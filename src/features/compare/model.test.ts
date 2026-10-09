@@ -365,6 +365,8 @@ describe('one color per lap, everywhere', () => {
   it('median: checkbox, legend and trace slots match', () => {
     const m = build(sel({laps: ['a', 'b', 'c'], ref: null, hl: null}));
     const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
     expect(fromRows.length).toBeGreaterThan(0);
     for (const [id, slot] of fromRows) {
       expect(slot).toBeGreaterThanOrEqual(1);
@@ -378,6 +380,8 @@ describe('one color per lap, everywhere', () => {
   it('ref: checkbox, legend and trace slots match, Ref on slot 0', () => {
     const m = build(sel({laps: ['a', 'b', 'c'], ref: 'b', hl: null}));
     const {fromChips, fromRows, fromTraces} = slotsOf(m);
+    // Guard: the trace half below must not pass by checking nothing.
+    expect(fromTraces.length).toBeGreaterThan(0);
     expect(fromRows.find(([id]) => id === 'b')?.[1]).toBe(0);
     for (const [id, slot] of fromRows) expect(fromChips.get(id)).toBe(slot);
     // The median basis row is not a lap: it has no chip and no slot.
