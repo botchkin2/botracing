@@ -1,6 +1,6 @@
 # src/ui
 
-Primitives with no data: HowToRead (the chart "?"), Text, Button, Chip, Checkbox, Segment, PanelDivider (the draggable divider beside a desktop side column; the caller owns and remembers the width), Sheet (bottom sheet on the phone, right-side sheet on desktop, lifted above the keyboard), Badge, MapZoomButtons, Explainer, Skeleton, StatusBanner, TraceRetryBanner, the desktop (≥900) AppChrome bar, the desktop (≥1280) SessionsRail, and the phone (<900) BottomBar and SessionTabs, which take finished rows and handlers as props. Styled only from `design` tokens.
+Primitives with no data: Text, Button, Chip, Checkbox, Segment, PanelDivider (the draggable divider beside a desktop side column; the caller owns and remembers the width), Sheet (bottom sheet on the phone, right-side sheet on desktop, lifted above the keyboard), Badge, MapZoomButtons, Skeleton, StatusBanner, TraceRetryBanner, the desktop (≥900) AppChrome bar, the desktop (≥1280) SessionsRail, and the phone (<900) BottomBar and SessionTabs, which take finished rows and handlers as props. Styled only from `design` tokens.
 
 - A component moves here from `features/*/components` when a second feature needs it.
 - Imports: `design`, `analysis`.

@@ -224,7 +224,6 @@ export const type = {
   title: {fontFamily: fonts.sansBold, fontSize: 16, lineHeight: 20},
   body: {fontFamily: fonts.sans, fontSize: 14, lineHeight: 20},
   bodyStrong: {fontFamily: fonts.sansBold, fontSize: 14, lineHeight: 20},
-  explainer: {fontFamily: fonts.sans, fontSize: 11.5, lineHeight: 15},
   label: {
     fontFamily: fonts.monoBold,
     fontSize: 10.5,
