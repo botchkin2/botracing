@@ -69,3 +69,17 @@ test('exchanges the custom token for an ID token, and says why when it cannot', 
     /400 bad/,
   );
 });
+
+test('refuses the live site as an origin', async () => {
+  await assert.rejects(
+    mintTestLinks({
+      auth: fakeAuth(),
+      origins: ['https://botracing-61.web.app'],
+    }),
+    /refusing the live site/,
+  );
+  await mintTestLinks({
+    auth: fakeAuth(),
+    origins: ['https://botracing-61--pr313-x1.web.app'],
+  });
+});

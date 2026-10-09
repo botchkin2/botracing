@@ -48,6 +48,12 @@ export async function exchangeForIdToken({
   return (await res.json()).idToken;
 }
 
+// The live site: seats test on localhost and preview channels, never there.
+const LIVE_HOSTS = new Set([
+  'botracing-61.web.app',
+  'botracing-61.firebaseapp.com',
+]);
+
 // auth: firebase-admin's auth() (injectable for the test).
 export async function mintTestLinks({
   auth,
@@ -57,6 +63,11 @@ export async function mintTestLinks({
 }) {
   if (!/^seat-test(-[a-z0-9]+)?$/.test(uid))
     throw new Error(`only seat-test users: refusing uid "${uid}"`);
+  for (const origin of origins)
+    if (LIVE_HOSTS.has(new URL(origin).hostname))
+      throw new Error(
+        `refusing the live site (${origin}): use a live slot or a preview channel`,
+      );
   const exists = await auth
     .getUser(uid)
     .then(() => true)
