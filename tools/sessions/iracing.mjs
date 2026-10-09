@@ -32,7 +32,7 @@ export const watcher = {
   gameExeEnv: null,
 };
 
-export const describeVersion = 3;
+export const describeVersion = 4;
 
 export function slug(name) {
   return String(name)
@@ -224,6 +224,7 @@ export function describe(path) {
       sessionTypeRaw: session.raw,
       track: yamlField(yaml, 'TrackDisplayName') || 'Unknown track',
       layout,
+      layoutName: config || null,
       trackLengthM: yamlKmToM(yamlField(yaml, 'TrackLength')),
       car: car.name,
       carClass: car.carClass,

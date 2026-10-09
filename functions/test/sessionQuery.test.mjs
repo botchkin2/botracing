@@ -48,3 +48,17 @@ test('facets count sessions per game and per track, a track once per game', () =
     ],
   );
 });
+
+test('a stored track object {name, variant} labels the facet with its name', () => {
+  const f = foldFacets([
+    {sim: 'iracing', trackId: 'iracing-127-full_course', track: {name: 'Road Atlanta', variant: 'Full Course'}},
+    {sim: 'lmu', trackId: 'lmu-x', track: {variant: 'no name'}},
+  ]);
+  assert.deepEqual(
+    f.tracks.map(t => [t.trackId, t.track]),
+    [
+      ['iracing-127-full_course', 'Road Atlanta'],
+      ['lmu-x', 'lmu-x'],
+    ],
+  );
+});

@@ -374,7 +374,9 @@ function build(
     catalogOnly,
   });
   if (foldOnly) return {a, archived};
-  const track = {name: first.track, variant: first.layout};
+  // variant is for display; the layout key stays the id (iRacing's is a number
+  // and a slug, so its adapter also gives the layout's own name).
+  const track = {name: first.track, variant: first.layoutName ?? first.layout};
   const trackId = slugId(sim, first.layout);
   // A new corner map is stored as the track's own doc, where custom sectors
   // and official turn names can attach later.
