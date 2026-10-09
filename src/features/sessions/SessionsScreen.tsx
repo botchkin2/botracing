@@ -1,4 +1,4 @@
-import {useRouter} from 'expo-router';
+import {useLocalSearchParams, useRouter} from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,7 +17,9 @@ import {
 } from '@/src/nav/routes';
 import {AppMark, Badge, Button, hitFor, MARK_SLOP, Text} from '@/src/ui';
 
+import {type SessionsFilter} from './filter';
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
+import {SessionsFilterBar} from './SessionsFilterBar';
 import {SessionsTable} from './SessionsTable';
 
 // Columns from the handoff: badge | track · car | laps | best | median.
@@ -32,7 +34,12 @@ const markGap = {
 };
 
 export function SessionsScreen() {
-  const model = useSessionsModel();
+  const params = useLocalSearchParams<{game?: string; track?: string}>();
+  const wanted: SessionsFilter = {
+    game: params.game || null,
+    track: params.track || null,
+  };
+  const model = useSessionsModel(wanted);
   const router = useRouter();
   const {color} = useTheme();
   const layout = useLayout();
@@ -67,12 +74,6 @@ export function SessionsScreen() {
             </Pressable>
           )}
           <Text variant='display'>Sessions</Text>
-          {/* Sim/track/car filter picker comes with the filter work; label only for now. */}
-          <View style={styles.headerRight}>
-            <View style={[styles.picker, {borderColor: color.lineStrong}]}>
-              <Text variant='dataStrong'>LMU · all tracks ▾</Text>
-            </View>
-          </View>
         </View>
         <View style={styles.links}>
           <Pressable
@@ -85,6 +86,18 @@ export function SessionsScreen() {
             </Text>
           </Pressable>
         </View>
+        {model.state === 'ready' && (
+          <SessionsFilterBar
+            filter={model.filter}
+            options={model.options}
+            onChange={next =>
+              router.setParams({
+                game: next.game ?? undefined,
+                track: next.track ?? undefined,
+              })
+            }
+          />
+        )}
       </View>
 
       {model.state === 'loading' && (
@@ -264,18 +277,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingBottom: space.lg,
   },
   links: {flexDirection: 'row', gap: space.xl},
-  headerRight: {flexDirection: 'row', alignItems: 'center', gap: space.md},
-  picker: {
-    height: size.chip,
-    paddingHorizontal: space.md,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    justifyContent: 'center',
-  },
   status: {marginTop: space.xxl},
   listContent: {paddingBottom: space.xxxl},
   columnHeader: {

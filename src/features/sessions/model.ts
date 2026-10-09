@@ -1,11 +1,16 @@
 import {useMemo} from 'react';
 
-import {
-  type SessionFilter,
-  type SessionSummary,
-  useSessions,
-} from '@/src/data/sessions';
+import {type SessionSummary, useSessions} from '@/src/data/sessions';
 import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
+
+import {
+  applyFilter,
+  effectiveFilter,
+  type FilterOptions,
+  filterOptions,
+  NO_FILTER,
+  type SessionsFilter,
+} from './filter';
 
 // Sessions screen view model: sessions grouped by local day, newest first.
 // buildSessionsModel is pure and unit-tested; useSessionsModel wires it to data.
@@ -59,7 +64,13 @@ export type SessionsModel =
   | {state: 'loading'}
   | {state: 'error'; message: string}
   | {state: 'empty'}
-  | {state: 'ready'; days: DayGroup[]};
+  | {
+      state: 'ready';
+      days: DayGroup[];
+      /** The filter in force (a stale one from the URL already dropped) and what it can be changed to. */
+      filter: SessionsFilter;
+      options: FilterOptions;
+    };
 
 const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -228,8 +239,10 @@ export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
   });
 }
 
-export function useSessionsModel(filter: SessionFilter = {}): SessionsModel {
-  const query = useSessions(filter);
+export function useSessionsModel(
+  wanted: SessionsFilter = NO_FILTER,
+): SessionsModel {
+  const query = useSessions();
   return useMemo(() => {
     if (query.isPending) return {state: 'loading'};
     if (query.isError)
@@ -240,10 +253,21 @@ export function useSessionsModel(filter: SessionFilter = {}): SessionsModel {
             ? query.error.message
             : String(query.error),
       };
-    if (query.data.items.length === 0) return {state: 'empty'};
+    const sessions = query.data.items;
+    if (sessions.length === 0) return {state: 'empty'};
+    const filter = effectiveFilter(sessions, wanted);
     return {
       state: 'ready',
-      days: buildSessionsModel(query.data.items, new Date()),
+      days: buildSessionsModel(applyFilter(sessions, filter), new Date()),
+      filter,
+      options: filterOptions(sessions, filter),
     };
-  }, [query.isPending, query.isError, query.error, query.data]);
+  }, [
+    query.isPending,
+    query.isError,
+    query.error,
+    query.data,
+    wanted.game,
+    wanted.track,
+  ]);
 }
