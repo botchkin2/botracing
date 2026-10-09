@@ -337,8 +337,15 @@ export function trafficLaneOf(
 
 export type CompareModel = {
   mode: LapMode;
-  /** The lap whose moment the field radar shows: the highlighted lap, else the reference. */
-  playing: {lapId: string; lapNumber: number | null} | null;
+  /**
+   * The one real lap the field radar belongs to, and its name for the panel
+   * ("L7"): the highlighted lap, else the Ref lap. Null with the median and
+   * nothing highlighted (the median is no lap anyone drove, so no cars are
+   * around it), and for a lap of another session (this session's field is not
+   * its field). `lapNumber` is the game's lap count, null for a lap without one:
+   * it has no place in the field, so the screens show no radar.
+   */
+  radarLap: {lapId: string; label: string; lapNumber: number | null} | null;
   reference: string;
   /**
    * What the chip deltas and the time per section are measured against, in
@@ -706,8 +713,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const hlId =
     selection.hl && selection.laps.includes(selection.hl) ? selection.hl : null;
 
-  const playing =
-    selected.find(l => l.id === hlId) ?? refLap ?? selected[0] ?? null;
+  const radarOwner = selected.find(l => l.id === hlId) ?? refLap ?? null;
 
   // The basis every "vs" is measured against: the Ref lap, or the median of
   // the checked laps whose traces are in.
@@ -1193,14 +1199,14 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
 
   return {
     mode,
-    // The field radar follows this session's field: a lap of another
-    // session has no place in it.
-    playing: playing
-      ? {
-          lapId: playing.id,
-          lapNumber: foreignTags.has(playing.id) ? null : playing.lapNumber,
-        }
-      : null,
+    radarLap:
+      radarOwner && !foreignTags.has(radarOwner.id)
+        ? {
+            lapId: radarOwner.id,
+            label: nameOf(radarOwner),
+            lapNumber: radarOwner.lapNumber,
+          }
+        : null,
     reference: refBits.filter(Boolean).join(' · '),
     tableReference: {
       chips: basisName,

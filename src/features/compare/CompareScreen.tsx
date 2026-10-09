@@ -476,9 +476,9 @@ function CompareView({
     </ScrollView>
   );
 
-  // Phone: the radar is on the Follow map while a car is in range; without
-  // field data for the playing lap there is none.
-  const dockLap = model.playing?.lapNumber ?? null;
+  // Phone: the radar is on the Follow map while a car is in range; it belongs
+  // to one real lap (model.radarLap), and without field data for it there is none.
+  const dockLap = model.radarLap?.lapNumber ?? null;
   const radarOn = !layout.isDesktop && field != null && dockLap != null;
   const map =
     model.map &&

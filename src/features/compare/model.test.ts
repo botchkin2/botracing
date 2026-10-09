@@ -923,10 +923,35 @@ describe('laps of another session', () => {
       map,
       selection: sel({laps: ['a', fid], hl: fid}),
     });
-    expect(playingForeign.playing).toEqual({lapId: fid, lapNumber: null});
+    expect(playingForeign.radarLap).toBeNull();
     expect(m.allLaps.flatMap(s => s.rows.map(r => r.lapId)).includes(fid)).toBe(
       false,
     );
-    expect(m.playing?.lapId).toBe('a');
+    expect(
+      buildCompareModel({
+        session,
+        laps,
+        foreign,
+        traces: withTrace,
+        band: null,
+        map,
+        selection: sel({laps: ['a', fid], hl: 'a'}),
+      }).radarLap,
+    ).toMatchObject({lapId: 'a', label: 'L1'});
+  });
+});
+
+describe('which lap owns the radar', () => {
+  const at = (s: Partial<CompareSelection>) => build(sel(s)).radarLap;
+
+  it('is null with the median and nothing highlighted', () => {
+    expect(at({})).toBeNull();
+  });
+  it('is the highlighted lap, named like its chip', () => {
+    expect(at({hl: 'b'})).toMatchObject({lapId: 'b', label: 'L2'});
+  });
+  it('is the Ref lap when nothing is highlighted, and the highlighted lap over it', () => {
+    expect(at({ref: 'c'})?.lapId).toBe('c');
+    expect(at({ref: 'c', hl: 'a'})?.lapId).toBe('a');
   });
 });
