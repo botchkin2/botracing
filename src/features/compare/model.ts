@@ -1140,8 +1140,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       return placer.place(t, i, i, 1)[0];
     };
     // The map always shows the cursor. With many laps checked and none the Ref
-    // or highlighted lap, no lap is a key lap; the basis (the median) is what
-    // Follow centres on, so the dot goes there, in the reference stroke.
+    // or highlighted lap, no lap is a key lap. `refTrace` is then the first
+    // checked lap's trace, which is also where Follow centres, so the dot goes
+    // there. Slot 0 is the reference ink and no lap holds it without a Ref lap
+    // (the laps start at slot 1), so the dot is not mistaken for a lap's.
     const dotsOf = (): MapModel['dots'] => {
       const keyed = keyRefs
         .filter(r => traces.has(r.lapId))
