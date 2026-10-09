@@ -76,7 +76,6 @@ import {
   withDefaultLaps,
 } from './model';
 import {type PlayInputs, playTicker} from './playback';
-import {useAutoHide} from './useAutoHide';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
@@ -89,7 +88,6 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
-const TRANSPORT_IDLE_MS = 3000;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
 const removeHit = hitFor({left: 14, right: space.md}, 15);
@@ -215,9 +213,6 @@ function CompareView({
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  // Phone: the window and step controls fade after a few seconds with no touch
-  // on the charts; Play stays. They keep their space, so nothing reflows (#44).
-  const seek = useAutoHide(TRANSPORT_IDLE_MS, playing);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -707,15 +702,12 @@ function CompareView({
       }
       spanLabel={spanLabel}
       playing={playing}
-      seekVisible={layout.isDesktop || seek.visible}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
-      onPlay={() => {
-        setPlaying(p => !p);
-      }}
+      onPlay={() => setPlaying(p => !p)}
       onRate={prefs.setRate}
     />
   );
@@ -819,13 +811,7 @@ function CompareView({
             eye moves from the trace to the car without crossing anything
             (round 5, item 6). */}
         <View style={styles.plotMap}>
-          <View
-            onStartShouldSetResponderCapture={() => {
-              seek.reveal();
-              return false;
-            }}>
-            {charts}
-          </View>
+          {charts}
           {map}
         </View>
         {position}

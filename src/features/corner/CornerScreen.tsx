@@ -245,34 +245,40 @@ function CornerView({
     />
   ));
 
+  // The Compare link and the corner step chips. On the phone they are pinned
+  // above the scrolling page, so they stay in reach from any scroll position.
+  const navRow = (
+    <View style={styles.row}>
+      <Pressable
+        accessibilityRole='link'
+        style={hitBox.link}
+        hitSlop={space.md}
+        onPress={() =>
+          router.navigate(
+            compareHref(sessionId, {
+              laps: selection.laps,
+              hl: selection.hl,
+              corner: model.sectionN,
+            }),
+          )
+        }>
+        <Text variant='bodyStrong' tone='accentInk'>
+          ‹ Compare
+        </Text>
+      </Pressable>
+      <View style={styles.flex} />
+      {model.prev != null && (
+        <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
+      )}
+      {model.next != null && (
+        <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
+      )}
+    </View>
+  );
+
   const header = (
     <View style={styles.gap}>
-      <View style={styles.row}>
-        <Pressable
-          accessibilityRole='link'
-          style={hitBox.link}
-          hitSlop={space.md}
-          onPress={() =>
-            router.navigate(
-              compareHref(sessionId, {
-                laps: selection.laps,
-                hl: selection.hl,
-                corner: model.sectionN,
-              }),
-            )
-          }>
-          <Text variant='bodyStrong' tone='accentInk'>
-            ‹ Compare
-          </Text>
-        </Pressable>
-        <View style={styles.flex} />
-        {model.prev != null && (
-          <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
-        )}
-        {model.next != null && (
-          <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
-        )}
-      </View>
+      {layout.isWide ? navRow : null}
       <Text variant='display'>{model.title}</Text>
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
@@ -502,26 +508,35 @@ function CornerView({
       </View>
     );
   return (
-    <ScrollView
-      style={[styles.screen, {backgroundColor: color.bg}]}
-      contentContainerStyle={[
-        styles.col,
-        top,
-        // col pads by space.xl; contentWidth is the inside, so charts and
-        // strips sized to it fit instead of overflowing past the gutter.
-        {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
-      ]}>
-      {header}
-      {model.brakeMap && (
-        <BrakeMapPanel
-          map={model.brakeMap}
-          width={layout.contentWidth}
-          lapColor={lapColor}
-        />
-      )}
-      {measures}
-      {traces}
-    </ScrollView>
+    <View style={[styles.screen, {backgroundColor: color.bg}]}>
+      <View
+        style={[
+          styles.pinned,
+          {backgroundColor: color.bg, paddingTop: top.paddingTop},
+        ]}>
+        {navRow}
+      </View>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.col,
+          {paddingTop: space.lg},
+          // col pads by space.xl; contentWidth is the inside, so charts and
+          // strips sized to it fit instead of overflowing past the gutter.
+          {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
+        ]}>
+        {header}
+        {model.brakeMap && (
+          <BrakeMapPanel
+            map={model.brakeMap}
+            width={layout.contentWidth}
+            lapColor={lapColor}
+          />
+        )}
+        {measures}
+        {traces}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -692,6 +707,7 @@ function BrakeMapPanel({
 
 const styles = StyleSheet.create({
   screen: {flex: 1},
+  pinned: {paddingHorizontal: space.xl, paddingBottom: space.sm},
   center: {alignItems: 'center', justifyContent: 'center'},
   banner: {alignSelf: 'stretch', paddingHorizontal: space.xl},
   flex: {flex: 1},
