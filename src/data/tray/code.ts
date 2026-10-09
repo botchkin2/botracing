@@ -1,4 +1,4 @@
-import {trayApiUrl} from '../http';
+import {releaseApiUrl} from '../http';
 import {authHeaders} from '../tokenSource';
 
 // POST /api/tray/code: the tray's sign-in through the web app. The signed-in
@@ -12,7 +12,7 @@ export type CodeResult =
 
 export async function requestTrayCode(challenge: string): Promise<CodeResult> {
   try {
-    const response = await fetch(trayApiUrl('/code'), {
+    const response = await fetch(releaseApiUrl('tray', '/code'), {
       method: 'POST',
       cache: 'no-store',
       headers: {...(await authHeaders()), 'Content-Type': 'application/json'},
