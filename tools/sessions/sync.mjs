@@ -10,7 +10,8 @@
 //                                                     sessions: fingerprints, staleness, fold plan.
 //                                                     Analyses and writes nothing; exits 1 on a throw
 //   node tools/sessions/sync.mjs --force              redo sessions already uploaded
-//   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map
+//   node tools/sessions/sync.mjs --rebuild-track <id> replace a track's corner map (--local only; curated
+//                                                     maps change with tools/curate/curate.mjs)
 //   node tools/sessions/sync.mjs --jobs 4             sessions analyzed at once
 //   node tools/sessions/sync.mjs --events-only --since 2026-09-14
 //                                                     only set which online event
@@ -29,13 +30,14 @@ import {
   readFileSync,
   statSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import * as lmu from './lmu.mjs';
-import {reusableInfo} from './describeCache.mjs';
+import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
   analysisVersion,
@@ -57,8 +59,21 @@ import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {
+  forgetOtherOwners,
+  freshState,
+  liftWindow,
+  markDone,
+  OLDER_REQUEST,
+} from './syncState.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
+import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
+import {
+  DEFAULT_RESYNC_CAP,
+  catalogStamp,
+  staleByCatalog,
+} from './catalogStamp.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -71,8 +86,35 @@ const folder = arg(
   '--folder',
   process.env.LMU_TELEMETRY || adapter.defaultFolder,
 );
-const ownerId = arg('--owner', process.env.LAP_OWNER || 'botkin');
-const since = arg('--since', '');
+// --remote: no Admin credentials. The store is the upload function (storeClient.mjs),
+// signed in by the Firebase ID token in the file LAP_TOKEN_FILE (the tray app
+// keeps it fresh), and the owner is whatever key the server holds for that user.
+const remote = !flag('--local') && (flag('--remote') || !!process.env.LAP_API);
+// Track data (corner maps, boundaries, surface) is curated by Botkin, not made
+// by users' syncs (pit wall thread 2 #155, #210): a sync that uploads, remote or
+// with Admin credentials, reads the catalog and never builds, folds, rebuilds or
+// uploads any of it. A map comes from `tools/curate/curate.mjs plan-add`. Only
+// `--local` (nothing leaves the machine) still builds maps, for trying things.
+const catalogOnly = !flag('--local');
+if (catalogOnly && arg('--rebuild-track', '')) {
+  console.error(
+    '--rebuild-track is not available except with --local: track maps are curated. Use tools/curate/curate.mjs plan-replace.',
+  );
+  process.exit(2);
+}
+const remoteStore = remote ? await openRemoteStore() : null;
+const ownerId = remote
+  ? (await remoteStore.me()).ownerKey
+  : arg('--owner', process.env.LAP_OWNER || 'botkin');
+// `since` also takes the state's first-run window once the state is read
+// (main), unless --since says otherwise.
+let since = arg('--since', '');
+// A fresh state limits its first run to this many days back (the tray: 14).
+const firstWindowDays = Number(arg('--first-window-days', '0'));
+// A remote sync analyses again at most this many sessions per run because the
+// curated track catalog changed (newest first), so one edit does not send every
+// session of a busy track through the upload at once.
+const resyncCap = Number(arg('--catalog-resync-cap', DEFAULT_RESYNC_CAP));
 const only = arg('--only', '');
 // Session ids to leave alone this pass: the watcher's failed sessions still
 // waiting on their backoff.
@@ -88,6 +130,7 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
+const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -107,23 +150,13 @@ const jobs = Math.max(
   ),
 );
 
-// Recordings of one session that are further apart than this start a new one.
-const SESSION_GAP_H = 6;
-const RESTART_MAX_SEC = 5 * 60;
-const RESTART_GAP_SEC = 2 * 60;
-// Shorter recordings hold no lap: a menu, a reset, a false start. Skip them.
-const MIN_RECORDING_SEC = 30;
-
-function hash(...parts) {
-  return createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 16);
-}
-
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function readState() {
-  if (!existsSync(statePath)) return {files: {}, sessions: {}};
+  if (!existsSync(statePath))
+    return freshState({windowDays: firstWindowDays, now: new Date()});
   return JSON.parse(readFileSync(statePath, 'utf8'));
 }
 
@@ -141,107 +174,23 @@ function log(line) {
   console.log(line);
 }
 
-// Describe every recording, reusing earlier results for files that have not changed.
+// Describe every recording, reusing earlier results for files that have not changed
+// (sessionFiles.mjs: the scan and the grouping are shared with the curator).
 function scan(state) {
-  if (!existsSync(folder)) throw new Error(`No telemetry folder at ${folder}`);
-  const out = [];
-  let skippedQuiet = 0;
-  for (const name of readdirSync(folder)) {
-    const path = resolve(folder, name);
-    if (!adapter.isRecording(path)) continue;
-    if (only && !name.includes(only)) continue;
-    const stat = statSync(path);
-    if (Date.now() - stat.mtimeMs < quietMin * 60 * 1000) {
-      skippedQuiet++;
-      continue;
-    }
-    const known = state.files[name];
-    // A cached result is reused only for an unchanged file described by this
-    // version of describe(); otherwise the file is described again.
-    let info = reusableInfo(known, stat, adapter.describeVersion);
-    if (!info) {
-      try {
-        info = adapter.describe(path);
-      } catch (error) {
-        log(`skip ${name}: ${String(error.message).split('\n')[0]}`);
-        continue;
-      }
-      state.files[name] = {
-        size: stat.size,
-        mtimeMs: stat.mtimeMs,
-        describeVersion: adapter.describeVersion,
-        info,
-      };
-    }
-    if (!info.recordedAt || info.endT - info.startT < MIN_RECORDING_SEC) {
-      continue;
-    }
-    if (since && info.recordedAt.slice(0, 10) < since) continue;
-    out.push({path, size: stat.size, info});
-  }
-  if (skippedQuiet)
-    log(`${skippedQuiet} file(s) still being written, skipped for now`);
-  return out;
-}
-
-// A session is recordings with the same owner, sim, track layout, car, and
-// session type that belong to one run of the game's session. A later file
-// belongs to the same session when the game's session timer advanced with the
-// wall clock since the previous file (practice runs back to the pits), or when
-// it restarted with the same session clock (a race restart).
-function sameSession(prev, next) {
-  const wall =
-    (Date.parse(next.recordedAt) - Date.parse(prev.recordedAt)) / 1000;
-  if (wall > SESSION_GAP_H * 3600) return false;
-  if (Math.abs(next.startT - prev.startT - wall) < 90) return true;
-  // Same start clock only means a restart when the previous file was a short
-  // false start, or the next one began right after it. The default race clock
-  // repeats, so two real races would otherwise merge.
-  if (next.sessionClock !== prev.sessionClock) return false;
-  const prevSec = prev.endT - prev.startT;
-  return prevSec < RESTART_MAX_SEC || wall < prevSec + RESTART_GAP_SEC;
+  return scanFolder({folder, adapter, state, only, since, quietMin, log});
 }
 
 function group(files) {
-  const byKey = new Map();
-  for (const file of files.sort((a, b) =>
-    a.info.recordedAt.localeCompare(b.info.recordedAt),
-  )) {
-    const {info} = file;
-    const key = [
-      ownerId,
-      info.sim,
-      info.layout,
-      info.car,
-      info.sessionType,
-    ].join('|');
-    const list = byKey.get(key) || [];
-    const last = list[list.length - 1];
-    if (last && sameSession(last.files[last.files.length - 1].info, info)) {
-      last.files.push(file);
-    } else {
-      list.push({key, files: [file]});
-    }
-    byKey.set(key, list);
+  const sessions = groupFiles(files, ownerId);
+  // What a change of analysis or of a file's size makes a different session
+  // fingerprint: the unchanged ones are not analysed again.
+  for (const s of sessions) {
+    s.fingerprint = hash(
+      versionKey(analysisVersion, blockVersions),
+      ...s.files.map(f => `${f.info.source}:${f.size}`),
+    );
   }
-  const sessions = [];
-  for (const list of byKey.values()) {
-    for (const s of list) {
-      const first = s.files[0].info;
-      s.id = hash(s.key, first.recordedAt);
-      s.fingerprint = hash(
-        versionKey(analysisVersion, blockVersions),
-        ...s.files.map(f => `${f.info.source}:${f.size}`),
-      );
-      for (const f of s.files) {
-        f.id = hash(ownerId, first.sim, f.info.source, f.info.recordedAt);
-      }
-      sessions.push(s);
-    }
-  }
-  return sessions.sort((a, b) =>
-    a.files[0].info.recordedAt.localeCompare(b.files[0].info.recordedAt),
-  );
+  return sessions;
 }
 
 function slugId(sim, name) {
@@ -257,7 +206,11 @@ async function trackMapFor(trackId, store) {
   if (trackMaps.has(trackId)) return trackMaps.get(trackId);
   if (trackId === rebuildTrack) return null;
   const path = resolve(work, 'tracks', `${trackId}.json`);
-  let map = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  // A remote sync reads the curated catalog every time, never a local copy.
+  let map =
+    !catalogOnly && existsSync(path)
+      ? JSON.parse(readFileSync(path, 'utf8'))
+      : null;
   if (!map && store) map = await store.getTrack(trackId);
   // A map from an older mapVersion is no map: the session rebuilds it. Say so
   // here, not only inside the analysis, so a parallel sync runs that track
@@ -290,11 +243,29 @@ const boundariesPath = trackId =>
 async function boundariesFor(trackId, store) {
   if (boundaryStates.has(trackId)) return boundaryStates.get(trackId);
   const path = boundariesPath(trackId);
-  let doc = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+  let doc =
+    !catalogOnly && existsSync(path)
+      ? JSON.parse(readFileSync(path, 'utf8'))
+      : null;
   if (!doc && store) doc = await store.getBoundaries(trackId);
   const state = doc ? unpackState(doc) : null;
   boundaryStates.set(trackId, state);
   return state;
+}
+
+// The state of a track's curated data in the catalog this run read, once per
+// track (catalogStamp.mjs): what a session is recorded as analysed under.
+const catalogStamps = new Map();
+async function stampFor(trackId, store) {
+  if (!catalogStamps.has(trackId))
+    catalogStamps.set(
+      trackId,
+      catalogStamp(
+        await trackMapFor(trackId, store),
+        await boundariesFor(trackId, store),
+      ),
+    );
+  return catalogStamps.get(trackId);
 }
 
 function keepBoundaries(trackId, state) {
@@ -385,6 +356,7 @@ function build(
     foldOnly,
     carDamage: damage,
     sessionType: first.sessionType,
+    catalogOnly,
   });
   if (foldOnly) return {a, archived};
   const track = {name: first.track, variant: first.layout};
@@ -692,6 +664,19 @@ function describeSession(s) {
 
 async function main() {
   const state = readState();
+  // A session uploaded for another account counts as new for this one.
+  const forgotten = forgetOtherOwners(state, ownerId);
+  if (forgotten)
+    log(`${forgotten} session(s) were uploaded for another account: new here`);
+  // "Upload older sessions…" in the tray: the first-run window is lifted once.
+  if (existsSync(olderRequestPath)) {
+    liftWindow(state);
+    // Removed before the sync runs on purpose: the lift is saved with the
+    // state right after the scan, so a sync stopped for the game keeps it.
+    if (!check) rmSync(olderRequestPath);
+    log('older sessions included');
+  }
+  if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);
   const sessions = group(files);
@@ -709,7 +694,7 @@ async function main() {
   log(`${eventWindows.length} online event joins known`);
 
   let store = null;
-  if (!local) store = await import('./store.mjs');
+  if (!local) store = remoteStore ?? (await import('./store.mjs'));
 
   if (flag('--events-only')) {
     const items = sessions
@@ -734,6 +719,7 @@ async function main() {
   // Newest first: recent sessions matter most, and a long backfill fills in
   // the past last.
   state.revs ??= {};
+  state.stamps ??= {};
   // A session whose corner times were cut at boundaries that have since moved
   // is re-analysed, even though nothing about its files changed.
   const boundariesMoved = async s => {
@@ -750,6 +736,37 @@ async function main() {
         stale.add(s.id);
     }
   }
+  // A remote sync reads the curated catalog and re-analyses the sessions
+  // whose track changed in it (a map added, a map edited), per track, capped
+  // per run, newest first. The stamp is read once per track from the catalog.
+  const stamps = new Map();
+  const catalogStale = new Set();
+  if (catalogOnly && !force && !check) {
+    const synced = [...sessions]
+      .reverse()
+      .filter(s => state.sessions[s.id] === s.fingerprint)
+      .map(s => ({id: s.id, trackId: trackOf(s)}));
+    for (const {trackId} of synced)
+      if (!stamps.has(trackId))
+        stamps.set(trackId, await stampFor(trackId, store));
+    const found = staleByCatalog({
+      sessions: synced,
+      stamps: state.stamps,
+      current: stamps,
+      cap: resyncCap,
+    });
+    for (const [id, stamp] of found.adopt) state.stamps[id] = stamp;
+    if (found.adopt.size) saveState(state);
+    for (const id of found.stale) catalogStale.add(id);
+    if (catalogStale.size)
+      log(
+        `${catalogStale.size} session(s) on a track whose curated data changed`,
+      );
+    if (found.deferred)
+      log(
+        `${found.deferred} more wait for a later run (cap ${resyncCap} per run)`,
+      );
+  }
   let todo = [...sessions]
     .reverse()
     .filter(
@@ -757,7 +774,8 @@ async function main() {
         force ||
         local ||
         state.sessions[s.id] !== s.fingerprint ||
-        stale.has(s.id),
+        stale.has(s.id) ||
+        catalogStale.has(s.id),
     );
   if (stale.size) log(`${stale.size} session(s) on older corner boundaries`);
   const waiting = todo.filter(s => skipIds.has(s.id));
@@ -773,7 +791,8 @@ async function main() {
   // of one, a session folded by an earlier run) are skipped; a track without a
   // map yet is built by its first session in the main pass, the rest settle.
   const needFold = [];
-  for (const s of todo) {
+  // A remote sync folds nothing: the boundaries are the curator's.
+  for (const s of catalogOnly ? [] : todo) {
     const trackId = trackOf(s);
     if (!(await trackMapFor(trackId, store))) continue;
     const kept = await boundariesFor(trackId, store);
@@ -841,7 +860,8 @@ async function main() {
     }`,
   );
   if (failed) process.exitCode = 1;
-  if (!local && tracks.size > 0) await foldSurfaceAfterSync([...tracks]);
+  if (foldsSurface({local, remote, tracks: tracks.size}))
+    await foldSurfaceAfterSync([...tracks]);
 }
 
 // The tracks just uploaded get their new sessions folded into the measured
@@ -928,8 +948,9 @@ async function runPool(
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
         if (!local) {
-          state.sessions[s.id] = s.fingerprint;
+          markDone(state, s.id, s.fingerprint, ownerId);
           if (r.rev != null) state.revs[s.id] = r.rev;
+          if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
           saveState(state);
         }
       } else {
@@ -987,6 +1008,12 @@ async function processSession(
 ) {
   lines.push(`${s.id} ${describeSession(s)}`);
   const out = build(s, trackMap, boundaries, eventWindows, {fresh});
+  // The analysis is told not to make track data; if any ever comes out, it
+  // must not go anywhere.
+  if (catalogOnly && (out.track || out.boundaries))
+    throw new Error(
+      'a remote sync produced track data: refusing to keep or upload it',
+    );
   const trackId = trackOf(s);
   if (out.track) {
     lines.push(
@@ -1031,7 +1058,7 @@ async function processSession(
 }
 
 async function worker() {
-  const store = local ? null : await import('./store.mjs');
+  const store = local ? null : remoteStore ?? (await import('./store.mjs'));
   parentPort.on('message', async message => {
     const {op, s, trackMap, boundaries, eventWindows, fresh} = message;
     const lines = [];

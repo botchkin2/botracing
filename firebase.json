@@ -20,6 +20,13 @@
         }
       },
       {
+        "source": "/api/upload/**",
+        "function": {
+          "functionId": "uploadApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

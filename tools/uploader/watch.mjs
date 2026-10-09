@@ -37,6 +37,7 @@ import {versionKey} from '../sessions/versionKey.mjs';
 import * as lmu from '../sessions/lmu.mjs';
 import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
+import {parentGone} from './parentGuard.mjs';
 import {
   isProgressLine,
   newSyncResult,
@@ -44,9 +45,11 @@ import {
   queueCount,
   readSyncLine,
 } from './syncOutput.mjs';
+import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
+import {floorOf, OLDER_REQUEST} from '../sessions/syncState.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -56,12 +59,23 @@ const here = dirname(fileURLToPath(import.meta.url));
 const syncScript =
   process.env.LAP_SYNC_SCRIPT || resolve(here, '../sessions/sync.mjs');
 const local = process.env.LOCALAPPDATA || homedir();
-const home = resolve(local, 'lap-uploader');
+// LAP_UPLOADER_HOME: the tray app keeps its own state, apart from the logon task's.
+const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
-// sync.mjs's default work folder and its record of files already described.
-const syncStatePath = resolve(local, 'lap-sessions', 'state.json');
+const dash = process.argv.indexOf('--');
+const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
+// sync.mjs's work folder (the tray passes its own with --work) and its record
+// of files already described.
+function syncArg(name) {
+  const i = syncArgs.indexOf(name);
+  return i < 0 ? undefined : syncArgs[i + 1];
+}
+const syncWork = resolve(syncArg('--work') ?? resolve(local, 'lap-sessions'));
+const syncStatePath = resolve(syncWork, 'state.json');
+const olderRequestPath = resolve(syncWork, OLDER_REQUEST);
+const firstWindowDays = Number(syncArg('--first-window-days') ?? 0);
 const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
 const GAME_EXE = process.env.LAP_GAME_EXE || 'Le Mans Ultimate.exe';
 const LOCK_PIPE =
@@ -72,8 +86,6 @@ const BEAT_MIN = 5;
 const KEEPALIVE_SEC = 60;
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
 const hostId = hostIdOf(hostname());
-const dash = process.argv.indexOf('--');
-const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
 
 // Keeps the current log and one older one.
 function log(line) {
@@ -122,8 +134,11 @@ function gameRunning() {
 // install made the queue read 557 for sessions long uploaded (apex #553).
 function recordings(sinceMs) {
   if (!existsSync(telemetry)) return null;
-  const known =
-    sinceMs == null ? readJson(syncStatePath, {}).files ?? {} : null;
+  const syncState = sinceMs == null ? readJson(syncStatePath, null) : null;
+  const known = sinceMs == null ? syncState?.files ?? {} : null;
+  // Recordings older than the first-run window are not waiting for a sync.
+  const floor = floorOf(syncState, {windowDays: firstWindowDays});
+  const floorMs = floor ? Date.parse(floor) : null;
   let newestMtimeMs = null;
   let newer = 0;
   for (const name of readdirSync(telemetry)) {
@@ -133,20 +148,26 @@ function recordings(sinceMs) {
     if (newestMtimeMs == null || mtimeMs > newestMtimeMs)
       newestMtimeMs = mtimeMs;
     const seen = known?.[name];
-    const pending = known
-      ? !(seen && seen.size === size && seen.mtimeMs === mtimeMs)
-      : mtimeMs > sinceMs;
+    const pending =
+      (floorMs == null || mtimeMs >= floorMs) &&
+      (known
+        ? !(seen && seen.size === size && seen.mtimeMs === mtimeMs)
+        : mtimeMs > sinceMs);
     if (pending) newer++;
   }
   return {newestMtimeMs, newer};
 }
 
+// LAP_VERSION: set by the tray app, which is installed without git.
 function version() {
+  if (process.env.LAP_VERSION) return process.env.LAP_VERSION;
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
       cwd: here,
       encoding: 'utf8',
       windowsHide: true,
+      // Not a repository (an installed copy): no "fatal:" line on stderr.
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     return 'unknown';
@@ -197,9 +218,22 @@ function runSync(onProgress, skipIds) {
 }
 
 let db = null;
+// Under the tray app (a token file) the status also goes to the server, which
+// stores it under the signed-in user's owner key (heartbeatSender.mjs). Not
+// awaited: a slow or refused request never holds up a sync.
+const statusSender = process.env.LAP_TOKEN_FILE
+  ? createHeartbeatSender({
+      send: httpSend({
+        api: process.env.LAP_API || undefined,
+        tokenFile: process.env.LAP_TOKEN_FILE,
+      }),
+      log: line => log(line),
+    })
+  : null;
 async function writeBeat(doc) {
   if (process.env.LAP_HEARTBEAT_FILE) {
     appendFileSync(process.env.LAP_HEARTBEAT_FILE, `${JSON.stringify(doc)}\n`);
+    void statusSender?.offer(doc);
     return;
   }
   if (!db) db = (await import('../sessions/store.mjs')).connect().db;
@@ -272,6 +306,10 @@ async function main() {
   };
 
   for (;;) {
+    if (parentGone()) {
+      log('the tray app is gone, stopping');
+      process.exit(0); // the lock pipe would keep the process alive otherwise
+    }
     try {
       const running = gameRunning();
       const recs = recordings(watch.lastRunAtMs);
@@ -284,6 +322,7 @@ async function main() {
         sessionRetryAtMs: earliestRetryMs(watch.retries),
         // First run with this code, or a merge that bumped it.
         versionChanged: watch.versionKey !== currentKey,
+        olderRequested: existsSync(olderRequestPath),
         nowMs: Date.now(),
       });
       wasRunning = running;

@@ -91,3 +91,15 @@ test('after a crash, the whole run waits for its retry, version bump or not', ()
   });
   assert.equal(decide({...failing, nowMs: 131 * MIN}).run, true);
 });
+
+test('"Upload older sessions…" runs a sync with nothing new, but never in game', () => {
+  const idle = {...base, lastRunAtMs: 100 * MIN};
+  assert.deepEqual(decide({...idle, olderRequested: true}), {
+    run: true,
+    reason: 'older sessions requested',
+  });
+  assert.equal(
+    decide({...idle, olderRequested: true, gameRunning: true}).run,
+    false,
+  );
+});

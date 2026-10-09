@@ -7,7 +7,7 @@ import {
   resampleTrace,
 } from '@/src/analysis/resample';
 
-import {apiBaseUrl, HttpError, retryUnlessClientError} from '../http';
+import {apiFetch, HttpError, retryUnlessClientError} from '../http';
 
 import {traceLoad, type TraceLoad} from './loadState';
 import {parseTraceCsv} from './parse';
@@ -21,7 +21,7 @@ async function fetchLapTrace(
   signal?: AbortSignal,
 ): Promise<RawTrace> {
   const path = `/laps/${encodeURIComponent(lapId)}/csv`;
-  const response = await fetch(`${apiBaseUrl}${path}`, {signal});
+  const response = await apiFetch(path, {signal});
   if (!response.ok) throw new HttpError(response.status, path);
   return parseTraceCsv(await response.text());
 }
