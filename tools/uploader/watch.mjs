@@ -49,6 +49,7 @@ import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
+import {floorOf, OLDER_REQUEST} from '../sessions/syncState.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -63,8 +64,18 @@ const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
 const recorderStatus = resolve(local, 'lap-capture', 'status.json');
-// sync.mjs's default work folder and its record of files already described.
-const syncStatePath = resolve(local, 'lap-sessions', 'state.json');
+const dash = process.argv.indexOf('--');
+const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
+// sync.mjs's work folder (the tray passes its own with --work) and its record
+// of files already described.
+function syncArg(name) {
+  const i = syncArgs.indexOf(name);
+  return i < 0 ? undefined : syncArgs[i + 1];
+}
+const syncWork = resolve(syncArg('--work') ?? resolve(local, 'lap-sessions'));
+const syncStatePath = resolve(syncWork, 'state.json');
+const olderRequestPath = resolve(syncWork, OLDER_REQUEST);
+const firstWindowDays = Number(syncArg('--first-window-days') ?? 0);
 const telemetry = process.env.LMU_TELEMETRY || lmu.defaultFolder;
 const GAME_EXE = process.env.LAP_GAME_EXE || 'Le Mans Ultimate.exe';
 const LOCK_PIPE =
@@ -75,8 +86,6 @@ const BEAT_MIN = 5;
 const KEEPALIVE_SEC = 60;
 const LOG_MAX_BYTES = 5 * 1024 * 1024;
 const hostId = hostIdOf(hostname());
-const dash = process.argv.indexOf('--');
-const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
 
 // Keeps the current log and one older one.
 function log(line) {
@@ -125,8 +134,11 @@ function gameRunning() {
 // install made the queue read 557 for sessions long uploaded (apex #553).
 function recordings(sinceMs) {
   if (!existsSync(telemetry)) return null;
-  const known =
-    sinceMs == null ? readJson(syncStatePath, {}).files ?? {} : null;
+  const syncState = sinceMs == null ? readJson(syncStatePath, null) : null;
+  const known = sinceMs == null ? syncState?.files ?? {} : null;
+  // Recordings older than the first-run window are not waiting for a sync.
+  const floor = floorOf(syncState, {windowDays: firstWindowDays});
+  const floorMs = floor ? Date.parse(floor) : null;
   let newestMtimeMs = null;
   let newer = 0;
   for (const name of readdirSync(telemetry)) {
@@ -136,9 +148,11 @@ function recordings(sinceMs) {
     if (newestMtimeMs == null || mtimeMs > newestMtimeMs)
       newestMtimeMs = mtimeMs;
     const seen = known?.[name];
-    const pending = known
-      ? !(seen && seen.size === size && seen.mtimeMs === mtimeMs)
-      : mtimeMs > sinceMs;
+    const pending =
+      (floorMs == null || mtimeMs >= floorMs) &&
+      (known
+        ? !(seen && seen.size === size && seen.mtimeMs === mtimeMs)
+        : mtimeMs > sinceMs);
     if (pending) newer++;
   }
   return {newestMtimeMs, newer};
@@ -308,6 +322,7 @@ async function main() {
         sessionRetryAtMs: earliestRetryMs(watch.retries),
         // First run with this code, or a merge that bumped it.
         versionChanged: watch.versionKey !== currentKey,
+        olderRequested: existsSync(olderRequestPath),
         nowMs: Date.now(),
       });
       wasRunning = running;

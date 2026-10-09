@@ -30,6 +30,7 @@ import {
   readFileSync,
   statSync,
   renameSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -58,6 +59,13 @@ import {fieldFor} from './field.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {
+  forgetOtherOwners,
+  freshState,
+  liftWindow,
+  markDone,
+  OLDER_REQUEST,
+} from './syncState.mjs';
 import {windowsOf} from '../../src/analysis/cornerBoundaries.ts';
 import {lapTraffic} from './lapTraffic.mjs';
 import {foldsSurface, openRemoteStore} from './remoteStore.mjs';
@@ -98,7 +106,11 @@ const remoteStore = remote ? await openRemoteStore() : null;
 const ownerId = remote
   ? (await remoteStore.me()).ownerKey
   : arg('--owner', process.env.LAP_OWNER || 'botkin');
-const since = arg('--since', '');
+// `since` also takes the state's first-run window once the state is read
+// (main), unless --since says otherwise.
+let since = arg('--since', '');
+// A fresh state limits its first run to this many days back (the tray: 14).
+const firstWindowDays = Number(arg('--first-window-days', '0'));
 // A remote sync analyses again at most this many sessions per run because the
 // curated track catalog changed (newest first), so one edit does not send every
 // session of a busy track through the upload at once.
@@ -118,6 +130,7 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
+const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -142,7 +155,8 @@ function plain(value) {
 }
 
 function readState() {
-  if (!existsSync(statePath)) return {files: {}, sessions: {}};
+  if (!existsSync(statePath))
+    return freshState({windowDays: firstWindowDays, now: new Date()});
   return JSON.parse(readFileSync(statePath, 'utf8'));
 }
 
@@ -650,6 +664,17 @@ function describeSession(s) {
 
 async function main() {
   const state = readState();
+  // A session uploaded for another account counts as new for this one.
+  const forgotten = forgetOtherOwners(state, ownerId);
+  if (forgotten)
+    log(`${forgotten} session(s) were uploaded for another account: new here`);
+  // "Upload older sessions…" in the tray: the first-run window is lifted once.
+  if (existsSync(olderRequestPath)) {
+    liftWindow(state);
+    if (!check) rmSync(olderRequestPath);
+    log('older sessions included');
+  }
+  if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);
   const sessions = group(files);
@@ -921,7 +946,7 @@ async function runPool(
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
         if (!local) {
-          state.sessions[s.id] = s.fingerprint;
+          markDone(state, s.id, s.fingerprint, ownerId);
           if (r.rev != null) state.revs[s.id] = r.rev;
           if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
           saveState(state);

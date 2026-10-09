@@ -25,6 +25,7 @@ export function retryDelayMin(failuresInRow) {
 // run, because the failing sessions are skipped, not the rest.
 export function decide({
   versionChanged = false,
+  olderRequested = false,
   gameRunning,
   wasRunning,
   newestMtimeMs,
@@ -48,6 +49,8 @@ export function decide({
   // A new analysisVersion means every stored session is out of date: sync
   // them all once, the same way as new telemetry (never in game).
   if (versionChanged) return {run: true, reason: 'new analysis version'};
+  // "Upload older sessions…": the sync lifts the first-run window.
+  if (olderRequested) return {run: true, reason: 'older sessions requested'};
   if (lastRunAtMs != null && newestMtimeMs <= lastRunAtMs) {
     return {run: false, reason: 'nothing new'};
   }
