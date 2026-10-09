@@ -18,7 +18,6 @@ import {
   trackCorners,
 } from '@/src/data/sessions';
 import {
-  formatDistance,
   formatGap,
   lapMode,
   type LapMode,
@@ -487,7 +486,6 @@ export function buildCornerModel(input: {
     parts,
     title: `Turn ${turnNumber(corner, sec.official)}`,
     subtitle: [
-      formatDistance(sec.apexM),
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
       ref ? `compared with L${ref.lapIndex}` : null,

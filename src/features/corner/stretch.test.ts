@@ -39,7 +39,7 @@ describe('viewCaption', () => {
   it('names the shaded stretch and what else is in view', () => {
     expect(
       viewCaption('T8', {fromM: 3665, toM: 3860}, [{label: 'T9', lapM: 3925}]),
-    ).toBe('Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m');
+    ).toBe('Shaded: T8 · also in view: T9');
   });
 
   it('lists several neighbours in track order, and says nothing when there are none', () => {
@@ -48,12 +48,8 @@ describe('viewCaption', () => {
         {label: 'T1', lapM: 80},
         {label: 'T3', lapM: 300},
       ]),
-    ).toBe(
-      'Shaded: T2 · 100 → 250 m · also in view: T1 apex 80 m, T3 apex 300 m',
-    );
-    expect(viewCaption('T5', {fromM: 1000, toM: 1500}, [])).toBe(
-      'Shaded: T5 · 1,000 → 1,500 m',
-    );
+    ).toBe('Shaded: T2 · also in view: T1, T3');
+    expect(viewCaption('T5', {fromM: 1000, toM: 1500}, [])).toBe('');
   });
 });
 
@@ -82,13 +78,13 @@ describe('overlap', () => {
 
   it('puts the overlap in the caption, and only when there is one', () => {
     expect(viewCaption('T8', {fromM: 3665, toM: 3860}, [], ['T9'])).toBe(
-      'Shaded: T8 · 3,665 → 3,860 m · T8 and T9 overlap here',
+      'Shaded: T8 · T8 and T9 overlap here',
     );
     expect(
       viewCaption('T8', {fromM: 3665, toM: 3860}, [], ['T9', 'T10']),
     ).toContain('T8, T9 and T10 overlap here');
     expect(cornerView(busStop, 0, [3550, 3950], 5000)!.caption).toBe(
-      'Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m · T8 and T9 overlap here',
+      'Shaded: T8 · also in view: T9 · T8 and T9 overlap here',
     );
   });
 });
@@ -100,17 +96,13 @@ describe('cornerView', () => {
     expect(v.neighbours).toEqual([
       {n: 9, label: 'T9', apexM: 3925, lapM: 3925},
     ]);
-    expect(v.caption).toBe(
-      'Shaded: T8 · 3,665 → 3,860 m · also in view: T9 apex 3,925 m',
-    );
+    expect(v.caption).toBe('Shaded: T8 · also in view: T9');
   });
 
   it('uses official labels where a track has them', () => {
     const c = [corner(9, 3520, 3520, 'T10a'), corner(10, 3575, 3575, 'T10b')];
     const v = cornerView(c, 0, [3270, 3670], 4079)!;
-    expect(v.caption).toBe(
-      'Shaded: T10a · 3,520 → 3,575 m · also in view: T10b apex 3,575 m',
-    );
+    expect(v.caption).toBe('Shaded: T10a · also in view: T10b');
   });
 
   it('leaves out corners outside the window', () => {
@@ -131,7 +123,7 @@ describe('cornerView', () => {
     expect(wrap.neighbours).toEqual([
       {n: 2, label: 'T2', apexM: -50, lapM: 4950},
     ]);
-    expect(wrap.caption).toContain('T2 apex 4,950 m');
+    expect(wrap.caption).toContain('also in view: T2');
   });
 
   it('is null for a corner that is not there', () => {
@@ -171,8 +163,6 @@ describe('the stretch across the start/finish line', () => {
     const v = cornerView(cs, 0, [60 - 250, 60 + 150], L)!;
     expect(v.stretch).toEqual({fromM: 4050 - L, toM: 300});
     expect(dimmedRanges([-190, 210], v.stretch)).toEqual([[-190, -29]]);
-    // The caption stays in lap metres.
-    expect(v.caption).toContain('Shaded: T1 · 4,050 → 300 m');
   });
 
   it('a corner before the line whose next entry is after it runs on to toM + L', () => {

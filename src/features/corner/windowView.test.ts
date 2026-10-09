@@ -144,7 +144,7 @@ describe('windowCaption', () => {
         [{label: 'T2', lapM: 580}],
         zoom,
       ),
-    ).toBe('Shaded: T3 · 700 → 740 m · also in view: T2 apex 580 m');
+    ).toBe('Shaded: T3 · also in view: T2');
   });
 
   it('says where a window runs past the drawn stretch, so the edge is not its end', () => {
@@ -156,9 +156,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toBe(
-      'Shaded: T10 · 3,900 → 4,300 m · window continues to 4,300 m, not drawn',
-    );
+    ).toBe('Shaded: T10 · window continues later, not drawn');
     expect(
       windowCaption(
         'T1',
@@ -167,7 +165,7 @@ describe('windowCaption', () => {
         [],
         zoom,
       ),
-    ).toContain('window starts at 100 m, not drawn');
+    ).toContain('window starts earlier, not drawn');
   });
 });
 
@@ -177,7 +175,7 @@ describe('the Corner model with windows', () => {
   it('shades the part’s own window and anchors the delta at its start', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
-    expect(model.zoom.caption).toMatch(/^Shaded: T3 · 700 → 1,000 m/);
+    expect(model.zoom.caption).toMatch(/^Shaded: T3/);
     expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–T3)']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
@@ -189,7 +187,7 @@ describe('the Corner model with windows', () => {
     expect(t3.zoom.stretch.fromM).toBe(700);
     expect(t3.zoom.deltaFromM).toBe(500);
     expect(t3.zoom.windowM[0]).toBeLessThanOrEqual(500);
-    expect(t3.zoom.caption).toContain('delta from the start of S2 at 500 m');
+    expect(t3.zoom.caption).toContain('delta from the start of S2');
     expect(t3.zoom.caption).not.toContain('not drawn');
     // The first part starts where its section does: nothing to add.
     const t2 = build(m, {v: 1, rev: 3}, 2)!;
@@ -234,7 +232,7 @@ describe('the Corner model with windows', () => {
 
   it('keeps the old stretch for laps cut at other boundaries', () => {
     const model = build(m, {v: 1, rev: 2}, 3)!;
-    expect(model.zoom.caption).toMatch(/^Shaded: T3 · 700 → /);
+    expect(model.zoom.caption).toMatch(/^Shaded: T3 · also in view/);
     expect(model.zoom.stretch.fromM).toBe(700);
   });
 
