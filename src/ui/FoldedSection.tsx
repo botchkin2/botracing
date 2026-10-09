@@ -21,7 +21,7 @@ export function FoldedSection({
   /** One line of what is in it; null shows only the title. */
   summary: string | null;
   children: ReactNode;
-  /** Starts open (the phone's Tires card: it is the one card worth seeing without a tap). */
+  /** Starts open when true; closed by default. */
   defaultOpen?: boolean;
 }) {
   const {color} = useTheme();
