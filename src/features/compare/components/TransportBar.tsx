@@ -76,7 +76,9 @@ export function TransportBar({
   const windowRow = (
     <View
       style={[styles.row, !seekVisible && styles.faded]}
-      pointerEvents={seekVisible ? 'auto' : 'none'}>
+      pointerEvents={seekVisible ? 'auto' : 'none'}
+      accessibilityElementsHidden={!seekVisible}
+      importantForAccessibility={seekVisible ? 'auto' : 'no-hide-descendants'}>
       <Text variant='label' tone='textMuted'>
         Window
       </Text>
