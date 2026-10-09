@@ -6,8 +6,8 @@ mod account;
 mod auth;
 mod autostart;
 mod browser;
-mod install;
 mod capture;
+mod install;
 mod menu;
 mod profile;
 mod sidecar;
@@ -117,8 +117,6 @@ fn main() {
             let signin = MenuItem::with_id(app, "signin", "Sign in", true, None::<&str>)?;
             let status_item = line("status", "Starting…")?;
             let recorder_item = line("recorder", "Recorder: starting")?;
-            let uid_item = line("uid", "uid —")?;
-            let owner_item = line("owner", "owner —")?;
             let signout = MenuItem::with_id(app, "signout", "Sign out", false, None::<&str>)?;
             let open = MenuItem::with_id(app, "open", "Open BotRacing", true, None::<&str>)?;
             let pause =
@@ -150,8 +148,6 @@ fn main() {
                     &signin,
                     &status_item,
                     &recorder_item,
-                    &uid_item,
-                    &owner_item,
                     &PredefinedMenuItem::separator(app)?,
                     &signout,
                     &open,
@@ -315,7 +311,7 @@ fn main() {
                     if prompt {
                         start_sign_in(account.clone());
                     }
-                    let (status, primary, primary_enabled, uid, owner, signed_in, checked) = {
+                    let (status, primary, primary_enabled, signed_in, checked) = {
                         let acct = account.lock().unwrap();
                         let mut sup = supervisor.lock().unwrap();
                         sup.set_allowed(acct.should_run());
@@ -327,15 +323,6 @@ fn main() {
                             status,
                             primary,
                             primary_enabled,
-                            format!("uid {}", who.map_or("—", |s| s.uid.as_str())),
-                            match (who, &acct.owner_key) {
-                                (Some(_), Some(key)) => format!("owner {key}"),
-                                (Some(_), None) => match &acct.owner_error {
-                                    Some(why) => format!("owner unknown: {why}"),
-                                    None => "owner unknown (not read yet)".into(),
-                                },
-                                (None, _) => "owner —".into(),
-                            },
                             who.is_some(),
                             acct.settings.paused,
                         )
@@ -349,12 +336,11 @@ fn main() {
                         .as_ref()
                         .map_or_else(|| "Recorder: off".to_string(), |r| r.line());
                     let _ = recorder_item.set_text(recording);
-                    let _ = uid_item.set_text(uid);
-                    let _ = owner_item.set_text(owner);
                     let _ = signout.set_enabled(signed_in);
                     let _ = pause.set_checked(checked);
                     if profile::is_default() {
-                        let _ = start_with_windows.set_checked(autostart::is_on(&autostart::Registry));
+                        let _ =
+                            start_with_windows.set_checked(autostart::is_on(&autostart::Registry));
                     }
                     let waiting = update_slot
                         .lock()
@@ -403,10 +389,11 @@ fn status_text(
         return message.clone();
     }
     if acct.settings.paused {
-        return if acct.unconfirmed() {
-            "Paused. Check the owner below, then un-pause".into()
-        } else {
-            "Paused".into()
+        return match (&acct.owner_key, &acct.session) {
+            (Some(key), Some(session)) if *key != session.uid => {
+                "Uploads go to another account: check Settings".into()
+            }
+            _ => "Paused".into(),
         };
     }
     if let Some(problem) = &sup.problem {
@@ -424,7 +411,10 @@ mod tests {
         let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
         assert!(wants_quit(&args(&["botracing.exe", "--quit"])));
         assert!(!wants_quit(&args(&["botracing.exe"])));
-        assert!(!wants_quit(&args(&["--quit"])), "argument 0 is the exe, never a request");
+        assert!(
+            !wants_quit(&args(&["--quit"])),
+            "argument 0 is the exe, never a request"
+        );
         assert!(!wants_quit(&args(&["botracing.exe", "--quiet"])));
     }
 }

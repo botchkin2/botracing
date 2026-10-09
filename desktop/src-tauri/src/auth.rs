@@ -143,6 +143,10 @@ pub fn parse_callback(request: &str, state: &str, port: u16) -> Option<String> {
 /// a wrong state, gets a bare 404 and the wait goes on; a hostile page can
 /// probe the port but cannot end or complete the sign-in. Gives up at the
 /// deadline.
+/// The page the browser lands on after sign-in: one self-contained document, dark
+/// like the app, no external URL (the test below holds that line).
+const SIGNED_IN_PAGE: &str = include_str!("signed_in.html");
+
 pub fn wait_for_callback(
     listener: &TcpListener,
     state: &str,
@@ -161,8 +165,7 @@ pub fn wait_for_callback(
                 let request = String::from_utf8_lossy(&buf[..n]).into_owned();
                 match parse_callback(&request, state, port) {
                     Some(code) => {
-                        let body =
-                            "<h3>Back to the BotRacing tray.</h3><p>You can close this tab.</p>";
+                        let body = SIGNED_IN_PAGE;
                         let _ = write!(
                             stream,
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -515,6 +518,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_signed_in_page_names_no_external_url() {
+        assert!(
+            !SIGNED_IN_PAGE.contains("http"),
+            "no external URL in the page"
+        );
+        assert!(
+            !SIGNED_IN_PAGE.contains("src="),
+            "no external script or image"
+        );
+        assert!(!SIGNED_IN_PAGE.contains("<link"), "no external stylesheet");
+    }
+
+    #[test]
     fn pkce_matches_the_rfc_7636_example() {
         assert_eq!(
             pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
@@ -723,7 +739,7 @@ mod tests {
             assert!(!refused.to_lowercase().contains("access-control"));
         }
         assert!(answer.starts_with("HTTP/1.1 200"));
-        assert!(answer.contains("Back to the BotRacing tray"));
+        assert!(answer.contains("Signed in"));
         assert!(!answer.to_lowercase().contains("access-control"));
     }
 

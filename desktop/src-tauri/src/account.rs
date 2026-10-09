@@ -347,12 +347,25 @@ impl Account {
             Done::Owner(Ok(key)) => {
                 self.owner_key = Some(key);
                 self.owner_error = None;
+                self.confirm_own_account();
             }
             Done::Owner(Err(e)) => {
                 self.owner_key = None;
                 eprintln!("could not read the owner key: {e}");
                 self.owner_error = Some(e);
             }
+        }
+    }
+
+    /// The first sign-in pauses until the owner is known. When the owner is
+    /// the signed-in uid (the person's own account), it is confirmed here and
+    /// the uploads start without a word; another owner keeps the pause.
+    fn confirm_own_account(&mut self) {
+        let Some(session) = &self.session else { return };
+        if self.settings.paused && self.owner_key.as_deref() == Some(session.uid.as_str()) {
+            self.settings.paused = false;
+            self.settings.confirmed_uid = Some(session.uid.clone());
+            self.settings.save(&self.settings_file());
         }
     }
 
@@ -467,6 +480,19 @@ mod tests {
 
     fn account(base: &str, dir: &Path, mem: &Memory) -> Mutex<Account> {
         Mutex::new(Account::new(cfg(base), dir, Box::new(mem.clone())))
+    }
+
+    #[test]
+    fn the_owners_own_sign_in_starts_unpaused_and_says_nothing() {
+        let dir = data_dir("own");
+        let mem = Memory::default();
+        let a = account(&server(), &dir, &mem);
+        a.lock().unwrap().signed_in(session("botkin", 3600));
+        maintain(&a);
+        let acct = a.lock().unwrap();
+        assert_eq!(acct.owner_key.as_deref(), Some("botkin"));
+        assert!(!acct.settings.paused && acct.should_run(), "own account runs unpaused");
+        assert!(!acct.unconfirmed());
     }
 
     #[test]
