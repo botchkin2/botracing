@@ -138,6 +138,7 @@ fn main() {
                 update::spawn(
                     app.handle().clone(),
                     paths.token_file(),
+                    paths.data.join("update"),
                     update_slot.clone(),
                 );
             }
