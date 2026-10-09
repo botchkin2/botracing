@@ -129,7 +129,7 @@ export function describeCheck(r) {
  * same drive. null when there is no capture (the usual case before the tray
  * records, and for old files).
  */
-export function liveLapCheck(root, span, ibtCrossings) {
+export function liveLapCheck(root, span, ibtLaps) {
   const found = iracingCapturesFor(listIracingCaptures(root), {
     track: span.tracks[0],
     startMs: span.startMs,
@@ -138,5 +138,5 @@ export function liveLapCheck(root, span, ibtCrossings) {
   if (!found.length) return null;
   const live = readLapColumns(found.flatMap(f => f.player));
   if (!live) return null;
-  return compareLaps(crossingsOf(live), ibtCrossings);
+  return compareLaps(crossingsOf(live), ibtLaps);
 }
