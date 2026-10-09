@@ -41,7 +41,7 @@ test('grant only adds: the preview account, its three roles, its key, the deploy
   assert.equal(steps.filter(s => s.gh?.[1] === 'delete' || s.run?.includes('delete')).length, 0);
   assert.deepEqual(
     steps.filter(s => s.run?.[1] === 'add-iam-policy-binding').map(s => s.run.at(-2)),
-    PREVIEW_ROLES.map(r => `--role=${r}`),
+    [...PREVIEW_ROLES, 'roles/cloudfunctions.admin'].map(r => `--role=${r}`),
   );
   assert.ok(whats(steps).some(w => w.startsWith('create the hosting-preview account')));
   assert.deepEqual(
@@ -64,6 +64,7 @@ test('grant run again after it worked has nothing left to do', () => {
   s.envs.add('deploy');
   s.envSecrets.deploy.add(CI.deploySecret);
   s.envSecrets['tray-release'].add(CI.deploySecret);
+  s.policy.get(deploy).add('roles/cloudfunctions.admin');
   assert.deepEqual(planCiSplit(s, 'grant'), []);
 });
 
@@ -86,7 +87,7 @@ test('revoke only removes: the three roles, the repo-level secret, the old keys 
 });
 
 test('the deploy account keeps what a deploy uses: hosting, rules and indexes', () => {
-  for (const kept of ['roles/firebasehosting.admin', 'roles/firebaserules.admin', 'roles/datastore.indexAdmin'])
+  for (const kept of ['roles/cloudfunctions.admin', 'roles/firebasehosting.admin', 'roles/firebaserules.admin', 'roles/datastore.indexAdmin'])
     assert.ok(!DEPLOY_ROLES_REMOVED.includes(kept));
 });
 
