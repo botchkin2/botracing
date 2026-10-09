@@ -30,6 +30,13 @@ fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
 }
 
+/// True when the window opens at launch: a debug build with
+/// `BOTRACING_OPEN_ON_START` set, for a walkthrough or a check of the window.
+/// A release build never does.
+fn opens_on_start(debug_build: bool, env_set: bool) -> bool {
+    debug_build && env_set
+}
+
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
 fn start_sign_in(account: Shared<account::Account>) {
@@ -106,10 +113,10 @@ fn main() {
             }
             let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
             app.manage(paths.clone());
-            // Debug builds only: BOTRACING_OPEN_ON_START opens the window at
-            // launch, for a walkthrough or a check of the window.
-            #[cfg(debug_assertions)]
-            if std::env::var_os("BOTRACING_OPEN_ON_START").is_some() {
+            if opens_on_start(
+                cfg!(debug_assertions),
+                std::env::var_os("BOTRACING_OPEN_ON_START").is_some(),
+            ) {
                 let handle = app.handle().clone();
                 std::thread::spawn(move || open_window(&handle));
             }
@@ -459,7 +466,15 @@ fn status_text(
 
 #[cfg(test)]
 mod tests {
-    use super::wants_quit;
+    use super::{opens_on_start, wants_quit};
+
+    #[test]
+    fn only_a_debug_build_opens_the_window_at_launch() {
+        assert!(opens_on_start(true, true));
+        assert!(!opens_on_start(true, false));
+        assert!(!opens_on_start(false, true), "a release build ignores BOTRACING_OPEN_ON_START");
+        assert!(!opens_on_start(false, false));
+    }
 
     #[test]
     fn only_a_quit_argument_asks_the_tray_to_quit() {
