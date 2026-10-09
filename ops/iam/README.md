@@ -151,6 +151,20 @@ node ops/iam/ciSplit.mjs revoke --apply    # only removes: the three roles, the 
 
 Run `desktop/scripts/setup-release-env.ps1` before `grant`, so `tray-release` exists and gets the release account's key; otherwise `grant` makes the account and binding, skips that key and says so (run `grant --apply` again after). The deploy key is not copied into `tray-release`. New keys go from a private temp folder into `gh secret set` on stdin and are deleted at once. Both phases print the before and after. The "after" print can lag: IAM is eventually consistent, so right after a key delete it may still count the deleted key. On 2026-10-09 it said `keys: 2`, and a read 15 s later showed one. Re-run the dry run a minute later to confirm. `revoke` keeps the deploy account's newest key (the one in the `deploy` Environment) and deletes every older one.
 
+**Probe the release account before the first tag** (owner, after `ciSplit.mjs grant --apply`; thread 54 #2695). It answers, before the release job runs, whether `gcloud storage cp` works with only the `tray/` binding:
+
+```powershell
+$SA="tray-release@botracing-61.iam.gserviceaccount.com"
+"probe" | Out-File $env:TEMP\probe.txt
+gcloud storage cp --no-clobber $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage objects describe gs://botracing-61-lmu/tray/_probe/probe.txt --impersonate-service-account=$SA
+gcloud storage cp $env:TEMP\probe.txt gs://botracing-61-lmu/probe-outside.txt --impersonate-service-account=$SA
+gcloud storage rm gs://botracing-61-lmu/tray/_probe/probe.txt
+```
+
+Expected, in order: create OK; overwrite OK (the `latest.json` case); describe OK; **the write outside `tray/` fails with 403**; then the last line cleans up as yourself. If the first copy fails on a bucket-level permission, add the narrowest fix before tagging.
+
 `grant` also adds `roles/cloudfunctions.admin` to the deploy account. That's acceptable because the account's key now lives only in the main-only `deploy` Environment; `revoke` keeps it.
 
 Undo: `grant` by deleting `hosting-preview@` and the `deploy` Environment. `revoke`'s role removals by `add-iam-policy-binding` with the same role. A deleted secret or key can't be undone, which is why `revoke` only runs after the proof.
