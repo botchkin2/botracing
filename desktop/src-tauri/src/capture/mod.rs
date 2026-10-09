@@ -7,6 +7,7 @@ pub mod ir_session;
 pub mod ir_store;
 pub mod irsdk;
 pub mod layout;
+pub mod prune;
 pub mod probe;
 pub mod recorder;
 pub mod sanity;

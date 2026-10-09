@@ -48,6 +48,7 @@ import {
 import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
+import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 import {floorOf, OLDER_REQUEST} from '../sessions/syncState.mjs';
 
@@ -138,15 +139,6 @@ function gameRunning() {
   return SIMS.some(sim => exeRunning(gameExeOf(sim)));
 }
 
-// One sim's sync state: the legacy-layout sim's is the top level of the
-// watcher's state (the shape before a second sim), the others keep theirs
-// under `sims`.
-const FRESH = () => ({retries: {}});
-function stateOf(watch, sim) {
-  if (sim.adapter.watcher.legacyLayout) return watch;
-  watch.sims ??= {};
-  return (watch.sims[sim.id] ??= FRESH());
-}
 // sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,
 // so existing installs keep their record; the others get a folder of their own.
 const workOf = sim =>
@@ -301,8 +293,14 @@ async function main() {
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
-  for (const sim of SIMS) stateOf(watch, sim);
-  const save = () => writeFileSync(statePath, JSON.stringify(watch));
+  clearStaleSyncing(watch, SIMS);
+  // Written to a temp file and renamed, so the tray never reads a half-written state.json.
+  const save = () => {
+    const tmp = `${statePath}.tmp`;
+    writeFileSync(tmp, JSON.stringify(watch));
+    renameSync(tmp, statePath);
+  };
+  save();
   let wasRunning = false;
   let lastKey = '';
   let lastBeatMs = 0;
@@ -404,19 +402,29 @@ async function main() {
           // for 15 minutes and the heartbeat went stale). They are stopped, and
           // any write in flight awaited, before the state that follows is
           // written, even if the sync throws (syncBeats.mjs).
-          const r = await runWithBeats(
-            {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
-            beatProgress =>
-              runSync(
-                sim,
-                p => {
-                  progress = p;
-                  // One write in flight at a time; the next block catches up.
-                  beatProgress();
-                },
-                skippedIds,
-              ),
-          );
+          // The prune (tray, Rust) reads this flag and deletes nothing while a
+          // sync runs. Cleared in a finally, so a throw cannot leave it set.
+          st.syncing = true;
+          save();
+          let r;
+          try {
+            r = await runWithBeats(
+              {beat, intervalMs: KEEPALIVE_SEC * 1000, log},
+              beatProgress =>
+                runSync(
+                  sim,
+                  p => {
+                    progress = p;
+                    // One write in flight at a time; the next block catches up.
+                    beatProgress();
+                  },
+                  skippedIds,
+                ),
+            );
+          } finally {
+            st.syncing = false;
+            save();
+          }
           progress = null;
           // A stopped sync never prints its closing "done N" line, but each
           // session's block is printed only once it is stored or has failed.
