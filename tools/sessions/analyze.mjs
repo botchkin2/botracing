@@ -80,6 +80,10 @@ export const analysisVersion = 17;
 export const OFF_TRACK_VERSION = 1;
 const OFF_TRACK_SEC = 0.3;
 
+// A reset inside one recording ends its lap there (iRacing, `reset` events
+// from iracing.mjs). Bump when the rule changes.
+export const IN_FILE_RESET_VERSION = 1;
+
 export const blockVersions = {
   tyres: TYRES_VERSION,
   traffic: TRAFFIC_VERSION,
@@ -91,6 +95,7 @@ export const blockVersions = {
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
   finish: FINISH_VERSION,
+  inFileReset: IN_FILE_RESET_VERSION,
 };
 
 const GRID_M = 5;
@@ -231,6 +236,8 @@ const eventKinds = [
   'sector3_flag',
   'tyres_compound',
   'minimum_path_wetness',
+  // A reset to the pits inside one recording (iRacing, iracing.mjs).
+  'reset',
 ];
 
 // A slower channel is stored held at the base rate. Its real sample k starts
@@ -380,6 +387,35 @@ function segments(rec) {
       partial: i === laps.length - 1,
     });
   }
+  return splitAtResets(
+    out,
+    (events.reset || []).map(e => e.t),
+  );
+}
+
+/**
+ * A reset inside a lap (iRacing keeps one .ibt across it) cuts the lap there:
+ * the part before ends in the reset, the part after starts in the pit stall.
+ * Both are partial; neither is a lap of driving from line to line.
+ */
+export function splitAtResets(segs, resets) {
+  const out = [];
+  for (const seg of segs) {
+    const cuts = resets.filter(t => t > seg.start + 0.5 && t < seg.end - 0.5);
+    let from = seg.start;
+    for (const t of cuts) {
+      out.push({...seg, start: from, end: t, partial: true, resetAt: t});
+      from = t;
+    }
+    // A reset on the lap's own boundary ends it too.
+    const atEnd = resets.find(t => Math.abs(t - seg.end) <= 0.5) ?? null;
+    out.push({
+      ...seg,
+      start: from,
+      partial: seg.partial || cuts.length > 0 || atEnd != null,
+      resetAt: atEnd,
+    });
+  }
   return out;
 }
 
@@ -515,10 +551,14 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     // Read over the lap's whole time window, not its trimmed ticks (which
     // stop where the lap distance resets, often at the pit entry), so
     // consecutive laps tile with no fuel unaccounted for.
+    // A lap cut short by a reset ends on the tick before it: the reset
+    // refills the tank, which is not fuel the lap gave back.
     fuel: lapFuel(
       s,
       idxAt(s.t, seg.start),
-      Math.min(idxAt(s.t, seg.end), s.t.length - 1),
+      seg.resetAt != null
+        ? Math.max(idxAt(s.t, seg.start), idxAt(s.t, seg.resetAt) - 1)
+        : Math.min(idxAt(s.t, seg.end), s.t.length - 1),
       pits,
     ),
     pitStop: lapPitStop(
@@ -870,13 +910,18 @@ export function analyzeSession(
     openStint(change);
     let first = true;
     const segs = allSegs[r];
+    // A reset inside one recording (iRacing keeps one .ibt across it): the lap
+    // it cut short ends there (segments, splitAtResets), and the next one
+    // starts after it.
+    let resetBefore = false;
     for (const a of assigned.filter(row => row.r === r)) {
       const seg = segs[a.si];
-      seg.partial = a.partial;
+      seg.partial = a.partial || seg.partial;
       const lap = analyzeLap(rec, seg, pits, flags[r], visitFacts);
       lap.lapNumber = a.lapNumber;
-      lap.endedInReset = false;
-      lap.afterReset = first && reset;
+      lap.endedInReset = seg.resetAt != null;
+      lap.afterReset = (first && reset) || resetBefore;
+      resetBefore = seg.resetAt != null;
       if (!first && lap.pitOut) openStint('pit');
       first = false;
       if (lap.timed && !lap.partial) stintTimed = true;
