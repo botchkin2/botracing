@@ -340,6 +340,50 @@ pub fn write_parquet(
     write
 }
 
+/// One chunk of named columns, in the order given (no LMU struct behind it:
+/// iRacing's variables are typed by the sim's own table). Same file rules as
+/// `write_parquet`: zstd 1, floats byte-stream-split, temp file then rename.
+pub fn write_columns(path: &Path, cols: &[(String, Column)]) -> Result<(), String> {
+    let tmp = Path::new(&format!("{}.tmp", path.display())).to_path_buf();
+    let write = (|| {
+        let mut fields = Vec::new();
+        let mut arrays: Vec<ArrayRef> = Vec::new();
+        let mut props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(1).expect("zstd level 1")))
+            .set_dictionary_enabled(false);
+        for (name, col) in cols {
+            let kind = match col {
+                Column::F64(_) => Kind::F64,
+                Column::F32(_) => Kind::F32,
+                Column::Bool(_) => Kind::Bool,
+                Column::Text(_) => Kind::Char,
+                Column::I64(_) => Kind::I64,
+            };
+            let (dtype, array) = arrow_of(&kind, col)?;
+            if matches!(dtype, DataType::Float32 | DataType::Float64) {
+                props = props.set_column_encoding(ColumnPath::from(name.as_str()), Encoding::BYTE_STREAM_SPLIT);
+            }
+            fields.push(Field::new(name, dtype, false));
+            arrays.push(array);
+        }
+        let schema = Arc::new(Schema::new(fields));
+        let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(|e| e.to_string())?;
+        if let Some(dir) = tmp.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let file = File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut writer =
+            ArrowWriter::try_new(file, schema, Some(props.build())).map_err(|e| e.to_string())?;
+        writer.write(&batch).map_err(|e| e.to_string())?;
+        writer.close().map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    })();
+    if write.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    write
+}
+
 fn order_of(layout: &Layout, def: &Struct, prefix: &str, out: &mut Vec<(String, Kind)>) {
     for field in &def.fields {
         if SKIP_PREFIXES.iter().any(|p| field.name.starts_with(p)) {

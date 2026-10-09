@@ -30,6 +30,8 @@ pub enum Line {
     Another,
     Failed(String),
     Status(Status),
+    /// A line another recorder (iRacing's) wrote for itself.
+    Text(String),
 }
 
 pub fn line(l: &Line) -> String {
@@ -37,6 +39,7 @@ pub fn line(l: &Line) -> String {
         Line::Starting => "Recorder: starting".into(),
         Line::Another => "Recorder: another recorder is running".into(),
         Line::Failed(why) => format!("Recorder: {why}"),
+        Line::Text(text) => text.clone(),
         Line::Status(s) => match s.state {
             "recording" if s.dropped_pct > 1.0 => {
                 format!("Recording ({:.0}% dropped)", s.dropped_pct)
@@ -165,6 +168,33 @@ fn run(stop: &AtomicBool, line: &Mutex<Line>, root: PathBuf, header_dir: PathBuf
         }
     };
     drive(&mut rec, stop, line);
+}
+
+/// iRacing's recorder on its own thread, into the same capture folder. It needs
+/// no header files and no mutex: the SDK's map is read-only and read by any
+/// number of tools.
+#[cfg(windows)]
+pub fn start_iracing(root: PathBuf) -> Handle {
+    use crate::capture::ir_recorder::{line as ir_line, IrRecorder, IrSource};
+    use crate::capture::win::IrShm;
+    let stop = Arc::new(AtomicBool::new(false));
+    let line = Arc::new(Mutex::new(Line::Text("Waiting for iRacing".into())));
+    let (stop_t, line_t) = (stop.clone(), line.clone());
+    let join = std::thread::Builder::new()
+        .name("recorder-iracing".into())
+        .spawn(move || {
+            crate::capture::win::lower_priority();
+            let mut rec = IrRecorder::new(IrShm::new(), root);
+            while !stop_t.load(Ordering::SeqCst) {
+                let wait = rec.tick(now_ms());
+                *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
+                rec.src().wait(wait);
+            }
+            rec.shutdown(now_ms());
+            *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
+        })
+        .ok();
+    Handle { stop, join, line }
 }
 
 /// The loop: tick, publish the status for the menu, sleep what the tick asked.

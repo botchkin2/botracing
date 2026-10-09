@@ -16,7 +16,7 @@ use windows_sys::Win32::System::Memory::{
     MEMORY_BASIC_INFORMATION,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateMutexW, GetCurrentThread, OpenEventA, SetThreadPriority, SYNCHRONIZATION_SYNCHRONIZE,
+    WaitForSingleObject, CreateMutexW, GetCurrentThread, OpenEventA, SetThreadPriority, SYNCHRONIZATION_SYNCHRONIZE,
     THREAD_PRIORITY_BELOW_NORMAL,
 };
 
@@ -135,6 +135,70 @@ pub fn iracing_running() -> bool {
     // SAFETY: handle came from OpenEventA.
     unsafe { CloseHandle(handle) };
     true
+}
+
+/// iRacing as an `IrSource`: running while its data event exists, and waits on
+/// that event between ticks (the sim pulses it once per tick; every tool that
+/// reads the SDK waits on it, so doing so takes nothing from them).
+pub struct IrShm {
+    event: Option<HANDLE>,
+}
+
+// SAFETY: an event handle is a plain kernel object id, usable from any thread.
+unsafe impl Send for IrShm {}
+
+impl IrShm {
+    pub fn new() -> IrShm {
+        IrShm { event: None }
+    }
+
+    fn close_event(&mut self) {
+        if let Some(handle) = self.event.take() {
+            // SAFETY: the handle came from OpenEventA and is closed once.
+            unsafe { CloseHandle(handle) };
+        }
+    }
+}
+
+impl Drop for IrShm {
+    fn drop(&mut self) {
+        self.close_event();
+    }
+}
+
+impl crate::capture::ir_recorder::IrSource for IrShm {
+    type V = Mapped;
+
+    fn running(&mut self) -> bool {
+        let up = iracing_running();
+        if !up {
+            self.close_event();
+        }
+        up
+    }
+
+    fn open(&mut self) -> Result<Mapped, String> {
+        self.close_event();
+        // SAFETY: IRSDK_EVENT is NUL-terminated.
+        let handle = unsafe { OpenEventA(SYNCHRONIZATION_SYNCHRONIZE, 0, IRSDK_EVENT.as_ptr()) };
+        if !handle.is_null() {
+            self.event = Some(handle);
+        }
+        open_iracing()
+    }
+
+    fn wait(&mut self, limit: std::time::Duration) {
+        // The event is pulsed per tick (60 Hz): a wait is at most one tick, so
+        // the limit never lengthens it beyond the 32 ms the SDK itself uses.
+        let ms = limit.as_millis().clamp(1, 32) as u32;
+        match self.event {
+            // SAFETY: the handle is a valid event opened with SYNCHRONIZE.
+            Some(handle) => unsafe {
+                WaitForSingleObject(handle, ms);
+            },
+            None => std::thread::sleep(limit),
+        }
+    }
 }
 
 /// iRacing's map, read-only, whole. Never creates it.
