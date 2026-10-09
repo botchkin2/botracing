@@ -1,5 +1,5 @@
-// POST /api/tray/code and /api/tray/token: the tray's sign-in through the web
-// app (the read side, /latest and /download, is trayApi). The rules are in trayCodeCore.ts; this binds them to Firebase Auth and
+// POST /api/tray/code, /api/tray/token and /api/tray/viewer: the tray's sign-in
+// through the web app (and its own window's) (the read side, /latest and /download, is trayApi). The rules are in trayCodeCore.ts; this binds them to Firebase Auth and
 // Firestore. Codes live in `trayCodes/{sha256(code)}` (an Admin-only
 // collection: firestore.rules deny every client), with a TTL policy on
 // `expiresAt` that deletes the ones nobody used (ops/iam/README.md).

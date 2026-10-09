@@ -10,7 +10,13 @@
 //
 // The code is single use and lives 120 s, and `token` needs the verifier, so a
 // code read from browser history, an extension or a log signs nobody in. The
-// custom token never appears in a URL. Rules here; Firestore and Admin Auth are
+// custom token never appears in a URL.
+//
+// POST /api/tray/viewer is the tray's own window (pit-wall thread 55): the tray
+// shows the hosted app in a window and signs it in as the tray's user, with no
+// Google in the webview. The tray asks with its own ID token and gets a custom
+// token for THAT user back in the response body (never a URL); the window
+// takes it over IPC. Rules here; Firestore and Admin Auth are
 // bound in trayApi.ts (plain TypeScript with erasable syntax only: Node runs it
 // as is for the tests).
 import {createHash, randomBytes, timingSafeEqual} from 'node:crypto';
@@ -127,6 +133,28 @@ export async function handleTray(
       expiresAtMs: now + CODE_TTL_MS,
     });
     return {status: 200, json: {code, expiresInS: CODE_TTL_MS / 1000}};
+  }
+
+  if (req.path === '/viewer') {
+    const header = req.authorization ?? '';
+    const idToken = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    if (!idToken) return fail(401, 'sign in');
+    let uid: string;
+    let email: string | null;
+    try {
+      ({uid, email} = await deps.verifyToken(idToken));
+    } catch {
+      return fail(401, 'sign in');
+    }
+    // Its own count, apart from the sign-in codes: opening the window must not
+    // use up the codes, nor the other way round. The user is the verified
+    // token's, never anything in the body.
+    if (!(await deps.allow(`viewer:${uid}`, deps.now())))
+      return fail(429, 'too many sign-ins');
+    return {
+      status: 200,
+      json: {customToken: await deps.mint(uid), uid, email},
+    };
   }
 
   if (req.path === '/token') {
