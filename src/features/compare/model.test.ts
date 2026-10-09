@@ -573,6 +573,83 @@ describe('many laps', () => {
     expect(given.refGrid!.timeS.at(-1)).toBe(own.refGrid!.timeS.at(-1));
   });
 
+  it('the stint-set default (no Ref, no highlight, a map with boundaries) still has a grid: every checked lap', () => {
+    // The tableReference fixture: laps with sections, a map with boundaries.
+    const win = (segTime: number, from: number, to: number) => ({
+      segTime,
+      fromM: from,
+      toM: to,
+      runInS: segTime / 4,
+      cornerS: segTime / 2,
+      exitS: segTime / 4,
+      pit: false,
+      parts: [],
+      brakeApps: [],
+    });
+    const raw = (id: string, s1: number, s2: number) => ({
+      id,
+      stint: 1,
+      lapTime: 4 + s1 + s2,
+      comparable: true,
+      reasons: [],
+      cornerBoundaries: {v: 1, rev: 1},
+      startStraight: {segTime: 4, fromM: 0, toM: 100, pit: false},
+      corners: [win(s1, 100, 500), win(s2, 500, 1000)],
+    });
+    const sectionLaps = toLaps([
+      raw('a', 8, 12),
+      raw('b', 9, 12),
+      raw('c', 10, 12),
+      raw('d', 11, 12),
+      raw('e', 12, 16),
+      raw('f', 10, 13),
+      raw('g', 9, 14),
+    ]);
+    const withBoundaries = toTrackMap({
+      lengthM: LENGTH_M,
+      boundaries: {
+        v: 1,
+        rev: 1,
+        startsM: [100, 500],
+        marginM: [20, 20],
+        windows: [
+          {
+            kind: 'start-straight',
+            section: null,
+            fromM: 0,
+            toM: 100,
+            parts: [],
+          },
+          {kind: 'section', section: 1, fromM: 100, toM: 500, parts: []},
+          {kind: 'section', section: 2, fromM: 500, toM: 1000, parts: []},
+        ],
+      },
+      corners: [
+        {n: 1, entryM: 150, apexM: 200, exitM: 300, parts: []},
+        {n: 2, entryM: 550, apexM: 600, exitM: 700, parts: []},
+      ],
+      outline: {features: []},
+    });
+    const sectionTraces = new Map(
+      sectionLaps.map(l => [
+        l.id,
+        resampleTrace(circleLap(180), LENGTH_M, 5, 10),
+      ]),
+    );
+    const ids = sectionLaps.map(l => l.id);
+    const m = buildCompareModel({
+      session,
+      laps: sectionLaps,
+      traces: sectionTraces,
+      band: null,
+      map: withBoundaries,
+      selection: {laps: ids, ref: null, hl: null, corner: null, cursorM: 600},
+    });
+    expect(m.tableReference.grid).toBe('median of 7 checked laps');
+    expect(m.grid).not.toBeNull();
+    expect(m.grid!.rows.map(r => r.lapId)).toEqual(ids);
+  });
+
   it('grid shows the median row plus the highlighted lap', () => {
     expect(m.grid!.rows.map(r => r.label)).toEqual(['MED', 'L4']);
     expect(m.grid!.rows[0].cells[0]).toBeCloseTo(0.4);

@@ -1035,8 +1035,13 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   let gridRows: CornerGridModel['rows'] = [];
   if (ref && cornerCount > 0 && table.kind !== 'lap') {
     // Against the checked set's medians the reference lap is a row like any
-    // other (it is not zero); a long selection shows the laps in key.
-    const rowsOf = lapRefs.filter(r => mode === 'individual' || r.key);
+    // other (it is not zero); a long selection shows the laps in key. With no
+    // lap in key (the stint set's default, nothing highlighted) every checked
+    // lap is a row, so the section grid is never empty (#396 regression).
+    const anyKey = lapRefs.some(r => r.key);
+    const rowsOf = anyKey
+      ? lapRefs.filter(r => mode === 'individual' || r.key)
+      : lapRefs;
     gridRows = rowsOf.map(r => ({
       key: r.lapId,
       label: r.label,
