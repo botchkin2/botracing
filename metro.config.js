@@ -67,12 +67,19 @@ if (mainRoot) {
   // package, so nodeModulesPaths never sees it and the page's script 404s
   // (pit-wall thread 1 #3256). Without a node_modules of its own, such a path
   // is answered from the main checkout's.
-  const ownModules = path.join(__dirname, 'node_modules');
-  if (!fs.existsSync(ownModules)) {
+  // Expo itself, not the folder: Metro's first run leaves node_modules/.cache
+  // behind in a worktree that has no packages.
+  if (!fs.existsSync(path.join(__dirname, 'node_modules', 'expo'))) {
     const mainModules = path.join(mainRoot, 'node_modules');
     const upstream = config.resolver.resolveRequest;
     config.resolver.resolveRequest = (context, moduleName, platform) => {
-      const under = moduleName.match(/^\.[\\/]node_modules[\\/](.+)$/);
+      // Only the root's own requests (the entry is asked from "<root>/."):
+      // a file deeper in that names ./node_modules means a folder of its own.
+      // path.relative, not ===: Windows paths differ in drive-letter case.
+      const rel = path.relative(__dirname, context.originModulePath);
+      const fromRoot = rel === '' || !/[\\/]|^\.\./.test(rel);
+      const under =
+        fromRoot && moduleName.match(/^\.[\\/]node_modules[\\/](.+)$/);
       const name = under ? path.join(mainModules, under[1]) : moduleName;
       return upstream
         ? upstream(context, name, platform)
