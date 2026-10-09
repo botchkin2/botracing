@@ -16,7 +16,7 @@ export type PlanCardModel = {
   car: string;
   /** "Last race 29 Sep 2026 · 72 laps", or that there is none yet. */
   last: string;
-  /** "Fuel 2.34 L/lap · VE 3.44 %/lap (n = 12)"; null without green laps. */
+  /** "Fuel 2.34 L/lap · VE 3.44 %/lap"; null without green laps. */
   use: string | null;
 };
 
