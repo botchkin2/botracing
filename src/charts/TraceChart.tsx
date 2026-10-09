@@ -82,6 +82,7 @@ export function TraceChart({
   series,
   band,
   zeroLine,
+  sideLabels,
   zeroDomain,
   cursorM,
   marks = [],
@@ -107,6 +108,8 @@ export function TraceChart({
   series: TraceSeries[];
   band?: TraceBand;
   zeroLine?: boolean;
+  /** Words beside the zero line: above it, and below (lateral: L and R). */
+  sideLabels?: {above: string; below: string};
   /** The y range the zero line belongs to, when it is not the chart's own
    *  (an overlay: steering's 0, not 0 km/h). */
   zeroDomain?: [number, number];
@@ -412,6 +415,26 @@ export function TraceChart({
             stroke={color.median}
             strokeWidth={stroke.mark}
           />
+        )}
+        {zeroLine && sideLabels && (
+          <>
+            <SvgText
+              x={3}
+              y={yZero - 3}
+              fill={color.textFaint}
+              fontFamily={axis.fontFamily}
+              fontSize={9}>
+              {sideLabels.above}
+            </SvgText>
+            <SvgText
+              x={3}
+              y={yZero + 10}
+              fill={color.textFaint}
+              fontFamily={axis.fontFamily}
+              fontSize={9}>
+              {sideLabels.below}
+            </SvgText>
+          </>
         )}
         {paths.map(p => (
           <G key={p.key} transform={p.transform}>
