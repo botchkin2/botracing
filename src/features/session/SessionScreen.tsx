@@ -534,7 +534,8 @@ function SessionView({
                 <>
                   <FoldedSection
                     title='Tires'
-                    summary={tiresSummary(model.tires)}>
+                    summary={tiresSummary(model.tires)}
+                    defaultOpen>
                     {tiresCard}
                   </FoldedSection>
                   {model.fuelUse && fuelCard ? (

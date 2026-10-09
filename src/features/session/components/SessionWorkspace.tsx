@@ -26,7 +26,7 @@ const PAD_X = space.xl + space.xs;
 
 /**
  * Desktop (≥1280) D1 Session workspace: centre (header, lap-time bars, wide
- * lap table) and a 340 pt right column (stints, distribution, stint vs stint,
+ * lap table) and a 340 pt right column (stints, stint vs stint,
  * lap detail, compare tray). The rail sits left of it in the route. Only
  * rearranges the phone's components; the screen passes them in.
  */
