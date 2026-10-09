@@ -170,15 +170,10 @@ export function CompareWorkspace(p: WorkspaceProps) {
               </Text>
             </Pressable>
             {!c.isRef && (
-              <Pressable
-                accessibilityRole='button'
-                accessibilityLabel={`Set ${c.label} as Ref`}
-                hitSlop={space.sm}
-                onPress={() => p.onSelectionChange(setRef(selection, c.lapId))}>
-                <Text variant='dataSmall' tone='accentInk'>
-                  Ref
-                </Text>
-              </Pressable>
+              <RefAction
+                label={`Set ${c.label} as Ref`}
+                onPress={() => p.onSelectionChange(setRef(selection, c.lapId))}
+              />
             )}
             {!c.isRef && (
               <Pressable

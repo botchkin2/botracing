@@ -415,15 +415,20 @@ function CompareView({
           actions={
             !c.isRef ? (
               <>
-                <Pressable
-                  accessibilityRole='button'
-                  accessibilityLabel={`Set ${c.label} as Ref`}
-                  {...refHit}
-                  onPress={() => onSelectionChange(setRef(selection, c.lapId))}>
-                  <Text variant='dataSmall' tone='accentInk'>
-                    Ref
-                  </Text>
-                </Pressable>
+                {/* Only the tapped chip offers it: "Ref" on every chip read as if every lap were the Ref. */}
+                {c.highlighted && (
+                  <Pressable
+                    accessibilityRole='button'
+                    accessibilityLabel={`Set ${c.label} as Ref`}
+                    {...refHit}
+                    onPress={() =>
+                      onSelectionChange(setRef(selection, c.lapId))
+                    }>
+                    <Text variant='dataSmall' tone='accentInk'>
+                      Set ref
+                    </Text>
+                  </Pressable>
+                )}
                 <Pressable
                   accessibilityLabel={`Remove ${c.label}`}
                   accessibilityState={{
