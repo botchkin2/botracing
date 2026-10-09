@@ -6,7 +6,7 @@ What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watch
 
 Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
-Not built yet: a folder picker, iRacing.
+Not built yet: a folder picker, the iRacing live recorder. The watcher uploads iRacing `.ibt` files from `Documents\iRacing	elemetry` like LMU sessions.
 
 ## Recorder
 

@@ -14,10 +14,12 @@ export function adapter(id) {
   return a;
 }
 
-// LMU_TELEMETRY is only LMU. An iRacing sync with that env set still uses
-// the iRacing default folder (PR 311).
+// LMU_TELEMETRY is only LMU, IRACING_TELEMETRY only iRacing (a test seam, like
+// LMU_TELEMETRY): an iRacing sync with the LMU variable set still uses the
+// iRacing default folder (PR 311).
 export function telemetryFolder(id, env = process.env) {
   const a = adapter(id);
   if (id === 'lmu' && env.LMU_TELEMETRY) return env.LMU_TELEMETRY;
+  if (id === 'iracing' && env.IRACING_TELEMETRY) return env.IRACING_TELEMETRY;
   return a.defaultFolder;
 }
