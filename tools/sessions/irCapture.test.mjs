@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {test} from 'node:test';
 import {run} from './duck.mjs';
+import {needsDuckdb} from './duckTestSupport.mjs';
 import {listCaptures} from './field.mjs';
 import {
   LAP_TOLERANCE_S,
@@ -17,18 +18,6 @@ import {
 } from './irCapture.mjs';
 
 const posix = p => p.replace(/\\/g, '/');
-
-// The DuckDB CLI is not on every runner (CI's app job has none): the tests
-// that write and read real parquet are skipped there, like field.test.mjs.
-function duckdbWorks() {
-  try {
-    run(':memory:', 'SELECT 1');
-    return true;
-  } catch {
-    return false;
-  }
-}
-const needsDuckdb = {skip: !duckdbWorks()};
 
 // A capture folder with only what listing and matching read: meta.json and the
 // name of a player chunk.
