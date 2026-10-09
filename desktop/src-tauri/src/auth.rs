@@ -161,7 +161,8 @@ pub fn wait_for_callback(
                 let request = String::from_utf8_lossy(&buf[..n]).into_owned();
                 match parse_callback(&request, state, port) {
                     Some(code) => {
-                        let body = "<h3>Signed in to BotRacing.</h3><p>You can close this tab.</p>";
+                        let body =
+                            "<h3>Back to the BotRacing tray.</h3><p>You can close this tab.</p>";
                         let _ = write!(
                             stream,
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -724,7 +725,7 @@ mod tests {
             assert!(!refused.to_lowercase().contains("access-control"));
         }
         assert!(answer.starts_with("HTTP/1.1 200"));
-        assert!(answer.contains("Signed in to BotRacing"));
+        assert!(answer.contains("Back to the BotRacing tray"));
         assert!(!answer.to_lowercase().contains("access-control"));
     }
 

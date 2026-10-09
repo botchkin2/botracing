@@ -66,7 +66,7 @@ export function TrayLinkScreen() {
           </Text>
         ) : step === 'sent' ? (
           <Text variant='display' style={styles.center}>
-            Connected
+            Back to the tray
           </Text>
         ) : (
           <>

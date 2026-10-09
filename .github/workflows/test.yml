@@ -62,3 +62,23 @@ jobs:
       - name: Recorder tests
         working-directory: tools/capture
         run: uv run --group dev pytest -q
+  # The tray (Rust) and its release scripts had no CI: auth.rs and the
+  # updater ran only by hand. Windows, because the tray is a Windows app.
+  desktop:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Tray tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Release script tests
+        run: node --test scripts/*.test.mjs

@@ -22,7 +22,9 @@ const db = admin.firestore();
 
 const deps: TrayDeps = {
   verifyToken: async idToken => {
-    const decoded = await admin.auth().verifyIdToken(idToken);
+    // checkRevoked: "sign out everywhere" must also stop minting a tray sign-in
+    // with an ID token that is still valid for up to an hour.
+    const decoded = await admin.auth().verifyIdToken(idToken, true);
     return {uid: decoded.uid, email: decoded.email ?? null};
   },
   put: async (codeHash, record) => {
