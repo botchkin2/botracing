@@ -90,6 +90,19 @@ fn reachable(url: &str) -> bool {
         .is_ok()
 }
 
+/// Tauri's own WebView2 arguments on Windows; any we add must keep them.
+const DEFAULT_BROWSER_ARGS: &str =
+    "--disable-features=msWebOoUI,msPdfOOUI,msSmartScreenProtection";
+
+/// The WebView2 arguments for a debug build with `BOTRACING_DEVTOOLS_PORT`
+/// set: a CDP port on loopback, for a proof of the window. Any local process
+/// can attach to that port, so a release build never opens one, and a value
+/// that is not a port is ignored.
+fn devtools_args(debug_build: bool, port: Option<&str>) -> Option<String> {
+    let port: u16 = port?.parse().ok().filter(|p| *p > 0)?;
+    debug_build.then(|| format!("{DEFAULT_BROWSER_ARGS} --remote-debugging-port={port}"))
+}
+
 /// Shows the window, creating it the first time. Call off the main thread: a
 /// window built from a menu handler on Windows can deadlock.
 pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
@@ -105,7 +118,12 @@ pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
     } else {
         WebviewUrl::App(OFFLINE_PAGE.into())
     };
-    let window = WebviewWindowBuilder::new(app, LABEL, target)
+    let mut builder = WebviewWindowBuilder::new(app, LABEL, target);
+    let port = std::env::var("BOTRACING_DEVTOOLS_PORT").ok();
+    if let Some(args) = devtools_args(cfg!(debug_assertions), port.as_deref()) {
+        builder = builder.additional_browser_args(&args);
+    }
+    let window = builder
         .title("BotRacing")
         .inner_size(1200.0, 800.0)
         // The window's own storage, apart from the tray's data and per profile
@@ -248,6 +266,18 @@ mod tests {
 
     fn url(s: &str) -> Url {
         s.parse().unwrap()
+    }
+
+    #[test]
+    fn only_a_debug_build_opens_a_devtools_port() {
+        let args = devtools_args(true, Some("9333")).unwrap();
+        assert!(args.ends_with(" --remote-debugging-port=9333"));
+        assert!(args.starts_with(DEFAULT_BROWSER_ARGS), "Tauri's own arguments stay");
+        assert_eq!(devtools_args(false, Some("9333")), None, "a release build never opens one");
+        assert_eq!(devtools_args(true, None), None);
+        for bad in ["", "0", "x", "70000", "9333 --no-sandbox"] {
+            assert_eq!(devtools_args(true, Some(bad)), None, "{bad:?} is not a port");
+        }
     }
 
     #[test]
