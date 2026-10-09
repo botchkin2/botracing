@@ -5,6 +5,7 @@
 mod account;
 mod auth;
 mod browser;
+mod capture;
 mod menu;
 mod profile;
 mod sidecar;
