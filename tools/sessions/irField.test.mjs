@@ -8,6 +8,17 @@ import {undelta} from './field.mjs';
 import {irFieldFor} from './irField.mjs';
 
 const posix = p => p.replace(/\\/g, '/');
+
+// The DuckDB CLI is not on every runner (CI's app job has none).
+function duckdbWorks() {
+  try {
+    run(':memory:', 'SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+const needsDuckdb = {skip: !duckdbWorks()};
 const LENGTH = 1000;
 
 // A capture of 10 s at 5 Hz: car 0 (the player, GT3) laps at 100 m/s, car 3
@@ -26,7 +37,12 @@ function writeCapture(root, {offsetM = 0} = {}) {
       trackLengthM: LENGTH,
       playerCarIdx: 0,
       cars: [
-        {carIdx: 0, className: 'GT3', carName: 'Ford Mustang GT3', isPlayer: true},
+        {
+          carIdx: 0,
+          className: 'GT3',
+          carName: 'Ford Mustang GT3',
+          isPlayer: true,
+        },
         {carIdx: 3, className: 'LMP2', carName: 'Oreca 07', isPlayer: false},
       ],
     }),
@@ -51,7 +67,9 @@ function writeCapture(root, {offsetM = 0} = {}) {
   // The player stream is what makes a folder a capture; its rows are not used here.
   run(
     ':memory:',
-    `COPY (SELECT 0 AS tick) TO '${out('player-0000.parquet')}' (FORMAT parquet)`,
+    `COPY (SELECT 0 AS tick) TO '${out(
+      'player-0000.parquet',
+    )}' (FORMAT parquet)`,
     {readonly: false},
   );
   return dir;
@@ -63,46 +81,74 @@ const ibtRecs = () => {
   const lapDist = Float64Array.from(t, x => ((x - 100) * 5 * 20) % LENGTH);
   return [{t, lapDist}];
 };
-const span = {tracks: ['Sebring', '95-international'], startMs: Date.parse('2026-10-09T14:01:00Z'), endMs: Date.parse('2026-10-09T14:05:00Z')};
+const span = {
+  tracks: ['Sebring', '95-international'],
+  startMs: Date.parse('2026-10-09T14:01:00Z'),
+  endMs: Date.parse('2026-10-09T14:05:00Z'),
+};
 
-test('the field of an iRacing capture: cars with class and model, lap distance in metres, no positions', () => {
-  const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
-  writeCapture(root);
-  const r = irFieldFor(root, span, ibtRecs());
-  assert.ok(r.field, r.reason);
-  assert.equal(r.meta.cars, 2, 'the car outside the world has no rows');
-  assert.equal(r.field.hz, 5);
-  assert.deepEqual(
-    r.field.cars.map(c => [c.class, c.vehicle, c.player]),
-    [['GT3', 'Ford Mustang GT3', true], ['LMP2', 'Oreca 07', false]],
-  );
-  // Lap distance, decimetres: the player at 100 m/s... 20 m per update.
-  const player = undelta(r.field.lapDistDm[0]);
-  assert.equal(player[0], 0);
-  assert.equal(player[1], 200);
-  assert.equal(undelta(r.field.lapDistDm[1])[0], 2000);
-  // Positions and heading are absent, not zero.
-  for (const key of ['xDm', 'zDm', 'yawCrad', 'pathLateralDm'])
-    assert.ok(r.field[key].every(car => car.every(v => v === null)), key);
-  assert.deepEqual(r.field.place[0].slice(0, 2), [1, 1]);
-  assert.deepEqual(r.field.inPits[1].slice(0, 2), [1, 1]);
-  assert.equal(r.field.laps[0][0], 4);
-  rmSync(root, {recursive: true, force: true});
-});
+test(
+  'the field of an iRacing capture: cars with class and model, lap distance in metres, no positions',
+  needsDuckdb,
+  () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
+    writeCapture(root);
+    const r = irFieldFor(root, span, ibtRecs());
+    assert.ok(r.field, r.reason);
+    assert.equal(r.meta.cars, 2, 'the car outside the world has no rows');
+    assert.equal(r.field.hz, 5);
+    assert.deepEqual(
+      r.field.cars.map(c => [c.class, c.vehicle, c.player]),
+      [
+        ['GT3', 'Ford Mustang GT3', true],
+        ['LMP2', 'Oreca 07', false],
+      ],
+    );
+    // Lap distance, decimetres: the player at 100 m/s... 20 m per update.
+    const player = undelta(r.field.lapDistDm[0]);
+    assert.equal(player[0], 0);
+    assert.equal(player[1], 200);
+    assert.equal(undelta(r.field.lapDistDm[1])[0], 2000);
+    // Positions and heading are absent, not zero.
+    for (const key of ['xDm', 'zDm', 'yawCrad', 'pathLateralDm'])
+      assert.ok(
+        r.field[key].every(car => car.every(v => v === null)),
+        key,
+      );
+    assert.deepEqual(r.field.place[0].slice(0, 2), [1, 1]);
+    assert.deepEqual(r.field.inPits[1].slice(0, 2), [1, 1]);
+    assert.equal(r.field.laps[0][0], 4);
+    rmSync(root, {recursive: true, force: true});
+  },
+);
 
-test('a capture whose player is 100 m off the .ibt is no field, not a shifted one', () => {
-  const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
-  writeCapture(root, {offsetM: 100});
-  const r = irFieldFor(root, span, ibtRecs());
-  assert.equal(r.field, null);
-  assert.match(r.reason, /clocks disagree/);
-  rmSync(root, {recursive: true, force: true});
-});
+test(
+  'a capture whose player is 100 m off the .ibt is no field, not a shifted one',
+  needsDuckdb,
+  () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
+    writeCapture(root, {offsetM: 100});
+    const r = irFieldFor(root, span, ibtRecs());
+    assert.equal(r.field, null);
+    assert.match(r.reason, /clocks disagree/);
+    rmSync(root, {recursive: true, force: true});
+  },
+);
 
-test('no capture of the track in the time: no field, and it says why', () => {
-  const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
-  writeCapture(root);
-  assert.deepEqual(irFieldFor(root, {...span, tracks: ['Monza']}, ibtRecs()), {field: null, reason: 'no capture'});
-  assert.equal(irFieldFor(resolve(root, 'none'), span, ibtRecs()).reason, 'no capture');
-  rmSync(root, {recursive: true, force: true});
-});
+test(
+  'no capture of the track in the time: no field, and it says why',
+  needsDuckdb,
+  () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'ir-field-'));
+    writeCapture(root);
+    assert.deepEqual(
+      irFieldFor(root, {...span, tracks: ['Monza']}, ibtRecs()),
+      {field: null, reason: 'no capture'},
+    );
+    assert.equal(
+      irFieldFor(resolve(root, 'none'), span, ibtRecs()).reason,
+      'no capture',
+    );
+    rmSync(root, {recursive: true, force: true});
+  },
+);
