@@ -7,7 +7,8 @@ const MINUS = '−';
 /** Signed seconds: "+0.25 s", "0.00 s", "−0.50 s". */
 export function signedSeconds(v: number, decimals: number): string {
   const body = Math.abs(v).toFixed(decimals);
-  const sign = v > 0 ? '+' : v < 0 ? MINUS : '';
+  // The sign follows the rounded text: −0.001 at 2 dp is "0.00", no sign.
+  const sign = Number(body) === 0 ? '' : v > 0 ? '+' : MINUS;
   return `${sign}${body} s`;
 }
 
@@ -17,8 +18,9 @@ export function signedSeconds(v: number, decimals: number): string {
  * "1:00.0", never "0:60.0".
  */
 export function lapTimeTenths(v: number): string {
-  const sign = v < 0 ? MINUS : '';
   const tenths = Math.round(Math.abs(v) * 10);
+  // The sign follows the rounded value: −0.04 is "0.0", no sign.
+  const sign = v < 0 && tenths > 0 ? MINUS : '';
   const minutes = Math.floor(tenths / 600);
   const rest = tenths - minutes * 600;
   const seconds = (rest / 10).toFixed(1).padStart(4, '0');

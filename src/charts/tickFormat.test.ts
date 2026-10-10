@@ -12,6 +12,11 @@ describe('signedSeconds', () => {
     expect(signedSeconds(0, 1)).toBe('0.0 s');
   });
 
+  test('a negative value that rounds to zero has no sign', () => {
+    expect(signedSeconds(-0.001, 2)).toBe('0.00 s');
+    expect(signedSeconds(-0.04, 1)).toBe('0.0 s');
+  });
+
   test('uses the decimals it is given', () => {
     expect(signedSeconds(1.2345, 3)).toBe('+1.234 s');
   });
@@ -30,6 +35,10 @@ describe('lapTimeTenths', () => {
 
   test('rounds to tenths before splitting, so no 0:60', () => {
     expect(lapTimeTenths(59.96)).toBe('1:00.0');
+  });
+
+  test('a negative time that rounds to zero has no sign', () => {
+    expect(lapTimeTenths(-0.04)).toBe('0.0');
   });
 
   test('a negative time carries the true minus sign', () => {
