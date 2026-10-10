@@ -42,6 +42,23 @@ function tryOr(fn, fallback) {
   }
 }
 
+// A service account made a moment ago is not yet visible to IAM grants: the
+// bucket binding right after 'create' fails with "does not exist"
+// (2026-10-10, android-release). Retry that one error for about a minute.
+const RETRY_WAITS_MS = [2000, 4000, 8000, 16000, 30000];
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+export async function runStep(run, args, wait = sleep) {
+  for (const ms of RETRY_WAITS_MS) {
+    try {
+      return run(args);
+    } catch (error) {
+      if (!/does not exist/i.test(String(error.message ?? error))) throw error;
+      await wait(ms);
+    }
+  }
+  return run(args);
+}
+
 export function readState(run, c = CI) {
   const {roles: policy} = readPolicy(
     run(['projects', 'get-iam-policy', c.project, '--format=json']),
@@ -136,7 +153,7 @@ export async function main(argv, {run = gcloudRunner()} = {}) {
   for (const s of steps) {
     console.log(`  - ${s.what}`);
     if (!apply) continue;
-    if (s.run) run(s.run);
+    if (s.run) await runStep(run, s.run);
     if (s.gh) gh(s.gh);
     if (s.then) gh(s.then);
     if (s.keyTo) keyToSecret(s.keyTo);

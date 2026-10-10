@@ -14,6 +14,43 @@ import {
   releaseEmail,
   secretReaders,
 } from './ciSplitPlan.mjs';
+import {runStep} from './ciSplit.mjs';
+
+test('a grant right after an account is created retries "does not exist", and only that', async () => {
+  const waits = [];
+  let calls = 0;
+  const flaky = () => {
+    calls += 1;
+    if (calls < 3) throw new Error('Service account x does not exist.');
+    return 'ok';
+  };
+  assert.equal(await runStep(flaky, ['a'], ms => waits.push(ms)), 'ok');
+  assert.deepEqual(waits, [2000, 4000]);
+  await assert.rejects(
+    runStep(
+      () => {
+        throw new Error('permission denied');
+      },
+      ['a'],
+      ms => waits.push(ms),
+    ),
+    /permission denied/,
+  );
+  assert.equal(waits.length, 2, 'no wait for another error');
+  let n = 0;
+  await assert.rejects(
+    runStep(
+      () => {
+        n += 1;
+        throw new Error('does not exist');
+      },
+      ['a'],
+      () => {},
+    ),
+    /does not exist/,
+  );
+  assert.equal(n, 6, 'five waits, then the last try throws');
+});
 
 const deploy = `serviceAccount:${CI.deployEmail}`;
 const preview = `serviceAccount:${previewEmail()}`;
