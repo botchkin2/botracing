@@ -6,6 +6,7 @@ import {
   type CompareSelection,
 } from '@/src/features/compare/CompareScreen';
 import {parseSelection} from '@/src/nav/routes';
+import {useLapSelection} from '@/src/features/session/useLapSelection';
 
 // The URL owns the selection: ?laps=a,b,c&ref=&hl=&c=&t= (docs/ARCHITECTURE.md).
 export default function CompareRoute() {
@@ -18,6 +19,7 @@ export default function CompareRoute() {
     t?: string;
   }>();
   const router = useRouter();
+  const {update} = useLapSelection();
   const {laps, ref, hl, c, t} = params;
   const selection = useMemo<CompareSelection>(() => {
     const sel = parseSelection({laps, ref, hl, c, t});
@@ -28,12 +30,12 @@ export default function CompareRoute() {
       sessionId={params.id}
       selection={selection}
       onSelectionChange={next =>
-        router.setParams({
-          laps: next.laps.join(','),
-          ref: next.ref ?? undefined,
-          hl: next.hl ?? undefined,
-          c: next.corner == null ? undefined : String(next.corner),
-          t: String(Math.round(next.cursorM)),
+        update({
+          laps: next.laps,
+          ref: next.ref,
+          hl: next.hl,
+          corner: next.corner,
+          cursorM: next.cursorM,
         })
       }
     />

@@ -6,6 +6,7 @@ import {
   type CornerSelection,
 } from '@/src/features/corner/CornerScreen';
 import {parseSelection} from '@/src/nav/routes';
+import {useLapSelection} from '@/src/features/session/useLapSelection';
 
 // The URL owns the selection: /session/[id]/corner/[n]?laps=ref,a,b&hl=
 export default function CornerRoute() {
@@ -17,6 +18,7 @@ export default function CornerRoute() {
     hl?: string;
   }>();
   const router = useRouter();
+  const {update} = useLapSelection();
   const {laps, ref, hl} = params;
   const selection = useMemo<CornerSelection>(() => {
     const sel = parseSelection({laps, ref, hl});
@@ -28,12 +30,7 @@ export default function CornerRoute() {
       sessionId={params.id}
       corner={Number(params.n)}
       selection={selection}
-      onSelectionChange={next =>
-        router.setParams({
-          laps: next.laps.length ? next.laps.join(',') : undefined,
-          hl: next.hl ?? undefined,
-        })
-      }
+      onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />
   );
 }

@@ -7,10 +7,19 @@ import {
   chunksIn,
   objectId,
 } from './chunkPaths';
+import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
+import Svg, {
+  ClipPath,
+  Defs,
+  G,
+  Line,
+  Path,
+  Rect,
+  Text as SvgText,
+} from 'react-native-svg';
 
 import {
   distanceAtTime,
@@ -68,10 +77,19 @@ const BASE_BAND_H = 4;
 const LABEL_EDGE_PT = 34;
 
 // Plot y of a value is a + b·v for a y range: its offset and scale.
+function markAt(x: number, edgeY: number, dir: 1 | -1): string {
+  const tip = edgeY + dir * 5;
+  return `M${(x - 3).toFixed(1)},${edgeY}L${(x + 3).toFixed(
+    1,
+  )},${edgeY}L${x.toFixed(1)},${tip}Z`;
+}
+
 function yLine([lo, hi]: [number, number], height: number): [number, number] {
   const b = -(height - 2 * Y_PAD) / (hi - lo || 1);
   return [Y_PAD - b * hi, b];
 }
+
+let clipSeq = 0;
 
 export function TraceChart({
   width,
@@ -175,6 +193,24 @@ export function TraceChart({
   ]);
   const y = yFor(domainT);
   const yZero = yFor(zeroDomainT)(0);
+  // One clip per chart, so a series drawn past the scale stops at the plot edge.
+  const [clipId] = useState(() => `trace-clip-${++clipSeq}`);
+  // A marker where a series first leaves the scale: a small triangle on the edge
+  // it left by. Recorded-sample series (no values) are clipped but not marked.
+  const clipMarks = series.flatMap(s => {
+    if (s.samples) return [];
+    const [lo, hi] = s.domain ?? domain;
+    const exit = firstExit(s.values, from, to, lo, hi);
+    if (!exit) return [];
+    const edgeY = exit.edge === 'top' ? 0 : height;
+    return [
+      {
+        key: `${s.key}-${exit.edge}`,
+        color: s.color,
+        d: markAt(x(exit.index), edgeY, exit.edge === 'top' ? 1 : -1),
+      },
+    ];
+  });
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
 
@@ -450,45 +486,56 @@ export function TraceChart({
             </SvgText>
           </>
         )}
-        {paths.map(p => (
-          <G key={p.key} transform={p.transform}>
-            {p.wraps.map(c => (
-              <Path
-                key={c.k}
-                d={c.d}
-                stroke={p.color}
-                strokeWidth={p.width}
-                strokeOpacity={p.opacity * WRAP_OPACITY}
-                strokeDasharray={p.dash}
-                strokeLinejoin='round'
-                vectorEffect='non-scaling-stroke'
-                fill='none'
-              />
-            ))}
-            {p.ds.map(c =>
-              p.fill == null ? null : (
+        <Defs>
+          <ClipPath id={clipId}>
+            <Rect x={0} y={0} width={width} height={height} />
+          </ClipPath>
+        </Defs>
+        {/* Values beyond the scale are drawn clipped at the plot edge, never past it. */}
+        <G clipPath={`url(#${clipId})`}>
+          {paths.map(p => (
+            <G key={p.key} transform={p.transform}>
+              {p.wraps.map(c => (
                 <Path
-                  key={`a${c.k}`}
-                  d={areaPath(c.d, p.base)}
-                  fill={p.color}
-                  fillOpacity={p.fill * p.opacity}
+                  key={c.k}
+                  d={c.d}
+                  stroke={p.color}
+                  strokeWidth={p.width}
+                  strokeOpacity={p.opacity * WRAP_OPACITY}
+                  strokeDasharray={p.dash}
+                  strokeLinejoin='round'
+                  vectorEffect='non-scaling-stroke'
+                  fill='none'
                 />
-              ),
-            )}
-            {p.ds.map(c => (
-              <Path
-                key={c.k}
-                d={c.d}
-                stroke={p.color}
-                strokeWidth={p.width}
-                strokeOpacity={p.opacity}
-                strokeDasharray={p.dash}
-                strokeLinejoin='round'
-                vectorEffect='non-scaling-stroke'
-                fill='none'
-              />
-            ))}
-          </G>
+              ))}
+              {p.ds.map(c =>
+                p.fill == null ? null : (
+                  <Path
+                    key={`a${c.k}`}
+                    d={areaPath(c.d, p.base)}
+                    fill={p.color}
+                    fillOpacity={p.fill * p.opacity}
+                  />
+                ),
+              )}
+              {p.ds.map(c => (
+                <Path
+                  key={c.k}
+                  d={c.d}
+                  stroke={p.color}
+                  strokeWidth={p.width}
+                  strokeOpacity={p.opacity}
+                  strokeDasharray={p.dash}
+                  strokeLinejoin='round'
+                  vectorEffect='non-scaling-stroke'
+                  fill='none'
+                />
+              ))}
+            </G>
+          ))}
+        </G>
+        {clipMarks.map(m => (
+          <Path key={m.key} d={m.d} fill={m.color} />
         ))}
         {dimM?.map(([a, b]) => (
           <Rect

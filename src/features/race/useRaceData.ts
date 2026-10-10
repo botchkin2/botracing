@@ -12,8 +12,8 @@ import {
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
-  useSessionSurface,
+  useTrackMap,
+  useTrackSurface,
 } from '@/src/data/sessions';
 import {useLapTraces} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
@@ -60,8 +60,8 @@ export type RaceData =
 export function useRaceData(sessionId: string): RaceData {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
-  const map = useSessionMap(sessionId);
-  const surface = useSessionSurface(sessionId);
+  const map = useTrackMap(session.data?.trackId);
+  const surface = useTrackSurface(session.data?.trackId);
   const detail = session.data;
   const hash = detail?.field?.hash ?? null;
   const field = useField(sessionId, hash);

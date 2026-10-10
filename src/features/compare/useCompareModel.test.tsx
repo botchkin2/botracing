@@ -79,8 +79,8 @@ jest.mock('@/src/data/sessions', () => {
     useSession: () => mockSESSION,
     useSessionLaps: () => mockLAPS_Q,
     useSessionBand: () => mockBAND,
-    useSessionMap: () => mockNONE,
-    useSessionSurface: () => mockNONE,
+    useTrackMap: () => mockNONE,
+    useTrackSurface: () => mockNONE,
     useSessionsLaps: () => mockNO_FOREIGN_LAPS,
     useSessionsDetail: () => mockNO_FOREIGN_DETAILS,
   };

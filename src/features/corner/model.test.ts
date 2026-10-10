@@ -133,9 +133,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
-    expect(m.subtitle).toBe(
-      'in S2 (T2–T3) · 3 laps · compared with L1',
-    );
+    expect(m.subtitle).toBe('in S2 (T2–T3) · 3 laps · compared with L1');
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
       {n: 1, label: 'T1'},
@@ -313,8 +311,16 @@ describe('lap choice', () => {
     });
     // Compare keeps lap-number order, so the first is not a choice.
     expect(referenceFirst(sel({}), timed).laps).toEqual(['b', 'a', 'c']);
-    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual(['c', 'a', 'b']);
-    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual(['b', 'a', 'c']);
+    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual([
+      'c',
+      'a',
+      'b',
+    ]);
+    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual([
+      'b',
+      'a',
+      'c',
+    ]);
     const first = sel({laps: ['b', 'a']});
     expect(referenceFirst(first, timed)).toBe(first);
     expect(referenceFirst(sel({laps: []}), timed).laps).toEqual([]);

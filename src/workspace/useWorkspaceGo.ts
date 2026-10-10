@@ -1,6 +1,10 @@
 import {useGlobalSearchParams, useRouter} from 'expo-router';
 
-import {firstCornerOf, trackCorners, useSessionMap} from '@/src/data/sessions';
+import {
+  firstCornerOf,
+  trackCorners,
+  useTrackMapOfSession,
+} from '@/src/data/sessions';
 import {type SessionTab} from '@/src/nav/activeTab';
 import {
   compareHref,
@@ -24,7 +28,7 @@ export function useCornerTarget(
   tab: SessionTab | null,
 ): {n: number; used: boolean} {
   const {c, n} = useGlobalSearchParams<{c?: string; n?: string}>();
-  const map = useSessionMap(sessionId ?? '');
+  const map = useTrackMapOfSession(sessionId);
   if (tab === 'corner' && n) return {n: Number(n), used: true};
   const fromSection =
     map.data && c ? firstCornerOf(trackCorners(map.data), Number(c)) : null;
