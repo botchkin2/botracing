@@ -601,8 +601,6 @@ function build(
     // Start fuel, the fill limit and the tank in litres (fuelFacts.mjs); the
     // limit and tank are null when the car setup is missing.
     fuel: a.fuel,
-    // What the Plan reads of this session's laps, in one small block (planBlock.mjs).
-    plan: planBlock({fuel: a.fuel, laps}),
     band: a.band
       ? {
           path: `bands/${ownerId}/${s.id}/v1.json.gz`,
@@ -653,6 +651,15 @@ function build(
     })),
     analysisVersion,
     updatedAt: new Date().toISOString(),
+  });
+
+  // What the Plan reads of this session, in one small block (planBlock.mjs).
+  session.plan = planBlock({
+    sessionType: session.sessionType,
+    fuel: session.fuel,
+    laps,
+    race: session.race,
+    result: session.result,
   });
 
   return {

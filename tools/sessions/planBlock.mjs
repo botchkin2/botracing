@@ -44,11 +44,77 @@ function planLap(lap, n) {
   };
 }
 
+const MIN_OWN_LAPS = 3;
+
+function median(values) {
+  if (values.length < MIN_OWN_LAPS) return null;
+  const v = [...values].sort((x, y) => x - y);
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
 /**
- * `fuel`: the session's fuel block (analyze.mjs); `laps`: the session's lap
- * docs in driving order (`n` is the 1-based position, the app's `lapIndex`).
+ * The race's side, for "plan vs what happened" and the formation burn
+ * (src/data/sessions/raceFacts.ts reads the same from the lap docs): null for
+ * anything but a race with a whole lap to end on. The ending lap is the last
+ * one that was not cut short and has a fuel level; lap numbers count from the
+ * first racing lap (the formation lap is 0), so the ending lap's position
+ * minus one is the racing laps.
  */
-export function planBlock({fuel, laps}) {
+function raceBlock({laps, race, result}) {
+  let end = -1;
+  laps.forEach((lap, i) => {
+    if (!(lap.reasons ?? []).includes('partial') && lap.fuel?.endL != null)
+      end = i;
+  });
+  if (end < 0) return null;
+  const fuelOf = lap => lap.fuel ?? {};
+  const green = laps.filter(l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0);
+  const finish = result?.finish ?? null;
+  const first = fuelOf(laps[0]);
+  return {
+    raceLaps: Math.max(0, end),
+    minutes: finite(race?.minutes),
+    leftEarly: finish?.leftEarly === true,
+    playerLapsDone: finite(finish?.lapsDone),
+    classLeaderLapsDone: finite(finish?.classLeaderLapsDone),
+    // What the car started the race on, and the first lap's burn (the
+    // formation procedure burns more than a green lap).
+    startVePct: finite(first.veStartPct),
+    formationL: first.usedL > 0 ? first.usedL : null,
+    ownUse: {
+      fuelL: median(green.map(l => l.fuel.usedL)),
+      vePct: median(
+        green.map(l => l.fuel.veUsedPct).filter(v => v != null && v > 0),
+      ),
+    },
+    end: {
+      lapIndex: end + 1,
+      fuelL: finite(fuelOf(laps[end]).endL),
+      vePct: finite(fuelOf(laps[end]).veEndPct),
+    },
+    // The service before the start is not a stop: a pit window on the first
+    // lap counts only when the lap ends in the pit lane.
+    stops: laps.flatMap((lap, i) =>
+      lap.pitStop != null && (i !== 0 || lap.pitIn)
+        ? [
+            {
+              lapIndex: i + 1,
+              fuelL: finite(lap.pitStop.atEntry?.fuelL),
+              vePct: finite(lap.pitStop.atEntry?.vePct),
+            },
+          ]
+        : [],
+    ),
+  };
+}
+
+/**
+ * `sessionType`, `fuel`, `race` and `result` are the session doc's own fields;
+ * `laps` its lap docs in driving order (`n` is the 1-based position, the app's
+ * `lapIndex`). `race` is null outside a race.
+ */
+export function planBlock({sessionType, fuel, laps, race = null, result = null}) {
   return {
     v: PLAN_VERSION,
     fuel: {
@@ -58,5 +124,7 @@ export function planBlock({fuel, laps}) {
       litresPerVePct: finite(fuel?.litresPerVePct),
     },
     laps: laps.map((lap, i) => planLap(lap, i + 1)).filter(Boolean),
+    // 'Race' (iRacing, LMU), the same test sync.mjs uses for the race length.
+    race: /^r/i.test(sessionType ?? '') ? raceBlock({laps, race, result}) : null,
   };
 }

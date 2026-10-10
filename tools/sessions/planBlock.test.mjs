@@ -32,7 +32,7 @@ test('a session gives its fuel facts and only its green laps, numbered as the ap
     lap({fuel: null}),
     lap({lapTime: 90.9, traffic: {trafficAheadS: 3.2, passesSufferedAll: 1, blueFlagS: 0.4, battleS: 0, overtakes: [{atM: 10}, {atM: 20}]}}),
   ];
-  assert.deepEqual(planBlock({fuel, laps}), {
+  assert.deepEqual(planBlock({sessionType: 'Practice', fuel, laps}), {
     v: PLAN_VERSION,
     fuel: {fillLimitL: 60, startL: 60, tankL: 105, litresPerVePct: 0.89},
     laps: [
@@ -47,18 +47,20 @@ test('a session gives its fuel facts and only its green laps, numbered as the ap
         traffic: {aheadS: 3.2, passes: 1, blueS: 0.4, battleS: 0, overtakes: 2},
       },
     ],
+    race: null,
   });
 });
 
 test('a session with no fuel channel or no laps gives an empty block, never undefined', () => {
-  const empty = planBlock({fuel: null, laps: []});
+  const empty = planBlock({sessionType: 'Practice', fuel: null, laps: []});
   assert.deepEqual(empty, {
     v: PLAN_VERSION,
     fuel: {fillLimitL: null, startL: null, tankL: null, litresPerVePct: null},
     laps: [],
+    race: null,
   });
   assert.deepEqual(
-    planBlock({fuel: {startL: undefined}, laps: [lap({fuel: null})]}).fuel,
+    planBlock({sessionType: 'Practice', fuel: {startL: undefined}, laps: [lap({fuel: null})]}).fuel,
     empty.fuel,
   );
 });
@@ -67,7 +69,7 @@ test('the block is a valid Firestore value and small: about 100 laps stay under 
   const laps = Array.from({length: 100}, (_, i) =>
     lap({lapTime: 90 + (i % 7) / 10, traffic: i % 3 ? null : {trafficAheadS: 1.5, passesSufferedAll: 0, blueFlagS: 0, battleS: 0.5, overtakes: []}}),
   );
-  const block = planBlock({fuel, laps});
+  const block = planBlock({sessionType: 'Practice', fuel, laps});
   assert.equal(block.laps.length, 100);
   checkDoc('sessions/x', {plan: block});
   assert.ok(JSON.stringify(block).length < 15_000, String(JSON.stringify(block).length));
@@ -75,4 +77,67 @@ test('the block is a valid Firestore value and small: about 100 laps stay under 
 
 test('its version is in the block versions, so a bump re-analyses every session', () => {
   assert.equal(blockVersions.plan, PLAN_VERSION);
+});
+
+// A race as sync.mjs writes it, trimmed: lap 1 is the formation lap (3.4 L, the
+// service before the start in a pit window), laps 2-4 green, lap 5 a stop (pit
+// in), laps 6-8 green, lap 9 the last whole lap, lap 10 cut short.
+const raceLap = (usedL, over = {}) => ({
+  timed: true,
+  lapTime: 90,
+  comparable: true,
+  reasons: [],
+  pitIn: false,
+  pitStop: null,
+  traffic: null,
+  fuel: {usedL, endL: 40, veStartPct: null, veEndPct: null, veUsedPct: null, green: true},
+  ...over,
+});
+
+test('a race adds its ending lap, stops, formation burn and own use, as raceFacts reads them from the laps', () => {
+  const laps = [
+    raceLap(3.4, {pitStop: {atEntry: {fuelL: 60, vePct: null}}, pitIn: false, fuel: {usedL: 3.4, endL: 56.6, veStartPct: 100, veEndPct: 96, green: false}}),
+    raceLap(2.4),
+    raceLap(2.5),
+    raceLap(2.3),
+    raceLap(2.6, {pitIn: true, pitStop: {atEntry: {fuelL: 31.2, vePct: 55.5}}, fuel: {usedL: 2.6, endL: 31.2, veEndPct: 55.5, green: false}}),
+    raceLap(2.4),
+    raceLap(2.5),
+    raceLap(2.4),
+    raceLap(2.5, {fuel: {usedL: 2.5, endL: 12.5, veEndPct: 20, green: true}}),
+    raceLap(1.1, {reasons: ['partial'], fuel: {usedL: 1.1, endL: null, green: false}}),
+  ];
+  const plan = planBlock({
+    sessionType: 'Race',
+    fuel,
+    laps,
+    race: {minutes: 40},
+    result: {finish: {leftEarly: false, lapsDone: 9, classLeaderLapsDone: 9}},
+  });
+  assert.deepEqual(plan.race, {
+    raceLaps: 8, // the ending lap is the 9th: lap 0 is the formation lap
+    minutes: 40,
+    leftEarly: false,
+    playerLapsDone: 9,
+    classLeaderLapsDone: 9,
+    startVePct: 100,
+    formationL: 3.4,
+    // green laps: 2.4 2.5 2.3 2.4 2.5 2.4 2.5 -> median 2.4
+    ownUse: {fuelL: 2.4, vePct: null},
+    end: {lapIndex: 9, fuelL: 12.5, vePct: 20},
+    // the service on the first lap (not pit-in) is not a stop
+    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5}],
+  });
+  assert.equal(plan.laps.length, 7, 'green laps with fuel used: 2-4 and 6-9');
+});
+
+test('a race with nothing to end on, or not a race, has no race side', () => {
+  assert.equal(planBlock({sessionType: 'Race', fuel, laps: [raceLap(2.4, {reasons: ['partial']})]}).race, null);
+  assert.equal(planBlock({sessionType: 'Race', fuel, laps: []}).race, null);
+  assert.equal(planBlock({sessionType: 'Qualify', fuel, laps: [raceLap(2.4)]}).race, null);
+});
+
+test('a first-lap stop that ends in the pit lane is a real stop (Road Atlanta, 25 Sep)', () => {
+  const laps = [raceLap(2.4, {pitIn: true, pitStop: {atEntry: {fuelL: 50, vePct: null}}}), raceLap(2.4)];
+  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null}]);
 });
