@@ -69,5 +69,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.sm,
   },
-  input: {flex: 1, minWidth: 0, paddingVertical: 0},
+  // Fills the 44 pt box, so a tap anywhere in it focuses the field.
+  input: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    marginVertical: -1,
+    paddingVertical: 0,
+  },
 });

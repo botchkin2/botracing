@@ -56,7 +56,8 @@ export const Leaderboard = memo(function Leaderboard({
   carLaps?: {index: number; view: CarLapsView} | null;
 }) {
   const {color} = useTheme();
-  const rowH = desktop ? size.gridCell : size.lapRow;
+  // 44 on the phone: the whole row is the tap target (CODE_STANDARDS §0).
+  const rowH = desktop ? size.gridCell : size.hit;
   const scroll = useRef<ScrollView>(null);
   // Scroll to your row when the list changes what it lists, not per sample.
   const listKey = `${filter}:${groups.length}`;
