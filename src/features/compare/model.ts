@@ -763,6 +763,8 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const basisTrace = refLap
     ? traces.get(refLap.id)
     : input.basisTrace ?? medianBasisOf(selected, traces);
+  // The unit a value row shows: the time diff's readout carries its own.
+  const rowUnit = (ch: ChannelId) => (ch === 'timeDiff' ? '' : CHANNELS[ch].unit);
   // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && count > 0
@@ -994,7 +996,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     return {
       key: chs.join('+'),
       channels: chs,
-      title: chs.map(labelOf).join(' + '),
+      // A lone chart has no legend, so its unit goes in the title (Speed km/h).
+      title:
+        chs.map(labelOf).join(' + ') +
+        (chs.length === 1 && rowUnit(chs[0]) ? ` ${rowUnit(chs[0])}` : ''),
       height: pedals
         ? PEDALS_H
         : Math.max(...chs.map(c => CHANNELS[c].height)) +
@@ -1310,7 +1315,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
             label: labelOf(ch),
             legend: chs.length > 1,
             // The readout text carries the time diff's unit.
-            unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
+            unit: rowUnit(ch),
             overlay,
             values: [
               ...(basisGrid
