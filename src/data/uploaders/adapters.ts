@@ -9,6 +9,28 @@ export type UploaderState =
   | 'retrying'
   | 'error';
 
+/**
+ * What is wrong on a PC now (pit-wall thread 1 #3327): a session that failed
+ * and waits on a retry, a crashed sync, a recorder that stopped writing (all
+ * from its heartbeat), or not seen for days (the server adds that one).
+ */
+export type UploaderProblemKind =
+  | 'session-failed'
+  | 'sync-crashed'
+  | 'recorder-layout'
+  | 'not-seen';
+
+export type UploaderProblem = {
+  kind: UploaderProblemKind;
+  /** Epoch ms it last happened (not-seen: when the PC was last seen). */
+  at: number | null;
+  message: string;
+  sessionId: string | null;
+  /** Failures in a row, for a session. */
+  count: number | null;
+  retryAt: number | null;
+};
+
 export type Uploader = {
   hostId: string;
   host: string;
@@ -29,7 +51,8 @@ export type Uploader = {
   /** Epoch ms the earliest failed session is tried again; null with none. */
   retryAt: number | null;
   sessionsDone: number;
-  lastError: {at: number | null; message: string; path: string | null} | null;
+  /** Newest first, as the PC sent them; unknown kinds are dropped. */
+  problems: UploaderProblem[];
   disk: {captureBytes: number; freeBytes: number} | null;
   /** The shared-memory recorder (thread 30 #460). layoutOk false means the
    *  game changed its struct layout and the recorder stopped writing. */
@@ -71,6 +94,32 @@ const time = (v: unknown): number | null => {
   return null;
 };
 
+const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
+  'session-failed',
+  'sync-crashed',
+  'recorder-layout',
+  'not-seen',
+];
+
+function toProblems(v: unknown): UploaderProblem[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap(raw => {
+    const p = obj(raw);
+    const kind = str(p.kind) as UploaderProblemKind | null;
+    if (!kind || !PROBLEM_KINDS.includes(kind)) return [];
+    return [
+      {
+        kind,
+        at: time(p.at),
+        message: str(p.message) ?? '',
+        sessionId: str(p.sessionId),
+        count: num(p.count),
+        retryAt: time(p.retryAt),
+      },
+    ];
+  });
+}
+
 function toProgress(v: unknown): Uploader['progress'] {
   if (v == null) return null;
   const p = obj(v);
@@ -88,7 +137,6 @@ export function toUploader(raw: unknown): Uploader {
   const hostId = str(x.hostId) ?? str(x.id);
   if (!hostId) throw new Error('uploader: missing hostId');
   const state = str(x.state);
-  const err = x.lastError == null ? null : obj(x.lastError);
   const disk = x.disk == null ? null : obj(x.disk);
   const rec = x.recorder == null ? null : obj(x.recorder);
   return {
@@ -107,13 +155,7 @@ export function toUploader(raw: unknown): Uploader {
     progress: toProgress(x.progress),
     retryAt: time(x.retryAt),
     sessionsDone: num(x.sessionsDone) ?? 0,
-    lastError: err
-      ? {
-          at: time(err.at),
-          message: str(err.message) ?? '',
-          path: str(err.path),
-        }
-      : null,
+    problems: toProblems(x.problems),
     disk: disk
       ? {
           captureBytes: num(disk.captureBytes) ?? 0,

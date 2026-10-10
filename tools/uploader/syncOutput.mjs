@@ -24,6 +24,9 @@ export function newSyncResult() {
     folded: 0,
     inFold: false,
     failedIds: [],
+    // {sessionId: its first "failed:" line, without the prefix}: what the
+    // Settings Problems list says for that session.
+    failureOf: {},
     done: 0,
     failed: 0,
     errors: [],
@@ -56,8 +59,10 @@ export function readSyncLine(result, line) {
   if (/^\s+failed: /.test(line)) {
     result.errors.push(line.trim());
     const id = result.sessions[result.sessions.length - 1];
-    if (!result.inFold && id && !result.failedIds.includes(id))
+    if (!result.inFold && id && !result.failedIds.includes(id)) {
       result.failedIds.push(id);
+      result.failureOf[id] = line.trim().replace(/^failed: /, '');
+    }
   }
   if (result.crash == null && /^(?:[A-Z]\w*)?Error\b[:\s]/.test(line))
     result.crash = line.trim();

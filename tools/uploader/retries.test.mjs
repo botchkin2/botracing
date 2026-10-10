@@ -13,14 +13,24 @@ test('a failing session backs off 30 min, then 60, and drops out on success', ()
     skippedIds: [],
     nowMs: 0,
   });
-  assert.deepEqual(first, {a: {failures: 1, atMs: 30 * MIN}});
+  assert.deepEqual(first, {
+    a: {failures: 1, atMs: 30 * MIN, lastAtMs: 0, message: null},
+  });
   const second = nextRetries({
     retries: first,
     failedIds: ['a'],
     skippedIds: [],
+    messages: {a: 'HTTP 413 doc too large'},
     nowMs: 31 * MIN,
   });
-  assert.deepEqual(second, {a: {failures: 2, atMs: 91 * MIN}});
+  assert.deepEqual(second, {
+    a: {
+      failures: 2,
+      atMs: 91 * MIN,
+      lastAtMs: 31 * MIN,
+      message: 'HTTP 413 doc too large',
+    },
+  });
   const fixed = nextRetries({
     retries: second,
     failedIds: [],
@@ -40,7 +50,7 @@ test('a skipped session keeps its wait; a new failure starts its own', () => {
   });
   assert.deepEqual(next, {
     a: {failures: 3, atMs: 200 * MIN},
-    b: {failures: 1, atMs: 80 * MIN},
+    b: {failures: 1, atMs: 80 * MIN, lastAtMs: 50 * MIN, message: null},
   });
 });
 
