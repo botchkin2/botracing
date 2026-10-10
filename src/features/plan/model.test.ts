@@ -979,6 +979,35 @@ describe('fuelOnly', () => {
   });
 });
 
+describe('an iRacing history: every lap has no VE', () => {
+  const lap = (): GreenLap => ({
+    fuelL: 2.4,
+    vePct: null,
+    lapTimeS: 90,
+    sessionId: 's',
+  });
+  const rules = {
+    name: 'iRacing 40 min',
+    lengthLaps: null,
+    lengthMin: 40,
+    fuelL: 60,
+    vePct: 100,
+    formationLap: false,
+    mandatoryStops: 0,
+  };
+
+  it('is fuel-only, and its rules block has no VE rows', () => {
+    const history = Array.from({length: 5}, lap);
+    const hasVe = !fuelOnly(history);
+    expect(hasVe).toBe(false);
+    expect(rulesCells(rules, hasVe, null).map(c => c.label)).toEqual([
+      'Max fuel',
+      'Mandatory',
+      'Formation',
+    ]);
+  });
+});
+
 describe('defaultCombo', () => {
   const combo = (key: string, comparable: number[]): Combo => ({
     key,
