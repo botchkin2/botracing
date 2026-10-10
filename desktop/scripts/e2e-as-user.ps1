@@ -40,12 +40,15 @@ try {
   Register-ScheduledTask -TaskName $taskName -Action $action -User "$env:COMPUTERNAME\$name" -Password $plain -RunLevel Limited -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName
   $until = (Get-Date).AddMinutes(12)
+  # Right after Start the state is still Ready and the result 267011 (never
+  # run), 267009 while it runs: it is done when it is Ready with a real result.
   do {
     Start-Sleep -Seconds 3
     $state = (Get-ScheduledTask -TaskName $taskName).State
-  } while ($state -ne "Ready" -and (Get-Date) -lt $until)
+    $result = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
+  } while (($state -ne "Ready" -or $result -eq 267011 -or $result -eq 267009) -and (Get-Date) -lt $until)
   if ($state -ne "Ready") { Write-Host "the task did not finish in 12 minutes"; Stop-ScheduledTask -TaskName $taskName }
-  $exit = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
+  $exit = $result
 } finally {
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
   if (Test-Path $out) { Get-Content $out }
