@@ -47,3 +47,16 @@ node tools/sessions/sync.mjs --remote --only "<session name>"
 ```
 
 Ids derive from the uid, so they never clash with Botkin's. A re-seed is the same command.
+
+## A local tray as seat-test
+
+A tray built from a branch runs beside the installed one, signed in as `seat-test`, with no browser and nothing of Botkin's touched. It needs a **debug build** and a profile (`desktop/README.md`): its own data folder `%LOCALAPPDATA%\BotRacing-<profile>`, Credential Manager entry and watcher lock.
+
+```powershell
+node functions/scripts/mintTestToken.mjs --custom-token-file $env:TEMP\seat-test.custom   # good for an hour
+$env:BOTRACING_PROFILE = "seat"
+$env:BOTRACING_SEAT_TOKEN_FILE = "$env:TEMP\seat-test.custom"
+cd desktop; npx tauri dev   # or run src-tauri\target\debug\botracing.exe
+```
+
+At start, a signed-out test tray signs in from the file (`seat_token_file` in `main.rs`, `auth::seat_test_sign_in`); after that it keeps itself signed in like the real one. Any uid but `seat-test` is refused, and a release build or the default profile ignores the variable. The proof for a tray change is then: the menu, `%LOCALAPPDATA%\BotRacing-seat\uploader\watch.log` starting, `sidecar.log`, and a `seat-test` heartbeat.
