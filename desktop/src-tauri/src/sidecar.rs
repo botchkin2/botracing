@@ -63,27 +63,48 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
+/// What `paths` reads from the process: taken as input so a test passes its
+/// own and never depends on (or races over) the runner's BOTRACING_ROOT.
+pub struct PathEnv {
+    /// %LOCALAPPDATA% (else the temp dir).
+    pub local: PathBuf,
+    pub exe: PathBuf,
+    /// BOTRACING_ROOT, when set.
+    pub root: Option<PathBuf>,
+    /// BOTRACING_NODE, when set.
+    pub node: Option<PathBuf>,
+}
+
+impl PathEnv {
+    pub fn from_process() -> PathEnv {
+        PathEnv {
+            local: std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir),
+            exe: current_exe().unwrap_or_default(),
+            root: std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
+            node: std::env::var_os("BOTRACING_NODE").map(PathBuf::from),
+        }
+    }
+}
+
 pub fn paths(resources: &Path) -> Paths {
+    paths_from(resources, PathEnv::from_process())
+}
+
+pub fn paths_from(resources: &Path, env: PathEnv) -> Paths {
     let resources = plain(resources);
-    let local = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let exe = current_exe().unwrap_or_default();
-    let root = find_root(
-        std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
-        &resources,
-        &exe,
-    );
-    let node = std::env::var_os("BOTRACING_NODE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let bundled = resources.join("node").join("node.exe");
-            if bundled.exists() {
-                bundled
-            } else {
-                PathBuf::from("node")
-            }
-        });
+    let local = env.local;
+    let exe = env.exe;
+    let root = find_root(env.root, &resources, &exe);
+    let node = env.node.unwrap_or_else(|| {
+        let bundled = resources.join("node").join("node.exe");
+        if bundled.exists() {
+            bundled
+        } else {
+            PathBuf::from("node")
+        }
+    });
     Paths {
         data: plain(&local.join(crate::profile::data_dir_name())),
         root: plain(&root),
@@ -436,6 +457,20 @@ fn trim_status(file: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // paths() with a fixed environment: the runner's BOTRACING_ROOT or
+    // BOTRACING_NODE never changes what a test sees.
+    fn test_paths(resources: &Path) -> Paths {
+        paths_from(
+            resources,
+            PathEnv {
+                local: std::env::temp_dir(),
+                exe: current_exe().unwrap_or_default(),
+                root: None,
+                node: None,
+            },
+        )
+    }
     use std::time::Duration;
 
     #[test]
@@ -565,7 +600,7 @@ mod tests {
             "{verbatim:?}"
         );
 
-        let mut p = paths(&verbatim);
+        let mut p = test_paths(&verbatim);
         p.data = base.join("data");
         for path in [&p.root, &p.node] {
             assert!(!path.to_string_lossy().starts_with(r"\\?\"), "{path:?}");
@@ -593,7 +628,7 @@ mod tests {
 
     #[test]
     fn the_sync_gets_its_own_state_folder_and_a_first_run_window() {
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.data = std::env::temp_dir().join("botracing-args");
         let args: Vec<String> = command(&p)
             .get_args()
@@ -614,7 +649,7 @@ mod tests {
 
     #[test]
     fn missing_uploader_files_are_named_not_swallowed() {
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.root = std::env::temp_dir().join(format!("botracing-noroot-{}", std::process::id()));
         let mut s = Supervisor::new();
         s.set_allowed(true);
@@ -635,7 +670,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         touch(&base.join("root").join(SCRIPT));
         std::fs::write(base.join("root").join(SCRIPT), "process.exit(3)").unwrap();
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.root = base.join("root");
         p.data = base.join("data");
         let mut s = Supervisor::new();
@@ -677,7 +712,7 @@ mod tests {
             "console.error('boom: cannot find thing'); process.exit(1)",
         )
         .unwrap();
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.root = base.join("root");
         p.data = base.clone();
         let mut s = Supervisor::new();
@@ -841,7 +876,7 @@ mod tests {
 
     #[test]
     fn a_missing_node_is_reported_not_swallowed() {
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.node = PathBuf::from("definitely-not-a-real-node-binary");
         p.data = std::env::temp_dir().join(format!("botracing-miss-{}", std::process::id()));
         let mut s = Supervisor::new();
