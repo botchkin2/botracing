@@ -384,10 +384,7 @@ export function PlanScreen() {
             </>
           ) : data.cards && (wide || !slider.pit) ? (
             <PlanCard title='Stops'>
-              <StopsCardView
-                card={data.cards.stops}
-                carClass={combo.sessions[0]?.carClass ?? ''}
-              />
+              <StopsCardView card={data.cards.stops} />
             </PlanCard>
           ) : null}
           {wide ? (

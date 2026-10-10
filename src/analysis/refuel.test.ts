@@ -1,6 +1,15 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {REFUEL_L_PER_S, refuelMeasured, refuelS, refuelScope} from './refuel';
+import {
+  fillRateLPerS,
+  REFUEL_L_PER_S,
+  refuelMeasured,
+  refuelS,
+  refuelRateOf,
+  refuelRateScope,
+  refuelScope,
+  refuelSecondsAt,
+} from './refuel';
 
 describe('refuel', () => {
   it('is measured on GT3 only', () => {
@@ -30,5 +39,70 @@ describe('refuel', () => {
       'refuel at 3.4 L/s · GT3, measured on 5 stops',
     );
     expect(refuelScope('Hyper')).toBeNull();
+  });
+});
+
+describe('fillRateLPerS', () => {
+  // 20 Hz level held at 100 Hz: a rise every 5th sample.
+  const ramp = (litres: number, perStep: number) => {
+    const t: number[] = [];
+    const fuel: number[] = [];
+    let level = 50;
+    for (let i = 0; i < 400; i++) {
+      t.push(i / 100);
+      if (i >= 100 && i % 5 === 0 && level < 50 + litres - 1e-9)
+        level = Math.min(50 + litres, level + perStep);
+      fuel.push(level);
+    }
+    return {t, fuel};
+  };
+
+  it('reads the pump rate from the rise, not the stop', () => {
+    // 0.17 L every 0.05 s is 3.4 L/s; 24 steps add 4.08 L in 1.2 s.
+    const {t, fuel} = ramp(4.08, 0.17);
+    expect(fillRateLPerS(fuel, t, 0, 399)).toBeCloseTo(3.4, 1);
+  });
+
+  it('is null under a litre (sensor noise) or with nothing added', () => {
+    const {t, fuel} = ramp(0.5, 0.17);
+    expect(fillRateLPerS(fuel, t, 0, 399)).toBeNull();
+    expect(fillRateLPerS([5, 5, 5], [0, 1, 2], 0, 2)).toBeNull();
+  });
+
+  it('ignores the level falling (fuel burnt) inside the window', () => {
+    const {t, fuel} = ramp(4.08, 0.17);
+    const burnt = fuel.map((v, i) => (i < 50 ? v + (50 - i) * 0.01 : v));
+    expect(fillRateLPerS(burnt, t, 0, 399)).toBeCloseTo(3.4, 1);
+  });
+});
+
+describe('refuelRateOf', () => {
+  it('is the median of the measured fills, any class', () => {
+    expect(refuelRateOf([3.37, null, 3.41, 3.2], 'LMP2')).toEqual({
+      lPerS: 3.37,
+      stops: 3,
+      measured: true,
+    });
+  });
+
+  it('falls back to the GT3 rate, and has none for an unmeasured class', () => {
+    expect(refuelRateOf([null], 'GT3')).toEqual({
+      lPerS: REFUEL_L_PER_S,
+      stops: 5,
+      measured: false,
+    });
+    expect(refuelRateOf([], 'Hyper')).toBeNull();
+  });
+
+  it('turns litres into seconds at the rate and names where it came from', () => {
+    const r = refuelRateOf([3.4], 'GT3');
+    expect(refuelSecondsAt(34, r)).toBeCloseTo(10, 5);
+    expect(refuelSecondsAt(34, null)).toBeNull();
+    expect(refuelRateScope(r)).toBe(
+      'refuel at 3.4 L/s · your 1 stop here',
+    );
+    expect(refuelRateScope(refuelRateOf([], 'GT3'))).toBe(
+      'refuel at 3.4 L/s · GT3, measured on 5 stops',
+    );
   });
 });

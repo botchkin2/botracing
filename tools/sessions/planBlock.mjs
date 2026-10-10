@@ -11,7 +11,9 @@
  * Bump when the rules below change: it goes into analyze.mjs's blockVersions,
  * so every session is re-analysed once and the block is written again.
  */
-export const PLAN_VERSION = 1;
+// 2: a stop names its visit's kind (service, repair, penalty) and the pump's
+//    rate (fillLPerS); the pit loss is learnt from service visits only.
+export const PLAN_VERSION = 2;
 
 const finite = x => (Number.isFinite(x) ? x : null);
 
@@ -78,12 +80,15 @@ function stintMedianS(laps, stint) {
 
 /**
  * The stop's lane loss in seconds, or null when pitBase.ts would leave the stop
- * out: no fuel added, tyres unknown or changed, no timed in-lap, no clean
- * out-lap after it, or no stint median to set the laps against.
+ * out: not a service (a repair or a penalty stands still for something else,
+ * even when it also refuelled), no fuel added, tyres unknown or changed, no
+ * timed in-lap, no clean out-lap after it, or no stint median to set the laps
+ * against.
  */
 function lossOf(laps, i) {
   const lap = laps[i];
   const stop = lap.pitStop;
+  if (stop?.visit?.kind !== 'service') return null;
   const litres = finite(stop?.added?.fuelL);
   const inLap = timeOf(lap);
   if (!(litres > 0) || inLap == null) return null;
@@ -162,6 +167,10 @@ function raceBlock({laps, race, result}) {
               // For the pit lane base: litres added and the lane loss.
               addedL: finite(lap.pitStop.added?.fuelL),
               lossS: lossOf(laps, i),
+              // Why the car was in the lane (pitVisit.mjs) and the pump's rate.
+              kind: lap.pitStop.visit?.kind ?? null,
+              detail: lap.pitStop.visit?.detail ?? null,
+              fillLPerS: finite(lap.pitStop.fillLPerS),
             },
           ]
         : [],

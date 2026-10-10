@@ -8,8 +8,18 @@ export type LastRace = {
   startedAt: string;
   /** Racing laps driven, the formation lap not counted. */
   raceLaps: number;
-  /** One per stop, by the lap the pit lane was entered ("L24"), and what was left at entry. */
-  stops: {lap: string; fuelL: number | null; vePct: number | null}[];
+  /**
+   * One per pit visit, by the lap the pit lane was entered ("L24"), what was
+   * left at entry, and why: a service is a stop, a repair or a penalty is named
+   * as what it was (null kind: a block from before it was stored, read as a stop).
+   */
+  stops: {
+    lap: string;
+    fuelL: number | null;
+    vePct: number | null;
+    kind: string | null;
+    detail: string | null;
+  }[];
   /** The tank at the end of the last whole lap ("L72"); null without a fuel level. */
   end: {lap: string; fuelL: number | null; vePct: number | null} | null;
   /** What the car started the race with: litres, and % of the full VE load; null without the channel. */
@@ -33,6 +43,8 @@ export function lastRaceOf(
       lap: `L${s.lapIndex}`,
       fuelL: s.fuelL,
       vePct: s.vePct,
+      kind: s.kind ?? null,
+      detail: s.detail ?? null,
     })),
     start: {fuelL: facts.startL, vePct: facts.startVePct ?? null},
     leftEarly: facts.leftEarly === true,
@@ -54,7 +66,9 @@ export function lastRaceOf(
  * end of the last whole lap. One numbering, the lap table's: no lap count
  * beside "L21", which counts the formation lap (apex, #1309). VE is left out
  * of a fuel-only race.
- * "2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73"
+ * "2 stops at L25, L49 · 4.9 L / 3 % VE left at the end of L73". A visit that
+ * was not a service is named by what it was, not counted as a stop:
+ * "no stop · repair L11 · stop-go L12" (canard's audit, #4166).
  */
 export function lastRaceLine(race: LastRace): string {
   const dnf =
@@ -63,12 +77,20 @@ export function lastRaceLine(race: LastRace): string {
     race.classLeaderLapsDone != null
       ? `DNF at L${race.playerLapsDone} of L${race.classLeaderLapsDone}+`
       : null;
+  // A service, or a visit from a block that does not say, is a stop.
+  const services = race.stops.filter(
+    s => s.kind == null || s.kind === 'service',
+  );
   const stops =
-    race.stops.length === 0
+    services.length === 0
       ? 'no stop'
-      : `${race.stops.length} ${
-          race.stops.length === 1 ? 'stop' : 'stops'
-        } at ${race.stops.map(s => s.lap).join(', ')}`;
+      : `${services.length} ${
+          services.length === 1 ? 'stop' : 'stops'
+        } at ${services.map(s => s.lap).join(', ')}`;
+  const others = race.stops
+    .filter(s => s.kind != null && s.kind !== 'service')
+    .map(s => `${visitName(s.kind as string, s.detail)} ${s.lap}`);
+  const visits = [stops, ...others].join(' · ');
   const left = race.end
     ? [
         race.end.fuelL != null && `${race.end.fuelL.toFixed(1)} L`,
@@ -79,5 +101,13 @@ export function lastRaceLine(race: LastRace): string {
     race.end && left.length > 0
       ? ` · ${left.join(' / ')} left at the end of ${race.end.lap}`
       : '';
-  return dnf ? `${dnf} · ${stops}${end}` : `${stops}${end}`;
+  return dnf ? `${dnf} · ${visits}${end}` : `${visits}${end}`;
+}
+
+/** A visit that was not a service, as the line names it: "repair", "stop-go", "drive-through", "pit lane". */
+function visitName(kind: string, detail: string | null): string {
+  if (kind === 'penalty') return detail ?? 'penalty';
+  if (kind === 'repair') return 'repair';
+  if (kind === 'through') return 'through the lane';
+  return 'pit visit';
 }
