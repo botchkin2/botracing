@@ -62,6 +62,7 @@ export {
 export {
   type DefaultSession,
   defaultLapIds,
+  openingLapIds,
   referenceDefaultLapIds,
   stintSetLapIds,
   refLapOf,

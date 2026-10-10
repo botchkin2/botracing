@@ -11,6 +11,7 @@ import {
 } from '@/src/analysis/segments';
 
 import {
+  openingLapIds,
   raceFacts,
   type Lap,
   type SessionDetail,
@@ -550,6 +551,22 @@ export function buildSessionModel(
     fuelUse,
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
+}
+
+/** The laps the grid ticks when the URL names none: the set Compare opens on. */
+export function useSessionOpeningLapIds(id: string): string[] {
+  const session = useSession(id);
+  const laps = useSessionLaps(id);
+  return useMemo(() => {
+    const s = session.data;
+    if (!s || !laps.data) return [];
+    return openingLapIds(laps.data, {
+      id,
+      bestLapId: s.bestLapId,
+      car: s.car,
+      sessionType: s.sessionType,
+    });
+  }, [id, session.data, laps.data]);
 }
 
 /** The segment times the grid reads: the same sections the session table shows. */

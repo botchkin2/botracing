@@ -25,8 +25,7 @@ import {
   measuredCentreLines,
   onCurrentBoundaries,
   type TrackMapData,
-  referenceDefaultLapIds,
-  stintSetLapIds,
+  openingLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -1468,11 +1467,7 @@ export function withDefaultLaps(
   session: DefaultSession | undefined,
 ): CompareSelection {
   if (sel.laps.length > 0 || !laps || !session) return sel;
-  const set = stintSetLapIds(laps);
-  return {
-    ...sel,
-    laps: set.length > 0 ? set : referenceDefaultLapIds(laps, session),
-  };
+  return {...sel, laps: openingLapIds(laps, session)};
 }
 
 /**
