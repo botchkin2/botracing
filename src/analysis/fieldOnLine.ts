@@ -64,10 +64,14 @@ export function placeFieldOnLine(
   field: Field,
   line: LinePoint[],
   stepM: number,
-  worldToMap?: (x: number, z: number) => {x: number; y: number},
+  opts: {
+    /** Put each car `pathLateralM` off the line (only where the line is the measured centre path). */
+    lateral: boolean;
+    worldToMap?: (x: number, z: number) => {x: number; y: number};
+  } = {lateral: false},
 ): Field {
+  const {lateral, worldToMap} = opts;
   const updates = field.timeS.length;
-  const lateral = field.hasPositions;
   const cars: FieldCar[] = field.cars.map(car => {
     const xM = new Float32Array(updates).fill(NaN);
     const zM = new Float32Array(updates).fill(NaN);
