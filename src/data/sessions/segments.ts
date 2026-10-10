@@ -11,12 +11,7 @@ import {
 } from '@/src/analysis/segments';
 import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
-import type {
-  Lap,
-  MapCorner,
-  MapSection,
-  TrackMapData,
-} from './adapters';
+import type {Lap, MapCorner, MapSection, TrackMapData} from './adapters';
 import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
 
 const START_LABEL = 'S/F';
