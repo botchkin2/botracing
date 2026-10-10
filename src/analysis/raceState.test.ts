@@ -7,6 +7,7 @@ import {
   OFF_HOLD_S,
   OFF_TRACK_M,
   prepareRace,
+  raceStartUpdate,
   STOPPED_FOR_S,
 } from './raceState';
 
@@ -369,5 +370,77 @@ describe('carsAt', () => {
 
   it('an empty field gives no cars', () => {
     expect(at(field(0, []), 0)).toEqual([]);
+  });
+});
+
+describe('the race start and the laps counter', () => {
+  const L = 1000;
+
+  it('a formation lap is not a lap of the race: the cars that drove it are not a lap ahead', () => {
+    // 20 m/s on a 1000 m track. F is first seen 700 m into
+    // the formation lap, crosses the line (the counter does not move) and
+    // again at the start (s = 2000, the counter reads 1). N is 600 m of race
+    // ahead of F and never drove the formation lap (a pit-lane start).
+    const n = 450;
+    const raceF = (u: number) => 700 + 4 * u - 1000;
+    const raceN = (u: number) => 300 + 4 * u;
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({
+        d: raceN(u) % L,
+        laps: Math.floor(raceN(u) / L),
+        place: 1,
+      })),
+      car(
+        1,
+        'GT3',
+        n,
+        u => ({
+          d: (700 + 4 * u) % L,
+          laps: Math.max(0, Math.floor(raceF(u) / L)),
+          place: 2,
+        }),
+        true,
+      ),
+    ]);
+    const cars = at(f, 400 / HZ);
+    // 600 m at 20 m/s: 30 s. Following the wraps from the first sight put F
+    // 400 m ahead of N: no gap at all.
+    expect(cars[1].gapS).toBeCloseTo(30, 0);
+    expect(cars[1].lapsDown).toBe(0);
+  });
+
+  it('a lone update that reads laps done is not the start, and starts no pit stop', () => {
+    const n = 400;
+    const f = field(n, [
+      car(
+        0,
+        'GT3',
+        n,
+        u => ({
+          d: 100 + u * 4,
+          // The previous session's state for one update: laps 5, in the pits.
+          laps: u === 2 ? 5 : 0,
+          pit: u >= 2 && u < 70,
+          place: 1,
+        }),
+        true,
+      ),
+    ]);
+    expect(raceStartUpdate(f)).toBe(f.timeS.length);
+    const prep = prepareRace(f);
+    expect(prep.pits[0][n - 1]).toBe(0);
+    expect(carsAt(prep, 3 / HZ, true)[0].state).toBe('running');
+  });
+
+  it('the start is the first update some car has laps done for a few seconds running', () => {
+    const n = 200;
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({
+        d: 100 + u * 4,
+        laps: u === 2 || u >= 50 ? 1 : 0,
+      })),
+    ]);
+    expect(raceStartUpdate(f)).toBe(50);
+    expect(prepareRace(f).startU).toBe(50);
   });
 });

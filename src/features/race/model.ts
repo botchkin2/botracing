@@ -272,12 +272,14 @@ function isNearby(car: RaceCar, frame: Frame): boolean {
 
 /**
  * The gap to the class leader: "+3.412", "+1:04.2" from a minute, "+1 lap" once
- * the car is a whole lap of distance behind ("+2 laps"), "" for the leader.
+ * the car is a whole lap of distance behind ("+2 laps"), "" for the leader and
+ * "—" where the gap is not known (never blank: blank reads as the leader).
  */
 export function gapText(car: RaceCar): string {
   if (car.lapsDown > 0)
     return `+${car.lapsDown} ${car.lapsDown === 1 ? 'lap' : 'laps'}`;
-  return car.gapS && car.gapS > 0 ? formatRaceGap(car.gapS) : '';
+  if (car.gapS === null) return '—';
+  return car.gapS > 0 ? formatRaceGap(car.gapS) : '';
 }
 
 type Frame = {
