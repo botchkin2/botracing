@@ -536,6 +536,7 @@ export function buildCornerModel(input: {
       sectionN: sec.sectionN,
       laps: selected,
       sessionLaps: laps,
+      refId: input.refId ?? null,
     }),
     zoom: {
       windowM: zoomWindow,
