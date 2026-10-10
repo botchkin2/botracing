@@ -56,7 +56,9 @@ pub fn line(l: &Line) -> String {
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 /// The layout from an LMU install's header files.
@@ -136,14 +138,29 @@ fn steam_path_from_registry() -> Option<PathBuf> {
     let (key_path, value) = (wide(r"Software\Valve\Steam"), wide("SteamPath"));
     let mut key: HKEY = null_mut();
     // SAFETY: NUL-terminated key path, a valid out pointer; closed below.
-    let code = unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, key_path.as_ptr(), 0, KEY_QUERY_VALUE, &mut key) };
+    let code = unsafe {
+        RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            key_path.as_ptr(),
+            0,
+            KEY_QUERY_VALUE,
+            &mut key,
+        )
+    };
     if code != ERROR_SUCCESS {
         return None;
     }
     let mut bytes: u32 = 0;
     // SAFETY: the first call only asks for the size of the value.
     let size = unsafe {
-        RegQueryValueExW(key, value.as_ptr(), null(), null_mut(), null_mut(), &mut bytes)
+        RegQueryValueExW(
+            key,
+            value.as_ptr(),
+            null(),
+            null_mut(),
+            null_mut(),
+            &mut bytes,
+        )
     };
     let mut buf = vec![0u16; (bytes as usize).div_ceil(2)];
     let mut read = size == ERROR_SUCCESS && !buf.is_empty();
@@ -352,11 +369,9 @@ mod tests {
     #[test]
     fn the_header_is_found_in_a_second_library() {
         let lmu_in_d = header_under(Path::new(r"D:\SteamLibrary"));
-        let found = find_header_dir(
-            Path::new(r"C:\Program Files (x86)\Steam"),
-            VDF,
-            |dir| dir == lmu_in_d,
-        );
+        let found = find_header_dir(Path::new(r"C:\Program Files (x86)\Steam"), VDF, |dir| {
+            dir == lmu_in_d
+        });
         assert_eq!(found, Some(lmu_in_d));
     }
 
@@ -376,7 +391,10 @@ mod tests {
     fn the_registry_steam_root_comes_before_the_default() {
         let default = Path::new(DEFAULT_STEAM_ROOT);
         let from_registry = PathBuf::from(r"D:\Games\Steam");
-        assert_eq!(steam_root(Some(from_registry.clone()), default), from_registry);
+        assert_eq!(
+            steam_root(Some(from_registry.clone()), default),
+            from_registry
+        );
         assert_eq!(steam_root(None, default), default);
     }
 
@@ -397,14 +415,26 @@ mod tests {
         let mut fine = status("recording", "");
         fine.dropped_pct = 0.9;
         assert_eq!(line(&Line::Status(fine)), "Recording");
-        assert_eq!(line(&Line::Status(status("no-game", ""))), "Waiting for LMU");
-        assert_eq!(line(&Line::Status(status("waiting", ""))), "Waiting for LMU");
+        assert_eq!(
+            line(&Line::Status(status("no-game", ""))),
+            "Waiting for LMU"
+        );
+        assert_eq!(
+            line(&Line::Status(status("waiting", ""))),
+            "Waiting for LMU"
+        );
         assert_eq!(
             line(&Line::Status(status("refused", "disk full"))),
             "Recorder: disk full"
         );
-        assert_eq!(line(&Line::Status(status("stopped", ""))), "Recorder: stopped");
-        assert_eq!(line(&Line::Another), "Recorder: another recorder is running");
+        assert_eq!(
+            line(&Line::Status(status("stopped", ""))),
+            "Recorder: stopped"
+        );
+        assert_eq!(
+            line(&Line::Another),
+            "Recorder: another recorder is running"
+        );
         assert_eq!(
             line(&Line::Failed("no C:\\x\\InternalsPlugin.hpp".into())),
             "Recorder: no C:\\x\\InternalsPlugin.hpp"

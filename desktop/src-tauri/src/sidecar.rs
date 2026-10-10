@@ -127,16 +127,16 @@ impl Running {
     /// Starts `cmd` quietly and puts it in a kill-on-close job. A process
     /// that starts its own children before the assignment below is the one
     /// gap; node takes far longer than that to get to its first child.
-    pub fn spawn(cmd: Command) -> std::io::Result<Running> {
-        Running::spawn_inner(cmd, true)
+    pub fn spawn(cmd: Command, stderr: Stdio) -> std::io::Result<Running> {
+        Running::spawn_inner(cmd, true, stderr)
     }
 
     // `job` false exists for the test that shows the job is what ends the
     // tree.
-    fn spawn_inner(mut cmd: Command, job: bool) -> std::io::Result<Running> {
+    fn spawn_inner(mut cmd: Command, job: bool, stderr: Stdio) -> std::io::Result<Running> {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(stderr);
         #[cfg(windows)]
         {
             use std::os::windows::io::AsRawHandle;
@@ -286,7 +286,10 @@ impl Supervisor {
             };
             self.running = None;
             self.failures += 1;
-            self.problem = Some(format!("Uploader stopped ({status}), restarting"));
+            self.problem = Some(format!(
+                "Uploader stopped ({status}), restarting. Log: {}",
+                log_path(&p.data).display()
+            ));
             self.retry_at = Some(Instant::now() + backoff(self.failures));
             return;
         }
@@ -308,7 +311,9 @@ impl Supervisor {
             return;
         }
         trim_status(&p.status_file());
-        match Running::spawn(command(p)) {
+        let log = log_path(&p.data);
+        let stderr = open_log(&log).map_or_else(Stdio::null, Stdio::from);
+        match Running::spawn(command(p), stderr) {
             Ok(running) => {
                 self.running = Some(running);
                 self.started_at = Some(Instant::now());
@@ -324,6 +329,54 @@ impl Supervisor {
         self.problem = Some(message);
         self.retry_at = Some(Instant::now() + backoff(self.failures));
     }
+}
+
+/// Where the uploader's stderr goes, so a crash leaves its cause behind.
+pub fn log_path(data: &Path) -> PathBuf {
+    uploader_home(data).join("sidecar.log")
+}
+
+/// About 1 MB at most: past that, the newest half is kept.
+const LOG_MAX_BYTES: u64 = 1_000_000;
+const LOG_KEEP_BYTES: u64 = 500_000;
+
+/// The log opened for appending, with a line marking this start. None if it
+/// cannot be opened: the uploader then runs without a log rather than not at
+/// all.
+fn open_log(file: &Path) -> Option<std::fs::File> {
+    use std::io::Write;
+    std::fs::create_dir_all(file.parent()?).ok()?;
+    trim_log(file);
+    let mut log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)
+        .ok()?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let _ = writeln!(log, "--- uploader start (unix {secs}) ---");
+    Some(log)
+}
+
+fn trim_log(file: &Path) {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(file) else {
+        return;
+    };
+    let len = f.metadata().map_or(0, |m| m.len());
+    if len <= LOG_MAX_BYTES {
+        return;
+    }
+    let mut newest = Vec::new();
+    if f.seek(SeekFrom::Start(len - LOG_KEEP_BYTES)).is_err() || f.read_to_end(&mut newest).is_err()
+    {
+        return;
+    }
+    drop(f);
+    // The cut can land mid-line: drop the partial first line.
+    let from = newest.iter().position(|b| *b == b'\n').map_or(0, |i| i + 1);
+    let _ = std::fs::write(file, &newest[from..]);
 }
 
 /// The status file only grows while a watcher runs; start each run from a
@@ -373,7 +426,7 @@ mod tests {
             "/c start /b node \"{}\" & ping -n 30 127.0.0.1 >nul",
             script.display()
         ));
-        let running = Running::spawn_inner(cmd, job).expect("cmd starts");
+        let running = Running::spawn_inner(cmd, job, Stdio::null()).expect("cmd starts");
 
         std::thread::sleep(Duration::from_millis(1500));
         assert!(
@@ -507,6 +560,41 @@ mod tests {
         // The wait before the restart has not passed yet, so no second start.
         s.tick(&p);
         assert!(s.problem.is_some());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_log_keeps_the_newest_part_and_the_crash_reaches_it() {
+        let base = std::env::temp_dir().join(format!("botracing-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let file = log_path(&base);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let old = "old line\n".repeat(150_000);
+        std::fs::write(&file, format!("{old}newest line\n")).unwrap();
+        drop(open_log(&file));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.len() < 600_000, "{}", text.len());
+        assert!(text.starts_with("old line\n"), "no partial first line");
+        assert!(text.contains("newest line\n--- uploader start"));
+
+        touch(&base.join("root").join(SCRIPT));
+        std::fs::write(
+            base.join("root").join(SCRIPT),
+            "console.error('boom: cannot find thing'); process.exit(1)",
+        )
+        .unwrap();
+        let mut p = paths(Path::new("."));
+        p.root = base.join("root");
+        p.data = base.clone();
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        let problem = s.problem.clone().unwrap_or_default();
+        assert!(problem.contains("sidecar.log"), "{problem}");
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("boom: cannot find thing"), "{text}");
         let _ = std::fs::remove_dir_all(&base);
     }
 

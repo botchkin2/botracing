@@ -50,7 +50,11 @@ pub fn slug(value: &str) -> String {
         }
     }
     let out = out.trim_matches('-').to_string();
-    if out.is_empty() { "unknown".into() } else { out }
+    if out.is_empty() {
+        "unknown".into()
+    } else {
+        out
+    }
 }
 
 pub fn write_json(path: &Path, value: &Value) -> Result<(), String> {
@@ -65,7 +69,9 @@ pub fn dir_bytes(root: &Path) -> u64 {
     let mut total = 0;
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             match entry.metadata() {
                 Ok(m) if m.is_dir() => stack.push(entry.path()),
@@ -96,7 +102,12 @@ pub struct Capture {
 
 impl Capture {
     /// `meta`: track, session, gameVersion and whatever else is known at the start.
-    pub fn new(root: &Path, layout: &Layout, meta: Map<String, Value>, start_ms: u64) -> Result<Capture, String> {
+    pub fn new(
+        root: &Path,
+        layout: &Layout,
+        meta: Map<String, Value>,
+        start_ms: u64,
+    ) -> Result<Capture, String> {
         let track = meta.get("track").and_then(Value::as_str).unwrap_or("");
         let session = meta.get("session").and_then(Value::as_i64).unwrap_or(0);
         let dir = root.join(format!("{}_{}_{session}", stamp(start_ms), slug(track)));
@@ -141,11 +152,18 @@ impl Capture {
     }
 
     fn write_meta(&self) -> Result<(), String> {
-        write_json(&self.dir.join("meta.json"), &Value::Object(self.meta.clone()))
+        write_json(
+            &self.dir.join("meta.json"),
+            &Value::Object(self.meta.clone()),
+        )
     }
 
     pub fn note_suspect(&mut self) {
-        let n = self.meta.get("suspectFrames").and_then(Value::as_u64).unwrap_or(0);
+        let n = self
+            .meta
+            .get("suspectFrames")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
         self.meta.insert("suspectFrames".into(), json!(n + 1));
     }
 
@@ -174,7 +192,8 @@ impl Capture {
         self.field_raw.extend_from_slice(vehicles);
         self.field_ms.extend(std::iter::repeat(ms as i64).take(n));
         self.field_et.extend(std::iter::repeat(et).take(n));
-        self.field_update.extend(std::iter::repeat(self.updates).take(n));
+        self.field_update
+            .extend(std::iter::repeat(self.updates).take(n));
         self.updates += 1;
     }
 
@@ -210,9 +229,21 @@ impl Capture {
         let none: HashSet<String> = HashSet::new();
         let mut written = 0;
         let parts: [(&str, &str, &Vec<u8>, &[&str], &HashSet<String>); 3] = [
-            ("player", "TelemInfoV01", &self.player_raw, &PLAYER_TEXT, float32_player()),
+            (
+                "player",
+                "TelemInfoV01",
+                &self.player_raw,
+                &PLAYER_TEXT,
+                float32_player(),
+            ),
             ("session", "ScoringInfoV01", &self.session_raw, &[], &none),
-            ("field", "VehicleScoringInfoV01", &self.field_raw, &FIELD_TEXT, float32_field()),
+            (
+                "field",
+                "VehicleScoringInfoV01",
+                &self.field_raw,
+                &FIELD_TEXT,
+                float32_field(),
+            ),
         ];
         for (name, strukt, raw, text, narrow) in parts {
             if raw.is_empty() {

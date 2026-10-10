@@ -90,7 +90,12 @@ pub fn check_player(p: &Probe, info: &[u8], vehicles: &[u8], n: usize, telem: &[
     if !(et.is_finite() && (0.0..1e6).contains(&et)) {
         return Verdict::Bad(format!("player clock {et}"));
     }
-    let speed = p.t_vel.iter().map(|at| f64_at(telem, *at).powi(2)).sum::<f64>().sqrt();
+    let speed = p
+        .t_vel
+        .iter()
+        .map(|at| f64_at(telem, *at).powi(2))
+        .sum::<f64>()
+        .sqrt();
     if !(speed < 150.0) {
         return Verdict::Bad(format!("speed {speed:.0} m/s"));
     }

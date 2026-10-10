@@ -139,7 +139,8 @@ mod registry {
         }
     }
 
-    const APPROVED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+    const APPROVED: &str =
+        r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
 
     fn open_approved(access: u32) -> Option<HKEY> {
         let mut key: HKEY = null_mut();
@@ -184,7 +185,9 @@ mod registry {
             // SAFETY: key came from RegCreateKeyExW.
             unsafe { RegCloseKey(key) };
             // No entry (or an unreadable one) is enabled.
-            !(code == ERROR_SUCCESS && kind == REG_BINARY && super::disabled_by_windows(&buf[..len as usize]))
+            !(code == ERROR_SUCCESS
+                && kind == REG_BINARY
+                && super::disabled_by_windows(&buf[..len as usize]))
         }
 
         fn approve(&self) -> Result<(), String> {
@@ -199,7 +202,9 @@ mod registry {
             if code == ERROR_SUCCESS || code == ERROR_FILE_NOT_FOUND {
                 Ok(())
             } else {
-                Err(format!("Can't clear the Task Manager switch (error {code})"))
+                Err(format!(
+                    "Can't clear the Task Manager switch (error {code})"
+                ))
             }
         }
 
@@ -225,8 +230,11 @@ mod registry {
                         &mut len,
                     )
                 };
-                (code == ERROR_SUCCESS)
-                    .then(|| String::from_utf16_lossy(&buf).trim_end_matches('\0').to_string())
+                (code == ERROR_SUCCESS).then(|| {
+                    String::from_utf16_lossy(&buf)
+                        .trim_end_matches('\0')
+                        .to_string()
+                })
             } else {
                 None
             };
@@ -371,7 +379,10 @@ mod tests {
         let store = Fake::default();
         reconcile(Some(true), &store, &exe()).unwrap();
         *store.disabled.borrow_mut() = true;
-        assert!(!is_on(&store), "the Run value is there but Windows has it off");
+        assert!(
+            !is_on(&store),
+            "the Run value is there but Windows has it off"
+        );
         // A launch (or an update) keeps the person's choice made in Task Manager.
         reconcile(Some(true), &store, &exe()).unwrap();
         assert!(!is_on(&store));

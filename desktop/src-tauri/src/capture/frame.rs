@@ -79,7 +79,12 @@ pub fn scoring<V: View>(view: &mut V, layout: &Layout) -> Option<FieldSample> {
         let vehicles_again = view.read(veh_at, span)?;
         if info == info_again && vehicles == vehicles_again {
             let et = f64_at(&info, layout.scoring_et)?;
-            return Some(FieldSample { info, vehicles, count, et });
+            return Some(FieldSample {
+                info,
+                vehicles,
+                count,
+                et,
+            });
         }
     }
     None
@@ -120,14 +125,22 @@ mod tests {
         let lay = layout();
         let slot = lay.offsets["telemInfo"];
         // Per try: vehicle index, has-vehicle, then the slot twice.
-        let mut stable_mem = Mem { bytes: vec![0; lay.size], tear_at: None, reads: 0 };
+        let mut stable_mem = Mem {
+            bytes: vec![0; lay.size],
+            tear_at: None,
+            reads: 0,
+        };
         stable_mem.bytes[lay.offsets["playerHasVehicle"]] = 1;
         stable_mem.bytes[slot] = 7;
         let got = player(&mut stable_mem, &lay).unwrap();
         assert_eq!(got.raw[0], 7);
         assert_eq!(stable_mem.reads, 4);
 
-        let mut torn = Mem { bytes: vec![0; lay.size], tear_at: Some(slot), reads: 0 };
+        let mut torn = Mem {
+            bytes: vec![0; lay.size],
+            tear_at: Some(slot),
+            reads: 0,
+        };
         torn.bytes[lay.offsets["playerHasVehicle"]] = 1;
         assert!(player(&mut torn, &lay).is_none());
         assert_eq!(torn.reads, TRIES * 4);
@@ -136,7 +149,11 @@ mod tests {
     #[test]
     fn the_player_frame_is_the_slot_twice() {
         let lay = layout();
-        let mut mem = Mem { bytes: vec![0; lay.size], tear_at: None, reads: 0 };
+        let mut mem = Mem {
+            bytes: vec![0; lay.size],
+            tear_at: None,
+            reads: 0,
+        };
         mem.bytes[lay.offsets["playerHasVehicle"]] = 1;
         // mElapsedTime is a double at telem_et inside the slot.
         let et = 12.5_f64.to_le_bytes();
@@ -153,7 +170,11 @@ mod tests {
     #[test]
     fn an_impossible_vehicle_count_is_dropped() {
         let lay = layout();
-        let mut mem = Mem { bytes: vec![0; lay.size], tear_at: None, reads: 0 };
+        let mut mem = Mem {
+            bytes: vec![0; lay.size],
+            tear_at: None,
+            reads: 0,
+        };
         let at = lay.offsets["scoringInfo"] + lay.num_vehicles;
         mem.bytes[at..at + 4].copy_from_slice(&99_i32.to_le_bytes());
         assert!(scoring(&mut mem, &lay).is_none());
