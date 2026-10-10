@@ -159,9 +159,15 @@ Write-Host "installed to $installDir; Run entry: $runValue"
 Step "window check self-test"
 # A check that skips two kinds of window must be shown to still see a real one:
 # a child process shows a plain form, and Visible has to report it.
-$probe = Start-Process powershell.exe -PassThru -ArgumentList '-NoProfile', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.Form; $f.Show(); $t = Get-Date; while (((Get-Date) - $t).TotalSeconds -lt 8) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100 }'
-Start-Sleep -Seconds 3
-$seen = @([E2e.Wins]::Visible(@($probe.Id)))
+$probe = Start-Process powershell.exe -PassThru -ArgumentList '-NoProfile', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.Form; $f.Show(); $t = Get-Date; while (((Get-Date) - $t).TotalSeconds -lt 30) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100 }'
+# A fixed pause was too short on one 2025 runner (the form had not opened):
+# look for up to 20 s, and the child shows its form for 30.
+$seen = @()
+$until = (Get-Date).AddSeconds(20)
+while ($seen.Count -lt 1 -and -not $probe.HasExited -and (Get-Date) -lt $until) {
+  Start-Sleep -Milliseconds 500
+  $seen = @([E2e.Wins]::Visible(@($probe.Id)))
+}
 if (-not $probe.HasExited) { $probe.Kill() }
 # Session 0 (a scheduled task with a password, the standard-user cells) has no
 # interactive desktop: not even a console window is visible there (measured on
