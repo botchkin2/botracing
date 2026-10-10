@@ -65,3 +65,22 @@ test('iRacing: unlimited time, no Race entry or a practice-only file is unknown,
   assert.equal(raceLengthFromYaml(practiceOnly), null);
   assert.equal(raceLengthFromYaml(''), null);
 });
+
+test('iRacing: a heat event takes the race of the own session, never the first one', () => {
+  const heats = `SessionInfo:
+ CurrentSessionNum: 3
+ Sessions:
+ - SessionNum: 2
+   SessionTime: 600.0000 sec
+   SessionType: Race
+ - SessionNum: 3
+   SessionTime: 1800.0000 sec
+   SessionType: Race
+`;
+  const withCurrent = n => heats.replace('CurrentSessionNum: 3', `CurrentSessionNum: ${n}`);
+  assert.deepEqual(raceLengthFromYaml(withCurrent(2)), {minutes: 10});
+  // Practice is the current session and two races are listed: not guessed.
+  assert.equal(raceLengthFromYaml(withCurrent(0)), null);
+  // No current number and two races: not guessed.
+  assert.equal(raceLengthFromYaml(heats.replace(' CurrentSessionNum: 3\n', '')), null);
+});

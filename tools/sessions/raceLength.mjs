@@ -38,14 +38,20 @@ export function raceLengthOf({endEt, greenStartEt}) {
  * zero. Null too without a Race entry.
  */
 export function raceLengthFromYaml(yaml) {
-  const sessions = String(yaml).split(/^ - SessionNum:/m).slice(1);
-  for (const block of sessions) {
-    if (!/^\s+SessionType:\s*Race\s*$/m.test(block)) continue;
-    const m = block.match(/^\s+SessionTime:\s*([0-9.]+)\s*sec/m);
-    const minutes = m ? Math.round(Number(m[1]) / 60) : 0;
-    return minutes > 0 ? {minutes} : null;
-  }
-  return null;
+  const text = String(yaml);
+  const current = text.match(/^\s*CurrentSessionNum:\s*(\d+)/m)?.[1];
+  const races = text
+    .split(/^ - SessionNum:/m)
+    .slice(1)
+    .filter(block => /^\s+SessionType:\s*Race\s*$/m.test(block));
+  // A heat event lists several races: the file's own session when it is a
+  // race, else the event's only race. Several and none of them the file's own
+  // (or no current number, older files) is not guessed.
+  const own = races.find(b => b.trim().split(/\s/)[0] === current);
+  const block = own ?? (races.length === 1 ? races[0] : undefined);
+  const m = block?.match(/^\s+SessionTime:\s*([0-9.]+)\s*sec/m);
+  const minutes = m ? Math.round(Number(m[1]) / 60) : 0;
+  return minutes > 0 ? {minutes} : null;
 }
 
 /**
