@@ -41,7 +41,11 @@ export const watcher = {
   gameExeEnv: null,
 };
 
-export const describeVersion = 5;
+// Bump when describe() changes what it returns for a file already described
+// (describeCache.mjs: an entry of another version is described again).
+// 6: groupId is null for an offline drive (SubSessionID 0), so cached
+//    `iracing|0|0` ids stop merging every offline drive into one session.
+export const describeVersion = 6;
 
 export function slug(name) {
   return String(name)

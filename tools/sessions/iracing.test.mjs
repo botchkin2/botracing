@@ -3,10 +3,12 @@ import {existsSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
+import {reusableInfo} from './describeCache.mjs';
 import {yamlKmToM} from './ibt.mjs';
 import {
   CHANNELS,
   describe,
+  describeVersion,
   gameLapTimes,
   isRecording,
   lapCrossings,
@@ -166,4 +168,21 @@ test('a reset cuts the lap it falls in, and ends one it falls at the end of', ()
     ],
   );
   assert.deepEqual(splitAtResets(segs, []).map(s => s.resetAt), [null, null, null]);
+});
+
+test('a file described with the version before the offline grouping fix is described again', () => {
+  const stat = {size: 100, mtimeMs: 5};
+  const cached = version => ({
+    size: 100,
+    mtimeMs: 5,
+    describeVersion: version,
+    info: {groupId: 'iracing|0|0'},
+  });
+  // What the uploader kept before the fix still says iracing|0|0 ...
+  assert.equal(reusableInfo(cached(5), stat, describeVersion), null);
+  // ... and what it keeps now is reused.
+  assert.deepEqual(reusableInfo(cached(describeVersion), stat, describeVersion), {
+    groupId: 'iracing|0|0',
+  });
+  assert.equal(describeVersion, 6);
 });
