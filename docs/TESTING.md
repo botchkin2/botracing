@@ -56,7 +56,8 @@ A tray built from a branch runs beside the installed one, signed in as `seat-tes
 node functions/scripts/mintTestToken.mjs --custom-token-file $env:TEMP\seat-test.custom   # good for an hour
 $env:BOTRACING_PROFILE = "seat"
 $env:BOTRACING_SEAT_TOKEN_FILE = "$env:TEMP\seat-test.custom"
-cd desktop; npx tauri dev   # or run src-tauri\target\debug\botracing.exe
+$env:BOTRACING_FIREBASE_API_KEY = "<the public web key in src/auth/firebase.web.ts>"   # a build without it cannot sign in
+cd desktop\src-tauri; cargo build; .\target\debug\botracing.exe
 ```
 
 At start, a signed-out test tray signs in from the file (`seat_token_file` in `main.rs`, `auth::seat_test_sign_in`); after that it keeps itself signed in like the real one. Any uid but `seat-test` is refused, and a release build or the default profile ignores the variable. The proof for a tray change is then: the menu, `%LOCALAPPDATA%\BotRacing-seat\uploader\watch.log` starting, `sidecar.log`, and a `seat-test` heartbeat.
