@@ -75,6 +75,7 @@ import {
   toggleHighlight,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   withDefaultLaps,
 } from './model';
 import {type PlayInputs, playTicker} from './playback';
@@ -567,6 +568,7 @@ function CompareView({
         }))}
         openCorner={selection.corner}
         onPressCorner={openCorner}
+        onJumpSection={n => onCursor(sectionStartM(model.sectionEntryM, n))}
       />
     </Section>
   );
