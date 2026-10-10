@@ -37,7 +37,7 @@ try {
   $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $command -WorkingDirectory $work
   # -User/-Password and -Principal cannot be combined; Limited is the standard
   # token, which this user has anyway.
-  Register-ScheduledTask -TaskName $taskName -Action $action -User ".\$name" -Password $plain -RunLevel Limited -Force | Out-Null
+  Register-ScheduledTask -TaskName $taskName -Action $action -User "$env:COMPUTERNAME\$name" -Password $plain -RunLevel Limited -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName
   $until = (Get-Date).AddMinutes(12)
   do {
