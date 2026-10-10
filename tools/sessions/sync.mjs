@@ -34,7 +34,6 @@ import {
   readFileSync,
   statSync,
   renameSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -67,14 +66,14 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {planBlock} from './planBlock.mjs';
+import {carLabel} from '../../src/design/carModels.ts';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
   forgetOtherOwners,
   freshState,
-  liftWindow,
   markDone,
-  OLDER_REQUEST,
 } from './syncState.mjs';
 
 import {lapTraffic} from './lapTraffic.mjs';
@@ -144,7 +143,6 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
-const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -568,6 +566,9 @@ function build(
     track,
     carId,
     car,
+    // The car model without the livery, the Plan's key (src/design/carModels.ts):
+    // the plan route filters on it, so it is a field of its own.
+    carModel: carLabel(first.car).model,
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
@@ -652,6 +653,15 @@ function build(
     updatedAt: new Date().toISOString(),
   });
 
+  // What the Plan reads of this session, in one small block (planBlock.mjs).
+  session.plan = planBlock({
+    sessionType: session.sessionType,
+    fuel: session.fuel,
+    laps,
+    race: session.race,
+    result: session.result,
+  });
+
   return {
     session,
     recordings,
@@ -733,14 +743,6 @@ async function main() {
   const forgotten = forgetOtherOwners(state, ownerId);
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
-  // "Upload older sessions…" in the tray: the first-run window is lifted once.
-  if (existsSync(olderRequestPath)) {
-    liftWindow(state);
-    // Removed before the sync runs on purpose: the lift is saved with the
-    // state right after the scan, so a sync stopped for the game keeps it.
-    if (!check) rmSync(olderRequestPath);
-    log('older sessions included');
-  }
   if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);

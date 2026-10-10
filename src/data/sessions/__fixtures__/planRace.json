@@ -1,0 +1,1192 @@
+{
+ "note": "A real LMU race (Road Atlanta, 3 Oct 2026) through the real sync --local: the session fields and lap docs the Plan reads, and the plan block the sync wrote.",
+ "session": {
+  "id": "89c5d27661414c9f",
+  "sessionType": "Race",
+  "startedAt": "2026-10-03T00:12:27Z",
+  "fuel": {
+   "startL": 85,
+   "fillLimitL": 100,
+   "tankL": 117,
+   "litresPerVePct": 0.968,
+   "litresPerVePctStop": null
+  },
+  "race": {
+   "minutes": 40
+  },
+  "result": {
+   "version": 3,
+   "kind": "race",
+   "finish": {
+    "overall": 21,
+    "inClass": 5,
+    "ofOverall": 54,
+    "ofClass": 22,
+    "lapsDone": 21,
+    "leaderLapsDone": 24,
+    "classLeaderLapsDone": 21,
+    "leftEarly": true
+   }
+  }
+ },
+ "laps": [
+  {
+   "id": "8ce692325056223e-000",
+   "lapNumber": 0,
+   "timed": true,
+   "lapTime": 98.651,
+   "comparable": false,
+   "reasons": [
+    "partial"
+   ],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 85,
+    "endL": 81.73,
+    "usedL": 3.27,
+    "addedL": 0,
+    "veStartPct": 85,
+    "veEndPct": 82.5,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 33.6,
+    "lapsLeftVe": 33,
+    "green": false
+   },
+   "traffic": {
+    "trafficAheadS": 130,
+    "passesSufferedAll": 5,
+    "blueFlagS": 0,
+    "battleS": 152.8,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-001",
+   "lapNumber": 1,
+   "timed": true,
+   "lapTime": 84.553,
+   "comparable": false,
+   "reasons": [
+    "slow"
+   ],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 81.73,
+    "endL": 79.38,
+    "usedL": 2.35,
+    "addedL": 0,
+    "veStartPct": 82.5,
+    "veEndPct": 80.1,
+    "veUsedPct": 2.4,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 32.7,
+    "lapsLeftVe": 32,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 47.4,
+    "passesSufferedAll": 2,
+    "blueFlagS": 3.2,
+    "battleS": 84.6,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-002",
+   "lapNumber": 2,
+   "timed": true,
+   "lapTime": 81.53,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 79.38,
+    "endL": 76.95,
+    "usedL": 2.43,
+    "addedL": 0,
+    "veStartPct": 80.1,
+    "veEndPct": 77.6,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 31.7,
+    "lapsLeftVe": 31,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 48.8,
+    "passesSufferedAll": 1,
+    "blueFlagS": 11.8,
+    "battleS": 78.8,
+    "overtakes": [
+     {
+      "atM": 3227
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-003",
+   "lapNumber": 3,
+   "timed": true,
+   "lapTime": 80.769,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 76.95,
+    "endL": 74.5,
+    "usedL": 2.45,
+    "addedL": 0,
+    "veStartPct": 77.6,
+    "veEndPct": 75,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 30.7,
+    "lapsLeftVe": 30,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 43.8,
+    "passesSufferedAll": 0,
+    "blueFlagS": 4.4,
+    "battleS": 78.2,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-004",
+   "lapNumber": 4,
+   "timed": true,
+   "lapTime": 80.491,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 74.5,
+    "endL": 72.04,
+    "usedL": 2.46,
+    "addedL": 0,
+    "veStartPct": 75,
+    "veEndPct": 72.5,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 29.6,
+    "lapsLeftVe": 29,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 44.6,
+    "passesSufferedAll": 0,
+    "blueFlagS": 1.4,
+    "battleS": 79.6,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-005",
+   "lapNumber": 5,
+   "timed": true,
+   "lapTime": 80.712,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 72.04,
+    "endL": 69.62,
+    "usedL": 2.42,
+    "addedL": 0,
+    "veStartPct": 72.5,
+    "veEndPct": 70,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 28.7,
+    "lapsLeftVe": 28,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 33,
+    "passesSufferedAll": 1,
+    "blueFlagS": 50.2,
+    "battleS": 80.6,
+    "overtakes": [
+     {
+      "atM": 2452
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-006",
+   "lapNumber": 6,
+   "timed": true,
+   "lapTime": 82.015,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 69.62,
+    "endL": 67.18,
+    "usedL": 2.44,
+    "addedL": 0,
+    "veStartPct": 70,
+    "veEndPct": 67.4,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 27.6,
+    "lapsLeftVe": 27,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 19.6,
+    "passesSufferedAll": 5,
+    "blueFlagS": 42.4,
+    "battleS": 81.2,
+    "overtakes": [
+     {
+      "atM": 64
+     },
+     {
+      "atM": 2130
+     },
+     {
+      "atM": 2461
+     },
+     {
+      "atM": 2642
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-007",
+   "lapNumber": 7,
+   "timed": true,
+   "lapTime": 82.186,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 67.18,
+    "endL": 64.85,
+    "usedL": 2.33,
+    "addedL": 0,
+    "veStartPct": 67.4,
+    "veEndPct": 65,
+    "veUsedPct": 2.4,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 26.7,
+    "lapsLeftVe": 26,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 28,
+    "passesSufferedAll": 5,
+    "blueFlagS": 51.4,
+    "battleS": 81.2,
+    "overtakes": [
+     {
+      "atM": 63
+     },
+     {
+      "atM": 1062
+     },
+     {
+      "atM": 1270
+     },
+     {
+      "atM": 2479
+     },
+     {
+      "atM": 3051
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-008",
+   "lapNumber": 8,
+   "timed": true,
+   "lapTime": 80.869,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 64.85,
+    "endL": 62.42,
+    "usedL": 2.43,
+    "addedL": 0,
+    "veStartPct": 65,
+    "veEndPct": 62.5,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 25.7,
+    "lapsLeftVe": 25,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 13,
+    "passesSufferedAll": 4,
+    "blueFlagS": 65.4,
+    "battleS": 37.2,
+    "overtakes": [
+     {
+      "atM": 1652
+     },
+     {
+      "atM": 1695
+     },
+     {
+      "atM": 2304
+     },
+     {
+      "atM": 3719
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-009",
+   "lapNumber": 9,
+   "timed": true,
+   "lapTime": 81.55,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 62.42,
+    "endL": 59.95,
+    "usedL": 2.47,
+    "addedL": 0,
+    "veStartPct": 62.5,
+    "veEndPct": 59.9,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 24.7,
+    "lapsLeftVe": 24,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 16.2,
+    "passesSufferedAll": 5,
+    "blueFlagS": 71.6,
+    "battleS": 0.2,
+    "overtakes": [
+     {
+      "atM": 430
+     },
+     {
+      "atM": 1626
+     },
+     {
+      "atM": 2338
+     },
+     {
+      "atM": 3056
+     },
+     {
+      "atM": 3705
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-010",
+   "lapNumber": 10,
+   "timed": true,
+   "lapTime": 80.777,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 59.95,
+    "endL": 57.49,
+    "usedL": 2.46,
+    "addedL": 0,
+    "veStartPct": 59.9,
+    "veEndPct": 57.4,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 23.7,
+    "lapsLeftVe": 23,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 15,
+    "passesSufferedAll": 3,
+    "blueFlagS": 15.2,
+    "battleS": 4.4,
+    "overtakes": [
+     {
+      "atM": 63
+     },
+     {
+      "atM": 302
+     },
+     {
+      "atM": 3112
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-011",
+   "lapNumber": 11,
+   "timed": true,
+   "lapTime": 80.528,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 57.49,
+    "endL": 55.06,
+    "usedL": 2.43,
+    "addedL": 0,
+    "veStartPct": 57.4,
+    "veEndPct": 54.8,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 22.7,
+    "lapsLeftVe": 21.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 35.2,
+    "passesSufferedAll": 0,
+    "blueFlagS": 1.4,
+    "battleS": 63.6,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-012",
+   "lapNumber": 12,
+   "timed": true,
+   "lapTime": 80.609,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 55.06,
+    "endL": 52.61,
+    "usedL": 2.45,
+    "addedL": 0,
+    "veStartPct": 54.8,
+    "veEndPct": 52.3,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 21.7,
+    "lapsLeftVe": 20.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 13,
+    "passesSufferedAll": 0,
+    "blueFlagS": 1.6,
+    "battleS": 26,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-013",
+   "lapNumber": 13,
+   "timed": true,
+   "lapTime": 80.396,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 52.61,
+    "endL": 50.2,
+    "usedL": 2.41,
+    "addedL": 0,
+    "veStartPct": 52.3,
+    "veEndPct": 49.8,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 20.7,
+    "lapsLeftVe": 19.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 12.6,
+    "passesSufferedAll": 2,
+    "blueFlagS": 35.2,
+    "battleS": 15.4,
+    "overtakes": [
+     {
+      "atM": 1603
+     },
+     {
+      "atM": 2611
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-014",
+   "lapNumber": 14,
+   "timed": true,
+   "lapTime": 80.73,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 50.2,
+    "endL": 47.8,
+    "usedL": 2.4,
+    "addedL": 0,
+    "veStartPct": 49.8,
+    "veEndPct": 47.3,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 19.7,
+    "lapsLeftVe": 18.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 43.8,
+    "passesSufferedAll": 3,
+    "blueFlagS": 33.6,
+    "battleS": 69.6,
+    "overtakes": [
+     {
+      "atM": 1585
+     },
+     {
+      "atM": 1747
+     },
+     {
+      "atM": 2489
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-015",
+   "lapNumber": 15,
+   "timed": true,
+   "lapTime": 80.835,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 47.8,
+    "endL": 45.36,
+    "usedL": 2.44,
+    "addedL": 0,
+    "veStartPct": 47.3,
+    "veEndPct": 44.8,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 18.7,
+    "lapsLeftVe": 17.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 59.2,
+    "passesSufferedAll": 3,
+    "blueFlagS": 39.4,
+    "battleS": 80.4,
+    "overtakes": [
+     {
+      "atM": 1058
+     },
+     {
+      "atM": 1673
+     },
+     {
+      "atM": 2543
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-016",
+   "lapNumber": 16,
+   "timed": true,
+   "lapTime": 80.47,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 45.36,
+    "endL": 42.93,
+    "usedL": 2.43,
+    "addedL": 0,
+    "veStartPct": 44.8,
+    "veEndPct": 42.2,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 17.7,
+    "lapsLeftVe": 16.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 62,
+    "passesSufferedAll": 0,
+    "blueFlagS": 13.4,
+    "battleS": 80,
+    "overtakes": []
+   }
+  },
+  {
+   "id": "8ce692325056223e-017",
+   "lapNumber": 17,
+   "timed": true,
+   "lapTime": 80.655,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 42.93,
+    "endL": 40.51,
+    "usedL": 2.42,
+    "addedL": 0,
+    "veStartPct": 42.2,
+    "veEndPct": 39.7,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 16.7,
+    "lapsLeftVe": 15.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 62.4,
+    "passesSufferedAll": 2,
+    "blueFlagS": 24.4,
+    "battleS": 80.4,
+    "overtakes": [
+     {
+      "atM": 41
+     },
+     {
+      "atM": 2322
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-018",
+   "lapNumber": 18,
+   "timed": true,
+   "lapTime": 80.837,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 40.51,
+    "endL": 38.11,
+    "usedL": 2.4,
+    "addedL": 0,
+    "veStartPct": 39.7,
+    "veEndPct": 37.2,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 15.7,
+    "lapsLeftVe": 14.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 57.8,
+    "passesSufferedAll": 1,
+    "blueFlagS": 20.2,
+    "battleS": 80.8,
+    "overtakes": [
+     {
+      "atM": 583
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-019",
+   "lapNumber": 19,
+   "timed": true,
+   "lapTime": 80.955,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 38.11,
+    "endL": 35.65,
+    "usedL": 2.46,
+    "addedL": 0,
+    "veStartPct": 37.2,
+    "veEndPct": 34.7,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 14.7,
+    "lapsLeftVe": 13.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 55.4,
+    "passesSufferedAll": 4,
+    "blueFlagS": 46,
+    "battleS": 80.8,
+    "overtakes": [
+     {
+      "atM": 303
+     },
+     {
+      "atM": 421
+     },
+     {
+      "atM": 2308
+     },
+     {
+      "atM": 2664
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-020",
+   "lapNumber": 20,
+   "timed": true,
+   "lapTime": 80.809,
+   "comparable": true,
+   "reasons": [],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 35.65,
+    "endL": 33.23,
+    "usedL": 2.42,
+    "addedL": 0,
+    "veStartPct": 34.7,
+    "veEndPct": 32.2,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 13.7,
+    "lapsLeftVe": 12.9,
+    "green": true
+   },
+   "traffic": {
+    "trafficAheadS": 50,
+    "passesSufferedAll": 2,
+    "blueFlagS": 52.2,
+    "battleS": 80,
+    "overtakes": [
+     {
+      "atM": 1607
+     },
+     {
+      "atM": 2312
+     }
+    ]
+   }
+  },
+  {
+   "id": "8ce692325056223e-021",
+   "lapNumber": 21,
+   "timed": false,
+   "lapTime": 23.337,
+   "comparable": false,
+   "reasons": [
+    "partial",
+    "untimed"
+   ],
+   "pitIn": false,
+   "pitOut": false,
+   "pitStop": null,
+   "fuel": {
+    "startL": 33.23,
+    "endL": 33.03,
+    "usedL": 0.2,
+    "addedL": 0,
+    "veStartPct": 32.2,
+    "veEndPct": 32,
+    "veUsedPct": 0.2,
+    "veAddedPct": 0,
+    "lapsLeftFuel": 13.6,
+    "lapsLeftVe": 12.8,
+    "green": false
+   },
+   "traffic": {
+    "trafficAheadS": 6.8,
+    "passesSufferedAll": 11,
+    "blueFlagS": 11.8,
+    "battleS": 13.6,
+    "overtakes": [
+     {
+      "atM": 523
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     },
+     {
+      "atM": 632
+     }
+    ]
+   }
+  }
+ ],
+ "plan": {
+  "v": 1,
+  "fuel": {
+   "fillLimitL": 100,
+   "startL": 85,
+   "tankL": 117,
+   "litresPerVePct": 0.968
+  },
+  "laps": [
+   {
+    "n": 2,
+    "usedL": 2.35,
+    "veUsedPct": 2.4,
+    "timeS": 84.553,
+    "comparable": false,
+    "traffic": {
+     "aheadS": 47.4,
+     "passes": 2,
+     "blueS": 3.2,
+     "battleS": 84.6,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 3,
+    "usedL": 2.43,
+    "veUsedPct": 2.5,
+    "timeS": 81.53,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 48.8,
+     "passes": 1,
+     "blueS": 11.8,
+     "battleS": 78.8,
+     "overtakes": 1
+    }
+   },
+   {
+    "n": 4,
+    "usedL": 2.45,
+    "veUsedPct": 2.6,
+    "timeS": 80.769,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 43.8,
+     "passes": 0,
+     "blueS": 4.4,
+     "battleS": 78.2,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 5,
+    "usedL": 2.46,
+    "veUsedPct": 2.5,
+    "timeS": 80.491,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 44.6,
+     "passes": 0,
+     "blueS": 1.4,
+     "battleS": 79.6,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 6,
+    "usedL": 2.42,
+    "veUsedPct": 2.5,
+    "timeS": 80.712,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 33,
+     "passes": 1,
+     "blueS": 50.2,
+     "battleS": 80.6,
+     "overtakes": 1
+    }
+   },
+   {
+    "n": 7,
+    "usedL": 2.44,
+    "veUsedPct": 2.6,
+    "timeS": 82.015,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 19.6,
+     "passes": 5,
+     "blueS": 42.4,
+     "battleS": 81.2,
+     "overtakes": 4
+    }
+   },
+   {
+    "n": 8,
+    "usedL": 2.33,
+    "veUsedPct": 2.4,
+    "timeS": 82.186,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 28,
+     "passes": 5,
+     "blueS": 51.4,
+     "battleS": 81.2,
+     "overtakes": 5
+    }
+   },
+   {
+    "n": 9,
+    "usedL": 2.43,
+    "veUsedPct": 2.5,
+    "timeS": 80.869,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 13,
+     "passes": 4,
+     "blueS": 65.4,
+     "battleS": 37.2,
+     "overtakes": 4
+    }
+   },
+   {
+    "n": 10,
+    "usedL": 2.47,
+    "veUsedPct": 2.6,
+    "timeS": 81.55,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 16.2,
+     "passes": 5,
+     "blueS": 71.6,
+     "battleS": 0.2,
+     "overtakes": 5
+    }
+   },
+   {
+    "n": 11,
+    "usedL": 2.46,
+    "veUsedPct": 2.5,
+    "timeS": 80.777,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 15,
+     "passes": 3,
+     "blueS": 15.2,
+     "battleS": 4.4,
+     "overtakes": 3
+    }
+   },
+   {
+    "n": 12,
+    "usedL": 2.43,
+    "veUsedPct": 2.6,
+    "timeS": 80.528,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 35.2,
+     "passes": 0,
+     "blueS": 1.4,
+     "battleS": 63.6,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 13,
+    "usedL": 2.45,
+    "veUsedPct": 2.5,
+    "timeS": 80.609,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 13,
+     "passes": 0,
+     "blueS": 1.6,
+     "battleS": 26,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 14,
+    "usedL": 2.41,
+    "veUsedPct": 2.5,
+    "timeS": 80.396,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 12.6,
+     "passes": 2,
+     "blueS": 35.2,
+     "battleS": 15.4,
+     "overtakes": 2
+    }
+   },
+   {
+    "n": 15,
+    "usedL": 2.4,
+    "veUsedPct": 2.5,
+    "timeS": 80.73,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 43.8,
+     "passes": 3,
+     "blueS": 33.6,
+     "battleS": 69.6,
+     "overtakes": 3
+    }
+   },
+   {
+    "n": 16,
+    "usedL": 2.44,
+    "veUsedPct": 2.5,
+    "timeS": 80.835,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 59.2,
+     "passes": 3,
+     "blueS": 39.4,
+     "battleS": 80.4,
+     "overtakes": 3
+    }
+   },
+   {
+    "n": 17,
+    "usedL": 2.43,
+    "veUsedPct": 2.6,
+    "timeS": 80.47,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 62,
+     "passes": 0,
+     "blueS": 13.4,
+     "battleS": 80,
+     "overtakes": 0
+    }
+   },
+   {
+    "n": 18,
+    "usedL": 2.42,
+    "veUsedPct": 2.5,
+    "timeS": 80.655,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 62.4,
+     "passes": 2,
+     "blueS": 24.4,
+     "battleS": 80.4,
+     "overtakes": 2
+    }
+   },
+   {
+    "n": 19,
+    "usedL": 2.4,
+    "veUsedPct": 2.5,
+    "timeS": 80.837,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 57.8,
+     "passes": 1,
+     "blueS": 20.2,
+     "battleS": 80.8,
+     "overtakes": 1
+    }
+   },
+   {
+    "n": 20,
+    "usedL": 2.46,
+    "veUsedPct": 2.5,
+    "timeS": 80.955,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 55.4,
+     "passes": 4,
+     "blueS": 46,
+     "battleS": 80.8,
+     "overtakes": 4
+    }
+   },
+   {
+    "n": 21,
+    "usedL": 2.42,
+    "veUsedPct": 2.5,
+    "timeS": 80.809,
+    "comparable": true,
+    "traffic": {
+     "aheadS": 50,
+     "passes": 2,
+     "blueS": 52.2,
+     "battleS": 80,
+     "overtakes": 2
+    }
+   }
+  ],
+  "race": {
+   "raceLaps": 20,
+   "minutes": 40,
+   "leftEarly": true,
+   "playerLapsDone": 21,
+   "classLeaderLapsDone": 21,
+   "startVePct": 85,
+   "formationL": 3.27,
+   "ownUse": {
+    "fuelL": 2.43,
+    "vePct": 2.5
+   },
+   "end": {
+    "lapIndex": 21,
+    "fuelL": 33.23,
+    "vePct": 32.2
+   },
+   "stops": []
+  }
+ }
+}

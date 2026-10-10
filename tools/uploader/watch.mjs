@@ -38,6 +38,7 @@ import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {
   beatKey,
   heartbeatDoc,
+  simsDoc,
   hostIdOf,
   idleState,
   problemsOf,
@@ -56,7 +57,7 @@ import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
-import {floorOf, OLDER_REQUEST} from '../sessions/syncState.mjs';
+import {floorOf} from '../sessions/syncState.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -311,6 +312,8 @@ async function main() {
   let lastKey = '';
   let lastBeatMs = 0;
   let progress = null;
+  // The sim whose sync is running now (its part of the heartbeat shows the progress).
+  let syncingSim = null;
   log(
     `start ${hostId} ${ver}, telemetry ${SIMS.map(
       s => `${s.id} ${s.folder}`,
@@ -348,6 +351,19 @@ async function main() {
         lastError: all.map(a => a.st.lastError).find(Boolean) ?? null,
       },
       progress,
+      sims: simsDoc(
+        all.map(a => ({
+          id: a.sim.id,
+          queue: queueCount({
+            pendingFiles: a.recs?.newer ?? 0,
+            failedSessions: Object.keys(a.st.retries ?? {}),
+          }),
+          retryAtMs: earliestRetryMs(a.st.retries ?? {}),
+          lastError: a.st.lastError ?? null,
+        })),
+        syncingSim,
+        progress,
+      ),
       queue: queueCount({
         pendingFiles: all.reduce((n, a) => n + (a.recs?.newer ?? 0), 0),
         failedSessions: retryIds,
@@ -394,7 +410,6 @@ async function main() {
           sessionRetryAtMs: earliestRetryMs(st.retries),
           // First run with this code, or a merge that bumped it.
           versionChanged: st.versionKey !== currentKey,
-          olderRequested: existsSync(resolve(workOf(sim), OLDER_REQUEST)),
           nowMs: Date.now(),
         });
         if (plan.run) {
@@ -405,6 +420,7 @@ async function main() {
           );
           const startedMs = Date.now();
           const skippedIds = waitingIds(st.retries, startedMs);
+          syncingSim = sim.id;
           await beat('syncing');
           // Beats while the sync runs: one per progress line, and every minute
           // with or without one (a surface fold of a dozen tracks printed none
@@ -432,9 +448,11 @@ async function main() {
             );
           } finally {
             st.syncing = false;
+            syncingSim = null;
             save();
           }
           progress = null;
+          syncingSim = null;
           // A stopped sync never prints its closing "done N" line, but each
           // session's block is printed only once it is stored or has failed.
           // A fold block (sync's pass before the sessions) stores nothing: only

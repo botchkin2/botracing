@@ -15,6 +15,7 @@ import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
+import {useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {Button, Segment, Text} from '@/src/ui';
 
@@ -137,10 +138,13 @@ function Account() {
 function WindowsApp() {
   const {color} = useTheme();
   const release = useTrayRelease();
+  const uploaders = useUploaders();
   const card = trayCard({
     isPending: release.isPending,
     isError: release.isError,
     data: release.data,
+    pcs: uploaders.data,
+    nowMs: uploaders.dataUpdatedAt || undefined,
   });
   return (
     <>
@@ -155,6 +159,11 @@ function WindowsApp() {
         <Text variant='data' tone='textSecondary'>
           {card.status}
         </Text>
+        {card.pcs.map(line => (
+          <Text key={line} variant='dataSmall' tone='textSecondary'>
+            {line}
+          </Text>
+        ))}
         {card.version ? (
           <Button
             label='Download for Windows'

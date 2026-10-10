@@ -25,6 +25,7 @@ import {
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
+import {PLAN_VERSION} from './planBlock.mjs';
 import {fileChange} from './fileChange.mjs';
 import {assignSessionLapNumbers} from './splitFileLaps.mjs';
 import {
@@ -96,6 +97,7 @@ export const blockVersions = {
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
   finish: FINISH_VERSION,
+  plan: PLAN_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
   // Gear in the slices (format 2): the watcher re-syncs every session once.
   cornerSlices: SLICE_FORMAT,

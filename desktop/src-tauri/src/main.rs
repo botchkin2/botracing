@@ -16,6 +16,7 @@ mod status;
 mod update;
 mod viewer;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -29,6 +30,44 @@ pub(crate) type Shared<T> = Arc<Mutex<T>>;
 /// True when a launch asks the running tray to quit (`--quit`).
 fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
+}
+
+/// True when this launch is a person starting BotRacing (the Start menu, a
+/// shortcut, the installer's finish): the window opens, once they are signed
+/// in. The logon start carries `--background` and stays a tray (`autostart`).
+fn opens_window_on_launch(args: &[String]) -> bool {
+    !wants_quit(args)
+        && !args
+            .iter()
+            .skip(1)
+            .any(|a| a == autostart::BACKGROUND_ARG)
+}
+
+/// What the poll loop does about the window a launch owes.
+#[derive(Debug, PartialEq)]
+enum LaunchWindow {
+    Open,
+    Wait,
+    /// Signed out: the browser sign-in is the way in, no window beside it.
+    Drop,
+}
+
+/// How many 5 s ticks a stored sign-in may take to come back (offline).
+const LAUNCH_WINDOW_TICKS: u32 = 12;
+
+fn launch_window(
+    signed_in: bool,
+    signing_in: bool,
+    has_stored: bool,
+    ticks: u32,
+) -> LaunchWindow {
+    if signed_in {
+        LaunchWindow::Open
+    } else if signing_in || !has_stored || ticks >= LAUNCH_WINDOW_TICKS {
+        LaunchWindow::Drop
+    } else {
+        LaunchWindow::Wait
+    }
 }
 
 /// True when the window opens at launch: a debug build with
@@ -102,6 +141,8 @@ fn start_sign_in(account: Shared<account::Account>) {
 struct Live {
     id: &'static str,
     kind: Kind,
+    /// Whether the item is in the menu now: the problem and update items come and go.
+    shown: AtomicBool,
 }
 
 enum Kind {
@@ -130,7 +171,11 @@ impl Live {
                 None::<&str>,
             )?),
         };
-        Ok(Live { id: spec.id, kind })
+        Ok(Live {
+            id: spec.id,
+            kind,
+            shown: AtomicBool::new(true),
+        })
     }
 
     fn apply(&self, spec: &menu::Item) {
@@ -167,11 +212,16 @@ fn check(live: &[Live], id: &str) -> CheckMenuItem<tauri::Wry> {
 
 fn main() {
     let builder = tauri::Builder::default();
+    // The single-instance hold is named after the app identifier; a profile
+    // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
+    // to the real tray, is held to one copy itself, and `--quit` with the same
+    // profile stops it: the clean stop for a seat's or CI's test tray.
+    let mut context = tauri::generate_context!();
+    let identifier = profile::identifier(&context.config().identifier);
+    context.config_mut().identifier = identifier;
     // A second launch ends at once (two watchers would fight over the same
-    // telemetry and state) and opens BotRacing in the browser instead. A
-    // profile (BOTRACING_PROFILE, for walkthroughs) is a separate copy that
-    // runs next to the real tray, so it is not held to this.
-    let builder = if profile::is_default() {
+    // telemetry and state) and opens BotRacing in the browser instead.
+    let builder = {
         builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // `botracing.exe --quit` is how the installer and uninstaller ask
             // the running tray to stop: the watcher is stopped first (so a
@@ -199,8 +249,6 @@ fn main() {
             let app = app.clone();
             std::thread::spawn(move || open_window(&app));
         }))
-    } else {
-        builder
     };
     builder
         .plugin(tauri_plugin_opener::init())
@@ -254,17 +302,27 @@ fn main() {
             // is the one the tests describe.
             let current_version = app.package_info().version.to_string();
             let update_slot: update::Slot = Arc::new(Mutex::new(None));
-            let items = menu::menu_items_for(&menu::MenuState::initial(update::menu_line(
-                &current_version,
-                None,
-            )));
+            let initial = menu::menu_items_for(&menu::MenuState::initial(&current_version));
+            // Every item the menu can have: the optional ones are built once
+            // and added to or taken out of the menu as the state changes.
+            let mut every = menu::MenuState::initial(&current_version);
+            every.problem = Some(String::new());
+            every.update = Some(String::new());
             let live: Arc<Vec<Live>> = Arc::new(
-                items
+                menu::menu_items_for(&every)
                     .iter()
                     .map(|spec| Live::build(app, spec))
                     .collect::<tauri::Result<Vec<_>>>()?,
             );
-            let refs: Vec<&dyn IsMenuItem<tauri::Wry>> = live.iter().map(Live::as_menu).collect();
+            for l in live.iter() {
+                l.shown
+                    .store(initial.iter().any(|i| i.id == l.id), Ordering::Relaxed);
+            }
+            let refs: Vec<&dyn IsMenuItem<tauri::Wry>> = live
+                .iter()
+                .filter(|l| l.shown.load(Ordering::Relaxed))
+                .map(Live::as_menu)
+                .collect();
             let menu = Menu::with_items(app, &refs)?;
 
             // The recorder is local and independent of sign-in and of pausing
@@ -297,31 +355,22 @@ fn main() {
                 .then(|| capture::runner::start_iracing(capture::runner::capture_root())),
             ));
 
-            let (paths_menu, account_menu, sup_menu, pause_menu, slot_menu) = (
-                paths.clone(),
+            let (account_menu, sup_menu, pause_menu, slot_menu) = (
                 account.clone(),
                 supervisor.clone(),
                 check(&live, "pause"),
                 update_slot.clone(),
             );
-            let start_with_windows_menu = check(&live, "autostart");
             // Only the real tray starts with Windows and updates itself; a
             // walkthrough profile does neither.
             if profile::is_default() {
-                // First launch records "on"; after that the choice is kept, and
-                // the Run value follows the exe if it moved (an update).
+                // Always on; the Run value follows the exe if it moved (an update).
                 let mut acct = account.lock().unwrap();
-                let choice = acct.settings.start_with_windows;
-                match paths::current_exe()
+                if let Err(why) = paths::current_exe()
                     .map_err(|e| e.to_string())
-                    .and_then(|exe| autostart::reconcile(choice, &autostart::Registry, &exe))
+                    .and_then(|exe| autostart::ensure_on(&autostart::Registry, &exe))
                 {
-                    Ok(on) => {
-                        if choice != Some(on) {
-                            acct.record_start_with_windows(on);
-                        }
-                    }
-                    Err(why) => acct.message = Some(format!("Start with Windows: {why}")),
+                    acct.message = Some(format!("Start with Windows: {why}"));
                 }
                 // The installer could not remove an old logon task: say so once.
                 if let Some(line) = install::take(&paths.data) {
@@ -339,7 +388,6 @@ fn main() {
             app.manage(iracing.clone());
             let recorder_menu = recorder.clone();
             let iracing_menu = iracing.clone();
-            let cleanup_menu = cleanup_paths.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -364,42 +412,6 @@ fn main() {
                         let app = app.clone();
                         std::thread::spawn(move || open_window(&app));
                     }
-                    "folder" => {
-                        let _ = tauri_plugin_opener::open_path(&paths_menu.data, None::<&str>);
-                    }
-                    "older" => {
-                        // The watcher sees this file and runs a sync that
-                        // lifts the first-run window; a failure shows in the
-                        // status line.
-                        let request = paths_menu.older_request_file();
-                        let written = std::fs::create_dir_all(paths_menu.sessions_dir())
-                            .and_then(|_| std::fs::write(&request, b""));
-                        if let Err(why) = written {
-                            account_menu.lock().unwrap().message =
-                                Some(format!("Can't ask for older sessions: {why}"));
-                        }
-                    }
-                    "autostart" => {
-                        let on = start_with_windows_menu.is_checked().unwrap_or(false);
-                        let mut acct = account_menu.lock().unwrap();
-                        match paths::current_exe()
-                            .map_err(|e| e.to_string())
-                            .and_then(|exe| autostart::set(on, &autostart::Registry, &exe))
-                        {
-                            Ok(()) => {
-                                acct.record_start_with_windows(on);
-                                acct.message = None;
-                            }
-                            // The check mark is put back from the registry next tick.
-                            Err(why) => acct.message = Some(why),
-                        }
-                    }
-                    "cleanup-lmu" => change_cleanup(&cleanup_menu, |s| s.lmu = !s.lmu),
-                    "cleanup-iracing" => change_cleanup(&cleanup_menu, |s| s.iracing = !s.iracing),
-                    "cleanup-keep" => {
-                        change_cleanup(&cleanup_menu, |s| s.keep_days = s.next_keep_days())
-                    }
-                    "cleanup-cap" => change_cleanup(&cleanup_menu, |s| s.cap_gb = s.next_cap_gb()),
                     "pause" => {
                         let paused = pause_menu.is_checked().unwrap_or(false);
                         let mut acct = account_menu.lock().unwrap();
@@ -434,6 +446,16 @@ fn main() {
                 .build(app)?;
 
             let cleanup_poll = cleanup_paths.clone();
+            let menu_poll = menu.clone();
+            let app_poll = app.handle().clone();
+            let mut owes_window = opens_window_on_launch(&std::env::args().collect::<Vec<_>>());
+            // A test tray signing in from a token file is not a person in a browser.
+            let token_sign_in = seat_token_file(
+                profile::is_default(),
+                std::env::var_os("BOTRACING_SEAT_TOKEN_FILE"),
+            )
+            .is_some();
+            let mut ticks = 0u32;
             std::thread::spawn(move || {
                 loop {
                     // The network part runs without the account lock held.
@@ -444,14 +466,36 @@ fn main() {
                     if prompt {
                         start_sign_in(account.clone());
                     }
-                    let status = {
+                    {
                         let acct = account.lock().unwrap();
                         let mut sup = supervisor.lock().unwrap();
                         sup.set_allowed(acct.should_run());
                         sup.tick(&paths);
-                        status_text(&acct, &sup, &paths)
-                    };
-                    let recording = recorder
+                    }
+                    if owes_window {
+                        let (signed_in, signing_in, has_stored) = {
+                            let acct = account.lock().unwrap();
+                            (acct.session.is_some(), acct.signing_in, acct.has_stored())
+                        };
+                        // The browser sign-in is the way in, no window beside it; a
+                        // token sign-in is quick and gets its window.
+                        let browser = signing_in && !token_sign_in;
+                        match launch_window(
+                            signed_in,
+                            browser || prompt,
+                            has_stored || (signing_in && token_sign_in),
+                            ticks,
+                        ) {
+                            LaunchWindow::Open => {
+                                owes_window = false;
+                                let app = app_poll.clone();
+                                std::thread::spawn(move || open_window(&app));
+                            }
+                            LaunchWindow::Drop => owes_window = false,
+                            LaunchWindow::Wait => ticks += 1,
+                        }
+                    }
+                    let recorder_line = recorder
                         .lock()
                         .unwrap()
                         .as_ref()
@@ -466,38 +510,30 @@ fn main() {
                         .unwrap()
                         .as_ref()
                         .map(|p| p.version.clone());
-                    let update = update::menu_line(&current_version, waiting.as_deref());
-                    let start_with_windows =
-                        profile::is_default() && autostart::is_on(&autostart::Registry);
-                    let cleanup = {
-                        let s = capture::prune_settings::load(&cleanup_poll.settings);
-                        let states = capture::prune::read_states(&cleanup_poll.state);
-                        let blocked = capture::prune::blocked_sims(&s.policy(), &states);
-                        menu::Cleanup::of(&s, blocked)
-                    };
+                    let blocked = capture::prune::blocked_sims(
+                        &capture::prune_policy::policy(),
+                        &capture::prune::read_states(&cleanup_poll.state),
+                    );
                     let state = {
                         let acct = account.lock().unwrap();
-                        menu::MenuState::of(
+                        let sup = supervisor.lock().unwrap();
+                        menu_state(
                             &acct,
-                            status,
-                            recording,
-                            iracing_line,
-                            update,
-                            start_with_windows,
-                            cleanup,
+                            &sup,
+                            &paths,
+                            [&recorder_line, &iracing_line],
+                            &blocked,
+                            waiting.as_deref(),
+                            &current_version,
                         )
                     };
-                    for spec in menu::menu_items_for(&state) {
-                        if let Some(item) = live.iter().find(|l| l.id == spec.id) {
-                            item.apply(&spec);
-                        }
-                    }
+                    sync_menu(&menu_poll, &live, &menu::menu_items_for(&state));
                     std::thread::sleep(Duration::from_secs(5));
                 }
             });
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("BotRacing failed to start")
         .run(|_app, event| {
             // The tray has no windows, so the app would exit the moment it
@@ -509,18 +545,6 @@ fn main() {
                 }
             }
         });
-}
-
-/// Changes one cleanup choice and saves it; the menu shows it on the next tick.
-fn change_cleanup(
-    paths: &capture::prune_schedule::Paths,
-    change: impl FnOnce(&mut capture::prune_settings::Settings),
-) {
-    let mut s = capture::prune_settings::load(&paths.settings);
-    change(&mut s);
-    if let Err(e) = capture::prune_settings::save(&paths.settings, &s) {
-        capture::prune_schedule::log(&paths.log, &format!("cleanup settings not saved: {e}"));
-    }
 }
 
 /// Shows the window on the hosted app. If it cannot be built the system
@@ -536,42 +560,84 @@ fn open_window(app: &tauri::AppHandle) {
     }
 }
 
-/// The status line of the menu: what a person needs to know right now.
-fn status_text(
+/// Everything the menu shows, from the account, the uploader's heartbeat and
+/// the two recorders' lines.
+fn menu_state(
     acct: &account::Account,
     sup: &sidecar::Supervisor,
     paths: &sidecar::Paths,
-) -> String {
-    if acct.session.is_none() {
-        // A stored sign-in that has not been continued yet (offline).
-        if acct.has_stored() {
-            return menu::waiting_status(acct.message.as_deref());
-        }
-        if let Some(reason) = acct.config().missing() {
-            return format!("Can't sign in: {reason}");
-        }
-        return menu::signed_out_status(acct.message.as_deref());
+    recorder_lines: [&str; 2],
+    cleanup_blocked: &[String],
+    waiting_update: Option<&str>,
+    version: &str,
+) -> menu::MenuState {
+    let beat = status::last_beat(&status::read_tail(&paths.status_file()));
+    // The problems line takes the watcher's own state; each sim line its own part.
+    let upload = status::upload(beat.as_ref());
+    let upload_of = |sim: &str| status::upload_of(beat.as_ref(), sim);
+    let lmu = menu::rec_of(recorder_lines[0]);
+    let iracing = menu::rec_of(recorder_lines[1]);
+    let signed_in = acct.session.is_some();
+    let paused = acct.settings.paused;
+    let another_account = paused
+        && matches!(
+            (&acct.owner_key, &acct.session),
+            (Some(key), Some(session)) if *key != session.uid
+        );
+    let problems = menu::problems(&menu::Inputs {
+        signed_in,
+        has_stored: acct.has_stored(),
+        config_missing: acct.config().missing().map(|r| r.to_string()),
+        message: acct.message.as_deref(),
+        another_account,
+        supervisor_problem: sup.problem.as_deref(),
+        upload: &upload,
+        lmu: &lmu,
+        iracing: &iracing,
+        cleanup_blocked,
+    });
+    let uploads_on = signed_in && !paused;
+    menu::MenuState {
+        primary: menu::primary(acct),
+        signed_in,
+        paused,
+        lmu: menu::sim_line("LMU", &lmu, &upload_of("lmu"), uploads_on),
+        iracing: menu::sim_line("iRacing", &iracing, &upload_of("iracing"), uploads_on),
+        problem: menu::problem_line(&problems),
+        update: update::menu_line(waiting_update),
+        version: format!("BotRacing {version}"),
     }
-    if let Some(message) = &acct.message {
-        return message.clone();
+}
+
+/// Puts the live menu in line with `specs`: the optional items are taken out
+/// first, then added where the list has them, then every item's text is set.
+fn sync_menu(menu: &Menu<tauri::Wry>, live: &[Live], specs: &[menu::Item]) {
+    for item in live {
+        let wanted = specs.iter().any(|s| s.id == item.id);
+        if menu::OPTIONAL.contains(&item.id)
+            && !wanted
+            && item.shown.swap(false, Ordering::Relaxed)
+        {
+            let _ = menu.remove(item.as_menu());
+        }
     }
-    if acct.settings.paused {
-        return match (&acct.owner_key, &acct.session) {
-            (Some(key), Some(session)) if *key != session.uid => {
-                "Uploads go to another account: check Settings".into()
-            }
-            _ => "Paused".into(),
+    for (position, spec) in specs.iter().enumerate() {
+        let Some(item) = live.iter().find(|l| l.id == spec.id) else {
+            continue;
         };
+        if !item.shown.swap(true, Ordering::Relaxed) {
+            let _ = menu.insert(item.as_menu(), position);
+        }
+        item.apply(spec);
     }
-    if let Some(problem) = &sup.problem {
-        return problem.clone();
-    }
-    status::line(status::last_beat(&status::read_tail(&paths.status_file())).as_ref())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{opens_on_start, seat_token_file, wants_quit};
+    use super::{
+        launch_window, opens_on_start, opens_window_on_launch, seat_token_file, wants_quit,
+        LaunchWindow,
+    };
 
     #[test]
     fn only_a_test_profile_signs_in_from_a_file() {
@@ -607,5 +673,25 @@ mod tests {
             "argument 0 is the exe, never a request"
         );
         assert!(!wants_quit(&args(&["botracing.exe", "--quiet"])));
+    }
+
+    #[test]
+    fn a_person_starting_it_opens_the_window_and_the_logon_start_does_not() {
+        let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(opens_window_on_launch(&args(&["botracing.exe"])));
+        assert!(!opens_window_on_launch(&args(&[
+            "botracing.exe",
+            "--background"
+        ])));
+        assert!(!opens_window_on_launch(&args(&["botracing.exe", "--quit"])));
+    }
+
+    #[test]
+    fn the_window_waits_for_a_stored_sign_in_and_never_sits_beside_the_browser_sign_in() {
+        assert_eq!(launch_window(true, false, true, 0), LaunchWindow::Open);
+        assert_eq!(launch_window(false, false, true, 3), LaunchWindow::Wait);
+        assert_eq!(launch_window(false, false, true, 12), LaunchWindow::Drop);
+        assert_eq!(launch_window(false, true, false, 0), LaunchWindow::Drop);
+        assert_eq!(launch_window(false, false, false, 0), LaunchWindow::Drop);
     }
 }
