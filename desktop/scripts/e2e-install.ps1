@@ -129,7 +129,19 @@ $un = Start-Process -FilePath $uninstaller -ArgumentList "/S" -PassThru -Wait
 if ($un.ExitCode -ne 0) { Fail "uninstaller exit code $($un.ExitCode)" }
 # The NSIS uninstaller copies itself to a temp folder and returns early: wait
 # for the files to go instead of trusting the exit.
-WaitFor "the install folder to be removed" 60 { -not (Test-Path $exe) }
+$until = (Get-Date).AddSeconds(60)
+while ((Test-Path $exe) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 500 }
+if (Test-Path $exe) {
+  # Say why before failing: a tray still running keeps its exe locked, and the
+  # uninstaller only stops it by running `exe --quit` (installer hook).
+  Write-Host "after the uninstall $exe is still there"
+  Write-Host "BotRacing processes: $((Trays | ForEach-Object { "$($_.Id) $($_.Path)" }) -join '; ')"
+  Write-Host "trying '$exe --quit' by hand"
+  Start-Process -FilePath $exe -ArgumentList "--quit" -Wait
+  Start-Sleep -Seconds 8
+  Write-Host "after a manual --quit, trays running: $((Trays).Count)"
+  Fail "the uninstaller left $exe (see above)"
+}
 $left = @()
 if (Test-Path $uninstallKey) { $left += "Uninstall entry" }
 if ((Get-ItemProperty $runKey -ErrorAction SilentlyContinue).$app) { $left += "Run entry" }
