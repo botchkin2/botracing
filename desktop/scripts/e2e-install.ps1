@@ -50,6 +50,22 @@ function Fail($message) {
   }
   exit 1
 }
+# What the single-instance hold looks like from this process (tauri-plugin-
+# single-instance, windows): a mutex named <identifier>-sim, per session, and a
+# hidden window <identifier>-sic / <identifier>-siw that a second launch finds
+# with FindWindowW on ITS OWN desktop. A quit that cannot see the window exits
+# quietly and the tray stays (damper, pit wall thread 1 #3607).
+Add-Type -Namespace E2e -Name U32 -MemberDefinition '[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowW(string cls, string title);'
+function Diag($when) {
+  $id = "app.botracing.uploader"
+  $window = [E2e.U32]::FindWindowW("$id-sic", "$id-siw")
+  $mutex = $null
+  $mutexThere = [System.Threading.Mutex]::TryOpenExisting("$id-sim", [ref]$mutex)
+  if ($mutex) { $mutex.Dispose() }
+  $mine = (Get-Process -Id $PID).SessionId
+  $trays = (Get-Process -Name $app -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) session $($_.SessionId)" }) -join "; "
+  Write-Host "diag ($when): FindWindow($id-sic) = $window; mutex $id-sim exists = $mutexThere; this script session $mine; trays: $trays"
+}
 function Trays { @(Get-Process -Name $app -ErrorAction SilentlyContinue) }
 function WaitFor($what, $seconds, [scriptblock]$test) {
   $until = (Get-Date).AddSeconds($seconds)
@@ -103,6 +119,7 @@ WaitFor "a tray process" 30 { (Trays).Count -ge 1 }
 WaitFor "the data folder" 30 { Test-Path $data }
 Start-Sleep -Seconds 5
 if ((Trays).Count -lt 1) { Fail "the tray exited within 5 s of starting" }
+Diag "after launch"
 # Start with Windows is written by the tray on its first run (on by default).
 WaitFor "the Start with Windows entry (HKCU Run)" 30 { (Get-ItemProperty $runKey -ErrorAction SilentlyContinue).$app }
 $runValue = (Get-ItemProperty $runKey).$app
@@ -136,6 +153,7 @@ if (Test-Path $exe) {
   # uninstaller only stops it by running `exe --quit` (installer hook).
   Write-Host "after the uninstall $exe is still there"
   Write-Host "BotRacing processes: $((Trays | ForEach-Object { "$($_.Id) $($_.Path)" }) -join '; ')"
+  Diag "before the manual --quit"
   Write-Host "trying '$exe --quit' by hand"
   Start-Process -FilePath $exe -ArgumentList "--quit" -Wait
   Start-Sleep -Seconds 8
