@@ -3,6 +3,7 @@
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
 import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
+import {mapEtag, surfaceEtag} from './trackMapCore';
 import {
   pathInsideOwner,
   trustedTrackPath,
@@ -439,6 +440,81 @@ export async function readTrackMap(
     georef: track.georef ?? null,
     attribution: track.outline?.attribution ?? null,
     outline,
+  };
+}
+
+// A track layout's map by its id, for any signed-in user (shared app data, not
+// an owner's). `etag` is decided from the doc alone, so a client holding it is
+// answered without the outline download; `body` builds the full answer. Null
+// for an id with no track doc.
+export async function trackMapById(trackId: string): Promise<{
+  etag: string;
+  body: () => Promise<any>;
+} | null> {
+  const doc = await trackDoc(trackId).get();
+  if (!doc.exists || !doc.updateTime) return null;
+  const track = doc.data() || {};
+  return {
+    etag: mapEtag(doc.updateTime),
+    body: async () => {
+      let outline = null;
+      const outlinePath = trustedTrackPath(track.outline?.path);
+      if (outlinePath) {
+        try {
+          const [body] = await admin
+            .storage()
+            .bucket(BUCKET)
+            .file(outlinePath)
+            .download();
+          outline = JSON.parse(body.toString('utf8'));
+        } catch (error: any) {
+          if (error?.code !== 404) throw error;
+        }
+      }
+      return {
+        trackId,
+        track: track.track ?? null,
+        lengthM: track.lengthM ?? null,
+        corners: track.corners ?? [],
+        boundaries: track.boundaries ?? null,
+        quality: track.quality ?? null,
+        qualityNote: track.qualityNote ?? null,
+        georef: track.georef ?? null,
+        attribution: track.outline?.attribution ?? null,
+        outline,
+        // The measured surface's validator, so the client keys its copy by it.
+        surfaceRev: surfaceEtag(track.surface),
+      };
+    },
+  };
+}
+
+// A track layout's measured surface by its id: the stored gzip as is. The
+// etag comes from the doc (surface.mjs stamps it), so a 304 never downloads.
+export async function trackSurfaceById(trackId: string): Promise<{
+  etag: string;
+  gzip: () => Promise<Buffer | null>;
+} | null> {
+  const doc = await trackDoc(trackId).get();
+  const surface = doc.get('surface');
+  const etag = surfaceEtag(surface);
+  const path = trustedTrackPath(surface?.path);
+  if (!doc.exists || !etag || !path) return null;
+  return {
+    etag,
+    gzip: async () => {
+      try {
+        const [body] = await admin
+          .storage()
+          .bucket(BUCKET)
+          .file(path)
+          .download({decompress: false});
+        return body;
+      } catch (error: any) {
+        if (error?.code === 404) return null;
+        throw error;
+      }
+    },
   };
 }
 

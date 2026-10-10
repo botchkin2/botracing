@@ -121,19 +121,30 @@ test('sessionStore has no baked-in owner and every reader takes the owner first'
     ...store.matchAll(/export async function (\w+)\(\s*([^)]*?)[,)]/g),
   ];
   const open = ['readTrackMap', 'readSurfaceGzip'];
+  // Track layouts are shared app data, read by track id for any signed-in user
+  // (trackMapCore.ts). These take no owner, and may touch nothing an owner has.
+  const catalog = ['trackMapById', 'trackSurfaceById'];
   assert.ok(exported.length >= 12, `found ${exported.length} readers`);
-  for (const [, name, firstArg] of exported)
+  for (const [, name, firstArg] of exported) {
+    if (catalog.includes(name)) continue;
     assert.match(
       firstArg.trim(),
       /^owner: string/,
       `${name} must take the owner first, got "${firstArg.trim()}"`,
     );
+  }
   assert.ok(open.every(n => exported.some(([, name]) => name === n)));
+  for (const name of catalog) {
+    const body = store.split(`export async function ${name}(`)[1]?.split('\nexport ')[0];
+    assert.ok(body, `${name} is missing`);
+    assert.doesNotMatch(body, /collection\('(sessions|laps|recordings|uploaders)'\)|pathInsideOwner|ownerId/, name);
+    assert.match(body, /trackDoc\(trackId\)/, name);
+  }
 });
 
 test('every stored-file read goes through the path guard or builds its own path', () => {
   assert.equal((store.match(/pathInsideOwner\(/g) ?? []).length, 3);
-  assert.equal((store.match(/trustedTrackPath\(/g) ?? []).length, 2);
+  assert.equal((store.match(/trustedTrackPath\(/g) ?? []).length, 4);
   // No download of a path taken straight from a doc.
   assert.doesNotMatch(store, /\.file\(\s*(session|track|slices)\./);
 });
