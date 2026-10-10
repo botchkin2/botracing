@@ -21,10 +21,14 @@ pub trait RunStore {
     fn set(&self, command: &str) -> Result<(), String>;
 }
 
+/// The argument a logon start carries: the tray starts without opening its
+/// window (a start from the Start menu or a shortcut opens it).
+pub const BACKGROUND_ARG: &str = "--background";
+
 /// What the Run value holds: the exe, quoted (a path with spaces would
-/// otherwise start the wrong program).
+/// otherwise start the wrong program), and the background flag.
 pub fn command_for(exe: &Path) -> String {
-    format!("\"{}\"", exe.display())
+    format!("\"{}\" {BACKGROUND_ARG}", exe.display())
 }
 
 /// Makes sure the Run value is this exe's command. An error is the registry
@@ -186,7 +190,7 @@ mod tests {
     fn the_command_is_the_exe_in_quotes() {
         assert_eq!(
             command_for(&exe()),
-            r#""C:\Users\A B\AppData\Local\BotRacing\botracing.exe""#
+            r#""C:\Users\A B\AppData\Local\BotRacing\botracing.exe" --background"#
         );
     }
 

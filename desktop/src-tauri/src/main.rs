@@ -31,6 +31,44 @@ fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
 }
 
+/// True when this launch is a person starting BotRacing (the Start menu, a
+/// shortcut, the installer's finish): the window opens, once they are signed
+/// in. The logon start carries `--background` and stays a tray (`autostart`).
+fn opens_window_on_launch(args: &[String]) -> bool {
+    !wants_quit(args)
+        && !args
+            .iter()
+            .skip(1)
+            .any(|a| a == autostart::BACKGROUND_ARG)
+}
+
+/// What the poll loop does about the window a launch owes.
+#[derive(Debug, PartialEq)]
+enum LaunchWindow {
+    Open,
+    Wait,
+    /// Signed out: the browser sign-in is the way in, no window beside it.
+    Drop,
+}
+
+/// How many 5 s ticks a stored sign-in may take to come back (offline).
+const LAUNCH_WINDOW_TICKS: u32 = 12;
+
+fn launch_window(
+    signed_in: bool,
+    signing_in: bool,
+    has_stored: bool,
+    ticks: u32,
+) -> LaunchWindow {
+    if signed_in {
+        LaunchWindow::Open
+    } else if signing_in || !has_stored || ticks >= LAUNCH_WINDOW_TICKS {
+        LaunchWindow::Drop
+    } else {
+        LaunchWindow::Wait
+    }
+}
+
 /// True when the window opens at launch: a debug build with
 /// `BOTRACING_OPEN_ON_START` set, for a walkthrough or a check of the window.
 /// A release build never does.
@@ -360,6 +398,9 @@ fn main() {
 
             let cleanup_poll = cleanup_paths.clone();
             let menu_poll = menu.clone();
+            let app_poll = app.handle().clone();
+            let mut owes_window = opens_window_on_launch(&std::env::args().collect::<Vec<_>>());
+            let mut ticks = 0u32;
             std::thread::spawn(move || {
                 loop {
                     // The network part runs without the account lock held.
@@ -375,6 +416,21 @@ fn main() {
                         let mut sup = supervisor.lock().unwrap();
                         sup.set_allowed(acct.should_run());
                         sup.tick(&paths);
+                    }
+                    if owes_window {
+                        let (signed_in, signing_in, has_stored) = {
+                            let acct = account.lock().unwrap();
+                            (acct.session.is_some(), acct.signing_in, acct.has_stored())
+                        };
+                        match launch_window(signed_in, signing_in || prompt, has_stored, ticks) {
+                            LaunchWindow::Open => {
+                                owes_window = false;
+                                let app = app_poll.clone();
+                                std::thread::spawn(move || open_window(&app));
+                            }
+                            LaunchWindow::Drop => owes_window = false,
+                            LaunchWindow::Wait => ticks += 1,
+                        }
                     }
                     let recorder_line = recorder
                         .lock()
@@ -512,7 +568,9 @@ fn sync_menu(menu: &Menu<tauri::Wry>, live: &[Live], specs: &[menu::Item]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{opens_on_start, wants_quit};
+    use super::{
+        launch_window, opens_on_start, opens_window_on_launch, wants_quit, LaunchWindow,
+    };
 
     #[test]
     fn only_a_debug_build_opens_the_window_at_launch() {
@@ -535,5 +593,25 @@ mod tests {
             "argument 0 is the exe, never a request"
         );
         assert!(!wants_quit(&args(&["botracing.exe", "--quiet"])));
+    }
+
+    #[test]
+    fn a_person_starting_it_opens_the_window_and_the_logon_start_does_not() {
+        let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(opens_window_on_launch(&args(&["botracing.exe"])));
+        assert!(!opens_window_on_launch(&args(&[
+            "botracing.exe",
+            "--background"
+        ])));
+        assert!(!opens_window_on_launch(&args(&["botracing.exe", "--quit"])));
+    }
+
+    #[test]
+    fn the_window_waits_for_a_stored_sign_in_and_never_sits_beside_the_browser_sign_in() {
+        assert_eq!(launch_window(true, false, true, 0), LaunchWindow::Open);
+        assert_eq!(launch_window(false, false, true, 3), LaunchWindow::Wait);
+        assert_eq!(launch_window(false, false, true, 12), LaunchWindow::Drop);
+        assert_eq!(launch_window(false, true, false, 0), LaunchWindow::Drop);
+        assert_eq!(launch_window(false, false, false, 0), LaunchWindow::Drop);
     }
 }
