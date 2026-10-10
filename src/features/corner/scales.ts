@@ -20,7 +20,7 @@ export function valuesInWindow(
   return out;
 }
 
-/** Speed (km/h): fitted to the window, from zero up. */
+/** Speed (km/h): fitted to the window, min to max. */
 export function speedScale(
   arrays: readonly (readonly number[])[],
   window: [number, number],

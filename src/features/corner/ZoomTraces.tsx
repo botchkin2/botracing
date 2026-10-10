@@ -116,13 +116,16 @@ export function ZoomTraces({
         m: at(l) as number,
         color: lapStyle(l.onIndex, l.selIndex, l.highlighted).color,
       }));
+  // Fitted scales read the comparable laps only: a lap outside them is drawn
+  // beyond the edge, never stretches the axis.
+  const fitLines = lines.filter(l => l.comparable);
   const speed = speedScale(
-    lines.map(l => l.speedKph),
+    fitLines.map(l => l.speedKph),
     zoom.windowM,
     zoom.stepM,
   );
   const delta = deltaScale(
-    lines.map(l => l.deltaS),
+    fitLines.map(l => l.deltaS),
     zoom.windowM,
     zoom.stepM,
   );
@@ -130,7 +133,7 @@ export function ZoomTraces({
   const steering = steeringScale();
   // The road's own half width: its measured edges in the window.
   const lateral = lateralScale(
-    lines.map(l => l.samples.trackEdgeM.values),
+    fitLines.map(l => l.samples.trackEdgeM.values),
     zoom.windowM,
     zoom.stepM,
   );
