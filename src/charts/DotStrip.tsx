@@ -38,6 +38,7 @@ export function DotStrip({
   coincidentWithin,
   minLabel,
   maxLabel,
+  midLabel,
   unit,
   resolution,
   leftWord,
@@ -56,6 +57,8 @@ export function DotStrip({
   coincidentWithin: number;
   minLabel: string;
   maxLabel: string;
+  /** The centre value, printed under the middle tick. */
+  midLabel: string;
   /** Printed after each end value, so the scale reads in units. */
   unit: string;
   resolution: string | null;
@@ -112,6 +115,17 @@ export function DotStrip({
             stroke={color.lineStrong}
             strokeWidth={1}
           />
+          {[PAD_X, x((min + max) / 2), width - PAD_X].map(tx => (
+            <Line
+              key={`t${tx}`}
+              x1={tx}
+              x2={tx}
+              y1={mid + 3}
+              y2={mid + 7}
+              stroke={color.lineStrong}
+              strokeWidth={1}
+            />
+          ))}
           {band && (
             <Line
               x1={x(band.p50)}
@@ -155,6 +169,13 @@ export function DotStrip({
         <Text variant='axis' tone='textSecondary'>
           {withUnit(rightVal)}
         </Text>
+      </View>
+      <View style={[styles.ends, {width}]}>
+        <View />
+        <Text variant='axis' tone='textFaint'>
+          {withUnit(midLabel)}
+        </Text>
+        <View />
       </View>
       <View style={[styles.ends, {width}]}>
         <Text variant='axis' tone='textMuted'>
