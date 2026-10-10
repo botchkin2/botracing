@@ -44,6 +44,63 @@ function planLap(lap, n) {
   };
 }
 
+// What src/features/plan/pitBase.ts reads off the laps around a stop, worked
+// out here once: the pit LOSS of a race stop (the in-lap plus the out-lap minus
+// two laps of the stint's median green lap), so the Plan's pit lane base needs
+// no lap docs. The rules are pitBase.ts's own (pit-wall thread 36 #1071).
+const MIN_STINT_LAPS = 3;
+const WHEELS = ['FL', 'FR', 'RL', 'RR'];
+
+const timeOf = lap => (lap.timed === false ? null : finite(lap.lapTime));
+const isPartial = lap => lap.partial === true || lap.incomplete === true;
+
+function medianOfSorted(v) {
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+/** The median green lap of the stint a lap is in, or null under MIN_STINT_LAPS. */
+function stintMedianS(laps, stint) {
+  const times = laps
+    .filter(
+      l =>
+        (finite(l.stint) ?? 1) === stint &&
+        l.comparable === true &&
+        l.pitIn !== true &&
+        l.pitOut !== true &&
+        !isPartial(l) &&
+        timeOf(l) != null,
+    )
+    .map(timeOf)
+    .sort((x, y) => x - y);
+  return times.length < MIN_STINT_LAPS ? null : medianOfSorted(times);
+}
+
+/**
+ * The stop's lane loss in seconds, or null when pitBase.ts would leave the stop
+ * out: no fuel added, tyres unknown or changed, no timed in-lap, no clean
+ * out-lap after it, or no stint median to set the laps against.
+ */
+function lossOf(laps, i) {
+  const lap = laps[i];
+  const stop = lap.pitStop;
+  const litres = finite(stop?.added?.fuelL);
+  const inLap = timeOf(lap);
+  if (!(litres > 0) || inLap == null) return null;
+  const tyres = stop.tyres;
+  const changed =
+    tyres?.changed === true &&
+    Array.isArray(tyres.wheels) &&
+    tyres.wheels.some(w => WHEELS.includes(w));
+  if (tyres == null || changed) return null;
+  const out = laps[i + 1];
+  if (!out || out.pitOut !== true || out.pitIn === true || timeOf(out) == null)
+    return null;
+  const typical = stintMedianS(laps, finite(lap.stint) ?? 1);
+  if (typical == null) return null;
+  return inLap + timeOf(out) - 2 * typical;
+}
+
 const MIN_OWN_LAPS = 3;
 
 function median(values) {
@@ -102,6 +159,9 @@ function raceBlock({laps, race, result}) {
               lapIndex: i + 1,
               fuelL: finite(lap.pitStop.atEntry?.fuelL),
               vePct: finite(lap.pitStop.atEntry?.vePct),
+              // For the pit lane base: litres added and the lane loss.
+              addedL: finite(lap.pitStop.added?.fuelL),
+              lossS: lossOf(laps, i),
             },
           ]
         : [],

@@ -127,7 +127,7 @@ test('a race adds its ending lap, stops, formation burn and own use, as raceFact
     ownUse: {fuelL: 2.4, vePct: null},
     end: {lapIndex: 9, fuelL: 12.5, vePct: 20},
     // the service on the first lap (not pit-in) is not a stop
-    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5}],
+    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5, addedL: null, lossS: null}],
   });
   assert.equal(plan.laps.length, 7, 'green laps with fuel used: 2-4 and 6-9');
 });
@@ -140,7 +140,7 @@ test('a race with nothing to end on, or not a race, has no race side', () => {
 
 test('a first-lap stop that ends in the pit lane is a real stop (Road Atlanta, 25 Sep)', () => {
   const laps = [raceLap(2.4, {pitIn: true, pitStop: {atEntry: {fuelL: 50, vePct: null}}}), raceLap(2.4)];
-  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null}]);
+  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null, addedL: null, lossS: null}]);
 });
 
 // A real LMU race (Road Atlanta, 3 Oct 2026) through the real sync: the block
@@ -158,4 +158,41 @@ test('a real race: the stored block is what planBlock gives from its lap docs', 
     result: f.session.result,
   });
   assert.deepEqual(again, f.plan);
+});
+
+// The pit lane base (src/features/plan/pitBase.ts) reads the laps around a stop;
+// the block carries the lane loss so the app needs no lap docs for it.
+test('a refuel stop carries the litres added and its lane loss against the stint median', () => {
+  const lap = (stint, t, over = {}) => ({
+    timed: true, lapTime: t, comparable: true, reasons: [], stint, pitIn: false, pitOut: false,
+    pitStop: null, traffic: null, fuel: {usedL: 2.4, endL: 40, green: true}, ...over,
+  });
+  const stop = (added, tyres) => ({
+    atEntry: {fuelL: 12, vePct: null},
+    added: {fuelL: added, vePct: null},
+    tyres,
+  });
+  const base = [
+    lap(1, 90.2),
+    lap(1, 90.0),
+    lap(1, 90.4),
+    lap(1, 90.1),
+    lap(1, 95.0, {pitIn: true, pitStop: stop(40, {changed: false, wheels: []})}),
+    lap(2, 105.0, {pitOut: true}),
+    lap(2, 90.3),
+  ];
+  // stint 1 green laps (comparable, no pit): 90.2 90.0 90.4 90.1 -> median 90.15
+  const lossS = 95.0 + 105.0 - 2 * 90.15;
+  const stops = planBlock({sessionType: 'Race', fuel, laps: base}).race.stops;
+  assert.equal(stops.length, 1);
+  assert.equal(stops[0].addedL, 40);
+  assert.ok(Math.abs(stops[0].lossS - lossS) < 1e-9, String(stops[0].lossS));
+
+  const lossOf = laps => planBlock({sessionType: 'Race', fuel, laps}).race.stops[0].lossS;
+  const withStop = over => base.map((l, i) => (i === 4 ? {...l, pitStop: {...l.pitStop, ...over}} : l));
+  assert.equal(lossOf(withStop({tyres: {changed: true, wheels: ['FL']}})), null, 'tyres changed: pitBase leaves it out');
+  assert.equal(lossOf(withStop({tyres: null})), null, 'tyres unknown: left out, not guessed');
+  assert.equal(lossOf(withStop({added: {fuelL: 0}})), null, 'no fuel added');
+  assert.equal(lossOf(base.slice(0, 6).map((l, i) => (i === 5 ? {...l, pitOut: false} : l))), null, 'the next lap is not an out lap');
+  assert.equal(lossOf(base.map((l, i) => (i < 4 && i > 1 ? {...l, comparable: false} : l))), null, 'under 3 clean laps in the stint: no median');
 });
