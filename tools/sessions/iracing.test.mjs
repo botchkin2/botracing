@@ -91,7 +91,8 @@ test('describe: VIR test file, track key is sim-TrackID-config', {skip: !existsS
   // The layout's own name is for display (the key above is a slug).
   assert.equal(typeof info.layoutName, 'string');
   assert.notEqual(info.layoutName, info.layout);
-  assert.equal(info.groupId.split('|')[0], 'iracing');
+  // An offline drive (SubSessionID 0) has no group of its own: the clock groups it.
+  assert.ok(info.groupId == null || info.groupId.split('|')[0] === 'iracing');
   assert.ok(info.trackLengthM > 5000);
   assert.ok(!info.channels.some(c => c.name === 'virtual_energy_pct'));
   assert.equal(
