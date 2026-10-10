@@ -1,15 +1,18 @@
 // BOTRACING_PROFILE: a second copy of the tray that shares nothing with the
 // real one (apex #189). Walkthroughs of the signed-out first launch, sign-out
-// and the like can be done under a profile without touching a real stored
-// sign-in. Unset (the normal case) every name below is what it always was.
-// Debug builds only: a release build ignores the variable.
+// and the like, and the side-by-side seat-test run (docs/TESTING.md), are done
+// under a profile without touching a real stored sign-in. Unset (the normal
+// case) every name below is what it always was.
 //
 // A profile has its own data folder (%LOCALAPPDATA%\BotRacing-<profile>), its
 // own Credential Manager entry, its own watcher lock, and it is not held to a
-// single instance with the real tray.
+// single instance with the real tray. Release builds honour it too (apex
+// #3508), so the installer CI ships is the one the e2e signs in: marshal #196
+// kept it debug-only because a profile skips the single-instance hold, but a
+// profile shares no file, lock or sign-in with the real tray, and nothing sets
+// the variable except a person or a test that means to.
 
 /// What a profile name may contain; anything else is dropped. At most 32 chars.
-#[cfg(any(debug_assertions, test))]
 pub fn suffix_of(value: Option<&str>) -> String {
     let clean: String = value
         .unwrap_or("")
@@ -24,17 +27,8 @@ pub fn suffix_of(value: Option<&str>) -> String {
     }
 }
 
-/// Only a debug build reads the variable: a profile skips the single-instance
-/// hold, so an installed (release) tray must never honour one (marshal #196).
 fn suffix() -> String {
-    #[cfg(debug_assertions)]
-    {
-        suffix_of(std::env::var("BOTRACING_PROFILE").ok().as_deref())
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        String::new()
-    }
+    suffix_of(std::env::var("BOTRACING_PROFILE").ok().as_deref())
 }
 
 /// True for the normal, real tray.
