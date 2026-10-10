@@ -1,9 +1,9 @@
 import {useMemo} from 'react';
 
 import {
-  useSessionMap,
+  useTrackMap,
   useSessions,
-  useSessionSurface,
+  useTrackSurface,
 } from '@/src/data/sessions';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {layoutsOf, trackInfo} from '@/src/data/tracks';
@@ -42,8 +42,8 @@ export function useTrackModel(
   const info = trackInfo(trackId);
   const sessions = useSessions({trackId, ageDays: ALL_TIME_DAYS});
   const ref = sessions.data ? referenceSession(sessions.data.items) : null;
-  const map = useSessionMap(ref?.id ?? '');
-  const surface = useSessionSurface(ref?.id ?? '');
+  const map = useTrackMap(trackId);
+  const surface = useTrackSurface(trackId);
   const lengthM = map.data?.lengthM ?? 0;
   const lap = useLapTraceLoad(ref?.bestLapId ? [ref.bestLapId] : [], {
     lengthM,
