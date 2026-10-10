@@ -18,6 +18,9 @@ $work = "C:\e2e"
 Write-Host "creating the standard user '$name'"
 New-LocalUser -Name $name -Password $password -AccountNeverExpires -PasswordNeverExpires | Out-Null
 Add-LocalGroupMember -SID "S-1-5-32-545" -Member $name # Users; not Administrators
+# A task can only run as a user who may "log on as a batch job"; Performance Log
+# Users holds that right by default and gives no administrative rights.
+Add-LocalGroupMember -SID "S-1-5-32-559" -Member $name
 
 New-Item -ItemType Directory -Force $work | Out-Null
 Copy-Item $Installer (Join-Path $work "setup.exe") -Force
@@ -40,13 +43,20 @@ try {
   Register-ScheduledTask -TaskName $taskName -Action $action -User "$env:COMPUTERNAME\$name" -Password $plain -RunLevel Limited -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName
   $until = (Get-Date).AddMinutes(12)
+  $startedBy = (Get-Date).AddSeconds(90)
   # Right after Start the state is still Ready and the result 267011 (never
   # run), 267009 while it runs: it is done when it is Ready with a real result.
   do {
     Start-Sleep -Seconds 3
     $state = (Get-ScheduledTask -TaskName $taskName).State
     $result = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
+    if ($result -eq 267011 -and (Get-Date) -gt $startedBy) { break } # never started
   } while (($state -ne "Ready" -or $result -eq 267011 -or $result -eq 267009) -and (Get-Date) -lt $until)
+  if ($result -eq 267011) {
+    Write-Host "the task never started; state $state"
+    Get-ScheduledTaskInfo -TaskName $taskName | Format-List | Out-String | Write-Host
+    Get-WinEvent -LogName "Microsoft-Windows-TaskScheduler/Operational" -MaxEvents 15 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.TimeCreated.ToString('T')) $($_.Id) $($_.Message -replace '\s+', ' ')" }
+  }
   if ($state -ne "Ready") { Write-Host "the task did not finish in 12 minutes"; Stop-ScheduledTask -TaskName $taskName }
   $exit = $result
 } finally {
