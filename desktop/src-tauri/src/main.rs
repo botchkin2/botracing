@@ -224,12 +224,29 @@ struct Recorders {
 /// closes with its end time), then ends the tray. The one way out for `--quit`,
 /// whether it came as the window message or as the quit-request file.
 fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Recorders) {
+    let started = std::time::Instant::now();
+    let note = |step: &str| {
+        // The CI end-to-end prints this file when a tray stays up after
+        // `--quit`, so the cell says which step hung (thread 1 #3724).
+        if let Some(paths) = app.try_state::<Arc<sidecar::Paths>>() {
+            let line = format!("{step} +{:.1}s
+", started.elapsed().as_secs_f32());
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(paths.data.join("quit.log"))
+                .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+        }
+    };
+    note("quit requested");
     sup.lock().unwrap().stop();
+    note("watcher stopped");
     for handle in [&rec.lmu, &rec.iracing] {
         if let Some(r) = handle.lock().unwrap().as_mut() {
             r.stop(Duration::from_secs(5));
         }
     }
+    note("recorders stopped");
     app.exit(0);
 }
 

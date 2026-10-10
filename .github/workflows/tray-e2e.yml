@@ -98,7 +98,7 @@ jobs:
           if ("${{ matrix.account }}" -eq "runner") {
             ./desktop/scripts/e2e-install.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
           } elseif ("${{ matrix.account }}" -eq "standard-ascii") {
-            ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }} -Name ascii
+            ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }} -Account ascii
           } else {
             ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
           }

@@ -66,6 +66,49 @@ function Diag($when) {
   $trays = (Get-Process -Name $app -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) session $($_.SessionId)" }) -join "; "
   Write-Host "diag ($when): FindWindow($id-sic) = $window; mutex $id-sim exists = $mutexThere; this script session $mine; trays: $trays"
 }
+# The windows a process owns, found with EnumWindows. Process.MainWindowTitle is
+# not it: it returns the single-instance hidden window (class <identifier>-sic,
+# title <identifier>-siw), which is never shown. Only a visible window whose
+# class does not end in -sic and that is not click-through is one a user could see.
+Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+namespace E2e {
+  public static class Wins {
+    delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr lParam);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int GetWindowLong(IntPtr hwnd, int index);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hwnd, StringBuilder cls, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
+    public static string[] Visible(int[] pids) {
+      var found = new List<string>();
+      var wanted = new HashSet<int>(pids);
+      EnumWindows((hwnd, _) => {
+        uint pid;
+        GetWindowThreadProcessId(hwnd, out pid);
+        if (!wanted.Contains((int)pid) || !IsWindowVisible(hwnd)) return true;
+        var cls = new StringBuilder(256);
+        GetClassNameW(hwnd, cls, cls.Capacity);
+        if (cls.ToString().EndsWith("-sic")) return true;
+        // The event loop's own helper ("Tao Thread Event Target", 15x15) is
+        // "visible" but click-through (WS_EX_TRANSPARENT): measured on a running
+        // tray, and on the runner, where it failed this check.
+        int ex = GetWindowLong(hwnd, -20);
+        if ((ex & 0x20) != 0) return true;
+        var title = new StringBuilder(256);
+        GetWindowTextW(hwnd, title, title.Capacity);
+        found.Add("pid " + pid + " class " + cls + " title " + title + " exstyle " + ex.ToString("x"));
+        return true;
+      }, IntPtr.Zero);
+      return found.ToArray();
+    }
+  }
+}
+'@
 function Trays { @(Get-Process -Name $app -ErrorAction SilentlyContinue) }
 function WaitFor($what, $seconds, [scriptblock]$test) {
   $until = (Get-Date).AddSeconds($seconds)
@@ -113,6 +156,16 @@ foreach ($path in @("app\tools\uploader\watch.mjs", "node\node.exe")) {
 $runValue = (Get-ItemProperty $runKey -ErrorAction SilentlyContinue).$app
 Write-Host "installed to $installDir; Run entry: $runValue"
 
+Step "window check self-test"
+# A check that skips two kinds of window must be shown to still see a real one:
+# a child process shows a plain form, and Visible has to report it.
+$probe = Start-Process powershell.exe -PassThru -ArgumentList '-NoProfile', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.Form; $f.Show(); $t = Get-Date; while (((Get-Date) - $t).TotalSeconds -lt 8) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100 }'
+Start-Sleep -Seconds 3
+$seen = @([E2e.Wins]::Visible(@($probe.Id)))
+if (-not $probe.HasExited) { $probe.Kill() }
+if ($seen.Count -lt 1) { Fail "the window check did not see a plain form: it would pass on a tray that opens a window" }
+Write-Host "window check sees a plain form: $($seen[0])"
+
 Step "launch"
 Start-Process -FilePath $exe | Out-Null
 WaitFor "a tray process" 30 { (Trays).Count -ge 1 }
@@ -130,16 +183,56 @@ Step "second launch"
 # The same exe reached three ways: the path, its 8.3 short name and the
 # extended-length form (the 0.1.2 bug class: the app must not trust one spelling).
 $forms = @(@{n = "path"; p = $exe}, @{n = "8.3 short name"; p = (ShortPath $exe)}, @{n = "extended-length"; p = "\\?\$exe"})
+$firstPid = (Trays)[0].Id
 foreach ($form in $forms) {
-  $before = (Trays).Count
   Write-Host "second launch by $($form.n): $($form.p)"
-  Start-Process -FilePath $form.p | Out-Null
-  Start-Sleep -Seconds 4
-  $after = (Trays).Count
-  if ($after -gt $before) { Fail "a launch by $($form.n) started another tray ($before then $after processes)" }
-  if ($after -lt 1) { Fail "the tray is gone after a launch by $($form.n)" }
+  $second = Start-Process -FilePath $form.p -PassThru
+  # A second launch hands over to the first tray and ends at once; one that
+  # stays up is a second tray, and one that takes the first down is a replace.
+  if (-not $second.WaitForExit(15000)) { Fail "the launch by $($form.n) is still running after 15 s: a second tray (pid $($second.Id))" }
+  Start-Sleep -Seconds 2
+  $now = @(Trays | ForEach-Object { $_.Id })
+  if ($now.Count -ne 1 -or $now[0] -ne $firstPid) { Fail "after a launch by $($form.n) the trays are [$($now -join ', ')], not only the first (pid $firstPid)" }
 }
 if ($Node -eq "decoy" -and (Test-Path $decoyMarker)) { Fail "the node on PATH was run: the tray must use only its bundled node" }
+
+Step "quit, then start the way Windows does at logon"
+# `--quit` must stop the running tray (the uninstaller relies on the same call).
+Diag "before --quit"
+$quit = Start-Process -FilePath $exe -ArgumentList "--quit" -PassThru -Wait
+Write-Host "--quit exit code $($quit.ExitCode)"
+$until = (Get-Date).AddSeconds(20)
+while ((Trays).Count -gt 0 -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 500 }
+if ((Trays).Count -gt 0) {
+  # Which route the quit took: the window message (same desktop) or the
+  # quit-request file the tray polls (another session).
+  Diag "after --quit, tray still up"
+  Write-Host "data folder after --quit: $((Get-ChildItem $data -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) -join ', ')"
+  # The tray's own account of the quit (quit_tray in main.rs): the last line is
+  # the step that hung; no file means the message never reached its loop.
+  if (Test-Path (Join-Path $data "quit.log")) { Write-Host "quit.log:"; Get-Content (Join-Path $data "quit.log") | ForEach-Object { Write-Host "  $_" } } else { Write-Host "quit.log: none" }
+  Fail "timed out after 20s waiting for: the tray to quit after --quit"
+}
+# What Windows runs at logon is the Run value's command line. Run exactly that
+# (a real sign-out and sign-in cannot be done on a runner; that is proven once on
+# a real PC): one tray, and no window, because the tray lives in the notification
+# area and opens its window only when asked.
+$run = (Get-ItemProperty $runKey).$app
+$quoted = [regex]::Match($run, '^"([^"]+)"(.*)$')
+$runExe = if ($quoted.Success) { $quoted.Groups[1].Value } else { ($run -split " ")[0] }
+$runArgs = if ($quoted.Success) { $quoted.Groups[2].Value.Trim() } else { "" }
+Write-Host "starting the Run entry: $run"
+if ($runArgs) { Start-Process -FilePath $runExe -ArgumentList $runArgs | Out-Null } else { Start-Process -FilePath $runExe | Out-Null }
+WaitFor "the tray to start from the Run entry" 30 { (Trays).Count -ge 1 }
+Start-Sleep -Seconds 6
+$sessionId = (Get-Process -Id $PID).SessionId
+if ($sessionId -eq 0) { Write-Host "window check: n/a, this is session 0 (a non-interactive logon): no window can be seen here" }
+$windows = @([E2e.Wins]::Visible(@(Trays | ForEach-Object { $_.Id })))
+if ($windows.Count) {
+  Fail ("the tray opened a window at a logon start: " + ($windows -join "; "))
+}
+if ((Trays).Count -ne 1) { Fail "a logon start left $((Trays).Count) trays, not 1" }
+Write-Host "logon start: one tray, no window"
 
 Step "uninstall (silent)"
 $un = Start-Process -FilePath $uninstaller -ArgumentList "/S" -PassThru -Wait
