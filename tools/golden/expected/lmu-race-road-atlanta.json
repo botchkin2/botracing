@@ -1,0 +1,382 @@
+{
+ "summary": {
+  "lapCount": 12,
+  "comparableCount": 10,
+  "bestLapTime": 80.491,
+  "medianLapTime": 80.823,
+  "stdevLapTime": 0.624
+ },
+ "stints": [
+  {
+   "n": 1,
+   "startReason": "session",
+   "firstLap": 0,
+   "lastLap": 11,
+   "laps": 12,
+   "comparable": 10,
+   "bestLapTime": 80.491,
+   "medianLapTime": 80.823,
+   "stdevLapTime": 0.624,
+   "greenLaps": 11,
+   "medianFuelL": 2.43,
+   "fuelSpreadL": 0.04,
+   "medianVePct": 2.5,
+   "veSpreadPct": 0.08
+  }
+ ],
+ "fuel": {
+  "startL": 85,
+  "fillLimitL": 100,
+  "tankL": 117,
+  "litresPerVePct": 0.971,
+  "litresPerVePctStop": null
+ },
+ "trackMapSource": "stored",
+ "corners": 5,
+ "cornerMedians": [
+  8.8595,
+  6.6735,
+  15.713000000000001,
+  29.0805,
+  16.432000000000002
+ ],
+ "consistency": {
+  "overview": "8 laps. Scatter 0.39 s around the pace trend (raw spread 0.68 s). Best lap 80.491; best sections add up to 76.135. 2 laps off pace, 2.5 s in all. Lap 7 +1.4 s (section 3 +1.05 s off track). Lap 6 +1.2 s (section 5 +0.69 s, section 4 +0.49 s). Most time lost against repeatable pace: section 3 (1.6 s), section 4 (1.4 s)."
+ },
+ "laps": [
+  {
+   "lap": 0,
+   "time": 98.651,
+   "timed": true,
+   "partial": true,
+   "stint": 1,
+   "reasons": [
+    "partial"
+   ],
+   "comparable": false,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.27,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": false
+   },
+   "pitStop": null,
+   "corners": []
+  },
+  {
+   "lap": 1,
+   "time": 84.553,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [
+    "slow"
+   ],
+   "comparable": false,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0.26,
+   "fuel": {
+    "usedL": 2.35,
+    "addedL": 0,
+    "veUsedPct": 2.4,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    9.836,
+    7.475,
+    16.396,
+    29.33,
+    17.281
+   ]
+  },
+  {
+   "lap": 2,
+   "time": 81.53,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0.1,
+   "fuel": {
+    "usedL": 2.43,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.92,
+    6.678,
+    15.982,
+    29.158,
+    16.614
+   ]
+  },
+  {
+   "lap": 3,
+   "time": 80.769,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 2.45,
+    "addedL": 0,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.865,
+    6.677,
+    15.722,
+    29.024,
+    16.304
+   ]
+  },
+  {
+   "lap": 4,
+   "time": 80.491,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": true,
+   "offTrackSec": 0.32,
+   "fuel": {
+    "usedL": 2.46,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.854,
+    6.607,
+    15.578,
+    28.893,
+    16.416
+   ]
+  },
+  {
+   "lap": 5,
+   "time": 80.712,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0.02,
+   "fuel": {
+    "usedL": 2.42,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.834,
+    6.624,
+    15.62,
+    29.147,
+    16.362
+   ]
+  },
+  {
+   "lap": 6,
+   "time": 82.015,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 2.44,
+    "addedL": 0,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.78,
+    6.67,
+    15.787,
+    29.513,
+    17.123
+   ]
+  },
+  {
+   "lap": 7,
+   "time": 82.186,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": true,
+   "offTrackSec": 1.67,
+   "fuel": {
+    "usedL": 2.33,
+    "addedL": 0,
+    "veUsedPct": 2.4,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.984,
+    6.701,
+    16.754,
+    29.161,
+    16.437
+   ]
+  },
+  {
+   "lap": 8,
+   "time": 80.869,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 2.43,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.766,
+    6.633,
+    15.696,
+    29.137,
+    16.485
+   ]
+  },
+  {
+   "lap": 9,
+   "time": 81.55,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 2.47,
+    "addedL": 0,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    9.499,
+    6.679,
+    15.762,
+    28.91,
+    16.489
+   ]
+  },
+  {
+   "lap": 10,
+   "time": 80.777,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0.03,
+   "fuel": {
+    "usedL": 2.46,
+    "addedL": 0,
+    "veUsedPct": 2.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.967,
+    6.766,
+    15.631,
+    28.908,
+    16.329
+   ]
+  },
+  {
+   "lap": 11,
+   "time": 80.528,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 2.43,
+    "addedL": 0,
+    "veUsedPct": 2.6,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    8.848,
+    6.593,
+    15.704,
+    28.827,
+    16.427
+   ]
+  }
+ ]
+}

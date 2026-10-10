@@ -1,0 +1,65 @@
+{
+  "bucket": "gs://botracing-61-lmu/golden",
+  "sessions": {
+    "lmu-race-road-atlanta": {
+      "why": "LMU race with VE, a start fuel under the fill limit and a race left early",
+      "sim": "lmu",
+      "recordedAt": "2026-10-03T00:12:27Z",
+      "sessionType": "Race",
+      "laps": [
+        1,
+        12
+      ]
+    },
+    "iracing-race-road-atlanta": {
+      "why": "iRacing race with a real refuel stop, no VE",
+      "sim": "iracing",
+      "recordedAt": "2026-08-27T00:57:10.000Z",
+      "sessionType": "Race",
+      "laps": [
+        14,
+        24
+      ]
+    },
+    "lmu-race-daytona-tyres": {
+      "why": "LMU race with a stop that changed tyres",
+      "sim": "lmu",
+      "recordedAt": "2026-09-29T02:41:54Z",
+      "sessionType": "Race",
+      "laps": [
+        1,
+        7
+      ]
+    },
+    "lmu-practice-road-atlanta": {
+      "why": "LMU practice over several files: off-track, pit and partial laps",
+      "sim": "lmu",
+      "recordedAt": "2026-09-25T23:28:59Z",
+      "sessionType": "Practice",
+      "laps": [
+        1,
+        16
+      ]
+    }
+  },
+  "fixtures": {
+    "lmu-race-road-atlanta": {
+      "0.events.parquet": {
+        "sha256": "f4bd0703265313cc60c1a6259f084343118a98e578be934a41309ae5d0df899e",
+        "bytes": 21554
+      },
+      "0.info.json": {
+        "sha256": "c1ce54ee3fa16f70a8e652cf5b59b17906874fdbf840849e9b7896fb60e478fa",
+        "bytes": 18391
+      },
+      "0.samples.parquet": {
+        "sha256": "68d74ed04fa08dd28bf2ae4c65442d71d54b99bf8c2f5dc232db1193ee32ebcd",
+        "bytes": 1091928
+      },
+      "golden.json": {
+        "sha256": "80540dea663d37111aee0f8f48eacfbf5ae3e6d55df0b833878fb7c16f11ec8f",
+        "bytes": 4552
+      }
+    }
+  }
+}

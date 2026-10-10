@@ -116,7 +116,7 @@ export const MAP_MIN_LAPS = 8;
 export const trackMapVersion = 4;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
-const wanted = [
+export const wanted = [
   't',
   'speed_kmh',
   'throttle_pct',
@@ -225,7 +225,7 @@ export function loadRecording(recording, samplesPath, eventsPath) {
   return {recording, s, hz, baseHz: base, events, ticks: s.t.length};
 }
 
-const eventKinds = [
+export const eventKinds = [
   'lap',
   'lap_time',
   'in_pits',
