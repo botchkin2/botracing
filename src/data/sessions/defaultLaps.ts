@@ -30,6 +30,21 @@ export type DefaultSession = {
   sessionType: string;
 };
 
+/** The session as the default-lap rules read it: built from one detail, in one place. */
+export function defaultSessionOf(s: {
+  id: string;
+  bestLapId: string | null;
+  car: string;
+  sessionType: string;
+}): DefaultSession {
+  return {
+    id: s.id,
+    bestLapId: s.bestLapId,
+    car: s.car,
+    sessionType: s.sessionType,
+  };
+}
+
 /** The ranking's view of a lap (analysis/referenceLap.ts). */
 export function refLapOf(
   lap: Lap,
@@ -106,4 +121,14 @@ export function stintSetLapIds(laps: Lap[]): string[] {
     }
   }
   return best.length >= 2 ? best.map(l => l.id) : [];
+}
+
+/**
+ * The laps a session screen opens on when the URL names none: the stint set,
+ * else the reference pair. Compare and the session grid both read this, so
+ * they never disagree about what is selected.
+ */
+export function openingLapIds(laps: Lap[], session: DefaultSession): string[] {
+  const set = stintSetLapIds(laps);
+  return set.length > 0 ? set : referenceDefaultLapIds(laps, session);
 }

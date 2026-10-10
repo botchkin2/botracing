@@ -25,6 +25,7 @@ import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
   type DefaultSession,
+  defaultSessionOf,
   useSession,
   useSessionLaps,
 } from '@/src/data/sessions';
@@ -119,13 +120,7 @@ export function CompareScreen({
   const sessionDoc = useSession(sessionId);
   const sessionLaps = useSessionLaps(sessionId);
   const sessionFacts = useMemo<DefaultSession | undefined>(
-    () =>
-      sessionDoc.data && {
-        id: sessionDoc.data.id,
-        bestLapId: sessionDoc.data.bestLapId,
-        car: sessionDoc.data.car,
-        sessionType: sessionDoc.data.sessionType,
-      },
+    () => sessionDoc.data && defaultSessionOf(sessionDoc.data),
     [sessionDoc.data],
   );
   const selection = useMemo(
