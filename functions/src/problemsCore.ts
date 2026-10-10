@@ -18,6 +18,13 @@ export const PROBLEM_TTL_MS = 30 * 24 * 3600_000;
 export const WRITE_EVERY_MS = 10_000;
 const MAX_MESSAGE = 300;
 
+/** Tokens and emails out of a message; the rest of the text is kept. */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<token>')
+    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>');
+}
+
 /**
  * Tokens, emails, ids and numbers out of a message, in this order (rake
  * #3328): JWT-like strings, emails, UUIDs and hex runs of 8 or more, then

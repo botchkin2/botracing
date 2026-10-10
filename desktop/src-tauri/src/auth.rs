@@ -276,6 +276,35 @@ pub fn custom_sign_in(cfg: &Config, exchanged: &Exchanged) -> Result<Session, St
     session_from(&body, "")
 }
 
+/// The only account a test tray may sign in as (functions/scripts/mintTestToken.mjs).
+pub const SEAT_TEST_UID: &str = "seat-test";
+
+/// The `uid` claim of a Firebase custom token (a JWT), read without checking
+/// the signature: Firebase checks it when the token is used.
+pub fn custom_token_uid(token: &str) -> Option<String> {
+    let payload = token.split('.').nth(1)?;
+    let bytes = URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).ok()?;
+    let claims: Value = serde_json::from_slice(&bytes).ok()?;
+    claims["uid"].as_str().map(str::to_string)
+}
+
+/// A test tray's sign-in from a seat-test custom token, no browser. Any other
+/// uid is refused here, so the file can never sign a test tray in as a person.
+pub fn seat_test_sign_in(cfg: &Config, custom_token: &str) -> Result<Session, String> {
+    let uid = custom_token_uid(custom_token).ok_or("the file is not a custom token")?;
+    if uid != SEAT_TEST_UID {
+        return Err(format!("{uid} is not {SEAT_TEST_UID}: a test tray signs in only as {SEAT_TEST_UID}"));
+    }
+    custom_sign_in(
+        cfg,
+        &Exchanged {
+            custom_token: custom_token.to_string(),
+            uid,
+            email: SEAT_TEST_UID.to_string(),
+        },
+    )
+}
+
 fn session_from(body: &Value, fallback_email: &str) -> Result<Session, String> {
     let text = |k: &str| body[k].as_str().unwrap_or_default().to_string();
     let uid = if body["localId"].is_string() {
@@ -824,6 +853,33 @@ mod tests {
         let body: Value = serde_json::from_str(&seen[0].1).unwrap();
         assert_eq!(body["token"], "CT");
         assert_eq!(body["returnSecureToken"], true);
+    }
+
+    fn jwt(claims: &str) -> String {
+        format!("h.{}.s", URL_SAFE_NO_PAD.encode(claims))
+    }
+
+    #[test]
+    fn a_test_tray_signs_in_only_as_seat_test() {
+        let (base, seen) = stub(|_, _| {
+            (
+                200,
+                r#"{"idToken":"FID","refreshToken":"FREF","expiresIn":"3600"}"#.into(),
+            )
+        });
+        let token = jwt(r#"{"uid":"seat-test","iss":"x"}"#);
+        assert_eq!(custom_token_uid(&token).as_deref(), Some("seat-test"));
+        let s = seat_test_sign_in(&cfg(&base), &token).unwrap();
+        assert_eq!((s.uid.as_str(), s.id_token.as_str()), ("seat-test", "FID"));
+        let body: Value = serde_json::from_str(&seen.lock().unwrap()[0].1).unwrap();
+        assert_eq!(body["token"], token.as_str());
+
+        // Anyone else, or not a token: refused before anything is sent.
+        let (other, asked) = stub(|_, _| (200, "{}".into()));
+        let err = seat_test_sign_in(&cfg(&other), &jwt(r#"{"uid":"LwTNOO0"}"#)).unwrap_err();
+        assert!(err.contains("only as seat-test"), "{err}");
+        assert!(seat_test_sign_in(&cfg(&other), "not-a-jwt").is_err());
+        assert!(asked.lock().unwrap().is_empty());
     }
 
     #[test]

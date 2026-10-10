@@ -739,6 +739,7 @@ function CompareView({
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
+      onLap={() => prefs.setWindowStep('lap')}
       onPlay={() => setPlaying(p => !p)}
       onRate={prefs.setRate}
     />

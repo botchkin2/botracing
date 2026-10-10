@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {
@@ -7,6 +9,7 @@ import {
   readTrace,
   readTrackMap,
   listFacets,
+  listPlanSessions,
   listSessions,
   readSession,
   readSessionLaps,
@@ -14,8 +17,12 @@ import {
   readCornerSlicesGzip,
   readSurfaceGzip,
   readFieldGzip,
+  trackMapById,
+  trackSurfaceById,
 } from './sessionStore';
 import {Unauthorized, resolveOwner} from './ownerAccess';
+import {parsePlanQuery} from './planQuery';
+import {notModified, trackIdOk} from './trackMapCore';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
 
@@ -102,6 +109,71 @@ export const lmuApi = onRequest(
       // Corner). Straight from the store, no legacy lap shape.
       if (/\/uploaders$/.test(path)) {
         res.status(200).json({items: await listUploaders(owner)});
+        return;
+      }
+      // The Plan's one request per track and car (docs/API.md): the sessions'
+      // plan blocks, a projection query, no lap docs.
+      if (/\/plan$/.test(path)) {
+        const asked = parsePlanQuery(req.query);
+        if (!asked.ok) {
+          res.status(400).json({error: asked.error});
+          return;
+        }
+        const body = JSON.stringify(
+          await listPlanSessions(owner, asked.combo, asked.lapSessions),
+        );
+        // A validator over the body, set here (not left to the framework, which
+        // does not pass If-None-Match through): a client that holds this plan
+        // gets a 304 and no download; within max-age it does not ask at all. A
+        // plan changes only when a session is resynced or uploaded.
+        const etag = `"p-${createHash('sha1').update(body).digest('hex').slice(0, 20)}"`;
+        res.set('Cache-Control', 'private, max-age=60');
+        res.set('ETag', etag);
+        if (notModified(req.headers['if-none-match'], etag)) {
+          res.status(304).end();
+          return;
+        }
+        res.status(200).type('json').send(body);
+        return;
+      }
+      // A track layout's map and measured surface, by track id: shared app
+      // data, the same for every signed-in user, no session needed
+      // (trackMapCore.ts). Both carry an ETag; within max-age a second open is
+      // served from the client's cache, after it a 304 without a download.
+      const trackRoute = path.match(/\/tracks\/([^/]+)\/(map|surface)$/);
+      if (trackRoute) {
+        const [, trackId, part] = trackRoute;
+        const found = !trackIdOk(trackId)
+          ? null
+          : part === 'map'
+          ? await trackMapById(trackId)
+          : await trackSurfaceById(trackId);
+        if (!found) {
+          res.status(404).json({error: 'Not found'});
+          return;
+        }
+        // The map changes when the curator writes it; the surface after a sync.
+        res.set(
+          'Cache-Control',
+          part === 'map' ? 'private, max-age=3600' : 'private, max-age=300',
+        );
+        res.set('ETag', found.etag);
+        if (notModified(req.headers['if-none-match'], found.etag)) {
+          res.status(304).end();
+          return;
+        }
+        if ('body' in found) {
+          res.status(200).json(await found.body());
+          return;
+        }
+        const gz = await found.gzip();
+        if (!gz) {
+          res.status(404).json({error: 'Not found'});
+          return;
+        }
+        res.set('Content-Type', 'application/json');
+        res.set('Content-Encoding', 'gzip');
+        res.status(200).send(gz);
         return;
       }
       if (/\/sessions\/facets$/.test(path)) {

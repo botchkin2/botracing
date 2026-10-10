@@ -820,8 +820,16 @@ test('a heartbeat is checked field by field', async () => {
     {sessionsDone: NaN},
     {progress: {done: 1}},
     {progress: 'half'},
-    {lastError: {at: 'x', message: 'm'.repeat(301)}},
-    {lastError: 'boom'},
+    {problems: 'boom'},
+    {problems: [{kind: 'on-fire', at: null, message: 'm'}]},
+    {problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}]},
+    {
+      problems: [
+        {kind: 'session-failed', at: null, message: 'm', sessionId: '../x'},
+      ],
+    },
+    {problems: [{kind: 'session-failed', at: null, message: 'm', count: -1}]},
+    {problems: Array(11).fill({kind: 'sync-crashed', at: null, message: 'm'})},
     {disk: {captureBytes: 1}},
     {recorder: {state: 5}},
     {label: 'L'.repeat(65)},
@@ -839,15 +847,88 @@ test('a heartbeat is checked field by field', async () => {
     retryAt: null,
     progress: null,
     recorder: null,
-    lastError: {at: '2026-10-06T03:00:00Z', message: 'EBUSY', path: null},
+    problems: [
+      {
+        kind: 'session-failed',
+        at: '2026-10-06T03:00:00Z',
+        message: 'HTTP 413',
+        sessionId: '4dda01bc58a237af',
+        count: 2,
+        retryAt: 1790000000000,
+        extra: 'dropped',
+      },
+      {kind: 'recorder-layout', at: null, message: 'layout changed'},
+    ],
     lastSessionId: null,
   });
   assert.equal((await send(w, 'tok-a', ok)).status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.deepEqual(
+    stored.problems,
+    [
+      {
+        kind: 'session-failed',
+        at: '2026-10-06T03:00:00Z',
+        message: 'HTTP 413',
+        sessionId: '4dda01bc58a237af',
+        count: 2,
+        retryAt: 1790000000000,
+      },
+      {kind: 'recorder-layout', at: null, message: 'layout changed'},
+    ],
+    'each problem rebuilt from its known fields',
+  );
   assert.equal(
     w.usage.get('uidA').heartbeats,
     1,
     'only the accepted one counted',
   );
+});
+
+test("the tray's own report that the uploader stopped is accepted, without lmuFound", async () => {
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      lmuFound: undefined,
+      state: 'error',
+      problems: [
+        {
+          kind: 'uploader-stopped',
+          at: '2026-10-10T02:00:00.000Z',
+          message: 'exit code: 1',
+          count: 2,
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].kind, 'uploader-stopped');
+  assert.equal(stored.problems[0].count, 2);
+  assert.equal('lmuFound' in stored, false, 'not stored when not sent');
+});
+
+test('a heartbeat problem message stores no token or address', async () => {
+  const w = clockWorld();
+  const jwt = 'eyJhbGciOi.eyJzdWIiOiIx.sig-nature_1';
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      problems: [
+        {
+          kind: 'sync-crashed',
+          at: null,
+          message: `401 ${jwt} for a@b.example`,
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].message, '401 <token> for <email>');
 });
 
 test('the usage counters on a user that never sent a heartbeat have no heartbeats', async () => {

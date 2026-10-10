@@ -151,6 +151,22 @@ test('the signer and the badging are read from the tools output', () => {
     ),
     '3240a6b76e94c99043b930c3b848efebbd064411ac779cc0fc4d1436749cf670',
   );
+  // The CI runner's apksigner (run 38011722803, the real EAS 1.0.0 build): 'V2 Signer:'
+  // lines, no 'Signer #1'. The committed pin is exactly this digest (a transposed
+  // pair, ...48eddadb..., made the first real release fail at verify).
+  const ci = readFileSync(
+    new URL('./__fixtures__/apksigner-print-certs-ci.txt', import.meta.url),
+    'utf8',
+  );
+  const pin = JSON.parse(
+    readFileSync(new URL('./android-signer.json', import.meta.url), 'utf8'),
+  );
+  assert.equal(signerOf(ci), pin.certSha256);
+  assert.equal(
+    signerOf(ci.replace(/\n/g, '\r\n') + ci.replaceAll('V2', 'V3')),
+    pin.certSha256,
+    'the same certificate under two schemes, CRLF, is still one signer',
+  );
   // One certificate listed once per SDK range is still one signer.
   const ranged = ['24', '33']
     .map(

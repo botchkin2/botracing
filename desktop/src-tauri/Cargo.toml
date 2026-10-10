@@ -16,6 +16,8 @@ tauri-plugin-updater = "2"
 serde_json = "1"
 ureq = { version = "2", features = ["json"] }
 sha2 = "0.10"
+# The host id is sha1(hostname), the same as tools/uploader/heartbeat.mjs hostIdOf.
+sha1 = "0.10"
 base64 = "0.22"
 getrandom = "0.2"
 urlencoding = "2"
@@ -23,9 +25,11 @@ keyring = { version = "3", features = ["windows-native"] }
 tauri-plugin-single-instance = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 regex = "1"
+# Plain paths for node: Tauri hands resource_dir() over as a \\?\ path (sidecar::plain).
+dunce = "1"
 parquet = { version = "60.0.0", features = ["arrow", "zstd"] }
 arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Registry", "Win32_System_Threading"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Memory", "Win32_System_ProcessStatus", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_System_Threading"] }

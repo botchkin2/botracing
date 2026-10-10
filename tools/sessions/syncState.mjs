@@ -5,9 +5,6 @@
 // (or as the real uid after the old uploader wrote as "botkin") sends the
 // backlog again instead of skipping it. Pure: sync.mjs does the file I/O.
 
-/** The file the tray menu's "Upload older sessions…" drops in the work folder; the next sync reads it and lifts the window. */
-export const OLDER_REQUEST = 'include-older';
-
 const DAY_MS = 86_400_000;
 
 /** A day, YYYY-MM-DD, `days` before `now`: the oldest recording a first run uploads. */
@@ -55,11 +52,6 @@ export function forgetOtherOwners(state, ownerId) {
     forgotten++;
   }
   return forgotten;
-}
-
-/** Drops the first-run window: every recording counts from here on. */
-export function liftWindow(state) {
-  state.since = null;
 }
 
 /**

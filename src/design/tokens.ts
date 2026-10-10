@@ -124,6 +124,21 @@ export const lapColors: Record<Scheme, readonly string[]> = {
     '#c46a12',
   ],
 };
+/**
+ * The colour of one lap by its colour slot (0 = the reference, then in lap
+ * order): the palette first, then generated hues past it. Golden-angle steps
+ * give each further slot a hue no earlier slot has, so no two laps on screen
+ * share a colour (pit-wall #342).
+ */
+export function lapColor(scheme: Scheme, index: number): string {
+  const palette = lapColors[scheme];
+  if (index < palette.length) return palette[index];
+  const hue = ((index - palette.length) * 137.508 + 20) % 360;
+  return scheme === 'dark'
+    ? `hsl(${hue.toFixed(1)}, 70%, 68%)`
+    : `hsl(${hue.toFixed(1)}, 60%, 42%)`;
+}
+
 /** Tinted mode (7–19 laps), hue cycle 255, 350, 185, 105, 225. */
 const lapTints: Record<Scheme, readonly string[]> = {
   dark: ['#87a7d0', '#c793ab', '#70b3aa', '#aba874', '#73aec6'],
@@ -185,7 +200,7 @@ export function lapStroke(
     };
   if (mode === 'individual') {
     return {
-      color: lapColors[scheme][index],
+      color: lapColor(scheme, index),
       width: highlighted ? stroke.ref : stroke.selected,
       opacity: 1,
       key: true,

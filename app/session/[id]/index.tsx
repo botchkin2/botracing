@@ -5,6 +5,7 @@ import {StyleSheet, View} from 'react-native';
 import {ContentInset, size, useLayout} from '@/src/design';
 import {parseSelection, sessionHref, tracksHref} from '@/src/nav/routes';
 import {SessionsRail} from '@/src/ui';
+import {useLapSelection} from '@/src/features/session/useLapSelection';
 
 import {
   type Selection,
@@ -22,6 +23,7 @@ export default function SessionRoute() {
     hl?: string;
   }>();
   const router = useRouter();
+  const {update} = useLapSelection();
   const {isWide} = useLayout();
   const {laps, hl} = params;
   const selection = useMemo<Selection>(() => {
@@ -39,12 +41,7 @@ export default function SessionRoute() {
       renderPooledUse={(planKey, width) => (
         <PooledUseCard planKey={planKey} sessionId={params.id} width={width} />
       )}
-      onSelectionChange={next =>
-        router.setParams({
-          laps: next.laps.length ? next.laps.join(',') : undefined,
-          hl: next.hl ?? undefined,
-        })
-      }
+      onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />
   );
   if (!isWide) return screen;

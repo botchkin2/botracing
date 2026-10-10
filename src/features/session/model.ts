@@ -1,5 +1,6 @@
 import {useMemo} from 'react';
 
+import type {StripLap} from './lapStrip';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {
   type SectionMode,
@@ -10,7 +11,7 @@ import {
 } from '@/src/analysis/segments';
 
 import {
-  raceFacts,
+  raceFactsOfPlan,
   type Lap,
   type SessionDetail,
   sectorSegmentTimes,
@@ -18,7 +19,7 @@ import {
   type TrackMapData,
   useSession,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
@@ -127,7 +128,7 @@ export type DetailModel = {
   fuel: string[];
   /** Seconds and counts from the field; null on a lap without one (round 7, 2B). */
   traffic: TrafficRow[] | null;
-  action: 'add' | 'remove' | 'reference';
+  action: 'add' | 'remove';
 };
 
 export type TrayModel = {
@@ -147,6 +148,8 @@ export type SessionScreenModel = {
   subtitle: string;
   /** For the link to the layout's Track page. */
   trackId: string;
+  /** The lap strip's data: every lap in driving order (src/features/session/lapStrip.ts). */
+  strip: StripLap[];
   facts: Fact[];
   /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
@@ -182,7 +185,11 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return planComboKey(session.trackId, carLabel(session.car).model, session.sim);
+  return planComboKey(
+    session.trackId,
+    carLabel(session.car).model,
+    session.sim,
+  );
 }
 
 function buildFuelUseCard(
@@ -464,12 +471,7 @@ export function buildSessionModel(
     excluded: !hlLap.comparable,
     fuel: lapFuelLines(hlLap),
     traffic: trafficRows(hlLap.traffic),
-    action:
-      selIndexOf(hlLap.id) === 0
-        ? 'reference'
-        : selIndexOf(hlLap.id) != null
-        ? 'remove'
-        : 'add',
+    action: selIndexOf(hlLap.id) != null ? 'remove' : 'add',
   };
 
   const selected = selection.laps
@@ -482,7 +484,7 @@ export function buildSessionModel(
         label:
           selected.length <= 3
             ? selected.map(lapLabel).join(' · ')
-            : `${lapLabel(selected[0])} ref + ${selected.length - 1} laps`,
+            : `${selected.length} laps`,
       }
     : null;
 
@@ -492,6 +494,13 @@ export function buildSessionModel(
   const fuelUse = buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
+    strip: laps.map(l => ({
+      id: l.id,
+      timeS: l.timeS,
+      stint: l.stint,
+      comparable: l.comparable,
+      pit: l.pitIn || l.pitOut,
+    })),
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
       session.track,
     )}`,
@@ -539,31 +548,15 @@ export function buildSessionModel(
     pitCard,
     tires: buildTiresCard(session, laps),
     fuelUse,
-    planVsRace: raceFacts(session, planKeyOf(session), laps),
+    planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };
-}
-
-// --- selection edits (pure; the screen writes the result to the URL) --------
-
-export function toggleLap(sel: Selection, lapId: string): Selection {
-  const i = sel.laps.indexOf(lapId);
-  if (i === 0) return sel; // the reference is not removed from here
-  return {
-    ...sel,
-    laps: i < 0 ? [...sel.laps, lapId] : sel.laps.filter(id => id !== lapId),
-  };
-}
-
-export function selectStint(sel: Selection, lapIds: string[]): Selection {
-  const rest = lapIds.filter(id => !sel.laps.includes(id));
-  return {...sel, laps: [...sel.laps, ...rest]};
 }
 
 export function useSessionScreenModel(id: string, selection: Selection) {
   const session = useSession(id);
   const laps = useSessionLaps(id);
   // Only the optimal lap needs the map; the screen draws without it.
-  const map = useSessionMap(id);
+  const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
   return useMemo(() => {
     if (session.isError || laps.isError) {

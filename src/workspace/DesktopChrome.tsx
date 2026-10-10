@@ -6,7 +6,8 @@ import {
   trackCorners,
   useSession,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
+  useTrackMapOfSession,
 } from '@/src/data/sessions';
 import {useLayout, useTheme} from '@/src/design';
 import {type SessionTab, sessionTabOf} from '@/src/nav/activeTab';
@@ -37,7 +38,7 @@ export function DesktopChrome() {
   const {scheme} = useTheme();
   const {isWide} = useLayout();
   const tab = sessionTabOf(pathname);
-  const openMap = useSessionMap(tab && id ? id : '');
+  const openMap = useTrackMapOfSession(tab && id ? id : null);
   const sectionCorner =
     openMap.data && c
       ? firstCornerOf(trackCorners(openMap.data), Number(c))
@@ -63,7 +64,7 @@ export function DesktopChrome() {
   });
   const {data: session} = useSession(sessionId ?? '', sessionId != null);
   const lapData = useSessionLaps(sessionId);
-  const map = useSessionMap(sessionId ?? '');
+  const map = useTrackMap(session?.trackId);
 
   const content =
     next && session

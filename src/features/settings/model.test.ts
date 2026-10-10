@@ -1,11 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type Uploader} from '@/src/data/uploaders';
+import {type Uploader, type UploaderProblem} from '@/src/data/uploaders';
 
 import {
   buildSettingsModel,
   formatAgo,
   formatBytes,
+  problemRows,
+  problemText,
   uploaderCard,
 } from './model';
 
@@ -25,7 +27,7 @@ const rig = (over: Partial<Uploader> = {}): Uploader => ({
   progress: null,
   retryAt: null,
   sessionsDone: 14,
-  lastError: null,
+  problems: [],
   disk: {captureBytes: 5.04e9, freeBytes: 2.1e11},
   recorder: {
     state: 'recording',
@@ -43,6 +45,11 @@ describe('uploaderCard', () => {
     const c = uploaderCard(rig(), NOW);
     expect(c.dot).toBe('connected');
     expect(c.subtitle).toBe('v0.3.1 · LMU found');
+    // The tray's own failure report does not say whether LMU was found.
+    expect(uploaderCard(rig({lmuFound: null}), NOW).subtitle).toBe('v0.3.1');
+    expect(uploaderCard(rig({lmuFound: false}), NOW).subtitle).toBe(
+      'v0.3.1 · LMU not found',
+    );
     expect(c.status).toBe('Syncing · seen 2 min ago');
     expect(c.lines).toEqual([
       'Last upload 30 min ago · session bc1d5cd6',
@@ -50,7 +57,6 @@ describe('uploaderCard', () => {
       'Capture 5.0 GB · 210 GB free',
       'Recorder recording · LMU 1.2',
     ]);
-    expect(c.recorderWarning).toBeNull();
   });
 
   it('says when a failed session is tried again, not error', () => {
@@ -83,19 +89,7 @@ describe('uploaderCard', () => {
     );
   });
 
-  it('shows the last error with its path', () => {
-    const c = uploaderCard(
-      rig({lastError: {at: NOW - 5 * min, message: 'EBUSY', path: 'D:/cap'}}),
-      NOW,
-    );
-    expect(c.error).toEqual({
-      message: 'EBUSY',
-      path: 'D:/cap',
-      when: '5 min ago',
-    });
-  });
-
-  it('warns when a game update broke the recorder layout', () => {
+  it('leaves a recorder that stopped writing to Problems, not the card', () => {
     const c = uploaderCard(
       rig({
         recorder: {
@@ -109,10 +103,99 @@ describe('uploaderCard', () => {
       }),
       NOW,
     );
-    expect(c.recorderWarning).toBe(
-      'Recorder stopped writing on LMU 1.3: header size 312, expected 304.',
-    );
     expect(c.lines.some(l => l.startsWith('Recorder'))).toBe(false);
+  });
+});
+
+const problem = (over: Partial<UploaderProblem>): UploaderProblem => ({
+  kind: 'session-failed',
+  at: NOW - 5 * min,
+  message: 'HTTP 413',
+  sessionId: '4dda01bc58a237af',
+  count: 3,
+  retryAt: null,
+  ...over,
+});
+
+describe('problems', () => {
+  it('reads as data: what, why, how often', () => {
+    expect(
+      problemText(
+        problem({
+          kind: 'uploader-stopped',
+          message: 'exit code: 1: Error: no file',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Uploader stopped · exit code: 1: Error: no file · 3×');
+    expect(problemText(problem({}))).toBe('Session 4dda01bc · HTTP 413 · 3×');
+    expect(problemText(problem({count: 1}))).toBe(
+      'Session 4dda01bc · HTTP 413',
+    );
+    expect(problemText(problem({retryAt: NOW + 30 * min}))).toMatch(
+      /^Session 4dda01bc · HTTP 413 · 3× · retry \d{2}:\d{2}$/,
+    );
+    expect(
+      problemText(
+        problem({
+          kind: 'sync-crashed',
+          message: 'sync crashed: RangeError: x',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Sync crashed · RangeError: x');
+    expect(
+      problemText(
+        problem({
+          kind: 'recorder-layout',
+          message: 'header size 312',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Recorder stopped · header size 312');
+    expect(
+      problemText(
+        problem({
+          kind: 'not-seen',
+          at: Date.parse('2026-10-01T12:00:00Z'),
+          message: '',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Not seen since 1 Oct');
+  });
+
+  it('lists every PC, names the PC only when there are several, and links sessions', () => {
+    const one = rig({problems: [problem({})]});
+    expect(problemRows([one])).toEqual([
+      {
+        key: 'RIG:session-failed:4dda01bc58a237af',
+        text: 'Session 4dda01bc · HTTP 413 · 3×',
+        sessionId: '4dda01bc58a237af',
+      },
+    ]);
+    const two = rig({
+      hostId: 'SIM',
+      host: 'Sim PC',
+      problems: [
+        problem({kind: 'recorder-layout', message: 'x', sessionId: null}),
+      ],
+    });
+    expect(problemRows([one, two]).map(r => [r.text, r.sessionId])).toEqual([
+      ['RIG · Session 4dda01bc · HTTP 413 · 3×', '4dda01bc58a237af'],
+      ['Sim PC · Recorder stopped · x', null],
+    ]);
+  });
+
+  it('is empty when all is well, and in the model only once the PCs are read', () => {
+    const model = (
+      uploaders: Parameters<typeof buildSettingsModel>[0]['uploaders'],
+    ) => buildSettingsModel({uploaders, version: '1', nowMs: NOW}).problems;
+    expect(model({state: 'ready', items: [rig()]})).toEqual([]);
+    expect(model({state: 'loading'})).toEqual([]);
+    expect(
+      model({state: 'ready', items: [rig({problems: [problem({})]})]}),
+    ).toHaveLength(1);
   });
 });
 

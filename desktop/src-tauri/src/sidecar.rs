@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use crate::paths::{current_exe, plain};
+
 pub struct Paths {
     /// %LOCALAPPDATA%\BotRacing: everything the tray keeps.
     pub data: PathBuf,
@@ -16,6 +18,9 @@ pub struct Paths {
     /// resources (<resources>/app).
     pub root: PathBuf,
     pub node: PathBuf,
+    /// The upload API (LAP_API, as the uploader reads it): where the tray's
+    /// own failure report goes.
+    pub upload_api: String,
 }
 
 impl Paths {
@@ -31,18 +36,16 @@ impl Paths {
     pub fn sessions_dir(&self) -> PathBuf {
         self.data.join("sessions")
     }
-    /// Asks the next sync to include sessions older than the first-run window.
-    pub fn older_request_file(&self) -> PathBuf {
-        self.sessions_dir().join(OLDER_REQUEST)
-    }
 }
 
-/// The file name tools/sessions/syncState.mjs reads (OLDER_REQUEST).
-const OLDER_REQUEST: &str = "include-older";
-/// A first run uploads only recordings from this many days back.
-const FIRST_RUN_DAYS: &str = "14";
+/// A first run uploads only recordings from this many days back (Botkin has
+/// years of iRacing .ibt: the standing decision is recent history only).
+const FIRST_RUN_DAYS: &str = "90";
 
 const SCRIPT: &str = "tools/uploader/watch.mjs";
+/// At most one report per this long: the server takes one heartbeat per 30 s.
+const REPORT_EVERY: Duration = Duration::from_secs(60);
+const DEFAULT_UPLOAD_API: &str = "https://botracing-61.web.app/api/upload";
 
 /// Where the uploader's files are, whatever folder the app was started from:
 /// BOTRACING_ROOT if set, else the installed resources (<resources>/app), else
@@ -60,30 +63,56 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
+/// What `paths` reads from the process: taken as input so a test passes its
+/// own and never depends on (or races over) the runner's BOTRACING_ROOT.
+pub struct PathEnv {
+    /// %LOCALAPPDATA% (else the temp dir).
+    pub local: PathBuf,
+    pub exe: PathBuf,
+    /// BOTRACING_ROOT, when set.
+    pub root: Option<PathBuf>,
+    /// BOTRACING_NODE, when set.
+    pub node: Option<PathBuf>,
+}
+
+impl PathEnv {
+    pub fn from_process() -> PathEnv {
+        PathEnv {
+            local: std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir),
+            exe: current_exe().unwrap_or_default(),
+            root: std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
+            node: std::env::var_os("BOTRACING_NODE").map(PathBuf::from),
+        }
+    }
+}
+
 pub fn paths(resources: &Path) -> Paths {
-    let local = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let exe = std::env::current_exe().unwrap_or_default();
-    let root = find_root(
-        std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
-        resources,
-        &exe,
-    );
-    let node = std::env::var_os("BOTRACING_NODE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let bundled = resources.join("node").join("node.exe");
-            if bundled.exists() {
-                bundled
-            } else {
-                PathBuf::from("node")
-            }
-        });
+    paths_from(resources, PathEnv::from_process())
+}
+
+pub fn paths_from(resources: &Path, env: PathEnv) -> Paths {
+    let resources = plain(resources);
+    let local = env.local;
+    let exe = env.exe;
+    let root = find_root(env.root, &resources, &exe);
+    let node = env.node.unwrap_or_else(|| {
+        let bundled = resources.join("node").join("node.exe");
+        if bundled.exists() {
+            bundled
+        } else {
+            PathBuf::from("node")
+        }
+    });
     Paths {
-        data: local.join(crate::profile::data_dir_name()),
-        root,
-        node,
+        data: plain(&local.join(crate::profile::data_dir_name())),
+        root: plain(&root),
+        node: plain(&node),
+        upload_api: std::env::var("LAP_API")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| DEFAULT_UPLOAD_API.to_string()),
     }
 }
 
@@ -127,16 +156,16 @@ impl Running {
     /// Starts `cmd` quietly and puts it in a kill-on-close job. A process
     /// that starts its own children before the assignment below is the one
     /// gap; node takes far longer than that to get to its first child.
-    pub fn spawn(cmd: Command) -> std::io::Result<Running> {
-        Running::spawn_inner(cmd, true)
+    pub fn spawn(cmd: Command, stderr: Stdio) -> std::io::Result<Running> {
+        Running::spawn_inner(cmd, true, stderr)
     }
 
     // `job` false exists for the test that shows the job is what ends the
     // tree.
-    fn spawn_inner(mut cmd: Command, job: bool) -> std::io::Result<Running> {
+    fn spawn_inner(mut cmd: Command, job: bool, stderr: Stdio) -> std::io::Result<Running> {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(stderr);
         #[cfg(windows)]
         {
             use std::os::windows::io::AsRawHandle;
@@ -228,6 +257,7 @@ pub struct Supervisor {
     allowed: bool,
     failures: u32,
     retry_at: Option<Instant>,
+    last_report: Option<Instant>,
     /// Why there is no watcher right now, for the tray.
     pub problem: Option<String>,
 }
@@ -240,6 +270,7 @@ impl Supervisor {
             allowed: false,
             failures: 0,
             retry_at: Some(Instant::now()),
+            last_report: None,
             problem: None,
         }
     }
@@ -286,44 +317,132 @@ impl Supervisor {
             };
             self.running = None;
             self.failures += 1;
-            self.problem = Some(format!("Uploader stopped ({status}), restarting"));
+            self.problem = Some(format!(
+                "Uploader stopped ({status}), restarting. Log: {}",
+                log_path(&p.data).display()
+            ));
             self.retry_at = Some(Instant::now() + backoff(self.failures));
+            self.report(p, &status.to_string());
             return;
         }
         if self.retry_at.is_some_and(|at| Instant::now() < at) {
             return;
         }
         if let Err(error) = std::fs::create_dir_all(&p.data) {
-            self.failed(format!("Can't start the uploader: {error}"));
+            self.failed(p, format!("Can't start the uploader: {error}"));
             return;
         }
         let script = p.root.join(SCRIPT);
         if !script.is_file() {
             // Nothing to wait for: a retry finds the same thing.
-            self.problem = Some(format!(
+            let message = format!(
                 "Can't find the uploader files ({} is missing)",
                 script.display()
-            ));
+            );
+            self.report(p, &message);
+            self.problem = Some(message);
             self.retry_at = Some(Instant::now() + backoff(4));
             return;
         }
         trim_status(&p.status_file());
-        match Running::spawn(command(p)) {
+        let log = log_path(&p.data);
+        let stderr = open_log(&log).map_or_else(Stdio::null, Stdio::from);
+        match Running::spawn(command(p), stderr) {
             Ok(running) => {
                 self.running = Some(running);
                 self.started_at = Some(Instant::now());
                 self.problem = None;
                 self.retry_at = None;
             }
-            Err(error) => self.failed(format!("Can't start the uploader: {error}")),
+            Err(error) => self.failed(p, format!("Can't start the uploader: {error}")),
         }
     }
 
-    fn failed(&mut self, message: String) {
+    /// Tells Settings the uploader is not staying up (failure_report.rs): the
+    /// reason, the restart count, the last line it wrote and the tray's version,
+    /// with the signed-in token. Sent from the tray itself, so it works when node
+    /// cannot start. Off the tick's thread, and at most once a minute.
+    fn report(&mut self, p: &Paths, reason: &str) {
+        if self
+            .last_report
+            .is_some_and(|at| at.elapsed() < REPORT_EVERY)
+        {
+            return;
+        }
+        self.last_report = Some(Instant::now());
+        let (api, token_file) = (p.upload_api.clone(), p.token_file());
+        let (home, log) = (uploader_home(&p.data), log_path(&p.data));
+        let (reason, count) = (reason.to_string(), self.failures);
+        std::thread::spawn(move || {
+            let sent = crate::failure_report::report(&crate::failure_report::Report {
+                api: &api,
+                token_file: &token_file,
+                uploader_home: &home,
+                log: &log,
+                version: env!("CARGO_PKG_VERSION"),
+                reason: &reason,
+                count,
+            });
+            if let Err(error) = sent {
+                eprintln!("failure report not sent: {error}");
+            }
+        });
+    }
+
+    fn failed(&mut self, p: &Paths, message: String) {
         self.failures += 1;
+        self.report(p, &message);
         self.problem = Some(message);
         self.retry_at = Some(Instant::now() + backoff(self.failures));
     }
+}
+
+/// Where the uploader's stderr goes, so a crash leaves its cause behind.
+pub fn log_path(data: &Path) -> PathBuf {
+    uploader_home(data).join("sidecar.log")
+}
+
+/// About 1 MB at most: past that, the newest half is kept.
+const LOG_MAX_BYTES: u64 = 1_000_000;
+const LOG_KEEP_BYTES: u64 = 500_000;
+
+/// The log opened for appending, with a line marking this start. None if it
+/// cannot be opened: the uploader then runs without a log rather than not at
+/// all.
+fn open_log(file: &Path) -> Option<std::fs::File> {
+    use std::io::Write;
+    std::fs::create_dir_all(file.parent()?).ok()?;
+    trim_log(file);
+    let mut log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)
+        .ok()?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let _ = writeln!(log, "--- uploader start (unix {secs}) ---");
+    Some(log)
+}
+
+fn trim_log(file: &Path) {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(file) else {
+        return;
+    };
+    let len = f.metadata().map_or(0, |m| m.len());
+    if len <= LOG_MAX_BYTES {
+        return;
+    }
+    let mut newest = Vec::new();
+    if f.seek(SeekFrom::Start(len - LOG_KEEP_BYTES)).is_err() || f.read_to_end(&mut newest).is_err()
+    {
+        return;
+    }
+    drop(f);
+    // The cut can land mid-line: drop the partial first line.
+    let from = newest.iter().position(|b| *b == b'\n').map_or(0, |i| i + 1);
+    let _ = std::fs::write(file, &newest[from..]);
 }
 
 /// The status file only grows while a watcher runs; start each run from a
@@ -338,6 +457,20 @@ fn trim_status(file: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // paths() with a fixed environment: the runner's BOTRACING_ROOT or
+    // BOTRACING_NODE never changes what a test sees.
+    fn test_paths(resources: &Path) -> Paths {
+        paths_from(
+            resources,
+            PathEnv {
+                local: std::env::temp_dir(),
+                exe: current_exe().unwrap_or_default(),
+                root: None,
+                node: None,
+            },
+        )
+    }
     use std::time::Duration;
 
     #[test]
@@ -373,7 +506,7 @@ mod tests {
             "/c start /b node \"{}\" & ping -n 30 127.0.0.1 >nul",
             script.display()
         ));
-        let running = Running::spawn_inner(cmd, job).expect("cmd starts");
+        let running = Running::spawn_inner(cmd, job, Stdio::null()).expect("cmd starts");
 
         std::thread::sleep(Duration::from_millis(1500));
         assert!(
@@ -440,9 +573,62 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
+    // The installed tray's case: Tauri's resource_dir() is canonicalized, so it
+    // is `\\?\C:\...`. Every path the watcher gets must be plain (the asserts
+    // fail without `plain`, on any node), and node must start from them. Whether
+    // node itself refuses a verbatim main script depends on its version: the
+    // bundled 24.19.0 does, 24.21.0 (CI) does not, so no test leans on that.
+    #[cfg(windows)]
+    #[test]
+    fn a_verbatim_resources_dir_still_starts_the_watcher() {
+        let base = std::env::temp_dir().join(format!("botracing-verbatim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let resources = base.join("install");
+        touch(&resources.join("app").join(SCRIPT));
+        let started = base.join("started.txt");
+        std::fs::write(
+            resources.join("app").join(SCRIPT),
+            format!(
+                "import {{writeFileSync}} from 'node:fs'; writeFileSync({:?}, process.argv[1]);",
+                started.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        let verbatim = resources.canonicalize().unwrap();
+        assert!(
+            verbatim.to_string_lossy().starts_with(r"\\?\"),
+            "{verbatim:?}"
+        );
+
+        let mut p = test_paths(&verbatim);
+        p.data = base.join("data");
+        for path in [&p.root, &p.node] {
+            assert!(!path.to_string_lossy().starts_with(r"\\?\"), "{path:?}");
+        }
+        // The same folder, whatever 8.3 short name the temp dir was given as.
+        assert_eq!(p.root, plain(&verbatim.join("app")));
+
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        assert!(
+            s.problem.is_none(),
+            "it should have started: {:?}",
+            s.problem
+        );
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !started.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let script = std::fs::read_to_string(&started).expect("node never ran the script");
+        assert!(!script.starts_with(r"\\?\"), "{script}");
+        s.stop();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     #[test]
     fn the_sync_gets_its_own_state_folder_and_a_first_run_window() {
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.data = std::env::temp_dir().join("botracing-args");
         let args: Vec<String> = command(&p)
             .get_args()
@@ -458,16 +644,12 @@ mod tests {
             .iter()
             .position(|a| a == "--first-window-days")
             .expect("--first-window-days");
-        assert_eq!(args[at + 1], "14");
-        assert_eq!(
-            p.older_request_file(),
-            p.data.join("sessions").join("include-older")
-        );
+        assert_eq!(args[at + 1], "90");
     }
 
     #[test]
     fn missing_uploader_files_are_named_not_swallowed() {
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.root = std::env::temp_dir().join(format!("botracing-noroot-{}", std::process::id()));
         let mut s = Supervisor::new();
         s.set_allowed(true);
@@ -488,7 +670,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         touch(&base.join("root").join(SCRIPT));
         std::fs::write(base.join("root").join(SCRIPT), "process.exit(3)").unwrap();
-        let mut p = paths(Path::new("."));
+        let mut p = test_paths(Path::new("."));
         p.root = base.join("root");
         p.data = base.join("data");
         let mut s = Supervisor::new();
@@ -511,8 +693,190 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_node_is_reported_not_swallowed() {
+    fn the_log_keeps_the_newest_part_and_the_crash_reaches_it() {
+        let base = std::env::temp_dir().join(format!("botracing-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let file = log_path(&base);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let old = "old line\n".repeat(150_000);
+        std::fs::write(&file, format!("{old}newest line\n")).unwrap();
+        drop(open_log(&file));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.len() < 600_000, "{}", text.len());
+        assert!(text.starts_with("old line\n"), "no partial first line");
+        assert!(text.contains("newest line\n--- uploader start"));
+
+        touch(&base.join("root").join(SCRIPT));
+        std::fs::write(
+            base.join("root").join(SCRIPT),
+            "console.error('boom: cannot find thing'); process.exit(1)",
+        )
+        .unwrap();
+        let mut p = test_paths(Path::new("."));
+        p.root = base.join("root");
+        p.data = base.clone();
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        let problem = s.problem.clone().unwrap_or_default();
+        assert!(problem.contains("sidecar.log"), "{problem}");
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("boom: cannot find thing"), "{text}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // A one-request HTTP server: answers 204 and hands the whole request
+    // (headers and body) to the test. Stands in for POST /api/upload/heartbeat.
+    fn stub_endpoint() -> (String, std::sync::mpsc::Receiver<String>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let api = format!("http://{}/api/upload", listener.local_addr().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let mut raw = Vec::new();
+            let mut chunk = [0u8; 1024];
+            loop {
+                let n = stream.read(&mut chunk).unwrap_or(0);
+                raw.extend_from_slice(&chunk[..n]);
+                let text = String::from_utf8_lossy(&raw).to_string();
+                if let Some(split) = text.find("\r\n\r\n") {
+                    let length = text[..split]
+                        .lines()
+                        .find_map(|l| {
+                            l.to_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    if raw.len() >= split + 4 + length {
+                        break;
+                    }
+                }
+                if n == 0 {
+                    break;
+                }
+            }
+            let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n");
+            let _ = tx.send(String::from_utf8_lossy(&raw).to_string());
+        });
+        (api, rx)
+    }
+
+    fn base_for(name: &str) -> PathBuf {
+        let base = std::env::temp_dir().join(format!("botracing-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        base
+    }
+
+    // Node cannot start at all: nothing in the uploader can say so, so the tray
+    // sends the heartbeat itself, with its token and version.
+    #[test]
+    fn a_node_that_cannot_start_is_reported_to_the_endpoint() {
+        let base = base_for("rep-spawn");
+        let (api, requests) = stub_endpoint();
         let mut p = paths(Path::new("."));
+        p.node = PathBuf::from("definitely-not-a-real-node-binary");
+        p.data = base.join("data");
+        p.upload_api = api;
+        std::fs::create_dir_all(&p.data).unwrap();
+        std::fs::write(p.token_file(), "tok-123\n").unwrap();
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        let request = requests
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the tray sent no heartbeat");
+        assert!(
+            request.starts_with("POST /api/upload/heartbeat "),
+            "{request}"
+        );
+        assert!(
+            request
+                .to_lowercase()
+                .contains("authorization: bearer tok-123"),
+            "{request}"
+        );
+        assert!(
+            request.contains("\"kind\":\"uploader-stopped\""),
+            "{request}"
+        );
+        assert!(request.contains("Can't start the uploader"), "{request}");
+        assert!(request.contains("\"state\":\"error\""), "{request}");
+        assert!(
+            request.contains(&format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION"))),
+            "{request}"
+        );
+        assert!(request.contains("\"count\":1"), "{request}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // The watcher starts and exits 1: the heartbeat names the exit code and the
+    // last line it wrote to its log.
+    #[test]
+    fn a_watcher_that_exits_1_is_reported_to_the_endpoint() {
+        let base = base_for("rep-exit");
+        let (api, requests) = stub_endpoint();
+        let root = base.join("root");
+        touch(&root.join(SCRIPT));
+        std::fs::write(
+            root.join(SCRIPT),
+            "console.error('boom: cannot find thing'); process.exit(1)",
+        )
+        .unwrap();
+        let mut p = paths(Path::new("."));
+        p.root = root;
+        p.data = base.join("data");
+        p.upload_api = api;
+        std::fs::create_dir_all(&p.data).unwrap();
+        std::fs::write(p.token_file(), "tok-456").unwrap();
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        let request = requests
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the tray sent no heartbeat");
+        assert!(
+            request
+                .to_lowercase()
+                .contains("authorization: bearer tok-456"),
+            "{request}"
+        );
+        assert!(
+            request.contains("exit code: 1: boom: cannot find thing"),
+            "{request}"
+        );
+        assert!(
+            request.contains("\"kind\":\"uploader-stopped\""),
+            "{request}"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // Signed out (no token file): nothing is sent and nothing breaks.
+    #[test]
+    fn without_a_token_the_failure_is_not_sent() {
+        let r = crate::failure_report::report(&crate::failure_report::Report {
+            api: "http://127.0.0.1:9/api/upload",
+            token_file: &std::env::temp_dir().join("botracing-no-such-token"),
+            uploader_home: &std::env::temp_dir(),
+            log: &std::env::temp_dir().join("botracing-no-such-log"),
+            version: "0",
+            reason: "r",
+            count: 1,
+        });
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn a_missing_node_is_reported_not_swallowed() {
+        let mut p = test_paths(Path::new("."));
         p.node = PathBuf::from("definitely-not-a-real-node-binary");
         p.data = std::env::temp_dir().join(format!("botracing-miss-{}", std::process::id()));
         let mut s = Supervisor::new();

@@ -19,9 +19,11 @@ export interface TimedGrid {
 
 export type WindowMode = 'time' | 'distance';
 
-// Window steps from the handoff; the bold defaults are 2 s and 200 m.
-export const TIME_STEPS_S = [0.5, 1, 2, 4];
-export const DISTANCE_STEPS_M = [50, 100, 200, 400];
+// Window steps from the handoff; the bold defaults are 2 s and 200 m. 15 s is
+// the middle step between a 4 s window and the whole lap (D29).
+export const TIME_STEPS_S = [0.5, 1, 2, 4, 15];
+// 1,000 m is the mid step between 400 m and the whole lap (D29), roughly 15 s at GT3 speed.
+export const DISTANCE_STEPS_M = [50, 100, 200, 400, 1000];
 export const DEFAULT_WINDOW = {time: 2, distance: 200};
 
 // Elapsed time on the reference at a distance (linear between grid points).

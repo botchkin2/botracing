@@ -4,8 +4,11 @@ import {test} from 'node:test';
 import {
   beatKey,
   heartbeatDoc,
+  simsDoc,
   hostIdOf,
   idleState,
+  MAX_PROBLEMS,
+  problemsOf,
   scrub,
 } from './heartbeat.mjs';
 
@@ -76,6 +79,11 @@ test('an error reaches the doc as one line with no user paths', () => {
     "failed: ENOENT 'C:\\Users\\Botkin\\AppData\\Local\\x.parquet'\n    at stack line";
   assert.equal(scrub(message), "failed: ENOENT '~\\AppData\\Local\\x.parquet'");
   assert.equal(scrub('open C:/Users/Botkin/x failed'), 'open ~/x failed');
+  // A name with a space is one folder, not 'Jane' plus a leaked 'Doe'.
+  assert.equal(
+    scrub("ENOENT 'C:\\Users\\Jane Doe\\AppData\\x'"),
+    "ENOENT '~\\AppData\\x'",
+  );
   const doc = heartbeatDoc({
     ...input,
     watch: {lastError: {at: 'x', message, path: 'lap-uploader/watch.log'}},
@@ -118,4 +126,150 @@ test('the fold phase is part of the beat key, so a new phase writes at once', ()
   });
   assert.notEqual(beatKey(sessions), beatKey(fold));
   assert.equal(fold.progress.phase, 'surface');
+});
+
+const MIN = 60_000;
+
+test('problems: a crashed sync, each session on a retry, a stopped recorder, newest first', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        lastError: {
+          at: '2026-09-29T09:50:00.000Z',
+          message: 'sync crashed: RangeError: x',
+        },
+        retryAtMs: nowMs + 30 * MIN,
+        retries: {
+          aaaaaaaaaaaaaaaa: {
+            failures: 3,
+            atMs: nowMs + 60 * MIN,
+            lastAtMs: nowMs - 5 * MIN,
+            message: 'HTTP 413 at C:\\Users\\Botkin\\x.json\nstack',
+          },
+        },
+      },
+    ],
+    recorder: {
+      ...input.recorder,
+      layoutOk: false,
+      layoutReason: 'struct size 1234 != 1240',
+    },
+    nowMs,
+  });
+  assert.deepEqual(
+    problems,
+    [
+      {
+        kind: 'session-failed',
+        at: '2026-09-29T09:55:00.000Z',
+        message: 'HTTP 413 at ~\\x.json',
+        sessionId: 'aaaaaaaaaaaaaaaa',
+        count: 3,
+        retryAt: '2026-09-29T11:00:00.000Z',
+      },
+      {
+        kind: 'sync-crashed',
+        at: '2026-09-29T09:50:00.000Z',
+        message: 'sync crashed: RangeError: x',
+        retryAt: '2026-09-29T10:30:00.000Z',
+      },
+      {
+        kind: 'recorder-layout',
+        at: '2026-09-29T09:59:40Z',
+        message: 'struct size 1234 != 1240',
+      },
+    ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+  );
+});
+
+test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
+  assert.deepEqual(
+    problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),
+    [],
+  );
+  assert.deepEqual(
+    problemsOf({
+      sims: [
+        {lastError: {at: 'x', message: 'old'}, retryAtMs: null, retries: {}},
+      ],
+      recorder: null,
+      nowMs,
+    }),
+    [],
+  );
+});
+
+test('problems: a token or an address in a failure message is redacted', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        retries: {
+          '0000000000000001': {
+            failures: 1,
+            atMs: nowMs + MIN,
+            lastAtMs: nowMs,
+            message: 'bad eyJhbGciOi.eyJzdWIiOiIx.sig for a@b.example',
+          },
+        },
+      },
+    ],
+    recorder: null,
+    nowMs,
+  });
+  assert.equal(problems[0].message, 'bad <token> for <email>');
+});
+
+test('problems: at most 10, messages cut to 120 characters, and a change forces a beat', () => {
+  const retries = {};
+  for (let i = 0; i < 15; i += 1)
+    retries[String(i).padStart(16, '0')] = {
+      failures: 1,
+      atMs: nowMs + MIN,
+      lastAtMs: nowMs - i * MIN,
+      message: 'x'.repeat(200),
+    };
+  const problems = problemsOf({sims: [{retries}], recorder: null, nowMs});
+  assert.equal(problems.length, MAX_PROBLEMS);
+  assert.equal(problems[0].sessionId, '0000000000000000', 'newest first');
+  assert.equal(problems[0].message.length, 120);
+  assert.notEqual(
+    beatKey(heartbeatDoc(input)),
+    beatKey(heartbeatDoc({...input, problems})),
+  );
+  assert.deepEqual(heartbeatDoc({...input, problems}).problems, problems);
+  assert.deepEqual(heartbeatDoc(input).problems, []);
+});
+
+test('each sim has its own queue, and only the sim being synced has the progress', () => {
+  const sims = simsDoc(
+    [
+      {id: 'lmu', queue: 0, retryAtMs: null, lastError: null},
+      {id: 'iracing', queue: 5, retryAtMs: null, lastError: null},
+    ],
+    'iracing',
+    {done: 2, total: 5},
+  );
+  assert.deepEqual(sims.lmu, {queue: 0, syncing: false, progress: null, retryAt: null, lastError: null});
+  assert.deepEqual(sims.iracing, {queue: 5, syncing: true, progress: {done: 2, total: 5}, retryAt: null, lastError: null});
+  // Nothing syncing: nobody has progress, whatever the watcher last reported.
+  assert.equal(simsDoc([{id: 'lmu', queue: 1}], null, {done: 1, total: 2}).lmu.progress, null);
+});
+
+test('each sim keeps its own retry time and error, with user folders scrubbed', () => {
+  const sims = simsDoc([
+    {id: 'lmu', queue: 1, retryAtMs: Date.UTC(2026, 9, 9, 12), lastError: {at: '2026-10-09T11:00:00Z', message: String.raw`boom in C:SERSBOTKINX`}},
+    {id: 'iracing', queue: 0},
+  ]);
+  assert.equal(sims.lmu.retryAt, '2026-10-09T12:00:00.000Z');
+  assert.ok(!sims.lmu.lastError.message.includes('Botkin'), sims.lmu.lastError.message);
+  assert.equal(sims.iracing.retryAt, null);
+  assert.equal(sims.iracing.lastError, null);
+});
+
+test('the heartbeat carries the sims, and a change in one sim forces a write', () => {
+  const sims = n => simsDoc([{id: 'lmu', queue: n}, {id: 'iracing', queue: 0}]);
+  const a = heartbeatDoc({...input, sims: sims(0)});
+  assert.deepEqual(Object.keys(a.sims), ['lmu', 'iracing']);
+  assert.notEqual(beatKey(a), beatKey(heartbeatDoc({...input, sims: sims(1)})));
+  assert.deepEqual(heartbeatDoc(input).sims, {}, 'an old caller still gets a doc');
 });

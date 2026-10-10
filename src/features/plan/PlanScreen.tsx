@@ -109,7 +109,7 @@ export function PlanScreen() {
   // The switch shows only where there is VE to switch to.
   const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
-  const {history, lapsOf, measured} = hist;
+  const {history, loading: planLoading, measured} = hist;
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
@@ -295,17 +295,17 @@ export function PlanScreen() {
           dot='waiting'
           text='Checking the fill limit of your sessions here.'
         />
-      ) : lapsOf.pending ? (
+      ) : planLoading.pending ? (
         <StatusBanner
           dot='waiting'
-          text={`Loading the laps of ${history.length} ${
+          text={`Loading the plan of ${history.length} ${
             history.length === 1 ? 'session' : 'sessions'
           }.`}
         />
-      ) : lapsOf.failed > 0 ? (
+      ) : planLoading.failed ? (
         <StatusBanner
           dot='idle'
-          text={`${lapsOf.failed} of ${history.length} sessions did not load; the numbers use the rest.`}
+          text='The plan did not load; there is no history to plan from.'
         />
       ) : null}
     </>
@@ -330,7 +330,7 @@ export function PlanScreen() {
     <>
       {rules == null ? (
         <EmptyState title='Max fuel is needed' />
-      ) : view && plan && plan.history.laps === 0 && !lapsOf.pending ? (
+      ) : view && plan && plan.history.laps === 0 && !planLoading.pending ? (
         // A track and car never driven (or with no usable laps): the chips and
         // the length stay, and one plain line replaces the Race card (chief's
         // review of #318, triage #55).

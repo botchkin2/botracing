@@ -28,6 +28,8 @@ import {
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {replace, toggle} from '@/src/state/lapSelection';
+import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
 
@@ -54,8 +56,6 @@ import {
   type RowModel,
   type Selection,
   type SessionScreenModel,
-  selectStint,
-  toggleLap,
   useSessionScreenModel,
 } from './model';
 
@@ -223,8 +223,8 @@ function SessionView({
 
   const detailAction = () => {
     const d = model.detail;
-    if (!d || d.action === 'reference') return;
-    onSelectionChange(toggleLap(selection, d.lapId));
+    if (!d) return;
+    onSelectionChange({...selection, laps: toggle(selection.laps, d.lapId)});
   };
 
   const chartBlock = (width: number) =>
@@ -432,7 +432,7 @@ function SessionView({
         width={width}
         wide={wide}
         onSelectStint={() =>
-          onSelectionChange(selectStint(selection, item.lapIds))
+          onSelectionChange({...selection, laps: replace(item.lapIds)})
         }
       />
     ) : (
@@ -442,7 +442,12 @@ function SessionView({
         wide={wide}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
-        onToggle={() => onSelectionChange(toggleLap(selection, item.lapId))}
+        onToggle={() =>
+          onSelectionChange({
+            ...selection,
+            laps: toggle(selection.laps, item.lapId),
+          })
+        }
       />
     );
 
@@ -523,7 +528,24 @@ function SessionView({
           style={{width: tableW}}
           data={model.rows}
           keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={header}
+          ListHeaderComponent={
+            <>
+              {header}
+              <View style={[styles.strip, {width: tableW}]}>
+                <LapStrip
+                  laps={model.strip}
+                  ticked={selection.laps}
+                  onTap={id =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, id),
+                    })
+                  }
+                  onDrag={ids => onSelectionChange({...selection, laps: ids})}
+                />
+              </View>
+            </>
+          }
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -586,6 +608,7 @@ function SessionView({
 }
 
 const styles = StyleSheet.create({
+  strip: {paddingBottom: space.md},
   screen: {flex: 1},
   center: {alignItems: 'center', justifyContent: 'center'},
   columns: {

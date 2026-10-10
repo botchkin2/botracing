@@ -20,6 +20,7 @@ import {
   toSessionSummary,
 } from './adapters';
 import {type SessionFilter} from './keys';
+import {type PlanSession, toPlanSessions} from './planBlock';
 
 export async function fetchSessions(
   filter: SessionFilter,
@@ -35,6 +36,23 @@ export async function fetchSessions(
     signal,
   );
   return {items: body.items.map(toSessionSummary), total: body.total};
+}
+
+/**
+ * The Plan's one request for a track and car: every session's `plan` block,
+ * newest first (the newest few with their lap rows). `carModel` is the car
+ * without its livery, the Plan's own key.
+ */
+export async function fetchPlanSessions(
+  combo: {sim: string; trackId: string; carModel: string},
+  signal?: AbortSignal,
+): Promise<{items: PlanSession[]; truncated: boolean}> {
+  const params = new URLSearchParams({
+    sim: combo.sim,
+    trackId: combo.trackId,
+    car: combo.carModel,
+  });
+  return toPlanSessions(await getJson<unknown>(`/plan?${params}`, signal));
 }
 
 export async function fetchSessionFacets(
@@ -77,27 +95,28 @@ export async function fetchSessionBand(
   );
 }
 
-export async function fetchSessionMap(
-  id: string,
+/** A track layout's corner map, by its id (GET /tracks/{trackId}/map). */
+export async function fetchTrackMap(
+  trackId: string,
   signal?: AbortSignal,
 ): Promise<TrackMapData> {
   return toTrackMap(
     await getJson<Record<string, unknown>>(
-      `/sessions/${encodeURIComponent(id)}/map`,
+      `/tracks/${encodeURIComponent(trackId)}/map`,
       signal,
     ),
   );
 }
 
-/** The track's measured surface, or null when it has none yet (404) or the file is not usable. */
-export async function fetchSessionSurface(
-  id: string,
+/** A track layout's measured surface, or null when it has none yet (404) or the file is not usable. */
+export async function fetchTrackSurface(
+  trackId: string,
   signal?: AbortSignal,
 ): Promise<TrackSurface | null> {
   try {
     return toTrackSurface(
       await getJson<Record<string, unknown>>(
-        `/sessions/${encodeURIComponent(id)}/surface`,
+        `/tracks/${encodeURIComponent(trackId)}/surface`,
         signal,
       ),
     );

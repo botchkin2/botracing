@@ -20,6 +20,8 @@
 // can never write them, so a write op naming one is refused. Bucket files are
 // owner-scoped by their own path. The client spells an archive file
 // archive/{sim}/...; it is stored as archive/{ownerKey}/{sim}/...
+import {redactSecrets} from './problemsCore.ts';
+
 export const MAX_DOC_BYTES = 900_000; // Firestore's own limit is 1 MiB
 // Files go straight to Storage by signed URL, not through the function; this
 // bounds what a signed URL will accept.
@@ -343,6 +345,43 @@ const count = (v: unknown): v is number =>
 const when = (v: unknown): boolean =>
   v === null || (typeof v === 'string' && v.length <= 40) || count(v);
 
+// What is wrong on the PC now (tools/uploader/heartbeat.mjs problemsOf), for
+// the Settings Problems list. Each entry is rebuilt from its known fields, so
+// nothing else rides along; the message was scrubbed on the PC.
+const PROBLEM_KINDS = [
+  'session-failed',
+  'sync-crashed',
+  'recorder-layout',
+  'uploader-stopped',
+];
+const MAX_PROBLEMS = 10;
+const optional = (v: unknown, ok: (x: unknown) => boolean) =>
+  v === undefined || v === null || ok(v);
+const problemOk = (p: unknown): boolean =>
+  isObj(p) &&
+  typeof p.kind === 'string' &&
+  PROBLEM_KINDS.includes(p.kind) &&
+  when(p.at) &&
+  str(p.message, 120) &&
+  optional(
+    p.sessionId,
+    v => typeof v === 'string' && /^[0-9a-f]{16}$/.test(v),
+  ) &&
+  optional(p.count, count) &&
+  optional(p.retryAt, when);
+function cleanProblems(v: unknown): Json {
+  return (v as Record<string, unknown>[]).map(p => {
+    const out: Record<string, Json> = {
+      kind: p.kind as string,
+      at: (p.at ?? null) as Json,
+      message: redactSecrets(p.message as string),
+    };
+    for (const k of ['sessionId', 'count', 'retryAt'])
+      if (p[k] !== undefined && p[k] !== null) out[k] = p[k] as Json;
+    return out;
+  });
+}
+
 // One validator per field the Settings card reads; anything else is dropped.
 const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
   label: v => str(v, 64),
@@ -360,12 +399,8 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
       (v.phase === undefined || str(v.phase, 32))),
   retryAt: when,
   sessionsDone: count,
-  lastError: v =>
-    v === null ||
-    (isObj(v) &&
-      when(v.at) &&
-      str(v.message, 300) &&
-      (v.path === null || v.path === undefined || str(v.path, 300))),
+  problems: v =>
+    Array.isArray(v) && v.length <= MAX_PROBLEMS && v.every(problemOk),
   disk: v => isObj(v) && count(v.captureBytes) && count(v.freeBytes),
   recorder: v =>
     v === null ||
@@ -385,7 +420,7 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
         when(v.lastChunkAt)) &&
       (v.updatedAt === null || v.updatedAt === undefined || when(v.updatedAt))),
 };
-const HEARTBEAT_REQUIRED = ['label', 'version', 'lmuFound', 'state'];
+const HEARTBEAT_REQUIRED = ['label', 'version', 'state'];
 
 async function heartbeat(
   uid: string,
@@ -410,7 +445,8 @@ async function heartbeat(
       continue;
     }
     if (!valid(body[field])) return refuse(400, `bad ${field}`);
-    doc[field] = body[field] as Json;
+    doc[field] =
+      field === 'problems' ? cleanProblems(body[field]) : (body[field] as Json);
   }
   if (JSON.stringify(doc).length > MAX_HEARTBEAT_BYTES)
     return refuse(413, 'status too large');
