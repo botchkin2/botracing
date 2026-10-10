@@ -163,7 +163,7 @@ test('a real race: the stored block is what planBlock gives from its lap docs', 
 // The pit lane base (src/features/plan/pitBase.ts) reads the laps around a stop;
 // the block carries the lane loss so the app needs no lap docs for it.
 test('a refuel stop carries the litres added and its lane loss against the stint median', () => {
-  const lap = (stint, t, over = {}) => ({
+  const stopLap = (stint, t, over = {}) => ({
     timed: true, lapTime: t, comparable: true, reasons: [], stint, pitIn: false, pitOut: false,
     pitStop: null, traffic: null, fuel: {usedL: 2.4, endL: 40, green: true}, ...over,
   });
@@ -173,13 +173,13 @@ test('a refuel stop carries the litres added and its lane loss against the stint
     tyres,
   });
   const base = [
-    lap(1, 90.2),
-    lap(1, 90.0),
-    lap(1, 90.4),
-    lap(1, 90.1),
-    lap(1, 95.0, {pitIn: true, pitStop: stop(40, {changed: false, wheels: []})}),
-    lap(2, 105.0, {pitOut: true}),
-    lap(2, 90.3),
+    stopLap(1, 90.2),
+    stopLap(1, 90.0),
+    stopLap(1, 90.4),
+    stopLap(1, 90.1),
+    stopLap(1, 95.0, {pitIn: true, pitStop: stop(40, {changed: false, wheels: []})}),
+    stopLap(2, 105.0, {pitOut: true}),
+    stopLap(2, 90.3),
   ];
   // stint 1 green laps (comparable, no pit): 90.2 90.0 90.4 90.1 -> median 90.15
   const lossS = 95.0 + 105.0 - 2 * 90.15;
