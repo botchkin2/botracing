@@ -45,12 +45,15 @@ export function LapTableHeader({
   width,
   wide = false,
   heads = ['S1', 'S2', 'S3'],
+  headTaps,
   onHeadPress,
 }: {
   width: number;
   wide?: boolean;
   /** The section columns' labels; the phone keeps the game's sectors. */
   heads?: string[];
+  /** Which heads are taps (the start straight is not). */
+  headTaps?: boolean[];
   /** Tap a section column: the index of its head. Absent, the heads are labels only. */
   onHeadPress?: (index: number) => void;
 }) {
@@ -88,7 +91,7 @@ export function LapTableHeader({
             {h}
           </Text>
         );
-        return onHeadPress ? (
+        return onHeadPress && headTaps?.[i] ? (
           <Pressable
             key={`${h}-${i}`}
             accessibilityRole='button'
@@ -200,6 +203,7 @@ export function LapRow({
   width,
   wide = false,
   onSectionPress,
+  sectionTaps,
   lapColor,
   onPress,
   onToggle,
@@ -210,6 +214,8 @@ export function LapRow({
   lapColor: string | undefined;
   onPress: () => void;
   onToggle: () => void;
+  /** Which section columns are taps (the start straight is not). */
+  sectionTaps?: boolean[];
   /** Tap a lap x section cell: the index of its section column. */
   onSectionPress?: (index: number) => void;
 }) {
@@ -269,7 +275,7 @@ export function LapRow({
             {s.value}
           </Text>
         );
-        return useSections && onSectionPress ? (
+        return useSections && onSectionPress && sectionTaps?.[i] ? (
           <Pressable
             key={i}
             accessibilityRole='button'

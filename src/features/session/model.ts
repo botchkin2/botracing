@@ -12,12 +12,14 @@ import {
 
 import {
   defaultSessionOf,
+  firstCornerOf,
   openingLapIds,
   raceFactsOfPlan,
   type Lap,
   type SessionDetail,
   sectorSegmentTimes,
   segmentTimesFor,
+  trackCorners,
   type TrackMapData,
   useSession,
   useSessionLaps,
@@ -144,8 +146,12 @@ export type SectionTable = {
   heads: string[];
   /** The map section each head is (null for the start straight and the game's sectors). */
   sections: (number | null)[];
-  /** Whether each head is a compound section (opens Corner whole). */
-  compound: boolean[];
+  /**
+   * Where a cell in each column opens Corner: the section's first corner (its
+   * number, not the section's), and whether the section is compound (opens
+   * whole). Null for the start straight and the game's sectors.
+   */
+  targets: {corner: number | null; whole: boolean}[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -312,9 +318,13 @@ function cellsOf(
  * no tow) has no statistics; its median cell then gives that count, and the
  * others stay dashes, so one number is shown once.
  */
-export function sectionTable(times: SegmentTimes | null): SectionTable | null {
+export function sectionTable(
+  times: SegmentTimes | null,
+  map?: TrackMapData | null,
+): SectionTable | null {
   if (!times) return null;
   const stats = segmentStats(times);
+  const corners = map ? trackCorners(map) : null;
   const row = (
     label: string,
     pick: (s: (typeof stats)[number]) => number | null,
@@ -330,7 +340,11 @@ export function sectionTable(times: SegmentTimes | null): SectionTable | null {
   return {
     heads: times.segments.map(s => s.label),
     sections: times.segments.map(s => s.section ?? null),
-    compound: times.segments.map(s => s.compound === true),
+    targets: times.segments.map(s => ({
+      corner:
+        s.section != null && corners ? firstCornerOf(corners, s.section) : null,
+      whole: s.compound === true,
+    })),
     footer: [
       row(
         'Median',
@@ -542,7 +556,7 @@ export function buildSessionModel(
           session.stints.length,
         )
       : [],
-    sections: sectionTable(sectionTimes),
+    sections: sectionTable(sectionTimes, map),
     chart,
     noComparable,
     rows,
@@ -621,4 +635,22 @@ export function useSessionScreenModel(id: string, selection: Selection) {
     selection,
     sectionMode,
   ]);
+}
+
+/**
+ * Where a grid cell (lap x column) opens Corner: the column's first corner,
+ * whole for a compound section, with the lap highlighted and added to the
+ * checked laps if it is not in them. Null where the column has no corner (the
+ * start straight). Pure: the grid's taps and their tests read this one place.
+ */
+export function gridCellTargetOf(
+  table: SectionTable,
+  column: number,
+  lapId: string,
+  checked: string[],
+): {corner: number; whole: boolean; laps: string[]} | null {
+  const t = table.targets[column];
+  if (!t || t.corner == null) return null;
+  const laps = checked.includes(lapId) ? checked : [...checked, lapId];
+  return {corner: t.corner, whole: t.whole, laps};
 }

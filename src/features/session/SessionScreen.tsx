@@ -58,6 +58,7 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
+  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
@@ -430,6 +431,8 @@ function SessionView({
     return () => setPitFocus({lapIndex, at: Date.now()});
   };
 
+  // Which section columns open something: the game's sectors and the start straight do not.
+  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -452,15 +455,18 @@ function SessionView({
         row={item}
         width={width}
         wide={wide}
+        sectionTaps={sectionTaps}
         onSectionPress={i => {
-          const corner = model.sections?.sections[i];
-          if (corner != null)
+          const target =
+            model.sections &&
+            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
+          if (target)
             router.push(
               cornerHref(
                 sessionId,
-                corner,
-                {laps: selection.laps, hl: item.lapId},
-                model.sections?.compound[i] === true,
+                target.corner,
+                {laps: target.laps, hl: item.lapId},
+                target.whole,
               ),
             );
         }}
@@ -582,6 +588,7 @@ function SessionView({
                 <LapTableHeader
                   width={tableW}
                   heads={model.sections?.heads}
+                  headTaps={sectionTaps}
                   onHeadPress={i => {
                     const corner = model.sections?.sections[i];
                     if (corner != null)

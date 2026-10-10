@@ -181,6 +181,7 @@ export function SessionWorkspace({
             width={innerW}
             wide
             heads={model.sections?.heads}
+            headTaps={model.sections?.targets.map(t => t.corner != null)}
             onHeadPress={i => {
               const corner = model.sections?.sections[i];
               if (corner != null)
