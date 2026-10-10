@@ -45,6 +45,11 @@ const OLDER_REQUEST: &str = "include-older";
 const FIRST_RUN_DAYS: &str = "14";
 
 const SCRIPT: &str = "tools/uploader/watch.mjs";
+/// The one-shot that tells Settings the uploader is not staying up (the
+/// uploader cannot: it is the thing that is down).
+const REPORT_SCRIPT: &str = "tools/uploader/trayFailure.mjs";
+/// At most one report per this long: the server takes one heartbeat per 30 s.
+const REPORT_EVERY: Duration = Duration::from_secs(60);
 
 /// Where the uploader's files are, whatever folder the app was started from:
 /// BOTRACING_ROOT if set, else the installed resources (<resources>/app), else
@@ -231,6 +236,7 @@ pub struct Supervisor {
     allowed: bool,
     failures: u32,
     retry_at: Option<Instant>,
+    last_report: Option<Instant>,
     /// Why there is no watcher right now, for the tray.
     pub problem: Option<String>,
 }
@@ -243,6 +249,7 @@ impl Supervisor {
             allowed: false,
             failures: 0,
             retry_at: Some(Instant::now()),
+            last_report: None,
             problem: None,
         }
     }
@@ -294,6 +301,7 @@ impl Supervisor {
                 log_path(&p.data).display()
             ));
             self.retry_at = Some(Instant::now() + backoff(self.failures));
+            self.report(p, &status.to_string());
             return;
         }
         if self.retry_at.is_some_and(|at| Instant::now() < at) {
@@ -324,6 +332,50 @@ impl Supervisor {
                 self.retry_at = None;
             }
             Err(error) => self.failed(format!("Can't start the uploader: {error}")),
+        }
+    }
+
+    /// Tells Settings (through the bundled node and the signed-in token) that
+    /// the uploader stopped, with the tray's version and the last thing it
+    /// wrote. Fire and forget, and at most once a minute. Without node there is
+    /// nothing to run it with: the tray's own menu line is all that shows.
+    fn report(&mut self, p: &Paths, reason: &str) {
+        if self
+            .last_report
+            .is_some_and(|at| at.elapsed() < REPORT_EVERY)
+        {
+            return;
+        }
+        self.last_report = Some(Instant::now());
+        let script = p.root.join(REPORT_SCRIPT);
+        if !script.is_file() || !p.token_file().is_file() {
+            return;
+        }
+        let mut cmd = Command::new(&p.node);
+        cmd.arg(script)
+            .arg("--reason")
+            .arg(reason)
+            .arg("--count")
+            .arg(self.failures.to_string())
+            .arg("--log")
+            .arg(log_path(&p.data))
+            .current_dir(&p.root)
+            .env("LAP_TOKEN_FILE", p.token_file())
+            .env("LAP_UPLOADER_HOME", uploader_home(&p.data))
+            .env("LAP_VERSION", env!("CARGO_PKG_VERSION"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
+        if let Ok(mut child) = cmd.spawn() {
+            // Reaped on its own thread so a slow request never holds the tick.
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
         }
     }
 
@@ -518,7 +570,10 @@ mod tests {
         )
         .unwrap();
         let verbatim = resources.canonicalize().unwrap();
-        assert!(verbatim.to_string_lossy().starts_with(r"\\?\"), "{verbatim:?}");
+        assert!(
+            verbatim.to_string_lossy().starts_with(r"\\?\"),
+            "{verbatim:?}"
+        );
 
         let mut p = paths(&verbatim);
         p.data = base.join("data");
@@ -531,7 +586,11 @@ mod tests {
         let mut s = Supervisor::new();
         s.set_allowed(true);
         s.tick(&p);
-        assert!(s.problem.is_none(), "it should have started: {:?}", s.problem);
+        assert!(
+            s.problem.is_none(),
+            "it should have started: {:?}",
+            s.problem
+        );
         let deadline = Instant::now() + Duration::from_secs(10);
         while !started.exists() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(50));
@@ -644,6 +703,49 @@ mod tests {
         assert!(problem.contains("sidecar.log"), "{problem}");
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.contains("boom: cannot find thing"), "{text}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // A watcher that dies is reported to Settings through the report script,
+    // with its reason, the restart count and the token file (the script itself
+    // is tools/uploader/trayFailure.mjs; here a stand-in records its arguments).
+    #[test]
+    fn a_watcher_that_dies_is_reported_through_the_report_script() {
+        let base = std::env::temp_dir().join(format!("botracing-rep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let root = base.join("root");
+        touch(&root.join(SCRIPT));
+        std::fs::write(root.join(SCRIPT), "process.exit(3)").unwrap();
+        let seen = base.join("seen.txt");
+        touch(&root.join(REPORT_SCRIPT));
+        std::fs::write(
+            root.join(REPORT_SCRIPT),
+            format!(
+                "import {{writeFileSync}} from 'node:fs'; writeFileSync({:?}, process.argv.slice(2).join('|') + '|' + process.env.LAP_VERSION + '|' + !!process.env.LAP_TOKEN_FILE)",
+                seen.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        let mut p = paths(Path::new("."));
+        p.root = root;
+        p.data = base.join("data");
+        touch(&p.token_file());
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        let text = std::fs::read_to_string(&seen).unwrap_or_default();
+        assert!(
+            text.starts_with("--reason|exit code: 3|--count|1|--log|"),
+            "{text}"
+        );
+        assert!(text.contains("sidecar.log"), "{text}");
+        assert!(
+            text.ends_with(&format!("|{}|true", env!("CARGO_PKG_VERSION"))),
+            "{text}"
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 

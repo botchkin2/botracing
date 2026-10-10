@@ -53,7 +53,7 @@ test('the real uploader closure is complete and needs no npm package', () => {
   assert.deepEqual(c.missing, []);
   assert.deepEqual(c.bare, []);
   assert.deepEqual(c.unfollowable, []);
-  for (const must of ['tools/uploader/watch.mjs', 'tools/sessions/sync.mjs', 'tools/sessions/duck.mjs', 'tools/sessions/storeClient.mjs', 'src/analysis/resample.ts']) {
+  for (const must of ['tools/uploader/watch.mjs', 'tools/uploader/trayFailure.mjs', 'tools/sessions/sync.mjs', 'tools/sessions/duck.mjs', 'tools/sessions/storeClient.mjs', 'src/analysis/resample.ts']) {
     assert.ok(c.files.includes(must), `${must} should ship`);
   }
   // Nothing of the test suite or the other tools goes into the installer.

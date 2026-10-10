@@ -110,6 +110,12 @@ export function problemText(p: UploaderProblem): string {
       ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
       : p.kind === 'recorder-layout'
       ? ['Recorder stopped', p.message]
+      : p.kind === 'uploader-stopped'
+      ? [
+          'Uploader stopped',
+          p.message,
+          p.count != null && p.count > 1 ? `${p.count}×` : '',
+        ]
       : [p.at != null ? `Not seen since ${formatDay(p.at)}` : 'Not seen'];
   return parts.filter(Boolean).join(' · ');
 }

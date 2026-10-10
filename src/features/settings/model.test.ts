@@ -114,6 +114,15 @@ const problem = (over: Partial<UploaderProblem>): UploaderProblem => ({
 
 describe('problems', () => {
   it('reads as data: what, why, how often', () => {
+    expect(
+      problemText(
+        problem({
+          kind: 'uploader-stopped',
+          message: 'exit code: 1: Error: no file',
+          sessionId: null,
+        }),
+      ),
+    ).toBe('Uploader stopped · exit code: 1: Error: no file · 3×');
     expect(problemText(problem({}))).toBe('Session 4dda01bc · HTTP 413 · 3×');
     expect(problemText(problem({count: 1}))).toBe(
       'Session 4dda01bc · HTTP 413',

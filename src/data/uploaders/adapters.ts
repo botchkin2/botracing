@@ -18,6 +18,7 @@ export type UploaderProblemKind =
   | 'session-failed'
   | 'sync-crashed'
   | 'recorder-layout'
+  | 'uploader-stopped'
   | 'not-seen';
 
 export type UploaderProblem = {
@@ -98,6 +99,7 @@ const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
   'session-failed',
   'sync-crashed',
   'recorder-layout',
+  'uploader-stopped',
   'not-seen',
 ];
 
