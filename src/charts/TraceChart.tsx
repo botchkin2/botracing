@@ -183,6 +183,14 @@ export function TraceChart({
     tRef
       ? distanceAtTime(tRef, t0 + (px / width) * spanS)
       : startM + (px / width) * spanM;
+  // A label at the top of its range sits under the rule, one at the bottom sits
+  // above it: never on the edge, where the chart's clip would cut it off.
+  const tickBaseline = (d: [number, number], v: number) => {
+    const at = yFor(d)(v);
+    if (v >= d[1]) return at + 10;
+    if (v <= d[0]) return at - 4;
+    return at + 3;
+  };
   const yFor =
     ([lo, hi]: [number, number]) =>
     (v: number) =>
@@ -473,7 +481,7 @@ export function TraceChart({
             <SvgText
               key={`s${si}y${t.v}`}
               x={3}
-              y={yFor(seriesDomainsT[si] ?? domainT)(t.v) + 3}
+              y={tickBaseline(seriesDomainsT[si] ?? domainT, t.v)}
               fill={color.textFaint}
               fontFamily={axis.fontFamily}
               fontSize={9}>
