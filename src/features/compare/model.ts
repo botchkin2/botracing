@@ -263,6 +263,8 @@ export type ChartModel = {
   lines: ChartLine[];
   /** Per-channel y domains, keyed by channel. */
   domains: Partial<Record<ChannelId, [number, number]>>;
+  /** Laps with samples off a fitted scale, by channel: drawn clipped, named. */
+  offScale: Partial<Record<ChannelId, string[]>>;
   band: {low: number[]; high: number[]} | null;
   /** The channel whose 0 gets a line (time diff, else steering), if any. */
   zeroLine: ChannelId | null;
@@ -965,7 +967,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     };
   };
 
-  const chartBases: Omit<ChartModel, 'domains' | 'valueRows'>[] = (
+  // Laps the fitted scales are taken from (see the domain fit below).
+  const comparableIds = new Set(
+    input.laps.filter(l => l.comparable).map(l => l.id),
+  );
+  const chartBases: Omit<ChartModel, 'domains' | 'offScale' | 'valueRows'>[] = (
     input.charts ?? DEFAULT_CHARTS
   ).map(chs => {
     const lines: ChartLine[] = [];
@@ -1285,17 +1291,36 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           : base.lines;
         // Channels of the same kind share a scale; mixed kinds keep their own.
         const domains: ChartModel['domains'] = {};
+        const offScale: ChartModel['offScale'] = {};
         for (const ch of chs) {
           const kind = CHANNELS[ch].kind;
           const sameKind = lines.filter(l => CHANNELS[l.channel].kind === kind);
+          // A fitted scale takes its range from the comparable laps (the rule
+          // Corner uses); a lap outside that range is clipped and named.
+          const fitLines = sameKind.filter(l => comparableIds.has(l.lapId));
+          const fit = fitLines.length > 0 ? fitLines : sameKind;
           domains[ch] = domainOf(
-            sameKind.map(l => l.values),
+            fit.map(l => l.values),
             kind,
             fitI0,
             fitI1,
             windowed,
             CHANNELS[ch].ySnap,
           );
+          if (kind === 'time' || kind === 'speed') {
+            const [lo, hi] = domains[ch] as [number, number];
+            // Cached block extremes (rangeOf), as domainOf reads them: a
+            // cursor step does not scan every sample.
+            const off = sameKind
+              .filter(l => {
+                const [a, b] = windowed
+                  ? rangeOf(l.values, fitI0, fitI1)
+                  : rangeOf(l.values, 0, l.values.length - 1);
+                return a < lo || b > hi;
+              })
+              .map(l => l.label);
+            if (off.length > 0) offScale[ch] = off;
+          }
         }
         if (pedals) {
           const d = pedalsDomains();
@@ -1308,6 +1333,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           ...base,
           lines,
           domains,
+          offScale,
           valueRows: chs.map((ch, overlay) => ({
             channel: ch,
             label: labelOf(ch),

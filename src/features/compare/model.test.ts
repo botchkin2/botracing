@@ -109,6 +109,32 @@ const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
 const build = (s = sel()) =>
   buildCompareModel({session, laps, traces, band: null, map, selection: s});
 
+describe('overview scales fit the comparable laps', () => {
+  it('a non-comparable lap off the fitted range is clipped and named, not stretched over', () => {
+    const laps2 = toLaps([
+      rawLap('a', 20.0, [5, 5]),
+      rawLap('b', 20.4, [5.3, 5.1]),
+      {...rawLap('d', 20.0, [5, 5]), comparable: false},
+    ]);
+    const traces2 = new Map([
+      ...traces,
+      ['d', resampleTrace(circleLap(300), LENGTH_M, 5, 10)],
+    ]);
+    const m = buildCompareModel({
+      session,
+      laps: laps2,
+      traces: traces2,
+      band: null,
+      map,
+      selection: sel({laps: ['a', 'b', 'd']}),
+    });
+    const speed = m.charts.find(c => c.title.startsWith('Speed'))!;
+    const [, hi] = speed.domains.speed!;
+    expect(hi).toBeLessThan(250);
+    expect(Object.values(speed.offScale).flat()).toEqual(['L3']);
+  });
+});
+
 describe('start/finish wrap', () => {
   const at = (lapIds: string[], cursorM: number) =>
     buildCompareModel({

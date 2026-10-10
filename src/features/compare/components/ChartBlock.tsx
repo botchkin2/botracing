@@ -22,6 +22,13 @@ import {
   STEER_TICKS,
 } from '../model';
 
+/** "off scale: L1, L2" for the laps a fitted scale clips, by channel. */
+function offScaleNote(off: ChartModel['offScale']): string | null {
+  const names = Object.values(off).flat();
+  if (!names || names.length === 0) return null;
+  return `off scale: ${[...new Set(names)].join(', ')}`;
+}
+
 export type LapStyle = (
   selIndex: number,
   highlighted: boolean,
@@ -141,6 +148,11 @@ export function ChartBlock({
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
+      {offScaleNote(chart.offScale) ? (
+        <Text variant='dataSmall' tone='textFaint'>
+          {offScaleNote(chart.offScale)}
+        </Text>
+      ) : null}
       {loneEditor && (
         <Pressable
           accessibilityLabel={`Remove ${chart.title}`}
