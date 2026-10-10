@@ -69,6 +69,14 @@
         "projectId": "955eb6ab-5668-4224-88e1-3e75399ebad9"
       }
     },
-    "owner": "botventure"
+    "owner": "botventure",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/955eb6ab-5668-4224-88e1-3e75399ebad9",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
