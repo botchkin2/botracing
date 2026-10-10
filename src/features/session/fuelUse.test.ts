@@ -102,7 +102,17 @@ describe('buildFuelUse', () => {
     ];
     const fu = buildFuelUse(session(), laps)!;
     expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toContain('vary more than that');
+    expect(verdictText(fu)).toBe('Stints within lap spread: 2.42 L/lap');
+  });
+
+  it('shows the range when the stint medians differ at 2 dp but are still within the spread', () => {
+    const laps = [
+      ...stintOf(1, [2.39, 2.46, 2.4, 2.45, 2.41, 2.44], 81),
+      ...stintOf(2, [2.36, 2.43, 2.37, 2.42, 2.38, 2.41], 81.4),
+    ];
+    const fu = buildFuelUse(session(), laps)!;
+    expect(fu.verdict.kind).toBe('same');
+    expect(verdictText(fu)).toBe('Stints within lap spread: 2.40–2.42 L/lap');
   });
 
   it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
@@ -208,15 +218,15 @@ describe('the plan line', () => {
 });
 
 describe('planLinkText', () => {
-  it('says the laps feed the plan, or why they do not', () => {
-    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toContain(
-      'These 12 green laps feed your Road Atlanta · 911 GT3 R plan',
+  it('says whether the laps are in the plan', () => {
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toBe(
+      '12 green laps in Road Atlanta · 911 GT3 R ›',
     );
-    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toContain(
-      'This session ran at the 75 L limit; your Road Atlanta · 911 GT3 R plan uses 79 L, so these 12 green laps are not in it',
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toBe(
+      '12 green laps: not in Road Atlanta · 911 GT3 R (79 L). This session ran at the 75 L limit ›',
     );
-    expect(planLinkText(12, 'X', null, 79)).toContain(
-      'has no fill limit on record',
+    expect(planLinkText(12, 'X', null, 79)).toBe(
+      '12 green laps: not in X (79 L). This session has no fill limit on record ›',
     );
   });
 });

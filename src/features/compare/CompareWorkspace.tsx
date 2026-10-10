@@ -116,7 +116,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
     layout.width - LEFT_W - MIN_CENTRE_W - PANEL_DIVIDER_W - space.xl * 2,
   );
   const rightW = Math.min(clampRightW(dragW ?? prefs.rightW), maxRightW);
-  const mapW = rightW - space.xl * 2;
+  const mapW = Math.max(0, rightW - space.xl * 2);
   const centreW = Math.max(
     MIN_CENTRE_W,
     layout.width - LEFT_W - rightW - PANEL_DIVIDER_W - space.xl * 2,

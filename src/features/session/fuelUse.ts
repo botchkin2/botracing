@@ -226,23 +226,26 @@ export function verdictText(fu: FuelUse): string {
   const v = fu.verdict;
   switch (v.kind) {
     case 'none':
-      return `No stint has ${MIN_STINT_LAPS} green laps, so there are no medians to compare.`;
+      return `Under ${MIN_STINT_LAPS} green laps in each stint: no median`;
     case 'one-stint':
-      return 'One stint has enough laps: nothing to compare between stints yet.';
-    case 'same':
-      return `Stints used ${v.lowL.toFixed(2)} to ${v.highL.toFixed(
-        2,
-      )} L a lap; the laps inside each stint vary more than that.`;
+      return 'One stint: nothing to compare';
+    case 'same': {
+      const low = v.lowL.toFixed(2);
+      const high = v.highL.toFixed(2);
+      return low === high
+        ? `Stints within lap spread: ${low} L/lap`
+        : `Stints within lap spread: ${low}–${high} L/lap`;
+    }
     case 'differs':
-      return 'The stints’ medians differ by more than the laps inside each stint vary.';
+      return 'Medians differ';
   }
 }
 
 /** "at the 75 L limit of this session" for the load lines; empty without a limit. */
 export function limitText(fu: FuelUse): string {
   return fu.limitL != null
-    ? `Loads use the ${fu.limitL.toFixed(0)} L limit of this session.`
-    : 'No fill limit on record for this session, so no load in laps of fuel.';
+    ? `Limit ${fu.limitL.toFixed(0)} L`
+    : 'No fill limit on record';
 }
 
 /**
@@ -262,11 +265,9 @@ export function planLinkText(
       sessionLimitL != null
         ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
         : 'This session has no fill limit on record';
-    return `${ran}; your ${planLabel} plan uses ${planLimitL.toFixed(
-      0,
-    )} L, so these ${laps} are not in it ›`;
+    return `${laps}: not in ${planLabel} (${planLimitL.toFixed(0)} L). ${ran} ›`;
   }
-  return `These ${laps} feed your ${planLabel} plan ›`;
+  return `${laps} in ${planLabel} ›`;
 }
 
 /** The plan's race beside one load, when the plan's rules run at this session's fill limit. */
@@ -282,9 +283,7 @@ export function planRaceText(
     return null;
   const laps = raceLaps(length, fu.medianTimeS);
   if (laps == null) return null;
-  return `The plan’s race, ${lengthText}, is about ${laps.toFixed(0)} laps${
-    length.kind === 'min' && fu.medianTimeS != null
-      ? ` at this session’s median lap time`
-      : ''
-  }.`;
+  return `Race ${lengthText}: about ${laps.toFixed(0)} laps${
+    length.kind === 'min' && fu.medianTimeS != null ? ' at median lap' : ''
+  }`;
 }

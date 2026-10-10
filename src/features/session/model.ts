@@ -293,24 +293,35 @@ function cellsOf(
   };
 }
 
-/** The heads and the median, best and spread rows of the section columns. */
-function sectionTable(times: SegmentTimes | null): SectionTable | null {
+/**
+ * The heads and the median, best and spread rows of the section columns. A
+ * column under MIN_OPTIMUM_LAPS laps that were alone (no car ahead within 1 s,
+ * no tow) has no statistics; its median cell then gives that count, and the
+ * others stay dashes, so one number is shown once.
+ */
+export function sectionTable(times: SegmentTimes | null): SectionTable | null {
   if (!times) return null;
   const stats = segmentStats(times);
   const row = (
     label: string,
     pick: (s: (typeof stats)[number]) => number | null,
+    short?: (s: (typeof stats)[number]) => string | null,
   ) => ({
     label,
     cells: stats.map(s => {
       const v = pick(s);
-      return v == null ? dash : v.toFixed(2);
+      if (v != null) return v.toFixed(2);
+      return short?.(s) ?? dash;
     }),
   });
   return {
     heads: times.segments.map(s => s.label),
     footer: [
-      row('Median', s => s.medianS),
+      row(
+        'Median',
+        s => s.medianS,
+        s => (s.n > 0 ? `${s.n} alone` : null),
+      ),
       row('Best', s => s.bestS),
       row('Spread', s => s.spreadS),
     ],
