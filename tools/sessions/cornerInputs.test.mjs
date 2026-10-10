@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
-import {existsSync} from 'node:fs';
-import {homedir} from 'node:os';
-import {join} from 'node:path';
+import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {steerSignOf, throttlePickup, turnInPoint} from './cornerInputs.mjs';
-import {openIbt, readColumns} from './ibt.mjs';
 import * as iracing from './iracing.mjs';
 import * as lmu from './lmu.mjs';
 
@@ -86,26 +83,27 @@ test('a pedal that never closes is a lift: no pickup, how low it went', () => {
   );
 });
 
-// The adapters' constants against the sims' own data, where this PC has it.
-const SEBRING = join(
-  homedir(),
-  'Documents',
-  'iRacing',
-  'telemetry',
-  'fordmustanggt3_sebring international 2026-10-09 10-10-41.ibt',
-);
-test('iRacing’s steering is positive to the left, as its adapter says', {skip: !existsSync(SEBRING)}, () => {
-  const ibt = openIbt(SEBRING);
-  try {
-    const c = readColumns(ibt, ['SteeringWheelAngle', 'YawRate', 'Speed']);
-    let dot = 0;
-    for (let i = 0; i < c.Speed.length; i++)
-      if (c.Speed[i] > 15) dot += c.SteeringWheelAngle[i] * c.YawRate[i];
-    // Yaw rate is positive when the car turns left: the same sign as the wheel.
-    assert.ok(dot > 0);
-    assert.equal(iracing.steerRightSign, -1);
-    assert.equal(lmu.steerRightSign, 1);
-  } finally {
-    ibt.close();
+// The adapters' constants against the sims' own data. iRacing: 80 s of a real
+// drive (Sebring, 9 Oct) in __fixtures__, steering against yaw rate, which is
+// positive when the car turns left (pit wall thread 58 #3925, #3929).
+test('iRacing’s steering is positive to the left, as its adapter says', () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL('./__fixtures__/iracingSteering.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  let dot = 0;
+  let steer = 0;
+  let yaw = 0;
+  for (const [wheel, yawRate, speed] of fixture.rows) {
+    if (speed <= 15) continue;
+    dot += wheel * yawRate;
+    steer += wheel * wheel;
+    yaw += yawRate * yawRate;
   }
+  const correlation = dot / Math.sqrt(steer * yaw);
+  assert.ok(correlation > 0.3, `steering vs yaw rate ${correlation}`);
+  assert.equal(iracing.steerRightSign, -1);
+  assert.equal(lmu.steerRightSign, 1);
 });
