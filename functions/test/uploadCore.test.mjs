@@ -821,7 +821,6 @@ test('a heartbeat is checked field by field', async () => {
     {progress: {done: 1}},
     {progress: 'half'},
     {problems: 'boom'},
-    {problems: [{kind: 'on-fire', at: null, message: 'm'}]},
     {problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}]},
     {
       problems: [
@@ -908,6 +907,55 @@ test("the tray's own report that the uploader stopped is accepted, without lmuFo
   assert.equal(stored.problems[0].kind, 'uploader-stopped');
   assert.equal(stored.problems[0].count, 2);
   assert.equal('lmuFound' in stored, false, 'not stored when not sent');
+});
+
+test('a problem of a kind this server does not know is dropped, the rest of the status lands', async () => {
+  // A newer tray talking to an older server must not lose its heartbeat.
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      problems: [
+        {kind: 'on-fire', at: null, message: 'a future kind'},
+        {kind: 'sync-crashed', at: null, message: 'sync crashed: x'},
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.deepEqual(
+    stored.problems.map(p => p.kind),
+    ['sync-crashed'],
+  );
+  // A known kind with a bad field is still refused.
+  const bad = await send(
+    w,
+    'tok-a',
+    beat({problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}]}),
+  );
+  assert.equal(bad.status, 400);
+});
+
+test('a recording the uploader could not read is a problem named by its file', async () => {
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      problems: [
+        {
+          kind: 'file-unreadable',
+          at: '2026-10-10T15:00:00.000Z',
+          message: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].kind, 'file-unreadable');
+  assert.match(stored.problems[0].message, /fuji gp .*has no samples/);
 });
 
 test('a heartbeat problem message stores no token or address', async () => {

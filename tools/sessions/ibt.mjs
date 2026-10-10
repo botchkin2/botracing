@@ -82,12 +82,32 @@ export function yamlKmToM(text) {
   return m ? Number(m[1]) * 1000 : null;
 }
 
+// How many whole rows the file holds, from its size. iRacing writes the
+// header's record count when it closes the file; a sim that crashed, was
+// killed or lost power leaves 0 there with the whole drive on disk (9 of 1,993
+// files on Botkin's PC, one of them 35 minutes). A count larger than the file
+// holds (a copy cut short) would read past the end.
+export function rowsInFile(header, size) {
+  if (!(header.bufLen > 0)) return 0;
+  return Math.max(0, Math.floor((size - header.bufOffset) / header.bufLen));
+}
+
 export function openIbt(path) {
   const size = statSync(path).size;
   const fd = openSync(path, 'r');
   const head = Buffer.alloc(Math.min(size, 2 * 1024 * 1024));
   readSync(fd, head, 0, head.length, 0);
-  const header = parseHeader(head);
+  const parsed = parseHeader(head);
+  const held = rowsInFile(parsed, size);
+  const header = {
+    ...parsed,
+    sessionRecordCount:
+      parsed.sessionRecordCount > 0
+        ? Math.min(parsed.sessionRecordCount, held)
+        : held,
+    // The header was never finalized: its count, lap count and times are 0.
+    recovered: parsed.sessionRecordCount <= 0 && held > 0,
+  };
   const need = Math.max(
     header.sessionInfoOffset + header.sessionInfoLen,
     header.varHeaderOffset + header.numVars * VAR_HEADER_SIZE,
