@@ -11,6 +11,7 @@ mod install;
 mod menu;
 mod paths;
 mod profile;
+mod quit_request;
 mod sidecar;
 mod status;
 mod update;
@@ -210,6 +211,27 @@ fn check(live: &[Live], id: &str) -> CheckMenuItem<tauri::Wry> {
     }
 }
 
+/// Both recorders, managed as one: two `Shared<Option<Handle>>` of the same
+/// type cannot both be found through `try_state` (the second manage is
+/// ignored), so a quit used to stop only the LMU one.
+struct Recorders {
+    lmu: Shared<Option<capture::runner::Handle>>,
+    iracing: Shared<Option<capture::runner::Handle>>,
+}
+
+/// Stops the watcher (so its sync ends) and both recorders (so a recording
+/// closes with its end time), then ends the tray. The one way out for `--quit`,
+/// whether it came as the window message or as the quit-request file.
+fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Recorders) {
+    sup.lock().unwrap().stop();
+    for handle in [&rec.lmu, &rec.iracing] {
+        if let Some(r) = handle.lock().unwrap().as_mut() {
+            r.stop(Duration::from_secs(5));
+        }
+    }
+    app.exit(0);
+}
+
 fn main() {
     let builder = tauri::Builder::default();
     // The single-instance hold is named after the app identifier; a profile
@@ -227,15 +249,14 @@ fn main() {
             // the running tray to stop: the watcher is stopped first (so a
             // recording closes with its end time), then the tray exits.
             if wants_quit(&args) {
-                if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
-                    sup.lock().unwrap().stop();
+                if let (Some(sup), Some(rec)) = (
+                    app.try_state::<Shared<sidecar::Supervisor>>(),
+                    app.try_state::<Recorders>(),
+                ) {
+                    quit_tray(app, &sup, &rec);
+                } else {
+                    app.exit(0);
                 }
-                if let Some(rec) = app.try_state::<Shared<Option<capture::runner::Handle>>>() {
-                    if let Some(rec) = rec.lock().unwrap().as_mut() {
-                        rec.stop(Duration::from_secs(5));
-                    }
-                }
-                app.exit(0);
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
@@ -261,14 +282,21 @@ fn main() {
             viewer::sign_out
         ])
         .setup(|app| {
-            // `--quit` is a message to a running tray (the single-instance hold
-            // forwards it and ends this process before we get here). Reaching
-            // setup means there was none: exit, never start a tray in the
-            // middle of an uninstall.
+            let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
+            // `--quit` is a message to a running tray: the single-instance
+            // hold forwards it and ends this process before we get here when
+            // the tray is on this desktop. Reaching setup means it found none
+            // here; a tray in another session or window station may still run,
+            // so ask it through the quit-request file it watches, and exit:
+            // never start a tray in the middle of an uninstall.
             if wants_quit(&std::env::args().collect::<Vec<_>>()) {
+                if let Err(e) = quit_request::request(&paths.data) {
+                    eprintln!("could not write the quit request: {e}");
+                }
                 std::process::exit(0);
             }
-            let paths = Arc::new(sidecar::paths(&app.path().resource_dir()?));
+            // A request from before this tray started is not for it.
+            quit_request::clear_stale(&paths.data);
             app.manage(paths.clone());
             if opens_on_start(
                 cfg!(debug_assertions),
@@ -386,6 +414,10 @@ fn main() {
             }
             app.manage(recorder.clone());
             app.manage(iracing.clone());
+            app.manage(Recorders {
+                lmu: recorder.clone(),
+                iracing: iracing.clone(),
+            });
             let recorder_menu = recorder.clone();
             let iracing_menu = iracing.clone();
             TrayIconBuilder::new()
@@ -456,8 +488,18 @@ fn main() {
             )
             .is_some();
             let mut ticks = 0u32;
+            let quit_recorders = Recorders {
+                lmu: recorder.clone(),
+                iracing: iracing.clone(),
+            };
             std::thread::spawn(move || {
                 loop {
+                    // A `--quit` that could not reach this tray's window (another
+                    // session or window station) asked through the file.
+                    if quit_request::take(&paths.data) {
+                        quit_tray(&app_poll, &supervisor, &quit_recorders);
+                        return;
+                    }
                     // The network part runs without the account lock held.
                     account::maintain(&account);
                     // Signed out on launch: open the browser sign-in by
