@@ -18,6 +18,7 @@ import {
 } from '@/src/ui';
 
 import {type RaceDot} from '../model';
+import type {OffTrackMark} from '../offTrackMarks';
 
 // Dot radii in points by class, fastest first, from handoff R1d (desktop
 // scale x1.15, phone x0.8); "other" takes the third size.
@@ -42,7 +43,6 @@ const ATTRIBUTION_H = 12;
 const NO_MARKS = {boundaries: [], sections: [], corners: []};
 const NO_FOLLOW_LINES: never[] = [];
 const NO_FOLLOW_TICKS: never[] = [];
-const NO_FOLLOW_DOTS: never[] = [];
 const NO_POINTS: never[] = [];
 const NO_CORNERS: never[] = [];
 const MODE_OPTIONS = [
@@ -75,6 +75,7 @@ export function RaceMap({
   outlineUse,
   line,
   dots,
+  offMarks,
   showCars,
   attribution,
   radar,
@@ -95,6 +96,8 @@ export function RaceMap({
   outlineUse: OutlineUse;
   line: {x: number; y: number}[];
   dots: RaceDot[];
+  /** Where cars went off the road (world metres): a red dot each. */
+  offMarks: OffTrackMark[];
   /** False when the cars do not match the drawn track (see worldMatch). */
   showCars: boolean;
   attribution: string | null;
@@ -131,6 +134,14 @@ export function RaceMap({
     () => placer.placeWorld(dots.map(d => ({x: d.xM, z: d.zM}))),
     [placer, dots],
   );
+  const offDots = useMemo(() => {
+    const at = placer.placeWorld(offMarks.map(m => ({x: m.xM, z: m.zM})));
+    return offMarks.map((m, i) => ({
+      key: m.key,
+      at: at[i],
+      color: color.offTrack,
+    }));
+  }, [placer, offMarks, color.offTrack]);
   const cars = useMemo<MapCar[]>(
     () =>
       showCars
@@ -203,7 +214,7 @@ export function RaceMap({
           surface={placer.measured}
           lines={NO_FOLLOW_LINES}
           ticks={NO_FOLLOW_TICKS}
-          dots={NO_FOLLOW_DOTS}
+          dots={offDots}
           // The docked radar is the overview in this corner.
           inset={NO_POINTS}
           corners={NO_CORNERS}
@@ -225,7 +236,7 @@ export function RaceMap({
           outlineFaded={outlineUse.unused}
           pitLane={placer.pitLane}
           lines={lines}
-          dots={[]}
+          dots={offDots}
           marks={NO_MARKS}
           openSection={null}
           onPressSection={noop}

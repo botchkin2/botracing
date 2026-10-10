@@ -24,6 +24,9 @@ const dark = {
   best: '#b37bff',
   faster: '#65e287',
   slower: '#ed4a49',
+  // The off-track mark (Race lanes and map, D52): its own token, not `slower`,
+  // which means a signed loss.
+  offTrack: '#ed4a49',
   median: '#3a4148',
   band: 'rgba(230,232,234,0.07)',
   track: '#262b31',
@@ -85,6 +88,7 @@ const light: ColorTokens = {
   best: '#7d40c8',
   faster: '#25984d',
   slower: '#b00a1d',
+  offTrack: '#b00a1d',
   median: '#c9cdd1',
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',

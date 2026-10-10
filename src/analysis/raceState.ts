@@ -208,7 +208,8 @@ function offHeld(prep: RacePrep, car: number, u: number): boolean {
   return true;
 }
 
-function stateOf(prep: RacePrep, car: number, u: number): CarState {
+/** A car's state at update `u`, before the pit-lane correction the Race screen applies. */
+export function stateOf(prep: RacePrep, car: number, u: number): CarState {
   const c = prep.field.cars[car];
   if (Number.isNaN(c.lapDistM[u])) return 'garage';
   if (c.inPits[u] === 1) {
