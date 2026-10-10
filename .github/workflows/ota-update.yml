@@ -14,7 +14,8 @@
 # (fingerprint.config.js), the same value EAS computes for the APK build of the
 # same commit. The job summary prints it with the update group id.
 #
-# Runs in the `ota-update` Environment, which holds EXPO_TOKEN (no reviewer).
+# Runs in the `android-build` Environment (EXPO_TOKEN, no reviewer), which allows
+# branch main for this job and android-v* tags for the APK build.
 name: OTA update
 on:
   push:
@@ -52,9 +53,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Also a deployment-branch rule on the Environment (docs/ANDROID_BUILD.md).
+    # Also a deployment-branch rule on the Environment (main and android-v*).
     if: github.ref == 'refs/heads/main'
-    environment: ota-update
+    environment: android-build
     steps:
       - uses: actions/checkout@v7
 

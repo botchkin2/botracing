@@ -161,8 +161,4 @@ Settings shows an **Android app** card (`src/features/settings/androidCard.ts`).
 - **Same runtime version as the APK:** the build and the update both compute it with `@expo/fingerprint` over the same commit after `npm ci` (tracked files, `node_modules`, `app.json`, `eas.json`; no local-only files). `fingerprint.config.js` skips package.json scripts, `.gitignore` and version strings, so editing those does not strand phones. Check locally: `npx expo-updates fingerprint:generate --platform android`; the hash must equal the `Runtime version` in the OTA job summary (which also lists the update group id and message).
 - **APK updates are unchanged:** the Settings Android card still offers a new APK by `versionCode`.
 
-One-time setup (Botkin):
-
-- GitHub > Settings > Environments > New environment `ota-update`, no reviewer, Deployment branches and tags: Selected branches > `main` only (the workflow also checks `github.ref`).
-- In it, add secret `EXPO_TOKEN` (a robot token from expo.dev > botventure > Settings > Access tokens; the one in `android-build` works).
-- Updates start with the 1.0.2 APK: older installs have no updater.
+One-time setup: none. `android-build` allows branch `main` for OTA, same `EXPO_TOKEN` (done 2026-10-10). Updates start with the 1.0.2 APK: older installs have no updater.
