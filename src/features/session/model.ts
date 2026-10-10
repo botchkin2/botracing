@@ -144,6 +144,8 @@ export type SectionTable = {
   heads: string[];
   /** The map section each head is (null for the start straight and the game's sectors). */
   sections: (number | null)[];
+  /** Whether each head is a compound section (opens Corner whole). */
+  compound: boolean[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -328,6 +330,7 @@ export function sectionTable(times: SegmentTimes | null): SectionTable | null {
   return {
     heads: times.segments.map(s => s.label),
     sections: times.segments.map(s => s.section ?? null),
+    compound: times.segments.map(s => s.compound === true),
     footer: [
       row(
         'Median',

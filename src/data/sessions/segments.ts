@@ -70,6 +70,7 @@ export function turnSegmentTimes(
           : sectionLabel(section),
       range: {fromM: w.fromM, toM: w.toM},
       section: w.kind === 'start-straight' ? null : w.section ?? null,
+      compound: section != null && section.parts.length > 1,
     };
   });
   const out: SegmentLap[] = [];

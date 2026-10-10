@@ -456,10 +456,12 @@ function SessionView({
           const corner = model.sections?.sections[i];
           if (corner != null)
             router.push(
-              cornerHref(sessionId, corner, {
-                laps: selection.laps,
-                hl: item.lapId,
-              }),
+              cornerHref(
+                sessionId,
+                corner,
+                {laps: selection.laps, hl: item.lapId},
+                model.sections?.compound[i] === true,
+              ),
             );
         }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
