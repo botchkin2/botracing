@@ -115,7 +115,7 @@ export function lanesLayout({
       .filter(l => inside(l.timeS))
       .map(l => ({
         x: xOf(l.timeS),
-        label: l.lap % lapLabelEvery === 0 ? `${l.lap}` : null,
+        label: l.lap % lapLabelEvery === 0 ? `L${l.lap}` : null,
       })),
     height: LANE_ORDER.length * laneHeight,
   };
