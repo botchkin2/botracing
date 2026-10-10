@@ -2,10 +2,11 @@ import {useCallback, useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
+  defaultSessionOf,
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
 import {
   sliceLoad,
@@ -20,7 +21,6 @@ import {
   cornerLapIds,
   type CornerModel,
   type CornerSelection,
-  referenceFirst,
 } from './model';
 import {keyLapIds as keyLapsOf} from './keyLaps';
 
@@ -49,13 +49,9 @@ export function useCornerModel(
 ): CornerResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
-  const selection = useMemo(
-    () =>
-      laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection,
-    [urlSelection, laps.data],
-  );
+  const selection = urlSelection;
   const band = useSessionBand(sessionId);
-  const map = useSessionMap(sessionId);
+  const map = useTrackMap(session.data?.trackId);
 
   const lapIds = useMemo(
     () =>
@@ -64,10 +60,10 @@ export function useCornerModel(
             laps.data,
             selection,
             allComparable,
-            session.data?.bestLapId ?? null,
+            session.data ? defaultSessionOf(session.data) : null,
           )
         : [],
-    [laps.data, selection, allComparable, session.data?.bestLapId],
+    [laps.data, selection, allComparable, session.data],
   );
   // The laps on: drawn in their own colour and named on the strips.
   const bestLapId = session.data?.bestLapId ?? null;
@@ -142,6 +138,7 @@ export function useCornerModel(
       lapIds,
       keyLapIds: traceIds,
       hl: selection.hl,
+      refId: selection.ref ?? null,
       corner,
     });
     return model

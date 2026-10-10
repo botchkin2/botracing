@@ -1,5 +1,6 @@
+import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,7 +18,7 @@ import {
 } from '@/src/charts';
 import {
   hitBox,
-  lapColors,
+  lapColor as slotColor,
   lapStroke,
   stroke,
   radius,
@@ -49,7 +50,7 @@ import {
   MEASURES,
   sortRows,
 } from './model';
-import {MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {type CornerBlock, cornerLayout} from './layout';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -63,7 +64,7 @@ const PHONE_H: ZoomHeights = {
   throttle: 52,
   gear: 40,
   delta: 0,
-  steering: 0,
+  steering: 40,
   line: 0,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
@@ -82,6 +83,8 @@ const DESK_H: ZoomHeights = {
 // less the 600 column, the divider and the gutters), so the default holds.
 const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
+// Four rows of 40 pt.
+const WIDE_TABLE_BODY_H = 160;
 
 export function CornerScreen({
   sessionId,
@@ -194,7 +197,7 @@ function CornerView({
   ) =>
     onIndex != null
       ? {
-          color: lapColors[scheme][onIndex],
+          color: slotColor(scheme, onIndex),
           width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
           opacity: 1,
         }
@@ -208,17 +211,10 @@ function CornerView({
     onSelectionChange({...selection, hl: lapId});
   // With every comparable lap drawn, a dot tap turns that lap on or off
   // (thread 27 #624); the laps on are the URL's `laps`, as in Compare.
-  const toggle = (lapId: string) => {
-    const r = toggleLap(keyLapIds, lapId);
-    if (r.kind === 'full')
-      return setNotice(
-        `${MAX_ON_LAPS - 1} laps on besides the reference. Tap one off first.`,
-      );
-    if (r.kind === 'reference')
-      return setNotice('The reference stays on. Change it in Compare.');
-    setNotice(null);
-    onSelectionChange({...selection, laps: r.laps});
-  };
+  // A dot tap adds or removes that lap from the set on screen (no cap, no
+  // reference lap: src/state/lapSelection.ts).
+  const toggle = (lapId: string) =>
+    onSelectionChange({...selection, laps: toggleTap(keyLapIds, lapId)});
   const canToggle = allComparable && model.strips != null;
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
   const go = (n: number) =>
@@ -278,42 +274,42 @@ function CornerView({
     </View>
   );
 
-  const header = (
+  const titleBlock = (
     <View style={styles.gap}>
-      {layout.isWide ? navRow : null}
       <Text variant='display'>{model.title}</Text>
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
-      {layout.isWide ? (
-        <View style={styles.wrap}>{cornerChips}</View>
-      ) : (
-        // One line that scrolls sideways: 25 corners wrapped to four rows.
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}>
-          {cornerChips}
-        </ScrollView>
-      )}
-      {partChips.length > 0 ? (
-        <View style={styles.wrap}>
-          <Text variant='label' tone='textMuted'>
-            Parts
-          </Text>
-          {partChips}
-        </View>
-      ) : null}
-      <View style={styles.row}>
-        <Chip
-          label={
-            allComparable ? '✓ All comparable laps' : '+ All comparable laps'
-          }
-          selected={allComparable}
-          onPress={() => onAllComparable(!allComparable)}
-        />
+    </View>
+  );
+  // One line that scrolls sideways on both layouts: 25 corners wrapped to
+  // four rows and pushed the table out of the first screen (D32).
+  const seekChips = (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipsRow}>
+      {cornerChips}
+    </ScrollView>
+  );
+  const partsRow =
+    partChips.length > 0 ? (
+      <View style={styles.wrap}>
+        <Text variant='label' tone='textMuted'>
+          Parts
+        </Text>
+        {partChips}
       </View>
+    ) : null;
+  const allChip = (
+    <View style={styles.row}>
+      <Chip
+        label={
+          allComparable ? '✓ All comparable laps' : '+ All comparable laps'
+        }
+        selected={allComparable}
+        onPress={() => onAllComparable(!allComparable)}
+      />
     </View>
   );
 
@@ -338,8 +334,9 @@ function CornerView({
     />
   );
 
-  const measures = (
+  const spread = (
     <View style={styles.gap}>
+      {layout.isWide ? null : allChip}
       {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
@@ -385,7 +382,7 @@ function CornerView({
                     <Text
                       key={k.onIndex}
                       variant='dataSmall'
-                      style={{color: lapColors[scheme][k.onIndex]}}>
+                      style={{color: slotColor(scheme, k.onIndex)}}>
                       {k.text}
                     </Text>
                   ))}
@@ -415,7 +412,7 @@ function CornerView({
                       key: d.lapId,
                       value: d.value,
                       color: on
-                        ? lapColors[scheme][d.onIndex as number]
+                        ? slotColor(scheme, d.onIndex as number)
                         : color.barNeutral,
                       r: on ? 4.2 : 2.8,
                       opacity: on ? 1 : d.flagged ? 0.25 : 0.55,
@@ -445,13 +442,6 @@ function CornerView({
             </View>
           ))
         : null}
-      {model.strips && !layout.isWide ? (
-        <FoldedSection title='Laps' summary={`${model.rows.length} laps`}>
-          {lapTable}
-        </FoldedSection>
-      ) : (
-        lapTable
-      )}
     </View>
   );
 
@@ -478,6 +468,26 @@ function CornerView({
   );
 
   const top = {paddingTop: insets.top + space.lg};
+  const plan = cornerLayout(layout.isWide);
+  const shape = model.brakeMap ? (
+    <BrakeMapPanel
+      map={model.brakeMap}
+      width={layout.isWide ? left.width - 2 * space.xl : layout.contentWidth}
+      lapColor={lapColor}
+    />
+  ) : null;
+  const blocks: Record<CornerBlock, ReactNode> = {
+    charts: traces,
+    shape,
+    laps: lapTable,
+    spread: (
+      <FoldedSection title='Spread' summary={null}>
+        {spread}
+      </FoldedSection>
+    ),
+    nav: <SessionNav sessionId={sessionId} />,
+  };
+  const body = plan.order.map(id => <View key={id}>{blocks[id]}</View>);
   if (layout.isWide)
     return (
       <View
@@ -485,15 +495,12 @@ function CornerView({
         <ScrollView
           style={{width: left.width, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
-          {header}
-          {model.brakeMap && (
-            <BrakeMapPanel
-              map={model.brakeMap}
-              width={left.width - 2 * space.xl}
-              lapColor={lapColor}
-            />
-          )}
-          {measures}
+          {navRow}
+          {titleBlock}
+          {seekChips}
+          {partsRow}
+          {allChip}
+          {body}
         </ScrollView>
         <PanelDivider
           anchor='left'
@@ -510,6 +517,8 @@ function CornerView({
         </ScrollView>
       </View>
     );
+  // Phone: the Compare link and the corner chips stay pinned, so stepping is
+  // in reach wherever the page is scrolled.
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <View
@@ -518,6 +527,8 @@ function CornerView({
           {backgroundColor: color.bg, paddingTop: top.paddingTop},
         ]}>
         {navRow}
+        {seekChips}
+        {partsRow}
       </View>
       <ScrollView
         style={styles.flex}
@@ -528,16 +539,8 @@ function CornerView({
           // strips sized to it fit instead of overflowing past the gutter.
           {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
         ]}>
-        {header}
-        {model.brakeMap && (
-          <BrakeMapPanel
-            map={model.brakeMap}
-            width={layout.contentWidth}
-            lapColor={lapColor}
-          />
-        )}
-        {measures}
-        {traces}
+        {titleBlock}
+        {body}
       </ScrollView>
     </View>
   );
@@ -756,63 +759,68 @@ function CornerTable({
           );
         })}
       </View>
-      {rows.map(r => (
-        <Pressable
-          key={r.lapId}
-          onPress={() => onPressRow(r.lapId)}
-          style={[
-            styles.tableRow,
-            {borderColor: color.line},
-            r.highlighted && {backgroundColor: color.accentTint},
-          ]}>
-          <View style={styles.lapCol}>
-            <View style={styles.row}>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    backgroundColor: lapColor(
-                      r.onIndex,
-                      r.selIndex,
-                      r.highlighted,
-                    ),
-                  },
-                ]}
-              />
-              <Text variant='dataStrong'>{r.label}</Text>
-            </View>
-            {r.isRef && (
-              <Text variant='dataSmall' tone='textFaint'>
-                REF
-              </Text>
-            )}
-          </View>
-          {MEASURES.map(m => {
-            const c = r.cells[m.id];
-            return (
-              <View key={m.id} style={styles.cellCol}>
-                <Text variant='data' style={styles.right}>
-                  {c.value}
-                </Text>
-                {c.gap != null && (
-                  <Text
-                    variant='dataSmall'
-                    tone={
-                      m.id === 'time'
-                        ? c.better
-                          ? 'faster'
-                          : 'slower'
-                        : 'textMuted'
-                    }
-                    style={styles.right}>
-                    {c.gap}
-                  </Text>
-                )}
+      <ScrollView
+        style={styles.tableBody}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator>
+        {rows.map(r => (
+          <Pressable
+            key={r.lapId}
+            onPress={() => onPressRow(r.lapId)}
+            style={[
+              styles.tableRow,
+              {borderColor: color.line},
+              r.highlighted && {backgroundColor: color.accentTint},
+            ]}>
+            <View style={styles.lapCol}>
+              <View style={styles.row}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      backgroundColor: lapColor(
+                        r.onIndex,
+                        r.selIndex,
+                        r.highlighted,
+                      ),
+                    },
+                  ]}
+                />
+                <Text variant='dataStrong'>{r.label}</Text>
               </View>
-            );
-          })}
-        </Pressable>
-      ))}
+              {r.isRef && (
+                <Text variant='dataSmall' tone='textFaint'>
+                  REF
+                </Text>
+              )}
+            </View>
+            {MEASURES.map(m => {
+              const c = r.cells[m.id];
+              return (
+                <View key={m.id} style={styles.cellCol}>
+                  <Text variant='data' style={styles.right}>
+                    {c.value}
+                  </Text>
+                  {c.gap != null && (
+                    <Text
+                      variant='dataSmall'
+                      tone={
+                        m.id === 'time'
+                          ? c.better
+                            ? 'faster'
+                            : 'slower'
+                          : 'textMuted'
+                      }
+                      style={styles.right}>
+                      {c.gap}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </Pressable>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -899,6 +907,9 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   tableHead: {minHeight: 30, borderTopWidth: 1},
+  // Wide: the rows scroll under a fixed header, sized so the shape, the table
+  // and the Spread fold header share the first 1440x900 screen (D32).
+  tableBody: {maxHeight: WIDE_TABLE_BODY_H},
   lapCol: {width: 44},
   cellCol: {flex: 1},
   phoneTable: {flexDirection: 'row'},

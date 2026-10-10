@@ -273,3 +273,34 @@ test('the heartbeat carries the sims, and a change in one sim forces a write', (
   assert.notEqual(beatKey(a), beatKey(heartbeatDoc({...input, sims: sims(1)})));
   assert.deepEqual(heartbeatDoc(input).sims, {}, 'an old caller still gets a doc');
 });
+
+test('problems: a recording the sync could not read is named by its file', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        retries: {},
+        unreadable: [
+          {
+            name: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt',
+            why: 'has no samples',
+            atMs: nowMs - MIN,
+          },
+        ],
+      },
+    ],
+    recorder: null,
+    nowMs,
+  });
+  assert.deepEqual(problems, [
+    {
+      kind: 'file-unreadable',
+      at: new Date(nowMs - MIN).toISOString(),
+      message: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
+    },
+  ]);
+  // Nothing unreadable: no problem (a state from before this field has none).
+  assert.deepEqual(
+    problemsOf({sims: [{retries: {}}], recorder: null, nowMs}),
+    [],
+  );
+});

@@ -28,6 +28,8 @@ import {
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {replace, toggle} from '@/src/state/lapSelection';
+import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
 
@@ -40,6 +42,7 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {SessionGrid} from './components/SessionGrid';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -54,8 +57,7 @@ import {
   type RowModel,
   type Selection,
   type SessionScreenModel,
-  selectStint,
-  toggleLap,
+  useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
 
@@ -89,7 +91,15 @@ export function SessionScreen({
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
   renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
-  const result = useSessionScreenModel(sessionId, selection);
+  // The one selection for this screen: the URL's laps, or the opening set when
+  // the URL names none. The model, the table, the chart and the grid all read it.
+  const openingIds = useSessionOpeningLapIds(sessionId);
+  const resolved = useMemo<Selection>(
+    () =>
+      selection.laps.length > 0 ? selection : {...selection, laps: openingIds},
+    [selection, openingIds],
+  );
+  const result = useSessionScreenModel(sessionId, resolved);
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -115,7 +125,7 @@ export function SessionScreen({
     <SessionView
       sessionId={sessionId}
       model={result.model}
-      selection={selection}
+      selection={resolved}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
@@ -223,8 +233,8 @@ function SessionView({
 
   const detailAction = () => {
     const d = model.detail;
-    if (!d || d.action === 'reference') return;
-    onSelectionChange(toggleLap(selection, d.lapId));
+    if (!d) return;
+    onSelectionChange({...selection, laps: toggle(selection.laps, d.lapId)});
   };
 
   const chartBlock = (width: number) =>
@@ -394,9 +404,6 @@ function SessionView({
           />
         </View>
       )}
-      <View style={styles.section}>
-        <LapTableHeader width={tableW} />
-      </View>
     </View>
   );
 
@@ -432,7 +439,7 @@ function SessionView({
         width={width}
         wide={wide}
         onSelectStint={() =>
-          onSelectionChange(selectStint(selection, item.lapIds))
+          onSelectionChange({...selection, laps: replace(item.lapIds)})
         }
       />
     ) : (
@@ -442,7 +449,12 @@ function SessionView({
         wide={wide}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
-        onToggle={() => onSelectionChange(toggleLap(selection, item.lapId))}
+        onToggle={() =>
+          onSelectionChange({
+            ...selection,
+            laps: toggle(selection.laps, item.lapId),
+          })
+        }
       />
     );
 
@@ -523,7 +535,37 @@ function SessionView({
           style={{width: tableW}}
           data={model.rows}
           keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={header}
+          ListHeaderComponent={
+            <>
+              {header}
+              <View style={[styles.strip, {width: tableW}]}>
+                <LapStrip
+                  laps={model.strip}
+                  ticked={selection.laps}
+                  onTap={id =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, id),
+                    })
+                  }
+                  onDrag={ids => onSelectionChange({...selection, laps: ids})}
+                />
+              </View>
+              <SessionGrid
+                id={sessionId}
+                ticked={selection.laps}
+                onTap={lapId =>
+                  onSelectionChange({
+                    ...selection,
+                    laps: toggle(selection.laps, lapId),
+                  })
+                }
+              />
+              <View style={styles.section}>
+                <LapTableHeader width={tableW} />
+              </View>
+            </>
+          }
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -586,6 +628,7 @@ function SessionView({
 }
 
 const styles = StyleSheet.create({
+  strip: {paddingBottom: space.md},
   screen: {flex: 1},
   center: {alignItems: 'center', justifyContent: 'center'},
   columns: {

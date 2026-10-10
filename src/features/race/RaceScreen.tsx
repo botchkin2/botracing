@@ -6,6 +6,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
+import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
@@ -27,6 +28,7 @@ import {
 } from '@/src/ui';
 
 import {clockLabel, nextRate, snapClock, stepBy} from './clock';
+import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
 import {
@@ -303,6 +305,19 @@ function RaceView({
       }),
     [sampleCars, filter, focus, mode, prep.trackM, classes],
   );
+  // The focused car's laps from the whole field, once per car picked; no
+  // laps (or no car) means no panel.
+  const carLaps = useMemo(() => {
+    if (focus === null) return null;
+    const car = sampleCars.find(c => c.index === focus);
+    if (!car) return null;
+    const view = carLapsView(
+      carLapsOf(prep.field, focus),
+      classes.of(car.classKey).title,
+    );
+    return view ? {index: focus, view} : null;
+    // sampleCars only supplies the class, which never changes for a car.
+  }, [focus, prep.field, classes]);
   const dots = useMemo(
     () =>
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
@@ -477,6 +492,7 @@ function RaceView({
       mode={mode}
       nearby={mode === 'field'}
       fallbackNote={rows.fallbackNote}
+      carLaps={carLaps}
     />
   );
   const boardPaged = (
@@ -491,6 +507,7 @@ function RaceView({
       paged
       nearby={mode === 'field'}
       fallbackNote={rows.fallbackNote}
+      carLaps={carLaps}
     />
   );
 

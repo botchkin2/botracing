@@ -58,6 +58,7 @@ import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
+import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -408,6 +409,7 @@ async function main() {
           lastRunAtMs: st.lastRunAtMs ?? null,
           retryAtMs: st.retryAtMs ?? null,
           sessionRetryAtMs: earliestRetryMs(st.retries),
+          quietRetryAtMs: st.quietRetryAtMs ?? null,
           // First run with this code, or a merge that bumped it.
           versionChanged: st.versionKey !== currentKey,
           nowMs: Date.now(),
@@ -501,6 +503,19 @@ async function main() {
               nowMs: Date.now(),
             });
             st.lastRunAtMs = startedMs;
+            // Files skipped as too fresh are looked at again once they are
+            // old enough, a little after sync.mjs's own quiet time.
+            const quietMin = sim.adapter.watcher.quietMin ?? QUIET_MIN_DEFAULT;
+            st.quietRetryAtMs = r.waiting
+              ? Date.now() + (quietMin + 0.5) * 60 * 1000
+              : null;
+            // The recordings this run could not read, as the problems list
+            // names them; a file that reads next time is gone from it.
+            st.unreadable = r.unreadable.map(u => ({
+              name: u.name,
+              why: u.why,
+              atMs: Date.now(),
+            }));
             st.versionKey = currentKey;
             st.retryAtMs = null;
             st.failuresInRow = 0;

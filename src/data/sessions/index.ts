@@ -37,12 +37,22 @@ export {
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
-  useSessionSurface,
+  useTrackMap,
+  useTrackMapOfSession,
+  useTrackSurface,
   useSessions,
   useSessionsDetail,
+  usePlanSessions,
   useSessionsLaps,
 } from './queries';
+export {
+  type PlanBlock,
+  type PlanLap,
+  type PlanRace,
+  type PlanSession,
+  type PlanStop,
+  type PlanTraffic,
+} from './planBlock';
 export {
   firstCornerOf,
   lapCornerFacts,
@@ -61,11 +71,13 @@ export {
 export {
   type DefaultSession,
   defaultLapIds,
+  defaultSessionOf,
+  openingLapIds,
   referenceDefaultLapIds,
   stintSetLapIds,
   refLapOf,
 } from './defaultLaps';
-export {endingLap, raceFacts, racePitLaps} from './raceFacts';
+export {endingLap, raceFactsOfPlan, racePitLaps} from './raceFacts';
 export {
   sectorSegmentTimes,
   segmentTimesFor,

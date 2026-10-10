@@ -49,7 +49,7 @@ export function PooledUseCard({
   );
   // The Plan screen's own data, so the dots are the laps the plan is built from.
   const {limits, hist, greenLaps, plan} = usePlanData(combo);
-  const loading = sessions.isPending || limits.pending || hist.lapsOf.pending;
+  const loading = sessions.isPending || limits.pending || hist.loading.pending;
   const chart = useMemo(
     () =>
       pooledUse(

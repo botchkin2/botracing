@@ -16,6 +16,7 @@ import {type TrackInfo} from '@/src/data/tracks';
 import {formatLength, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
+import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 // Track page view model (Claude Design "Track page" v1 handoff). Pure: the
 // layout's bundled facts, its sessions, the track's stored corner map and
@@ -139,14 +140,13 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
   const groups: TrackCornerGroup[] = [];
   for (const s of map?.sections ?? []) {
     if (s.parts.length > 1) {
-      const partNames = s.parts.map(p => names.get(p.n));
-      const label = partNames.every(Boolean)
-        ? partNames.join('–').toUpperCase()
-        : `${turnLabel(s.parts[0].n, s.parts[0].official)}–${turnLabel(
-            s.parts[s.parts.length - 1].n,
-            s.parts[s.parts.length - 1].official,
-          )}`;
-      groups.push({title: `S${s.n} · ${label}`, rows: s.parts.map(row)});
+      const label = sectionHeaderOf(
+        s.parts.map(p => turnLabel(p.n, p.official)),
+      );
+      groups.push({
+        title: `S${s.n} · ${label.toUpperCase()}`,
+        rows: s.parts.map(row),
+      });
       continue;
     }
     const last = groups[groups.length - 1];

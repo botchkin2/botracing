@@ -9,6 +9,7 @@ import {
   type SegmentTimes,
   turnRangeLabel,
 } from '@/src/analysis/segments';
+import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 import type {
   Lap,
@@ -24,7 +25,7 @@ const START_LABEL = 'S/F';
 /** "T4" or "T2–5": the corners a section holds, by the same names the Corner screen uses. */
 function sectionLabel(s: MapSection): string {
   const name = (c: MapCorner) => c.official ?? `T${c.n}`;
-  return turnRangeLabel((s.parts.length ? s.parts : [s]).map(name));
+  return sectionHeaderOf((s.parts.length ? s.parts : [s]).map(name));
 }
 
 /**
@@ -79,6 +80,8 @@ export function turnSegmentTimes(
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
       alone: aloneIn(lap.traffic, map.lengthM, segments),
+      stop: lap.pitStop != null,
+      label: `L${lap.lapIndex}`,
     });
   }
   return out.length > 0 ? {segments, laps: out} : null;
@@ -93,6 +96,8 @@ export function sectorSegmentTimes(laps: Lap[]): SegmentTimes | null {
     stint: l.stint,
     comparable: l.comparable,
     timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
+    stop: l.pitStop != null,
+    label: `L${l.lapIndex}`,
   }));
   return {
     segments: Array.from({length: count}, (_, i) => ({

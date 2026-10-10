@@ -4,30 +4,10 @@ import {toLaps} from './adapters';
 import type {Lap} from './adapters';
 
 import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
-import {endingLap, raceFacts, racePitLaps} from './raceFacts';
+import type {PlanBlock} from './planBlock';
+import {endingLap, raceFactsOfPlan, racePitLaps} from './raceFacts';
 
 const base = toLaps([fixture.laps[0]])[0];
-const session = (type: 'R' | 'P' = 'R') => ({
-  sessionType: type,
-  startedAt: '2026-09-26T00:38:00Z',
-  finish: null as {
-    overall: number;
-    inClass: number;
-    ofOverall: number;
-    ofClass: number;
-    lapsDone: number;
-    leaderLapsDone: number;
-    classLeaderLapsDone: number | null;
-    leftEarly: boolean;
-  } | null,
-  fuel: {
-    startL: 75,
-    fillLimitL: 75,
-    tankL: 75,
-    litresPerVePct: null,
-    litresPerVePctStop: null,
-  },
-});
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...base,
   id: `l${lapIndex}`,
@@ -51,98 +31,65 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...over,
 });
 
-describe('raceFacts start', () => {
-  it('reads the VE the car started the race on from the first recorded lap', () => {
-    const first = lap(1, {
-      fuel: {...lap(1).fuel!, veStartPct: 87},
-    });
-    const facts = raceFacts(session(), 'k', [lap(2), first, lap(3)]);
-    expect(facts?.startVePct).toBe(87);
-    expect(facts?.startL).toBe(75);
+describe('raceFactsOfPlan', () => {
+  // The race side as the uploader wrote it (tools/sessions/planBlock.mjs, whose
+  // own tests hold the rules: the ending lap, the pre-start service, a first-lap
+  // stop); here only that the app reads it as the facts the comparison wants.
+  const plan = (race: PlanBlock['race']): PlanBlock => ({
+    v: 1,
+    fuel: {
+      startL: 75,
+      fillLimitL: 75,
+      tankL: 105,
+      litresPerVePct: null,
+      litresPerVePctStop: null,
+    },
+    laps: null,
+    race,
   });
-});
+  const race = {
+    raceLaps: 20,
+    minutes: 40,
+    leftEarly: true,
+    playerLapsDone: 21,
+    classLeaderLapsDone: 21,
+    startVePct: 87,
+    formationL: 3.3,
+    ownUse: {fuelL: 2.4, vePct: null},
+    end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
+    stops: [{lapIndex: 9, fuelL: 12, vePct: 40, addedL: 50, lossS: 31}],
+  };
+  const when = '2026-09-26T00:38:00Z';
 
-describe('raceFacts', () => {
-  const laps = [
-    lap(1),
-    lap(2),
-    lap(3),
-    lap(4),
-    lap(5, {
-      pitStop: {
-        atEntry: {fuelL: 12.9, vePct: 0},
-        added: {fuelL: 50, vePct: 38},
-        inPitS: 81,
-        lapsLeftAtEntry: {fuel: 3.6, ve: 0},
-        visit: null,
-        tyres: null,
-      },
-    }),
-    lap(6),
-    lap(7, {partial: true, reasons: ['partial']}),
-  ];
-
-  it('is only for a race', () => {
-    expect(raceFacts(session('P'), 'k', laps)).toBeNull();
-  });
-
-  it('counts racing laps from the last whole lap, the formation lap not counted', () => {
-    // Last whole lap is lapIndex 6, so 5 racing laps.
-    expect(raceFacts(session(), 'k', laps)?.raceLaps).toBe(5);
-  });
-
-  it('carries a DNF from the stored finish (2 Oct Road Atlanta left early)', () => {
-    const s = session();
-    s.finish = {
-      overall: 21,
-      inClass: 5,
-      ofOverall: 54,
-      ofClass: 22,
-      lapsDone: 21,
-      leaderLapsDone: 26,
-      classLeaderLapsDone: 24,
+  it('gives the race side, the load and the start from the block', () => {
+    expect(raceFactsOfPlan({startedAt: when, plan: plan(race)}, 'k')).toEqual({
+      planKey: 'k',
+      startedAt: when,
+      limitL: 75,
+      startL: 75,
+      startVePct: 87,
+      raceLaps: 20,
+      race: {minutes: 40},
       leftEarly: true,
-    };
-    const f = raceFacts(s, 'k', laps)!;
-    expect(f.leftEarly).toBe(true);
-    expect(f.playerLapsDone).toBe(21);
-    expect(f.classLeaderLapsDone).toBe(24);
+      playerLapsDone: 21,
+      classLeaderLapsDone: 21,
+      ownUse: {fuelL: 2.4, vePct: null},
+      end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
+      stops: [{lapIndex: 9, fuelL: 12, vePct: 40}],
+    });
   });
 
-  it('gives each stop as its pit-in lap number, and the fuel left at entry', () => {
-    expect(raceFacts(session(), 'k', laps)?.stops).toEqual([
-      {lapIndex: 5, fuelL: 12.9, vePct: 0},
-    ]);
+  it('has none outside a race, for a race with nothing to end on, and before the block existed', () => {
+    expect(raceFactsOfPlan({startedAt: when, plan: plan(null)}, 'k')).toBeNull();
+    expect(raceFactsOfPlan({startedAt: when, plan: null}, 'k')).toBeNull();
   });
 
-  it('takes the last lap that was not cut short, even one the game left untimed (Le Mans 09-21)', () => {
-    const untimedEnd = [
-      ...laps.slice(0, 5),
-      lap(6, {timeS: null, partial: true, reasons: ['untimed']}),
-      lap(7, {timeS: null, partial: true, reasons: ['partial', 'untimed']}),
-    ];
-    expect(raceFacts(session(), 'k', untimedEnd)?.raceLaps).toBe(5);
-    // The same lap the pit card ends on.
-    expect(endingLap(untimedEnd)?.lapIndex).toBe(6);
-  });
-
-  it('takes the fill limit, the start fuel and the race’s own median use', () => {
-    const f = raceFacts(session(), 'k', laps)!;
-    expect(f.limitL).toBe(75);
-    expect(f.startL).toBe(75);
-    expect(f.ownUse.fuelL).toBeCloseTo(2.4, 2);
-    expect(f.ownUse.vePct).toBeCloseTo(3.5, 2);
-  });
-
-  it('has no fill limit when the session has none, and no use under three laps', () => {
-    const noLimit = {
-      ...session(),
-      fuel: {...session().fuel, fillLimitL: null},
-    };
-    expect(raceFacts(noLimit, 'k', laps)?.limitL).toBeNull();
-    expect(
-      raceFacts(session(), 'k', laps.slice(0, 2))?.ownUse.fuelL,
-    ).toBeNull();
+  it('has no race length when the block has none (a race limited by laps)', () => {
+    const facts = raceFactsOfPlan(
+      {startedAt: when, plan: plan({...race, minutes: null})},
+      'k',
+    );
+    expect(facts?.race).toBeNull();
   });
 });
 

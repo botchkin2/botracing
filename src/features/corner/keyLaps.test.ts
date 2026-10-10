@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {keyLapIds, MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {keyLapIds} from './keyLaps';
 
 const many = Array.from({length: 25}, (_, i) => `l${i}`);
 
@@ -17,7 +17,7 @@ describe('keyLapIds', () => {
     ).toEqual(['l0', 'l7']);
   });
 
-  it('uses the URL laps when 2 to 6 are selected', () => {
+  it('uses the URL laps when two or more are selected', () => {
     expect(
       keyLapIds({
         lapIds: many,
@@ -27,6 +27,19 @@ describe('keyLapIds', () => {
         individual: false,
       }),
     ).toEqual(['l3', 'l4', 'l9']);
+  });
+
+  it('draws every ticked lap, however many (no cap)', () => {
+    const ticked = many.slice(0, 9);
+    expect(
+      keyLapIds({
+        lapIds: many,
+        selected: ticked,
+        hl: null,
+        bestLapId: 'l7',
+        individual: false,
+      }),
+    ).toEqual(ticked);
   });
 
   it('puts every lap on in individual mode', () => {
@@ -40,27 +53,5 @@ describe('keyLapIds', () => {
         individual: true,
       }),
     ).toEqual(ids);
-  });
-});
-
-describe('toggleLap', () => {
-  it('adds and removes, keeping the reference first', () => {
-    expect(toggleLap(['r', 'a'], 'b')).toEqual({
-      kind: 'ok',
-      laps: ['r', 'a', 'b'],
-    });
-    expect(toggleLap(['r', 'a', 'b'], 'a')).toEqual({
-      kind: 'ok',
-      laps: ['r', 'b'],
-    });
-  });
-
-  it('never removes the reference', () => {
-    expect(toggleLap(['r', 'a'], 'r')).toEqual({kind: 'reference'});
-  });
-
-  it('stops at the palette size', () => {
-    const full = Array.from({length: MAX_ON_LAPS}, (_, i) => `x${i}`);
-    expect(toggleLap(full, 'y')).toEqual({kind: 'full'});
   });
 });

@@ -128,6 +128,16 @@ describe('problems', () => {
         }),
       ),
     ).toBe('Uploader stopped · exit code: 1: Error: no file · 3×');
+    expect(
+      problemText(
+        problem({
+          kind: 'file-unreadable',
+          message: 'fuji gp 2026-10-04.ibt: has no samples',
+          sessionId: null,
+          count: null,
+        }),
+      ),
+    ).toBe("Can't read · fuji gp 2026-10-04.ibt: has no samples");
     expect(problemText(problem({}))).toBe('Session 4dda01bc · HTTP 413 · 3×');
     expect(problemText(problem({count: 1}))).toBe(
       'Session 4dda01bc · HTTP 413',

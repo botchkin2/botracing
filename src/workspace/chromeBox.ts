@@ -9,7 +9,7 @@ import {
   lapStroke,
   type Scheme,
   shortTrackName,
-  turnNumber,
+  turnLabel,
 } from '@/src/design';
 import {type SessionTab} from '@/src/nav/activeTab';
 import {parseSelection} from '@/src/nav/routes';
@@ -62,7 +62,7 @@ export function chromeBox({
   const cornerLabel =
     cornerN == null
       ? 'Corner'
-      : `Corner T${turnNumber(
+      : `Corner ${turnLabel(
           cornerN,
           corners?.find(c => c.n === cornerN)?.official,
         )}`;

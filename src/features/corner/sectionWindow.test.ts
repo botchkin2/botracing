@@ -127,7 +127,7 @@ describe('buildSectionWindow', () => {
       sectionN: 2,
       laps: lapsOf(rawLap('a', section2())),
     });
-    expect(w?.label).toBe('S2 (T2–T4)');
+    expect(w?.label).toBe('S2 (T2–4)');
     expect(w?.parts.map(p => [p.label, p.fromM, p.toM])).toEqual([
       ['T2', 500, 620],
       ['T3', 620, 760],
@@ -135,10 +135,11 @@ describe('buildSectionWindow', () => {
     ]);
   });
 
-  it('reads the split and gaps against the first lap, and the four speeds', () => {
+  it('reads the split and gaps against the picked Ref, and the four speeds', () => {
     const w = buildSectionWindow({
       map: m,
       sectionN: 2,
+      refId: 'a',
       laps: lapsOf(
         rawLap('a', section2()),
         rawLap('b', section2({runInS: 2.1, cornerS: 5.8, exitS: 4.2}, 12.1)),
@@ -186,17 +187,20 @@ describe('buildSectionWindow', () => {
     expect(w?.pendingCount).toBe(2);
   });
 
-  it('with a stale reference no lap gets a gap', () => {
+  it('a Ref that is stale is no basis: the comparable laps are measured against their median', () => {
     const w = buildSectionWindow({
       map: m,
       sectionN: 2,
+      refId: 'old',
       laps: lapsOf(
         rawLap('old', section2(), {v: 1, rev: 2}),
         rawLap('b', section2()),
       ),
     });
+    expect(w?.rows[0].state).toBe('stale');
     expect(w?.rows[1].state).toBe('ok');
-    expect(w?.rows[1].time.gap).toBeNull();
+    // The one comparable lap is its own median: a zero gap (±0.000), not a gap to the stale lap.
+    expect(w?.rows[1].time.gap).toBe('±0.000');
   });
 
   it('greys only the window the pit lane crosses, showing what it measured without a gap', () => {
@@ -321,8 +325,8 @@ describe('buildSectionWindow optimum', () => {
 
   it('is empty under 5 laps', () => {
     const laps = sixLaps().slice(0, 4);
-    expect(
-      buildSectionWindow({map: m, sectionN: 2, laps})?.optimum,
-    ).toEqual([]);
+    expect(buildSectionWindow({map: m, sectionN: 2, laps})?.optimum).toEqual(
+      [],
+    );
   });
 });

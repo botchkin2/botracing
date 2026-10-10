@@ -11,6 +11,7 @@ import {
 
 import {space, useLayout, useTheme} from '@/src/design';
 import {trackHref} from '@/src/nav/routes';
+import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
@@ -18,6 +19,7 @@ import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
+import {SessionGrid} from './SessionGrid';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
 
@@ -164,6 +166,16 @@ export function SessionWorkspace({
           ) : null}
         </View>
         <View style={styles.chart}>{chart(innerW)}</View>
+        <SessionGrid
+          id={sessionId}
+          ticked={selection.laps}
+          onTap={lapId =>
+            onSelectionChange({
+              ...selection,
+              laps: toggle(selection.laps, lapId),
+            })
+          }
+        />
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
           <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
         </View>

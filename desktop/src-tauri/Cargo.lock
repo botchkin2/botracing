@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "botracing"
-version = "0.1.2"
+version = "0.1.4"
 dependencies = [
  "arrow-array",
  "arrow-schema",

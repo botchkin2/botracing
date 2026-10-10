@@ -1,3 +1,4 @@
+import {toggle} from '@/src/state/lapSelection';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
 import {rangeOf} from '@/src/analysis/rangeIndex';
@@ -10,6 +11,7 @@ import {
   medianTrace,
   timeDiffS,
 } from '@/src/analysis/resample';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
@@ -24,8 +26,7 @@ import {
   measuredCentreLines,
   onCurrentBoundaries,
   type TrackMapData,
-  referenceDefaultLapIds,
-  stintSetLapIds,
+  openingLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -233,6 +234,8 @@ export type ChartValueRow = {
   channel: ChannelId;
   label: string;
   unit: string;
+  /** Whether the row's name is drawn as a legend. A lone row is the chart's title and says it once, there. */
+  legend: boolean;
   overlay: number;
   values: {
     lapId: string;
@@ -684,18 +687,6 @@ const wrapCache = {
  * memoizes it per set of loaded traces, since the cursor moves every frame
  * and the model is rebuilt with it.
  */
-export function medianBasisOf(
-  laps: Lap[],
-  traces: Map<string, GridTrace>,
-): GridTrace | undefined {
-  const loaded = laps.filter(l => traces.has(l.id));
-  if (loaded.length === 0) return undefined;
-  const times = loaded.map(l => l.timeS);
-  return medianTrace(
-    loaded.map(l => traces.get(l.id)!),
-    times.every((t): t is number => t != null) ? times : undefined,
-  );
-}
 
 /**
  * One selection's model, built in two steps (pit-wall thread 1 #3245): the
@@ -761,6 +752,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const basisTrace = refLap
     ? traces.get(refLap.id)
     : input.basisTrace ?? medianBasisOf(selected, traces);
+  // The unit a value row shows: the time diff's readout carries its own.
+  const rowUnit = (ch: ChannelId) =>
+    ch === 'timeDiff' ? '' : CHANNELS[ch].unit;
   // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && count > 0
@@ -992,7 +986,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     return {
       key: chs.join('+'),
       channels: chs,
-      title: chs.map(labelOf).join(' + '),
+      // A lone chart has no legend, so its unit goes in the title (Speed km/h).
+      title:
+        chs.map(labelOf).join(' + ') +
+        (chs.length === 1 && rowUnit(chs[0]) ? ` ${rowUnit(chs[0])}` : ''),
       height: pedals
         ? PEDALS_H
         : Math.max(...chs.map(c => CHANNELS[c].height)) +
@@ -1306,8 +1303,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           valueRows: chs.map((ch, overlay) => ({
             channel: ch,
             label: labelOf(ch),
+            legend: chs.length > 1,
             // The readout text carries the time diff's unit.
-            unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
+            unit: rowUnit(ch),
             overlay,
             values: [
               ...(basisGrid
@@ -1430,6 +1428,9 @@ function allLapsByStint(
 }
 
 /** Adds a lap to the comparison, or removes it; the Ref lap stays. */
+// One tap on a lap's row: the add and remove rule is the shared one
+// (src/state/lapSelection.ts). The Ref lap stays on while it is the basis,
+// and a removal goes through removeLap (which also clears the highlight).
 export function toggleCompared(
   sel: CompareSelection,
   lapId: string,
@@ -1437,7 +1438,7 @@ export function toggleCompared(
   if (sel.ref === lapId) return sel;
   return sel.laps.includes(lapId)
     ? removeLap(sel, lapId)
-    : {...sel, laps: [...sel.laps, lapId]};
+    : {...sel, laps: toggle(sel.laps, lapId)};
 }
 
 /** The median basis as a readout row: not a lap, drawn in the neutral basis colour. */
@@ -1464,11 +1465,7 @@ export function withDefaultLaps(
   session: DefaultSession | undefined,
 ): CompareSelection {
   if (sel.laps.length > 0 || !laps || !session) return sel;
-  const set = stintSetLapIds(laps);
-  return {
-    ...sel,
-    laps: set.length > 0 ? set : referenceDefaultLapIds(laps, session),
-  };
+  return {...sel, laps: openingLapIds(laps, session)};
 }
 
 /**

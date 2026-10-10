@@ -2,14 +2,12 @@ import {describe, expect, it} from '@jest/globals';
 
 import {planRace, type GreenLap} from '@/src/analysis/fuelPlan';
 import {
-  type Lap,
-  type LapFuel,
-  type SessionDetail,
+  type PlanLap,
+  type PlanSession,
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
 import {carLabel} from '@/src/design';
-import {planComboKey} from '@/src/nav/routes';
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
@@ -24,7 +22,7 @@ import {
   eventLoad,
   HISTORY_SESSIONS,
   historySessions,
-  limitsOfDetails,
+  limitsOfPlan,
   planCombos,
   parseNumber,
   planView,
@@ -34,7 +32,6 @@ import {
   startChips,
   trackChoices,
   veRatioFor,
-  veRatioOf,
 } from './model';
 
 const session = (
@@ -73,321 +70,20 @@ const sessionFuel = (over: Partial<SessionFuel> = {}): SessionFuel => ({
   ...over,
 });
 
-const fuel = (over: Partial<LapFuel> = {}): LapFuel => ({
-  startL: 50,
-  endL: 46.5,
+// A row of the plan block: a green, timed lap with fuel used above zero.
+const planLap = (over: Partial<PlanLap> = {}): PlanLap => ({
+  n: 1,
   usedL: 3.5,
-  addedL: 0,
-  veStartPct: 80,
-  veEndPct: 75,
   veUsedPct: 5,
-  veAddedPct: 0,
-  lapsLeftFuel: null,
-  lapsLeftVe: null,
-  green: true,
+  timeS: 110,
+  comparable: true,
+  traffic: null,
   ...over,
 });
 
-const lap = (over: Partial<Lap> = {}): Lap =>
-  ({
-    id: 'l',
-    lapIndex: 1,
-    lapNumber: 1,
-    timeS: 110,
-    sectorsS: [],
-    stint: 1,
-    comparable: true,
-    reasons: [],
-    pitIn: false,
-    pitOut: false,
-    partial: false,
-    offTrackS: 0,
-    hadImpact: false,
-    sections: [],
-    recordingId: 'r',
-    endedInReset: false,
-    traffic: null,
-    fuel: fuel(),
-    ...over,
-  } as Lap);
-
-describe('the track and car choices', () => {
-  const combos = planCombos([
-    session('a', '2026-09-01T10:00:00Z'),
-    session('b', '2026-09-20T10:00:00Z', {
-      trackId: 'lmu-sebring',
-      track: 'Sebring',
-      car: 'Cadillac WTR 2026 #101:LM',
-      carClass: 'Hypercar',
-    }),
-    session('c', '2026-09-10T10:00:00Z', {car: 'Cadillac WTR 2026 #101:LM'}),
-  ]);
-  const [sebring, daytonaCadillac, daytona911] = [
-    combos.find(c => c.trackId === 'lmu-sebring')!,
-    combos.find(c => c.trackId === 'lmu-daytona' && c.car.startsWith('Cad'))!,
-    combos.find(c => c.trackId === 'lmu-daytona' && c.car.startsWith('Por'))!,
-  ];
-
-  it('splits a chip label into its track and its car', () => {
-    expect(comboTrack(daytona911)).toBe('Daytona');
-    expect(comboCar(daytona911)).toBe('911 GT3 R');
-  });
-
-  it('lists a track once, and a track keeps the current car where it was driven', () => {
-    const tracks = trackChoices(combos, daytonaCadillac);
-    expect(tracks.map(t => [t.label, t.selected])).toEqual([
-      ['Sebring', false],
-      ['Daytona', true],
-    ]);
-    // Sebring has only the Cadillac, which is the current car: that combo.
-    expect(tracks[0].key).toBe(sebring.key);
-    // From the 911 at Daytona, Sebring has no 911, so it takes its newest car.
-    expect(trackChoices(combos, daytona911)[0].key).toBe(sebring.key);
-  });
-
-  it('lists the cars of the current track and marks the one in force', () => {
-    expect(
-      carChoices(combos, daytona911).map(c => [c.label, c.selected]),
-    ).toEqual([
-      [comboCar(daytonaCadillac), false],
-      ['911 GT3 R', true],
-    ]);
-  });
-});
-
-describe('startChips', () => {
-  const caps = {fuelL: 100, vePct: 100};
-
-  it('offers the start of the last race under the full load as a one-tap chip, never as a value', () => {
-    expect(startChips({fuelL: 100, vePct: 87}, caps, true)).toEqual({
-      ve: {label: 'Last race here: 87 %', text: '87'},
-      fuel: null,
-    });
-    expect(startChips({fuelL: 52.04, vePct: 100}, caps, true)).toEqual({
-      ve: null,
-      fuel: {label: 'Last race here: 52.0 L', text: '52.0'},
-    });
-  });
-
-  it('offers nothing for a full start, no recorded start, or VE on a car without it', () => {
-    expect(startChips({fuelL: 100, vePct: 100}, caps, true)).toEqual({
-      ve: null,
-      fuel: null,
-    });
-    expect(startChips(null, caps, true)).toEqual({ve: null, fuel: null});
-    expect(startChips({fuelL: 100, vePct: 87}, caps, false).ve).toBeNull();
-  });
-
-  it('rulesFor takes the typed start into the rules, blank (null) staying a full load', () => {
-    const base = rulesFor(
-      null,
-      {kind: 'laps', value: 40},
-      sessionFuel({fillLimitL: 100}),
-      {},
-    )!;
-    expect(base.rules.startVePct).toBeNull();
-    const typed = rulesFor(
-      null,
-      {kind: 'laps', value: 40},
-      sessionFuel({fillLimitL: 100}),
-      {
-        vePct: 87,
-        fuelL: null,
-      },
-    )!;
-    expect(typed.rules.startVePct).toBe(87);
-    expect(typed.rules.startFuelL).toBeNull();
-  });
-});
-
-describe('rulesCells', () => {
-  const rules = {
-    name: 'ELMS 2 h',
-    lengthLaps: null,
-    lengthMin: 120,
-    fuelL: 100,
-    vePct: 100,
-    formationLap: true,
-    mandatoryStops: 0,
-  };
-
-  it('finishes the numbers the plan is worked with', () => {
-    expect(rulesCells(rules, true, 0.9)).toEqual([
-      {label: 'Max fuel', value: '100 L'},
-      {label: 'Max VE', value: '100 %'},
-      {label: '1 % VE', value: '0.90 L'},
-      {label: 'Mandatory', value: '0 stops'},
-      {label: 'Formation', value: '1 lap'},
-    ]);
-  });
-
-  it('leaves the VE numbers out for a car with no VE, and says one stop in the singular', () => {
-    const cells = rulesCells(
-      {...rules, mandatoryStops: 1, formationLap: false},
-      false,
-      null,
-    );
-    expect(cells.map(c => c.label)).toEqual([
-      'Max fuel',
-      'Mandatory',
-      'Formation',
-    ]);
-    expect(cells[1].value).toBe('1 stop');
-    expect(cells[2].value).toBe('none');
-  });
-
-  it('names what the formation lap burns: measured, or an estimate called one', () => {
-    const value = (b: Parameters<typeof rulesCells>[3]) =>
-      rulesCells(rules, true, 0.9, b).find(c => c.label === 'Formation')?.value;
-    expect(
-      value({
-        factor: {fuel: 1.4, ve: 1},
-        kind: 'measured',
-        races: 3,
-        burnL: 3.4,
-      }),
-    ).toBe('3.4 L · 3 races');
-    expect(
-      value({
-        factor: {fuel: 1.4, ve: 1},
-        kind: 'estimate',
-        races: 0,
-        burnL: null,
-      }),
-    ).toBe('1.4 laps of fuel · estimate');
-  });
-
-  it('is empty without rules', () => {
-    expect(rulesCells(null, true, 0.9)).toEqual([]);
-  });
-});
-
-describe('planCombos across sims', () => {
-  const lmu = session('a', '2026-09-01T10:00:00Z');
-  const ir = session('b', '2026-09-02T10:00:00Z', {
-    sim: 'iracing',
-    trackId: lmu.trackId,
-    track: lmu.track,
-    car: lmu.car,
-  });
-
-  it('offers an iRacing pair as its own combo, with the sim in its key', () => {
-    const combos = planCombos([ir]);
-    expect(combos.map(c => c.sim)).toEqual(['iracing']);
-    expect(combos[0].key).toBe(
-      planComboKey(ir.trackId, carLabel(ir.car).model, 'iracing'),
-    );
-  });
-
-  it('the same track id and car model in both sims are two combos, never pooled', () => {
-    const combos = planCombos([lmu, ir]);
-    expect(combos).toHaveLength(2);
-    expect(new Set(combos.map(c => c.key)).size).toBe(2);
-    expect(combos.every(c => c.sessions.length === 1)).toBe(true);
-  });
-
-  it('keeps LMU keys as they were, so saved presets and links still match', () => {
-    expect(planCombos([lmu])[0].key).toBe(
-      `${lmu.trackId}|${carLabel(lmu.car).model}`,
-    );
-  });
-});
-
-describe('planCombos', () => {
-  it('groups by track and car model, not livery, newest combination first', () => {
-    const combos = planCombos([
-      session('a', '2026-09-01T10:00:00Z'),
-      session('b', '2026-09-20T10:00:00Z', {car: 'Iron Dames 2025 #85:LM'}),
-      session('c', '2026-09-25T10:00:00Z', {
-        trackId: 'lmu-sebring',
-        track: 'Sebring',
-      }),
-      session('d', '2026-09-10T10:00:00Z', {
-        car: 'Manthey DK Engineering 2026 #92:LM',
-      }),
-    ]);
-    // Manthey and Iron Dames are the same Porsche model at Daytona.
-    expect(
-      combos.map(c => [c.track, c.car, c.sessions.map(s => s.id)]),
-    ).toEqual([
-      ['Sebring', 'Porsche 911 GT3 R', ['c']],
-      ['Daytona', 'Porsche 911 GT3 R', ['b', 'd', 'a']],
-    ]);
-  });
-
-  it('labels a chip with the short track and car, and the layout when two share a name', () => {
-    const [plain] = planCombos([session('a', '2026-09-01T10:00:00Z')]);
-    expect(plain.label).toBe('Daytona · 911 GT3 R');
-    const two = planCombos([
-      session('a', '2026-09-01T10:00:00Z', {
-        trackId: 'lmu-silverstone_grand_prix_circuit_elms',
-        track: 'Silverstone Circuit',
-      }),
-      session('b', '2026-09-02T10:00:00Z', {
-        trackId: 'lmu-silverstone_grand_prix_circuit_wec',
-        track: 'Silverstone Circuit',
-      }),
-    ]);
-    expect(two.map(c => c.label)).toEqual([
-      'Silverstone WEC · 911 GT3 R',
-      'Silverstone ELMS · 911 GT3 R',
-    ]);
-  });
-
-  it('skips sessions without laps', () => {
-    const combos = planCombos([
-      session('a', '2026-09-01T10:00:00Z', {lapCount: 0}),
-      session('b', '2026-09-02T10:00:00Z', {lapCount: 0, sim: 'iracing'}),
-    ]);
-    expect(combos).toEqual([]);
-  });
-
-  it('draws history from the newest sessions only', () => {
-    const many = Array.from({length: HISTORY_SESSIONS + 3}, (_, i) =>
-      session(`s${i}`, `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00Z`),
-    );
-    const [combo] = planCombos(many);
-    const limits = combo.sessions.map(() => 75);
-    const ids = historySessions(combo, limits).map(s => s.id);
-    expect(ids).toHaveLength(HISTORY_SESSIONS);
-    expect(ids[0]).toBe(`s${HISTORY_SESSIONS + 2}`);
-  });
-
-  // Fuel per lap is the car on the track: laps from every load are pooled in
-  // litres (thread 44 #1968); a session doc still loading is not used yet.
-  it('pools sessions of every fill limit, never one still loading', () => {
-    const [combo] = planCombos([
-      session('old', '2026-04-01T10:00:00Z'),
-      session('other', '2026-08-01T10:00:00Z'),
-      session('loading', '2026-08-05T10:00:00Z'),
-      session('none', '2026-08-06T10:00:00Z'),
-      session('new', '2026-08-13T10:00:00Z'),
-    ]);
-    // combo.sessions is newest first: new, none, loading, other, old.
-    const limits = [100, null, undefined, 75, 79];
-    expect(historySessions(combo, limits).map(s => s.id)).toEqual([
-      'new',
-      'none',
-      'other',
-      'old',
-    ]);
-  });
-});
-
 describe('greenLapsOf', () => {
-  it('keeps green timed laps with a positive use, VE from the ratio', () => {
-    const out = greenLapsOf(
-      's1',
-      [
-        lap(),
-        lap({fuel: fuel({green: false})}),
-        lap({timeS: null}),
-        lap({fuel: null}),
-        lap({fuel: fuel({usedL: 0})}),
-        lap({fuel: fuel({usedL: null})}),
-      ],
-      0.7,
-    );
+  it('turns the block rows into the planner laps, VE from the ratio', () => {
+    const out = greenLapsOf('s1', [planLap()], 0.7);
     // 3.5 L at 0.7 L per 1 % is 5 % VE.
     expect(out).toEqual([
       {
@@ -403,72 +99,56 @@ describe('greenLapsOf', () => {
   });
 
   it('carries the traffic facts of a lap for the clean and traffic medians', () => {
-    const facts = {
-      draftS: 0,
-      trafficAheadS: 6,
-      trafficBehindS: 0,
-      blueFlagS: 0,
-      passesMade: 0,
-      passesSuffered: 0,
-      passesMadeAll: 0,
-      passesSufferedAll: 1,
-      battleS: 0.5,
-      overtakes: [],
-      aheadSpans: [],
-      blueSpans: [],
-      draftSpans: [],
-      passMarks: [],
-      fieldLapM: null,
-    };
-    const [out] = greenLapsOf('s1', [lap({traffic: facts})], 0.7);
+    const [out] = greenLapsOf(
+      's1',
+      [
+        planLap({
+          traffic: {aheadS: 6, passes: 1, blueS: 0, battleS: 0.5, overtakes: 2},
+        }),
+      ],
+      0.7,
+    );
     expect(out.traffic).toEqual({
       trafficAheadS: 6,
       passesSufferedAll: 1,
       blueFlagS: 0,
       battleS: 0.5,
-      overtakes: [],
+      overtakes: [undefined, undefined],
     });
   });
 
   it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
     const out = greenLapsOf(
       's1',
-      [lap({fuel: fuel({veUsedPct: null})}), lap()],
+      [planLap({veUsedPct: null}), planLap()],
       0.7,
     );
     expect(out.map(l => l.veMeasured)).toEqual([false, true]);
   });
 
   it('keeps the fuel and drops the VE without a ratio', () => {
-    const out = greenLapsOf('s1', [lap(), lap()], null);
+    const out = greenLapsOf('s1', [planLap(), planLap()], null);
     expect(out.map(l => [l.fuelL, l.vePct])).toEqual([
       [3.5, null],
       [3.5, null],
     ]);
   });
-});
 
-describe('veRatioOf', () => {
-  it('is the median litres per 1 % VE over the green laps', () => {
-    const laps = [
-      lap({fuel: fuel({usedL: 3.5, veUsedPct: 5})}), // 0.7
-      lap({fuel: fuel({usedL: 3.6, veUsedPct: 5})}), // 0.72
-      lap({fuel: fuel({usedL: 3.4, veUsedPct: 5})}), // 0.68
-      lap({fuel: fuel({usedL: 9, veUsedPct: 5, green: false})}),
-    ];
-    expect(veRatioOf(laps)).toBeCloseTo(0.7);
+  it('a lap whose block lacks a traffic number has no traffic facts, never a 0', () => {
+    const [out] = greenLapsOf(
+      's1',
+      [
+        planLap({
+          traffic: {aheadS: 6, passes: null, blueS: 0, battleS: 0.5, overtakes: 1},
+        }),
+      ],
+      0.7,
+    );
+    expect(out.traffic).toBeNull();
   });
 
-  it('needs three green laps with fuel and VE', () => {
-    const one = lap({fuel: fuel({usedL: 3.5, veUsedPct: 5})});
-    expect(veRatioOf([one, one])).toBeNull();
-    expect(veRatioOf([one, one, one])).toBeCloseTo(0.7);
-  });
-
-  it('is null without a green lap that has fuel and VE', () => {
-    expect(veRatioOf([])).toBeNull();
-    expect(veRatioOf([lap({fuel: fuel({veUsedPct: null})})])).toBeNull();
-    expect(veRatioOf([lap({fuel: null})])).toBeNull();
+  it('is empty for a session whose block has no lap rows', () => {
+    expect(greenLapsOf('s1', [], 0.7)).toEqual([]);
   });
 });
 
@@ -1040,23 +720,52 @@ describe('defaultCombo', () => {
   });
 });
 
-describe('limitsOfDetails', () => {
-  const doc = (fillLimitL: number) =>
+describe('limitsOfPlan', () => {
+  const row = (fillLimitL: number | null, plan = true) =>
     ({
-      fuel: {fillLimitL, startL: null, tankL: null},
-    } as unknown as SessionDetail);
+      id: 's',
+      startedAt: '2026-10-09T10:00:00Z',
+      sessionType: 'R',
+      plan: plan
+        ? {
+            v: 1,
+            fuel: {fillLimitL, startL: null, tankL: null, litresPerVePct: null, litresPerVePctStop: null},
+            laps: null,
+            race: null,
+          }
+        : null,
+    } as PlanSession);
 
-  it('is pending while a session doc is still loading', () => {
-    expect(limitsOfDetails([doc(75), undefined], true)).toEqual({
+  it('is pending while the request is in flight, and a session not listed yet has no limit', () => {
+    expect(limitsOfPlan([row(75), undefined], true)).toEqual({
       pending: true,
       limitsL: [75, undefined],
     });
   });
 
-  it('is not pending when a session failed to load: it is left out, not waited for', () => {
-    const state = limitsOfDetails([doc(75), undefined], false);
+  it('once the request has answered, a session it does not list is no data (null), not loading', () => {
+    const state = limitsOfPlan([row(75), undefined], false, true);
+    expect(state.limitsL).toEqual([75, null]);
+  });
+
+  it('a session missing from the answer counts as a session with no limit in the history', () => {
+    const combo = {
+      sessions: [session('a', '2026-10-09T10:00:00Z'), session('b', '2026-10-08T10:00:00Z')],
+    } as Combo;
+    const answered = limitsOfPlan([row(75), undefined], false, true).limitsL;
+    expect(historySessions(combo, answered).map(s => s.id)).toEqual(['a', 'b']);
+    const loading = limitsOfPlan([row(75), undefined], true, false).limitsL;
+    expect(historySessions(combo, loading).map(s => s.id)).toEqual(['a']);
+  });
+
+  it('is not pending when the request failed: the sessions are left out, not waited for', () => {
+    const state = limitsOfPlan([undefined, undefined], false);
     expect(state.pending).toBe(false);
-    expect(state.limitsL).toEqual([75, undefined]);
+    expect(state.limitsL).toEqual([undefined, undefined]);
+  });
+
+  it('reads a session uploaded before the block existed as no limit (null), not as loading', () => {
+    expect(limitsOfPlan([row(null, false)], false).limitsL).toEqual([null]);
   });
 });
 
@@ -1066,11 +775,7 @@ describe('limitsOfDetails', () => {
 // the 3.5 % it read at 75 L, and 40 minutes need no stop.
 describe('planning an event with litres pooled from other events', () => {
   const history = Array.from({length: 12}, (_, i) =>
-    lap({
-      id: `l${i}`,
-      timeS: 81.3,
-      fuel: fuel({usedL: 2.4, veUsedPct: 3.55, green: true}),
-    }),
+    planLap({n: i + 1, timeS: 81.3, usedL: 2.4, veUsedPct: 3.55}),
   );
   const rules = {
     name: 'test',

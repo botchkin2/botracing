@@ -37,14 +37,14 @@ function PlanCard({combo}: {combo: Combo}) {
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
   const rules = rulesFor(preset, length, lastFuel);
-  const {chosen, lapsOf} = usePlanHistory(
+  const {chosen, loading: planLoading} = usePlanHistory(
     combo,
     limitsL,
     rules?.rules.fuelL ?? null,
     preset,
   );
   // The rules need the last session's fuel, and the laps need the sessions.
-  const loading = pending || (rules != null && lapsOf.pending);
+  const loading = pending || (rules != null && planLoading.pending);
   if (loading) return <Skeleton height={size.sessionRow} />;
   const card = planCardModel(combo, chosen.laps);
   return (

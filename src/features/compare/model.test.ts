@@ -1,3 +1,4 @@
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
@@ -13,7 +14,6 @@ import {
 import {
   BASIS_ID,
   buildCompareModel,
-  medianBasisOf,
   snapOut,
   cornerPlace,
   pedalsDomains,
@@ -187,7 +187,7 @@ describe('buildCompareModel', () => {
     const m = build();
     expect(m.charts.map(c => c.title)).toEqual([
       'Time diff vs median of 3',
-      'Speed',
+      'Speed km/h',
       'Throttle + Brake + Steering',
       'Gear',
     ]);
@@ -317,6 +317,18 @@ describe('chart window', () => {
     expect(td.valueRows[0].values[2].text).toMatch(/ s$/);
     expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
+    // A lone row is the chart's title, so it has no legend; an overlay row gets one.
+    expect(td.valueRows[0].legend).toBe(false);
+    expect(
+      m.charts.find(c => c.channels.length > 1)?.valueRows.every(r => r.legend),
+    ).toBe(true);
+    // A lone Speed chart keeps its unit in the title: no legend, so nowhere else.
+    const speed = m.charts.find(
+      c => c.channels.length === 1 && c.channels[0] === 'speed',
+    )!;
+    expect(speed.title).toBe('Speed km/h');
+    expect(speed.valueRows[0].legend).toBe(false);
+    expect(speed.valueRows[0].unit).toBe('km/h');
   });
 
   it('pedals chart shares one plot; apex lines inside the window only', () => {

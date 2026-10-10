@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {
+  columnStats,
   segmentBests,
   segmentOptimum,
   segmentStats,
@@ -67,6 +68,40 @@ describe('segmentStats', () => {
       spreadS: null,
     });
     expect(stats[1].n).toBe(5);
+  });
+});
+
+describe('columnStats', () => {
+  it('takes the median, best and IQR of exactly the times given', () => {
+    expect(columnStats([10, 12, 11, 13])).toEqual({
+      n: 4,
+      bestS: 10,
+      medianS: 11.5,
+      spreadS: 1.5,
+    });
+  });
+
+  it('counts a single time as its own median, with no spread', () => {
+    expect(columnStats([7.5])).toEqual({
+      n: 1,
+      bestS: 7.5,
+      medianS: 7.5,
+      spreadS: 0,
+    });
+  });
+
+  it('skips null and non-finite times, and reads no times as n 0', () => {
+    expect(columnStats([null, NaN, 9])).toMatchObject({n: 1, medianS: 9});
+    expect(columnStats([null])).toEqual({
+      n: 0,
+      bestS: null,
+      medianS: null,
+      spreadS: null,
+    });
+  });
+
+  it('does not apply the traffic filter or the minimum count segmentStats uses', () => {
+    expect(columnStats([10, 10.5]).medianS).toBe(10.25);
   });
 });
 

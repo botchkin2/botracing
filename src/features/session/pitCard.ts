@@ -7,7 +7,12 @@
 // laps, never from the car class: with no VE the VE parts are removed, not
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
-import {refuelS, refuelScope} from '@/src/analysis/refuel';
+import {
+  REFUEL_FUEL_MIN_L,
+  REFUEL_VE_MIN_PCT,
+  refuelS,
+  refuelScope,
+} from '@/src/analysis/refuel';
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {
@@ -94,6 +99,19 @@ export type ActualEnd = {
   vePct: number | null;
   lapsLeft: number | null;
 };
+
+/**
+ * A refuel stop: the visit says it refuelled, or (sessions before the visit
+ * block) litres were added. Tyre, damage and penalty stops add none, so the
+ * plan (which only plans fuel) is never compared with them.
+ */
+export function isRefuelStop(stop: PitStop): boolean {
+  if (stop.visit) return stop.visit.did.includes('refuel');
+  return (
+    (stop.added.fuelL ?? 0) >= REFUEL_FUEL_MIN_L ||
+    (stop.added.vePct ?? 0) >= REFUEL_VE_MIN_PCT
+  );
+}
 
 /** The race's side of "Plan vs what happened". */
 export type PitActual = {stops: ActualStop[]; end: ActualEnd | null};
@@ -447,15 +465,17 @@ export function buildPitCard(
   return {
     kind: 'stops',
     actual: {
-      stops: pitLaps.map(l => {
-        const stop = l.pitStop as PitStop;
-        return {
-          lapIndex: l.lapIndex,
-          fuelL: stop.atEntry.fuelL,
-          vePct: hasVe ? stop.atEntry.vePct : null,
-          lapsLeft: lapsLeft(stop.lapsLeftAtEntry),
-        };
-      }),
+      stops: pitLaps
+        .filter(l => isRefuelStop(l.pitStop as PitStop))
+        .map(l => {
+          const stop = l.pitStop as PitStop;
+          return {
+            lapIndex: l.lapIndex,
+            fuelL: stop.atEntry.fuelL,
+            vePct: hasVe ? stop.atEntry.vePct : null,
+            lapsLeft: lapsLeft(stop.lapsLeftAtEntry),
+          };
+        }),
       end: f
         ? {
             fuelL: f.endL,

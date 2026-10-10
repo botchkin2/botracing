@@ -4,7 +4,8 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
 import {drawnGear} from './drawnGear';
-import {lapColors, space, useTheme} from '@/src/design';
+import {cornerScales, pedalScale, steeringScale} from './scales';
+import {lapColor, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
 
@@ -12,8 +13,8 @@ import {type CornerModel, type ZoomLine} from './model';
 import {type ReadoutChart, readoutsAt} from './readouts';
 import {lapsShownText, noBrakeIn} from './traceFacts';
 
-// The Corner screen's zoomed charts. The phone shows speed, brake and
-// throttle. The desktop is a complete snapshot of one turn (apex #947): the
+// The Corner screen's zoomed charts. The phone shows speed, brake,
+// throttle, steering and gear. The desktop is a complete snapshot of one turn (apex #947): the
 // time difference from this turn's entry, speed, brake, throttle, steering
 // and the racing line, on one distance axis with one hover cursor, this
 // turn's own stretch shaded across all of them.
@@ -90,11 +91,6 @@ export function ZoomTraces({
           {zoom.caption}
         </Text>
       ) : null}
-      {shownText && (
-        <Text variant='dataSmall' tone='textMuted'>
-          {shownText}
-        </Text>
-      )}
     </View>
   );
   const noBrake = noBrakeIn(
@@ -109,11 +105,22 @@ export function ZoomTraces({
         m: at(l) as number,
         color: lapStyle(l.onIndex, l.selIndex, l.highlighted).color,
       }));
-  const speedDomain = domainIn(
-    lines.map(l => l.speedKph),
+  // The fitted scales read the comparable laps only (see cornerScales).
+  const scales = cornerScales(
+    lines.map(l => ({
+      comparable: l.comparable,
+      speedKph: l.speedKph,
+      deltaS: l.deltaS,
+      trackEdgeM: l.samples.trackEdgeM.values,
+    })),
     zoom.windowM,
     zoom.stepM,
   );
+  const {speed, delta} = scales;
+  const pedal = pedalScale();
+  const steering = steeringScale();
+  // The road's own half width: its measured edges in the window.
+  const lateral = scales.lateral;
   // Gears in the window, integers: the axis runs from the lowest to the
   // highest gear the set used, with a half-step of room either side.
   const gearsShown = lines.flatMap(l => {
@@ -171,7 +178,7 @@ export function ZoomTraces({
                 <Text
                   key={r.lapId}
                   variant='dataSmall'
-                  style={{color: lapColors[scheme][r.onIndex]}}>
+                  style={{color: lapColor(scheme, r.onIndex)}}>
                   {r.label} {r.text}
                 </Text>
               ))}
@@ -219,12 +226,16 @@ export function ZoomTraces({
           Throttle %
         </Text>
         <Skeleton height={heights.throttle} />
-        {desktop && (
+        {heights.steering > 0 && (
           <>
             <Text variant='label' tone='textMuted'>
               Steering, % of full lock
             </Text>
             <Skeleton height={heights.steering} />
+          </>
+        )}
+        {desktop && (
+          <>
             <Text variant='label' tone='textMuted'>
               Racing line
             </Text>
@@ -251,18 +262,20 @@ export function ZoomTraces({
           <TraceChart
             {...common}
             height={heights.delta}
-            domain={deltaDomain(lines, zoom.windowM, zoom.stepM)}
+            domain={[delta.lo, delta.hi]}
+            yTicks={delta.ticks}
             series={series(l => ({values: l.deltaS}))}
             zeroLine
             marks={apex}
           />
         </>
       )}
-      {header('speed', 'Speed km/h')}
+      {header('speed', `Speed km/h${shownText ? ` · ${shownText}` : ''}`)}
       <TraceChart
         {...common}
         height={heights.speed}
-        domain={speedDomain}
+        domain={[speed.lo, speed.hi]}
+        yTicks={speed.ticks}
         series={series(l => ({values: l.speedKph}))}
         band={
           zoom.band
@@ -275,7 +288,8 @@ export function ZoomTraces({
       <TraceChart
         {...common}
         height={heights.brake}
-        domain={[-4, 104]}
+        domain={[pedal.lo, pedal.hi]}
+        yTicks={pedal.ticks}
         baseBand={brakeBand}
         series={series(l => ({values: l.brakePct}))}
         marks={[...apex, ...pointMarks(l => l.brakeAtM)]}
@@ -284,10 +298,32 @@ export function ZoomTraces({
       <TraceChart
         {...common}
         height={heights.throttle}
-        domain={[-4, 104]}
+        domain={[pedal.lo, pedal.hi]}
+        yTicks={pedal.ticks}
         series={series(l => ({values: l.throttlePct}))}
         marks={[...apex, ...pointMarks(l => l.fullThrottleAtM)]}
       />
+      {heights.steering > 0 && (
+        <>
+          {header('steering', 'Steering, % of full lock')}
+          <TraceChart
+            {...common}
+            height={heights.steering}
+            domain={[steering.lo, steering.hi]}
+            yTicks={steering.ticks}
+            series={series(
+              l => ({
+                values: l.steeringPct.map(toScreenLateral),
+                samples: screenLateral(l.samples.steeringPct),
+              }),
+              w => Math.min(w, STEERING_WIDTH),
+            )}
+            zeroLine
+            sideLabels={{above: 'L', below: 'R'}}
+            marks={apex}
+          />
+        </>
+      )}
       {header('gear', 'Gear')}
       <TraceChart
         {...common}
@@ -302,37 +338,13 @@ export function ZoomTraces({
       />
       {desktop && (
         <>
-          {header('steering', 'Steering, % of full lock')}
-          <TraceChart
-            {...common}
-            height={heights.steering}
-            domain={symmetricDomain(
-              lines.map(l => l.samples.steeringPct.values),
-              10,
-            )}
-            series={series(
-              l => ({
-                values: l.steeringPct.map(toScreenLateral),
-                samples: screenLateral(l.samples.steeringPct),
-              }),
-              w => Math.min(w, STEERING_WIDTH),
-            )}
-            zeroLine
-            sideLabels={{above: 'L', below: 'R'}}
-            marks={apex}
-          />
           {header('line', 'Racing line, m from the game’s centre path')}
           {lateralAny ? (
             <TraceChart
               {...common}
               height={heights.line}
-              domain={symmetricDomain(
-                [
-                  ...lines.map(l => l.samples.pathLateralM.values),
-                  ...lines.map(l => l.samples.trackEdgeM.values),
-                ],
-                2,
-              )}
+              domain={[lateral.lo, lateral.hi]}
+              yTicks={lateral.ticks}
               series={[
                 ...edgeSeries(zoom.edges, color.textFaint),
                 ...series(l => ({
@@ -371,51 +383,6 @@ function edgeSeries(
     width: 1,
     opacity: 0.6,
   }));
-}
-
-// A range centred on 0 that holds every value, rounded up to `unit`.
-function symmetricDomain(arrays: number[][], unit: number): [number, number] {
-  let m = 0;
-  for (const a of arrays)
-    for (const v of a) if (Number.isFinite(v)) m = Math.max(m, Math.abs(v));
-  const top = Math.max(unit, Math.ceil(m / unit) * unit);
-  return [-top, top];
-}
-
-function deltaDomain(
-  lines: ZoomLine[],
-  window: [number, number],
-  stepM: number,
-): [number, number] {
-  const [lo, hi] = domainIn(
-    lines.map(l => l.deltaS),
-    window,
-    stepM,
-  );
-  // Always show the zero line, and never squeeze a flat delta to nothing.
-  const top = Math.max(hi, 0.05);
-  const bottom = Math.min(lo, -0.05);
-  return [bottom, top];
-}
-
-function domainIn(
-  arrays: number[][],
-  [a, b]: [number, number],
-  stepM: number,
-): [number, number] {
-  let lo = Infinity;
-  let hi = -Infinity;
-  const from = Math.max(0, Math.floor(a / stepM));
-  const to = Math.ceil(b / stepM);
-  for (const arr of arrays)
-    for (let i = from; i <= Math.min(to, arr.length - 1); i++) {
-      if (!Number.isFinite(arr[i])) continue;
-      lo = Math.min(lo, arr[i]);
-      hi = Math.max(hi, arr[i]);
-    }
-  if (!Number.isFinite(lo)) return [0, 1];
-  const pad = (hi - lo) * 0.06 || 1;
-  return [lo - pad, hi + pad];
 }
 
 const styles = StyleSheet.create({

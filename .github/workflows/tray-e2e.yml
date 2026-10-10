@@ -1,0 +1,105 @@
+# The tray installer, end to end, on clean Windows runners: build it from the
+# PR's code once, then in every cell install it silently, start it, start it
+# again three ways (path, 8.3 short name, extended-length path) and uninstall it
+# (desktop/scripts/e2e-install.ps1). Cells: two Windows Server versions, the
+# runner's admin account or a new standard user named "Test Ünïcode", and node
+# on PATH as-is, absent, or a decoy that must never run. A release needs every
+# cell green (pit wall thread 1 #3499).
+#
+# No secrets: the installer is the unsigned one, and the phases that need a
+# signed-in run (uploader starts, heartbeat lands) are added when their
+# credential design is agreed (pit wall thread 1 #3466).
+name: Tray end to end
+on:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'tools/uploader/**'
+      - 'tools/sessions/**'
+      - 'tools/capture/**'
+      - '.github/workflows/tray-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tray-e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: Build an unsigned installer
+        run: npx tauri build --config src-tauri/tauri.unsigned.conf.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: e2e-installer
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 3
+
+  e2e:
+    name: Tray installer end to end (${{ matrix.os }}, ${{ matrix.account }}, node ${{ matrix.node }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+        account: [runner, standard-user, standard-ascii]
+        node: [as-is, none, decoy]
+        exclude:
+          # The decoy and the missing node are the same check as-is on an
+          # account that has no node of its own; keep them on one OS each.
+          - {os: windows-2025, account: runner, node: none}
+          - {os: windows-2025, account: runner, node: decoy}
+          # The plain-named standard user only separates the cause of a failure.
+          - {os: windows-2022, account: standard-ascii, node: none}
+          - {os: windows-2022, account: standard-ascii, node: decoy}
+          - {os: windows-2025, account: standard-ascii, node: none}
+          - {os: windows-2025, account: standard-ascii, node: decoy}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: desktop/scripts
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: e2e-installer
+          path: installer
+
+      - name: Install, launch, launch again, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installer/*-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "no installer was downloaded" }
+          if ("${{ matrix.account }}" -eq "runner") {
+            ./desktop/scripts/e2e-install.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
+          } elseif ("${{ matrix.account }}" -eq "standard-ascii") {
+            ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }} -Account ascii
+          } else {
+            ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
