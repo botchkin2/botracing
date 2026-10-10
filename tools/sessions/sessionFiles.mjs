@@ -118,10 +118,13 @@ export function groupFiles(files, ownerId) {
   })) {
     const {info} = file;
     // iRacing: SubSessionID + session number is one weekend session even when
-    // the wall clock would split the files (PR 272). LMU has no groupId.
-    const key =
-      info.groupId ||
-      [ownerId, info.sim, info.layout, info.car, info.sessionType].join('|');
+    // the wall clock would split the files (PR 272). LMU has no groupId. The
+    // owner leads every key: two drivers in one online race share the group id,
+    // and a session id the same for both would be refused as another owner's
+    // (bias, pit wall thread 1 #3948).
+    const key = info.groupId
+      ? [ownerId, info.groupId].join('|')
+      : [ownerId, info.sim, info.layout, info.car, info.sessionType].join('|');
     const list = byKey.get(key) || [];
     const last = list[list.length - 1];
     if (

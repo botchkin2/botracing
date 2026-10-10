@@ -129,10 +129,7 @@ describe('placeFieldOnLine with LMU positions and a lateral offset', () => {
   };
 
   it('puts a car to the right of the line, off the line by its lateral', () => {
-    const placed = placeFieldOnLine(lmu, square, STEP, {
-      lateral: true,
-      worldToMap: (x, z) => ({x, y: z}),
-    });
+    const placed = placeFieldOnLine(lmu, square, STEP, {lateral: true});
     // Along +x (the first side), right of travel is -z: 2 m right of (2.5, 0).
     expect(placed.cars[0].xM[0]).toBeCloseTo(2.5);
     expect(placed.cars[0].zM[0]).toBeCloseTo(-2);
@@ -143,13 +140,9 @@ describe('placeFieldOnLine with LMU positions and a lateral offset', () => {
     expect(placed.placedOnLine).toBe(false);
   });
 
-  it('keeps the world position only where the lap distance is missing, converted to the line frame', () => {
-    const toMap = (x: number, z: number) => ({x, y: z});
-    const placed = placeFieldOnLine(lmu, square, STEP, {
-      lateral: true,
-      worldToMap: toMap,
-    });
-    // car 1 update 0: no lap distance, so its world x/z (999) converted to the map.
+  it('keeps the world position where the lap distance is missing (the line is world metres)', () => {
+    const placed = placeFieldOnLine(lmu, square, STEP, {lateral: true});
+    // car 1 update 0: no lap distance, so its world x/z (999) is kept as it is.
     expect(Number.isNaN(placed.cars[1].xM[0])).toBe(false);
     expect(Number.isNaN(placed.cars[1].xM[1])).toBe(false);
   });

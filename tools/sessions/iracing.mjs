@@ -29,13 +29,23 @@ export const gameExe = 'iRacingSim64DX11.exe';
 // watch.mjs), so a .ibt is closed by the time it looks and sync.mjs's own 3
 // minute quiet time would only hold a race back after the sim exits. A file
 // skipped for it anyway is looked at again (trigger.mjs, quietRetryAtMs).
+// Which sign of the steering channel (SteeringWheelAngle) is a right turn:
+// -1 here, iRacing's is positive to the left (correlation with yaw rate +0.61 on
+// the 9 Oct Sebring .ibt). cornerInputs.steerSignOf reads it off a lap's own
+// corners; the tests check it against this constant.
+export const steerRightSign = -1;
+
 export const watcher = {
   legacyLayout: false,
   quietMin: 0,
   gameExeEnv: null,
 };
 
-export const describeVersion = 5;
+// Bump when describe() changes what it returns for a file already described
+// (describeCache.mjs: an entry of another version is described again).
+// 6: groupId is null for an offline drive (SubSessionID 0), so cached
+//    `iracing|0|0` ids stop merging every offline drive into one session.
+export const describeVersion = 6;
 
 export function slug(name) {
   return String(name)
@@ -222,7 +232,11 @@ export function describe(path) {
       driver: yamlField(yaml, 'UserName'),
       recordedAt,
       sessionClock: `${sub}:${sess}`,
-      groupId: `${sim}|${sub}|${sess}`,
+      // Only an online sub-session names one weekend session. Every offline
+      // drive has SubSessionID 0, so 0|0|n would join all of them, years and
+      // tracks apart, into a few giant sessions (603 files in one on Botkin's PC,
+      // the 4 Oct Fuji drive among them): those group by the wall clock instead.
+      groupId: sub !== '0' ? `${sim}|${sub}|${sess}` : null,
       sessionType: session.mapped,
       sessionTypeRaw: session.raw,
       track: yamlField(yaml, 'TrackDisplayName') || 'Unknown track',

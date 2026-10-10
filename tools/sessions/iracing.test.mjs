@@ -3,10 +3,12 @@ import {existsSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
+import {reusableInfo} from './describeCache.mjs';
 import {yamlKmToM} from './ibt.mjs';
 import {
   CHANNELS,
   describe,
+  describeVersion,
   gameLapTimes,
   isRecording,
   lapCrossings,
@@ -91,7 +93,8 @@ test('describe: VIR test file, track key is sim-TrackID-config', {skip: !existsS
   // The layout's own name is for display (the key above is a slug).
   assert.equal(typeof info.layoutName, 'string');
   assert.notEqual(info.layoutName, info.layout);
-  assert.equal(info.groupId.split('|')[0], 'iracing');
+  // An offline drive (SubSessionID 0) has no group of its own: the clock groups it.
+  assert.ok(info.groupId == null || info.groupId.split('|')[0] === 'iracing');
   assert.ok(info.trackLengthM > 5000);
   assert.ok(!info.channels.some(c => c.name === 'virtual_energy_pct'));
   assert.equal(
@@ -165,4 +168,21 @@ test('a reset cuts the lap it falls in, and ends one it falls at the end of', ()
     ],
   );
   assert.deepEqual(splitAtResets(segs, []).map(s => s.resetAt), [null, null, null]);
+});
+
+test('a file described with the version before the offline grouping fix is described again', () => {
+  const stat = {size: 100, mtimeMs: 5};
+  const cached = version => ({
+    size: 100,
+    mtimeMs: 5,
+    describeVersion: version,
+    info: {groupId: 'iracing|0|0'},
+  });
+  // What the uploader kept before the fix still says iracing|0|0 ...
+  assert.equal(reusableInfo(cached(5), stat, describeVersion), null);
+  // ... and what it keeps now is reused.
+  assert.deepEqual(reusableInfo(cached(describeVersion), stat, describeVersion), {
+    groupId: 'iracing|0|0',
+  });
+  assert.equal(describeVersion, 6);
 });
