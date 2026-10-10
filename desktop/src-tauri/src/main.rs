@@ -37,6 +37,41 @@ fn opens_on_start(debug_build: bool, env_set: bool) -> bool {
     debug_build && env_set
 }
 
+/// The seat-test custom token file a test tray signs in with, instead of the
+/// browser (thread 1 #3451, docs/TESTING.md). Only a tray under a
+/// BOTRACING_PROFILE honours it, release builds included, so CI can sign in the
+/// installer it ships (apex #3508); the real tray never does. The safety is the
+/// uid check (auth::seat_test_sign_in): a token for anyone but seat-test is
+/// refused, so the file can only ever make a tray seat-test.
+fn seat_token_file(
+    default_profile: bool,
+    env: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    if default_profile {
+        return None;
+    }
+    env.map(std::path::PathBuf::from)
+}
+
+/// Signs a local test tray in as seat-test from `file`, on its own thread.
+/// Anything but a seat-test token is refused (auth::seat_test_uid).
+fn start_seat_sign_in(account: Shared<account::Account>, file: std::path::PathBuf) {
+    let Some(cfg) = account.lock().unwrap().begin_sign_in() else {
+        return;
+    };
+    std::thread::spawn(move || {
+        let result = std::fs::read_to_string(&file)
+            .map_err(|e| format!("can't read {}: {e}", file.display()))
+            .and_then(|text| auth::seat_test_sign_in(&cfg, text.trim()));
+        let mut acct = account.lock().unwrap();
+        acct.signing_in = false;
+        match result {
+            Ok(session) => acct.signed_in(session),
+            Err(e) => acct.message = Some(format!("Sign-in failed: {e}")),
+        }
+    });
+}
+
 /// Sign in on a thread of its own: the browser step waits on a person. The
 /// lock order everywhere is account, then supervisor.
 fn start_sign_in(account: Shared<account::Account>) {
@@ -202,6 +237,16 @@ fn main() {
                 Arc::new(Mutex::new(sidecar::Supervisor::new()));
             app.manage(supervisor.clone());
             app.manage(account.clone());
+            // Before the poll thread starts, so it never opens a browser
+            // sign-in for a test tray that signs in from a file.
+            if let Some(file) = seat_token_file(
+                profile::is_default(),
+                std::env::var_os("BOTRACING_SEAT_TOKEN_FILE"),
+            ) {
+                if account.lock().unwrap().needs_sign_in() {
+                    start_seat_sign_in(account.clone(), file);
+                }
+            }
 
             // The tray menu is built from `menu::menu_items_for`, and every
             // update below goes through the same list, so the menu that ships
@@ -525,7 +570,20 @@ fn status_text(
 
 #[cfg(test)]
 mod tests {
-    use super::{opens_on_start, wants_quit};
+    use super::{opens_on_start, seat_token_file, wants_quit};
+
+    #[test]
+    fn only_a_test_profile_signs_in_from_a_file() {
+        let file = || Some(std::ffi::OsString::from("seat.token"));
+        // A profile (debug or release build alike): the file.
+        assert_eq!(
+            seat_token_file(false, file()),
+            Some(std::path::PathBuf::from("seat.token"))
+        );
+        // The real tray, or no variable: the browser, as always.
+        assert_eq!(seat_token_file(true, file()), None);
+        assert_eq!(seat_token_file(false, None), None);
+    }
 
     #[test]
     fn only_a_debug_build_opens_the_window_at_launch() {
