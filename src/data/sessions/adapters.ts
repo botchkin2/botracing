@@ -552,6 +552,14 @@ export type CornerFacts = {
   /** How far apart the pedal samples around each point were, metres (#52). */
   brakeAtResM: number | null;
   fullThrottleAtResM: number | null;
+  /** The peak pedal % of the application braking for this corner; null when none (thread 58). */
+  peakBrakePct: number | null;
+  /** Where the steering turned in, on the corner's own side, metres of lap distance. */
+  turnInAtM: number | null;
+  /** Where the closed-throttle phase ended; null when the pedal never closed. */
+  throttlePickupAtM: number | null;
+  /** The lowest throttle % between the brake point and full throttle. */
+  minThrottlePct: number | null;
   /** The minimum fell on the corner's edge (#82): a boundary value. */
   minSpeedAtEdge: boolean;
   /** Full throttle fell on the search's start edge: flat through the turn. */
@@ -706,6 +714,10 @@ function toCornerFacts(raw: unknown): CornerFacts {
     fullThrottleAtM: num(x.fullThrottleAtM),
     brakeAtResM: num(x.brakeAtResM),
     fullThrottleAtResM: num(x.fullThrottleAtResM),
+    peakBrakePct: num(x.peakBrakePct),
+    turnInAtM: num(x.turnInAtM),
+    throttlePickupAtM: num(x.throttlePickupAtM),
+    minThrottlePct: num(x.minThrottlePct),
     minSpeedAtEdge: x.minSpeedAtEdge === true,
     fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),

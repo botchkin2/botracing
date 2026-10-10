@@ -75,6 +75,11 @@ const lap = (
           minSpeedKmh: c3[2],
           fullThrottleAtM: c3[3],
           fullThrottleAtEdge: flat,
+          // What the uploader read for this corner (cornerFacts.mjs).
+          peakBrakePct: 95,
+          turnInAtM: 520,
+          throttlePickupAtM: 610,
+          minThrottlePct: 12,
         },
       ],
     },
@@ -149,42 +154,16 @@ describe('buildCornerModel (per single corner)', () => {
       time: 9.8,
       brake: 180,
       peakBrake: 95,
+      turnIn: 120,
       minSpeed: 110,
+      pickup: -30,
       throttle: 10,
+      // The pedal closed (it has a pickup): no lowest-throttle number.
+      minThrottle: null,
     });
   });
 
-  it('takes the largest peak among a corner’s applications, not the first', () => {
-    // A light dab before the main stop, listed first: the peak is the harder one.
-    const base = lap('d', [9.9, 455, 109, 655]);
-    const dabbed = {
-      ...base,
-      corners: [
-        base.corners[0],
-        {
-          ...base.corners[1],
-          brakeApps: [
-            {onsetM: 300, peakPct: 20, part: 3},
-            {onsetM: 620, peakPct: 95, part: 3},
-          ],
-        },
-      ],
-    };
-    const m2 = buildCornerModel({
-      session,
-      laps: toLaps([dabbed]),
-      map,
-      band: null,
-      traces: new Map(),
-      lapIds: ['d'],
-      keyLapIds: ['d'],
-      hl: null,
-      corner: 3,
-    })!;
-    expect(m2.rows[0].values.peakBrake).toBe(95);
-  });
-
-  it('takes the peak brake of the application for this corner (part 3, not part 2)', () => {
+  it('peak brake is the number the uploader read for this corner, null where it has none', () => {
     expect(m.rows.map(r => r.values.peakBrake)).toEqual([95, 95, 95]);
     expect(m.rows[0].cells.peakBrake).toEqual({
       value: '95',
@@ -193,6 +172,68 @@ describe('buildCornerModel (per single corner)', () => {
     });
     // No good or bad side for peak pressure: the gap is shown, never coloured as better.
     expect(MEASURES.find(x => x.id === 'peakBrake')?.better).toBeNull();
+    const noBrake = lap('n', [9.9, 455, 109, 655]);
+    const part = noBrake.corners[1].parts[1] as Record<string, unknown>;
+    part.peakBrakePct = null;
+    part.brakeAtM = undefined;
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([noBrake]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['n'],
+      keyLapIds: ['n'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m2.rows[0].values.peakBrake).toBeNull();
+    expect(m2.rows[0].values.brake).toBeNull();
+    expect(m2.rows[0].cells.peakBrake.value).toBe('—');
+  });
+
+  it('a minimum on the corner’s edge gives no minimum and nothing measured from the apex', () => {
+    const edge = lap('e', [9.9, 455, 109, 655]);
+    (edge.corners[1].parts[1] as Record<string, unknown>).minSpeedAtEdge = true;
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([edge]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['e'],
+      keyLapIds: ['e'],
+      hl: null,
+      corner: 3,
+    })!;
+    const v = m2.rows[0].values;
+    expect([v.minSpeed, v.turnIn, v.pickup, v.throttle, v.minThrottle]).toEqual(
+      [null, null, null, null, null],
+    );
+    // What was braked and how hard are about the brake zone, not the apex.
+    expect(v.peakBrake).toBe(95);
+    expect(v.brake).toBe(180 + 5);
+  });
+
+  it('a pedal that never closed shows how far it came off instead of a pickup', () => {
+    const lift = lap('l', [9.9, 455, 109, 655]);
+    const part = lift.corners[1].parts[1] as Record<string, unknown>;
+    part.throttlePickupAtM = null;
+    part.minThrottlePct = 69;
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([lift]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['l'],
+      keyLapIds: ['l'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m2.rows[0].values.pickup).toBeNull();
+    expect(m2.rows[0].values.minThrottle).toBe(69);
+    expect(m2.rows[0].cells.minThrottle.value).toBe('69');
   });
 
   it('gaps to the reference; better depends on the measure', () => {
