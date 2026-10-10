@@ -134,7 +134,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
-    expect(m.subtitle).toBe('in S2 (T2–3) · 3 laps · compared with L1');
+    expect(m.subtitle).toBe('in S2 (T2–3) · 3 laps · vs L1');
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
       {n: 1, label: 'T1'},
@@ -257,7 +257,7 @@ describe('the median basis (no Ref picked)', () => {
 
   it('a picked Ref is the basis, and it has no difference against itself', () => {
     const m = median(['a', 'b', 'c'], 'b');
-    expect(m.subtitle).toContain('compared with L');
+    expect(m.subtitle).toContain('vs L');
     const refRow = m.rows.find(r => r.lapId === 'b')!;
     expect(refRow.isRef).toBe(true);
     expect(refRow.cells.time.gap).toBeNull();

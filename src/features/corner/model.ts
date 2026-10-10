@@ -1,5 +1,5 @@
 import {toLocalMetres} from '@/src/analysis/geo';
-import {medianBasisOf} from '@/src/features/compare/model';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {
   MAP_AFTER_M,
   MAP_BEFORE_M,
@@ -341,15 +341,20 @@ export function buildCornerModel(input: {
     lapCornerFacts(l, sec)?.fullThrottleAtEdge === true;
   // Per column: the Ref's value, or the median of the set's non-null values.
   const allValues = selected.map(valuesOf);
-  const basisOf = (m: Measure): number | null =>
-    ref ? valuesOf(ref)[m] : medianOf(allValues.map(v => v[m]));
+  const refValues = ref ? valuesOf(ref) : null;
+  const basis = Object.fromEntries(
+    MEASURES.map(m => [
+      m.id,
+      refValues ? refValues[m.id] : medianOf(allValues.map(v => v[m.id])),
+    ]),
+  ) as Record<Measure, number | null>;
 
   const rows: CornerRow[] = selected.map((l, i) => {
     const values = valuesOf(l);
     const cells = Object.fromEntries(
       MEASURES.map(m => {
         const v = values[m.id];
-        const r = basisOf(m.id);
+        const r = basis[m.id];
         const d = v != null && r != null && l.id !== ref?.id ? v - r : null;
         return [
           m.id,
@@ -519,9 +524,7 @@ export function buildCornerModel(input: {
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
       // The basis, named the way Compare names it: a Ref lap, else the median.
-      ref
-        ? `compared with L${ref.lapIndex}`
-        : `vs median of ${selected.length}`,
+      ref ? `vs L${ref.lapIndex}` : `vs median of ${selected.length}`,
     ]
       .filter(Boolean)
       .join(' · '),

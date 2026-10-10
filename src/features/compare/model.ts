@@ -11,6 +11,7 @@ import {
   medianTrace,
   timeDiffS,
 } from '@/src/analysis/resample';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
@@ -686,18 +687,6 @@ const wrapCache = {
  * memoizes it per set of loaded traces, since the cursor moves every frame
  * and the model is rebuilt with it.
  */
-export function medianBasisOf(
-  laps: Lap[],
-  traces: Map<string, GridTrace>,
-): GridTrace | undefined {
-  const loaded = laps.filter(l => traces.has(l.id));
-  if (loaded.length === 0) return undefined;
-  const times = loaded.map(l => l.timeS);
-  return medianTrace(
-    loaded.map(l => traces.get(l.id)!),
-    times.every((t): t is number => t != null) ? times : undefined,
-  );
-}
 
 /**
  * One selection's model, built in two steps (pit-wall thread 1 #3245): the
@@ -764,7 +753,8 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     ? traces.get(refLap.id)
     : input.basisTrace ?? medianBasisOf(selected, traces);
   // The unit a value row shows: the time diff's readout carries its own.
-  const rowUnit = (ch: ChannelId) => (ch === 'timeDiff' ? '' : CHANNELS[ch].unit);
+  const rowUnit = (ch: ChannelId) =>
+    ch === 'timeDiff' ? '' : CHANNELS[ch].unit;
   // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && count > 0
