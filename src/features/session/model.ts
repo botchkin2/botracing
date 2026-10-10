@@ -13,7 +13,7 @@ import {
 import {
   defaultSessionOf,
   openingLapIds,
-  raceFacts,
+  raceFactsOfPlan,
   type Lap,
   type SessionDetail,
   sectorSegmentTimes,
@@ -550,7 +550,7 @@ export function buildSessionModel(
     pitCard,
     tires: buildTiresCard(session, laps),
     fuelUse,
-    planVsRace: raceFacts(session, planKeyOf(session), laps),
+    planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };
 }
 

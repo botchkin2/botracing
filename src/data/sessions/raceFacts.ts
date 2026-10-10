@@ -3,7 +3,8 @@
 // here"). Pure.
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 
-import type {Lap, SessionDetail, SessionType} from './adapters';
+import type {Lap, SessionType} from './adapters';
+import type {PlanBlock} from './planBlock';
 
 /**
  * The lap the race ends on: the last one that was not cut short and has a
@@ -37,67 +38,37 @@ export function racePitLaps(sessionType: SessionType, laps: Lap[]): Lap[] {
   );
 }
 
-const MIN_OWN_LAPS = 3;
-
-function median(values: number[]): number | null {
-  if (values.length < MIN_OWN_LAPS) return null;
-  const v = [...values].sort((a, b) => a - b);
-  const mid = v.length >> 1;
-  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
-}
-
 /**
- * The race's side of the comparison. Null for anything but a race with a
- * whole lap to end on. Lap numbers count from the first racing lap: the
- * formation lap is lap 0, so the lap index minus one (the same count the
- * planner and the backtest use).
+ * The race's side of the comparison, from the session's plan block (the
+ * uploader worked it out off the laps: tools/sessions/planBlock.mjs). Null for
+ * anything but a race with a whole lap to end on, and for a session uploaded
+ * before the block existed (no data, not a guess). Lap numbers count from the
+ * first racing lap: the formation lap is lap 0.
  */
-export function raceFacts(
-  session: Pick<
-    SessionDetail,
-    'sessionType' | 'fuel' | 'startedAt' | 'finish'
-  > &
-    Partial<Pick<SessionDetail, 'race'>>,
+export function raceFactsOfPlan(
+  session: {startedAt: string; plan: PlanBlock | null},
   planKey: string,
-  laps: Lap[],
 ): RaceFacts | null {
-  if (session.sessionType !== 'R') return null;
-  const ending = endingLap(laps);
-  if (!ending) return null;
-  const endFuel = ending.fuel;
-  const green = laps.filter(l => l.fuel?.green && (l.fuel.usedL ?? 0) > 0);
+  const plan = session.plan;
+  const race = plan?.race;
+  if (!plan || !race) return null;
   return {
     planKey,
     startedAt: session.startedAt,
-    limitL: session.fuel?.fillLimitL ?? null,
-    startL: session.fuel?.startL ?? null,
-    // The first recorded lap's VE at the start (the formation lap, where it
-    // is recorded): what the car started the race on.
-    startVePct:
-      [...laps].sort((a, b) => a.lapIndex - b.lapIndex)[0]?.fuel?.veStartPct ??
-      null,
-    raceLaps: Math.max(0, ending.lapIndex - 1),
-    race: session.race ?? null,
-    leftEarly: session.finish?.leftEarly === true,
-    playerLapsDone: session.finish?.lapsDone ?? null,
-    classLeaderLapsDone: session.finish?.classLeaderLapsDone ?? null,
-    ownUse: {
-      fuelL: median(green.map(l => l.fuel!.usedL as number)),
-      vePct: median(
-        green
-          .map(l => l.fuel!.veUsedPct)
-          .filter((v): v is number => v != null && v > 0),
-      ),
-    },
-    end: {
-      lapIndex: ending.lapIndex,
-      fuelL: endFuel?.endL ?? null,
-      vePct: endFuel?.veEndPct ?? null,
-    },
-    stops: racePitLaps(session.sessionType, laps).map(l => ({
-      lapIndex: l.lapIndex,
-      fuelL: l.pitStop!.atEntry.fuelL,
-      vePct: l.pitStop!.atEntry.vePct,
+    limitL: plan.fuel.fillLimitL,
+    startL: plan.fuel.startL,
+    startVePct: race.startVePct,
+    raceLaps: race.raceLaps,
+    race: race.minutes != null ? {minutes: race.minutes} : null,
+    leftEarly: race.leftEarly,
+    playerLapsDone: race.playerLapsDone,
+    classLeaderLapsDone: race.classLeaderLapsDone,
+    ownUse: race.ownUse,
+    end: race.end,
+    stops: race.stops.map(s => ({
+      lapIndex: s.lapIndex,
+      fuelL: s.fuelL,
+      vePct: s.vePct,
     })),
   };
 }

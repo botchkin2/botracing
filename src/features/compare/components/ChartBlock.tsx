@@ -129,32 +129,49 @@ export function ChartBlock({
     </View>
   );
 
+  // A lone chart's × removes the whole chart, so it sits on the title row,
+  // not beside the value (ratchet, #411 review).
+  const loneEditor = !!editor && chart.channels.length === 1;
   const titleRow = (
     <View style={styles.titleRow}>
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
+      {loneEditor && (
+        <Pressable
+          accessibilityLabel={`Remove ${chart.title}`}
+          hitSlop={space.sm}
+          onPress={() => editor.onToggle(first)}>
+          <Text variant='dataSmall' tone='textFaint'>
+            ×
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
   const valueRows = (
     <>
       {chart.valueRows.map(r => (
         <View key={r.channel} style={styles.overlayRow}>
-          <LegendSwatch
-            kind={
-              chart.pedals && r.channel === 'brake'
-                ? 'fill'
-                : chart.pedals && r.channel === 'steering'
-                ? 'band'
-                : 'line'
-            }
-            dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
-            color={color.textMuted}
-          />
-          <Text variant='dataSmall' tone='textMuted'>
-            {r.label} {r.unit}
-          </Text>
-          {editor && (
+          {r.legend && (
+            <>
+              <LegendSwatch
+                kind={
+                  chart.pedals && r.channel === 'brake'
+                    ? 'fill'
+                    : chart.pedals && r.channel === 'steering'
+                    ? 'band'
+                    : 'line'
+                }
+                dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
+                color={color.textMuted}
+              />
+              <Text variant='dataSmall' tone='textMuted'>
+                {r.label} {r.unit}
+              </Text>
+            </>
+          )}
+          {editor && !loneEditor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
               hitSlop={space.sm}

@@ -9,8 +9,8 @@ import {
   presetMismatch,
 } from '@/src/analysis/fuelPlan';
 import {
-  type Lap,
-  type SessionDetail,
+  type PlanLap,
+  type PlanSession,
   type SessionFuel,
   type SessionSummary,
 } from '@/src/data/sessions';
@@ -99,20 +99,28 @@ export function sessionLimitL(fuel: SessionFuel | null): number | null {
 }
 
 /**
- * The fill limit of each session doc at a track and car, and whether any doc
- * is still loading. A doc that failed to load is not loading: it has no limit
- * to read, so it is left out of the history rather than waited for forever.
- * `details` lines up with `combo.sessions`; `pending` is the query's loading
- * flag, not "this entry is undefined" (a failed one is undefined too).
+ * The fill limit of each session at a track and car, from the plan blocks
+ * GET /plan returned, and whether the request is still loading. `rows` lines
+ * up with `combo.sessions`. While the request is in flight a session has no
+ * limit yet (undefined: left out of the history, not waited for forever). Once
+ * it has answered, a session the answer does not list (past the route's cap, or
+ * a doc whose stored carModel was never resynced) is no data (null), the same
+ * as a session with no block (uploaded before it existed): never zero.
  */
-export function limitsOfDetails(
-  details: (SessionDetail | undefined)[],
+export function limitsOfPlan(
+  rows: (PlanSession | undefined)[],
   pending: boolean,
+  /** The request has answered. A session the answer does not list is then no data (null), not still loading. */
+  answered = false,
 ): {pending: boolean; limitsL: (number | null | undefined)[]} {
   return {
     pending,
-    limitsL: details.map(d =>
-      d === undefined ? undefined : sessionLimitL(d.fuel),
+    limitsL: rows.map(r =>
+      r === undefined
+        ? answered
+          ? null
+          : undefined
+        : sessionLimitL(r.plan?.fuel ?? null),
     ),
   };
 }
@@ -162,27 +170,6 @@ export function eventLoad(
   return tank != null ? {kind: 'tank', litres: tank} : null;
 }
 
-/**
- * Litres of fuel one % of Virtual Energy is worth in this session: the median
- * of usedL / veUsedPct over its green laps. VE % per lap depends on the load
- * (thread 35 #1004: 0.68 L per % at 75 L, 0.81 at 84, 0.98 at 100), so the
- * history is kept in litres and turned into VE with the ratio of the event
- * being planned. Null without a green lap that has both.
- */
-export function veRatioOf(laps: Lap[]): number | null {
-  const ratios: number[] = [];
-  for (const l of laps) {
-    const f = l.fuel;
-    if (f?.green && f.usedL != null && f.usedL > 0 && f.veUsedPct)
-      ratios.push(f.usedL / f.veUsedPct);
-  }
-  // Fewer than three green laps is not a median worth dividing by.
-  if (ratios.length < MIN_GREEN_LAPS) return null;
-  ratios.sort((a, b) => a - b);
-  const mid = ratios.length >> 1;
-  return ratios.length % 2 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;
-}
-
 export type VeRatio = {
   /** Litres of fuel per 1 % VE. */
   perPctL: number;
@@ -230,38 +217,49 @@ export function veRatioFor(
 }
 
 /**
+ * A lap's traffic facts for the clean and traffic medians. A lap whose block
+ * lacks any of them has no traffic facts (null): a missing number is never 0.
+ */
+function trafficOf(t: PlanLap['traffic']): GreenLap['traffic'] {
+  if (
+    !t ||
+    t.aheadS == null ||
+    t.passes == null ||
+    t.blueS == null ||
+    t.battleS == null ||
+    t.overtakes == null
+  )
+    return null;
+  return {
+    trafficAheadS: t.aheadS,
+    passesSufferedAll: t.passes,
+    blueFlagS: t.blueS,
+    battleS: t.battleS,
+    // Counts only travel; the planner reads how many there were.
+    overtakes: Array.from({length: t.overtakes}),
+  };
+}
+
+/**
  * Clean laps of one session, as the planner reads them: fuel in litres, and
- * VE % as those litres over the ratio (null without one).
+ * VE % as those litres over the ratio (null without one). The block holds
+ * only the laps the planner keeps (green, fuel used, timed), so there is
+ * nothing to filter here; it is null for a session past the newest few.
  */
 export function greenLapsOf(
   sessionId: string,
-  laps: Lap[],
+  laps: PlanLap[],
   ratio: number | null,
 ): GreenLap[] {
-  const out: GreenLap[] = [];
-  for (const l of laps) {
-    const f = l.fuel;
-    if (!f || !f.green || f.usedL == null || f.usedL <= 0 || l.timeS == null)
-      continue;
-    out.push({
-      fuelL: f.usedL,
-      vePct: ratio != null && ratio > 0 ? f.usedL / ratio : null,
-      lapTimeS: l.timeS,
-      sessionId,
-      comparable: l.comparable,
-      veMeasured: f.veUsedPct != null && f.veUsedPct > 0,
-      traffic: l.traffic
-        ? {
-            trafficAheadS: l.traffic.trafficAheadS,
-            passesSufferedAll: l.traffic.passesSufferedAll,
-            blueFlagS: l.traffic.blueFlagS,
-            battleS: l.traffic.battleS,
-            overtakes: l.traffic.overtakes,
-          }
-        : null,
-    });
-  }
-  return out;
+  return laps.map(l => ({
+    fuelL: l.usedL,
+    vePct: ratio != null && ratio > 0 ? l.usedL / ratio : null,
+    lapTimeS: l.timeS,
+    sessionId,
+    comparable: l.comparable,
+    veMeasured: l.veUsedPct != null && l.veUsedPct > 0,
+    traffic: trafficOf(l.traffic),
+  }));
 }
 
 /**

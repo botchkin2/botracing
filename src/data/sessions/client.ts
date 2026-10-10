@@ -20,6 +20,7 @@ import {
   toSessionSummary,
 } from './adapters';
 import {type SessionFilter} from './keys';
+import {type PlanSession, toPlanSessions} from './planBlock';
 
 export async function fetchSessions(
   filter: SessionFilter,
@@ -35,6 +36,23 @@ export async function fetchSessions(
     signal,
   );
   return {items: body.items.map(toSessionSummary), total: body.total};
+}
+
+/**
+ * The Plan's one request for a track and car: every session's `plan` block,
+ * newest first (the newest few with their lap rows). `carModel` is the car
+ * without its livery, the Plan's own key.
+ */
+export async function fetchPlanSessions(
+  combo: {sim: string; trackId: string; carModel: string},
+  signal?: AbortSignal,
+): Promise<{items: PlanSession[]; truncated: boolean}> {
+  const params = new URLSearchParams({
+    sim: combo.sim,
+    trackId: combo.trackId,
+    car: combo.carModel,
+  });
+  return toPlanSessions(await getJson<unknown>(`/plan?${params}`, signal));
 }
 
 export async function fetchSessionFacets(
