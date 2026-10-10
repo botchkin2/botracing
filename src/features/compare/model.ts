@@ -625,10 +625,6 @@ export function cornerPlace(
 }
 
 /**
- * Follow's position label (handoff v2 M1): the section, plus the corner when
- * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
- */
-/**
  * Where a section starts on the reference lap, in metres: the playback cursor's
  * jump target (D28). An unknown section starts at the lap's start.
  */
@@ -639,6 +635,10 @@ export function sectionStartM(
   return sectionEntryM[n] ?? 0;
 }
 
+/**
+ * Follow's position label (handoff v2 M1): the section, plus the corner when
+ * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
+ */
 export function followPlace(sections: MapSection[], cursorM: number): string {
   const place = cornerPlace(sections, cursorM);
   for (const s of sections)

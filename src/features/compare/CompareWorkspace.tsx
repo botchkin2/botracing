@@ -557,7 +557,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   }
                   style={styles.sectionHead}>
                   <Text variant='dataSmall' tone='textMuted'>
-                    S{n} · {formatDistance(model.sectionEntryM[n] ?? 0)}
+                    S{n} ·{' '}
+                    {formatDistance(sectionStartM(model.sectionEntryM, n))}
                   </Text>
                 </Pressable>
                 {model.grid!.rows.map(r => {
