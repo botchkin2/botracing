@@ -7,7 +7,7 @@ import {
   trackCorners,
   useSession,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
 import {
   formatDistance,
@@ -153,7 +153,7 @@ export function useSessionDesktopModel(
 ): SessionDesktopModel | null {
   const session = useSession(id);
   const laps = useSessionLaps(id);
-  const map = useSessionMap(id);
+  const map = useTrackMap(session.data?.trackId);
   return useMemo(() => {
     if (!session.data || !laps.data) return null;
     // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.

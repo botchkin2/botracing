@@ -18,7 +18,7 @@ import {
   type TrackMapData,
   useSession,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
 import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
@@ -581,7 +581,7 @@ export function useSessionScreenModel(id: string, selection: Selection) {
   const session = useSession(id);
   const laps = useSessionLaps(id);
   // Only the optimal lap needs the map; the screen draws without it.
-  const map = useSessionMap(id);
+  const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
   return useMemo(() => {
     if (session.isError || laps.isError) {

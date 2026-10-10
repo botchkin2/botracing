@@ -6,8 +6,8 @@ import {
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
-  useSessionSurface,
+  useTrackMap,
+  useTrackSurface,
   useSessionsDetail,
   useSessionsLaps,
   mapPlacer,
@@ -54,8 +54,8 @@ export function useCompareModel(
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const band = useSessionBand(sessionId);
-  const map = useSessionMap(sessionId);
-  const surface = useSessionSurface(sessionId);
+  const map = useTrackMap(session.data?.trackId);
+  const surface = useTrackSurface(session.data?.trackId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
   // The checked laps by value, not by the array: a URL write or a re-parse
   // gives a new array of the same ids, which must not rebuild the set.

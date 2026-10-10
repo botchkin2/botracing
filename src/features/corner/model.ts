@@ -128,6 +128,8 @@ export type CornerRow = {
 
 export type ZoomLine = {
   lapId: string;
+  /** A comparable lap: the fitted scales read these only. */
+  comparable: boolean;
   /** "L5", as the table shows it. */
   label: string;
   selIndex: number;
@@ -481,6 +483,7 @@ export function buildCornerModel(input: {
     return [
       {
         lapId: r.lapId,
+        comparable: byId.get(r.lapId)?.comparable === true,
         label: r.label,
         selIndex: r.selIndex,
         highlighted: r.highlighted,

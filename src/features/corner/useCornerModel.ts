@@ -5,7 +5,7 @@ import {
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
 import {
   sliceLoad,
@@ -50,12 +50,11 @@ export function useCornerModel(
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const selection = useMemo(
-    () =>
-      laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection,
+    () => (laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection),
     [urlSelection, laps.data],
   );
   const band = useSessionBand(sessionId);
-  const map = useSessionMap(sessionId);
+  const map = useTrackMap(session.data?.trackId);
 
   const lapIds = useMemo(
     () =>

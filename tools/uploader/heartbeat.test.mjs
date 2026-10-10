@@ -79,6 +79,11 @@ test('an error reaches the doc as one line with no user paths', () => {
     "failed: ENOENT 'C:\\Users\\Botkin\\AppData\\Local\\x.parquet'\n    at stack line";
   assert.equal(scrub(message), "failed: ENOENT '~\\AppData\\Local\\x.parquet'");
   assert.equal(scrub('open C:/Users/Botkin/x failed'), 'open ~/x failed');
+  // A name with a space is one folder, not 'Jane' plus a leaked 'Doe'.
+  assert.equal(
+    scrub("ENOENT 'C:\\Users\\Jane Doe\\AppData\\x'"),
+    "ENOENT '~\\AppData\\x'",
+  );
   const doc = heartbeatDoc({
     ...input,
     watch: {lastError: {at: 'x', message, path: 'lap-uploader/watch.log'}},
