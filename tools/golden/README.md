@@ -26,7 +26,7 @@ does not carry), and anything the app computes from stored docs (the Plan, Compa
 median): those have their own jest fixtures.
 
 CI reads the bucket with the service account in the repo secret
-`GOLDEN_READER_SERVICE_ACCOUNT` (read only on `golden/`); without it (a fork) the
+`GOLDEN_READER_SERVICE_ACCOUNT` (read only on `golden/`; made by `node ops/iam/goldenReader.mjs --apply`, see ops/iam/README.md); without it (a fork) the
 sessions are skipped, with it `GOLDEN_REQUIRED=1` makes a missing slice a failure.
 Locally, `gcloud auth login` is enough, or run `make.mjs` on a PC with the session.
 

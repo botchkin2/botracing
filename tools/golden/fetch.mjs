@@ -46,7 +46,14 @@ export function ensureFixtures(name, manifest, {cache = CACHE} = {}) {
   const dir = resolve(cache, name);
   if (intact(dir, fixtures)) return {dir};
   mkdirSync(dir, {recursive: true});
-  const r = gcloud(['storage', 'cp', `${manifest.bucket}/${name}/*`, dir + sep]);
+  // Each file by the name the manifest pins, not a wildcard: the CI reader may
+  // get objects under golden/ but not list them (ops/iam/goldenReaderPlan.mjs).
+  const r = gcloud([
+    'storage',
+    'cp',
+    ...Object.keys(fixtures).map(file => `${manifest.bucket}/${name}/${file}`),
+    dir + sep,
+  ]);
   if (r.error || r.status !== 0)
     return {skip: `could not fetch ${name} from the bucket (${String(r.stderr || r.error?.message || '').split('\n')[0]})`};
   if (!intact(dir, fixtures))
