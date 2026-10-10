@@ -5,6 +5,7 @@ import {
   gridStepM,
   panCursor,
   playStep,
+  rewindStep,
   type TimedGrid,
   timeAtDistance,
   timeAtIndex,
@@ -113,5 +114,14 @@ describe('playStep', () => {
     expect(playStep(ref, 250, 1, 0.5)).toBeCloseTo(275);
     // 990 m is 29.6 s; +1 s wraps to 0.6 s, which is 30 m at 50 m/s.
     expect(playStep(ref, 990, 1, 1)).toBeCloseTo(30);
+  });
+});
+
+describe('rewindStep', () => {
+  it('goes back by rate and stops at the lap start', () => {
+    expect(rewindStep(ref, 250, 1, 1)).toBeCloseTo(200);
+    expect(rewindStep(ref, 250, 1, 0.5)).toBeCloseTo(225);
+    expect(rewindStep(ref, 20, 1, 1)).toBe(0);
+    expect(rewindStep(ref, 0, 1, 1)).toBe(0);
   });
 });
