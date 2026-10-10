@@ -129,11 +129,24 @@ export function ChartBlock({
     </View>
   );
 
+  // A lone chart's × removes the whole chart, so it sits on the title row,
+  // not beside the value (ratchet, #411 review).
+  const loneEditor = !!editor && chart.channels.length === 1;
   const titleRow = (
     <View style={styles.titleRow}>
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
+      {loneEditor && (
+        <Pressable
+          accessibilityLabel={`Remove ${chart.title}`}
+          hitSlop={space.sm}
+          onPress={() => editor.onToggle(first)}>
+          <Text variant='dataSmall' tone='textFaint'>
+            ×
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
   const valueRows = (
@@ -158,7 +171,7 @@ export function ChartBlock({
               </Text>
             </>
           )}
-          {editor && (
+          {editor && !loneEditor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
               hitSlop={space.sm}
