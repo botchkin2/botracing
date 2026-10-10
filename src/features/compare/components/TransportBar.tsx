@@ -193,11 +193,22 @@ export function TransportBar({
         ),
         false,
       )}
-      <Segment
-        options={PLAY_RATES.map(r => ({value: String(r), label: `${r}×`}))}
-        value={String(rate)}
-        onChange={v => onRate(Number(v) as PlayRate)}
-      />
+      <Pressable
+        accessibilityRole='button'
+        accessibilityLabel={`Speed ${rate}×`}
+        onPress={() =>
+          onRate(PLAY_RATES[(PLAY_RATES.indexOf(rate) + 1) % PLAY_RATES.length])
+        }
+        hitSlop={HIT_SLOP}
+        style={[
+          styles.stepper,
+          {borderColor: color.lineStrong},
+          styles.lapBtn,
+        ]}>
+        <Text variant='dataStrong' style={styles.rateLabel}>
+          {rate}×
+        </Text>
+      </Pressable>
     </View>
   );
   return (
@@ -231,6 +242,7 @@ const styles = StyleSheet.create({
   },
   stepBtn: {width: 28, alignItems: 'center', justifyContent: 'center'},
   stepLabel: {minWidth: 40, textAlign: 'center'},
+  rateLabel: {minWidth: 36, textAlign: 'center'},
   lapBtn: {paddingHorizontal: space.md, justifyContent: 'center'},
   outlined: {borderWidth: 1},
   play: {
