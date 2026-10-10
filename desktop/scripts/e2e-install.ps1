@@ -141,6 +141,30 @@ foreach ($form in $forms) {
 }
 if ($Node -eq "decoy" -and (Test-Path $decoyMarker)) { Fail "the node on PATH was run: the tray must use only its bundled node" }
 
+Step "quit, then start the way Windows does at logon"
+# `--quit` must stop the running tray (the uninstaller relies on the same call).
+Start-Process -FilePath $exe -ArgumentList "--quit" -Wait
+WaitFor "the tray to quit after --quit" 20 { (Trays).Count -eq 0 }
+# What Windows runs at logon is the Run value's command line. Run exactly that
+# (a real sign-out and sign-in cannot be done on a runner; that is proven once on
+# a real PC): one tray, and no window, because the tray lives in the notification
+# area and opens its window only when asked.
+$run = (Get-ItemProperty $runKey).$app
+$quoted = [regex]::Match($run, '^"([^"]+)"(.*)$')
+$runExe = if ($quoted.Success) { $quoted.Groups[1].Value } else { ($run -split " ")[0] }
+$runArgs = if ($quoted.Success) { $quoted.Groups[2].Value.Trim() } else { "" }
+Write-Host "starting the Run entry: $run"
+if ($runArgs) { Start-Process -FilePath $runExe -ArgumentList $runArgs | Out-Null } else { Start-Process -FilePath $runExe | Out-Null }
+WaitFor "the tray to start from the Run entry" 30 { (Trays).Count -ge 1 }
+Start-Sleep -Seconds 6
+$windows = @(Trays | Where-Object { $_.MainWindowHandle -ne 0 -or $_.MainWindowTitle })
+if ($windows.Count) {
+  $titles = ($windows | ForEach-Object { "pid " + $_.Id + " title " + $_.MainWindowTitle }) -join "; "
+  Fail ("the tray opened a window at a logon start: " + $titles)
+}
+if ((Trays).Count -ne 1) { Fail "a logon start left $((Trays).Count) trays, not 1" }
+Write-Host "logon start: one tray, no window"
+
 Step "uninstall (silent)"
 $un = Start-Process -FilePath $uninstaller -ArgumentList "/S" -PassThru -Wait
 if ($un.ExitCode -ne 0) { Fail "uninstaller exit code $($un.ExitCode)" }
