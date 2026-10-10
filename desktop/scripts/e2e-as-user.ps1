@@ -35,8 +35,9 @@ try {
   $plain = [System.Net.NetworkCredential]::new("", $password).Password
   $command = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$work\e2e-install.ps1' -Installer '$work\setup.exe' -Node $Node *> '$out'; exit `$LASTEXITCODE`""
   $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $command -WorkingDirectory $work
-  $principal = New-ScheduledTaskPrincipal -UserId ".\$name" -LogonType Password -RunLevel Limited
-  Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -User ".\$name" -Password $plain -Force | Out-Null
+  # -User/-Password and -Principal cannot be combined; Limited is the standard
+  # token, which this user has anyway.
+  Register-ScheduledTask -TaskName $taskName -Action $action -User ".\$name" -Password $plain -RunLevel Limited -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName
   $until = (Get-Date).AddMinutes(12)
   do {
