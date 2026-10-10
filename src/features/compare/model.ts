@@ -625,6 +625,17 @@ export function cornerPlace(
 }
 
 /**
+ * Where a section starts on the reference lap, in metres: the playback cursor's
+ * jump target (D28). An unknown section starts at the lap's start.
+ */
+export function sectionStartM(
+  sectionEntryM: Record<number, number>,
+  n: number,
+): number {
+  return sectionEntryM[n] ?? 0;
+}
+
+/**
  * Follow's position label (handoff v2 M1): the section, plus the corner when
  * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
  */
@@ -1024,13 +1035,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   let gridRows: CornerGridModel['rows'] = [];
   if (ref && cornerCount > 0 && table.kind !== 'lap') {
     // Against the checked set's medians the reference lap is a row like any
-    // other (it is not zero); a long selection shows the laps in key. With no
-    // lap in key (the stint set's default, nothing highlighted) every checked
-    // lap is a row, so the section grid is never empty (#396 regression).
-    const anyKey = lapRefs.some(r => r.key);
-    const rowsOf = anyKey
-      ? lapRefs.filter(r => mode === 'individual' || r.key)
-      : lapRefs;
+    // other (it is not zero). Every checked lap is a row, whatever is in key
+    // or highlighted (#3309): the set stays visible, and the highlighted lap is
+    // emphasised in the grid, not filtered out.
+    const rowsOf = lapRefs;
     gridRows = rowsOf.map(r => ({
       key: r.lapId,
       label: r.label,
