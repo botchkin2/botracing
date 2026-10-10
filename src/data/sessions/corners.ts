@@ -4,6 +4,7 @@ import {
   type MapCorner,
   type TrackMapData,
 } from './adapters';
+import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 // Single corners (T1..Tn) flattened out of the track's sections. The map
 // and every lap doc group corners into sections (S1..Sn), each with its
@@ -23,12 +24,8 @@ export function trackCorners(map: TrackMapData): TrackCorner[] {
   return map.sections.flatMap((s, si) => {
     const parts = s.parts.length ? s.parts : null;
     const cs = parts ?? [s];
-    // Same rule as design/format turnLabel; data does not import design.
     const name = (c: MapCorner) => c.official ?? `T${c.n}`;
-    const first = name(cs[0]);
-    const last = name(cs[cs.length - 1]);
-    const range = cs.length > 1 ? `${first}–${last}` : first;
-    const sectionLabel = `S${s.n} (${range})`;
+    const sectionLabel = `S${s.n} (${sectionHeaderOf(cs.map(name))})`;
     return (parts ?? [s]).map((c, pi) => ({
       ...c,
       sectionN: s.n,

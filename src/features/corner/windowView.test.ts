@@ -114,7 +114,7 @@ describe('sectionChips', () => {
     const {sections} = sectionChips(all, all[0]);
     expect(sections.map(s => [s.label, s.firstCorner, s.selected])).toEqual([
       ['T1', 1, true],
-      ['S2 (T2–T3)', 2, false],
+      ['S2 (T2–3)', 2, false],
     ]);
   });
 
@@ -176,7 +176,7 @@ describe('the Corner model with windows', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
     expect(model.zoom.caption).toMatch(/^Shaded: T3/);
-    expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–T3)']);
+    expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–3)']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
 

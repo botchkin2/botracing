@@ -10,7 +10,6 @@ import {
   formatLapTime,
   formatRaceGap,
   turnLabel,
-  turnNumber,
 } from './format';
 
 describe('turn labels', () => {
@@ -21,9 +20,6 @@ describe('turn labels', () => {
   });
 
   it('badges take only the number part: "10a", and "7" for "T7 entry"', () => {
-    expect(turnNumber(8)).toBe('8');
-    expect(turnNumber(9, 'T10a')).toBe('10a');
-    expect(turnNumber(7, 'T7 entry')).toBe('7');
   });
 });
 

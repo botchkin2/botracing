@@ -431,23 +431,27 @@ export function TrackMap({
             const on = c.n === badges.selected;
             return (
               <G key={`b${c.n}`}>
-                <Circle
-                  cx={at.x}
-                  cy={at.y}
-                  r={b.d / 2 - 0.5}
-                  fill={on ? color.accent : color.surfaceRaised}
-                  stroke={on ? color.accent : color.median}
-                  strokeWidth={1}
-                />
-                <SvgText
-                  x={at.x}
-                  y={at.y + b.font * 0.36}
-                  textAnchor='middle'
-                  fill={on ? color.bg : color.mapLabel}
-                  fontFamily={fonts.monoBold}
-                  fontSize={b.font}>
-                  {turnBadgeOf(turnLabel(c.n, c.official))}
-                </SvgText>
+                {turnBadgeOf(turnLabel(c.n, c.official)) !== '' ? (
+                  <>
+                    <Circle
+                      cx={at.x}
+                      cy={at.y}
+                      r={b.d / 2 - 0.5}
+                      fill={on ? color.accent : color.surfaceRaised}
+                      stroke={on ? color.accent : color.median}
+                      strokeWidth={1}
+                    />
+                    <SvgText
+                      x={at.x}
+                      y={at.y + b.font * 0.36}
+                      textAnchor='middle'
+                      fill={on ? color.bg : color.mapLabel}
+                      fontFamily={fonts.monoBold}
+                      fontSize={b.font}>
+                      {turnBadgeOf(turnLabel(c.n, c.official))}
+                    </SvgText>
+                  </>
+                ) : null}
               </G>
             );
           })}

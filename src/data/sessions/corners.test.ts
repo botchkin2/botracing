@@ -30,7 +30,7 @@ describe('trackCorners', () => {
       [2, 2, 0],
       [3, 2, 1],
     ]);
-    expect(corners[1].sectionLabel).toBe('S2 (T2–T3)');
+    expect(corners[1].sectionLabel).toBe('S2 (T2–3)');
     expect(corners[0].sectionLabel).toBe('S1 (T1)');
   });
 
