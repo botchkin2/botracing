@@ -86,7 +86,6 @@ export const ADMIN_ONLY = new Map([
 
 export const ENTRIES = [
   'tools/uploader/watch.mjs',
-  'tools/uploader/trayFailure.mjs',
   'tools/sessions/sync.mjs',
   'tools/sessions/store.mjs',
 ];

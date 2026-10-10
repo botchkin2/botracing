@@ -7,6 +7,7 @@ mod auth;
 mod autostart;
 mod browser;
 mod capture;
+mod failure_report;
 mod install;
 mod menu;
 mod paths;
