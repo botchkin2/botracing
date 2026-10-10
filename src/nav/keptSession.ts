@@ -9,6 +9,7 @@ export type Kept = {
   id: string;
   /** The `laps` param as it was in the URL. */
   laps?: string;
+  ref?: string;
   hl?: string;
   /** The last corner used in this session, for the "Corner T5" tab. */
   corner: number | null;
@@ -18,6 +19,7 @@ export type KeptRoute = {
   pathname: string;
   id?: string;
   laps?: string;
+  ref?: string;
   hl?: string;
   /** The open corner, on the Corner page. */
   n?: string;
@@ -34,6 +36,7 @@ export function nextKept(prev: Kept | null, route: KeptRoute): Kept | null {
     return {
       id: route.id,
       laps: route.laps,
+      ref: route.ref,
       hl: route.hl,
       corner: fromPage ?? route.sectionCorner ?? remembered,
     };
@@ -48,5 +51,6 @@ export const sameKept = (a: Kept | null, b: Kept | null): boolean =>
     b != null &&
     a.id === b.id &&
     a.laps === b.laps &&
+    a.ref === b.ref &&
     a.hl === b.hl &&
     a.corner === b.corner);

@@ -6,6 +6,7 @@ import {
   toSessionDetail,
   toTrackMap,
 } from '@/src/data/sessions/adapters';
+import {resampleTrace} from '@/src/analysis/resample';
 import {trackCorners} from '@/src/data/sessions';
 
 import {buildCornerModel, sectionChips} from './model';
@@ -239,5 +240,78 @@ describe('the Corner model with windows', () => {
 
   it('keeps the old stretch for a track with no boundaries', () => {
     build(mapWith(null), null, 3);
+  });
+});
+
+// A lap at a constant speed on the grid, so every lap has a trace (zoom lines need one).
+function flatTrace(kph: number) {
+  const v = kph / 3.6;
+  const n = Math.ceil(1000 / v / 0.1) + 1;
+  const pct = Array.from({length: n}, (_, i) =>
+    Math.min(1, (i * 0.1 * v) / 1000),
+  );
+  const same = (x: number) => pct.map(() => x);
+  return resampleTrace(
+    {
+      lapDistPct: pct,
+      speedKph: same(kph),
+      throttlePct: same(100),
+      brakePct: same(0),
+      steeringPct: same(0),
+      gear: same(4),
+      lat: pct,
+      lon: same(0),
+    },
+    1000,
+    5,
+    10,
+  );
+}
+
+describe('a highlighted lap outside the set, with windows', () => {
+  const m = mapWith(boundaries);
+  const stamp = {v: 1, rev: 3};
+  const build = (hl: string | null) =>
+    buildCornerModel({
+      session,
+      laps: toLaps([
+        rawLap('a', stamp),
+        rawLap('b', stamp),
+        rawLap('c', stamp),
+      ]),
+      map: m,
+      band: null,
+      traces: new Map([
+        ['a', flatTrace(180)],
+        ['b', flatTrace(182)],
+        ['c', flatTrace(300)],
+      ]),
+      lapIds: ['a', 'b'],
+      refId: null,
+      keyLapIds: hl ? ['a', 'b', hl] : ['a', 'b'],
+      hl,
+      corner: 3,
+    })!;
+
+  it('the window keeps the set: same laps, same median gaps, with or without the highlight', () => {
+    const withC = build('c');
+    const without = build(null);
+    // Count: the set's two laps, not three.
+    expect(withC.window!.rows.map(r => r.lapId)).toEqual(['a', 'b']);
+    expect(without.window!.rows.map(r => r.lapId)).toEqual(['a', 'b']);
+    // Median over two laps is their mean, so the two gaps are equal and opposite.
+    expect(withC.window!.rows.map(r => r.time.gap)).toEqual(
+      without.window!.rows.map(r => r.time.gap),
+    );
+    expect(withC.window!.rows[0].time.gap).not.toBeNull();
+  });
+
+  it('a zoom line keeps its deltaS whether or not the lap is highlighted', () => {
+    const withC = build('c');
+    const without = build(null);
+    const deltaOf = (m: typeof withC, id: string) =>
+      m.zoom.lines.find(l => l.lapId === id)!.deltaS;
+    expect(deltaOf(withC, 'a')).toEqual(deltaOf(without, 'a'));
+    expect(deltaOf(withC, 'b')).toEqual(deltaOf(without, 'b'));
   });
 });

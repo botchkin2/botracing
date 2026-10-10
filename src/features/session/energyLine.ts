@@ -3,6 +3,7 @@
 // 3 % · 2 stops added 140 %", or the same in litres when no VE is stored. It
 // reads the same laps, start, end and stop rules as the Pit stops card
 // (pitCard.ts) so the two never disagree. Pure; numbers only (CODE_STANDARDS §7).
+import {firstLapOf} from '@/src/analysis/lapSlots';
 import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {Lap, SessionType} from '@/src/data/sessions';
 
@@ -26,7 +27,8 @@ export function energyLine(
   opens: EnergyTarget,
 ): EnergyLine | null {
   const ending = endingLap(laps);
-  const first = laps[0]?.fuel;
+  // The session's start reading is the lap driven first, whatever the list's order.
+  const first = firstLapOf(laps)?.fuel;
   const last = ending?.fuel;
   if (!first || !last) return null;
   const hasVe = sessionHasVe(laps);

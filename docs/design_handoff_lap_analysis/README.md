@@ -250,7 +250,7 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - Tap a bar: highlights that lap, scrolls the table so the row sits about 55% down the viewport, and shows the detail panel.
   - Tap a row: highlights it, and its bar is framed.
   - Tap the checkbox: toggles selection. There is no cap on the number of laps; above 6 the tinted or grey rules apply. The reference (the first selected lap) cannot be removed from here.
-- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31", or "L16 ref + 21 laps"), "Clear", and a primary "Compare n →".
+- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31", or "L16 ref + 21 laps"), "Clear", and a primary "Compare n →". With two or more stints that have comparable laps, a row above it reads "Stint" and one chip per stint ("1", "2"; not S1, which is a sector head): a chip selects that stint's comparable laps and is marked while the selection is exactly them, so pick a stint, Compare, untick an outlier is three taps (D16, D17). The tray stays while there are stints to pick, even with nothing selected.
 - **No comparable laps (02c):** the chart is replaced by a card saying "3 laps, none comparable" with the reasons listed. The table still shows.
 
 **Exclusion reason copy:**
@@ -366,7 +366,7 @@ Columns: 280 | 820 | 340.
   - **Lap-time distribution:** one row per stint (30 pt) in a 236 pt strip with a dot per comparable lap, the stint median as a white tick, and axis labels at min, mid and max. Selected laps use their lap color, the best lap is purple, the highlighted lap gets an accent ring. Clicking a dot highlights the lap.
   - **Stint 2 vs Stint 1 by corner:** median segment time per corner, stint 2 minus stint 1, as diverging bars (84 pt each side), faster green to the left of centre and slower red to the right, with a signed value and a Σ total.
   - The **lap detail panel** (the same as on the phone).
-- **Bottom of the right column:** the compare tray.
+- **Bottom of the centre column, under the list and outside it:** the compare tray, beside the grid where laps are ticked (D16; it used to sit at the bottom of the right column).
 
 ### D2 Compare workspace
 Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plus Copy link and Export CSV.

@@ -2,9 +2,10 @@
 // lap against (pit-wall thread 44 #1833 and #1835, Botkin: "the tables and
 // everything just run against all checked boxes"). The checked laps' median
 // per corner window (two laps are a set: their midpoint); failing that (a
-// session not resynced yet), the first lap's stint medians, then that lap
-// itself. With a Ref lap picked on purpose, that lap alone. Pure: laps and
+// session not resynced yet), the best checked lap's stint medians, then that
+// lap itself. With a Ref lap picked on purpose, that lap alone. Pure: laps and
 // the map in, a named reference out; every header prints `label`.
+import {anchorLapOf} from '@/src/analysis/lapSlots';
 import {
   checkedWindowMedians,
   type Lap,
@@ -44,7 +45,7 @@ function fromWindows(ref: WindowReference): {
 }
 
 export function tableReference(input: {
-  /** The checked laps, the reference first. */
+  /** The checked laps (their order carries no meaning). */
   selected: Lap[];
   /** This session's laps, for the stint fallback. */
   sessionLaps: Lap[];
@@ -74,7 +75,8 @@ export function tableReference(input: {
         };
     }
   }
-  const ref = selected[0];
+  // The stand-in is the set's best lap, never the first in the list.
+  const ref = anchorLapOf(selected, null);
   // A lap of another session has no stint here.
   if (ref && sessionLaps.some(l => l.id === ref.id)) {
     const stint = stintWindowMedians(sessionLaps, map, ref.stint);

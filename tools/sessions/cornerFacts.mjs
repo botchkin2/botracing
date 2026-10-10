@@ -24,7 +24,8 @@
 //   for the corner it belongs to and null where it has none (thread 58):
 //   brakeAtM, peakBrakePct   the application braking FOR this corner (a
 //                  section's single corner: the section's)
-//   fullThrottleAtM          the held full-throttle point the split uses
+//   fullThrottleAtM          the held full-throttle point (its own column; the
+//                  corner/exit split is the map's fixed exit, not this)
 //   turnInAtM                steering on the corner's own side (cornerInputs.mjs;
 //                  steerRightSign: the adapter's, +1 when right is positive)
 //   throttlePickupAtM, minThrottlePct   where the closed-throttle phase ends,
@@ -158,7 +159,7 @@ export function cornerFacts({
       minTick,
       toTick,
     );
-    // The split point: where full throttle is reached and held (a flick of
+    // The full-throttle point: where it is reached and held (a flick of
     // the pedal does not end the corner), from the slowest sample on.
     const held = fullThrottlePointM(
       {
@@ -169,9 +170,14 @@ export function cornerFacts({
       },
       {fromM: mapAt(minTick), toM: u.toM},
     );
+    // The corner ends at the map's exit for it, the same distance on every lap
+    // (not where this lap got to full throttle: that moved time between corner
+    // and exit, D43). A corner over the line has its exit at a smaller distance
+    // than its window's start: unrolled by one lap it lands past the window's
+    // end, so the window has no exit (`exitS` null).
     const split = splitWindow(timeAt, u, {
       onsetM,
-      fullThrottleAtM: held,
+      exitM: u.exitM < u.fromM ? u.exitM + lengthM : u.exitM,
     });
     // The same held point is the table's: one definition of full throttle. Held
     // at the first sample of the search, which starts at the slowest sample, is
@@ -235,7 +241,7 @@ export function cornerFacts({
       toM: round(u.toM, 1),
       runInS: round(split.runInS, 3),
       cornerS: round(split.cornerS, 3),
-      exitS: round(split.exitS, 3),
+      exitS: split.exitS == null ? null : round(split.exitS, 3),
       onsetM: onsetM == null ? null : round(onsetM, 1),
       onsetSpeedKmh: onsetM == null ? null : speedAt(raw(onsetM)),
       fullThrottleSpeedKmh: held == null ? null : speedAt(raw(held)),

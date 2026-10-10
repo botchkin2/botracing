@@ -51,6 +51,7 @@ import {
   sortRows,
 } from './model';
 import {type CornerBlock, cornerLayout} from './layout';
+import {resetLapIds} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -65,6 +66,17 @@ const PHONE_H: ZoomHeights = {
   gear: 40,
   delta: 0,
   steering: 40,
+  line: 0,
+};
+// Landscape phone: 375 pt of height, so the speed trace is the first screen's
+// chart and the pedals are tall enough to read, not 52 pt ribbons.
+const LANDSCAPE_H: ZoomHeights = {
+  speed: 150,
+  brake: 90,
+  throttle: 90,
+  gear: 40,
+  delta: 0,
+  steering: 60,
   line: 0,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
@@ -152,6 +164,7 @@ export function CornerScreen({
       model={result.model}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
+      openingIds={result.openingIds}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
       selection={selection}
@@ -167,6 +180,7 @@ function CornerView({
   model,
   lapIds,
   keyLapIds,
+  openingIds,
   traceLoad,
   onRetryTraces,
   selection,
@@ -178,6 +192,7 @@ function CornerView({
   model: CornerModel;
   lapIds: string[];
   keyLapIds: string[];
+  openingIds: string[];
   traceLoad: TraceLoad;
   onRetryTraces: () => void;
   selection: CornerSelection;
@@ -364,12 +379,12 @@ function CornerView({
           {canToggle && selection.laps.length >= 2 ? (
             <View style={styles.row}>
               <Chip
-                label='Reset to reference + best'
+                label='Reset'
                 onPress={() => {
                   setNotice(null);
                   onSelectionChange({
                     ...selection,
-                    laps: selection.laps.slice(0, 1),
+                    laps: resetLapIds(selection.ref, openingIds),
                   });
                 }}
               />
@@ -475,7 +490,11 @@ function CornerView({
   const tracesW = layout.isWide
     ? layout.width - left.width - PANEL_DIVIDER_W - 2 * space.xl
     : layout.contentWidth;
-  const h = layout.isWide ? DESK_H : PHONE_H;
+  const h = layout.isWide
+    ? DESK_H
+    : layout.isLandscapePhone
+    ? LANDSCAPE_H
+    : PHONE_H;
   const traces = (
     <ZoomTraces
       model={model}
@@ -540,16 +559,24 @@ function CornerView({
     );
   // Phone: the Compare link and the corner chips stay pinned, so stepping is
   // in reach wherever the page is scrolled.
+  // On a phone turned on its side only the corner chips stay pinned (stepping
+  // stays in reach); the Compare link and Parts scroll, or they would take most
+  // of the 375 pt.
+  const landscape = layout.isLandscapePhone;
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <View
         style={[
           styles.pinned,
-          {backgroundColor: color.bg, paddingTop: top.paddingTop},
+          {
+            backgroundColor: color.bg,
+            paddingTop: landscape ? insets.top : top.paddingTop,
+            paddingHorizontal: space.xl + layout.sideInset,
+          },
         ]}>
-        {navRow}
+        {landscape ? null : navRow}
         {seekChips}
-        {partsRow}
+        {landscape ? null : partsRow}
       </View>
       <ScrollView
         style={styles.flex}
@@ -560,6 +587,12 @@ function CornerView({
           // strips sized to it fit instead of overflowing past the gutter.
           {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
         ]}>
+        {landscape ? (
+          <>
+            {navRow}
+            {partsRow}
+          </>
+        ) : null}
         {titleBlock}
         {body}
       </ScrollView>

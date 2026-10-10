@@ -232,6 +232,7 @@ describe('buildSectionWindow', () => {
         rawLap('old', section2(), {v: 1, rev: 2}),
         rawLap('b', section2()),
       ),
+      refId: 'old',
     });
     expect(stale?.referenceNote).toBe(
       'Reference L1 is pending re-analysis; no gaps.',
@@ -240,6 +241,7 @@ describe('buildSectionWindow', () => {
       map: m,
       sectionN: 2,
       laps: lapsOf(rawLap('p', section2({pit: true})), rawLap('b', section2())),
+      refId: 'p',
     });
     expect(pit?.referenceNote).toBe(
       'Reference L1 crosses the pit lane here; no gaps.',
@@ -250,6 +252,13 @@ describe('buildSectionWindow', () => {
       laps: lapsOf(rawLap('a', section2()), rawLap('b', section2())),
     });
     expect(ok?.referenceNote).toBeNull();
+    // No Ref picked: the first lap in the list is not a reference, whatever its state.
+    const none = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(rawLap('old', section2(), {v: 1, rev: 2}), rawLap('b', section2())),
+    });
+    expect(none?.referenceNote).toBeNull();
   });
 
   it('a split that does not add up to the window time is a stored-data fault: pending, and named', () => {

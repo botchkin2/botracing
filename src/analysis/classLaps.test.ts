@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   carLaps,
+  carPaceClass,
   CLASS_LAPS_VERSION,
   classLaps,
   classLapsCurrent,
@@ -19,6 +20,7 @@ const L = 4000;
 
 type Spec = {
   class: string;
+  classLabel?: string;
   lapS: number;
   offsetM: number;
   player?: boolean;
@@ -52,7 +54,11 @@ function build(specs: Spec[], updates: number): EncodedField {
   return {
     hz: 5,
     tDs: Array.from({length: updates}, (_, u) => Math.round(u * DT * 10)),
-    cars: specs.map(s => ({class: s.class, player: s.player})),
+    cars: specs.map(s => ({
+      class: s.class,
+      player: s.player,
+      ...(s.classLabel != null && {classLabel: s.classLabel}),
+    })),
     lapDistDm: dist,
     inPits: specs.map(s =>
       Array.from({length: updates}, (_, u) => (s.pitsAt?.(u) ? 1 : 0)),
@@ -328,7 +334,54 @@ describe('classLapsDoc', () => {
       kind: 'qualify',
       classes: null,
       startGapsS: null,
+      player: null,
     });
+  });
+  it("names the player's class, by label on iRacing", () => {
+    const ir = build(
+      [
+        {
+          class: 'IMSA23',
+          classLabel: 'GT3',
+          lapS: 110,
+          offsetM: 0,
+          player: true,
+        },
+        {class: 'IMSA23', classLabel: 'GT3', lapS: 110, offsetM: 300},
+        {class: 'GTP', classLabel: 'GTP', lapS: 100, offsetM: 600},
+        {class: '', classLabel: 'GTP', lapS: 100, offsetM: 900},
+      ],
+      3000,
+    );
+    const doc = classLapsDoc(ir, 'Race');
+    expect(doc.player).toBe('gt3');
+    expect(Object.keys(doc.classes ?? {}).sort()).toEqual(['gt3', 'hypercar']);
+    expect(doc.classes?.hypercar?.cars).toBe(2);
+    expect(classLapsDoc(field, 'Race').player).toBeNull();
+  });
+  it('an LMU field gives the same classes as version 5 did', () => {
+    // LMU cars carry no classLabel, so only GTP and the label changed in 6.
+    const lmu = build(
+      [
+        {class: 'LMGT3', lapS: 110, offsetM: 0, player: true},
+        {class: 'GT3', lapS: 111, offsetM: 300},
+        {class: 'LMP2', lapS: 104, offsetM: 600},
+        {class: 'Hyper', lapS: 100, offsetM: 900},
+      ],
+      3000,
+    );
+    const byOldRule = new Map<string, number[]>();
+    carLaps(lmu).forEach((laps, i) => {
+      const key = paceClass(lmu.cars[i].class);
+      byOldRule.set(key, [...(byOldRule.get(key) ?? []), ...laps]);
+    });
+    const doc = classLapsDoc(lmu, 'Race');
+    expect(Object.keys(doc.classes ?? {}).sort()).toEqual(
+      [...byOldRule.keys()].sort(),
+    );
+    for (const [key, laps] of byOldRule)
+      expect(doc.classes?.[key as 'gt3']?.laps).toBe(laps.length);
+    expect(doc.player).toBe('gt3');
   });
   it('a field nothing reaches three laps in still gets a doc', () => {
     const short = build([{class: 'GT3', lapS: 100, offsetM: 0}], 1300);
@@ -357,10 +410,17 @@ describe('sessionKind', () => {
 describe('paceClass', () => {
   it('maps the sim strings, else other', () => {
     expect(
-      ['Hyper', 'LMP2', 'GT3', 'LMGT3', 'GTE', 'Hypercar', '', 'Odd'].map(
-        paceClass,
-        sessionKind,
-      ),
+      [
+        'Hyper',
+        'LMP2',
+        'GT3',
+        'LMGT3',
+        'GTE',
+        'Hypercar',
+        'GTP',
+        '',
+        'Odd',
+      ].map(c => paceClass(c)),
     ).toEqual([
       'hypercar',
       'lmp2',
@@ -368,9 +428,19 @@ describe('paceClass', () => {
       'gt3',
       'gte',
       'hypercar',
+      'hypercar',
       'other',
       'other',
     ]);
+  });
+});
+
+describe('carPaceClass', () => {
+  it("reads iRacing's label before its short name", () => {
+    expect(carPaceClass({class: 'IMSA23', classLabel: 'GT3'})).toBe('gt3');
+    expect(carPaceClass({class: '', classLabel: 'GTP'})).toBe('hypercar');
+    expect(carPaceClass({class: 'IMSA23'})).toBe('other');
+    expect(carPaceClass({class: 'LMP2', classLabel: ''})).toBe('lmp2');
   });
 });
 

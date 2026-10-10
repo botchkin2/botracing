@@ -3,7 +3,7 @@
     "name": "BotRacing",
     "slug": "botracing-61",
     "version": "1.0.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "botracing61",
     "userInterfaceStyle": "automatic",

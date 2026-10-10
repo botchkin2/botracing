@@ -15,6 +15,10 @@ export type SectionMode = 'turns' | 'sectors';
 
 export interface Segment {
   label: string;
+  /** The map section the window belongs to; null for the start straight and the game's sectors. */
+  section?: number | null;
+  /** A compound section (more than one corner): its cell opens Corner for the whole of it. */
+  compound?: boolean;
   /** Where the segment sits on the lap, in the map's frame; null for the game's sectors, whose lines are not stored (only their times are). */
   range: {fromM: number; toM: number} | null;
 }

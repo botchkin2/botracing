@@ -4,10 +4,9 @@ import {radius, size, space, useTheme} from '@/src/design';
 import {Skeleton, Text} from '@/src/ui';
 
 import {
+  type ClassRow,
   type ClassTiming,
-  NO_FASTER_TEXT,
   NO_FIELD_TEXT,
-  NO_LAPS_TEXT,
   type ReadyClassTiming,
 } from '../classTiming';
 
@@ -16,10 +15,25 @@ import {type StopWindow} from '../planCards';
 import {PlanCard} from './PlanCard';
 import {RaceTimelineView} from './RaceTimelineView';
 
+// Units and the ≈ sit in the heads so a phone cell holds one line; the widths are
+// shares of the row, in proportion to each column's widest text at 375 pt
+// ("Hypercar", "1:37.2", "vs you, s", "L8–L12", "~10 laps"), measured live.
+const COLUMNS = [
+  {head: 'Class', flex: 1.12},
+  {head: 'Lap ≈', flex: 0.84},
+  {head: 'vs you, s', flex: 1.04},
+  {head: 'First', flex: 0.88},
+  {head: 'Every', flex: 1.14},
+];
+const flexOf = (i: number) => ({flex: COLUMNS[i].flex});
+// The You line fills only the Lap column; this holds the rest of the row.
+const AFTER_LAP = {flex: COLUMNS.slice(2).reduce((a, c) => a + c.flex, 0)};
+
 /**
- * Class timing on the Plan (round 6, section 2), under Race: the timeline, the
- * Faster classes table and Your class, from other cars' laps. `timing` is null
- * while the sessions load. Every sentence and number is finished in the model.
+ * Class pace on the Plan (round 6, section 2; D55), on both widths and in
+ * every plan state: the Race timeline when a class reaches him inside the race,
+ * then the Class pace table. `timing` is null while the sessions load. Every
+ * sentence and number is finished in the model.
  */
 export function ClassTimingSection({
   timing,
@@ -27,32 +41,28 @@ export function ClassTimingSection({
   windowNote,
   width,
   onStop,
-  wide = false,
 }: {
   timing: ClassTiming | null;
-  /** The pit window of each planned stop (the Stops card reads the same ones). */
+  /** The pit window of each planned stop (the Stops card reads the same ones); empty without a plan. */
   windows: StopWindow[];
   windowNote: string | null;
   /** The width a card's content may use. */
   width: number;
   /** Dragging a stop on the timeline; absent, the timeline is a picture. */
   onStop?: (stop: number, lap: number) => void;
-  /** Faster classes and Your class go side by side (desktop, round 6 section 2). */
-  wide?: boolean;
 }) {
   if (timing == null) return <Skeleton height={size.sessionRow} />;
   if (timing.kind !== 'ready')
     return (
-      <PlanCard title='Faster classes'>
+      <PlanCard title='Class pace'>
         <Text variant='dataSmall' tone='textMuted'>
-          {timing.kind === 'no-field' ? NO_FIELD_TEXT : NO_LAPS_TEXT}
+          {NO_FIELD_TEXT}
         </Text>
       </PlanCard>
     );
   return (
     <>
-      {timing.raceLaps != null &&
-      (timing.faster.some(c => c.estimate) || windows.length > 0) ? (
+      {timing.raceLaps != null && timing.rows.some(r => r.reaches) ? (
         <RaceTimelineCard
           timing={timing}
           windows={windows}
@@ -61,21 +71,7 @@ export function ClassTimingSection({
           onStop={onStop}
         />
       ) : null}
-      {wide && timing.yours ? (
-        <View style={styles.twoUp}>
-          <View style={styles.faster}>
-            <FasterClasses timing={timing} />
-          </View>
-          <View style={styles.yours}>
-            <YourClass yours={timing.yours} />
-          </View>
-        </View>
-      ) : (
-        <>
-          <FasterClasses timing={timing} />
-          {timing.yours ? <YourClass yours={timing.yours} /> : null}
-        </>
-      )}
+      <ClassPaceCard timing={timing} />
     </>
   );
 }
@@ -129,85 +125,71 @@ function EstimateBadge() {
   );
 }
 
-function FasterClasses({timing}: {timing: ReadyClassTiming}) {
-  const {color} = useTheme();
+function ClassPaceCard({timing}: {timing: ReadyClassTiming}) {
   return (
-    <PlanCard title='Faster classes'>
-      {timing.noFaster ? (
-        <Text variant='dataSmall' tone='textMuted'>
-          {NO_FASTER_TEXT}
-        </Text>
-      ) : (
-        <View>
-          <View style={styles.row}>
-            {['Class', 'Lap', 'Gain', 'First', 'Every'].map(h => (
-              <Text
-                key={h}
-                variant='tableHeader'
-                tone='textMuted'
-                style={h === 'Class' ? styles.name : styles.cell}>
-                {h}
-              </Text>
-            ))}
-          </View>
-          {timing.faster.map(c => (
-            <View
-              key={c.key}
-              style={[styles.classBox, {borderColor: color.line}]}>
-              {c.estimate ? (
-                <View style={styles.row}>
-                  <Text variant='bodyStrong' style={styles.name}>
-                    {c.label}
-                  </Text>
-                  <Text variant='dataStrong' style={styles.cell}>
-                    {c.estimate.lapText}
-                  </Text>
-                  <Text variant='dataStrong' style={styles.cell}>
-                    {c.estimate.gainText}
-                  </Text>
-                  <Text variant='dataStrong' style={styles.cell}>
-                    {c.estimate.firstText}
-                  </Text>
-                  <Text variant='dataStrong' style={styles.cell}>
-                    {c.estimate.everyText}
-                  </Text>
-                </View>
-              ) : (
-                <Text variant='bodyStrong'>{c.label}</Text>
-              )}
-              <Text variant='dataSmall' tone='textMuted'>
-                {c.estimate ? `${c.text} · ${c.estimate.firstNote}` : c.text}
-              </Text>
-            </View>
-          ))}
+    <PlanCard title='Class pace'>
+      <View style={styles.row}>
+        {COLUMNS.map((c, i) => (
+          <Text
+            key={c.head}
+            variant='tableHeader'
+            tone='textMuted'
+            style={flexOf(i)}>
+            {c.head}
+          </Text>
+        ))}
+      </View>
+      {timing.rows.map(r => (
+        <View key={r.key}>
+          <ClassLine row={r} />
+          {r.mine && timing.you ? <YouLine you={timing.you} /> : null}
         </View>
-      )}
+      ))}
+      {/* His class not seen in any field here: he still gets his line. */}
+      {timing.you && !timing.rows.some(r => r.mine) ? (
+        <YouLine you={timing.you} />
+      ) : null}
     </PlanCard>
   );
 }
 
-function YourClass({yours}: {yours: NonNullable<ReadyClassTiming['yours']>}) {
+function ClassLine({row}: {row: ClassRow}) {
+  const {color} = useTheme();
   return (
-    <PlanCard title='Your class'>
-      <View style={styles.pair}>
-        <Text variant='bodyStrong' style={styles.name}>
-          {yours.name}
+    <View style={[styles.box, {borderColor: color.line}]}>
+      <View style={styles.row}>
+        <Text variant='bodyStrong' style={flexOf(0)}>
+          {row.label}
         </Text>
-        <Text variant='dataStrong'>{yours.classText}</Text>
-        <Text variant='dataSmall' tone='textMuted'>
-          {yours.classSrc}
-        </Text>
+        {[row.lapText, row.vsText, row.firstText, row.everyText].map((v, i) => (
+          <Text key={i} variant='dataStrong' style={flexOf(i + 1)}>
+            {v}
+          </Text>
+        ))}
       </View>
-      <View style={styles.pair}>
-        <Text variant='bodyStrong' style={styles.name}>
+      <Text variant='dataSmall' tone='textMuted'>
+        {row.srcText}
+      </Text>
+    </View>
+  );
+}
+
+function YouLine({you}: {you: NonNullable<ReadyClassTiming['you']>}) {
+  return (
+    <View style={styles.you}>
+      <View style={styles.row}>
+        <Text variant='bodyStrong' style={flexOf(0)}>
           You
         </Text>
-        <Text variant='dataStrong'>{yours.youText}</Text>
-        <Text variant='dataSmall' tone='textMuted'>
-          {yours.youSrc}
+        <Text variant='dataStrong' style={flexOf(1)}>
+          {you.lapText}
         </Text>
+        <View style={AFTER_LAP} />
       </View>
-    </PlanCard>
+      <Text variant='dataSmall' tone='textMuted'>
+        {you.srcText}
+      </Text>
+    </View>
   );
 }
 
@@ -220,18 +202,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.xxs,
   },
   head: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  row: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
-  name: {flex: 1.2},
-  cell: {flex: 1},
-  classBox: {gap: space.xs, paddingVertical: space.md, borderTopWidth: 1},
-  // Faster classes get the wider half: its table has five columns.
-  twoUp: {flexDirection: 'row', gap: space.xl, alignItems: 'flex-start'},
-  faster: {flex: 1.4, minWidth: 0},
-  yours: {flex: 1, minWidth: 0},
-  pair: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: space.md,
-    flexWrap: 'wrap',
-  },
+  row: {flexDirection: 'row', alignItems: 'center', gap: space.xs},
+  box: {gap: space.xs, paddingVertical: space.md, borderTopWidth: 1},
+  you: {gap: space.xs, paddingBottom: space.md},
 });

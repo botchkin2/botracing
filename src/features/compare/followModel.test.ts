@@ -75,6 +75,7 @@ describe('buildFollowGeometry', () => {
     traces,
     ['a', 'b'],
     [{n: 3, apexM: 400}],
+    'a',
   )!;
 
   it('keeps each lap whole at grid resolution', () => {
@@ -99,7 +100,13 @@ describe('buildFollowGeometry', () => {
     expect(c.at.x).toBeCloseTo(400);
     expect(Math.abs(c.at.y)).toBeCloseTo(10.5);
   });
+  it('shapes the road from the anchor lap, whichever lap is listed first', () => {
+    const onB = buildFollowGeometry(placer, traces, ['a', 'b'], [], 'b')!;
+    expect(onB.band).toEqual([onB.lines.get('b')]);
+    expect(onB.inset[0]).toEqual({x: 0, y: 2});
+  });
   it('is null without the reference trace', () => {
-    expect(buildFollowGeometry(placer, traces, ['x'], [])).toBeNull();
+    expect(buildFollowGeometry(placer, traces, ['x'], [], 'x')).toBeNull();
+    expect(buildFollowGeometry(placer, traces, ['a'], [], null)).toBeNull();
   });
 });

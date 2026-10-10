@@ -211,12 +211,14 @@ describe('buildCompareModel', () => {
     expect(speed.values.map(v => v.text)).toEqual(['180', '180', '176', '181']);
   });
 
-  it('grid shows each lap vs the reference per corner', () => {
+  it('grid shows each lap vs the reference per corner; with no Ref picked the stand-in is the best lap, not the lowest number', () => {
     const g = build().grid!;
     expect(g.corners).toEqual([1, 2]);
+    // L3 is the fastest of the checked laps: L1 and L2 are read against it.
+    expect(g.rows.map(r => r.label)).toEqual(['L1', 'L2']);
     expect(g.rows.map(r => r.cells.map(c => Number(c!.toFixed(2))))).toEqual([
-      [0.3, 0.1],
-      [-0.05, -0.05],
+      [0.05, 0.05],
+      [0.35, 0.15],
     ]);
   });
 

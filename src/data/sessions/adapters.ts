@@ -189,10 +189,14 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
  * laps, and always for qualifying.
  */
 export type SessionClassLaps = {
+  /** CLASS_LAPS_VERSION it was computed with; 0 when the doc does not say. */
+  version: number;
   kind: ClassLapsKind;
   classes: ClassLaps | null;
   /** Races, from CLASS_LAPS_VERSION 2: seconds each class's first and last car crossed the line before the player; null otherwise. */
   startGapsS: Partial<Record<PaceClass, StartGap>> | null;
+  /** The player's pace class, from version 6; null before or when the field flags no player. */
+  player: PaceClass | null;
 };
 
 const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
@@ -235,9 +239,11 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     if (firstS != null && lastS != null) gaps[key] = {firstS, lastS};
   }
   return {
+    version: num(x.version) ?? 0,
     kind,
     classes: Object.keys(classes).length > 0 ? classes : null,
     startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+    player: PACE_CLASSES.find(k => k === x.player) ?? null,
   };
 }
 

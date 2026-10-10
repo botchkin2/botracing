@@ -55,9 +55,11 @@ describe('toSessionSummary class laps', () => {
       classLaps: {kind: 'race', classes: {gt3: stats}},
     });
     expect(s.classLaps).toEqual({
+      version: 0,
       kind: 'race',
       classes: {gt3: stats},
       startGapsS: null,
+      player: null,
     });
   });
 });
@@ -116,16 +118,20 @@ describe('toClassLaps', () => {
         classes: {hypercar: stats, gt3: {cars: 2}, other: 'x'},
       }),
     ).toEqual({
+      version: 1,
       kind: 'practice',
       classes: {hypercar: stats},
       startGapsS: null,
+      player: null,
     });
   });
   it('keeps an empty doc as no classes, and reads nothing without a kind', () => {
     expect(toClassLaps({version: 1, kind: 'qualify', classes: null})).toEqual({
+      version: 1,
       kind: 'qualify',
       classes: null,
       startGapsS: null,
+      player: null,
     });
     expect(toClassLaps({classes: {gt3: stats}})).toBeNull();
     expect(toClassLaps(undefined)).toBeNull();
@@ -141,12 +147,16 @@ describe('toClassLaps', () => {
         gt3: {firstS: 5},
         lmp2: 'x',
       },
+      player: 'gt3',
     };
     expect(toSessionDetail({...raw, classLaps: doc}).classLaps).toEqual({
+      version: 2,
       kind: 'race',
       classes: {lmp2: stats},
       startGapsS: {hypercar: {firstS: 31.2, lastS: 26.4}},
+      player: 'gt3',
     });
+    expect(toClassLaps({...doc, player: 'nonsense'})?.player).toBeNull();
     expect(toSessionDetail(raw).classLaps).toBeNull();
   });
 });

@@ -1,9 +1,9 @@
 import {useMemo} from 'react';
 
-import {paceClass} from '@/src/analysis/classLaps';
 import {useSessions} from '@/src/data/sessions';
 
-import {classSessionOf, classTiming} from './classTiming';
+import {classTiming} from './classTiming';
+import {classPaceInput} from './classPaceInput';
 import {type Combo} from './model';
 import {type usePlanData} from './usePlanData';
 
@@ -11,11 +11,11 @@ import {type usePlanData} from './usePlanData';
 const ALL_TIME_DAYS = 3650;
 
 /**
- * Class timing for the Plan's track: every race and practice there with a
- * field counts, whatever car he drove, against his own median lap and race
- * from the plan in force. His class is that of the newest session of the
- * plan's track and car. The session list carries each session's class pace,
- * so nothing but the list is fetched; null while it loads.
+ * Class pace for the Plan's track: every race and practice there in the same
+ * sim with a field counts, whatever car he drove, against his own median lap
+ * and the race from the plan in force. The session list carries each
+ * session's class pace, so nothing but the list is fetched; null while it
+ * loads.
  */
 export function useClassTiming(
   combo: Combo | null,
@@ -25,41 +25,33 @@ export function useClassTiming(
 ) {
   const sessions = useSessions({ageDays: ALL_TIME_DAYS});
   const {plan, greenLaps, hist} = data;
-  const carClass = combo?.sessions[0]?.carClass ?? '';
-  const timing = useMemo(
+  return useMemo(
     () =>
-      sessions.isPending
+      sessions.isPending || combo == null
         ? null
-        : classTiming({
-            sessions: (sessions.data?.items ?? []).flatMap(s => {
-              const inPool =
-                combo != null &&
-                s.trackId === combo.trackId &&
-                (s.sessionType === 'R' || s.sessionType === 'P');
-              const pooled = inPool ? classSessionOf(s) : null;
-              return pooled ? [pooled] : [];
+        : classTiming(
+            classPaceInput({
+              combo,
+              sessions: sessions.data?.items ?? [],
+              plan: plan && {
+                medianLapS: plan.perLap.lapTimeS?.median ?? null,
+                greenLaps: greenLaps.length,
+                sessions: hist.usedSessions.length,
+                raceLaps: plan.raceLaps?.estimate ?? null,
+                // The stops are planned at p90 use, like the pit windows (thread 44 #1662).
+                stopsAfter: plan.atP90.stopLaps,
+              },
+              chosen,
             }),
-            mine: {
-              key: carClass ? paceClass(carClass) : null,
-              name: carClass,
-              medianLapS: plan?.perLap.lapTimeS?.median ?? null,
-              greenLaps: greenLaps.length,
-              sessions: hist.usedSessions.length,
-            },
-            raceLaps: chosen?.raceLaps ?? plan?.raceLaps?.estimate ?? null,
-            // The stops are planned at p90 use, like the pit windows (thread 44 #1662).
-            stopsAfter: chosen?.stopsAfter ?? plan?.atP90.stopLaps ?? [],
-          }),
+          ),
     [
       sessions.isPending,
       sessions.data,
       combo,
-      carClass,
       plan,
       greenLaps,
       hist.usedSessions,
       chosen,
     ],
   );
-  return timing;
 }

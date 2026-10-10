@@ -1,6 +1,6 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {size, useTheme} from '@/src/design';
+import {size, useLayout, useTheme} from '@/src/design';
 
 import {Text} from './Text';
 
@@ -23,6 +23,10 @@ export function BottomBar<T extends string>({
   bottomInset: number;
 }) {
   const {color} = useTheme();
+  const {isLandscapePhone, sideInset} = useLayout();
+  const itemHeight = isLandscapePhone
+    ? size.bottomBarLandscape
+    : size.bottomBar;
   return (
     <View
       accessibilityRole='tablist'
@@ -32,6 +36,7 @@ export function BottomBar<T extends string>({
           backgroundColor: color.surface,
           borderColor: color.lineStrong,
           paddingBottom: bottomInset,
+          paddingHorizontal: sideInset,
         },
       ]}>
       {items.map(item => {
@@ -42,8 +47,14 @@ export function BottomBar<T extends string>({
             accessibilityRole='tab'
             accessibilityState={{selected: on}}
             onPress={() => onSelect(item.key)}
+            // 36 pt drawn, 44 pt to hit.
+            hitSlop={{
+              top: (size.hit - itemHeight) / 2,
+              bottom: (size.hit - itemHeight) / 2,
+            }}
             style={[
               styles.item,
+              {height: itemHeight},
               {borderTopColor: on ? color.accent : 'transparent'},
             ]}>
             <Text variant='bodyStrong' tone={on ? 'text' : 'textMuted'}>
@@ -60,7 +71,6 @@ const styles = StyleSheet.create({
   bar: {flexDirection: 'row', borderTopWidth: 1},
   item: {
     flex: 1,
-    height: size.bottomBar,
     borderTopWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

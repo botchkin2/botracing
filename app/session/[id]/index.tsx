@@ -20,16 +20,17 @@ export default function SessionRoute() {
   const params = useLocalSearchParams<{
     id: string;
     laps?: string;
+    ref?: string;
     hl?: string;
   }>();
   const router = useRouter();
   const {update} = useLapSelection();
   const {isWide} = useLayout();
-  const {laps, hl} = params;
+  const {laps, ref, hl} = params;
   const selection = useMemo<Selection>(() => {
-    const sel = parseSelection({laps, hl});
-    return {laps: sel.laps, hl: sel.hl};
-  }, [laps, hl]);
+    const sel = parseSelection({laps, ref, hl});
+    return {laps: sel.laps, ref: sel.ref, hl: sel.hl};
+  }, [laps, ref, hl]);
   const screen = (
     <SessionScreen
       sessionId={params.id}

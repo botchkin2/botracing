@@ -11,6 +11,7 @@ import {
   medianTrace,
   timeDiffS,
 } from '@/src/analysis/resample';
+import {anchorLapOf, lapSlots} from '@/src/analysis/lapSlots';
 import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
@@ -764,17 +765,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   // Colour slot: slot 0 is the reference stroke and belongs to the Ref lap
   // only; the others follow in lap-number order. Without a Ref lap (median
   // mode) no lap is the reference, so the slots start at 1.
-  const slots = refLap
-    ? selected.map(l =>
-        l.id === refLap.id
-          ? 0
-          : 1 + selected.filter(o => o.id !== refLap.id).indexOf(l),
-      )
-    : selected.map((_, i) => i + 1);
-  const lapRefs: LapRef[] = selected.map((l, i) => ({
+  const slotOf = lapSlots(selected, refLap?.id ?? null, new Set(foreignTags.keys()));
+  const lapRefs: LapRef[] = selected.map(l => ({
     lapId: l.id,
     label: nameOf(l),
-    selIndex: slots[i],
+    selIndex: slotOf.get(l.id) as number,
     isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
     key: l.id === refLap?.id || l.id === hlId || mode === 'individual',
@@ -782,8 +777,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const keyRefs = lapRefs.filter(r => r.key);
 
   // Without a Ref lap the tables use the median of the checked laps; a lap
-  // stands in only for a session not resynced yet, so its name is `ref`.
-  const ref = refLap ?? selected[0];
+  // stands in only for a session not resynced yet, and that lap is the set's
+  // best, not whichever has the lowest number.
+  const ref = refLap ?? anchorLapOf(selected, null);
   const table = tableReference({
     selected,
     sessionLaps: laps,

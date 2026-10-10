@@ -132,6 +132,25 @@ describe('tableReference', () => {
     expect(r.totalS).toBe(4 + 10 + 12);
   });
 
+  it('the stint fallback is the stint of the best checked lap, whatever order the laps were checked in', () => {
+    // f is a slow lap of stint 2 cut at older boundaries (no usable window);
+    // a is the best lap, in stint 1. Only one checked lap has windows, so the
+    // set cannot be a median and the stand-in decides.
+    const f = {...rawLap('f', 2, 4, 14, 14), cornerBoundaries: {v: 1, rev: 0}};
+    const all = toLaps([...stintLaps, f]);
+    const ids = new Map(all.map(l => [l.id, l]));
+    for (const order of [['f', 'a'], ['a', 'f']]) {
+      const r = tableReference({
+        selected: order.map(id => ids.get(id)!),
+        sessionLaps: all,
+        map: map(),
+        refName: 'L1',
+      });
+      expect(r.kind).toBe('stint');
+      expect(r.label).toBe('stint 1 medians');
+    }
+  });
+
   it('falls back to the reference lap without windows, or with laps cut at other boundaries', () => {
     expect(
       tableReference({

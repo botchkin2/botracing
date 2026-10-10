@@ -1,3 +1,4 @@
+import {anchorLapOf} from '@/src/analysis/lapSlots';
 import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {useMemo} from 'react';
 
@@ -149,6 +150,15 @@ export function useCompareModel(
 
   // Follow's lines, band and inset only change with the selection, so build
   // them here once rather than on every cursor move (CODE_STANDARDS §6).
+  // The lap whose line shapes the road: the Ref lap when picked, else the
+  // set's best lap; the order the laps were checked in carries no meaning.
+  const anchorId = useMemo(() => {
+    const all = [...(laps.data ?? []), ...foreign.laps];
+    const known = knownIds
+      .map(id => all.find(l => l.id === id))
+      .filter((l): l is Lap => l != null);
+    return anchorLapOf(known, selection.ref)?.id ?? null;
+  }, [laps.data, foreign.laps, knownIds, selection.ref]);
   const followGeometry = useMemo(
     () =>
       buildFollowGeometry(
@@ -156,8 +166,9 @@ export function useCompareModel(
         traces,
         knownIds,
         map.data ? trackCorners(map.data) : [],
+        anchorId,
       ),
-    [map.data, surface.data, traces, knownIds],
+    [map.data, surface.data, traces, knownIds, anchorId],
   );
 
   // The median of the checked laps changes with the set of loaded traces, not

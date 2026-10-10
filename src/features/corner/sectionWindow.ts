@@ -86,9 +86,9 @@ export type SectionWindowModel = {
   /** Laps shown as "re-analysis pending". */
   pendingCount: number;
   /**
-   * Said on the card when the first lap (the reference) cannot be compared,
-   * so empty gap cells are never the only sign: "Reference L12 is pending
-   * re-analysis; no gaps." Null when the reference compares, or no lap does.
+   * Said on the card when the picked Ref lap cannot be compared, so empty gap
+   * cells are never the only sign: "Reference L12 is pending re-analysis; no
+   * gaps." Null when no Ref is picked, or the Ref compares.
    */
   referenceNote: string | null;
 };
@@ -121,8 +121,8 @@ function cell(v: number | null, ref: number | null, isRef: boolean): Cell {
 const EMPTY_CELL: Cell = {value: '—', gap: null, better: false};
 
 /**
- * The window of one section for the laps shown, in order (the first is the
- * reference). Null when the track has no boundaries yet or no such section.
+ * The window of one section for the laps shown. Null when the track has no
+ * boundaries yet or no such section.
  */
 export function buildSectionWindow(input: {
   map: TrackMapData;
@@ -257,15 +257,22 @@ export function buildSectionWindow(input: {
     rows,
     optimum: optimumRows(input.sessionLaps ?? laps, map, sectionN),
     pendingCount: states.filter(s => s === 'stale').length,
-    referenceNote:
-      laps.length > 1 && states[0] !== 'ok'
-        ? `Reference L${laps[0].lapIndex} ${
-            states[0] === 'stale'
-              ? 'is pending re-analysis'
-              : 'crosses the pit lane here'
-          }; no gaps.`
-        : null,
+    // Only a picked Ref is "the reference": with none the basis is the median
+    // of the set, and no lap in the list is singled out.
+    referenceNote: refNote(input.refId, laps, states),
   };
+}
+
+function refNote(
+  refId: string | null | undefined,
+  laps: Lap[],
+  states: WindowRowState[],
+): string | null {
+  const at = refId ? laps.findIndex(l => l.id === refId) : -1;
+  if (at < 0 || laps.length < 2 || states[at] === 'ok') return null;
+  return `Reference L${laps[at].lapIndex} ${
+    states[at] === 'stale' ? 'is pending re-analysis' : 'crosses the pit lane here'
+  }; no gaps.`;
 }
 
 function optimumRows(

@@ -77,11 +77,19 @@ describe('chromeBox', () => {
     expect(box.tabs[2].label).toBe('Corner T7 entry');
   });
 
-  it('lists the selected laps in lap colours, reference first', () => {
+  it('colours the chips by slot, not by URL position: without a Ref the lowest lap is slot 1', () => {
     const box = chromeBox({...base, selection: {laps: 'a,b,c'}});
     expect(box.laps.map(l => l.label)).toEqual(['L16', 'L22', 'L9']);
-    expect(box.laps[0].color).toBe(lapColors.dark[0]);
-    expect(box.laps[1].color).toBe(lapColors.dark[1]);
+    expect(box.laps[2].color).toBe(lapColors.dark[1]);
+    expect(box.laps[0].color).toBe(lapColors.dark[2]);
+    expect(box.laps[1].color).toBe(lapColors.dark[3]);
+  });
+
+  it('the picked Ref chip takes slot 0, wherever it sits in the URL', () => {
+    const box = chromeBox({...base, selection: {laps: 'a,b,c', ref: 'b'}});
+    expect(box.laps[1].color).toBe(lapColors.dark[0]);
+    expect(box.laps[2].color).toBe(lapColors.dark[1]);
+    expect(box.laps[0].color).toBe(lapColors.dark[2]);
   });
 
   it('skips a selected lap that has not loaded', () => {

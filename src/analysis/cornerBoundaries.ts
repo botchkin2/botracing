@@ -637,29 +637,40 @@ export interface WindowSplit {
   runInS: number;
   /** From the onset to full throttle. */
   cornerS: number;
-  /** From full throttle to the next boundary. */
-  exitS: number;
+  /** From the corner's exit to the next boundary; null when the exit lies at or past the window's end (it happens in the next window: not measured here). */
+  exitS: number | null;
 }
 
 /**
  * One lap's window time split into run-in, corner and exit, the three adding up
  * to the window's time. `onsetM` is the lap's own onset for the section, the
  * same one the boundary rests on (a brake onset, or a lift onset where the
- * section is a lift section), and `fullThrottleAtM` its full-throttle point
- * (`fullThrottlePointM`); null: no onset, or never full throttle. They are
- * clamped into the window and kept in order. With no onset the corner starts at
- * the window; with no full throttle it runs to the window's end.
+ * section is a lift section); null: no onset. `exitM` is where the corner ends
+ * and the exit begins: the map's own exit for that corner, the same distance
+ * for every lap, so a lap that gets to the throttle earlier or later does not
+ * move time between corner and exit (the lap's full-throttle point is its own
+ * column, `fullThrottlePointM`). Both are clamped into the window and kept in
+ * order. With no onset the corner starts at the window. An exit at or past the
+ * window's end (the next window starts first, or the corner runs over the
+ * line) is not measured in this window: `exitS` is null and the corner runs to
+ * the window's end.
  */
 export function splitWindow(
   timeAt: (m: number) => number,
   window: {fromM: number; toM: number},
-  points: {onsetM: number | null; fullThrottleAtM: number | null},
+  points: {onsetM: number | null; exitM: number},
 ): WindowSplit {
   const {fromM, toM} = window;
   const clamp = (m: number) => Math.min(toM, Math.max(fromM, m));
   const onset = clamp(points.onsetM ?? fromM);
-  const full = Math.max(onset, clamp(points.fullThrottleAtM ?? toM));
   const t0 = timeAt(fromM);
+  if (points.exitM >= toM)
+    return {
+      runInS: timeAt(onset) - t0,
+      cornerS: timeAt(toM) - timeAt(onset),
+      exitS: null,
+    };
+  const full = Math.max(onset, clamp(points.exitM));
   return {
     runInS: timeAt(onset) - t0,
     cornerS: timeAt(full) - timeAt(onset),

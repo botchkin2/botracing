@@ -393,20 +393,6 @@ export function PlanScreen() {
               />
             </PlanCard>
           ) : null}
-          {wide && data.cards ? (
-            <ClassTimingSection
-              timing={classTiming}
-              // The stop line is where the slider has it.
-              windows={data.cards.stops.windows.map((w, i) => ({
-                ...w,
-                planLap: slider.pit?.stops[i]?.after ?? w.planLap,
-              }))}
-              windowNote={data.cards.stops.windowNote}
-              width={cardInnerW}
-              onStop={slider.pit ? slider.setStop : undefined}
-              wide={wide}
-            />
-          ) : null}
           {wide ? (
             <Pair wide={wide}>
               {['dropStop', 'perLap'].flatMap(key =>
@@ -417,6 +403,24 @@ export function PlanScreen() {
             </Pair>
           ) : null}
         </>
+      ) : null}
+      {/* Class pace needs no fuel and none of his laps (D55): every state, both widths. */}
+      {state === 'undriven' || lapCards || !planLoading.pending ? (
+        <ClassTimingSection
+          timing={classTiming}
+          // The stop line is where the slider has it.
+          windows={
+            lapCards && data.cards
+              ? data.cards.stops.windows.map((w, i) => ({
+                  ...w,
+                  planLap: slider.pit?.stops[i]?.after ?? w.planLap,
+                }))
+              : []
+          }
+          windowNote={lapCards ? data.cards?.stops.windowNote ?? null : null}
+          width={cardInnerW}
+          onStop={lapCards && slider.pit ? slider.setStop : undefined}
+        />
       ) : null}
     </>
   );

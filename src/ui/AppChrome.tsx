@@ -21,7 +21,7 @@ export type ChromeSession<T extends string = string> = {
   tabs: readonly ChromeTab<T>[];
   activeTab: T | null;
   onTab: (key: T) => void;
-  /** The selected laps in lap colours, reference first. */
+  /** The selected laps in their lap colours (Ref slot 0, the rest by lap number). */
   laps: readonly {label: string; color: string}[];
   /** Opens the session menu: other sessions at this track, the track page. */
   onMenu: () => void;
