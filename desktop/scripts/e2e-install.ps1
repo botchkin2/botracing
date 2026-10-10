@@ -163,8 +163,18 @@ $probe = Start-Process powershell.exe -PassThru -ArgumentList '-NoProfile', '-Co
 Start-Sleep -Seconds 3
 $seen = @([E2e.Wins]::Visible(@($probe.Id)))
 if (-not $probe.HasExited) { $probe.Kill() }
-if ($seen.Count -lt 1) { Fail "the window check did not see a plain form: it would pass on a tray that opens a window" }
-Write-Host "window check sees a plain form: $($seen[0])"
+# Session 0 (a scheduled task with a password, the standard-user cells) has no
+# interactive desktop: not even a console window is visible there (measured on
+# the runners), so the check can see nothing and proves nothing in that session.
+$windowCheckApplies = $true
+if ($seen.Count -ge 1) {
+  Write-Host "window check sees a plain form: $($seen[0])"
+} elseif ((Get-Process -Id $PID).SessionId -eq 0) {
+  $windowCheckApplies = $false
+  Write-Host "window check: n/a, session 0 shows no window to a check (a plain form was not seen)"
+} else {
+  Fail "the window check did not see a plain form: it would pass on a tray that opens a window"
+}
 
 Step "launch"
 Start-Process -FilePath $exe | Out-Null
@@ -225,7 +235,7 @@ Write-Host "starting the Run entry: $run"
 if ($runArgs) { Start-Process -FilePath $runExe -ArgumentList $runArgs | Out-Null } else { Start-Process -FilePath $runExe | Out-Null }
 WaitFor "the tray to start from the Run entry" 30 { (Trays).Count -ge 1 }
 Start-Sleep -Seconds 6
-$windows = @([E2e.Wins]::Visible(@(Trays | ForEach-Object { $_.Id })))
+$windows = if ($windowCheckApplies) { @([E2e.Wins]::Visible(@(Trays | ForEach-Object { $_.Id }))) } else { @() }
 if ($windows.Count) {
   Fail ("the tray opened a window at a logon start: " + ($windows -join "; "))
 }
