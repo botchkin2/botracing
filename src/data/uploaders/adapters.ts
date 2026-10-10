@@ -18,6 +18,7 @@ export type UploaderProblemKind =
   | 'session-failed'
   | 'sync-crashed'
   | 'recorder-layout'
+  | 'uploader-stopped'
   | 'not-seen';
 
 export type UploaderProblem = {
@@ -35,7 +36,8 @@ export type Uploader = {
   hostId: string;
   host: string;
   version: string;
-  lmuFound: boolean;
+  /** Null when the sender did not look (the tray's own failure report). */
+  lmuFound: boolean | null;
   state: UploaderState;
   /** Epoch ms. */
   lastSeenAt: number | null;
@@ -98,6 +100,7 @@ const PROBLEM_KINDS: readonly UploaderProblemKind[] = [
   'session-failed',
   'sync-crashed',
   'recorder-layout',
+  'uploader-stopped',
   'not-seen',
 ];
 
@@ -144,7 +147,7 @@ export function toUploader(raw: unknown): Uploader {
     // A label from the uploader's config ("Race PC"); hostId is a hash.
     host: str(x.label) ?? hostId,
     version: str(x.version) ?? '',
-    lmuFound: x.lmuFound === true,
+    lmuFound: typeof x.lmuFound === 'boolean' ? x.lmuFound : null,
     state: STATES.includes(state as UploaderState)
       ? (state as UploaderState)
       : 'idle',

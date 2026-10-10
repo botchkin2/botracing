@@ -74,7 +74,7 @@ describe('toUploader', () => {
       hostId: 'rig',
       host: 'rig',
       state: 'idle',
-      lmuFound: false,
+      lmuFound: null,
       lastSeenAt: null,
       queue: 0,
       problems: [],

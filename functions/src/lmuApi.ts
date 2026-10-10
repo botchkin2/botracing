@@ -14,8 +14,11 @@ import {
   readCornerSlicesGzip,
   readSurfaceGzip,
   readFieldGzip,
+  trackMapById,
+  trackSurfaceById,
 } from './sessionStore';
 import {Unauthorized, resolveOwner} from './ownerAccess';
+import {notModified, trackIdOk} from './trackMapCore';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
 
@@ -102,6 +105,46 @@ export const lmuApi = onRequest(
       // Corner). Straight from the store, no legacy lap shape.
       if (/\/uploaders$/.test(path)) {
         res.status(200).json({items: await listUploaders(owner)});
+        return;
+      }
+      // A track layout's map and measured surface, by track id: shared app
+      // data, the same for every signed-in user, no session needed
+      // (trackMapCore.ts). Both carry an ETag; within max-age a second open is
+      // served from the client's cache, after it a 304 without a download.
+      const trackRoute = path.match(/\/tracks\/([^/]+)\/(map|surface)$/);
+      if (trackRoute) {
+        const [, trackId, part] = trackRoute;
+        const found = !trackIdOk(trackId)
+          ? null
+          : part === 'map'
+          ? await trackMapById(trackId)
+          : await trackSurfaceById(trackId);
+        if (!found) {
+          res.status(404).json({error: 'Not found'});
+          return;
+        }
+        // The map changes when the curator writes it; the surface after a sync.
+        res.set(
+          'Cache-Control',
+          part === 'map' ? 'private, max-age=3600' : 'private, max-age=300',
+        );
+        res.set('ETag', found.etag);
+        if (notModified(req.headers['if-none-match'], found.etag)) {
+          res.status(304).end();
+          return;
+        }
+        if ('body' in found) {
+          res.status(200).json(await found.body());
+          return;
+        }
+        const gz = await found.gzip();
+        if (!gz) {
+          res.status(404).json({error: 'Not found'});
+          return;
+        }
+        res.set('Content-Type', 'application/json');
+        res.set('Content-Encoding', 'gzip');
+        res.status(200).send(gz);
         return;
       }
       if (/\/sessions\/facets$/.test(path)) {
