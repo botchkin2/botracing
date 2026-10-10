@@ -32,6 +32,8 @@ export type MeasuredRun = {
   rightDashed: (Xy | null)[];
   /** Every bin is measured: the road is a loop. */
   closed: boolean;
+  /** Metres along the lap, in the surface's frame, where centre[0] sits. */
+  fromM: number;
 };
 
 export type MapPlacer = {
@@ -193,7 +195,29 @@ function measuredRuns(
     leftDashed: placeAll(run.leftDashed),
     rightDashed: placeAll(run.rightDashed),
     closed: run.closed,
+    fromM: run.fromM,
   }));
+}
+
+/**
+ * The measured centre at a fraction of the lap (0 = the line), in map metres:
+ * where a map puts a corner badge or the start/finish without any lap (thread
+ * 1 #3479). The surface and the corner map measure the lap in their own
+ * metres, so the place is taken as a share of the lap, as corner slices do.
+ * Null where the surface has no centre there.
+ */
+export function measuredCentreAt(
+  surface: TrackSurface,
+  runs: MeasuredRun[],
+  fraction: number,
+): Xy | null {
+  const share = ((fraction % 1) + 1) % 1;
+  const m = share * surface.lengthM;
+  for (const run of runs) {
+    const i = Math.floor((m - run.fromM) / surface.stepM);
+    if (i >= 0 && i < run.centre.length) return run.centre[i];
+  }
+  return null;
 }
 
 /**

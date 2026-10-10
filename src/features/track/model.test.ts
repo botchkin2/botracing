@@ -1,7 +1,8 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type GridTrace} from '@/src/analysis/resample';
-import {type SessionSummary, type TrackMapData} from '@/src/data/sessions';
+import {addLap, emptySurface, type SurfaceLap} from '@/src/analysis/trackSurface';
+import {mapPlacer, type SessionSummary, type TrackMapData} from '@/src/data/sessions';
 import {type TrackInfo} from '@/src/data/tracks';
 
 import {buildHistory} from './history';
@@ -310,6 +311,90 @@ describe('buildTrackModel: a lap draws the same map as before', () => {
     const before = require('./__fixtures__/map-with-lap.before.json') as {
       map: unknown;
     };
-    expect(JSON.parse(JSON.stringify(m.map))).toEqual(before.map);
+    // The lap-placed map is unchanged; it only says now that the lap placed it.
+    const {marksFrom, ...rest} = JSON.parse(JSON.stringify(m.map));
+    expect(rest).toEqual(before.map);
+    expect(marksFrom).toBe('lap');
+  });
+});
+
+// A 400 m square road in game-world metres (the surface's frame), measured
+// by three laps on its centre: every 10 m bin has a centre.
+function squareSurface(skip: (m: number) => boolean = () => false) {
+  const s = emptySurface(400);
+  const lap: SurfaceLap = {distM: [], x: [], y: [], pathLateralM: [], trackEdgeM: []};
+  for (let m = 0; m < 400; m += 2) {
+    if (skip(m)) continue;
+    const k = Math.floor(m / 100);
+    const u = m % 100;
+    const [x, y] = [[u, 0], [100, u], [100 - u, 100], [0, 100 - u]][k];
+    lap.distM.push(m);
+    lap.x.push(x);
+    lap.y.push(y);
+    lap.pathLateralM.push(0);
+    lap.trackEdgeM.push(-6);
+  }
+  for (let i = 0; i < 3; i++) addLap(s, lap);
+  return s;
+}
+
+const surfaceInputs = (
+  surface: ReturnType<typeof squareSurface> | null,
+  refTrace: GridTrace | null,
+) => ({
+  trackId: 'lmu-t',
+  info: info(),
+  layouts: [],
+  sessions: [session({})],
+  // The corner map measures the lap in its own metres (here 404 m): the
+  // badges go to the same share of the lap on the surface.
+  map: {...map(), lengthM: 404},
+  surface,
+  refTrace,
+  selectedCorner: null,
+});
+
+const dist = (a: {x: number; y: number}, b: {x: number; y: number}) =>
+  Math.hypot(a.x - b.x, a.y - b.y);
+
+describe('buildTrackModel: badges and S/F on the measured road (a map is a map)', () => {
+  it('places every badge and the S/F with no lap at all', () => {
+    const m = buildTrackModel(surfaceInputs(squareSurface(), null));
+    expect(m.map?.marksFrom).toBe('surface');
+    expect(m.map?.line).toBeNull();
+    expect(m.map?.marks.corners.map(c => c.n)).toEqual([1, 2, 3, 4]);
+    expect(m.map?.startFinish).not.toBeNull();
+    // Corner 1's apex is a quarter of the lap: the square's first corner, in
+    // map metres the placer gives the same game point.
+    const placer = mapPlacer(map(), squareSurface());
+    const [expected] = placer.placeWorld([{x: 100, z: 0}]);
+    const c1 = m.map!.marks.corners.find(c => c.n === 1)!;
+    expect(dist(c1.anchor.at, expected)).toBeLessThan(15);
+    const [line] = placer.placeWorld([{x: 0, z: 0}]);
+    expect(dist(m.map!.startFinish!.at, line)).toBeLessThan(15);
+  });
+
+  it('prefers the measured road over the lap, and lands where the lap would', () => {
+    const lapOnly = buildTrackModel(surfaceInputs(null, squareTrace()));
+    const both = buildTrackModel(surfaceInputs(squareSurface(), squareTrace()));
+    expect(lapOnly.map?.marksFrom).toBe('lap');
+    expect(both.map?.marksFrom).toBe('surface');
+    // Same corners either way.
+    expect(both.map?.marks.corners.map(c => c.n)).toEqual(
+      lapOnly.map?.marks.corners.map(c => c.n),
+    );
+    // The lap still draws its own line on top.
+    expect(both.map?.line?.length).toBe(squareTrace().lat.length);
+  });
+
+  it('falls back to the lap where the road is not measured at a badge, and to none without a lap', () => {
+    // No laps measured between 90 and 110 m: corner 1's apex (at 100 of 400).
+    const holed = squareSurface(m => m >= 90 && m < 110);
+    expect(buildTrackModel(surfaceInputs(holed, squareTrace())).map?.marksFrom).toBe('lap');
+    const none = buildTrackModel(surfaceInputs(holed, null)).map;
+    expect(none?.marksFrom).toBeNull();
+    expect(none?.marks.corners).toEqual([]);
+    // The road still draws.
+    expect(none?.outline.length).toBeGreaterThan(0);
   });
 });
