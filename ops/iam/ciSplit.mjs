@@ -126,6 +126,25 @@ function keyToSecret({account, secret, env}, c = CI) {
   }
 }
 
+const NOT_YET = /does not exist|not found|NOT_FOUND/i;
+const sleepMs = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * A service account is not visible to IAM calls for a few seconds after it is
+ * created, so the binding that follows `service-accounts create` fails with
+ * "does not exist" (android-release, 2026-10-09). Retry that one error.
+ */
+export async function runWithRetry(run, args, {tries = 8, delayMs = 4000, sleep = sleepMs} = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return run(args);
+    } catch (error) {
+      if (attempt >= tries || !NOT_YET.test(String(error.message ?? error))) throw error;
+      await sleep(delayMs);
+    }
+  }
+}
+
 export async function main(argv, {run = gcloudRunner()} = {}) {
   const phase = argv[0];
   const apply = argv.includes('--apply');
@@ -136,7 +155,7 @@ export async function main(argv, {run = gcloudRunner()} = {}) {
   for (const s of steps) {
     console.log(`  - ${s.what}`);
     if (!apply) continue;
-    if (s.run) run(s.run);
+    if (s.run) await runWithRetry(run, s.run);
     if (s.gh) gh(s.gh);
     if (s.then) gh(s.then);
     if (s.keyTo) keyToSecret(s.keyTo);
