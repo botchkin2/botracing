@@ -28,6 +28,8 @@ export interface SegmentLap {
   alone?: boolean[];
   /** Seconds in each segment, in segment order; null where the segment does not count for this lap. */
   timesS: (number | null)[];
+  /** A pit stop was entered on this lap (the grid marks it); absent reads as false. */
+  stop?: boolean;
 }
 
 export interface SegmentTimes {

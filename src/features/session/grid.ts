@@ -34,6 +34,8 @@ export type GridCell = {
 export type GridRow = {
   lapId: string;
   stint: number;
+  /** A pit stop was entered on this lap. */
+  stop: boolean;
   ticked: boolean;
   cells: GridCell[];
 };
@@ -70,6 +72,7 @@ export function sessionGrid(
   const rows: GridRow[] = times.laps.map(lap => ({
     lapId: lap.id,
     stint: lap.stint,
+    stop: lap.stop === true,
     ticked: ticked.has(lap.id),
     cells: times.segments.map((_, i) => {
       const timeS = lap.timesS[i] ?? null;

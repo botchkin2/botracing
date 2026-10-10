@@ -88,6 +88,16 @@ describe('cells', () => {
   });
 });
 
+describe('stop flag', () => {
+  test('a row carries the pit stop flag from its lap', () => {
+    const data = times();
+    data.laps[2] = {...data.laps[2], stop: true};
+    const g = sessionGrid(data, ticked('L1'));
+    expect(g.rows.find(r => r.lapId === 'L3')!.stop).toBe(true);
+    expect(g.rows.find(r => r.lapId === 'L1')!.stop).toBe(false);
+  });
+});
+
 describe('bars and the shared scale', () => {
   test('bar fractions are against the widest column spread', () => {
     const g = sessionGrid(times(), ticked('L1', 'L2', 'L4'));
@@ -128,12 +138,14 @@ describe('sorting', () => {
       {
         lapId: 'A',
         stint: 1,
+        stop: false,
         ticked: true,
         cells: [{timeS: 5, deltaS: null, unit: 0, best: false}],
       },
       {
         lapId: 'B',
         stint: 1,
+        stop: false,
         ticked: true,
         cells: [{timeS: 5, deltaS: null, unit: 0, best: false}],
       },

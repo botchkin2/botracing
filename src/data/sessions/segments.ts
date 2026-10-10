@@ -79,6 +79,7 @@ export function turnSegmentTimes(
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
       alone: aloneIn(lap.traffic, map.lengthM, segments),
+      stop: lap.pitStop != null,
     });
   }
   return out.length > 0 ? {segments, laps: out} : null;
@@ -93,6 +94,7 @@ export function sectorSegmentTimes(laps: Lap[]): SegmentTimes | null {
     stint: l.stint,
     comparable: l.comparable,
     timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
+    stop: l.pitStop != null,
   }));
   return {
     segments: Array.from({length: count}, (_, i) => ({
