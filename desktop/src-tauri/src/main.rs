@@ -252,6 +252,15 @@ fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Re
         }
     }
     note("recorders stopped");
+    // `app.exit` ends the event loop, and in a non-interactive session (a
+    // scheduled task, the CI standard-user cells) the loop never returned: the
+    // tray stayed up after every step above had finished (quit.log, thread 1).
+    // A quit has finished its work by now, so the process ends either way.
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_secs(3));
+        std::process::exit(0);
+    });
+    note("exit requested");
     app.exit(0);
 }
 
