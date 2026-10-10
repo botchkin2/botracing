@@ -445,6 +445,12 @@ fn main() {
             let menu_poll = menu.clone();
             let app_poll = app.handle().clone();
             let mut owes_window = opens_window_on_launch(&std::env::args().collect::<Vec<_>>());
+            // A test tray signing in from a token file is not a person in a browser.
+            let token_sign_in = seat_token_file(
+                profile::is_default(),
+                std::env::var_os("BOTRACING_SEAT_TOKEN_FILE"),
+            )
+            .is_some();
             let mut ticks = 0u32;
             std::thread::spawn(move || {
                 loop {
@@ -467,7 +473,15 @@ fn main() {
                             let acct = account.lock().unwrap();
                             (acct.session.is_some(), acct.signing_in, acct.has_stored())
                         };
-                        match launch_window(signed_in, signing_in || prompt, has_stored, ticks) {
+                        // The browser sign-in is the way in, no window beside it; a
+                        // token sign-in is quick and gets its window.
+                        let browser = signing_in && !token_sign_in;
+                        match launch_window(
+                            signed_in,
+                            browser || prompt,
+                            has_stored || (signing_in && token_sign_in),
+                            ticks,
+                        ) {
                             LaunchWindow::Open => {
                                 owes_window = false;
                                 let app = app_poll.clone();
