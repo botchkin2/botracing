@@ -192,6 +192,17 @@ export function TraceChart({
     return at + 3;
   };
   const firstTickSeries = series.findIndex(s => s.ticks != null);
+  // A series' own tick labels: placed by the tick set's extremes, not the
+  // domain's (a steering domain is stretched past its ticks). The top tick sits
+  // inside its band under the band's top edge, the bottom one above its edge.
+  const seriesTickY = (d: [number, number], v: number) => {
+    const at = yFor(d)(v);
+    const vals = series[firstTickSeries].ticks!.map(t => t.v);
+    if (v === Math.max(...vals)) return at + 10;
+    if (v === Math.min(...vals)) return at - 4;
+    return at + 3;
+  };
+
   const yFor =
     ([lo, hi]: [number, number]) =>
     (v: number) =>
@@ -483,7 +494,7 @@ export function TraceChart({
             <SvgText
               key={`s${t.v}`}
               x={3}
-              y={tickBaseline(seriesDomainsT[firstTickSeries] ?? domainT, t.v)}
+              y={seriesTickY(seriesDomainsT[firstTickSeries] ?? domainT, t.v)}
               fill={color.textFaint}
               fontFamily={axis.fontFamily}
               fontSize={9}>
