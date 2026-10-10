@@ -404,9 +404,6 @@ function SessionView({
           />
         </View>
       )}
-      <View style={styles.section}>
-        <LapTableHeader width={tableW} />
-      </View>
     </View>
   );
 
@@ -564,6 +561,9 @@ function SessionView({
                   })
                 }
               />
+              <View style={styles.section}>
+                <LapTableHeader width={tableW} />
+              </View>
             </>
           }
           ListFooterComponent={
