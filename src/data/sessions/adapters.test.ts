@@ -213,6 +213,15 @@ describe('fuel facts', () => {
     });
   });
 
+  it('reads the lap trace rate, 100 Hz when the lap doc has none', () => {
+    const [iracing, old] = toLaps([
+      {id: 'a', traceHz: 60},
+      {id: 'b'},
+    ]);
+    expect(iracing.traceHz).toBe(60);
+    expect(old.traceHz).toBe(100);
+  });
+
   it('reads a lap that is not green as not green', () => {
     const [lap] = toLaps([{id: 'a', fuel: {usedL: 2.4, veUsedPct: null}}]);
     expect(lap.fuel).toMatchObject({usedL: 2.4, veUsedPct: null, green: false});

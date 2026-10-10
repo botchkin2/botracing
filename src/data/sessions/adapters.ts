@@ -10,6 +10,7 @@ import {
   type Overtake,
   type SessionTraffic,
 } from '@/src/analysis/traffic';
+import {TRACE_HZ} from '@/src/analysis/resample';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
 import {type PlanBlock, toPlanBlock} from './planBlock';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
@@ -378,6 +379,8 @@ export type LapReason =
 
 export type Lap = {
   id: string;
+  /** Rows per second of the lap's trace (LMU 100, iRacing 60): its clock is row / traceHz. 100 on a lap analysed before it was stored. */
+  traceHz: number;
   /** Position in driving order, from 1. Lap numbers restart per recording. */
   lapIndex: number;
   /** The game's laps-completed count when the lap began (0 is the first
@@ -924,6 +927,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
     newTyres: false,
+    traceHz: num(raw.traceHz) ?? TRACE_HZ,
   }));
   return laps.map((lap, i) =>
     freshTyres(laps[i - 1]) ? {...lap, newTyres: true} : lap,

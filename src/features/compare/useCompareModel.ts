@@ -129,6 +129,11 @@ export function useCompareModel(
     });
     return [...new Set([...knownIds, ...extra])];
   }, [nearLine, laps.data, knownIds]);
+  // Each lap's trace rate (iRacing's is 60), for the clock.
+  const hzOf = useMemo(
+    () => Object.fromEntries((laps.data ?? []).map(l => [l.id, l.traceHz])),
+    [laps.data],
+  );
   // Traces are fetched by the lap's own id; the model knows the selection id.
   const traceIds = useMemo(
     () => fetchIds.map(id => parseLapRef(id).lapId),
@@ -138,7 +143,11 @@ export function useCompareModel(
     traces: grids,
     load: traceLoad,
     retry: retryTraces,
-  } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M}, knownIds.length);
+  } = useLapTraceLoad(
+    traceIds,
+    {lengthM, stepM: GRID_STEP_M, hzOf},
+    knownIds.length,
+  );
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     fetchIds.forEach((id, i) => {

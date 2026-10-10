@@ -500,6 +500,7 @@ function build(
       clean: lap.clean,
       reasons: lap.reasons,
       distanceM: lap.distanceM,
+      traceHz: lap.traceHz,
       // Conditions, and per-corner facts through the track's corners: what
       // src/analysis/consistency.ts needs to rerun on any selection.
       stintLap: lap.stintLap,
@@ -543,7 +544,11 @@ function build(
   // (cornerSlices.mjs). Named by content like the field, so a resync never
   // serves a stale cached slice.
   const slices = buildCornerSlices(
-    a.laps.map(lap => ({id: lapId(lap), csv: () => a.trace(lap)})),
+    a.laps.map(lap => ({
+      id: lapId(lap),
+      csv: () => a.trace(lap),
+      hz: lap.traceHz,
+    })),
     a.trackMap,
     a.windows,
   );
