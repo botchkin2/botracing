@@ -424,6 +424,7 @@ function CornerView({
                   minLabel={s.minLabel}
                   maxLabel={s.maxLabel}
                   unit={s.unit}
+                  midLabel={s.midLabel}
                   resolution={s.resolution}
                   leftWord={s.leftWord}
                   rightWord={s.rightWord}

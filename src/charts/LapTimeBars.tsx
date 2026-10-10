@@ -215,6 +215,21 @@ export function LapTimeBars({
             </G>
           );
         })}
+        {/* The scale, with units: the top is the clamp, faster by rangeS. */}
+        {[
+          {d: rangeS, label: `−${rangeS.toFixed(1)} s`},
+          {d: -rangeS, label: `+${rangeS.toFixed(1)} s`},
+        ].map(t => (
+          <SvgText
+            key={t.label}
+            x={2}
+            y={yOf(t.d) + 3}
+            fill={color.textFaint}
+            fontFamily={axis.fontFamily}
+            fontSize={axis.fontSize}>
+            {t.label}
+          </SvgText>
+        ))}
         <SvgText
           x={width}
           y={mid + 3}

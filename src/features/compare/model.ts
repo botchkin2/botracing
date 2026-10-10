@@ -168,12 +168,14 @@ export const DEFAULT_CHARTS: ChannelId[][] = PRESETS[0].charts;
 /**
  * The pedals chart (round 3 R4a): throttle line and brake fill share the top
  * of the plot, steering sits in its own band under them, all on one time axis.
- * Heights are the handoff's 96 (pedals) + 8 (gap) + 36 (steering) of 140.
+ * Heights in points: 96 (pedals) + 8 (gap) + the steering band, as tall as
+ * Corner's steering chart (CHANNELS.steering.height), so differences read.
  */
 export const PEDALS_CHART: ChannelId[] = ['throttle', 'brake', 'steering'];
-const PEDALS_H = 140;
-const PEDALS_TOP_FRAC = 96 / PEDALS_H;
-const STEER_BAND_FRAC = 36 / PEDALS_H;
+const PEDALS_TOP_PX = 96;
+const PEDALS_GAP_PX = 8;
+const STEER_BAND_PX = CHANNELS.steering.height;
+export const PEDALS_H = PEDALS_TOP_PX + PEDALS_GAP_PX + STEER_BAND_PX;
 
 export function isPedalsChart(chs: ChannelId[]): boolean {
   return (
@@ -183,22 +185,29 @@ export function isPedalsChart(chs: ChannelId[]): boolean {
 }
 
 /**
- * y domains that place both kinds in one plot: pedals (fixed −4..104) in the
- * top fraction, steering (±m, symmetric) in the bottom band, so the zero
- * line of the band is its own. A value's y is linear in its domain, so a
- * domain wider than the data leaves the rest of the plot empty for the other.
+ * y domains that place both kinds in one plot. Pedals: -4..104 in the top 96
+ * points. Steering: fixed +-100 % of lock in the bottom band, positive (left)
+ * up, so +100 sits at the band's top and -100 (right) at its bottom. A value's
+ * y is linear in its domain; the band is the only part steering can reach.
  */
-export function pedalsDomains(steerM: number): {
+export function pedalsDomains(): {
   pedal: [number, number];
   steer: [number, number];
 } {
-  const pedalSpan = 108 / PEDALS_TOP_FRAC;
-  const g = STEER_BAND_FRAC;
+  const pedalSpan = (108 * PEDALS_H) / PEDALS_TOP_PX;
+  const steerSpan = (200 * PEDALS_H) / STEER_BAND_PX;
   return {
     pedal: [104 - pedalSpan, 104],
-    steer: [-steerM, (steerM * (2 - g)) / g],
+    steer: [-100, -100 + steerSpan],
   };
 }
+
+/** Steering's labels on its band: left up (+), right down (-), centre 0. */
+export const STEER_TICKS: {v: number; label: string}[] = [
+  {v: 100, label: 'L 100'},
+  {v: 0, label: '0'},
+  {v: -100, label: 'R 100'},
+];
 
 export type LapRef = {
   lapId: string;
@@ -254,6 +263,8 @@ export type ChartModel = {
   lines: ChartLine[];
   /** Per-channel y domains, keyed by channel. */
   domains: Partial<Record<ChannelId, [number, number]>>;
+  /** Laps with samples off a fitted scale, by channel: drawn clipped, named. */
+  offScale: Partial<Record<ChannelId, string[]>>;
   band: {low: number[]; high: number[]} | null;
   /** The channel whose 0 gets a line (time diff, else steering), if any. */
   zeroLine: ChannelId | null;
@@ -956,7 +967,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     };
   };
 
-  const chartBases: Omit<ChartModel, 'domains' | 'valueRows'>[] = (
+  // Laps the fitted scales are taken from (see the domain fit below).
+  const comparableIds = new Set(
+    input.laps.filter(l => l.comparable).map(l => l.id),
+  );
+  const chartBases: Omit<ChartModel, 'domains' | 'offScale' | 'valueRows'>[] = (
     input.charts ?? DEFAULT_CHARTS
   ).map(chs => {
     const lines: ChartLine[] = [];
@@ -1276,21 +1291,39 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           : base.lines;
         // Channels of the same kind share a scale; mixed kinds keep their own.
         const domains: ChartModel['domains'] = {};
+        const offScale: ChartModel['offScale'] = {};
         for (const ch of chs) {
           const kind = CHANNELS[ch].kind;
           const sameKind = lines.filter(l => CHANNELS[l.channel].kind === kind);
+          // A fitted scale takes its range from the comparable laps (the rule
+          // Corner uses); a lap outside that range is clipped and named.
+          const fitLines = sameKind.filter(l => comparableIds.has(l.lapId));
+          const fit = fitLines.length > 0 ? fitLines : sameKind;
           domains[ch] = domainOf(
-            sameKind.map(l => l.values),
+            fit.map(l => l.values),
             kind,
             fitI0,
             fitI1,
             windowed,
             CHANNELS[ch].ySnap,
           );
+          if (kind === 'time' || kind === 'speed') {
+            const [lo, hi] = domains[ch] as [number, number];
+            // Cached block extremes (rangeOf), as domainOf reads them: a
+            // cursor step does not scan every sample.
+            const off = sameKind
+              .filter(l => {
+                const [a, b] = windowed
+                  ? rangeOf(l.values, fitI0, fitI1)
+                  : rangeOf(l.values, 0, l.values.length - 1);
+                return a < lo || b > hi;
+              })
+              .map(l => l.label);
+            if (off.length > 0) offScale[ch] = off;
+          }
         }
         if (pedals) {
-          const steerM = Math.abs(domains.steering?.[1] ?? 5);
-          const d = pedalsDomains(steerM);
+          const d = pedalsDomains();
           domains.throttle = d.pedal;
           domains.brake = d.pedal;
           domains.steering = d.steer;
@@ -1300,6 +1333,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           ...base,
           lines,
           domains,
+          offScale,
           valueRows: chs.map((ch, overlay) => ({
             channel: ch,
             label: labelOf(ch),

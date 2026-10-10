@@ -49,6 +49,8 @@ export type StripModel = {
   max: number;
   minLabel: string;
   maxLabel: string;
+  /** The value half way along the scale, with its unit: the axis's middle tick. */
+  midLabel: string;
   /** "±1.2 m": the median sample spacing, where it is recorded. */
   resolution: string | null;
   /** Values closer than this are the same point on the strip. */
@@ -225,6 +227,7 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     max,
     minLabel: spec.fmt(min),
     maxLabel: spec.fmt(max),
+    midLabel: spec.fmt((min + max) / 2),
     resolution: resM == null ? null : `±${resM.toFixed(1)} m`,
     coincidentWithin: resM ?? 0,
     flipped: spec.flipped,
