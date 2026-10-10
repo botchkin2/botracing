@@ -193,6 +193,26 @@ test('problems: none when all is well; a finished sync with an old error is not 
   );
 });
 
+test('problems: a token or an address in a failure message is redacted', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        retries: {
+          '0000000000000001': {
+            failures: 1,
+            atMs: nowMs + MIN,
+            lastAtMs: nowMs,
+            message: 'bad eyJhbGciOi.eyJzdWIiOiIx.sig for a@b.example',
+          },
+        },
+      },
+    ],
+    recorder: null,
+    nowMs,
+  });
+  assert.equal(problems[0].message, 'bad <token> for <email>');
+});
+
 test('problems: at most 10, messages cut to 120 characters, and a change forces a beat', () => {
   const retries = {};
   for (let i = 0; i < 15; i += 1)

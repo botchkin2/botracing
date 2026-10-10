@@ -63,6 +63,13 @@ export function heartbeatDoc({
   };
 }
 
+// A failure message can echo a token or an address from the server (rake
+// #3328); the server redacts the same two before it stores them.
+export const redact = text =>
+  text
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<token>')
+    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>');
+
 export const MAX_PROBLEMS = 10;
 export const PROBLEM_MESSAGE_MAX = 120;
 
@@ -76,7 +83,7 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 // sims: each sim's watcher state ({lastError, retryAtMs, retries}).
 export function problemsOf({sims, recorder, nowMs}) {
   const out = [];
-  const message = m => scrub(m).slice(0, PROBLEM_MESSAGE_MAX);
+  const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
   for (const st of sims) {
     // A crashed sync waits as a whole (retryAtMs); a finished one does not.
     if (st.retryAtMs != null && st.lastError)

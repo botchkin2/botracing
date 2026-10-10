@@ -885,6 +885,27 @@ test('a heartbeat is checked field by field', async () => {
   );
 });
 
+test('a heartbeat problem message stores no token or address', async () => {
+  const w = clockWorld();
+  const jwt = 'eyJhbGciOi.eyJzdWIiOiIx.sig-nature_1';
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      problems: [
+        {
+          kind: 'sync-crashed',
+          at: null,
+          message: `401 ${jwt} for a@b.example`,
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].message, '401 <token> for <email>');
+});
+
 test('the usage counters on a user that never sent a heartbeat have no heartbeats', async () => {
   const w = clockWorld();
   await write(w, 'tok-a', [lap('l1', 'uidA')]);

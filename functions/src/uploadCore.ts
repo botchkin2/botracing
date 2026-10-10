@@ -20,6 +20,8 @@
 // can never write them, so a write op naming one is refused. Bucket files are
 // owner-scoped by their own path. The client spells an archive file
 // archive/{sim}/...; it is stored as archive/{ownerKey}/{sim}/...
+import {redactSecrets} from './problemsCore.ts';
+
 export const MAX_DOC_BYTES = 900_000; // Firestore's own limit is 1 MiB
 // Files go straight to Storage by signed URL, not through the function; this
 // bounds what a signed URL will accept.
@@ -367,7 +369,7 @@ function cleanProblems(v: unknown): Json {
     const out: Record<string, Json> = {
       kind: p.kind as string,
       at: (p.at ?? null) as Json,
-      message: p.message as string,
+      message: redactSecrets(p.message as string),
     };
     for (const k of ['sessionId', 'count', 'retryAt'])
       if (p[k] !== undefined && p[k] !== null) out[k] = p[k] as Json;
