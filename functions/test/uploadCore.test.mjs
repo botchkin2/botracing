@@ -885,6 +885,29 @@ test('a heartbeat is checked field by field', async () => {
   );
 });
 
+test("the tray's own report that the uploader stopped is accepted", async () => {
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      state: 'error',
+      problems: [
+        {
+          kind: 'uploader-stopped',
+          at: '2026-10-10T02:00:00.000Z',
+          message: 'exit code: 1',
+          count: 2,
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].kind, 'uploader-stopped');
+  assert.equal(stored.problems[0].count, 2);
+});
+
 test('a heartbeat problem message stores no token or address', async () => {
   const w = clockWorld();
   const jwt = 'eyJhbGciOi.eyJzdWIiOiIx.sig-nature_1';
