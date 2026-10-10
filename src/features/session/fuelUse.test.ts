@@ -102,7 +102,7 @@ describe('buildFuelUse', () => {
     ];
     const fu = buildFuelUse(session(), laps)!;
     expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toContain('Stints within lap spread');
+    expect(verdictText(fu)).toBe('Stints within lap spread: 2.42–2.42 L/lap');
   });
 
   it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
