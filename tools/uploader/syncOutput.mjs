@@ -38,6 +38,8 @@ export function newSyncResult() {
     // Files the sync left alone because they were written in the last few
     // minutes ("N file(s) still being written, skipped for now").
     waiting: 0,
+    // Recordings sync.mjs could not read ("skip <file>: <why>"): [{name, why}].
+    unreadable: [],
     // The closing "done N, failed M" line was read: the sync ran to its end.
     finished: false,
     // The surface fold that follows the sessions ("surface N/M tracks"), or
@@ -69,6 +71,14 @@ export function readSyncLine(result, line) {
   }
   if (result.crash == null && /^(?:[A-Z]\w*)?Error\b[:\s]/.test(line))
     result.crash = line.trim();
+  const skip = line.match(/^skip (.+?): (.+)$/);
+  if (skip) {
+    // The reason repeats the file name ("<file> has no samples"): once is enough.
+    const why = skip[2].startsWith(skip[1])
+      ? skip[2].slice(skip[1].length).trim()
+      : skip[2];
+    result.unreadable.push({name: skip[1], why: why || skip[2]});
+  }
   const waiting = line.match(/^(\d+) file\(s\) still being written/);
   if (waiting) result.waiting = +waiting[1];
   const fold = readSurfaceProgress(line);

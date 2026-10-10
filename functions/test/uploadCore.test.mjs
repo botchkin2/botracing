@@ -910,6 +910,27 @@ test("the tray's own report that the uploader stopped is accepted, without lmuFo
   assert.equal('lmuFound' in stored, false, 'not stored when not sent');
 });
 
+test('a recording the uploader could not read is a problem named by its file', async () => {
+  const w = clockWorld();
+  const res = await send(
+    w,
+    'tok-a',
+    beat({
+      problems: [
+        {
+          kind: 'file-unreadable',
+          at: '2026-10-10T15:00:00.000Z',
+          message: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
+        },
+      ],
+    }),
+  );
+  assert.equal(res.status, 204);
+  const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
+  assert.equal(stored.problems[0].kind, 'file-unreadable');
+  assert.match(stored.problems[0].message, /fuji gp .*has no samples/);
+});
+
 test('a heartbeat problem message stores no token or address', async () => {
   const w = clockWorld();
   const jwt = 'eyJhbGciOi.eyJzdWIiOiIx.sig-nature_1';

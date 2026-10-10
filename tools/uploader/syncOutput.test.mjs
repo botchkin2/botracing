@@ -173,3 +173,16 @@ test('a sync that left fresh files alone says how many', () => {
   readSyncLine(r, 'done 0, failed 0, unchanged 0');
   assert.equal(r.finished, true);
 });
+
+test('a recording the sync could not read is named once, with the reason', () => {
+  const r = newSyncResult();
+  readSyncLine(
+    r,
+    'skip fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt has no samples',
+  );
+  readSyncLine(r, 'skip b.ibt: could not open the file');
+  assert.deepEqual(r.unreadable, [
+    {name: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt', why: 'has no samples'},
+    {name: 'b.ibt', why: 'could not open the file'},
+  ]);
+});
