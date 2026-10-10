@@ -30,6 +30,13 @@ Talk, plans, and half-formed ideas live in the pit wall, `C:/Users/Botkin/Projec
 - useMemo and useCallback patterns
 - State batching techniques
 
+### [Layout rules](./LAYOUT.md)
+
+**Per-screen layout rule at 375, 1024, 1440 and 1920, and how to measure it**
+
+- Breakpoints, what each screen does at each width
+- `tools/dev/layoutProbe.js`: side scroll, clipped and unreachable content, hit sizes
+
 ### [LMU sync](./LMU_SYNC_NOTES.md)
 
 **Where Le Mans Ultimate laps live on this PC, and the plan to get them into the app**

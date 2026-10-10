@@ -97,7 +97,8 @@ const START_BEFORE_LINE = 0.02;
 function sampleDistances(raw: RawTrace, lengthM: number): number[] {
   const pct = raw.lapDistPct;
   const first = pct.findIndex((p, i) => i > 0 && p < pct[i - 1] - 0.5);
-  const unroll = first > 0 && pct[0] > 1 - START_BEFORE_LINE ? first : 0;
+  const unroll =
+    first > 0 && pct[0] > 1 - START_BEFORE_LINE ? first : 0;
   const out: number[] = [];
   let top = -Infinity;
   for (let i = 0; i < pct.length; i++) {

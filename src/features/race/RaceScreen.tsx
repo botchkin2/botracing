@@ -553,40 +553,54 @@ function RaceView({
   );
 
   if (desktop) {
+    const column = (
+      <View
+        style={styles.mapColumn}
+        onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
+        <View style={styles.subRow}>
+          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+            {sub}
+          </Text>
+        </View>
+        {roadLine ? (
+          <Text variant='dataSmall' tone='textSecondary'>
+            {roadLine}
+          </Text>
+        ) : null}
+        <View
+          style={styles.mapFill}
+          onLayout={e =>
+            setMapBox({
+              width: Math.floor(e.nativeEvent.layout.width),
+              height: Math.floor(e.nativeEvent.layout.height),
+            })
+          }>
+          {mapBox.width > 0 && mapBox.height > 0 ? map : null}
+        </View>
+        <RaceLegend classes={rows.classes} />
+        {lanesBlock}
+        {controls}
+        {layout.isWide ? null : (
+          <View style={[styles.boardBelow, {borderColor: color.line}]}>
+            {board}
+          </View>
+        )}
+      </View>
+    );
     return (
       <View style={styles.desktop}>
-        <View
-          style={styles.mapColumn}
-          onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
-          <View style={styles.subRow}>
-            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
-              {sub}
-            </Text>
-          </View>
-          {roadLine ? (
-            <Text variant='dataSmall' tone='textSecondary'>
-              {roadLine}
-            </Text>
-          ) : null}
-          <View
-            style={styles.mapFill}
-            onLayout={e =>
-              setMapBox({
-                width: Math.floor(e.nativeEvent.layout.width),
-                height: Math.floor(e.nativeEvent.layout.height),
-              })
-            }>
-            {mapBox.width > 0 && mapBox.height > 0 ? map : null}
-          </View>
-          <RaceLegend classes={rows.classes} />
-          {lanesBlock}
-          {controls}
-          {layout.isWide ? null : (
-            <View style={[styles.boardBelow, {borderColor: color.line}]}>
-              {board}
-            </View>
-          )}
-        </View>
+        {layout.isWide ? (
+          column
+        ) : (
+          // 900 to 1279: the map, lanes, controls and the board below add up to
+          // more than a short window, so the column scrolls as a page; the map
+          // keeps its least height and the board is never cut off by the fold.
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.fillGrow}>
+            {column}
+          </ScrollView>
+        )}
         {layout.isWide ? (
           <>
             <PanelDivider
@@ -644,6 +658,7 @@ function RaceView({
 const styles = StyleSheet.create({
   screen: {flex: 1},
   fill: {flex: 1},
+  fillGrow: {flexGrow: 1},
   header: {
     flexDirection: 'row',
     alignItems: 'center',
