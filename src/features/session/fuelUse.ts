@@ -229,8 +229,13 @@ export function verdictText(fu: FuelUse): string {
       return `Under ${MIN_STINT_LAPS} green laps in each stint: no median`;
     case 'one-stint':
       return 'One stint: nothing to compare';
-    case 'same':
-      return `Stints within lap spread: ${v.lowL.toFixed(2)}–${v.highL.toFixed(2)} L/lap`;
+    case 'same': {
+      const low = v.lowL.toFixed(2);
+      const high = v.highL.toFixed(2);
+      return low === high
+        ? `Stints within lap spread: ${low} L/lap`
+        : `Stints within lap spread: ${low}–${high} L/lap`;
+    }
     case 'differs':
       return 'Medians differ';
   }

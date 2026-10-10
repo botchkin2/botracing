@@ -102,7 +102,17 @@ describe('buildFuelUse', () => {
     ];
     const fu = buildFuelUse(session(), laps)!;
     expect(fu.verdict.kind).toBe('same');
-    expect(verdictText(fu)).toBe('Stints within lap spread: 2.42–2.42 L/lap');
+    expect(verdictText(fu)).toBe('Stints within lap spread: 2.42 L/lap');
+  });
+
+  it('shows the range when the stint medians differ at 2 dp but are still within the spread', () => {
+    const laps = [
+      ...stintOf(1, [2.39, 2.46, 2.4, 2.45, 2.41, 2.44], 81),
+      ...stintOf(2, [2.36, 2.43, 2.37, 2.42, 2.38, 2.41], 81.4),
+    ];
+    const fu = buildFuelUse(session(), laps)!;
+    expect(fu.verdict.kind).toBe('same');
+    expect(verdictText(fu)).toBe('Stints within lap spread: 2.40–2.42 L/lap');
   });
 
   it('keeps a towed lap in the medians: a tow is a fact about the lap, not a reason to drop it', () => {
