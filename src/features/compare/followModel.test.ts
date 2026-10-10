@@ -35,6 +35,7 @@ function straight(offsetY = 0): GridTrace {
 
 const placer: MapPlacer = {
   real: false,
+  nearMeasured: [],
   place: (t, from, to, stride) => {
     const out = [];
     for (let i = from; i <= to; i += stride)

@@ -67,21 +67,39 @@ export function pathInsideOwner(
   return segments[0] === FOLDER[kind] && segments[1] === owner ? path : null;
 }
 
+/** An uploader silent this long is a problem: the tray is not running. */
+export const NOT_SEEN_MS = 3 * 24 * 3600_000;
+
 /**
  * The uploader status docs a person may see: only their own (the tray writes
  * them through the upload endpoint with the owner stamped from its token), and
  * without the server's bookkeeping. A doc with no ownerId (the old
  * Admin-written ones) is shown to nobody: it ages out.
+ *
+ * A PC that has not been seen for 3 days gets a 'not-seen' problem: with the
+ * tray stopped there is no heartbeat to carry one (rake #3328), so it is the
+ * one problem the server adds.
  */
 export function uploaderItems(
   owner: string,
   docs: {id: string; data: Record<string, unknown>}[],
+  nowMs: number,
 ): Record<string, unknown>[] {
   return docs
     .filter(({data}) => data.ownerId === owner)
     .map(({id, data}) => {
       const {ownerId: _owner, serverUpdatedAt: _stamp, ...visible} = data;
-      return {...visible, hostId: data.hostId ?? id};
+      const seen =
+        typeof data.lastSeenAt === 'string' ? Date.parse(data.lastSeenAt) : NaN;
+      const problems = Array.isArray(data.problems) ? data.problems : [];
+      return {
+        ...visible,
+        hostId: data.hostId ?? id,
+        problems:
+          Number.isFinite(seen) && nowMs - seen > NOT_SEEN_MS
+            ? [{kind: 'not-seen', at: data.lastSeenAt}, ...problems]
+            : problems,
+      };
     });
 }
 

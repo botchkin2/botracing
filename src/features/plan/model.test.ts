@@ -722,11 +722,13 @@ describe('planView', () => {
     const rows = withTraffic.cards[0].rows;
     const time = rows.find(r => r.label === 'Lap time')!;
     expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
-    expect(time.note).toBe('all green laps · n 10');
+    expect(time.note).toBe('all green laps');
     const clean = rows.find(r => r.label === 'Clean laps')!;
-    expect([clean.value, clean.note]).toEqual(['1:48.200', 'n 4']);
+    expect(clean.value).toBe('1:48.200');
+    expect(clean.note).toBeUndefined();
     const traffic = rows.find(r => r.label === 'Traffic laps')!;
-    expect([traffic.value, traffic.note]).toEqual(['1:51.500', 'n 5']);
+    expect(traffic.value).toBe('1:51.500');
+    expect(traffic.note).toBeUndefined();
     // The headline comes first, the secondary rows after it.
     const labels = rows.map(r => r.label);
     expect(labels.indexOf('Lap time')).toBeLessThan(

@@ -2,7 +2,11 @@ import {useMemo} from 'react';
 
 import Constants from 'expo-constants';
 
-import {type Uploader, useUploaders} from '@/src/data/uploaders';
+import {
+  type Uploader,
+  type UploaderProblem,
+  useUploaders,
+} from '@/src/data/uploaders';
 
 // Settings view model (handoff v2 M5, uploader card). Pure given `now`;
 // buildSettingsModel is unit-tested, useSettingsModel wires it to data.
@@ -20,11 +24,10 @@ export type UploaderCard = {
   status: string;
   /** Detail lines, in order; empty ones are left out. */
   lines: string[];
-  /** Last error: message, then the path it names. */
-  error: {message: string; path: string | null; when: string} | null;
-  /** The recorder refuses to write after a game update changed the layout. */
-  recorderWarning: string | null;
 };
+
+/** One line in Settings > Problems; a session's row opens the session. */
+export type ProblemRow = {key: string; text: string; sessionId: string | null};
 
 export type SettingsModel = {
   uploaders:
@@ -32,10 +35,12 @@ export type SettingsModel = {
     | {state: 'error'; message: string}
     | {state: 'none'}
     | {state: 'ready'; cards: UploaderCard[]};
+  /** What is wrong on the PCs now, newest first per PC; empty when nothing. */
+  problems: ProblemRow[];
   version: string;
 };
 
-const SEEN_MS = 10 * 60_000;
+export const SEEN_MS = 10 * 60_000;
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
@@ -80,6 +85,44 @@ export function formatClock(ms: number): string {
   const d = new Date(ms);
   const two = (n: number) => String(n).padStart(2, '0');
   return `${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
+/** "1 Oct". */
+export function formatDay(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/** Data, not prose: what, why, how often, when it is tried again. */
+export function problemText(p: UploaderProblem): string {
+  const retry = p.retryAt != null ? `retry ${formatClock(p.retryAt)}` : '';
+  const parts =
+    p.kind === 'session-failed'
+      ? [
+          `Session ${(p.sessionId ?? '').slice(0, 8)}`,
+          p.message,
+          p.count != null && p.count > 1 ? `${p.count}×` : '',
+          retry,
+        ]
+      : p.kind === 'sync-crashed'
+      ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
+      : p.kind === 'recorder-layout'
+      ? ['Recorder stopped', p.message]
+      : [p.at != null ? `Not seen since ${formatDay(p.at)}` : 'Not seen'];
+  return parts.filter(Boolean).join(' · ');
+}
+
+/** Every PC's problems; each row names its PC when there is more than one. */
+export function problemRows(items: Uploader[]): ProblemRow[] {
+  return items.flatMap(u =>
+    u.problems.map((p, i) => ({
+      key: `${u.hostId}:${p.kind}:${p.sessionId ?? i}`,
+      text: `${items.length > 1 ? `${u.host} · ` : ''}${problemText(p)}`,
+      sessionId: p.kind === 'session-failed' ? p.sessionId : null,
+    })),
+  );
 }
 
 /** Bytes as "5.0 GB", "830 MB". */
@@ -144,22 +187,6 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
       .join(' · '),
     status,
     lines,
-    error: u.lastError
-      ? {
-          message: u.lastError.message,
-          path: u.lastError.path,
-          when: u.lastError.at != null ? ago(u.lastError.at) : '',
-        }
-      : null,
-    recorderWarning:
-      u.recorder && !u.recorder.layoutOk
-        ? `Recorder stopped writing${
-            u.recorder.gameVersion ? ` on LMU ${u.recorder.gameVersion}` : ''
-          }: ${
-            u.recorder.layoutReason ??
-            'it did not recognize the game data layout'
-          }.`
-        : null,
   };
 }
 
@@ -172,6 +199,10 @@ export function buildSettingsModel(input: {
   nowMs: number;
 }): SettingsModel {
   const u = input.uploaders;
+  const items =
+    u.state === 'ready'
+      ? [...u.items].sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
+      : [];
   return {
     uploaders:
       u.state === 'loading' || u.state === 'error'
@@ -180,10 +211,9 @@ export function buildSettingsModel(input: {
         ? {state: 'none'}
         : {
             state: 'ready',
-            cards: [...u.items]
-              .sort((a, b) => (b.lastSeenAt ?? 0) - (a.lastSeenAt ?? 0))
-              .map(x => uploaderCard(x, input.nowMs)),
+            cards: items.map(x => uploaderCard(x, input.nowMs)),
           },
+    problems: problemRows(items),
     version: input.version,
   };
 }
