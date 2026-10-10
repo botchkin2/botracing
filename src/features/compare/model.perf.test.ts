@@ -4,7 +4,8 @@ import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
-import {buildCompareModel, buildCompareSet, medianBasisOf} from './model';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
+import {buildCompareModel, buildCompareSet} from './model';
 
 // A cursor step at 60 laps (pit-wall thread 1 #3243 to #3245): Compare
 // rebuilds its model on every step, and a full scan of every lap per chart

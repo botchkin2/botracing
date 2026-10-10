@@ -130,6 +130,8 @@ export function buildSectionWindow(input: {
   laps: Lap[];
   /** Every lap of the session, for the window's best and median. */
   sessionLaps?: Lap[];
+  /** The Ref lap when one is picked; else each column is measured against the median of the set. */
+  refId?: string | null;
 }): SectionWindowModel | null {
   const {map, sectionN, laps} = input;
   const boundaries = map.boundaries;
@@ -147,8 +149,31 @@ export function buildSectionWindow(input: {
     return facts.window.pit ? 'pit' : 'ok';
   };
   const states = laps.map(stateOf);
-  const refIndex = states[0] === 'ok' ? 0 : -1;
-  const refFacts = refIndex === 0 ? laps[0].sections[index] : null;
+  // The basis: the picked Ref when it can be compared, else the median of the
+  // set's comparable laps, column by column (the same rule as Corner's table).
+  const refIndex = laps.findIndex(
+    (l, i) => l.id === input.refId && states[i] === 'ok',
+  );
+  const refFacts = refIndex >= 0 ? laps[refIndex].sections[index] : null;
+  const okWindows = laps
+    .map((l, i) => (states[i] === 'ok' ? l.sections[index]?.window : undefined))
+    .filter((w): w is NonNullable<typeof w> => w != null);
+  const medianOf = (xs: (number | null | undefined)[]) => {
+    const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
+    if (v.length === 0) return null;
+    const mid = Math.floor(v.length / 2);
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  };
+  const medianBasis = {
+    time: medianOf(
+      laps.map((l, i) =>
+        states[i] === 'ok' ? l.sections[index]?.segTimeS : undefined,
+      ),
+    ),
+    runIn: medianOf(okWindows.map(w => w.runInS)),
+    corner: medianOf(okWindows.map(w => w.cornerS)),
+    exit: medianOf(okWindows.map(w => w.exitS)),
+  };
 
   // A brake application is measured to the apex of the corner braked for.
   const apexOf = (part: number | null) =>
@@ -180,6 +205,10 @@ export function buildSectionWindow(input: {
     const isRef = i === refIndex;
     const gapFrom = (v: number | null, r: number | null | undefined) =>
       cell(v, compare ? r ?? null : null, isRef);
+    const basisOf = (
+      key: keyof typeof medianBasis,
+      fromRef: number | null | undefined,
+    ) => (refIndex >= 0 ? fromRef : medianBasis[key]);
     const minWhere =
       facts.minSpeedKph == null || w.minSpeedAtM == null
         ? ''
@@ -188,10 +217,10 @@ export function buildSectionWindow(input: {
         : '';
     return {
       ...base,
-      time: gapFrom(facts.segTimeS, refFacts?.segTimeS),
-      runIn: gapFrom(w.runInS, rw?.runInS),
-      corner: gapFrom(w.cornerS, rw?.cornerS),
-      exit: gapFrom(w.exitS, rw?.exitS),
+      time: gapFrom(facts.segTimeS, basisOf('time', refFacts?.segTimeS)),
+      runIn: gapFrom(w.runInS, basisOf('runIn', rw?.runInS)),
+      corner: gapFrom(w.cornerS, basisOf('corner', rw?.cornerS)),
+      exit: gapFrom(w.exitS, basisOf('exit', rw?.exitS)),
       speeds: {
         onset: kph(w.onsetSpeedKph),
         min: `${kph(facts.minSpeedKph)}${minWhere}`,

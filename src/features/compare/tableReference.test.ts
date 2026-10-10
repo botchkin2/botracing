@@ -222,7 +222,9 @@ describe('Compare tables against the checked set', () => {
     expect(m.chips[0].delta).toBe('−0.500');
     // S1 8 and 9 give 8.5: a is -0.5, b is +0.5, whichever is checked first.
     expect(m.grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
-    expect(build(['b', 'a']).grid!.rows.map(r => r.cells[0])).toEqual([-0.5, 0.5]);
+    expect(build(['b', 'a']).grid!.rows.map(r => r.cells[0])).toEqual([
+      -0.5, 0.5,
+    ]);
   });
 
   it('gives a lap cut at other boundaries no cells, and says so', () => {

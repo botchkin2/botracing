@@ -11,7 +11,6 @@ import {
   buildCornerModel,
   cornerLapIds,
   MEASURES,
-  referenceFirst,
   sortRows,
   buildBrakeMap,
 } from './model';
@@ -100,6 +99,7 @@ const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
     band: null,
     traces: new Map(),
     lapIds,
+    refId: lapIds[0],
     keyLapIds: lapIds.length < 7 ? lapIds : [lapIds[0], hl ?? lapIds[1]],
     hl,
     corner,
@@ -117,6 +117,7 @@ describe('a lap at full throttle by the slowest point', () => {
     band: null,
     traces: new Map(),
     lapIds: ['a', 'f'],
+    refId: 'a',
     keyLapIds: ['a', 'f'],
     hl: 'f',
     corner: 3,
@@ -138,7 +139,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
-    expect(m.subtitle).toBe('in S2 (T2–3) · 3 laps · compared with L1');
+    expect(m.subtitle).toBe('in S2 (T2–3) · 3 laps · vs L1');
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
       {n: 1, label: 'T1'},
@@ -161,6 +162,37 @@ describe('buildCornerModel (per single corner)', () => {
       // The pedal closed (it has a pickup): no lowest-throttle number.
       minThrottle: null,
     });
+  });
+
+  it('takes the largest peak among a corner’s applications, not the first', () => {
+    // A light dab before the main stop, listed first: the peak is the harder one.
+    const base = lap('d', [9.9, 455, 109, 655]);
+    const dabbed = {
+      ...base,
+      corners: [
+        base.corners[0],
+        {
+          ...base.corners[1],
+          brakeApps: [
+            {onsetM: 300, peakPct: 20, part: 3},
+            {onsetM: 620, peakPct: 95, part: 3},
+          ],
+        },
+      ],
+    };
+    const m2 = buildCornerModel({
+      session,
+      laps: toLaps([dabbed]),
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['d'],
+      refId: 'd',
+      keyLapIds: ['d'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m2.rows[0].values.peakBrake).toBe(95);
   });
 
   it('peak brake is the number the uploader read for this corner, null where it has none', () => {
@@ -261,6 +293,48 @@ describe('buildCornerModel (per single corner)', () => {
   });
 });
 
+describe('the median basis (no Ref picked)', () => {
+  const median = (lapIds: string[], refId: string | null) =>
+    buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds,
+      refId,
+      keyLapIds: lapIds,
+      hl: null,
+      corner: 3,
+    })!;
+
+  it('measures each lap against the median of the set, column by column', () => {
+    const m = median(['a', 'b', 'c'], null);
+    expect(m.subtitle).toContain('vs median of 3');
+    const valueOf = (id: string) =>
+      m.rows.find(r => r.lapId === id)!.values.time as number;
+    const sorted = ['a', 'b', 'c'].map(valueOf).sort((x, y) => x - y);
+    // Every lap is measured, none is the reference: no row is isRef.
+    expect(m.rows.some(r => r.isRef)).toBe(false);
+    expect(m.rows.every(r => r.cells.time.gap != null)).toBe(true);
+    // The gap printed is each lap against the median of the three times.
+    const gapOf = (id: string) =>
+      m.rows.find(r => r.lapId === id)!.cells.time.gap!;
+    for (const id of ['a', 'b', 'c']) {
+      const diff = valueOf(id) - sorted[1];
+      expect(gapOf(id)).toContain(Math.abs(diff).toFixed(1));
+    }
+  });
+
+  it('a picked Ref is the basis, and it has no difference against itself', () => {
+    const m = median(['a', 'b', 'c'], 'b');
+    expect(m.subtitle).toContain('vs L');
+    const refRow = m.rows.find(r => r.lapId === 'b')!;
+    expect(refRow.isRef).toBe(true);
+    expect(refRow.cells.time.gap).toBeNull();
+  });
+});
+
 describe('strips at 7+ laps', () => {
   const many = toLaps(
     Array.from({length: 7}, (_, i) =>
@@ -274,6 +348,7 @@ describe('strips at 7+ laps', () => {
     band: null,
     traces: new Map(),
     lapIds: many.map(l => l.id),
+    refId: many[0].id,
     keyLapIds: ['m0', 'm3'],
     hl: 'm3',
     corner: 3,
@@ -313,12 +388,17 @@ describe('lap choice', () => {
     ]);
   });
 
+  const sessionOf = (bestLapId: string | null) => ({
+    id: 's',
+    bestLapId,
+    car: 'c',
+    sessionType: 'R',
+  });
+
   it('with nothing selected, the best lap is the reference', () => {
-    expect(cornerLapIds(laps, {laps: [], hl: null}, true, 'b')).toEqual([
-      'b',
-      'a',
-      'c',
-    ]);
+    expect(
+      cornerLapIds(laps, {laps: [], hl: null}, true, sessionOf('b')),
+    ).toEqual(['b', 'a', 'c']);
   });
 
   it('with nothing selected and all-comparable off, falls back to best + next fastest', () => {
@@ -328,43 +408,14 @@ describe('lap choice', () => {
       {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
       {...lap('x', [12.0, 400, 90, 700], false), lapTime: 80},
     ]);
-    expect(cornerLapIds(timed, {laps: [], hl: null}, false, 'b')).toEqual([
-      'b',
-      'a',
-    ]);
+    expect(
+      cornerLapIds(timed, {laps: [], hl: null}, false, sessionOf('b')),
+    ).toEqual(['a', 'b', 'c']); // the session's opening set, as Session and Compare open
     expect(cornerLapIds(timed, {laps: [], hl: null}, false, null)).toEqual([
       'b',
       'a',
     ]);
     expect(cornerLapIds([], {laps: [], hl: null}, false, null)).toEqual([]);
-  });
-
-  it('puts the Ref lap first, else the quickest checked lap', () => {
-    const timed = toLaps([
-      {...lap('a', [9.8, 460, 110, 650]), lapTime: 91},
-      {...lap('b', [10.1, 450, 106, 670]), lapTime: 90},
-      {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
-    ]);
-    const sel = (over: Partial<Parameters<typeof referenceFirst>[0]>) => ({
-      laps: ['a', 'b', 'c'],
-      hl: null,
-      ...over,
-    });
-    // Compare keeps lap-number order, so the first is not a choice.
-    expect(referenceFirst(sel({}), timed).laps).toEqual(['b', 'a', 'c']);
-    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual([
-      'c',
-      'a',
-      'b',
-    ]);
-    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual([
-      'b',
-      'a',
-      'c',
-    ]);
-    const first = sel({laps: ['b', 'a']});
-    expect(referenceFirst(first, timed)).toBe(first);
-    expect(referenceFirst(sel({laps: []}), timed).laps).toEqual([]);
   });
 
   it('sorts by a measure', () => {
