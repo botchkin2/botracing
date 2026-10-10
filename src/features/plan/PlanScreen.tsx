@@ -31,6 +31,13 @@ import {RaceCardView} from './components/RaceCardView';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
+import {
+  pickerCombos,
+  planState,
+  planStateTitle,
+  resolveCombo,
+  showsLapCards,
+} from './planState';
 import {effectiveUnit, type Unit, UNITS} from './unit';
 import {
   carChoices,
@@ -68,7 +75,7 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [unit, setUnit] = useState<Unit>('ve');
-  const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
+  const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
   const [startTyped, setStartTyped] = useState<{
@@ -110,6 +117,14 @@ export function PlanScreen() {
   const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
   const {history, loading: planLoading, measured} = hist;
+  const state = combo
+    ? planState({
+        combo,
+        planLaps: plan ? plan.history.laps : null,
+        rulesKnown: rules != null,
+      })
+    : 'ready';
+  const lapCards = showsLapCards(state);
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
@@ -204,12 +219,12 @@ export function PlanScreen() {
       <TrackCarPicker
         track={comboTrack(combo)}
         car={comboCar(combo)}
-        tracks={trackChoices(combos, combo)}
-        cars={carChoices(combos, combo)}
+        tracks={trackChoices(pickerCombos(combos, combo), combo)}
+        cars={carChoices(pickerCombos(combos, combo), combo)}
         onPick={setComboKey}>
         {wide ? null : rulesBlock(true)}
       </TrackCarPicker>
-      {!wide && view?.stale ? (
+      {!wide && lapCards && view?.stale ? (
         <StatusBanner
           dot='idle'
           text={`This preset may be stale: ${view.stale}.`}
@@ -260,7 +275,7 @@ export function PlanScreen() {
         />
       </Section>
 
-      {wide && rules ? (
+      {wide && lapCards && rules ? (
         <Section title='Start'>
           <StartLoad
             hasVe={hasVe}
@@ -290,7 +305,7 @@ export function PlanScreen() {
         </Section>
       ) : null}
 
-      {detailsPending ? (
+      {state === 'undriven' ? null : detailsPending ? (
         <StatusBanner
           dot='waiting'
           text='Checking the fill limit of your sessions here.'
@@ -312,7 +327,7 @@ export function PlanScreen() {
   );
   // Use and lap time (D6a): the green laps the plan reads, in the unit shown.
   const scatter =
-    combo && view && wide ? (
+    combo && view && wide && lapCards ? (
       <View
         style={[
           styles.rail,
@@ -328,19 +343,12 @@ export function PlanScreen() {
     ) : null;
   const results = !combo ? null : (
     <>
-      {rules == null ? (
-        <EmptyState title='Max fuel is needed' />
-      ) : view && plan && plan.history.laps === 0 && !planLoading.pending ? (
-        // A track and car never driven (or with no usable laps): the chips and
-        // the length stay, and one plain line replaces the Race card (chief's
-        // review of #318, triage #55).
-        <EmptyState
-          title={
-            history.length === 0 && !detailsPending
-              ? 'No laps at this track with this car'
-              : 'No fuel data for this combination yet'
-          }
-        />
+      {!lapCards ? (
+        // One label names the state; the chips, the length and the rules stay
+        // (owner's note M11). Nothing computed from laps is drawn.
+        state === 'no-laps' && planLoading.pending ? null : (
+          <EmptyState title={planStateTitle(state, combo) ?? ''} />
+        )
       ) : view ? (
         <>
           <Pair wide={wide}>
