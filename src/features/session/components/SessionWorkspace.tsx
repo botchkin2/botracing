@@ -18,6 +18,7 @@ import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
+import {SessionGrid} from './SessionGrid';
 import {StintCornerBars} from './StintCornerBars';
 import {StintsPanel} from './StintsPanel';
 
@@ -164,6 +165,7 @@ export function SessionWorkspace({
           ) : null}
         </View>
         <View style={styles.chart}>{chart(innerW)}</View>
+        <SessionGrid id={sessionId} />
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
           <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
         </View>
