@@ -1,7 +1,9 @@
 // The Session screen's fuel and Virtual Energy text, from the uploader's
 // facts (tools/sessions/fuelFacts.mjs). Pure. Numbers, units and what they
 // were measured against, never advice (CODE_STANDARDS §7).
-import type {Lap, PitStop, Stint} from '@/src/data/sessions';
+import type {Lap, PitStop} from '@/src/data/sessions';
+
+import {comparableGreenLaps, median} from './fuelUse';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -35,20 +37,27 @@ export function pitLine(stop: PitStop): string | null {
 }
 
 /**
- * The line under a stint header: its median use per green lap and how many
- * laps that comes from. Null under 3 green laps (the uploader gives no median
- * then), so the line is left out.
+ * The line under a stint header: its median use per lap, over the stint's
+ * comparable green laps (the same set the fuel card uses, so the two agree).
+ * Null under 3 such laps, so the line is left out.
  * "Fuel 2.40 L/lap · VE 3.6 %/lap"
  */
-export function stintFuelLine(
-  stint: Pick<Stint, 'medianFuelL' | 'medianVePct' | 'greenLaps'>,
-): string | null {
+export function stintFuelLine(stintLaps: Lap[]): string | null {
+  const usable = comparableGreenLaps(stintLaps);
+  if (usable.length < MIN_NOTE_LAPS) return null;
+  const fuelL = median(usable.map(l => l.fuel!.usedL as number));
+  const ve = usable
+    .map(l => l.fuel!.veUsedPct)
+    .filter((v): v is number => v != null && v > 0);
+  const vePct = ve.length >= MIN_NOTE_LAPS ? median(ve) : null;
   const parts = [
-    stint.medianFuelL != null && `Fuel ${stint.medianFuelL.toFixed(2)} L/lap`,
-    stint.medianVePct != null && `VE ${stint.medianVePct.toFixed(1)} %/lap`,
+    fuelL != null && `Fuel ${fuelL.toFixed(2)} L/lap`,
+    vePct != null && `VE ${vePct.toFixed(1)} %/lap`,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
+
+const MIN_NOTE_LAPS = 3;
 
 /**
  * The lap's fuel and VE lines for the detail panel: used, left, and laps left

@@ -410,6 +410,20 @@ describe('one color per lap, everywhere', () => {
 describe('desktop pieces', () => {
   const m = build();
 
+  it('the All laps gap is against the basis named above it, not the session median', () => {
+    // The session median is 20.0; the median of b and c is 20.15.
+    const two = build(sel({laps: ['b', 'c']}));
+    const gapOf = (m: typeof two, id: string) =>
+      m.allLaps.flatMap(g => g.rows).find(r => r.lapId === id)!.gap;
+    expect(two.chips.find(c => c.lapId === 'b')!.delta).toBe('+0.250');
+    expect(gapOf(two, 'b')).toBe('+0.250');
+    expect(gapOf(two, 'a')).toBe('−0.150');
+    // With a Ref the basis is that lap's time.
+    const ref = build(sel({laps: ['b', 'c'], ref: 'c'}));
+    expect(gapOf(ref, 'b')).toBe('+0.500');
+    expect(gapOf(ref, 'a')).toBe('+0.100');
+  });
+
   it('all laps by stint, with selection order', () => {
     expect(m.allLaps).toHaveLength(1);
     expect(m.allLaps[0].rows.map(r => [r.label, r.selIndex, r.tag])).toEqual([

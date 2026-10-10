@@ -61,7 +61,7 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
-function median(values: number[]): number | null {
+export function median(values: number[]): number | null {
   if (values.length === 0) return null;
   return quantile(
     [...values].sort((a, b) => a - b),
@@ -75,6 +75,22 @@ function iqr(values: number[]): number | null {
   return quantile(v, 0.75) - quantile(v, 0.25);
 }
 
+/**
+ * The laps a fuel or VE figure per lap is taken over, on every screen: green
+ * (timed, whole, no pit, no yellow) and comparable, with a fuel use. One set,
+ * so the stint note and the fuel card print the same number for a stint.
+ */
+export function comparableGreenLaps(laps: Lap[]): Lap[] {
+  return laps.filter(
+    l =>
+      l.comparable &&
+      l.fuel?.green === true &&
+      l.fuel.usedL != null &&
+      l.fuel.usedL > 0 &&
+      l.timeS != null,
+  );
+}
+
 /** Null for anything but a practice with green laps. */
 export function buildFuelUse(
   session: Pick<SessionDetail, 'sessionType' | 'fuel'>,
@@ -85,14 +101,7 @@ export function buildFuelUse(
   // start level, and the tank is not what the event allows (camber, #158).
   const limitL = session.fuel?.fillLimitL ?? null;
 
-  const usable = laps.filter(
-    l =>
-      l.comparable &&
-      l.fuel?.green === true &&
-      l.fuel.usedL != null &&
-      l.fuel.usedL > 0 &&
-      l.timeS != null,
-  );
+  const usable = comparableGreenLaps(laps);
   if (usable.length === 0) return null;
   const points: FuelUsePoint[] = usable.map(l => ({
     lapId: l.id,

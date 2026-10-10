@@ -765,7 +765,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   // Colour slot: slot 0 is the reference stroke and belongs to the Ref lap
   // only; the others follow in lap-number order. Without a Ref lap (median
   // mode) no lap is the reference, so the slots start at 1.
-  const slotOf = lapSlots(selected, refLap?.id ?? null, new Set(foreignTags.keys()));
+  const slotOf = lapSlots(
+    selected,
+    refLap?.id ?? null,
+    new Set(foreignTags.keys()),
+  );
   const lapRefs: LapRef[] = selected.map(l => ({
     lapId: l.id,
     label: nameOf(l),
@@ -1185,6 +1189,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     allLaps: allLapsByStint(
       laps,
       session,
+      // The same basis as the chips and the line above them (the Ref lap, or
+      // the median of the checked laps); the session median only when nothing
+      // is checked and there is no such line.
+      basisLapS ?? session.medianTimeS,
       new Map(lapRefs.map(r => [r.lapId, r.selIndex])),
       refLap?.id ?? null,
     ),
@@ -1379,10 +1387,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
 function allLapsByStint(
   laps: Lap[],
   session: SessionDetail,
+  basisS: number | null,
   slotOf: Map<string, number>,
   refId: string | null,
 ): AllLapsStint[] {
-  const median = session.medianTimeS;
+  const median = basisS;
   const stints = [...new Set(laps.map(l => l.stint))];
   return stints.map(n => ({
     key: `stint-${n}`,

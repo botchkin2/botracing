@@ -47,22 +47,45 @@ describe('pitLine', () => {
 });
 
 describe('stintFuelLine', () => {
-  it('the median use per green lap and how many laps it comes from', () => {
+  const g = (
+    usedL: number,
+    veUsedPct: number | null,
+    over: Partial<Lap> = {},
+  ) =>
+    ({
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL, veUsedPct, green: true},
+      ...over,
+    } as Lap);
+
+  it('the median use over the stint comparable green laps', () => {
     expect(
-      stintFuelLine({medianFuelL: 2.4, medianVePct: 3.6, greenLaps: 15}),
+      stintFuelLine([g(2.4, 3.5), g(2.4, 3.6), g(2.5, 3.7), g(2.3, 3.6)]),
     ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap');
   });
 
-  it('under 3 green laps the uploader gives no median: no line', () => {
+  it('a slow or otherwise not comparable green lap is left out, as on the fuel card', () => {
+    const laps = [g(2.4, 2.5), g(2.4, 2.6), g(2.4, 2.6), g(2.4, 2.6)];
+    // The slow lap is green but not comparable: it must not move the median.
     expect(
-      stintFuelLine({medianFuelL: null, medianVePct: null, greenLaps: 2}),
-    ).toBeNull();
+      stintFuelLine([
+        ...laps,
+        g(2.4, 1.0, {comparable: false}),
+        g(2.4, 1.0, {comparable: false}),
+      ]),
+    ).toBe(stintFuelLine(laps));
+  });
+
+  it('under 3 such laps there is no line', () => {
+    expect(stintFuelLine([g(2.4, 3.6), g(2.4, 3.6)])).toBeNull();
+    expect(stintFuelLine([])).toBeNull();
   });
 
   it('fuel only, when VE is missing', () => {
-    expect(
-      stintFuelLine({medianFuelL: 3.4, medianVePct: null, greenLaps: 18}),
-    ).toBe('Fuel 3.40 L/lap');
+    expect(stintFuelLine([g(3.4, null), g(3.4, null), g(3.4, null)])).toBe(
+      'Fuel 3.40 L/lap',
+    );
   });
 });
 
