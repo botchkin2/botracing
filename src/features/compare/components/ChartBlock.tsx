@@ -129,10 +129,16 @@ export function ChartBlock({
     </View>
   );
 
+  // A lone row has no legend, so its unit goes after the title (Speed km/h).
+  const loneUnit =
+    chart.valueRows.length === 1 && chart.valueRows[0].unit
+      ? ` ${chart.valueRows[0].unit}`
+      : '';
   const titleRow = (
     <View style={styles.titleRow}>
       <Text variant='label' tone='textMuted'>
         {chart.title}
+        {loneUnit}
       </Text>
     </View>
   );

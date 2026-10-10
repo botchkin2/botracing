@@ -320,6 +320,10 @@ describe('chart window', () => {
     // A lone row is the chart's title, so it has no legend; an overlay row gets one.
     expect(td.valueRows[0].legend).toBe(false);
     expect(m.charts.find(c => c.channels.length > 1)?.valueRows.every(r => r.legend)).toBe(true);
+    // A lone Speed chart keeps its unit: no legend, so the view puts km/h after the title.
+    const speed = m.charts.find(c => c.channels.length === 1 && c.channels[0] === 'speed')!;
+    expect(speed.valueRows[0].legend).toBe(false);
+    expect(speed.valueRows[0].unit).toBe('km/h');
   });
 
   it('pedals chart shares one plot; apex lines inside the window only', () => {
