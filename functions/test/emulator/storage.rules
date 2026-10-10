@@ -1,0 +1,7 @@
+rules_version = '2';
+// Emulator only: the functions read Storage with the Admin SDK, which skips rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{all=**} { allow read, write: if false; }
+  }
+}

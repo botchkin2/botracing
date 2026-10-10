@@ -7,7 +7,8 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test:emulator": "npm run build && npx --yes firebase-tools@15.32.1 emulators:exec --config ../firebase.emulator.json --project demo-botracing --only functions,firestore,auth,storage \"node --test test/emulator/*.test.mjs\""
   },
   "engines": {
     "node": "22"
