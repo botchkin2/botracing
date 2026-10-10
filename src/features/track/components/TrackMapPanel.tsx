@@ -72,11 +72,7 @@ export function TrackMapPanel({
               }}
               startFinish={map.startFinish}
             />
-            {map.note ? (
-              <Text variant='dataSmall' tone='textMuted' style={styles.note}>
-                {map.note}
-              </Text>
-            ) : attribution && map.real ? (
+            {attribution && map.real && !map.note ? (
               <Text
                 variant='attribution'
                 tone='textFaint'
@@ -95,6 +91,11 @@ export function TrackMapPanel({
           </View>
         )}
       </View>
+      {map?.note ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.below}>
+          {map.note}
+        </Text>
+      ) : null}
       {failed.length > 0 ? (
         <Text variant='dataSmall' tone='textMuted' style={styles.below}>
           {failedText(failed)}
@@ -109,12 +110,6 @@ function noop() {}
 const styles = StyleSheet.create({
   below: {marginTop: space.sm},
   frame: {borderWidth: 1, borderRadius: radius.md, overflow: 'hidden'},
-  note: {
-    position: 'absolute',
-    left: space.lg,
-    right: space.lg,
-    bottom: space.lg,
-  },
   credit: {position: 'absolute', right: space.sm, bottom: space.xs},
   empty: {
     flex: 1,
