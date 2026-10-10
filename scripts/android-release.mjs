@@ -92,13 +92,14 @@ export function parseBuild(json, version) {
 /** The one signer's certificate SHA-256 in `apksigner verify --print-certs` output. */
 export function signerOf(apksignerOutput) {
   const text = String(apksignerOutput);
-  // 'Signer #1 ...', or 'Signer (minSdkVersion=24, ...) ...' when signers differ by
-  // SDK range; the same certificate may be listed once per range.
+  // 'Signer #1 ...', 'Signer (minSdkVersion=24, ...) ...' when signers differ by SDK
+  // range, or 'V2 Signer: ...' (the CI runner's apksigner prints that form, run
+  // 38011722803); the same certificate may be listed once per range or scheme.
   const certs = [
     ...new Set(
       [
         ...text.matchAll(
-          /^Signer [^\r\n]*? certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$/gm,
+          /^(?:V\d+ )?Signer\b[^\r\n]*? certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$/gm,
         ),
       ].map(m => m[1].toLowerCase().replace(/:/g, '')),
     ),
@@ -184,21 +185,29 @@ const readJson = file => JSON.parse(readFileSync(file, 'utf8'));
 const appVersion = () => readJson(resolve(here, '../app.json')).expo.version;
 const pinned = () => readJson(resolve(here, 'android-signer.json'));
 
-/** A tool from the newest build-tools under $ANDROID_HOME. */
+/** A tool from the newest build-tools under $ANDROID_HOME (apksigner.bat, aapt2.exe on Windows). */
 function buildTool(name) {
   const home = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
   if (!home) throw new Error('ANDROID_HOME is not set (apksigner, aapt2)');
   const dir = join(home, 'build-tools');
-  const newest = readdirSync(dir)
-    .filter(v => existsSync(join(dir, v, name)))
+  const files =
+    process.platform === 'win32' ? [`${name}.bat`, `${name}.exe`] : [name];
+  const found = readdirSync(dir)
     .sort((a, b) => a.localeCompare(b, 'en', {numeric: true}))
-    .at(-1);
-  if (!newest) throw new Error(`no ${name} under ${dir}`);
-  return join(dir, newest, name);
+    .reverse()
+    .map(v => files.map(f => join(dir, v, f)).find(existsSync))
+    .find(Boolean);
+  if (!found) throw new Error(`no ${name} under ${dir}`);
+  return found;
 }
 
-const run = (tool, args) =>
-  execFileSync(buildTool(tool), args, {encoding: 'utf8'});
+const run = (tool, args) => {
+  const file = buildTool(tool);
+  // Node refuses to start a .bat directly.
+  return file.endsWith('.bat')
+    ? execFileSync('cmd.exe', ['/c', file, ...args], {encoding: 'utf8'})
+    : execFileSync(file, args, {encoding: 'utf8'});
+};
 
 function verify(apk, versionCode) {
   return checkApk({
