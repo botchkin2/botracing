@@ -22,7 +22,8 @@ export function retryDelayMin(failuresInRow) {
 // retry. retryAtMs is a whole-run failure (the sync crashed, so nothing is
 // known to be done) and blocks everything until it passes; sessionRetryAtMs
 // is the earliest per-session retry (retries.mjs) and only adds a reason to
-// run, because the failing sessions are skipped, not the rest.
+// run, because the failing sessions are skipped, not the rest; quietRetryAtMs
+// is when files the last run skipped as too fresh are old enough to read.
 export function decide({
   versionChanged = false,
   gameRunning,
@@ -31,6 +32,7 @@ export function decide({
   lastRunAtMs,
   retryAtMs = null,
   sessionRetryAtMs = null,
+  quietRetryAtMs = null,
   nowMs,
 }) {
   if (gameRunning) return {run: false, reason: 'game running'};
@@ -48,6 +50,12 @@ export function decide({
   // A new analysisVersion means every stored session is out of date: sync
   // them all once, the same way as new telemetry (never in game).
   if (versionChanged) return {run: true, reason: 'new analysis version'};
+  // A run that left a file alone because it was written moments ago must look
+  // again once the quiet time has passed: the file's time is older than that
+  // run, so "nothing new" would never let it through (full-feature run on the
+  // 0.1.3 candidate: a fresh .ibt waited for the next change to the folder).
+  if (quietRetryAtMs != null && nowMs >= quietRetryAtMs)
+    return {run: true, reason: 'files closed'};
   if (lastRunAtMs != null && newestMtimeMs <= lastRunAtMs) {
     return {run: false, reason: 'nothing new'};
   }

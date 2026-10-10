@@ -164,3 +164,12 @@ test('a sync that dies before its closing line reports the error line', () => {
 test('a finished sync with a failed session is not a crash', () => {
   assert.equal(run(output).crash, null);
 });
+
+test('a sync that left fresh files alone says how many', () => {
+  const r = newSyncResult();
+  assert.equal(r.waiting, 0);
+  readSyncLine(r, '1 file(s) still being written, skipped for now');
+  assert.equal(r.waiting, 1);
+  readSyncLine(r, 'done 0, failed 0, unchanged 0');
+  assert.equal(r.finished, true);
+});
