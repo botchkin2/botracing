@@ -413,14 +413,14 @@ test('iRacing offline: classes come from the label, not the empty short name', (
 });
 
 test('the lap is where the cars wrap, not a parked car reporting more (Road Atlanta, 2 Oct)', () => {
-  // Two cars wrap at 4080 m; one sits in the pits reading 4662 m.
+  // Two wrapping wrap at 4080 m; one sits in the pits reading 4662 m.
   const lap = start => Array.from({length: 120}, (_, u) => ((start + u * 80) % 4080));
-  const cars = [
+  const wrapping = [
     {lapDistM: lap(40)},
     {lapDistM: lap(2040)},
     {lapDistM: Array.from({length: 120}, () => 4662)},
   ];
-  assert.ok(Math.abs(fieldLengthM(cars) - 4080) < 80, String(fieldLengthM(cars)));
+  assert.ok(Math.abs(fieldLengthM(wrapping) - 4080) < 80, String(fieldLengthM(wrapping)));
   // Nothing wraps (a field shorter than a lap): the longest distance seen.
   assert.equal(fieldLengthM([{lapDistM: [10, 500, 900]}, {lapDistM: [null, 1200]}]), 1200);
 });
