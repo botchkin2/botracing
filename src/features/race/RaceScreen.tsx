@@ -29,7 +29,7 @@ import {
   Text,
 } from '@/src/ui';
 
-import {clockLabel, nextRate, snapClock, stepBy} from './clock';
+import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
@@ -302,6 +302,8 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
+  // The race clock counts from the start, not from the first update.
+  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   const cars = useMemo(
     () => markPitLane(carsAt(prep, shownS, snap), placer),
     [prep, shownS, snap, placer],
@@ -449,7 +451,10 @@ function RaceView({
                 data: radarData,
                 // The sample time is printed on the large sizes only (R2).
                 sampleLabel: desktop
-                  ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
+                  ? `${raceClockLabel(
+                      times[Math.max(0, radarU)] ?? 0,
+                      startS,
+                    )} · 5 Hz`
                   : undefined,
               }
         }
@@ -491,6 +496,7 @@ function RaceView({
       zoom={zoom}
       onZoom={setZoom}
       playheadS={shownS}
+      startS={startS}
       // Never negative: columnW is 0 until onLayout, and an SVG with a
       // negative width logs an error.
       width={
@@ -505,7 +511,7 @@ function RaceView({
     <RaceTransport
       playing={clock.playing}
       rate={clock.rate}
-      clock={clockLabel(shownS)}
+      clock={raceClockLabel(shownS, startS)}
       onToggle={toggle}
       onRate={clock.setRate}
       phone={
