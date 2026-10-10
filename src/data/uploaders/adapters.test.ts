@@ -15,11 +15,18 @@ describe('toUploader', () => {
       lastSessionId: 'bc1d',
       queue: 2,
       sessionsDone: 14,
-      lastError: {
-        at: '2026-09-28T19:00:00Z',
-        message: 'EBUSY',
-        path: 'D:/capture',
-      },
+      problems: [
+        {kind: 'not-seen', at: '2026-09-25T19:00:00Z'},
+        {
+          kind: 'session-failed',
+          at: '2026-09-28T19:00:00Z',
+          message: 'HTTP 413',
+          sessionId: '4dda01bc58a237af',
+          count: 2,
+          retryAt: 1790000000000,
+        },
+        {kind: 'from-the-future', at: null, message: 'x'},
+      ],
       disk: {captureBytes: 5e9, freeBytes: 2e11},
       recorder: {
         state: 'refused',
@@ -40,7 +47,24 @@ describe('toUploader', () => {
     expect(u.lastUploadAt).toBe(1790000000000);
     expect(u.state).toBe('syncing');
     expect(u.host).toBe('Race PC');
-    expect(u.lastError?.path).toBe('D:/capture');
+    expect(u.problems).toEqual([
+      {
+        kind: 'not-seen',
+        at: Date.parse('2026-09-25T19:00:00Z'),
+        message: '',
+        sessionId: null,
+        count: null,
+        retryAt: null,
+      },
+      {
+        kind: 'session-failed',
+        at: Date.parse('2026-09-28T19:00:00Z'),
+        message: 'HTTP 413',
+        sessionId: '4dda01bc58a237af',
+        count: 2,
+        retryAt: 1790000000000,
+      },
+    ]);
     expect(u.disk?.captureBytes).toBe(5e9);
   });
 
@@ -53,7 +77,7 @@ describe('toUploader', () => {
       lmuFound: false,
       lastSeenAt: null,
       queue: 0,
-      lastError: null,
+      problems: [],
       disk: null,
       recorder: null,
     });
