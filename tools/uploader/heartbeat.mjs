@@ -36,6 +36,7 @@ export function heartbeatDoc({
   freeBytes,
   recorder,
   retryAtMs = null,
+  problems = [],
   nowMs,
 }) {
   return {
@@ -58,7 +59,59 @@ export function heartbeatDoc({
       : null,
     disk: {captureBytes: recorder?.captureBytes ?? 0, freeBytes},
     recorder: recorderBlock(recorder, nowMs),
+    problems,
   };
+}
+
+// A failure message can echo a token or an address from the server (rake
+// #3328); the server redacts the same two before it stores them.
+export const redact = text =>
+  text
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '<token>')
+    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<email>');
+
+export const MAX_PROBLEMS = 10;
+export const PROBLEM_MESSAGE_MAX = 120;
+
+const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
+
+// What is wrong on this PC now, for the Settings Problems list (pit-wall
+// thread 1 #3327/#3328): a crashed sync, each session waiting on a retry, a
+// recorder that stopped writing. Built from the state the watcher keeps, so a
+// problem that is fixed is gone from the next beat. Newest first, at most 10;
+// messages scrubbed like lastError and cut to 120 characters.
+// sims: each sim's watcher state ({lastError, retryAtMs, retries}).
+export function problemsOf({sims, recorder, nowMs}) {
+  const out = [];
+  const message = m => redact(scrub(m)).slice(0, PROBLEM_MESSAGE_MAX);
+  for (const st of sims) {
+    // A crashed sync waits as a whole (retryAtMs); a finished one does not.
+    if (st.retryAtMs != null && st.lastError)
+      out.push({
+        kind: 'sync-crashed',
+        at: st.lastError.at ?? null,
+        message: message(st.lastError.message),
+        retryAt: iso(st.retryAtMs),
+      });
+    for (const [sessionId, r] of Object.entries(st.retries ?? {}))
+      out.push({
+        kind: 'session-failed',
+        at: iso(r.lastAtMs ?? null),
+        message: message(r.message ?? 'failed'),
+        sessionId,
+        count: r.failures,
+        retryAt: iso(r.atMs),
+      });
+  }
+  const rec = recorder ? recorderBlock(recorder, nowMs) : null;
+  if (rec && rec.layoutOk === false)
+    out.push({
+      kind: 'recorder-layout',
+      at: rec.updatedAt,
+      message: message(rec.layoutReason ?? 'game data layout not recognised'),
+    });
+  const t = p => (p.at ? Date.parse(p.at) : 0);
+  return out.sort((a, b) => t(b) - t(a)).slice(0, MAX_PROBLEMS);
 }
 
 function recorderBlock(status, nowMs) {
@@ -99,5 +152,6 @@ export function beatKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    (doc.problems ?? []).map(p => [p.kind, p.sessionId, p.at]),
   ]);
 }

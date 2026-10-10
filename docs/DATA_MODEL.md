@@ -26,7 +26,7 @@ A user's sync never writes app data. An admin tool never writes user data.
 | Sessions, laps, recordings | user | `sessions`, `laps`, `recordings`, field `ownerId = uid` | | upload API |
 | Traces, slices, bands, field | user | path in the session/lap doc | `traces/{uid}/`, `slices/{uid}/`, `bands/{uid}/`, `field/{uid}/` | upload API (signed URL) |
 | Raw recordings archive | user | | `archive/{uid}/{sim}/` | upload API |
-| Uploader heartbeats | user | `uploaders/{uid}__{hostId}` | | upload API |
+| Uploader heartbeats | user | `uploaders/{uid}__{hostId}`: the tray's status, with `problems[]` (what is wrong on the PC now, at most 10, overwritten each beat; no `lastError`) | | upload API |
 | Profile and usage | user | `users/{uid}` | | upload API (usage), sign-in |
 | Tracks: identity, length, georef, corner map | app | `tracks/{trackId}` | `trackmaps/{trackId}/` | curate, track-fit |
 | Section boundaries | app | `trackBoundaries/{trackId}` | | curate |

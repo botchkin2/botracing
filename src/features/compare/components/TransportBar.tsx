@@ -25,6 +25,7 @@ export function TransportBar({
   rate,
   onMode,
   onStep,
+  onLap,
   onPlay,
   onRate,
 }: {
@@ -39,17 +40,24 @@ export function TransportBar({
   rate: PlayRate;
   onMode: (m: WindowMode) => void;
   onStep: (dir: -1 | 1) => void;
+  /** One tap to the whole lap. */
+  onLap: () => void;
   onPlay: () => void;
   onRate: (r: PlayRate) => void;
 }) {
   const {color} = useTheme();
+  // The 28 pt control's touch area grows to 44 pt on native (hitSlop); web ignores it.
+  const HIT_SLOP = (size.hit - size.chip) / 2;
+  const hit = {
+    hitSlop: {top: HIT_SLOP, bottom: HIT_SLOP, left: HIT_SLOP, right: HIT_SLOP},
+  };
   const stepper = (
     <View style={[styles.stepper, {borderColor: color.lineStrong}]}>
       <Pressable
         accessibilityLabel='Smaller window'
         onPress={() => onStep(-1)}
         disabled={step === 0}
-        hitSlop={space.sm}
+        hitSlop={hit.hitSlop}
         style={styles.stepBtn}>
         <Text variant='dataStrong' tone={step === 0 ? 'textFaint' : 'text'}>
           −
@@ -62,13 +70,26 @@ export function TransportBar({
         accessibilityLabel='Larger window'
         onPress={() => onStep(1)}
         disabled={step === 'lap'}
-        hitSlop={space.sm}
+        hitSlop={hit.hitSlop}
         style={styles.stepBtn}>
         <Text variant='dataStrong' tone={step === 'lap' ? 'textFaint' : 'text'}>
           +
         </Text>
       </Pressable>
     </View>
+  );
+  const lapButton = (
+    <Pressable
+      accessibilityRole='button'
+      accessibilityLabel='Whole lap'
+      onPress={onLap}
+      disabled={step === 'lap'}
+      hitSlop={hit.hitSlop}
+      style={[styles.stepper, {borderColor: color.lineStrong}, styles.lapBtn]}>
+      <Text variant='dataStrong' tone={step === 'lap' ? 'textFaint' : 'text'}>
+        Lap
+      </Text>
+    </Pressable>
   );
   const windowRow = (
     <View style={styles.row}>
@@ -87,6 +108,7 @@ export function TransportBar({
         {spanLabel}
       </Text>
       {stepper}
+      {lapButton}
     </View>
   );
   const playRow = (
@@ -150,6 +172,7 @@ const styles = StyleSheet.create({
   },
   stepBtn: {width: 28, alignItems: 'center', justifyContent: 'center'},
   stepLabel: {minWidth: 40, textAlign: 'center'},
+  lapBtn: {paddingHorizontal: space.md, justifyContent: 'center'},
   play: {
     width: size.transport,
     height: size.transport,

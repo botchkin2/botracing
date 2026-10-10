@@ -116,6 +116,7 @@ export async function listUploaders(owner: string): Promise<any[]> {
   return uploaderItems(
     owner,
     snap.docs.map(doc => ({id: doc.id, data: doc.data()})),
+    Date.now(),
   );
 }
 

@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use crate::paths::{current_exe, plain};
+
 pub struct Paths {
     /// %LOCALAPPDATA%\BotRacing: everything the tray keeps.
     pub data: PathBuf,
@@ -31,16 +33,11 @@ impl Paths {
     pub fn sessions_dir(&self) -> PathBuf {
         self.data.join("sessions")
     }
-    /// Asks the next sync to include sessions older than the first-run window.
-    pub fn older_request_file(&self) -> PathBuf {
-        self.sessions_dir().join(OLDER_REQUEST)
-    }
 }
 
-/// The file name tools/sessions/syncState.mjs reads (OLDER_REQUEST).
-const OLDER_REQUEST: &str = "include-older";
-/// A first run uploads only recordings from this many days back.
-const FIRST_RUN_DAYS: &str = "14";
+/// A first run uploads only recordings from this many days back (Botkin has
+/// years of iRacing .ibt: the standing decision is recent history only).
+const FIRST_RUN_DAYS: &str = "90";
 
 const SCRIPT: &str = "tools/uploader/watch.mjs";
 
@@ -60,22 +57,12 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
-/// `path` without a `\\?\` prefix when it has a plain form. Tauri canonicalizes
-/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`. The
-/// bundled node (24.19.0; 24.21.0 is fine) cannot start a main script from such
-/// a path: it exits 1 with "EISDIR: illegal operation on a directory, lstat
-/// 'C:'" before running a line of it. That was the 0.1.2 tray's "Uploader
-/// stopped (exit code: 1)" loop (thread 1 #3473).
-pub fn plain(path: &Path) -> PathBuf {
-    dunce::simplified(path).to_path_buf()
-}
-
 pub fn paths(resources: &Path) -> Paths {
     let resources = plain(resources);
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let exe = plain(&std::env::current_exe().unwrap_or_default());
+    let exe = current_exe().unwrap_or_default();
     let root = find_root(
         std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
         &resources,
@@ -568,11 +555,7 @@ mod tests {
             .iter()
             .position(|a| a == "--first-window-days")
             .expect("--first-window-days");
-        assert_eq!(args[at + 1], "14");
-        assert_eq!(
-            p.older_request_file(),
-            p.data.join("sessions").join("include-older")
-        );
+        assert_eq!(args[at + 1], "90");
     }
 
     #[test]

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::prune::{self, SimState};
-use super::prune_settings;
+use super::prune_policy;
 use super::runner;
 
 /// How often the tray looks at the uploader's state for a finished run.
@@ -20,7 +20,6 @@ const POLL: Duration = Duration::from_secs(60);
 pub struct Paths {
     pub captures: PathBuf,
     pub state: PathBuf,
-    pub settings: PathBuf,
     pub log: PathBuf,
 }
 
@@ -33,7 +32,6 @@ impl Paths {
         Paths {
             captures: runner::capture_root(),
             state: uploader.join("state.json"),
-            settings: uploader.join("prune.json"),
             log: uploader.join("prune.log"),
         }
     }
@@ -41,8 +39,7 @@ impl Paths {
 
 /// One cleanup run: the line it logs.
 pub fn run_once(paths: &Paths, now: SystemTime, dry: bool) -> String {
-    let settings = prune_settings::load(&paths.settings);
-    let policy = settings.policy();
+    let policy = prune_policy::policy();
     let states = prune::read_states(&paths.state);
     let note = waiting_note(&prune::blocked_sims(&policy, &states));
     if dry {
@@ -119,7 +116,7 @@ mod tests {
     const DAY: D = D::from_secs(86_400);
 
     /// A folder with one finished, uploaded capture 30 days old, the uploader
-    /// state (a run yesterday), and default settings.
+    /// state (a run yesterday), and the fixed policy.
     fn setup(name: &str, retry: bool) -> Paths {
         let base =
             std::env::temp_dir().join(format!("botracing-sched-{}-{name}", std::process::id()));
@@ -156,7 +153,6 @@ mod tests {
         Paths {
             captures,
             state: uploader.join("state.json"),
-            settings: uploader.join("prune.json"),
             log: uploader.join("prune.log"),
         }
     }
@@ -229,7 +225,6 @@ mod tests {
         // The watcher's LAP_UPLOADER_HOME comes from the same function.
         let watcher_home = crate::sidecar::uploader_home(&data);
         assert_eq!(paths.state, watcher_home.join("state.json"));
-        assert_eq!(paths.settings, watcher_home.join("prune.json"));
         assert!(!paths.state.to_string_lossy().contains("lap-uploader"));
     }
 

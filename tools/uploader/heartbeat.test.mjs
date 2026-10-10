@@ -6,6 +6,8 @@ import {
   heartbeatDoc,
   hostIdOf,
   idleState,
+  MAX_PROBLEMS,
+  problemsOf,
   scrub,
 } from './heartbeat.mjs';
 
@@ -118,4 +120,116 @@ test('the fold phase is part of the beat key, so a new phase writes at once', ()
   });
   assert.notEqual(beatKey(sessions), beatKey(fold));
   assert.equal(fold.progress.phase, 'surface');
+});
+
+const MIN = 60_000;
+
+test('problems: a crashed sync, each session on a retry, a stopped recorder, newest first', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        lastError: {
+          at: '2026-09-29T09:50:00.000Z',
+          message: 'sync crashed: RangeError: x',
+        },
+        retryAtMs: nowMs + 30 * MIN,
+        retries: {
+          aaaaaaaaaaaaaaaa: {
+            failures: 3,
+            atMs: nowMs + 60 * MIN,
+            lastAtMs: nowMs - 5 * MIN,
+            message: 'HTTP 413 at C:\\Users\\Botkin\\x.json\nstack',
+          },
+        },
+      },
+    ],
+    recorder: {
+      ...input.recorder,
+      layoutOk: false,
+      layoutReason: 'struct size 1234 != 1240',
+    },
+    nowMs,
+  });
+  assert.deepEqual(
+    problems,
+    [
+      {
+        kind: 'session-failed',
+        at: '2026-09-29T09:55:00.000Z',
+        message: 'HTTP 413 at ~\\x.json',
+        sessionId: 'aaaaaaaaaaaaaaaa',
+        count: 3,
+        retryAt: '2026-09-29T11:00:00.000Z',
+      },
+      {
+        kind: 'sync-crashed',
+        at: '2026-09-29T09:50:00.000Z',
+        message: 'sync crashed: RangeError: x',
+        retryAt: '2026-09-29T10:30:00.000Z',
+      },
+      {
+        kind: 'recorder-layout',
+        at: '2026-09-29T09:59:40Z',
+        message: 'struct size 1234 != 1240',
+      },
+    ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+  );
+});
+
+test('problems: none when all is well; a finished sync with an old error is not a crash', () => {
+  assert.deepEqual(
+    problemsOf({sims: [{retries: {}}], recorder: input.recorder, nowMs}),
+    [],
+  );
+  assert.deepEqual(
+    problemsOf({
+      sims: [
+        {lastError: {at: 'x', message: 'old'}, retryAtMs: null, retries: {}},
+      ],
+      recorder: null,
+      nowMs,
+    }),
+    [],
+  );
+});
+
+test('problems: a token or an address in a failure message is redacted', () => {
+  const problems = problemsOf({
+    sims: [
+      {
+        retries: {
+          '0000000000000001': {
+            failures: 1,
+            atMs: nowMs + MIN,
+            lastAtMs: nowMs,
+            message: 'bad eyJhbGciOi.eyJzdWIiOiIx.sig for a@b.example',
+          },
+        },
+      },
+    ],
+    recorder: null,
+    nowMs,
+  });
+  assert.equal(problems[0].message, 'bad <token> for <email>');
+});
+
+test('problems: at most 10, messages cut to 120 characters, and a change forces a beat', () => {
+  const retries = {};
+  for (let i = 0; i < 15; i += 1)
+    retries[String(i).padStart(16, '0')] = {
+      failures: 1,
+      atMs: nowMs + MIN,
+      lastAtMs: nowMs - i * MIN,
+      message: 'x'.repeat(200),
+    };
+  const problems = problemsOf({sims: [{retries}], recorder: null, nowMs});
+  assert.equal(problems.length, MAX_PROBLEMS);
+  assert.equal(problems[0].sessionId, '0000000000000000', 'newest first');
+  assert.equal(problems[0].message.length, 120);
+  assert.notEqual(
+    beatKey(heartbeatDoc(input)),
+    beatKey(heartbeatDoc({...input, problems})),
+  );
+  assert.deepEqual(heartbeatDoc({...input, problems}).problems, problems);
+  assert.deepEqual(heartbeatDoc(input).problems, []);
 });
