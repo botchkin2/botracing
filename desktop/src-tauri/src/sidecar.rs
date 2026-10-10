@@ -31,16 +31,11 @@ impl Paths {
     pub fn sessions_dir(&self) -> PathBuf {
         self.data.join("sessions")
     }
-    /// Asks the next sync to include sessions older than the first-run window.
-    pub fn older_request_file(&self) -> PathBuf {
-        self.sessions_dir().join(OLDER_REQUEST)
-    }
 }
 
-/// The file name tools/sessions/syncState.mjs reads (OLDER_REQUEST).
-const OLDER_REQUEST: &str = "include-older";
-/// A first run uploads only recordings from this many days back.
-const FIRST_RUN_DAYS: &str = "14";
+/// A first run uploads only recordings from this many days back (Botkin has
+/// years of iRacing .ibt: the standing decision is recent history only).
+const FIRST_RUN_DAYS: &str = "90";
 
 const SCRIPT: &str = "tools/uploader/watch.mjs";
 
@@ -458,11 +453,7 @@ mod tests {
             .iter()
             .position(|a| a == "--first-window-days")
             .expect("--first-window-days");
-        assert_eq!(args[at + 1], "14");
-        assert_eq!(
-            p.older_request_file(),
-            p.data.join("sessions").join("include-older")
-        );
+        assert_eq!(args[at + 1], "90");
     }
 
     #[test]

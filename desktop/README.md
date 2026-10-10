@@ -4,7 +4,7 @@ A Tauri tray icon (no windows) that runs the Node watcher, `tools/uploader/watch
 
 What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state and log).
 
-Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
+Menu (`src-tauri/src/menu.rs`, `menu_items_for` is the one list): the account ("Signed in as <email>", or "Sign in"); one line per sim ("LMU: Recording", "iRacing: Up to date", "LMU: 2 to upload", "Uploads paused"); one problems line, only while something is wrong (the worst, then "(+N)"; each says what is wrong, no advice); "Restart to update to x", only while an update is waiting; then Open BotRacing, Pause uploads (stops the watcher), Sign out, Quit; and "BotRacing 0.1.x", disabled, last. There are no settings: Start with Windows is always on, recordings are cleaned up after 14 days and over 10 GB for both sims (`capture/prune_policy.rs`), and the first sync takes the last 90 days (`--first-window-days 90`, `sidecar.rs`); older sessions are a later Settings action, not the tray. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
 Not built yet: a folder picker, the iRacing live recorder. The watcher uploads iRacing `.ibt` files from `Documents\iRacing	elemetry` like LMU sessions.
 
@@ -23,7 +23,7 @@ The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port o
 - **Lifecycle:** records when LMU's shared memory appears; a session change (practice, qualifying, race) closes the folder with `endUtc` and opens a new one; so does the game exiting or Quit. A kill leaves no `endUtc`. A full disk keeps the earlier chunks, drops the open one and shows "Recorder: disk full".
 - **Cost:** one thread at below-normal priority; it reads only when the scoring clock or the player's elapsed time changed. Pausing uploads does not pause recording; the files upload when uploads resume.
 - **One recorder at a time:** it holds the Python recorder's mutex (`Local\lap-capture-recorder`). If `LapRecorder` is running the menu says "another recorder is running". `BOTRACING_RECORDER=0` turns the tray's recorder off.
-- **Menu line:** Recording, Waiting for LMU, or the reason it is not recording.
+- **Menu line:** "LMU: Recording", or the upload state when it is not recording; a recorder that cannot record shows "LMU: Not recording" and the reason on the problems line.
 
 Tests: `cargo test` runs the fake-memory tests. Three need this PC (`cargo test -- --ignored` with `BOTRACING_DUCKDB`, `LMU_SHM_HEADER_DIR`, `LAP_CAPTURE_SAMPLE`), and the soak measures CPU and memory against a fake game: `SOAK_SECS=600 cargo test --release soak -- --ignored --nocapture`.
 
@@ -35,7 +35,7 @@ The tray records iRacing's live telemetry the same way (`src-tauri/src/capture/i
 - **Session text:** Windows-1252, read every 500 ms and used only when it ends with the YAML end line (the sim rewrites it and then bumps the counter, so a half text can sit under a new counter). Only the track, the session number and type, and per car the index, number, class, car model and an isPlayer flag are kept. **Driver and team names and member ids are never read**, so they cannot reach the disk. The pace car and spectators are left out of the field, and so are slots not in the world.
 - **Session key:** `(SubSessionID, SessionNum)`, or the recording's first-seen time plus `SessionNum` when `SubSessionID` is 0 (offline: a test drive, an AI race). A new key closes the capture (`endUtc`) and opens the next.
 - **Disconnect:** the map is checked every second; a sim that exits, restarts or publishes a different table closes the capture and the view is reopened.
-- **Menu line:** "iRacing: Recording" or "Waiting for iRacing". `BOTRACING_RECORDER=0` turns both recorders off.
+- **Menu line:** "iRacing: Recording", or the upload state when it is not recording (the same rule as LMU's). `BOTRACING_RECORDER=0` turns both recorders off.
 - With iRacing in-car: `cargo test live_iracing -- --ignored --nocapture` reads the real map; `cargo test live_iracing_minute -- --ignored --nocapture` records a minute and prints the size per hour.
 
 ## Run it from the repo
@@ -87,7 +87,7 @@ The Environment holds the secrets (setup is at the top of the workflow file): `T
 
 ## Start with Windows, install and uninstall
 
-- **Start with Windows** is on by default: the first launch writes `HKCU\...\Run\BotRacing` (the quoted exe path) and records the choice in `settings.json`; the menu item turns it off and on. A person who turns it off stays off, including after an update; an update only rewrites the path if the exe moved. If Task Manager's Startup tab switched it off (`StartupApproved\Run\BotRacing`, first byte odd), the menu shows it unchecked; turning it on from the menu clears that switch. A walkthrough profile never touches the Run key.
+- **Start with Windows** is always on, with no menu item: every launch writes `HKCU\...\Run\BotRacing` (the quoted exe path) if it differs, so an update that moved the exe is followed. Nothing reads or clears the Task Manager switch (`StartupApproved\Run\BotRacing`, first byte odd): switching it off there is the person's own opt-out and a launch keeps it. A walkthrough profile never touches the Run key.
 - **Install** (`src-tauri/windows/hooks.nsh`, Tauri's NSIS hooks): asks a running tray to quit (`botracing.exe --quit` goes through the single-instance hold; the watcher stops and the recorder closes its chunk with its end time; the hook waits up to 5 s), then removes the old `LapUploader` and `LapRecorder` logon tasks by exact name if they exist. If a task will not delete (made with highest privileges), the installer carries on, writes the name to `%LOCALAPPDATA%\BotRacing\old-tasks.txt`, and the tray says "Remove the old LapRecorder task (Task Scheduler)" once. The old tasks' runtime folder (`lap-runtime`) is never touched.
 - **Uninstall** quits the tray the same way, then removes the Run value and the Task Manager switch, the Credential Manager sign-in (`account.BotRacing`) and the `token` file. `%LOCALAPPDATA%\BotRacing` (settings, status) stays unless "Delete the application data" is ticked, and then only that folder: `%LOCALAPPDATA%\lap-capture` is raw race data shared with the Python tools and is never deleted.
 - **An update** (run by the tray, `$UpdateMode`) keeps all of this: data, settings, sign-in and the Run value.

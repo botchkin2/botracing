@@ -34,7 +34,6 @@ import {
   readFileSync,
   statSync,
   renameSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -72,9 +71,7 @@ import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
   forgetOtherOwners,
   freshState,
-  liftWindow,
   markDone,
-  OLDER_REQUEST,
 } from './syncState.mjs';
 
 import {lapTraffic} from './lapTraffic.mjs';
@@ -144,7 +141,6 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
-const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -730,14 +726,6 @@ async function main() {
   const forgotten = forgetOtherOwners(state, ownerId);
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
-  // "Upload older sessions…" in the tray: the first-run window is lifted once.
-  if (existsSync(olderRequestPath)) {
-    liftWindow(state);
-    // Removed before the sync runs on purpose: the lift is saved with the
-    // state right after the scan, so a sync stopped for the game keeps it.
-    if (!check) rmSync(olderRequestPath);
-    log('older sessions included');
-  }
   if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);

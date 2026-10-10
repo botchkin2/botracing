@@ -50,7 +50,7 @@ import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
-import {floorOf, OLDER_REQUEST} from '../sessions/syncState.mjs';
+import {floorOf} from '../sessions/syncState.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -385,7 +385,6 @@ async function main() {
           sessionRetryAtMs: earliestRetryMs(st.retries),
           // First run with this code, or a merge that bumped it.
           versionChanged: st.versionKey !== currentKey,
-          olderRequested: existsSync(resolve(workOf(sim), OLDER_REQUEST)),
           nowMs: Date.now(),
         });
         if (plan.run) {
