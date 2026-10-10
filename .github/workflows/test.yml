@@ -68,10 +68,12 @@ jobs:
       # needs Java 21+, which the Ubuntu image already has.
       - name: API in the emulators
         working-directory: functions
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+        # The image's JAVA_HOME_21_X64 is a machine variable: the workflow's
+        # env context does not see it, the shell does.
         run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
           npm run test:emulator
   capture:
     runs-on: ubuntu-latest
