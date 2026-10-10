@@ -58,6 +58,10 @@ export function NumberField({
   );
 }
 
+// The box's border, drawn inside its 44 pt; the input's negative margin takes it
+// back so the input is the full 44 and a tap at the box's top edge focuses it.
+const BORDER_W = 1;
+
 const styles = StyleSheet.create({
   field: {gap: space.xs, flex: 1},
   box: {
@@ -66,8 +70,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
-    borderWidth: 1,
+    borderWidth: BORDER_W,
     borderRadius: radius.sm,
   },
-  input: {flex: 1, minWidth: 0, paddingVertical: 0},
+  // Fills the 44 pt box, so a tap anywhere in it focuses the field.
+  input: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
+    marginVertical: -BORDER_W,
+    paddingVertical: 0,
+  },
 });
