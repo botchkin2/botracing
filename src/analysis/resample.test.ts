@@ -11,10 +11,8 @@ import {
 // A lap at constant speed over a 1000 m track, sampled at 10 Hz.
 function constantLap(speedKph: number, lengthM = 1000): RawTrace {
   const v = speedKph / 3.6;
-  const samples = Math.ceil(lengthM / v / 0.1) + 1;
-  const pct = Array.from({length: samples}, (_, i) =>
-    Math.min(1, (i * 0.1 * v) / lengthM),
-  );
+  const samples = Math.floor(lengthM / v / 0.1) + 1;
+  const pct = Array.from({length: samples}, (_, i) => (i * 0.1 * v) / lengthM);
   const same = (x: number) => pct.map(() => x);
   return {
     lapDistPct: pct,
@@ -107,6 +105,58 @@ describe('resampleTrace', () => {
       raw[k].push(raw[k][0]);
     const g = resampleTrace(raw, 1000, 5);
     expect(g.lat[200]).toBeCloseTo(1);
+  });
+});
+
+describe("distance is the game's LapDistPct times the layout length", () => {
+  it('ignores the speed channel: a biased speed moves no metre', () => {
+    const raw = constantLap(180);
+    const biased = {...raw, speedKph: raw.speedKph.map(v => v * 1.07)};
+    const a = resampleTrace(raw, 1000, 5, 10);
+    const b = resampleTrace(biased, 1000, 5, 10);
+    expect(b.timeS).toEqual(a.timeS);
+    // 500 m on the grid is 500 m of lap progress: half the lap's time.
+    expect(a.timeS[100]).toBeCloseTo(10, 1);
+  });
+
+  it('a wider line adds no metres: progress is progress along the reference path', () => {
+    const raw = constantLap(180);
+    // Same progress per sample, but the car "drove" 5 % more path (speed up).
+    const wide = {...raw, speedKph: raw.speedKph.map(v => v * 1.05)};
+    expect(resampleTrace(wide, 1000, 5, 10).timeS[100]).toBeCloseTo(
+      resampleTrace(raw, 1000, 5, 10).timeS[100],
+      6,
+    );
+  });
+
+  it('holds a running maximum: a step back of a few centimetres never goes back', () => {
+    const raw = constantLap(180);
+    raw.lapDistPct = raw.lapDistPct.map((p, i) => (i === 100 ? p - 0.00003 : p));
+    const g = resampleTrace(raw, 1000, 5, 10);
+    expect(g.timeS.every((t, i) => i === 0 || t >= g.timeS[i - 1])).toBe(true);
+    expect(g.timeS[100]).toBeCloseTo(10, 1);
+  });
+
+  it('a trace that starts just before the line is unrolled, with a clock from the line', () => {
+    const raw = constantLap(180);
+    // Two samples before the line (0.9996, 0.9998), then the lap from 0.
+    const lead = {
+      ...raw,
+      lapDistPct: [0.9996, 0.9998, ...raw.lapDistPct],
+      speedKph: [180, 180, ...raw.speedKph],
+      throttlePct: [100, 100, ...raw.throttlePct],
+      brakePct: [0, 0, ...raw.brakePct],
+      steeringPct: [0, 0, ...raw.steeringPct],
+      gear: [3, 3, ...raw.gear],
+      lat: [0, 0, ...raw.lat],
+      lon: [0, 0, ...raw.lon],
+    };
+    const a = resampleTrace(raw, 1000, 5, 10);
+    const b = resampleTrace(lead, 1000, 5, 10);
+    expect(b.distanceM).toHaveLength(a.distanceM.length);
+    // The lap is not cut short at the first wrap, and its clock starts at the line.
+    expect(b.timeS[0]).toBeCloseTo(0, 6);
+    expect(b.timeS[100]).toBeCloseTo(a.timeS[100], 1);
   });
 });
 
