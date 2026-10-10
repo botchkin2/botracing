@@ -233,6 +233,8 @@ export type ChartValueRow = {
   channel: ChannelId;
   label: string;
   unit: string;
+  /** Whether the row's name is drawn as a legend. A lone row is the chart's title and says it once, there. */
+  legend: boolean;
   overlay: number;
   values: {
     lapId: string;
@@ -1306,6 +1308,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           valueRows: chs.map((ch, overlay) => ({
             channel: ch,
             label: labelOf(ch),
+            legend: chs.length > 1,
             // The readout text carries the time diff's unit.
             unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
             overlay,

@@ -140,8 +140,7 @@ export function ChartBlock({
     <>
       {chart.valueRows.map(r => (
         <View key={r.channel} style={styles.overlayRow}>
-          {/* A lone row that is the chart's title (the time diff) says it once, in the title. */}
-          {!(chart.valueRows.length === 1 && r.label === chart.title) && (
+          {r.legend && (
             <>
               <LegendSwatch
                 kind={

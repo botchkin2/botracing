@@ -317,6 +317,9 @@ describe('chart window', () => {
     expect(td.valueRows[0].values[2].text).toMatch(/ s$/);
     expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
+    // A lone row is the chart's title, so it has no legend; an overlay row gets one.
+    expect(td.valueRows[0].legend).toBe(false);
+    expect(m.charts.find(c => c.channels.length > 1)?.valueRows.every(r => r.legend)).toBe(true);
   });
 
   it('pedals chart shares one plot; apex lines inside the window only', () => {
