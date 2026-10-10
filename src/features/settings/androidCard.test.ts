@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {androidCard, androidSurface} from './androidCard';
+import {androidCard, androidSurface, runningLineOf} from './androidCard';
 
 const release = {version: '1.0.1', versionCode: 8};
 const idle = {isPending: false, isError: false};
@@ -111,4 +111,20 @@ it('has no card off Android', () => {
       data: release,
     }),
   ).toBeNull();
+});
+
+describe('runningLineOf', () => {
+  it('shows the version and the update id, first 8 characters', () => {
+    expect(runningLineOf('1.0.2', 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f')).toBe(
+      'App 1.0.2 · update d83c26a3',
+    );
+  });
+
+  it("says 'built-in' when the app runs its own bundle", () => {
+    expect(runningLineOf('1.0.2', null)).toBe('App 1.0.2 · built-in');
+  });
+
+  it('names the app without a version when none is known', () => {
+    expect(runningLineOf(null, null)).toBe('App · built-in');
+  });
 });

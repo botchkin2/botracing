@@ -19,6 +19,19 @@ export function androidSurface(
   return 'none';
 }
 
+/**
+ * The running build in one line: the app's version and the OTA update it runs
+ * (expo-updates' updateId, first 8 characters), or 'built-in' when it runs the
+ * build's own bundle.
+ */
+export function runningLineOf(
+  version: string | null,
+  updateId: string | null,
+): string {
+  const app = version ? `App ${version}` : 'App';
+  return `${app} · ${updateId ? `update ${updateId.slice(0, 8)}` : 'built-in'}`;
+}
+
 export type AndroidCard = {
   /** "v1.0.1", or why there is nothing to download. */
   status: string;

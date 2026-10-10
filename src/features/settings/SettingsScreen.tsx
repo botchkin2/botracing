@@ -1,4 +1,5 @@
 import * as Application from 'expo-application';
+import * as Updates from 'expo-updates';
 import {useRouter} from 'expo-router';
 import {
   ActivityIndicator,
@@ -19,7 +20,12 @@ import {useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {Button, Segment, Text} from '@/src/ui';
 
-import {androidCard, androidSurface, INSTALL_NOTE} from './androidCard';
+import {
+  androidCard,
+  androidSurface,
+  INSTALL_NOTE,
+  runningLineOf,
+} from './androidCard';
 import {type ProblemRow, type UploaderCard, useSettingsModel} from './model';
 import {trayCard} from './trayCard';
 
@@ -193,7 +199,12 @@ function AndroidApp() {
     isError: release.isError,
     data: release.data,
   });
-  if (!card) return null;
+  // In the installed app the running build shows even when no update does.
+  if (!card && surface !== 'app') return null;
+  const running = runningLineOf(
+    Application.nativeApplicationVersion,
+    Updates.updateId,
+  );
   return (
     <>
       <Text variant='label' tone='textMuted' style={styles.section}>
@@ -205,9 +216,14 @@ function AndroidApp() {
           {backgroundColor: color.surface, borderColor: color.lineHeader},
         ]}>
         <Text variant='data' tone='textSecondary'>
-          {card.status}
+          {running}
         </Text>
-        {card.version ? (
+        {card ? (
+          <Text variant='data' tone='textSecondary'>
+            {card.status}
+          </Text>
+        ) : null}
+        {card?.version ? (
           <>
             <Button
               label={surface === 'app' ? 'Update' : 'Download for Android'}
