@@ -40,7 +40,7 @@ export type SettingsModel = {
   version: string;
 };
 
-const SEEN_MS = 10 * 60_000;
+export const SEEN_MS = 10 * 60_000;
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
