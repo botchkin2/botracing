@@ -14,6 +14,9 @@ import {
 describe('routes', () => {
   it('names a plan combo by track and car model', () => {
     expect(planComboKey('t1', '911 GT3 R')).toBe('t1|911 GT3 R');
+    expect(planComboKey('t1', '911 GT3 R', 'iracing')).toBe(
+      'iracing:t1|911 GT3 R',
+    );
     expect(planHref(planComboKey('t1', '911 GT3 R')).params.combo).toBe(
       't1|911 GT3 R',
     );

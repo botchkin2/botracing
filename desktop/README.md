@@ -2,7 +2,7 @@
 
 A Tauri tray icon (no windows) that runs the Node watcher, `tools/uploader/watch.mjs --remote`, and shows its status. The watcher uploads through the upload function with the signed-in user's token (`tools/sessions/storeClient.mjs`); no Admin credentials.
 
-What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state and log).
+What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state; `uploader\sidecar.log` holds its stderr, appended and cut to the newest half past 1 MB, and the menu's error line names it).
 
 Menu: a status line, Open BotRacing (the web app in the system browser, where Google sign-in works; the tray has no webview), Pause uploads (stops the watcher), Open data folder, Quit. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
@@ -49,7 +49,7 @@ cargo build
 BOTRACING_ROOT=<repo root> LMU_TELEMETRY=<a telemetry folder> target/debug/botracing.exe
 ```
 
-`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder.
+`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder. Every path the tray hands another program (node, the script, the Run value) is plain (`src/paths.rs`; never `std::env::current_exe()` directly): Tauri reports `resource_dir()` canonicalized, as `\\?\C:\...`, and the bundled node (24.19.0; 24.21.0 is fine) exits 1 at once on a `\\?\` main script ("EISDIR ... lstat 'C:'"), which was the 0.1.2 "Uploader stopped (exit code: 1)" loop.
 
 ## Sign in
 
@@ -66,7 +66,7 @@ The tray signs in **through the web app**; it has no Google OAuth client of its 
 ode`), where `sidecar::find_root` looks first.
 
 - **No native Node addon and no `node_modules`:** DuckDB is the CLI exe, run by `tools/sessions/duck.mjs`; the uploader imports only its own files and Node built-ins. The stage script fails on an npm import, a missing relative import, a non-literal `import()` or a `new Worker` it cannot follow.
-- **Pinned binaries:** `node.exe` (v24.19.0, SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `BOTRACING_NODE_EXE` / `DUCKDB` (local copies; never `NODE`, which npm sets to the running node), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
+- **Pinned binaries:** `node.exe` (the version in `desktop/node-version`, also what CI's tray tests run; SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `BOTRACING_NODE_EXE` / `DUCKDB` (local copies; never `NODE`, which npm sets to the running node), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
 - `node scripts/stage-resources.mjs --no-duckdb` stages without DuckDB (a build that cannot analyse); `node --test scripts/stage-resources.test.mjs` tests the staging logic.
 
 ## Releases and updates
@@ -95,4 +95,4 @@ The Environment holds the secrets (setup is at the top of the workflow file): `T
 
 ## Walkthroughs without touching a real sign-in
 
-`BOTRACING_PROFILE=<name>` runs a separate copy of the tray: its own data folder (`%LOCALAPPDATA%\BotRacing-<name>`), its own Credential Manager entry (`BotRacing-<name>`), its own watcher lock pipe, and it is not held to a single instance with the real tray (the tooltip says which is which). Unset, every name is what it always was. Only letters, digits, `-` and `_` count (at most 32). **Debug builds only:** a release build (the installer) ignores the variable, because a profile skips the single-instance hold. Use it to walk the signed-out first launch, sign-out and switching accounts without a real stored sign-in being read, refreshed or deleted.
+`BOTRACING_PROFILE=<name>` runs a separate copy of the tray: its own data folder (`%LOCALAPPDATA%\BotRacing-<name>`), its own Credential Manager entry (`BotRacing-<name>`), its own watcher lock pipe, and it is not held to a single instance with the real tray (the tooltip says which is which). Unset, every name is what it always was. Only letters, digits, `-` and `_` count (at most 32). Release builds honour it too (apex #3508): a profile shares no file, lock or sign-in with the real tray. Use it to walk the signed-out first launch, sign-out and switching accounts without a real stored sign-in being read, refreshed or deleted.

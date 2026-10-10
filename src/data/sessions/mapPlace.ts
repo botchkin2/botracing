@@ -58,6 +58,8 @@ export type MapPlacer = {
   measured: MeasuredRun[];
   /** OSM pit lane lines in map metres; empty unless real. */
   pitLane: Xy[][];
+  /** OSM stretches beside the measured road: drawn faded with or without a lap. */
+  nearMeasured: Xy[][];
   /**
    * The outline split into stretches the trace's lap runs along and the rest,
    * which a map draws at low contrast (src/analysis/outlineUse.ts). Computed
@@ -144,6 +146,7 @@ export function mapPlacer(
     placeWorld,
     outline,
     pitLane: georef ? toMetres(map!.pitLane) : [],
+    nearMeasured,
     outlineUse: trace => {
       if (!georef || map == null) return {used: [], unused: []};
       // The outline depends on the surface too (what it replaced is gone), so

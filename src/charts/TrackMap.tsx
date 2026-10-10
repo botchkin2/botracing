@@ -116,8 +116,10 @@ export function TrackMap({
   const {color} = useTheme();
 
   // Fit to the laps (not the outline, which includes other layouts), north up.
+  // With no lap yet the outline is the only thing to fit to.
   const fit = useMemo(() => {
-    const all = lines.flatMap(l => l.points);
+    const all =
+      lines.length > 0 ? lines.flatMap(l => l.points) : outline.flat();
     if (all.length === 0) return null;
     const xs = all.map(p => p.x);
     const ys = all.map(p => p.y);
@@ -139,7 +141,7 @@ export function TrackMap({
       x: offX + (p.x - minX) * scale,
       y: height - (offY + (p.y - minY) * scale),
     });
-  }, [lines, width, height, badges?.size]);
+  }, [lines, outline, width, height, badges?.size]);
 
   const toPath = (pts: MapPoint[]) =>
     fit
@@ -168,7 +170,12 @@ export function TrackMap({
   const driven = linePaths[linePaths.length - 1];
   // The reference line on screen decides which side is inside the loop
   // (its winding), and keeps labels off the band.
-  const refScreen = (lines[lines.length - 1]?.points ?? []).map(fit);
+  // With no lap, the longest outline stands in for the winding.
+  const winding =
+    lines.length > 0
+      ? lines[lines.length - 1]?.points ?? []
+      : outline.reduce<MapPoint[]>((a, l) => (l.length > a.length ? l : a), []);
+  const refScreen = winding.map(fit);
   const clockwise = signedArea2(refScreen) > 0;
   // A point `offset` pt off the line at an anchor: positive is inside the
   // loop, negative outside.

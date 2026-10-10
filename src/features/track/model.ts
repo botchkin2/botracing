@@ -38,7 +38,8 @@ export type TrackMapModel = {
   /** Outline stretches the line does not run along (drawn quietly). */
   outlineFaded: Xy[][];
   pitLane: Xy[][];
-  line: Xy[];
+  /** The reference lap's line; null until the lap has loaded. */
+  line: Xy[] | null;
   marks: MapMarks;
   startFinish: MapAnchor | null;
   /** Shown over the map when there is no reliable outline. */
@@ -97,14 +98,14 @@ export function referenceSession(
 export function buildTrackModel(input: TrackInputs): TrackModel {
   const {info, map, refTrace, selectedCorner} = input;
   const sessionName = input.sessions[0]?.track;
-  const shape =
-    map && refTrace ? placeLine(map, input.surface ?? null, refTrace) : null;
+  // The map is a map: its outline draws without a lap; the lap adds its layers.
+  const mapModel = map ? placeMap(map, input.surface ?? null, refTrace) : null;
 
   const names = new Map<number, string>();
   const corners = map
     ? map.sections.flatMap(s => (s.parts.length ? s.parts : [s]))
     : [];
-  if (map && refTrace && shape) {
+  if (map && refTrace && mapModel) {
     if (info && map.georef && canDrawOnRealMap(map.quality, map.georef)) {
       const georef = map.georef;
       const apexes = corners.map(c => {
@@ -167,7 +168,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
           }`,
         }
       : null,
-    map: map && shape ? shape.model : null,
+    map: mapModel,
     history: buildHistory(input.sessions),
     about: info?.summary
       ? {
@@ -209,13 +210,30 @@ function gridIndex(t: GridTrace, m: number): number {
   return i < 0 ? i + n : i;
 }
 
-function placeLine(
+function placeMap(
   map: TrackMapData,
   surface: TrackSurface | null,
-  t: GridTrace,
-): {line: Xy[]; model: TrackMapModel} | null {
-  if (t.lat.length < 3) return null;
+  t: GridTrace | null,
+): TrackMapModel | null {
   const placer = mapPlacer(map, surface);
+  if (!t || t.lat.length < 3) {
+    // No lap yet: the outline, pit lane and the measured road draw alone.
+    const outline = [
+      ...measuredCentreLines(placer.measured),
+      ...placer.outline,
+    ];
+    if (outline.length === 0) return null;
+    return {
+      real: placer.real,
+      outline,
+      outlineFaded: placer.nearMeasured,
+      pitLane: placer.pitLane,
+      line: null,
+      marks: {boundaries: [], sections: [], corners: []},
+      startFinish: null,
+      note: null,
+    };
+  }
   const line = placer.place(t, 0, t.lat.length - 1, 1);
   const split = placer.outlineUse(t);
   const pointAt = (m: number) => line[gridIndex(t, m)];
@@ -225,17 +243,14 @@ function placeLine(
     pointAt,
   );
   return {
+    real: placer.real,
+    outline: [...measuredCentreLines(placer.measured), ...split.used],
+    outlineFaded: split.unused,
+    pitLane: placer.pitLane,
     line,
-    model: {
-      real: placer.real,
-      outline: [...measuredCentreLines(placer.measured), ...split.used],
-      outlineFaded: split.unused,
-      pitLane: placer.pitLane,
-      line,
-      // Numbers only: the page has no section labels or boundary ticks.
-      marks: {boundaries: [], sections: [], corners: all.corners},
-      startFinish: {at: pointAt(0), prev: pointAt(-10), next: pointAt(10)},
-      note: placer.real ? null : NO_OUTLINE_NOTE,
-    },
+    // Numbers only: the page has no section labels or boundary ticks.
+    marks: {boundaries: [], sections: [], corners: all.corners},
+    startFinish: {at: pointAt(0), prev: pointAt(-10), next: pointAt(10)},
+    note: placer.real ? null : NO_OUTLINE_NOTE,
   };
 }

@@ -214,3 +214,102 @@ describe('buildHistory', () => {
     expect(h3?.trend?.title).toBe('Best lap per session · Porsche 911 GT3 R');
   });
 });
+
+// A square outline on the same origin as the lap fixture: drawable as a real map.
+const realMap = (): TrackMapData => ({
+  ...map(),
+  quality: 'good',
+  georef: {
+    originLat: 60,
+    originLon: 0,
+    rotationRad: 0,
+    scale: 1,
+    mirror: 1,
+    quality: 'good',
+  } as unknown as TrackMapData['georef'],
+  outline: [
+    [
+      [0, 60],
+      [0.002, 60],
+      [0.002, 60.001],
+      [0, 60.001],
+      [0, 60],
+    ],
+  ],
+  outlineKinds: ['racing'],
+  attribution: 'OSM',
+});
+
+describe('buildTrackModel: the map without a lap', () => {
+  it('draws the outline with no lap: no line, no badges, no S/F', () => {
+    const m = buildTrackModel({
+      trackId: 'lmu-t',
+      info: info(),
+      layouts: [],
+      sessions: [session({})],
+      map: realMap(),
+      refTrace: null,
+      selectedCorner: null,
+    });
+    expect(m.map).not.toBeNull();
+    expect(m.map?.real).toBe(true);
+    expect(m.map?.outline.length).toBeGreaterThan(0);
+    expect(m.map?.line).toBeNull();
+    expect(m.map?.startFinish).toBeNull();
+    expect(m.map?.marks.corners).toEqual([]);
+    expect(m.map?.note).toBeNull();
+  });
+
+  it('has no map at all with neither an outline nor a lap', () => {
+    const m = buildTrackModel({
+      trackId: 'lmu-t',
+      info: info(),
+      layouts: [],
+      sessions: [],
+      map: map(),
+      refTrace: null,
+      selectedCorner: null,
+    });
+    expect(m.map).toBeNull();
+  });
+});
+
+describe('buildTrackModel: a lap draws the same map as before', () => {
+  it('matches the output recorded before the outline was decoupled', () => {
+    const georef = {
+      originLat: 60,
+      originLon: 0,
+      rotationRad: 0,
+      scale: 1,
+      quality: 'good',
+    } as unknown as TrackMapData['georef'];
+    const m = buildTrackModel({
+      trackId: 't',
+      info: null,
+      layouts: [],
+      sessions: [],
+      map: {
+        ...map(),
+        lengthM: 400,
+        sections: [{...corner(1, 100), parts: []}],
+        quality: 'good',
+        georef,
+        outline: [
+          [
+            [0, 60],
+            [0.002, 60.0005],
+          ],
+        ],
+        outlineKinds: ['racing'],
+        attribution: 'x',
+      },
+      surface: null,
+      refTrace: squareTrace(),
+      selectedCorner: null,
+    });
+    const before = require('./__fixtures__/map-with-lap.before.json') as {
+      map: unknown;
+    };
+    expect(JSON.parse(JSON.stringify(m.map))).toEqual(before.map);
+  });
+});

@@ -4,6 +4,7 @@ import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
 import {basename, dirname, join} from 'node:path';
 import {homedir, tmpdir} from 'node:os';
 import {run, sqlPath} from './duck.mjs';
+import {raceLengthFromYaml} from './raceLength.mjs';
 import {
   openIbt,
   readColumns,
@@ -32,7 +33,7 @@ export const watcher = {
   gameExeEnv: null,
 };
 
-export const describeVersion = 4;
+export const describeVersion = 5;
 
 export function slug(name) {
   return String(name)
@@ -229,6 +230,8 @@ export function describe(path) {
       car: car.name,
       carClass: car.carClass,
       fuelSetup: fuelFromYaml(yaml),
+      // The event's race length, from the session info (raceLength.mjs).
+      raceLength: raceLengthFromYaml(yaml),
       weather: yamlField(yaml, 'TrackSkies'),
       baseHz: hz,
       ticks: n,

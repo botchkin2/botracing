@@ -286,9 +286,9 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - Dragging along the strip scrubs.
 - **Position row:** "Corner 6" or "After Corner 6", the distance, and each shown lap's speed at the cursor in its color, followed by "km/h".
 - **Time per corner grid:**
-  - Explainer: "Time in each corner vs L16, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it."
+  - Explainer: "Time in each corner vs L16, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section header (S1–S5) to move playback to that section's start; tap a cell to open that corner."
   - Columns `36 | 11 × 1fr`, 2 pt gaps, 24 pt cells. The open corner's cell has a 1 pt text-colored outline.
-  - Rows: one per non-reference lap. In tinted or grey mode, a "MED" row (the median difference of the selection) plus the highlighted lap's row.
+  - Rows: every checked lap, against the checked set's median (#3309). The highlighted lap's column header is bold. With a Ref lap, the reference is a row like any other, and in tinted or grey mode a "MED" row (the median difference of the selection) sits above the laps.
 - **Charts are user-composed.** Each chart holds 1–3 channels from Time diff, Speed, Throttle, Brake, Steering and Gear, overlaid on the same distance axis.
   - Default set: [Time diff] [Speed] [Throttle + Brake] [Steering] [Gear].
   - Overlay line style shows the channel: 1st solid, 2nd dashed `5 3`, 3rd dotted `1.5 2.5`. Lap color always shows the lap. Channels of the same kind (throttle + brake) share a 0–100% scale; mixed units keep their own scales, and the explainer says so ("Speed solid, Brake dashed. Each channel keeps its own scale.").
@@ -384,7 +384,7 @@ Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plu
 - **Right (360), scrolling:**
   - **Track map (320×220):** numbered corner badges (clicking one opens it in Corner) and a dot per lap at the cursor time.
   - **Values table:** "Hover · 2,093 m" or "Cursor · …", with rows Time diff, Speed, Throttle, Brake, Steering, Gear × a column per shown lap in its color, in Mono 12 tabular. This is the exact-values readout the phone can't fit.
-  - **Time per corner, transposed:** a row per corner (C1–C11 with distance) and a column per compared lap, using the same cells and color scale as the phone grid. The open corner row is tinted. Clicking a cell opens that corner.
+  - **Time per corner, transposed:** a row per corner (C1–C11 with distance) and a column per compared lap, using the same cells and color scale as the phone grid. The open corner row is tinted. Tapping a section header (S1–S5, desktop: the section label) moves playback to that section's start (D28); clicking a cell opens that corner.
 
 ### D3 Corner deep dive
 Columns: 600 | 840. The chrome also shows the corner chips C1–C11 and ‹ prev / next ›. The default is the whole race (38 laps), because the desktop is where distributions pay off.

@@ -114,7 +114,7 @@ const temp = (v: number | null) =>
   v == null ? 'no reading' : `${v.toFixed(0)} °C`;
 
 function label(z: TreadZone): string {
-  return `${z.wheel} tread: inner ${temp(z.inner)}, centre ${temp(
+  return `${z.wheel} tread: inner ${temp(z.inner)}, center ${temp(
     z.centre,
   )}, outer ${temp(z.outer)}`;
 }
