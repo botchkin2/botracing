@@ -18,7 +18,7 @@ export const FIRST_RACE_SESSION = 10;
 /** mGamePhase while the race is green. */
 const GREEN = 5;
 /** Bump when the rule changes: it reanalyzes every session once (analyze.mjs blockVersions). */
-export const RACE_LENGTH_VERSION = 1;
+export const RACE_LENGTH_VERSION = 2;
 
 /**
  * {minutes} from the extremes of the race's green updates, or null when they
@@ -28,6 +28,24 @@ export function raceLengthOf({endEt, greenStartEt}) {
   if (!Number.isFinite(endEt) || !Number.isFinite(greenStartEt)) return null;
   const minutes = Math.round((endEt - greenStartEt) / 60);
   return minutes > 0 ? {minutes} : null;
+}
+
+/**
+ * iRacing: the race's length from the .ibt's session info, which lists every
+ * session of the event (any file of it carries the race's limits, not only a
+ * race's own). `SessionTime` is `2700.0000 sec` or `unlimited`; a race limited
+ * by laps alone (`SessionTime: unlimited`) has no minutes, so it is null, not
+ * zero. Null too without a Race entry.
+ */
+export function raceLengthFromYaml(yaml) {
+  const sessions = String(yaml).split(/^ - SessionNum:/m).slice(1);
+  for (const block of sessions) {
+    if (!/^\s+SessionType:\s*Race\s*$/m.test(block)) continue;
+    const m = block.match(/^\s+SessionTime:\s*([0-9.]+)\s*sec/m);
+    const minutes = m ? Math.round(Number(m[1]) / 60) : 0;
+    return minutes > 0 ? {minutes} : null;
+  }
+  return null;
 }
 
 /**
