@@ -47,6 +47,18 @@ export type MapPlacer = {
    */
   placeWorld: (points: {x: number; z: number}[]) => Xy[];
   /**
+   * A trace's samples in world metres (the fake-origin frame, x east, z north):
+   * the frame placeWorld takes. placeWorld(traceToWorld(t, ...)) equals
+   * place(t, ...) by construction, so a placed field and a drawn lap share one
+   * frame.
+   */
+  traceToWorld: (
+    t: GridTrace,
+    from: number,
+    to: number,
+    stride: number,
+  ) => Xy[];
+  /**
    * OSM track lines in map metres; empty unless real. Where the track has a
    * measured surface the parts of these lines inside it are already gone: the
    * measured road replaces them (src/analysis/trackSurface.ts).
@@ -106,6 +118,14 @@ export function mapPlacer(
     const placed = georef ? applyGeoref(pts, georef) : pts;
     return placed.map(p => toLocalMetres(p, origin));
   };
+  const traceToWorld: MapPlacer['traceToWorld'] = (t, from, to, stride) => {
+    const out: Xy[] = [];
+    for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride) {
+      const p = toLocalMetres({lat: t.lat[i], lon: t.lon[i]}, LMU_FAKE_ORIGIN);
+      out.push(p);
+    }
+    return out;
+  };
   const place: MapPlacer['place'] = (t, from, to, stride) => {
     const pts = [];
     for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
@@ -146,6 +166,7 @@ export function mapPlacer(
     real: georef != null,
     place,
     placeWorld,
+    traceToWorld,
     outline,
     pitLane: georef ? toMetres(map!.pitLane) : [],
     nearMeasured,

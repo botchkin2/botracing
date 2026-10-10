@@ -1,3 +1,4 @@
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
@@ -18,7 +19,6 @@ import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareSet,
-  medianBasisOf,
   type ForeignLaps,
   type ChannelId,
   type CompareModel,

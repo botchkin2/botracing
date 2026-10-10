@@ -101,10 +101,13 @@ export function useRaceData(sessionId: string): RaceData {
     const pts = bins.map(b => (b.n ? {x: b.sx / b.n, y: b.sy / b.n} : null));
     return pts.every(p => p !== null) ? pts : null;
   }, [surface.data]);
-  const worldToMap = useMemo(
-    () => (x: number, z: number) => placer.placeWorld([{x, z}])[0],
-    [placer],
-  );
+  // The best lap in world metres, the frame placed field cars are in: the same
+  // points as `line`, before the map projection (placer.traceToWorld).
+  const worldLine = useMemo(() => {
+    if (refTrace && refTrace.lat.length > 2)
+      return placer.traceToWorld(refTrace, 0, refTrace.lat.length - 1, 1);
+    return null;
+  }, [refTrace, placer]);
   // LMU: cars placed on the world centre path (placeFieldOnLine, world out),
   // else left as their x/z. iRacing: on the best lap's line, in map metres.
   const placed = useMemo(() => {
@@ -113,13 +116,10 @@ export function useRaceData(sessionId: string): RaceData {
       return centreWorld
         ? placeFieldOnLine(stored, centreWorld, surfaceStepM, {lateral: true})
         : null;
-    return line
-      ? placeFieldOnLine(stored, line, GRID_STEP_M, {
-          lateral: false,
-          worldToMap,
-        })
+    return worldLine
+      ? placeFieldOnLine(stored, worldLine, GRID_STEP_M, {lateral: false})
       : null;
-  }, [stored, centreWorld, surfaceStepM, line, worldToMap]);
+  }, [stored, centreWorld, surfaceStepM, worldLine]);
   const used = placed ?? (stored?.hasPositions ? stored : null);
   // Off the road is measured from the surface's edges, not a fixed 7.5 m.
   const edges = useMemo((): MeasuredEdges | null => {
