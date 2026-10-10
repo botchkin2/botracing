@@ -71,6 +71,24 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
 }
 
+/**
+ * Best, median and spread of one column over exactly these times (null
+ * skipped). Unlike segmentStats: no traffic filter, no minimum count, so one
+ * ticked lap gives its own time as the median. The session grid uses this for
+ * the ticked laps; the optimum and the session table keep segmentStats.
+ */
+export function columnStats(timesS: readonly (number | null)[]): SegmentStats {
+  const xs = timesS.filter((t): t is number => t != null && Number.isFinite(t));
+  if (xs.length === 0) return {n: 0, bestS: null, medianS: null, spreadS: null};
+  xs.sort((a, b) => a - b);
+  return {
+    n: xs.length,
+    bestS: xs[0],
+    medianS: percentile(xs, 0.5),
+    spreadS: percentile(xs, 0.75) - percentile(xs, 0.25),
+  };
+}
+
 /** Best, median and spread of each segment over `laps`. */
 export function segmentStats(times: SegmentTimes): SegmentStats[] {
   return times.segments.map((_, i) => {
