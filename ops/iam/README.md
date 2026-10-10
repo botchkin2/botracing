@@ -181,3 +181,13 @@ gcloud firestore fields ttls update expiresAt --collection-group=trayCodes --ena
 ```
 
 Check: `gcloud firestore fields ttls list --project=botracing-61` lists `trayCodes` as `ACTIVE`. Until it is on, unused codes sit in a collection no client can read (`firestore.rules` deny everything) and expire in the function's own check.
+
+### Function errors: expire the old ones
+
+Every function's catch-all calls `reportError` (`functions/src/problemsCore.ts`): a masked, structured error log (Cloud Error Reporting groups it with no setup), and for a 5xx a count in `problems/{fingerprint}`, one doc per kind of error. A Firestore TTL policy on `expiresAt` removes a kind 30 days after its last error. Botkin runs this once; the runtime account already writes there with `roles/datastore.user`:
+
+```powershell
+gcloud firestore fields ttls update expiresAt --collection-group=problems --enable-ttl --project=botracing-61
+```
+
+Check: `gcloud firestore fields ttls list --project=botracing-61` lists `problems` as `ACTIVE`. Until it is on, old kinds stay (one small doc each); no client can read them (`firestore.rules` deny everything).
