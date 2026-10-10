@@ -203,7 +203,7 @@ describe('buildCompareModel', () => {
     expect(l2.values[0]).toBe(0);
     expect(l2.values[200]).toBeGreaterThan(0.39);
     expect(m.charts[2].pedals).toBe(true);
-    expect(m.charts[2].height).toBe(140);
+    expect(m.charts[2].height).toBe(160);
   });
 
   it('reads values at the cursor for every shown lap', () => {
@@ -953,15 +953,18 @@ describe('snapOut', () => {
 describe('pedals chart layout', () => {
   // y as a fraction of the plot height, 0 = top.
   const frac = (v: number, [lo, hi]: [number, number]) => (hi - v) / (hi - lo);
-  const d = pedalsDomains(40);
+  const d = pedalsDomains();
+  // 96 pedals + 8 gap + 56 steering (Corner's steering height) = 160.
+  const H = 160;
 
-  it('puts the pedals in the top 96/140 and steering in the bottom 36/140', () => {
+  it('puts the pedals in the top 96 of 160 and steering in the bottom 56', () => {
     expect(frac(104, d.pedal)).toBeCloseTo(0);
-    expect(frac(-4, d.pedal)).toBeCloseTo(96 / 140);
-    expect(frac(40, d.steer)).toBeCloseTo(104 / 140);
-    expect(frac(-40, d.steer)).toBeCloseTo(1);
-    // Steering's zero is the middle of its band.
-    expect(frac(0, d.steer)).toBeCloseTo(122 / 140);
+    expect(frac(-4, d.pedal)).toBeCloseTo(96 / H);
+    // Steering is fixed: +100 at the band's top, -100 at the bottom.
+    expect(frac(100, d.steer)).toBeCloseTo(104 / H);
+    expect(frac(-100, d.steer)).toBeCloseTo(1);
+    // Its zero is the middle of the band.
+    expect(frac(0, d.steer)).toBeCloseTo((104 + 28) / H);
   });
 });
 

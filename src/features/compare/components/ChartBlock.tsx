@@ -19,6 +19,7 @@ import {
   type ChartTimeAxis,
   type ChartValueRow,
   drawRank,
+  STEER_TICKS,
 } from '../model';
 
 export type LapStyle = (
@@ -106,6 +107,9 @@ export function ChartBlock({
         dash: chart.pedals ? undefined : OVERLAY_DASH[l.overlay],
         fill: chart.pedals && l.channel === 'brake' ? BRAKE_FILL : undefined,
         domain: chart.domains[l.channel],
+        // The steering band carries its own frame: L 100, 0, R 100.
+        ticks:
+          chart.pedals && l.channel === 'steering' ? STEER_TICKS : undefined,
         rank: drawRank(l),
         stepped: l.channel === 'gear',
       };
@@ -220,9 +224,6 @@ export function ChartBlock({
         series={series}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
-        sideLabels={
-          chart.zeroLine === 'steering' ? {above: 'L', below: 'R'} : undefined
-        }
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
         cursorM={cursorM}
         onScrub={onScrub}
