@@ -35,7 +35,13 @@ import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
-import {beatKey, heartbeatDoc, hostIdOf, idleState} from './heartbeat.mjs';
+import {
+  beatKey,
+  heartbeatDoc,
+  hostIdOf,
+  idleState,
+  problemsOf,
+} from './heartbeat.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {parentGone} from './parentGuard.mjs';
 import {
@@ -328,6 +334,8 @@ async function main() {
     } catch {
       // Unknown free space is shown as unknown.
     }
+    const recorder = readJson(recorderStatus, null);
+    const nowMs = Date.now();
     const doc = heartbeatDoc({
       hostId,
       label,
@@ -345,9 +353,10 @@ async function main() {
         failedSessions: retryIds,
       }),
       freeBytes,
-      recorder: readJson(recorderStatus, null),
+      recorder,
       retryAtMs: earliestOf(all.map(a => earliestRetryMs(a.st.retries ?? {}))),
-      nowMs: Date.now(),
+      problems: problemsOf({sims: all.map(a => a.st), recorder, nowMs}),
+      nowMs,
     });
     const key = beatKey(doc);
     if (
@@ -470,6 +479,7 @@ async function main() {
               retries: st.retries,
               failedIds: r.failedIds,
               skippedIds,
+              messages: r.failureOf,
               nowMs: Date.now(),
             });
             st.lastRunAtMs = startedMs;
