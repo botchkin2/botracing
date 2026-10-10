@@ -50,8 +50,7 @@ export function useCornerModel(
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const selection = useMemo(
-    () =>
-      laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection,
+    () => (laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection),
     [urlSelection, laps.data],
   );
   const band = useSessionBand(sessionId);

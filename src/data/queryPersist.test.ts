@@ -4,6 +4,7 @@ import {QueryClient} from '@tanstack/react-query';
 import {
   forgetQueryPersist,
   isPersisted,
+  loadSnapshot,
   type KeyValueStore,
   MAX_AGE_MS,
   PERSIST_VERSION,
@@ -88,14 +89,18 @@ describe('snapshot and restore', () => {
 });
 
 describe('kept while signed in', () => {
-  afterEach(() => jest.useRealTimers());
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   it('restores at start, writes a kept query a moment after it changes, and forgets on request', async () => {
     const store = memoryStore();
     await store.setItem('query-cache', snapshotOf(filled(), 'u1', NOW));
     const client = newClient();
+    const raw = await loadSnapshot(store);
     jest.useFakeTimers();
-    const stop = await startQueryPersist(client, store, 'u1', () => NOW);
+    // Back in the cache at once, before any screen could fetch.
+    const stop = startQueryPersist(client, store, 'u1', raw, () => NOW);
     expect(client.getQueryData(MAP)).toEqual({corners: [1, 2]});
 
     store.data.clear();

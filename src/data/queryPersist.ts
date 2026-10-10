@@ -76,21 +76,31 @@ export function restoreSnapshot(
 }
 
 /**
- * Restores this person's snapshot, then keeps it up to date while they stay
- * signed in. Returns the stop function; `forget` drops the stored snapshot
+ * The stored snapshot, read once at launch so it is in hand by the time
+ * sign-in resolves (an unreadable store is an empty one).
+ */
+export async function loadSnapshot(store: KeyValueStore): Promise<string | null> {
+  try {
+    return await store.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Puts this person's snapshot `raw` back, at once (before the screens fetch,
+ * so they draw from it), then keeps it up to date while they stay signed in.
+ * Returns the stop function; `forgetQueryPersist` drops the stored snapshot
  * (sign-out, another person).
  */
-export async function startQueryPersist(
+export function startQueryPersist(
   client: QueryClient,
   store: KeyValueStore,
   uid: string,
+  raw: string | null,
   now: () => number = Date.now,
-): Promise<() => void> {
-  try {
-    restoreSnapshot(client, await store.getItem(STORAGE_KEY), uid, now());
-  } catch {
-    // An unreadable store is an empty one.
-  }
+): () => void {
+  restoreSnapshot(client, raw, uid, now());
   let timer: ReturnType<typeof setTimeout> | null = null;
   const unsubscribe = client.getQueryCache().subscribe(event => {
     if (event.type !== 'updated' || !isPersisted(event.query.queryKey)) return;

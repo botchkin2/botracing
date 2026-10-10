@@ -321,8 +321,8 @@ describe('buildSectionWindow optimum', () => {
 
   it('is empty under 5 laps', () => {
     const laps = sixLaps().slice(0, 4);
-    expect(
-      buildSectionWindow({map: m, sectionN: 2, laps})?.optimum,
-    ).toEqual([]);
+    expect(buildSectionWindow({map: m, sectionN: 2, laps})?.optimum).toEqual(
+      [],
+    );
   });
 });
