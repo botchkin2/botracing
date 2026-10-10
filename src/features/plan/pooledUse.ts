@@ -109,7 +109,10 @@ export function pooledUse(
     points: drawn,
     xDomain,
     yDomain,
-    xTicks: ticksOf(xDomain, v => v.toFixed(digits)),
+    xTicks: ticksOf(
+      xDomain,
+      v => `${v.toFixed(digits)} ${measure === 'fuel' ? 'L' : '%'}`,
+    ),
     yTicks: ticksOf(yDomain, formatLapTime),
     threshold,
     n: drawn.length,
