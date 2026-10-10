@@ -4,6 +4,7 @@ import {TrackMap} from '@/src/charts';
 import {radius, space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
+import {failedText, type MapPart} from '../mapLoad';
 import {type TrackMapModel} from '../model';
 
 // The Track page map (handoff T1/05): the OSM outline and pit lane when the
@@ -18,6 +19,7 @@ export function TrackMapPanel({
   onToggle,
   attribution,
   loading,
+  failed,
 }: {
   map: TrackMapModel | null;
   width: number;
@@ -28,6 +30,8 @@ export function TrackMapPanel({
   /** OSM credit; shown only when the OSM outline is drawn. */
   attribution: string | null;
   loading: boolean;
+  /** Parts that failed; named on the map, never a silent blank. */
+  failed: MapPart[];
 }) {
   const {color} = useTheme();
   return (
@@ -63,6 +67,11 @@ export function TrackMapPanel({
             }}
             startFinish={map.startFinish}
           />
+          {failed.length > 0 ? (
+            <Text variant='dataSmall' tone='textMuted' style={styles.note}>
+              {failedText(failed)}
+            </Text>
+          ) : null}
           {map.note ? (
             <Text variant='dataSmall' tone='textMuted' style={styles.note}>
               {map.note}
@@ -76,7 +85,11 @@ export function TrackMapPanel({
       ) : (
         <View style={styles.empty}>
           <Text variant='dataSmall' tone='textMuted'>
-            {loading ? 'Loading the map…' : 'No map yet'}
+            {failed.length > 0
+              ? failedText(failed)
+              : loading
+              ? 'Loading the map…'
+              : 'No map yet'}
           </Text>
         </View>
       )}
