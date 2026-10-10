@@ -82,6 +82,12 @@ export function HistoryPanel({
               styles.trend,
               {width, height: size.trendHeight, backgroundColor: color.surface},
             ]}>
+            <Text variant='axis' tone='textFaint' style={styles.trendTop}>
+              {trend.fastest}
+            </Text>
+            <Text variant='axis' tone='textFaint' style={styles.trendBottom}>
+              {trend.floor}
+            </Text>
             <Svg width={width} height={size.trendHeight}>
               {trend.bars.map((b, i) => {
                 const bw = width / trend.bars.length;
@@ -148,6 +154,8 @@ const styles = StyleSheet.create({
   },
   bestText: {flex: 1, minWidth: 0},
   trend: {borderRadius: radius.xs, overflow: 'hidden', marginTop: space.sm},
+  trendTop: {position: 'absolute', left: space.xs, top: space.xxs},
+  trendBottom: {position: 'absolute', left: space.xs, bottom: space.xxs},
   trendAxis: {
     flexDirection: 'row',
     justifyContent: 'space-between',
