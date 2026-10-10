@@ -140,20 +140,25 @@ export function ChartBlock({
     <>
       {chart.valueRows.map(r => (
         <View key={r.channel} style={styles.overlayRow}>
-          <LegendSwatch
-            kind={
-              chart.pedals && r.channel === 'brake'
-                ? 'fill'
-                : chart.pedals && r.channel === 'steering'
-                ? 'band'
-                : 'line'
-            }
-            dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
-            color={color.textMuted}
-          />
-          <Text variant='dataSmall' tone='textMuted'>
-            {r.label} {r.unit}
-          </Text>
+          {/* A lone row that is the chart's title (the time diff) says it once, in the title. */}
+          {!(chart.valueRows.length === 1 && r.label === chart.title) && (
+            <>
+              <LegendSwatch
+                kind={
+                  chart.pedals && r.channel === 'brake'
+                    ? 'fill'
+                    : chart.pedals && r.channel === 'steering'
+                    ? 'band'
+                    : 'line'
+                }
+                dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
+                color={color.textMuted}
+              />
+              <Text variant='dataSmall' tone='textMuted'>
+                {r.label} {r.unit}
+              </Text>
+            </>
+          )}
           {editor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
