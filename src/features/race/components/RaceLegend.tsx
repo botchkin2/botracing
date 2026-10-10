@@ -91,6 +91,7 @@ export function RaceLegend({classes}: {classes: readonly FieldClass[]}) {
           {dot(color.textSecondary)}
         </>,
       )}
+      {item('Went off', dot(color.offTrack))}
     </View>
   );
 }

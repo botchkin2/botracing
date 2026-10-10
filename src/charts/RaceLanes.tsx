@@ -7,7 +7,7 @@ import {stroke, type as typeScale, useTheme} from '@/src/design';
 
 import {laneScrubber, lanesLayout} from './raceLanesLayout';
 
-// The YOUR RACE lanes (handoff round 3 §R1a/R1b): five lanes over the race,
+// The YOUR RACE lanes (handoff round 3 §R1a/R1b): six lanes over the race,
 // lap gridlines with labels, the playhead. Props in, SVG out: the window, the
 // playhead and the clock belong to the Race screen, which also draws the zoom
 // control and the window's start and end times.
@@ -184,12 +184,13 @@ export function RaceLanes({
   );
 }
 
-// PIT is the pit amber, a tow the text colour (white on dark), a battle grey.
+// PIT is the pit amber, OFF the off-track red, a tow the text colour (white on dark), a battle grey.
 function spanColor(
   key: string,
   color: ReturnType<typeof useTheme>['color'],
 ): string {
   if (key === 'pit') return color.accent;
+  if (key === 'off') return color.offTrack;
   if (key === 'tow') return color.text;
   return color.textMuted;
 }

@@ -8,6 +8,7 @@ The Race screen (round 3, handoff R1): every car on the track as a dot, a leader
 - `selectionClock.ts`: Compare's cursor (lap + metres in the URL) to race time and back, via `analysis/raceClock`.
 - `followTarget.ts`: pure. Which car Follow chases (focused, else you) and where its chase view sits and points, through the map's own projection.
 - `model.ts`: pure. Cars at a moment (`analysis/raceState`) to leaderboard groups, dots and the focus label.
+- `offTrackMarks.ts`: pure. Off-track events (`analysis/offTrackEvents`) of your car and the focused car inside the lanes' window, as map markers; yours also fill the lanes' OFF row.
 - `carLapsView.ts`: pure. The focused car's laps (`analysis/carLaps`) as panel rows, approximate (`≈`), newest first; `components/CarLapsPanel` draws them under the car's leaderboard row.
 - `components/`: `RaceMap` (over `charts/TrackMap`, or `charts/FollowMap` in Follow), `Leaderboard`, `RaceTransport`, `RaceLegend`, `RaceLanesBlock`.
 
