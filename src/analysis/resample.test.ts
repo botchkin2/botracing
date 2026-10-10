@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   type RawTrace,
   gridIndex,
+  inferTraceHz,
   medianTrace,
   resampleTrace,
   timeDiffS,
@@ -182,6 +183,20 @@ describe('the clock is row / sample rate', () => {
     expect(resampleTrace(raw, 1000, 5, 60).timeS[200]).toBeCloseTo(20, 1);
     // The default is LMU's 100 Hz: the same rows read as 12 s.
     expect(resampleTrace(raw, 1000, 5).timeS[200]).toBeCloseTo(12, 1);
+  });
+});
+
+describe('inferTraceHz', () => {
+  it('snaps rows over the lap time to 60, 100 or 360', () => {
+    expect(inferTraceHz(7601, 126.696)).toBe(60);
+    expect(inferTraceHz(8147, 80.396)).toBe(100);
+    expect(inferTraceHz(30000, 83.2)).toBe(360);
+  });
+
+  it('reads 100 without a time, with too few rows, or far from every rate', () => {
+    expect(inferTraceHz(7601, null)).toBe(100);
+    expect(inferTraceHz(1, 80)).toBe(100);
+    expect(inferTraceHz(180, 1)).toBe(100);
   });
 });
 

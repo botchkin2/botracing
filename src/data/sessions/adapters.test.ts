@@ -213,13 +213,13 @@ describe('fuel facts', () => {
     });
   });
 
-  it('reads the lap trace rate, 100 Hz when the lap doc has none', () => {
+  it('reads the lap trace rate, null when the lap doc has none', () => {
     const [iracing, old] = toLaps([
       {id: 'a', traceHz: 60},
       {id: 'b'},
     ]);
     expect(iracing.traceHz).toBe(60);
-    expect(old.traceHz).toBe(100);
+    expect(old.traceHz).toBeNull();
   });
 
   it('reads a lap that is not green as not green', () => {

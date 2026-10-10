@@ -134,6 +134,10 @@ export function useCompareModel(
     () => Object.fromEntries((laps.data ?? []).map(l => [l.id, l.traceHz])),
     [laps.data],
   );
+  const timeOf = useMemo(
+    () => Object.fromEntries((laps.data ?? []).map(l => [l.id, l.timeS])),
+    [laps.data],
+  );
   // Traces are fetched by the lap's own id; the model knows the selection id.
   const traceIds = useMemo(
     () => fetchIds.map(id => parseLapRef(id).lapId),
@@ -145,7 +149,7 @@ export function useCompareModel(
     retry: retryTraces,
   } = useLapTraceLoad(
     traceIds,
-    {lengthM, stepM: GRID_STEP_M, hzOf},
+    {lengthM, stepM: GRID_STEP_M, hzOf, timeOf},
     knownIds.length,
   );
   const traces = useMemo(() => {

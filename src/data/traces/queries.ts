@@ -4,8 +4,8 @@ import {useCallback, useMemo} from 'react';
 import {
   type GridTrace,
   type RawTrace,
+  inferTraceHz,
   resampleTrace,
-  TRACE_HZ,
 } from '@/src/analysis/resample';
 
 import {apiFetch, HttpError, retryUnlessClientError} from '../http';
@@ -45,7 +45,9 @@ export function useLapTraces(
 export interface TraceGrid {
   lengthM: number;
   stepM: number;
-  hzOf?: Readonly<Record<string, number>>;
+  hzOf?: Readonly<Record<string, number | null>>;
+  /** Official lap times, to infer a rate the lap doc does not carry. */
+  timeOf?: Readonly<Record<string, number | null>>;
 }
 
 export interface LapTraceLoad {
@@ -63,7 +65,7 @@ export function useLapTraceLoad(
   // fetched for a neighbouring lap and never count as a failure to show.
   asked = lapIds.length,
 ): LapTraceLoad {
-  const {lengthM, stepM, hzOf} = grid;
+  const {lengthM, stepM, hzOf, timeOf} = grid;
   const client = useQueryClient();
   // One select per lap, stable while the grid and the rates are: a query
   // re-runs its select when the function changes, and a trace is big.
@@ -77,10 +79,16 @@ export function useLapTraceLoad(
           .map(id => [
             id,
             (raw: RawTrace) =>
-              resampleTrace(raw, lengthM, stepM, hzOf?.[id] ?? TRACE_HZ),
+              resampleTrace(
+                raw,
+                lengthM,
+                stepM,
+                hzOf?.[id] ??
+                  inferTraceHz(raw.lapDistPct.length, timeOf?.[id] ?? null),
+              ),
           ]),
       ),
-    [lapKey, lengthM, stepM, hzOf],
+    [lapKey, lengthM, stepM, hzOf, timeOf],
   );
   const results = useQueries({
     queries: lapIds.map(lapId => ({
