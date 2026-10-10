@@ -29,13 +29,18 @@ export function hash(...parts) {
  *            writing them)
  * Returns [{path, size, info}].
  */
+// Files written in the last QUIET_MIN_DEFAULT minutes are left for the next
+// look (--quiet-min in sync.mjs, quietMin in a sim's watcher settings); the
+// watcher's recheck time after a skip is built on it too.
+export const QUIET_MIN_DEFAULT = 3;
+
 export function scanFolder({
   folder,
   adapter,
   state,
   only = '',
   since = '',
-  quietMin = 3,
+  quietMin = QUIET_MIN_DEFAULT,
   log = () => {},
 }) {
   if (!existsSync(folder)) throw new Error(`No telemetry folder at ${folder}`);

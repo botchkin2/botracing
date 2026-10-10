@@ -25,11 +25,13 @@ export const defaultFolder = join(
 // tasklist IMAGENAME, confirmed on this PC. Disk telemetry is Alt-L in the sim.
 export const gameExe = 'iRacingSim64DX11.exe';
 
-// See lmu.mjs. A .ibt still being written is left until it is closed, by
-// sync.mjs's own quiet time.
+// See lmu.mjs. The watcher never syncs while a sim runs (gameRunning in
+// watch.mjs), so a .ibt is closed by the time it looks and sync.mjs's own 3
+// minute quiet time would only hold a race back after the sim exits. A file
+// skipped for it anyway is looked at again (trigger.mjs, quietRetryAtMs).
 export const watcher = {
   legacyLayout: false,
-  quietMin: null,
+  quietMin: 0,
   gameExeEnv: null,
 };
 

@@ -40,7 +40,12 @@ import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
-import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
+import {
+  groupFiles,
+  hash,
+  QUIET_MIN_DEFAULT,
+  scanFolder,
+} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
 import {
   analysisVersion,
@@ -135,7 +140,7 @@ const skipIds = new Set(arg('--skip', '').split(',').filter(Boolean));
 const local = flag('--local');
 const check = flag('--check');
 const force = flag('--force');
-const quietMin = Number(arg('--quiet-min', '3'));
+const quietMin = Number(arg('--quiet-min', String(QUIET_MIN_DEFAULT)));
 // Replace this track's stored corner map with one built from the next
 // session analyzed there. Corner numbers change for every session after it.
 const rebuildTrack = arg('--rebuild-track', '');
