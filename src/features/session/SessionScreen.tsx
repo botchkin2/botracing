@@ -27,7 +27,12 @@ import {
   useTheme,
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
-import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {
+  compareHref,
+  cornerHref,
+  sessionsHref,
+  trackHref,
+} from '@/src/nav/routes';
 import {replace, toggle} from '@/src/state/lapSelection';
 import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
@@ -447,6 +452,16 @@ function SessionView({
         row={item}
         width={width}
         wide={wide}
+        onSectionPress={i => {
+          const corner = model.sections?.sections[i];
+          if (corner != null)
+            router.push(
+              cornerHref(sessionId, corner, {
+                laps: selection.laps,
+                hl: item.lapId,
+              }),
+            );
+        }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
         onToggle={() =>
@@ -562,7 +577,17 @@ function SessionView({
                 }
               />
               <View style={styles.section}>
-                <LapTableHeader width={tableW} />
+                <LapTableHeader
+                  width={tableW}
+                  heads={model.sections?.heads}
+                  onHeadPress={i => {
+                    const corner = model.sections?.sections[i];
+                    if (corner != null)
+                      router.push(
+                        compareHref(sessionId, {laps: selection.laps, corner}),
+                      );
+                  }}
+                />
               </View>
             </>
           }
