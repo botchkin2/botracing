@@ -26,10 +26,8 @@ export interface Segment {
 export interface SegmentLap {
   id: string;
   stint: number;
-  /** Only comparable laps count towards bests, medians and the optimum; the others are shown. */
+  /** Only comparable laps count towards bests, medians and the optimum; the others are shown. Tow and traffic never remove a time: they are flags (Botkin, 2026-10-01). */
   comparable: boolean;
-  /** Per segment: false where a car was within 1 s ahead or the lap sat in a tow. Such a time is shown but does not count, or "where to practise" would measure the other cars. Absent where it cannot be told (game sectors, a lap with no field). */
-  alone?: boolean[];
   /** Seconds in each segment, in segment order; null where the segment does not count for this lap. */
   timesS: (number | null)[];
   /** A pit stop was entered on this lap (the grid marks it); absent reads as false. */
@@ -68,7 +66,7 @@ export function turnRangeLabel(corners: readonly string[]): string {
 /** Whether lap's time in segment i counts towards bests, medians, spread and the optimum. */
 function counts(lap: SegmentLap, i: number): number | null {
   const t = lap.timesS[i];
-  if (!lap.comparable || lap.alone?.[i] === false) return null;
+  if (!lap.comparable) return null;
   return t != null && Number.isFinite(t) ? t : null;
 }
 
