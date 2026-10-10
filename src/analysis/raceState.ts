@@ -15,7 +15,14 @@ import {ABSENT, type Field, updateAt} from './field';
 // Handoff R1d.
 export const STOPPED_KMH = 5;
 export const STOPPED_FOR_S = 2;
+/**
+ * Off the road when no measured edge exists: the old fixed rule (7.5 m).
+ * With a measured edge a car is off when its wheels are, not its centre:
+ * the edge plus half a car width (CAR_HALF_WIDTH_M), held OFF_HOLD_S (#321).
+ */
 export const OFF_TRACK_M = 7.5;
+export const CAR_HALF_WIDTH_M = 1;
+export const OFF_HOLD_S = 0.3;
 // A pit stop is a stay in the pit lane of at least this long. The whole field
 // reads "in the pits" for ~3 s at the start of the Daytona race (7.6 s to
 // 10.8 s, every car), and a real stop lasts a minute or more; a drive-through
@@ -69,9 +76,21 @@ export interface RacePrep {
   pits: Int16Array[];
   /** First update the car is on the map; the length of the field if never. */
   firstSeen: Int32Array;
+  /** The measured road's edges per stepM bin of lap distance, or null (fixed rule). */
+  edges: MeasuredEdges | null;
 }
 
-export function prepareRace(field: Field): RacePrep {
+export interface MeasuredEdges {
+  stepM: number;
+  lengthM: number;
+  leftM: number[];
+  rightM: number[];
+}
+
+export function prepareRace(
+  field: Field,
+  edges: MeasuredEdges | null = null,
+): RacePrep {
   const n = field.timeS.length;
   const trackM = trackLengthM(field.cars.map(c => [...c.lapDistM]));
   const progressM: Float32Array[] = [];
@@ -141,7 +160,7 @@ export function prepareRace(field: Field): RacePrep {
     slowRun.push(slow);
     pits.push(pit);
   });
-  return {field, trackM, progressM, speedKmh, slowRun, pits, firstSeen};
+  return {field, trackM, progressM, speedKmh, slowRun, pits, firstSeen, edges};
 }
 
 // How long the car stays in the pit lane from update `u`, seconds; runs to
@@ -161,6 +180,34 @@ function raceHasStarted(field: Field, u: number): boolean {
   return false;
 }
 
+// Off the road at update u, from the offset alone (no hold).
+function offAt(prep: RacePrep, car: number, u: number): boolean {
+  const c = prep.field.cars[car];
+  const pl = c.pathLateralM[u];
+  if (!Number.isFinite(pl)) return false;
+  let left = OFF_TRACK_M;
+  let right = OFF_TRACK_M;
+  const e = prep.edges;
+  const d = c.lapDistM[u];
+  if (e && Number.isFinite(d)) {
+    const along = ((d % e.lengthM) + e.lengthM) % e.lengthM;
+    const b = Math.min(e.leftM.length - 1, Math.floor(along / e.stepM));
+    left = e.leftM[b] + CAR_HALF_WIDTH_M;
+    right = e.rightM[b] + CAR_HALF_WIDTH_M;
+  }
+  return pl > right || -pl > left;
+}
+
+// Off at update u and at every update in the last OFF_HOLD_S seconds.
+function offHeld(prep: RacePrep, car: number, u: number): boolean {
+  const k = Math.max(1, Math.round(OFF_HOLD_S * prep.field.hz));
+  for (let j = u; j > u - k; j--) {
+    if (j < 0) break; // the start of the field: the history there is all there is
+    if (!offAt(prep, car, j)) return false;
+  }
+  return true;
+}
+
 function stateOf(prep: RacePrep, car: number, u: number): CarState {
   const c = prep.field.cars[car];
   if (Number.isNaN(c.lapDistM[u])) return 'garage';
@@ -168,7 +215,7 @@ function stateOf(prep: RacePrep, car: number, u: number): CarState {
     return raceHasStarted(prep.field, u) ? 'pit' : 'running';
   }
   if (prep.slowRun[car][u] / prep.field.hz >= STOPPED_FOR_S) return 'stopped';
-  if (Math.abs(c.pathLateralM[u]) > OFF_TRACK_M) return 'off';
+  if (offHeld(prep, car, u)) return 'off';
   return 'running';
 }
 
