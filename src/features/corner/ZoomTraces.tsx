@@ -13,8 +13,8 @@ import {type CornerModel, type ZoomLine} from './model';
 import {type ReadoutChart, readoutsAt} from './readouts';
 import {lapsShownText, noBrakeIn} from './traceFacts';
 
-// The Corner screen's zoomed charts. The phone shows speed, brake and
-// throttle. The desktop is a complete snapshot of one turn (apex #947): the
+// The Corner screen's zoomed charts. The phone shows speed, brake,
+// throttle, steering and gear. The desktop is a complete snapshot of one turn (apex #947): the
 // time difference from this turn's entry, speed, brake, throttle, steering
 // and the racing line, on one distance axis with one hover cursor, this
 // turn's own stretch shaded across all of them.
@@ -231,12 +231,16 @@ export function ZoomTraces({
           Throttle %
         </Text>
         <Skeleton height={heights.throttle} />
-        {desktop && (
+        {heights.steering > 0 && (
           <>
             <Text variant='label' tone='textMuted'>
               Steering, % of full lock
             </Text>
             <Skeleton height={heights.steering} />
+          </>
+        )}
+        {desktop && (
+          <>
             <Text variant='label' tone='textMuted'>
               Racing line
             </Text>
@@ -304,19 +308,7 @@ export function ZoomTraces({
         series={series(l => ({values: l.throttlePct}))}
         marks={[...apex, ...pointMarks(l => l.fullThrottleAtM)]}
       />
-      {header('gear', 'Gear')}
-      <TraceChart
-        {...common}
-        height={heights.gear}
-        domain={gearDomain}
-        yTicks={gearTicks}
-        series={series(l => ({values: drawnGear(l.gear)})).map(s => ({
-          ...s,
-          stepped: true,
-        }))}
-        marks={apex}
-      />
-      {desktop && (
+      {heights.steering > 0 && (
         <>
           {header('steering', 'Steering, % of full lock')}
           <TraceChart
@@ -335,6 +327,22 @@ export function ZoomTraces({
             sideLabels={{above: 'L', below: 'R'}}
             marks={apex}
           />
+        </>
+      )}
+      {header('gear', 'Gear')}
+      <TraceChart
+        {...common}
+        height={heights.gear}
+        domain={gearDomain}
+        yTicks={gearTicks}
+        series={series(l => ({values: drawnGear(l.gear)})).map(s => ({
+          ...s,
+          stepped: true,
+        }))}
+        marks={apex}
+      />
+      {desktop && (
+        <>
           {header('line', 'Racing line, m from the game’s centre path')}
           {lateralAny ? (
             <TraceChart

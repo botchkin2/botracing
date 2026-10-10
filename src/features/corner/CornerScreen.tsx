@@ -1,6 +1,6 @@
 import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -50,6 +50,7 @@ import {
   MEASURES,
   sortRows,
 } from './model';
+import {type CornerBlock, cornerLayout} from './layout';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -63,7 +64,7 @@ const PHONE_H: ZoomHeights = {
   throttle: 52,
   gear: 40,
   delta: 0,
-  steering: 0,
+  steering: 40,
   line: 0,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
@@ -271,42 +272,42 @@ function CornerView({
     </View>
   );
 
-  const header = (
+  const titleBlock = (
     <View style={styles.gap}>
-      {layout.isWide ? navRow : null}
       <Text variant='display'>{model.title}</Text>
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
-      {layout.isWide ? (
-        <View style={styles.wrap}>{cornerChips}</View>
-      ) : (
-        // One line that scrolls sideways: 25 corners wrapped to four rows.
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}>
-          {cornerChips}
-        </ScrollView>
-      )}
-      {partChips.length > 0 ? (
-        <View style={styles.wrap}>
-          <Text variant='label' tone='textMuted'>
-            Parts
-          </Text>
-          {partChips}
-        </View>
-      ) : null}
-      <View style={styles.row}>
-        <Chip
-          label={
-            allComparable ? '✓ All comparable laps' : '+ All comparable laps'
-          }
-          selected={allComparable}
-          onPress={() => onAllComparable(!allComparable)}
-        />
+    </View>
+  );
+  // One line that scrolls sideways on both layouts: 25 corners wrapped to
+  // four rows and pushed the table out of the first screen (D32).
+  const seekChips = (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipsRow}>
+      {cornerChips}
+    </ScrollView>
+  );
+  const partsRow =
+    partChips.length > 0 ? (
+      <View style={styles.wrap}>
+        <Text variant='label' tone='textMuted'>
+          Parts
+        </Text>
+        {partChips}
       </View>
+    ) : null;
+  const allChip = (
+    <View style={styles.row}>
+      <Chip
+        label={
+          allComparable ? '✓ All comparable laps' : '+ All comparable laps'
+        }
+        selected={allComparable}
+        onPress={() => onAllComparable(!allComparable)}
+      />
     </View>
   );
 
@@ -331,7 +332,7 @@ function CornerView({
     />
   );
 
-  const measures = (
+  const spread = (
     <View style={styles.gap}>
       {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
@@ -438,13 +439,6 @@ function CornerView({
             </View>
           ))
         : null}
-      {model.strips && !layout.isWide ? (
-        <FoldedSection title='Laps' summary={`${model.rows.length} laps`}>
-          {lapTable}
-        </FoldedSection>
-      ) : (
-        lapTable
-      )}
     </View>
   );
 
@@ -471,6 +465,26 @@ function CornerView({
   );
 
   const top = {paddingTop: insets.top + space.lg};
+  const plan = cornerLayout(layout.isWide);
+  const shape = model.brakeMap ? (
+    <BrakeMapPanel
+      map={model.brakeMap}
+      width={layout.isWide ? left.width - 2 * space.xl : layout.contentWidth}
+      lapColor={lapColor}
+    />
+  ) : null;
+  const blocks: Record<CornerBlock, ReactNode> = {
+    charts: traces,
+    shape,
+    laps: lapTable,
+    spread: (
+      <FoldedSection title='Spread' summary={null}>
+        {spread}
+      </FoldedSection>
+    ),
+    nav: <SessionNav sessionId={sessionId} />,
+  };
+  const body = plan.order.map(id => <View key={id}>{blocks[id]}</View>);
   if (layout.isWide)
     return (
       <View
@@ -478,15 +492,12 @@ function CornerView({
         <ScrollView
           style={{width: left.width, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
-          {header}
-          {model.brakeMap && (
-            <BrakeMapPanel
-              map={model.brakeMap}
-              width={left.width - 2 * space.xl}
-              lapColor={lapColor}
-            />
-          )}
-          {measures}
+          {navRow}
+          {titleBlock}
+          {seekChips}
+          {partsRow}
+          {allChip}
+          {body}
         </ScrollView>
         <PanelDivider
           anchor='left'
@@ -503,6 +514,8 @@ function CornerView({
         </ScrollView>
       </View>
     );
+  // Phone: the Compare link and the corner chips stay pinned, so stepping is
+  // in reach wherever the page is scrolled.
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <View
@@ -511,6 +524,8 @@ function CornerView({
           {backgroundColor: color.bg, paddingTop: top.paddingTop},
         ]}>
         {navRow}
+        {seekChips}
+        {partsRow}
       </View>
       <ScrollView
         style={styles.flex}
@@ -521,16 +536,8 @@ function CornerView({
           // strips sized to it fit instead of overflowing past the gutter.
           {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
         ]}>
-        {header}
-        {model.brakeMap && (
-          <BrakeMapPanel
-            map={model.brakeMap}
-            width={layout.contentWidth}
-            lapColor={lapColor}
-          />
-        )}
-        {measures}
-        {traces}
+        {titleBlock}
+        {body}
       </ScrollView>
     </View>
   );
