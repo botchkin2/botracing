@@ -413,7 +413,7 @@ test('iRacing offline: classes come from the label, not the empty short name', (
 });
 
 test('the lap is where the cars wrap, not a parked car reporting more (Road Atlanta, 2 Oct)', () => {
-  // Two wrapping wrap at 4080 m; one sits in the pits reading 4662 m.
+  // Two cars wrap at 4080 m; one sits in the pits reading 4662 m.
   const lap = start => Array.from({length: 120}, (_, u) => ((start + u * 80) % 4080));
   const wrapping = [
     {lapDistM: lap(40)},
