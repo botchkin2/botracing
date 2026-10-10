@@ -69,7 +69,7 @@ $exe = Join-Path $installDir "$app.exe"
 if (-not (Test-Path $exe)) { Fail "$exe is missing after install" }
 $uninstaller = ($entry.UninstallString -replace '"', '')
 if (-not (Test-Path $uninstaller)) { Fail "uninstaller $uninstaller is missing" }
-foreach ($path in @("resources\app\tools\uploader\watch.mjs", "resources\node\node.exe")) {
+foreach ($path in @("app\tools\uploader\watch.mjs", "node\node.exe")) {
   if (-not (Test-Path (Join-Path $installDir $path))) { Fail "$path is missing from the install (the uploader cannot start without it)" }
 }
 $runValue = (Get-ItemProperty $runKey -ErrorAction SilentlyContinue).$app
