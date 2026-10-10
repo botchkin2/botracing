@@ -7,15 +7,17 @@ import {
   fetchSessionFacets,
   fetchSessionBand,
   fetchSessionLaps,
-  fetchSessionMap,
+  fetchTrackMap,
   fetchSessions,
-  fetchSessionSurface,
+  fetchTrackSurface,
 } from './client';
 import {type SessionFilter, sessionKeys} from './keys';
 
 // A session is rewritten only by a resync, so detail data stays fresh for a
 // while; the list refreshes sooner to pick up new uploads.
 const DETAIL_STALE_MS = 5 * 60_000;
+// A track map is curated (the server sends max-age 3600): an hour in memory too.
+const TRACK_MAP_STALE_MS = 60 * 60_000;
 
 export function useSessions(filter: SessionFilter = {}, enabled = true) {
   return useQuery({
@@ -105,28 +107,43 @@ export function useSessionBand(id: string) {
   });
 }
 
-export function useSessionMap(id: string) {
+/**
+ * A track layout's corner map, by track id: the same for every session at that
+ * layout, so it needs no session and is fetched once (thread 1 #3479). Null or
+ * '' (no session open yet, or its detail still loading): not fetched.
+ */
+export function useTrackMap(trackId: string | null | undefined) {
   return useQuery({
-    queryKey: sessionKeys.map(id),
-    queryFn: ({signal}) => fetchSessionMap(id, signal),
-    // The chrome asks with no session open; don't fetch then.
-    enabled: id !== '',
-    staleTime: DETAIL_STALE_MS,
+    queryKey: sessionKeys.trackMap(trackId ?? ''),
+    queryFn: ({signal}) => fetchTrackMap(trackId as string, signal),
+    enabled: !!trackId,
+    // Curated: it changes only when the curator writes it.
+    staleTime: TRACK_MAP_STALE_MS,
     retry: retryUnlessClientError,
   });
 }
 
 /**
- * The track's measured surface; data is null until the track has one. The
- * file grows as sessions are folded in, so it is refetched on the same
- * schedule as a session's detail. A failed request is the same as none: the
- * map draws as it did before.
+ * The map of the layout an open session was driven on, for callers that hold
+ * only the session id: its detail (usually cached already) names the track.
+ * Null id: nothing fetched.
  */
-export function useSessionSurface(id: string) {
+export function useTrackMapOfSession(sessionId: string | null) {
+  const session = useSession(sessionId ?? '', sessionId != null);
+  return useTrackMap(session.data?.trackId);
+}
+
+/**
+ * A track layout's measured surface; data is null until it has one. It grows
+ * as sessions are folded in, so it is refetched on the same schedule as a
+ * session's detail. A failed request is the same as none: the map draws as it
+ * did before.
+ */
+export function useTrackSurface(trackId: string | null | undefined) {
   return useQuery({
-    queryKey: sessionKeys.surface(id),
-    queryFn: ({signal}) => fetchSessionSurface(id, signal),
-    enabled: id !== '',
+    queryKey: sessionKeys.trackSurface(trackId ?? ''),
+    queryFn: ({signal}) => fetchTrackSurface(trackId as string, signal),
+    enabled: !!trackId,
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
