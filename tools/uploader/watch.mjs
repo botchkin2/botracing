@@ -509,6 +509,13 @@ async function main() {
             st.quietRetryAtMs = r.waiting
               ? Date.now() + (quietMin + 0.5) * 60 * 1000
               : null;
+            // The recordings this run could not read, as the problems list
+            // names them; a file that reads next time is gone from it.
+            st.unreadable = r.unreadable.map(u => ({
+              name: u.name,
+              why: u.why,
+              atMs: Date.now(),
+            }));
             st.versionKey = currentKey;
             st.retryAtMs = null;
             st.failuresInRow = 0;

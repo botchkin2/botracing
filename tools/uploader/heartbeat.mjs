@@ -110,7 +110,8 @@ const iso = ms => (ms != null ? new Date(ms).toISOString() : null);
 
 // What is wrong on this PC now, for the Settings Problems list (pit-wall
 // thread 1 #3327/#3328): a crashed sync, each session waiting on a retry, a
-// recorder that stopped writing. Built from the state the watcher keeps, so a
+// recording the sync could not read (named by file), a recorder that stopped
+// writing. Built from the state the watcher keeps, so a
 // problem that is fixed is gone from the next beat. Newest first, at most 10;
 // messages scrubbed like lastError and cut to 120 characters.
 // sims: each sim's watcher state ({lastError, retryAtMs, retries}).
@@ -125,6 +126,12 @@ export function problemsOf({sims, recorder, nowMs}) {
         at: st.lastError.at ?? null,
         message: message(st.lastError.message),
         retryAt: iso(st.retryAtMs),
+      });
+    for (const u of st.unreadable ?? [])
+      out.push({
+        kind: 'file-unreadable',
+        at: iso(u.atMs ?? null),
+        message: message(`${u.name}: ${u.why}`),
       });
     for (const [sessionId, r] of Object.entries(st.retries ?? {}))
       out.push({
