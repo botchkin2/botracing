@@ -670,14 +670,13 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
-        note: lapTimeS ? `all green laps · n ${lapTimeS.n}` : undefined,
+        note: lapTimeS ? "all green laps" : undefined,
       },
       ...(history.traffic?.clean.medianS != null
         ? [
             {
               label: 'Clean laps',
               value: lapTime(history.traffic.clean.medianS),
-              note: `n ${history.traffic.clean.laps}`,
             },
           ]
         : []),
@@ -686,7 +685,6 @@ export function planView(
             {
               label: 'Traffic laps',
               value: lapTime(history.traffic.traffic.medianS),
-              note: `n ${history.traffic.traffic.laps}`,
             },
           ]
         : []),
