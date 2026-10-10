@@ -35,8 +35,10 @@ export function formatDay(iso: string): string {
 
 /** Signed gap with 3 decimals: "+0.312", "−0.105". Uses a true minus sign. */
 export function formatGap(deltaS: number, decimals = 3): string {
-  const sign = deltaS > 0 ? '+' : deltaS < 0 ? '−' : '±';
-  return `${sign}${Math.abs(deltaS).toFixed(decimals)}`;
+  const text = Math.abs(deltaS).toFixed(decimals);
+  // The sign follows the rounded value: 0.0004 shows "±0.000", never "+0.000".
+  const sign = Number(text) === 0 ? '±' : deltaS > 0 ? '+' : '−';
+  return `${sign}${text}`;
 }
 
 /**

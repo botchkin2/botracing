@@ -158,7 +158,7 @@ export function buildSessionsModel(
       badge: s.sessionType,
       track: shortTrackName(s.track),
       typeLabel: TYPE_LABEL[s.sessionType],
-      railSubline: `${hhmm(started)} · ${s.lapCount} laps`,
+      railSubline: `${hhmm(started)} · ${s.lapCount} ${s.lapCount === 1 ? 'lap' : 'laps'}`,
       subline: [hhmm(started), car.shortModel].filter(Boolean).join(' · '),
       entry: car.entry,
       laps: String(s.lapCount),
