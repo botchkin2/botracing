@@ -13,7 +13,6 @@ import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 import type {
   Lap,
-  LapTraffic,
   MapCorner,
   MapSection,
   TrackMapData,
