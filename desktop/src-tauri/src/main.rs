@@ -225,17 +225,22 @@ struct Recorders {
 /// whether it came as the window message or as the quit-request file.
 fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Recorders) {
     let started = std::time::Instant::now();
-    let note = |step: &str| {
+    let mut first = true;
+    let mut note = |step: &str| {
         // The CI end-to-end prints this file when a tray stays up after
         // `--quit`, so the cell says which step hung (thread 1 #3724).
         if let Some(paths) = app.try_state::<Arc<sidecar::Paths>>() {
             let line = format!("{step} +{:.1}s
 ", started.elapsed().as_secs_f32());
+            // The first note starts the file over, so it holds one quit only.
             let _ = std::fs::OpenOptions::new()
                 .create(true)
-                .append(true)
+                .write(true)
+                .truncate(first)
+                .append(!first)
                 .open(paths.data.join("quit.log"))
                 .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+            first = false;
         }
     };
     note("quit requested");

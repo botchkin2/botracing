@@ -225,8 +225,6 @@ Write-Host "starting the Run entry: $run"
 if ($runArgs) { Start-Process -FilePath $runExe -ArgumentList $runArgs | Out-Null } else { Start-Process -FilePath $runExe | Out-Null }
 WaitFor "the tray to start from the Run entry" 30 { (Trays).Count -ge 1 }
 Start-Sleep -Seconds 6
-$sessionId = (Get-Process -Id $PID).SessionId
-if ($sessionId -eq 0) { Write-Host "window check: n/a, this is session 0 (a non-interactive logon): no window can be seen here" }
 $windows = @([E2e.Wins]::Visible(@(Trays | ForEach-Object { $_.Id })))
 if ($windows.Count) {
   Fail ("the tray opened a window at a logon start: " + ($windows -join "; "))
