@@ -348,7 +348,12 @@ const when = (v: unknown): boolean =>
 // What is wrong on the PC now (tools/uploader/heartbeat.mjs problemsOf), for
 // the Settings Problems list. Each entry is rebuilt from its known fields, so
 // nothing else rides along; the message was scrubbed on the PC.
-const PROBLEM_KINDS = ['session-failed', 'sync-crashed', 'recorder-layout'];
+const PROBLEM_KINDS = [
+  'session-failed',
+  'sync-crashed',
+  'recorder-layout',
+  'uploader-stopped',
+];
 const MAX_PROBLEMS = 10;
 const optional = (v: unknown, ok: (x: unknown) => boolean) =>
   v === undefined || v === null || ok(v);
@@ -415,7 +420,7 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
         when(v.lastChunkAt)) &&
       (v.updatedAt === null || v.updatedAt === undefined || when(v.updatedAt))),
 };
-const HEARTBEAT_REQUIRED = ['label', 'version', 'lmuFound', 'state'];
+const HEARTBEAT_REQUIRED = ['label', 'version', 'state'];
 
 async function heartbeat(
   uid: string,

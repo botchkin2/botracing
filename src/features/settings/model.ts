@@ -40,7 +40,7 @@ export type SettingsModel = {
   version: string;
 };
 
-const SEEN_MS = 10 * 60_000;
+export const SEEN_MS = 10 * 60_000;
 // States from tools/capture/recorder.py's status.json (thread 30, #461/#472).
 const RECORDER_LABEL: Record<string, string> = {
   recording: 'recording',
@@ -110,6 +110,12 @@ export function problemText(p: UploaderProblem): string {
       ? ['Sync crashed', p.message.replace(/^sync crashed: /, ''), retry]
       : p.kind === 'recorder-layout'
       ? ['Recorder stopped', p.message]
+      : p.kind === 'uploader-stopped'
+      ? [
+          'Uploader stopped',
+          p.message,
+          p.count != null && p.count > 1 ? `${p.count}×` : '',
+        ]
       : [p.at != null ? `Not seen since ${formatDay(p.at)}` : 'Not seen'];
   return parts.filter(Boolean).join(' · ');
 }
@@ -181,7 +187,7 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
     title: u.host,
     subtitle: [
       u.version && `v${u.version}`,
-      u.lmuFound ? 'LMU found' : 'LMU not found',
+      u.lmuFound == null ? null : u.lmuFound ? 'LMU found' : 'LMU not found',
     ]
       .filter(Boolean)
       .join(' · '),

@@ -325,6 +325,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
               )
             }
           />
+          <Chip
+            label='Lap'
+            selected={prefs.windowStep === 'lap'}
+            onPress={() => prefs.setWindowStep('lap')}
+          />
           <Text variant='dataSmall' tone='textMuted'>
             {p.spanLabel}
           </Text>

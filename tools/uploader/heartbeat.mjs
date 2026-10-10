@@ -14,7 +14,7 @@ export function hostIdOf(machineName) {
 export function scrub(message) {
   return String(message ?? '')
     .split(/\r?\n/)[0]
-    .replace(/[A-Za-z]:[\\/]Users[\\/][^\\/\s'"]+/gi, '~')
+    .replace(/[A-Za-z]:[\\/]Users[\\/][^\\/'"]+/gi, '~')
     .slice(0, 300);
 }
 
@@ -22,8 +22,38 @@ export function scrub(message) {
 // means it is not running.
 export const RECORDER_STALE_SEC = 120;
 
+const iso0 = ms => (ms != null ? new Date(ms).toISOString() : null);
+
+/**
+ * Each sim's own part of the heartbeat, so the tray's sim lines say what that
+ * sim is doing and not what the whole watcher is: its queue, whether the sync
+ * running now is its own (and how far it is), when its earliest failed session
+ * is tried again, and its last error. `entries`: [{id, queue, retryAtMs,
+ * lastError}]; `syncingSim`: the id of the sim being synced, or null;
+ * `progress`: that sync's done/total.
+ */
+export function simsDoc(entries, syncingSim = null, progress = null) {
+  return Object.fromEntries(
+    entries.map(e => {
+      const syncing = e.id === syncingSim;
+      return [
+        e.id,
+        {
+          queue: e.queue,
+          syncing,
+          progress: syncing ? progress ?? null : null,
+          retryAt: iso0(e.retryAtMs ?? null),
+          lastError: e.lastError
+            ? {at: e.lastError.at ?? null, message: scrub(e.lastError.message)}
+            : null,
+        },
+      ];
+    }),
+  );
+}
+
 // watch: the watcher's own state. recorder: tools/capture's status.json, or
-// null when there is none.
+// null when there is none. sims: simsDoc() of each sim.
 export function heartbeatDoc({
   hostId,
   label,
@@ -33,6 +63,7 @@ export function heartbeatDoc({
   watch,
   queue,
   progress,
+  sims = {},
   freeBytes,
   recorder,
   retryAtMs = null,
@@ -51,6 +82,8 @@ export function heartbeatDoc({
     queue,
     // done/total of the sync running now, else null.
     progress: progress ?? null,
+    // Per sim (simsDoc): the tray words each sim's line from its own part.
+    sims,
     // When the earliest failed session is tried again, or null with none.
     retryAt: retryAtMs != null ? new Date(retryAtMs).toISOString() : null,
     sessionsDone: watch.sessionsDone ?? 0,
@@ -152,6 +185,15 @@ export function beatKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    Object.entries(doc.sims ?? {}).map(([id, s]) => [
+      id,
+      s.queue,
+      s.syncing,
+      s.progress?.done,
+      s.progress?.total,
+      s.retryAt,
+      s.lastError?.at,
+    ]),
     (doc.problems ?? []).map(p => [p.kind, p.sessionId, p.at]),
   ]);
 }

@@ -10,7 +10,7 @@ pub mod layout;
 pub mod prune;
 pub mod probe;
 pub mod prune_schedule;
-pub mod prune_settings;
+pub mod prune_policy;
 pub mod recorder;
 pub mod runner;
 pub mod sanity;

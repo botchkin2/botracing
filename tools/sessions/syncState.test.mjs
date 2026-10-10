@@ -4,7 +4,6 @@ import {
   floorOf,
   forgetOtherOwners,
   freshState,
-  liftWindow,
   markDone,
   ownerOf,
   windowFloor,
@@ -68,12 +67,6 @@ test('a fresh state with a window starts 14 days back', () => {
   assert.equal(windowFloor(14, NOW), '2026-09-24');
   assert.equal(freshState({windowDays: 14, now: NOW}).since, '2026-09-24');
   assert.equal(freshState({now: NOW}).since, null);
-});
-
-test('lifting the window removes the limit', () => {
-  const state = freshState({windowDays: 14, now: NOW});
-  liftWindow(state);
-  assert.equal(floorOf(state), null);
 });
 
 test('floorOf: the state’s own window, else the first run’s, else none', () => {
