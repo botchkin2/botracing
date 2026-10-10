@@ -8,7 +8,7 @@ A tray check runs the PR's own code, so anything the job can reach, any branch c
 
 ## Why not "OIDC to a service account that signs custom tokens"
 
-The first idea (pit wall #3466): GitHub's OIDC token, exchanged through Workload Identity Federation for a service account with `roles/iam.serviceAccountTokenCreator` on itself, which then signs a custom token for `seat-test`. **IAM cannot enforce the last part.** Whoever can sign with that account can sign a custom token for *any* uid, including Botkin's. "Only seat-test" would live in a script the PR's code can bypass. Rejected.
+The first idea (pit wall #3466): GitHub's OIDC token, exchanged through Workload Identity Federation for a service account with `roles/iam.serviceAccountTokenCreator` on itself, which then signs a custom token for `seat-test`. **IAM cannot enforce the last part.** Whoever can sign with that account can sign a custom token for _any_ uid, including Botkin's. "Only seat-test" would live in a script the PR's code can bypass. Rejected.
 
 ## The design: a function that checks the caller and can only answer seat-test
 
