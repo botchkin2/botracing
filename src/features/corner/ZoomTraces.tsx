@@ -4,13 +4,7 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
 import {drawnGear} from './drawnGear';
-import {
-  deltaScale,
-  lateralScale,
-  pedalScale,
-  speedScale,
-  steeringScale,
-} from './scales';
+import {cornerScales, pedalScale, steeringScale} from './scales';
 import {lapColors, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
@@ -116,27 +110,22 @@ export function ZoomTraces({
         m: at(l) as number,
         color: lapStyle(l.onIndex, l.selIndex, l.highlighted).color,
       }));
-  // Fitted scales read the comparable laps only: a lap outside them is drawn
-  // beyond the edge, never stretches the axis.
-  const fitLines = lines.filter(l => l.comparable);
-  const speed = speedScale(
-    fitLines.map(l => l.speedKph),
+  // The fitted scales read the comparable laps only (see cornerScales).
+  const scales = cornerScales(
+    lines.map(l => ({
+      comparable: l.comparable,
+      speedKph: l.speedKph,
+      deltaS: l.deltaS,
+      trackEdgeM: l.samples.trackEdgeM.values,
+    })),
     zoom.windowM,
     zoom.stepM,
   );
-  const delta = deltaScale(
-    fitLines.map(l => l.deltaS),
-    zoom.windowM,
-    zoom.stepM,
-  );
+  const {speed, delta} = scales;
   const pedal = pedalScale();
   const steering = steeringScale();
   // The road's own half width: its measured edges in the window.
-  const lateral = lateralScale(
-    fitLines.map(l => l.samples.trackEdgeM.values),
-    zoom.windowM,
-    zoom.stepM,
-  );
+  const lateral = scales.lateral;
   // Gears in the window, integers: the axis runs from the lowest to the
   // highest gear the set used, with a half-step of room either side.
   const gearsShown = lines.flatMap(l => {

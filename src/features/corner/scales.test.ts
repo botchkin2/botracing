@@ -1,6 +1,7 @@
 import {describe, expect, test} from '@jest/globals';
 
 import {
+  cornerScales,
   deltaScale,
   lateralScale,
   pedalScale,
@@ -68,5 +69,47 @@ describe('lateralScale', () => {
     const s = lateralScale([[4.2, 5.1, 4.8]], WIN, STEP);
     expect(s.lo).toBe(-s.hi);
     expect(s.hi).toBeGreaterThanOrEqual(5.1);
+  });
+});
+
+describe('cornerScales', () => {
+  const lap = (
+    comparable: boolean,
+    speed: number[],
+    delta: number[],
+    edge: number[],
+  ) => ({
+    comparable,
+    speedKph: speed,
+    deltaS: delta,
+    trackEdgeM: edge,
+  });
+
+  test('a non-comparable lap does not stretch any fitted scale (spike)', () => {
+    const clean = cornerScales(
+      [lap(true, [150, 170], [-0.1, 0.1], [4, 5]), lap(true, [160], [0], [4])],
+      WIN,
+      STEP,
+    );
+    const spiked = cornerScales(
+      [
+        lap(true, [150, 170], [-0.1, 0.1], [4, 5]),
+        lap(true, [160], [0], [4]),
+        lap(false, [999], [9], [99]),
+      ],
+      WIN,
+      STEP,
+    );
+    expect(spiked).toEqual(clean);
+  });
+
+  test('with no comparable lap it fits all laps, not the default range', () => {
+    const s = cornerScales(
+      [lap(false, [200, 240], [-0.2, 0.2], [4, 5])],
+      WIN,
+      STEP,
+    );
+    expect(s.speed.hi).toBeGreaterThanOrEqual(240);
+    expect(s.speed.lo).toBeLessThanOrEqual(200);
   });
 });

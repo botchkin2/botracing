@@ -62,3 +62,44 @@ export function lateralScale(
     format: withUnit('m'),
   });
 }
+
+/** One lap's channels for the fitted scales, with whether it is comparable. */
+export type ScaleLine = {
+  comparable: boolean;
+  speedKph: readonly number[];
+  deltaS: readonly number[];
+  trackEdgeM: readonly number[];
+};
+
+export type CornerScales = {speed: Scale; delta: Scale; lateral: Scale};
+
+/**
+ * The three fitted scales of the Corner charts. Only the comparable laps set
+ * them: a lap outside that set is drawn clipped, never stretches an axis. When
+ * no lap is comparable, every lap sets them, so a chart still has a range.
+ */
+export function cornerScales(
+  lines: readonly ScaleLine[],
+  window: [number, number],
+  stepM: number,
+): CornerScales {
+  const comparable = lines.filter(l => l.comparable);
+  const fit = comparable.length > 0 ? comparable : lines;
+  return {
+    speed: speedScale(
+      fit.map(l => l.speedKph),
+      window,
+      stepM,
+    ),
+    delta: deltaScale(
+      fit.map(l => l.deltaS),
+      window,
+      stepM,
+    ),
+    lateral: lateralScale(
+      fit.map(l => l.trackEdgeM),
+      window,
+      stepM,
+    ),
+  };
+}
