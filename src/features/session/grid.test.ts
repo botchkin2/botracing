@@ -137,6 +137,7 @@ describe('sorting', () => {
     const rows: GridRow[] = [
       {
         lapId: 'A',
+        label: 'A',
         stint: 1,
         stop: false,
         ticked: true,
@@ -144,6 +145,7 @@ describe('sorting', () => {
       },
       {
         lapId: 'B',
+        label: 'B',
         stint: 1,
         stop: false,
         ticked: true,

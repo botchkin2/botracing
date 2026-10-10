@@ -182,7 +182,11 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return planComboKey(session.trackId, carLabel(session.car).model, session.sim);
+  return planComboKey(
+    session.trackId,
+    carLabel(session.car).model,
+    session.sim,
+  );
 }
 
 function buildFuelUseCard(
@@ -557,6 +561,20 @@ export function toggleLap(sel: Selection, lapId: string): Selection {
 export function selectStint(sel: Selection, lapIds: string[]): Selection {
   const rest = lapIds.filter(id => !sel.laps.includes(id));
   return {...sel, laps: [...sel.laps, ...rest]};
+}
+
+/** The segment times the grid reads: the same sections the session table shows. */
+export function useSessionSegmentTimes(id: string): SegmentTimes | null {
+  const laps = useSessionLaps(id);
+  const map = useSessionMap(id);
+  const sectionMode = useSectionMode();
+  return useMemo(
+    () =>
+      laps.data
+        ? segmentTimesFor(sectionMode, laps.data, map.data ?? null)
+        : null,
+    [laps.data, map.data, sectionMode],
+  );
 }
 
 export function useSessionScreenModel(id: string, selection: Selection) {

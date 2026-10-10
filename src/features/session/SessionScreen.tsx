@@ -40,6 +40,7 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {SessionGrid} from './components/SessionGrid';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -496,6 +497,7 @@ function SessionView({
                 )}
               />
             )}
+            <SessionGrid id={sessionId} />
           </>
         }
         renderRow={(row, width) => renderRow(row, width, true)}
@@ -545,6 +547,9 @@ function SessionView({
                       {fuelCard}
                     </FoldedSection>
                   ) : null}
+                  <FoldedSection title='Laps grid' summary='Spread by section'>
+                    <SessionGrid id={sessionId} />
+                  </FoldedSection>
                 </>
               )}
             </View>

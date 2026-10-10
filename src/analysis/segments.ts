@@ -30,6 +30,8 @@ export interface SegmentLap {
   timesS: (number | null)[];
   /** A pit stop was entered on this lap (the grid marks it); absent reads as false. */
   stop?: boolean;
+  /** The lap as the tables name it: "L5". */
+  label?: string;
 }
 
 export interface SegmentTimes {
