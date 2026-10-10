@@ -33,7 +33,10 @@ export function usePlanRows(combo: Combo | null) {
       : null,
   );
   const byId = useMemo(
-    () => new Map<string, PlanSession>((query.data?.items ?? []).map(s => [s.id, s])),
+    () =>
+      new Map<string, PlanSession>(
+        (query.data?.items ?? []).map(s => [s.id, s]),
+      ),
     [query.data],
   );
   return {
@@ -101,6 +104,22 @@ export function usePlanLimits(
  * ran, their green laps in litres with VE worked out through the ratio of the
  * wanted load, and the laps since a jump in use (thread 36 #1102).
  */
+/**
+ * The sessions the plan's laps came from: in the chosen run and holding at
+ * least one green lap. A session with none contributed nothing, so it is not
+ * counted ("from 80 laps in 7 sessions", not 8).
+ */
+export function sessionsWithLaps<S extends {id: string}>(
+  history: S[],
+  perSession: {id: string; laps: unknown[]}[],
+  chosenIds: string[],
+): S[] {
+  const withLaps = new Set(
+    perSession.filter(p => p.laps.length > 0).map(p => p.id),
+  );
+  return history.filter(s => chosenIds.includes(s.id) && withLaps.has(s.id));
+}
+
 export function usePlanHistory(
   combo: Combo | null,
   limitsL: (number | null | undefined)[],
@@ -136,7 +155,7 @@ export function usePlanHistory(
   }));
   // Laps from before a jump in use are left out (thread 36 #1102).
   const chosen = sinceChange(perSession);
-  const usedSessions = history.filter(s => chosen.sessionIds.includes(s.id));
+  const usedSessions = sessionsWithLaps(history, perSession, chosen.sessionIds);
   // The driver's own races here: their race sides give the formation burn and
   // the pit lane base.
   const races = history.flatMap(s => {

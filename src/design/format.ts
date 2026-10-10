@@ -46,9 +46,12 @@ export function formatGap(deltaS: number, decimals = 3): string {
  * (a lapped car's gap is real time, so it can be minutes).
  */
 export function formatRaceGap(gapS: number): string {
-  if (gapS < 60) return `+${gapS.toFixed(3)}`;
-  const minutes = Math.floor(gapS / 60);
-  return `+${minutes}:${(gapS - minutes * 60).toFixed(1).padStart(4, '0')}`;
+  const ms = gapS.toFixed(3);
+  if (Number(ms) < 60) return `+${ms}`;
+  // Round to tenths before splitting minutes: 119.97 s is +2:00.0, not +1:60.0.
+  const tenths = Math.round(gapS * 10);
+  const minutes = Math.floor(tenths / 600);
+  return `+${minutes}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
 }
 
 /** Corner grid: 2 decimals, no leading zero: "+.21", "−1.04". */
