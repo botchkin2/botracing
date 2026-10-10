@@ -127,7 +127,7 @@ describe('buildSectionWindow', () => {
       sectionN: 2,
       laps: lapsOf(rawLap('a', section2())),
     });
-    expect(w?.label).toBe('S2 (T2–T4)');
+    expect(w?.label).toBe('S2 (T2–4)');
     expect(w?.parts.map(p => [p.label, p.fromM, p.toM])).toEqual([
       ['T2', 500, 620],
       ['T3', 620, 760],

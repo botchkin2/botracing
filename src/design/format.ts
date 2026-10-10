@@ -65,14 +65,6 @@ export function turnLabel(n: number, official?: string): string {
   return official ?? `T${n}`;
 }
 
-/**
- * The label without its "T" and any words after it, for badges and number
- * columns: "8", "10a" ("T7 entry" is "7").
- */
-export function turnNumber(n: number, official?: string): string {
-  return turnLabel(n, official).replace(/^T/, '').split(' ')[0];
-}
-
 /** "2,150 m" */
 export function formatDistance(distanceM: number): string {
   return `${Math.round(distanceM).toLocaleString('en-US')} m`;

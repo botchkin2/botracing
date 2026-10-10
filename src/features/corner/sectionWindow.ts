@@ -18,6 +18,7 @@ import {
   type TrackMapData,
 } from '@/src/data/sessions';
 import {formatGap, turnLabel} from '@/src/design';
+import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -96,10 +97,9 @@ const kph = (v: number | null) => (v == null ? '—' : `${Math.round(v)} km/h`);
 
 function sectionLabel(section: MapSection): string {
   const cs = section.parts.length ? section.parts : [section];
-  const name = (c: MapSection['parts'][number]) => turnLabel(c.n, c.official);
-  const first = name(cs[0]);
-  const last = name(cs[cs.length - 1]);
-  return `S${section.n} (${cs.length > 1 ? `${first}–${last}` : first})`;
+  return `S${section.n} (${sectionHeaderOf(
+    cs.map(c => turnLabel(c.n, c.official)),
+  )})`;
 }
 
 const seconds = (v: number | null) => (v == null ? '—' : v.toFixed(3));

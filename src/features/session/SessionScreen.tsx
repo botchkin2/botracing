@@ -42,6 +42,7 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {SessionGrid} from './components/SessionGrid';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -56,6 +57,7 @@ import {
   type RowModel,
   type Selection,
   type SessionScreenModel,
+  useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
 
@@ -89,7 +91,15 @@ export function SessionScreen({
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
   renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
-  const result = useSessionScreenModel(sessionId, selection);
+  // The one selection for this screen: the URL's laps, or the opening set when
+  // the URL names none. The model, the table, the chart and the grid all read it.
+  const openingIds = useSessionOpeningLapIds(sessionId);
+  const resolved = useMemo<Selection>(
+    () =>
+      selection.laps.length > 0 ? selection : {...selection, laps: openingIds},
+    [selection, openingIds],
+  );
+  const result = useSessionScreenModel(sessionId, resolved);
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -115,7 +125,7 @@ export function SessionScreen({
     <SessionView
       sessionId={sessionId}
       model={result.model}
-      selection={selection}
+      selection={resolved}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
@@ -394,9 +404,6 @@ function SessionView({
           />
         </View>
       )}
-      <View style={styles.section}>
-        <LapTableHeader width={tableW} />
-      </View>
     </View>
   );
 
@@ -543,6 +550,19 @@ function SessionView({
                   }
                   onDrag={ids => onSelectionChange({...selection, laps: ids})}
                 />
+              </View>
+              <SessionGrid
+                id={sessionId}
+                ticked={selection.laps}
+                onTap={lapId =>
+                  onSelectionChange({
+                    ...selection,
+                    laps: toggle(selection.laps, lapId),
+                  })
+                }
+              />
+              <View style={styles.section}>
+                <LapTableHeader width={tableW} />
               </View>
             </>
           }

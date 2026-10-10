@@ -10,12 +10,15 @@
 // - The token is never written to stdout or stderr: seats read the Metro log.
 import {createRequire} from 'node:module';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 
 export const SEAT_TOKEN_PATH = '/__seat-token';
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// The main checkout's functions/ (firebase-admin is installed there only). The
+// launcher passes it; a served worktree has no functions/node_modules.
+const mainRoot = () => process.env.LIVE_MAIN_ROOT ?? path.resolve(here, '..', '..');
 
 /** Mints a fresh seat-test custom token with the Admin SDK (needs SMOKE_SERVICE_ACCOUNT). */
 export async function mintSeatToken() {
@@ -25,10 +28,11 @@ export async function mintSeatToken() {
   process.env.GOOGLE_CLOUD_QUOTA_PROJECT ??= 'botracing-61';
   // Imported here: that script has top-level await, which metro.config.js
   // (CommonJS) cannot require.
+  const functions = path.join(mainRoot(), 'functions');
   const {TEST_UID, mintTestLinks} = await import(
-    '../../functions/scripts/mintTestToken.mjs'
+    pathToFileURL(path.join(functions, 'scripts', 'mintTestToken.mjs')).href
   );
-  const require = createRequire(path.join(here, '../../functions/package.json'));
+  const require = createRequire(path.join(functions, 'package.json'));
   const admin = require('firebase-admin');
   if (!admin.apps.length)
     admin.initializeApp({projectId: 'botracing-61', serviceAccountId});
