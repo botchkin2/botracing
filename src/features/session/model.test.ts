@@ -8,9 +8,7 @@ import {
   type LapRowModel,
   buildSessionModel,
   sectionTable,
-  selectStint,
   trafficPaceFacts,
-  toggleLap,
 } from './model';
 
 // Road Atlanta race, 2026-09-26: 22 laps, two stints, a pit stop at L17/L18.
@@ -117,25 +115,17 @@ describe('selection', () => {
     });
   });
 
-  it('first selected lap is the reference and cannot be toggled off', () => {
-    let sel = toggleLap(none, ids[20]);
-    sel = toggleLap(sel, ids[3]);
-    expect(toggleLap(sel, ids[20])).toBe(sel);
-    const m = buildSessionModel(session, laps, {...sel, hl: ids[20]});
-    expect(m.detail!.action).toBe('reference');
+  it('no lap is the reference: the highlighted lap is removable like any other', () => {
+    const sel = {laps: [ids[20], ids[3]], hl: ids[20]};
+    const m = buildSessionModel(session, laps, sel);
+    expect(m.detail!.action).toBe('remove');
     expect(m.tray).toMatchObject({count: 2, label: 'L21 · L4'});
   });
 
-  it('select stint adds comparable laps after the reference', () => {
-    const sel = selectStint({laps: [ids[20]], hl: null}, [
-      ids[17],
-      ids[18],
-      ids[19],
-      ids[20],
-    ]);
-    expect(sel.laps).toEqual([ids[20], ids[17], ids[18], ids[19]]);
+  it('a tray of more than three laps says how many, without naming a reference', () => {
+    const sel = {laps: [ids[17], ids[18], ids[19], ids[20]], hl: null};
     const m = buildSessionModel(session, laps, sel);
-    expect(m.tray!.label).toBe('L21 ref + 3 laps');
+    expect(m.tray!.label).toBe('4 laps');
   });
 });
 
