@@ -31,12 +31,15 @@ export function CornerGrid({
   rows,
   openCorner,
   onPressCorner,
+  onJumpSection,
 }: {
   width: number;
   corners: number[];
   rows: CornerGridRow[];
   openCorner: number | null;
   onPressCorner: (n: number) => void;
+  /** One tap on a section's header moves playback to that section's start (D28). */
+  onJumpSection: (n: number) => void;
 }) {
   const {color} = useTheme();
   const gap = 2;
@@ -48,9 +51,9 @@ export function CornerGrid({
         {corners.map(n => (
           <Pressable
             key={n}
-            onPress={() => onPressCorner(n)}
+            onPress={() => onJumpSection(n)}
             accessibilityRole='button'
-            accessibilityLabel={`Section ${n}`}
+            accessibilityLabel={`Jump to S${n}`}
             style={[styles.head, {width: cellW, marginLeft: gap}]}>
             <Text variant='tableHeader' tone='textMuted'>
               {`S${n}`}
