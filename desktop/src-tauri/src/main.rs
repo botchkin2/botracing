@@ -571,7 +571,10 @@ fn menu_state(
     waiting_update: Option<&str>,
     version: &str,
 ) -> menu::MenuState {
-    let upload = status::upload(status::last_beat(&status::read_tail(&paths.status_file())).as_ref());
+    let beat = status::last_beat(&status::read_tail(&paths.status_file()));
+    // The problems line takes the watcher's own state; each sim line its own part.
+    let upload = status::upload(beat.as_ref());
+    let upload_of = |sim: &str| status::upload_of(beat.as_ref(), sim);
     let lmu = menu::rec_of(recorder_lines[0]);
     let iracing = menu::rec_of(recorder_lines[1]);
     let signed_in = acct.session.is_some();
@@ -598,8 +601,8 @@ fn menu_state(
         primary: menu::primary(acct),
         signed_in,
         paused,
-        lmu: menu::sim_line("LMU", &lmu, &upload, uploads_on),
-        iracing: menu::sim_line("iRacing", &iracing, &upload, uploads_on),
+        lmu: menu::sim_line("LMU", &lmu, &upload_of("lmu"), uploads_on),
+        iracing: menu::sim_line("iRacing", &iracing, &upload_of("iracing"), uploads_on),
         problem: menu::problem_line(&problems),
         update: update::menu_line(waiting_update),
         version: format!("BotRacing {version}"),
