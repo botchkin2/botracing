@@ -23,7 +23,6 @@ import {
   greenLapsOf,
   eventLoad,
   HISTORY_SESSIONS,
-  isOtherSimCombo,
   historySessions,
   limitsOfDetails,
   planCombos,
@@ -263,25 +262,34 @@ describe('rulesCells', () => {
   });
 });
 
-describe('isOtherSimCombo', () => {
+describe('planCombos across sims', () => {
   const lmu = session('a', '2026-09-01T10:00:00Z');
   const ir = session('b', '2026-09-02T10:00:00Z', {
     sim: 'iracing',
-    trackId: 'iracing-127-full_course',
-    car: 'Ford Mustang GT3',
-  });
-  const key = (s: SessionSummary) =>
-    planComboKey(s.trackId, carLabel(s.car).model);
-
-  it('is true for a pair driven in another sim, false for LMU and for none', () => {
-    expect(isOtherSimCombo([lmu, ir], key(ir))).toBe(true);
-    expect(isOtherSimCombo([lmu, ir], key(lmu))).toBe(false);
-    expect(isOtherSimCombo([lmu, ir], null)).toBe(false);
-    expect(isOtherSimCombo([lmu], 'nowhere|Car')).toBe(false);
+    trackId: lmu.trackId,
+    track: lmu.track,
+    car: lmu.car,
   });
 
-  it('keeps the other sim out of the combos Plan offers', () => {
-    expect(planCombos([lmu, ir]).map(c => c.key)).toEqual([key(lmu)]);
+  it('offers an iRacing pair as its own combo, with the sim in its key', () => {
+    const combos = planCombos([ir]);
+    expect(combos.map(c => c.sim)).toEqual(['iracing']);
+    expect(combos[0].key).toBe(
+      planComboKey(ir.trackId, carLabel(ir.car).model, 'iracing'),
+    );
+  });
+
+  it('the same track id and car model in both sims are two combos, never pooled', () => {
+    const combos = planCombos([lmu, ir]);
+    expect(combos).toHaveLength(2);
+    expect(new Set(combos.map(c => c.key)).size).toBe(2);
+    expect(combos.every(c => c.sessions.length === 1)).toBe(true);
+  });
+
+  it('keeps LMU keys as they were, so saved presets and links still match', () => {
+    expect(planCombos([lmu])[0].key).toBe(
+      `${lmu.trackId}|${carLabel(lmu.car).model}`,
+    );
   });
 });
 
@@ -326,10 +334,10 @@ describe('planCombos', () => {
     ]);
   });
 
-  it('skips sessions without laps and other sims', () => {
+  it('skips sessions without laps', () => {
     const combos = planCombos([
       session('a', '2026-09-01T10:00:00Z', {lapCount: 0}),
-      session('b', '2026-09-02T10:00:00Z', {sim: 'iracing'}),
+      session('b', '2026-09-02T10:00:00Z', {lapCount: 0, sim: 'iracing'}),
     ]);
     expect(combos).toEqual([]);
   });
@@ -974,6 +982,7 @@ describe('fuelOnly', () => {
 describe('defaultCombo', () => {
   const combo = (key: string, comparable: number[]): Combo => ({
     key,
+    sim: 'lmu',
     trackId: 't',
     track: 't',
     label: key,
