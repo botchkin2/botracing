@@ -24,12 +24,14 @@
 export const PIT_VISIT_VERSION = 2;
 
 /** Slower than this is standing still (km/h). The game's speed reads 0.0 to 2.7 around a stop. */
+import {REFUEL_FUEL_MIN_L, REFUEL_VE_MIN_PCT} from '../../src/analysis/refuel.ts';
+
 export const STATIONARY_KMH = 1;
 /** Standing still this long (s, in all) is a stop; less is the car slowing for a speed bump or a box. */
 export const STOPPED_MIN_S = 3;
 /** Fuel (L) and VE (%) added by a service: under these is sensor noise. The fill ramp is ~3.4 L/s. */
-export const ADDED_FUEL_MIN_L = 1;
-export const ADDED_VE_MIN_PCT = 0.5;
+export const ADDED_FUEL_MIN_L = REFUEL_FUEL_MIN_L;
+export const ADDED_VE_MIN_PCT = REFUEL_VE_MIN_PCT;
 
 /**
  * Seconds the car stood still inside [a, b]: the time between samples whose

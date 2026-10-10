@@ -7,13 +7,15 @@
 // is left out, never guessed, until someone measures it. The number a screen
 // prints is computed (litres / rate), and the screen says so.
 
-/** Litres per second while the car is being refuelled. */
-// A refuel stop, for a session with no visit block: the same thresholds as the
-// uploader's visit classifier (tools/sessions/pitVisit.mjs). Below them is
-// sensor jitter, not a refuel.
+// A refuel stop, for a session with no visit block: the same thresholds the
+// uploader's visit classifier uses (tools/sessions/pitVisit.mjs imports them
+// from here). Below them is sensor jitter, not a refuel.
+/** Fuel added (L) that makes a stop a refuel. */
 export const REFUEL_FUEL_MIN_L = 1;
+/** VE added (%) that makes a stop a refuel. */
 export const REFUEL_VE_MIN_PCT = 0.5;
 
+/** Litres per second while the car is being refuelled. */
 export const REFUEL_L_PER_S = 3.4;
 
 /** The car classes the rate has been measured on. */
