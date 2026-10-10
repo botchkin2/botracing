@@ -167,11 +167,16 @@ fn check(live: &[Live], id: &str) -> CheckMenuItem<tauri::Wry> {
 
 fn main() {
     let builder = tauri::Builder::default();
+    // The single-instance hold is named after the app identifier; a profile
+    // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
+    // to the real tray, is held to one copy itself, and `--quit` with the same
+    // profile stops it: the clean stop for a seat's or CI's test tray.
+    let mut context = tauri::generate_context!();
+    let identifier = profile::identifier(&context.config().identifier);
+    context.config_mut().identifier = identifier;
     // A second launch ends at once (two watchers would fight over the same
-    // telemetry and state) and opens BotRacing in the browser instead. A
-    // profile (BOTRACING_PROFILE, for walkthroughs) is a separate copy that
-    // runs next to the real tray, so it is not held to this.
-    let builder = if profile::is_default() {
+    // telemetry and state) and opens BotRacing in the browser instead.
+    let builder = {
         builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // `botracing.exe --quit` is how the installer and uninstaller ask
             // the running tray to stop: the watcher is stopped first (so a
@@ -199,8 +204,6 @@ fn main() {
             let app = app.clone();
             std::thread::spawn(move || open_window(&app));
         }))
-    } else {
-        builder
     };
     builder
         .plugin(tauri_plugin_opener::init())
@@ -497,7 +500,7 @@ fn main() {
             });
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("BotRacing failed to start")
         .run(|_app, event| {
             // The tray has no windows, so the app would exit the moment it
