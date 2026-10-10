@@ -5,7 +5,8 @@
 // line) lets channels be compared point by point. Samples are evenly spaced
 // in time (100 Hz), so elapsed time is the sample index over the rate; on the
 // grid, the time difference to a reference is a plain subtraction. (Integrating
-// ds / v instead drifts: 0.75 s over an 80 s lap at Road Atlanta.)
+// ds / v instead drifts: 0.75 s over an 80 s lap at Road Atlanta.) Distance is
+// the game's LapDistPct times the layout's length (sampleDistances).
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
@@ -79,31 +80,34 @@ function stepper(xs: number[], ys: number[]): (x: number) => number {
   };
 }
 
-// Distance of every sample. LMU logs lap distance at 10 Hz and holds it in
-// between, so LapDistPct is stair-stepped at 100 Hz. Integrating speed gives a
-// smooth distance per sample; scaling it to span the logged start and end
-// removes the speed channel's small bias. Samples after the wrap at the line
-// are dropped.
-function sampleDistances(
-  raw: RawTrace,
-  lengthM: number,
-  sampleHz: number,
-): number[] {
+// Distance of every sample: the game's own LapDistPct times the layout's
+// length, the one axis the stored facts, the band and the field are on, so a
+// marker or a time difference lands on the plotted lap at the same metre. It is
+// track progress along the reference path, not driven length: a wider line adds
+// no metres. (Integrating speed instead drifted 8 to 11 m from it on every lap
+// and put the time difference 0.06 to 0.12 s off the stored section times.)
+//
+// - Running maximum inside a lap, never a re-sort: LapDistPct can step back a
+//   few centimetres at very low speed, in the pits or on a reset.
+// - The line: a trace that starts just before it (0.99 then 0.01) is unrolled by
+//   one lap, so those samples sit at negative metres instead of ending the lap;
+//   the wrap after the lap still ends it. Samples after that wrap are dropped.
+const START_BEFORE_LINE = 0.02;
+
+function sampleDistances(raw: RawTrace, lengthM: number): number[] {
   const pct = raw.lapDistPct;
-  let end = pct.length - 1;
-  for (let i = 1; i < pct.length; i++)
-    if (pct[i] < pct[i - 1] - 0.5) {
-      end = i - 1;
-      break;
-    }
-  const cum: number[] = [0];
-  for (let i = 1; i <= end; i++) {
-    const v = (raw.speedKph[i] + raw.speedKph[i - 1]) / 2 / 3.6;
-    cum.push(cum[i - 1] + v / sampleHz);
+  const first = pct.findIndex((p, i) => i > 0 && p < pct[i - 1] - 0.5);
+  const unroll =
+    first > 0 && pct[0] > 1 - START_BEFORE_LINE ? first : 0;
+  const out: number[] = [];
+  let top = -Infinity;
+  for (let i = 0; i < pct.length; i++) {
+    if (i > 0 && i !== unroll && pct[i] < pct[i - 1] - 0.5) break;
+    const lapPct = i < unroll ? pct[i] - 1 : pct[i];
+    top = Math.max(top, lapPct * lengthM);
+    out.push(top);
   }
-  const span = (pct[end] - pct[0]) * lengthM;
-  const scale = cum[end] > 0 && span > 0 ? span / cum[end] : 1;
-  return cum.map(c => pct[0] * lengthM + c * scale);
+  return out;
 }
 
 // Indexes where distance increases (drops stationary pit samples), so the
@@ -127,7 +131,7 @@ export function resampleTrace(
   stepM: number,
   sampleHz: number = TRACE_HZ,
 ): GridTrace {
-  const d = sampleDistances(raw, lengthM, sampleHz);
+  const d = sampleDistances(raw, lengthM);
   const keep = ascending(d);
   const pick = (a: number[]) => keep.map(i => a[i]);
   const xs = pick(d);
@@ -148,7 +152,10 @@ export function resampleTrace(
     return {distanceM: real.map(i => d[i]), values: real.map(i => a[i])};
   };
   const speedKph = lin(raw.speedKph);
-  const timeS = lin(raw.lapDistPct.map((_, i) => i / sampleHz));
+  // Seconds since the line, so a trace that starts before it (unrolled above)
+  // has the same clock as one that starts at it.
+  const clock = lin(raw.lapDistPct.map((_, i) => i / sampleHz));
+  const timeS = clock.map(t => t - clock[0]);
   return {
     stepM,
     distanceM,
