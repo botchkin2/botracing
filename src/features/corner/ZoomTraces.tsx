@@ -4,7 +4,7 @@ import {StyleSheet, View} from 'react-native';
 import {TraceChart, type TraceSeries} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
 import {drawnGear} from './drawnGear';
-import {lapColors, space, useTheme} from '@/src/design';
+import {lapColor, space, useTheme} from '@/src/design';
 import {type TraceLoad} from '@/src/data/traces';
 import {Skeleton, StatusBanner, Text, TraceRetryBanner} from '@/src/ui';
 
@@ -171,7 +171,7 @@ export function ZoomTraces({
                 <Text
                   key={r.lapId}
                   variant='dataSmall'
-                  style={{color: lapColors[scheme][r.onIndex]}}>
+                  style={{color: lapColor(scheme, r.onIndex)}}>
                   {r.label} {r.text}
                 </Text>
               ))}

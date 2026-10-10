@@ -127,7 +127,7 @@ export type DetailModel = {
   fuel: string[];
   /** Seconds and counts from the field; null on a lap without one (round 7, 2B). */
   traffic: TrafficRow[] | null;
-  action: 'add' | 'remove' | 'reference';
+  action: 'add' | 'remove';
 };
 
 export type TrayModel = {
@@ -182,7 +182,11 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return planComboKey(session.trackId, carLabel(session.car).model, session.sim);
+  return planComboKey(
+    session.trackId,
+    carLabel(session.car).model,
+    session.sim,
+  );
 }
 
 function buildFuelUseCard(
@@ -464,12 +468,7 @@ export function buildSessionModel(
     excluded: !hlLap.comparable,
     fuel: lapFuelLines(hlLap),
     traffic: trafficRows(hlLap.traffic),
-    action:
-      selIndexOf(hlLap.id) === 0
-        ? 'reference'
-        : selIndexOf(hlLap.id) != null
-        ? 'remove'
-        : 'add',
+    action: selIndexOf(hlLap.id) != null ? 'remove' : 'add',
   };
 
   const selected = selection.laps
@@ -482,7 +481,7 @@ export function buildSessionModel(
         label:
           selected.length <= 3
             ? selected.map(lapLabel).join(' · ')
-            : `${lapLabel(selected[0])} ref + ${selected.length - 1} laps`,
+            : `${selected.length} laps`,
       }
     : null;
 
@@ -541,22 +540,6 @@ export function buildSessionModel(
     fuelUse,
     planVsRace: raceFacts(session, planKeyOf(session), laps),
   };
-}
-
-// --- selection edits (pure; the screen writes the result to the URL) --------
-
-export function toggleLap(sel: Selection, lapId: string): Selection {
-  const i = sel.laps.indexOf(lapId);
-  if (i === 0) return sel; // the reference is not removed from here
-  return {
-    ...sel,
-    laps: i < 0 ? [...sel.laps, lapId] : sel.laps.filter(id => id !== lapId),
-  };
-}
-
-export function selectStint(sel: Selection, lapIds: string[]): Selection {
-  const rest = lapIds.filter(id => !sel.laps.includes(id));
-  return {...sel, laps: [...sel.laps, ...rest]};
 }
 
 export function useSessionScreenModel(id: string, selection: Selection) {
