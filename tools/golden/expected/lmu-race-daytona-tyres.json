@@ -1,0 +1,1180 @@
+{
+ "summary": {
+  "lapCount": 7,
+  "comparableCount": 3,
+  "bestLapTime": 108.922,
+  "medianLapTime": 108.947,
+  "stdevLapTime": 0.111
+ },
+ "stints": [
+  {
+   "n": 1,
+   "startReason": "session",
+   "firstLap": 0,
+   "lastLap": 6,
+   "laps": 7,
+   "comparable": 3,
+   "bestLapTime": 108.922,
+   "medianLapTime": 108.947,
+   "stdevLapTime": 0.111,
+   "greenLaps": 3,
+   "medianFuelL": 3.4,
+   "fuelSpreadL": 0.01,
+   "medianVePct": 3.5,
+   "veSpreadPct": 0.06
+  }
+ ],
+ "fuel": {
+  "startL": 100,
+  "fillLimitL": null,
+  "tankL": 117,
+  "litresPerVePct": 0.974,
+  "litresPerVePctStop": 1.303
+ },
+ "trackMapSource": "stored",
+ "corners": 7,
+ "cornerMedians": [
+  13.624,
+  9.807,
+  20.379,
+  11.687,
+  17.297,
+  13.475,
+  20.322
+ ],
+ "consistency": {
+  "overview": "2 laps. Best lap 108.922; best sections add up to 106.272."
+ },
+ "laps": [
+  {
+   "lap": 0,
+   "time": 150.565,
+   "timed": true,
+   "partial": true,
+   "stint": 1,
+   "reasons": [
+    "partial",
+    "pit-in",
+    "pit-out"
+   ],
+   "comparable": false,
+   "pitIn": true,
+   "pitOut": true,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 4.01,
+    "addedL": 0,
+    "veUsedPct": 3.1,
+    "veAddedPct": 0,
+    "green": false
+   },
+   "pitStop": {
+    "added": {
+     "fuelL": 4.04,
+     "vePct": 3.1
+    },
+    "atEntry": {
+     "fuelL": 96.03,
+     "vePct": 96.9
+    },
+    "inPitS": 110.4,
+    "tyresChanged": true,
+    "tyreWheels": [
+     "FR"
+    ],
+    "visit": "service"
+   },
+   "corners": []
+  },
+  {
+   "lap": 1,
+   "time": 197.594,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [
+    "pit-out"
+   ],
+   "comparable": false,
+   "pitIn": false,
+   "pitOut": true,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.33,
+    "addedL": 4.04,
+    "veUsedPct": 3.2,
+    "veAddedPct": 3.1,
+    "green": false
+   },
+   "pitStop": null,
+   "corners": [
+    {
+     "time": 92.063,
+     "parts": [
+      {
+       "brakeAtM": 207.8,
+       "peakBrakePct": 100,
+       "turnInAtM": 428.7,
+       "throttlePickupAtM": 242.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 468.8,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 59.9,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 589.2,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 99.7,
+       "fullThrottleAtM": 600.7,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 87.9,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 660.5,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 665.5,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 131.9,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 10.335,
+     "parts": [
+      {
+       "brakeAtM": 820.2,
+       "peakBrakePct": 65.3,
+       "turnInAtM": 892.6,
+       "throttlePickupAtM": 972.7,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1006.3,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 76.7,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 20.57,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 1401.5,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 1372.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 207.5,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": 1584.8,
+       "peakBrakePct": 92.7,
+       "turnInAtM": 1675.7,
+       "throttlePickupAtM": 1774.9,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1801.6,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 83.5,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 11.952,
+     "parts": [
+      {
+       "brakeAtM": 2045.1,
+       "peakBrakePct": 79.1,
+       "turnInAtM": 2113.1,
+       "throttlePickupAtM": 2148,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 2179.6,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 73.6,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 17.237,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2756.8,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2506.9,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 200.4,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2957.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2987.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 245.5,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 14.1,
+     "parts": [
+      {
+       "brakeAtM": 3683.3,
+       "peakBrakePct": 95.2,
+       "turnInAtM": 3782.5,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 135.3,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 3841.5,
+       "peakBrakePct": 70.5,
+       "turnInAtM": 3872.8,
+       "throttlePickupAtM": 3902.9,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 3953.1,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 108,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 3992.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4013,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 144.7,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 20.361,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4547.8,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4333.4,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 211.4,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4774,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4919.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 253.6,
+       "minSpeedAtEdge": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "lap": 2,
+   "time": 109.125,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.41,
+    "addedL": 0,
+    "veUsedPct": 3.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    {
+     "time": 13.807,
+     "parts": [
+      {
+       "brakeAtM": 259.3,
+       "peakBrakePct": 100,
+       "turnInAtM": 397.5,
+       "throttlePickupAtM": 463.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 524.3,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 89.6,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 590.1,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 601,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 153.3,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 642.6,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 665.5,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 168.3,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 9.918,
+     "parts": [
+      {
+       "brakeAtM": 824.5,
+       "peakBrakePct": 78,
+       "turnInAtM": 896.7,
+       "throttlePickupAtM": 973.2,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 989.1,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 72.4,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 20.379,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 1369.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 1370.5,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 208.4,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 1591.1,
+       "peakBrakePct": 88.3,
+       "turnInAtM": 1703.8,
+       "throttlePickupAtM": 1760.1,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1781.7,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 77.8,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 11.97,
+     "parts": [
+      {
+       "brakeAtM": 2043.8,
+       "peakBrakePct": 87.7,
+       "turnInAtM": 2112,
+       "throttlePickupAtM": 2149.7,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 2183.3,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 75.4,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 17.298,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2878.8,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2506.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 198.7,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2878.8,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2986,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 243.7,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 13.076,
+     "parts": [
+      {
+       "brakeAtM": 3691.2,
+       "peakBrakePct": 95.3,
+       "turnInAtM": 3783.2,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 156.7,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 3841.2,
+       "peakBrakePct": 39.4,
+       "turnInAtM": 3864.3,
+       "throttlePickupAtM": 3924.4,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 3949.8,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 124.6,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4001.5,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4011.7,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 151.3,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 20.292,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4585.4,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4331.4,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 213.2,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4917.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 254.9,
+       "minSpeedAtEdge": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "lap": 3,
+   "time": 108.922,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.4,
+    "addedL": 0,
+    "veUsedPct": 3.5,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    {
+     "time": 13.554,
+     "parts": [
+      {
+       "brakeAtM": 257.1,
+       "peakBrakePct": 92.8,
+       "turnInAtM": 399.9,
+       "throttlePickupAtM": 472,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 486.7,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 88.7,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 586.4,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 600.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 155.1,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 668.2,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 665.8,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 172.3,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 9.626,
+     "parts": [
+      {
+       "brakeAtM": 834.1,
+       "peakBrakePct": 100,
+       "turnInAtM": 895.9,
+       "throttlePickupAtM": 950.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 977.5,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 72.9,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 20.427,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 1354.7,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 1370.9,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 209.3,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 1589.6,
+       "peakBrakePct": 96.4,
+       "turnInAtM": 1686.5,
+       "throttlePickupAtM": 1765.5,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1802.4,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 81.2,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 11.687,
+     "parts": [
+      {
+       "brakeAtM": 2047.4,
+       "peakBrakePct": 100,
+       "turnInAtM": 2101.6,
+       "throttlePickupAtM": 2146.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 2187.6,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 90.1,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 17.297,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2542.7,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2505.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 199.6,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2985.8,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 244.2,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 13.6,
+     "parts": [
+      {
+       "brakeAtM": 3685.2,
+       "peakBrakePct": 99.7,
+       "turnInAtM": 3782.5,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 134,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 3838.5,
+       "peakBrakePct": 39,
+       "turnInAtM": 3860.4,
+       "throttlePickupAtM": 3892.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 3954.3,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 122.7,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 3998.3,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4010.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 148.9,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 20.336,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4559.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4330.4,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 212.8,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4852,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4915.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 253.7,
+       "minSpeedAtEdge": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "lap": 4,
+   "time": 108.947,
+   "timed": true,
+   "partial": false,
+   "stint": 1,
+   "reasons": [],
+   "comparable": true,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.39,
+    "addedL": 0,
+    "veUsedPct": 3.4,
+    "veAddedPct": 0,
+    "green": true
+   },
+   "pitStop": null,
+   "corners": [
+    {
+     "time": 13.624,
+     "parts": [
+      {
+       "brakeAtM": 261.8,
+       "peakBrakePct": 95.9,
+       "turnInAtM": 398.3,
+       "throttlePickupAtM": 470,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 501.5,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 93.8,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 592.4,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 600.4,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 153,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 667.6,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 665.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 170.4,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 9.807,
+     "parts": [
+      {
+       "brakeAtM": 830.8,
+       "peakBrakePct": 96.2,
+       "turnInAtM": 900.5,
+       "throttlePickupAtM": 961.6,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 980.7,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 72.8,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 20.357,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 1352,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 1369.9,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 209.2,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 1587.7,
+       "peakBrakePct": 91.5,
+       "turnInAtM": 1686.2,
+       "throttlePickupAtM": 1766.8,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1784.7,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 82,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 11.668,
+     "parts": [
+      {
+       "brakeAtM": 2047.8,
+       "peakBrakePct": 97.2,
+       "turnInAtM": 2106.3,
+       "throttlePickupAtM": 2140.9,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 2183.5,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 83.9,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 17.27,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2832.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2504.1,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 201,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2984,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 244.7,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 13.475,
+     "parts": [
+      {
+       "brakeAtM": 3685,
+       "peakBrakePct": 97.6,
+       "turnInAtM": 3770.3,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 151,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 3843,
+       "peakBrakePct": 41.8,
+       "turnInAtM": 3863.5,
+       "throttlePickupAtM": 3907.3,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 3947,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 122.2,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4000.9,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4008.1,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 144.4,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 20.322,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4328.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 212.2,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4912.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 253.6,
+       "minSpeedAtEdge": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "lap": 5,
+   "time": 114.04,
+   "timed": false,
+   "partial": false,
+   "stint": 1,
+   "reasons": [
+    "untimed"
+   ],
+   "comparable": false,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 3.11,
+    "addedL": 0,
+    "veUsedPct": 3.1,
+    "veAddedPct": 0,
+    "green": false
+   },
+   "pitStop": null,
+   "corners": [
+    {
+     "time": 13.558,
+     "parts": [
+      {
+       "brakeAtM": 254.1,
+       "peakBrakePct": 87.9,
+       "turnInAtM": 398.7,
+       "throttlePickupAtM": 458.3,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 485.1,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 84.3,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 587.1,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 600.2,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 156.2,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 661.8,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 665.7,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 172.4,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 10.014,
+     "parts": [
+      {
+       "brakeAtM": 826,
+       "peakBrakePct": 85,
+       "turnInAtM": 895.5,
+       "throttlePickupAtM": 949.9,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 981,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 72.7,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 20.5,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 1359.1,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 1370.5,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 205.8,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 1596.5,
+       "peakBrakePct": 100,
+       "turnInAtM": 1686.2,
+       "throttlePickupAtM": 1769.4,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 1786.4,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 79.5,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 11.677,
+     "parts": [
+      {
+       "brakeAtM": 2051.6,
+       "peakBrakePct": 100,
+       "turnInAtM": 2102.5,
+       "throttlePickupAtM": 2150.2,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 2181.9,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 86,
+       "minSpeedAtEdge": false
+      }
+     ]
+    },
+    {
+     "time": 17.259,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 2589.3,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2505.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 199.6,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": null,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 2986.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 244.5,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 13.173,
+     "parts": [
+      {
+       "brakeAtM": 3692.2,
+       "peakBrakePct": 97.8,
+       "turnInAtM": 3775.1,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 140.5,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": 3839.3,
+       "peakBrakePct": 44.5,
+       "turnInAtM": 3864.2,
+       "throttlePickupAtM": 3904.8,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": 3955.4,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 124.4,
+       "minSpeedAtEdge": false
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4003.1,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 100,
+       "fullThrottleAtM": 4011.6,
+       "fullThrottleAtEdge": true,
+       "minSpeedKmh": 155.3,
+       "minSpeedAtEdge": true
+      }
+     ]
+    },
+    {
+     "time": 25.387,
+     "parts": [
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4422.7,
+       "throttlePickupAtM": null,
+       "minThrottlePct": 0,
+       "fullThrottleAtM": null,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 184.7,
+       "minSpeedAtEdge": true
+      },
+      {
+       "brakeAtM": null,
+       "peakBrakePct": null,
+       "turnInAtM": 4939,
+       "throttlePickupAtM": 5057.1,
+       "minThrottlePct": 3.2,
+       "fullThrottleAtM": 5070.4,
+       "fullThrottleAtEdge": false,
+       "minSpeedKmh": 179.1,
+       "minSpeedAtEdge": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "lap": 6,
+   "time": 8.987,
+   "timed": false,
+   "partial": true,
+   "stint": 1,
+   "reasons": [
+    "partial",
+    "untimed"
+   ],
+   "comparable": false,
+   "pitIn": false,
+   "pitOut": false,
+   "offtrack": false,
+   "offTrackSec": 0,
+   "fuel": {
+    "usedL": 0,
+    "addedL": 0,
+    "veUsedPct": 0,
+    "veAddedPct": 0,
+    "green": false
+   },
+   "pitStop": null,
+   "corners": []
+  }
+ ]
+}
