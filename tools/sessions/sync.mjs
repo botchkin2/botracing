@@ -67,6 +67,7 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {planBlock} from './planBlock.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
@@ -600,6 +601,8 @@ function build(
     // Start fuel, the fill limit and the tank in litres (fuelFacts.mjs); the
     // limit and tank are null when the car setup is missing.
     fuel: a.fuel,
+    // What the Plan reads of this session's laps, in one small block (planBlock.mjs).
+    plan: planBlock({fuel: a.fuel, laps}),
     band: a.band
       ? {
           path: `bands/${ownerId}/${s.id}/v1.json.gz`,
