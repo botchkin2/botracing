@@ -54,8 +54,7 @@ export function pointOnLine(
  * the line's direction of travel, as trackSurface.ts measures it (RIGHT = 1),
  * so a car is on the drawn road when the game says it is. The recorder's own
  * x/z sits about 8 m off the road at Road Atlanta's T7 (pit-wall #3833), so
- * it is used only where the lap distance is missing: `worldToMap` converts
- * those world metres to the line's frame. iRacing has no lateral, so its cars
+ * it is used only where the lap distance is missing. iRacing has no lateral, so its cars
  * stay on the line and `placedOnLine` is set.
  *
  * The lap distances, pathLateralM (shared, not copied) and pit state are kept.
@@ -109,7 +108,7 @@ export function projectOnLine(
  * and it is put `pathLateralM` metres to the right of travel from there, as
  * trackSurface.ts measures it (RIGHT = 1). Where lap distance is missing or the
  * projection is over MAX_PROJECT_M away, the car is drawn at its x/z converted
- * by `worldToMap`.
+ * as they are (world metres).
  *
  * iRacing (`lateral` false): the car is at its lap distance on the line; the
  * offset stays unknown (NaN), so `placedOnLine` is set.
@@ -124,13 +123,11 @@ export function placeFieldOnLine(
   opts: {
     /** The line is the measured centre path and pathLateralM is off it. */
     lateral: boolean;
-    worldToMap?: (x: number, z: number) => {x: number; y: number};
   } = {lateral: false},
 ): Field {
-  const {lateral, worldToMap} = opts;
-  // The car's x/z in the line's frame: identity when the line is world metres.
-  const toLine = (x: number, z: number) =>
-    worldToMap ? worldToMap(x, z) : {x, y: z};
+  const {lateral} = opts;
+  // The line and the cars are both world metres: x/z is taken as it is.
+  const toLine = (x: number, z: number) => ({x, y: z});
   const updates = field.timeS.length;
   const cars: FieldCar[] = field.cars.map(car => {
     const xM = new Float32Array(updates).fill(NaN);
