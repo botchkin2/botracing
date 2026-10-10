@@ -38,6 +38,16 @@ export function clockLabel(timeS: number): string {
   return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
 }
 
+/**
+ * The race clock: time from the start (the update the race starts at,
+ * `RacePrep.startU`), not from the first field update, so the first seconds
+ * of a recording that begins on the formation lap are a countdown ("−4:12.3").
+ */
+export function raceClockLabel(timeS: number, startS: number): string {
+  const t = timeS - startS;
+  return t < 0 ? `−${clockLabel(-t)}` : clockLabel(t);
+}
+
 /** Seconds a step button moves the clock (the phone's -5 s and +5 s). */
 export const STEP_S = 5;
 

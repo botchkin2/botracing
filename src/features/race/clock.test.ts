@@ -4,6 +4,7 @@ import {
   clockLabel,
   MAX_STEP_S,
   nextRate,
+  raceClockLabel,
   RACE_RATES,
   snapClock,
   stepBy,
@@ -75,5 +76,14 @@ describe('nextRate', () => {
     expect(nextRate(1)).toBe(2);
     expect(nextRate(0.25)).toBe(0.5);
     expect(nextRate(16)).toBe(0.25);
+  });
+});
+
+describe('raceClockLabel', () => {
+  it('counts from the start, and counts down to it before', () => {
+    expect(raceClockLabel(257.9 + 83.4, 257.9)).toBe('1:23.4');
+    expect(raceClockLabel(257.9, 257.9)).toBe('0:00.0');
+    expect(raceClockLabel(250, 257.9)).toBe('−0:07.9');
+    expect(raceClockLabel(10, 0)).toBe('0:10.0');
   });
 });

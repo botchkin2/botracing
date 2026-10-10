@@ -33,6 +33,9 @@ describe('format', () => {
   it('signed gaps', () => {
     expect(formatGap(0.312)).toBe('+0.312');
     expect(formatGap(-0.105)).toBe('−0.105');
+    expect(formatGap(0.0004)).toBe('±0.000');
+    expect(formatGap(-0.0004)).toBe('±0.000');
+    expect(formatGap(0.0006)).toBe('+0.001');
     expect(formatCornerGap(0.214)).toBe('+.21');
     expect(formatCornerGap(-1.04)).toBe('−1.04');
   });
@@ -54,6 +57,10 @@ describe('formatRaceGap', () => {
     expect(formatRaceGap(59.9994)).toBe('+59.999');
     expect(formatRaceGap(64.2)).toBe('+1:04.2');
     expect(formatRaceGap(600)).toBe('+10:00.0');
+    // Rounding carries into the minutes, never "+1:60.0" or "+60.000".
+    expect(formatRaceGap(119.97)).toBe('+2:00.0');
+    expect(formatRaceGap(59.9996)).toBe('+1:00.0');
+    expect(formatRaceGap(3599.97)).toBe('+60:00.0');
   });
 });
 

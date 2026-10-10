@@ -35,10 +35,10 @@ const LENGTH_M = 1000;
 // A lap on a 1000 m circle at constant speed, in LMU's fake-origin degrees.
 function circleLap(speedKph: number): RawTrace {
   const v = speedKph / 3.6;
-  const n = Math.ceil(LENGTH_M / v / 0.1) + 1;
-  const pct = Array.from({length: n}, (_, i) =>
-    Math.min(1, (i * 0.1 * v) / LENGTH_M),
-  );
+  // Every sample on the lap (pct below 1), none forced onto the line: the
+  // distance is the game's LapDistPct, so a clamped last sample would be a jump.
+  const n = Math.floor(LENGTH_M / v / 0.1) + 1;
+  const pct = Array.from({length: n}, (_, i) => (i * 0.1 * v) / LENGTH_M);
   const r = LENGTH_M / (2 * Math.PI);
   const same = (x: number) => pct.map(() => x);
   return {

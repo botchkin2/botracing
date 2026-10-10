@@ -29,7 +29,7 @@ import {
   Text,
 } from '@/src/ui';
 
-import {clockLabel, nextRate, snapClock, stepBy} from './clock';
+import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
 import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
@@ -302,6 +302,8 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
+  // The race clock counts from the start, not from the first update.
+  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   const cars = useMemo(
     () => markPitLane(carsAt(prep, shownS, snap), placer),
     [prep, shownS, snap, placer],
@@ -449,7 +451,10 @@ function RaceView({
                 data: radarData,
                 // The sample time is printed on the large sizes only (R2).
                 sampleLabel: desktop
-                  ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
+                  ? `${raceClockLabel(
+                      times[Math.max(0, radarU)] ?? 0,
+                      startS,
+                    )} · 5 Hz`
                   : undefined,
               }
         }
@@ -491,6 +496,7 @@ function RaceView({
       zoom={zoom}
       onZoom={setZoom}
       playheadS={shownS}
+      startS={startS}
       // Never negative: columnW is 0 until onLayout, and an SVG with a
       // negative width logs an error.
       width={
@@ -505,7 +511,7 @@ function RaceView({
     <RaceTransport
       playing={clock.playing}
       rate={clock.rate}
-      clock={clockLabel(shownS)}
+      clock={raceClockLabel(shownS, startS)}
       onToggle={toggle}
       onRate={clock.setRate}
       phone={
@@ -553,40 +559,54 @@ function RaceView({
   );
 
   if (desktop) {
+    const column = (
+      <View
+        style={styles.mapColumn}
+        onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
+        <View style={styles.subRow}>
+          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+            {sub}
+          </Text>
+        </View>
+        {roadLine ? (
+          <Text variant='dataSmall' tone='textSecondary'>
+            {roadLine}
+          </Text>
+        ) : null}
+        <View
+          style={styles.mapFill}
+          onLayout={e =>
+            setMapBox({
+              width: Math.floor(e.nativeEvent.layout.width),
+              height: Math.floor(e.nativeEvent.layout.height),
+            })
+          }>
+          {mapBox.width > 0 && mapBox.height > 0 ? map : null}
+        </View>
+        <RaceLegend classes={rows.classes} />
+        {lanesBlock}
+        {controls}
+        {layout.isWide ? null : (
+          <View style={[styles.boardBelow, {borderColor: color.line}]}>
+            {board}
+          </View>
+        )}
+      </View>
+    );
     return (
       <View style={styles.desktop}>
-        <View
-          style={styles.mapColumn}
-          onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
-          <View style={styles.subRow}>
-            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
-              {sub}
-            </Text>
-          </View>
-          {roadLine ? (
-            <Text variant='dataSmall' tone='textSecondary'>
-              {roadLine}
-            </Text>
-          ) : null}
-          <View
-            style={styles.mapFill}
-            onLayout={e =>
-              setMapBox({
-                width: Math.floor(e.nativeEvent.layout.width),
-                height: Math.floor(e.nativeEvent.layout.height),
-              })
-            }>
-            {mapBox.width > 0 && mapBox.height > 0 ? map : null}
-          </View>
-          <RaceLegend classes={rows.classes} />
-          {lanesBlock}
-          {controls}
-          {layout.isWide ? null : (
-            <View style={[styles.boardBelow, {borderColor: color.line}]}>
-              {board}
-            </View>
-          )}
-        </View>
+        {layout.isWide ? (
+          column
+        ) : (
+          // 900 to 1279: the map, lanes, controls and the board below add up to
+          // more than a short window, so the column scrolls as a page; the map
+          // keeps its least height and the board is never cut off by the fold.
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.fillGrow}>
+            {column}
+          </ScrollView>
+        )}
         {layout.isWide ? (
           <>
             <PanelDivider
@@ -644,6 +664,7 @@ function RaceView({
 const styles = StyleSheet.create({
   screen: {flex: 1},
   fill: {flex: 1},
+  fillGrow: {flexGrow: 1},
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,6 +4,7 @@ import {useCallback, useMemo} from 'react';
 import {
   type GridTrace,
   type RawTrace,
+  inferTraceHz,
   resampleTrace,
 } from '@/src/analysis/resample';
 
@@ -32,9 +33,21 @@ async function fetchLapTrace(
  */
 export function useLapTraces(
   lapIds: string[],
-  grid: {lengthM: number; stepM: number},
+  grid: TraceGrid,
 ): (GridTrace | undefined)[] {
   return useLapTraceLoad(lapIds, grid).traces;
+}
+
+/**
+ * The distance grid, and each lap's trace rate (rows per second, `Lap.traceHz`):
+ * the clock is row / rate, 60 on iRacing. A lap not named reads at TRACE_HZ.
+ */
+export interface TraceGrid {
+  lengthM: number;
+  stepM: number;
+  hzOf?: Readonly<Record<string, number | null>>;
+  /** Official lap times, to infer a rate the lap doc does not carry. */
+  timeOf?: Readonly<Record<string, number | null>>;
 }
 
 export interface LapTraceLoad {
@@ -47,16 +60,35 @@ export interface LapTraceLoad {
 /** `useLapTraces` plus what to tell the person about a slow or failed load. */
 export function useLapTraceLoad(
   lapIds: string[],
-  grid: {lengthM: number; stepM: number},
+  grid: TraceGrid,
   // How many of the first `lapIds` the person asked for; the rest are
   // fetched for a neighbouring lap and never count as a failure to show.
   asked = lapIds.length,
 ): LapTraceLoad {
-  const {lengthM, stepM} = grid;
+  const {lengthM, stepM, hzOf, timeOf} = grid;
   const client = useQueryClient();
-  const select = useCallback(
-    (raw: RawTrace) => resampleTrace(raw, lengthM, stepM),
-    [lengthM, stepM],
+  // One select per lap, stable while the grid and the rates are: a query
+  // re-runs its select when the function changes, and a trace is big.
+  const lapKey = lapIds.join(',');
+  const selects = useMemo(
+    () =>
+      new Map(
+        lapKey
+          .split(',')
+          .filter(Boolean)
+          .map(id => [
+            id,
+            (raw: RawTrace) =>
+              resampleTrace(
+                raw,
+                lengthM,
+                stepM,
+                hzOf?.[id] ??
+                  inferTraceHz(raw.lapDistPct.length, timeOf?.[id] ?? null),
+              ),
+          ]),
+      ),
+    [lapKey, lengthM, stepM, hzOf, timeOf],
   );
   const results = useQueries({
     queries: lapIds.map(lapId => ({
@@ -67,7 +99,7 @@ export function useLapTraceLoad(
       staleTime: Infinity,
       retry: retryUnlessClientError,
       enabled: lengthM > 0,
-      select,
+      select: selects.get(lapId),
     })),
     combine: rs => rs.map(r => ({data: r.data, status: r.status})),
   });

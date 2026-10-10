@@ -430,6 +430,41 @@ describe('the median basis (no Ref picked)', () => {
     expect(gap(withX, 'a')).toBe(gap(withoutX, 'a'));
   });
 
+  it('the median delta is on the window clock: no lap-time ramp, ends near zero', () => {
+    // A corner slice's clock stops where the window does (here 6 s), far short
+    // of the 20 s lap time. Stretching it to the lap time added a made-up 14 s
+    // ramp to the median, and every lap read about -14 s at the window's end.
+    const window = (kph: number) => {
+      const t = cornerTrace(kph);
+      return {...t, timeS: t.timeS.map(x => Math.min(x, 6))};
+    };
+    const traces = new Map(
+      [
+        ['a', 180],
+        ['b', 182],
+        ['c', 184],
+      ].map(([id, kph]) => [id as string, window(kph as number)]),
+    );
+    const m = buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces,
+      lapIds: ['a', 'b', 'c'],
+      refId: null,
+      keyLapIds: ['a', 'b', 'c'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(m.zoom.lines).toHaveLength(3);
+    for (const line of m.zoom.lines) {
+      const finite = line.deltaS.filter(Number.isFinite);
+      expect(finite.length).toBeGreaterThan(10);
+      expect(Math.max(...finite.map(Math.abs))).toBeLessThan(1);
+    }
+  });
+
   it('a picked Ref is the basis, and it has no difference against itself', () => {
     const m = median(['a', 'b', 'c'], 'b');
     expect(m.subtitle).toContain('vs L');
@@ -457,6 +492,27 @@ describe('strips at 7+ laps', () => {
     hl: 'm3',
     corner: 3,
   })!;
+
+  it('a highlighted lap outside the set joins no strip median', () => {
+    const odd = toLaps([
+      ...many.map(l => lap(l.id, [10 + 0, 450, 100, 650])),
+      lap('far', [30, 200, 40, 900], false),
+    ]);
+    const run = (hl: string | null) =>
+      buildCornerModel({
+        session,
+        laps: odd,
+        map,
+        band: null,
+        traces: new Map(),
+        lapIds: many.map(l => l.id),
+        refId: null,
+        keyLapIds: ['m0', 'm3'],
+        hl,
+        corner: 3,
+      })!;
+    expect(run('far').strips).toEqual(run(null).strips);
+  });
 
   it('four strips with summary; brake axis in track order', () => {
     expect(m.strips!.map(s => s.measure)).toEqual([
