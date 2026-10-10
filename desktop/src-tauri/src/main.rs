@@ -37,16 +37,17 @@ fn opens_on_start(debug_build: bool, env_set: bool) -> bool {
     debug_build && env_set
 }
 
-/// The seat-test custom token file a local test tray signs in with, instead of
-/// the browser (thread 1 #3451, docs/TESTING.md). Only a debug build under a
-/// BOTRACING_PROFILE honours it, so it never touches the real tray's sign-in
-/// and an installed (release) tray ignores it.
+/// The seat-test custom token file a test tray signs in with, instead of the
+/// browser (thread 1 #3451, docs/TESTING.md). Only a tray under a
+/// BOTRACING_PROFILE honours it, release builds included, so CI can sign in the
+/// installer it ships (apex #3508); the real tray never does. The safety is the
+/// uid check (auth::seat_test_sign_in): a token for anyone but seat-test is
+/// refused, so the file can only ever make a tray seat-test.
 fn seat_token_file(
-    debug_build: bool,
     default_profile: bool,
     env: Option<std::ffi::OsString>,
 ) -> Option<std::path::PathBuf> {
-    if !debug_build || default_profile {
+    if default_profile {
         return None;
     }
     env.map(std::path::PathBuf::from)
@@ -239,7 +240,6 @@ fn main() {
             // Before the poll thread starts, so it never opens a browser
             // sign-in for a test tray that signs in from a file.
             if let Some(file) = seat_token_file(
-                cfg!(debug_assertions),
                 profile::is_default(),
                 std::env::var_os("BOTRACING_SEAT_TOKEN_FILE"),
             ) {
@@ -573,16 +573,16 @@ mod tests {
     use super::{opens_on_start, seat_token_file, wants_quit};
 
     #[test]
-    fn only_a_debug_test_profile_signs_in_from_a_file() {
+    fn only_a_test_profile_signs_in_from_a_file() {
         let file = || Some(std::ffi::OsString::from("seat.token"));
+        // A profile (debug or release build alike): the file.
         assert_eq!(
-            seat_token_file(true, false, file()),
+            seat_token_file(false, file()),
             Some(std::path::PathBuf::from("seat.token"))
         );
-        // The real tray, a release build, or no variable: the browser, as always.
-        assert_eq!(seat_token_file(true, true, file()), None);
-        assert_eq!(seat_token_file(false, false, file()), None);
-        assert_eq!(seat_token_file(true, false, None), None);
+        // The real tray, or no variable: the browser, as always.
+        assert_eq!(seat_token_file(true, file()), None);
+        assert_eq!(seat_token_file(false, None), None);
     }
 
     #[test]
