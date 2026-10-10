@@ -23,6 +23,8 @@ keyring = { version = "3", features = ["windows-native"] }
 tauri-plugin-single-instance = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 regex = "1"
+# Plain paths for node: Tauri hands resource_dir() over as a \\?\ path (sidecar::plain).
+dunce = "1"
 parquet = { version = "60.0.0", features = ["arrow", "zstd"] }
 arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }
