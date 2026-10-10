@@ -81,9 +81,6 @@ export function SessionGrid({
       {grid.rows.map(r => (
         <GridLapRow key={r.lapId} row={r} onTap={onTap} />
       ))}
-      <Text variant='dataSmall' tone='textMuted' style={styles.legend}>
-        colour: vs this section&apos;s spread · bar: seconds
-      </Text>
     </View>
   );
 }
@@ -167,5 +164,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   dim: {opacity: 0.45},
-  legend: {paddingHorizontal: space.sm},
 });
