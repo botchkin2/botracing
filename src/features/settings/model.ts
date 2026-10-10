@@ -187,7 +187,7 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
     title: u.host,
     subtitle: [
       u.version && `v${u.version}`,
-      u.lmuFound ? 'LMU found' : 'LMU not found',
+      u.lmuFound == null ? null : u.lmuFound ? 'LMU found' : 'LMU not found',
     ]
       .filter(Boolean)
       .join(' · '),

@@ -885,12 +885,13 @@ test('a heartbeat is checked field by field', async () => {
   );
 });
 
-test("the tray's own report that the uploader stopped is accepted", async () => {
+test("the tray's own report that the uploader stopped is accepted, without lmuFound", async () => {
   const w = clockWorld();
   const res = await send(
     w,
     'tok-a',
     beat({
+      lmuFound: undefined,
       state: 'error',
       problems: [
         {
@@ -906,6 +907,7 @@ test("the tray's own report that the uploader stopped is accepted", async () => 
   const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
   assert.equal(stored.problems[0].kind, 'uploader-stopped');
   assert.equal(stored.problems[0].count, 2);
+  assert.equal('lmuFound' in stored, false, 'not stored when not sent');
 });
 
 test('a heartbeat problem message stores no token or address', async () => {

@@ -420,7 +420,7 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
         when(v.lastChunkAt)) &&
       (v.updatedAt === null || v.updatedAt === undefined || when(v.updatedAt))),
 };
-const HEARTBEAT_REQUIRED = ['label', 'version', 'lmuFound', 'state'];
+const HEARTBEAT_REQUIRED = ['label', 'version', 'state'];
 
 async function heartbeat(
   uid: string,

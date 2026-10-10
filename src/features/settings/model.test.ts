@@ -45,6 +45,11 @@ describe('uploaderCard', () => {
     const c = uploaderCard(rig(), NOW);
     expect(c.dot).toBe('connected');
     expect(c.subtitle).toBe('v0.3.1 · LMU found');
+    // The tray's own failure report does not say whether LMU was found.
+    expect(uploaderCard(rig({lmuFound: null}), NOW).subtitle).toBe('v0.3.1');
+    expect(uploaderCard(rig({lmuFound: false}), NOW).subtitle).toBe(
+      'v0.3.1 · LMU not found',
+    );
     expect(c.status).toBe('Syncing · seen 2 min ago');
     expect(c.lines).toEqual([
       'Last upload 30 min ago · session bc1d5cd6',

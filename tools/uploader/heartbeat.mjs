@@ -14,7 +14,7 @@ export function hostIdOf(machineName) {
 export function scrub(message) {
   return String(message ?? '')
     .split(/\r?\n/)[0]
-    .replace(/[A-Za-z]:[\\/]Users[\\/][^\\/\s'"]+/gi, '~')
+    .replace(/[A-Za-z]:[\\/]Users[\\/][^\\/'"]+/gi, '~')
     .slice(0, 300);
 }
 
