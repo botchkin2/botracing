@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 
 import {space, useLayout, useTheme} from '@/src/design';
-import {trackHref} from '@/src/nav/routes';
+import {compareHref, trackHref} from '@/src/nav/routes';
 import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
 
@@ -177,7 +177,19 @@ export function SessionWorkspace({
           }
         />
         <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
-          <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
+          <LapTableHeader
+            width={innerW}
+            wide
+            heads={model.sections?.heads}
+            headTaps={model.sections?.targets.map(t => t.corner != null)}
+            onHeadPress={i => {
+              const corner = model.sections?.sections[i];
+              if (corner != null)
+                router.push(
+                  compareHref(sessionId, {laps: selection.laps, corner}),
+                );
+            }}
+          />
         </View>
         <FlatList
           ref={listRef}

@@ -45,11 +45,17 @@ export function LapTableHeader({
   width,
   wide = false,
   heads = ['S1', 'S2', 'S3'],
+  headTaps,
+  onHeadPress,
 }: {
   width: number;
   wide?: boolean;
   /** The section columns' labels; the phone keeps the game's sectors. */
   heads?: string[];
+  /** Which heads are taps (the start straight is not). */
+  headTaps?: boolean[];
+  /** Tap a section column: the index of its head. Absent, the heads are labels only. */
+  onHeadPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
@@ -74,16 +80,29 @@ export function LapTableHeader({
       {wide && cell('Stint', WIDE_COLS.stint, false)}
       {cell('Time', cols.time)}
       {cell('vs med', cols.gap)}
-      {heads.map(h => (
-        <Text
-          key={h}
-          variant='tableHeader'
-          tone='textMuted'
-          numberOfLines={1}
-          style={[styles.right, {width: sectionW}]}>
-          {h}
-        </Text>
-      ))}
+      {heads.map((h, i) => {
+        const text = (
+          <Text
+            key={h}
+            variant='tableHeader'
+            tone='textMuted'
+            numberOfLines={1}
+            style={[styles.right, {width: sectionW}]}>
+            {h}
+          </Text>
+        );
+        return onHeadPress && headTaps?.[i] ? (
+          <Pressable
+            key={`${h}-${i}`}
+            accessibilityRole='button'
+            accessibilityLabel={`Open ${h} in Compare`}
+            onPress={() => onHeadPress(i)}>
+            {text}
+          </Pressable>
+        ) : (
+          text
+        );
+      })}
       <Text
         variant='tableHeader'
         tone='textMuted'
@@ -183,6 +202,8 @@ export function LapRow({
   row,
   width,
   wide = false,
+  onSectionPress,
+  sectionTaps,
   lapColor,
   onPress,
   onToggle,
@@ -193,10 +214,16 @@ export function LapRow({
   lapColor: string | undefined;
   onPress: () => void;
   onToggle: () => void;
+  /** Which section columns are taps (the start straight is not). */
+  sectionTaps?: boolean[];
+  /** Tap a lap x section cell: the index of its section column. */
+  onSectionPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
-  const cells = wide ? row.sections : row.sectors;
+  // The lap x section grid where the map has sections (desktop and phone); the game's sectors otherwise.
+  const useSections = row.sections.length > 0;
+  const cells = useSections ? row.sections : row.sectors;
   const cellW = wide ? sectionColW(width, cells.length) : cols.sector;
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
@@ -238,15 +265,28 @@ export function LapRow({
         style={[styles.right, {width: cols.gap}]}>
         {row.gap ?? ''}
       </Text>
-      {cells.map((s, i) => (
-        <Text
-          key={i}
-          variant='data'
-          tone={s.best ? 'best' : 'textSecondary'}
-          style={[styles.right, {width: cellW}]}>
-          {s.value}
-        </Text>
-      ))}
+      {cells.map((s, i) => {
+        const text = (
+          <Text
+            key={i}
+            variant='data'
+            tone={s.best ? 'best' : 'textSecondary'}
+            style={[styles.right, {width: cellW}]}>
+            {s.value}
+          </Text>
+        );
+        return useSections && onSectionPress && sectionTaps?.[i] ? (
+          <Pressable
+            key={i}
+            accessibilityRole='button'
+            accessibilityLabel={`${row.label} section ${i + 1} in Corner`}
+            onPress={() => onSectionPress(i)}>
+            {text}
+          </Pressable>
+        ) : (
+          text
+        );
+      })}
       <Text
         variant='dataSmall'
         numberOfLines={1}

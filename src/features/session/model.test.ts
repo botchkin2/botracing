@@ -5,8 +5,10 @@ import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
+  gridCellTargetOf,
   type LapRowModel,
   buildSessionModel,
+  type SectionTable,
   sectionTable,
   trafficPaceFacts,
 } from './model';
@@ -365,5 +367,48 @@ describe('sectionTable', () => {
       laps: [...times.laps, lap('f', 10.5, true), lap('g', 10.6, true)],
     })!;
     expect(table.footer[0].cells).toEqual(['10.20']);
+  });
+});
+
+describe('gridCellTargetOf (Road Atlanta numbering)', () => {
+  // Heads S/F, T1, T2–5, T6, T7, T10a–T12. Sections 1..5: section 2 is the
+  // compound T2–5 (corners 2 to 5), so its first corner is 2; section 3 is T6.
+  const table: SectionTable = {
+    heads: ['S/F', 'T1', 'T2–5', 'T6', 'T7', 'T10a–T12'],
+    sections: [null, 1, 2, 3, 4, 5],
+    targets: [
+      {corner: null, whole: false},
+      {corner: 1, whole: false},
+      {corner: 2, whole: true},
+      {corner: 6, whole: false},
+      {corner: 7, whole: false},
+      {corner: 10, whole: false},
+    ],
+    footer: [],
+  };
+
+  it('opens the corner by its number, not the section number (S3 is T6, corner 6)', () => {
+    expect(gridCellTargetOf(table, 3, 'L4', ['L4'])).toEqual({
+      corner: 6,
+      whole: false,
+      laps: ['L4'],
+    });
+  });
+
+  it('opens a compound section whole, on its first corner (S2 is T2–5: corner 2, all)', () => {
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.corner).toBe(2);
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.whole).toBe(true);
+  });
+
+  it('adds the tapped lap to the checked laps when it is not in them', () => {
+    expect(gridCellTargetOf(table, 1, 'L1', ['L4', 'L5'])).toEqual({
+      corner: 1,
+      whole: false,
+      laps: ['L4', 'L5', 'L1'],
+    });
+  });
+
+  it('the start straight opens nothing', () => {
+    expect(gridCellTargetOf(table, 0, 'L4', ['L4'])).toBeNull();
   });
 });

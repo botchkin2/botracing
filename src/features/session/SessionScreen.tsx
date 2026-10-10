@@ -27,7 +27,12 @@ import {
   useTheme,
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
-import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {
+  compareHref,
+  cornerHref,
+  sessionsHref,
+  trackHref,
+} from '@/src/nav/routes';
 import {replace, toggle} from '@/src/state/lapSelection';
 import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
@@ -53,6 +58,7 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
+  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
@@ -425,6 +431,8 @@ function SessionView({
     return () => setPitFocus({lapIndex, at: Date.now()});
   };
 
+  // Which section columns open something: the game's sectors and the start straight do not.
+  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -447,6 +455,21 @@ function SessionView({
         row={item}
         width={width}
         wide={wide}
+        sectionTaps={sectionTaps}
+        onSectionPress={i => {
+          const target =
+            model.sections &&
+            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
+          if (target)
+            router.push(
+              cornerHref(
+                sessionId,
+                target.corner,
+                {laps: target.laps, hl: item.lapId},
+                target.whole,
+              ),
+            );
+        }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
         onToggle={() =>
@@ -562,7 +585,18 @@ function SessionView({
                 }
               />
               <View style={styles.section}>
-                <LapTableHeader width={tableW} />
+                <LapTableHeader
+                  width={tableW}
+                  heads={model.sections?.heads}
+                  headTaps={sectionTaps}
+                  onHeadPress={i => {
+                    const corner = model.sections?.sections[i];
+                    if (corner != null)
+                      router.push(
+                        compareHref(sessionId, {laps: selection.laps, corner}),
+                      );
+                  }}
+                />
               </View>
             </>
           }
