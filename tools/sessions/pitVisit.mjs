@@ -19,13 +19,12 @@
 // lane, 61 s stationary, nothing added, dent sum 2 -> 0 and one detached part
 // -> 0: a repair. Visit 2, 45.4 s in the lane, 10.4 s stationary, nothing
 // added, no damage change: a penalty, a stop-go.
+import {REFUEL_FUEL_MIN_L, REFUEL_VE_MIN_PCT} from '../../src/analysis/refuel.ts';
 
 /** Bump when the rules below change: it goes into analyze.mjs's blockVersions, so sessions are re-analysed. */
 export const PIT_VISIT_VERSION = 2;
 
 /** Slower than this is standing still (km/h). The game's speed reads 0.0 to 2.7 around a stop. */
-import {REFUEL_FUEL_MIN_L, REFUEL_VE_MIN_PCT} from '../../src/analysis/refuel.ts';
-
 export const STATIONARY_KMH = 1;
 /** Standing still this long (s, in all) is a stop; less is the car slowing for a speed bump or a box. */
 export const STOPPED_MIN_S = 3;
