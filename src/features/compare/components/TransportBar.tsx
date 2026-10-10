@@ -46,8 +46,11 @@ export function TransportBar({
   onRate: (r: PlayRate) => void;
 }) {
   const {color} = useTheme();
-  // Native touch area: the 28 pt control padded to 44 pt (hitSlop). Web ignores hitSlop, so the box stays 28 there.
-  const hit = {hitSlop: {top: 8, bottom: 8, left: 8, right: 8}};
+  // The 28 pt control's touch area grows to 44 pt on native (hitSlop); web ignores it.
+  const HIT_SLOP = (size.hit - size.chip) / 2;
+  const hit = {
+    hitSlop: {top: HIT_SLOP, bottom: HIT_SLOP, left: HIT_SLOP, right: HIT_SLOP},
+  };
   const stepper = (
     <View style={[styles.stepper, {borderColor: color.lineStrong}]}>
       <Pressable
