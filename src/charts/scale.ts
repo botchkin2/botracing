@@ -7,6 +7,9 @@ export type Tick = {v: number; label: string};
 
 export type Scale = {lo: number; hi: number; step: number; ticks: Tick[]};
 
+/** Labels a tick: the value and the decimals its step needs. */
+export type LabelFormat = (v: number, decimals: number) => string;
+
 /** Most ticks a scale may show, unless a caller asks for fewer. */
 export const MAX_TICKS = 8;
 
@@ -14,8 +17,13 @@ export const MAX_TICKS = 8;
 const EMPTY: {lo: number; hi: number} = {lo: -1, hi: 1};
 
 /** A physical range, as given. The data does not change it. */
-export function fixedScale(lo: number, hi: number, step: number): Scale {
-  return {lo, hi, step, ticks: ticksOf(lo, hi, step)};
+export function fixedScale(
+  lo: number,
+  hi: number,
+  step: number,
+  format?: LabelFormat,
+): Scale {
+  return {lo, hi, step, ticks: ticksOf(lo, hi, step, format)};
 }
 
 /**
@@ -40,7 +48,7 @@ export function niceStep(span: number, maxTicks = MAX_TICKS): number {
  */
 export function fitScale(
   values: readonly number[],
-  opts: {symmetric: boolean; maxTicks?: number},
+  opts: {symmetric: boolean; maxTicks?: number; format?: LabelFormat},
 ): Scale {
   const maxTicks = opts.maxTicks ?? MAX_TICKS;
   let min = Infinity;
@@ -65,19 +73,19 @@ export function fitScale(
   // A flat set has no span to step over; a unit span gives it room.
   const span = max - min || 1;
   let step = niceStep(span, maxTicks);
-  let lo = Math.floor(min / step) * step;
-  let hi = Math.ceil(max / step) * step;
+  let lo = stepsDown(min / step) * step;
+  let hi = stepsUp(max / step) * step;
   // Rounding out can add ticks; take the next step up until they fit.
   while ((hi - lo) / step > maxTicks - 1) {
     step = nextStep(step);
-    lo = Math.floor(min / step) * step;
-    hi = Math.ceil(max / step) * step;
+    lo = stepsDown(min / step) * step;
+    hi = stepsUp(max / step) * step;
   }
   if (opts.symmetric) {
     // Centre on zero: the same number of steps either side, at least one.
     const edge = Math.max(
       1,
-      Math.ceil(Math.max(Math.abs(lo), Math.abs(hi)) / step),
+      stepsUp(Math.max(Math.abs(lo), Math.abs(hi)) / step),
     );
     lo = -edge * step;
     hi = edge * step;
@@ -85,7 +93,7 @@ export function fitScale(
   if (hi - lo < step) hi = lo + step;
   lo = round(lo);
   hi = round(hi);
-  return {lo, hi, step, ticks: ticksOf(lo, hi, step)};
+  return {lo, hi, step, ticks: ticksOf(lo, hi, step, opts.format)};
 }
 
 /** True when the value lies outside the scale, so it is drawn clipped. */
@@ -110,12 +118,17 @@ function nextStep(step: number): number {
     : round(10 ** (exp + 1));
 }
 
-function ticksOf(lo: number, hi: number, step: number): Tick[] {
+function ticksOf(
+  lo: number,
+  hi: number,
+  step: number,
+  format?: LabelFormat,
+): Tick[] {
   const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
   const ticks: Tick[] = [];
   for (let i = 0; lo + i * step <= hi + step * 1e-6; i++) {
     const v = round(lo + i * step);
-    ticks.push({v, label: v.toFixed(decimals)});
+    ticks.push({v, label: format ? format(v, decimals) : v.toFixed(decimals)});
   }
   return ticks;
 }
@@ -123,4 +136,14 @@ function ticksOf(lo: number, hi: number, step: number): Tick[] {
 // Floating-point steps (0.1 + 0.2) drift; round to a dp well inside a step.
 function round(x: number): number {
   return Number(x.toFixed(10));
+}
+
+// Division of floats lands a hair off a whole step (0.6 / 0.2 is 3.0000000004);
+// a tolerance keeps that from adding a step.
+const EPS = 1e-9;
+function stepsUp(x: number): number {
+  return Math.ceil(x - EPS);
+}
+function stepsDown(x: number): number {
+  return Math.floor(x + EPS);
 }

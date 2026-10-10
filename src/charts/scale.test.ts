@@ -1,5 +1,7 @@
 import {describe, expect, test} from '@jest/globals';
 
+import {signedSeconds} from './tickFormat';
+
 import {
   clampToScale,
   fitScale,
@@ -112,6 +114,20 @@ describe('fitScale', () => {
     expect(fitScale(values, {symmetric: false})).toEqual(
       fitScale(values, {symmetric: false}),
     );
+  });
+});
+
+describe('label format', () => {
+  test('labels come from the format option, at the step decimals', () => {
+    const s = fitScale([-0.5, 0.5], {symmetric: true, format: signedSeconds});
+    expect(s.ticks.find(t => t.v === 0)?.label).toBe('0.0 s');
+    expect(s.ticks.find(t => t.v > 0)?.label).toBe('+0.2 s');
+    expect(s.ticks.find(t => t.v === -0.2)?.label).toBe('−0.2 s');
+  });
+
+  test('fixedScale takes a format too', () => {
+    const s = fixedScale(0, 1, 0.5, signedSeconds);
+    expect(s.ticks.map(t => t.label)).toEqual(['0.0 s', '+0.5 s', '+1.0 s']);
   });
 });
 
