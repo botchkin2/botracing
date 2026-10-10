@@ -571,7 +571,7 @@ function build(
     car,
     // The car model without the livery, the Plan's key (src/design/carModels.ts):
     // the plan route filters on it, so it is a field of its own.
-    carModel: carLabel(car).model,
+    carModel: carLabel(first.car).model,
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
