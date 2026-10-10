@@ -26,6 +26,7 @@ import {deltaFromEntry} from './deltaFromEntry';
 import {
   cornerSources,
   sectionMembers,
+  entryPartOf,
   wholeLabel,
   wholeTitle,
 } from './wholeCorner';
@@ -351,7 +352,10 @@ export function buildCornerModel(input: {
   const hl =
     input.hl && lapIds.includes(input.hl) ? input.hl : selected[1]?.id ?? null;
 
-  const sourcesOf = (l: Lap) => cornerSources(l, all, sec, whole, sectionApexM);
+  // One entry part for the whole set, so a column never mixes apexes.
+  const entryN = whole ? entryPartOf(selected, all, sec) : null;
+  const sourcesOf = (l: Lap) =>
+    cornerSources(l, all, sec, whole, sectionApexM, entryN);
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
     // Over one corner all three sources are its own; over the whole compound
     // window they differ (wholeCorner.ts says which part each fact is from).

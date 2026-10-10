@@ -9,7 +9,7 @@ import {
 import {trackCorners} from '@/src/data/sessions';
 
 import {buildCornerModel, sectionChips} from './model';
-import {sliceCornerOf, wholeTitle} from './wholeCorner';
+import {entryPartOf, sliceCornerOf, wholeTitle} from './wholeCorner';
 
 const session = toSessionDetail({
   id: 's1',
@@ -236,11 +236,45 @@ describe('All on a compound corner', () => {
     expect([w.pickup, w.throttle, w.minSpeed]).toEqual([null, null, null]);
   });
 
-  it('takes full throttle from the section when the last part was already there', () => {
-    const l = toLaps([lap('a', 0, {lastFlat: true})]);
-    const m = build(2, true, ['a'], l);
-    // The section's held point (700) from the section's apex (600).
-    expect(m.rows[0].values.throttle).toBe(100);
+  it('reads full throttle from the last part for every lap; a lap already flat there says at min', () => {
+    const l = toLaps([
+      lap('a', 0),
+      lap('f', 0, {lastFlat: true}),
+      lap('c', 0, {lastEdge: true}),
+    ]);
+    const m = build(2, true, ['a', 'f', 'c'], l);
+    // Last part's apex (780) for all three.
+    expect(m.rows.map(r => r.throttleApexM)).toEqual([780, 780, 780]);
+    expect(m.rows[0].values.throttle).toBe(850 - 780);
+    expect(m.rows[1].values.throttle).toBeNull();
+    expect(m.rows[1].cells.throttle.value).toBe('at min');
+    expect(m.rows[2].values.pickup).toBe(790 - 780);
+  });
+
+  it('chooses one entry part for the set: the part most laps brake for', () => {
+    const l = toLaps([
+      lap('a', 0, {brakePart: 3}),
+      lap('b', 0, {brakePart: 3}),
+      lap('c', 0, {brakePart: 2}),
+    ]);
+    const m = build(2, true, ['a', 'b', 'c'], l);
+    // Every row measures brake and turn-in to T3's apex (780), not per lap.
+    expect(m.rows.map(r => r.brakeApexM)).toEqual([780, 780, 780]);
+    expect(m.rows[2].values.brake).toBe(780 - 690);
+    expect(entryPartOf(l, trackCorners(map), trackCorners(map)[1])).toBe(3);
+    // A tie goes to the earlier part; no lap saying anything gives null.
+    const tie = toLaps([
+      lap('a', 0, {brakePart: 3}),
+      lap('c', 0, {brakePart: 2}),
+    ]);
+    expect(entryPartOf(tie, trackCorners(map), trackCorners(map)[1])).toBe(2);
+    expect(
+      entryPartOf(
+        toLaps([lap('a', 0)]),
+        trackCorners(map),
+        trackCorners(map)[1],
+      ),
+    ).toBeNull();
   });
 
   it('frames and shades the whole window under the median basis', () => {

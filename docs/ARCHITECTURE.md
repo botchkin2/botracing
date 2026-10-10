@@ -57,9 +57,9 @@ Corner shows one corner's window: a section's window (boundary to boundary, `tra
 | Fact | Source |
 | --- | --- |
 | Time, slowest speed, apex speed | the section's own facts (full window) |
-| Brake point, peak brake, turn-in | the part the lap's first brake application brakes for (`brakeApps[0].part`; else the part holding the slowest point; else the first), measured to that part's apex; judged by that part's `minSpeedAtEdge` |
+| Brake point, peak brake, turn-in | one part for the whole set: the part most laps' first brake application brakes for (`brakeApps[0].part`; else the slowest point's part; ties to the earlier), measured to its apex; judged by that part's `minSpeedAtEdge` |
 | Pickup, lowest throttle | the last part, measured from its apex; judged by the section's `minSpeedAtEdge` |
-| Full throttle | the last part, unless it was already at full throttle at its own slowest sample, then the section's held point from the section's apex; judged by the section's `minSpeedAtEdge` |
+| Full throttle | the last part, from its apex, for every lap (a lap already flat there reads "at min"); judged by the section's `minSpeedAtEdge` |
 
 A fact the source cannot supply is "—" (never a boundary value). The braking map spans first entry to last exit and places each lap's points from the same apexes.
 
