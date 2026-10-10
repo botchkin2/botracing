@@ -54,6 +54,8 @@ export type TraceSeries = {
   fill?: number;
   /** Own y range; series without one share the chart's. */
   domain?: [number, number];
+  /** Y tick labels at this series' own range (a stacked chart's steering band). */
+  ticks?: {v: number; label: string}[];
   /** Discrete channel (gear): drawn as steps, never smoothed. */
   stepped?: boolean;
   /** Recorded samples: drawn instead of `values` when given. */
@@ -466,6 +468,19 @@ export function TraceChart({
             {t.label}
           </SvgText>
         ))}
+        {series.map((s, si) =>
+          s.ticks?.map(t => (
+            <SvgText
+              key={`s${si}y${t.v}`}
+              x={3}
+              y={yFor(seriesDomainsT[si] ?? domainT)(t.v) + 3}
+              fill={color.textFaint}
+              fontFamily={axis.fontFamily}
+              fontSize={9}>
+              {t.label}
+            </SvgText>
+          )),
+        )}
         {zeroLine && sideLabels && (
           <>
             <SvgText
