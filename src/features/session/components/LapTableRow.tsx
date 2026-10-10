@@ -45,11 +45,14 @@ export function LapTableHeader({
   width,
   wide = false,
   heads = ['S1', 'S2', 'S3'],
+  onHeadPress,
 }: {
   width: number;
   wide?: boolean;
   /** The section columns' labels; the phone keeps the game's sectors. */
   heads?: string[];
+  /** Tap a section column: the index of its head. Absent, the heads are labels only. */
+  onHeadPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
@@ -74,16 +77,29 @@ export function LapTableHeader({
       {wide && cell('Stint', WIDE_COLS.stint, false)}
       {cell('Time', cols.time)}
       {cell('vs med', cols.gap)}
-      {heads.map(h => (
-        <Text
-          key={h}
-          variant='tableHeader'
-          tone='textMuted'
-          numberOfLines={1}
-          style={[styles.right, {width: sectionW}]}>
-          {h}
-        </Text>
-      ))}
+      {heads.map((h, i) => {
+        const text = (
+          <Text
+            key={h}
+            variant='tableHeader'
+            tone='textMuted'
+            numberOfLines={1}
+            style={[styles.right, {width: sectionW}]}>
+            {h}
+          </Text>
+        );
+        return onHeadPress ? (
+          <Pressable
+            key={`${h}-${i}`}
+            accessibilityRole='button'
+            accessibilityLabel={`Open ${h} in Compare`}
+            onPress={() => onHeadPress(i)}>
+            {text}
+          </Pressable>
+        ) : (
+          text
+        );
+      })}
       <Text
         variant='tableHeader'
         tone='textMuted'

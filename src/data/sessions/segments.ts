@@ -69,6 +69,7 @@ export function turnSegmentTimes(
           ? START_LABEL
           : sectionLabel(section),
       range: {fromM: w.fromM, toM: w.toM},
+      section: w.kind === 'start-straight' ? null : w.section ?? null,
     };
   });
   const out: SegmentLap[] = [];

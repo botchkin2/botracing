@@ -142,6 +142,8 @@ export type TrayModel = {
 /** The desktop Laps table's section columns: their heads, and the median, best and spread rows under it. */
 export type SectionTable = {
   heads: string[];
+  /** The map section each head is (null for the start straight and the game's sectors). */
+  sections: (number | null)[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -325,6 +327,7 @@ export function sectionTable(times: SegmentTimes | null): SectionTable | null {
   });
   return {
     heads: times.segments.map(s => s.label),
+    sections: times.segments.map(s => s.section ?? null),
     footer: [
       row(
         'Median',
