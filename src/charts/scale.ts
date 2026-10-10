@@ -1,33 +1,48 @@
-// One scale for every chart. A fixed scale is a physical range the data
-// cannot change; a time scale fits the comparable laps of the selection, in
-// nice steps, so one outlier never stretches it. A value outside the scale is
-// clipped at the edge, never fitted.
+// One scale for every chart. A fixed scale is a physical range the data cannot
+// change; a fitted scale covers the values in the selection, in 1-2-5 steps,
+// so one outlier stretches it no more than the step allows. A value outside the
+// scale is clipped at the edge, never fitted. Pure: no React.
 
-export type Scale = {lo: number; hi: number; step: number};
+export type Tick = {v: number; label: string};
 
-/** Steps a time scale may use, in seconds, smallest first. */
-export const TIME_STEPS_S = [0.1, 0.25, 0.5, 1] as const;
+export type Scale = {lo: number; hi: number; step: number; ticks: Tick[]};
 
-/** The most ticks a time scale spans; a finer step is taken until it fits. */
-const MAX_STEPS = 8;
+/** Most ticks a scale may show, unless a caller asks for fewer. */
+export const MAX_TICKS = 8;
 
-/** Used when there is nothing to fit: a quarter-second step either side of 0. */
-const EMPTY_TIME_SCALE: Scale = {lo: -0.5, hi: 0.5, step: 0.25};
+/** Used when nothing is finite to fit: a unit range either side of zero. */
+const EMPTY: {lo: number; hi: number} = {lo: -1, hi: 1};
 
-/** A physical range, as given. The values do not change it. */
+/** A physical range, as given. The data does not change it. */
 export function fixedScale(lo: number, hi: number, step: number): Scale {
-  return {lo, hi, step};
+  return {lo, hi, step, ticks: ticksOf(lo, hi, step)};
 }
 
 /**
- * A time range (seconds) that covers the finite values, rounded out to the
- * smallest step that keeps it within MAX_STEPS. `symmetric` centres it on 0,
- * for differences, so a faster and a slower lap read the same either side.
+ * The smallest 1-2-5 step (1, 2, 5, 10, 20, 50, … and 0.1, 0.2, 0.5, …) that
+ * shows `span` in at most `maxTicks` ticks.
  */
-export function timeScale(
+export function niceStep(span: number, maxTicks = MAX_TICKS): number {
+  for (let exp = -6; exp <= 6; exp++) {
+    for (const m of [1, 2, 5]) {
+      const step = m * 10 ** exp;
+      if (span / step <= maxTicks - 1) return step;
+    }
+  }
+  return 10 ** 6;
+}
+
+/**
+ * A scale that covers the finite values, rounded out to whole steps. The step
+ * is chosen on the rounded range, so the ticks shown never exceed `maxTicks`.
+ * `symmetric` centres it on zero (for differences), and a flat set still gets
+ * room either side of zero or of its value.
+ */
+export function fitScale(
   values: readonly number[],
-  opts: {symmetric: boolean},
+  opts: {symmetric: boolean; maxTicks?: number},
 ): Scale {
+  const maxTicks = opts.maxTicks ?? MAX_TICKS;
   let min = Infinity;
   let max = -Infinity;
   for (const v of values) {
@@ -35,28 +50,42 @@ export function timeScale(
     if (v < min) min = v;
     if (v > max) max = v;
   }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return EMPTY_TIME_SCALE;
-
-  const span = opts.symmetric
-    ? 2 * Math.max(Math.abs(min), Math.abs(max))
-    : max - min;
-  const step =
-    TIME_STEPS_S.find(s => span / s <= MAX_STEPS) ??
-    TIME_STEPS_S[TIME_STEPS_S.length - 1];
-
-  let lo: number;
-  let hi: number;
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return fixedScale(
+      EMPTY.lo,
+      EMPTY.hi,
+      niceStep(EMPTY.hi - EMPTY.lo, maxTicks),
+    );
+  }
   if (opts.symmetric) {
-    const edge = Math.ceil(Math.max(Math.abs(min), Math.abs(max)) / step);
-    lo = -edge * step;
-    hi = edge * step;
-  } else {
+    const m = Math.max(Math.abs(min), Math.abs(max));
+    min = -m;
+    max = m;
+  }
+  // A flat set has no span to step over; a unit span gives it room.
+  const span = max - min || 1;
+  let step = niceStep(span, maxTicks);
+  let lo = Math.floor(min / step) * step;
+  let hi = Math.ceil(max / step) * step;
+  // Rounding out can add ticks; take the next step up until they fit.
+  while ((hi - lo) / step > maxTicks - 1) {
+    step = nextStep(step);
     lo = Math.floor(min / step) * step;
     hi = Math.ceil(max / step) * step;
   }
-  // A flat set (one lap, or every lap at one time) still gets a step of room.
+  if (opts.symmetric) {
+    // Centre on zero: the same number of steps either side, at least one.
+    const edge = Math.max(
+      1,
+      Math.ceil(Math.max(Math.abs(lo), Math.abs(hi)) / step),
+    );
+    lo = -edge * step;
+    hi = edge * step;
+  }
   if (hi - lo < step) hi = lo + step;
-  return {lo: round(lo), hi: round(hi), step};
+  lo = round(lo);
+  hi = round(hi);
+  return {lo, hi, step, ticks: ticksOf(lo, hi, step)};
 }
 
 /** True when the value lies outside the scale, so it is drawn clipped. */
@@ -68,6 +97,27 @@ export function isClipped(v: number, s: Scale): boolean {
 export function clampToScale(v: number, s: Scale): number {
   if (!Number.isFinite(v)) return v;
   return Math.min(s.hi, Math.max(s.lo, v));
+}
+
+/** The 1-2-5 step after `step`. */
+function nextStep(step: number): number {
+  const exp = Math.floor(Math.log10(step) + 1e-9);
+  const mantissa = Math.round(step / 10 ** exp);
+  const seq = [1, 2, 5];
+  const i = seq.indexOf(mantissa);
+  return i >= 0 && i < seq.length - 1
+    ? round(seq[i + 1] * 10 ** exp)
+    : round(10 ** (exp + 1));
+}
+
+function ticksOf(lo: number, hi: number, step: number): Tick[] {
+  const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+  const ticks: Tick[] = [];
+  for (let i = 0; lo + i * step <= hi + step * 1e-6; i++) {
+    const v = round(lo + i * step);
+    ticks.push({v, label: v.toFixed(decimals)});
+  }
+  return ticks;
 }
 
 // Floating-point steps (0.1 + 0.2) drift; round to a dp well inside a step.
