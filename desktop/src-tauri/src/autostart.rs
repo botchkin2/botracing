@@ -21,10 +21,17 @@ pub trait RunStore {
     fn set(&self, command: &str) -> Result<(), String>;
 }
 
-/// What the Run value holds: the exe, plain (crate::paths) and quoted (a path
-/// with spaces would otherwise start the wrong program).
+/// The argument a logon start carries: the tray starts without opening its
+/// window (a start from the Start menu or a shortcut opens it).
+pub const BACKGROUND_ARG: &str = "--background";
+
+/// What the Run value holds: the exe, plain (crate::paths), quoted (a path with
+/// spaces would otherwise start the wrong program), and the background flag.
 pub fn command_for(exe: &Path) -> String {
-    format!("\"{}\"", crate::paths::plain(exe).display())
+    format!(
+        "\"{}\" {BACKGROUND_ARG}",
+        crate::paths::plain(exe).display()
+    )
 }
 
 /// Makes sure the Run value is this exe's command. An error is the registry
@@ -186,7 +193,7 @@ mod tests {
     fn the_command_is_the_exe_in_quotes() {
         assert_eq!(
             command_for(&exe()),
-            r#""C:\Users\A B\AppData\Local\BotRacing\botracing.exe""#
+            r#""C:\Users\A B\AppData\Local\BotRacing\botracing.exe" --background"#
         );
         // A verbatim exe (Tauri's canonical form) is written plain, the same value.
         #[cfg(windows)]
@@ -209,10 +216,10 @@ mod tests {
             PathBuf::from(r"\\?\C:\Users\Test Ünïcode\AppData\Local\BotRacing\botracing.exe");
         assert_eq!(
             command_for(&verbatim),
-            r#""C:\Users\Test Ünïcode\AppData\Local\BotRacing\botracing.exe""#
+            r#""C:\Users\Test Ünïcode\AppData\Local\BotRacing\botracing.exe" --background"#
         );
         let unc = PathBuf::from(r"\\?\UNC\host\share\botracing.exe");
-        assert_eq!(command_for(&unc), r#""\\?\UNC\host\share\botracing.exe""#);
+        assert_eq!(command_for(&unc), r#""\\?\UNC\host\share\botracing.exe" --background"#);
     }
 
     #[test]
