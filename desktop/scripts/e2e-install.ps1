@@ -20,7 +20,11 @@
 # uploader starting and a heartbeat landing, and the second launch opening the
 # desktop window. They are added here, not in a second script.
 param(
-  [Parameter(Mandatory = $true)][string]$Installer
+  [Parameter(Mandatory = $true)][string]$Installer,
+  # as-is: the PATH the runner has. none: no folder with a node.exe on PATH, so
+  # only the bundled node can run. decoy: as none, plus a node on PATH that
+  # records that it ran; the tray must never use it.
+  [ValidateSet("as-is", "none", "decoy")][string]$Node = "as-is"
 )
 $ErrorActionPreference = "Stop"
 
@@ -30,6 +34,9 @@ $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $approvedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 $data = Join-Path $env:LOCALAPPDATA $app
 
+function ShortPath($path) {
+  (New-Object -ComObject Scripting.FileSystemObject).GetFile($path).ShortPath
+}
 function Step($name) { Write-Host "`n== $name" }
 function Fail($message) {
   Write-Host "E2E FAILED: $message"
@@ -58,6 +65,19 @@ if ((Test-Path $uninstallKey) -or (Test-Path $data) -or (Trays).Count) {
   Fail "$app is already installed or running here: run this only on a clean runner"
 }
 
+$decoyMarker = Join-Path $env:TEMP "decoy-node-ran.txt"
+if ($Node -ne "as-is") {
+  $env:Path = (($env:Path -split ";") | Where-Object { $_ -and -not (Test-Path (Join-Path $_ "node.exe")) }) -join ";"
+  if (Get-Command node -ErrorAction SilentlyContinue) { Fail "node is still on PATH: $((Get-Command node).Source)" }
+}
+if ($Node -eq "decoy") {
+  $decoy = Join-Path $env:TEMP "decoy-node"
+  New-Item -ItemType Directory -Force $decoy | Out-Null
+  Set-Content (Join-Path $decoy "node.cmd") "@echo off$([Environment]::NewLine)echo ran > ""$decoyMarker"""
+  $env:Path = "$decoy;$env:Path"
+}
+Write-Host "user: $env:USERNAME; LOCALAPPDATA: $env:LOCALAPPDATA; admin: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)); node: $Node"
+
 Step "install (silent, per user)"
 $proc = Start-Process -FilePath $Installer -ArgumentList "/S" -PassThru -Wait
 if ($proc.ExitCode -ne 0) { Fail "installer exit code $($proc.ExitCode)" }
@@ -83,14 +103,26 @@ WaitFor "a tray process" 30 { (Trays).Count -ge 1 }
 WaitFor "the data folder" 30 { Test-Path $data }
 Start-Sleep -Seconds 5
 if ((Trays).Count -lt 1) { Fail "the tray exited within 5 s of starting" }
+# Start with Windows is written by the tray on its first run (on by default).
+WaitFor "the Start with Windows entry (HKCU Run)" 30 { (Get-ItemProperty $runKey -ErrorAction SilentlyContinue).$app }
+$runValue = (Get-ItemProperty $runKey).$app
+if ($runValue -notlike "*$app.exe*") { Fail "the Run entry does not name $app.exe: $runValue" }
+Write-Host "Run entry: $runValue"
 
 Step "second launch"
-$before = (Trays).Count
-Start-Process -FilePath $exe | Out-Null
-Start-Sleep -Seconds 5
-$after = (Trays).Count
-if ($after -gt $before) { Fail "a second launch started a second tray ($before then $after processes)" }
-if ($after -lt 1) { Fail "the tray is gone after a second launch" }
+# The same exe reached three ways: the path, its 8.3 short name and the
+# extended-length form (the 0.1.2 bug class: the app must not trust one spelling).
+$forms = @(@{n = "path"; p = $exe}, @{n = "8.3 short name"; p = (ShortPath $exe)}, @{n = "extended-length"; p = "\\?\$exe"})
+foreach ($form in $forms) {
+  $before = (Trays).Count
+  Write-Host "second launch by $($form.n): $($form.p)"
+  Start-Process -FilePath $form.p | Out-Null
+  Start-Sleep -Seconds 4
+  $after = (Trays).Count
+  if ($after -gt $before) { Fail "a launch by $($form.n) started another tray ($before then $after processes)" }
+  if ($after -lt 1) { Fail "the tray is gone after a launch by $($form.n)" }
+}
+if ($Node -eq "decoy" -and (Test-Path $decoyMarker)) { Fail "the node on PATH was run: the tray must use only its bundled node" }
 
 Step "uninstall (silent)"
 $un = Start-Process -FilePath $uninstaller -ArgumentList "/S" -PassThru -Wait
