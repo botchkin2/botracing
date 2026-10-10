@@ -78,8 +78,10 @@ export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
  * A car sitting in the pits at Road Atlanta reported 4662 m while the field
  * wrapped at ~4080 m; every real crossing then looked like a teleport
  * (2 Oct race b4e55e, 0 of 922 crossings).
+ * 5: a crossing that reads up to 10 m short of zero is a crossing (see
+ * LINE_SLACK_M); before, such a crossing dropped its lap and the next.
  */
-export const CLASS_LAPS_VERSION = 4;
+export const CLASS_LAPS_VERSION = 5;
 
 // A lap slower than this times the class median is a spin, a slow car or an
 // unflagged crash, not pace.
@@ -114,6 +116,11 @@ const WRAP_DROP_FRAC = 0.5;
 // the longest distance seen, short of the real one by up to a step. A jump
 // that is bigger (a reset to the garage, a teleport) is not a crossing.
 const MAX_SPEED_MS = 120;
+// ...but the counter can read a metre or two short of zero at the line (LMU,
+// 2 Oct Road Atlanta: 7 of the player's 20 crossings landed at -0 to -1 m),
+// and rejecting those dropped the lap they closed and the next one. The
+// Daytona changeover reads -450 m, far outside this.
+const LINE_SLACK_M = 10;
 const STEP_SLACK_M = 20;
 
 const undelta = (values: (number | null)[]): (number | null)[] => {
@@ -203,7 +210,7 @@ export function walkCarLaps(
       const stepM = lengthM - prev + d;
       const dt = etS[u] - etS[u - 1];
       if (
-        d >= 0 &&
+        d >= -LINE_SLACK_M &&
         stepM >= -STEP_SLACK_M &&
         stepM <= MAX_SPEED_MS * dt + STEP_SLACK_M
       ) {

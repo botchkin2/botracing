@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {carLapsOf} from './carLaps';
+import {carLapsOf, lapLabelOffset} from './carLaps';
+import realLaps from './__fixtures__/roadAtlantaPlayerLaps.json';
 import {ABSENT, type Field, type FieldCar} from './field';
 
 const DT = 0.2;
@@ -52,11 +53,11 @@ function car(index: number, spec: Spec, updates: number): FieldCar {
   };
 }
 
-function field(specs: Spec[], updates: number): Field {
+function field(specs: Spec[], updates: number, hasPositions = true): Field {
   return {
     version: 2,
     hz: 5,
-    hasPositions: false,
+    hasPositions,
     startEtS: 0,
     timeS: Float64Array.from({length: updates}, (_, u) => u * DT),
     cars: specs.map((s, i) => car(i, s, updates)),
@@ -125,5 +126,68 @@ describe('carLapsOf', () => {
     const f = field([{lapS: 100}], 3 * LAP_UPDATES);
     expect(carLapsOf(f, 5)).toEqual([]);
     expect(carLapsOf(field([{lapS: 100}], 100), 0)).toEqual([]);
+  });
+});
+
+describe('carLapsOf labels and gaps', () => {
+  it('labels iRacing laps one above the counter, LMU laps by the counter', () => {
+    const lmu = field([{lapS: 100, offsetM: 1000}], 3 * LAP_UPDATES);
+    const ir = field([{lapS: 100, offsetM: 1000}], 3 * LAP_UPDATES, false);
+    expect(lapLabelOffset(lmu)).toBe(0);
+    expect(lapLabelOffset(ir)).toBe(1);
+    expect(carLapsOf(ir, 0).map(l => l.lapNumber)).toEqual([3, 4]);
+  });
+
+  it('keeps a row, with no time, for a lap whose crossing was missed', () => {
+    // Drop the update pair around the 2nd crossing (near update 987): that
+    // lap and the next cannot be timed, but the counter shows both were driven.
+    const f = field([{lapS: 100, offsetM: 100}], 5 * LAP_UPDATES);
+    const car = f.cars[0];
+    for (let u = 1480; u < 1495; u++) car.lapDistM[u] = 2000;
+    const laps = carLapsOf(f, 0);
+    const numbers = laps.map(l => l.lapNumber);
+    expect(numbers).toEqual([2, 3, 4, 5]);
+    expect(laps.some(l => l.timeS === null)).toBe(true);
+    for (let i = 1; i < numbers.length; i++)
+      expect((numbers[i] as number) - (numbers[i - 1] as number)).toBe(1);
+  });
+
+  // The player's laps in the 2 Oct Road Atlanta race (LMU), decimated around
+  // the crossings: seven of its crossings read -0 to -1 m and used to drop
+  // laps 3, 4, 10, 11, 18, 19, 21.
+  it('lists every lap of a real LMU race, labels as the app has them', () => {
+    const n = realLaps.timeS.length;
+    const z = new Float32Array(n);
+    const base = field([{lapS: 100}], 1);
+    const car = {
+      ...base.cars[0],
+      lapDistM: Float32Array.from(realLaps.lapDistM),
+      lapsDone: Int16Array.from(realLaps.lapsDone),
+      inPits: Int8Array.from(realLaps.inPits),
+      pathLateralM: z,
+      xM: z,
+      zM: z,
+      place: new Int16Array(n),
+      flag: new Int16Array(n),
+    };
+    const lmu: Field = {
+      ...base,
+      timeS: Float64Array.from(realLaps.timeS),
+      cars: [car],
+    };
+    const laps = carLapsOf(lmu, 0);
+    expect(laps.map(l => l.lapNumber)).toEqual(
+      Array.from({length: 20}, (_, i) => i + 2),
+    );
+    const byLap = (n: number) => laps.find(l => l.lapNumber === n);
+    expect(byLap(3)?.timeS).toBeCloseTo(81.53, 0);
+    expect(byLap(4)?.timeS).toBeCloseTo(80.77, 0);
+    expect(byLap(5)?.timeS).toBeCloseTo(80.49, 1);
+    expect(laps.filter(l => l.timeS === null)).toHaveLength(0);
+    // The same laps on iRacing's counter are labelled one up.
+    const ir = carLapsOf({...lmu, hasPositions: false}, 0);
+    expect(ir.map(l => l.lapNumber)).toEqual(
+      Array.from({length: 20}, (_, i) => i + 3),
+    );
   });
 });
