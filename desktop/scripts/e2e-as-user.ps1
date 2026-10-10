@@ -25,19 +25,29 @@ Copy-Item (Join-Path $PSScriptRoot "e2e-install.ps1") $work -Force
 icacls $work /grant "*S-1-5-32-545:(OI)(CI)M" | Out-Null
 
 $out = Join-Path $work "out.txt"
-$err = Join-Path $work "err.txt"
-$credential = New-Object System.Management.Automation.PSCredential(".\$name", $password)
 $exit = 1
+$taskName = "botracing-e2e"
 try {
-  # Windows PowerShell 5.1: the script must run there too (a PC has no pwsh 7).
-  $p = Start-Process -FilePath "powershell.exe" -Credential $credential -LoadUserProfile `
-    -WorkingDirectory $work -PassThru -Wait -WindowStyle Hidden `
-    -RedirectStandardOutput $out -RedirectStandardError $err `
-    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $work "e2e-install.ps1"), "-Installer", (Join-Path $work "setup.exe"), "-Node", $Node)
-  $exit = $p.ExitCode
+  # A scheduled task logs the user on for real (profile, LOCALAPPDATA, their own
+  # environment). Start-Process -Credential does not: the installer then saw no
+  # LOCALAPPDATA and installed to "\BotRacing". Windows PowerShell 5.1: a PC has
+  # no pwsh 7. The script's output goes to a file the task redirects to.
+  $plain = [System.Net.NetworkCredential]::new("", $password).Password
+  $command = "-NoProfile -ExecutionPolicy Bypass -Command `"& '$work\e2e-install.ps1' -Installer '$work\setup.exe' -Node $Node *> '$out'; exit `$LASTEXITCODE`""
+  $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $command -WorkingDirectory $work
+  $principal = New-ScheduledTaskPrincipal -UserId ".\$name" -LogonType Password -RunLevel Limited
+  Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -User ".\$name" -Password $plain -Force | Out-Null
+  Start-ScheduledTask -TaskName $taskName
+  $until = (Get-Date).AddMinutes(12)
+  do {
+    Start-Sleep -Seconds 3
+    $state = (Get-ScheduledTask -TaskName $taskName).State
+  } while ($state -ne "Ready" -and (Get-Date) -lt $until)
+  if ($state -ne "Ready") { Write-Host "the task did not finish in 12 minutes"; Stop-ScheduledTask -TaskName $taskName }
+  $exit = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
 } finally {
-  if (Test-Path $out) { Get-Content $out -Encoding UTF8 }
-  if (Test-Path $err) { Get-Content $err -Encoding UTF8 | ForEach-Object { Write-Host "stderr: $_" } }
+  Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+  if (Test-Path $out) { Get-Content $out }
   Remove-LocalUser -Name $name -ErrorAction SilentlyContinue
 }
 if ($exit -ne 0) { Write-Host "E2E FAILED as '$name' (exit $exit)"; exit $exit }
