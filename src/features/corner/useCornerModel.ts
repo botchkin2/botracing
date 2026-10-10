@@ -2,6 +2,7 @@ import {useCallback, useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
+  defaultSessionOf,
   useSession,
   useSessionBand,
   useSessionLaps,
@@ -63,10 +64,10 @@ export function useCornerModel(
             laps.data,
             selection,
             allComparable,
-            session.data?.bestLapId ?? null,
+            session.data ? defaultSessionOf(session.data) : null,
           )
         : [],
-    [laps.data, selection, allComparable, session.data?.bestLapId],
+    [laps.data, selection, allComparable, session.data],
   );
   // The laps on: drawn in their own colour and named on the strips.
   const bestLapId = session.data?.bestLapId ?? null;

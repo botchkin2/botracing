@@ -272,12 +272,17 @@ describe('lap choice', () => {
     ]);
   });
 
+  const sessionOf = (bestLapId: string | null) => ({
+    id: 's',
+    bestLapId,
+    car: 'c',
+    sessionType: 'R',
+  });
+
   it('with nothing selected, the best lap is the reference', () => {
-    expect(cornerLapIds(laps, {laps: [], hl: null}, true, 'b')).toEqual([
-      'b',
-      'a',
-      'c',
-    ]);
+    expect(
+      cornerLapIds(laps, {laps: [], hl: null}, true, sessionOf('b')),
+    ).toEqual(['b', 'a', 'c']);
   });
 
   it('with nothing selected and all-comparable off, falls back to best + next fastest', () => {
@@ -287,10 +292,9 @@ describe('lap choice', () => {
       {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
       {...lap('x', [12.0, 400, 90, 700], false), lapTime: 80},
     ]);
-    expect(cornerLapIds(timed, {laps: [], hl: null}, false, 'b')).toEqual([
-      'b',
-      'a',
-    ]);
+    expect(
+      cornerLapIds(timed, {laps: [], hl: null}, false, sessionOf('b')),
+    ).toEqual(['a', 'b', 'c']); // the session's opening set, as Session and Compare open
     expect(cornerLapIds(timed, {laps: [], hl: null}, false, null)).toEqual([
       'b',
       'a',

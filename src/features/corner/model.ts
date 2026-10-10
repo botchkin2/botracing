@@ -9,8 +9,10 @@ import {
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
 import {turnTitleOf} from '@/src/analysis/turnNames';
 import {
+  type DefaultSession,
   defaultLapIds,
   type Lap,
+  openingLapIds,
   lapCornerFacts,
   type SessionBand,
   type SessionDetail,
@@ -216,16 +218,23 @@ const fmt: Record<Measure, (v: number) => string> = {
   throttle: v => `${Math.round(v)}`,
 };
 
-/** Laps shown in Corner: the selection, or every comparable lap when asked. */
+/**
+ * Laps shown in Corner: the selection, or every comparable lap when asked. With
+ * nothing selected, the session's opening set (openingLapIds, the same one the
+ * session and Compare open on), so the three screens agree.
+ */
 export function cornerLapIds(
   laps: Lap[],
   selection: CornerSelection,
   allComparable: boolean,
-  bestLapId: string | null = null,
+  session: DefaultSession | null = null,
 ): string[] {
+  const bestLapId = session?.bestLapId ?? null;
   if (!allComparable) {
     if (selection.laps.length > 0) return selection.laps;
-    return defaultLapIds(laps, bestLapId);
+    return session
+      ? openingLapIds(laps, session)
+      : defaultLapIds(laps, bestLapId);
   }
   // With nothing selected, the session's best lap is the reference.
   const ref = selection.laps[0] ?? bestLapId ?? undefined;
@@ -513,7 +522,10 @@ export function buildCornerModel(input: {
     subtitle: [
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
-      ref ? `compared with L${ref.lapIndex}` : null,
+      // The basis, named the way Compare names it: a Ref lap, else the median.
+      ref
+        ? `compared with L${ref.lapIndex}`
+        : `vs median of ${selected.length}`,
     ]
       .filter(Boolean)
       .join(' · '),
