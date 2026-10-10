@@ -11,6 +11,7 @@ import {
   type SessionTraffic,
 } from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
+import {type PlanBlock, toPlanBlock} from './planBlock';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -295,6 +296,8 @@ export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
+  /** The Plan's block of this session (the uploader's planBlock.mjs); null before it existed. */
+  plan: PlanBlock | null;
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
@@ -335,6 +338,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
+    plan: toPlanBlock(raw.plan),
     stints: stints.map(s => {
       const x = obj(s);
       return {
