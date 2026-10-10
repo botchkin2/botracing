@@ -37,6 +37,7 @@ export const HISTORY_SESSIONS = 8;
 
 export type Combo = {
   key: string;
+  sim: string;
   trackId: string;
   track: string;
   /** For the chip: short track name, the layout if two share it, and the car. */
@@ -47,32 +48,16 @@ export type Combo = {
   sessions: SessionSummary[];
 };
 
-/**
- * Whether `key` names a track and car driven in another sim. Plan reads LMU's
- * energy and fuel rules, so it has nothing to say there, and must not fall back
- * to an LMU combo under that name.
- */
-export function isOtherSimCombo(
-  sessions: SessionSummary[],
-  key: string | null,
-): boolean {
-  if (key == null) return false;
-  return sessions.some(
-    s =>
-      s.sim !== 'lmu' &&
-      planComboKey(s.trackId, carLabel(s.car).model) === key,
-  );
-}
-
 /** Every track+car he has driven, the one he drove last first. */
 export function planCombos(sessions: SessionSummary[]): Combo[] {
   const byKey = new Map<string, Combo>();
   for (const s of sessions) {
-    if (s.sim !== 'lmu' || s.lapCount === 0) continue;
+    if (s.lapCount === 0) continue;
     const car = carLabel(s.car).model;
-    const key = planComboKey(s.trackId, car);
+    const key = planComboKey(s.trackId, car, s.sim);
     const combo = byKey.get(key) ?? {
       key,
+      sim: s.sim,
       trackId: s.trackId,
       // The layout, so two Silverstones are told apart.
       track: trackInfo(s.trackId)?.layout ?? s.track,

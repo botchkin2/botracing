@@ -91,10 +91,15 @@ export const tracksHref = (): Href => ({pathname: '/tracks', params: {}});
 /**
  * The Plan's key for a track and a car model (`carLabel(car).model`, not the
  * livery). The bar, the session screens and the planner all build it here, so
- * a link always lands on the combo it names.
+ * a link always lands on the combo it names. LMU keys carry no sim; any other
+ * sim is prefixed (`iracing:`), so two sims never pool one combo and saved
+ * LMU links keep working.
  */
-export const planComboKey = (trackId: string, carModel: string): string =>
-  `${trackId}|${carModel}`;
+export const planComboKey = (
+  trackId: string,
+  carModel: string,
+  sim = 'lmu',
+): string => (sim === 'lmu' ? '' : `${sim}:`) + `${trackId}|${carModel}`;
 
 /** The planner, optionally opened on one track+car (a Plan combo key). */
 export const planHref = (combo?: string): Href => ({

@@ -182,7 +182,7 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return planComboKey(session.trackId, carLabel(session.car).model);
+  return planComboKey(session.trackId, carLabel(session.car).model, session.sim);
 }
 
 function buildFuelUseCard(
