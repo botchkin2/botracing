@@ -61,22 +61,31 @@ const wide = (u: number) =>
   (u >= 10 && u <= 14) || u === 30 || u === 31 || u === 45 ? 10 : 0;
 
 describe('offTrackEvents', () => {
+  it('starts a stretch where the car left the road, not when the hold flipped', () => {
+    // Offset 10 m from update 10: the 0.3 s hold (2 updates at 5 Hz) flips the
+    // state at update 11, but update 10 is already proven off.
+    const f = field([car(0, true, u => (u >= 10 && u <= 14 ? 10 : 0))]);
+    const [e] = run(f, 0);
+    expect(e.fromS).toBeCloseTo(10 / HZ);
+    expect(e.lapDistM).toBe(200);
+    expect(e.xM).toBe(200);
+    expect(e.toS).toBeCloseTo(15 / HZ);
+  });
+
   it('lists each stretch off the road with its time, lap and place', () => {
     const f = field([car(0, true, wide), car(1, false, () => 0)]);
     expect(run(f, 0)).toEqual([
-      // updates 10..14: the hold needs two consecutive updates, so the stretch
-      // is the ones from the second on that are off (11..14).
-      expect.objectContaining({lap: 1, lapDistM: 210, xM: 210, zM: 0}),
-      expect.objectContaining({lap: 1, lapDistM: 410}),
+      expect.objectContaining({lap: 1, lapDistM: 200, xM: 200, zM: 0}),
+      expect.objectContaining({lap: 1, lapDistM: 400}),
     ]);
   });
 
   it('times a stretch from its first off update to the end of its last', () => {
     const f = field([car(0, true, wide)]);
     const [first, second] = run(f, 0);
-    expect(first.fromS).toBeCloseTo(11 / HZ);
+    expect(first.fromS).toBeCloseTo(10 / HZ);
     expect(first.toS).toBeCloseTo(15 / HZ);
-    expect(second.fromS).toBeCloseTo(31 / HZ);
+    expect(second.fromS).toBeCloseTo(30 / HZ);
     expect(second.toS).toBeCloseTo(32 / HZ);
   });
 
