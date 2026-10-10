@@ -22,6 +22,7 @@ import {
   clearRef,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   setRef,
   toggleHighlight,
   toggleCompared,
@@ -647,6 +648,16 @@ describe('many laps', () => {
     expect(m.tableReference.grid).toBe('median of 7 checked laps');
     expect(m.grid).not.toBeNull();
     expect(m.grid!.rows.map(r => r.lapId)).toEqual(ids);
+    // A highlighted lap keeps every row too (#3309): the set stays visible.
+    const hl = buildCompareModel({
+      session,
+      laps: sectionLaps,
+      traces: sectionTraces,
+      band: null,
+      map: withBoundaries,
+      selection: {laps: ids, ref: null, hl: 'c', corner: null, cursorM: 600},
+    });
+    expect(hl.grid!.rows.map(r => r.lapId)).toEqual(ids);
   });
 
   it('grid shows the median row plus the highlighted lap', () => {
@@ -1128,5 +1139,13 @@ describe('which lap owns the radar', () => {
   it('stays null with one lap checked on the median: the median rule has no special case', () => {
     expect(at({laps: ['a']})).toBeNull();
     expect(at({laps: ['a'], hl: 'a'})?.lapId).toBe('a');
+  });
+});
+
+describe('sectionStartM (D28 quick jump)', () => {
+  it('is where the section starts on the reference lap, and the lap start when unknown', () => {
+    const entry = {1: 0, 2: 812.5, 3: 1644};
+    expect(sectionStartM(entry, 2)).toBe(812.5);
+    expect(sectionStartM(entry, 9)).toBe(0);
   });
 });

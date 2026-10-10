@@ -91,13 +91,24 @@ export function parseBuild(json, version) {
 
 /** The one signer's certificate SHA-256 in `apksigner verify --print-certs` output. */
 export function signerOf(apksignerOutput) {
+  const text = String(apksignerOutput);
+  // 'Signer #1 ...', or 'Signer (minSdkVersion=24, ...) ...' when signers differ by
+  // SDK range; the same certificate may be listed once per range.
   const certs = [
-    ...String(apksignerOutput).matchAll(
-      /^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$/gm,
+    ...new Set(
+      [
+        ...text.matchAll(
+          /^Signer [^\r\n]*? certificate SHA-256 digest: ([0-9a-fA-F:]+)\s*$/gm,
+        ),
+      ].map(m => m[1].toLowerCase().replace(/:/g, '')),
     ),
-  ].map(m => m[1].toLowerCase().replace(/:/g, ''));
+  ];
   if (certs.length !== 1)
-    throw new Error(`expected one signer, apksigner printed ${certs.length}`);
+    throw new Error(
+      `expected one signer, apksigner printed ${certs.length}: ${JSON.stringify(
+        text.slice(0, 400),
+      )}`,
+    );
   if (!SHA256.test(certs[0])) throw new Error('bad certificate digest');
   return certs[0];
 }
@@ -132,7 +143,9 @@ export function checkApk({cert, badging, pin, version, versionCode}) {
   if (badging.package !== pin.package)
     throw new Error(`the APK is ${badging.package}, not ${pin.package}`);
   if (badging.versionName !== version)
-    throw new Error(`the APK is version ${badging.versionName}, not ${version}`);
+    throw new Error(
+      `the APK is version ${badging.versionName}, not ${version}`,
+    );
   if (badging.versionCode !== versionCode)
     throw new Error(
       `the APK's versionCode is ${badging.versionCode}, EAS reported ${versionCode}`,

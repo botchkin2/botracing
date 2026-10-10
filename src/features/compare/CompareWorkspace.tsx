@@ -55,6 +55,7 @@ import {
   toggleHighlight,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   setRef,
   toggleCompared,
   valuesAt,
@@ -531,6 +532,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
                       color: lapStyle(r.selIndex, r.lapId === selection.hl)
                         .color,
                     },
+                    // The highlighted lap's column is emphasised (#3309).
+                    r.lapId === selection.hl && styles.gridCellHl,
                   ]}>
                   {r.label}
                 </Text>
@@ -544,12 +547,20 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   styles.tableRow,
                   n === selection.corner && {backgroundColor: color.accentTint},
                 ]}>
-                <Text
-                  variant='dataSmall'
-                  tone='textMuted'
+                {/* One tap on the label moves playback to the section's start (D28). */}
+                <Pressable
+                  accessibilityRole='button'
+                  accessibilityLabel={`Jump to S${n}`}
+                  hitSlop={8}
+                  onPress={() =>
+                    p.onCursor(sectionStartM(model.sectionEntryM, n))
+                  }
                   style={styles.sectionHead}>
-                  S{n} · {formatDistance(model.sectionEntryM[n] ?? 0)}
-                </Text>
+                  <Text variant='dataSmall' tone='textMuted'>
+                    S{n} ·{' '}
+                    {formatDistance(sectionStartM(model.sectionEntryM, n))}
+                  </Text>
+                </Pressable>
                 {model.grid!.rows.map(r => {
                   const d = r.cells[i];
                   const c = d == null ? null : cornerCell(d);
@@ -654,6 +665,7 @@ const styles = StyleSheet.create({
   tableCell: {width: 64, textAlign: 'right'},
   sectionHead: {width: 110},
   gridCell: {width: 52, textAlign: 'center'},
+  gridCellHl: {fontWeight: '700'},
   cell: {
     height: 24,
     borderRadius: radius.xs,

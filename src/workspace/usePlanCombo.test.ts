@@ -41,14 +41,15 @@ describe('planChoice: the Plan link follows the open session', () => {
     expect(c.pair).not.toContain('Road Atlanta');
   });
 
-  it('an open iRacing session names no Plan pair, not the last LMU drive', () => {
+  it('an open iRacing session names its own pair, under its own sim-prefixed key', () => {
     const c = planChoice({
       sessionOpen: true,
       session: iracingSebring,
       trackId: null,
       driven: [lmuAtl],
     });
-    expect(c).toEqual({key: undefined, pair: null});
+    expect(c.key).toMatch(/^iracing:/);
+    expect(c.pair).toContain('Sebring');
   });
 
   it('while the open session is still loading, it names nothing yet', () => {
