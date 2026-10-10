@@ -256,7 +256,11 @@ export function planLinkText(
 ): string {
   const laps = `${greenLaps} green lap${greenLaps === 1 ? '' : 's'}`;
   if (planLimitL != null && !planMatchesLimit(sessionLimitL, planLimitL)) {
-    return `${laps}: not in ${planLabel} (${planLimitL.toFixed(0)} L) ›`;
+    const ran =
+      sessionLimitL != null
+        ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
+        : 'This session has no fill limit on record';
+    return `${laps}: not in ${planLabel} (${planLimitL.toFixed(0)} L). ${ran} ›`;
   }
   return `${laps} in ${planLabel} ›`;
 }

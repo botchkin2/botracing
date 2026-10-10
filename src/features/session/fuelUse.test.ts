@@ -209,12 +209,14 @@ describe('the plan line', () => {
 
 describe('planLinkText', () => {
   it('says whether the laps are in the plan', () => {
-    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toContain(
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, null)).toBe(
       '12 green laps in Road Atlanta · 911 GT3 R ›',
     );
-    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toContain(
-      '12 green laps: not in Road Atlanta · 911 GT3 R (79 L) ›',
+    expect(planLinkText(12, 'Road Atlanta · 911 GT3 R', 75, 79)).toBe(
+      '12 green laps: not in Road Atlanta · 911 GT3 R (79 L). This session ran at the 75 L limit ›',
     );
-    expect(planLinkText(12, 'X', null, 79)).toContain('12 green laps');
+    expect(planLinkText(12, 'X', null, 79)).toBe(
+      '12 green laps: not in X (79 L). This session has no fill limit on record ›',
+    );
   });
 });
