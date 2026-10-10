@@ -50,6 +50,10 @@ export function useTrackModel(
     stepM: GRID_STEP_M,
   });
   const refTrace = lap.traces[0];
+  // The lap cannot load until the map has its length.
+  const lapWaits =
+    (lap.load.kind === 'idle' || lap.load.kind === 'loading') &&
+    (map.data?.lengthM ?? 0) > 0;
 
   return useMemo<TrackScreenState>(() => {
     if (sessions.isError && !info) {
@@ -58,10 +62,11 @@ export function useTrackModel(
     if (sessions.isPending) return {kind: 'loading'};
     const mapState = mapLoadOf({
       hasRef: ref != null,
+      hasOutline: (map.data?.outline.length ?? 0) > 0,
       map: {pending: map.isPending, failed: map.isError},
       surface: {pending: surface.isPending, failed: surface.isError},
       trace: {
-        pending: lap.load.kind === 'idle' || lap.load.kind === 'loading',
+        pending: lapWaits,
         failed: lap.load.kind === 'failed',
       },
     });

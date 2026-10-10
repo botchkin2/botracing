@@ -45,17 +45,21 @@ export function TrackMapPanel({
             outline={map.outline}
             outlineFaded={map.outlineFaded}
             pitLane={map.pitLane}
-            lines={[
-              // Fits the view and is the band when there is no outline; the
-              // page draws no lap over it.
-              {
-                key: 'ref',
-                points: map.line,
-                color: color.text,
-                width: 1,
-                opacity: 0,
-              },
-            ]}
+            lines={
+              // The lap's line fits the view and is the band when there is no
+              // outline; with no lap yet the outline fits the view itself.
+              map.line
+                ? [
+                    {
+                      key: 'ref',
+                      points: map.line,
+                      color: color.text,
+                      width: 1,
+                      opacity: 0,
+                    },
+                  ]
+                : []
+            }
             dots={[]}
             marks={map.marks}
             openSection={null}

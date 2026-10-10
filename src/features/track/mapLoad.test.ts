@@ -7,7 +7,14 @@ const PENDING = {pending: true, failed: false};
 const FAILED = {pending: false, failed: true};
 
 function input(over: Partial<MapLoadInput> = {}): MapLoadInput {
-  return {hasRef: true, map: READY, surface: READY, trace: READY, ...over};
+  return {
+    hasRef: true,
+    hasOutline: true,
+    map: READY,
+    surface: READY,
+    trace: READY,
+    ...over,
+  };
 }
 
 describe('mapLoadOf', () => {
@@ -51,6 +58,15 @@ describe('mapLoadOf', () => {
   test('a pending map or surface is still loading', () => {
     expect(mapLoadOf(input({map: PENDING})).loading).toBe(true);
     expect(mapLoadOf(input({surface: PENDING})).loading).toBe(true);
+  });
+
+  test('a pending lap holds the page only while there is no outline', () => {
+    expect(mapLoadOf(input({trace: PENDING, hasOutline: false})).loading).toBe(
+      true,
+    );
+    expect(mapLoadOf(input({trace: PENDING, hasOutline: true})).loading).toBe(
+      false,
+    );
   });
 
   test('no reference session means nothing is loading', () => {

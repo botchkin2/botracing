@@ -1,6 +1,6 @@
-// What the Track map waits for, and what failed. The outline needs the track's
-// map and its measured surface; the reference lap only adds its own layer, so
-// a slow or failed lap never holds the outline back.
+// What the Track map waits for, and what failed. The map draws from its
+// outline and measured surface; the reference lap only adds its own layer. A
+// lap still loading holds the page only while there is no outline to show.
 
 export type MapPart =
   | 'the track map'
@@ -11,6 +11,8 @@ export type MapQuery = {pending: boolean; failed: boolean};
 
 export type MapLoadInput = {
   hasRef: boolean;
+  /** The map has an outline to draw without a lap. */
+  hasOutline: boolean;
   map: MapQuery;
   surface: MapQuery;
   trace: MapQuery;
@@ -29,7 +31,11 @@ export function mapLoadOf(input: MapLoadInput): MapLoad {
   if (input.surface.failed) failed.push('the measured surface');
   if (input.trace.failed) failed.push('the reference lap');
   return {
-    loading: input.hasRef && (input.map.pending || input.surface.pending),
+    loading:
+      input.hasRef &&
+      (input.map.pending ||
+        input.surface.pending ||
+        (input.trace.pending && !input.hasOutline)),
     failed,
   };
 }
