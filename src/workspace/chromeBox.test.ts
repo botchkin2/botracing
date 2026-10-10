@@ -74,7 +74,7 @@ describe('chromeBox', () => {
       cornerN: 5,
       corners: [{n: 5, official: 'T7 entry'}],
     });
-    expect(box.tabs[2].label).toBe('Corner T7');
+    expect(box.tabs[2].label).toBe('Corner T7 entry');
   });
 
   it('lists the selected laps in lap colours, reference first', () => {

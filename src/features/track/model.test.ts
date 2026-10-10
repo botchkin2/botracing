@@ -134,7 +134,7 @@ describe('buildTrackModel', () => {
       refTrace: squareTrace(),
       selectedCorner: 3,
     });
-    expect(m.corners.map(g => g.title)).toEqual([null, 'S2 · T2–T3', null]);
+    expect(m.corners.map(g => g.title)).toEqual([null, 'S2 · T2–3', null]);
     expect(m.corners[0].rows[0]).toMatchObject({
       n: 1,
       name: null,

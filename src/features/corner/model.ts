@@ -7,6 +7,7 @@ import {
   zoomWindowFor,
 } from '@/src/analysis/cornerWindows';
 import {type GridTrace, gridIndex} from '@/src/analysis/resample';
+import {turnTitleOf} from '@/src/analysis/turnNames';
 import {
   defaultLapIds,
   type Lap,
@@ -17,13 +18,7 @@ import {
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
-import {
-  formatGap,
-  lapMode,
-  type LapMode,
-  turnLabel,
-  turnNumber,
-} from '@/src/design';
+import {formatGap, lapMode, type LapMode, turnLabel} from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
 import {
@@ -514,7 +509,7 @@ export function buildCornerModel(input: {
     corners: chips,
     sections,
     parts,
-    title: `Turn ${turnNumber(corner, sec.official)}`,
+    title: turnTitleOf(turnLabel(corner, sec.official)),
     subtitle: [
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
