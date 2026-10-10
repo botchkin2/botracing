@@ -13,11 +13,20 @@ const CELL_W = 84;
 const ROW_H = 44;
 const BAR_MAX = 56;
 
-export function SessionGrid({id}: {id: string}) {
+/** `ticked` and `onTap` come from the screen's one resolved selection. */
+export function SessionGrid({
+  id,
+  ticked,
+  onTap,
+}: {
+  id: string;
+  ticked: readonly string[];
+  onTap: (lapId: string) => void;
+}) {
   const {color} = useTheme();
-  const state = useSessionGrid(id);
+  const state = useSessionGrid(id, ticked);
   if (!state) return null;
-  const {grid, sort, setSort, tap} = state;
+  const {grid, sort, setSort} = state;
 
   const onHead = (index: number) =>
     setSort(
@@ -70,7 +79,7 @@ export function SessionGrid({id}: {id: string}) {
         </ScrollView>
       </View>
       {grid.rows.map(r => (
-        <GridLapRow key={r.lapId} row={r} onTap={tap} />
+        <GridLapRow key={r.lapId} row={r} onTap={onTap} />
       ))}
       <Text variant='dataSmall' tone='textMuted' style={styles.legend}>
         colour: vs this section&apos;s spread · bar: seconds

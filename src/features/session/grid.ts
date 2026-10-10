@@ -5,7 +5,6 @@
 // a lap shows where it sat. Pure: the hook gathers the inputs, components draw.
 
 import {columnStats, type SegmentTimes} from '@/src/analysis/segments';
-import {toggle} from '@/src/state/lapSelection';
 
 export type GridSort =
   | {kind: 'lap'}
@@ -113,17 +112,4 @@ export function sortRows(rows: readonly GridRow[], sort: GridSort): GridRow[] {
       return sign * (ka - kb) || a.i - b.i;
     })
     .map(x => x.r);
-}
-
-/**
- * The ticked set after one tap. With nothing in the URL the grid shows the
- * opening set (`defaults`), so the first tap starts from it: one lap comes
- * off, the rest stay ticked.
- */
-export function tapLaps(
-  urlLaps: readonly string[],
-  defaults: readonly string[],
-  lapId: string,
-): string[] {
-  return toggle(urlLaps.length > 0 ? urlLaps : defaults, lapId);
 }

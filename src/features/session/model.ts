@@ -11,6 +11,7 @@ import {
 } from '@/src/analysis/segments';
 
 import {
+  defaultSessionOf,
   openingLapIds,
   raceFacts,
   type Lap,
@@ -560,13 +561,8 @@ export function useSessionOpeningLapIds(id: string): string[] {
   return useMemo(() => {
     const s = session.data;
     if (!s || !laps.data) return [];
-    return openingLapIds(laps.data, {
-      id,
-      bestLapId: s.bestLapId,
-      car: s.car,
-      sessionType: s.sessionType,
-    });
-  }, [id, session.data, laps.data]);
+    return openingLapIds(laps.data, defaultSessionOf(s));
+  }, [session.data, laps.data]);
 }
 
 /** The segment times the grid reads: the same sections the session table shows. */

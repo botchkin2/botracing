@@ -3,7 +3,9 @@ import {describe, expect, test} from '@jest/globals';
 import {openingLapIds, type Lap} from '@/src/data/sessions';
 import {type SegmentTimes} from '@/src/analysis/segments';
 
-import {sessionGrid, tapLaps} from './grid';
+import {toggle} from '@/src/state/lapSelection';
+
+import {sessionGrid} from './grid';
 
 // A race: 19 comparable laps in stint 2 (the racing stint), 3 laps in stint 1,
 // one lap not comparable. The grid opens on the stint set, not on nothing.
@@ -54,15 +56,15 @@ describe('grid opening set', () => {
     expect(grid.columns[0].medianS).not.toBeNull();
   });
 
-  test('the first tap removes exactly one lap from the opening set', () => {
+  test('one tap on the opening set removes exactly one lap', () => {
     const defaults = openingLapIds(race(), SESSION);
-    const next = tapLaps([], defaults, defaults[0]);
+    const next = toggle(defaults, defaults[0]);
     expect(next).toHaveLength(defaults.length - 1);
     expect(next).not.toContain(defaults[0]);
   });
 
-  test('once the URL names laps, taps work on those', () => {
+  test('a tap on the URL laps only changes those', () => {
     const defaults = openingLapIds(race(), SESSION);
-    expect(tapLaps(['b0', 'b1'], defaults, 'b0')).toEqual(['b1']);
+    expect(toggle(['b0', 'b1'], 'b0')).toEqual(['b1']);
   });
 });
