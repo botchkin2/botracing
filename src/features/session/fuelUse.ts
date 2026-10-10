@@ -230,7 +230,7 @@ export function verdictText(fu: FuelUse): string {
     case 'one-stint':
       return 'One stint: nothing to compare';
     case 'same':
-      return `Same use: ${v.lowL.toFixed(2)} to ${v.highL.toFixed(2)} L a lap`;
+      return `Stints within lap spread: ${v.lowL.toFixed(2)}–${v.highL.toFixed(2)} L/lap`;
     case 'differs':
       return 'Medians differ';
   }
@@ -256,10 +256,6 @@ export function planLinkText(
 ): string {
   const laps = `${greenLaps} green lap${greenLaps === 1 ? '' : 's'}`;
   if (planLimitL != null && !planMatchesLimit(sessionLimitL, planLimitL)) {
-    const ran =
-      sessionLimitL != null
-        ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
-        : 'This session has no fill limit on record';
     return `${laps}: not in ${planLabel} (${planLimitL.toFixed(0)} L) ›`;
   }
   return `${laps} in ${planLabel} ›`;
