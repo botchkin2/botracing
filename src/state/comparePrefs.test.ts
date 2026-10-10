@@ -53,6 +53,13 @@ describe('window stepper', () => {
     expect(stepWindow('time', 0, -1)).toBe(0);
     expect(windowSize('time', 'lap')).toBeNull();
   });
+
+  it('has a 1,000 m distance step between 400 m and Lap', () => {
+    expect(windowSize('distance', 3)).toBe(400);
+    expect(stepWindow('distance', 3, 1)).toBe(4);
+    expect(windowSize('distance', 4)).toBe(1000);
+    expect(stepWindow('distance', 4, 1)).toBe('lap');
+  });
 });
 
 describe('right panel width', () => {

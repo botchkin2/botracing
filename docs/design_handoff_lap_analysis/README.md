@@ -306,7 +306,7 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
 - The chart setup persists per user (not per session), so the layout is the same every time Compare opens.
 - **Window (primary way to read traces):** the charts never show the whole lap by default. They show a short window around the cursor so corner detail is readable.
   - **Time mode (default, speed-dependent):** the window is ±win/2 seconds of the reference lap around the cursor. Its distance span is dist(t + win/2) − dist(t − win/2), so it widens on straights and tightens in slow corners. Steps: 0.5 s, 1 s, **2 s**, 4 s, 15 s, Lap. A Lap button beside the stepper goes to the whole lap in one tap (D29).
-  - **Distance mode (fixed):** a window of win metres centred on the cursor. Steps: 50, 100, **200**, 400 m, Lap.
+  - **Distance mode (fixed):** a window of win metres centred on the cursor. Steps: 50, 100, **200**, 400, 1,000 m, Lap.
   - **Lap:** the whole lap, for orientation only.
   - Inside a window, traces are drawn from every 5 m sample, smoothed with Catmull-Rom (except gear, which stays stepped). Gridlines use a nice step (5, 10, 20, 25, 50, 100 or 200 m) labelled with the lap distance, and corner apex lines are labelled "C6 apex".
   - Time diff is **rebased to the window**: plotted value = (lap.t[i] − ref.t[i]) − (lap.t[i0] − ref.t[i0]), where i0 is the window's left edge. Every lap starts at 0 on the left, so the slope shows where time is gained or lost inside the corner. The y-range is symmetric around 0 with a floor of ±0.02 s. Header values stay absolute (the total gap at the cursor). Windowed explainer: "Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor."
