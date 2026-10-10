@@ -14,7 +14,6 @@ import {
   defaultLapIds,
   type Lap,
   openingLapIds,
-  lapCornerFacts,
   type SessionBand,
   type SessionDetail,
   type TrackCorner,
@@ -24,6 +23,7 @@ import {
 import {formatGap, lapMode, type LapMode, turnLabel} from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
+import {cornerSources, sectionMembers, wholeTitle} from './wholeCorner';
 import {
   buildSectionWindow,
   isCurrent,
@@ -138,6 +138,10 @@ export type CornerModel = {
   /** The chips: one per section, and the current compound section's parts to drill into. */
   sections: ReturnType<typeof sectionChips>['sections'];
   parts: ReturnType<typeof sectionChips>['parts'];
+  /** The Parts row's "All" option; null for a single corner. */
+  all: ReturnType<typeof sectionChips>['all'];
+  /** The window spans the whole compound section (first entry to last exit). */
+  whole: boolean;
   title: string;
   subtitle: string;
   mode: LapMode;
@@ -232,12 +236,13 @@ function ownWindow(
   sectionN: number,
   corner: number,
   ref: Lap | undefined,
+  whole = false,
 ): {own: CornerStretch; section: CornerStretch} | null {
   const b = map.boundaries;
   if (!b || !ref || !isCurrent(ref, b)) return null;
   const w = b.windows.find(x => x.kind === 'section' && x.section === sectionN);
   if (!w) return null;
-  const at = w.parts.find(p => p.n === corner) ?? w;
+  const at = whole ? w : w.parts.find(p => p.n === corner) ?? w;
   return {
     own: {fromM: at.fromM, toM: at.toM},
     section: {fromM: w.fromM, toM: w.toM},
@@ -248,6 +253,7 @@ function ownWindow(
 export function sectionChips(
   all: TrackCorner[],
   current: TrackCorner,
+  whole = false,
 ): {
   sections: {
     sectionN: number;
@@ -256,6 +262,8 @@ export function sectionChips(
     selected: boolean;
   }[];
   parts: {n: number; label: string; selected: boolean}[];
+  /** The "All" chip of a compound section: the whole window as one corner. */
+  all: {selected: boolean} | null;
 } {
   const sections: ReturnType<typeof sectionChips>['sections'] = [];
   for (const c of all) {
@@ -276,9 +284,10 @@ export function sectionChips(
         ? members.map(m => ({
             n: m.n,
             label: turnLabel(m.n, m.official),
-            selected: m.n === current.n,
+            selected: !whole && m.n === current.n,
           }))
         : [],
+    all: members.length > 1 ? {selected: whole} : null,
   };
 }
 
@@ -303,13 +312,25 @@ export function buildCornerModel(input: {
   /** Compare's Ref, as the URL names it: the basis when set; else the median. */
   refId?: string | null;
   corner: number;
+  /** Read the whole compound section as one corner ("All" in the Parts row). */
+  whole?: boolean;
 }): CornerModel | null {
   const {laps, map, band, traces, lapIds, corner} = input;
   const onIndexOf = new Map(input.keyLapIds.map((id, i) => [id, i]));
   const all = trackCorners(map);
-  const idx = all.findIndex(c => c.n === corner);
-  if (idx < 0) return null;
-  const sec = all[idx];
+  const at = all.findIndex(c => c.n === corner);
+  if (at < 0) return null;
+  // "All" reads the section's window through its last part: that part's slice
+  // file already spans the section's start to the last exit, and its apex is
+  // the one the charts are framed on.
+  const members = sectionMembers(all, all[at]);
+  const whole = input.whole === true && members.length > 1;
+  const sec = whole ? members[members.length - 1] : all[at];
+  const idx = all.findIndex(c => c.n === sec.n);
+  const firstIdx = all.findIndex(
+    c => c.n === (whole ? members[0].n : sec.n),
+  );
+  const sectionApexM = map.sections[sec.sectionIndex].apexM;
   const byId = new Map(laps.map(l => [l.id, l]));
   const selected = lapIds
     .map(id => byId.get(id))
@@ -324,36 +345,48 @@ export function buildCornerModel(input: {
   const hl =
     input.hl && lapIds.includes(input.hl) ? input.hl : selected[1]?.id ?? null;
 
+  const sourcesOf = (l: Lap) =>
+    cornerSources(l, all, sec, whole, sectionApexM);
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
-    const f = lapCornerFacts(l, sec);
+    // Over one corner all three sources are its own; over the whole compound
+    // window they differ (wholeCorner.ts says which part each fact is from).
+    const {entry, exit, whole: win} = sourcesOf(l);
+    const f = win.facts;
     // The slowest sample sat on the window's edge: the car was still slowing at
     // turn-in or already slower at the exit, so there is no minimum of this
     // corner, and nothing measured from an apex that was not reached (bias,
-    // pit wall thread 58 #3751): null, not a number from the boundary.
-    const edge = f?.minSpeedAtEdge === true;
+    // pit wall thread 58 #3751): null, not a number from the boundary. Each
+    // fact is judged by the edge flag of the part it comes from.
+    const e = entry.facts;
+    const x = exit.facts;
+    const entryEdge = e?.minSpeedAtEdge === true;
+    const exitEdge = x?.minSpeedAtEdge === true;
     return {
       time: f?.segTimeS ?? null,
-      brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
-      peakBrake: f?.peakBrakePct ?? null,
-      turnIn: edge || f?.turnInAtM == null ? null : sec.apexM - f.turnInAtM,
-      minSpeed: edge ? null : f?.minSpeedKph ?? null,
+      brake: e?.brakeAtM == null ? null : entry.apexM - e.brakeAtM,
+      peakBrake: e?.peakBrakePct ?? null,
+      turnIn:
+        entryEdge || e?.turnInAtM == null ? null : entry.apexM - e.turnInAtM,
+      minSpeed: f?.minSpeedAtEdge === true ? null : f?.minSpeedKph ?? null,
       pickup:
-        edge || f?.throttlePickupAtM == null
+        exitEdge || x?.throttlePickupAtM == null
           ? null
-          : f.throttlePickupAtM - sec.apexM,
+          : x.throttlePickupAtM - exit.apexM,
       // Already at full throttle at the slowest sample: no full-throttle point,
       // the search's start is not a point on the lap.
       throttle:
-        edge || f?.fullThrottleAtM == null || f.fullThrottleAtEdge
+        exitEdge || x?.fullThrottleAtM == null || x.fullThrottleAtEdge
           ? null
-          : f.fullThrottleAtM - sec.apexM,
+          : x.fullThrottleAtM - exit.apexM,
       // A pedal that never closed has no pickup: how far it came off instead.
       minThrottle:
-        edge || f?.throttlePickupAtM != null ? null : f?.minThrottlePct ?? null,
+        exitEdge || x?.throttlePickupAtM != null
+          ? null
+          : x?.minThrottlePct ?? null,
     };
   };
   const isAtMin = (l: Lap) =>
-    lapCornerFacts(l, sec)?.fullThrottleAtEdge === true;
+    sourcesOf(l).exit.facts?.fullThrottleAtEdge === true;
   // Per column: the Ref's value, or the median of the set's non-null values.
   const allValues = selected.map(valuesOf);
   const refValues = ref ? valuesOf(ref) : null;
@@ -412,7 +445,8 @@ export function buildCornerModel(input: {
     selected.length >= STRIP_MODE_FROM
       ? buildStrips(
           rows.map(r => {
-            const f = lapCornerFacts(byId.get(r.lapId) as Lap, sec);
+            const src = sourcesOf(byId.get(r.lapId) as Lap);
+            const f = src.whole.facts;
             return {
               lapId: r.lapId,
               label: r.label,
@@ -421,11 +455,11 @@ export function buildCornerModel(input: {
               brakeM: r.values.brake,
               minSpeedKph: f?.minSpeedKph ?? null,
               minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
-              throttleAtEdge: f?.fullThrottleAtEdge ?? false,
+              throttleAtEdge: src.exit.facts?.fullThrottleAtEdge ?? false,
               apexSpeedKph: f?.apexSpeedKph ?? null,
               throttleM: r.values.throttle,
-              brakeResM: f?.brakeAtResM ?? null,
-              throttleResM: f?.fullThrottleAtResM ?? null,
+              brakeResM: src.entry.facts?.brakeAtResM ?? null,
+              throttleResM: src.exit.facts?.fullThrottleAtResM ?? null,
             };
           }),
         )
@@ -434,7 +468,7 @@ export function buildCornerModel(input: {
   // The corner's own window (a part's, or the section's when it is one corner)
   // is shaded and the charts run to its edges, once the laps are cut at the
   // boundaries the map carries; otherwise the old entry-to-next-entry stretch.
-  const windows = ownWindow(map, sec.sectionN, corner, ref);
+  const windows = ownWindow(map, sec.sectionN, corner, ref, whole);
   const own = windows?.own ?? null;
   const baseWindow: [number, number] = [
     sec.apexM - ZOOM_BEFORE_M,
@@ -499,7 +533,7 @@ export function buildCornerModel(input: {
   const lines: ZoomLine[] = rows.flatMap(r => {
     const t = traces.get(r.lapId);
     if (!t) return [];
-    const f = lapCornerFacts(byId.get(r.lapId)!, sec);
+    const src = sourcesOf(byId.get(r.lapId)!);
     return [
       {
         lapId: r.lapId,
@@ -518,23 +552,27 @@ export function buildCornerModel(input: {
         deltaS: deltaFromEntry(t, refTrace, anchorM),
         steeringPct: t.steeringPct,
         samples: t.samples,
-        brakeAtM: f?.brakeAtM ?? null,
-        fullThrottleAtM: f?.fullThrottleAtEdge
+        brakeAtM: src.entry.facts?.brakeAtM ?? null,
+        fullThrottleAtM: src.exit.facts?.fullThrottleAtEdge
           ? null
-          : f?.fullThrottleAtM ?? null,
+          : src.exit.facts?.fullThrottleAtM ?? null,
       },
     ];
   });
 
   const chips = all.map(c => ({n: c.n, label: turnLabel(c.n, c.official)}));
-  const {sections, parts} = sectionChips(all, sec);
+  const {sections, parts, all: allChip} = sectionChips(all, sec, whole);
   return {
     corner,
     sectionN: sec.sectionN,
     corners: chips,
     sections,
     parts,
-    title: turnTitleOf(turnLabel(corner, sec.official)),
+    all: allChip,
+    whole,
+    title: whole
+      ? wholeTitle(sec.sectionLabel)
+      : turnTitleOf(turnLabel(corner, sec.official)),
     subtitle: [
       `in ${sec.sectionLabel}`,
       `${selected.length} lap${selected.length === 1 ? '' : 's'}`,
@@ -574,8 +612,11 @@ export function buildCornerModel(input: {
       neighbours: view.neighbours,
       caption: view.caption,
     },
-    brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView),
-    prev: chips[(idx - 1 + chips.length) % chips.length]?.n ?? null,
+    brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView, {
+      brakeApexM: whole ? members[0].apexM : sec.apexM,
+      throttleApexM: sec.apexM,
+    }),
+    prev: chips[(firstIdx - 1 + chips.length) % chips.length]?.n ?? null,
     next: chips[(idx + 1) % chips.length]?.n ?? null,
   };
 }
@@ -634,6 +675,11 @@ export function buildBrakeMap(
   refTrace: GridTrace | undefined,
   apexM: number,
   view: {stretch: CornerStretch; neighbours: NeighbourApex[]} | null = null,
+  /** The apexes the brake and throttle distances are measured from; the corner's own unless it is a whole compound window. */
+  anchors: {brakeApexM: number; throttleApexM: number} = {
+    brakeApexM: apexM,
+    throttleApexM: apexM,
+  },
 ): BrakeMapModel | null {
   if (!refTrace || refTrace.lat.length === 0) return null;
   const from = gridIndex(refTrace, apexM - MAP_BEFORE_M);
@@ -686,10 +732,10 @@ export function buildBrakeMap(
       at: at(apexM + d),
     })),
     brakes: points(r =>
-      r.values.brake == null ? null : apexM - r.values.brake,
+      r.values.brake == null ? null : anchors.brakeApexM - r.values.brake,
     ),
     throttles: points(r =>
-      r.values.throttle == null ? null : apexM + r.values.throttle,
+      r.values.throttle == null ? null : anchors.throttleApexM + r.values.throttle,
     ),
   };
 }

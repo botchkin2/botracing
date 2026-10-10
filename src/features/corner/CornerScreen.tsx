@@ -89,11 +89,14 @@ const WIDE_TABLE_BODY_H = 160;
 export function CornerScreen({
   sessionId,
   corner,
+  whole = false,
   selection,
   onSelectionChange,
 }: {
   sessionId: string;
   corner: number;
+  /** The compound corner's whole window ("All" in the Parts row). */
+  whole?: boolean;
   selection: CornerSelection;
   onSelectionChange: (next: CornerSelection) => void;
 }) {
@@ -103,7 +106,13 @@ export function CornerScreen({
   const [allComparable, setAllComparable] = useState(
     layout.isWide && selection.laps.length <= 1,
   );
-  const result = useCornerModel(sessionId, corner, selection, allComparable);
+  const result = useCornerModel(
+    sessionId,
+    corner,
+    selection,
+    allComparable,
+    whole,
+  );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -217,9 +226,9 @@ function CornerView({
     onSelectionChange({...selection, laps: toggleTap(keyLapIds, lapId)});
   const canToggle = allComparable && model.strips != null;
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
-  const go = (n: number) =>
+  const go = (n: number, whole = false) =>
     router.replace(
-      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
+      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}, whole),
     );
 
   // One chip per section; a compound one (the bus stop) opens on its first
@@ -233,6 +242,17 @@ function CornerView({
       onPress={() => go(s.firstCorner)}
     />
   ));
+  // "All" first: the whole compound window as one corner. Its URL names the
+  // first part, so a step back from All lands before the section.
+  const allPartsChip = model.all ? (
+    <Chip
+      key='all'
+      label='All'
+      minWidth={size.hit}
+      selected={model.all.selected}
+      onPress={() => go(model.parts[0].n, true)}
+    />
+  ) : null;
   const partChips = model.parts.map(p => (
     <Chip
       key={p.n}
@@ -298,6 +318,7 @@ function CornerView({
         <Text variant='label' tone='textMuted'>
           Parts
         </Text>
+        {allPartsChip}
         {partChips}
       </View>
     ) : null;
