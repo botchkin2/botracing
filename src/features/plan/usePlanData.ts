@@ -1,7 +1,7 @@
 import {planRace, usage} from '@/src/analysis/fuelPlan';
 import {trafficMedians} from '@/src/analysis/traffic';
-import {raceFacts, useSession, useSessionLaps} from '@/src/data/sessions';
-import {carLabel} from '@/src/design';
+import {raceFactsOfPlan} from '@/src/data/sessions';
+import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {formationBurnOf} from './formation';
@@ -11,7 +11,7 @@ import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
 import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
 import {type Unit} from './unit';
-import {usePlanHistory, usePlanLimits} from './usePlanHistory';
+import {usePlanHistory, usePlanLimits, usePlanRows} from './usePlanHistory';
 
 /**
  * Everything the Plan screen shows for one track and car, as data: the rules
@@ -52,7 +52,7 @@ export function usePlanData(
   const greenLaps = hist.chosen.laps;
   // The formation lap burns what the driver's own races say, not a green lap.
   const formation = formationBurnOf(
-    hist.raceLaps,
+    hist.formationBurnsL,
     usage(greenLaps.map(l => l.fuelL))?.median ?? null,
   );
   const rules = baseRules && {
@@ -62,14 +62,7 @@ export function usePlanData(
   // The lane base comes from his own race stops here; the Plan counts no pit
   // time without it (fewer than two stops, or a class the refuel rate is not
   // measured for).
-  const pitBase = pitLaneBase(
-    hist.history.flatMap((s, i) =>
-      hist.lapsOf.laps[i]
-        ? [{sessionType: s.sessionType, laps: hist.lapsOf.laps[i]}]
-        : [],
-    ),
-    combo?.sessions[0]?.carClass ?? '',
-  );
+  const pitBase = pitLaneBase(hist.races, combo?.sessions[0]?.carClass ?? '');
   const plan = rules
     ? planRace(
         rules.rules,
@@ -153,15 +146,15 @@ export function useLastRaceHere(
   combo: Combo | null,
   event: {sessionIds: string[]} | null = null,
 ) {
+  const rows = usePlanRows(combo);
   const newest =
     combo?.sessions.find(
       s =>
         s.sessionType === 'R' &&
         (event == null || event.sessionIds.includes(s.id)),
     ) ?? null;
-  const detail = useSession(newest?.id ?? '');
-  const laps = useSessionLaps(newest?.id ?? null);
-  if (!newest || !detail.data || !laps.data) return null;
-  const key = `${detail.data.trackId}|${carLabel(detail.data.car).model}`;
-  return lastRaceOf(newest.id, raceFacts(detail.data, key, laps.data));
+  const row = newest ? rows.byId.get(newest.id) : undefined;
+  if (!combo || !newest || !row) return null;
+  const key = planComboKey(combo.trackId, combo.car, combo.sim);
+  return lastRaceOf(newest.id, raceFactsOfPlan(row, key));
 }

@@ -16,4 +16,7 @@ export const sessionKeys = {
   band: (id: string) => [...sessionKeys.all, 'band', id] as const,
   map: (id: string) => [...sessionKeys.all, 'map', id] as const,
   surface: (id: string) => [...sessionKeys.all, 'surface', id] as const,
+  /** One track and car's plan blocks (GET /plan). */
+  plan: (sim: string, trackId: string, carModel: string) =>
+    [...sessionKeys.all, 'plan', sim, trackId, carModel] as const,
 };

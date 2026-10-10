@@ -7,7 +7,6 @@ import {
   FORMATION_FUEL_ESTIMATE,
   type FormationFactor,
 } from '@/src/analysis/fuelPlan';
-import type {Lap} from '@/src/data/sessions';
 
 /** Races needed before the burn is measured rather than estimated. */
 export const MIN_FORMATION_RACES = 2;
@@ -28,14 +27,6 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** A race's formation burn: the fuel the first lap used, from the first sample to the start line. */
-function burnOf(laps: Lap[]): number | null {
-  if (laps.length === 0) return null;
-  const first = laps.reduce((a, b) => (b.lapIndex < a.lapIndex ? b : a));
-  const used = first.fuel?.usedL;
-  return used != null && used > 0 ? used : null;
-}
-
 /**
  * The median first-lap burn over the driver's races at this track and car,
  * against one median green lap of fuel. Under MIN_FORMATION_RACES races, or
@@ -43,13 +34,11 @@ function burnOf(laps: Lap[]): number | null {
  * fixtures), marked as an estimate.
  */
 export function formationBurnOf(
-  races: Lap[][],
+  /** Each race's burn: the fuel its first lap used, from the first sample to the start line (`plan.race.formationL`); null where it has none. */
+  raceBurnsL: (number | null)[],
   greenFuelL: number | null,
 ): FormationBurn {
-  const burns = races.flatMap(laps => {
-    const b = burnOf(laps);
-    return b == null ? [] : [b];
-  });
+  const burns = raceBurnsL.flatMap(b => (b != null && b > 0 ? [b] : []));
   if (
     burns.length >= MIN_FORMATION_RACES &&
     greenFuelL != null &&

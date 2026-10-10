@@ -3,6 +3,7 @@ import {useQueries, useQuery} from '@tanstack/react-query';
 import {retryUnlessClientError} from '../http';
 
 import {
+  fetchPlanSessions,
   fetchSession,
   fetchSessionFacets,
   fetchSessionBand,
@@ -93,6 +94,26 @@ export function useSessionsDetail(ids: string[]) {
       pending: results.some(r => r.isPending),
       failed: results.filter(r => r.isError).length,
     }),
+  });
+}
+
+/**
+ * The plan blocks of one track and car, in one request. `enabled` false skips
+ * it (no combo chosen yet). A plan changes only when a session is resynced.
+ */
+export function usePlanSessions(
+  combo: {sim: string; trackId: string; carModel: string} | null,
+) {
+  return useQuery({
+    enabled: combo != null,
+    queryKey: sessionKeys.plan(
+      combo?.sim ?? '',
+      combo?.trackId ?? '',
+      combo?.carModel ?? '',
+    ),
+    queryFn: ({signal}) => fetchPlanSessions(combo!, signal),
+    staleTime: DETAIL_STALE_MS,
+    retry: retryUnlessClientError,
   });
 }
 
