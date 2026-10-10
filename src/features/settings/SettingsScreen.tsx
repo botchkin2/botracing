@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -11,7 +12,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
-import {radius, space, useLayout, useTheme} from '@/src/design';
+import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
@@ -256,14 +257,15 @@ function Problems({rows}: {rows: ProblemRow[]}) {
       </Text>
       {rows.map(r =>
         r.sessionId ? (
-          <Text
+          <Pressable
             key={r.key}
-            variant='dataSmall'
-            tone='textSecondary'
             accessibilityRole='link'
+            style={styles.problemLink}
             onPress={() => router.push(`/session/${r.sessionId}`)}>
-            {r.text}
-          </Text>
+            <Text variant='dataSmall' tone='textSecondary'>
+              {r.text}
+            </Text>
+          </Pressable>
         ) : (
           <Text key={r.key} variant='dataSmall' tone='textSecondary'>
             {r.text}
@@ -303,6 +305,7 @@ const styles = StyleSheet.create({
   content: {gap: space.md, alignSelf: 'center', paddingBottom: space.xxxl},
   header: {gap: space.sm, paddingBottom: space.md},
   section: {marginTop: space.xl},
+  problemLink: {minHeight: size.hit, justifyContent: 'center'},
   card: {
     padding: space.lg,
     gap: space.xs,
