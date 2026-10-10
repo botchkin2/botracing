@@ -61,10 +61,11 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
 }
 
 /// `path` without a `\\?\` prefix when it has a plain form. Tauri canonicalizes
-/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`, and
-/// node cannot start a main script from such a path: it exits 1 with "EISDIR:
-/// illegal operation on a directory, lstat 'C:'" before running a line of it
-/// (the 0.1.2 tray's "Uploader stopped (exit code: 1)" loop, thread 1 #3473).
+/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`. The
+/// bundled node (24.19.0; 24.21.0 is fine) cannot start a main script from such
+/// a path: it exits 1 with "EISDIR: illegal operation on a directory, lstat
+/// 'C:'" before running a line of it. That was the 0.1.2 tray's "Uploader
+/// stopped (exit code: 1)" loop (thread 1 #3473).
 pub fn plain(path: &Path) -> PathBuf {
     dunce::simplified(path).to_path_buf()
 }
@@ -504,8 +505,10 @@ mod tests {
     }
 
     // The installed tray's case: Tauri's resource_dir() is canonicalized, so it
-    // is `\\?\C:\...`. Every path the watcher gets must be plain, and node must
-    // actually start from them (it cannot from a verbatim main script).
+    // is `\\?\C:\...`. Every path the watcher gets must be plain (the asserts
+    // fail without `plain`, on any node), and node must start from them. Whether
+    // node itself refuses a verbatim main script depends on its version: the
+    // bundled 24.19.0 does, 24.21.0 (CI) does not, so no test leans on that.
     #[cfg(windows)]
     #[test]
     fn a_verbatim_resources_dir_still_starts_the_watcher() {
@@ -530,7 +533,8 @@ mod tests {
         for path in [&p.root, &p.node] {
             assert!(!path.to_string_lossy().starts_with(r"\\?\"), "{path:?}");
         }
-        assert_eq!(p.root, resources.join("app"));
+        // The same folder, whatever 8.3 short name the temp dir was given as.
+        assert_eq!(p.root, plain(&verbatim.join("app")));
 
         let mut s = Supervisor::new();
         s.set_allowed(true);
@@ -543,27 +547,6 @@ mod tests {
         let script = std::fs::read_to_string(&started).expect("node never ran the script");
         assert!(!script.starts_with(r"\\?\"), "{script}");
         s.stop();
-        let _ = std::fs::remove_dir_all(&base);
-    }
-
-    // The bug itself, so a newer node that accepts verbatim paths shows up here.
-    #[cfg(windows)]
-    #[test]
-    fn node_cannot_start_a_verbatim_main_script() {
-        let base = std::env::temp_dir().join(format!("botracing-verbatim-node-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        let script = base.join("x.js");
-        touch(&script);
-        let verbatim = script.canonicalize().unwrap();
-        let status = Command::new("node")
-            .arg(&verbatim)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .unwrap();
-        assert!(!status.success(), "node now starts {verbatim:?}: plain() may be unneeded");
-        let status = Command::new("node").arg(plain(&verbatim)).status().unwrap();
-        assert!(status.success());
         let _ = std::fs::remove_dir_all(&base);
     }
 
