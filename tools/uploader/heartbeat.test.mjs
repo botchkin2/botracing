@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import {
   beatKey,
   heartbeatDoc,
+  simsDoc,
   hostIdOf,
   idleState,
   MAX_PROBLEMS,
@@ -232,4 +233,38 @@ test('problems: at most 10, messages cut to 120 characters, and a change forces 
   );
   assert.deepEqual(heartbeatDoc({...input, problems}).problems, problems);
   assert.deepEqual(heartbeatDoc(input).problems, []);
+});
+
+test('each sim has its own queue, and only the sim being synced has the progress', () => {
+  const sims = simsDoc(
+    [
+      {id: 'lmu', queue: 0, retryAtMs: null, lastError: null},
+      {id: 'iracing', queue: 5, retryAtMs: null, lastError: null},
+    ],
+    'iracing',
+    {done: 2, total: 5},
+  );
+  assert.deepEqual(sims.lmu, {queue: 0, syncing: false, progress: null, retryAt: null, lastError: null});
+  assert.deepEqual(sims.iracing, {queue: 5, syncing: true, progress: {done: 2, total: 5}, retryAt: null, lastError: null});
+  // Nothing syncing: nobody has progress, whatever the watcher last reported.
+  assert.equal(simsDoc([{id: 'lmu', queue: 1}], null, {done: 1, total: 2}).lmu.progress, null);
+});
+
+test('each sim keeps its own retry time and error, with user folders scrubbed', () => {
+  const sims = simsDoc([
+    {id: 'lmu', queue: 1, retryAtMs: Date.UTC(2026, 9, 9, 12), lastError: {at: '2026-10-09T11:00:00Z', message: String.raw`boom in C:SERSBOTKINX`}},
+    {id: 'iracing', queue: 0},
+  ]);
+  assert.equal(sims.lmu.retryAt, '2026-10-09T12:00:00.000Z');
+  assert.ok(!sims.lmu.lastError.message.includes('Botkin'), sims.lmu.lastError.message);
+  assert.equal(sims.iracing.retryAt, null);
+  assert.equal(sims.iracing.lastError, null);
+});
+
+test('the heartbeat carries the sims, and a change in one sim forces a write', () => {
+  const sims = n => simsDoc([{id: 'lmu', queue: n}, {id: 'iracing', queue: 0}]);
+  const a = heartbeatDoc({...input, sims: sims(0)});
+  assert.deepEqual(Object.keys(a.sims), ['lmu', 'iracing']);
+  assert.notEqual(beatKey(a), beatKey(heartbeatDoc({...input, sims: sims(1)})));
+  assert.deepEqual(heartbeatDoc(input).sims, {}, 'an old caller still gets a doc');
 });
