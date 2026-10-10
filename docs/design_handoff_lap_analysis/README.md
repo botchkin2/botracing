@@ -305,7 +305,7 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - "+ Add chart" at the bottom.
 - The chart setup persists per user (not per session), so the layout is the same every time Compare opens.
 - **Window (primary way to read traces):** the charts never show the whole lap by default. They show a short window around the cursor so corner detail is readable.
-  - **Time mode (default, speed-dependent):** the window is ±win/2 seconds of the reference lap around the cursor. Its distance span is dist(t + win/2) − dist(t − win/2), so it widens on straights and tightens in slow corners. Steps: 0.5 s, 1 s, **2 s**, 4 s, Lap.
+  - **Time mode (default, speed-dependent):** the window is ±win/2 seconds of the reference lap around the cursor. Its distance span is dist(t + win/2) − dist(t − win/2), so it widens on straights and tightens in slow corners. Steps: 0.5 s, 1 s, **2 s**, 4 s, 15 s, Lap. A Lap button beside the stepper goes to the whole lap in one tap (D29).
   - **Distance mode (fixed):** a window of win metres centred on the cursor. Steps: 50, 100, **200**, 400 m, Lap.
   - **Lap:** the whole lap, for orientation only.
   - Inside a window, traces are drawn from every 5 m sample, smoothed with Catmull-Rom (except gear, which stays stepped). Gridlines use a nice step (5, 10, 20, 25, 50, 100 or 200 m) labelled with the lap distance, and corner apex lines are labelled "C6 apex".
