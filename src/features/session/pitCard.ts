@@ -7,7 +7,12 @@
 // laps, never from the car class: with no VE the VE parts are removed, not
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
-import {refuelS, refuelScope} from '@/src/analysis/refuel';
+import {
+  REFUEL_FUEL_MIN_L,
+  REFUEL_VE_MIN_PCT,
+  refuelS,
+  refuelScope,
+} from '@/src/analysis/refuel';
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {
@@ -102,7 +107,10 @@ export type ActualEnd = {
  */
 export function isRefuelStop(stop: PitStop): boolean {
   if (stop.visit) return stop.visit.did.includes('refuel');
-  return (stop.added.fuelL ?? 0) > 0;
+  return (
+    (stop.added.fuelL ?? 0) >= REFUEL_FUEL_MIN_L ||
+    (stop.added.vePct ?? 0) >= REFUEL_VE_MIN_PCT
+  );
 }
 
 /** The race's side of "Plan vs what happened". */

@@ -678,9 +678,19 @@ describe('isRefuelStop', () => {
   it('a penalty stop-go (no visit, no litres) does not count', () => {
     expect(isRefuelStop(stop(0, []))).toBe(false);
   });
-  it('without a visit block, litres added decide', () => {
+  it('without a visit block, litres added at the classifier thresholds decide', () => {
     expect(isRefuelStop(stop(40, null))).toBe(true);
     expect(isRefuelStop(stop(0, null))).toBe(false);
     expect(isRefuelStop(stop(null, null))).toBe(false);
+    // sensor jitter below 1 L is not a refuel
+    expect(isRefuelStop(stop(0.1, null))).toBe(false);
+  });
+
+  it('without a visit block, a VE-only top-up counts', () => {
+    const ve = {
+      ...stop(0, null),
+      added: {fuelL: 0, vePct: 1},
+    } as unknown as Parameters<typeof isRefuelStop>[0];
+    expect(isRefuelStop(ve)).toBe(true);
   });
 });
