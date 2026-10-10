@@ -61,17 +61,6 @@ export function turnRangeLabel(corners: readonly string[]): string {
   return `${first}–${bare ? last.slice(1) : last}`;
 }
 
-/**
- * The header for a section's corners. "T7 entry" and "T7" are one turn split
- * into entry and apex: the entry/exit word is dropped and a repeated name is
- * shown once, so the section reads "T7", not "T7 entry–T7".
- */
-export function sectionNamesLabel(names: readonly string[]): string {
-  const base = names.map(n => n.replace(/\s+(entry|exit)$/i, ''));
-  const once = base.filter((n, i) => i === 0 || n !== base[i - 1]);
-  return turnRangeLabel(once);
-}
-
 /** Whether lap's time in segment i counts towards bests, medians, spread and the optimum. */
 function counts(lap: SegmentLap, i: number): number | null {
   const t = lap.timesS[i];

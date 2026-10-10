@@ -7,9 +7,9 @@ import {
   type SectionMode,
   type SegmentLap,
   type SegmentTimes,
-  sectionNamesLabel,
   turnRangeLabel,
 } from '@/src/analysis/segments';
+import {sectionHeaderOf} from '@/src/analysis/turnNames';
 
 import type {
   Lap,
@@ -25,7 +25,7 @@ const START_LABEL = 'S/F';
 /** "T4" or "T2–5": the corners a section holds, by the same names the Corner screen uses. */
 function sectionLabel(s: MapSection): string {
   const name = (c: MapCorner) => c.official ?? `T${c.n}`;
-  return sectionNamesLabel((s.parts.length ? s.parts : [s]).map(name));
+  return sectionHeaderOf((s.parts.length ? s.parts : [s]).map(name));
 }
 
 /**

@@ -10,7 +10,8 @@ import {
   offsetFromLine,
   signedArea2,
 } from '@/src/analysis/loopSide';
-import {fonts, useTheme, turnLabel, turnNumber} from '@/src/design';
+import {turnBadgeOf} from '@/src/analysis/turnNames';
+import {fonts, useTheme, turnLabel} from '@/src/design';
 
 import {CarDots, type MapCar} from './CarDots';
 
@@ -445,7 +446,7 @@ export function TrackMap({
                   fill={on ? color.bg : color.mapLabel}
                   fontFamily={fonts.monoBold}
                   fontSize={b.font}>
-                  {turnNumber(c.n, c.official)}
+                  {turnBadgeOf(turnLabel(c.n, c.official))}
                 </SvgText>
               </G>
             );
