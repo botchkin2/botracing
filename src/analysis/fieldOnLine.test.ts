@@ -154,3 +154,45 @@ describe('placeFieldOnLine with LMU positions and a lateral offset', () => {
     expect(Number.isNaN(placed.cars[1].xM[1])).toBe(false);
   });
 });
+
+describe('placeFieldOnLine output through a world-to-map placer', () => {
+  // A stand-in for the app's placer: an affine map, so a double transform shows.
+  const placeWorld = (p: {x: number; z: number}) => ({
+    x: 2 * p.x + 1,
+    y: 2 * p.z - 3,
+  });
+  const centre = [
+    {x: 0, y: 0},
+    {x: 5, y: 0},
+    {x: 5, y: 5},
+    {x: 0, y: 5},
+  ];
+  it('a placed car, passed through placeWorld once, lands on centre plus lateral', () => {
+    const f: Field = {
+      version: 2,
+      hz: 5,
+      hasPositions: true,
+      startEtS: 0,
+      timeS: Float64Array.from([0]),
+      cars: [
+        {
+          ...car(0, false, [2.5]),
+          pathLateralM: Float32Array.from([2]),
+          xM: Float32Array.from([2.5]),
+          zM: Float32Array.from([0]),
+          yawRad: Float32Array.from([0]),
+        },
+      ],
+    };
+    const placed = placeFieldOnLine(f, centre, STEP, {lateral: true});
+    // World x/z: the centre at 2.5 along +x, 2 m to the right (-z) of travel.
+    const w = {x: placed.cars[0].xM[0], z: placed.cars[0].zM[0]};
+    expect([w.x, w.z]).toEqual([expect.any(Number), expect.any(Number)]);
+    expect(w.x).toBeCloseTo(2.5);
+    expect(w.z).toBeCloseTo(-2);
+    // Through the placer once: the map point is the affine map of centre + lateral.
+    const onMap = placeWorld(w);
+    expect(onMap.x).toBeCloseTo(2 * 2.5 + 1);
+    expect(onMap.y).toBeCloseTo(2 * -2 - 3);
+  });
+});
