@@ -6,6 +6,7 @@
 
 import type {Dispatch, SetStateAction} from 'react';
 
+import {PLAY_RATES, type PlayRate} from '@/src/state/comparePrefs';
 import {playStep, rewindStep, type TimedGrid} from '@/src/analysis/window';
 
 /** Longest step one tick may take, so a resume after the app was in the
@@ -35,4 +36,11 @@ export function playTicker(
     const advance = reverse ? rewindStep : playStep;
     move(c => advance(ref, c, dtS, rate));
   };
+}
+
+/** The speed chip's next value: 0.25, 0.5, 1, 2, then round again. An unknown
+ * rate goes to 1. */
+export function nextRate(rate: number): PlayRate {
+  const i = (PLAY_RATES as readonly number[]).indexOf(rate);
+  return i < 0 ? 1 : PLAY_RATES[(i + 1) % PLAY_RATES.length];
 }

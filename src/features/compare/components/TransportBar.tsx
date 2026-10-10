@@ -3,11 +3,8 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {
-  PLAY_RATES,
-  type PlayRate,
-  type WindowStep,
-} from '@/src/state/comparePrefs';
+import {type PlayRate, type WindowStep} from '@/src/state/comparePrefs';
+import {nextRate} from '../playback';
 import {hitFor, Segment, Text} from '@/src/ui';
 
 import {type WindowMode} from '@/src/analysis/window';
@@ -196,9 +193,7 @@ export function TransportBar({
       <Pressable
         accessibilityRole='button'
         accessibilityLabel={`Speed ${rate}×`}
-        onPress={() =>
-          onRate(PLAY_RATES[(PLAY_RATES.indexOf(rate) + 1) % PLAY_RATES.length])
-        }
+        onPress={() => onRate(nextRate(rate))}
         hitSlop={HIT_SLOP}
         style={[
           styles.stepper,
