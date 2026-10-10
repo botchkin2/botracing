@@ -55,14 +55,25 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
+/// `path` without a `\\?\` prefix when it has a plain form. Tauri canonicalizes
+/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`. The
+/// bundled node (24.19.0; 24.21.0 is fine) cannot start a main script from such
+/// a path: it exits 1 with "EISDIR: illegal operation on a directory, lstat
+/// 'C:'" before running a line of it. That was the 0.1.2 tray's "Uploader
+/// stopped (exit code: 1)" loop (thread 1 #3473).
+pub fn plain(path: &Path) -> PathBuf {
+    dunce::simplified(path).to_path_buf()
+}
+
 pub fn paths(resources: &Path) -> Paths {
+    let resources = plain(resources);
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let exe = std::env::current_exe().unwrap_or_default();
+    let exe = plain(&std::env::current_exe().unwrap_or_default());
     let root = find_root(
         std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
-        resources,
+        &resources,
         &exe,
     );
     let node = std::env::var_os("BOTRACING_NODE")
@@ -76,9 +87,9 @@ pub fn paths(resources: &Path) -> Paths {
             }
         });
     Paths {
-        data: local.join(crate::profile::data_dir_name()),
-        root,
-        node,
+        data: plain(&local.join(crate::profile::data_dir_name())),
+        root: plain(&root),
+        node: plain(&node),
     }
 }
 
@@ -122,16 +133,16 @@ impl Running {
     /// Starts `cmd` quietly and puts it in a kill-on-close job. A process
     /// that starts its own children before the assignment below is the one
     /// gap; node takes far longer than that to get to its first child.
-    pub fn spawn(cmd: Command) -> std::io::Result<Running> {
-        Running::spawn_inner(cmd, true)
+    pub fn spawn(cmd: Command, stderr: Stdio) -> std::io::Result<Running> {
+        Running::spawn_inner(cmd, true, stderr)
     }
 
     // `job` false exists for the test that shows the job is what ends the
     // tree.
-    fn spawn_inner(mut cmd: Command, job: bool) -> std::io::Result<Running> {
+    fn spawn_inner(mut cmd: Command, job: bool, stderr: Stdio) -> std::io::Result<Running> {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(stderr);
         #[cfg(windows)]
         {
             use std::os::windows::io::AsRawHandle;
@@ -281,7 +292,10 @@ impl Supervisor {
             };
             self.running = None;
             self.failures += 1;
-            self.problem = Some(format!("Uploader stopped ({status}), restarting"));
+            self.problem = Some(format!(
+                "Uploader stopped ({status}), restarting. Log: {}",
+                log_path(&p.data).display()
+            ));
             self.retry_at = Some(Instant::now() + backoff(self.failures));
             return;
         }
@@ -303,7 +317,9 @@ impl Supervisor {
             return;
         }
         trim_status(&p.status_file());
-        match Running::spawn(command(p)) {
+        let log = log_path(&p.data);
+        let stderr = open_log(&log).map_or_else(Stdio::null, Stdio::from);
+        match Running::spawn(command(p), stderr) {
             Ok(running) => {
                 self.running = Some(running);
                 self.started_at = Some(Instant::now());
@@ -319,6 +335,54 @@ impl Supervisor {
         self.problem = Some(message);
         self.retry_at = Some(Instant::now() + backoff(self.failures));
     }
+}
+
+/// Where the uploader's stderr goes, so a crash leaves its cause behind.
+pub fn log_path(data: &Path) -> PathBuf {
+    uploader_home(data).join("sidecar.log")
+}
+
+/// About 1 MB at most: past that, the newest half is kept.
+const LOG_MAX_BYTES: u64 = 1_000_000;
+const LOG_KEEP_BYTES: u64 = 500_000;
+
+/// The log opened for appending, with a line marking this start. None if it
+/// cannot be opened: the uploader then runs without a log rather than not at
+/// all.
+fn open_log(file: &Path) -> Option<std::fs::File> {
+    use std::io::Write;
+    std::fs::create_dir_all(file.parent()?).ok()?;
+    trim_log(file);
+    let mut log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)
+        .ok()?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let _ = writeln!(log, "--- uploader start (unix {secs}) ---");
+    Some(log)
+}
+
+fn trim_log(file: &Path) {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(file) else {
+        return;
+    };
+    let len = f.metadata().map_or(0, |m| m.len());
+    if len <= LOG_MAX_BYTES {
+        return;
+    }
+    let mut newest = Vec::new();
+    if f.seek(SeekFrom::Start(len - LOG_KEEP_BYTES)).is_err() || f.read_to_end(&mut newest).is_err()
+    {
+        return;
+    }
+    drop(f);
+    // The cut can land mid-line: drop the partial first line.
+    let from = newest.iter().position(|b| *b == b'\n').map_or(0, |i| i + 1);
+    let _ = std::fs::write(file, &newest[from..]);
 }
 
 /// The status file only grows while a watcher runs; start each run from a
@@ -368,7 +432,7 @@ mod tests {
             "/c start /b node \"{}\" & ping -n 30 127.0.0.1 >nul",
             script.display()
         ));
-        let running = Running::spawn_inner(cmd, job).expect("cmd starts");
+        let running = Running::spawn_inner(cmd, job, Stdio::null()).expect("cmd starts");
 
         std::thread::sleep(Duration::from_millis(1500));
         assert!(
@@ -435,6 +499,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
+    // The installed tray's case: Tauri's resource_dir() is canonicalized, so it
+    // is `\\?\C:\...`. Every path the watcher gets must be plain (the asserts
+    // fail without `plain`, on any node), and node must start from them. Whether
+    // node itself refuses a verbatim main script depends on its version: the
+    // bundled 24.19.0 does, 24.21.0 (CI) does not, so no test leans on that.
+    #[cfg(windows)]
+    #[test]
+    fn a_verbatim_resources_dir_still_starts_the_watcher() {
+        let base = std::env::temp_dir().join(format!("botracing-verbatim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let resources = base.join("install");
+        touch(&resources.join("app").join(SCRIPT));
+        let started = base.join("started.txt");
+        std::fs::write(
+            resources.join("app").join(SCRIPT),
+            format!(
+                "import {{writeFileSync}} from 'node:fs'; writeFileSync({:?}, process.argv[1]);",
+                started.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        let verbatim = resources.canonicalize().unwrap();
+        assert!(verbatim.to_string_lossy().starts_with(r"\\?\"), "{verbatim:?}");
+
+        let mut p = paths(&verbatim);
+        p.data = base.join("data");
+        for path in [&p.root, &p.node] {
+            assert!(!path.to_string_lossy().starts_with(r"\\?\"), "{path:?}");
+        }
+        // The same folder, whatever 8.3 short name the temp dir was given as.
+        assert_eq!(p.root, plain(&verbatim.join("app")));
+
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        assert!(s.problem.is_none(), "it should have started: {:?}", s.problem);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !started.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let script = std::fs::read_to_string(&started).expect("node never ran the script");
+        assert!(!script.starts_with(r"\\?\"), "{script}");
+        s.stop();
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     #[test]
     fn the_sync_gets_its_own_state_folder_and_a_first_run_window() {
         let mut p = paths(Path::new("."));
@@ -498,6 +608,41 @@ mod tests {
         // The wait before the restart has not passed yet, so no second start.
         s.tick(&p);
         assert!(s.problem.is_some());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_log_keeps_the_newest_part_and_the_crash_reaches_it() {
+        let base = std::env::temp_dir().join(format!("botracing-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let file = log_path(&base);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let old = "old line\n".repeat(150_000);
+        std::fs::write(&file, format!("{old}newest line\n")).unwrap();
+        drop(open_log(&file));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.len() < 600_000, "{}", text.len());
+        assert!(text.starts_with("old line\n"), "no partial first line");
+        assert!(text.contains("newest line\n--- uploader start"));
+
+        touch(&base.join("root").join(SCRIPT));
+        std::fs::write(
+            base.join("root").join(SCRIPT),
+            "console.error('boom: cannot find thing'); process.exit(1)",
+        )
+        .unwrap();
+        let mut p = paths(Path::new("."));
+        p.root = base.join("root");
+        p.data = base.clone();
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        std::thread::sleep(Duration::from_millis(1500));
+        s.tick(&p);
+        let problem = s.problem.clone().unwrap_or_default();
+        assert!(problem.contains("sidecar.log"), "{problem}");
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("boom: cannot find thing"), "{text}");
         let _ = std::fs::remove_dir_all(&base);
     }
 

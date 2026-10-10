@@ -18,7 +18,7 @@ export const FIRST_RACE_SESSION = 10;
 /** mGamePhase while the race is green. */
 const GREEN = 5;
 /** Bump when the rule changes: it reanalyzes every session once (analyze.mjs blockVersions). */
-export const RACE_LENGTH_VERSION = 1;
+export const RACE_LENGTH_VERSION = 2;
 
 /**
  * {minutes} from the extremes of the race's green updates, or null when they
@@ -27,6 +27,30 @@ export const RACE_LENGTH_VERSION = 1;
 export function raceLengthOf({endEt, greenStartEt}) {
   if (!Number.isFinite(endEt) || !Number.isFinite(greenStartEt)) return null;
   const minutes = Math.round((endEt - greenStartEt) / 60);
+  return minutes > 0 ? {minutes} : null;
+}
+
+/**
+ * iRacing: the race's length from the .ibt's session info, which lists every
+ * session of the event (any file of it carries the race's limits, not only a
+ * race's own). `SessionTime` is `2700.0000 sec` or `unlimited`; a race limited
+ * by laps alone (`SessionTime: unlimited`) has no minutes, so it is null, not
+ * zero. Null too without a Race entry.
+ */
+export function raceLengthFromYaml(yaml) {
+  const text = String(yaml);
+  const current = text.match(/^\s*CurrentSessionNum:\s*(\d+)/m)?.[1];
+  const races = text
+    .split(/^ - SessionNum:/m)
+    .slice(1)
+    .filter(block => /^\s+SessionType:\s*Race\s*$/m.test(block));
+  // A heat event lists several races: the file's own session when it is a
+  // race, else the event's only race. Several and none of them the file's own
+  // (or no current number, older files) is not guessed.
+  const own = races.find(b => b.trim().split(/\s/)[0] === current);
+  const block = own ?? (races.length === 1 ? races[0] : undefined);
+  const m = block?.match(/^\s+SessionTime:\s*([0-9.]+)\s*sec/m);
+  const minutes = m ? Math.round(Number(m[1]) / 60) : 0;
   return minutes > 0 ? {minutes} : null;
 }
 
