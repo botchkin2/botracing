@@ -21,7 +21,6 @@ import {
   cornerLapIds,
   type CornerModel,
   type CornerSelection,
-  referenceFirst,
 } from './model';
 import {keyLapIds as keyLapsOf} from './keyLaps';
 
@@ -50,10 +49,7 @@ export function useCornerModel(
 ): CornerResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
-  const selection = useMemo(
-    () => (laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection),
-    [urlSelection, laps.data],
-  );
+  const selection = urlSelection;
   const band = useSessionBand(sessionId);
   const map = useTrackMap(session.data?.trackId);
 
@@ -142,6 +138,7 @@ export function useCornerModel(
       lapIds,
       keyLapIds: traceIds,
       hl: selection.hl,
+      refId: selection.ref ?? null,
       corner,
     });
     return model

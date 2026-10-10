@@ -11,7 +11,6 @@ import {
   buildCornerModel,
   cornerLapIds,
   MEASURES,
-  referenceFirst,
   sortRows,
   buildBrakeMap,
 } from './model';
@@ -95,6 +94,7 @@ const build = (lapIds: string[], hl: string | null = null, corner = 3) =>
     band: null,
     traces: new Map(),
     lapIds,
+    refId: lapIds[0],
     keyLapIds: lapIds.length < 7 ? lapIds : [lapIds[0], hl ?? lapIds[1]],
     hl,
     corner,
@@ -112,6 +112,7 @@ describe('a lap at full throttle by the slowest point', () => {
     band: null,
     traces: new Map(),
     lapIds: ['a', 'f'],
+    refId: 'a',
     keyLapIds: ['a', 'f'],
     hl: 'f',
     corner: 3,
@@ -177,6 +178,7 @@ describe('buildCornerModel (per single corner)', () => {
       band: null,
       traces: new Map(),
       lapIds: ['d'],
+      refId: 'd',
       keyLapIds: ['d'],
       hl: null,
       corner: 3,
@@ -220,6 +222,48 @@ describe('buildCornerModel (per single corner)', () => {
   });
 });
 
+describe('the median basis (no Ref picked)', () => {
+  const median = (lapIds: string[], refId: string | null) =>
+    buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds,
+      refId,
+      keyLapIds: lapIds,
+      hl: null,
+      corner: 3,
+    })!;
+
+  it('measures each lap against the median of the set, column by column', () => {
+    const m = median(['a', 'b', 'c'], null);
+    expect(m.subtitle).toContain('vs median of 3');
+    const valueOf = (id: string) =>
+      m.rows.find(r => r.lapId === id)!.values.time as number;
+    const sorted = ['a', 'b', 'c'].map(valueOf).sort((x, y) => x - y);
+    // Every lap is measured, none is the reference: no row is isRef.
+    expect(m.rows.some(r => r.isRef)).toBe(false);
+    expect(m.rows.every(r => r.cells.time.gap != null)).toBe(true);
+    // The gap printed is each lap against the median of the three times.
+    const gapOf = (id: string) =>
+      m.rows.find(r => r.lapId === id)!.cells.time.gap!;
+    for (const id of ['a', 'b', 'c']) {
+      const diff = valueOf(id) - sorted[1];
+      expect(gapOf(id)).toContain(Math.abs(diff).toFixed(1));
+    }
+  });
+
+  it('a picked Ref is the basis, and it has no difference against itself', () => {
+    const m = median(['a', 'b', 'c'], 'b');
+    expect(m.subtitle).toContain('compared with L');
+    const refRow = m.rows.find(r => r.lapId === 'b')!;
+    expect(refRow.isRef).toBe(true);
+    expect(refRow.cells.time.gap).toBeNull();
+  });
+});
+
 describe('strips at 7+ laps', () => {
   const many = toLaps(
     Array.from({length: 7}, (_, i) =>
@@ -233,6 +277,7 @@ describe('strips at 7+ laps', () => {
     band: null,
     traces: new Map(),
     lapIds: many.map(l => l.id),
+    refId: many[0].id,
     keyLapIds: ['m0', 'm3'],
     hl: 'm3',
     corner: 3,
@@ -300,34 +345,6 @@ describe('lap choice', () => {
       'a',
     ]);
     expect(cornerLapIds([], {laps: [], hl: null}, false, null)).toEqual([]);
-  });
-
-  it('puts the Ref lap first, else the quickest checked lap', () => {
-    const timed = toLaps([
-      {...lap('a', [9.8, 460, 110, 650]), lapTime: 91},
-      {...lap('b', [10.1, 450, 106, 670]), lapTime: 90},
-      {...lap('c', [9.7, 470, 112, 640]), lapTime: 92},
-    ]);
-    const sel = (over: Partial<Parameters<typeof referenceFirst>[0]>) => ({
-      laps: ['a', 'b', 'c'],
-      hl: null,
-      ...over,
-    });
-    // Compare keeps lap-number order, so the first is not a choice.
-    expect(referenceFirst(sel({}), timed).laps).toEqual(['b', 'a', 'c']);
-    expect(referenceFirst(sel({ref: 'c'}), timed).laps).toEqual([
-      'c',
-      'a',
-      'b',
-    ]);
-    expect(referenceFirst(sel({ref: 'x'}), timed).laps).toEqual([
-      'b',
-      'a',
-      'c',
-    ]);
-    const first = sel({laps: ['b', 'a']});
-    expect(referenceFirst(first, timed)).toBe(first);
-    expect(referenceFirst(sel({laps: []}), timed).laps).toEqual([]);
   });
 
   it('sorts by a measure', () => {

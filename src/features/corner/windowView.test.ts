@@ -101,6 +101,7 @@ const build = (
     band: null,
     traces: new Map(),
     lapIds: ['a', 'b'],
+    refId: 'a',
     keyLapIds: ['a', 'b'],
     hl: null,
     corner,
