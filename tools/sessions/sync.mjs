@@ -68,6 +68,7 @@ import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {planBlock} from './planBlock.mjs';
+import {carLabel} from '../../src/design/carModels.ts';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
 import {
@@ -569,6 +570,9 @@ function build(
     track,
     carId,
     car,
+    // The car model without the livery, the Plan's key (src/design/carModels.ts):
+    // the plan route filters on it, so it is a field of its own.
+    carModel: carLabel(first.car).model,
     sessionType: first.sessionType,
     sessionClock: first.sessionClock,
     weather: first.weather,
