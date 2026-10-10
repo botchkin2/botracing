@@ -20,13 +20,25 @@
 //                  fullThrottleSpeedKmh, and endSpeedKmh (the exit carried down
 //                  the straight, which is why the straight belongs to this corner)
 //   the pedal and speed facts the map's corners always had (minimum speed,
-//   brake point, first full throttle, off-track and local-yellow time)
+//   brake point, full throttle, off-track and local-yellow time), each read
+//   for the corner it belongs to and null where it has none (thread 58):
+//   brakeAtM, peakBrakePct   the application braking FOR this corner (a
+//                  section's single corner: the section's)
+//   fullThrottleAtM          the held full-throttle point the split uses
+//   turnInAtM                steering on the corner's own side (cornerInputs.mjs)
+//   throttlePickupAtM, minThrottlePct   where the closed-throttle phase ends,
+//                  or, when the pedal never closes, how far it came off
 import {
   brakeApplications,
   fullThrottlePointM,
   splitWindow,
 } from '../../src/analysis/cornerBoundaries.ts';
-import {brakeStart, fullThrottleStart, sampleTicks} from './pedalPoints.mjs';
+import {
+  steerSignOf,
+  throttlePickup,
+  turnInPoint,
+} from './cornerInputs.mjs';
+import {brakeStart, sampleTicks} from './pedalPoints.mjs';
 
 export const GRID_M = 5;
 
@@ -80,13 +92,51 @@ export function cornerFacts({
     ? 'throttle_pos_unfiltered'
     : 'throttle_pct';
 
+  // The brake applications of one section window, each named for the corner it
+  // is braking for (brakeApplications), in the map's frame.
+  const appsOf = w => {
+    const fromTick = tickAt(raw(w.fromM));
+    const toTick = w.toM >= lengthM - 1e-6 ? lap.i1 : tickAt(raw(w.toM));
+    const ticks = sampleTicks(rec.hz.brake_pct, rec.baseHz, fromTick, toTick)
+      .ticks;
+    return brakeApplications(
+      {
+        distM: ticks.map(mapAt),
+        brakePct: ticks.map(i => s.brake_pct[i]),
+      },
+      w,
+    ).map(a => ({
+      onsetM: round(a.onsetM, 1),
+      peakPct: round(a.peakPct, 1),
+      part: a.part,
+    }));
+  };
+  const sideOf = c => (c.direction === 'right' ? 1 : c.direction === 'left' ? -1 : 0);
+  // Which sign of the steering channel is a right turn, from this lap's own
+  // corners (it differs between the sims).
+  const steerSign = s.steer_pct
+    ? steerSignOf(
+        sections
+          .flatMap(c => c.parts ?? [c])
+          .filter(c => sideOf(c) !== 0)
+          .map(c => {
+            let peak = 0;
+            const to = tickAt(raw(c.exitM));
+            for (let i = tickAt(raw(c.turnInM)); i <= to; i++)
+              if (Math.abs(s.steer_pct[i]) > Math.abs(peak))
+                peak = s.steer_pct[i];
+            return {dir: sideOf(c), peak};
+          }),
+      )
+    : 1;
+
   const sectionWindows = windows.filter(w => w.kind === 'section');
   const startWindow = windows.find(w => w.kind === 'start-straight') ?? null;
 
   // The facts of one window. u: {fromM, toM, turnInM, exitM, apexM} in the
   // map's frame; onsetM: the lap's onset for it; withApps: the section's own
   // CornerWindow, when its brake applications are wanted.
-  const unit = (u, onsetM, withApps, parts = []) => {
+  const unit = (u, onsetM, withApps, parts = [], my) => {
     const fromTick = tickAt(raw(u.fromM));
     const toTick = u.toM >= lengthM - 1e-6 ? lap.i1 : tickAt(raw(u.toM));
     const turnInTick = tickAt(raw(u.turnInM));
@@ -104,24 +154,25 @@ export function cornerFacts({
     // that holds either way.
     const minAtEdge = minTick - turnInTick <= 1 || exitTick - minTick <= 1;
     const apexTick = tickAt(raw(u.apexM));
-    const brake = brakeStart(
-      s.brake_pct,
-      sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, exitTick),
-      distAt,
-      fromTick,
-    );
+    // The application braking FOR this corner (brakeApplications names it), at
+    // its first sample at or past the brake threshold; none, none.
+    const firstApp = my.apps[0] ?? null;
+    const brake = firstApp
+      ? brakeStart(
+          s.brake_pct,
+          sampleTicks(rec.hz.brake_pct, rec.baseHz, lap.i0, exitTick),
+          distAt,
+          tickAt(raw(firstApp.onsetM - 0.1)),
+        )
+      : null;
+    const peakBrakePct = my.apps.length
+      ? Math.max(...my.apps.map(a => a.peakPct))
+      : null;
     const pedalSamples = sampleTicks(
       rec.hz[pedal],
       rec.baseHz,
       minTick,
       toTick,
-    );
-    const full = fullThrottleStart(s[pedal], pedalSamples, distAt);
-    // Full already at the first sample of the search, which starts at the
-    // slowest sample: on a corner taken flat that is the turn-in edge, so the
-    // point is the boundary's, as with minSpeedAtEdge (pitlane #712).
-    const fullAtEdge = Boolean(
-      full && full.atM === distAt(pedalSamples.ticks[0]),
     );
     // The split point: where full throttle is reached and held (a flick of
     // the pedal does not end the corner), from the slowest sample on.
@@ -137,6 +188,49 @@ export function cornerFacts({
     const split = splitWindow(timeAt, u, {
       onsetM,
       fullThrottleAtM: held,
+    });
+    // The same held point is the table's: one definition of full throttle. Held
+    // at the first sample of the search, which starts at the slowest sample, is
+    // the boundary's, as with minSpeedAtEdge (pitlane #712).
+    let full = null;
+    if (held != null) {
+      const heldTick = tickAt(raw(held));
+      const j = pedalSamples.ticks.findIndex(t => t >= heldTick);
+      if (j >= 0) {
+        const at = pedalSamples.ticks[j];
+        const before = j > 0 ? pedalSamples.ticks[j - 1] : pedalSamples.before;
+        full = {
+          tick: at,
+          atM: distAt(at),
+          resM: before == null ? null : distAt(at) - distAt(before),
+          edge: j === 0,
+        };
+      }
+    }
+    const fullAtEdge = Boolean(full?.edge);
+    // Turn-in from the steering, on the corner's own side, no earlier than the
+    // corner before's apex (or the section's entry).
+    let turnInTickAt = null;
+    if (s.steer_pct && my.sideSign !== 0) {
+      turnInTickAt = turnInPoint({
+        steer: i => s.steer_pct[i],
+        sideSign: my.sideSign * steerSign,
+        peakFrom: turnInTick,
+        peakTo: exitTick,
+        lowerTick: Math.min(turnInTick, tickAt(raw(my.lowerM))),
+      });
+    }
+    // Throttle: where the closed phase ends between the brake and the held
+    // full-throttle point; a pedal that never closes gives its lowest instead.
+    const pickup = throttlePickup({
+      values: s[pedal],
+      ticks: sampleTicks(
+        rec.hz[pedal],
+        rec.baseHz,
+        brake ? tickAt(brake.atM) : fromTick,
+        full ? full.tick : toTick,
+      ).ticks,
+      distAt,
     });
     const t0 = s.t[fromTick];
     const t1 = s.t[toTick];
@@ -169,29 +263,15 @@ export function cornerFacts({
       apexSpeedKmh: round(s.speed_kmh[apexTick], 1),
       brakeAtM: brake && round(brake.atM, 1),
       brakeAtResM: brake?.resM == null ? null : round(brake.resM, 1),
+      peakBrakePct: round(peakBrakePct, 1),
       fullThrottleAtM: full && round(full.atM, 1),
       fullThrottleAtResM: full?.resM == null ? null : round(full.resM, 1),
       fullThrottleAtEdge: fullAtEdge,
+      turnInAtM: turnInTickAt == null ? null : round(distAt(turnInTickAt), 1),
+      throttlePickupAtM: round(pickup.atM, 1),
+      minThrottlePct: round(pickup.minPct, 1),
     };
-    if (withApps) {
-      const ticks = sampleTicks(
-        rec.hz.brake_pct,
-        rec.baseHz,
-        fromTick,
-        toTick,
-      ).ticks;
-      f.brakeApps = brakeApplications(
-        {
-          distM: ticks.map(mapAt),
-          brakePct: ticks.map(i => s.brake_pct[i]),
-        },
-        withApps,
-      ).map(a => ({
-        onsetM: round(a.onsetM, 1),
-        peakPct: round(a.peakPct, 1),
-        part: a.part,
-      }));
-    }
+    if (withApps) f.brakeApps = my.apps;
     return f;
   };
 
@@ -202,6 +282,7 @@ export function cornerFacts({
     const slowest = (section.parts ?? [section]).reduce((a, b) =>
       b.minSpeedKmh < a.minSpeedKmh ? b : a,
     );
+    const apps = appsOf(w);
     const f = unit(
       {
         fromM: w.fromM,
@@ -213,6 +294,7 @@ export function cornerFacts({
       onsets[k],
       w,
       section.parts ?? [],
+      {apps, sideSign: sideOf(section), lowerM: section.entryM},
     );
     // The same facts for each single corner inside a section, for drilling
     // in: the part windows when it has several, else the section's own.
@@ -232,6 +314,17 @@ export function cornerFacts({
           },
           null,
           null,
+          [],
+          {
+            // Only the application braking for this part; a section with a
+            // single corner has no parts to name, its applications are the corner's.
+            apps:
+              section.parts.length > 1
+                ? apps.filter(a => a.part === part.n)
+                : apps,
+            sideSign: sideOf(part),
+            lowerM: i > 0 ? section.parts[i - 1].apexM : section.entryM,
+          },
         );
       });
     }

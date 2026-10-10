@@ -76,7 +76,15 @@ export function referenceFirst(
   };
 }
 
-export type Measure = 'time' | 'brake' | 'peakBrake' | 'minSpeed' | 'throttle';
+export type Measure =
+  | 'time'
+  | 'brake'
+  | 'peakBrake'
+  | 'turnIn'
+  | 'minSpeed'
+  | 'pickup'
+  | 'throttle'
+  | 'minThrottle';
 
 export const MEASURES: {
   id: Measure;
@@ -88,26 +96,17 @@ export const MEASURES: {
   {id: 'time', label: 'Time in corner', unit: 's', better: 'lower'},
   {id: 'brake', label: 'Brake point', unit: 'm before apex', better: 'lower'},
   {id: 'peakBrake', label: 'Peak brake %', unit: '%', better: null},
+  {id: 'turnIn', label: 'Turn-in', unit: 'm before apex', better: null},
   {id: 'minSpeed', label: 'Min speed', unit: 'km/h', better: 'higher'},
+  {id: 'pickup', label: 'Throttle pickup', unit: 'm after apex', better: null},
   {
     id: 'throttle',
     label: 'Full throttle',
     unit: 'm after apex',
     better: 'lower',
   },
+  {id: 'minThrottle', label: 'Min throttle %', unit: '%', better: null},
 ];
-
-/** The peak pedal % of the brake application for this corner; null when the lap has none for it. */
-function peakBrakeOf(lap: Lap, corner: TrackCorner): number | null {
-  const apps = lap.sections[corner.sectionIndex]?.brakeApps ?? [];
-  // A light dab before the main stop is an application too: the harder one is the peak.
-  const peaks = apps
-    .filter(a =>
-      corner.partIndex == null ? a.part == null : a.part === corner.n,
-    )
-    .map(a => a.peakPct);
-  return peaks.length ? Math.max(...peaks) : null;
-}
 
 export type CornerRow = {
   lapId: string;
@@ -212,8 +211,11 @@ const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
   brake: v => `${Math.round(v)}`,
   peakBrake: v => `${Math.round(v)}`,
+  turnIn: v => `${Math.round(v)}`,
   minSpeed: v => `${Math.round(v)}`,
+  pickup: v => `${Math.round(v)}`,
   throttle: v => `${Math.round(v)}`,
+  minThrottle: v => `${Math.round(v)}`,
 };
 
 /** Laps shown in Corner: the selection, or every comparable lap when asked. */
@@ -323,17 +325,31 @@ export function buildCornerModel(input: {
 
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
     const f = lapCornerFacts(l, sec);
+    // The slowest sample sat on the window's edge: the car was still slowing at
+    // turn-in or already slower at the exit, so there is no minimum of this
+    // corner, and nothing measured from an apex that was not reached (bias,
+    // pit wall thread 58 #3751): null, not a number from the boundary.
+    const edge = f?.minSpeedAtEdge === true;
     return {
       time: f?.segTimeS ?? null,
       brake: f?.brakeAtM == null ? null : sec.apexM - f.brakeAtM,
-      peakBrake: peakBrakeOf(l, sec),
-      minSpeed: f?.minSpeedKph ?? null,
+      peakBrake: f?.peakBrakePct ?? null,
+      turnIn:
+        edge || f?.turnInAtM == null ? null : sec.apexM - f.turnInAtM,
+      minSpeed: edge ? null : f?.minSpeedKph ?? null,
+      pickup:
+        edge || f?.throttlePickupAtM == null
+          ? null
+          : f.throttlePickupAtM - sec.apexM,
       // Already at full throttle at the slowest sample: no full-throttle point,
       // the search's start is not a point on the lap.
       throttle:
-        f?.fullThrottleAtM == null || f.fullThrottleAtEdge
+        edge || f?.fullThrottleAtM == null || f.fullThrottleAtEdge
           ? null
           : f.fullThrottleAtM - sec.apexM,
+      // A pedal that never closed has no pickup: how far it came off instead.
+      minThrottle:
+        edge || f?.throttlePickupAtM != null ? null : f?.minThrottlePct ?? null,
     };
   };
   const isAtMin = (l: Lap) =>
@@ -395,7 +411,7 @@ export function buildCornerModel(input: {
               onIndex: r.onIndex,
               timeS: r.values.time,
               brakeM: r.values.brake,
-              minSpeedKph: r.values.minSpeed,
+              minSpeedKph: f?.minSpeedKph ?? null,
               minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
               throttleAtEdge: f?.fullThrottleAtEdge ?? false,
               apexSpeedKph: f?.apexSpeedKph ?? null,

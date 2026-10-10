@@ -52,6 +52,7 @@ import {
 } from './layoutBoundaries.mjs';
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
+import {CORNER_INPUTS_VERSION} from './cornerInputs.mjs';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 import {
   HYBRID_VERSION,
@@ -92,6 +93,7 @@ export const blockVersions = {
   gridLap: GRID_LAP_VERSION,
   hybrid: HYBRID_VERSION,
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
+  cornerInputs: CORNER_INPUTS_VERSION,
   pitVisit: PIT_VISIT_VERSION,
   classLaps: CLASS_LAPS_VERSION,
   offTrack: OFF_TRACK_VERSION,
