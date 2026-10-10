@@ -105,6 +105,8 @@ export const blockVersions = {
   cornerSlices: SLICE_FORMAT,
   // Slices on LapDistPct x length, not integrated speed: every session re-cuts once.
   sliceFrame: SLICE_FRAME_VERSION,
+  // The lap doc's `traceHz`, and slices cut on it: iRacing's clock was 100 Hz on 60 Hz rows.
+  traceClock: 1,
 };
 
 const GRID_M = 5;
@@ -584,6 +586,9 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
       b: Math.min(idxAt(s.t, seg.end), s.t.length - 1),
     }),
     distanceM: round(dist[dist.length - 1], 1),
+    // Rows per second of the trace CSV: the recording's base rate (LMU 100, iRacing
+    // 60). The CSV has no time column; the app's clock is row / traceHz.
+    traceHz: rec.baseHz,
     ...topSpeed(s, i0, i1, dist),
   };
 }

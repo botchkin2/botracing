@@ -125,6 +125,30 @@ function ascending(d: number[]): number[] {
 
 export const TRACE_HZ = 100;
 
+// The rates a recording's trace can have: LMU 100, iRacing 60 (or 360 from the
+// .ibt's own tick rate).
+const TRACE_RATES = [60, 100, 360];
+
+/**
+ * The trace rate of a lap analysed before `traceHz` was stored: rows over the
+ * official lap time, snapped to the nearest known rate. A lap with no time, or
+ * a ratio further than 15 % from every rate, reads as TRACE_HZ.
+ */
+export function inferTraceHz(rows: number, lapTimeS: number | null): number {
+  if (!lapTimeS || lapTimeS <= 0 || rows < 2) return TRACE_HZ;
+  const ratio = rows / lapTimeS;
+  let best = TRACE_HZ;
+  let off = Infinity;
+  for (const rate of TRACE_RATES) {
+    const d = Math.abs(ratio - rate) / rate;
+    if (d < off) {
+      off = d;
+      best = rate;
+    }
+  }
+  return off <= 0.15 ? best : TRACE_HZ;
+}
+
 export function resampleTrace(
   raw: RawTrace,
   lengthM: number,
@@ -224,7 +248,8 @@ export function medianTrace(
   traces: GridTrace[],
   lapTimesS?: number[],
 ): GridTrace {
-  if (traces.length === 0) throw new Error('medianTrace needs at least one trace');
+  if (traces.length === 0)
+    throw new Error('medianTrace needs at least one trace');
   const first = traces[0];
   const n = Math.min(...traces.map(t => t.distanceM.length));
   const timed = traces.map((t, k) => {

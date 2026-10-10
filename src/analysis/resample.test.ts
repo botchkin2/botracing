@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   type RawTrace,
   gridIndex,
+  inferTraceHz,
   medianTrace,
   resampleTrace,
   timeDiffS,
@@ -131,7 +132,9 @@ describe("distance is the game's LapDistPct times the layout length", () => {
 
   it('holds a running maximum: a step back of a few centimetres never goes back', () => {
     const raw = constantLap(180);
-    raw.lapDistPct = raw.lapDistPct.map((p, i) => (i === 100 ? p - 0.00003 : p));
+    raw.lapDistPct = raw.lapDistPct.map((p, i) =>
+      i === 100 ? p - 0.00003 : p,
+    );
     const g = resampleTrace(raw, 1000, 5, 10);
     expect(g.timeS.every((t, i) => i === 0 || t >= g.timeS[i - 1])).toBe(true);
     expect(g.timeS[100]).toBeCloseTo(10, 1);
@@ -157,6 +160,43 @@ describe("distance is the game's LapDistPct times the layout length", () => {
     // The lap is not cut short at the first wrap, and its clock starts at the line.
     expect(b.timeS[0]).toBeCloseTo(0, 6);
     expect(b.timeS[100]).toBeCloseTo(a.timeS[100], 1);
+  });
+});
+
+describe('the clock is row / sample rate', () => {
+  it('a 60 Hz trace (iRacing) ends at its lap time, not at 0.6 of it', () => {
+    // 20 s at 180 km/h: 1200 rows at 60 Hz.
+    const v = 180 / 3.6;
+    const rows = 20 * 60;
+    const pct = Array.from({length: rows}, (_, i) => ((i / 60) * v) / 1000);
+    const same = (x: number) => pct.map(() => x);
+    const raw = {
+      lapDistPct: pct,
+      speedKph: same(180),
+      throttlePct: same(100),
+      brakePct: same(0),
+      steeringPct: same(0),
+      gear: same(4),
+      lat: pct,
+      lon: same(0),
+    };
+    expect(resampleTrace(raw, 1000, 5, 60).timeS[200]).toBeCloseTo(20, 1);
+    // The default is LMU's 100 Hz: the same rows read as 12 s.
+    expect(resampleTrace(raw, 1000, 5).timeS[200]).toBeCloseTo(12, 1);
+  });
+});
+
+describe('inferTraceHz', () => {
+  it('snaps rows over the lap time to 60, 100 or 360', () => {
+    expect(inferTraceHz(7601, 126.696)).toBe(60);
+    expect(inferTraceHz(8147, 80.396)).toBe(100);
+    expect(inferTraceHz(30000, 83.2)).toBe(360);
+  });
+
+  it('reads 100 without a time, with too few rows, or far from every rate', () => {
+    expect(inferTraceHz(7601, null)).toBe(100);
+    expect(inferTraceHz(1, 80)).toBe(100);
+    expect(inferTraceHz(180, 1)).toBe(100);
   });
 });
 

@@ -176,7 +176,7 @@ export function lapSlice(id, grid, apexM, lengthM, extent = null) {
 
 /**
  * The corner files of one session. laps: [{id, csv}] (csv is a function so a
- * lap's text is dropped after use); map: {lengthM, corners}. Returns
+ * lap's text is dropped after use; hz is its rows per second, default 100); map: {lengthM, corners}. Returns
  * {files: [{n, text}], corners, hash}, or null without a map.
  */
 export function buildCornerSlices(laps, map, windows = null) {
@@ -185,7 +185,7 @@ export function buildCornerSlices(laps, map, windows = null) {
   const perCorner = new Map(corners.map(c => [c.n, []]));
   for (const lap of laps) {
     const raw = parseTraceCsv(lap.csv());
-    const grid = resampleTrace(raw, map.lengthM, GRID_STEP_M);
+    const grid = resampleTrace(raw, map.lengthM, GRID_STEP_M, lap.hz);
     for (const c of corners) {
       const slice = lapSlice(lap.id, grid, c.apexM, map.lengthM, c.extent);
       if (slice) perCorner.get(c.n).push(slice);
