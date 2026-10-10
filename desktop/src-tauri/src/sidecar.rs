@@ -60,14 +60,25 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
+/// `path` without a `\\?\` prefix when it has a plain form. Tauri canonicalizes
+/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`. The
+/// bundled node (24.19.0; 24.21.0 is fine) cannot start a main script from such
+/// a path: it exits 1 with "EISDIR: illegal operation on a directory, lstat
+/// 'C:'" before running a line of it. That was the 0.1.2 tray's "Uploader
+/// stopped (exit code: 1)" loop (thread 1 #3473).
+pub fn plain(path: &Path) -> PathBuf {
+    dunce::simplified(path).to_path_buf()
+}
+
 pub fn paths(resources: &Path) -> Paths {
+    let resources = plain(resources);
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let exe = std::env::current_exe().unwrap_or_default();
+    let exe = plain(&std::env::current_exe().unwrap_or_default());
     let root = find_root(
         std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
-        resources,
+        &resources,
         &exe,
     );
     let node = std::env::var_os("BOTRACING_NODE")
@@ -81,9 +92,9 @@ pub fn paths(resources: &Path) -> Paths {
             }
         });
     Paths {
-        data: local.join(crate::profile::data_dir_name()),
-        root,
-        node,
+        data: plain(&local.join(crate::profile::data_dir_name())),
+        root: plain(&root),
+        node: plain(&node),
     }
 }
 
@@ -490,6 +501,52 @@ mod tests {
         // None: the installed path, so the message names where it looked.
         let lost = base.join("nowhere/botracing.exe");
         assert_eq!(find_root(None, &resources, &lost), resources.join("app"));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // The installed tray's case: Tauri's resource_dir() is canonicalized, so it
+    // is `\\?\C:\...`. Every path the watcher gets must be plain (the asserts
+    // fail without `plain`, on any node), and node must start from them. Whether
+    // node itself refuses a verbatim main script depends on its version: the
+    // bundled 24.19.0 does, 24.21.0 (CI) does not, so no test leans on that.
+    #[cfg(windows)]
+    #[test]
+    fn a_verbatim_resources_dir_still_starts_the_watcher() {
+        let base = std::env::temp_dir().join(format!("botracing-verbatim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let resources = base.join("install");
+        touch(&resources.join("app").join(SCRIPT));
+        let started = base.join("started.txt");
+        std::fs::write(
+            resources.join("app").join(SCRIPT),
+            format!(
+                "import {{writeFileSync}} from 'node:fs'; writeFileSync({:?}, process.argv[1]);",
+                started.to_string_lossy()
+            ),
+        )
+        .unwrap();
+        let verbatim = resources.canonicalize().unwrap();
+        assert!(verbatim.to_string_lossy().starts_with(r"\\?\"), "{verbatim:?}");
+
+        let mut p = paths(&verbatim);
+        p.data = base.join("data");
+        for path in [&p.root, &p.node] {
+            assert!(!path.to_string_lossy().starts_with(r"\\?\"), "{path:?}");
+        }
+        // The same folder, whatever 8.3 short name the temp dir was given as.
+        assert_eq!(p.root, plain(&verbatim.join("app")));
+
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        assert!(s.problem.is_none(), "it should have started: {:?}", s.problem);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !started.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let script = std::fs::read_to_string(&started).expect("node never ran the script");
+        assert!(!script.starts_with(r"\\?\"), "{script}");
+        s.stop();
         let _ = std::fs::remove_dir_all(&base);
     }
 
