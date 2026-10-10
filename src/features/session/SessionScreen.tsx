@@ -29,6 +29,7 @@ import {
 import {SessionNav} from '@/src/workspace/SessionNav';
 import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
 import {replace, toggle} from '@/src/state/lapSelection';
+import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
 
@@ -527,7 +528,24 @@ function SessionView({
           style={{width: tableW}}
           data={model.rows}
           keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={header}
+          ListHeaderComponent={
+            <>
+              {header}
+              <View style={[styles.strip, {width: tableW}]}>
+                <LapStrip
+                  laps={model.strip}
+                  ticked={selection.laps}
+                  onTap={id =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, id),
+                    })
+                  }
+                  onDrag={ids => onSelectionChange({...selection, laps: ids})}
+                />
+              </View>
+            </>
+          }
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -590,6 +608,7 @@ function SessionView({
 }
 
 const styles = StyleSheet.create({
+  strip: {paddingBottom: space.md},
   screen: {flex: 1},
   center: {alignItems: 'center', justifyContent: 'center'},
   columns: {

@@ -1,5 +1,6 @@
 import {useMemo} from 'react';
 
+import type {StripLap} from './lapStrip';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {
   type SectionMode,
@@ -147,6 +148,8 @@ export type SessionScreenModel = {
   subtitle: string;
   /** For the link to the layout's Track page. */
   trackId: string;
+  /** The lap strip's data: every lap in driving order (src/features/session/lapStrip.ts). */
+  strip: StripLap[];
   facts: Fact[];
   /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
@@ -491,6 +494,12 @@ export function buildSessionModel(
   const fuelUse = buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
+    strip: laps.map(l => ({
+      id: l.id,
+      timeS: l.timeS,
+      stint: l.stint,
+      comparable: l.comparable,
+    })),
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
       session.track,
     )}`,
