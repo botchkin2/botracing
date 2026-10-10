@@ -86,7 +86,7 @@ describe('desktop table', () => {
     const [row] = rows({startedAt: '2026-09-27T21:40:00'});
     expect(row.table).toEqual({
       startedAt: '2026-09-27T21:40:00',
-      dateText: '27 Sept 21:40',
+      dateText: '27 Sep 21:40',
       carText: '911 GT3 R · Manthey #91',
       lapsN: 42,
       bestS: 99.733,

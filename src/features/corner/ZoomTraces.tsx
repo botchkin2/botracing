@@ -338,7 +338,7 @@ export function ZoomTraces({
       />
       {desktop && (
         <>
-          {header('line', 'Racing line, m from the game’s centre path')}
+          {header('line', 'Racing line, m from center path')}
           {lateralAny ? (
             <TraceChart
               {...common}

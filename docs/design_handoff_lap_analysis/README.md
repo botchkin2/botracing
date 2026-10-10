@@ -96,10 +96,10 @@ A personal lap and race analysis app for a sim racer. It is used mostly on the p
 
 1. **Sessions**: sessions by day.
 2. **Session**: one chart of every lap's time across the race, plus a dense lap table. Laps are selected here for comparison.
-3. **Compare**: traces against a chosen reference lap, a map with moving markers, scrub, zoom, playback, and a per-corner time grid.
+3. **Compare**: traces against a basis (the median of the selected laps, or a Ref lap you pick), a map with moving markers, scrub, zoom, playback, and a per-corner time grid.
 4. **Corner**: every selected pass through one corner, with brake point, minimum speed and throttle pickup, and traces zoomed to that corner.
 
-The app offers tools, not conclusions. It generates no verdicts, scores or recommendations. Every chart carries a one-line explanation, every number has a unit, and the reference lap is always named.
+The app offers tools, not conclusions. It generates no verdicts, scores or recommendations. Every number has a unit and the basis (median of N laps, or the Ref lap) is always named; there are no explanatory sentences under charts.
 
 ## About the design files
 The files in this bundle are **design references created in HTML**. They are prototypes that show the intended look and behavior; they are not production code to copy. The task is to **recreate these designs in React Native** using the codebase's established patterns (navigation, state, charting). If there is no codebase yet, choose appropriate libraries; `react-native-svg` plus a small custom chart layer, or Skia, fits the charts shown here.
@@ -249,8 +249,8 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
 - **Interactions:**
   - Tap a bar: highlights that lap, scrolls the table so the row sits about 55% down the viewport, and shows the detail panel.
   - Tap a row: highlights it, and its bar is framed.
-  - Tap the checkbox: toggles selection. There is no cap on the number of laps; above 6 the tinted or grey rules apply. The reference (the first selected lap) cannot be removed from here.
-- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31", or "L16 ref + 21 laps"), "Clear", and a primary "Compare n →". With two or more stints that have comparable laps, a row above it reads "Stint" and one chip per stint ("1", "2"; not S1, which is a sector head): a chip selects that stint's comparable laps and is marked while the selection is exactly them, so pick a stint, Compare, untick an outlier is three taps (D16, D17). The tray stays while there are stints to pick, even with nothing selected.
+  - Tap the checkbox: toggles selection. There is no cap on the number of laps; above 6 the tinted or grey rules apply. No lap is the reference by position: the basis is the median of the selected laps unless a Ref is picked in Compare.
+- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31" for up to three laps, "22 laps" above that), "Clear", and a primary "Compare n →". With two or more stints that have comparable laps, a row above it reads "Stint" and one chip per stint ("1", "2"; not S1, which is a sector head): a chip selects that stint's comparable laps and is marked while the selection is exactly them, so pick a stint, Compare, untick an outlier is three taps (D16, D17). The tray stays while there are stints to pick, even with nothing selected.
 - **No comparable laps (02c):** the chart is replaced by a card saying "3 laps, none comparable" with the reasons listed. The table still shows.
 
 **Exclusion reason copy:**

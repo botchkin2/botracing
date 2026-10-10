@@ -306,10 +306,7 @@ export function PlanScreen() {
       ) : null}
 
       {state === 'undriven' ? null : detailsPending ? (
-        <StatusBanner
-          dot='waiting'
-          text='Checking the fill limit of your sessions here.'
-        />
+        <StatusBanner dot='waiting' text='Checking fill limit' />
       ) : planLoading.pending ? (
         <StatusBanner
           dot='waiting'

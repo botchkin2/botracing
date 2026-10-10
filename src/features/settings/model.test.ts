@@ -5,6 +5,7 @@ import {type Uploader, type UploaderProblem} from '@/src/data/uploaders';
 import {
   buildSettingsModel,
   formatAgo,
+  formatDay,
   formatBytes,
   problemRows,
   problemText,
@@ -295,5 +296,10 @@ describe('formatters', () => {
     expect(formatAgo(NOW - 5 * 60 * min, NOW)).toBe('5 h');
     expect(formatBytes(830e6)).toBe('830 MB');
     expect(formatBytes(2.1e11)).toBe('210 GB');
+  });
+
+  it('days are "1 Oct" and "14 Sep", never en-GB "Sept"', () => {
+    expect(formatDay(new Date(2026, 9, 1, 12).getTime())).toBe('1 Oct');
+    expect(formatDay(new Date(2026, 8, 14, 12).getTime())).toBe('14 Sep');
   });
 });

@@ -103,20 +103,11 @@ type ViewProps = {
 };
 
 function Title({model}: {model: TrackModel}) {
-  const {color} = useTheme();
   return (
     <View style={styles.title}>
       <Text variant='pageTitle'>{model.title}</Text>
       {model.country ? (
         <View style={styles.country}>
-          {model.countryCode ? (
-            <Text
-              variant='dataSmall'
-              tone='textSecondary'
-              style={[styles.cc, {borderColor: color.median}]}>
-              {model.countryCode}
-            </Text>
-          ) : null}
           <Text variant='dataSmall' tone='textMuted'>
             {model.country}
           </Text>
@@ -329,12 +320,6 @@ const styles = StyleSheet.create({
   back: {height: size.hit, justifyContent: 'center'},
   title: {gap: space.xs, flexShrink: 1},
   country: {flexDirection: 'row', alignItems: 'center', gap: space.md},
-  cc: {
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.xs,
-    overflow: 'hidden',
-  },
   bleed: {marginHorizontal: -size.gutter, marginTop: space.md},
   selLine: {
     height: size.hit,
