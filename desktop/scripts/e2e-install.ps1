@@ -63,7 +63,9 @@ $proc = Start-Process -FilePath $Installer -ArgumentList "/S" -PassThru -Wait
 if ($proc.ExitCode -ne 0) { Fail "installer exit code $($proc.ExitCode)" }
 if (-not (Test-Path $uninstallKey)) { Fail "no Uninstall entry at $uninstallKey" }
 $entry = Get-ItemProperty $uninstallKey
-$installDir = $entry.InstallLocation
+Write-Host "Uninstall entry: InstallLocation=$($entry.InstallLocation) UninstallString=$($entry.UninstallString)"
+# NSIS writes both values quoted.
+$installDir = $entry.InstallLocation -replace '"', ''
 if (-not $installDir) { $installDir = Split-Path ($entry.UninstallString -replace '"', '') -Parent }
 $exe = Join-Path $installDir "$app.exe"
 if (-not (Test-Path $exe)) { Fail "$exe is missing after install" }
