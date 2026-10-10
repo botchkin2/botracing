@@ -38,7 +38,6 @@ import {
   comboTrack,
   defaultCombo,
   parseNumber,
-  isOtherSimCombo,
   planCombos,
   rulesCells,
   startChips,
@@ -69,11 +68,7 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [unit, setUnit] = useState<Unit>('ve');
-  const otherSim = isOtherSimCombo(sessions.data?.items ?? [], comboKey);
-  // A pair from another sim has no plan: never an LMU one under its name.
-  const combo = otherSim
-    ? null
-    : combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
+  const combo = combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
   const [startTyped, setStartTyped] = useState<{
@@ -432,13 +427,7 @@ export function PlanScreen() {
         {sessions.isPending ? (
           <Skeleton height={size.hit} />
         ) : combos.length === 0 || !combo ? (
-          <EmptyState
-            title={
-              otherSim
-                ? 'Plan is for Le Mans Ultimate sessions only'
-                : 'No sessions to plan from'
-            }
-          />
+          <EmptyState title='No sessions to plan from' />
         ) : wide ? (
           <View style={styles.split}>
             <View style={[styles.stack, {width: size.planSetup}]}>{setup}</View>
