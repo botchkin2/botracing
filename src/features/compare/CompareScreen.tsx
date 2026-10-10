@@ -407,11 +407,6 @@ function CompareView({
       </Text>
     </View>
   );
-  const referenceHint = (
-    <Text variant='dataSmall' tone='textFaint'>
-      {`Times vs ${model.tableReference.chips}`}
-    </Text>
-  );
 
   const chipItems = (
     <>
@@ -850,7 +845,6 @@ function CompareView({
           <ScrollView style={{width: sideW}} contentContainerStyle={styles.col}>
             {header}
             {reference}
-            {referenceHint}
             {chips}
             {map}
             {radarPanel}
@@ -872,7 +866,6 @@ function CompareView({
     <>
       {header}
       {reference}
-      {referenceHint}
       {chips}
     </>
   );

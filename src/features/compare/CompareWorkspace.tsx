@@ -206,9 +206,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
             )}
           </View>
         ))}
-        <Text variant='dataSmall' tone='textFaint'>
-          {`Times vs ${model.tableReference.chips}`}
-        </Text>
         <Text variant='label' tone='textMuted' style={styles.gapTop}>
           All laps
         </Text>

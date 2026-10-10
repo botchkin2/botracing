@@ -26,7 +26,13 @@ import {
   useSessionLaps,
   useTrackMap,
 } from '@/src/data/sessions';
-import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
+import {
+  carLabel,
+  dayMonthOf,
+  formatGap,
+  formatLapTime,
+  shortTrackName,
+} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
 import {useSectionMode} from '@/src/state/sectionPrefs';
 
@@ -561,7 +567,7 @@ export function buildSessionModel(
     )}`,
     subtitle: [
       session.trackVariant || session.track,
-      started.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) +
+      dayMonthOf(started) +
         ` ${String(started.getHours()).padStart(2, '0')}:${String(
           started.getMinutes(),
         ).padStart(2, '0')}`,

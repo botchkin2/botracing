@@ -109,18 +109,16 @@ export function TiresCard({
         </Text>
       ) : null}
       <AxleLines
-        title='Pressure'
+        title='Hot pressure · green-lap median'
         unit='kPa'
         series={stint.pressure}
         width={width}
-        medianLabel='median hot pressure, green laps'
       />
       <AxleLines
-        title='Rubber temperature'
+        title='Rubber temperature · green-lap median'
         unit='°C'
         series={stint.rubber}
         width={width}
-        medianLabel='median over the green laps'
       />
       <View style={styles.block}>
         <Text variant='label'>Stop cool-down</Text>
@@ -148,9 +146,9 @@ function TreadBlock({zones, width}: {zones: TreadZone[]; width: number}) {
   const scale = treadScale(zones);
   return (
     <View style={styles.block}>
-      <Text variant='label'>Tread zones</Text>
+      <Text variant='label'>Tread zones · green-lap median</Text>
       <Text variant='dataSmall' tone='textMuted'>
-        {`Green-lap median, °C · I inner · C centre · O outer · scale ${scale.minC}–${scale.maxC} °C`}
+        {`°C · I inner · C center · O outer · ${scale.minC}–${scale.maxC}`}
       </Text>
       <TreadZones zones={zones} width={width} scale={scale} />
     </View>
