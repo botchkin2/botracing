@@ -9,6 +9,7 @@ mod browser;
 mod capture;
 mod install;
 mod menu;
+mod paths;
 mod profile;
 mod sidecar;
 mod status;
@@ -362,7 +363,7 @@ fn main() {
             if profile::is_default() {
                 // Always on; the Run value follows the exe if it moved (an update).
                 let mut acct = account.lock().unwrap();
-                if let Err(why) = std::env::current_exe()
+                if let Err(why) = paths::current_exe()
                     .map_err(|e| e.to_string())
                     .and_then(|exe| autostart::ensure_on(&autostart::Registry, &exe))
                 {

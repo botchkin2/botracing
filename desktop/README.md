@@ -49,7 +49,7 @@ cargo build
 BOTRACING_ROOT=<repo root> LMU_TELEMETRY=<a telemetry folder> target/debug/botracing.exe
 ```
 
-`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder. Every path the watcher gets is plain (`sidecar::plain`): Tauri reports `resource_dir()` canonicalized, as `\\?\C:\...`, and the bundled node (24.19.0; 24.21.0 is fine) exits 1 at once on a `\\?\` main script ("EISDIR ... lstat 'C:'"), which was the 0.1.2 "Uploader stopped (exit code: 1)" loop.
+`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder. Every path the tray hands another program (node, the script, the Run value) is plain (`src/paths.rs`; never `std::env::current_exe()` directly): Tauri reports `resource_dir()` canonicalized, as `\\?\C:\...`, and the bundled node (24.19.0; 24.21.0 is fine) exits 1 at once on a `\\?\` main script ("EISDIR ... lstat 'C:'"), which was the 0.1.2 "Uploader stopped (exit code: 1)" loop.
 
 ## Sign in
 
@@ -66,7 +66,7 @@ The tray signs in **through the web app**; it has no Google OAuth client of its 
 ode`), where `sidecar::find_root` looks first.
 
 - **No native Node addon and no `node_modules`:** DuckDB is the CLI exe, run by `tools/sessions/duck.mjs`; the uploader imports only its own files and Node built-ins. The stage script fails on an npm import, a missing relative import, a non-literal `import()` or a `new Worker` it cannot follow.
-- **Pinned binaries:** `node.exe` (v24.19.0, SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `BOTRACING_NODE_EXE` / `DUCKDB` (local copies; never `NODE`, which npm sets to the running node), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
+- **Pinned binaries:** `node.exe` (the version in `desktop/node-version`, also what CI's tray tests run; SHA-256 from nodejs.org's `SHASUMS256.txt`) and the DuckDB CLI zip (v1.4.2, SHA-256 from the GitHub release digest) are checked against hashes written in the stage script, whether they come from the cache (`src-tauri/resources/.cache`), from `BOTRACING_NODE_EXE` / `DUCKDB` (local copies; never `NODE`, which npm sets to the running node), or are downloaded. A mismatch fails the build. To change a pin, take the new value from the publisher, not from the file you downloaded.
 - `node scripts/stage-resources.mjs --no-duckdb` stages without DuckDB (a build that cannot analyse); `node --test scripts/stage-resources.test.mjs` tests the staging logic.
 
 ## Releases and updates
