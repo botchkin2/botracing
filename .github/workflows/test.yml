@@ -12,8 +12,16 @@ jobs:
   app:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # A read-only identity for the private bucket that holds the golden set's
+      # slices (tools/golden/README.md). Absent on a fork's pull request: the
+      # golden sessions are then skipped there, never failed.
+      GOLDEN_KEY: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The golden drift gate diffs against origin/main.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -34,6 +42,17 @@ jobs:
           unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
       - name: DuckDB CLI (path)
         run: echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
+      - name: Golden set (credential)
+        if: env.GOLDEN_KEY != ''
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
+      - name: Golden set (gcloud)
+        if: env.GOLDEN_KEY != ''
+        uses: google-github-actions/setup-gcloud@v3
+      - name: Golden set (fetch the slices)
+        if: env.GOLDEN_KEY != ''
+        run: echo "GOLDEN_REQUIRED=1" >> "$GITHUB_ENV"
       - name: Types
         run: npx tsc --noEmit
       - name: App tests
@@ -45,8 +64,11 @@ jobs:
       # shows, so a missing import or a hook misuse is caught before merge.
       - name: App lint
         run: npx eslint src app
+      # A changed golden number needs a reason in tools/golden/CHANGES.md.
+      - name: Golden drift gate
+        run: node tools/golden/gate.mjs origin/main
       - name: Uploader and session tools
-        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
+        run: node --test tools/golden/*.test.mjs tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:

@@ -71,7 +71,26 @@ export function summaryOf(a) {
           visit: l.pitStop.visit?.kind ?? null,
         }
       : null,
-    corners: (l.corners ?? []).map(c => c.segTime ?? null),
+    // Each corner's window time and, per corner of it, what the driver did there
+    // (the inputs Corner shows): brake point and peak, turn-in, throttle pickup
+    // or lowest throttle, the held full-throttle point, the minimum and whether
+    // it fell on the window's edge.
+    corners: (l.corners ?? []).map(c => ({
+      time: c.segTime ?? null,
+      parts: (c.parts?.length ? c.parts : [c]).map(p =>
+        pick(p, [
+          'brakeAtM',
+          'peakBrakePct',
+          'turnInAtM',
+          'throttlePickupAtM',
+          'minThrottlePct',
+          'fullThrottleAtM',
+          'fullThrottleAtEdge',
+          'minSpeedKmh',
+          'minSpeedAtEdge',
+        ]),
+      ),
+    })),
   }));
   const comparable = a.laps.filter(l => l.comparable);
   const cornerCount = Math.max(0, ...a.laps.map(l => (l.corners ?? []).length));
@@ -128,4 +147,26 @@ function numbersOf(c) {
       ([, v]) => typeof v === 'number' || typeof v === 'boolean',
     ),
   );
+}
+
+/**
+ * What differs between two summaries, as "path: old -> new" lines (at most
+ * `max`, then a count): the text a person reads to say why a number moved.
+ */
+export function diffSummary(before, after, max = 40) {
+  const out = [];
+  const walk = (a, b, path) => {
+    if (JSON.stringify(a) === JSON.stringify(b)) return;
+    const objects = a && b && typeof a === 'object' && typeof b === 'object';
+    if (!objects || Array.isArray(a) !== Array.isArray(b)) {
+      out.push(`${path}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+      return;
+    }
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) walk(a[k], b[k], path ? `${path}.${k}` : k);
+  };
+  walk(before, after, '');
+  return out.length > max
+    ? [...out.slice(0, max), `... and ${out.length - max} more`]
+    : out;
 }

@@ -130,11 +130,11 @@ export async function makeSlice(name, {upload = false} = {}) {
     if (mine.length === 0) return;
     const t0 = recs[r].s.t[Math.min(...mine.map(l => l.i0))];
     const t1 = recs[r].s.t[Math.max(...mine.map(l => l.i1))];
-    const to = {
+    const dest = {
       samples: resolve(out, `${files}.samples.parquet`),
       events: resolve(out, `${files}.events.parquet`),
     };
-    slice({samples: a.samples, events: a.events, info: a.info, t0, t1, to});
+    slice({samples: a.samples, events: a.events, info: a.info, t0, t1, to: dest});
     writeFileSync(resolve(out, `${files}.info.json`), JSON.stringify(cleanInfo(a.info, t0, t1)));
     files++;
   });

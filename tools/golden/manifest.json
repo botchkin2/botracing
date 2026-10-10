@@ -60,6 +60,72 @@
         "sha256": "80540dea663d37111aee0f8f48eacfbf5ae3e6d55df0b833878fb7c16f11ec8f",
         "bytes": 4552
       }
+    },
+    "iracing-race-road-atlanta": {
+      "0.events.parquet": {
+        "sha256": "943bab13b4a2e4de85bf4d501edcb53197ebc40a73372611db68f7c7e9b2a6b8",
+        "bytes": 3792
+      },
+      "0.info.json": {
+        "sha256": "40faf80e4fddc8ad28e6c29d06a19e25e6628d2d9bee8068ab63a533456f0d18",
+        "bytes": 4256
+      },
+      "0.samples.parquet": {
+        "sha256": "ad16643a968244cb9e67eda613004cc4622e80f75f36c71f975f5a7e03e06f0a",
+        "bytes": 3495829
+      },
+      "golden.json": {
+        "sha256": "277e82babcdf418ae2aebec7d7e2b5f1cf2fd8790fe90bf637122e6cc537321b",
+        "bytes": 4944
+      }
+    },
+    "lmu-race-daytona-tyres": {
+      "0.events.parquet": {
+        "sha256": "18cc924eb8aa38667965c586ae7b2279c877ee30e7e6e243edef5d2265cf1c09",
+        "bytes": 8543
+      },
+      "0.info.json": {
+        "sha256": "521354d46b70f3df67dd23464b292db737614068b5aec4e16ec58164f4cdc082",
+        "bytes": 18399
+      },
+      "0.samples.parquet": {
+        "sha256": "1b88682cc384029c6e38d7eadf951bf3d43fecfacb372c61f0c8e837f7ea9b3b",
+        "bytes": 824067
+      },
+      "golden.json": {
+        "sha256": "99ddc3191862e3d6bc4286009327830514e4b8a712d3eee78bcda3af44b9492d",
+        "bytes": 2579
+      }
+    },
+    "lmu-practice-road-atlanta": {
+      "0.events.parquet": {
+        "sha256": "71c0a13206461c9edd716f15124860edfb1aaff483f7c14c56adb50db9723b5d",
+        "bytes": 25976
+      },
+      "0.info.json": {
+        "sha256": "6dff0b60742f658fde7a8af8839b13186b613da551e1dc0944b0018b7c2a4cd7",
+        "bytes": 18399
+      },
+      "0.samples.parquet": {
+        "sha256": "bfa7e7a30b1ff1e1743afed6666559a40c72d9c008db073883999d58b8a0faa4",
+        "bytes": 1173017
+      },
+      "1.events.parquet": {
+        "sha256": "2df5e371f0243b63978dd07fe38f4018b0a301481dd0c9d3d62d50ddff0b484e",
+        "bytes": 5236
+      },
+      "1.info.json": {
+        "sha256": "efe666a74225a92e7e1448ab829df51c1f1438ec022bad8ac536d08e57e5c0ce",
+        "bytes": 18396
+      },
+      "1.samples.parquet": {
+        "sha256": "8a52a091e7e7095b31ead4de24c2727673af6167aa53e2868e1af9dfd34429f2",
+        "bytes": 247699
+      },
+      "golden.json": {
+        "sha256": "7297510085ff434edf08dffa0836edb449e90582753381ae2aedf7968d786641",
+        "bytes": 4583
+      }
     }
   }
 }
