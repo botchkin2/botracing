@@ -2,6 +2,7 @@ import {
   type CornerSlices,
   gridFromSamples,
   type SliceLap,
+  steppedFromSamples,
 } from '@/src/analysis/cornerSlices';
 import {type GridTrace} from '@/src/analysis/resample';
 
@@ -21,7 +22,7 @@ import {type GridTrace} from '@/src/analysis/resample';
  * guarantees (the slice takes the wider of them). A view wider than those
  * windows would draw flat lines there.
  *
- * Not in a slice, so empty here: gear (Corner does not draw it).
+ * Gear is a step channel: each grid point holds the last recorded gear.
  */
 export function sliceToGridTrace(
   lap: SliceLap,
@@ -42,7 +43,6 @@ export function sliceToGridTrace(
       return values[k];
     });
   };
-  const empty = {distanceM: [], values: []};
   return {
     stepM,
     distanceM,
@@ -50,7 +50,7 @@ export function sliceToGridTrace(
     throttlePct: rebuilt(lap.samples.throttlePct),
     brakePct: rebuilt(lap.samples.brakePct),
     steeringPct: rebuilt(lap.samples.steeringPct),
-    gear: blank(),
+    gear: steppedFromSamples(lap.samples.gear, distanceM),
     lat: held(lap.lat),
     lon: held(lap.lon),
     timeS: held(lap.timeS),
@@ -59,7 +59,7 @@ export function sliceToGridTrace(
       throttlePct: lap.samples.throttlePct,
       brakePct: lap.samples.brakePct,
       steeringPct: lap.samples.steeringPct,
-      gear: empty,
+      gear: lap.samples.gear,
       pathLateralM: lap.samples.pathLateralM,
       trackEdgeM: lap.samples.trackEdgeM,
     },

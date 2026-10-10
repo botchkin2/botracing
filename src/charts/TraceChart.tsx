@@ -82,6 +82,8 @@ export function TraceChart({
   series,
   band,
   zeroLine,
+  yTicks,
+  sideLabels,
   zeroDomain,
   cursorM,
   marks = [],
@@ -107,6 +109,10 @@ export function TraceChart({
   series: TraceSeries[];
   band?: TraceBand;
   zeroLine?: boolean;
+  /** Labelled values on the left edge (the gear chart's gear numbers). */
+  yTicks?: {v: number; label: string}[];
+  /** Words beside the zero line: above it, and below (lateral: L and R). */
+  sideLabels?: {above: string; below: string};
   /** The y range the zero line belongs to, when it is not the chart's own
    *  (an overlay: steering's 0, not 0 km/h). */
   zeroDomain?: [number, number];
@@ -412,6 +418,37 @@ export function TraceChart({
             stroke={color.median}
             strokeWidth={stroke.mark}
           />
+        )}
+        {yTicks?.map(t => (
+          <SvgText
+            key={`y${t.v}`}
+            x={3}
+            y={yFor(domainT)(t.v) + 3}
+            fill={color.textFaint}
+            fontFamily={axis.fontFamily}
+            fontSize={9}>
+            {t.label}
+          </SvgText>
+        ))}
+        {zeroLine && sideLabels && (
+          <>
+            <SvgText
+              x={3}
+              y={yZero - 3}
+              fill={color.textFaint}
+              fontFamily={axis.fontFamily}
+              fontSize={9}>
+              {sideLabels.above}
+            </SvgText>
+            <SvgText
+              x={3}
+              y={yZero + 10}
+              fill={color.textFaint}
+              fontFamily={axis.fontFamily}
+              fontSize={9}>
+              {sideLabels.below}
+            </SvgText>
+          </>
         )}
         {paths.map(p => (
           <G key={p.key} transform={p.transform}>

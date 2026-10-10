@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
-import {type Lap} from '@/src/data/sessions';
+import {type Lap, referenceDefaultLapIds} from '@/src/data/sessions';
 import {lapColors, lapStroke} from '@/src/design';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
@@ -572,6 +572,83 @@ describe('many laps', () => {
     expect(given.refGrid!.timeS.at(-1)).toBe(own.refGrid!.timeS.at(-1));
   });
 
+  it('the stint-set default (no Ref, no highlight, a map with boundaries) still has a grid: every checked lap', () => {
+    // The tableReference fixture: laps with sections, a map with boundaries.
+    const win = (segTime: number, from: number, to: number) => ({
+      segTime,
+      fromM: from,
+      toM: to,
+      runInS: segTime / 4,
+      cornerS: segTime / 2,
+      exitS: segTime / 4,
+      pit: false,
+      parts: [],
+      brakeApps: [],
+    });
+    const raw = (id: string, s1: number, s2: number) => ({
+      id,
+      stint: 1,
+      lapTime: 4 + s1 + s2,
+      comparable: true,
+      reasons: [],
+      cornerBoundaries: {v: 1, rev: 1},
+      startStraight: {segTime: 4, fromM: 0, toM: 100, pit: false},
+      corners: [win(s1, 100, 500), win(s2, 500, 1000)],
+    });
+    const sectionLaps = toLaps([
+      raw('a', 8, 12),
+      raw('b', 9, 12),
+      raw('c', 10, 12),
+      raw('d', 11, 12),
+      raw('e', 12, 16),
+      raw('f', 10, 13),
+      raw('g', 9, 14),
+    ]);
+    const withBoundaries = toTrackMap({
+      lengthM: LENGTH_M,
+      boundaries: {
+        v: 1,
+        rev: 1,
+        startsM: [100, 500],
+        marginM: [20, 20],
+        windows: [
+          {
+            kind: 'start-straight',
+            section: null,
+            fromM: 0,
+            toM: 100,
+            parts: [],
+          },
+          {kind: 'section', section: 1, fromM: 100, toM: 500, parts: []},
+          {kind: 'section', section: 2, fromM: 500, toM: 1000, parts: []},
+        ],
+      },
+      corners: [
+        {n: 1, entryM: 150, apexM: 200, exitM: 300, parts: []},
+        {n: 2, entryM: 550, apexM: 600, exitM: 700, parts: []},
+      ],
+      outline: {features: []},
+    });
+    const sectionTraces = new Map(
+      sectionLaps.map(l => [
+        l.id,
+        resampleTrace(circleLap(180), LENGTH_M, 5, 10),
+      ]),
+    );
+    const ids = sectionLaps.map(l => l.id);
+    const m = buildCompareModel({
+      session,
+      laps: sectionLaps,
+      traces: sectionTraces,
+      band: null,
+      map: withBoundaries,
+      selection: {laps: ids, ref: null, hl: null, corner: null, cursorM: 600},
+    });
+    expect(m.tableReference.grid).toBe('median of 7 checked laps');
+    expect(m.grid).not.toBeNull();
+    expect(m.grid!.rows.map(r => r.lapId)).toEqual(ids);
+  });
+
   it('grid shows the median row plus the highlighted lap', () => {
     expect(m.grid!.rows.map(r => r.label)).toEqual(['MED', 'L4']);
     expect(m.grid!.rows[0].cells[0]).toBeCloseTo(0.4);
@@ -584,11 +661,13 @@ describe('a URL with no laps', () => {
     timeS: number | null,
     comparable = true,
     startL: number | null = null,
+    stint = 1,
   ) =>
     ({
       id,
       timeS,
       comparable,
+      stint,
       partial: false,
       pitIn: false,
       pitOut: false,
@@ -607,12 +686,39 @@ describe('a URL with no laps', () => {
   ];
   const facts = {id: 's1', bestLapId: 'b', car: 'GT3', sessionType: 'R'};
 
-  it('opens on a fair reference and the median comparable lap', () => {
+  it('opens on every comparable lap against their median, never a pair', () => {
     const out = withDefaultLaps(sel({laps: []}), laps, facts);
-    // c is the median of b, c, a; b is the fastest fair lap for it.
-    expect(out.laps).toEqual(['b', 'c']);
+    expect(out.laps).toEqual(['a', 'b', 'c']);
+    expect(out.ref).toBeNull();
     // The rest of the selection is untouched.
     expect(out.cursorM).toBe(600);
+  });
+
+  it('takes the stint with the most comparable laps, the later one on a tie', () => {
+    // The 1 Oct race: a long first stint, a one-lap stint, a shorter last one.
+    const race = [
+      lap('s1a', 81.3, true, null, 1),
+      lap('s1b', 81.2, true, null, 1),
+      lap('s1c', 81.8, true, null, 1),
+      lap('s2a', 82.0, true, null, 2),
+      lap('s3a', 81.0, true, null, 3),
+      lap('s3b', 80.9, true, null, 3),
+    ];
+    expect(withDefaultLaps(sel({laps: []}), race, facts).laps).toEqual([
+      's1a',
+      's1b',
+      's1c',
+    ]);
+    const tie = race.filter(l => l.id !== 's1c');
+    expect(withDefaultLaps(sel({laps: []}), tie, facts).laps).toEqual([
+      's3a',
+      's3b',
+    ]);
+  });
+
+  it('a fair reference: the median lap and the fastest fair lap for it', () => {
+    // c is the median of b, c, a; b is the fastest fair lap for it.
+    expect(referenceDefaultLapIds(laps, facts)).toEqual(['b', 'c']);
   });
 
   it('a quicker lap on a lighter load is not the reference', () => {
@@ -625,20 +731,20 @@ describe('a URL with no laps', () => {
     // Median is m1 (100.1 s, 62 L): the fastest lap at that load is m1's
     // neighbour m2, not the 98.0 s lap with a third of the fuel.
     expect(
-      withDefaultLaps(sel({laps: []}), race, {...facts, bestLapId: 'light'})
-        .laps,
+      referenceDefaultLapIds(race, {...facts, bestLapId: 'light'}),
     ).toEqual(['m2', 'm1']);
   });
 
-  it('with fewer than three comparable laps it is the best lap and the fastest other', () => {
+  it('two comparable laps are still a set; the fair reference falls back to best and fastest other', () => {
     const few = [lap('a', 92.4), lap('b', 91.1), lap('x', 90, false)];
     expect(withDefaultLaps(sel({laps: []}), few, facts).laps).toEqual([
+      'a',
+      'b',
+    ]);
+    expect(referenceDefaultLapIds(few, {...facts, bestLapId: null})).toEqual([
       'b',
       'a',
     ]);
-    expect(
-      withDefaultLaps(sel({laps: []}), few, {...facts, bestLapId: null}).laps,
-    ).toEqual(['b', 'a']);
   });
 
   it('keeps the laps the URL names, and waits while the session or its laps load', () => {
@@ -1006,7 +1112,9 @@ describe('which lap owns the radar', () => {
     expect(at({ref: 'c', hl: 'a'})?.lapId).toBe('a');
   });
   it('is null for a lap without a game lap number: it has no place in the field', () => {
-    const noNumber = laps.map(l => (l.id === 'b' ? {...l, lapNumber: null} : l));
+    const noNumber = laps.map(l =>
+      l.id === 'b' ? {...l, lapNumber: null} : l,
+    );
     const m = buildCompareModel({
       session,
       laps: noNumber,

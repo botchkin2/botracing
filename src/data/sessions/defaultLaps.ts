@@ -79,3 +79,31 @@ export function referenceDefaultLapIds(
     ? [ranked[0].lapId, target.id]
     : defaultLapIds(laps, session.bestLapId);
 }
+
+/**
+ * The laps Compare opens on when the URL names none: every comparable lap of
+ * one stint, so the screen is a set of laps against their median, never a
+ * pair (apex, pit-wall thread 1 #3229). The stint is the one with the most
+ * comparable laps, the later one on a tie: the run that was the session's
+ * racing pace. A session of one stint is all its comparable laps. Under two
+ * comparable laps there is no set: the caller falls back to a pair.
+ */
+export function stintSetLapIds(laps: Lap[]): string[] {
+  const byStint = new Map<number, Lap[]>();
+  for (const l of laps) {
+    if (!l.comparable || l.timeS == null) continue;
+    byStint.set(l.stint, [...(byStint.get(l.stint) ?? []), l]);
+  }
+  let best: Lap[] = [];
+  let bestStint = -Infinity;
+  for (const [stint, list] of byStint) {
+    if (
+      list.length > best.length ||
+      (list.length === best.length && stint > bestStint)
+    ) {
+      best = list;
+      bestStint = stint;
+    }
+  }
+  return best.length >= 2 ? best.map(l => l.id) : [];
+}

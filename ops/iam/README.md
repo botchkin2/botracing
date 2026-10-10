@@ -137,6 +137,7 @@ The one CI account (`github-action-1142179068@`) is behind the repo secret `FIRE
 | `hosting-preview@` (new) | `firebasehosting.admin`, `serviceusage.apiKeysViewer`, `serviceusage.serviceUsageConsumer`, `cloudfunctions.viewer`, `run.viewer` | PR previews and their cleanup (repo secret `HOSTING_PREVIEW_SERVICE_ACCOUNT`) |
 | `github-action-…@` (existing) | what it has, minus `secretmanager.*` and `firebaseauth.admin`, **plus `cloudfunctions.admin`** (a new public HTTPS function needs `cloudfunctions.functions.setIamPolicy` for its invoker; `cloudfunctions.developer` can't, and the #326 deploy failed on it, run 37869964708) | functions and hosting deploys from main (secret in the `deploy` Environment, main only), and nothing else (the tray release has its own account, below) |
 | `tray-release@` (new) | `roles/storage.objectUser` **on `gs://botracing-61-lmu` only, with the condition `resource.name.startsWith('projects/_/buckets/botracing-61-lmu/objects/tray/')`**; no project role | the tray release job (key in the `tray-release` Environment as `FIREBASE_SERVICE_ACCOUNT_BOTRACING_61`). objectUser can create, read, overwrite and delete under `tray/` and nothing elsewhere in the bucket: `latest.json` is overwritten by every release. A condition can't cover listing, so the workflow checks for an existing version with `objects describe`. Needs uniform bucket-level access (on) |
+| `android-release@` (new) | the same, with the condition on `objects/android/` | the Android release job (key in the `android-release` Environment as `ANDROID_RELEASE_SERVICE_ACCOUNT`, a name no repo-level secret has, so a missing key fails instead of falling back; `scripts/setup-android-release.ps1` makes the Environment and runs `grant`) |
 | nobody else | secret values readable at project level | only the owner |
 
 Previews are checked signed in as `seat-test` (`#ct=`, docs/TESTING.md), which needs no Auth authorized domain. Without Auth admin, the CLI can't add a preview's domain to the authorized domains, so Google sign-in on a preview won't work. That's deliberate.
@@ -180,3 +181,13 @@ gcloud firestore fields ttls update expiresAt --collection-group=trayCodes --ena
 ```
 
 Check: `gcloud firestore fields ttls list --project=botracing-61` lists `trayCodes` as `ACTIVE`. Until it is on, unused codes sit in a collection no client can read (`firestore.rules` deny everything) and expire in the function's own check.
+
+### Function errors: expire the old ones
+
+Every function's catch-all calls `reportError` (`functions/src/problemsCore.ts`): a masked, structured error log (Cloud Error Reporting groups it with no setup), and for a 5xx a count in `problems/{fingerprint}`, one doc per kind of error. A Firestore TTL policy on `expiresAt` removes a kind 30 days after its last error. Botkin runs this once; the runtime account already writes there with `roles/datastore.user`:
+
+```powershell
+gcloud firestore fields ttls update expiresAt --collection-group=problems --enable-ttl --project=botracing-61
+```
+
+Check: `gcloud firestore fields ttls list --project=botracing-61` lists `problems` as `ACTIVE`. Until it is on, old kinds stay (one small doc each); no client can read them (`firestore.rules` deny everything).

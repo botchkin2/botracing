@@ -46,7 +46,7 @@ jobs:
       - name: App lint
         run: npx eslint src app
       - name: Uploader and session tools
-        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs
+        run: node --test tools/sessions/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:
@@ -77,7 +77,7 @@ jobs:
           echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb" >> "$GITHUB_ENV"
       - name: Recorder tests
         working-directory: tools/capture
-        run: uv run --group dev pytest -q
+        run: uv run --locked --group dev pytest -q
   # The tray (Rust) and its release scripts had no CI: auth.rs and the
   # updater ran only by hand. Windows, because the tray is a Windows app.
   desktop:

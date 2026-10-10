@@ -1,6 +1,8 @@
+import * as Application from 'expo-application';
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -9,10 +11,12 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, space, useLayout, useTheme} from '@/src/design';
+import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {Button, Segment, Text} from '@/src/ui';
 
+import {androidCard, androidSurface, INSTALL_NOTE} from './androidCard';
 import {type UploaderCard, useSettingsModel} from './model';
 import {trayCard} from './trayCard';
 
@@ -42,6 +46,8 @@ export function SettingsScreen() {
       </View>
 
       <Account />
+
+      <AndroidApp />
 
       <WindowsApp />
 
@@ -150,6 +156,54 @@ function WindowsApp() {
             label='Download for Windows'
             onPress={() => void Linking.openURL(trayDownloadUrl())}
           />
+        ) : null}
+      </View>
+    </>
+  );
+}
+
+// The Android app: an update in the installed app when EAS built a newer
+// versionCode, or the APK in a phone's browser. No card anywhere else.
+const surface = androidSurface(
+  Platform.OS,
+  typeof navigator === 'undefined' ? undefined : navigator.userAgent,
+);
+const installedVersionCode = Number(Application.nativeBuildVersion) || null;
+
+function AndroidApp() {
+  const {color} = useTheme();
+  const release = useAndroidRelease({enabled: surface !== 'none'});
+  const card = androidCard({
+    surface,
+    installedVersionCode,
+    isPending: release.isPending,
+    isError: release.isError,
+    data: release.data,
+  });
+  if (!card) return null;
+  return (
+    <>
+      <Text variant='label' tone='textMuted' style={styles.section}>
+        Android app
+      </Text>
+      <View
+        style={[
+          styles.card,
+          {backgroundColor: color.surface, borderColor: color.lineHeader},
+        ]}>
+        <Text variant='data' tone='textSecondary'>
+          {card.status}
+        </Text>
+        {card.version ? (
+          <>
+            <Button
+              label={surface === 'app' ? 'Update' : 'Download for Android'}
+              onPress={() => void Linking.openURL(androidDownloadUrl())}
+            />
+            <Text variant='dataSmall' tone='textMuted'>
+              {INSTALL_NOTE}
+            </Text>
+          </>
         ) : null}
       </View>
     </>

@@ -245,6 +245,7 @@ export function describe(path) {
         {source: 'Lap', name: 'lap', unit: '', width: 1},
         {source: 'LapLastLapTime', name: 'lap_time', unit: 's', width: 1},
         {source: 'OnPitRoad', name: 'in_pits', unit: '', width: 1},
+        {source: 'PlayerCarInPitStall', name: 'reset', unit: '', width: 1},
         {source: 'Gear', name: 'gear', unit: '', width: 1},
         {source: 'PlayerTrackSurface', name: 'surface', unit: '', width: 1},
         {source: 'SessionFlags', name: 'yellow_flag', unit: '', width: 1},
@@ -278,6 +279,34 @@ function writeCsv(path, headers, rows) {
   for (const row of rows) lines.push(row.map(csvEscape).join(','));
   writeFileSync(path, lines.join('\n'));
 }
+
+/**
+ * When the car was reset to the pits (a tow, or Reset in practice): the tick
+ * it lands in its pit stall without having driven down the pit road. iRacing
+ * keeps one .ibt across it and refills the tank, so without this the lap reads
+ * a negative use (Sebring practice 2026-10-09, 46.97 to 55.0 L at 1381.5 s).
+ */
+export function resetTimes(t, inStall, onPitRoad, fuel = null) {
+  const out = [];
+  for (let i = 1; i < t.length; i++) {
+    if (!(inStall[i] && !inStall[i - 1] && !onPitRoad[i - 1])) continue;
+    // The tank refills a tick or so before the stall flag sets (Sebring: 55 L
+    // at 1381.500 s, in the stall at 1381.517 s): the reset starts there.
+    let at = i;
+    if (fuel) {
+      for (let k = i; k > 0 && t[i] - t[k] <= RESET_LEAD_S; k--) {
+        if (fuel[k] - fuel[k - 1] > RESET_REFILL_L) at = k;
+      }
+    }
+    out.push(t[at]);
+  }
+  return out;
+}
+
+/** How far before the stall flag a reset's refill may come, seconds. */
+const RESET_LEAD_S = 0.25;
+/** A rise in one tick bigger than any fuel-level noise: a refill. */
+const RESET_REFILL_L = 0.5;
 
 function emitChanges(t, values, name, map = v => v) {
   const rows = [];
@@ -314,6 +343,7 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       'PlayerTrackSurfaceMaterial',
       'SessionFlags',
       'SteeringWheelAngleMax',
+      'PlayerCarInPitStall',
     ];
     const raw = readColumns(ibt, sources);
     const cols = {};
@@ -355,6 +385,15 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       events.push(...emitChanges(t, raw.OnPitRoad, 'in_pits', v => (v ? 1 : 0)));
     }
     if (raw.Gear) events.push(...emitChanges(t, raw.Gear, 'gear'));
+    if (raw.PlayerCarInPitStall && raw.OnPitRoad) {
+      for (const at of resetTimes(
+        t,
+        raw.PlayerCarInPitStall,
+        raw.OnPitRoad,
+        raw.FuelLevel ?? null,
+      ))
+        events.push([at, 'reset', 1, '', '', '']);
+    }
     if (raw.PlayerTrackSurface) {
       const loc = raw.PlayerTrackSurface;
       const mat = raw.PlayerTrackSurfaceMaterial || new Float64Array(n);

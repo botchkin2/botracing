@@ -1,4 +1,6 @@
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
+import {lateralText} from '@/src/charts/screenLateral';
+import {rangeOf} from '@/src/analysis/rangeIndex';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
 import {
@@ -23,6 +25,7 @@ import {
   onCurrentBoundaries,
   type TrackMapData,
   referenceDefaultLapIds,
+  stintSetLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -142,7 +145,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     ySnap: 10,
     height: 56,
     desktopHeight: 84,
-    format: v => v.toFixed(0),
+    format: v => lateralText(v, 0),
     pick: t => t.steeringPct,
     native: 'steeringPct',
   },
@@ -573,16 +576,15 @@ function domainOf(
   const fitWindow = windowed && kind !== 'gear';
   let lo = Infinity;
   let hi = -Infinity;
-  for (const a of arrays)
-    for (
-      let i = fitWindow ? Math.max(0, from) : 0;
-      i <= Math.min(a.length - 1, fitWindow ? to : Infinity);
-      i++
-    ) {
-      const v = a[i];
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
-    }
+  // Cached per array (rangeIndex.ts): a cursor step reads block extremes,
+  // not every lap's every sample.
+  for (const a of arrays) {
+    const [l, h] = fitWindow
+      ? rangeOf(a, from, to)
+      : rangeOf(a, 0, a.length - 1);
+    if (l < lo) lo = l;
+    if (h > hi) hi = h;
+  }
   if (!Number.isFinite(lo)) return [0, 1];
   if (kind === 'time') {
     // Whole lap: symmetric around 0; the floor keeps a flat line from
@@ -684,7 +686,26 @@ export function medianBasisOf(
   );
 }
 
+/**
+ * One selection's model, built in two steps (pit-wall thread 1 #3245): the
+ * set (the laps, their basis, diffs, chart lines, map lines, tables), which
+ * changes only with the selection, and the cursor (window, y ranges,
+ * readouts, map dots, position), which moves every frame. The hook keeps the
+ * set across cursor steps; this composes the two for one call.
+ */
 export function buildCompareModel(input: CompareInputs): CompareModel {
+  return buildCompareSet(input).atCursor(input.selection.cursorM);
+}
+
+/** A selection without the cursor: what keys the set. */
+export type CompareSetInputs = Omit<CompareInputs, 'selection'> & {
+  selection: Omit<CompareSelection, 'cursorM'>;
+};
+
+/** Everything about a selection that the cursor does not move; `atCursor` builds the model at one position. */
+export type CompareSet = {atCursor: (cursorM: number) => CompareModel};
+
+export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const {session, laps, traces, band, map, selection} = input;
   const foreignTags = input.foreign?.tags ?? new Map<string, string>();
   const byId = new Map(
@@ -769,20 +790,8 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   const stepM = refTrace?.stepM ?? band?.stepM ?? 5;
   const lengthM =
     map?.lengthM || band?.lengthM || (refTrace?.distanceM.at(-1) ?? 0);
-  const cursorM = Math.max(0, Math.min(lengthM, selection.cursorM));
   const win = input.window ?? {mode: 'time', size: null};
   const windowed = win.size != null && refTrace != null;
-  const windowM: [number, number] = refTrace
-    ? windowRange(refTrace, cursorM, win.mode, win.size)
-    : [0, lengthM];
-  // y scales fit the whole sections the window touches (thread 26 #381).
-  const fitM = sectionFitRange(
-    (map?.sections ?? []).map(s => s.entryM),
-    lengthM,
-    windowM,
-  );
-  const fitI0 = Math.max(0, Math.floor(fitM[0] / stepM));
-  const fitI1 = Math.ceil(fitM[1] / stepM);
 
   // --- reference line and chips ---------------------------------------------
   const refBits = count
@@ -861,7 +870,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   // --- start/finish wrap (thread 27 #377) ------------------------------------
   // Only while the window can reach the line: elsewhere the wrap is off
   // screen, and building it every playback frame cost ~100 ms (freeze #628).
-  const nearLine = windowed && (cursorM < WRAP_M || cursorM > lengthM - WRAP_M);
   const sides = new Map(
     // A lap of another session has no neighbours here: they would be that
     // session's laps, whose traces this view does not load.
@@ -943,7 +951,9 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     };
   };
 
-  const charts: ChartModel[] = (input.charts ?? DEFAULT_CHARTS).map(chs => {
+  const chartBases: Omit<ChartModel, 'domains' | 'valueRows'>[] = (
+    input.charts ?? DEFAULT_CHARTS
+  ).map(chs => {
     const lines: ChartLine[] = [];
     chs.forEach((ch, overlay) => {
       for (const r of lapRefs) {
@@ -955,32 +965,10 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
           overlay,
           values: raw,
           samples: samplesOf(ch, r.lapId),
-          ...(nearLine ? wrapOf(ch, r.lapId) : {}),
         });
       }
     });
-    // Channels of the same kind share a scale; mixed kinds keep their own.
-    const domains: ChartModel['domains'] = {};
-    for (const ch of chs) {
-      const kind = CHANNELS[ch].kind;
-      const sameKind = lines.filter(l => CHANNELS[l.channel].kind === kind);
-      domains[ch] = domainOf(
-        sameKind.map(l => l.values),
-        kind,
-        fitI0,
-        fitI1,
-        windowed,
-        CHANNELS[ch].ySnap,
-      );
-    }
     const pedals = isPedalsChart(chs);
-    if (pedals) {
-      const steerM = Math.abs(domains.steering?.[1] ?? 5);
-      const d = pedalsDomains(steerM);
-      domains.throttle = d.pedal;
-      domains.brake = d.pedal;
-      domains.steering = d.steer;
-    }
     const single = chs.length === 1 ? chs[0] : null;
     const bandFor =
       band && single && ['speed', 'throttle', 'brake'].includes(single)
@@ -1002,7 +990,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         ? PEDALS_H
         : Math.max(...chs.map(c => CHANNELS[c].desktopHeight)),
       lines,
-      domains,
       band: bandFor ? {low: bandFor.p10, high: bandFor.p90} : null,
       // Time diff: the reference. Steering: straight ahead, so left and
       // right lock read at a glance (Botkin, thread 26 #385).
@@ -1012,42 +999,6 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
         : chs.includes('steering')
         ? 'steering'
         : null,
-      valueRows: chs.map((ch, overlay) => ({
-        channel: ch,
-        label: labelOf(ch),
-        // The readout text carries the time diff's unit.
-        unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
-        overlay,
-        values: [
-          ...(basisGrid
-            ? [
-                {
-                  lapId: BASIS_ID,
-                  selIndex: BASIS_SLOT,
-                  highlighted: false,
-                  text: readoutText(
-                    ch,
-                    basisValues(ch)[
-                      Math.min(
-                        basisGrid.timeS.length - 1,
-                        Math.round(cursorM / stepM),
-                      )
-                    ],
-                  ),
-                },
-              ]
-            : []),
-          ...keyRefs.map(r => {
-            const v = readAt(ch, r.lapId, cursorM);
-            return {
-              lapId: r.lapId,
-              selIndex: r.selIndex,
-              highlighted: r.highlighted,
-              text: v == null ? '—' : readoutText(ch, v),
-            };
-          }),
-        ],
-      })),
     };
   });
 
@@ -1073,8 +1024,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
   let gridRows: CornerGridModel['rows'] = [];
   if (ref && cornerCount > 0 && table.kind !== 'lap') {
     // Against the checked set's medians the reference lap is a row like any
-    // other (it is not zero); a long selection shows the laps in key.
-    const rowsOf = lapRefs.filter(r => mode === 'individual' || r.key);
+    // other (it is not zero); a long selection shows the laps in key. With no
+    // lap in key (the stint set's default, nothing highlighted) every checked
+    // lap is a row, so the section grid is never empty (#396 regression).
+    const anyKey = lapRefs.some(r => r.key);
+    const rowsOf = anyKey
+      ? lapRefs.filter(r => mode === 'individual' || r.key)
+      : lapRefs;
     gridRows = rowsOf.map(r => ({
       key: r.lapId,
       label: r.label,
@@ -1127,7 +1083,15 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       : null;
 
   // --- map --------------------------------------------------------------------
-  let mapModel: MapModel | null = null;
+  let mapBase:
+    | (Omit<MapModel, 'dots' | 'follow' | 'followPlace'> & {
+        dotsAt: (cursorM: number) => MapModel['dots'];
+        followAt: (
+          cursorM: number,
+          windowSpanM: number | null,
+        ) => MapModel['follow'];
+      })
+    | null = null;
   if (refTrace) {
     const placer = mapPlacer(map, input.surface ?? null);
     const project = (t: GridTrace, stride: number) =>
@@ -1146,7 +1110,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     // or highlighted lap, no lap is a key lap. `refTrace` is then the first
     // checked lap's trace, which is also where Follow centres, so the dot goes
     // there. It stands for the basis, in the basis colour like its readout row.
-    const dotsOf = (): MapModel['dots'] => {
+    const dotsAt = (cursorM: number): MapModel['dots'] => {
       const keyed = keyRefs
         .filter(r => traces.has(r.lapId))
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
@@ -1167,7 +1131,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     };
     const followGeometry = input.followGeometry ?? null;
     const split = placer.outlineUse(refTrace);
-    mapModel = {
+    mapBase = {
       roadPending: input.surfacePending ?? false,
       realMap: placer.real,
       // The measured road first (a thin band in Track), then the OSM outside it.
@@ -1177,18 +1141,13 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       marks: buildTrackMarks(map?.sections ?? [], lengthM, m =>
         pointAt(refTrace, m),
       ),
-      follow: followGeometry && {
-        ...buildFollowView(
-          placer,
-          refTrace,
-          cursorM,
-          windowed ? windowM[1] - windowM[0] : null,
-        ),
-        geometry: followGeometry,
-      },
+      followAt: (cursorM, windowSpanM) =>
+        followGeometry && {
+          ...buildFollowView(placer, refTrace, cursorM, windowSpanM),
+          geometry: followGeometry,
+        },
       lines,
-      dots: dotsOf(),
-      followPlace: followPlace(map?.sections ?? [], cursorM),
+      dotsAt,
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
         apexM: s.apexM,
@@ -1197,7 +1156,7 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     };
   }
 
-  return {
+  const fixed = {
     mode,
     radarLap:
       radarOwner &&
@@ -1215,34 +1174,11 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
       grid: table.label,
     },
     chips,
-    map: mapModel,
-    position: {
-      place: cornerPlace(map?.sections ?? [], cursorM),
-      distance: formatDistance(cursorM),
-    },
     grid,
-    charts,
     trafficLane: trafficLaneOf(session, lapRefs, byId, lengthM),
     stepM,
     lengthM,
-    windowM,
-    timeAxis:
-      windowed && win.mode === 'time'
-        ? {ref: refTrace, windowS: windowTimeS(refTrace, cursorM, win.size!)}
-        : null,
     refGrid: refTrace ?? null,
-    apexMarks: windowed
-      ? [
-          ...(map?.sections ?? [])
-            .flatMap(s => (s.parts.length ? s.parts : [s]))
-            .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
-            .map(c => ({
-              m: c.apexM,
-              label: `${turnLabel(c.n, c.official)} apex`,
-            })),
-          ...lineMarks(refTrace, cursorM, win, lengthM, refSides),
-        ]
-      : [],
     pending: selected.filter(l => !traces.has(l.id)).length,
     notFound: selection.laps.length - selected.length,
     allLaps: allLapsByStint(
@@ -1305,6 +1241,134 @@ export function buildCompareModel(input: CompareInputs): CompareModel {
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),
     ),
+  };
+
+  return {
+    atCursor: (at: number): CompareModel => {
+      const cursorM = Math.max(0, Math.min(lengthM, at));
+      const windowM: [number, number] = refTrace
+        ? windowRange(refTrace, cursorM, win.mode, win.size)
+        : [0, lengthM];
+      // y scales fit the whole sections the window touches (thread 26 #381).
+      const fitM = sectionFitRange(
+        (map?.sections ?? []).map(s => s.entryM),
+        lengthM,
+        windowM,
+      );
+      const fitI0 = Math.max(0, Math.floor(fitM[0] / stepM));
+      const fitI1 = Math.ceil(fitM[1] / stepM);
+      // The start/finish wrap only while the window can reach the line:
+      // elsewhere it is off screen, and building it every playback frame cost
+      // ~100 ms (freeze #628).
+      const nearLine =
+        windowed && (cursorM < WRAP_M || cursorM > lengthM - WRAP_M);
+      const charts: ChartModel[] = chartBases.map(base => {
+        const {channels: chs, pedals} = base;
+        // The set's lines keep their identity between steps (the charts
+        // memoize paths on them); only the wrap near the line adds to them.
+        const lines = nearLine
+          ? base.lines.map(l => ({...l, ...wrapOf(l.channel, l.lapId)}))
+          : base.lines;
+        // Channels of the same kind share a scale; mixed kinds keep their own.
+        const domains: ChartModel['domains'] = {};
+        for (const ch of chs) {
+          const kind = CHANNELS[ch].kind;
+          const sameKind = lines.filter(l => CHANNELS[l.channel].kind === kind);
+          domains[ch] = domainOf(
+            sameKind.map(l => l.values),
+            kind,
+            fitI0,
+            fitI1,
+            windowed,
+            CHANNELS[ch].ySnap,
+          );
+        }
+        if (pedals) {
+          const steerM = Math.abs(domains.steering?.[1] ?? 5);
+          const d = pedalsDomains(steerM);
+          domains.throttle = d.pedal;
+          domains.brake = d.pedal;
+          domains.steering = d.steer;
+        }
+
+        return {
+          ...base,
+          lines,
+          domains,
+          valueRows: chs.map((ch, overlay) => ({
+            channel: ch,
+            label: labelOf(ch),
+            // The readout text carries the time diff's unit.
+            unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
+            overlay,
+            values: [
+              ...(basisGrid
+                ? [
+                    {
+                      lapId: BASIS_ID,
+                      selIndex: BASIS_SLOT,
+                      highlighted: false,
+                      text: readoutText(
+                        ch,
+                        basisValues(ch)[
+                          Math.min(
+                            basisGrid.timeS.length - 1,
+                            Math.round(cursorM / stepM),
+                          )
+                        ],
+                      ),
+                    },
+                  ]
+                : []),
+              ...keyRefs.map(r => {
+                const v = readAt(ch, r.lapId, cursorM);
+                return {
+                  lapId: r.lapId,
+                  selIndex: r.selIndex,
+                  highlighted: r.highlighted,
+                  text: v == null ? '—' : readoutText(ch, v),
+                };
+              }),
+            ],
+          })),
+        };
+      });
+      const {dotsAt, followAt, ...mapRest} = mapBase ?? ({} as never);
+      return {
+        ...fixed,
+        map: mapBase && {
+          ...mapRest,
+          dots: dotsAt(cursorM),
+          follow: followAt(cursorM, windowed ? windowM[1] - windowM[0] : null),
+          followPlace: followPlace(map?.sections ?? [], cursorM),
+        },
+        position: {
+          place: cornerPlace(map?.sections ?? [], cursorM),
+          distance: formatDistance(cursorM),
+        },
+        charts,
+        windowM,
+        timeAxis:
+          windowed && win.mode === 'time'
+            ? {
+                ref: refTrace,
+                windowS: windowTimeS(refTrace, cursorM, win.size!),
+              }
+            : null,
+        apexMarks: windowed
+          ? [
+              ...(map?.sections ?? [])
+                .flatMap(s => (s.parts.length ? s.parts : [s]))
+                .filter(c => c.apexM >= windowM[0] && c.apexM <= windowM[1])
+                .map(c => ({
+                  m: c.apexM,
+                  label: `${turnLabel(c.n, c.official)} apex`,
+                })),
+              ...lineMarks(refTrace, cursorM, win, lengthM, refSides),
+            ]
+          : [],
+      };
+    },
   };
 }
 
@@ -1379,10 +1443,12 @@ export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
 /**
- * A URL with no laps opens on the session's default laps (a fair reference
- * and the median lap, `referenceDefaultLapIds`), so Compare is never an empty
- * reference with no chips. Laps the URL names are kept as given, and nothing
- * changes while the session or its laps are still loading.
+ * A URL with no laps opens on a set: every comparable lap of the session's
+ * main stint against their median (`stintSetLapIds`). Under two comparable
+ * laps it opens on a fair reference and the median lap
+ * (`referenceDefaultLapIds`), so Compare is never empty. Laps the URL names
+ * are kept as given, and nothing changes while the session or its laps are
+ * still loading.
  */
 export function withDefaultLaps(
   sel: CompareSelection,
@@ -1390,7 +1456,11 @@ export function withDefaultLaps(
   session: DefaultSession | undefined,
 ): CompareSelection {
   if (sel.laps.length > 0 || !laps || !session) return sel;
-  return {...sel, laps: referenceDefaultLapIds(laps, session)};
+  const set = stintSetLapIds(laps);
+  return {
+    ...sel,
+    laps: set.length > 0 ? set : referenceDefaultLapIds(laps, session),
+  };
 }
 
 /**

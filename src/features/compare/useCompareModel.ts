@@ -17,7 +17,7 @@ import {parseLapRef} from '@/src/nav/lapRef';
 import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
-  buildCompareModel,
+  buildCompareSet,
   medianBasisOf,
   type ForeignLaps,
   type ChannelId,
@@ -57,13 +57,15 @@ export function useCompareModel(
   const map = useSessionMap(sessionId);
   const surface = useSessionSurface(sessionId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
+  // The checked laps by value, not by the array: a URL write or a re-parse
+  // gives a new array of the same ids, which must not rebuild the set.
+  const lapsKey = selection.laps.join(',');
+  const lapIds = useMemo(() => (lapsKey ? lapsKey.split(',') : []), [lapsKey]);
   // Laps of other sessions in the selection (`sessionId~lapId`): their
   // sessions' laps and docs are read so each can be found and tagged.
   const foreignSessionIds = useMemo(
-    () => [
-      ...new Set(selection.laps.flatMap(id => parseLapRef(id).sessionId ?? [])),
-    ],
-    [selection.laps],
+    () => [...new Set(lapIds.flatMap(id => parseLapRef(id).sessionId ?? []))],
+    [lapIds],
   );
   const foreignLaps = useSessionsLaps(foreignSessionIds);
   const foreignDetails = useSessionsDetail(foreignSessionIds);
@@ -73,7 +75,7 @@ export function useCompareModel(
     // A session with a corner map of its own has sections that do not line
     // up with this one's, so its laps are not offered beside it.
     const sectionsAgree = session.data?.cornerMapSource !== 'session';
-    for (const id of selection.laps) {
+    for (const id of lapIds) {
       const ref = parseLapRef(id);
       const at = foreignSessionIds.indexOf(ref.sessionId ?? '');
       const detail = foreignDetails.details[at];
@@ -91,7 +93,7 @@ export function useCompareModel(
         : undefined,
     };
   }, [
-    selection.laps,
+    lapIds,
     foreignSessionIds,
     foreignLaps.laps,
     foreignDetails.details,
@@ -107,8 +109,8 @@ export function useCompareModel(
       ...(laps.data ?? []).map(l => l.id),
       ...foreign.laps.map(l => l.id),
     ]);
-    return selection.laps.filter(id => ids.has(id));
-  }, [laps.data, foreign.laps, selection.laps]);
+    return lapIds.filter(id => ids.has(id));
+  }, [laps.data, foreign.laps, lapIds]);
   // The S/F wrap needs each lap's contiguous neighbours, but only while the
   // window is near the line (thread 27 #377). Compare opens at 0 m, so that
   // is usually at once; each trace is cached by lap id either way.
@@ -162,17 +164,71 @@ export function useCompareModel(
   // with the cursor, so it is built here and handed to the pure model.
   const basisTrace = useMemo(() => {
     const own = laps.data ?? [];
-    const checked = selection.laps
+    const checked = lapIds
       .map(id => [...own, ...foreign.laps].find(l => l.id === id))
       .filter((l): l is Lap => l != null);
     return medianBasisOf(checked, traces);
-  }, [laps.data, foreign.laps, selection.laps, traces]);
+  }, [laps.data, foreign.laps, lapIds, traces]);
 
   // Stable functions, so they can sit in the memo's dependencies.
   const {refetch: refetchSession} = session;
   const {refetch: refetchLaps} = laps;
   const error = [session, laps].find(q => q.isError)?.error;
-  return useMemo(() => {
+  // The set (laps, basis, lines, tables) is built once per selection and
+  // kept while the cursor moves; a cursor step builds only what it moves
+  // (buildCompareSet, pit-wall thread 1 #3245). The cursor is not in its key.
+  const setSelection = useMemo(
+    () => ({
+      laps: lapIds,
+      ref: selection.ref,
+      hl: selection.hl,
+      corner: selection.corner,
+    }),
+    [lapIds, selection.ref, selection.hl, selection.corner],
+  );
+  const waitingOnForeign =
+    foreignSessionIds.length > 0 &&
+    (foreignLaps.pending || foreignDetails.pending);
+  const ready =
+    !error && session.data && laps.data && !map.isPending && !waitingOnForeign;
+  const set = useMemo(
+    () =>
+      ready && session.data && laps.data
+        ? buildCompareSet({
+            session: session.data,
+            laps: laps.data,
+            foreign,
+            traces,
+            band: band.data ?? null,
+            map: map.data ?? null,
+            surface: surface.data ?? null,
+            surfacePending: surface.isPending,
+            selection: setSelection,
+            charts,
+            window,
+            followGeometry,
+            basisTrace,
+          })
+        : null,
+    [
+      ready,
+      session.data,
+      laps.data,
+      foreign,
+      traces,
+      band.data,
+      map.data,
+      surface.data,
+      surface.isPending,
+      setSelection,
+      charts,
+      window,
+      followGeometry,
+      basisTrace,
+    ],
+  );
+  const cursorM = selection.cursorM;
+  return useMemo((): CompareResult => {
     if (error)
       return {
         state: 'error',
@@ -184,50 +240,17 @@ export function useCompareModel(
       };
     // A lap of another session is found once its session has loaded; until
     // then it would read as "not found".
-    const waitingOnForeign =
-      foreignSessionIds.length > 0 &&
-      (foreignLaps.pending || foreignDetails.pending);
-    if (!session.data || !laps.data || map.isPending || waitingOnForeign)
-      return {state: 'loading'};
+    if (!set) return {state: 'loading'};
     return {
       state: 'ready',
       traceLoad,
       retryTraces,
-      model: buildCompareModel({
-        session: session.data,
-        laps: laps.data,
-        foreign,
-        traces,
-        band: band.data ?? null,
-        map: map.data ?? null,
-        surface: surface.data ?? null,
-        surfacePending: surface.isPending,
-        selection,
-        charts,
-        window,
-        followGeometry,
-        basisTrace,
-      }),
+      model: set.atCursor(cursorM),
     };
   }, [
     error,
-    foreignSessionIds,
-    foreignLaps.pending,
-    foreignDetails.pending,
-    session.data,
-    laps.data,
-    foreign,
-    map.isPending,
-    map.data,
-    surface.data,
-    surface.isPending,
-    band.data,
-    traces,
-    basisTrace,
-    selection,
-    charts,
-    window,
-    followGeometry,
+    set,
+    cursorM,
     traceLoad,
     retryTraces,
     refetchSession,

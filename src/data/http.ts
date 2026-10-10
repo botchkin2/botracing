@@ -15,13 +15,15 @@ export const apiBaseUrl: string =
     : PRODUCTION_API);
 
 /**
- * The tray's own routes (/api/tray/*), next to the lap API: the same origin
- * on the deployed app, production otherwise. They answer without a sign-in.
+ * The release routes (/api/tray/*, /api/android/*), next to the lap API: the
+ * same origin on the deployed app, production otherwise. Their /latest and
+ * /download answer without a sign-in.
  */
-const trayRoot = apiBaseUrl.endsWith('/lmu')
+const apiRoot = apiBaseUrl.endsWith('/lmu')
   ? apiBaseUrl.slice(0, -'/lmu'.length)
   : 'https://botracing-61.web.app/api';
-export const trayApiUrl = (path: string): string => `${trayRoot}/tray${path}`;
+export const releaseApiUrl = (kind: 'tray' | 'android', path: string): string =>
+  `${apiRoot}/${kind}${path}`;
 
 export class HttpError extends Error {
   constructor(readonly status: number, readonly path: string) {

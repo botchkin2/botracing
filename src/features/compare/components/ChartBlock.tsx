@@ -2,7 +2,9 @@ import {type ReactNode, useState} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
+import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
+import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
 import {dash, space, useTheme} from '@/src/design';
 import {
   CHANNEL_IDS,
@@ -84,12 +86,16 @@ export function ChartBlock({
   const series: TraceSeries[] = chart.lines
     .map(l => {
       const s = lapStyle(l.selIndex, l.highlighted);
+      // Steering draws right DOWN (charts/screenLateral.ts); the data is +right.
+      const flip = l.channel === 'steering';
+      const screen = <T extends NativeSamples | undefined>(x: T) =>
+        flip && x ? (screenLateral(x) as T) : x;
       return {
         key: `${l.channel}-${l.lapId}`,
-        values: l.values,
-        samples: l.samples,
-        before: l.before,
-        after: l.after,
+        values: flip ? l.values.map(toScreenLateral) : l.values,
+        samples: screen(l.samples),
+        before: screen(l.before),
+        after: screen(l.after),
         color: s.color,
         width:
           chart.pedals && l.channel === 'steering'
@@ -197,6 +203,9 @@ export function ChartBlock({
         series={series}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
+        sideLabels={
+          chart.zeroLine === 'steering' ? {above: 'L', below: 'R'} : undefined
+        }
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
         cursorM={cursorM}
         onScrub={onScrub}
