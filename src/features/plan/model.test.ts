@@ -8,7 +8,6 @@ import {
   type SessionSummary,
 } from '@/src/data/sessions';
 import {carLabel} from '@/src/design';
-import {planComboKey} from '@/src/nav/routes';
 import {newPreset} from '@/src/state/fuelPresets';
 
 import {
