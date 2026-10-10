@@ -3,7 +3,12 @@ import {useMemo} from 'react';
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
 import {raceClock, type RaceClock} from '@/src/analysis/raceClock';
 import {type OutlineUse} from '@/src/analysis/outlineUse';
-import {type RacePrep, prepareRace} from '@/src/analysis/raceState';
+import {
+  type MeasuredEdges,
+  type RacePrep,
+  prepareRace,
+} from '@/src/analysis/raceState';
+import {measuredHalfWidths} from '@/src/analysis/trackSurface';
 import {worldMatches, worldMatchM} from '@/src/analysis/worldMatch';
 import {useField} from '@/src/data/field';
 import {
@@ -104,7 +109,16 @@ export function useRaceData(sessionId: string): RaceData {
     [stored, line],
   );
   const used = stored?.hasPositions ? stored : placed;
-  const prep = useMemo(() => (used ? prepareRace(used) : null), [used]);
+  // Off the road is measured from the surface's edges, not a fixed 7.5 m.
+  const edges = useMemo((): MeasuredEdges | null => {
+    const sf = surface.data;
+    const hw = sf ? measuredHalfWidths(sf) : null;
+    return sf && hw ? {stepM: sf.stepM, lengthM: sf.lengthM, ...hw} : null;
+  }, [surface.data]);
+  const prep = useMemo(
+    () => (used ? prepareRace(used, edges) : null),
+    [used, edges],
+  );
   const clock = useMemo(() => (used ? raceClock(used) : null), [used]);
   const matchM = useMemo(() => {
     // Placed on the line: on it by construction.
