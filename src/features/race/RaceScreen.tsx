@@ -3,7 +3,9 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
+import {offTrackEvents} from '@/src/analysis/offTrackEvents';
+import {onPitLane} from '@/src/analysis/pitLane';
+import {type LaneZoom, laneWindow, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
 import {carLapsOf} from '@/src/analysis/carLaps';
@@ -52,6 +54,7 @@ import {
   type SelectionPatch,
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
+import {offTrackMarks} from './offTrackMarks';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -255,9 +258,28 @@ function RaceView({
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
+  const meIndex = useMemo(
+    () => prep.field.cars.findIndex(c => c.player),
+    [prep.field],
+  );
+  // Off-track stretches per car, on the pit lane excluded (D52). Yours is in
+  // the lanes; the focused car's is computed when it is picked.
+  const offEventsOf = useCallback(
+    (carIndex: number) =>
+      offTrackEvents(prep, data.clock, carIndex, (xM, zM) => {
+        if (placer.pitLane.length === 0) return false;
+        const [at] = placer.placeWorld([{x: xM, z: zM}]);
+        return onPitLane(at, placer.pitLane);
+      }),
+    [prep, data.clock, placer],
+  );
+  const myOffEvents = useMemo(
+    () => (meIndex < 0 ? [] : offEventsOf(meIndex)),
+    [meIndex, offEventsOf],
+  );
   const lanes = useMemo(
-    () => raceLanes(prep.field, data.clock),
-    [prep.field, data.clock],
+    () => raceLanes(prep.field, data.clock, myOffEvents),
+    [prep.field, data.clock, myOffEvents],
   );
   // The session's classes, fastest first, with their colours and labels.
   const classes = useMemo(() => fieldClasses(prep.field), [prep.field]);
@@ -323,6 +345,24 @@ function RaceView({
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
         .dots,
     [cars, filter, focus, mode, prep.trackM, classes],
+  );
+
+  // Where each car went off the road, within the lanes' window: yours always,
+  // the focused car's too (D52).
+  const focusOffEvents = useMemo(
+    () => (focus === null || focus === meIndex ? [] : offEventsOf(focus)),
+    [focus, meIndex, offEventsOf],
+  );
+  const offMarks = useMemo(
+    () =>
+      offTrackMarks(
+        [
+          {carIndex: meIndex, events: myOffEvents},
+          {carIndex: focus ?? -1, events: focusOffEvents},
+        ],
+        laneWindow(zoom, shownS, lanes),
+      ),
+    [meIndex, myOffEvents, focus, focusOffEvents, zoom, shownS, lanes],
   );
 
   // The radar shows the 5 Hz sample at or before the clock, even while the
@@ -395,6 +435,7 @@ function RaceView({
         line={line}
         outlineUse={outlineUse}
         dots={dots}
+        offMarks={offMarks}
         showCars={data.matches}
         attribution={data.attribution}
         // A field placed on the line by lap distance has no lateral picture:

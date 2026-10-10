@@ -77,12 +77,15 @@ export const cornerHref = (
   sessionId: string,
   corner: number,
   sel: LapSelectionParams = {},
+  /** A compound corner read whole ("All" in its Parts row); `corner` is any part. */
+  whole = false,
 ): Href => ({
   pathname: '/session/[id]/corner/[n]',
   params: {
     id: sessionId,
     n: String(corner),
     ...selectionParams({...sel, corner: null}),
+    ...(whole ? {all: '1'} : {}),
   },
 });
 

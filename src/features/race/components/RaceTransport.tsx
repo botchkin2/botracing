@@ -9,7 +9,7 @@ import {Segment, Text} from '@/src/ui';
 import {RACE_RATES, type RaceRate, STEP_S} from '../clock';
 
 const ICON = 16;
-// The phone's scrub strip: the five lanes over the whole session, 9 pt each
+// The phone's scrub strip: the six lanes over the whole session, 9 pt each
 // (the same height as the phone's lanes block), no labels.
 const STRIP_LANE_H = 9;
 
