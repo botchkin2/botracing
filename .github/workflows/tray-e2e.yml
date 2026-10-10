@@ -68,13 +68,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2022, windows-2025]
-        account: [runner, standard-user]
+        account: [runner, standard-user, standard-ascii]
         node: [as-is, none, decoy]
         exclude:
           # The decoy and the missing node are the same check as-is on an
           # account that has no node of its own; keep them on one OS each.
           - {os: windows-2025, account: runner, node: none}
           - {os: windows-2025, account: runner, node: decoy}
+          # The plain-named standard user only separates the cause of a failure.
+          - {os: windows-2022, account: standard-ascii, node: none}
+          - {os: windows-2022, account: standard-ascii, node: decoy}
+          - {os: windows-2025, account: standard-ascii, node: none}
+          - {os: windows-2025, account: standard-ascii, node: decoy}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,6 +97,8 @@ jobs:
           if (-not $setup) { throw "no installer was downloaded" }
           if ("${{ matrix.account }}" -eq "runner") {
             ./desktop/scripts/e2e-install.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
+          } elseif ("${{ matrix.account }}" -eq "standard-ascii") {
+            ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }} -Name ascii
           } else {
             ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
           }

@@ -6,12 +6,15 @@
 #   .\desktop\scripts\e2e-as-user.ps1 -Installer <setup.exe> [-Node as-is|none|decoy]
 param(
   [Parameter(Mandatory = $true)][string]$Installer,
-  [ValidateSet("as-is", "none", "decoy")][string]$Node = "as-is"
+  [ValidateSet("as-is", "none", "decoy")][string]$Node = "as-is",
+  # unicode: "Test Ünïcode" (a space and non-ASCII letters); ascii: "e2euser", the
+  # same standard user with a plain name, to tell the two causes apart.
+  [ValidateSet("unicode", "ascii")][string]$Name = "unicode"
 )
 $ErrorActionPreference = "Stop"
 
 # Built from code points so the file's own encoding cannot change the name.
-$name = "Test " + [char]0x00DC + "n" + [char]0x00EF + "code"
+$name = if ($Name -eq "ascii") { "e2euser" } else { "Test " + [char]0x00DC + "n" + [char]0x00EF + "code" }
 $password = ConvertTo-SecureString ([guid]::NewGuid().ToString("N") + "aA1!") -AsPlainText -Force
 $work = "C:\e2e"
 
