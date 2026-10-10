@@ -46,8 +46,8 @@ export function TransportBar({
   onRate: (r: PlayRate) => void;
 }) {
   const {color} = useTheme();
-  // A chip is size.chip tall and 28 wide: pad each side to the 44 pt hit area.
-  const hit = hitFor((size.hit - size.chip) / 2, (size.hit - size.chip) / 2);
+  // Native touch area: the 28 pt control padded to 44 pt (hitSlop). Web ignores hitSlop, so the box stays 28 there.
+  const hit = {hitSlop: {top: 8, bottom: 8, left: 8, right: 8}};
   const stepper = (
     <View style={[styles.stepper, {borderColor: color.lineStrong}]}>
       <Pressable
@@ -55,7 +55,7 @@ export function TransportBar({
         onPress={() => onStep(-1)}
         disabled={step === 0}
         hitSlop={hit.hitSlop}
-        style={[styles.stepBtn, hit.style]}>
+        style={styles.stepBtn}>
         <Text variant='dataStrong' tone={step === 0 ? 'textFaint' : 'text'}>
           −
         </Text>
@@ -68,7 +68,7 @@ export function TransportBar({
         onPress={() => onStep(1)}
         disabled={step === 'lap'}
         hitSlop={hit.hitSlop}
-        style={[styles.stepBtn, hit.style]}>
+        style={styles.stepBtn}>
         <Text variant='dataStrong' tone={step === 'lap' ? 'textFaint' : 'text'}>
           +
         </Text>
@@ -82,12 +82,7 @@ export function TransportBar({
       onPress={onLap}
       disabled={step === 'lap'}
       hitSlop={hit.hitSlop}
-      style={[
-        styles.stepper,
-        {borderColor: color.lineStrong},
-        styles.lapBtn,
-        hit.style,
-      ]}>
+      style={[styles.stepper, {borderColor: color.lineStrong}, styles.lapBtn]}>
       <Text variant='dataStrong' tone={step === 'lap' ? 'textFaint' : 'text'}>
         Lap
       </Text>
