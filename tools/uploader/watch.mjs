@@ -93,6 +93,8 @@ const gameExeOf = ({adapter: a}) =>
   (a.watcher.gameExeEnv && process.env[a.watcher.gameExeEnv]) || a.gameExe;
 const LOCK_PIPE =
   process.env.LAP_LOCK_PIPE || String.raw`\\.\pipe\lap-uploader-watch`;
+// sync.mjs's own quiet time (--quiet-min), for a sim whose adapter sets none.
+const QUIET_MIN_DEFAULT = 3;
 const TICK_SEC = 30;
 const BEAT_MIN = 5;
 // A running sync rewrites the heartbeat at least this often.
@@ -408,6 +410,7 @@ async function main() {
           lastRunAtMs: st.lastRunAtMs ?? null,
           retryAtMs: st.retryAtMs ?? null,
           sessionRetryAtMs: earliestRetryMs(st.retries),
+          quietRetryAtMs: st.quietRetryAtMs ?? null,
           // First run with this code, or a merge that bumped it.
           versionChanged: st.versionKey !== currentKey,
           nowMs: Date.now(),
@@ -501,6 +504,12 @@ async function main() {
               nowMs: Date.now(),
             });
             st.lastRunAtMs = startedMs;
+            // Files skipped as too fresh are looked at again once they are
+            // old enough, a little after sync.mjs's own quiet time.
+            const quietMin = sim.adapter.watcher.quietMin ?? QUIET_MIN_DEFAULT;
+            st.quietRetryAtMs = r.waiting
+              ? Date.now() + (quietMin + 0.5) * 60 * 1000
+              : null;
             st.versionKey = currentKey;
             st.retryAtMs = null;
             st.failuresInRow = 0;
