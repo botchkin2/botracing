@@ -111,6 +111,7 @@ export function usePlanSessions(
       combo?.trackId ?? '',
       combo?.carModel ?? '',
     ),
+    // `enabled` is false without a combo, so it is set whenever this runs.
     queryFn: ({signal}) => fetchPlanSessions(combo!, signal),
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,

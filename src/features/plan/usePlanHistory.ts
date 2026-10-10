@@ -41,6 +41,15 @@ export function usePlanRows(combo: Combo | null) {
     /** True while the request is in flight (and for a combo not chosen yet it is false). */
     pending: combo != null && query.isPending,
     failed: query.isError,
+    /** The request has answered: a session it does not list is no data, not loading. */
+    answered: query.data != null,
+    /**
+     * The route cut the list at its cap (500 sessions, newest first). Nothing
+     * reads past the newest few for the history, and a session the cut left out
+     * is no data (limitsOfPlan with `answered`), so the plan is the same; the
+     * flag is carried for a screen that wants to say so.
+     */
+    truncated: query.data?.truncated === true,
   };
 }
 
@@ -82,6 +91,7 @@ export function usePlanLimits(
     ...limitsOfPlan(
       combo ? combo.sessions.map(s => rows.byId.get(s.id)) : [],
       rows.pending,
+      rows.answered,
     ),
   };
 }

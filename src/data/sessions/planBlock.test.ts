@@ -57,6 +57,21 @@ describe('toPlanSessions', () => {
 });
 
 describe('toPlanBlock', () => {
+  it('keeps a traffic number the block lacks as null, not 0', () => {
+    const out = toPlanBlock({
+      v: 1,
+      fuel: {},
+      laps: [{n: 1, usedL: 2, timeS: 90, traffic: {aheadS: 4, passes: 1}}],
+    });
+    expect(out?.laps?.[0].traffic).toEqual({
+      aheadS: 4,
+      passes: 1,
+      blueS: null,
+      battleS: null,
+      overtakes: null,
+    });
+  });
+
   it('keeps laps as null for a session past the newest few, and drops a lap with a missing number', () => {
     expect(toPlanBlock({v: 1, fuel: {}, laps: null, race: null})?.laps).toBeNull();
     const out = toPlanBlock({

@@ -134,6 +134,19 @@ describe('greenLapsOf', () => {
     ]);
   });
 
+  it('a lap whose block lacks a traffic number has no traffic facts, never a 0', () => {
+    const [out] = greenLapsOf(
+      's1',
+      [
+        planLap({
+          traffic: {aheadS: 6, passes: null, blueS: 0, battleS: 0.5, overtakes: 1},
+        }),
+      ],
+      0.7,
+    );
+    expect(out.traffic).toBeNull();
+  });
+
   it('is empty for a session whose block has no lap rows', () => {
     expect(greenLapsOf('s1', [], 0.7)).toEqual([]);
   });
@@ -728,6 +741,21 @@ describe('limitsOfPlan', () => {
       pending: true,
       limitsL: [75, undefined],
     });
+  });
+
+  it('once the request has answered, a session it does not list is no data (null), not loading', () => {
+    const state = limitsOfPlan([row(75), undefined], false, true);
+    expect(state.limitsL).toEqual([75, null]);
+  });
+
+  it('a session missing from the answer counts as a session with no limit in the history', () => {
+    const combo = {
+      sessions: [session('a', '2026-10-09T10:00:00Z'), session('b', '2026-10-08T10:00:00Z')],
+    } as Combo;
+    const answered = limitsOfPlan([row(75), undefined], false, true).limitsL;
+    expect(historySessions(combo, answered).map(s => s.id)).toEqual(['a', 'b']);
+    const loading = limitsOfPlan([row(75), undefined], true, false).limitsL;
+    expect(historySessions(combo, loading).map(s => s.id)).toEqual(['a']);
   });
 
   it('is not pending when the request failed: the sessions are left out, not waited for', () => {

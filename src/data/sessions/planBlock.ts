@@ -6,12 +6,12 @@
 import type {SessionFuel, SessionType} from './adapters';
 
 export type PlanTraffic = {
-  aheadS: number;
-  passes: number;
-  blueS: number;
-  battleS: number;
+  aheadS: number | null;
+  passes: number | null;
+  blueS: number | null;
+  battleS: number | null;
   /** How many faster-class cars passed; the places stay in the lap doc. */
-  overtakes: number;
+  overtakes: number | null;
 };
 
 /** A green lap with fuel used above zero and a time. `n` is the app's `lapIndex`. */
@@ -81,11 +81,11 @@ function toTraffic(v: unknown): PlanTraffic | null {
   if (v == null || typeof v !== 'object') return null;
   const t = obj(v);
   return {
-    aheadS: num(t.aheadS) ?? 0,
-    passes: num(t.passes) ?? 0,
-    blueS: num(t.blueS) ?? 0,
-    battleS: num(t.battleS) ?? 0,
-    overtakes: num(t.overtakes) ?? 0,
+    aheadS: num(t.aheadS),
+    passes: num(t.passes),
+    blueS: num(t.blueS),
+    battleS: num(t.battleS),
+    overtakes: num(t.overtakes),
   };
 }
 

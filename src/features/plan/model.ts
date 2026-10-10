@@ -101,19 +101,26 @@ export function sessionLimitL(fuel: SessionFuel | null): number | null {
 /**
  * The fill limit of each session at a track and car, from the plan blocks
  * GET /plan returned, and whether the request is still loading. `rows` lines
- * up with `combo.sessions`; a session the response does not list (still
- * loading, or past the route's cap) has no limit to read, so it is left out of
- * the history rather than waited for forever. A session with no block (uploaded
- * before it existed) is listed with a null limit: no data, not zero.
+ * up with `combo.sessions`. While the request is in flight a session has no
+ * limit yet (undefined: left out of the history, not waited for forever). Once
+ * it has answered, a session the answer does not list (past the route's cap, or
+ * a doc whose stored carModel was never resynced) is no data (null), the same
+ * as a session with no block (uploaded before it existed): never zero.
  */
 export function limitsOfPlan(
   rows: (PlanSession | undefined)[],
   pending: boolean,
+  /** The request has answered. A session the answer does not list is then no data (null), not still loading. */
+  answered = false,
 ): {pending: boolean; limitsL: (number | null | undefined)[]} {
   return {
     pending,
     limitsL: rows.map(r =>
-      r === undefined ? undefined : sessionLimitL(r.plan?.fuel ?? null),
+      r === undefined
+        ? answered
+          ? null
+          : undefined
+        : sessionLimitL(r.plan?.fuel ?? null),
     ),
   };
 }
@@ -210,6 +217,30 @@ export function veRatioFor(
 }
 
 /**
+ * A lap's traffic facts for the clean and traffic medians. A lap whose block
+ * lacks any of them has no traffic facts (null): a missing number is never 0.
+ */
+function trafficOf(t: PlanLap['traffic']): GreenLap['traffic'] {
+  if (
+    !t ||
+    t.aheadS == null ||
+    t.passes == null ||
+    t.blueS == null ||
+    t.battleS == null ||
+    t.overtakes == null
+  )
+    return null;
+  return {
+    trafficAheadS: t.aheadS,
+    passesSufferedAll: t.passes,
+    blueFlagS: t.blueS,
+    battleS: t.battleS,
+    // Counts only travel; the planner reads how many there were.
+    overtakes: Array.from({length: t.overtakes}),
+  };
+}
+
+/**
  * Clean laps of one session, as the planner reads them: fuel in litres, and
  * VE % as those litres over the ratio (null without one). The block holds
  * only the laps the planner keeps (green, fuel used, timed), so there is
@@ -227,16 +258,7 @@ export function greenLapsOf(
     sessionId,
     comparable: l.comparable,
     veMeasured: l.veUsedPct != null && l.veUsedPct > 0,
-    traffic: l.traffic
-      ? {
-          trafficAheadS: l.traffic.aheadS,
-          passesSufferedAll: l.traffic.passes,
-          blueFlagS: l.traffic.blueS,
-          battleS: l.traffic.battleS,
-          // Counts only travel; the planner reads how many there were.
-          overtakes: Array.from({length: l.traffic.overtakes}),
-        }
-      : null,
+    traffic: trafficOf(l.traffic),
   }));
 }
 
