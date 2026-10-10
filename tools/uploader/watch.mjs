@@ -58,6 +58,7 @@ import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {decide, retryDelayMin} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
+import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // LAP_SYNC_SCRIPT, LAP_HEARTBEAT_FILE, LAP_LOCK_PIPE and LAP_GAME_EXE are test
@@ -93,8 +94,6 @@ const gameExeOf = ({adapter: a}) =>
   (a.watcher.gameExeEnv && process.env[a.watcher.gameExeEnv]) || a.gameExe;
 const LOCK_PIPE =
   process.env.LAP_LOCK_PIPE || String.raw`\\.\pipe\lap-uploader-watch`;
-// sync.mjs's own quiet time (--quiet-min), for a sim whose adapter sets none.
-const QUIET_MIN_DEFAULT = 3;
 const TICK_SEC = 30;
 const BEAT_MIN = 5;
 // A running sync rewrites the heartbeat at least this often.
