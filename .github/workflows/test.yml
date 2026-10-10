@@ -51,7 +51,7 @@ jobs:
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -63,6 +63,18 @@ jobs:
         run: npx tsc --noEmit
       - name: Functions tests
         run: node --test functions/test/*.test.mjs
+      # Real requests to the API in the Firebase emulators (functions,
+      # Firestore, Auth, Storage): functions/test/emulator. firebase-tools
+      # needs Java 21+, which the Ubuntu image already has.
+      - name: API in the emulators
+        working-directory: functions
+        # The image's JAVA_HOME_21_X64 is a machine variable: the workflow's
+        # env context does not see it, the shell does.
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          java -version
+          npm run test:emulator
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 10
