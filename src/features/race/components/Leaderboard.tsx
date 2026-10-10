@@ -5,12 +5,14 @@ import {type FieldClass} from '@/src/analysis/fieldClasses';
 import {classColor, radius, size, space, useTheme} from '@/src/design';
 import {Segment, Text} from '@/src/ui';
 
+import {type CarLapsView} from '../carLapsView';
 import {
   type ClassFilter,
   type RaceGroup,
   type RaceMode,
   type RaceRow,
 } from '../model';
+import {CarLapsPanel} from './CarLapsPanel';
 
 // Handoff R1a: rows 32 pt on the phone, 24 pt on desktop (R1b); a 3 pt class
 // bar; the car's model in place of a number (the field carries no numbers).
@@ -35,6 +37,7 @@ export const Leaderboard = memo(function Leaderboard({
   paged,
   nearby,
   fallbackNote,
+  carLaps,
 }: {
   groups: RaceGroup[];
   classes: readonly FieldClass[];
@@ -49,6 +52,8 @@ export const Leaderboard = memo(function Leaderboard({
   nearby?: boolean;
   /** Said when All is shown where Nearby was asked for. */
   fallbackNote?: string | null;
+  /** The focused car's laps, shown under its row; null or absent shows nothing. */
+  carLaps?: {index: number; view: CarLapsView} | null;
 }) {
   const {color} = useTheme();
   const rowH = desktop ? size.gridCell : size.lapRow;
@@ -111,7 +116,12 @@ export const Leaderboard = memo(function Leaderboard({
               </Text>
             ) : null}
             {g.rows.map(r => (
-              <Row key={r.index} row={r} height={rowH} onFocus={onFocus} />
+              <View key={r.index}>
+                <Row row={r} height={rowH} onFocus={onFocus} />
+                {carLaps?.index === r.index ? (
+                  <CarLapsPanel view={carLaps.view} rowH={rowH} />
+                ) : null}
+              </View>
             ))}
           </View>
         ))}
