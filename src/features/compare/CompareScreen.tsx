@@ -219,6 +219,7 @@ function CompareView({
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [reverse, setReverse] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -248,9 +249,18 @@ function CompareView({
 
   // Playback: advance by wall-clock time on the reference lap, looping
   // (features/compare/playback.ts).
-  const live = useRef<PlayInputs>({ref, rate: prefs.rate, move: onCursor});
+  const live = useRef<PlayInputs>({
+    ref,
+    rate: prefs.rate,
+    reverse,
+    move: onCursor,
+  });
   useEffect(() => {
-    live.current = {ref, rate: prefs.rate, move: onCursor};
+    live.current = {ref, rate: prefs.rate, reverse, move: onCursor};
+  });
+  const atStart = useRef(false);
+  useEffect(() => {
+    atStart.current = cursorM <= 0;
   });
   useEffect(() => {
     if (!playing) return;
@@ -260,6 +270,11 @@ function CompareView({
       () => performance.now(),
     );
     const tick = () => {
+      // Rewinding ends at the lap start.
+      if (live.current.reverse && atStart.current) {
+        setPlaying(false);
+        return;
+      }
       step();
       frame = requestAnimationFrame(tick);
     };
@@ -728,14 +743,24 @@ function CompareView({
           : `${windowSizeValue} ${prefs.windowMode === 'time' ? 's' : 'm'}`
       }
       spanLabel={spanLabel}
-      playing={playing}
+      playing={playing && !reverse}
+      rewinding={playing && reverse}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
       onLap={() => prefs.setWindowStep('lap')}
-      onPlay={() => setPlaying(p => !p)}
+      onPlay={() => {
+        setReverse(false);
+        setPlaying(p => !p || reverse);
+      }}
+      onReverse={() => {
+        setReverse(true);
+        setPlaying(p => !p || !reverse);
+      }}
+      onBack={() => moveBy(-KEY_STEP_M)}
+      onForward={() => moveBy(KEY_STEP_M)}
       onRate={prefs.setRate}
     />
   );
@@ -794,7 +819,10 @@ function CompareView({
         lapStyle={lapStyle}
         onCursor={onCursor}
         onPan={pan}
-        onPlay={() => setPlaying(p => !p)}
+        onPlay={() => {
+          setReverse(false);
+          setPlaying(p => !p || reverse);
+        }}
         onPause={() => setPlaying(false)}
         onSelectionChange={onSelectionChange}
         onOpenSection={openCorner}

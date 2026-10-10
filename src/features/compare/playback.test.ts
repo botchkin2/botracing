@@ -89,3 +89,24 @@ describe('playTicker', () => {
     expect(s.get()).toBe(100);
   });
 });
+
+describe('playTicker reverse', () => {
+  it('runs back and holds at the lap start', () => {
+    const s = fakeState(100);
+    let t = 0;
+    const tick = playTicker(
+      () => ({ref, rate: 1, reverse: true, move: s.move}),
+      () => t,
+    );
+    t = 1000;
+    tick();
+    s.commit();
+    expect(s.get()).toBeCloseTo(87.5, 0);
+    for (let i = 0; i < 8; i++) {
+      t += 250;
+      tick();
+      s.commit();
+    }
+    expect(s.get()).toBe(0);
+  });
+});

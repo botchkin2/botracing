@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
@@ -22,11 +23,15 @@ export function TransportBar({
   sizeLabel,
   spanLabel,
   playing,
+  rewinding,
   rate,
   onMode,
   onStep,
   onLap,
   onPlay,
+  onReverse,
+  onBack,
+  onForward,
   onRate,
 }: {
   oneRow: boolean;
@@ -37,12 +42,17 @@ export function TransportBar({
   /** "≈ 87 m", "fixed" or "whole lap". */
   spanLabel: string;
   playing: boolean;
+  rewinding: boolean;
   rate: PlayRate;
   onMode: (m: WindowMode) => void;
   onStep: (dir: -1 | 1) => void;
   /** One tap to the whole lap. */
   onLap: () => void;
   onPlay: () => void;
+  onReverse: () => void;
+  /** One step back / forward along the lap. */
+  onBack: () => void;
+  onForward: () => void;
   onRate: (r: PlayRate) => void;
 }) {
   const {color} = useTheme();
@@ -111,29 +121,78 @@ export function TransportBar({
       {lapButton}
     </View>
   );
+  // One round button per action; the glyph is the action.
+  const round = (
+    label: string,
+    onPress: () => void,
+    glyph: (fill: string) => ReactNode,
+    primary: boolean,
+  ) => (
+    <Pressable
+      accessibilityRole='button'
+      accessibilityLabel={label}
+      onPress={onPress}
+      {...hitFor(
+        (size.hit - size.transport) / 2,
+        (size.hit - size.transport) / 2,
+      )}>
+      <View
+        style={[
+          styles.play,
+          primary
+            ? {backgroundColor: color.accent}
+            : [styles.outlined, {borderColor: color.lineStrong}],
+        ]}>
+        <Svg width={14} height={14} viewBox='0 0 14 14'>
+          {glyph(primary ? color.bg : color.text)}
+        </Svg>
+      </View>
+    </Pressable>
+  );
+  const pauseGlyph = (fill: string) => (
+    <>
+      <Rect x={2} y={1} width={3.5} height={12} fill={fill} />
+      <Rect x={8.5} y={1} width={3.5} height={12} fill={fill} />
+    </>
+  );
   const playRow = (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole='button'
-        accessibilityLabel={playing ? 'Pause' : 'Play'}
-        onPress={onPlay}
-        {...hitFor(
-          (size.hit - size.transport) / 2,
-          (size.hit - size.transport) / 2,
-        )}>
-        <View style={[styles.play, {backgroundColor: color.accent}]}>
-          <Svg width={14} height={14} viewBox='0 0 14 14'>
-            {playing ? (
-              <>
-                <Rect x={2} y={1} width={3.5} height={12} fill={color.bg} />
-                <Rect x={8.5} y={1} width={3.5} height={12} fill={color.bg} />
-              </>
-            ) : (
-              <Path d='M3 1 L13 7 L3 13 Z' fill={color.bg} />
-            )}
-          </Svg>
-        </View>
-      </Pressable>
+      {round(
+        'Step back',
+        onBack,
+        f => (
+          <>
+            <Rect x={2} y={1} width={2} height={12} fill={f} />
+            <Path d='M12 1 L4 7 L12 13 Z' fill={f} />
+          </>
+        ),
+        false,
+      )}
+      {round(
+        rewinding ? 'Pause' : 'Play reverse',
+        onReverse,
+        f =>
+          rewinding ? pauseGlyph(f) : <Path d='M11 1 L1 7 L11 13 Z' fill={f} />,
+        false,
+      )}
+      {round(
+        playing ? 'Pause' : 'Play',
+        onPlay,
+        f =>
+          playing ? pauseGlyph(f) : <Path d='M3 1 L13 7 L3 13 Z' fill={f} />,
+        true,
+      )}
+      {round(
+        'Step forward',
+        onForward,
+        f => (
+          <>
+            <Rect x={10} y={1} width={2} height={12} fill={f} />
+            <Path d='M2 1 L10 7 L2 13 Z' fill={f} />
+          </>
+        ),
+        false,
+      )}
       <Segment
         options={PLAY_RATES.map(r => ({value: String(r), label: `${r}×`}))}
         value={String(rate)}
@@ -173,6 +232,7 @@ const styles = StyleSheet.create({
   stepBtn: {width: 28, alignItems: 'center', justifyContent: 'center'},
   stepLabel: {minWidth: 40, textAlign: 'center'},
   lapBtn: {paddingHorizontal: space.md, justifyContent: 'center'},
+  outlined: {borderWidth: 1},
   play: {
     width: size.transport,
     height: size.transport,
