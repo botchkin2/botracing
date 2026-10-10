@@ -223,6 +223,19 @@ if ((Trays).Count -gt 0) {
   if (Test-Path (Join-Path $data "quit.log")) { Write-Host "quit.log:"; Get-Content (Join-Path $data "quit.log") | ForEach-Object { Write-Host "  $_" } } else { Write-Host "quit.log: none" }
   Fail "timed out after 20s waiting for: the tray to quit after --quit"
 }
+# The tray ends the process itself 3 s after asking its event loop to exit (the
+# fallback for a non-interactive session). In an interactive session the loop
+# must end it: a quit.log that says "exit forced" there means app.exit broke.
+$quitLog = Join-Path $data "quit.log"
+if (Test-Path $quitLog) {
+  $quitLines = @(Get-Content $quitLog)
+  Write-Host "quit.log: $($quitLines -join ' | ')"
+  if ((Get-Process -Id $PID).SessionId -ne 0 -and ($quitLines -match "exit forced")) {
+    Fail "the tray's event loop did not end on --quit in an interactive session (quit.log: exit forced)"
+  }
+} else {
+  Write-Host "quit.log: none (the quit went by another route)"
+}
 # What Windows runs at logon is the Run value's command line. Run exactly that
 # (a real sign-out and sign-in cannot be done on a runner; that is proven once on
 # a real PC): one tray, and no window, because the tray lives in the notification

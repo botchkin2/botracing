@@ -225,43 +225,66 @@ struct Recorders {
 /// whether it came as the window message or as the quit-request file.
 fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Recorders) {
     let started = std::time::Instant::now();
-    let mut first = true;
-    let mut note = |step: &str| {
-        // The CI end-to-end prints this file when a tray stays up after
-        // `--quit`, so the cell says which step hung (thread 1 #3724).
-        if let Some(paths) = app.try_state::<Arc<sidecar::Paths>>() {
+    // The CI end-to-end prints this file when a tray stays up after `--quit`,
+    // so the cell says which step hung (thread 1 #3724). The first note starts
+    // the file over, so it holds one quit only.
+    let log = app
+        .try_state::<Arc<sidecar::Paths>>()
+        .map(|paths| paths.data.join("quit.log"));
+    let note = {
+        let log = log.clone();
+        move |step: &str, first: bool| {
+            let Some(log) = &log else { return };
             let line = format!("{step} +{:.1}s
 ", started.elapsed().as_secs_f32());
-            // The first note starts the file over, so it holds one quit only.
             let _ = std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(first)
                 .append(!first)
-                .open(paths.data.join("quit.log"))
+                .open(log)
                 .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
-            first = false;
         }
     };
-    note("quit requested");
+    note("quit requested", true);
     sup.lock().unwrap().stop();
-    note("watcher stopped");
+    note("watcher stopped", false);
+    let mut joined = true;
     for handle in [&rec.lmu, &rec.iracing] {
         if let Some(r) = handle.lock().unwrap().as_mut() {
-            r.stop(Duration::from_secs(5));
+            joined &= r.stop(Duration::from_secs(5));
         }
     }
-    note("recorders stopped");
+    note(
+        if joined {
+            "recorders stopped"
+        } else {
+            "recorder gave up after 5 s"
+        },
+        false,
+    );
     // `app.exit` ends the event loop, and in a non-interactive session (a
     // scheduled task, the CI standard-user cells) the loop never returned: the
     // tray stayed up after every step above had finished (quit.log, thread 1).
-    // A quit has finished its work by now, so the process ends either way.
-    std::thread::spawn(|| {
+    // A quit has finished its work by now, so the process ends either way. The
+    // e2e fails an interactive cell whose quit.log says "exit forced".
+    std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(3));
+        note("exit forced", false);
         std::process::exit(0);
     });
-    note("exit requested");
+    note_exit_requested(&log, started);
     app.exit(0);
+}
+
+fn note_exit_requested(log: &Option<std::path::PathBuf>, started: std::time::Instant) {
+    let Some(log) = log else { return };
+    let line = format!("exit requested +{:.1}s
+", started.elapsed().as_secs_f32());
+    let _ = std::fs::OpenOptions::new()
+        .append(true)
+        .open(log)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
 }
 
 fn main() {
