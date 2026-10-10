@@ -19,6 +19,7 @@ import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
 import {PlanBlock} from './components/PlanBlock';
 import {TrackMapPanel} from './components/TrackMapPanel';
+import {type MapPart} from './mapLoad';
 import {type Combo} from '../plan/model';
 
 import {type TrackModel} from './model';
@@ -75,6 +76,7 @@ export function TrackScreen({
     model: state.model,
     plans: state.plans,
     mapLoading: state.mapLoading,
+    mapFailed: state.mapFailed,
     attribution: state.attribution,
     canOpenCorner: refSessionId != null,
     actions,
@@ -94,6 +96,7 @@ type ViewProps = {
   model: TrackModel;
   plans: Combo[];
   mapLoading: boolean;
+  mapFailed: MapPart[];
   attribution: string | null;
   canOpenCorner: boolean;
   actions: Actions;
@@ -127,6 +130,7 @@ function TrackPhone({
   model,
   plans,
   mapLoading,
+  mapFailed,
   attribution,
   canOpenCorner,
   actions,
@@ -158,6 +162,7 @@ function TrackPhone({
         onToggle={actions.toggleCorner}
         attribution={attribution}
         loading={mapLoading}
+        failed={mapFailed}
       />
       <FactTiles facts={model.facts} layout='grid' />
       {model.corners.length > 0 ? (
@@ -204,6 +209,7 @@ function TrackDesktop({
   model,
   plans,
   mapLoading,
+  mapFailed,
   attribution,
   canOpenCorner,
   actions,
@@ -292,6 +298,7 @@ function TrackDesktop({
             onToggle={actions.toggleCorner}
             attribution={attribution}
             loading={mapLoading}
+            failed={mapFailed}
           />
           <LayoutChips layouts={model.layouts} onOpen={actions.openLayout} />
         </ScrollView>

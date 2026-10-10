@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: desktop/node-version  # the bundled node's pin (stage-resources.mjs)
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
