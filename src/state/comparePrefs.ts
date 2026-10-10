@@ -83,8 +83,6 @@ type ComparePrefs = {
   /** Index into FOLLOW_SPANS_M. */
   mapZoom: MapZoom;
   rightW: number;
-  /** Sessions whose "no reliable outline" note was dismissed. */
-  poorMapNoteSeen: string[];
   windowMode: WindowMode;
   windowStep: WindowStep;
   rate: PlayRate;
@@ -98,7 +96,6 @@ type Actions = {
   setMapMode: (mode: MapMode) => void;
   setMapZoom: (zoom: MapZoom) => void;
   setRightW: (width: number) => void;
-  dismissPoorMapNote: (sessionId: string) => void;
   setWindowMode: (mode: WindowMode) => void;
   setWindowStep: (step: WindowStep) => void;
   setRate: (rate: PlayRate) => void;
@@ -114,7 +111,6 @@ const defaults: ComparePrefs = {
   mapMode: 'follow',
   mapZoom: 1,
   rightW: RIGHT_W_DEFAULT,
-  poorMapNoteSeen: [],
   windowMode: 'time',
   windowStep: TIME_STEPS_S.indexOf(DEFAULT_WINDOW.time),
   rate: 1,
@@ -132,14 +128,6 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
       setMapMode: mapMode => set({mapMode}),
       setMapZoom: mapZoom => set({mapZoom}),
       setRightW: width => set({rightW: clampRightW(width)}),
-      // Keep the last 50: enough to never nag, small to persist.
-      dismissPoorMapNote: sessionId =>
-        set(s => ({
-          poorMapNoteSeen: [
-            ...s.poorMapNoteSeen.filter(id => id !== sessionId),
-            sessionId,
-          ].slice(-50),
-        })),
       // Switching mode resets to that mode's default size.
       setWindowMode: windowMode =>
         set({
@@ -164,7 +152,6 @@ export const useComparePrefs = create<ComparePrefs & Actions>()(
         mapMode: s.mapMode,
         mapZoom: s.mapZoom,
         rightW: s.rightW,
-        poorMapNoteSeen: s.poorMapNoteSeen,
         windowMode: s.windowMode,
         windowStep: s.windowStep,
         rate: s.rate,
