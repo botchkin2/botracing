@@ -61,3 +61,5 @@ cd desktop\src-tauri; cargo build; .\target\debug\botracing.exe
 ```
 
 At start, a signed-out test tray signs in from the file (`seat_token_file` in `main.rs`, `auth::seat_test_sign_in`); after that it keeps itself signed in like the real one. Any uid but `seat-test` is refused before a request is sent, and the default profile (the real tray) ignores the variable. The proof for a tray change is then: the menu, `%LOCALAPPDATA%\BotRacing-seat\uploader\watch.log` starting, `sidecar.log`, and a `seat-test` heartbeat.
+
+Stop it the same way the installer stops the real tray, with the same profile set: `$env:BOTRACING_PROFILE = "seat"; .\target\debug\botracing.exe --quit`. The quit reaches only that profile's tray (its own single-instance hold), stops its watcher and recorder, and exits. Never `taskkill`. One test tray per seat at a time, quit once the proof is captured.

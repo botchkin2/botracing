@@ -5,12 +5,13 @@
 // case) every name below is what it always was.
 //
 // A profile has its own data folder (%LOCALAPPDATA%\BotRacing-<profile>), its
-// own Credential Manager entry, its own watcher lock, and it is not held to a
-// single instance with the real tray. Release builds honour it too (apex
-// #3508), so the installer CI ships is the one the e2e signs in: marshal #196
-// kept it debug-only because a profile skips the single-instance hold, but a
-// profile shares no file, lock or sign-in with the real tray, and nothing sets
-// the variable except a person or a test that means to.
+// own Credential Manager entry, its own watcher lock, and its own
+// single-instance hold (`identifier` below): it runs beside the real tray, is
+// held to one copy itself, and `botracing.exe --quit` under the same profile
+// stops it. Release builds honour it too (apex #3508), so the installer CI
+// ships is the one the e2e signs in: a profile shares no file, lock or sign-in
+// with the real tray, and nothing sets the variable except a person or a test
+// that means to.
 
 /// What a profile name may contain; anything else is dropped. At most 32 chars.
 pub fn suffix_of(value: Option<&str>) -> String {
@@ -56,6 +57,18 @@ pub fn tooltip() -> String {
     format!("BotRacing{}", suffix())
 }
 
+/// The app identifier the single-instance hold is named after: the real one,
+/// or the real one with the profile's suffix. So each profile holds its own
+/// lock beside the real tray, and `botracing.exe --quit` under the same
+/// BOTRACING_PROFILE reaches that profile's tray and nothing else.
+pub fn identifier(base: &str) -> String {
+    identifier_of(base, &suffix())
+}
+
+fn identifier_of(base: &str, suffix: &str) -> String {
+    format!("{base}{suffix}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,6 +86,17 @@ mod tests {
             assert_eq!(lock_pipe(), r"\\.\pipe\botracing-watch");
             assert_eq!(tooltip(), "BotRacing");
         }
+    }
+
+    #[test]
+    fn each_profile_holds_its_own_single_instance_lock() {
+        let base = "app.botracing.tray";
+        assert_eq!(identifier_of(base, ""), base);
+        assert_eq!(identifier_of(base, &suffix_of(Some("seat"))), "app.botracing.tray-seat");
+        assert_ne!(
+            identifier_of(base, &suffix_of(Some("seat"))),
+            identifier_of(base, &suffix_of(Some("seat2")))
+        );
     }
 
     #[test]
