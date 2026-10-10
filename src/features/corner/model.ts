@@ -327,9 +327,7 @@ export function buildCornerModel(input: {
   const whole = input.whole === true && members.length > 1;
   const sec = whole ? members[members.length - 1] : all[at];
   const idx = all.findIndex(c => c.n === sec.n);
-  const firstIdx = all.findIndex(
-    c => c.n === (whole ? members[0].n : sec.n),
-  );
+  const firstIdx = all.findIndex(c => c.n === (whole ? members[0].n : sec.n));
   const sectionApexM = map.sections[sec.sectionIndex].apexM;
   const byId = new Map(laps.map(l => [l.id, l]));
   const selected = lapIds
@@ -345,8 +343,7 @@ export function buildCornerModel(input: {
   const hl =
     input.hl && lapIds.includes(input.hl) ? input.hl : selected[1]?.id ?? null;
 
-  const sourcesOf = (l: Lap) =>
-    cornerSources(l, all, sec, whole, sectionApexM);
+  const sourcesOf = (l: Lap) => cornerSources(l, all, sec, whole, sectionApexM);
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
     // Over one corner all three sources are its own; over the whole compound
     // window they differ (wholeCorner.ts says which part each fact is from).
@@ -521,12 +518,17 @@ export function buildCornerModel(input: {
           ),
         }
       : baseView;
-  const mapView = cornerView(
-    all,
-    idx,
-    [sec.apexM - MAP_BEFORE_M, sec.apexM + MAP_AFTER_M],
-    map.lengthM,
-  );
+  // Over the whole compound window the map spans first entry to last exit, so
+  // the first part's brake point is on it.
+  const mapWindow: [number, number] = [
+    sec.apexM - MAP_BEFORE_M,
+    sec.apexM + MAP_AFTER_M,
+  ];
+  if (whole && sectionFrame) {
+    mapWindow[0] = Math.min(mapWindow[0], sectionFrame.fromM);
+    mapWindow[1] = Math.max(mapWindow[1], sectionFrame.toM);
+  }
+  const mapView = cornerView(all, idx, mapWindow, map.lengthM);
 
   // The median basis trace is the one Compare builds (medianBasisOf).
   const refTrace = ref ? traces.get(ref.id) : medianBasisOf(selected, traces);
@@ -612,10 +614,17 @@ export function buildCornerModel(input: {
       neighbours: view.neighbours,
       caption: view.caption,
     },
-    brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView, {
-      brakeApexM: whole ? members[0].apexM : sec.apexM,
-      throttleApexM: sec.apexM,
-    }),
+    brakeMap: buildBrakeMap(
+      rows,
+      refTrace,
+      sec.apexM,
+      mapView,
+      {
+        brakeApexM: whole ? members[0].apexM : sec.apexM,
+        throttleApexM: sec.apexM,
+      },
+      mapWindow,
+    ),
     prev: chips[(firstIdx - 1 + chips.length) % chips.length]?.n ?? null,
     next: chips[(idx + 1) % chips.length]?.n ?? null,
   };
@@ -680,10 +689,12 @@ export function buildBrakeMap(
     brakeApexM: apexM,
     throttleApexM: apexM,
   },
+  /** The metres the map shows; the apex's usual window unless widened. */
+  windowM: [number, number] = [apexM - MAP_BEFORE_M, apexM + MAP_AFTER_M],
 ): BrakeMapModel | null {
   if (!refTrace || refTrace.lat.length === 0) return null;
-  const from = gridIndex(refTrace, apexM - MAP_BEFORE_M);
-  const to = gridIndex(refTrace, apexM + MAP_AFTER_M);
+  const from = gridIndex(refTrace, windowM[0]);
+  const to = gridIndex(refTrace, windowM[1]);
   if (to - from < 2) return null;
   const origin = {lat: refTrace.lat[from], lon: refTrace.lon[from]};
   const at = (m: number) => {
@@ -695,8 +706,7 @@ export function buildBrakeMap(
     centreline.push(
       toLocalMetres({lat: refTrace.lat[i], lon: refTrace.lon[i]}, origin),
     );
-  const inWindow = (m: number) =>
-    m >= apexM - MAP_BEFORE_M && m <= apexM + MAP_AFTER_M;
+  const inWindow = (m: number) => m >= windowM[0] && m <= windowM[1];
   const points = (distanceOf: (r: CornerRow) => number | null) =>
     rows.flatMap(r => {
       const m = distanceOf(r);
@@ -735,7 +745,9 @@ export function buildBrakeMap(
       r.values.brake == null ? null : anchors.brakeApexM - r.values.brake,
     ),
     throttles: points(r =>
-      r.values.throttle == null ? null : anchors.throttleApexM + r.values.throttle,
+      r.values.throttle == null
+        ? null
+        : anchors.throttleApexM + r.values.throttle,
     ),
   };
 }
