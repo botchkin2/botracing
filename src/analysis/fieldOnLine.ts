@@ -48,30 +48,58 @@ export function pointOnLine(
 /**
  * A copy of the field with every car's position and heading taken from the
  * line at its lap distance, `hasPositions` true so the screens draw it. Cars
- * absent at an update (NaN lap distance) stay absent. The lap distances, places
- * and pit state are shared with the original, not copied.
+ * absent at an update (NaN lap distance) stay absent.
+ *
+ * LMU (`hasPositions`): the car is put `pathLateralM` metres to the right of
+ * the line's direction of travel, as trackSurface.ts measures it (RIGHT = 1),
+ * so a car is on the drawn road when the game says it is. The recorder's own
+ * x/z sits about 8 m off the road at Road Atlanta's T7 (pit-wall #3833), so
+ * it is used only where the lap distance is missing: `worldToMap` converts
+ * those world metres to the line's frame. iRacing has no lateral, so its cars
+ * stay on the line and `placedOnLine` is set.
+ *
+ * The lap distances, pathLateralM (shared, not copied) and pit state are kept.
  */
 export function placeFieldOnLine(
   field: Field,
   line: LinePoint[],
   stepM: number,
+  worldToMap?: (x: number, z: number) => {x: number; y: number},
 ): Field {
   const updates = field.timeS.length;
+  const lateral = field.hasPositions;
   const cars: FieldCar[] = field.cars.map(car => {
     const xM = new Float32Array(updates).fill(NaN);
     const zM = new Float32Array(updates).fill(NaN);
     const yawRad = new Float32Array(updates).fill(NaN);
-    // The offset from the line stays unknown (NaN), never 0: the lanes and the
+    // iRacing's offset stays unknown (NaN), never 0: the lanes and the
     // off-track state read it, and 0 would claim every car is in your lane.
-    const pathLateralM = new Float32Array(updates).fill(NaN);
+    const pathLateralM = lateral
+      ? car.pathLateralM
+      : new Float32Array(updates).fill(NaN);
     for (let u = 0; u < updates; u++) {
       const at = pointOnLine(line, stepM, car.lapDistM[u]);
-      if (!at) continue;
-      xM[u] = at.x;
-      zM[u] = at.z;
-      yawRad[u] = at.yawRad;
+      if (at) {
+        // Right of travel: the line's normal is (cos yaw, -sin yaw) in (x, z).
+        // A lateral NaN (a sample with no lateral) puts the car on the line.
+        const off =
+          lateral && Number.isFinite(car.pathLateralM[u])
+            ? car.pathLateralM[u]
+            : 0;
+        xM[u] = at.x + off * Math.cos(at.yawRad);
+        zM[u] = at.z - off * Math.sin(at.yawRad);
+        yawRad[u] = at.yawRad;
+        continue;
+      }
+      // No lap distance: the world position is all there is (pit lane, garage).
+      if (lateral && worldToMap && car.xM[u] === car.xM[u]) {
+        const p = worldToMap(car.xM[u], car.zM[u]);
+        xM[u] = p.x;
+        zM[u] = p.y;
+        yawRad[u] = car.yawRad ? car.yawRad[u] : NaN;
+      }
     }
     return {...car, xM, zM, yawRad, pathLateralM};
   });
-  return {...field, cars, hasPositions: true, placedOnLine: true};
+  return {...field, cars, hasPositions: true, placedOnLine: !lateral};
 }

@@ -98,3 +98,47 @@ describe('placeFieldOnLine', () => {
     expect(placed.cars[0].player).toBe(true);
   });
 });
+
+describe('placeFieldOnLine with LMU positions and a lateral offset', () => {
+  // A car with a world position and a lateral offset: the placed position is
+  // the line point pushed to the right of travel (RIGHT = 1 in trackSurface).
+  const lmuCar = (
+    index: number,
+    lapDist: number[],
+    lateral: number[],
+  ): FieldCar => ({
+    ...car(index, false, lapDist),
+    pathLateralM: Float32Array.from(lateral),
+    xM: Float32Array.from([999, 999]),
+    zM: Float32Array.from([999, 999]),
+    yawRad: Float32Array.from([0, 0]),
+  });
+  const lmu: Field = {
+    version: 2,
+    hz: 5,
+    hasPositions: true,
+    startEtS: 0,
+    timeS: Float64Array.from([0, 0.2]),
+    cars: [lmuCar(0, [2.5, 7.5], [2, NaN]), lmuCar(1, [NaN, 12.5], [0, 0])],
+  };
+
+  it('puts a car to the right of the line, off the line by its lateral', () => {
+    const placed = placeFieldOnLine(lmu, square, STEP);
+    // Along +x (the first side), right of travel is -z: 2 m right of (2.5, 0).
+    expect(placed.cars[0].xM[0]).toBeCloseTo(2.5);
+    expect(placed.cars[0].zM[0]).toBeCloseTo(-2);
+    // Lateral NaN: on the line, not offset.
+    expect([placed.cars[0].xM[1], placed.cars[0].zM[1]]).toEqual([5, 2.5]);
+    // The lateral is kept (lanes and off-track read it), and LMU is not "placed on line".
+    expect(placed.cars[0].pathLateralM[0]).toBe(2);
+    expect(placed.placedOnLine).toBe(false);
+  });
+
+  it('keeps the world position only where the lap distance is missing, converted to the line frame', () => {
+    const toMap = (x: number, z: number) => ({x: x - 990, y: z});
+    const placed = placeFieldOnLine(lmu, square, STEP, toMap);
+    // car 1 update 0: no lap distance, so its world x/z (999) converted to the map.
+    expect(placed.cars[1].xM[0]).toBeCloseTo(9);
+    expect(Number.isNaN(placed.cars[1].xM[1])).toBe(false);
+  });
+});

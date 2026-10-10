@@ -93,22 +93,27 @@ export function useRaceData(sessionId: string): RaceData {
     }
     return pts.length > 2 ? placer.placeWorld(pts) : null;
   }, [refTrace, placer, noBestLap, stored]);
-  // iRacing: placed by lap distance, not position. A field with no positions
-  // is put on the reference line at each car's lap distance (fieldOnLine.ts);
-  // the stored field is left as it is.
+  // Placed by lap distance on the reference line (fieldOnLine.ts): LMU cars
+  // with their lateral offset, iRacing's on the line. The stored field is left
+  // as it is.
   const placed = useMemo(
     () =>
-      stored && !stored.hasPositions && line
-        ? placeFieldOnLine(stored, line, GRID_STEP_M)
+      stored && line
+        ? placeFieldOnLine(
+            stored,
+            line,
+            GRID_STEP_M,
+            (x, z) => placer.placeWorld([{x, z}])[0],
+          )
         : null,
-    [stored, line],
+    [stored, line, placer],
   );
-  const used = stored?.hasPositions ? stored : placed;
+  const used = placed ?? (stored?.hasPositions ? stored : null);
   const prep = useMemo(() => (used ? prepareRace(used) : null), [used]);
   const clock = useMemo(() => (used ? raceClock(used) : null), [used]);
   const matchM = useMemo(() => {
-    // Placed on the line: on it by construction.
-    if (placed) return 0;
+    // iRacing placed on the line: on it by construction.
+    if (placed && !stored?.hasPositions) return 0;
     const player = field.data?.cars.find(c => c.player);
     if (!player || !line) return null;
     const pts = [];
