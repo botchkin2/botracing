@@ -1,3 +1,4 @@
+import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
 import {useState} from 'react';
 import {
@@ -17,7 +18,7 @@ import {
 } from '@/src/charts';
 import {
   hitBox,
-  lapColors,
+  lapColor as slotColor,
   lapStroke,
   stroke,
   radius,
@@ -49,7 +50,6 @@ import {
   MEASURES,
   sortRows,
 } from './model';
-import {MAX_ON_LAPS, toggleLap} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -194,7 +194,7 @@ function CornerView({
   ) =>
     onIndex != null
       ? {
-          color: lapColors[scheme][onIndex],
+          color: slotColor(scheme, onIndex),
           width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
           opacity: 1,
         }
@@ -208,17 +208,10 @@ function CornerView({
     onSelectionChange({...selection, hl: lapId});
   // With every comparable lap drawn, a dot tap turns that lap on or off
   // (thread 27 #624); the laps on are the URL's `laps`, as in Compare.
-  const toggle = (lapId: string) => {
-    const r = toggleLap(keyLapIds, lapId);
-    if (r.kind === 'full')
-      return setNotice(
-        `${MAX_ON_LAPS - 1} laps on besides the reference. Tap one off first.`,
-      );
-    if (r.kind === 'reference')
-      return setNotice('The reference stays on. Change it in Compare.');
-    setNotice(null);
-    onSelectionChange({...selection, laps: r.laps});
-  };
+  // A dot tap adds or removes that lap from the set on screen (no cap, no
+  // reference lap: src/state/lapSelection.ts).
+  const toggle = (lapId: string) =>
+    onSelectionChange({...selection, laps: toggleTap(keyLapIds, lapId)});
   const canToggle = allComparable && model.strips != null;
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
   const go = (n: number) =>
@@ -385,7 +378,7 @@ function CornerView({
                     <Text
                       key={k.onIndex}
                       variant='dataSmall'
-                      style={{color: lapColors[scheme][k.onIndex]}}>
+                      style={{color: slotColor(scheme, k.onIndex)}}>
                       {k.text}
                     </Text>
                   ))}
@@ -415,7 +408,7 @@ function CornerView({
                       key: d.lapId,
                       value: d.value,
                       color: on
-                        ? lapColors[scheme][d.onIndex as number]
+                        ? slotColor(scheme, d.onIndex as number)
                         : color.barNeutral,
                       r: on ? 4.2 : 2.8,
                       opacity: on ? 1 : d.flagged ? 0.25 : 0.55,

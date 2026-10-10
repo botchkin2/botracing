@@ -1,3 +1,4 @@
+import {toggle} from '@/src/state/lapSelection';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
 import {rangeOf} from '@/src/analysis/rangeIndex';
@@ -1430,6 +1431,9 @@ function allLapsByStint(
 }
 
 /** Adds a lap to the comparison, or removes it; the Ref lap stays. */
+// One tap on a lap's row: the add and remove rule is the shared one
+// (src/state/lapSelection.ts). The Ref lap stays on while it is the basis,
+// and a removal goes through removeLap (which also clears the highlight).
 export function toggleCompared(
   sel: CompareSelection,
   lapId: string,
@@ -1437,7 +1441,7 @@ export function toggleCompared(
   if (sel.ref === lapId) return sel;
   return sel.laps.includes(lapId)
     ? removeLap(sel, lapId)
-    : {...sel, laps: [...sel.laps, lapId]};
+    : {...sel, laps: toggle(sel.laps, lapId)};
 }
 
 /** The median basis as a readout row: not a lap, drawn in the neutral basis colour. */
