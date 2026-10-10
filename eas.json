@@ -22,7 +22,8 @@
       "credentialsSource": "remote",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {

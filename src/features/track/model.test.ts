@@ -1,8 +1,16 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {type GridTrace} from '@/src/analysis/resample';
-import {addLap, emptySurface, type SurfaceLap} from '@/src/analysis/trackSurface';
-import {mapPlacer, type SessionSummary, type TrackMapData} from '@/src/data/sessions';
+import {
+  addLap,
+  emptySurface,
+  type SurfaceLap,
+} from '@/src/analysis/trackSurface';
+import {
+  mapPlacer,
+  type SessionSummary,
+  type TrackMapData,
+} from '@/src/data/sessions';
 import {type TrackInfo} from '@/src/data/tracks';
 
 import {buildHistory} from './history';
@@ -322,12 +330,23 @@ describe('buildTrackModel: a lap draws the same map as before', () => {
 // by three laps on its centre: every 10 m bin has a centre.
 function squareSurface(skip: (m: number) => boolean = () => false) {
   const s = emptySurface(400);
-  const lap: SurfaceLap = {distM: [], x: [], y: [], pathLateralM: [], trackEdgeM: []};
+  const lap: SurfaceLap = {
+    distM: [],
+    x: [],
+    y: [],
+    pathLateralM: [],
+    trackEdgeM: [],
+  };
   for (let m = 0; m < 400; m += 2) {
     if (skip(m)) continue;
     const k = Math.floor(m / 100);
     const u = m % 100;
-    const [x, y] = [[u, 0], [100, u], [100 - u, 100], [0, 100 - u]][k];
+    const [x, y] = [
+      [u, 0],
+      [100, u],
+      [100 - u, 100],
+      [0, 100 - u],
+    ][k];
     lap.distM.push(m);
     lap.x.push(x);
     lap.y.push(y);
@@ -390,7 +409,9 @@ describe('buildTrackModel: badges and S/F on the measured road (a map is a map)'
   it('falls back to the lap where the road is not measured at a badge, and to none without a lap', () => {
     // No laps measured between 90 and 110 m: corner 1's apex (at 100 of 400).
     const holed = squareSurface(m => m >= 90 && m < 110);
-    expect(buildTrackModel(surfaceInputs(holed, squareTrace())).map?.marksFrom).toBe('lap');
+    expect(
+      buildTrackModel(surfaceInputs(holed, squareTrace())).map?.marksFrom,
+    ).toBe('lap');
     const none = buildTrackModel(surfaceInputs(holed, null)).map;
     expect(none?.marksFrom).toBeNull();
     expect(none?.marks.corners).toEqual([]);

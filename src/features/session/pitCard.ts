@@ -7,6 +7,7 @@
 // laps, never from the car class: with no VE the VE parts are removed, not
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
+import {firstLapOf} from '@/src/analysis/lapSlots';
 import {
   REFUEL_FUEL_MIN_L,
   REFUEL_VE_MIN_PCT,
@@ -378,7 +379,8 @@ function fuelCard(
   ending: Lap,
   hasVe: boolean,
 ): FuelCard | null {
-  const first = allLaps[0]?.fuel;
+  // The start reading is the lap driven first, whatever the list's order.
+  const first = firstLapOf(allLaps)?.fuel;
   const f = ending.fuel;
   if (!first || !f || first.startL == null || f.endL == null) return null;
   const upto = allLaps.filter(l => l.lapIndex <= ending.lapIndex);

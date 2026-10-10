@@ -16,6 +16,7 @@ export default function CornerRoute() {
     laps?: string;
     ref?: string;
     hl?: string;
+    all?: string;
   }>();
   const router = useRouter();
   const {update} = useLapSelection();
@@ -26,9 +27,10 @@ export default function CornerRoute() {
   }, [laps, ref, hl]);
   return (
     <CornerScreen
-      key={params.n}
+      key={`${params.n}${params.all ? '-all' : ''}`}
       sessionId={params.id}
       corner={Number(params.n)}
+      whole={params.all === '1'}
       selection={selection}
       onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />

@@ -2,6 +2,8 @@ import {describe, expect, it} from '@jest/globals';
 
 import {
   formatCornerGap,
+  dayMonthOf,
+  formatDate,
   formatDayMonth,
   formatDayMonthTime,
   formatDistance,
@@ -19,8 +21,7 @@ describe('turn labels', () => {
     expect(turnLabel(7, 'T7 entry')).toBe('T7 entry');
   });
 
-  it('badges take only the number part: "10a", and "7" for "T7 entry"', () => {
-  });
+  it('badges take only the number part: "10a", and "7" for "T7 entry"', () => {});
 });
 
 describe('format', () => {
@@ -63,6 +64,12 @@ describe('formatDayMonth', () => {
 
   it('is empty for a bad date', () => {
     expect(formatDayMonth('not a date')).toBe('');
+  });
+
+  it('spells September "Sep", as the one short-date formatter, and the long form agrees', () => {
+    const d = new Date(2026, 8, 5, 12);
+    expect(dayMonthOf(d)).toBe('5 Sep');
+    expect(formatDate(d.toISOString())).toBe('05 Sep 2026');
   });
 });
 

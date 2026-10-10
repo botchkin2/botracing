@@ -1,5 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {type SessionClassLaps} from '@/src/data/sessions';
+
 import {
   classSessionOf,
   classTiming,
@@ -23,6 +25,7 @@ const session = (
   lmp2: number | null = null,
 ): ClassSession => ({
   kind,
+  player: 'gt3',
   byClass: {
     ...(hyper != null && {hypercar: lapsOf(hyper, 90)}),
     ...(lmp2 != null && {lmp2: lapsOf(lmp2, 90)}),
@@ -32,15 +35,20 @@ const session = (
 
 const mine = {
   key: 'gt3' as const,
-  name: 'GT3',
   medianLapS: 110,
-  greenLaps: 25,
+  laps: 25,
   sessions: 3,
 };
 
 function ready(t: ReturnType<typeof classTiming>) {
   if (t.kind !== 'ready') throw new Error(`not ready: ${t.kind}`);
   return t;
+}
+
+function row(t: ReturnType<typeof ready>, key: string) {
+  const r = t.rows.find(x => x.key === key);
+  if (!r) throw new Error(`no row ${key}`);
+  return r;
 }
 
 describe('classTiming', () => {
@@ -50,40 +58,41 @@ describe('classTiming', () => {
     ).toEqual({kind: 'no-field'});
   });
 
-  it('has no laps when he has no green lap to set the gain against', () => {
-    const t = classTiming({
-      sessions: [session('race', 97, 110)],
-      mine: {...mine, medianLapS: null},
-      raceLaps: 60,
-      stopsAfter: [],
-    });
-    expect(t).toEqual({kind: 'no-laps'});
-  });
-
-  it('pools the median of per-session medians and counts races and practices', () => {
+  it('shows every class fastest first, his marked, lap times to a tenth', () => {
     const t = ready(
       classTiming({
-        sessions: [
-          session('race', 96, 110),
-          session('race', 98, 110),
-          session('practice', 100, 110),
-        ],
+        sessions: [session('race', 97.04, 110.26, 103.5)],
         mine,
         raceLaps: 60,
         stopsAfter: [],
       }),
     );
-    const hyper = t.faster.find(c => c.key === 'hypercar')!;
-    // The median of 96, 98 and 100 is 98: a gain of 12 s, 98 / 12 = 8.2 of his laps.
-    expect(hyper.estimate?.lapText).toBe('1:38.000');
-    expect(hyper.estimate?.gainText).toBe('12.0 s');
-    expect(hyper.estimate?.everyText).toBe('~8 laps');
-    expect(hyper.text).toBe(
-      'From 2 races, 1 practice · 270 laps · under 3 races, so practice counts',
-    );
+    expect(t.rows.map(r => [r.label, r.lapText, r.mine])).toEqual([
+      ['Hypercar', '1:37.0', false],
+      ['LMP2', '1:43.5', false],
+      ['GT3', '1:50.3', true],
+    ]);
   });
 
-  it('pools races alone from 3 races, and the text names only what it pooled', () => {
+  it('without his laps (a car not driven here) still shows the classes, with no vs you', () => {
+    const t = ready(
+      classTiming({
+        sessions: [session('race', 97, 110)],
+        mine: {key: null, medianLapS: null, laps: 0, sessions: 0},
+        raceLaps: null,
+        stopsAfter: [],
+      }),
+    );
+    expect(t.rows.map(r => r.lapText)).toEqual(['1:37.0', '1:50.0']);
+    expect(
+      t.rows.every(
+        r => r.vsText === '—' && r.firstText === '—' && r.passes.length === 0,
+      ),
+    ).toBe(true);
+    expect(t.you).toBeNull();
+  });
+
+  it('pools the median of per-session medians, races only when the class raced', () => {
     const t = ready(
       classTiming({
         sessions: [
@@ -97,28 +106,45 @@ describe('classTiming', () => {
         stopsAfter: [],
       }),
     );
-    const hyper = t.faster.find(c => c.key === 'hypercar')!;
-    expect(hyper.estimate?.lapText).toBe('1:38.000');
-    expect(hyper.text).toBe('From 3 races · 270 laps');
+    const hyper = row(t, 'hypercar');
+    // The median of 96, 98 and 100 is 98: 12 s a lap faster, 98 / 12 = 8.2 of his laps.
+    expect(hyper.lapText).toBe('1:38.0');
+    expect(hyper.vsText).toBe('−12.0');
+    expect(hyper.everyText).toBe('~8 laps');
+    expect(hyper.srcText).toBe('3 races · 270 laps');
   });
 
-  it('the first catch is a range from the p10 to the p90 lap, and assumes a level start', () => {
+  it('one race leaves practice out; practice counts only when no race saw the class', () => {
     const t = ready(
       classTiming({
         sessions: [
           session('race', 98, 110),
-          session('race', 98, 110),
-          session('race', 98, 110),
+          session('practice', 90, 110, 101),
+          session('practice', 92, 110, 103),
         ],
         mine,
         raceLaps: 60,
         stopsAfter: [],
       }),
     );
-    const est = t.faster[0].estimate!;
+    expect(row(t, 'hypercar').lapText).toBe('1:38.0');
+    expect(row(t, 'hypercar').srcText).toBe('1 race · 90 laps');
+    expect(row(t, 'lmp2').lapText).toBe('1:42.0');
+    expect(row(t, 'lmp2').srcText).toBe('2 practices · 180 laps');
+  });
+
+  it('the first catch is a range from the p10 to the p90 lap on a level start', () => {
+    const t = ready(
+      classTiming({
+        sessions: [session('race', 98, 110)],
+        mine,
+        raceLaps: 60,
+        stopsAfter: [],
+      }),
+    );
     // p10 96 s: 96 / 14 = 6.9 laps; p90 100 s: 100 / 10 = 10 laps.
-    expect(est.firstText).toBe('L8–L11');
-    expect(est.firstNote).toBe('Assumes a level start.');
+    expect(row(t, 'hypercar').firstText).toBe('L8–L11');
+    expect(row(t, 'hypercar').passes.length).toBeGreaterThan(0);
   });
 
   it('takes the first catch band from the median leader and tail gaps of the races that recorded them', () => {
@@ -140,65 +166,98 @@ describe('classTiming', () => {
         stopsAfter: [],
       }),
     );
-    const est = t.faster[0].estimate!;
     // Leader 20 s, p10 96 s: 96 * 90 / (110 * 14) = 5.6 laps; tail 10 s, p90 100 s: 100 * 100 / (110 * 10) = 9.1.
-    expect(est.firstText).toBe('L7–L10');
-    expect(est.firstNote).toBe("Grid gap 10–20 s, from the races' starts.");
-  });
-
-  it('keeps a class seen in fewer than 3 sessions as an empty row with no lane', () => {
-    const t = ready(
-      classTiming({
-        sessions: [session('race', 96, 110), session('race', 98, 110, 101)],
-        mine,
-        raceLaps: 60,
-        stopsAfter: [],
-      }),
-    );
-    const lmp2 = t.faster.find(c => c.key === 'lmp2')!;
-    expect(lmp2.estimate).toBeNull();
-    expect(lmp2.text).toBe(
-      'No estimate. 1 session here had LMP2 cars; an estimate needs 3.',
+    expect(row(t, 'hypercar').firstText).toBe('L7–L10');
+    expect(row(t, 'hypercar').srcText).toBe(
+      '4 races · 360 laps · grid gap 10–20 s',
     );
   });
 
-  it('draws no class that is slower than he is, nor his own', () => {
+  it('a slower class reads plus, a faster one minus; no catch for the slower; his own class gets neither', () => {
     const t = ready(
       classTiming({
-        sessions: [
-          session('race', 96, 110),
-          session('race', 96, 110),
-          session('race', 96, 110),
-        ],
+        sessions: [session('race', 96, 110)],
         mine: {...mine, key: 'hypercar', medianLapS: 97},
         raceLaps: 60,
         stopsAfter: [],
       }),
     );
-    expect(t.faster).toEqual([]);
-    expect(t.noFaster).toBe(true);
+    expect(row(t, 'hypercar')).toMatchObject({
+      mine: true,
+      vsText: '—',
+      firstText: '—',
+    });
+    expect(row(t, 'gt3')).toMatchObject({
+      mine: false,
+      vsText: '+13.0',
+      firstText: '—',
+      everyText: '—',
+      passes: [],
+    });
   });
 
-  it('puts his class last, with its median and his own, and computes no gain', () => {
+  it('takes grid gaps only from races he drove in his own class', () => {
+    const race = (
+      player: 'gt3' | 'hypercar',
+      gap: {firstS: number; lastS: number},
+    ) => {
+      const s = session('race', 98, 110, 101);
+      s.player = player;
+      s.byClass.lmp2!.gap = gap;
+      return s;
+    };
     const t = ready(
       classTiming({
         sessions: [
-          session('race', 96, 110),
-          session('race', 98, 112),
-          session('race', 97, 111),
+          race('gt3', {firstS: 20, lastS: 10}),
+          // Measured from a Hypercar start, where LMP2 started behind him.
+          race('hypercar', {firstS: -30, lastS: -40}),
         ],
-        mine: {...mine, medianLapS: 109.5},
+        mine,
         raceLaps: 60,
         stopsAfter: [],
       }),
     );
-    expect(t.yours).toEqual({
-      name: 'GT3',
-      classText: '1:51.000',
-      classSrc: 'From 3 races · 300 laps',
-      youText: '1:49.500',
-      youSrc: '25 green laps · 3 sessions',
+    expect(row(t, 'lmp2').srcText).toBe(
+      '2 races · 180 laps · grid gap 10–20 s',
+    );
+  });
+
+  it('signs a grid gap whose tail started behind him with a minus', () => {
+    const s = session('race', 98, 110);
+    s.byClass.hypercar!.gap = {firstS: 22, lastS: -16.4};
+    const t = ready(
+      classTiming({sessions: [s], mine, raceLaps: 60, stopsAfter: []}),
+    );
+    expect(row(t, 'hypercar').srcText).toBe(
+      '1 race · 90 laps · grid gap −16–22 s',
+    );
+  });
+
+  it('a first catch band inside one lap names that lap once', () => {
+    const s = session('race', null, 110);
+    // p10 98 s: 98 / 12 = 8.2 laps; p90 98.5 s: 98.5 / 11.5 = 8.6 laps.
+    s.byClass.hypercar = {medianS: 98.2, p10S: 98, p90S: 98.5, laps: 50};
+    const t = ready(
+      classTiming({sessions: [s], mine, raceLaps: 60, stopsAfter: []}),
+    );
+    expect(row(t, 'hypercar').firstText).not.toContain('–');
+  });
+
+  it('gives his own median with the laps it rests on', () => {
+    const t = ready(
+      classTiming({
+        sessions: [session('race', 96, 111)],
+        mine: {...mine, medianLapS: 109.5},
+        raceLaps: 60,
+        stopsAfter: [3],
+      }),
+    );
+    expect(t.you).toEqual({
+      lapText: '1:49.500',
+      srcText: '25 laps · 3 sessions',
     });
+    expect(t.stopsAfter).toEqual([3]);
   });
 });
 
@@ -246,30 +305,37 @@ describe('passesOf', () => {
 
 describe('classSessionOf', () => {
   const stats = {cars: 8, laps: 120, medianS: 215.4, p10S: 213, p90S: 219};
+  const doc = (over: Partial<SessionClassLaps>): SessionClassLaps => ({
+    version: 6,
+    kind: 'race',
+    classes: {gt3: stats},
+    startGapsS: null,
+    player: 'gt3',
+    ...over,
+  });
 
   it('turns a stored race or practice field into the model input', () => {
     expect(
-      classSessionOf({
-        classLaps: {kind: 'race', classes: {gt3: stats}, startGapsS: null},
-      }),
+      classSessionOf({sim: 'lmu', carClass: 'GT3', classLaps: doc({})}),
     ).toEqual({
       kind: 'race',
+      player: 'gt3',
       byClass: {gt3: {medianS: 215.4, p10S: 213, p90S: 219, laps: 120}},
     });
     expect(
       classSessionOf({
-        classLaps: {kind: 'practice', classes: {gt3: stats}, startGapsS: null},
+        sim: 'lmu',
+        carClass: 'GT3',
+        classLaps: doc({kind: 'practice'}),
       })?.kind,
     ).toBe('practice');
   });
 
   it('carries the grid gap of a class', () => {
     const s = classSessionOf({
-      classLaps: {
-        kind: 'race',
-        classes: {gt3: stats},
-        startGapsS: {gt3: {firstS: 14, lastS: 12.5}},
-      },
+      sim: 'lmu',
+      carClass: 'GT3',
+      classLaps: doc({startGapsS: {gt3: {firstS: 14, lastS: 12.5}}}),
     });
     expect(s?.byClass.gt3?.gap).toEqual({firstS: 14, lastS: 12.5});
   });
@@ -277,15 +343,34 @@ describe('classSessionOf', () => {
   it('leaves out qualifying, no field and a field with no class pace', () => {
     expect(
       classSessionOf({
-        classLaps: {kind: 'qualify', classes: null, startGapsS: null},
+        sim: 'lmu',
+        carClass: 'GT3',
+        classLaps: doc({kind: 'qualify'}),
       }),
     ).toBeNull();
-    expect(classSessionOf({classLaps: null})).toBeNull();
+    expect(
+      classSessionOf({sim: 'lmu', carClass: 'GT3', classLaps: null}),
+    ).toBeNull();
     expect(
       classSessionOf({
-        classLaps: {kind: 'race', classes: null, startGapsS: null},
+        sim: 'lmu',
+        carClass: 'GT3',
+        classLaps: doc({classes: null}),
       }),
     ).toBeNull();
+  });
+
+  it('keeps an LMU doc from before version 6, not an iRacing one (its classes were wrong)', () => {
+    const v5 = doc({version: 5, player: null});
+    expect(
+      classSessionOf({sim: 'lmu', carClass: 'GT3', classLaps: v5}),
+    ).not.toBeNull();
+    expect(
+      classSessionOf({sim: 'iracing', carClass: 'IMSA23', classLaps: v5}),
+    ).toBeNull();
+    expect(
+      classSessionOf({sim: 'iracing', carClass: 'IMSA23', classLaps: doc({})}),
+    ).not.toBeNull();
   });
 });
 

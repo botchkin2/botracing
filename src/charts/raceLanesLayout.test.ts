@@ -17,6 +17,7 @@ const lanes: RaceLanes = {
     {fromS: 700, toS: 710},
   ],
   battle: [{fromS: 0.1, toS: 0.15}],
+  off: [{fromS: 300, toS: 300.2}],
   blueS: [50, 800],
   passes: [
     {timeS: 60, made: true},
@@ -26,7 +27,7 @@ const lanes: RaceLanes = {
 const opts = {laneWidth: 200, laneHeight: 10, lapLabelEvery: 2};
 
 describe('lanesLayout', () => {
-  it('whole race: 200 px over 1000 s, five lanes stacked', () => {
+  it('whole race: 200 px over 1000 s, six lanes stacked', () => {
     const l = lanesLayout({
       ...opts,
       lanes,
@@ -34,21 +35,24 @@ describe('lanesLayout', () => {
     });
     expect(l.rows.map(r => [r.key, r.y])).toEqual([
       ['pit', 0],
-      ['tow', 10],
-      ['battle', 20],
-      ['blue', 30],
-      ['pass', 40],
+      ['off', 10],
+      ['tow', 20],
+      ['battle', 30],
+      ['blue', 40],
+      ['pass', 50],
     ]);
-    expect(l.height).toBe(50);
+    expect(l.height).toBe(60);
     expect(l.rows[0].spans).toEqual([{x: 18, w: 6}]);
-    expect(l.rows[1].spans).toEqual([
+    // An off-track mark is at least 3 px wide, to see and tap on a phone.
+    expect(l.rows[1].spans).toEqual([{x: 60, w: 3}]);
+    expect(l.rows[2].spans).toEqual([
       {x: 2, w: 2},
       {x: 140, w: 2},
     ]);
     // A span under a pixel wide still draws one.
-    expect(l.rows[2].spans[0].w).toBe(1);
-    expect(l.rows[3].ticks).toEqual([10, 160]);
-    expect(l.rows[4].marks).toEqual([
+    expect(l.rows[3].spans[0].w).toBe(1);
+    expect(l.rows[4].ticks).toEqual([10, 160]);
+    expect(l.rows[5].marks).toEqual([
       {x: 12, made: true},
       {x: 180, made: false},
     ]);
@@ -63,8 +67,9 @@ describe('lanesLayout', () => {
     // The pit span 90..120 runs in from the left edge: 20 s of 100 s.
     expect(l.rows[0].spans).toEqual([{x: 0, w: 40}]);
     expect(l.rows[1].spans).toEqual([]);
-    expect(l.rows[3].ticks).toEqual([]);
-    expect(l.rows[4].marks).toEqual([]);
+    expect(l.rows[2].spans).toEqual([]);
+    expect(l.rows[4].ticks).toEqual([]);
+    expect(l.rows[5].marks).toEqual([]);
   });
 
   it('lap lines are inside the window; labels every N laps', () => {

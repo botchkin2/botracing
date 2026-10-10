@@ -21,7 +21,7 @@ function tickStep(raceLaps: number): number {
 
 /**
  * The Race timeline (round 6, section 2): his stints and each faster class on
- * one lap axis, his stops as amber dashes through every lane. Each class lane
+ * one lap axis (faster than his median), his stops as amber dashes through every lane. Each class lane
  * is a band per pass (the range) with a tick at the estimate. Round 7 (3A):
  * each stop is a pit window, an amber box on the stint lane from earliest to
  * latest with the planned stop a solid line inside it and a thin tick where the
@@ -50,18 +50,7 @@ export function RaceTimelineView({
     onStop,
   );
   if (raceLaps == null) return null;
-  const lanes = timing.faster.flatMap(c =>
-    c.estimate
-      ? [
-          {
-            key: c.key,
-            label: c.label,
-            passes: c.estimate.passes,
-            firstText: c.estimate.firstText,
-          },
-        ]
-      : [],
-  );
+  const lanes = timing.rows.filter(r => r.reaches);
   const plotX = size.timelineLabel;
   const plotW = Math.max(1, width - plotX - PAD_R);
   const xOf = (lap: number) =>

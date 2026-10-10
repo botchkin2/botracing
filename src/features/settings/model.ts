@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 
 import Constants from 'expo-constants';
 
+import {dayMonthOf} from '@/src/design';
 import {
   type Uploader,
   type UploaderProblem,
@@ -89,10 +90,7 @@ export function formatClock(ms: number): string {
 
 /** "1 Oct". */
 export function formatDay(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  });
+  return dayMonthOf(new Date(ms));
 }
 
 /** Data, not prose: what, why, how often, when it is tried again. */

@@ -6,7 +6,12 @@ import {
   useSessions,
 } from '@/src/data/sessions';
 import type {FinishPosition} from '@/src/analysis/raceResult';
-import {carLabel, formatLapTime, shortTrackName} from '@/src/design';
+import {
+  carLabel,
+  dayMonthOf,
+  formatLapTime,
+  shortTrackName,
+} from '@/src/design';
 
 import {
   applyGame,
@@ -144,10 +149,7 @@ export function buildSessionsModel(
       group = {
         key,
         title: dayTitle(started, now),
-        date: started.toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'short',
-        }),
+        date: dayMonthOf(started),
         rows: [],
       };
       groups.set(key, group);
@@ -167,10 +169,7 @@ export function buildSessionsModel(
       resultText: raceResultText(s.finish),
       table: {
         startedAt: s.startedAt,
-        dateText: `${started.toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'short',
-        })} ${hhmm(started)}`,
+        dateText: `${dayMonthOf(started)} ${hhmm(started)}`,
         carText: [car.shortModel, car.entry].filter(Boolean).join(' · '),
         lapsN: s.lapCount,
         bestS: s.bestTimeS,

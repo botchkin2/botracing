@@ -1,5 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {resampleTrace} from '@/src/analysis/resample';
+
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {
   toLaps,
@@ -84,6 +86,31 @@ const lap = (
     },
   ],
 });
+// A lap at a constant speed on the grid, for the median and the window.
+function cornerTrace(kph: number) {
+  const v = kph / 3.6;
+  const n = Math.ceil(1000 / v / 0.1) + 1;
+  const pct = Array.from({length: n}, (_, i) =>
+    Math.min(1, (i * 0.1 * v) / 1000),
+  );
+  const same = (x: number) => pct.map(() => x);
+  return resampleTrace(
+    {
+      lapDistPct: pct,
+      speedKph: same(kph),
+      throttlePct: same(100),
+      brakePct: same(0),
+      steeringPct: same(0),
+      gear: same(4),
+      lat: pct,
+      lon: same(0),
+    },
+    1000,
+    5,
+    10,
+  );
+}
+
 const laps = toLaps([
   lap('a', [9.8, 460, 110, 650]),
   lap('b', [10.1, 450, 106, 670]),
@@ -326,6 +353,83 @@ describe('the median basis (no Ref picked)', () => {
     }
   });
 
+  it('a highlighted lap whose brake part differs does not move the compound entry part', () => {
+    // A compound section (T2–5): the set's lap brakes in part 4, the highlighted
+    // lap in part 3. Counting the highlight in the vote would flip the entry part.
+    const base = lap('e', [9.9, 455, 109, 655]);
+    const withPart = (part: number) => ({
+      ...base,
+      corners: [
+        base.corners[0],
+        {
+          ...base.corners[1],
+          brakeApps: [{onsetM: 620, peakPct: 95, part}],
+        },
+      ],
+    });
+    const mk = (hl: string | null) =>
+      buildCornerModel({
+        session,
+        laps: toLaps([withPart(4), {...withPart(3), id: 'd'}]),
+        map,
+        band: null,
+        traces: new Map(),
+        lapIds: ['e'],
+        refId: null,
+        keyLapIds: hl ? ['e', hl] : ['e'],
+        hl,
+        corner: 2,
+        whole: true,
+      })!;
+    const withD = mk('d');
+    const without = mk(null);
+    const valuesOf = (m: typeof withD) =>
+      m.rows.find(r => r.lapId === 'e')!.values;
+    expect(valuesOf(withD)).toEqual(valuesOf(without));
+  });
+
+  it('a highlighted lap outside the set is shown, and moves no median', () => {
+    // Traces loaded for all four: x is far faster, so it would move a median.
+    const traces = new Map(
+      [
+        ['a', 180],
+        ['b', 182],
+        ['c', 184],
+        ['x', 300],
+      ].map(([id, kph]) => [id as string, cornerTrace(kph as number)]),
+    );
+    const withX = buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces,
+      lapIds: ['a', 'b', 'c'],
+      refId: null,
+      keyLapIds: ['a', 'b', 'c', 'x'],
+      hl: 'x',
+      corner: 3,
+    })!;
+    const withoutX = buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces,
+      lapIds: ['a', 'b', 'c'],
+      refId: null,
+      keyLapIds: ['a', 'b', 'c'],
+      hl: null,
+      corner: 3,
+    })!;
+    expect(withX.subtitle).toContain('3 laps · vs median of 3');
+    expect(withX.rows.map(r => r.lapId)).toContain('x');
+    // The median of the set, and the window over the set, are the same with or without the highlight.
+    const gap = (mm: typeof withX, id: string) =>
+      mm.rows.find(r => r.lapId === id)!.cells.time.gap;
+    expect(gap(withX, 'a')).toBe(gap(withoutX, 'a'));
+  });
+
   it('a picked Ref is the basis, and it has no difference against itself', () => {
     const m = median(['a', 'b', 'c'], 'b');
     expect(m.subtitle).toContain('vs L');
@@ -375,12 +479,61 @@ describe('strips at 7+ laps', () => {
   });
 });
 
+describe('colour slots and the default highlight, by meaning', () => {
+  const withKeys = (keyLapIds: string[], refId: string | null, hl: string | null = null) =>
+    buildCornerModel({
+      session,
+      laps,
+      map,
+      band: null,
+      traces: new Map(),
+      lapIds: ['c', 'a', 'b'],
+      keyLapIds,
+      hl,
+      refId,
+      corner: 3,
+    })!;
+  const slots = (m: ReturnType<typeof withKeys>) =>
+    Object.fromEntries(m.rows.map(r => [r.label, r.onIndex]));
+
+  it('slot 0 belongs to the Ref lap only; the rest follow in lap-number order from 1', () => {
+    expect(slots(withKeys(['c', 'a', 'b'], 'c'))).toEqual({L1: 1, L2: 2, L3: 0});
+    expect(slots(withKeys(['b', 'c', 'a'], 'a'))).toEqual({L1: 0, L2: 1, L3: 2});
+  });
+
+  it('without a Ref nobody is slot 0, whichever lap was ticked first', () => {
+    const a = slots(withKeys(['c', 'a', 'b'], null));
+    const b = slots(withKeys(['a', 'b', 'c'], null));
+    expect(a).toEqual({L1: 1, L2: 2, L3: 3});
+    expect(b).toEqual(a);
+  });
+
+  it('a lap that is not on has no slot', () => {
+    expect(slots(withKeys(['a'], null))).toEqual({L1: 1, L2: null, L3: null});
+  });
+
+  it('with none highlighted, the best other lap is, not the second in the list', () => {
+    // L3 (c) is the fastest of the three; L1 (a) is the Ref: the highlight is c.
+    expect(withKeys(['c', 'a', 'b'], 'a').rows.find(r => r.highlighted)?.lapId).toBe('c');
+  });
+});
+
 describe('lap choice', () => {
-  it('all comparable keeps the reference first and skips excluded laps', () => {
+  it('all comparable is every comparable lap in lap order, whatever order they were ticked in, and skips excluded laps', () => {
     expect(cornerLapIds(laps, {laps: ['c'], hl: null}, true)).toEqual([
-      'c',
       'a',
       'b',
+      'c',
+    ]);
+    expect(cornerLapIds(laps, {laps: ['c', 'a'], hl: null}, true)).toEqual(
+      cornerLapIds(laps, {laps: ['a', 'c'], hl: null}, true),
+    );
+    // A ticked lap that is not comparable stays in the list.
+    expect(cornerLapIds(laps, {laps: ['x'], hl: null}, true)).toEqual([
+      'a',
+      'b',
+      'c',
+      'x',
     ]);
     expect(cornerLapIds(laps, {laps: ['c', 'x'], hl: null}, false)).toEqual([
       'c',
@@ -395,10 +548,10 @@ describe('lap choice', () => {
     sessionType: 'R',
   });
 
-  it('with nothing selected, the best lap is the reference', () => {
+  it('with nothing selected, every comparable lap in lap order: no lap is first because it is best', () => {
     expect(
       cornerLapIds(laps, {laps: [], hl: null}, true, sessionOf('b')),
-    ).toEqual(['b', 'a', 'c']);
+    ).toEqual(['a', 'b', 'c']);
   });
 
   it('with nothing selected and all-comparable off, falls back to best + next fastest', () => {
@@ -470,6 +623,17 @@ describe('buildBrakeMap', () => {
       '−100 m',
       '+100 m',
     ]);
+  });
+
+  it('shows a brake point outside the usual window when widened to a compound window', () => {
+    const rows = [row('a', 100, 50), row('b', 450, null)];
+    const apex = 500;
+    const usual = buildBrakeMap(rows, trace, apex)!;
+    expect(usual.brakes.map(p => p.lapId)).toEqual(['a']);
+    // Whole window: the first part's brake (450 m before the last apex).
+    const wide = buildBrakeMap(rows, trace, apex, null, [20, 800])!;
+    expect(wide.brakes.map(p => p.lapId)).toEqual(['a', 'b']);
+    expect(wide.centreline).toHaveLength(781);
   });
 
   it('is null without the reference trace', () => {

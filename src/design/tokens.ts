@@ -24,6 +24,9 @@ const dark = {
   best: '#b37bff',
   faster: '#65e287',
   slower: '#ed4a49',
+  // The off-track mark (Race lanes and map, D52): its own token, not `slower`,
+  // which means a signed loss.
+  offTrack: '#ed4a49',
   median: '#3a4148',
   band: 'rgba(230,232,234,0.07)',
   track: '#262b31',
@@ -85,6 +88,7 @@ const light: ColorTokens = {
   best: '#7d40c8',
   faster: '#25984d',
   slower: '#b00a1d',
+  offTrack: '#b00a1d',
   median: '#c9cdd1',
   band: 'rgba(17,19,22,0.07)',
   track: '#d5d9dd',
@@ -323,6 +327,8 @@ export const size = {
   hit: 44,
   // Phone bottom bar (round 4 nav frame, item 8): 52 pt, as drawn.
   bottomBar: 52,
+  // The same bar on a phone turned on its side, where 375 pt of height is all there is.
+  bottomBarLandscape: 36,
   checkbox: 16,
   // The "?" that opens a chart's how-to-read lines (thread 33 #1119).
   helpMark: 20,
@@ -334,6 +340,12 @@ export const size = {
   sheetSideWidth: 380,
   desktopBreakpoint: 900,
   wideBreakpoint: 1280,
+  // A window shorter than this and wider than tall is a phone on its side
+  // (812x375, 932x430); tablets and desktops start well above it.
+  landscapePhoneMaxHeight: 500,
+  // ...and narrower than this: the widest phones in landscape are ~960 pt, so a
+  // short desktop browser window (1440x480) stays desktop.
+  landscapePhoneMaxWidth: 1000,
   maxContent: 1200,
   // Desktop workspace (handoff "Desktop", D1): 44 pt chrome, 280 | centre | 340.
   chromeBar: 44,

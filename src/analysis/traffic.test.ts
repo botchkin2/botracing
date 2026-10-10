@@ -17,6 +17,7 @@ const L = 4000;
 
 type Car = {
   class: string;
+  classLabel?: string;
   player?: boolean;
   // Lap distance in metres at an update; null = absent.
   at: (u: number) => number | null;
@@ -36,7 +37,11 @@ function field(cars: Car[], updates: number): TrafficField {
   return {
     et0: 10,
     tDs: Array.from({length: updates}, (_, u) => Math.round(u * DT * 10)),
-    cars: cars.map(c => ({class: c.class, player: c.player})),
+    cars: cars.map(c => ({
+      class: c.class,
+      player: c.player,
+      ...(c.classLabel != null && {classLabel: c.classLabel}),
+    })),
     lapDistDm: cars.map(c =>
       deltas(
         Array.from({length: updates}, (_, u) => {
@@ -65,6 +70,17 @@ const chaser = (cls: string, speed: number, startM = 100): Car => ({
 const all = [{from: 0, to: 1e9}];
 
 describe('overtakesOf', () => {
+  it("classes iRacing cars by label: an offline GTP passing the player's GT3 counts", () => {
+    // Offline iRacing names no class; the label comes from the class id.
+    const me = {...player(), class: '', classLabel: 'GT3'};
+    const gtp = {...chaser('', 50), classLabel: 'GTP'};
+    const [o] = overtakesOf(field([me, gtp], 200), all, paceOf);
+    expect(o.map(x => x.cls)).toEqual(['hypercar']);
+    // Same short name, same label: own class, not a pass by a faster class.
+    const twin = {...chaser('', 50), classLabel: 'GT3'};
+    expect(overtakesOf(field([me, twin], 200), all, paceOf)[0]).toEqual([]);
+  });
+
   it('lists a faster-class car that passes the player, with class and lap distance', () => {
     // A Hypercar 100 m behind at 50 m/s: gains 10 m/s, level after 10 s.
     const f = field([player(), chaser('Hyper', 50)], 200);

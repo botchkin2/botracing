@@ -110,6 +110,69 @@ test('a lap with no onset in a section (taken flat) still gets a window and a sp
   );
 });
 
+test("the corner/exit split is the map's exit on every lap, whatever the lap's full-throttle point (D43)", () => {
+  // Same driving, but the second lap holds the pedal at 60 % for 40 m past the
+  // corner: its full-throttle point moves, the speeds and so the times do not,
+  // and the split must not move with it.
+  const early = makeLap(580, 1380);
+  const late = makeLap(580, 1380);
+  const {speed_kmh: speed, throttle_pct: pedal} = late.rec.s;
+  let d = 0;
+  for (let i = 0; i < pedal.length; i++) {
+    if (d >= 800 && d < 840) pedal[i] = 60;
+    d += speed[i] / 3.6 / 100;
+  }
+  const both = layoutOf([early, late]);
+  const base = factsOf(early, both).corners[0];
+  const moved = factsOf(late, both).corners[0];
+  assert.ok(
+    moved.fullThrottleAtM - base.fullThrottleAtM >= 35,
+    `${moved.fullThrottleAtM} vs ${base.fullThrottleAtM}`,
+  );
+  assert.equal(moved.cornerS, base.cornerS);
+  assert.equal(moved.exitS, base.exitS);
+});
+
+test("an exit at or past the window's end is null, not a zero; the corner runs to the end", () => {
+  const lap = laps[0];
+  const run = sections =>
+    cornerFacts({
+      rec: lap.rec,
+      lap: lap.lap,
+      windows: layout.windows,
+      sections,
+      flags,
+      pits: [],
+      lengthM: LENGTH_M,
+      onsets: layout.onsets.get(lap.lap),
+    }).corners;
+  const withExit = (k, exitM) =>
+    map.corners.map((c, i) =>
+      i === k
+        ? {
+            ...c,
+            exitM,
+            parts: c.parts?.map((p, j) =>
+              j === c.parts.length - 1 ? {...p, exitM} : p,
+            ),
+          }
+        : c,
+    );
+  // The first corner's exit at the next window's start or beyond.
+  const past = run(withExit(0, layout.windows[2].fromM + 50))[0];
+  assert.equal(past.exitS, null);
+  assert.ok(Math.abs(past.runInS + past.cornerS - past.segTime) < 0.005);
+  // The last corner runs over the line: its exit (40 m) is in the next lap's
+  // start straight, past this window's end, not a zero-length exit inside it.
+  const overLine = run(withExit(1, 40))[1];
+  assert.equal(overLine.exitS, null);
+  assert.ok(
+    Math.abs(overLine.runInS + overLine.cornerS - overLine.segTime) < 0.005,
+  );
+  // An exit inside the window still gives one (the default map).
+  assert.ok(run(map.corners)[0].exitS > 0);
+});
+
 test('boundaries pooled from comparable green laps only, and replaced on a resync', () => {
   const dirty = makeLap(300, 1380);
   dirty.lap.clean = false;
@@ -214,8 +277,24 @@ const INPUT_MAP = {
       apexM: 350,
       exitM: 520,
       parts: [
-        {n: 1, direction: 'right', entryM: 200, turnInM: 300, apexM: 350, exitM: 400, minSpeedKmh: 72},
-        {n: 2, direction: 'left', entryM: 410, turnInM: 430, apexM: 470, exitM: 520, minSpeedKmh: 90},
+        {
+          n: 1,
+          direction: 'right',
+          entryM: 200,
+          turnInM: 300,
+          apexM: 350,
+          exitM: 400,
+          minSpeedKmh: 72,
+        },
+        {
+          n: 2,
+          direction: 'left',
+          entryM: 410,
+          turnInM: 430,
+          apexM: 470,
+          exitM: 520,
+          minSpeedKmh: 90,
+        },
       ],
     },
   ],
@@ -237,7 +316,12 @@ const ramp = (d, from, to, peak) =>
   d <= from || d >= to ? 0 : (peak * (d - from)) / (to - from);
 function drive({rightPositive = true} = {}) {
   const sign = rightPositive ? 1 : -1;
-  const t = [], dist = [], speed = [], brake = [], throttle = [], steer = [];
+  const t = [],
+    dist = [],
+    speed = [],
+    brake = [],
+    throttle = [],
+    steer = [];
   let d = 0;
   let time = 1000;
   while (d < INPUT_LENGTH) {
@@ -323,15 +407,24 @@ test('turn-in is where the wheel leaves 20 % of the corner’s own peak, in eith
       rightPositive ? 1 : -1,
     ).parts;
     // Right: 6 % of the 30 % peak is reached 20 % of the way up the ramp (280 to 350).
-    assert.ok(Math.abs(p1.turnInAtM - 294) <= 1.5, `${rightPositive} ${p1.turnInAtM}`);
+    assert.ok(
+      Math.abs(p1.turnInAtM - 294) <= 1.5,
+      `${rightPositive} ${p1.turnInAtM}`,
+    );
     // Left: 5 % of 25 % at 20 % of the way from 440 to 470.
-    assert.ok(Math.abs(p2.turnInAtM - 446) <= 1.5, `${rightPositive} ${p2.turnInAtM}`);
+    assert.ok(
+      Math.abs(p2.turnInAtM - 446) <= 1.5,
+      `${rightPositive} ${p2.turnInAtM}`,
+    );
   }
 });
 
 test('throttle pickup ends the closed phase; a pedal that only lifts gives its lowest instead', () => {
   const [p1, p2] = inputsOf(drive()).parts;
-  assert.ok(Math.abs(p1.throttlePickupAtM - 355) <= 1, `${p1.throttlePickupAtM}`);
+  assert.ok(
+    Math.abs(p1.throttlePickupAtM - 355) <= 1,
+    `${p1.throttlePickupAtM}`,
+  );
   assert.equal(p1.minThrottlePct, 0);
   assert.equal(p2.throttlePickupAtM, null);
   assert.equal(p2.minThrottlePct, 60);

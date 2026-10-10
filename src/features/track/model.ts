@@ -53,7 +53,6 @@ export type TrackMapModel = {
 
 export type TrackModel = {
   title: string;
-  countryCode: string | null;
   country: string | null;
   facts: TrackFact[];
   corners: TrackCornerGroup[];
@@ -160,7 +159,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
 
   return {
     title: info?.layout ?? sessionName ?? input.trackId,
-    countryCode: info?.countryCode ?? null,
     country: info?.country ?? null,
     facts: buildFacts(info, map),
     corners: groups,

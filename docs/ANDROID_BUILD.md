@@ -148,3 +148,17 @@ By hand, once:
 - **Google sign-in.** Google Cloud console (project botracing-61) > APIs & Services > Credentials > the Android OAuth client for `app.botracing.android`: add the keystore's SHA-1 (also on the `credentials` screen). Without it, Google sign-in on the installed APK answers DEVELOPER_ERROR (`src/auth/googleClient.ts`).
 
 Settings shows an **Android app** card (`src/features/settings/androidCard.ts`). In the installed app it appears only when `/api/android/latest` has a higher `versionCode` than the installed one (`expo-application`'s `nativeBuildVersion`), with an Update button. In a browser on an Android phone it offers the APK, like the Windows card. Anywhere else there is no card. Both open `/api/android/download` in the browser, so the first install asks to allow installs from the browser; the card says so in one line.
+
+## Over-the-air updates (EAS Update)
+
+`expo-updates` checks the `production` channel on launch and applies a new bundle on the next start (no UI). Only the `release` profile in `eas.json` has the channel, so development and preview builds never receive production updates. `app.json` sets `runtimeVersion.policy: "fingerprint"`: an update reaches only builds with the same native fingerprint, so a native change can never land on an older APK.
+
+`.github/workflows/ota-update.yml` runs `tsc` and `jest` on the pushed commit (the Tests workflow runs on pull requests only), then `eas update --channel production --platform android`, on a push to main unless the push touches only docs, `*.md`, `desktop/`, `functions/`, `ops/`, `scripts/`, `tools/` (except `tools/track-info/`, which `catalog.ts` imports), `.claude/`, `.github/` (except this workflow) or the Firebase files. It is a deny-list, so `tsconfig.json`, `eas.json`, package files and any new top-level code run it.
+
+- **By update:** screens, logic, styles, JS-only dependencies, images and other assets.
+- **Needs an APK (new `android-v*` tag):** a native module or SDK change, `app.json` plugins, permissions, icon or splash, package name. These change the fingerprint; an update published for the new fingerprint reaches phones only after they install that APK.
+- **Roll back:** `npx eas-cli@24.8.0 update:republish --group <group id of the last good update> --platform android --message rollback` (`--channel` and `--group` are mutually exclusive; the group goes back onto its own branch, `production`). `npx eas-cli@24.8.0 update:list --branch production` shows the groups. Phones take it on their next launch.
+- **Same runtime version as the APK:** the build and the update both compute it with `@expo/fingerprint` over the same commit after `npm ci` (tracked files, `node_modules`, `app.json`, `eas.json`; no local-only files). `fingerprint.config.js` skips package.json scripts, `.gitignore` and version strings, so editing those does not strand phones. Check locally: `npx expo-updates fingerprint:generate --platform android`; the hash must equal the `Runtime version` in the OTA job summary (which also lists the update group id and message).
+- **APK updates are unchanged:** the Settings Android card still offers a new APK by `versionCode`.
+
+One-time setup: none. `android-build` allows branch `main` for OTA, same `EXPO_TOKEN` (done 2026-10-10). Updates start with the 1.0.2 APK: older installs have no updater.

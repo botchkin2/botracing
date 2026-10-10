@@ -13,6 +13,7 @@ import {
   isRecording,
   lapCrossings,
   mapSessionType,
+  playerCar,
   resetTimes,
   slug,
   writeArchive,
@@ -184,5 +185,35 @@ test('a file described with the version before the offline grouping fix is descr
   assert.deepEqual(reusableInfo(cached(describeVersion), stat, describeVersion), {
     groupId: 'iracing|0|0',
   });
-  assert.equal(describeVersion, 6);
+  assert.equal(describeVersion, 7);
+});
+
+test("the player's class is its label, and an empty short name never reads the next line", () => {
+  const yaml = [
+    'DriverInfo:',
+    ' DriverCarIdx: 1',
+    ' Drivers:',
+    ' - CarIdx: 0',
+    '   CarScreenName: Cadillac V-Series.R',
+    '   CarClassShortName: ',
+    '   CarClassRelSpeed: 70',
+    '   CarClassID: 4029',
+    ' - CarIdx: 1',
+    '   CarScreenName: Ford Mustang GT3',
+    '   CarClassShortName: ',
+    '   CarClassRelSpeed: 52',
+    '   CarClassID: 4011',
+    '',
+  ].join('\n');
+  assert.equal(playerCar(yaml).carClass, 'GT3');
+  // An unknown id with no name and one model: the model names the class.
+  const odd = yaml.replace('CarClassID: 4011', 'CarClassID: 9999');
+  assert.equal(playerCar(odd).carClass, 'Ford Mustang GT3');
+  // No class id at all: the short name, empty here, never "CarClassRelSpeed: 52".
+  const bare = yaml.replace(/\n +CarClassID: \d+/g, '');
+  assert.equal(playerCar(bare).carClass, '');
+});
+
+test('describe: the Road Atlanta GT3 race names its class GT3', {skip: !existsSync(RA_RACE)}, () => {
+  assert.equal(describe(RA_RACE).carClass, 'GT3');
 });

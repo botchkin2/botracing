@@ -12,20 +12,22 @@ export default function RaceRoute() {
   const params = useLocalSearchParams<{
     id: string;
     laps?: string;
+    ref?: string;
     hl?: string;
     c?: string;
     t?: string;
   }>();
   const router = useRouter();
-  const {laps, hl, c, t} = params;
+  const {laps, ref, hl, c, t} = params;
   const selection = useMemo<RaceSelection>(() => {
-    const sel = parseSelection({laps, hl, c, t});
+    const sel = parseSelection({laps, ref, hl, c, t});
     return {
       laps: sel.laps,
+      ref: sel.ref,
       hl: sel.hl,
       cursorM: t ? sel.cursorM : null,
     };
-  }, [laps, hl, c, t]);
+  }, [laps, ref, hl, c, t]);
   return (
     <RaceScreen
       sessionId={params.id}

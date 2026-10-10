@@ -17,6 +17,8 @@ export const LAP_COLS = {chk: 16, lap: 30, time: 62, gap: 44, sector: 38};
 // column is left out: laps carry no max speed.
 const WIDE_COLS = {chk: 18, lap: 40, stint: 34, time: 78, gap: 62, sector: 60};
 export const ROW_H = size.lapRow;
+/** The minimum touch target, in points (CODE_STANDARDS §5). */
+export const MIN_TOUCH_PT = 44;
 export const WIDE_ROW_H = 26;
 const colsFor = (wide: boolean) => (wide ? WIDE_COLS : LAP_COLS);
 
@@ -45,11 +47,17 @@ export function LapTableHeader({
   width,
   wide = false,
   heads = ['S1', 'S2', 'S3'],
+  headTaps,
+  onHeadPress,
 }: {
   width: number;
   wide?: boolean;
   /** The section columns' labels; the phone keeps the game's sectors. */
   heads?: string[];
+  /** Which heads are taps (the start straight is not). */
+  headTaps?: boolean[];
+  /** Tap a section column: the index of its head. Absent, the heads are labels only. */
+  onHeadPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
@@ -74,16 +82,30 @@ export function LapTableHeader({
       {wide && cell('Stint', WIDE_COLS.stint, false)}
       {cell('Time', cols.time)}
       {cell('vs med', cols.gap)}
-      {heads.map(h => (
-        <Text
-          key={h}
-          variant='tableHeader'
-          tone='textMuted'
-          numberOfLines={1}
-          style={[styles.right, {width: sectionW}]}>
-          {h}
-        </Text>
-      ))}
+      {heads.map((h, i) => {
+        const text = (
+          <Text
+            key={h}
+            variant='tableHeader'
+            tone='textMuted'
+            numberOfLines={1}
+            style={[styles.right, {width: sectionW}]}>
+            {h}
+          </Text>
+        );
+        return onHeadPress && headTaps?.[i] ? (
+          <Pressable
+            key={`${h}-${i}`}
+            accessibilityRole='button'
+            accessibilityLabel={`Open ${h} in Compare`}
+            style={{minHeight: MIN_TOUCH_PT, justifyContent: 'center'}}
+            onPress={() => onHeadPress(i)}>
+            {text}
+          </Pressable>
+        ) : (
+          text
+        );
+      })}
       <Text
         variant='tableHeader'
         tone='textMuted'
@@ -183,6 +205,9 @@ export function LapRow({
   row,
   width,
   wide = false,
+  onSectionPress,
+  sectionTaps,
+  sectionNames,
   lapColor,
   onPress,
   onToggle,
@@ -193,10 +218,18 @@ export function LapRow({
   lapColor: string | undefined;
   onPress: () => void;
   onToggle: () => void;
+  /** Which section columns are taps (the start straight is not). */
+  sectionTaps?: boolean[];
+  /** Each column's name ("T6"), for the cell's label. */
+  sectionNames?: string[];
+  /** Tap a lap x section cell: the index of its section column. */
+  onSectionPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
-  const cells = wide ? row.sections : row.sectors;
+  // The lap x section grid where the map has sections (desktop and phone); the game's sectors otherwise.
+  const useSections = row.sections.length > 0;
+  const cells = useSections ? row.sections : row.sectors;
   const cellW = wide ? sectionColW(width, cells.length) : cols.sector;
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
@@ -238,15 +271,37 @@ export function LapRow({
         style={[styles.right, {width: cols.gap}]}>
         {row.gap ?? ''}
       </Text>
-      {cells.map((s, i) => (
-        <Text
-          key={i}
-          variant='data'
-          tone={s.best ? 'best' : 'textSecondary'}
-          style={[styles.right, {width: cellW}]}>
-          {s.value}
-        </Text>
-      ))}
+      {cells.map((s, i) => {
+        const text = (
+          <Text
+            key={i}
+            variant='data'
+            tone={s.best ? 'best' : 'textSecondary'}
+            style={[styles.right, {width: cellW}]}>
+            {s.value}
+          </Text>
+        );
+        return useSections && onSectionPress && sectionTaps?.[i] ? (
+          <Pressable
+            key={i}
+            accessibilityRole='button'
+            accessibilityLabel={`${row.label} ${
+              sectionNames?.[i] ?? `section ${i + 1}`
+            } in Corner`}
+            // The drawn cell is short; the touch area is at least 44 pt tall (CODE_STANDARDS §5).
+            hitSlop={{
+              top: Math.max(0, (MIN_TOUCH_PT - ROW_H) / 2),
+              bottom: Math.max(0, (MIN_TOUCH_PT - ROW_H) / 2),
+              left: 4,
+              right: 4,
+            }}
+            onPress={() => onSectionPress(i)}>
+            {text}
+          </Pressable>
+        ) : (
+          text
+        );
+      })}
       <Text
         variant='dataSmall'
         numberOfLines={1}

@@ -109,7 +109,7 @@ function report(state, run, c = CI, title) {
 
 // gcloud writes a key only to a file: a private temp folder, read once into
 // `gh secret set` on stdin, deleted in `finally` whatever happens.
-function keyToSecret({account, secret, env}, c = CI) {
+export function keyToSecret({account, secret, env}, c = CI) {
   const dir = mkdtempSync(join(tmpdir(), 'ci-key-'));
   const file = join(dir, 'key.json');
   try {

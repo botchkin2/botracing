@@ -1,4 +1,5 @@
 import {describe, expect, it, jest} from '@jest/globals';
+import {FlatList} from 'react-native';
 import {act, create} from 'react-test-renderer';
 
 import {SessionWorkspace} from './SessionWorkspace';
@@ -41,42 +42,56 @@ jest.mock('./SessionGrid', () => {
   };
 });
 
+function render() {
+  const model = {
+    trackId: null,
+    facts: [],
+    energy: null,
+    optimum: [],
+    rows: [],
+    sections: null,
+    detail: null,
+  } as unknown as Parameters<typeof SessionWorkspace>[0]['model'];
+  const noop = () => {};
+  let tree: ReturnType<typeof create> | undefined;
+  act(() => {
+    tree = create(
+      <SessionWorkspace
+        sessionId='s1'
+        model={model}
+        selection={{laps: [], hl: null} as never}
+        onSelectionChange={noop}
+        colorOf={() => '#fff'}
+        onHighlight={noop}
+        scrollToLapId={null}
+        chart={() => null}
+        detail={null}
+        tray={null}
+        cards={null}
+        renderRow={() => null}
+        tagKey=''
+        pitFocus={null}
+        side={{width: 0, onResize: noop, onCommit: noop, reset: noop}}
+      />,
+    );
+  });
+  // Assigned inside act above.
+  return tree!;
+}
+
 describe('SessionWorkspace', () => {
   it('mounts the session grid in the wide centre', () => {
-    const model = {
-      trackId: null,
-      facts: [],
-      energy: null,
-      optimum: [],
-      rows: [],
-      sections: null,
-      detail: null,
-    } as unknown as Parameters<typeof SessionWorkspace>[0]['model'];
-    const noop = () => {};
-    let tree: ReturnType<typeof create> | undefined;
-    act(() => {
-      tree = create(
-        <SessionWorkspace
-          sessionId='s1'
-          model={model}
-          selection={{laps: [], hl: null} as never}
-          onSelectionChange={noop}
-          colorOf={() => '#fff'}
-          onHighlight={noop}
-          scrollToLapId={null}
-          chart={() => null}
-          detail={null}
-          tray={null}
-          cards={null}
-          renderRow={() => null}
-          tagKey=''
-          pitFocus={null}
-          side={{width: 0, onResize: noop, onCommit: noop, reset: noop}}
-        />,
-      );
-    });
-    expect(tree!.root.findByProps({testID: 'grid'}).props.children).toBe(
+    expect(render().root.findByProps({testID: 'grid'}).props.children).toBe(
       'grid:s1',
     );
+  });
+
+  // Botkin's 1974 pt report: the grid sat in a fixed-height column above the
+  // list, ran past the window and left nothing to scroll. The whole centre is
+  // one scroller, so the grid lives in the lap list's header.
+  it('scrolls the grid with the lap list', () => {
+    const tree = render();
+    const list = tree.root.findByType(FlatList);
+    expect(list.findByProps({testID: 'grid'})).toBeTruthy();
   });
 });

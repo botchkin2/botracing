@@ -4,6 +4,7 @@ import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
 import {basename, dirname, join} from 'node:path';
 import {homedir, tmpdir} from 'node:os';
 import {run, sqlPath} from './duck.mjs';
+import {carClasses, driversOfYaml} from './irClasses.mjs';
 import {raceLengthFromYaml} from './raceLength.mjs';
 import {
   openIbt,
@@ -45,7 +46,9 @@ export const watcher = {
 // (describeCache.mjs: an entry of another version is described again).
 // 6: groupId is null for an offline drive (SubSessionID 0), so cached
 //    `iracing|0|0` ids stop merging every offline drive into one session.
-export const describeVersion = 6;
+// 7: carClass is the class label ("GT3", irClasses.mjs); an offline drive's
+//    empty CarClassShortName read the next line ("CarClassRelSpeed: 52").
+export const describeVersion = 7;
 
 export function slug(name) {
   return String(name)
@@ -177,7 +180,7 @@ export function lapCrossings(t, laps, lastTimes) {
   return out;
 }
 
-function playerCar(yaml) {
+export function playerCar(yaml) {
   const idx = yamlField(yaml, 'DriverCarIdx');
   const drivers = yaml.split(/\n\s*Drivers:\s*\n/)[1] || '';
   const block = drivers.match(
@@ -185,12 +188,18 @@ function playerCar(yaml) {
   );
   const pick = key => {
     if (!block) return '';
-    const m = block[1].match(new RegExp(`${key}:\\s*(.+)`));
+    // Blanks, not \s: an empty value must not read the next line.
+    const m = block[1].match(new RegExp(`${key}:[ \\t]*(.*)`));
     return m ? m[1].trim() : '';
   };
+  // The class a driver reads, named from the class id like the field's cars
+  // (irClasses.mjs): "IMSA23" is iRacing's short name for the GT3s, and an
+  // offline drive has none.
+  const label = carClasses([], driversOfYaml(yaml)).get(Number(idx))
+    ?.classLabel;
   return {
     name: pick('CarScreenName') || pick('CarPath') || 'Unknown car',
-    carClass: pick('CarClassShortName') || '',
+    carClass: label || pick('CarClassShortName'),
     path: pick('CarPath'),
   };
 }

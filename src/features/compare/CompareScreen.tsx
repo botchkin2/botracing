@@ -95,6 +95,11 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+// Landscape phone: the one chart takes what the window leaves under the charts
+// bar and chart tabs, above the one-row transport and bottom bar, never less
+// than this.
+const ONE_CHART_LANDSCAPE_CHROME = 225;
+const ONE_CHART_LANDSCAPE_MIN_H = 140;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
 const removeHit = hitFor({left: 14, right: space.md}, 15);
@@ -219,6 +224,7 @@ function CompareView({
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [reverse, setReverse] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -248,9 +254,18 @@ function CompareView({
 
   // Playback: advance by wall-clock time on the reference lap, looping
   // (features/compare/playback.ts).
-  const live = useRef<PlayInputs>({ref, rate: prefs.rate, move: onCursor});
+  const live = useRef<PlayInputs>({
+    ref,
+    rate: prefs.rate,
+    reverse,
+    move: onCursor,
+  });
   useEffect(() => {
-    live.current = {ref, rate: prefs.rate, move: onCursor};
+    live.current = {ref, rate: prefs.rate, reverse, move: onCursor};
+  });
+  const atStart = useRef(false);
+  useEffect(() => {
+    atStart.current = cursorM <= 0;
   });
   useEffect(() => {
     if (!playing) return;
@@ -260,6 +275,11 @@ function CompareView({
       () => performance.now(),
     );
     const tick = () => {
+      // Rewinding ends at the lap start.
+      if (live.current.reverse && atStart.current) {
+        setPlaying(false);
+        return;
+      }
       step();
       frame = requestAnimationFrame(tick);
     };
@@ -386,11 +406,6 @@ function CompareView({
         {model.reference}
       </Text>
     </View>
-  );
-  const referenceHint = (
-    <Text variant='dataSmall' tone='textFaint'>
-      {`Times vs ${model.tableReference.chips}`}
-    </Text>
   );
 
   const chipItems = (
@@ -582,6 +597,12 @@ function CompareView({
     onPanStart: () => setPlaying(false),
   });
   const heightScale = layout.isDesktop ? DESKTOP_CHART_SCALE : 1;
+  const oneChartH = layout.isLandscapePhone
+    ? Math.max(
+        ONE_CHART_LANDSCAPE_MIN_H,
+        layout.height - insets.top - ONE_CHART_LANDSCAPE_CHROME,
+      )
+    : ONE_CHART_H;
   const focused = Math.min(prefs.focused, model.charts.length - 1);
   const focusedChart = model.charts[focused];
 
@@ -680,7 +701,7 @@ function CompareView({
             {c.title}
           </Text>
           <Skeleton
-            height={Math.round(oneChart ? ONE_CHART_H : c.height * heightScale)}
+            height={Math.round(oneChart ? oneChartH : c.height * heightScale)}
           />
         </View>
       ),
@@ -706,7 +727,7 @@ function CompareView({
   const chartList = noTraces
     ? skeletons
     : oneChart
-    ? focusedChart && phoneChart(focusedChart, ONE_CHART_H, true)
+    ? focusedChart && phoneChart(focusedChart, oneChartH, true)
     : model.charts.map((c, i) =>
         phoneChart(c, c.height * heightScale, i === model.charts.length - 1),
       );
@@ -719,7 +740,7 @@ function CompareView({
       : `≈ ${Math.round(model.windowM[1] - model.windowM[0])} m`;
   const transport = (
     <TransportBar
-      oneRow={layout.isDesktop}
+      oneRow={layout.isDesktop || layout.isLandscapePhone}
       mode={prefs.windowMode}
       step={prefs.windowStep}
       sizeLabel={
@@ -728,14 +749,24 @@ function CompareView({
           : `${windowSizeValue} ${prefs.windowMode === 'time' ? 's' : 'm'}`
       }
       spanLabel={spanLabel}
-      playing={playing}
+      playing={playing && !reverse}
+      rewinding={playing && reverse}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
       onLap={() => prefs.setWindowStep('lap')}
-      onPlay={() => setPlaying(p => !p)}
+      onPlay={() => {
+        setReverse(false);
+        setPlaying(p => !p || reverse);
+      }}
+      onReverse={() => {
+        setReverse(true);
+        setPlaying(p => !p || !reverse);
+      }}
+      onBack={() => moveBy(-KEY_STEP_M)}
+      onForward={() => moveBy(KEY_STEP_M)}
       onRate={prefs.setRate}
     />
   );
@@ -794,7 +825,10 @@ function CompareView({
         lapStyle={lapStyle}
         onCursor={onCursor}
         onPan={pan}
-        onPlay={() => setPlaying(p => !p)}
+        onPlay={() => {
+          setReverse(false);
+          setPlaying(p => !p || reverse);
+        }}
         onPause={() => setPlaying(false)}
         onSelectionChange={onSelectionChange}
         onOpenSection={openCorner}
@@ -811,7 +845,6 @@ function CompareView({
           <ScrollView style={{width: sideW}} contentContainerStyle={styles.col}>
             {header}
             {reference}
-            {referenceHint}
             {chips}
             {map}
             {radarPanel}
@@ -826,18 +859,25 @@ function CompareView({
         {editor}
       </View>
     );
+  // Landscape phone: the traces come first, so a turned phone opens on the
+  // chart, and the header, reference and lap chips follow below it.
+  const landscape = layout.isLandscapePhone;
+  const chrome = (
+    <>
+      {header}
+      {reference}
+      {chips}
+    </>
+  );
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <ScrollView
         contentContainerStyle={[
           styles.col,
-          top,
+          landscape ? {paddingTop: insets.top} : top,
           {width: layout.contentWidth, alignSelf: 'center'},
         ]}>
-        {header}
-        {reference}
-        {referenceHint}
-        {chips}
+        {landscape ? null : chrome}
         {/* The plot ends and the Follow map starts on the next pixel, so the
             eye moves from the trace to the car without crossing anything
             (round 5, item 6). */}
@@ -848,8 +888,15 @@ function CompareView({
         {listField != null ? radarPanel : null}
         {position}
         {grid}
+        {landscape ? chrome : null}
       </ScrollView>
-      <View style={{paddingBottom: insets.bottom}}>{transport}</View>
+      <View
+        style={{
+          paddingBottom: insets.bottom,
+          paddingHorizontal: layout.sideInset,
+        }}>
+        {transport}
+      </View>
       {editor}
     </View>
   );

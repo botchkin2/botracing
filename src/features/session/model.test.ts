@@ -5,8 +5,10 @@ import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
+  gridCellTargetOf,
   type LapRowModel,
   buildSessionModel,
+  type SectionTable,
   sectionTable,
   trafficPaceFacts,
 } from './model';
@@ -96,9 +98,23 @@ describe('buildSessionModel', () => {
     expect(lapRow(m, 'L1').gap).toBeNull();
   });
 
-  it('no detail or tray without a selection', () => {
+  it('no detail without a selection; the tray keeps the two stints to pick', () => {
     expect(m.detail).toBeNull();
-    expect(m.tray).toBeNull();
+    expect(m.tray).toMatchObject({count: 0, label: '', laps: []});
+    expect(m.tray!.stints.map(s => [s.label, s.active])).toEqual([
+      ['1', false],
+      ['2', false],
+    ]);
+  });
+
+  it('one stint has nothing to pick: no tray without a selection', () => {
+    const one = {...session, stints: session.stints.slice(0, 1)};
+    const oneLaps = laps.map(l => ({...l, stint: 1}));
+    expect(buildSessionModel(one, oneLaps, none).tray).toBeNull();
+    expect(
+      buildSessionModel(one, oneLaps, {laps: [oneLaps[3].id], hl: null}).tray!
+        .stints,
+    ).toEqual([]);
   });
 });
 
@@ -126,6 +142,43 @@ describe('selection', () => {
     const sel = {laps: [ids[17], ids[18], ids[19], ids[20]], hl: null};
     const m = buildSessionModel(session, laps, sel);
     expect(m.tray!.label).toBe('4 laps');
+  });
+});
+
+describe('stint picks (D16/D17)', () => {
+  const stintRow = (m: ReturnType<typeof buildSessionModel>, n: number) =>
+    m.rows.find(r => r.kind === 'stint' && r.key === `stint-${n}`) as {
+      lapIds: string[];
+    };
+  const base = buildSessionModel(session, laps, none);
+
+  it("each pick is its stint header's comparable laps", () => {
+    for (const pick of base.tray!.stints)
+      expect(pick.lapIds).toEqual(stintRow(base, pick.n).lapIds);
+  });
+
+  it('a pick is marked while the selection is exactly its laps, in any order', () => {
+    const two = stintRow(base, 2).lapIds;
+    const m = buildSessionModel(session, laps, {
+      laps: [...two].reverse(),
+      hl: null,
+    });
+    expect(m.tray!.stints.map(s => s.active)).toEqual([false, true]);
+    expect(m.tray!.count).toBe(two.length);
+  });
+
+  it('unticking one lap of the stint clears the mark; adding one does too', () => {
+    const two = stintRow(base, 2).lapIds;
+    const less = buildSessionModel(session, laps, {
+      laps: two.slice(1),
+      hl: null,
+    });
+    expect(less.tray!.stints.some(s => s.active)).toBe(false);
+    const more = buildSessionModel(session, laps, {
+      laps: [...two, stintRow(base, 1).lapIds[0]],
+      hl: null,
+    });
+    expect(more.tray!.stints.some(s => s.active)).toBe(false);
   });
 });
 
@@ -365,5 +418,82 @@ describe('sectionTable', () => {
       laps: [...times.laps, lap('f', 10.5, true), lap('g', 10.6, true)],
     })!;
     expect(table.footer[0].cells).toEqual(['10.20']);
+  });
+});
+
+describe('lap colour slots follow the meaning, not the order laps were checked in', () => {
+  const ids = laps.slice(0, 22).map(l => l.id);
+  const slotsOf = (checked: string[], ref: string | null) => {
+    const m = buildSessionModel(session, laps, {laps: checked, ref, hl: null});
+    return Object.fromEntries(
+      m.rows
+        .filter((r): r is LapRowModel => r.kind === 'lap')
+        .filter(r => r.selIndex != null)
+        .map(r => [r.label, r.selIndex]),
+    );
+  };
+
+  it('slot 0 is the Ref lap only; the others follow by lap number from 1', () => {
+    expect(slotsOf([ids[8], ids[2], ids[5]], ids[5])).toEqual({
+      L3: 1,
+      L6: 0,
+      L9: 2,
+    });
+  });
+
+  it('with no Ref nobody is slot 0, and the order checked does not matter', () => {
+    const a = slotsOf([ids[8], ids[2], ids[5]], null);
+    expect(a).toEqual({L3: 1, L6: 2, L9: 3});
+    expect(slotsOf([ids[2], ids[5], ids[8]], null)).toEqual(a);
+    const tray = buildSessionModel(session, laps, {
+      laps: [ids[8], ids[2]],
+      ref: null,
+      hl: null,
+    }).tray;
+    expect(tray?.laps.map(l => l.selIndex).sort()).toEqual([1, 2]);
+  });
+});
+
+
+describe('gridCellTargetOf (Road Atlanta numbering)', () => {
+  // Heads S/F, T1, T2–5, T6, T7, T10a–T12. Sections 1..5: section 2 is the
+  // compound T2–5 (corners 2 to 5), so its first corner is 2; section 3 is T6.
+  const table: SectionTable = {
+    heads: ['S/F', 'T1', 'T2–5', 'T6', 'T7', 'T10a–T12'],
+    sections: [null, 1, 2, 3, 4, 5],
+    targets: [
+      {corner: null, whole: false},
+      {corner: 1, whole: false},
+      {corner: 2, whole: true},
+      {corner: 6, whole: false},
+      {corner: 7, whole: false},
+      {corner: 10, whole: false},
+    ],
+    footer: [],
+  };
+
+  it('opens the corner by its number, not the section number (S3 is T6, corner 6)', () => {
+    expect(gridCellTargetOf(table, 3, 'L4', ['L4'])).toEqual({
+      corner: 6,
+      whole: false,
+      laps: ['L4'],
+    });
+  });
+
+  it('opens a compound section whole, on its first corner (S2 is T2–5: corner 2, all)', () => {
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.corner).toBe(2);
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.whole).toBe(true);
+  });
+
+  it('keeps the checked set: the tapped lap is only a highlight', () => {
+    expect(gridCellTargetOf(table, 1, 'L1', ['L4', 'L5'])).toEqual({
+      corner: 1,
+      whole: false,
+      laps: ['L4', 'L5'],
+    });
+  });
+
+  it('the start straight opens nothing', () => {
+    expect(gridCellTargetOf(table, 0, 'L4', ['L4'])).toBeNull();
   });
 });

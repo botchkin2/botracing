@@ -205,8 +205,7 @@ test('spans: where traffic and blue were, adding up to the seconds', () => {
     3: far,
   }));
   const t = lapFieldFacts(f, [all])[0];
-  const sum = spans =>
-    Math.round(spans.reduce((a, s) => a + s.s, 0) * 10) / 10;
+  const sum = spans => Math.round(spans.reduce((a, s) => a + s.s, 0) * 10) / 10;
   assert.equal(t.aheadSpans.length, 2);
   assert.equal(sum(t.aheadSpans), t.trafficAheadS);
   assert.equal(t.blueSpans.length, 1);
@@ -371,4 +370,44 @@ test('draftSpans: where the tow was, adding up to draftS, as objects', () => {
     } else if (v && typeof v === 'object') Object.values(v).forEach(nested);
   };
   nested(t);
+});
+
+test('iRacing offline: classes come from the label, not the empty short name', () => {
+  const was = cars.map(c => ({...c}));
+  // Offline iRacing: every short name empty; the class id names the class.
+  const label = {
+    0: ['GT3', 4011],
+    1: ['GTP', 4029],
+    2: ['GT3', 4011],
+    3: ['GT3', 4011],
+  };
+  for (const c of cars) {
+    c.class = '';
+    if (label[c.id]) [c.classLabel, c.classId] = label[c.id];
+  }
+  try {
+    // Car 1 (GTP) starts 30 m behind and passes; car 2 (GT3) starts 30 m
+    // ahead and drops back through the player.
+    const f = build(40, u => ({
+      0: me(u),
+      1: {lapDist: me(u).lapDist - 30 + u * 4, lane: 3},
+      2: {lapDist: me(u).lapDist + 30 - Math.max(0, u - 20) * 4, lane: 3},
+      3: far,
+    }));
+    const [t] = lapFieldFacts(f, [all]);
+    // Before: every car was the player's class (''), so the GTP's pass was a lost place.
+    assert.equal(t.passesSuffered, 0);
+    assert.equal(t.passesSufferedAll, 1);
+    assert.equal(t.passesMade, 1);
+    const [block] = lapTraffic(f, [all]);
+    assert.deepEqual(
+      block.overtakes.map(o => o.cls),
+      ['hypercar'],
+    );
+  } finally {
+    cars.forEach((c, i) => {
+      for (const k of Object.keys(c)) delete c[k];
+      Object.assign(c, was[i]);
+    });
+  }
 });

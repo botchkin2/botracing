@@ -191,3 +191,16 @@ gcloud firestore fields ttls update expiresAt --collection-group=problems --enab
 ```
 
 Check: `gcloud firestore fields ttls list --project=botracing-61` lists `problems` as `ACTIVE`. Until it is on, old kinds stay (one small doc each); no client can read them (`firestore.rules` deny everything).
+
+## The golden set's reader (`goldenReader.mjs`)
+
+CI reads the golden set's slices (real laps, private bucket) with one account that can only read `golden/`: `roles/storage.objectViewer` on `gs://botracing-61-lmu` with the condition `resource.name.startsWith('projects/_/buckets/botracing-61-lmu/objects/golden/')`, no write, no delete, nothing at the project level. Its key is the repo secret `GOLDEN_READER_SERVICE_ACCOUNT` (written through a private temp file into `gh secret set` on stdin and deleted, never printed). The slices are fetched by the exact names `tools/golden/manifest.json` pins, because an object-name condition cannot cover listing. Rules in `goldenReaderPlan.mjs`, tests in `goldenReader.test.mjs`.
+
+```
+node ops/iam/goldenReader.mjs            # dry run: what exists, the steps it would take
+node ops/iam/goldenReader.mjs --apply    # creates the account, the prefix-only read binding, the repo secret
+```
+
+It only adds, and does nothing for what already exists, so a second run lists 0 steps. Needs gcloud logged in as an owner of `botracing-61` and `gh` logged in as the repo owner. Check: the dry run afterwards says `exists; golden/-only read binding: yes; repo secret GOLDEN_READER_SERVICE_ACCOUNT: set`.
+Undo: `gcloud iam service-accounts delete golden-reader@botracing-61.iam.gserviceaccount.com --project=botracing-61` and `gh secret delete GOLDEN_READER_SERVICE_ACCOUNT --repo botchkin2/botracing`; the golden tests then skip in CI again.
+

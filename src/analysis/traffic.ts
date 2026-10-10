@@ -11,7 +11,8 @@ export interface TrafficField {
   et0: number;
   /** Tenths of a second from `et0`, one per update. */
   tDs: number[];
-  cars: {class: string; player?: boolean}[];
+  /** `classLabel`: iRacing only (tools/sessions/irClasses.mjs). */
+  cars: {class: string; classLabel?: string; player?: boolean}[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
   inPits: (number | null)[][];
@@ -53,7 +54,7 @@ const ahead = (a: number, b: number, lengthM: number) =>
 export function overtakesOf(
   field: TrafficField,
   windows: {from: number; to: number}[],
-  pace: (carClass: string) => PaceOf,
+  pace: (car: {class: string; classLabel?: string}) => PaceOf,
 ): Overtake[][] {
   const out: Overtake[][] = windows.map(() => []);
   const me = field.cars.findIndex(c => c.player === true);
@@ -64,12 +65,12 @@ export function overtakesOf(
   for (const row of dist)
     for (const d of row) if (d !== null && d > lengthM) lengthM = d;
   if (lengthM === 0) return out;
-  const mine = pace(field.cars[me].class);
+  const mine = pace(field.cars[me]);
   const player = dist[me];
 
   field.cars.forEach((c, j) => {
     if (j === me) return;
-    const theirs = pace(c.class);
+    const theirs = pace(c);
     if (theirs.rank <= mine.rank) return;
     // The last gap that was not exactly 0 m (decimetre positions make a gap
     // of 0 m a real sample, neither ahead nor behind), cleared while either
@@ -102,8 +103,12 @@ export function overtakesOf(
   return out;
 }
 
-/** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
-export const TRAFFIC_VERSION = 5;
+/**
+ * Bump when the rules in this file or in lapFieldFacts change: a stale block is
+ * recomputed. 6: iRacing cars are classed by their label (GTP is Hypercar; an
+ * offline drive no longer makes every car the player's class).
+ */
+export const TRAFFIC_VERSION = 6;
 
 // `blueFlagS` is seconds with a faster-class car this many seconds behind on
 // the road (tools/sessions/fieldTags.mjs, evidence in its comment).

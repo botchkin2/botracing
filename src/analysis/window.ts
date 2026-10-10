@@ -153,3 +153,15 @@ export function playStep(
   if (t >= lapS) t -= lapS;
   return distanceAtTime(ref, t);
 }
+
+// Plays backwards by wall-clock seconds at a rate. Stops at the lap start
+// (distance 0) instead of looping.
+export function rewindStep(
+  ref: TimedGrid,
+  cursorM: number,
+  dtS: number,
+  rate: number,
+): number {
+  const t = timeAtDistance(ref, cursorM) - dtS * rate;
+  return t <= 0 ? 0 : distanceAtTime(ref, t);
+}

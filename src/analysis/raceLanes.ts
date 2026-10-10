@@ -44,6 +44,8 @@ export interface RaceLanes {
   pit: Span[];
   tow: Span[];
   battle: Span[];
+  /** The player's off-track stretches (`offTrackEvents`), given by the caller: they need the track edges. */
+  off: Span[];
   /** The start of each blue-flag stretch. */
   blueS: number[];
   /** Own-class passes; `made` is a pass by the player. */
@@ -57,6 +59,7 @@ const EMPTY: RaceLanes = {
   pit: [],
   tow: [],
   battle: [],
+  off: [],
   blueS: [],
   passes: [],
 };
@@ -82,7 +85,11 @@ function spansOf(on: Uint8Array, timeS: Float64Array, dtS: number): Span[] {
   return spans;
 }
 
-export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
+export function raceLanes(
+  field: Field,
+  clock: RaceClock,
+  off: Span[] = [],
+): RaceLanes {
   const me = field.cars.findIndex(c => c.player);
   const n = field.timeS.length;
   if (me < 0 || n === 0) return EMPTY;
@@ -170,6 +177,7 @@ export function raceLanes(field: Field, clock: RaceClock): RaceLanes {
     pit: spansOf(pit, field.timeS, dtS),
     tow: spansOf(tow, field.timeS, dtS),
     battle: spansOf(battle, field.timeS, dtS),
+    off,
     blueS: blue,
     passes,
   };

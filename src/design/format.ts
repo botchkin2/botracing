@@ -70,15 +70,27 @@ export function formatDistance(distanceM: number): string {
   return `${Math.round(distanceM).toLocaleString('en-US')} m`;
 }
 
+/**
+ * "14 Sep": the one place a short date is spelled, so no call site gets "Sept"
+ * from en-GB. The day comes first, as in the frames; the month is the US
+ * abbreviation. Device time zone.
+ */
+export function dayMonthOf(d: Date): string {
+  return `${d.getDate()} ${monthOf(d)}`;
+}
+
+// The one spelling of the short month: en-US, because en-GB gives "Sept".
+function monthOf(d: Date): string {
+  return d.toLocaleDateString('en-US', {month: 'short'});
+}
+
 /** "21 Sep 2026", in the device's time zone. */
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return `${String(d.getDate()).padStart(2, '0')} ${monthOf(
+    d,
+  )} ${d.getFullYear()}`;
 }
 
 /** 5891 → {km: "5.891 km", mi: "3.660 mi"} */
@@ -93,9 +105,7 @@ export function formatLength(distanceM: number): {km: string; mi: string} {
 export function formatDayMonth(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  // en-GB spells September "Sept"; the frames say "14 Sep".
-  const month = d.toLocaleDateString('en-US', {month: 'short'});
-  return `${d.getDate()} ${month}`;
+  return dayMonthOf(d);
 }
 
 /** "14 Sep, 18:30" this year, "14 Sep 2025" for an earlier year; device time zone. */

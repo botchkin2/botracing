@@ -7,7 +7,9 @@
 // 1: brake point and peak from the corner's own application (a section's
 //    single corner: the section's), full throttle is the held point, turn-in
 //    from the steering and throttle pickup / lowest throttle added (thread 58).
-export const CORNER_INPUTS_VERSION = 1;
+// 2: a window's corner/exit split is the map's exit for the corner, the same
+//    distance on every lap, not the lap's own full-throttle point (D43).
+export const CORNER_INPUTS_VERSION = 2;
 
 // Turn-in: going back from the peak steering on the corner's own side, the last
 // sample below this share of the peak. 10 % put Road Atlanta T1 on a pre-steer

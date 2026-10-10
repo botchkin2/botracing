@@ -19,14 +19,11 @@ export function AxleLines({
   unit,
   series,
   width,
-  medianLabel,
 }: {
   title: string;
   unit: string;
   series: AxleSeries;
   width: number;
-  /** What the key's median is, e.g. "stabilised hot". */
-  medianLabel: string;
 }) {
   const {color} = useTheme();
   const all = [...series.front, ...series.rear].filter(
@@ -95,7 +92,7 @@ export function AxleLines({
       <Text variant='dataSmall' tone='textSecondary'>
         {`Front ${fmt(series.medianFront)} solid · Rear ${fmt(
           series.medianRear,
-        )} dashed ${unit}, ${medianLabel}`}
+        )} dashed ${unit}`}
       </Text>
     </View>
   );

@@ -47,7 +47,7 @@ export type RaceData =
       prep: RacePrep;
       /** The player's lap and distance at a race time, and back; shared with Compare. */
       clock: RaceClock;
-      laps: {id: string; lapNumber: number | null}[];
+      laps: {id: string; lapNumber: number | null; timeS: number | null}[];
       placer: MapPlacer;
       /** The reference lap in map metres: fits the view and is the band without an outline. */
       line: {x: number; y: number}[];
@@ -169,7 +169,11 @@ export function useRaceData(sessionId: string): RaceData {
     mode: detail.sessionType === 'R' ? 'race' : 'field',
     prep,
     clock,
-    laps: (laps.data ?? []).map(l => ({id: l.id, lapNumber: l.lapNumber})),
+    laps: (laps.data ?? []).map(l => ({
+      id: l.id,
+      lapNumber: l.lapNumber,
+      timeS: l.timeS,
+    })),
     placer,
     line,
     outlineUse: refTrace

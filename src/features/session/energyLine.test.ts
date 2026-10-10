@@ -57,6 +57,19 @@ describe('energyLine', () => {
     });
   });
 
+  it('reads the start from the lap driven first, whatever order the laps arrive in', () => {
+    const laps = [
+      lap(1, {fuel: fuel({veStartPct: 87})}),
+      lap(2, {fuel: fuel({veStartPct: 55})}),
+      lap(3, {fuel: fuel({veStartPct: 40, veEndPct: 3})}),
+    ];
+    const shuffled = [laps[2], laps[0], laps[1]];
+    expect(energyLine('R', shuffled, null)).toEqual(
+      energyLine('R', laps, null),
+    );
+    expect(energyLine('R', shuffled, null)?.text).toBe('VE 87 % → 3 %');
+  });
+
   it('adds the stops and what they added, VE first', () => {
     const laps = [
       lap(1, {fuel: fuel()}),

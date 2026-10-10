@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 
 import {space, useLayout, useTheme} from '@/src/design';
-import {trackHref} from '@/src/nav/routes';
+import {compareHref, trackHref} from '@/src/nav/routes';
 import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
 
@@ -27,9 +27,9 @@ import {StintsPanel} from './StintsPanel';
 const PAD_X = space.xl + space.xs;
 
 /**
- * Desktop (≥1280) D1 Session workspace: centre (header, lap-time bars, wide
- * lap table) and a 340 pt right column (stints, stint vs stint,
- * lap detail, compare tray). The rail sits left of it in the route. Only
+ * Desktop (≥1280) D1 Session workspace: centre (header, lap-time bars, grid,
+ * wide lap table, and the compare tray pinned under them) and a 340 pt right
+ * column (stints, stint vs stint, lap detail). The rail sits left of it in the route. Only
  * rearranges the phone's components; the screen passes them in.
  */
 export function SessionWorkspace({
@@ -81,6 +81,8 @@ export function SessionWorkspace({
   const listRef = useRef<FlatList<RowModel>>(null);
   const sideRef = useRef<ScrollView>(null);
   const cardsY = useRef(0);
+  // The list header's height, so scrollToIndex lands on the right row.
+  const headerH = useRef(0);
   // layout.width already excludes the rail (the route's ContentInset).
   const centreW = layout.width - side.width - PANEL_DIVIDER_W;
   const innerW = centreW - PAD_X * 2;
@@ -110,83 +112,106 @@ export function SessionWorkspace({
 
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
+      {/* One vertical scroller for the whole centre: the stats, chart and
+          grid scroll with the lap table. A fixed-height column above the list
+          clipped a tall grid and left the list no height to scroll. */}
       <View style={{width: centreW}}>
-        <View style={styles.head}>
-          {/* The bar names the session (round 6), so the head is the stats row. */}
-          {model.trackId ? (
-            <Pressable
-              accessibilityRole='link'
-              onPress={() => router.push(trackHref(model.trackId))}
-              hitSlop={space.md}>
-              <Text variant='dataSmall' tone='accentInk'>
-                Track page ›
-              </Text>
-            </Pressable>
-          ) : null}
-          <View style={styles.facts}>
-            {model.facts.map(f => (
-              <View key={f.label}>
-                <Text variant='tableHeader' tone='textMuted'>
-                  {f.label}
-                </Text>
-                <Text
-                  variant='dataStrong'
-                  tone={f.best ? 'best' : 'text'}
-                  style={styles.factValue}>
-                  {f.value}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        <View style={styles.extra}>
-          {model.energy ? (
-            <EnergyLineRow
-              line={model.energy}
-              onPress={() =>
-                sideRef.current?.scrollTo({y: cardsY.current, animated: true})
-              }
-            />
-          ) : null}
-          {model.optimum.length > 0 ? (
-            <>
-              <View style={styles.optimum}>
-                {model.optimum.map(f => (
-                  <View key={f.label}>
-                    <Text variant='tableHeader' tone='textMuted'>
-                      {f.label}
-                    </Text>
-                    <Text variant='dataStrong' style={styles.factValue}>
-                      {f.value}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          ) : null}
-        </View>
-        <View style={styles.chart}>{chart(innerW)}</View>
-        <SessionGrid
-          id={sessionId}
-          ticked={selection.laps}
-          onTap={lapId =>
-            onSelectionChange({
-              ...selection,
-              laps: toggle(selection.laps, lapId),
-            })
-          }
-        />
-        <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
-          <LapTableHeader width={innerW} wide heads={model.sections?.heads} />
-        </View>
         <FlatList
           ref={listRef}
           style={styles.flex}
           data={model.rows}
           keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
+          ListHeaderComponent={
+            <View
+              onLayout={e => (headerH.current = e.nativeEvent.layout.height)}>
+              <View style={styles.head}>
+                {/* The bar names the session (round 6), so the head is the stats row. */}
+                {model.trackId ? (
+                  <Pressable
+                    accessibilityRole='link'
+                    onPress={() => router.push(trackHref(model.trackId))}
+                    hitSlop={space.md}>
+                    <Text variant='dataSmall' tone='accentInk'>
+                      Track page ›
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <View style={styles.facts}>
+                  {model.facts.map(f => (
+                    <View key={f.label}>
+                      <Text variant='tableHeader' tone='textMuted'>
+                        {f.label}
+                      </Text>
+                      <Text
+                        variant='dataStrong'
+                        tone={f.best ? 'best' : 'text'}
+                        style={styles.factValue}>
+                        {f.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.extra}>
+                {model.energy ? (
+                  <EnergyLineRow
+                    line={model.energy}
+                    onPress={() =>
+                      sideRef.current?.scrollTo({
+                        y: cardsY.current,
+                        animated: true,
+                      })
+                    }
+                  />
+                ) : null}
+                {model.optimum.length > 0 ? (
+                  <>
+                    <View style={styles.optimum}>
+                      {model.optimum.map(f => (
+                        <View key={f.label}>
+                          <Text variant='tableHeader' tone='textMuted'>
+                            {f.label}
+                          </Text>
+                          <Text variant='dataStrong' style={styles.factValue}>
+                            {f.value}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                ) : null}
+              </View>
+              <View style={styles.chart}>{chart(innerW)}</View>
+              <SessionGrid
+                id={sessionId}
+                ticked={selection.laps}
+                onTap={lapId =>
+                  onSelectionChange({
+                    ...selection,
+                    laps: toggle(selection.laps, lapId),
+                  })
+                }
+              />
+              <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
+                <LapTableHeader
+                  width={innerW}
+                  wide
+                  heads={model.sections?.heads}
+                  headTaps={model.sections?.targets.map(t => t.corner != null)}
+                  onHeadPress={i => {
+                    const corner = model.sections?.sections[i];
+                    if (corner != null)
+                      router.push(
+                        compareHref(sessionId, {laps: selection.laps, corner}),
+                      );
+                  }}
+                />
+              </View>
+            </View>
+          }
           getItemLayout={(_, index) => ({
             length: WIDE_ROW_H,
-            offset: WIDE_ROW_H * index,
+            offset: headerH.current + WIDE_ROW_H * index,
             index,
           })}
           renderItem={({item}) => (
@@ -205,6 +230,17 @@ export function SessionWorkspace({
             </View>
           }
         />
+        {/* The tray sits under the list, outside it: beside the grid where
+            laps are ticked (D16), never scrolled away, never over the last row. */}
+        {tray && (
+          <View
+            style={[
+              styles.tray,
+              {backgroundColor: color.surface, borderColor: color.lineHeader},
+            ]}>
+            {tray}
+          </View>
+        )}
       </View>
       <PanelDivider
         width={side.width}
@@ -230,15 +266,6 @@ export function SessionWorkspace({
           />
           {detail}
         </ScrollView>
-        {tray && (
-          <View
-            style={[
-              styles.tray,
-              {backgroundColor: color.surface, borderColor: color.lineHeader},
-            ]}>
-            {tray}
-          </View>
-        )}
       </View>
     </View>
   );
