@@ -1,7 +1,14 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
-import {carsAt, OFF_TRACK_M, prepareRace, STOPPED_FOR_S} from './raceState';
+import {
+  CAR_HALF_WIDTH_M,
+  carsAt,
+  OFF_HOLD_S,
+  OFF_TRACK_M,
+  prepareRace,
+  STOPPED_FOR_S,
+} from './raceState';
 
 const HZ = 5;
 
@@ -271,13 +278,7 @@ describe('carsAt', () => {
     const inPit = (u: number) =>
       (u >= 10 && u < 20) || (u >= 40 && u < 115) || u >= 150;
     const f = field(160, [
-      car(
-        0,
-        'GT3',
-        160,
-        u => ({d: u * 10, pit: inPit(u), laps: 1}),
-        true,
-      ),
+      car(0, 'GT3', 160, u => ({d: u * 10, pit: inPit(u), laps: 1}), true),
       car(1, 'GT3', 160, u => ({d: u * 10, pit: u < 2, laps: 1})),
     ]);
     expect(at(f, 15 / HZ)[0]).toMatchObject({state: 'pit', pits: 0});
@@ -314,6 +315,50 @@ describe('carsAt', () => {
       car(2, 'GT3', 2, () => ({d: 30, lat: OFF_TRACK_M})),
     ]);
     expect(at(f, 0).map(c => c.state)).toEqual(['off', 'off', 'running']);
+  });
+
+  describe('off track from the measured edge', () => {
+    // A 100 m lap, edges 6 m either side everywhere.
+    const edges = {
+      stepM: 10,
+      lengthM: 100,
+      leftM: Array(10).fill(6),
+      rightM: Array(10).fill(6),
+    };
+    const states = (f: Field, u: number) =>
+      carsAt(prepareRace(f, edges), f.timeS[u], false).map(c => c.state);
+
+    it('is off past the edge plus half a car, not past 7.5 m', () => {
+      const limit = 6 + CAR_HALF_WIDTH_M;
+      const f = field(2, [
+        car(0, 'GT3', 2, () => ({d: 10, lat: limit + 0.1}), true),
+        car(1, 'GT3', 2, () => ({d: 20, lat: -(limit + 0.1)})),
+        car(2, 'GT3', 2, () => ({d: 30, lat: limit - 0.1})),
+        car(3, 'GT3', 2, () => ({d: 40, lat: 7.2})),
+      ]);
+      // car 3 is 7.2 m out: inside 7.5 m, past edge + half a car (7 m), so off.
+      expect(states(f, 1)).toEqual(['off', 'off', 'running', 'off']);
+    });
+
+    it('needs the offset to hold for OFF_HOLD_S, not one update', () => {
+      const hold = Math.round(OFF_HOLD_S * HZ);
+      expect(hold).toBe(2);
+      const f = field(3, [
+        car(0, 'GT3', 3, u => ({d: 10, lat: u === 2 ? 9 : 0}), true),
+      ]);
+      // Off only at update 2: update 1 was on the road, so no hold.
+      expect(states(f, 2)).toEqual(['running']);
+      const g = field(3, [
+        car(0, 'GT3', 3, u => ({d: 10, lat: u >= 1 ? 9 : 0}), true),
+      ]);
+      expect(states(g, 2)).toEqual(['off']);
+    });
+
+    it('falls back to 7.5 m with no measured edge', () => {
+      const f = field(2, [car(0, 'GT3', 2, () => ({d: 10, lat: 7.6}), true)]);
+      const prep = prepareRace(f);
+      expect(carsAt(prep, f.timeS[1], false)[0].state).toBe('off');
+    });
   });
 
   it('files without heading give null', () => {

@@ -65,6 +65,10 @@ The phone loads one stint and overlays whichever laps you turn on. Nothing is fi
 
 ## Track limits
 
+Off track (the race screen and the Cars around list) is measured against the road, not a fixed number: a car is off when its `Path Lateral` passes the measured road edge at its lap distance plus 1 m (half a car width), held 0.3 s (`OFF_HOLD_S`, #321). An edge needs 3 laps (`MIN_EDGE_LAPS`) to count; a side no lap measured takes the median half-width. With no measured edge, the old 7.5 m applies. The edge comes from `trackSurface.ts`; `raceState.ts` applies the rule at read time, so stored sessions need no re-analysis.
+
+Recorder x/z is not the road: at Road Atlanta T7 (1,950 to 2,150 m) it sits about 8 m off the measured road for every car, the player included, while `Path Lateral` and lap distance agree with the trace (pit-wall #3833). The Race map therefore draws cars from lap distance and `Path Lateral` on the centre line (`placeFieldOnLine`), and uses x/z only where lap distance is missing.
+
 The recording does not contain LMU's official track-limit penalty counter. That counter exists on the live shared-memory struct (`mTrackLimitsSteps` in community notes) and is not one of the DuckDB channels. Dave Delta's `.delta` files do not document it either, so we will not try to scrape it from there.
 
 What the DuckDB file does contain, confirmed on the Road Atlanta practice file and in `Support\SharedMemoryInterface\InternalsPlugin.hpp`:
