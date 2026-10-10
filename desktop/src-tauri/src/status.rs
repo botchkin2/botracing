@@ -42,6 +42,38 @@ pub enum Upload {
     Idle,
 }
 
+/// One sim's part of the heartbeat (`sims.<id>`, tools/uploader/heartbeat.mjs
+/// simsDoc): its own queue, its own sync's progress, its retry and its error. A
+/// heartbeat from an uploader that has no `sims` yet reads as the whole
+/// watcher, as before.
+pub fn upload_of(beat: Option<&Value>, sim: &str) -> Upload {
+    let Some(b) = beat else {
+        return Upload::Starting;
+    };
+    let Some(s) = b["sims"].get(sim).filter(|s| s.is_object()) else {
+        return upload(beat);
+    };
+    if let Some(message) = s["lastError"]["message"].as_str() {
+        return Upload::Error(message.to_string());
+    }
+    if s["syncing"].as_bool() == Some(true) {
+        return Upload::Syncing {
+            done: s["progress"]["done"].as_u64(),
+            total: s["progress"]["total"].as_u64(),
+        };
+    }
+    if b["state"].as_str() == Some("in-game") {
+        return Upload::InGame;
+    }
+    if s["retryAt"].is_string() {
+        return Upload::Retrying;
+    }
+    match s["queue"].as_u64().unwrap_or(0) {
+        0 => Upload::Idle,
+        n => Upload::Queued(n),
+    }
+}
+
 pub fn upload(beat: Option<&Value>) -> Upload {
     let Some(beat) = beat else {
         return Upload::Starting;
@@ -138,5 +170,53 @@ mod tests {
             Upload::Error("sync crashed: x".into())
         );
         assert_eq!(upload(Some(&beat(r#"{"state":"new-state"}"#))), Upload::Starting);
+    }
+
+    #[test]
+    fn each_sim_reads_its_own_part_of_the_heartbeat() {
+        let b = beat(
+            r#"{"state":"syncing","queue":7,"progress":{"done":2,"total":5},
+                "sims":{
+                  "lmu":{"queue":2,"syncing":false,"progress":null,"retryAt":null,"lastError":null},
+                  "iracing":{"queue":5,"syncing":true,"progress":{"done":2,"total":5},"retryAt":null,"lastError":null}}}"#,
+        );
+        assert_eq!(upload_of(Some(&b), "lmu"), Upload::Queued(2));
+        assert_eq!(
+            upload_of(Some(&b), "iracing"),
+            Upload::Syncing {
+                done: Some(2),
+                total: Some(5)
+            }
+        );
+    }
+
+    #[test]
+    fn a_sims_error_retry_and_idle_are_its_own() {
+        let b = beat(
+            r#"{"state":"error","queue":3,
+                "sims":{
+                  "lmu":{"queue":0,"syncing":false,"progress":null,"retryAt":null,"lastError":{"at":"x","message":"sync crashed"}},
+                  "iracing":{"queue":1,"syncing":false,"progress":null,"retryAt":"2026-10-09T12:00:00.000Z","lastError":null}}}"#,
+        );
+        assert_eq!(upload_of(Some(&b), "lmu"), Upload::Error("sync crashed".into()));
+        assert_eq!(upload_of(Some(&b), "iracing"), Upload::Retrying);
+        let idle = beat(
+            r#"{"state":"waiting-for-game","queue":0,"sims":{"lmu":{"queue":0,"syncing":false,"progress":null,"retryAt":null,"lastError":null}}}"#,
+        );
+        assert_eq!(upload_of(Some(&idle), "lmu"), Upload::Idle);
+        let ingame = beat(
+            r#"{"state":"in-game","queue":1,"sims":{"lmu":{"queue":1,"syncing":false,"progress":null,"retryAt":null,"lastError":null}}}"#,
+        );
+        assert_eq!(upload_of(Some(&ingame), "lmu"), Upload::InGame);
+    }
+
+    #[test]
+    fn a_heartbeat_without_sims_reads_as_the_whole_watcher_and_no_beat_is_starting() {
+        let old = beat(r#"{"state":"syncing","progress":{"done":2,"total":5}}"#);
+        assert_eq!(upload_of(Some(&old), "lmu"), upload(Some(&old)));
+        // A sim the heartbeat does not list falls back too.
+        let one = beat(r#"{"state":"waiting-for-game","queue":4,"sims":{"lmu":{"queue":4}}}"#);
+        assert_eq!(upload_of(Some(&one), "iracing"), Upload::Queued(4));
+        assert_eq!(upload_of(None, "lmu"), Upload::Starting);
     }
 }
