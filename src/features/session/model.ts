@@ -499,6 +499,7 @@ export function buildSessionModel(
       timeS: l.timeS,
       stint: l.stint,
       comparable: l.comparable,
+      pit: l.pitIn || l.pitOut,
     })),
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
       session.track,

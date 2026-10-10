@@ -3,7 +3,7 @@ import {PanResponder, StyleSheet, View} from 'react-native';
 
 import {space, useTheme} from '@/src/design';
 
-import {type StripLap, stripBars} from '../lapStrip';
+import {type StripLap, stintSpans, stripBars} from '../lapStrip';
 
 // The lap strip (Botkin's loop, #3585): one bar per lap, its height the lap's
 // delta to the median of the ticked laps. A tap ticks one lap; a drag over
@@ -56,11 +56,26 @@ export function LapStrip({
     },
   });
 
+  const spans = stintSpans(laps);
   return (
     <View
       style={styles.strip}
       onLayout={e => setWidth(e.nativeEvent.layout.width)}
       {...responder.panHandlers}>
+      {/* Stint bands: a tinted run behind each stint, alternating. */}
+      {spans.map((sp, k) => (
+        <View
+          key={`band-${sp.from}`}
+          style={[
+            styles.band,
+            {
+              left: sp.from * barW,
+              width: (sp.to - sp.from + 1) * barW,
+              backgroundColor: k % 2 ? color.lineHeader : 'transparent',
+            },
+          ]}
+        />
+      ))}
       {bars.map((b, i) => {
         const h =
           b.deltaS == null
@@ -70,18 +85,22 @@ export function LapStrip({
           <View
             key={b.lapId}
             accessibilityLabel={`Lap ${laps[i].id}`}
-            style={[
-              styles.bar,
-              {
-                width: Math.max(2, barW - 2),
-                height: h,
-                backgroundColor: b.ticked ? color.accent : color.lineStrong,
-                opacity: b.comparable ? 1 : 0.4,
-                marginLeft:
-                  laps[i].stint !== laps[i - 1]?.stint && i > 0 ? 6 : 0,
-              },
-            ]}
-          />
+            style={styles.slot}>
+            <View
+              style={[
+                styles.bar,
+                {
+                  width: Math.max(2, barW - 2),
+                  height: h,
+                  backgroundColor: b.ticked ? color.accent : color.lineStrong,
+                  opacity: b.comparable ? 1 : 0.4,
+                },
+              ]}
+            />
+            {b.pit ? (
+              <View style={[styles.pit, {backgroundColor: color.textMuted}]} />
+            ) : null}
+          </View>
         );
       })}
     </View>
@@ -97,4 +116,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   bar: {borderRadius: 2},
+  band: {position: 'absolute', top: 0, bottom: 0, borderRadius: 4},
+  slot: {flex: 1, alignItems: 'center', justifyContent: 'flex-end'},
+  pit: {position: 'absolute', top: 0, width: 4, height: 4, borderRadius: 2},
 });

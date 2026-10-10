@@ -1,18 +1,14 @@
 import {describe, expect, test} from '@jest/globals';
 
-import {median, stripBars} from './lapStrip';
+import {median, stintSpans, stripBars} from './lapStrip';
 
 const lap = (
   id: string,
   timeS: number | null,
   stint = 1,
   comparable = true,
-) => ({
-  id,
-  timeS,
-  stint,
-  comparable,
-});
+  pit = false,
+) => ({id, timeS, stint, comparable, pit});
 
 describe('median', () => {
   test('the middle value, or the mean of the two middle values', () => {
@@ -54,5 +50,32 @@ describe('stripBars', () => {
     const {bars, basisS} = stripBars([lap('a', null)], []);
     expect(basisS).toBeNull();
     expect(bars[0].deltaS).toBeNull();
+  });
+});
+
+describe('stintSpans', () => {
+  test('consecutive laps of one stint share a span', () => {
+    const laps = [
+      lap('a', 80, 1),
+      lap('b', 80, 1),
+      lap('c', 80, 2),
+      lap('d', 80, 2),
+      lap('e', 80, 2),
+    ];
+    expect(stintSpans(laps)).toEqual([
+      {stint: 1, from: 0, to: 1},
+      {stint: 2, from: 2, to: 4},
+    ]);
+  });
+
+  test('no laps, no spans', () => {
+    expect(stintSpans([])).toEqual([]);
+  });
+});
+
+describe('pit laps', () => {
+  test('a pit lap is marked on its bar', () => {
+    const {bars} = stripBars([lap('a', 80), lap('b', 90, 1, true, true)], []);
+    expect(bars.map(b => b.pit)).toEqual([false, true]);
   });
 });

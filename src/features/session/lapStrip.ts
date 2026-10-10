@@ -10,6 +10,8 @@ export type StripLap = {
   timeS: number | null;
   stint: number;
   comparable: boolean;
+  /** Entered or left the pit lane. */
+  pit: boolean;
 };
 
 export type StripBar = {
@@ -17,6 +19,7 @@ export type StripBar = {
   stint: number;
   ticked: boolean;
   comparable: boolean;
+  pit: boolean;
   /** Seconds against the basis median; null when the lap or the basis has no time. */
   deltaS: number | null;
 };
@@ -44,7 +47,21 @@ export function stripBars(
     stint: l.stint,
     ticked: ticked.includes(l.id),
     comparable: l.comparable,
+    pit: l.pit,
     deltaS: basisS != null && l.timeS != null ? l.timeS - basisS : null,
   }));
   return {bars, basisS};
+}
+
+/** The laps of each stint, as index ranges over the strip (inclusive ends). */
+export function stintSpans(
+  laps: readonly StripLap[],
+): {stint: number; from: number; to: number}[] {
+  const spans: {stint: number; from: number; to: number}[] = [];
+  laps.forEach((l, i) => {
+    const last = spans[spans.length - 1];
+    if (last && last.stint === l.stint) last.to = i;
+    else spans.push({stint: l.stint, from: i, to: i});
+  });
+  return spans;
 }
