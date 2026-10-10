@@ -25,10 +25,21 @@ pub trait RunStore {
 /// window (a start from the Start menu or a shortcut opens it).
 pub const BACKGROUND_ARG: &str = "--background";
 
+/// The exe's path without the verbatim `\\?\` form Windows can hand back for a
+/// long or canonicalized path: Explorer reads the Run value at logon and does
+/// not take that prefix (the 0.1.2 bug class). A UNC path keeps its prefix.
+fn plain_path(exe: &Path) -> String {
+    let text = exe.display().to_string();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with(r"UNC\") => rest.to_string(),
+        _ => text,
+    }
+}
+
 /// What the Run value holds: the exe, quoted (a path with spaces would
 /// otherwise start the wrong program), and the background flag.
 pub fn command_for(exe: &Path) -> String {
-    format!("\"{}\" {BACKGROUND_ARG}", exe.display())
+    format!("\"{}\" {BACKGROUND_ARG}", plain_path(exe))
 }
 
 /// Makes sure the Run value is this exe's command. An error is the registry
@@ -199,6 +210,18 @@ mod tests {
         let store = Fake::default();
         assert_eq!(ensure_on(&store, &exe()), Ok(()));
         assert_eq!(store.get(), Some(command_for(&exe())));
+    }
+
+    #[test]
+    fn the_verbatim_path_form_never_reaches_the_run_value() {
+        let verbatim =
+            PathBuf::from(r"\\?\C:\Users\Test Ünïcode\AppData\Local\BotRacing\botracing.exe");
+        assert_eq!(
+            command_for(&verbatim),
+            r#""C:\Users\Test Ünïcode\AppData\Local\BotRacing\botracing.exe" --background"#
+        );
+        let unc = PathBuf::from(r"\\?\UNC\host\share\botracing.exe");
+        assert_eq!(command_for(&unc), r#""\\?\UNC\host\share\botracing.exe" --background"#);
     }
 
     #[test]
