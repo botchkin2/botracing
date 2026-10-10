@@ -7,6 +7,7 @@ import {
   readTrace,
   readTrackMap,
   listFacets,
+  listPlanSessions,
   listSessions,
   readSession,
   readSessionLaps,
@@ -16,6 +17,7 @@ import {
   readFieldGzip,
 } from './sessionStore';
 import {Unauthorized, resolveOwner} from './ownerAccess';
+import {parsePlanQuery} from './planQuery';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
 
@@ -102,6 +104,19 @@ export const lmuApi = onRequest(
       // Corner). Straight from the store, no legacy lap shape.
       if (/\/uploaders$/.test(path)) {
         res.status(200).json({items: await listUploaders(owner)});
+        return;
+      }
+      // The Plan's one request per track and car (docs/API.md): the sessions'
+      // plan blocks, a projection query, no lap docs.
+      if (/\/plan$/.test(path)) {
+        const asked = parsePlanQuery(req.query);
+        if (!asked.ok) {
+          res.status(400).json({error: asked.error});
+          return;
+        }
+        res
+          .status(200)
+          .json(await listPlanSessions(owner, asked.combo, asked.lapSessions));
         return;
       }
       if (/\/sessions\/facets$/.test(path)) {

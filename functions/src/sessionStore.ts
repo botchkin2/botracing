@@ -4,6 +4,13 @@
 import * as admin from 'firebase-admin';
 import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
 import {
+  PLAN_FIELDS,
+  PLAN_MAX_SESSIONS,
+  planRows,
+  type PlanCombo,
+  type PlanRow,
+} from './planQuery';
+import {
   pathInsideOwner,
   trustedTrackPath,
   uploaderItems,
@@ -221,6 +228,35 @@ export const SESSION_LIST_FIELDS = [
   'analysisVersion',
   'updatedAt',
 ];
+
+/**
+ * One combo's sessions for the Plan, newest first: a single query on the
+ * (ownerId, sim, trackId, carModel, startedAt) index with a projection, so no
+ * lap doc and no other session field is read. `truncated` says the combo had
+ * more than the cap.
+ */
+export async function listPlanSessions(
+  owner: string,
+  combo: PlanCombo,
+  lapSessions: number,
+): Promise<{items: PlanRow[]; truncated: boolean}> {
+  const snap = await admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', owner)
+    .where('sim', '==', combo.sim)
+    .where('trackId', '==', combo.trackId)
+    .where('carModel', '==', combo.carModel)
+    .orderBy('startedAt', 'desc')
+    .limit(PLAN_MAX_SESSIONS + 1)
+    .select(...PLAN_FIELDS)
+    .get();
+  const truncated = snap.docs.length > PLAN_MAX_SESSIONS;
+  return {
+    items: planRows(snap.docs.slice(0, PLAN_MAX_SESSIONS), lapSessions),
+    truncated,
+  };
+}
 
 export async function listSessions(
   owner: string,
