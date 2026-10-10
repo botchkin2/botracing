@@ -353,6 +353,7 @@ const PROBLEM_KINDS = [
   'sync-crashed',
   'recorder-layout',
   'uploader-stopped',
+  'file-unreadable',
 ];
 const MAX_PROBLEMS = 10;
 const optional = (v: unknown, ok: (x: unknown) => boolean) =>
