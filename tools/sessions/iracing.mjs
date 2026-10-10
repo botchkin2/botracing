@@ -41,7 +41,11 @@ export const watcher = {
   gameExeEnv: null,
 };
 
-export const describeVersion = 5;
+// Bump when describe() changes what it returns for a file already described
+// (describeCache.mjs: an entry of another version is described again).
+// 6: groupId is null for an offline drive (SubSessionID 0), so cached
+//    `iracing|0|0` ids stop merging every offline drive into one session.
+export const describeVersion = 6;
 
 export function slug(name) {
   return String(name)
@@ -228,7 +232,11 @@ export function describe(path) {
       driver: yamlField(yaml, 'UserName'),
       recordedAt,
       sessionClock: `${sub}:${sess}`,
-      groupId: `${sim}|${sub}|${sess}`,
+      // Only an online sub-session names one weekend session. Every offline
+      // drive has SubSessionID 0, so 0|0|n would join all of them, years and
+      // tracks apart, into a few giant sessions (603 files in one on Botkin's PC,
+      // the 4 Oct Fuji drive among them): those group by the wall clock instead.
+      groupId: sub !== '0' ? `${sim}|${sub}|${sess}` : null,
       sessionType: session.mapped,
       sessionTypeRaw: session.raw,
       track: yamlField(yaml, 'TrackDisplayName') || 'Unknown track',
