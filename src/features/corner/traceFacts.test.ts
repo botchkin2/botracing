@@ -27,7 +27,7 @@ describe('noBrakeIn', () => {
 
 describe('lapsShownText', () => {
   it('says how many laps are drawn, only when some are not', () => {
-    expect(lapsShownText(13, 44)).toBe('Showing 13 of 44 laps');
+    expect(lapsShownText(13, 44)).toBe('13 of 44 laps');
     expect(lapsShownText(13, 13)).toBeNull();
   });
 });

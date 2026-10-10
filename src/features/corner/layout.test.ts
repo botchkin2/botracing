@@ -7,8 +7,8 @@ describe('cornerLayout', () => {
     const l = cornerLayout(false);
     expect(l.order.slice(0, 3)).toEqual(['charts', 'shape', 'laps']);
     expect(l.pinnedSeek).toBe(true);
-    expect(l.order).not.toContain('spread');
-    expect(l.folded).toEqual([]);
+    expect(l.order.indexOf('spread')).toBeGreaterThan(l.order.indexOf('laps'));
+    expect(l.folded).toEqual(['spread']);
   });
 
   it('wide: shape and table lead the left bar, the spread is folded', () => {

@@ -238,6 +238,6 @@ describe('the Corner model with windows', () => {
   });
 
   it('keeps the old stretch for a track with no boundaries', () => {
-    const model = build(mapWith(null), null, 3)!;
+    build(mapWith(null), null, 3);
   });
 });

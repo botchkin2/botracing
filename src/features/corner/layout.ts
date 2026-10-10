@@ -13,8 +13,8 @@ export type CornerLayout = {
 };
 
 /**
- * Phone: charts, the corner shape, the lap table; the spread strips and the
- * section window repeat the charts and the table, so they are not on it.
+ * Phone: charts, the corner shape, the lap table, then the folded spread
+ * (strips, section window); nothing is cut, it is just below the first read.
  * Wide: the shape and the table lead the left bar (the charts are the right
  * column), the spread folds under them.
  */
@@ -27,7 +27,7 @@ export function cornerLayout(wide: boolean): CornerLayout {
     };
   return {
     pinnedSeek: true,
-    order: ['charts', 'shape', 'laps', 'nav'],
-    folded: [],
+    order: ['charts', 'shape', 'laps', 'spread', 'nav'],
+    folded: ['spread'],
   };
 }

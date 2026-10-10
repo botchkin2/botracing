@@ -91,11 +91,6 @@ export function ZoomTraces({
           {zoom.caption}
         </Text>
       ) : null}
-      {shownText && (
-        <Text variant='dataSmall' tone='textMuted'>
-          {shownText}
-        </Text>
-      )}
     </View>
   );
   const noBrake = noBrakeIn(
@@ -275,7 +270,7 @@ export function ZoomTraces({
           />
         </>
       )}
-      {header('speed', 'Speed km/h')}
+      {header('speed', `Speed km/h${shownText ? ` · ${shownText}` : ''}`)}
       <TraceChart
         {...common}
         height={heights.speed}

@@ -83,6 +83,8 @@ const DESK_H: ZoomHeights = {
 // less the 600 column, the divider and the gutters), so the default holds.
 const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
+// Four rows of 40 pt.
+const WIDE_TABLE_BODY_H = 160;
 
 export function CornerScreen({
   sessionId,
@@ -334,6 +336,7 @@ function CornerView({
 
   const spread = (
     <View style={styles.gap}>
+      {layout.isWide ? null : allChip}
       {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
@@ -756,63 +759,68 @@ function CornerTable({
           );
         })}
       </View>
-      {rows.map(r => (
-        <Pressable
-          key={r.lapId}
-          onPress={() => onPressRow(r.lapId)}
-          style={[
-            styles.tableRow,
-            {borderColor: color.line},
-            r.highlighted && {backgroundColor: color.accentTint},
-          ]}>
-          <View style={styles.lapCol}>
-            <View style={styles.row}>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    backgroundColor: lapColor(
-                      r.onIndex,
-                      r.selIndex,
-                      r.highlighted,
-                    ),
-                  },
-                ]}
-              />
-              <Text variant='dataStrong'>{r.label}</Text>
-            </View>
-            {r.isRef && (
-              <Text variant='dataSmall' tone='textFaint'>
-                REF
-              </Text>
-            )}
-          </View>
-          {MEASURES.map(m => {
-            const c = r.cells[m.id];
-            return (
-              <View key={m.id} style={styles.cellCol}>
-                <Text variant='data' style={styles.right}>
-                  {c.value}
-                </Text>
-                {c.gap != null && (
-                  <Text
-                    variant='dataSmall'
-                    tone={
-                      m.id === 'time'
-                        ? c.better
-                          ? 'faster'
-                          : 'slower'
-                        : 'textMuted'
-                    }
-                    style={styles.right}>
-                    {c.gap}
-                  </Text>
-                )}
+      <ScrollView
+        style={styles.tableBody}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator>
+        {rows.map(r => (
+          <Pressable
+            key={r.lapId}
+            onPress={() => onPressRow(r.lapId)}
+            style={[
+              styles.tableRow,
+              {borderColor: color.line},
+              r.highlighted && {backgroundColor: color.accentTint},
+            ]}>
+            <View style={styles.lapCol}>
+              <View style={styles.row}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      backgroundColor: lapColor(
+                        r.onIndex,
+                        r.selIndex,
+                        r.highlighted,
+                      ),
+                    },
+                  ]}
+                />
+                <Text variant='dataStrong'>{r.label}</Text>
               </View>
-            );
-          })}
-        </Pressable>
-      ))}
+              {r.isRef && (
+                <Text variant='dataSmall' tone='textFaint'>
+                  REF
+                </Text>
+              )}
+            </View>
+            {MEASURES.map(m => {
+              const c = r.cells[m.id];
+              return (
+                <View key={m.id} style={styles.cellCol}>
+                  <Text variant='data' style={styles.right}>
+                    {c.value}
+                  </Text>
+                  {c.gap != null && (
+                    <Text
+                      variant='dataSmall'
+                      tone={
+                        m.id === 'time'
+                          ? c.better
+                            ? 'faster'
+                            : 'slower'
+                          : 'textMuted'
+                      }
+                      style={styles.right}>
+                      {c.gap}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </Pressable>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -899,6 +907,9 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   tableHead: {minHeight: 30, borderTopWidth: 1},
+  // Wide: the rows scroll under a fixed header, sized so the shape, the table
+  // and the Spread fold header share the first 1440x900 screen (D32).
+  tableBody: {maxHeight: WIDE_TABLE_BODY_H},
   lapCol: {width: 44},
   cellCol: {flex: 1},
   phoneTable: {flexDirection: 'row'},
