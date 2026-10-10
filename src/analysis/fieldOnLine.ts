@@ -128,6 +128,9 @@ export function placeFieldOnLine(
   } = {lateral: false},
 ): Field {
   const {lateral, worldToMap} = opts;
+  // The car's x/z in the line's frame: identity when the line is world metres.
+  const toLine = (x: number, z: number) =>
+    worldToMap ? worldToMap(x, z) : {x, y: z};
   const updates = field.timeS.length;
   const cars: FieldCar[] = field.cars.map(car => {
     const xM = new Float32Array(updates).fill(NaN);
@@ -140,13 +143,8 @@ export function placeFieldOnLine(
       : new Float32Array(updates).fill(NaN);
     for (let u = 0; u < updates; u++) {
       const d = car.lapDistM[u];
-      if (
-        lateral &&
-        !Number.isNaN(d) &&
-        worldToMap &&
-        car.xM[u] === car.xM[u]
-      ) {
-        const w = worldToMap(car.xM[u], car.zM[u]);
+      if (lateral && !Number.isNaN(d) && car.xM[u] === car.xM[u]) {
+        const w = toLine(car.xM[u], car.zM[u]);
         const at = projectOnLine(line, stepM, d, w.x, w.y);
         if (at) {
           const off = Number.isFinite(car.pathLateralM[u])
@@ -171,8 +169,8 @@ export function placeFieldOnLine(
         continue;
       }
       // No lap distance: the world position is all there is (pit lane, garage).
-      if (lateral && worldToMap && car.xM[u] === car.xM[u]) {
-        const p = worldToMap(car.xM[u], car.zM[u]);
+      if (lateral && car.xM[u] === car.xM[u]) {
+        const p = toLine(car.xM[u], car.zM[u]);
         xM[u] = p.x;
         zM[u] = p.y;
         yawRad[u] = car.yawRad ? car.yawRad[u] : NaN;

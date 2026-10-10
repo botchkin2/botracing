@@ -87,42 +87,34 @@ export function useRaceData(sessionId: string): RaceData {
     }
     return null;
   }, [refTrace, placer]);
-  // LMU's centre path is the measured road (placer.measured), the same line
-  // pathLateralM is measured from. Rotated to start at lap distance 0.
+  // LMU's centre path is the measured road, in world metres (the surface's own
+  // centres, the frame x/z is in), the line pathLateralM is measured from.
   const surfaceStepM = surface.data?.stepM ?? SURFACE_STEP_M;
-  const centreLine = useMemo(() => {
-    const run = placer.measured.find(r => r.closed && r.centre.length > 2);
-    if (!run) return null;
-    const n = run.centre.length;
-    const k = Math.round(run.fromM / surfaceStepM);
-    return Array.from(
-      {length: n},
-      (_, i) => run.centre[(((i - k) % n) + n) % n],
-    );
-  }, [placer, surfaceStepM]);
-  // Placed by lap distance on the reference line (fieldOnLine.ts): LMU cars
-  // with their lateral offset, iRacing's on the line. The stored field is left
-  // as it is.
+  const centreWorld = useMemo(() => {
+    const bins = surface.data?.bins;
+    if (!bins || bins.length < 3) return null;
+    const pts = bins.map(b => (b.n ? {x: b.sx / b.n, y: b.sy / b.n} : null));
+    return pts.every(p => p !== null) ? pts : null;
+  }, [surface.data]);
   const worldToMap = useMemo(
     () => (x: number, z: number) => placer.placeWorld([{x, z}])[0],
     [placer],
   );
-  // With no measured road (iRacing, or a track with no surface), LMU cars go on
-  // the best lap's line with no lateral offset, never the recorder's x/z.
+  // LMU: cars placed on the world centre path (placeFieldOnLine, world out),
+  // else left as their x/z. iRacing: on the best lap's line, in map metres.
   const placed = useMemo(() => {
     if (!stored) return null;
-    if (centreLine)
-      return placeFieldOnLine(stored, centreLine, surfaceStepM, {
-        lateral: true,
-        worldToMap,
-      });
+    if (stored.hasPositions)
+      return centreWorld
+        ? placeFieldOnLine(stored, centreWorld, surfaceStepM, {lateral: true})
+        : null;
     return line
       ? placeFieldOnLine(stored, line, GRID_STEP_M, {
           lateral: false,
           worldToMap,
         })
       : null;
-  }, [stored, centreLine, surfaceStepM, line, worldToMap]);
+  }, [stored, centreWorld, surfaceStepM, line, worldToMap]);
   const used = placed ?? (stored?.hasPositions ? stored : null);
   const prep = useMemo(() => (used ? prepareRace(used) : null), [used]);
   const clock = useMemo(() => (used ? raceClock(used) : null), [used]);
