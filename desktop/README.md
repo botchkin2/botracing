@@ -2,7 +2,7 @@
 
 A Tauri tray icon (no windows) that runs the Node watcher, `tools/uploader/watch.mjs --remote`, and shows its status. The watcher uploads through the upload function with the signed-in user's token (`tools/sessions/storeClient.mjs`); no Admin credentials.
 
-What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state and log).
+What the tray keeps is in `%LOCALAPPDATA%\BotRacing\`: `status.jsonl` (the watcher's heartbeat, appended; the tray reads its last line), `token` (the user's Firebase ID token, read by the watcher on every request), `uploader\` (the watcher's own state; `uploader\sidecar.log` holds its stderr, appended and cut to the newest half past 1 MB, and the menu's error line names it).
 
 Menu (`src-tauri/src/menu.rs`, `menu_items_for` is the one list): the account ("Signed in as <email>", or "Sign in"); one line per sim ("LMU: Recording", "iRacing: Up to date", "LMU: 2 to upload", "Uploads paused"); one problems line, only while something is wrong (the worst, then "(+N)"; each says what is wrong, no advice); "Restart to update to x", only while an update is waiting; then Open BotRacing, Pause uploads (stops the watcher), Sign out, Quit; and "BotRacing 0.1.x", disabled, last. There are no settings: Start with Windows is always on, recordings are cleaned up after 14 days and over 10 GB for both sims (`capture/prune_policy.rs`), and the first sync takes the last 90 days (`--first-window-days 90`, `sidecar.rs`); older sessions are a later Settings action, not the tray. The watcher stops itself if the tray dies (`LAP_PARENT_PID`, `tools/uploader/parentGuard.mjs`).
 
@@ -49,7 +49,7 @@ cargo build
 BOTRACING_ROOT=<repo root> LMU_TELEMETRY=<a telemetry folder> target/debug/botracing.exe
 ```
 
-`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder.
+`BOTRACING_ROOT` is where `tools/` and `node_modules/` are (installed: `<resources>/app`). `BOTRACING_NODE` overrides the node executable (installed: `<resources>/node/node.exe`, else `node` on PATH). `LMU_TELEMETRY` points the watcher at another folder. Every path the watcher gets is plain (`sidecar::plain`): Tauri reports `resource_dir()` canonicalized, as `\\?\C:\...`, and the bundled node (24.19.0; 24.21.0 is fine) exits 1 at once on a `\\?\` main script ("EISDIR ... lstat 'C:'"), which was the 0.1.2 "Uploader stopped (exit code: 1)" loop.
 
 ## Sign in
 
