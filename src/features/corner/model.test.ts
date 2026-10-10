@@ -472,6 +472,17 @@ describe('buildBrakeMap', () => {
     ]);
   });
 
+  it('shows a brake point outside the usual window when widened to a compound window', () => {
+    const rows = [row('a', 100, 50), row('b', 450, null)];
+    const apex = 500;
+    const usual = buildBrakeMap(rows, trace, apex)!;
+    expect(usual.brakes.map(p => p.lapId)).toEqual(['a']);
+    // Whole window: the first part's brake (450 m before the last apex).
+    const wide = buildBrakeMap(rows, trace, apex, null, [20, 800])!;
+    expect(wide.brakes.map(p => p.lapId)).toEqual(['a', 'b']);
+    expect(wide.centreline).toHaveLength(781);
+  });
+
   it('is null without the reference trace', () => {
     expect(buildBrakeMap([], undefined, 500)).toBeNull();
   });

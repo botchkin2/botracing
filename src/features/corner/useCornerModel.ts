@@ -7,6 +7,7 @@ import {
   useSessionBand,
   useSessionLaps,
   useTrackMap,
+  trackCorners,
 } from '@/src/data/sessions';
 import {
   sliceLoad,
@@ -23,6 +24,7 @@ import {
   type CornerSelection,
 } from './model';
 import {keyLapIds as keyLapsOf} from './keyLaps';
+import {sliceCornerOf} from './wholeCorner';
 
 export type CornerResult =
   | {state: 'loading'}
@@ -46,6 +48,7 @@ export function useCornerModel(
   corner: number,
   urlSelection: CornerSelection,
   allComparable: boolean,
+  whole = false,
 ): CornerResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
@@ -82,10 +85,17 @@ export function useCornerModel(
   // comparable lap draws, not only the laps on. A session the uploader has
   // not resynced since analysis version 13 has no file: nothing to draw yet.
   const slicePointer = session.data?.slices ?? null;
-  const hasFile = slicePointer?.corners.includes(corner) ?? false;
+  // "All" on a compound corner draws from its last part's file, which spans
+  // the whole section (wholeCorner.ts).
+  const sliceCorner = useMemo(
+    () =>
+      map.data ? sliceCornerOf(trackCorners(map.data), corner, whole) : corner,
+    [map.data, corner, whole],
+  );
+  const hasFile = slicePointer?.corners.includes(sliceCorner) ?? false;
   const slices = useCornerSlices(
     sessionId,
-    corner,
+    sliceCorner,
     hasFile ? slicePointer?.hash ?? null : null,
   );
   const {refetch: refetchSlices} = slices;
@@ -140,6 +150,7 @@ export function useCornerModel(
       hl: selection.hl,
       refId: selection.ref ?? null,
       corner,
+      whole,
     });
     return model
       ? {
@@ -162,6 +173,7 @@ export function useCornerModel(
     traceIds,
     selection.hl,
     corner,
+    whole,
     traceLoad,
     retryTraces,
     refetchSession,
