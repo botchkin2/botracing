@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 
 import {blockVersions} from './analyze.mjs';
@@ -140,4 +141,21 @@ test('a race with nothing to end on, or not a race, has no race side', () => {
 test('a first-lap stop that ends in the pit lane is a real stop (Road Atlanta, 25 Sep)', () => {
   const laps = [raceLap(2.4, {pitIn: true, pitStop: {atEntry: {fuelL: 50, vePct: null}}}), raceLap(2.4)];
   assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null}]);
+});
+
+// A real LMU race (Road Atlanta, 3 Oct 2026) through the real sync: the block
+// the sync wrote is what planBlock gives from the same lap docs and session
+// fields. src/data/sessions/planBlock.equivalence.test.ts holds the app side.
+test('a real race: the stored block is what planBlock gives from its lap docs', () => {
+  const f = JSON.parse(
+    readFileSync(new URL('../../src/data/sessions/__fixtures__/planRace.json', import.meta.url), 'utf8'),
+  );
+  const again = planBlock({
+    sessionType: f.session.sessionType,
+    fuel: f.session.fuel,
+    laps: f.laps,
+    race: f.session.race,
+    result: f.session.result,
+  });
+  assert.deepEqual(again, f.plan);
 });
