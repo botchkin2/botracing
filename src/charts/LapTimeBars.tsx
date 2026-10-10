@@ -3,6 +3,8 @@ import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
 
 import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
 
+import {labelsBottom, labelY, placeTopLabels} from './topLabels';
+
 // One bar per lap around the median (handoff §2 "Lap times chart"). Up is
 // faster. Excluded laps are outlined stubs on the baseline. Pure props: the
 // caller decides each bar's color.
@@ -66,10 +68,6 @@ export function LapTimeBars({
   const plotW = Math.max(0, width - GUTTER_W);
   const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
-  const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
-  const mid = TOP_PAD + (plotBottom - TOP_PAD) / 2;
-  const half = (plotBottom - TOP_PAD) / 2;
-  const yOf = (d: number) => mid - (d / rangeS) * half;
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
   const axis = {...typeScale.axis, fontSize: 9};
   const railsH = rails ? RAIL_ROW_H * 3 + 2 : 0;
@@ -110,6 +108,14 @@ export function LapTimeBars({
     width,
   );
 
+  // The plot starts below the last label row, so stacked labels never sit on
+  // a bar; with no more than one row it is TOP_PAD as before.
+  const plotTop = Math.max(TOP_PAD, labelsBottom(topLabels));
+  const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
+  const mid = plotTop + (plotBottom - plotTop) / 2;
+  const half = (plotBottom - plotTop) / 2;
+  const yOf = (d: number) => mid - (d / rangeS) * half;
+
   return (
     <View style={{width, height: totalH}}>
       <Svg width={width} height={totalH}>
@@ -147,7 +153,7 @@ export function LapTimeBars({
               key={`pit-${i}`}
               x1={x}
               x2={x}
-              y1={TOP_PAD}
+              y1={plotTop}
               y2={height}
               stroke={color.accent}
               strokeWidth={1}
@@ -160,7 +166,7 @@ export function LapTimeBars({
             key={l.key}
             x={l.x}
             textAnchor={l.anchor}
-            y={9 + l.row * LABEL_ROW}
+            y={labelY(l.row)}
             fill={l.color}
             fontFamily={axis.fontFamily}
             fontSize={axis.fontSize}>
@@ -304,37 +310,5 @@ function railColor(
   return color.accent;
 }
 
-const LABEL_ROW = 10;
 // A pit this many laps before a stint boundary is named by its label.
 const NEAR_LAPS = 3;
-// Mono 9 pt glyphs are 0.6 em, 5.4 pt wide.
-const LABEL_CHAR_W = 5.4;
-
-type TopLabel = {key: string; x: number; text: string; color: string};
-
-/**
- * Left to right, each label takes the first row where it clears the last.
- * One that would run past maxX is drawn right-aligned, ending at its line.
- */
-function placeTopLabels(
-  labels: TopLabel[],
-  maxX: number,
-): (TopLabel & {row: number; anchor: 'start' | 'end'})[] {
-  const rowEnds: number[] = [];
-  return [...labels]
-    .sort((a, b) => a.x - b.x)
-    .map(l => {
-      const w = l.text.length * LABEL_CHAR_W;
-      const flip = l.x + w > maxX;
-      const left = flip ? l.x - 6 - w : l.x;
-      let row = rowEnds.findIndex(end => end + 4 <= left);
-      if (row < 0) row = rowEnds.length;
-      rowEnds[row] = left + w;
-      return {
-        ...l,
-        x: flip ? l.x - 6 : l.x,
-        row,
-        anchor: flip ? 'end' : 'start',
-      };
-    });
-}
