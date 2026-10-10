@@ -7,6 +7,7 @@ import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
   type LapRowModel,
   buildSessionModel,
+  sectionTable,
   selectStint,
   trafficPaceFacts,
   toggleLap,
@@ -337,5 +338,42 @@ describe('traffic in the stint header and the lap detail', () => {
     expect(d.traffic?.[0]).toEqual({label: 'In a tow', value: '0.0 s'});
     const bare = buildSessionModel(session, laps, {laps: [], hl: laps[3].id});
     expect(bare.detail!.traffic).toBeNull();
+  });
+});
+
+describe('sectionTable', () => {
+  // Three laps alone in the segment, two in a tow: under 5 alone, so no stats.
+  const lap = (id: string, t: number, alone: boolean) => ({
+    id,
+    stint: 1,
+    comparable: true,
+    timesS: [t],
+    alone: [alone],
+  });
+  const times = {
+    segments: [{label: 'T7 entry–T7', range: {fromM: 0, toM: 100}}],
+    laps: [
+      lap('a', 10, true),
+      lap('b', 10.1, true),
+      lap('c', 10.2, true),
+      lap('d', 10.3, false),
+      lap('e', 10.4, false),
+    ],
+  };
+
+  it('gives the alone count in the median cell and dashes for the rest', () => {
+    const table = sectionTable(times)!;
+    const [median, best, spread] = table.footer;
+    expect(median.cells).toEqual(['3 alone']);
+    expect(best.cells).toEqual(['—']);
+    expect(spread.cells).toEqual(['—']);
+  });
+
+  it('gives the statistics once five laps were alone', () => {
+    const table = sectionTable({
+      ...times,
+      laps: [...times.laps, lap('f', 10.5, true), lap('g', 10.6, true)],
+    })!;
+    expect(table.footer[0].cells).toEqual(['10.20']);
   });
 });
