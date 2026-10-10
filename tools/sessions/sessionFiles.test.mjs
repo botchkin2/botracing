@@ -136,6 +136,28 @@ test('offline iRacing drives (no groupId) are separate sessions on different day
   assert.equal(groupFiles([fuji, next], 'botkin').length, 1);
 });
 
+test('session ids are owner-scoped for iRacing, online and offline: one drive, two owners, two ids', () => {
+  const online = file(0, {sim: 'iracing', groupId: 'iracing|88284244|2'});
+  const offline = file(1, {sim: 'iracing', groupId: null, sessionClock: '0:0'});
+  for (const f of [online, offline]) {
+    // groupFiles writes the recording ids onto the file objects it is given:
+    // read each owner's ids before the next call.
+    const ids = owner => {
+      const [s] = groupFiles([f], owner);
+      return [s.id, s.files[0].id];
+    };
+    const [sessionA, fileA] = ids('owner-a');
+    const [sessionB, fileB] = ids('owner-b');
+    assert.notEqual(sessionA, sessionB);
+    assert.notEqual(fileA, fileB);
+  }
+  // The same owner and files give the same id every time.
+  assert.equal(
+    groupFiles([online], 'owner-a')[0].id,
+    groupFiles([online], 'owner-a')[0].id,
+  );
+});
+
 // -- scanning a folder ---------------------------------------------------------------------
 
 function fakeAdapter(infos) {
