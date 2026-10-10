@@ -117,11 +117,8 @@ export function useTrackMap(trackId: string | null | undefined) {
     queryKey: sessionKeys.trackMap(trackId ?? ''),
     queryFn: ({signal}) => fetchTrackMap(trackId as string, signal),
     enabled: !!trackId,
-<<<<<<< HEAD
     // A reopen draws the kept copy (data/queryPersist.ts), then checks it once stale.
     refetchOnMount: true,
-=======
->>>>>>> origin/main
     // Curated: it changes only when the curator writes it.
     staleTime: TRACK_MAP_STALE_MS,
     retry: retryUnlessClientError,
@@ -149,11 +146,8 @@ export function useTrackSurface(trackId: string | null | undefined) {
     queryKey: sessionKeys.trackSurface(trackId ?? ''),
     queryFn: ({signal}) => fetchTrackSurface(trackId as string, signal),
     enabled: !!trackId,
-<<<<<<< HEAD
     // A reopen draws the kept copy (data/queryPersist.ts), then checks it once stale.
     refetchOnMount: true,
-=======
->>>>>>> origin/main
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
