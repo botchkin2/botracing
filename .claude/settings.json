@@ -74,6 +74,10 @@
       "Bash(git push -u origin main*)",
       "Bash(git push -f *)",
       "Bash(git push --force *)"
+    ],
+    "additionalDirectories": [
+      "C:/Users/Botkin/Projects/pit-wall",
+      "C:/Users/Botkin/Projects/Obsidian/Race analytics feedback"
     ]
   }
 }
