@@ -66,6 +66,43 @@ function Diag($when) {
   $trays = (Get-Process -Name $app -ErrorAction SilentlyContinue | ForEach-Object { "pid $($_.Id) session $($_.SessionId)" }) -join "; "
   Write-Host "diag ($when): FindWindow($id-sic) = $window; mutex $id-sim exists = $mutexThere; this script session $mine; trays: $trays"
 }
+# The windows a process owns, found with EnumWindows. Process.MainWindowTitle is
+# not it: it returns the single-instance hidden window (class <identifier>-sic,
+# title <identifier>-siw), which is never shown. Only a visible window whose
+# class does not end in -sic is one a user could see.
+Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+namespace E2e {
+  public static class Wins {
+    delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr lParam);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hwnd, StringBuilder cls, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
+    public static string[] Visible(int[] pids) {
+      var found = new List<string>();
+      var wanted = new HashSet<int>(pids);
+      EnumWindows((hwnd, _) => {
+        uint pid;
+        GetWindowThreadProcessId(hwnd, out pid);
+        if (!wanted.Contains((int)pid) || !IsWindowVisible(hwnd)) return true;
+        var cls = new StringBuilder(256);
+        GetClassNameW(hwnd, cls, cls.Capacity);
+        if (cls.ToString().EndsWith("-sic")) return true;
+        var title = new StringBuilder(256);
+        GetWindowTextW(hwnd, title, title.Capacity);
+        found.Add("pid " + pid + " class " + cls + " title " + title);
+        return true;
+      }, IntPtr.Zero);
+      return found.ToArray();
+    }
+  }
+}
+'@
 function Trays { @(Get-Process -Name $app -ErrorAction SilentlyContinue) }
 function WaitFor($what, $seconds, [scriptblock]$test) {
   $until = (Get-Date).AddSeconds($seconds)
@@ -157,10 +194,9 @@ Write-Host "starting the Run entry: $run"
 if ($runArgs) { Start-Process -FilePath $runExe -ArgumentList $runArgs | Out-Null } else { Start-Process -FilePath $runExe | Out-Null }
 WaitFor "the tray to start from the Run entry" 30 { (Trays).Count -ge 1 }
 Start-Sleep -Seconds 6
-$windows = @(Trays | Where-Object { $_.MainWindowHandle -ne 0 -or $_.MainWindowTitle })
+$windows = @([E2e.Wins]::Visible(@(Trays | ForEach-Object { $_.Id })))
 if ($windows.Count) {
-  $titles = ($windows | ForEach-Object { "pid " + $_.Id + " title " + $_.MainWindowTitle }) -join "; "
-  Fail ("the tray opened a window at a logon start: " + $titles)
+  Fail ("the tray opened a window at a logon start: " + ($windows -join "; "))
 }
 if ((Trays).Count -ne 1) { Fail "a logon start left $((Trays).Count) trays, not 1" }
 Write-Host "logon start: one tray, no window"

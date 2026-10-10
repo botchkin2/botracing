@@ -9,21 +9,21 @@ param(
   [ValidateSet("as-is", "none", "decoy")][string]$Node = "as-is",
   # unicode: "Test Ünïcode" (a space and non-ASCII letters); ascii: "e2euser", the
   # same standard user with a plain name, to tell the two causes apart.
-  [ValidateSet("unicode", "ascii")][string]$Name = "unicode"
+  [ValidateSet("unicode", "ascii")][string]$Account = "unicode"
 )
 $ErrorActionPreference = "Stop"
 
 # Built from code points so the file's own encoding cannot change the name.
-$name = if ($Name -eq "ascii") { "e2euser" } else { "Test " + [char]0x00DC + "n" + [char]0x00EF + "code" }
+$userName = if ($Account -eq "ascii") { "e2euser" } else { "Test " + [char]0x00DC + "n" + [char]0x00EF + "code" }
 $password = ConvertTo-SecureString ([guid]::NewGuid().ToString("N") + "aA1!") -AsPlainText -Force
 $work = "C:\e2e"
 
-Write-Host "creating the standard user '$name'"
-New-LocalUser -Name $name -Password $password -AccountNeverExpires -PasswordNeverExpires | Out-Null
-Add-LocalGroupMember -SID "S-1-5-32-545" -Member $name # Users; not Administrators
+Write-Host "creating the standard user '$userName'"
+New-LocalUser -Name $userName -Password $password -AccountNeverExpires -PasswordNeverExpires | Out-Null
+Add-LocalGroupMember -SID "S-1-5-32-545" -Member $userName # Users; not Administrators
 # A task can only run as a user who may "log on as a batch job"; Performance Log
 # Users holds that right by default and gives no administrative rights.
-Add-LocalGroupMember -SID "S-1-5-32-559" -Member $name
+Add-LocalGroupMember -SID "S-1-5-32-559" -Member $userName
 
 New-Item -ItemType Directory -Force $work | Out-Null
 Copy-Item $Installer (Join-Path $work "setup.exe") -Force
@@ -43,7 +43,7 @@ try {
   $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $command -WorkingDirectory $work
   # -User/-Password and -Principal cannot be combined; Limited is the standard
   # token, which this user has anyway.
-  Register-ScheduledTask -TaskName $taskName -Action $action -User "$env:COMPUTERNAME\$name" -Password $plain -RunLevel Limited -Force | Out-Null
+  Register-ScheduledTask -TaskName $taskName -Action $action -User "$env:COMPUTERNAME\$userName" -Password $plain -RunLevel Limited -Force | Out-Null
   Start-ScheduledTask -TaskName $taskName
   $until = (Get-Date).AddMinutes(12)
   $startedBy = (Get-Date).AddSeconds(90)
@@ -65,7 +65,7 @@ try {
 } finally {
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
   if (Test-Path $out) { Get-Content $out }
-  Remove-LocalUser -Name $name -ErrorAction SilentlyContinue
+  Remove-LocalUser -Name $userName -ErrorAction SilentlyContinue
 }
-if ($exit -ne 0) { Write-Host "E2E FAILED as '$name' (exit $exit)"; exit $exit }
-Write-Host "E2E OK as '$name'"
+if ($exit -ne 0) { Write-Host "E2E FAILED as '$userName' (exit $exit)"; exit $exit }
+Write-Host "E2E OK as '$userName'"
