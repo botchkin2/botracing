@@ -435,7 +435,11 @@ function RaceView({
       zoom={zoom}
       onZoom={setZoom}
       playheadS={shownS}
-      width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
+      // Never negative: columnW is 0 until onLayout, and an SVG with a
+      // negative width logs an error.
+      width={
+        desktop ? Math.max(0, columnW - size.gutter * 2) : layout.contentWidth
+      }
       desktop={desktop}
       onScrub={scrub}
       mode={mode}

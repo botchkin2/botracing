@@ -5,7 +5,7 @@ import type {Lap, PitStop, Stint} from '@/src/data/sessions';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
-const laps = (v: number) => `${v.toFixed(1)} laps`;
+const laps = (v: number) => `${v.toFixed(1)} ${v === 1 ? 'lap' : 'laps'}`;
 
 /**
  * The line under a pit-in lap: what was left when the car came in, in laps at

@@ -82,6 +82,7 @@ export function TraceChart({
   series,
   band,
   zeroLine,
+  yTicks,
   sideLabels,
   zeroDomain,
   cursorM,
@@ -108,6 +109,8 @@ export function TraceChart({
   series: TraceSeries[];
   band?: TraceBand;
   zeroLine?: boolean;
+  /** Labelled values on the left edge (the gear chart's gear numbers). */
+  yTicks?: {v: number; label: string}[];
   /** Words beside the zero line: above it, and below (lateral: L and R). */
   sideLabels?: {above: string; below: string};
   /** The y range the zero line belongs to, when it is not the chart's own
@@ -416,6 +419,17 @@ export function TraceChart({
             strokeWidth={stroke.mark}
           />
         )}
+        {yTicks?.map(t => (
+          <SvgText
+            key={`y${t.v}`}
+            x={3}
+            y={yFor(domainT)(t.v) + 3}
+            fill={color.textFaint}
+            fontFamily={axis.fontFamily}
+            fontSize={9}>
+            {t.label}
+          </SvgText>
+        ))}
         {zeroLine && sideLabels && (
           <>
             <SvgText

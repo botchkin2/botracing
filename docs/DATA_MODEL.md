@@ -32,6 +32,7 @@ A user's sync never writes app data. An admin tool never writes user data.
 | Section boundaries | app | `trackBoundaries/{trackId}` | | curate |
 | Track surface | app | `tracks/{trackId}.surface` | `surface/{trackId}/` | curate (rebuild) |
 | Track catalog (names, places) | app | | bundled: `tools/track-info/tracks.json` | PR |
+| Function errors (5xx), one doc per kind | app | `problems/{fingerprint}`: `{where, route, status, message, count, firstAt, lastAt, expiresAt}`, masked text only, TTL on `expiresAt` (30 d after the last error) | | every function's catch-all (`functions/src/problemsCore.ts`) |
 
 ## Rules that follow
 
