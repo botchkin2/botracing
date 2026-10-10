@@ -69,7 +69,7 @@ function Diag($when) {
 # The windows a process owns, found with EnumWindows. Process.MainWindowTitle is
 # not it: it returns the single-instance hidden window (class <identifier>-sic,
 # title <identifier>-siw), which is never shown. Only a visible window whose
-# class does not end in -sic is one a user could see.
+# class does not end in -sic and that is not click-through is one a user could see.
 Add-Type -Language CSharp -TypeDefinition @'
 using System;
 using System.Collections.Generic;
@@ -81,6 +81,7 @@ namespace E2e {
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr lParam);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int GetWindowLong(IntPtr hwnd, int index);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassNameW(IntPtr hwnd, StringBuilder cls, int max);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
     public static string[] Visible(int[] pids) {
@@ -93,9 +94,14 @@ namespace E2e {
         var cls = new StringBuilder(256);
         GetClassNameW(hwnd, cls, cls.Capacity);
         if (cls.ToString().EndsWith("-sic")) return true;
+        // The event loop's own helper ("Tao Thread Event Target", 15x15) is
+        // "visible" but click-through (WS_EX_TRANSPARENT): measured on a running
+        // tray, and on the runner, where it failed this check.
+        int ex = GetWindowLong(hwnd, -20);
+        if ((ex & 0x20) != 0) return true;
         var title = new StringBuilder(256);
         GetWindowTextW(hwnd, title, title.Capacity);
-        found.Add("pid " + pid + " class " + cls + " title " + title);
+        found.Add("pid " + pid + " class " + cls + " title " + title + " exstyle " + ex.ToString("x"));
         return true;
       }, IntPtr.Zero);
       return found.ToArray();
@@ -180,8 +186,18 @@ if ($Node -eq "decoy" -and (Test-Path $decoyMarker)) { Fail "the node on PATH wa
 
 Step "quit, then start the way Windows does at logon"
 # `--quit` must stop the running tray (the uninstaller relies on the same call).
-Start-Process -FilePath $exe -ArgumentList "--quit" -Wait
-WaitFor "the tray to quit after --quit" 20 { (Trays).Count -eq 0 }
+Diag "before --quit"
+$quit = Start-Process -FilePath $exe -ArgumentList "--quit" -PassThru -Wait
+Write-Host "--quit exit code $($quit.ExitCode)"
+$until = (Get-Date).AddSeconds(20)
+while ((Trays).Count -gt 0 -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 500 }
+if ((Trays).Count -gt 0) {
+  # Which route the quit took: the window message (same desktop) or the
+  # quit-request file the tray polls (another session).
+  Diag "after --quit, tray still up"
+  Write-Host "data folder after --quit: $((Get-ChildItem $data -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) -join ', ')"
+  Fail "timed out after 20s waiting for: the tray to quit after --quit"
+}
 # What Windows runs at logon is the Run value's command line. Run exactly that
 # (a real sign-out and sign-in cannot be done on a runner; that is proven once on
 # a real PC): one tray, and no window, because the tray lives in the notification
