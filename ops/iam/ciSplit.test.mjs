@@ -202,3 +202,31 @@ test('revoke deletes the dead repo secret GARAGE61_API_TOKEN', () => {
   s.repoSecrets.add('GARAGE61_API_TOKEN');
   assert.ok(planCiSplit(s, 'revoke').some(x => x.gh?.join(' ') === `secret delete GARAGE61_API_TOKEN --repo ${CI.repo}`));
 });
+
+// 2026-10-09: the android-release account was created, then the bucket binding
+// right after it failed with "does not exist": IAM had not caught up yet.
+test('runWithRetry retries "does not exist" until the new account is visible', async () => {
+  const {runWithRetry} = await import('./ciSplit.mjs');
+  let calls = 0;
+  const waits = [];
+  const run = () => {
+    calls++;
+    if (calls < 3) throw new Error('Service account android-release@x does not exist.');
+    return 'bound';
+  };
+  const out = await runWithRetry(run, ['storage'], {delayMs: 5, sleep: async ms => waits.push(ms)});
+  assert.equal(out, 'bound');
+  assert.deepEqual([calls, waits], [3, [5, 5]]);
+});
+
+test('runWithRetry gives up after its tries and passes other errors straight through', async () => {
+  const {runWithRetry} = await import('./ciSplit.mjs');
+  let calls = 0;
+  const never = () => { calls++; throw new Error('does not exist'); };
+  await assert.rejects(runWithRetry(never, [], {tries: 3, sleep: async () => {}}), /does not exist/);
+  assert.equal(calls, 3);
+  calls = 0;
+  const denied = () => { calls++; throw new Error('PERMISSION_DENIED'); };
+  await assert.rejects(runWithRetry(denied, [], {sleep: async () => {}}), /PERMISSION_DENIED/);
+  assert.equal(calls, 1);
+});
