@@ -53,6 +53,7 @@ export {
 export {
   type MapPlacer,
   mapPlacer,
+  measuredCentreAt,
   measuredCentreLines,
   type MeasuredRun,
   type Xy,
