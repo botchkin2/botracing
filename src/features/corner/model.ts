@@ -474,24 +474,27 @@ export function buildCornerModel(input: {
   const strips: StripModel[] | null =
     set.length >= STRIP_MODE_FROM
       ? buildStrips(
-          rows.map(r => {
-            const src = sourcesOf(byId.get(r.lapId) as Lap);
-            const f = src.whole.facts;
-            return {
-              lapId: r.lapId,
-              label: r.label,
-              onIndex: r.onIndex,
-              timeS: r.values.time,
-              brakeM: r.values.brake,
-              minSpeedKph: f?.minSpeedKph ?? null,
-              minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
-              throttleAtEdge: src.throttle.facts?.fullThrottleAtEdge ?? false,
-              apexSpeedKph: f?.apexSpeedKph ?? null,
-              throttleM: r.values.throttle,
-              brakeResM: src.entry.facts?.brakeAtResM ?? null,
-              throttleResM: src.throttle.facts?.fullThrottleAtResM ?? null,
-            };
-          }),
+          // The set only: a highlighted lap outside it joins no median.
+          rows
+            .filter(r => lapIds.includes(r.lapId))
+            .map(r => {
+              const src = sourcesOf(byId.get(r.lapId) as Lap);
+              const f = src.whole.facts;
+              return {
+                lapId: r.lapId,
+                label: r.label,
+                onIndex: r.onIndex,
+                timeS: r.values.time,
+                brakeM: r.values.brake,
+                minSpeedKph: f?.minSpeedKph ?? null,
+                minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
+                throttleAtEdge: src.throttle.facts?.fullThrottleAtEdge ?? false,
+                apexSpeedKph: f?.apexSpeedKph ?? null,
+                throttleM: r.values.throttle,
+                brakeResM: src.entry.facts?.brakeAtResM ?? null,
+                throttleResM: src.throttle.facts?.fullThrottleAtResM ?? null,
+              };
+            }),
         )
       : null;
 
@@ -575,8 +578,10 @@ export function buildCornerModel(input: {
   }
   const mapView = cornerView(all, idx, mapWindow, map.lengthM);
 
-  // The median basis trace is the one Compare builds (medianBasisOf).
-  const refTrace = ref ? traces.get(ref.id) : medianBasisOf(set, traces);
+  // The median basis trace is the one Compare builds (medianBasisOf), but on
+  // the window's own clock: a slice's time stops where the window does, so it
+  // is not stretched to the lap time.
+  const refTrace = ref ? traces.get(ref.id) : medianBasisOf(set, traces, false);
   const lines: ZoomLine[] = rows.flatMap(r => {
     const t = traces.get(r.lapId);
     if (!t) return [];

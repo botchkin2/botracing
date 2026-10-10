@@ -33,6 +33,9 @@ describe('format', () => {
   it('signed gaps', () => {
     expect(formatGap(0.312)).toBe('+0.312');
     expect(formatGap(-0.105)).toBe('−0.105');
+    expect(formatGap(0.0004)).toBe('±0.000');
+    expect(formatGap(-0.0004)).toBe('±0.000');
+    expect(formatGap(0.0006)).toBe('+0.001');
     expect(formatCornerGap(0.214)).toBe('+.21');
     expect(formatCornerGap(-1.04)).toBe('−1.04');
   });

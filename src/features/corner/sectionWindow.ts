@@ -292,7 +292,7 @@ function optimumRows(
     if (w.bestS == null || w.medianS == null) continue;
     rows.push({
       label: `Stint ${s.stint}`,
-      n: `${w.n} laps`,
+      n: `${w.n} ${w.n === 1 ? 'lap' : 'laps'}`,
       best: seconds(w.bestS),
       bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
       median: seconds(w.medianS),

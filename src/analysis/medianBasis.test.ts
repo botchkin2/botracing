@@ -66,4 +66,19 @@ describe('medianBasisOf', () => {
     )!;
     expect(m.speedKph[100]).toBeCloseTo(180);
   });
+
+  it('leaves the clock alone when not stretching (a window of a lap, not a whole lap)', () => {
+    const traces = new Map([
+      ['a', trace(150)],
+      ['b', trace(180)],
+    ]);
+    const laps = [
+      {id: 'a', timeS: 200},
+      {id: 'b', timeS: 200},
+    ];
+    const end = (b: GridTrace | undefined) =>
+      (b as GridTrace).timeS[(b as GridTrace).timeS.length - 1];
+    expect(end(medianBasisOf(laps, traces))).toBeCloseTo(200, 1);
+    expect(end(medianBasisOf(laps, traces, false))).toBeLessThan(30);
+  });
 });

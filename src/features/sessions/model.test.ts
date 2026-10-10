@@ -63,6 +63,11 @@ describe('buildSessionsModel', () => {
     });
   });
 
+  it('says "1 lap", not "1 laps"', () => {
+    const [row] = buildSessionsModel([session({lapCount: 1})], now)[0].rows;
+    expect(row.railSubline).toBe('21:40 · 1 lap');
+  });
+
   it('shows a dash when a session has no timed lap', () => {
     const [row] = buildSessionsModel(
       [session({bestTimeS: null, medianTimeS: null})],
