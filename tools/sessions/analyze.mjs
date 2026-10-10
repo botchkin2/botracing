@@ -876,6 +876,7 @@ export function analyzeSession(
     sessionType = '',
     splitFiles = false,
     catalogOnly = false,
+    steerRightSign = 1,
   } = {},
 ) {
   const laps = [];
@@ -1069,6 +1070,7 @@ export function analyzeSession(
         pits: pitsOf[lap.rec],
         lengthM: map.lengthM,
         onsets: layout.onsets.get(lap),
+        steerRightSign,
       });
       lap.corners = facts.corners;
       lap.startStraight = facts.startStraight;

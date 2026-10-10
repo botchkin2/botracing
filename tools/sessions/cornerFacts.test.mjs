@@ -287,7 +287,7 @@ function drive({rightPositive = true} = {}) {
     },
   };
 }
-const inputsOf = ({rec, lap}) =>
+const inputsOf = ({rec, lap}, steerRightSign = 1) =>
   cornerFacts({
     rec,
     lap,
@@ -297,6 +297,7 @@ const inputsOf = ({rec, lap}) =>
     pits: [],
     lengthM: INPUT_LENGTH,
     onsets: [210],
+    steerRightSign,
   }).corners[0];
 
 test('each corner of a section reads the brake application braking for it, and no other', () => {
@@ -317,7 +318,10 @@ test('a section with a single corner has its application as the corner’s', () 
 
 test('turn-in is where the wheel leaves 20 % of the corner’s own peak, in either steering sign', () => {
   for (const rightPositive of [true, false]) {
-    const [p1, p2] = inputsOf(drive({rightPositive})).parts;
+    const [p1, p2] = inputsOf(
+      drive({rightPositive}),
+      rightPositive ? 1 : -1,
+    ).parts;
     // Right: 6 % of the 30 % peak is reached 20 % of the way up the ramp (280 to 350).
     assert.ok(Math.abs(p1.turnInAtM - 294) <= 1.5, `${rightPositive} ${p1.turnInAtM}`);
     // Left: 5 % of 25 % at 20 % of the way from 440 to 470.

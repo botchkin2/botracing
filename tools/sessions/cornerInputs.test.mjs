@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
+import {existsSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {test} from 'node:test';
 import {steerSignOf, throttlePickup, turnInPoint} from './cornerInputs.mjs';
+import {openIbt, readColumns} from './ibt.mjs';
+import * as iracing from './iracing.mjs';
+import * as lmu from './lmu.mjs';
 
 test('the steering sign is read off the lap’s own corners', () => {
   // Right is positive: a right corner peaks positive, a left one negative.
@@ -78,4 +84,28 @@ test('a pedal that never closes is a lift: no pickup, how low it went', () => {
     throttlePickup({values: [100, 0, 0], ticks: [0, 1, 2], distAt: i => i}),
     {atM: null, minPct: 0},
   );
+});
+
+// The adapters' constants against the sims' own data, where this PC has it.
+const SEBRING = join(
+  homedir(),
+  'Documents',
+  'iRacing',
+  'telemetry',
+  'fordmustanggt3_sebring international 2026-10-09 10-10-41.ibt',
+);
+test('iRacing’s steering is positive to the left, as its adapter says', {skip: !existsSync(SEBRING)}, () => {
+  const ibt = openIbt(SEBRING);
+  try {
+    const c = readColumns(ibt, ['SteeringWheelAngle', 'YawRate', 'Speed']);
+    let dot = 0;
+    for (let i = 0; i < c.Speed.length; i++)
+      if (c.Speed[i] > 15) dot += c.SteeringWheelAngle[i] * c.YawRate[i];
+    // Yaw rate is positive when the car turns left: the same sign as the wheel.
+    assert.ok(dot > 0);
+    assert.equal(iracing.steerRightSign, -1);
+    assert.equal(lmu.steerRightSign, 1);
+  } finally {
+    ibt.close();
+  }
 });

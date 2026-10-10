@@ -28,6 +28,11 @@ export const gameExe = 'Le Mans Ultimate.exe';
 // quietMin: --quiet-min for the sync, null for sync.mjs's default; the game
 // is closed when the watcher syncs, so nothing is still being written.
 // gameExeEnv: an env var that stands in for gameExe (a test seam).
+// Which sign of the steering channel (steer_pct) is a right turn: +1 here.
+// Measured on the 2 Oct Road Atlanta race: every right-hander peaks positive,
+// every left-hander negative (pit wall thread 58 #3925).
+export const steerRightSign = 1;
+
 export const watcher = {
   legacyLayout: true,
   quietMin: 0,

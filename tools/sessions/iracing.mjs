@@ -29,6 +29,12 @@ export const gameExe = 'iRacingSim64DX11.exe';
 // watch.mjs), so a .ibt is closed by the time it looks and sync.mjs's own 3
 // minute quiet time would only hold a race back after the sim exits. A file
 // skipped for it anyway is looked at again (trigger.mjs, quietRetryAtMs).
+// Which sign of the steering channel (SteeringWheelAngle) is a right turn:
+// -1 here, iRacing's is positive to the left (correlation with yaw rate +0.61 on
+// the 9 Oct Sebring .ibt). cornerInputs.steerSignOf reads it off a lap's own
+// corners; the tests check it against this constant.
+export const steerRightSign = -1;
+
 export const watcher = {
   legacyLayout: false,
   quietMin: 0,

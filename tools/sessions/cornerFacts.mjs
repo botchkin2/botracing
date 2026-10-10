@@ -25,7 +25,8 @@
 //   brakeAtM, peakBrakePct   the application braking FOR this corner (a
 //                  section's single corner: the section's)
 //   fullThrottleAtM          the held full-throttle point the split uses
-//   turnInAtM                steering on the corner's own side (cornerInputs.mjs)
+//   turnInAtM                steering on the corner's own side (cornerInputs.mjs;
+//                  steerRightSign: the adapter's, +1 when right is positive)
 //   throttlePickupAtM, minThrottlePct   where the closed-throttle phase ends,
 //                  or, when the pedal never closes, how far it came off
 import {
@@ -33,11 +34,7 @@ import {
   fullThrottlePointM,
   splitWindow,
 } from '../../src/analysis/cornerBoundaries.ts';
-import {
-  steerSignOf,
-  throttlePickup,
-  turnInPoint,
-} from './cornerInputs.mjs';
+import {throttlePickup, turnInPoint} from './cornerInputs.mjs';
 import {brakeStart, sampleTicks} from './pedalPoints.mjs';
 
 export const GRID_M = 5;
@@ -65,6 +62,7 @@ export function cornerFacts({
   pits,
   lengthM,
   onsets,
+  steerRightSign = 1,
 }) {
   const {grid} = lap;
   const {s} = rec;
@@ -112,23 +110,9 @@ export function cornerFacts({
     }));
   };
   const sideOf = c => (c.direction === 'right' ? 1 : c.direction === 'left' ? -1 : 0);
-  // Which sign of the steering channel is a right turn, from this lap's own
-  // corners (it differs between the sims).
-  const steerSign = s.steer_pct
-    ? steerSignOf(
-        sections
-          .flatMap(c => c.parts ?? [c])
-          .filter(c => sideOf(c) !== 0)
-          .map(c => {
-            let peak = 0;
-            const to = tickAt(raw(c.exitM));
-            for (let i = tickAt(raw(c.turnInM)); i <= to; i++)
-              if (Math.abs(s.steer_pct[i]) > Math.abs(peak))
-                peak = s.steer_pct[i];
-            return {dir: sideOf(c), peak};
-          }),
-      )
-    : 1;
+  // Which sign of the steering channel is a right turn: the sim adapter's
+  // constant (lmu.mjs, iracing.mjs); cornerInputs.steerSignOf is the check.
+  const steerSign = steerRightSign;
 
   const sectionWindows = windows.filter(w => w.kind === 'section');
   const startWindow = windows.find(w => w.kind === 'start-straight') ?? null;
@@ -222,14 +206,19 @@ export function cornerFacts({
     }
     // Throttle: where the closed phase ends between the brake and the held
     // full-throttle point; a pedal that never closes gives its lowest instead.
+    // The stretch ends where another corner's braking starts: that closed
+    // throttle is not this corner's.
+    const startTick = brake ? tickAt(brake.atM) : fromTick;
+    const foreign = my.allApps.find(
+      a => !my.apps.includes(a) && tickAt(raw(a.onsetM)) > startTick,
+    );
+    const stopTick = Math.min(
+      full ? full.tick : toTick,
+      foreign ? tickAt(raw(foreign.onsetM)) : toTick,
+    );
     const pickup = throttlePickup({
       values: s[pedal],
-      ticks: sampleTicks(
-        rec.hz[pedal],
-        rec.baseHz,
-        brake ? tickAt(brake.atM) : fromTick,
-        full ? full.tick : toTick,
-      ).ticks,
+      ticks: sampleTicks(rec.hz[pedal], rec.baseHz, startTick, stopTick).ticks,
       distAt,
     });
     const t0 = s.t[fromTick];
@@ -294,7 +283,7 @@ export function cornerFacts({
       onsets[k],
       w,
       section.parts ?? [],
-      {apps, sideSign: sideOf(section), lowerM: section.entryM},
+      {apps, allApps: apps, sideSign: sideOf(section), lowerM: section.entryM},
     );
     // The same facts for each single corner inside a section, for drilling
     // in: the part windows when it has several, else the section's own.
@@ -322,6 +311,7 @@ export function cornerFacts({
               section.parts.length > 1
                 ? apps.filter(a => a.part === part.n)
                 : apps,
+            allApps: apps,
             sideSign: sideOf(part),
             lowerM: i > 0 ? section.parts[i - 1].apexM : section.entryM,
           },

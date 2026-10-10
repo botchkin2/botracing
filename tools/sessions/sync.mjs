@@ -411,6 +411,7 @@ function build(
     sessionType: first.sessionType,
     splitFiles: simName === 'iracing',
     catalogOnly,
+    steerRightSign: adapter.steerRightSign,
   });
   if (foldOnly) return {a, archived};
   // variant is for display; the layout key stays the id (iRacing's is a number
