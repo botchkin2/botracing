@@ -565,8 +565,10 @@ export function selectStint(sel: Selection, lapIds: string[]): Selection {
 
 /** The segment times the grid reads: the same sections the session table shows. */
 export function useSessionSegmentTimes(id: string): SegmentTimes | null {
+  const session = useSession(id);
   const laps = useSessionLaps(id);
-  const map = useSessionMap(id);
+  // The track's map, by track id (per-session map routes are gone, #432).
+  const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
   return useMemo(
     () =>

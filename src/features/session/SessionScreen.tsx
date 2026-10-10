@@ -497,7 +497,6 @@ function SessionView({
                 )}
               />
             )}
-            <SessionGrid id={sessionId} />
           </>
         }
         renderRow={(row, width) => renderRow(row, width, true)}
@@ -525,7 +524,12 @@ function SessionView({
           style={{width: tableW}}
           data={model.rows}
           keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={header}
+          ListHeaderComponent={
+            <>
+              {header}
+              <SessionGrid id={sessionId} />
+            </>
+          }
           ListFooterComponent={
             <View style={[styles.footer, {width: tableW}]}>
               <Text variant='dataSmall' tone='textMuted'>
@@ -547,9 +551,6 @@ function SessionView({
                       {fuelCard}
                     </FoldedSection>
                   ) : null}
-                  <FoldedSection title='Laps grid' summary='Spread by section'>
-                    <SessionGrid id={sessionId} />
-                  </FoldedSection>
                 </>
               )}
             </View>
