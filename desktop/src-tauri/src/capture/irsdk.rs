@@ -59,8 +59,7 @@ impl Header {
         if ver <= 0 || num_vars <= 0 || num_bufs <= 0 || buf_len <= 0 {
             return None;
         }
-        let (num_vars, num_bufs, buf_len) =
-            (num_vars as usize, num_bufs as usize, buf_len as usize);
+        let (num_vars, num_bufs, buf_len) = (num_vars as usize, num_bufs as usize, buf_len as usize);
         if num_vars > MAX_VARS || num_bufs > MAX_BUFS || buf_len > MAX_BUF_LEN {
             return None;
         }
@@ -154,10 +153,7 @@ pub fn parse_vars(raw: &[u8], header: &Header) -> Vec<Var> {
             continue;
         }
         let (offset, count) = (offset as usize, count as usize);
-        match count
-            .checked_mul(kind.size())
-            .and_then(|n| offset.checked_add(n))
-        {
+        match count.checked_mul(kind.size()).and_then(|n| offset.checked_add(n)) {
             Some(end) if end <= header.buf_len => {}
             _ => continue,
         }
@@ -165,12 +161,7 @@ pub fn parse_vars(raw: &[u8], header: &Header) -> Vec<Var> {
         if name.is_empty() {
             continue;
         }
-        vars.push(Var {
-            name,
-            kind,
-            offset,
-            count,
-        });
+        vars.push(Var { name, kind, offset, count });
     }
     vars
 }
@@ -188,9 +179,7 @@ impl Frame {
             return None;
         }
         let at = var.offset + index * 4;
-        Some(f32::from_le_bytes(
-            self.data.get(at..at + 4)?.try_into().ok()?,
-        ))
+        Some(f32::from_le_bytes(self.data.get(at..at + 4)?.try_into().ok()?))
     }
 
     pub fn f64(&self, var: &Var, index: usize) -> Option<f64> {
@@ -198,9 +187,7 @@ impl Frame {
             return None;
         }
         let at = var.offset + index * 8;
-        Some(f64::from_le_bytes(
-            self.data.get(at..at + 8)?.try_into().ok()?,
-        ))
+        Some(f64::from_le_bytes(self.data.get(at..at + 8)?.try_into().ok()?))
     }
 
     /// Int and bit-field variables.
@@ -245,9 +232,7 @@ impl Reader {
     /// unchanged. A restarted sim that published a different table fails this,
     /// and so does a map that went zero when the sim exited.
     pub fn alive<V: View>(&self, view: &mut V) -> bool {
-        let Some(raw) = view.read(0, HEADER_LEN) else {
-            return false;
-        };
+        let Some(raw) = view.read(0, HEADER_LEN) else { return false };
         Header::parse(&raw).is_some_and(|h| {
             h.connected() && h.num_vars == self.header.num_vars && h.buf_len == self.header.buf_len
         })
@@ -350,9 +335,7 @@ pub(crate) mod tests {
             if let Some(hook) = self.on_read.as_mut() {
                 hook(n, &mut self.mem);
             }
-            self.mem
-                .get(offset..offset.checked_add(len)?)
-                .map(|s| s.to_vec())
+            self.mem.get(offset..offset.checked_add(len)?).map(|s| s.to_vec())
         }
     }
 
@@ -392,11 +375,7 @@ pub(crate) mod tests {
         var(&mut m, 2, 4, 8, 8, "CarIdxLapDistPct");
         for (slot, tick) in ticks.iter().enumerate() {
             put(&mut m, BUF_TABLE + slot * BUF_SLOT, *tick);
-            put(
-                &mut m,
-                BUF_TABLE + slot * BUF_SLOT + 4,
-                (BUF0 + slot * BUF_LEN) as i32,
-            );
+            put(&mut m, BUF_TABLE + slot * BUF_SLOT + 4, (BUF0 + slot * BUF_LEN) as i32);
             // Each buffer: Speed = tick, Lap = tick * 10.
             let at = BUF0 + slot * BUF_LEN;
             m[at..at + 4].copy_from_slice(&(*tick as f32).to_le_bytes());
@@ -406,11 +385,7 @@ pub(crate) mod tests {
     }
 
     fn fake(mem: Vec<u8>) -> Fake {
-        Fake {
-            mem,
-            reads: 0,
-            on_read: None,
-        }
+        Fake { mem, reads: 0, on_read: None }
     }
 
     #[test]
@@ -581,25 +556,15 @@ pub(crate) mod tests {
         let r = Reader::open(&mut view).expect("connected, with a variable table");
         println!(
             "tick rate {} Hz, {} variables, {} buffers of {} bytes",
-            r.header.tick_rate,
-            r.vars.len(),
-            r.header.num_bufs,
-            r.header.buf_len
+            r.header.tick_rate, r.vars.len(), r.header.num_bufs, r.header.buf_len
         );
         let first = r.frame(&mut view, None).expect("a frame");
         std::thread::sleep(std::time::Duration::from_millis(500));
         let second = r.frame(&mut view, Some(first.tick)).expect("a newer frame");
-        println!(
-            "ticks {} then {} (about {} per second)",
-            first.tick,
-            second.tick,
-            (second.tick - first.tick) * 2
-        );
+        println!("ticks {} then {} (about {} per second)", first.tick, second.tick, (second.tick - first.tick) * 2);
         assert!(second.tick > first.tick);
         for name in ["Speed", "Lap", "LapDistPct", "SessionTime", "OnPitRoad"] {
-            let v = r
-                .var(name)
-                .unwrap_or_else(|| panic!("{name} is in the table"));
+            let v = r.var(name).unwrap_or_else(|| panic!("{name} is in the table"));
             let shown = match v.kind {
                 Kind::Float => second.f32(v, 0).map(|x| x.to_string()),
                 Kind::Double => second.f64(v, 0).map(|x| x.to_string()),
@@ -614,10 +579,7 @@ pub(crate) mod tests {
                 .filter_map(|i| second.f32(arr, i))
                 .filter(|p| *p > 0.0 && *p <= 1.0)
                 .count();
-            println!(
-                "CarIdxLapDistPct: {} slots, {} cars in the world",
-                arr.count, on_track
-            );
+            println!("CarIdxLapDistPct: {} slots, {} cars in the world", arr.count, on_track);
         }
         let (n, text) = r.session_info(&mut view, None).expect("session info");
         println!("session info update {n}, {} chars", text.chars().count());

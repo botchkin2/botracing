@@ -33,111 +33,31 @@ const ALIVE_EVERY_MS: u64 = 1_000;
 /// (tools/sessions/iracing.mjs CHANNELS) plus what only live data or the
 /// screens need. A variable the car does not have is simply not a column.
 pub const PLAYER: &[&str] = &[
-    "SessionTime",
-    "SessionNum",
-    "Speed",
-    "Throttle",
-    "ThrottleRaw",
-    "Brake",
-    "BrakeRaw",
-    "Clutch",
-    "SteeringWheelAngle",
-    "RPM",
-    "Gear",
-    "LapDist",
-    "LapDistPct",
-    "Lap",
-    "LapCompleted",
-    "LapLastLapTime",
-    "LapBestLapTime",
-    "LapCurrentLapTime",
-    "Lat",
-    "Lon",
-    "Alt",
-    "FuelLevel",
-    "OnPitRoad",
-    "PlayerCarInPitStall",
-    "PlayerTrackSurface",
-    "PlayerTrackSurfaceMaterial",
-    "SessionFlags",
-    "PlayerCarPosition",
-    "PlayerCarClassPosition",
-    "CarDistAhead",
-    "CarDistBehind",
-    "LatAccel",
-    "LongAccel",
-    "VertAccel",
-    "YawRate",
-    "CarLeftRight",
-    "LFtempCM",
-    "RFtempCM",
-    "LRtempCM",
-    "RRtempCM",
-    "LFtempL",
-    "RFtempL",
-    "LRtempL",
-    "RRtempL",
-    "LFtempM",
-    "RFtempM",
-    "LRtempM",
-    "RRtempM",
-    "LFtempR",
-    "RFtempR",
-    "LRtempR",
-    "RRtempR",
-    "LFwearL",
-    "RFwearL",
-    "LRwearL",
-    "RRwearL",
-    "LFwearM",
-    "RFwearM",
-    "LRwearM",
-    "RRwearM",
-    "LFwearR",
-    "RFwearR",
-    "LRwearR",
-    "RRwearR",
-    "LFpressure",
-    "RFpressure",
-    "LRpressure",
-    "RRpressure",
-    "TrackTemp",
-    "AirTemp",
+    "SessionTime", "SessionNum", "Speed", "Throttle", "ThrottleRaw", "Brake", "BrakeRaw",
+    "Clutch", "SteeringWheelAngle", "RPM", "Gear", "LapDist", "LapDistPct", "Lap",
+    "LapCompleted", "LapLastLapTime", "LapBestLapTime", "LapCurrentLapTime", "Lat", "Lon",
+    "Alt", "FuelLevel", "OnPitRoad", "PlayerCarInPitStall", "PlayerTrackSurface",
+    "PlayerTrackSurfaceMaterial", "SessionFlags", "PlayerCarPosition",
+    "PlayerCarClassPosition", "CarDistAhead", "CarDistBehind", "LatAccel", "LongAccel",
+    "VertAccel", "YawRate", "CarLeftRight", "LFtempCM", "RFtempCM", "LRtempCM", "RRtempCM", "LFtempL",
+    "RFtempL", "LRtempL", "RRtempL", "LFtempM", "RFtempM", "LRtempM", "RRtempM", "LFtempR",
+    "RFtempR", "LRtempR", "RRtempR", "LFwearL", "RFwearL", "LRwearL", "RRwearL", "LFwearM",
+    "RFwearM", "LRwearM", "RRwearM", "LFwearR", "RFwearR", "LRwearR", "RRwearR", "LFpressure",
+    "RFpressure", "LRpressure", "RRpressure", "TrackTemp", "AirTemp",
 ];
 
 /// Per-car arrays, one row per racing car per update.
 pub const FIELD: &[&str] = &[
-    "CarIdxLapDistPct",
-    "CarIdxLap",
-    "CarIdxLapCompleted",
-    "CarIdxPosition",
-    "CarIdxClassPosition",
-    "CarIdxOnPitRoad",
-    "CarIdxTrackSurface",
-    "CarIdxLastLapTime",
-    "CarIdxBestLapTime",
-    "CarIdxEstTime",
-    "CarIdxF2Time",
-    "CarIdxGear",
+    "CarIdxLapDistPct", "CarIdxLap", "CarIdxLapCompleted", "CarIdxPosition",
+    "CarIdxClassPosition", "CarIdxOnPitRoad", "CarIdxTrackSurface", "CarIdxLastLapTime",
+    "CarIdxBestLapTime", "CarIdxEstTime", "CarIdxF2Time", "CarIdxGear",
 ];
 
 /// Session clock, flags and weather, one row per update.
 pub const SESSION: &[&str] = &[
-    "SessionTime",
-    "SessionNum",
-    "SessionState",
-    "SessionFlags",
-    "SessionTimeRemain",
-    "SessionLapsRemain",
-    "TrackTemp",
-    "TrackTempCrew",
-    "AirTemp",
-    "TrackWetness",
-    "WeatherDeclaredWet",
-    "Skies",
-    "WindVel",
-    "WindDir",
-    "RelativeHumidity",
+    "SessionTime", "SessionNum", "SessionState", "SessionFlags", "SessionTimeRemain",
+    "SessionLapsRemain", "TrackTemp", "TrackTempCrew", "AirTemp", "TrackWetness",
+    "WeatherDeclaredWet", "Skies", "WindVel", "WindDir", "RelativeHumidity",
 ];
 
 /// What the menu shows about this recorder.
@@ -151,11 +71,7 @@ pub struct IrStatus {
 
 impl IrStatus {
     pub fn new() -> IrStatus {
-        IrStatus {
-            state: "no-sim",
-            reason: String::new(),
-            capture_bytes: 0,
-        }
+        IrStatus { state: "no-sim", reason: String::new(), capture_bytes: 0 }
     }
 }
 
@@ -216,10 +132,7 @@ fn on_track(frame: &Frame, gate: &[Var]) -> bool {
 }
 
 fn pick(reader: &Reader, names: &[&str]) -> Vec<Var> {
-    names
-        .iter()
-        .filter_map(|n| reader.var(n).cloned())
-        .collect()
+    names.iter().filter_map(|n| reader.var(n).cloned()).collect()
 }
 
 pub struct IrRecorder<S: IrSource> {
@@ -311,11 +224,8 @@ impl<S: IrSource> IrRecorder<S> {
                 self.say("waiting", "");
                 return WAITING;
             };
-            let (player, field, session) = (
-                pick(&reader, PLAYER),
-                pick(&reader, FIELD),
-                pick(&reader, SESSION),
-            );
+            let (player, field, session) =
+                (pick(&reader, PLAYER), pick(&reader, FIELD), pick(&reader, SESSION));
             let gate = pick(&reader, &["IsOnTrack", "IsReplayPlaying"]);
             self.open = Some(Open {
                 view,
@@ -330,10 +240,7 @@ impl<S: IrSource> IrRecorder<S> {
         }
         if ms.saturating_sub(self.last_alive_ms) >= ALIVE_EVERY_MS {
             self.last_alive_ms = ms;
-            let alive = self
-                .open
-                .as_mut()
-                .is_some_and(|o| o.reader.alive(&mut o.view));
+            let alive = self.open.as_mut().is_some_and(|o| o.reader.alive(&mut o.view));
             if !alive {
                 self.drop_sim(ms);
                 self.say("waiting", "");
@@ -344,9 +251,7 @@ impl<S: IrSource> IrRecorder<S> {
             self.last_info_ms = ms;
             self.read_session_text(ms);
         }
-        let Some(open) = self.open.as_mut() else {
-            return WAITING;
-        };
+        let Some(open) = self.open.as_mut() else { return WAITING };
         let Some(cap) = self.cap.as_mut() else {
             // No complete session text yet: nothing to record into.
             self.say("waiting", "");
@@ -414,9 +319,7 @@ impl<S: IrSource> IrRecorder<S> {
 
     /// A new or changed session text: a new session opens a new capture.
     fn read_session_text(&mut self, ms: u64) {
-        let Some(open) = self.open.as_mut() else {
-            return;
-        };
+        let Some(open) = self.open.as_mut() else { return };
         let Some((n, text)) = open.reader.session_info(&mut open.view, self.info_seen) else {
             return;
         };
@@ -568,11 +471,7 @@ mod tests {
 
     impl View for SimView {
         fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>> {
-            self.0
-                .borrow()
-                .mem
-                .get(offset..offset + len)
-                .map(|s| s.to_vec())
+            self.0.borrow().mem.get(offset..offset + len).map(|s| s.to_vec())
         }
     }
 
@@ -590,10 +489,7 @@ mod tests {
     fn setup(tag: &str, text: &str) -> (IrRecorder<Src>, Rc<RefCell<Sim>>, PathBuf) {
         let root = std::env::temp_dir().join(format!("ir-rec-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let sim = Rc::new(RefCell::new(Sim {
-            mem: sim_memory(text),
-            running: true,
-        }));
+        let sim = Rc::new(RefCell::new(Sim { mem: sim_memory(text), running: true }));
         let rec = IrRecorder::new(Src(sim.clone()), root.clone());
         (rec, sim, root)
     }
@@ -609,16 +505,8 @@ mod tests {
     fn rows(path: &PathBuf) -> (usize, Vec<String>) {
         let file = std::fs::File::open(path).unwrap();
         let b = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
-        let names = b
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| f.name().clone())
-            .collect();
-        (
-            b.build().unwrap().map(|r| r.unwrap().num_rows()).sum(),
-            names,
-        )
+        let names = b.schema().fields().iter().map(|f| f.name().clone()).collect();
+        (b.build().unwrap().map(|r| r.unwrap().num_rows()).sum(), names)
     }
 
     #[test]
@@ -661,13 +549,7 @@ mod tests {
             (31..=40, true, false),
         ] {
             for t in range {
-                frame_with(
-                    &mut sim.borrow_mut().mem,
-                    t,
-                    [0.1, 0.2, -1.0, 0.4],
-                    on,
-                    replay,
-                );
+                frame_with(&mut sim.borrow_mut().mem, t, [0.1, 0.2, -1.0, 0.4], on, replay);
                 rec.tick(ms);
                 ms += 17;
             }
@@ -741,10 +623,7 @@ mod tests {
         }
         assert_eq!(captures(&root).len(), 2);
         let first = std::fs::read_to_string(captures(&root)[0].join("meta.json")).unwrap();
-        assert!(
-            !first.contains("\"endUtc\": null"),
-            "the first is finished: {first}"
-        );
+        assert!(!first.contains("\"endUtc\": null"), "the first is finished: {first}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -795,10 +674,7 @@ mod tests {
         // IR_LIVE_SECONDS (default 60) sets how long; IR_LIVE_KEEP=<folder>
         // records into that folder and keeps it (a real run to compare with an
         // .ibt), with real wall-clock times.
-        let secs: u64 = std::env::var("IR_LIVE_SECONDS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(60);
+        let secs: u64 = std::env::var("IR_LIVE_SECONDS").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
         let keep = std::env::var_os("IR_LIVE_KEEP").map(PathBuf::from);
         let root = keep.clone().unwrap_or_else(|| {
             std::env::temp_dir().join(format!("ir-live-{}", std::process::id()))
@@ -824,19 +700,10 @@ mod tests {
         let started_ms = base_ms;
         let _ = started_ms;
         let bytes = dir_bytes(&root);
-        println!(
-            "state {} ({}), wrote {} bytes in {} s = {:.0} MB per hour",
-            rec.status.state,
-            rec.status.reason,
-            bytes,
-            secs,
-            bytes as f64 * 3600.0 / secs as f64 / 1e6
-        );
+        println!("state {} ({}), wrote {} bytes in {} s = {:.0} MB per hour",
+            rec.status.state, rec.status.reason, bytes, secs, bytes as f64 * 3600.0 / secs as f64 / 1e6);
         for dir in captures(&root) {
-            println!(
-                "{}",
-                std::fs::read_to_string(dir.join("meta.json")).unwrap_or_default()
-            );
+            println!("{}", std::fs::read_to_string(dir.join("meta.json")).unwrap_or_default());
         }
         assert!(bytes > 0, "nothing was recorded: is a car on track?");
         if keep.is_none() {

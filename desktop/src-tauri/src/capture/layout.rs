@@ -138,13 +138,7 @@ impl Header {
                 let kind = caps.get(1).unwrap().as_str();
                 if kind.starts_with("push") {
                     pack_stack.push(pack);
-                    pack = Some(
-                        caps.get(2)
-                            .unwrap()
-                            .as_str()
-                            .parse()
-                            .unwrap_or(DEFAULT_PACK),
-                    );
+                    pack = Some(caps.get(2).unwrap().as_str().parse().unwrap_or(DEFAULT_PACK));
                 } else {
                     pack = pack_stack.pop().flatten();
                 }
@@ -159,10 +153,7 @@ impl Header {
             pos = open + 1 + body.len() + 1;
             if kind.starts_with("enum") {
                 enums.insert(name, (enum_type(base.as_deref()), enum_values(&body)));
-            } else if base
-                .as_deref()
-                .is_some_and(|b| b.trim().starts_with("public"))
-            {
+            } else if base.as_deref().is_some_and(|b| b.trim().starts_with("public")) {
                 // Derived structs are not in the shared memory.
             } else if !structs.contains_key(&name) {
                 structs.insert(name, (pack, body));
@@ -204,10 +195,7 @@ fn enum_values(body: &str) -> HashMap<String, Option<i64>> {
         if part.is_empty() {
             continue;
         }
-        let (name, value) = part
-            .split_once('=')
-            .map(|(n, v)| (n, v.trim()))
-            .unwrap_or((part, ""));
+        let (name, value) = part.split_once('=').map(|(n, v)| (n, v.trim())).unwrap_or((part, ""));
         let name = name.trim();
         if value.is_empty() {
             values.insert(name.to_string(), Some(next));
@@ -229,10 +217,7 @@ fn enum_values(body: &str) -> HashMap<String, Option<i64>> {
 }
 
 fn parse_int(value: &str) -> Result<i64, ()> {
-    if let Some(hex) = value
-        .strip_prefix("0x")
-        .or_else(|| value.strip_prefix("0X"))
-    {
+    if let Some(hex) = value.strip_prefix("0x").or_else(|| value.strip_prefix("0X")) {
         return i64::from_str_radix(hex, 16).map_err(|_| ());
     }
     value.parse().map_err(|_| ())
@@ -241,8 +226,7 @@ fn parse_int(value: &str) -> Result<i64, ()> {
 fn strip_comments(text: &str) -> String {
     let block = Regex::new(r"(?s)/\*.*?\*/").expect("block comment");
     let line = Regex::new(r"//[^\n]*").expect("line comment");
-    line.replace_all(&block.replace_all(text, " "), "")
-        .into_owned()
+    line.replace_all(&block.replace_all(text, " "), "").into_owned()
 }
 
 fn block(text: &str, open_at: usize) -> LayoutResult<String> {
@@ -420,11 +404,7 @@ impl Layout {
             // Reserve the name so a struct that contains itself fails closed.
             self.built.insert(
                 name.to_string(),
-                Struct {
-                    size: 0,
-                    align: 1,
-                    fields: Vec::new(),
-                },
+                Struct { size: 0, align: 1, fields: Vec::new() },
             );
             let mut fields = Vec::new();
             for stmt in top_level_statements(&body) {
@@ -482,23 +462,11 @@ impl Layout {
                 kind: Kind::F64,
             });
         }
-        Ok(Struct {
-            size: 24,
-            align,
-            fields,
-        })
+        Ok(Struct { size: 24, align, fields })
     }
 
-    fn fields(
-        &mut self,
-        owner: &str,
-        stmt: &str,
-        pack: Option<usize>,
-    ) -> LayoutResult<Vec<(String, Ty)>> {
-        if stmt.contains('(')
-            || stmt.starts_with("static")
-            || stmt.starts_with("typedef")
-            || stmt.starts_with("friend")
+    fn fields(&mut self, owner: &str, stmt: &str, pack: Option<usize>) -> LayoutResult<Vec<(String, Ty)>> {
+        if stmt.contains('(') || stmt.starts_with("static") || stmt.starts_with("typedef") || stmt.starts_with("friend")
         {
             return Ok(Vec::new());
         }
@@ -510,12 +478,7 @@ impl Layout {
         let caps = decl
             .captures(&flat)
             .ok_or_else(|| err(format!("{owner}: cannot read {stmt:?}")))?;
-        let base = self.ty(
-            owner,
-            caps.name("type").unwrap().as_str().trim(),
-            caps.name("ptr").unwrap().as_str() == "*",
-            pack,
-        )?;
+        let base = self.ty(owner, caps.name("type").unwrap().as_str().trim(), caps.name("ptr").unwrap().as_str() == "*", pack)?;
         let mut out = Vec::new();
         for part in caps.name("names").unwrap().as_str().split(',') {
             let part = part.trim();
@@ -529,11 +492,7 @@ impl Layout {
                 .as_str()
                 .to_string();
             let mut ty = if pointer {
-                Ty {
-                    size: 8,
-                    align: 8,
-                    kind: Kind::Pointer,
-                }
+                Ty { size: 8, align: 8, kind: Kind::Pointer }
             } else {
                 base.clone()
             };
@@ -548,20 +507,12 @@ impl Layout {
                 for size in &sizes {
                     n *= self.header.constant(size)?;
                 }
-                ty = Ty {
-                    size: n,
-                    align: 1,
-                    kind: Kind::Bytes(n),
-                };
+                ty = Ty { size: n, align: 1, kind: Kind::Bytes(n) };
             } else {
                 for size in sizes.into_iter().rev() {
                     let n = self.header.constant(size)?;
                     let kind = Kind::Array(Box::new(ty.kind.clone()), n);
-                    ty = Ty {
-                        size: ty.size * n,
-                        align: ty.align,
-                        kind,
-                    };
+                    ty = Ty { size: ty.size * n, align: ty.align, kind };
                 }
             }
             out.push((name, ty));
@@ -569,19 +520,9 @@ impl Layout {
         Ok(out)
     }
 
-    fn ty(
-        &mut self,
-        owner: &str,
-        name: &str,
-        pointer: bool,
-        pack: Option<usize>,
-    ) -> LayoutResult<Ty> {
+    fn ty(&mut self, owner: &str, name: &str, pointer: bool, pack: Option<usize>) -> LayoutResult<Ty> {
         if pointer {
-            return Ok(Ty {
-                size: 8,
-                align: 8,
-                kind: Kind::Pointer,
-            });
+            return Ok(Ty { size: 8, align: 8, kind: Kind::Pointer });
         }
         let name = name
             .trim()
@@ -632,10 +573,7 @@ mod tests {
             serde_json::from_str(include_str!("fixture_layout.json")).unwrap();
         assert_eq!(lay.hash, oracle["hash"].as_str().unwrap());
         assert_eq!(lay.size, oracle["size"].as_u64().unwrap() as usize);
-        assert_eq!(
-            lay.max_vehicles,
-            oracle["maxVehicles"].as_u64().unwrap() as usize
-        );
+        assert_eq!(lay.max_vehicles, oracle["maxVehicles"].as_u64().unwrap() as usize);
         // The real header's position, as measured from the LMU install (rake, #3199).
         assert_eq!(lay.in_realtime, 115);
         assert_eq!(lay.num_vehicles, 104);
@@ -656,27 +594,11 @@ mod tests {
         let names: Vec<&str> = telem.fields.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(
             &names[names.len() - 7..],
-            [
-                "mVehicleClass",
-                "mABSActive",
-                "mTCActive",
-                "mVehicleModel",
-                "mFrontTireCompoundName",
-                "mRearTireCompoundName",
-                "mWheel"
-            ]
+            ["mVehicleClass", "mABSActive", "mTCActive", "mVehicleModel", "mFrontTireCompoundName", "mRearTireCompoundName", "mWheel"]
         );
-        let class = telem
-            .fields
-            .iter()
-            .find(|f| f.name == "mVehicleClass")
-            .unwrap();
+        let class = telem.fields.iter().find(|f| f.name == "mVehicleClass").unwrap();
         assert_eq!(class.size, 1);
-        let clock = telem
-            .fields
-            .iter()
-            .find(|f| f.name == "mElapsedTime")
-            .unwrap();
+        let clock = telem.fields.iter().find(|f| f.name == "mElapsedTime").unwrap();
         assert!(matches!(clock.kind, Kind::F64));
         let wheel_field = telem.fields.iter().find(|f| f.name == "mWheel").unwrap();
         assert_eq!(wheel_field.offset % 4, 0);
@@ -684,11 +606,7 @@ mod tests {
         assert_eq!(generic.size, 16);
         // SharedMemoryScoringData is after pack(pop): size_t aligns to 8.
         let scoring = lay.struct_named("SharedMemoryScoringData").unwrap().clone();
-        let stream = scoring
-            .fields
-            .iter()
-            .find(|f| f.name == "scoringStreamSize")
-            .unwrap();
+        let stream = scoring.fields.iter().find(|f| f.name == "scoringStreamSize").unwrap();
         assert_eq!(stream.offset % 8, 0);
         let telem_info = lay.offsets["telemInfo"];
         let telemetry = lay

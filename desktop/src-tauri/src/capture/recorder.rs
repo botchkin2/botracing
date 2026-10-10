@@ -152,9 +152,7 @@ impl<S: Source> Recorder<S> {
     fn set(&mut self, now: u64, change: impl FnOnce(&mut Status)) {
         let before = self.status.clone();
         change(&mut self.status);
-        let due = self
-            .status_written
-            .map_or(true, |at| now.saturating_sub(at) >= STATUS_MS);
+        let due = self.status_written.map_or(true, |at| now.saturating_sub(at) >= STATUS_MS);
         if before != self.status || due {
             let _ = std::fs::create_dir_all(&self.root);
             let _ = write_json(&self.root.join("status.json"), &self.status.json(now));
@@ -165,10 +163,7 @@ impl<S: Source> Recorder<S> {
     /// Walks the capture root for its size. Only while no capture is open: the
     /// walk grows with every capture kept, and must not stall recording.
     fn recount(&mut self, now: u64) {
-        if self
-            .recounted
-            .map_or(true, |at| now.saturating_sub(at) >= RECOUNT_MS)
-        {
+        if self.recounted.map_or(true, |at| now.saturating_sub(at) >= RECOUNT_MS) {
             self.recounted = Some(now);
             self.status.capture_bytes = dir_bytes(&self.root);
         }
@@ -187,10 +182,7 @@ impl<S: Source> Recorder<S> {
         meta.insert("gameMode".into(), json!(u8_at(info, p.s_game_mode)));
         match Capture::new(&self.root, &self.layout, meta, now) {
             Ok(capture) => {
-                let dir = capture
-                    .dir
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned());
+                let dir = capture.dir.file_name().map(|n| n.to_string_lossy().into_owned());
                 self.capture = Some(capture);
                 self.key = Some(key);
                 self.player_ok = None;
@@ -247,10 +239,7 @@ impl<S: Source> Recorder<S> {
 
     /// One poll. Returns how long to sleep before the next.
     pub fn tick(&mut self, now: u64) -> Duration {
-        if self
-            .last_game_check
-            .map_or(true, |at| now.saturating_sub(at) >= GAME_CHECK_MS)
-        {
+        if self.last_game_check.map_or(true, |at| now.saturating_sub(at) >= GAME_CHECK_MS) {
             self.last_game_check = Some(now);
             if !self.source.game_running() {
                 self.close_capture(now);
@@ -358,8 +347,7 @@ impl<S: Source> Recorder<S> {
     /// The player's slot and elapsed time, or None when not in a car.
     fn player_clock(&mut self) -> Option<f64> {
         let o = &self.layout.offsets;
-        let (has_at, idx_at, telem_at) =
-            (o["playerHasVehicle"], o["playerVehicleIdx"], o["telemInfo"]);
+        let (has_at, idx_at, telem_at) = (o["playerHasVehicle"], o["playerVehicleIdx"], o["telemInfo"]);
         if self.read(has_at, 1)?[0] == 0 {
             return None;
         }
@@ -373,32 +361,21 @@ impl<S: Source> Recorder<S> {
 
     fn scoring(&mut self, now: u64) {
         let layout = &self.layout;
-        let Some(view) = self.view.as_mut() else {
-            return;
-        };
-        let Some(sample) = frame::scoring(view, layout) else {
-            return;
-        };
+        let Some(view) = self.view.as_mut() else { return };
+        let Some(sample) = frame::scoring(view, layout) else { return };
         let (info, vehicles, n, et) = (sample.info, sample.vehicles, sample.count, sample.et);
         let restarted = self.last_scoring_et.is_some_and(|last| et < last - 1.0);
         // Steps of 0.3 to 1 s on the 200 ms scoring clock are updates slept through.
         let skipped = self.last_scoring_et.map_or(0, |last| {
             let step = et - last;
-            if step > 0.3 && step < 1.0 {
-                ((step / 0.2).round() as u64).saturating_sub(1)
-            } else {
-                0
-            }
+            if step > 0.3 && step < 1.0 { ((step / 0.2).round() as u64).saturating_sub(1) } else { 0 }
         });
         self.last_scoring_et = Some(et);
         self.last_scoring_ms = now;
         if n == 0 {
             return;
         }
-        let key = (
-            text_at(&info, self.probe.s_track),
-            i32_at(&info, self.probe.s_session),
-        );
+        let key = (text_at(&info, self.probe.s_track), i32_at(&info, self.probe.s_session));
         if self.capture.is_some() && (self.key.as_ref() != Some(&key) || restarted) {
             self.close_capture(now);
         }
@@ -409,9 +386,7 @@ impl<S: Source> Recorder<S> {
             {
                 return;
             }
-            if let Err(reason) =
-                sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n)
-            {
+            if let Err(reason) = sanity::check_scoring(&self.layout, &self.probe, &info, &vehicles, n) {
                 self.refuse_and_remove(now, Some(key), &reason);
                 return;
             }
@@ -422,9 +397,7 @@ impl<S: Source> Recorder<S> {
             });
             self.open_capture(now, &info, key);
         }
-        let Some(capture) = self.capture.as_mut() else {
-            return;
-        };
+        let Some(capture) = self.capture.as_mut() else { return };
         capture.add_scoring(&info, &vehicles, n, et, now);
         capture.count("scoringUpdates", 1);
         capture.count("missedUpdates", skipped);
@@ -434,30 +407,21 @@ impl<S: Source> Recorder<S> {
 
     /// Looks up car models once per new car id, from the telemetry slots.
     fn note_models(&mut self) {
-        let Some((_, vehicles, n)) = self.last_field.clone() else {
-            return;
-        };
+        let Some((_, vehicles, n)) = self.last_field.clone() else { return };
         let size = vehicles.len() / n.max(1);
         let ids: Vec<i32> = (0..n)
             .map(|i| i32_at(&vehicles[i * size..], self.probe.v_id))
             .collect();
-        let known = |c: &mut Capture| {
-            ids.iter()
-                .all(|id| c.models().contains_key(&id.to_string()))
-        };
+        let known = |c: &mut Capture| ids.iter().all(|id| c.models().contains_key(&id.to_string()));
         if self.capture.as_mut().map_or(true, known) {
             return;
         }
         let o = &self.layout.offsets;
         let (active_at, telem_at) = (o["activeVehicles"], o["telemInfo"]);
-        let Some(active) = self.read(active_at, 1).map(|b| b[0] as usize) else {
-            return;
-        };
+        let Some(active) = self.read(active_at, 1).map(|b| b[0] as usize) else { return };
         for i in 0..active.min(self.layout.max_vehicles) {
             let slot = telem_at + i * self.layout.telem_size;
-            let Some(raw) = self.read(slot, self.layout.telem_size) else {
-                continue;
-            };
+            let Some(raw) = self.read(slot, self.layout.telem_size) else { continue };
             let id = i32_at(&raw, self.probe.t_id);
             let model = text_at(&raw, self.probe.t_model).trim().to_string();
             if !model.is_empty() && ids.contains(&id) {
@@ -469,9 +433,7 @@ impl<S: Source> Recorder<S> {
     }
 
     fn player(&mut self, now: u64) {
-        let Some(et) = self.player_clock() else {
-            return;
-        };
+        let Some(et) = self.player_clock() else { return };
         if Some(et) == self.last_player_et {
             return;
         }
@@ -481,17 +443,11 @@ impl<S: Source> Recorder<S> {
             return;
         }
         let layout = &self.layout;
-        let Some(view) = self.view.as_mut() else {
-            return;
-        };
-        let Some(sample) = frame::player(view, layout) else {
-            return;
-        };
+        let Some(view) = self.view.as_mut() else { return };
+        let Some(sample) = frame::player(view, layout) else { return };
         self.last_player_et = Some(sample.et);
         if self.player_ok.is_none() {
-            let Some((info, vehicles, n)) = self.last_field.as_ref() else {
-                return;
-            };
+            let Some((info, vehicles, n)) = self.last_field.as_ref() else { return };
             match sanity::check_player(&self.probe, info, vehicles, *n, &sample.raw) {
                 Verdict::Ok => self.player_ok = Some(true),
                 Verdict::Wait => {}
@@ -532,9 +488,7 @@ impl<S: Source> Recorder<S> {
         let speed = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
         let pos = p.t_pos.map(|at| f64_at(raw, at));
         let prev = self.prev_motion.replace((et, speed, pos));
-        let Some((prev_et, prev_speed, prev_pos)) = prev else {
-            return false;
-        };
+        let Some((prev_et, prev_speed, prev_pos)) = prev else { return false };
         let dt = et - prev_et;
         // A step over 1.5 periods, under a second, is frames the loop slept
         // through; longer is a pause or a reset.
@@ -581,10 +535,7 @@ mod tests {
 
     impl View for Mem {
         fn read(&mut self, offset: usize, len: usize) -> Option<Vec<u8>> {
-            self.0
-                .borrow()
-                .get(offset..offset.checked_add(len)?)
-                .map(<[u8]>::to_vec)
+            self.0.borrow().get(offset..offset.checked_add(len)?).map(<[u8]>::to_vec)
         }
     }
 
@@ -615,28 +566,16 @@ mod tests {
             let lay = layout();
             let mem = Mem(Rc::new(RefCell::new(vec![0; lay.size])));
             let running = Rc::new(RefCell::new(true));
-            let root =
-                std::env::temp_dir().join(format!("botracing-rec-{name}-{}", std::process::id()));
+            let root = std::env::temp_dir().join(format!("botracing-rec-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&root);
             let rec = Recorder::new(
                 layout(),
                 root.clone(),
-                Fake {
-                    mem: mem.clone(),
-                    running: running.clone(),
-                },
+                Fake { mem: mem.clone(), running: running.clone() },
                 60_000,
             )
             .unwrap();
-            (
-                Rig {
-                    lay,
-                    mem,
-                    running,
-                    root,
-                },
-                rec,
-            )
+            (Rig { lay, mem, running, root }, rec)
         }
 
         fn put(&self, at: usize, bytes: &[u8]) {
@@ -686,19 +625,10 @@ mod tests {
             self.put(self.telem("mGear"), &3_i32.to_le_bytes());
             for w in 0..4 {
                 for k in 0..3 {
-                    self.put(
-                        self.telem(&format!("mWheel.{w}.mTemperature.{k}")),
-                        &350.0_f64.to_le_bytes(),
-                    );
+                    self.put(self.telem(&format!("mWheel.{w}.mTemperature.{k}")), &350.0_f64.to_le_bytes());
                 }
-                self.put(
-                    self.telem(&format!("mWheel.{w}.mTireCarcassTemperature")),
-                    &340.0_f64.to_le_bytes(),
-                );
-                self.put(
-                    self.telem(&format!("mWheel.{w}.mBrakeTemp")),
-                    &500.0_f64.to_le_bytes(),
-                );
+                self.put(self.telem(&format!("mWheel.{w}.mTireCarcassTemperature")), &340.0_f64.to_le_bytes());
+                self.put(self.telem(&format!("mWheel.{w}.mBrakeTemp")), &500.0_f64.to_le_bytes());
             }
         }
 
@@ -716,15 +646,12 @@ mod tests {
         }
 
         fn meta(&self, folder: &str) -> Value {
-            serde_json::from_str(
-                &std::fs::read_to_string(self.root.join(folder).join("meta.json")).unwrap(),
-            )
-            .unwrap()
+            serde_json::from_str(&std::fs::read_to_string(self.root.join(folder).join("meta.json")).unwrap())
+                .unwrap()
         }
 
         fn status_file(&self) -> Value {
-            serde_json::from_str(&std::fs::read_to_string(self.root.join("status.json")).unwrap())
-                .unwrap()
+            serde_json::from_str(&std::fs::read_to_string(self.root.join("status.json")).unwrap()).unwrap()
         }
     }
 
@@ -781,11 +708,7 @@ mod tests {
         assert!(meta["endUtc"].is_string());
         assert_eq!(meta["chunks"], 1);
         assert_eq!(meta["vehicleModels"]["7"], "GT3 R");
-        for file in [
-            "player-0000.parquet",
-            "field-0000.parquet",
-            "session-0000.parquet",
-        ] {
+        for file in ["player-0000.parquet", "field-0000.parquet", "session-0000.parquet"] {
             assert!(rig.root.join(&folders[0]).join(file).is_file(), "{file}");
         }
         assert_eq!(rec.status.state, "stopped");
@@ -802,10 +725,7 @@ mod tests {
         rec.tick(1_200);
         let folders = rig.folders();
         assert_eq!(folders.len(), 2, "{folders:?}");
-        assert!(
-            folders[0].ends_with("_1") && folders[1].ends_with("_5"),
-            "{folders:?}"
-        );
+        assert!(folders[0].ends_with("_1") && folders[1].ends_with("_5"), "{folders:?}");
         assert!(rig.meta(&folders[0])["endUtc"].is_string());
         assert_eq!(rig.meta(&folders[1])["endUtc"], Value::Null);
     }
@@ -832,11 +752,7 @@ mod tests {
         rec.tick(1_000);
         assert_eq!(rec.status.state, "refused");
         assert_eq!(rec.status.layout_ok, Some(false));
-        assert!(
-            rec.status.layout_reason.contains("car names are not text"),
-            "{}",
-            rec.status.layout_reason
-        );
+        assert!(rec.status.layout_reason.contains("car names are not text"), "{}", rec.status.layout_reason);
         assert!(rig.folders().is_empty());
     }
 
@@ -854,11 +770,7 @@ mod tests {
         rig.player("Road Atlanta", 5.01);
         rec.tick(62_000);
         assert_eq!(rec.status.state, "refused");
-        assert!(
-            rec.status.layout_reason.contains("can't write"),
-            "{}",
-            rec.status.layout_reason
-        );
+        assert!(rec.status.layout_reason.contains("can't write"), "{}", rec.status.layout_reason);
         assert_eq!(rig.meta(&folder)["endUtc"], Value::Null);
     }
 
@@ -903,11 +815,7 @@ mod tests {
         assert_eq!(meta["scoringUpdates"], 1);
         assert_eq!(meta["missedUpdates"], 0);
         // 3 of 7 is 43%.
-        assert!(
-            rec.status.dropped_pct > 40.0 && rec.status.dropped_pct < 45.0,
-            "{}",
-            rec.status.dropped_pct
-        );
+        assert!(rec.status.dropped_pct > 40.0 && rec.status.dropped_pct < 45.0, "{}", rec.status.dropped_pct);
     }
 
     #[test]
