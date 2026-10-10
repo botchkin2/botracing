@@ -57,6 +57,10 @@ describe('formatRaceGap', () => {
     expect(formatRaceGap(59.9994)).toBe('+59.999');
     expect(formatRaceGap(64.2)).toBe('+1:04.2');
     expect(formatRaceGap(600)).toBe('+10:00.0');
+    // Rounding carries into the minutes, never "+1:60.0" or "+60.000".
+    expect(formatRaceGap(119.97)).toBe('+2:00.0');
+    expect(formatRaceGap(59.9996)).toBe('+1:00.0');
+    expect(formatRaceGap(3599.97)).toBe('+60:00.0');
   });
 });
 
