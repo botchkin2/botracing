@@ -356,6 +356,11 @@ const PROBLEM_KINDS = [
   'file-unreadable',
 ];
 const MAX_PROBLEMS = 10;
+// A kind this server does not know yet is a newer tray talking to an older
+// server: it is dropped, not refused, so the rest of the status (and the
+// PC's heartbeat) still lands. A known kind with a bad field is still a 400.
+const unknownKind = (p: unknown): boolean =>
+  isObj(p) && typeof p.kind === 'string' && !PROBLEM_KINDS.includes(p.kind);
 const optional = (v: unknown, ok: (x: unknown) => boolean) =>
   v === undefined || v === null || ok(v);
 const problemOk = (p: unknown): boolean =>
@@ -371,7 +376,16 @@ const problemOk = (p: unknown): boolean =>
   optional(p.count, count) &&
   optional(p.retryAt, when);
 function cleanProblems(v: unknown): Json {
-  return (v as Record<string, unknown>[]).map(p => {
+  const all = v as Record<string, unknown>[];
+  const known = all.filter(p => !unknownKind(p));
+  if (known.length < all.length)
+    console.warn(
+      `heartbeat: dropped ${all.length - known.length} problem(s) of an unknown kind: ${all
+        .filter(unknownKind)
+        .map(p => String(p.kind).slice(0, 32))
+        .join(', ')}`,
+    );
+  return known.map(p => {
     const out: Record<string, Json> = {
       kind: p.kind as string,
       at: (p.at ?? null) as Json,
@@ -401,7 +415,9 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
   retryAt: when,
   sessionsDone: count,
   problems: v =>
-    Array.isArray(v) && v.length <= MAX_PROBLEMS && v.every(problemOk),
+    Array.isArray(v) &&
+    v.length <= MAX_PROBLEMS &&
+    v.every(p => unknownKind(p) || problemOk(p)),
   disk: v => isObj(v) && count(v.captureBytes) && count(v.freeBytes),
   recorder: v =>
     v === null ||
