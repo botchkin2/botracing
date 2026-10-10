@@ -6,6 +6,7 @@ import {
   segmentOptimum,
   segmentStats,
   type SegmentTimes,
+  sectionNamesLabel,
   turnRangeLabel,
 } from './segments';
 
@@ -147,5 +148,17 @@ describe('segmentBests', () => {
     t.laps = t.laps.slice(0, 2);
     t.laps.push(lap('x', 1, [1, 1, 1], false));
     expect(segmentBests(t)).toEqual([10, 19, 30]);
+  });
+});
+
+describe('sectionNamesLabel', () => {
+  it('reads one turn split into entry and apex as one name', () => {
+    expect(sectionNamesLabel(['T7 entry', 'T7'])).toBe('T7');
+  });
+  it('keeps a real range and drops entry/exit inside it', () => {
+    expect(sectionNamesLabel(['T2', 'T3', 'T4 exit', 'T5'])).toBe('T2–5');
+  });
+  it('a single corner is its name', () => {
+    expect(sectionNamesLabel(['T10a'])).toBe('T10a');
   });
 });
