@@ -478,14 +478,7 @@ describe('buildBrakeMap', () => {
     const usual = buildBrakeMap(rows, trace, apex)!;
     expect(usual.brakes.map(p => p.lapId)).toEqual(['a']);
     // Whole window: the first part's brake (450 m before the last apex).
-    const wide = buildBrakeMap(
-      rows,
-      trace,
-      apex,
-      null,
-      {brakeApexM: apex, throttleApexM: apex},
-      [20, 800],
-    )!;
+    const wide = buildBrakeMap(rows, trace, apex, null, [20, 800])!;
     expect(wide.brakes.map(p => p.lapId)).toEqual(['a', 'b']);
     expect(wide.centreline).toHaveLength(781);
   });

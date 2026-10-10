@@ -63,7 +63,15 @@ const map = toTrackMap({
 // Handwritten, as no stored lap of a compound corner is under 50 KB. Times
 // are rounded to 3 decimals like the uploader writes them. Each part and the
 // section carry different pedal facts so the test can tell which one is read.
-const lap = (id: string, shift: number) => ({
+type Opts = {
+  /** The part the first brake application brakes for (section brakeApps). */
+  brakePart?: number | null;
+  firstEdge?: boolean;
+  lastEdge?: boolean;
+  lastFlat?: boolean;
+  sectionEdge?: boolean;
+};
+const lap = (id: string, shift: number, o: Opts = {}) => ({
   id,
   lapTime: 100,
   comparable: true,
@@ -82,7 +90,12 @@ const lap = (id: string, shift: number) => ({
       brakeAtM: 400,
       fullThrottleAtM: 700,
       throttlePickupAtM: 650,
-      brakeApps: [],
+      minSpeedAtEdge: o.sectionEdge === true,
+      fullThrottleAtEdge: false,
+      brakeApps:
+        o.brakePart == null
+          ? []
+          : [{onsetM: 640, peakPct: 60, part: o.brakePart}],
       parts: [
         {
           segTime: 5.0004,
@@ -97,6 +110,7 @@ const lap = (id: string, shift: number) => ({
           turnInAtM: 530,
           throttlePickupAtM: 600,
           fullThrottleAtM: 690,
+          minSpeedAtEdge: o.firstEdge === true,
         },
         {
           segTime: 7.0006 + shift,
@@ -111,6 +125,8 @@ const lap = (id: string, shift: number) => ({
           turnInAtM: 720,
           throttlePickupAtM: 790,
           fullThrottleAtM: 850 + shift,
+          minSpeedAtEdge: o.lastEdge === true,
+          fullThrottleAtEdge: o.lastFlat === true,
         },
       ],
     },
@@ -118,15 +134,21 @@ const lap = (id: string, shift: number) => ({
 });
 
 const laps = toLaps([lap('a', 0), lap('b', 2)]);
-const build = (corner: number, whole: boolean, lapIds = ['a', 'b']) =>
+const build = (
+  corner: number,
+  whole: boolean,
+  lapIds = ['a', 'b'],
+  l = laps,
+  refId: string | null = 'a',
+) =>
   buildCornerModel({
     session,
-    laps,
+    laps: l,
     map,
     band: null,
     traces: new Map(),
     lapIds,
-    refId: 'a',
+    refId,
     keyLapIds: lapIds,
     hl: null,
     corner,
@@ -176,6 +198,60 @@ describe('All on a compound corner', () => {
       throttle: 850 - 780,
       minThrottle: null,
     });
+  });
+
+  it('measures the brake to the part the first application brakes for', () => {
+    // Road Atlanta T2-5: the only application brakes for T3, not for T2.
+    const l = toLaps([lap('a', 0, {brakePart: 3})]);
+    const m = build(2, true, ['a'], l);
+    // T3's brake (690) and turn-in (720) from T3's apex (780).
+    expect(m.rows[0].values.brake).toBe(780 - 690);
+    expect(m.rows[0].values.turnIn).toBe(780 - 720);
+    expect(m.rows[0].values.peakBrake).toBe(60);
+    // The braking map places it from the same apex.
+    expect(m.rows[0].brakeApexM).toBe(780);
+  });
+
+  it('falls back to the part holding the slowest point, then the first', () => {
+    const l = toLaps([lap('a', 0)]);
+    expect(build(2, true, ['a'], l).rows[0].brakeApexM).toBe(580);
+  });
+
+  it('turn-in is not lost to the first part’s edge flag when another part is braked for', () => {
+    const l = toLaps([lap('a', 0, {brakePart: 3, firstEdge: true})]);
+    expect(build(2, true, ['a'], l).rows[0].values.turnIn).toBe(60);
+    // Braked for the first part, which sat on the edge: no turn-in.
+    const edge = toLaps([lap('a', 0, {firstEdge: true})]);
+    expect(build(2, true, ['a'], edge).rows[0].values.turnIn).toBeNull();
+  });
+
+  it('gates the exit facts on the window’s edge flag, not the last part’s', () => {
+    const l = toLaps([lap('a', 0, {brakePart: 3, lastEdge: true})]);
+    const v = build(2, true, ['a'], l).rows[0].values;
+    expect(v.pickup).toBe(10);
+    expect(v.throttle).toBe(70);
+    expect(v.minSpeed).toBe(70);
+    const edge = toLaps([lap('a', 0, {brakePart: 3, sectionEdge: true})]);
+    const w = build(2, true, ['a'], edge).rows[0].values;
+    expect([w.pickup, w.throttle, w.minSpeed]).toEqual([null, null, null]);
+  });
+
+  it('takes full throttle from the section when the last part was already there', () => {
+    const l = toLaps([lap('a', 0, {lastFlat: true})]);
+    const m = build(2, true, ['a'], l);
+    // The section's held point (700) from the section's apex (600).
+    expect(m.rows[0].values.throttle).toBe(100);
+  });
+
+  it('frames and shades the whole window under the median basis', () => {
+    const m = build(2, true, ['a', 'b'], laps, null);
+    expect(m.zoom.stretch.fromM).toBe(500);
+    expect(m.zoom.stretch.toM).toBe(1000);
+    expect(m.zoom.windowM[0]).toBeLessThanOrEqual(500);
+    expect(m.subtitle).toContain('vs median of 2');
+    // Names the compound, and not its own parts as "also in view".
+    expect(m.zoom.caption).not.toContain('also in view: T2');
+    expect(m.zoom.caption).not.toContain('T3');
   });
 
   it('compares against the median of the set like any corner', () => {

@@ -23,7 +23,12 @@ import {
 import {formatGap, lapMode, type LapMode, turnLabel} from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
-import {cornerSources, sectionMembers, wholeTitle} from './wholeCorner';
+import {
+  cornerSources,
+  sectionMembers,
+  wholeLabel,
+  wholeTitle,
+} from './wholeCorner';
 import {
   buildSectionWindow,
   isCurrent,
@@ -97,6 +102,9 @@ export type CornerRow = {
   onIndex: number | null;
   values: Record<Measure, number | null>;
   cells: Record<Measure, {value: string; gap: string | null; better: boolean}>;
+  /** The apexes the lap's brake and throttle distances are measured from: the part braked for and the exit part over a whole compound window, else the corner's own. */
+  brakeApexM?: number;
+  throttleApexM?: number;
 };
 
 export type ZoomLine = {
@@ -347,24 +355,26 @@ export function buildCornerModel(input: {
   const valuesOf = (l: Lap): Record<Measure, number | null> => {
     // Over one corner all three sources are its own; over the whole compound
     // window they differ (wholeCorner.ts says which part each fact is from).
-    const {entry, exit, whole: win} = sourcesOf(l);
+    const {entry, exit, throttle, whole: win} = sourcesOf(l);
     const f = win.facts;
     // The slowest sample sat on the window's edge: the car was still slowing at
     // turn-in or already slower at the exit, so there is no minimum of this
     // corner, and nothing measured from an apex that was not reached (bias,
-    // pit wall thread 58 #3751): null, not a number from the boundary. Each
-    // fact is judged by the edge flag of the part it comes from.
+    // pit wall thread 58 #3751): null, not a number from the boundary. The
+    // entry facts are judged by the entry part's own flag; the exit facts by
+    // the window's: a last part taken while accelerating still belongs to a
+    // window that had a slowest point.
     const e = entry.facts;
     const x = exit.facts;
     const entryEdge = e?.minSpeedAtEdge === true;
-    const exitEdge = x?.minSpeedAtEdge === true;
+    const exitEdge = f?.minSpeedAtEdge === true;
     return {
       time: f?.segTimeS ?? null,
       brake: e?.brakeAtM == null ? null : entry.apexM - e.brakeAtM,
       peakBrake: e?.peakBrakePct ?? null,
       turnIn:
         entryEdge || e?.turnInAtM == null ? null : entry.apexM - e.turnInAtM,
-      minSpeed: f?.minSpeedAtEdge === true ? null : f?.minSpeedKph ?? null,
+      minSpeed: exitEdge ? null : f?.minSpeedKph ?? null,
       pickup:
         exitEdge || x?.throttlePickupAtM == null
           ? null
@@ -372,9 +382,11 @@ export function buildCornerModel(input: {
       // Already at full throttle at the slowest sample: no full-throttle point,
       // the search's start is not a point on the lap.
       throttle:
-        exitEdge || x?.fullThrottleAtM == null || x.fullThrottleAtEdge
+        exitEdge ||
+        throttle.facts?.fullThrottleAtM == null ||
+        throttle.facts.fullThrottleAtEdge
           ? null
-          : x.fullThrottleAtM - exit.apexM,
+          : throttle.facts.fullThrottleAtM - throttle.apexM,
       // A pedal that never closed has no pickup: how far it came off instead.
       minThrottle:
         exitEdge || x?.throttlePickupAtM != null
@@ -383,7 +395,7 @@ export function buildCornerModel(input: {
     };
   };
   const isAtMin = (l: Lap) =>
-    sourcesOf(l).exit.facts?.fullThrottleAtEdge === true;
+    sourcesOf(l).throttle.facts?.fullThrottleAtEdge === true;
   // Per column: the Ref's value, or the median of the set's non-null values.
   const allValues = selected.map(valuesOf);
   const refValues = ref ? valuesOf(ref) : null;
@@ -435,6 +447,8 @@ export function buildCornerModel(input: {
       onIndex: onIndexOf.get(l.id) ?? null,
       values,
       cells,
+      brakeApexM: sourcesOf(l).entry.apexM,
+      throttleApexM: sourcesOf(l).throttle.apexM,
     };
   });
 
@@ -452,11 +466,11 @@ export function buildCornerModel(input: {
               brakeM: r.values.brake,
               minSpeedKph: f?.minSpeedKph ?? null,
               minSpeedAtEdge: f?.minSpeedAtEdge ?? false,
-              throttleAtEdge: src.exit.facts?.fullThrottleAtEdge ?? false,
+              throttleAtEdge: src.throttle.facts?.fullThrottleAtEdge ?? false,
               apexSpeedKph: f?.apexSpeedKph ?? null,
               throttleM: r.values.throttle,
               brakeResM: src.entry.facts?.brakeAtResM ?? null,
-              throttleResM: src.exit.facts?.fullThrottleAtResM ?? null,
+              throttleResM: src.throttle.facts?.fullThrottleAtResM ?? null,
             };
           }),
         )
@@ -465,7 +479,15 @@ export function buildCornerModel(input: {
   // The corner's own window (a part's, or the section's when it is one corner)
   // is shaded and the charts run to its edges, once the laps are cut at the
   // boundaries the map carries; otherwise the old entry-to-next-entry stretch.
-  const windows = ownWindow(map, sec.sectionN, corner, ref, whole);
+  // Under the median basis there is no Ref lap; any shown lap cut at the
+  // current boundaries says the window exists.
+  const windows = ownWindow(
+    map,
+    sec.sectionN,
+    corner,
+    ref ?? selected.find(l => map.boundaries && isCurrent(l, map.boundaries)),
+    whole,
+  );
   const own = windows?.own ?? null;
   const baseWindow: [number, number] = [
     sec.apexM - ZOOM_BEFORE_M,
@@ -502,10 +524,14 @@ export function buildCornerModel(input: {
           ...baseView,
           stretch: ownFrame,
           caption: windowCaption(
-            turnLabel(sec.n, sec.official),
+            whole
+              ? wholeLabel(sec.sectionLabel)
+              : turnLabel(sec.n, sec.official),
             own,
             ownFrame,
-            baseView.neighbours,
+            whole
+              ? baseView.neighbours.filter(n => !members.some(m => m.n === n.n))
+              : baseView.neighbours,
             zoomWindow,
             windows && isPart
               ? {
@@ -555,9 +581,9 @@ export function buildCornerModel(input: {
         steeringPct: t.steeringPct,
         samples: t.samples,
         brakeAtM: src.entry.facts?.brakeAtM ?? null,
-        fullThrottleAtM: src.exit.facts?.fullThrottleAtEdge
+        fullThrottleAtM: src.throttle.facts?.fullThrottleAtEdge
           ? null
-          : src.exit.facts?.fullThrottleAtM ?? null,
+          : src.throttle.facts?.fullThrottleAtM ?? null,
       },
     ];
   });
@@ -614,17 +640,7 @@ export function buildCornerModel(input: {
       neighbours: view.neighbours,
       caption: view.caption,
     },
-    brakeMap: buildBrakeMap(
-      rows,
-      refTrace,
-      sec.apexM,
-      mapView,
-      {
-        brakeApexM: whole ? members[0].apexM : sec.apexM,
-        throttleApexM: sec.apexM,
-      },
-      mapWindow,
-    ),
+    brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView, mapWindow),
     prev: chips[(firstIdx - 1 + chips.length) % chips.length]?.n ?? null,
     next: chips[(idx + 1) % chips.length]?.n ?? null,
   };
@@ -684,11 +700,6 @@ export function buildBrakeMap(
   refTrace: GridTrace | undefined,
   apexM: number,
   view: {stretch: CornerStretch; neighbours: NeighbourApex[]} | null = null,
-  /** The apexes the brake and throttle distances are measured from; the corner's own unless it is a whole compound window. */
-  anchors: {brakeApexM: number; throttleApexM: number} = {
-    brakeApexM: apexM,
-    throttleApexM: apexM,
-  },
   /** The metres the map shows; the apex's usual window unless widened. */
   windowM: [number, number] = [apexM - MAP_BEFORE_M, apexM + MAP_AFTER_M],
 ): BrakeMapModel | null {
@@ -742,12 +753,12 @@ export function buildBrakeMap(
       at: at(apexM + d),
     })),
     brakes: points(r =>
-      r.values.brake == null ? null : anchors.brakeApexM - r.values.brake,
+      r.values.brake == null ? null : (r.brakeApexM ?? apexM) - r.values.brake,
     ),
     throttles: points(r =>
       r.values.throttle == null
         ? null
-        : anchors.throttleApexM + r.values.throttle,
+        : (r.throttleApexM ?? apexM) + r.values.throttle,
     ),
   };
 }

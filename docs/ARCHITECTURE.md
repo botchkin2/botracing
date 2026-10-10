@@ -50,6 +50,19 @@ Worked example: `src/features/sessions/model.ts` and `model.test.ts`.
 
 Every screen follows the same shape: `use<Screen>Model(params)` combines the queries with `analysis` into one view model, and the screen renders it. Models are pure given their inputs and are unit-tested.
 
+### Corner: windows and the Parts row
+
+Corner shows one corner's window: a section's window (boundary to boundary, `tracks/{trackId}.boundaries`) when the section is one corner, or one part's window when it is compound. The charts frame the window from the section's start to the shown corner's end, and shade the window. A compound section's Parts row starts with **All** (`/session/[id]/corner/[n]?all=1`, `n` = first part): the whole window as one corner, same charts, table, Spread and braking map. Stepping through the parts is unchanged. Charts read the last part's slice file, which already runs from the section's start to its end. Which fact comes from where over the whole window (`src/features/corner/wholeCorner.ts`):
+
+| Fact | Source |
+| --- | --- |
+| Time, slowest speed, apex speed | the section's own facts (full window) |
+| Brake point, peak brake, turn-in | the part the lap's first brake application brakes for (`brakeApps[0].part`; else the part holding the slowest point; else the first), measured to that part's apex; judged by that part's `minSpeedAtEdge` |
+| Pickup, lowest throttle | the last part, measured from its apex; judged by the section's `minSpeedAtEdge` |
+| Full throttle | the last part, unless it was already at full throttle at its own slowest sample, then the section's held point from the section's apex; judged by the section's `minSpeedAtEdge` |
+
+A fact the source cannot supply is "—" (never a boundary value). The braking map spans first entry to last exit and places each lap's points from the same apexes.
+
 ## Data hooks (API v2, `/api/lmu`)
 
 `useSessions(filter)`, `useSession(id)`, `useSessionLaps(id)`, `useSessionBand(id)`, `useSessionMap(id)`, `useLapTraces(lapIds)`. Key factories: `sessionKeys.*`, `lapKeys.*`. Uploaded sessions are immutable: staleTime is ∞, and cache busting uses the session `version`.
