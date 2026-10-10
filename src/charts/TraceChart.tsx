@@ -7,6 +7,7 @@ import {
   chunksIn,
   objectId,
 } from './chunkPaths';
+import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -199,18 +200,16 @@ export function TraceChart({
   const clipMarks = series.flatMap(s => {
     if (s.samples) return [];
     const [lo, hi] = s.domain ?? domain;
-    const last = Math.min(to, s.values.length - 1);
-    for (let i = from; i <= last; i++) {
-      const v = s.values[i];
-      if (!Number.isFinite(v)) continue;
-      if (v > hi)
-        return [{key: `${s.key}-top`, color: s.color, d: markAt(x(i), 0, 1)}];
-      if (v < lo)
-        return [
-          {key: `${s.key}-bottom`, color: s.color, d: markAt(x(i), height, -1)},
-        ];
-    }
-    return [];
+    const exit = firstExit(s.values, from, to, lo, hi);
+    if (!exit) return [];
+    const edgeY = exit.edge === 'top' ? 0 : height;
+    return [
+      {
+        key: `${s.key}-${exit.edge}`,
+        color: s.color,
+        d: markAt(x(exit.index), edgeY, exit.edge === 'top' ? 1 : -1),
+      },
+    ];
   });
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
