@@ -9,6 +9,7 @@ mod browser;
 mod capture;
 mod install;
 mod menu;
+mod paths;
 mod profile;
 mod sidecar;
 mod status;
@@ -311,7 +312,7 @@ fn main() {
                 // the Run value follows the exe if it moved (an update).
                 let mut acct = account.lock().unwrap();
                 let choice = acct.settings.start_with_windows;
-                match std::env::current_exe()
+                match paths::current_exe()
                     .map_err(|e| e.to_string())
                     .and_then(|exe| autostart::reconcile(choice, &autostart::Registry, &exe))
                 {
@@ -381,7 +382,7 @@ fn main() {
                     "autostart" => {
                         let on = start_with_windows_menu.is_checked().unwrap_or(false);
                         let mut acct = account_menu.lock().unwrap();
-                        match std::env::current_exe()
+                        match paths::current_exe()
                             .map_err(|e| e.to_string())
                             .and_then(|exe| autostart::set(on, &autostart::Registry, &exe))
                         {

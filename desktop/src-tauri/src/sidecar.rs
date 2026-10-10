@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use crate::paths::{current_exe, plain};
+
 pub struct Paths {
     /// %LOCALAPPDATA%\BotRacing: everything the tray keeps.
     pub data: PathBuf,
@@ -60,22 +62,12 @@ pub fn find_root(env: Option<PathBuf>, resources: &Path, exe: &Path) -> PathBuf 
         .unwrap_or(installed)
 }
 
-/// `path` without a `\\?\` prefix when it has a plain form. Tauri canonicalizes
-/// the exe it reports, so `resource_dir()` arrives as `\\?\C:\Users\...`. The
-/// bundled node (24.19.0; 24.21.0 is fine) cannot start a main script from such
-/// a path: it exits 1 with "EISDIR: illegal operation on a directory, lstat
-/// 'C:'" before running a line of it. That was the 0.1.2 tray's "Uploader
-/// stopped (exit code: 1)" loop (thread 1 #3473).
-pub fn plain(path: &Path) -> PathBuf {
-    dunce::simplified(path).to_path_buf()
-}
-
 pub fn paths(resources: &Path) -> Paths {
     let resources = plain(resources);
     let local = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let exe = plain(&std::env::current_exe().unwrap_or_default());
+    let exe = current_exe().unwrap_or_default();
     let root = find_root(
         std::env::var_os("BOTRACING_ROOT").map(PathBuf::from),
         &resources,

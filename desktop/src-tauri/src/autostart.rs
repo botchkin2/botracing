@@ -33,10 +33,10 @@ pub fn disabled_by_windows(data: &[u8]) -> bool {
     data.first().is_some_and(|b| b & 1 == 1)
 }
 
-/// What the Run value holds: the exe, quoted (a path with spaces would
-/// otherwise start the wrong program).
+/// What the Run value holds: the exe, plain (crate::paths) and quoted (a path
+/// with spaces would otherwise start the wrong program).
 pub fn command_for(exe: &Path) -> String {
-    format!("\"{}\"", exe.display())
+    format!("\"{}\"", crate::paths::plain(exe).display())
 }
 
 /// Brings the Run value in line with the recorded choice (`None` = never
@@ -323,6 +323,12 @@ mod tests {
         assert_eq!(
             command_for(&exe()),
             r#""C:\Users\A B\AppData\Local\BotRacing\botracing.exe""#
+        );
+        // A verbatim exe (Tauri's canonical form) is written plain, the same value.
+        #[cfg(windows)]
+        assert_eq!(
+            command_for(Path::new(r"\\?\C:\Users\A B\AppData\Local\BotRacing\botracing.exe")),
+            command_for(&exe())
         );
     }
 
