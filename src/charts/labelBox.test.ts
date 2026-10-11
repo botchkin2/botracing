@@ -1,6 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {insideFrame, labelBox} from './labelBox';
+import {insideFrame, labelBox, thinLabels} from './labelBox';
 
 const frame = {width: 100, height: 40};
 const inside = (
@@ -70,5 +70,21 @@ describe('insideFrame', () => {
 describe('labelBox widths', () => {
   it('counts the true minus as one glyph', () => {
     expect(labelBox('−50 %', 0, 0, 10, 'start').right).toBe(30);
+  });
+});
+
+describe('thinLabels', () => {
+  const ticks = [0, 1, 2, 3, 4].map(v => ({v}));
+  it('labels every tick when they fit, and keeps both ends when they do not', () => {
+    expect(thinLabels(ticks, v => v * 100, 40)).toHaveLength(5);
+    // 60 pt labels on a 50 pt pitch: every other one, both ends kept.
+    expect(thinLabels(ticks, v => v * 50, 60).map(t => t.v)).toEqual([0, 2, 4]);
+    // 120 pt labels: k = 3 does not divide 4, so k = 4, the two ends.
+    expect(thinLabels(ticks, v => v * 50, 120).map(t => t.v)).toEqual([0, 4]);
+  });
+  it('works on either axis: positions may run backwards (a y axis, a flipped strip)', () => {
+    expect(thinLabels(ticks, v => -v * 50, 60).map(t => t.v)).toEqual([
+      0, 2, 4,
+    ]);
   });
 });

@@ -20,6 +20,11 @@ export type Anchor = 'start' | 'middle' | 'end';
 
 export type Box = {left: number; right: number; top: number; bottom: number};
 
+/** A label's advance width in the axis font: one CHAR_EM per glyph. */
+export function textWidth(text: string, fontSize: number): number {
+  return [...text].length * CHAR_EM * fontSize;
+}
+
 /** The text box of a label drawn at (x, baseline). */
 export function labelBox(
   text: string,
@@ -28,7 +33,7 @@ export function labelBox(
   fontSize: number,
   anchor: Anchor,
 ): Box {
-  const w = [...text].length * CHAR_EM * fontSize;
+  const w = textWidth(text, fontSize);
   const left = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
   return {
     left,
@@ -88,4 +93,23 @@ function shift(lo: number, hi: number, size: number): number {
   const d = lo < min ? min - lo : hi > max ? max - hi : 0;
   // Too big to fit: the start edge wins.
   return lo + d < min ? min - lo : d;
+}
+
+/**
+ * The evenly spaced ticks that get a label, on either axis: every k-th, with
+ * the smallest k whose labels (each `extent` long along the axis) do not touch
+ * and that keeps both ends. Two ends always fit: they are the scale's
+ * extremes. `pos` places a tick's value on the axis.
+ */
+export function thinLabels<T extends {v: number}>(
+  ticks: readonly T[],
+  pos: (v: number) => number,
+  extent: number,
+): T[] {
+  const last = ticks.length - 1;
+  if (last < 1) return [...ticks];
+  const gap = Math.abs(pos(ticks[1].v) - pos(ticks[0].v));
+  let k = Math.max(1, Math.ceil(extent / (gap || 1)));
+  while (k < last && last % k !== 0) k++;
+  return ticks.filter((_, i) => i % Math.min(k, last) === 0);
 }

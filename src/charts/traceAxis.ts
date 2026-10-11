@@ -10,6 +10,7 @@ import {
   centredBaseline,
   DESCENT_EM,
   EDGE_PT,
+  thinLabels,
   labelBox,
   tickPad,
 } from './labelBox';
@@ -93,11 +94,5 @@ export function labelledTicks<T extends {v: number}>(
   y: (v: number) => number,
   fontSize: number,
 ): T[] {
-  const last = ticks.length - 1;
-  if (last < 1) return [...ticks];
-  const gap = Math.abs(y(ticks[1].v) - y(ticks[0].v));
-  const boxH = (ASCENT_EM + DESCENT_EM) * fontSize;
-  let k = Math.max(1, Math.ceil(boxH / (gap || 1)));
-  while (k < last && last % k !== 0) k++;
-  return ticks.filter((_, i) => i % Math.min(k, last) === 0);
+  return thinLabels(ticks, y, (ASCENT_EM + DESCENT_EM) * fontSize);
 }
