@@ -1,3 +1,4 @@
+import {raceGate} from './raceGate';
 import {useMemo} from 'react';
 
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
@@ -38,6 +39,8 @@ export type RaceData =
   | {kind: 'error'; message: string}
   /** The session predates the recorder, or it was not joined. */
   | {kind: 'no-field'; title: string}
+  /** No timed lap: no racing line to put the cars on. */
+  | {kind: 'no-lap'; title: string}
   | {kind: 'field-loading'; title: string}
   | {kind: 'field-error'; title: string; retry: () => void}
   | {
@@ -145,24 +148,28 @@ export function useRaceData(sessionId: string): RaceData {
     return worldMatchM(placer.placeWorld(pts), line);
   }, [field.data, line, placer, placed]);
 
-  if (session.isPending) return {kind: 'loading'};
+  const gate = raceGate({
+    sessionPending: session.isPending,
+    hasDetail: detail != null,
+    hasField: hash !== null,
+    fieldError: field.isError,
+    hasPositions: stored ? stored.hasPositions : null,
+    hasBestLap: !noBestLap,
+    readyInputs: !!(prep && clock && line && !laps.isPending),
+  });
+  if (gate === 'loading') return {kind: 'loading'};
   if (!detail) return {kind: 'error', message: 'Could not load this session.'};
   const title = `${shortTrackName(detail.track)} · ${
     SESSION_TITLE[detail.sessionType]
   }`;
-  if (hash === null) return {kind: 'no-field', title};
-  if (field.isError) {
+  if (gate === 'no-field') return {kind: 'no-field', title};
+  if (gate === 'field-error')
     return {kind: 'field-error', title, retry: () => void field.refetch()};
-  }
-  // No positions and no line to put the cars on (no timed lap to draw it
-  // from): there is nothing to draw them with.
-  if (stored && !stored.hasPositions && !line && !refTrace && noBestLap)
-    return {kind: 'no-field', title};
+  if (gate === 'no-lap') return {kind: 'no-lap', title};
   // Lap numbers are needed to open on Compare's cursor; a failed laps request
   // only means the clock opens at the start.
-  if (!prep || !clock || !line || laps.isPending) {
+  if (gate === 'field-loading' || !prep || !clock || !line)
     return {kind: 'field-loading', title};
-  }
   return {
     kind: 'ready',
     title,

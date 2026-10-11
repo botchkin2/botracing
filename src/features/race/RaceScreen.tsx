@@ -76,6 +76,7 @@ const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 const NO_FIELD_TITLE = 'No field data for this session';
+const NO_LAP_TITLE = 'No timed lap to draw the track';
 const FIELD_LOADING_TEXT = 'Loading field data';
 const FIELD_ERROR_TEXT = 'Field data didn’t load';
 const SKELETON_ROWS = 8;
@@ -166,10 +167,12 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
-  if (data.kind === 'no-field') {
+  if (data.kind === 'no-field' || data.kind === 'no-lap') {
     return (
       <View style={styles.center}>
-        <EmptyState title={NO_FIELD_TITLE} />
+        <EmptyState
+          title={data.kind === 'no-lap' ? NO_LAP_TITLE : NO_FIELD_TITLE}
+        />
       </View>
     );
   }
