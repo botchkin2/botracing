@@ -141,11 +141,14 @@ export function CompareScreen({
   const [moved, setMoved] = useState<{linkKey: string; m: number} | null>(null);
   const movedM = moved?.linkKey === linkKey ? moved.m : null;
   const shownM = useRef(0);
+  // A functional update is folded into the state's own updater, so rapid
+  // playback frames and held keys each build on the previous one; only the
+  // first move after a landing starts from the resolved cursor.
   const setCursorM = useCallback(
     (next: SetStateAction<number>) =>
-      setMoved({
-        linkKey,
-        m: typeof next === 'function' ? next(shownM.current) : next,
+      setMoved(prev => {
+        const from = prev?.linkKey === linkKey ? prev.m : shownM.current;
+        return {linkKey, m: typeof next === 'function' ? next(from) : next};
       }),
     [linkKey],
   );
