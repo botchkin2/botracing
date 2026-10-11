@@ -5,7 +5,12 @@ import {Text} from '@/src/ui';
 
 import type {OptimumLine} from '../optimumLines';
 
-/** One line per stint under the lap-time chart: optimal, median, the gap, and the laps. */
+/**
+ * One line per stint under the lap-time chart: optimal, typical (the sum of the
+ * section medians), the gap, and the laps. "Typical", not "Median", until the
+ * selection-driven numbers land (#508): the head's MEDIAN is the lap-time median,
+ * and one screen must not show two Medians.
+ */
 export function OptimumLines({lines}: {lines: OptimumLine[]}) {
   return (
     <View style={styles.block}>

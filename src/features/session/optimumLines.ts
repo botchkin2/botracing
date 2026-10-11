@@ -2,7 +2,7 @@
 // (best of every section summed), the median lap (median of every section
 // summed) and the gap between them (Σ median − best), with the laps behind it.
 // Same stints as optimumFacts (src/analysis/sectionOptimum.ts), shaped as one
-// line each: "Optimal 1:19.976 · Median 1:20.759 · +0.782 s". Neither lap was
+// line each: "Optimal 1:19.976 · Typical 1:20.759 · +0.782 s". Neither lap was
 // driven and none is a target (CODE_STANDARDS §7).
 import {type StintOptimum} from '@/src/analysis/sectionOptimum';
 import {formatLapTime} from '@/src/design';
