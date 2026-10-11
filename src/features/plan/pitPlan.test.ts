@@ -4,7 +4,13 @@ import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {lapAt, pitPlan, type PitPlanInput, plannedStops} from './pitPlan';
 import {buildPlanCards} from './planCards';
-import {finalStintWarning, stintRow, stopLine, unitOf} from './pitPlanText';
+import {
+  finalStintWarning,
+  stintLapRange,
+  stintRow,
+  stopLine,
+  unitOf,
+} from './pitPlanText';
 
 // planCards.test.ts's example: a 2 h race at 101.2 s a lap, 2.38 L and 3.5 % VE
 // a lap, a 100 L / 100 % load and a formation lap, with the pit model.
@@ -221,6 +227,27 @@ describe('describing a stop in one unit', () => {
     );
     expect(stintRow(p.stints[0], 've').use).toMatch(/ %$/);
     expect(stintRow(p.stints[0], 'fuel').use).toMatch(/ L$/);
+  });
+});
+
+describe('naming the laps of a stint', () => {
+  it('names each stint by the lap names the stops use: one stop ends one stint, the next begins on the lap after', () => {
+    const {input} = setup();
+    const p = pitPlan(input)!;
+    const name = (n: number) => `L${n + 1}`;
+    expect(stintLapRange(p, 0)).toBe(`L1–${name(p.stops[0].after)}`);
+    for (let i = 1; i < p.stops.length; i++)
+      expect(stintLapRange(p, i)).toBe(
+        `${name(p.stops[i - 1].after + 1)}–${name(p.stops[i].after)}`,
+      );
+    const last = p.stints.length - 1;
+    expect(stintLapRange(p, last)).toBe(
+      `${name(p.stops[last - 1].after + 1)}–${name(p.finishLaps)}`,
+    );
+    expect(stintRow(p.stints[0], 've', stintLapRange(p, 0)).laps).toBe(
+      stintLapRange(p, 0),
+    );
+    expect(stintRow(p.stints[0], 've').laps).toBe(String(p.stints[0].laps));
   });
 });
 

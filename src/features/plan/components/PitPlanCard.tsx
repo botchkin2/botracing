@@ -8,6 +8,7 @@ import {lapName} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
+  stintLapRange,
   stintRow,
   stopLine,
   stopWarning,
@@ -91,8 +92,8 @@ export function PitPlanCard({
             </Text>
           ))}
         </View>
-        {pit.stints.map(s => {
-          const r = stintRow(s, unit);
+        {pit.stints.map((s, i) => {
+          const r = stintRow(s, unit, stintLapRange(pit, i));
           return (
             <View key={s.n} style={styles.row}>
               <Text variant='data' style={styles.name}>
