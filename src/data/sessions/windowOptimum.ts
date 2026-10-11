@@ -87,6 +87,31 @@ export function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
 }
 
 /**
+ * A lap's time in each map section, by section number, under the one rule
+ * every table uses (windowTimesOf): null where the window does not count
+ * (pit, off track, full-course yellow) or the lap was cut at other boundaries.
+ * Null when the map has no windows; the caller then has only the lap's own
+ * segment times. Compare's section table and Session's grid read the same
+ * cell this way (radio #4399, one answer per question).
+ */
+export function sectionWindowTimes(
+  lap: Lap,
+  map: TrackMapData,
+): Map<number, number | null> | null {
+  const frame = frameOf(map);
+  if (!frame) return null;
+  const out = new Map<number, number | null>();
+  const times = isCurrent(lap, frame.boundaries)
+    ? windowTimesOf(lap, frame)
+    : null;
+  frame.boundaries.windows.forEach((w, i) => {
+    if (w.kind === 'start-straight' || w.section == null) return;
+    out.set(w.section, times ? times[i] : null);
+  });
+  return out;
+}
+
+/**
  * Per stint, the best and median of each window. By default over the
  * comparable laps; with `picked`, over exactly the laps given, comparable or
  * not, since the user chose them (the Corner card's ticked laps, decision

@@ -86,6 +86,7 @@ export {
 export {
   checkedWindowMedians,
   onCurrentBoundaries,
+  sectionWindowTimes,
   type SessionOptimum,
   sessionOptimum,
   stintWindowMedians,
