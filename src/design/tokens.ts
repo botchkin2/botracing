@@ -263,6 +263,9 @@ export const fonts = {
 
 const tabular = {fontVariant: ['tabular-nums' as const]};
 
+/** IBM Plex Mono's advance width, in em: the one figure every text-width estimate uses. */
+export const MONO_ADVANCE_EM = 0.6;
+
 /**
  * Advance width of one monospace character in a type token: 0.6 em for IBM
  * Plex Mono, plus its letter spacing. Use it to size a column to its text.
@@ -271,7 +274,7 @@ export function monoCharWidth(token: {
   fontSize: number;
   letterSpacing?: number;
 }): number {
-  return token.fontSize * 0.6 + (token.letterSpacing ?? 0);
+  return token.fontSize * MONO_ADVANCE_EM + (token.letterSpacing ?? 0);
 }
 
 export const type = {
