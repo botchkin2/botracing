@@ -1,9 +1,10 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {size, space, useTheme} from '@/src/design';
 
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 /**
  * A section that opens on a tap and starts closed: one 44 pt line with what is

@@ -269,7 +269,9 @@ function refNote(
   const at = refId ? laps.findIndex(l => l.id === refId) : -1;
   if (at < 0 || laps.length < 2 || states[at] === 'ok') return null;
   return `Reference L${laps[at].lapIndex} ${
-    states[at] === 'stale' ? 'is pending re-analysis' : 'crosses the pit lane here'
+    states[at] === 'stale'
+      ? 'is pending re-analysis'
+      : 'crosses the pit lane here'
   }; no gaps.`;
 }
 

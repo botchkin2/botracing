@@ -1,18 +1,11 @@
 import {type ReactNode, useEffect, useRef} from 'react';
 import {useRouter} from 'expo-router';
-import {
-  FlatList,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {FlatList, Platform, ScrollView, StyleSheet, View} from 'react-native';
 
 import {space, useLayout, useTheme} from '@/src/design';
 import {compareHref, trackHref} from '@/src/nav/routes';
 import {toggle} from '@/src/state/lapSelection';
-import {PANEL_DIVIDER_W, PanelDivider, Text} from '@/src/ui';
+import {PANEL_DIVIDER_W, PanelDivider, Pressable, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';

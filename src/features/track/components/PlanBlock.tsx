@@ -1,10 +1,10 @@
 import {useRouter} from 'expo-router';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {Skeleton, Text} from '@/src/ui';
+import {Pressable, Skeleton, Text} from '@/src/ui';
 
 import {type Combo, rulesFor} from '../../plan/model';
 import {usePlanHistory, usePlanLimits} from '../../plan/usePlanHistory';

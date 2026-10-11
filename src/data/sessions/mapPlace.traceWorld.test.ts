@@ -82,3 +82,22 @@ describe('traceToWorld on a georeffed track', () => {
     });
   }
 });
+
+describe('place: a whole lap is placed once per map and trace (board #4376)', () => {
+  it('returns the same points for the same trace, map and stride, from a new placer too', () => {
+    const first = mapPlacer(null).place(trace, 0, 3, 1);
+    expect(mapPlacer(null).place(trace, 0, 3, 1)).toBe(first);
+    // Another stride is its own entry.
+    expect(mapPlacer(null).place(trace, 0, 3, 2)).not.toBe(first);
+  });
+
+  it('places a part of the lap afresh, and a new trace object afresh', () => {
+    const p = mapPlacer(null);
+    expect(p.place(trace, 1, 2, 1)).not.toBe(p.place(trace, 1, 2, 1));
+    const copy = {...trace} as GridTrace;
+    const a = p.place(trace, 0, 3, 1);
+    const b = p.place(copy, 0, 3, 1);
+    expect(b).not.toBe(a);
+    expect(b).toEqual(a);
+  });
+});

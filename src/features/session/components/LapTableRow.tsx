@@ -1,7 +1,7 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {fonts, monoCharWidth, size, space, type, useTheme} from '@/src/design';
-import {Button, Checkbox, Text} from '@/src/ui';
+import {Button, Checkbox, Pressable, Text} from '@/src/ui';
 
 import {LinkedHScroll, useTableLink} from './linkedScroll';
 
@@ -77,6 +77,9 @@ export function LapTableHeader({
   const sectionW = wide
     ? sectionColW(width, heads)
     : Math.max(cols.sector, headWidth(heads));
+  // A head that opens Compare is a 44 pt box: the row is as tall, so the row
+  // under it does not sit on the head's drawn box.
+  const tappableHeads = !!onHeadPress && !!headTaps?.some(Boolean);
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -137,6 +140,7 @@ export function LapTableHeader({
   const frame = [
     styles.header,
     wide && styles.wide,
+    tappableHeads && styles.headerTall,
     {width, backgroundColor: color.surface, borderColor: color.lineHeader},
   ];
   // Phone: the lap, time and gap stay put; the sections and the tags scroll
@@ -456,6 +460,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     alignSelf: 'center',
   },
+  // The head row when its section heads are taps.
+  headerTall: {height: MIN_TOUCH_PT},
   stint: {
     height: ROW_H,
     flexDirection: 'row',
