@@ -1,5 +1,5 @@
 import {type PitPlan, type PitStint, type SliderStop} from './pitPlan';
-import {lapName} from './planCards';
+import {formationUseText, lapName, stintUseText} from './planCards';
 import {type Unit} from './unit';
 
 // The words of the Pit plan card, finished here so the component only draws.
@@ -58,18 +58,18 @@ export function stopWarning(s: SliderStop): string | null {
     : null;
 }
 
-/**
- * The laps a stint covers, named as the stops are ("L1–L13"): the stop after
- * L13 ends the first stint, which starts on the formation lap L1. A count
- * ("12 laps", racing laps only) beside "after L13" read as two answers.
- */
-export function stintLapRange(p: PitPlan, index: number): string {
-  const first = index === 0 ? 0 : p.stops[index - 1].after + 1;
-  const last = index < p.stops.length ? p.stops[index].after : p.finishLaps;
-  return `${lapName(first)}–${lapName(last)}`;
+/** The formation lap's own row, as on the Stops card ("Formation · L1 · 3.5 %"); null without one. */
+export function formationRow(
+  p: PitPlan,
+  unit: Unit,
+): {label: string; laps: string; use: string; tyres: string} | null {
+  const use = formationUseText(p.formation, unit);
+  return use == null
+    ? null
+    : {label: 'Formation', laps: lapName(0), use, tyres: '–'};
 }
 
-/** One stint's row: laps (their names when given, else the count), what it uses in `unit`, the tyre laps. */
+/** One stint's row: laps (named by `stintLaps` when given, else the count), what it uses in `unit`, the tyre laps. */
 export function stintRow(
   s: PitStint,
   unit: Unit,
@@ -79,13 +79,10 @@ export function stintRow(
     label: `Stint ${s.n}`,
     laps: lapRange ?? String(s.laps),
     use:
-      unit === 've'
-        ? s.vePct
-          ? `${one(s.vePct.median)} %`
-          : '–'
-        : s.fuelL
-        ? `${one(s.fuelL.median)} L`
-        : '–',
+      stintUseText(
+        unit === 've' ? s.vePct?.median ?? null : s.fuelL?.median ?? null,
+        unit,
+      ) ?? '–',
     tyres: `${s.tyreLaps.onSet} · ${s.tyreLaps.sinceStart}`,
   };
 }

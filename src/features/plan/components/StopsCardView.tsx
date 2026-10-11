@@ -60,7 +60,7 @@ export function StopsCardView({card}: {card: StopsCard}) {
           'tableHeader',
         )}
         {card.formationUse != null
-          ? cells(['Formation', '1', card.formationUse, null, null], tone)
+          ? cells(['Formation', 'L1', card.formationUse, null, null], tone)
           : null}
         {r.lines.map(l => (
           <View key={l.n}>{line(l)}</View>

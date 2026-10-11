@@ -3,10 +3,10 @@ import {describe, expect, it} from '@jest/globals';
 import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {lapAt, pitPlan, type PitPlanInput, plannedStops} from './pitPlan';
-import {buildPlanCards} from './planCards';
+import {buildPlanCards, stintLaps} from './planCards';
 import {
   finalStintWarning,
-  stintLapRange,
+  formationRow,
   stintRow,
   stopLine,
   unitOf,
@@ -140,14 +140,16 @@ describe('pitPlan', () => {
     expect(p.stints.at(-1)!.tyreLaps.sinceStart).toBe(p.finishLaps);
   });
 
-  it('the first stint carries the formation lap in what it uses', () => {
+  it('the formation lap is its own: the stints use only their laps, the first load still pays for it', () => {
     const {input, plan} = setup();
     const p = pitPlan(input)!;
-    expect(p.stints[0].fuelL!.median).toBeCloseTo(
-      (p.stints[0].laps + 1) * plan.perLap.fuel!.median,
-    );
-    expect(p.stints[1].fuelL!.median).toBeCloseTo(
-      p.stints[1].laps * plan.perLap.fuel!.median,
+    const median = plan.perLap.fuel!.median;
+    expect(p.stints[0].fuelL!.median).toBeCloseTo(p.stints[0].laps * median);
+    expect(p.stints[1].fuelL!.median).toBeCloseTo(p.stints[1].laps * median);
+    expect(p.formation!.fuelL).toBeGreaterThan(0);
+    // What is left at the end of stint 1 counts the formation lap's burn.
+    expect(p.stints[0].left.fuelL).toBeCloseTo(
+      Math.max(0, 100 - (p.stints[0].laps * median + p.formation!.fuelL!)),
     );
   });
 
@@ -231,23 +233,34 @@ describe('describing a stop in one unit', () => {
 });
 
 describe('naming the laps of a stint', () => {
-  it('names each stint by the lap names the stops use: one stop ends one stint, the next begins on the lap after', () => {
-    const {input} = setup();
-    const p = pitPlan(input)!;
-    const name = (n: number) => `L${n + 1}`;
-    expect(stintLapRange(p, 0)).toBe(`L1–${name(p.stops[0].after)}`);
-    for (let i = 1; i < p.stops.length; i++)
-      expect(stintLapRange(p, i)).toBe(
-        `${name(p.stops[i - 1].after + 1)}–${name(p.stops[i].after)}`,
+  it('is one helper: the formation lap is L1, stints start at L2, and a stop ends a stint on the lap it is named for', () => {
+    expect(stintLaps([12, 2], 0)).toBe('L2–L13');
+    expect(stintLaps([12, 2], 1)).toBe('L14–L15');
+    expect(stintLaps([12, 1], 1)).toBe('L14');
+  });
+
+  it('gives the Pit plan card and the Stops card the same stint, in the same words', () => {
+    for (const over of [{}, {lengthMin: 180}]) {
+      const {input, cards} = setup(over);
+      const p = pitPlan(input)!;
+      const counts = p.stints.map(s => s.laps);
+      const pitCard = p.stints.map((_, i) => stintLaps(counts, i));
+      // The Stops card's Full tank table at the planned stops is the same stints.
+      expect(cards.stops.full!.lines.map(l => l.laps)).toEqual(pitCard);
+      // Each stint ends on the lap its stop is named for.
+      p.stops.forEach((s, i) =>
+        expect(pitCard[i].split('–').pop()).toBe(`L${s.after + 1}`),
       );
-    const last = p.stints.length - 1;
-    expect(stintLapRange(p, last)).toBe(
-      `${name(p.stops[last - 1].after + 1)}–${name(p.finishLaps)}`,
-    );
-    expect(stintRow(p.stints[0], 've', stintLapRange(p, 0)).laps).toBe(
-      stintLapRange(p, 0),
-    );
-    expect(stintRow(p.stints[0], 've').laps).toBe(String(p.stints[0].laps));
+      // Same rows, same words: the Formation row and each stint's use.
+      const full = cards.stops.full!;
+      expect(formationRow(p, 've')!.use).toBe(cards.stops.formationUse);
+      expect(formationRow(p, 've')!.laps).toBe('L1');
+      p.stints.forEach((st, i) =>
+        expect(stintRow(st, 've', pitCard[i]).use).toBe(full.lines[i].use),
+      );
+      expect(stintRow(p.stints[0], 've', pitCard[0]).laps).toBe(pitCard[0]);
+      expect(stintRow(p.stints[0], 've').laps).toBe(String(p.stints[0].laps));
+    }
   });
 });
 
