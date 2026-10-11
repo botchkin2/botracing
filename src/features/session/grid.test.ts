@@ -34,10 +34,17 @@ describe('columnStats over the ticked laps', () => {
     expect(g.columns[0]).toMatchObject({n: 1, medianS: 10.2, spreadS: 0});
   });
 
-  test('no ticked laps leaves every column empty', () => {
+  test('with nothing ticked the columns are of the comparable laps, as the table under it', () => {
     const g = sessionGrid(times(), ticked());
-    expect(g.columns.map(c => c.n)).toEqual([0, 0]);
-    expect(g.columns.every(c => c.medianS == null)).toBe(true);
+    // L1–L4 are comparable (L5 is not); S1: 10.0, 10.1, 10.2, 10.4.
+    expect(g.basisCount).toBe(4);
+    expect(g.columns[0]).toMatchObject({n: 4, bestS: 10.0});
+    expect(g.columns[0].medianS).toBeCloseTo(10.15, 9);
+    expect(g.columns[1]).toMatchObject({n: 3, medianS: 20.0});
+  });
+
+  test('says how many laps its numbers are of', () => {
+    expect(sessionGrid(times(), ticked('L1', 'L2')).basisCount).toBe(2);
   });
 
   test('a non-comparable lap counts when it is ticked (ticking is the selection)', () => {

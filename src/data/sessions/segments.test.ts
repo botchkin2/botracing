@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {segmentOptimum} from '@/src/analysis/segments';
+import {sectionOptimum} from '@/src/analysis/sectionOptimum';
+import type {SegmentTimes} from '@/src/analysis/segments';
 
 import {toLaps, toTrackMap} from './adapters';
 import {
@@ -132,8 +133,13 @@ describe('segmentTimesFor', () => {
   });
 
   it('runs one optimum over either producer', () => {
-    const turns = segmentOptimum(turnSegmentTimes(laps(), map())!)[0];
-    const sectors = segmentOptimum(sectorSegmentTimes(laps())!)[0];
+    const optimum = (t: SegmentTimes) =>
+      sectionOptimum(
+        t.laps.map(l => ({id: l.id, stint: l.stint, windowsS: l.timesS})),
+        t.segments.length,
+      )[0];
+    const turns = optimum(turnSegmentTimes(laps(), map())!);
+    const sectors = optimum(sectorSegmentTimes(laps())!);
     expect(turns.bestSumS).toBe(100);
     expect(sectors.bestSumS).toBe(100);
   });

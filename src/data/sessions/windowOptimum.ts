@@ -86,16 +86,24 @@ export function windowTimesOf(lap: Lap, frame: Frame): (number | null)[] {
   });
 }
 
-/** Null until the track has corner windows (before the resync). */
+/**
+ * Per stint, the best and median of each window. By default over the
+ * comparable laps; with `picked`, over exactly the laps given, comparable or
+ * not, since the user chose them (the Corner card's ticked laps, decision
+ * 2026-10-11): a pit, off-track or yellow window is left out by itself. Null
+ * until the track has corner windows (before the resync).
+ */
 export function sessionOptimum(
   laps: Lap[],
   map: TrackMapData,
+  {picked = false}: {picked?: boolean} = {},
 ): SessionOptimum | null {
   const frame = frameOf(map);
   if (!frame) return null;
   const input: OptimumLap[] = [];
   for (const lap of laps) {
-    if (!lap.comparable || !isCurrent(lap, frame.boundaries)) continue;
+    if (!(picked || lap.comparable) || !isCurrent(lap, frame.boundaries))
+      continue;
     input.push({
       id: lap.id,
       stint: lap.stint,

@@ -5,9 +5,7 @@ import {lapSlots} from '@/src/analysis/lapSlots';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {
   type SectionMode,
-  segmentBests,
-  segmentOptimum,
-  segmentStats,
+  type SegmentStats,
   type SegmentTimes,
 } from '@/src/analysis/segments';
 
@@ -40,6 +38,12 @@ import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
 import {type OptimumLine, optimumLines} from './optimumLines';
+import {
+  basisOf,
+  lapTimeStats,
+  segmentBasisStats,
+  stintNumbers,
+} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
@@ -295,7 +299,12 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
 /** Off-track time a comparable lap may carry (handoff exclusion copy). */
 export const OFF_TRACK_TOLERANCE_S = 1.0;
 
-function statusFor(lap: Lap, medianS: number | null): string {
+function statusFor(
+  lap: Lap,
+  medianS: number | null,
+  /** Laps the median is of. */
+  n: number,
+): string {
   if (!lap.comparable) {
     const why = lap.pitOut
       ? 'Pit out'
@@ -313,18 +322,19 @@ function statusFor(lap: Lap, medianS: number | null): string {
     return `Excluded · ${why}`;
   }
   if (lap.timeS == null || medianS == null) return 'Comparable';
-  return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median`;
+  return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median of ${n}`;
 }
 
 const dash = '—';
 
-/** A lap's cell in each segment: the time, and whether it is the best of the comparable laps. */
+/** A lap's cell in each segment: the time, and whether it is the best of the basis laps (the grid's best). */
 function cellsOf(
   times: SegmentTimes | null,
+  basis: ReadonlySet<string>,
   digits: number,
 ): (lapId: string) => {value: string; best: boolean}[] {
   if (!times) return () => [];
-  const bests = segmentBests(times);
+  const stats = segmentBasisStats(times, basis);
   const byId = new Map(times.laps.map(l => [l.id, l]));
   return lapId => {
     const lap = byId.get(lapId);
@@ -332,30 +342,28 @@ function cellsOf(
       const t = lap?.timesS[i] ?? null;
       return {
         value: t == null ? dash : t.toFixed(digits),
-        best: lap?.comparable === true && t != null && t === bests[i],
+        best: basis.has(lapId) && t != null && t === stats[i].bestS,
       };
     });
   };
 }
 
 /**
- * The heads and the median, best and spread rows of the section columns, over
- * every comparable lap: tow and traffic are flags, never exclusions. A column
- * under MIN_OPTIMUM_LAPS laps has no statistics and shows dashes.
+ * The heads and the median, best and IQR rows of the section columns, over
+ * the basis laps: the same numbers as the grid heads (selectionStats.ts), so
+ * the two never disagree. Tow and traffic are flags, never exclusions.
  */
 export function sectionTable(
   times: SegmentTimes | null,
+  basis: ReadonlySet<string>,
   map?: TrackMapData | null,
 ): SectionTable | null {
   if (!times) return null;
-  const stats = segmentStats(times);
+  const stats = segmentBasisStats(times, basis);
   const corners = map ? trackCorners(map) : null;
-  const row = (
-    label: string,
-    pick: (s: (typeof stats)[number]) => number | null,
-  ) => ({
+  const row = (label: string, pick: (s: SegmentStats) => number | null) => ({
     label,
-    cells: stats.map(s => {
+    cells: stats.map((s: SegmentStats) => {
       const v = pick(s);
       return v != null ? v.toFixed(2) : dash;
     }),
@@ -370,7 +378,7 @@ export function sectionTable(
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
-      row('Spread', s => s.spreadS),
+      row('IQR', s => s.spreadS),
     ],
   };
 }
@@ -384,7 +392,13 @@ export function buildSessionModel(
   /** Which segments the desktop table and the optimal lap read (Settings). */
   sectionMode: SectionMode = 'turns',
 ): SessionScreenModel {
-  const median = session.medianTimeS;
+  // The session's median is a fact (the head); every gap, bar and stint line is
+  // measured against the basis laps (the ticked ones), "of N".
+  const sessionMedianS = session.medianTimeS;
+  const basisLaps = basisOf(laps, new Set(selection.laps));
+  const basis = new Set(basisLaps.map(l => l.id));
+  const basisTimes = lapTimeStats(basisLaps);
+  const median = basisTimes.medianS;
   const checked = selection.laps
     .map(id => laps.find(l => l.id === id))
     .filter((l): l is Lap => l != null);
@@ -397,9 +411,11 @@ export function buildSessionModel(
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
   const sectionTimes = segmentTimesFor(sectionMode, laps, map);
-  const stintOptimum = sectionTimes ? segmentOptimum(sectionTimes) : null;
-  const sectorCells = cellsOf(sectorTimes, 1);
-  const sectionCells = cellsOf(sectionTimes, 2);
+  const sectorCells = cellsOf(sectorTimes, basis, 1);
+  const sectionCells = cellsOf(sectionTimes, basis, 2);
+  const stintLines = new Map(
+    stintNumbers(laps, basis, sectionTimes).map(s => [s.stint, s]),
+  );
 
   const comparable = laps.filter(l => l.comparable);
 
@@ -444,7 +460,7 @@ export function buildSessionModel(
           title: `${laps.length} laps, none comparable`,
           reasons: laps.map(
             l =>
-              `${lapLabel(l)}: ${statusFor(l, median).replace(
+              `${lapLabel(l)}: ${statusFor(l, median, basisTimes.n).replace(
                 'Excluded · ',
                 '',
               )}`,
@@ -461,9 +477,13 @@ export function buildSessionModel(
     const first = stintLaps[0].lapIndex;
     const last = stintLaps[stintLaps.length - 1].lapIndex;
     const bits = [`Stint ${stint.n}`, `L${first}–L${last}`];
-    if (stint.medianTimeS != null)
-      bits.push(`med ${formatLapTime(stint.medianTimeS)}`);
-    if (stint.stdevS != null) bits.push(`± ${stint.stdevS.toFixed(2)} s`);
+    const line = stintLines.get(stint.n);
+    if (line?.lapTimes.medianS != null) {
+      bits.push(`med ${formatLapTime(line.lapTimes.medianS)}`);
+      if (line.n > 1 && line.lapTimes.spreadS != null)
+        bits.push(`IQR ${line.lapTimes.spreadS.toFixed(2)} s`);
+      bits.push(`of ${line.n}`);
+    }
     const split = stintTrafficText(stintLaps);
     rows.push({
       kind: 'stint',
@@ -509,7 +529,7 @@ export function buildSessionModel(
   const detail: DetailModel | null = hlLap && {
     lapId: hlLap.id,
     title: `${lapLabel(hlLap)} · ${timeOrDash(hlLap.timeS)}`,
-    status: statusFor(hlLap, median),
+    status: statusFor(hlLap, median, basisTimes.n),
     excluded: !hlLap.comparable,
     fuel: lapFuelLines(hlLap),
     traffic: trafficRows(hlLap.traffic),
@@ -573,16 +593,12 @@ export function buildSessionModel(
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
       },
-      {label: 'Median', value: timeOrDash(median)},
+      {label: 'Median', value: timeOrDash(sessionMedianS)},
       ...trafficPace,
     ],
-    optimum: stintOptimum
-      ? optimumFacts(stintOptimum, session.stints.length)
-      : [],
-    optimumLines: stintOptimum
-      ? optimumLines(stintOptimum, session.stints.length)
-      : [],
-    sections: sectionTable(sectionTimes, map),
+    optimum: optimumFacts([...stintLines.values()], session.stints.length),
+    optimumLines: optimumLines([...stintLines.values()], session.stints.length),
+    sections: sectionTable(sectionTimes, basis, map),
     chart,
     noComparable,
     rows,

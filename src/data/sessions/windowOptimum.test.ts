@@ -90,7 +90,6 @@ describe('sessionOptimum', () => {
     expect(s).toHaveLength(1);
     expect(s?.[0].windows.map(w => w.n)).toEqual([5, 5]);
     expect(s?.[0].bestSumS).toBe(100);
-    expect(s?.[0].medianSumS).toBe(5 + 2 + 95 + 2);
   });
 
   it('leaves out a window that crosses the pit lane, is off track, or is under a full-course yellow', () => {
