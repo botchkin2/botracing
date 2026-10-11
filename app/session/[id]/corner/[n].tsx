@@ -27,10 +27,11 @@ export default function CornerRoute() {
   }, [laps, ref, hl]);
   return (
     <CornerScreen
-      key={`${params.n}${params.all ? '-all' : ''}`}
+      key={`${params.n}${params.all === '0' ? '-part' : '-all'}`}
       sessionId={params.id}
       corner={Number(params.n)}
-      whole={params.all === '1'}
+      // No `all` in the link: a compound section opens on All. `all=0` is one part.
+      whole={params.all !== '0'}
       selection={selection}
       onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />
