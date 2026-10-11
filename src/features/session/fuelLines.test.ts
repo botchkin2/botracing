@@ -57,22 +57,65 @@ describe('limitingLaps', () => {
 });
 
 describe('stintFuelLine', () => {
-  it('the median use per green lap and how many laps it comes from', () => {
+  const g = (
+    usedL: number,
+    veUsedPct: number | null,
+    over: Partial<Lap> = {},
+  ) =>
+    ({
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL, veUsedPct, green: true},
+      ...over,
+    } as Lap);
+
+  it('the median use over the stint green laps', () => {
     expect(
-      stintFuelLine({medianFuelL: 2.4, medianVePct: 3.6, greenLaps: 15}),
+      stintFuelLine([g(2.4, 3.5), g(2.4, 3.6), g(2.5, 3.7), g(2.3, 3.6)]),
     ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap');
   });
 
-  it('under 3 green laps the uploader gives no median: no line', () => {
+  it('a slow green lap that is not comparable still counts: it burned fuel', () => {
+    const laps = [
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(3.0, 3.0, {comparable: false}),
+      g(3.0, 3.0, {comparable: false}),
+    ];
+    // The two slow laps move the median up, as in the stored stint medians.
+    expect(stintFuelLine(laps)).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
+    expect(stintFuelLine([...laps, g(3.0, 3.0, {comparable: false})])).toBe(
+      'Fuel 2.70 L/lap · VE 2.8 %/lap',
+    );
+  });
+
+  it('rounds a median of 2.55 up to 2.6, the same on the fuel card', () => {
+    expect(stintFuelLine([g(2.4, 2.5), g(2.4, 2.55), g(2.4, 2.6)])).toBe(
+      'Fuel 2.40 L/lap · VE 2.6 %/lap',
+    );
+  });
+
+  it('a lap that is not green is left out', () => {
+    const notGreen = {
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL: 9, veUsedPct: 9, green: false},
+    } as Lap;
     expect(
-      stintFuelLine({medianFuelL: null, medianVePct: null, greenLaps: 2}),
-    ).toBeNull();
+      stintFuelLine([g(2.4, 2.5), g(2.4, 2.5), g(2.4, 2.5), notGreen]),
+    ).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
+  });
+
+  it('under 3 such laps there is no line', () => {
+    expect(stintFuelLine([g(2.4, 3.6), g(2.4, 3.6)])).toBeNull();
+    expect(stintFuelLine([])).toBeNull();
   });
 
   it('fuel only, when VE is missing', () => {
-    expect(
-      stintFuelLine({medianFuelL: 3.4, medianVePct: null, greenLaps: 18}),
-    ).toBe('Fuel 3.40 L/lap');
+    expect(stintFuelLine([g(3.4, null), g(3.4, null), g(3.4, null)])).toBe(
+      'Fuel 3.40 L/lap',
+    );
   });
 });
 

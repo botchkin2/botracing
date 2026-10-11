@@ -7,7 +7,7 @@
 //
 // Sampling is 5 Hz, so a pass that starts and ends inside 0.4 s is missed;
 // that is fine for a count of passes but not for timing one.
-import {paceOf} from '../../src/analysis/classLaps.ts';
+import {paceOf, trackLengthM} from '../../src/analysis/classLaps.ts';
 import {BLUE_BEHIND_S} from '../../src/analysis/traffic.ts';
 import {undelta} from './field.mjs';
 
@@ -118,6 +118,21 @@ const EMPTY = () => ({
   fieldLapM: 0,
 });
 
+/**
+ * Metres of one lap: where the cars wrap at the line (the median wrap, as
+ * classLaps reads it), so a car parked in the pits with a longer lap distance
+ * cannot stretch it. The longest distance seen only when nothing wrapped (a
+ * field shorter than a lap). `cars` are decodeField's.
+ */
+export function fieldLengthM(cars) {
+  const wrapped = trackLengthM(cars.map(c => c.lapDistM));
+  if (wrapped > 0) return wrapped;
+  let L = 0;
+  for (const c of cars)
+    for (const d of c.lapDistM) if (d !== null && d > L) L = d;
+  return L;
+}
+
 // windows: [{from, to}] on the session clock (seconds, `from` inclusive).
 // Returns one facts object per window, or all null when there is no player
 // car in the field.
@@ -126,9 +141,7 @@ export function lapFieldFacts(field, windows) {
   const me = cars.findIndex(c => c.player);
   if (me < 0) return windows.map(() => null);
   const dt = 1 / field.hz;
-  let L = 0;
-  for (const c of cars)
-    for (const d of c.lapDistM) if (d !== null && d > L) L = d;
+  const L = fieldLengthM(cars);
   const classOf = c => ({class: c.carClass, classLabel: c.classLabel});
   const classKey = c => c.classLabel || c.carClass;
   const playerRank = paceOf(classOf(cars[me])).rank;

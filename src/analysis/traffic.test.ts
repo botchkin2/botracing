@@ -70,6 +70,14 @@ const chaser = (cls: string, speed: number, startM = 100): Car => ({
 const all = [{from: 0, to: 1e9}];
 
 describe('overtakesOf', () => {
+  it('takes the lap length it is given, so a car parked past the line cannot bend the gaps', () => {
+    const parked: Car = {class: 'GT3', at: () => 4662};
+    const f = field([player(), chaser('Hyper', 50), parked], 200);
+    const given = overtakesOf(f, all, paceOf, L)[0];
+    expect(given).toHaveLength(1);
+    expect(Math.abs(given[0].atM - 1400)).toBeLessThan(12);
+  });
+
   it("classes iRacing cars by label: an offline GTP passing the player's GT3 counts", () => {
     // Offline iRacing names no class; the label comes from the class id.
     const me = {...player(), class: '', classLabel: 'GT3'};

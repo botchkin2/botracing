@@ -79,7 +79,15 @@ export interface RaceFacts {
   /** Median use per green lap over this race's own laps; null under 3 laps. */
   ownUse: {fuelL: number | null; vePct: number | null};
   /** `lapIndex` is the app's lap number for the pit-in lap, as the pit stops card titles it. */
-  stops: {lapIndex: number; fuelL: number | null; vePct: number | null}[];
+  stops: {
+    lapIndex: number;
+    fuelL: number | null;
+    vePct: number | null;
+    /** Why the car was in the lane ('service', 'repair', 'penalty', ...); null on a block before it was stored. */
+    kind?: string | null;
+    /** 'stop-go' or 'drive-through' for a penalty. */
+    detail?: string | null;
+  }[];
   /** The tank at the end of the last whole lap; the lap is the app's lap number. */
   end: {lapIndex: number; fuelL: number | null; vePct: number | null} | null;
 }
@@ -259,6 +267,8 @@ export interface PitTime {
   baseS: number;
   /** Litres the stops add in all: each as its own stop adds it (`stopRefuels`), the last one sized to finish. */
   refuelL: number;
+  /** The refuel rate the time was worked out at (the model's). */
+  refuelLPerS: number;
   /** Seconds a stop costs on average: the total over the stops. */
   perStopS: number;
   totalS: number;
@@ -272,6 +282,8 @@ export interface FuelPlan {
     fuel: Usage | null;
     ve: Usage | null;
     lapTimeS: Usage | null;
+    /** Which laps the lap time is over: 'comparable' by rule, 'green' when too few are comparable. */
+    lapTimeBasis: 'comparable' | 'green';
   };
   /** Laps in the race: as given, or from minutes at the median lap time. */
   /** `oneMore` is the lap count when the flag falls late; null in a race in laps. */
@@ -300,6 +312,19 @@ function quantile(sorted: number[], q: number): number {
   const lo = Math.floor(at);
   const hi = Math.ceil(at);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
+}
+
+/**
+ * The laps a lap time is taken over: the comparable green laps (pit-wall #4170,
+ * the plan basis). Fuel per lap reads every green lap: a lap in traffic or a
+ * tow burns fuel like any other, and the bigger sample is worth having. Pace
+ * does not: traffic and tows move the time. With fewer than MIN_GREEN_LAPS
+ * comparable laps, the green laps themselves (the same array), and the plan
+ * says so (`lapTimeBasis`).
+ */
+export function paceLaps(history: GreenLap[]): GreenLap[] {
+  const comparable = history.filter(l => l.comparable !== false);
+  return comparable.length >= MIN_GREEN_LAPS ? comparable : history;
 }
 
 export function usage(values: number[]): Usage | null {
@@ -471,12 +496,14 @@ function dropStopFor(
     fuelL: needFuel ? fuelPerLapL : null,
     vePct: needVe ? vePerLapPct : null,
   };
-  const below = history.filter(
+  // Lap times compared on the pace laps (comparable), like the plan's own.
+  const pace = paceLaps(history);
+  const below = pace.filter(
     l =>
       (atMost.fuelL == null || l.fuelL <= atMost.fuelL) &&
       (atMost.vePct == null || (l.vePct != null && l.vePct <= atMost.vePct)),
   );
-  const times = history.map(l => l.lapTimeS).sort((a, b) => a - b);
+  const times = pace.map(l => l.lapTimeS).sort((a, b) => a - b);
   const compare =
     below.length >= MIN_COMPARE_LAPS && times.length > 0
       ? {
@@ -702,6 +729,7 @@ function pitTimeFor(
     stops,
     baseS: model.baseS,
     refuelL,
+    refuelLPerS: model.refuelLPerS,
     perStopS: totalS / stops,
     totalS,
     lapsWithout: raceLaps,
@@ -722,7 +750,9 @@ export function planRace(
   const ve = usage(
     history.filter(l => l.vePct != null).map(l => l.vePct as number),
   );
-  const lapTimeS = usage(history.map(l => l.lapTimeS));
+  const pace = paceLaps(history);
+  const lapTimeS = usage(pace.map(l => l.lapTimeS));
+  const lapTimeBasis = pace === history ? 'green' : 'comparable';
 
   let raceLaps: FuelPlan['raceLaps'] = null;
   if (rules.lengthLaps != null) {
@@ -801,7 +831,7 @@ export function planRace(
       laps: history.length,
       sessions: new Set(history.map(l => l.sessionId)).size,
     },
-    perLap: {fuel, ve, lapTimeS},
+    perLap: {fuel, ve, lapTimeS, lapTimeBasis},
     raceLaps,
     atMedian,
     atP90,
