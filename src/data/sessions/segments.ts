@@ -7,20 +7,13 @@ import {
   type SectionMode,
   type SegmentLap,
   type SegmentTimes,
-  turnRangeLabel,
 } from '@/src/analysis/segments';
-import {sectionHeaderOf} from '@/src/analysis/turnNames';
+import {sectionNameOf} from '@/src/analysis/turnNames';
 
-import type {Lap, MapCorner, MapSection, TrackMapData} from './adapters';
+import type {Lap, TrackMapData} from './adapters';
 import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
 
 const START_LABEL = 'S/F';
-
-/** "T4" or "T2–5": the corners a section holds, by the same names the Corner screen uses. */
-function sectionLabel(s: MapSection): string {
-  const name = (c: MapCorner) => c.official ?? `T${c.n}`;
-  return sectionHeaderOf((s.parts.length ? s.parts : [s]).map(name));
-}
 
 /** One segment per corner window, in lap order; null before the track has windows or when no lap was cut at them. */
 export function turnSegmentTimes(
@@ -36,7 +29,7 @@ export function turnSegmentTimes(
       label:
         w.kind === 'start-straight' || !section
           ? START_LABEL
-          : sectionLabel(section),
+          : sectionNameOf(section),
       range: {fromM: w.fromM, toM: w.toM},
       section: w.kind === 'start-straight' ? null : w.section ?? null,
       compound: section != null && section.parts.length > 1,

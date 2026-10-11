@@ -435,15 +435,10 @@ function CornerView({
               ) : (
                 <DotStrip
                   width={layout.isWide ? 440 : layout.contentWidth}
-                  min={s.min}
-                  max={s.max}
+                  scale={s.scale}
                   flipped={s.flipped}
                   band={s.band}
                   coincidentWithin={s.coincidentWithin}
-                  minLabel={s.minLabel}
-                  maxLabel={s.maxLabel}
-                  unit={s.unit}
-                  midLabel={s.midLabel}
                   resolution={s.resolution}
                   leftWord={s.leftWord}
                   rightWord={s.rightWord}

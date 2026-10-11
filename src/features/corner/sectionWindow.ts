@@ -13,12 +13,11 @@ import {
   type BoundaryWindow,
   type Lap,
   type MapBoundaries,
-  type MapSection,
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
 import {formatGap, turnLabel} from '@/src/design';
-import {sectionHeaderOf} from '@/src/analysis/turnNames';
+import {sectionNameOf} from '@/src/analysis/turnNames';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -74,7 +73,7 @@ export type WindowOptimumRow = {
 };
 
 export type SectionWindowModel = {
-  /** "S5 (T8–T10)". */
+  /** The section's name, its turns: "T8–10". */
   label: string;
   fromM: number;
   toM: number;
@@ -94,13 +93,6 @@ export type SectionWindowModel = {
 };
 
 const kph = (v: number | null) => (v == null ? '—' : `${Math.round(v)} km/h`);
-
-function sectionLabel(section: MapSection): string {
-  const cs = section.parts.length ? section.parts : [section];
-  return `S${section.n} (${sectionHeaderOf(
-    cs.map(c => turnLabel(c.n, c.official)),
-  )})`;
-}
 
 const seconds = (v: number | null) => (v == null ? '—' : v.toFixed(3));
 
@@ -240,7 +232,7 @@ export function buildSectionWindow(input: {
   });
 
   return {
-    label: sectionLabel(section),
+    label: sectionNameOf(section),
     fromM: window.fromM,
     toM: window.toM,
     parts: window.parts.map(p => {

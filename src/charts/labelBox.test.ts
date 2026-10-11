@@ -5,6 +5,7 @@ import {
   insideFrame,
   labelBox,
   labelRowHeight,
+  thinLabels,
 } from './labelBox';
 
 const frame = {width: 100, height: 40};
@@ -98,5 +99,21 @@ describe('labelRowHeight', () => {
       for (let i = 1; i < rows.length; i++)
         expect(rows[i].box.top).toBeGreaterThan(rows[i - 1].box.bottom);
     }
+  });
+});
+
+describe('thinLabels', () => {
+  const ticks = [0, 1, 2, 3, 4].map(v => ({v}));
+  it('labels every tick when they fit, and keeps both ends when they do not', () => {
+    expect(thinLabels(ticks, v => v * 100, 40)).toHaveLength(5);
+    // 60 pt labels on a 50 pt pitch: every other one, both ends kept.
+    expect(thinLabels(ticks, v => v * 50, 60).map(t => t.v)).toEqual([0, 2, 4]);
+    // 120 pt labels: k = 3 does not divide 4, so k = 4, the two ends.
+    expect(thinLabels(ticks, v => v * 50, 120).map(t => t.v)).toEqual([0, 4]);
+  });
+  it('works on either axis: positions may run backwards (a y axis, a flipped strip)', () => {
+    expect(thinLabels(ticks, v => -v * 50, 60).map(t => t.v)).toEqual([
+      0, 2, 4,
+    ]);
   });
 });

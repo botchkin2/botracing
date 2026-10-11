@@ -38,12 +38,18 @@ describe('buildStrips', () => {
     expect(strips[2]).toMatchObject({leftWord: 'slower', rightWord: 'faster'});
   });
 
-  it('labels the ends and the pedal resolution', () => {
-    expect([brake.minLabel, brake.maxLabel, brake.resolution]).toEqual([
-      '100',
-      '119',
-      '±1.2 m',
+  it('gives the strip an axis in 1-2-5 steps with units on the ticks, and the pedal resolution (D45)', () => {
+    // Brake points 100 to 119 m: rounded out to 100–120 in 5 m steps.
+    expect(brake.scale.lo).toBe(100);
+    expect(brake.scale.hi).toBe(120);
+    expect(brake.scale.ticks.map(t => t.label)).toEqual([
+      '100 m',
+      '105 m',
+      '110 m',
+      '115 m',
+      '120 m',
     ]);
+    expect(brake.resolution).toBe('±1.2 m');
     expect(brake.coincidentWithin).toBe(1.2);
     expect(strips[3].resolution).toBeNull();
   });

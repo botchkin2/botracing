@@ -214,10 +214,7 @@ describe('fuel facts', () => {
   });
 
   it('reads the lap trace rate, null when the lap doc has none', () => {
-    const [iracing, old] = toLaps([
-      {id: 'a', traceHz: 60},
-      {id: 'b'},
-    ]);
+    const [iracing, old] = toLaps([{id: 'a', traceHz: 60}, {id: 'b'}]);
     expect(iracing.traceHz).toBe(60);
     expect(old.traceHz).toBeNull();
   });
@@ -371,7 +368,7 @@ describe('toTrackMap official turn labels', () => {
         },
       ],
     });
-    expect(trackCorners(m)[0].sectionLabel).toBe('S5 (T10a–T12)');
+    expect(trackCorners(m)[0].sectionLabel).toBe('T10a–T12');
   });
 });
 
