@@ -100,8 +100,10 @@ export function buildPlanHalf(input: {
 }): PlanHalf {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
   if (facts.limitL != null && scheduledLength(facts) == null)
+    // Nothing to plan from, so nothing to compare: no note either, the card
+    // is left out (PitPlanHalf) unless there is a DNF to show.
     return {
-      note: 'No race length on record.',
+      note: null,
       rows: facts.leftEarly ? [finishRow(facts, null)] : [],
     };
   if (facts.limitL == null || !rules)
