@@ -50,6 +50,12 @@ Worked example: `src/features/sessions/model.ts` and `model.test.ts`.
 
 Every screen follows the same shape: `use<Screen>Model(params)` combines the queries with `analysis` into one view model, and the screen renders it. Models are pure given their inputs and are unit-tested.
 
+### Session on the phone
+
+Under 900 pt the Session page reads, top to bottom: the head (Best and Median large, "21 laps · 14 comparable" under them; session facts), Lap times (the chart, then one Optimal · Median · gap · "of N" line per stint, `optimumLines.ts` over `StintNumbers`), Laps (the section grid and the lap table), then Pit stops (a fold, open when there were stops, the energy line inside), Tires (open) and Fuel use (folded). Desktop, and 900 to 1279, keep their own layout.
+
+The grid and the lap table scroll sideways as one (`session/components/linkedScroll.tsx`): every row and the head of a table share one offset, the lap column (grid) or checkbox, lap, time and vs med (table) stay pinned. One scroller drives at a time, from the first touch of a drag until its momentum ends, or until it has been quiet for 150 ms where there are no such events (a wheel on web); the offsets the others report back while it drives are ignored, or a fling would be pulled back. A scroller that mounts late (the table is virtualised) starts at the current offset.
+
 ### Numbers: one basis, named
 
 The rule (decision `pit-wall/decisions/lap/2026-10-11-selection-and-numbers.md`): **facts are the session's, comparisons are the selection's.** A fact says what happened and never moves with a tick: Laps, Comparable, Best, the session Median, energy, fuel, tires, pit stops. Anything that compares laps or measures spread is over the **basis laps**, the ticked ones (or the comparable ones when none is ticked), and says how many it is "of". Every number below is from `src/features/session/selectionStats.ts`, so one question has one answer on a screen.
