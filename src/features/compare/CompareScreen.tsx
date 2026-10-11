@@ -76,6 +76,7 @@ import {
   toggleHighlight,
   canRemoveLap,
   removeLap,
+  landingCursorM,
   sectionStartM,
   withDefaultLaps,
 } from './model';
@@ -303,6 +304,22 @@ function CompareView({
     }, CURSOR_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [cursorM, playing]);
+
+  // A grid section head names a section and no cursor: land on its start once,
+  // as soon as the track map has the section positions.
+  const landed = useRef(false);
+  const entryM = model.sectionEntryM;
+  useEffect(() => {
+    if (landed.current || Object.keys(entryM).length === 0) return;
+    landed.current = true;
+    onCursor(
+      landingCursorM(
+        settled.current.selection.corner,
+        settled.current.selection.cursorM,
+        entryM,
+      ),
+    );
+  }, [entryM, onCursor]);
 
   // Keyboard on web: ←/→ step, Shift for bigger steps, space plays, [ ] window.
   const keys = useRef({moveBy, setPlaying});

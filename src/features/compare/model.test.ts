@@ -20,6 +20,7 @@ import {
   followPlace,
   type CompareSelection,
   clearRef,
+  landingCursorM,
   canRemoveLap,
   removeLap,
   sectionStartM,
@@ -1181,5 +1182,18 @@ describe('sectionStartM (D28 quick jump)', () => {
     const entry = {1: 0, 2: 812.5, 3: 1644};
     expect(sectionStartM(entry, 2)).toBe(812.5);
     expect(sectionStartM(entry, 9)).toBe(0);
+  });
+});
+
+describe('landingCursorM (grid section-head hand-off)', () => {
+  const entry = {1: 0, 2: 812.5, 3: 1644};
+  it('lands on the section start when a section is named and no cursor came', () => {
+    expect(landingCursorM(3, 0, entry)).toBe(1644);
+  });
+  it('keeps a cursor the link carried', () => {
+    expect(landingCursorM(3, 250, entry)).toBe(250);
+  });
+  it('keeps the lap start when no section is named', () => {
+    expect(landingCursorM(null, 0, entry)).toBe(0);
   });
 });

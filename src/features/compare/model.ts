@@ -639,6 +639,20 @@ export function sectionStartM(
   return sectionEntryM[n] ?? 0;
 }
 
+/**
+ * Where the cursor starts when Compare opens: a link that names a section but
+ * carries no cursor (the Session grid's section heads) lands on that section's
+ * start. A link with a cursor, or none and no section, keeps it.
+ */
+export function landingCursorM(
+  corner: number | null,
+  cursorM: number,
+  sectionEntryM: Record<number, number>,
+): number {
+  if (corner == null || cursorM !== 0) return cursorM;
+  return sectionStartM(sectionEntryM, corner);
+}
+
 /** Within this many metres of its apex the cursor is "at the apex". */
 export const AT_APEX_M = 15;
 
