@@ -60,11 +60,38 @@ const PRIORITY = [
   'BLUE',
   'PASS',
   'BTL',
-];
+] as const;
+
+type TagCode = (typeof PRIORITY)[number];
+
+// The word for each code. Typed by TagCode: a code added to PRIORITY without a
+// word does not compile, so the legend cannot miss a tag the rows can draw.
+const MEANING: Record<TagCode, string> = {
+  PART: 'partial',
+  PARK: 'parked',
+  OUT: 'out lap',
+  IN: 'in lap',
+  RESET: 'reset',
+  SLOW: 'outlier',
+  TOW: 'slipstream',
+  BEST: 'best',
+  OFF: 'off track',
+  HIT: 'impact',
+  TRAF: 'traffic',
+  BLUE: 'blue flag',
+  PASS: 'passes',
+  BTL: 'battle',
+};
+
+/** The legend under the lap table: every code, in priority order, with its word. */
+export const TAG_KEY: {code: TagCode; meaning: string}[] = PRIORITY.map(
+  code => ({code, meaning: MEANING[code]}),
+);
 
 /** Tags in priority order; a code's first word is its rank ("TOW 6.1"). */
 export function orderTags<T extends {code: string}>(tags: T[]): T[] {
-  const rank = (t: T) => PRIORITY.indexOf(t.code.split(' ')[0]);
+  const rank = (t: T) =>
+    (PRIORITY as readonly string[]).indexOf(t.code.split(' ')[0]);
   return [...tags].sort((a, b) => rank(a) - rank(b));
 }
 

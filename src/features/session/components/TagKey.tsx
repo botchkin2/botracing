@@ -3,7 +3,7 @@ import {StyleSheet, View} from 'react-native';
 import {space} from '@/src/design';
 import {Text} from '@/src/ui';
 
-import {TAG_KEY} from '../tagKey';
+import {TAG_KEY} from '../lapTags';
 
 /** The tag legend: each code with its word, wrapped, not a sentence. */
 export function TagKey() {
