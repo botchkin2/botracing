@@ -85,7 +85,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 ## 10. Dependencies
 
-- Add a dependency only when it removes real code or risk, and say why in the PR. Prefer what is already installed (`react-native-svg`, Reanimated, React Query, zustand).
+- Add a dependency only when it removes real code or risk, and say why in the PR. Prefer what is already installed (`react-native-svg`, React Query, zustand). Reanimated is loaded on native only (`src/setup/reanimated.native.ts`; web gets an empty module): it is 750 KB, a quarter of the web bundle, so a screen that needs it on web imports it itself and says what it saves. The web app is one bundle: check `npx expo export --platform web` before and after a dependency.
 - Install with `npx expo install` so versions match the Expo SDK.
 - No UI kits or CSS-in-JS libraries; the design system is ours.
 
