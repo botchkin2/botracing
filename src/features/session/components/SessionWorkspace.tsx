@@ -189,7 +189,7 @@ export function SessionWorkspace({
                 <LapTableHeader
                   width={innerW}
                   wide
-                  heads={model.sections?.heads}
+                  heads={model.sections?.heads ?? model.sectorHeads}
                   headTaps={model.sections?.targets.map(t => t.corner != null)}
                   onHeadPress={i => {
                     const corner = model.sections?.sections[i];
