@@ -6,7 +6,7 @@ import {
   lapLabelEvery,
   type RaceLanes as RaceLanesModel,
 } from '@/src/analysis/raceLanes';
-import {RaceLanes} from '@/src/charts';
+import {LANE_MIN_H, RaceLanes} from '@/src/charts';
 import {space} from '@/src/design';
 import {Segment, Text} from '@/src/ui';
 
@@ -15,10 +15,10 @@ import type {RaceMode} from '../model';
 
 // YOUR RACE (handoff R1a/R1b): the label, the race clock and the zoom above the
 // lanes; the window's start and end times under them. A lane is at least its
-// name tall (9 pt type is 11.7 pt, and the first keeps 1 pt from the svg edge):
-// 14 pt in a 44 pt label column on the phone, 12 pt in 56 on desktop.
-const PHONE = {laneHeight: 14, labelWidth: 44};
-const DESKTOP = {laneHeight: 12, labelWidth: 56};
+// name tall (LANE_MIN_H, from the label font), on the phone and on desktop; the
+// label column is 44 pt on the phone, 56 on desktop.
+const PHONE = {laneHeight: LANE_MIN_H, labelWidth: 44};
+const DESKTOP = {laneHeight: LANE_MIN_H, labelWidth: 56};
 
 // The whole-window zoom is named for what the session is: outside a race
 // there is no race to show (production QA, thread 44 #1723).

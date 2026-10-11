@@ -3,7 +3,13 @@ import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import {G, Line, Polygon, Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
-import {baselineOver, centredBaseline, EDGE_PT, labelBox} from './labelBox';
+import {
+  baselineOver,
+  centredBaseline,
+  EDGE_PT,
+  labelBox,
+  labelRowHeight,
+} from './labelBox';
 
 import type {RaceLanes as RaceLanesModel, Span} from '@/src/analysis/raceLanes';
 import {stroke, useTheme} from '@/src/design';
@@ -23,6 +29,9 @@ function overLanes(text: string, x: number, left: number, width: number) {
   return b.left >= left && b.right <= width - EDGE_PT;
 }
 
+/** The least a lane may be where it carries its name: the name's box and edges. */
+export const LANE_MIN_H = labelRowHeight(TICK_PT);
+
 export function RaceLanes({
   lanes,
   window,
@@ -39,7 +48,7 @@ export function RaceLanes({
   playheadS: number;
   /** Total width, label column included. */
   width: number;
-  /** At least the label's 11.7 + 2 pt edge (14 on the phone); 9 only for the label-less strip. */
+  /** At least LANE_MIN_H where lanes carry names; the label-less strip may be thinner. */
   laneHeight: number;
   /** 44 on the phone, 56 on the desktop. */
   labelWidth: number;
