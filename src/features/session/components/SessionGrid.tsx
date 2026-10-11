@@ -40,6 +40,9 @@ export function SessionGrid({
       <View style={styles.row}>
         <View style={[styles.lap, {width: LAP_W}]}>
           <Text variant='label'>Lap</Text>
+          <Text variant='dataSmall' tone='textMuted'>
+            {`IQR of ${grid.basisCount}`}
+          </Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.row}>
@@ -71,7 +74,7 @@ export function SessionGrid({
                   />
                 </View>
                 <Text variant='dataSmall' tone='textMuted'>
-                  {c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
+                  {c.n < 2 || c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
                 </Text>
               </Pressable>
             ))}

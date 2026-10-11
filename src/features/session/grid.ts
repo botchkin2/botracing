@@ -1,10 +1,14 @@
 // The session as a spread grid: rows are laps, columns are sections. Each
-// column's median and spread come from the ticked laps only (the selection the
-// other screens share), so ticking or unticking a lap moves every median. An
-// unticked lap stays a row, dimmed, compared with the ticked median, so removing
-// a lap shows where it sat. Pure: the hook gathers the inputs, components draw.
+// column's median, best and IQR come from the basis laps (the ticked ones, or
+// the comparable ones with none ticked: selectionStats.ts), so ticking or
+// unticking a lap moves every median, and the desktop table under the lap list
+// reads the same numbers. An unticked lap stays a row, dimmed, compared with
+// the ticked median, so removing a lap shows where it sat. Pure: the hook
+// gathers the inputs, components draw.
 
-import {columnStats, type SegmentTimes} from '@/src/analysis/segments';
+import {type SegmentTimes} from '@/src/analysis/segments';
+
+import {basisOf, segmentBasisStats} from './selectionStats';
 
 export type GridSort =
   | {kind: 'lap'}
@@ -12,7 +16,7 @@ export type GridSort =
 
 export type GridColumn = {
   head: string;
-  /** Ticked laps with a time in this section. */
+  /** Basis laps with a time in this section. */
   n: number;
   bestS: number | null;
   medianS: number | null;
@@ -27,7 +31,7 @@ export type GridCell = {
   deltaS: number | null;
   /** delta over this column's spread, held to ±1 (the colour). 0 with no spread. */
   unit: number;
-  /** The fastest ticked time in this section. */
+  /** The fastest basis time in this section. */
   best: boolean;
 };
 
@@ -43,24 +47,20 @@ export type GridRow = {
 };
 
 export type SessionGrid = {
+  /** Laps the column numbers are of: the head reads "IQR of N". */
+  basisCount: number;
   columns: GridColumn[];
   rows: GridRow[];
 };
 
-/**
- * The grid for one session. `ticked` is the shared selection; with none ticked
- * every column is empty and the rows show their own times only.
- */
+/** The grid for one session. `ticked` is the shared selection. */
 export function sessionGrid(
   times: SegmentTimes,
   ticked: ReadonlySet<string>,
   sort: GridSort = {kind: 'lap'},
 ): SessionGrid {
-  const stats = times.segments.map((_, i) =>
-    columnStats(
-      times.laps.filter(l => ticked.has(l.id)).map(l => l.timesS[i] ?? null),
-    ),
-  );
+  const basis = new Set(basisOf(times.laps, ticked).map(l => l.id));
+  const stats = segmentBasisStats(times, basis);
   const widest = Math.max(0, ...stats.map(s => s.spreadS ?? 0));
   const columns: GridColumn[] = times.segments.map((seg, i) => ({
     head: seg.label,
@@ -88,12 +88,13 @@ export function sessionGrid(
           deltaS != null && spreadS != null && spreadS > 0
             ? Math.max(-1, Math.min(1, deltaS / spreadS))
             : 0,
-        best: timeS != null && bestS != null && timeS === bestS,
+        best:
+          basis.has(lap.id) && timeS != null && bestS != null && timeS === bestS,
       };
     }),
   }));
 
-  return {columns, rows: sortRows(rows, sort)};
+  return {basisCount: basis.size, columns, rows: sortRows(rows, sort)};
 }
 
 /** Stable sort: by lap order, or by one column's time (lap with no time last). */

@@ -209,7 +209,7 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
       };
     const use = [
       `${litres(s.medianFuelL)}/lap${
-        s.fuelIqrL != null ? ` (spread ${s.fuelIqrL.toFixed(2)})` : ''
+        s.fuelIqrL != null ? ` (IQR ${s.fuelIqrL.toFixed(2)})` : ''
       }`,
       s.medianVePct != null && `${oneDecimal(s.medianVePct)} % VE/lap`,
       s.medianTimeS != null && formatLapTime(s.medianTimeS),
@@ -242,8 +242,8 @@ export function verdictText(fu: FuelUse): string {
       const low = v.lowL.toFixed(2);
       const high = v.highL.toFixed(2);
       return low === high
-        ? `Stints within lap spread: ${low} L/lap`
-        : `Stints within lap spread: ${low}–${high} L/lap`;
+        ? `Stints within lap IQR: ${low} L/lap`
+        : `Stints within lap IQR: ${low}–${high} L/lap`;
     }
     case 'differs':
       return 'Medians differ';

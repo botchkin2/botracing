@@ -54,7 +54,9 @@ describe('buildSessionModel', () => {
   it('stint header rows precede their laps', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
-      label: 'Stint 1 · L1–L17 · med 1:21.938 · ± 0.91 s',
+      // The opening ticks are none here, so the basis is the comparable laps:
+      // 13 of stint 1, IQR 1.219 s recomputed from the fixture's lap times.
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · IQR 1.22 s · of 13',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });
@@ -404,17 +406,23 @@ describe('sectionTable', () => {
     ],
   };
 
-  it('gives median, best and spread over every comparable lap', () => {
-    const table = sectionTable(times)!;
-    const [median, best, spread] = table.footer;
+  it('gives median, best and IQR over the basis laps, named IQR', () => {
+    const table = sectionTable(times, new Set(['a', 'b', 'c', 'd', 'e']))!;
+    expect(table.footer.map(r => r.label)).toEqual(['Median', 'Best', 'IQR']);
+    const [median, best, iqr] = table.footer;
     expect(median.cells).toEqual(['10.20']);
     expect(best.cells).toEqual(['10.00']);
-    expect(spread.cells).toEqual(['0.20']);
+    // 10.0 … 10.4: p75 10.3 − p25 10.1.
+    expect(iqr.cells).toEqual(['0.20']);
   });
 
-  it('shows dashes, not a count, under five laps', () => {
-    const table = sectionTable({...times, laps: times.laps.slice(0, 3)})!;
-    for (const row of table.footer) expect(row.cells).toEqual(['—']);
+  it('follows the ticks: unticking the slowest two moves every row', () => {
+    const table = sectionTable(times, new Set(['a', 'b', 'c']))!;
+    expect(table.footer.map(r => r.cells[0])).toEqual([
+      '10.10',
+      '10.00',
+      '0.10',
+    ]);
   });
 });
 
