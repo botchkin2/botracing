@@ -123,8 +123,13 @@ WaitFor "the installed exe to be version $Version" 180 {
 WaitFor "a tray of version $Version running (the installer's /R restart)" 120 {
   @(Trays | Where-Object { $_.Id -ne $oldPid -and $_.Path -and ((VersionOf $_.Path) -like "$Version*") }).Count -ge 1
 }
+# The old tray ended: exactly one tray runs, the new one (radio #4458).
+WaitFor "the old tray (pid $oldPid) to exit" 30 {
+  -not (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)
+}
 $now = Trays | ForEach-Object { "pid $($_.Id) $($_.Path) $(VersionOf $_.Path)" }
 Write-Host "running after the update: $($now -join '; ')"
+if ((Trays).Count -ne 1) { Fail "expected one tray after the update, found $((Trays).Count)" }
 
 Step "quit.log"
 if (-not (Test-Path $quitLog)) { Fail "no quit.log: --update never reached the running tray" }
