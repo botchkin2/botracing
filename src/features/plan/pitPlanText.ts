@@ -58,14 +58,26 @@ export function stopWarning(s: SliderStop): string | null {
     : null;
 }
 
-/** One stint's row: laps, what it uses in `unit`, the tyre laps. */
+/**
+ * The laps a stint covers, named as the stops are ("L1–L13"): the stop after
+ * L13 ends the first stint, which starts on the formation lap L1. A count
+ * ("12 laps", racing laps only) beside "after L13" read as two answers.
+ */
+export function stintLapRange(p: PitPlan, index: number): string {
+  const first = index === 0 ? 0 : p.stops[index - 1].after + 1;
+  const last = index < p.stops.length ? p.stops[index].after : p.finishLaps;
+  return `${lapName(first)}–${lapName(last)}`;
+}
+
+/** One stint's row: laps (their names when given, else the count), what it uses in `unit`, the tyre laps. */
 export function stintRow(
   s: PitStint,
   unit: Unit,
+  lapRange?: string,
 ): {label: string; laps: string; use: string; tyres: string} {
   return {
     label: `Stint ${s.n}`,
-    laps: String(s.laps),
+    laps: lapRange ?? String(s.laps),
     use:
       unit === 've'
         ? s.vePct
