@@ -105,6 +105,7 @@ export function LapTableHeader({
             key={h}
             variant='tableHeader'
             tone='textMuted'
+            asWritten
             numberOfLines={1}
             style={[styles.right, {width: sectionW}]}>
             {h}

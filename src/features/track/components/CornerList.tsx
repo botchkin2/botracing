@@ -28,6 +28,7 @@ export function CornerList({
             <Text
               variant='tableHeader'
               tone='textMuted'
+              asWritten
               style={styles.groupTitle}>
               {g.title}
             </Text>
