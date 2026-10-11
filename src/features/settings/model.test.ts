@@ -173,7 +173,7 @@ describe('problems', () => {
           sessionId: null,
         }),
       ),
-    ).toBe('Not seen since 1 Oct');
+    ).toBe('Not seen since Oct 1');
   });
 
   it('lists every PC, names the PC only when there are several, and links sessions', () => {
@@ -298,8 +298,8 @@ describe('formatters', () => {
     expect(formatBytes(2.1e11)).toBe('210 GB');
   });
 
-  it('days are "1 Oct" and "14 Sep", never en-GB "Sept"', () => {
-    expect(formatDay(new Date(2026, 9, 1, 12).getTime())).toBe('1 Oct');
-    expect(formatDay(new Date(2026, 8, 14, 12).getTime())).toBe('14 Sep');
+  it('days are "Oct 1" and "Sep 14", never en-GB "Sept"', () => {
+    expect(formatDay(new Date(2026, 9, 1, 12).getTime())).toBe('Oct 1');
+    expect(formatDay(new Date(2026, 8, 14, 12).getTime())).toBe('Sep 14');
   });
 });
