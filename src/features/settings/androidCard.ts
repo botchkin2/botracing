@@ -32,6 +32,21 @@ export function runningLineOf(
   return `${app} · ${updateId ? `update ${updateId.slice(0, 8)}` : 'built-in'}`;
 }
 
+/**
+ * The running line for the app's card, or null where the card is not the
+ * installed app. A release build's embedded bundle carries its own updateId,
+ * so it reads 'built-in' from isEmbeddedLaunch, not from the id.
+ */
+export function runningLine(q: {
+  surface: AndroidSurface;
+  version: string | null;
+  updateId: string | null;
+  isEmbeddedLaunch: boolean;
+}): string | null {
+  if (q.surface !== 'app') return null;
+  return runningLineOf(q.version, q.isEmbeddedLaunch ? null : q.updateId);
+}
+
 export type AndroidCard = {
   /** "v1.0.1", or why there is nothing to download. */
   status: string;

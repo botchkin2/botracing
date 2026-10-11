@@ -24,7 +24,7 @@ import {
   androidCard,
   androidSurface,
   INSTALL_NOTE,
-  runningLineOf,
+  runningLine,
 } from './androidCard';
 import {type ProblemRow, type UploaderCard, useSettingsModel} from './model';
 import {trayCard} from './trayCard';
@@ -201,10 +201,12 @@ function AndroidApp() {
   });
   // In the installed app the running build shows even when no update does.
   if (!card && surface !== 'app') return null;
-  const running = runningLineOf(
-    Application.nativeApplicationVersion,
-    Updates.updateId,
-  );
+  const running = runningLine({
+    surface,
+    version: Application.nativeApplicationVersion,
+    updateId: Updates.updateId,
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+  });
   return (
     <>
       <Text variant='label' tone='textMuted' style={styles.section}>
@@ -215,9 +217,11 @@ function AndroidApp() {
           styles.card,
           {backgroundColor: color.surface, borderColor: color.lineHeader},
         ]}>
-        <Text variant='data' tone='textSecondary'>
-          {running}
-        </Text>
+        {running ? (
+          <Text variant='data' tone='textSecondary'>
+            {running}
+          </Text>
+        ) : null}
         {card ? (
           <Text variant='data' tone='textSecondary'>
             {card.status}
