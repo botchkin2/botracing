@@ -24,6 +24,7 @@ import {
   type CornerModel,
   type CornerSelection,
 } from './model';
+import {lapMode} from '@/src/design';
 import {keyLapIds as keyLapsOf} from './keyLaps';
 import {sliceCornerOf} from './wholeCorner';
 
@@ -98,7 +99,7 @@ export function useCornerModel(
         hl: selection.hl,
         bestLapId,
         ranked,
-        individual: lapIds.length < 7,
+        individual: lapMode(lapIds.length) === 'individual',
       }),
     [lapIds, selection.laps, selection.hl, bestLapId, ranked],
   );

@@ -166,11 +166,10 @@ function SessionView({
   // the header height; scroll once that render has laid out.
   const pendingScroll = useRef<string | null>(null);
 
-  const count = selection.laps.length;
   const colorOf = useCallback(
     (selIndex: number, highlighted = false) =>
-      lapStroke(scheme, selIndex, count, highlighted).color,
-    [scheme, count],
+      lapStroke(scheme, selIndex, highlighted).color,
+    [scheme],
   );
 
   const {contentWidth} = layout;

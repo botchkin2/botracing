@@ -265,9 +265,8 @@ describe('buildCompareModel', () => {
     expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
   });
 
-  it('the map still draws the cursor when many laps are checked and none is key', () => {
-    // Eight laps is past the individual mode, with no Ref lap and none
-    // highlighted: no lap is a key lap, and the dot was missing (#273).
+  it('the map draws every ticked lap when many are checked, with no Ref lap and none highlighted', () => {
+    // Eight laps is past the individual mode: every ticked lap is on the map.
     const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const many = toLaps(
       ids.map((id, i) => rawLap(id, 20 + i * 0.1, [5 + i * 0.01, 5])),
@@ -288,12 +287,12 @@ describe('buildCompareModel', () => {
         selection: sel({laps: ids, ...s}),
       }).map!;
     const median = at({});
-    expect(median.dots).toHaveLength(1);
-    expect(median.dots[0].lapId).toBe(BASIS_ID);
+    expect(median.dots.map(d => d.lapId)).toEqual(ids);
     expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
-    // A Ref lap or a highlighted lap is its own dot, as before.
-    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);
-    expect(at({hl: 'e'}).dots.map(d => d.lapId)).toEqual(['e']);
+    // Every ticked lap is a dot; the Ref lap is drawn last, on top.
+    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toHaveLength(8);
+    expect(at({ref: 'c'}).dots.at(-1)?.lapId).toBe('c');
+    expect(at({hl: 'e'}).dots.at(-1)?.lapId).toBe('e');
   });
 
   it('position row names the corner under the cursor', () => {
@@ -530,11 +529,12 @@ describe('many laps', () => {
     selection: sel({laps: many.map(l => l.id), ref: 'm0', hl: 'm3'}),
   });
 
-  it('tinted mode above 6 laps: only ref and highlighted are key', () => {
-    expect(m.mode).toBe('tinted');
-    // Every checked lap has a chip; the readout holds the key laps.
+  it('above 6 laps every ticked lap is on: chips, readout and map', () => {
+    expect(m.mode).toBe('several');
     expect(m.chips).toHaveLength(8);
-    expect(m.charts[1].valueRows[0].values).toHaveLength(2);
+    expect(m.charts[1].valueRows[0].values).toHaveLength(8);
+    expect(m.map!.lines).toHaveLength(8);
+    expect(m.map!.dots).toHaveLength(8);
   });
 
   it('median mode, 11 laps, nothing highlighted: chips for all, readout leads with the basis', () => {
@@ -558,9 +558,13 @@ describe('many laps', () => {
       selection: sel({laps: eleven.map(l => l.id)}),
     });
     expect(out.chips).toHaveLength(11);
-    expect(out.readouts.map(r => r.lapId)).toEqual([BASIS_ID]);
+    // Every ticked lap reads out, after the basis row.
+    expect(out.readouts.map(r => r.lapId)).toEqual([
+      BASIS_ID,
+      ...eleven.map(l => l.id),
+    ]);
     const speed = out.charts[1].valueRows[0];
-    expect(speed.values).toHaveLength(1);
+    expect(speed.values).toHaveLength(12);
     expect(speed.values[0].lapId).toBe(BASIS_ID);
     expect(out.charts[0].valueRows[0].values[0].text).toBe('±0.000 s');
   });
@@ -600,15 +604,14 @@ describe('many laps', () => {
       expect(real).toHaveLength(n);
       expect(out.chips.some(c => c.isRef)).toBe(false);
       expect(real.every(c => c.selIndex >= 1)).toBe(true);
-      // Individual mode (up to six laps) gives every slot its own colour;
-      // above that the tints cycle.
-      if (n <= 6)
-        for (const scheme of ['dark', 'light'] as const)
-          for (const c of real)
-            expect(lapColors[scheme][c.selIndex]).toBeDefined();
+      // Every slot has its own colour at any count (the palette, then hues).
+      const colours = new Set(
+        real.map(c => lapStroke('dark', c.selIndex, false).color),
+      );
+      expect(colours.size).toBe(real.length);
       // And none is drawn with the reference stroke.
       for (const c of real)
-        expect(lapStroke('dark', c.selIndex, n, false).color).not.toBe(
+        expect(lapStroke('dark', c.selIndex, false).color).not.toBe(
           lapColors.dark[0],
         );
     }
