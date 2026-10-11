@@ -37,6 +37,7 @@ import {useSectionMode} from '@/src/state/sectionPrefs';
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
+import {type OptimumLine, optimumLines} from './optimumLines';
 import {
   basisOf,
   lapTimeStats,
@@ -192,6 +193,8 @@ export type SessionScreenModel = {
   facts: Fact[];
   /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
+  /** The phone's line under the chart, one per stint. */
+  optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
   chart: ChartModel | null;
@@ -358,10 +361,7 @@ export function sectionTable(
   if (!times) return null;
   const stats = segmentBasisStats(times, basis);
   const corners = map ? trackCorners(map) : null;
-  const row = (
-    label: string,
-    pick: (s: SegmentStats) => number | null,
-  ) => ({
+  const row = (label: string, pick: (s: SegmentStats) => number | null) => ({
     label,
     cells: stats.map((s: SegmentStats) => {
       const v = pick(s);
@@ -597,6 +597,7 @@ export function buildSessionModel(
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], session.stints.length),
+    optimumLines: optimumLines([...stintLines.values()], session.stints.length),
     sections: sectionTable(sectionTimes, basis, map),
     chart,
     noComparable,

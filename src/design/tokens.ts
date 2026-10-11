@@ -276,6 +276,13 @@ export const type = {
   },
   data: {fontFamily: fonts.mono, fontSize: 12, ...tabular},
   dataStrong: {fontFamily: fonts.monoMedium, fontSize: 12, ...tabular},
+  // The two numbers a session opens with (phone head): best and median.
+  dataHero: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 24,
+    lineHeight: 28,
+    ...tabular,
+  },
   dataSmall: {fontFamily: fonts.mono, fontSize: 11, ...tabular},
   tableHeader: {
     fontFamily: fonts.monoMedium,

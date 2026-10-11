@@ -3,6 +3,8 @@ import {Pressable, StyleSheet, View} from 'react-native';
 import {fonts, size, space, useTheme} from '@/src/design';
 import {Button, Checkbox, Text} from '@/src/ui';
 
+import {LinkedHScroll, useTableLink} from './linkedScroll';
+
 import {
   type LapRowModel,
   type NoteRowModel,
@@ -17,6 +19,8 @@ export const LAP_COLS = {chk: 16, lap: 30, time: 62, gap: 44, sector: 38};
 // column is left out: laps carry no max speed.
 const WIDE_COLS = {chk: 18, lap: 40, stint: 34, time: 78, gap: 62, sector: 60};
 export const ROW_H = size.lapRow;
+// Phone: the tags column is this wide, past the sections, in the same scroller.
+const TAGS_PHONE_W = 120;
 /** The minimum touch target, in points (CODE_STANDARDS §5). */
 export const MIN_TOUCH_PT = 44;
 export const WIDE_ROW_H = 26;
@@ -60,6 +64,7 @@ export function LapTableHeader({
   onHeadPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
+  const link = useTableLink();
   const cols = colsFor(wide);
   const sectionW = wide ? sectionColW(width, heads.length) : cols.sector;
   const cell = (label: string, w?: number, right = true) => (
@@ -70,18 +75,17 @@ export function LapTableHeader({
       {label}
     </Text>
   );
-  return (
-    <View
-      style={[
-        styles.header,
-        wide && styles.wide,
-        {width, backgroundColor: color.surface, borderColor: color.lineHeader},
-      ]}>
+  const fixed = (
+    <>
       <View style={{width: cols.chk}} />
       {cell('Lap', cols.lap, false)}
       {wide && cell('Stint', WIDE_COLS.stint, false)}
       {cell('Time', cols.time)}
       {cell('vs med', cols.gap)}
+    </>
+  );
+  const sectionHeads = (
+    <>
       {heads.map((h, i) => {
         const text = (
           <Text
@@ -106,12 +110,45 @@ export function LapTableHeader({
           text
         );
       })}
-      <Text
-        variant='tableHeader'
-        tone='textMuted'
-        style={[styles.flex, wide && styles.tagsWide]}>
-        Tags
-      </Text>
+    </>
+  );
+  const tagsHead = (
+    <Text
+      variant='tableHeader'
+      tone='textMuted'
+      style={
+        link && !wide
+          ? {width: TAGS_PHONE_W}
+          : [styles.flex, wide && styles.tagsWide]
+      }>
+      Tags
+    </Text>
+  );
+  const frame = [
+    styles.header,
+    wide && styles.wide,
+    {width, backgroundColor: color.surface, borderColor: color.lineHeader},
+  ];
+  // Phone: the lap, time and gap stay put; the sections and the tags scroll
+  // sideways with every row under them (one linked offset).
+  if (link && !wide)
+    return (
+      <View style={frame}>
+        {fixed}
+        <LinkedHScroll
+          link={link}
+          style={styles.flex}
+          contentContainerStyle={styles.scrollRow}>
+          {sectionHeads}
+          {tagsHead}
+        </LinkedHScroll>
+      </View>
+    );
+  return (
+    <View style={frame}>
+      {fixed}
+      {sectionHeads}
+      {tagsHead}
     </View>
   );
 }
@@ -226,6 +263,7 @@ export function LapRow({
   onSectionPress?: (index: number) => void;
 }) {
   const {color} = useTheme();
+  const link = useTableLink();
   const cols = colsFor(wide);
   // The lap x section grid where the map has sections (desktop and phone); the game's sectors otherwise.
   const useSections = row.sections.length > 0;
@@ -233,19 +271,8 @@ export function LapRow({
   const cellW = wide ? sectionColW(width, cells.length) : cols.sector;
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityLabel={`${row.label} ${row.time}`}
-      style={[
-        styles.row,
-        wide && styles.wide,
-        {width, borderColor: color.line, opacity: row.comparable ? 1 : 0.5},
-        row.highlighted && {backgroundColor: color.accentTint},
-      ]}>
-      {row.highlighted && (
-        <View style={[styles.hlBar, {backgroundColor: color.accent}]} />
-      )}
+  const fixed = (
+    <>
       <View style={{width: cols.chk}}>
         <Checkbox
           checked={row.selIndex != null}
@@ -271,6 +298,10 @@ export function LapRow({
         style={[styles.right, {width: cols.gap}]}>
         {row.gap ?? ''}
       </Text>
+    </>
+  );
+  const sectionCells = (
+    <>
       {cells.map((s, i) => {
         const text = (
           <Text
@@ -302,26 +333,62 @@ export function LapRow({
           text
         );
       })}
-      <Text
-        variant='dataSmall'
-        numberOfLines={1}
-        style={[styles.flex, wide && styles.tagsWide]}>
-        {shownTags.map((t, i) => (
-          <Text
-            key={t.code}
-            variant='dataSmall'
-            tone={t.best ? 'best' : 'textMuted'}
-            style={styles.tag}>
-            {i > 0 ? ' ' : ''}
-            {t.code}
-          </Text>
-        ))}
-        {row.tags.length > shownTags.length && (
-          <Text variant='dataSmall' tone='textFaint' style={styles.tag}>
-            {` +${row.tags.length - shownTags.length}`}
-          </Text>
-        )}
-      </Text>
+    </>
+  );
+  const tags = (
+    <Text
+      variant='dataSmall'
+      numberOfLines={1}
+      style={
+        link && !wide
+          ? {width: TAGS_PHONE_W}
+          : [styles.flex, wide && styles.tagsWide]
+      }>
+      {shownTags.map((t, i) => (
+        <Text
+          key={t.code}
+          variant='dataSmall'
+          tone={t.best ? 'best' : 'textMuted'}
+          style={styles.tag}>
+          {i > 0 ? ' ' : ''}
+          {t.code}
+        </Text>
+      ))}
+      {row.tags.length > shownTags.length && (
+        <Text variant='dataSmall' tone='textFaint' style={styles.tag}>
+          {` +${row.tags.length - shownTags.length}`}
+        </Text>
+      )}
+    </Text>
+  );
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={`${row.label} ${row.time}`}
+      style={[
+        styles.row,
+        wide && styles.wide,
+        {width, borderColor: color.line, opacity: row.comparable ? 1 : 0.5},
+        row.highlighted && {backgroundColor: color.accentTint},
+      ]}>
+      {row.highlighted && (
+        <View style={[styles.hlBar, {backgroundColor: color.accent}]} />
+      )}
+      {fixed}
+      {link && !wide ? (
+        <LinkedHScroll
+          link={link}
+          style={styles.flex}
+          contentContainerStyle={styles.scrollRow}>
+          {sectionCells}
+          {tags}
+        </LinkedHScroll>
+      ) : (
+        <>
+          {sectionCells}
+          {tags}
+        </>
+      )}
     </Pressable>
   );
 }
@@ -365,6 +432,8 @@ const styles = StyleSheet.create({
   footerRows: {borderTopWidth: 1, alignSelf: 'center'},
   footerRow: {flexDirection: 'row', alignItems: 'center'},
   flex: {flex: 1},
+  // The scrolling part of a phone row: sections then tags, with the row's gap.
+  scrollRow: {flexDirection: 'row', alignItems: 'center', gap: space.xs},
   right: {textAlign: 'right'},
   header: {
     flexDirection: 'row',
