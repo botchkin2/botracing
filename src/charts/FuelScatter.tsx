@@ -1,13 +1,9 @@
 import {View} from 'react-native';
-import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
+import {Circle, G, Line} from 'react-native-svg';
 
-import {
-  dash,
-  dotOpacity,
-  stroke,
-  type as typeScale,
-  useTheme,
-} from '@/src/design';
+import {ChartLabel, ChartSvg} from './ChartLabel';
+
+import {dash, dotOpacity, stroke, useTheme} from '@/src/design';
 
 // Fuel used per lap against lap time (practice view, pit-wall thread 36). Pure
 // props in, SVG out. Dots are neutral: colour has one meaning each, and lap
@@ -57,7 +53,6 @@ export function FuelScatter({
   fit?: {x1: number; y1: number; x2: number; y2: number} | null;
 }) {
   const {color} = useTheme();
-  const axis = typeScale.axis;
   const plotW = Math.max(1, width - PAD_L - PAD_R);
   const plotH = Math.max(1, height - PAD_T - PAD_B);
   const xOf = (v: number) =>
@@ -66,7 +61,7 @@ export function FuelScatter({
     PAD_T + ((v - yDomain[0]) / (yDomain[1] - yDomain[0])) * plotH;
   return (
     <View>
-      <Svg width={width} height={height}>
+      <ChartSvg width={width} height={height}>
         {yTicks.map(t => (
           <G key={`y${t.v}`}>
             <Line
@@ -77,15 +72,13 @@ export function FuelScatter({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <SvgText
+            <ChartLabel
               x={PAD_L - 6}
               y={yOf(t.v) + 3}
-              textAnchor='end'
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              anchor='end'
+              fill={color.textMuted}>
               {t.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ))}
         {xTicks.map(t => (
@@ -98,34 +91,25 @@ export function FuelScatter({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <SvgText
+            <ChartLabel
               x={xOf(t.v)}
               y={PAD_T + plotH + 12}
-              textAnchor='middle'
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              anchor='middle'
+              fill={color.textMuted}>
               {t.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ))}
-        <SvgText
+        <ChartLabel
           x={PAD_L + plotW / 2}
           y={height - 4}
-          textAnchor='middle'
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+          anchor='middle'
+          fill={color.textFaint}>
           {xTitle}
-        </SvgText>
-        <SvgText
-          x={PAD_L}
-          y={10}
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+        </ChartLabel>
+        <ChartLabel x={PAD_L} y={10} fill={color.textFaint}>
           {yTitle}
-        </SvgText>
+        </ChartLabel>
         {fit ? (
           <Line
             x1={xOf(fit.x1)}
@@ -158,18 +142,16 @@ export function FuelScatter({
               strokeWidth={1}
               strokeDasharray={dash.overlay2}
             />
-            <SvgText
+            <ChartLabel
               x={xOf(refX.x) + (xOf(refX.x) > width / 2 ? -4 : 4)}
               y={PAD_T + 10}
-              textAnchor={xOf(refX.x) > width / 2 ? 'end' : 'start'}
-              fill={color.textSecondary}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              anchor={xOf(refX.x) > width / 2 ? 'end' : 'start'}
+              fill={color.textSecondary}>
               {refX.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ) : null}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
-import Svg, {Line, Rect, Text as SvgText} from 'react-native-svg';
+import {Line, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg} from './ChartLabel';
 
 import {radius, type as typeScale, useTheme} from '@/src/design';
 
@@ -55,7 +57,7 @@ export function TrackStrip({
       {...responder.panHandlers}
       accessibilityLabel='Track strip: drag to move through the lap'
       style={{width, height: H}}>
-      <Svg width={width} height={H} pointerEvents='none'>
+      <ChartSvg width={width} height={H} pointerEvents='none'>
         <Rect
           x={0}
           y={BAR_Y}
@@ -74,16 +76,16 @@ export function TrackStrip({
           strokeWidth={1}
         />
         {corners.map(c => (
-          <SvgText
+          <ChartLabel
             key={c.n}
             x={x(c.m)}
             y={H - 2}
-            textAnchor='middle'
+            anchor='middle'
             fill={color.textFaint}
             fontFamily={typeScale.axis.fontFamily}
             fontSize={9}>
             {`S${c.n}`}
-          </SvgText>
+          </ChartLabel>
         ))}
         {markers.map(mk => (
           <Line
@@ -96,7 +98,7 @@ export function TrackStrip({
             strokeWidth={3}
           />
         ))}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

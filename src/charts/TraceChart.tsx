@@ -11,15 +11,9 @@ import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import Svg, {
-  ClipPath,
-  Defs,
-  G,
-  Line,
-  Path,
-  Rect,
-  Text as SvgText,
-} from 'react-native-svg';
+import {ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg} from './ChartLabel';
 
 import {
   distanceAtTime,
@@ -29,7 +23,7 @@ import {
   timeGridStepM,
   type TimedGrid,
 } from '@/src/analysis/window';
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {dash, stroke, useTheme} from '@/src/design';
 
 // Channels against distance on a shared grid (handoff §3 charts). Pure props:
 // the caller picks colors, widths and dashes.
@@ -183,14 +177,6 @@ export function TraceChart({
     tRef
       ? distanceAtTime(tRef, t0 + (px / width) * spanS)
       : startM + (px / width) * spanM;
-  // A label at the top of its range sits below the line there (a 100 % throttle
-  // runs on it), one at the bottom sits above its edge, so the clip keeps it.
-  const tickBaseline = (d: [number, number], v: number) => {
-    const at = yFor(d)(v);
-    if (v >= d[1]) return at + 14;
-    if (v <= d[0]) return at - 4;
-    return at + 3;
-  };
   const firstTickSeries = series.findIndex(s => s.ticks != null);
   // A series' own tick labels: placed by the tick set's extremes, not the
   // domain's (a steering domain is stretched past its ticks). The top tick sits
@@ -330,7 +316,7 @@ export function TraceChart({
   )
     if (m >= 0) gridMs.push(m);
   const tickLabel = (m: number) => {
-    if (gridOriginM == null) return `${Math.round(m)}`;
+    if (gridOriginM == null) return `${Math.round(m)} m`;
     const d = Math.round(m - gridOriginM);
     return d === 0 ? '' : `${d > 0 ? '+' : '−'}${Math.abs(d)} m`;
   };
@@ -378,14 +364,13 @@ export function TraceChart({
         onPointerLeave: () => onHover(null),
       }
     : {};
-  const axis = typeScale.axis;
   return (
     <View
       {...responder.panHandlers}
       {...hoverProps}
       // Web: a mouse drag pans; without this it also selects the axis text.
       style={[styles.noSelect, {width, height: height + AXIS_H}]}>
-      <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
+      <ChartSvg width={width} height={height + AXIS_H} pointerEvents='none'>
         {stretchM && (
           <Rect
             x={xClamp(stretchM[0])}
@@ -417,14 +402,13 @@ export function TraceChart({
                 strokeWidth={1}
               />
               {gx < width - LABEL_EDGE_PT && (
-                <SvgText
+                <ChartLabel
                   x={gx + 2}
                   y={height + AXIS_H - 2}
                   fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
                   fontSize={9}>
                   {tickLabel(m)}
-                </SvgText>
+                </ChartLabel>
               )}
             </G>
           );
@@ -443,14 +427,13 @@ export function TraceChart({
                 strokeDasharray={mk.solid ? undefined : dash.mark}
               />
               {mk.label && mx < width - LABEL_EDGE_PT && (
-                <SvgText
+                <ChartLabel
                   x={mx + 2}
                   y={9}
                   fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
                   fontSize={9}>
                   {mk.label}
-                </SvgText>
+                </ChartLabel>
               )}
             </G>
           );
@@ -478,47 +461,39 @@ export function TraceChart({
           />
         )}
         {yTicks?.map(t => (
-          <SvgText
+          <ChartLabel
             key={`y${t.v}`}
             x={3}
             y={yFor(domainT)(t.v) + 3}
             fill={color.textFaint}
-            fontFamily={axis.fontFamily}
             fontSize={9}>
             {t.label}
-          </SvgText>
+          </ChartLabel>
         ))}
         {/* One series' ticks: every lap's steering series carries the same frame. */}
         {firstTickSeries >= 0 &&
           series[firstTickSeries].ticks?.map(t => (
-            <SvgText
+            <ChartLabel
               key={`s${t.v}`}
               x={3}
               y={seriesTickY(seriesDomainsT[firstTickSeries] ?? domainT, t.v)}
               fill={color.textFaint}
-              fontFamily={axis.fontFamily}
               fontSize={9}>
               {t.label}
-            </SvgText>
+            </ChartLabel>
           ))}
         {zeroLine && sideLabels && (
           <>
-            <SvgText
-              x={3}
-              y={yZero - 3}
-              fill={color.textFaint}
-              fontFamily={axis.fontFamily}
-              fontSize={9}>
+            <ChartLabel x={3} y={yZero - 3} fill={color.textFaint} fontSize={9}>
               {sideLabels.above}
-            </SvgText>
-            <SvgText
+            </ChartLabel>
+            <ChartLabel
               x={3}
               y={yZero + 10}
               fill={color.textFaint}
-              fontFamily={axis.fontFamily}
               fontSize={9}>
               {sideLabels.below}
-            </SvgText>
+            </ChartLabel>
           </>
         )}
         <Defs>
@@ -604,7 +579,7 @@ export function TraceChart({
             strokeWidth={stroke.cursor}
           />
         )}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import Svg, {G, Line, Polygon, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Polygon, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg} from './ChartLabel';
 
 import type {RaceLanes as RaceLanesModel, Span} from '@/src/analysis/raceLanes';
 import {stroke, type as typeScale, useTheme} from '@/src/design';
@@ -84,7 +86,7 @@ export function RaceLanes({
       {...responder.panHandlers}
       // Web: a mouse drag scrubs; without this it also selects the labels.
       style={[styles.noSelect, {width, height: height + axisH}]}>
-      <Svg width={width} height={height + axisH} pointerEvents='none'>
+      <ChartSvg width={width} height={height + axisH} pointerEvents='none'>
         <Rect
           x={labelWidth}
           y={0}
@@ -103,29 +105,27 @@ export function RaceLanes({
               strokeWidth={1}
             />
             {l.label && !compact && (
-              <SvgText
+              <ChartLabel
+                fontSize={axis.fontSize}
                 x={labelWidth + l.x}
                 y={height + AXIS_H - 2}
-                textAnchor='middle'
-                fill={color.textFaint}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
+                anchor='middle'
+                fill={color.textFaint}>
                 {l.label}
-              </SvgText>
+              </ChartLabel>
             )}
           </G>
         ))}
         {layout.rows.map(row => (
           <G key={row.key}>
             {!compact && (
-              <SvgText
+              <ChartLabel
+                fontSize={axis.fontSize}
                 x={0}
                 y={row.y + laneHeight - 2}
-                fill={color.textMuted}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
+                fill={color.textMuted}>
                 {row.label}
-              </SvgText>
+              </ChartLabel>
             )}
             {row.spans.map((s, i) => (
               <Rect
@@ -179,7 +179,7 @@ export function RaceLanes({
             strokeWidth={stroke.cursor * 2}
           />
         )}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

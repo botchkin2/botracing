@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
@@ -46,6 +46,7 @@ import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {TrafficLaneBlock} from './components/TrafficLaneBlock';
+import {overviewScale} from './overviewScale';
 import {
   CHANNELS,
   type ChartValueRow,
@@ -106,6 +107,10 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const prefs = useComparePrefs();
   const [hoverM, setHoverM] = useState<number | null>(null);
   const {model, selection, lapStyle} = p;
+  const overview = useMemo(
+    () => overviewScale(model.overview),
+    [model.overview],
+  );
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
   // The right column's width: while dragging the live value, else the saved
@@ -364,7 +369,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
               height={OVERVIEW_H}
               stepM={model.stepM}
               windowM={[0, model.lengthM]}
-              domain={overviewDomain(model)}
+              domain={overview.domain}
+              yTicks={overview.ticks}
               series={model.overview
                 .map(l => {
                   const st = lapStyle(l.selIndex, l.highlighted);
@@ -589,13 +595,6 @@ export function CompareWorkspace(p: WorkspaceProps) {
       </ScrollView>
     </View>
   );
-}
-
-function overviewDomain(model: CompareModel): [number, number] {
-  let m = 0.1;
-  for (const l of model.overview)
-    for (const v of l.values) m = Math.max(m, Math.abs(v));
-  return [-m, m];
 }
 
 const styles = StyleSheet.create({

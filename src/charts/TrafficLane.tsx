@@ -1,5 +1,7 @@
 import {View} from 'react-native';
-import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg} from './ChartLabel';
 
 import {type LaneRow} from '@/src/analysis/trafficLane';
 import {
@@ -62,7 +64,7 @@ export function TrafficLane({
   const cx = xOfM(cursorM);
   return (
     <View style={{width, height}} pointerEvents='none'>
-      <Svg width={width} height={height}>
+      <ChartSvg width={width} height={height}>
         {grid.map(m => (
           <Line
             key={m}
@@ -103,7 +105,7 @@ export function TrafficLane({
                 />
               ))}
               {g.ticks.map((t, k) => (
-                <SvgText
+                <ChartLabel
                   key={`w${i}-${k}`}
                   x={Math.min(width - 28, t.x + 2)}
                   y={y + TICK_FONT + 1}
@@ -111,17 +113,17 @@ export function TrafficLane({
                   fontFamily={typeScale.axis.fontFamily}
                   fontSize={TICK_FONT}>
                   {t.label}
-                </SvgText>
+                </ChartLabel>
               ))}
-              <SvgText
+              <ChartLabel
                 x={width - 2}
                 y={y + size.trafficLaneRow - 3}
-                textAnchor='end'
+                anchor='end'
                 fill={r.color}
                 fontFamily={typeScale.axis.fontFamily}
                 fontSize={9}>
                 {r.label}
-              </SvgText>
+              </ChartLabel>
             </G>
           );
         })}
@@ -133,7 +135,7 @@ export function TrafficLane({
           stroke={color.accent}
           strokeWidth={1}
         />
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

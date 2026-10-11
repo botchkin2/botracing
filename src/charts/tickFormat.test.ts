@@ -51,5 +51,7 @@ describe('withUnit', () => {
   test('a value with its unit, at the given decimals', () => {
     expect(withUnit('km/h')(200, 0)).toBe('200 km/h');
     expect(withUnit('%')(12.5, 1)).toBe('12.5 %');
+    expect(withUnit('%')(-50, 0)).toBe('−50 %');
+    expect(withUnit('m')(-0.2, 0)).toBe('0 m');
   });
 });
