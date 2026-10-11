@@ -1,11 +1,13 @@
 import {useMemo, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {type Field} from '@/src/analysis/field';
 import {TraceChart} from '@/src/charts';
 import {
+  closeBox,
   cornerCell,
+  disabledOpacity,
   formatCornerGap,
   formatDistance,
   radius,
@@ -13,7 +15,6 @@ import {
   space,
   useLayout,
   useTheme,
-  disabledOpacity,
 } from '@/src/design';
 import {
   addChart,
@@ -34,6 +35,7 @@ import {
   Chip,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   Segment,
   Text,
   TraceRetryBanner,
@@ -195,7 +197,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   disabled: !canRemoveLap(selection, c.lapId),
                 }}
                 disabled={!canRemoveLap(selection, c.lapId)}
-                hitSlop={space.sm}
+                style={styles.closeBox}
                 onPress={() =>
                   p.onSelectionChange(removeLap(selection, c.lapId))
                 }>
@@ -312,15 +314,19 @@ export function CompareWorkspace(p: WorkspaceProps) {
           />
           <Chip
             label='−'
+            accessibilityLabel='Smaller window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, -1),
               )
             }
           />
-          <Text variant='dataStrong'>{p.windowSizeLabel}</Text>
+          <Text variant='dataStrong' style={styles.windowSize}>
+            {p.windowSizeLabel}
+          </Text>
           <Chip
             label='+'
+            accessibilityLabel='Larger window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, 1),
@@ -598,6 +604,16 @@ export function CompareWorkspace(p: WorkspaceProps) {
 }
 
 const styles = StyleSheet.create({
+  // The lap chip's ×: a real box a mouse can hit, not slop (slop cannot take
+  // taps from the Set as Ref beside it).
+  closeBox: {
+    minWidth: closeBox,
+    minHeight: closeBox,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Wide enough for "200 m": the buttons beside it stay put between Time and Distance.
+  windowSize: {minWidth: 56, textAlign: 'center'},
   removeOff: {opacity: disabledOpacity},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},

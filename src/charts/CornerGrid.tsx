@@ -1,4 +1,4 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {
   cornerCell,
@@ -7,7 +7,7 @@ import {
   space,
   useTheme,
 } from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 // Time per section (handoff §3 "time per corner"; our corners are grouped
 // into sections, named by their turns): one row per lap, one cell per section, the

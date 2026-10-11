@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path, Text as SvgText} from 'react-native-svg';
 
 import {placeBadges} from '@/src/analysis/badgePlace';
@@ -14,6 +14,7 @@ import {turnBadgeOf} from '@/src/analysis/turnNames';
 import {fonts, useTheme, turnLabel} from '@/src/design';
 
 import {CarDots, type MapCar} from './CarDots';
+import {Pressable} from '@/src/ui';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
 // the track has a good fit, else the driven line as a plain band; each lap's

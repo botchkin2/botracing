@@ -1,13 +1,19 @@
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {formatGap, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {formatGap, size, space, useTheme} from '@/src/design';
+import {Pressable, Text} from '@/src/ui';
 
 import {type GridRow, type GridSort} from '../grid';
 import {useSessionGrid} from '../useSessionGrid';
+import {
+  LinkedHScroll,
+  type LinkedScroll,
+  useLinkedScroll,
+} from './linkedScroll';
 
 // The session as a spread grid (Theme D): one row per lap, one column per
-// section. The lap column stays put while the sections scroll sideways.
+// section. The lap column stays put while the sections scroll sideways, the head
+// and every row together (one linked scroll offset).
 const LAP_W = 92;
 const CELL_W = 84;
 const ROW_H = 44;
@@ -24,6 +30,7 @@ export function SessionGrid({
   onTap: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  const link = useLinkedScroll();
   const state = useSessionGrid(id, ticked);
   if (!state) return null;
   const {grid, sort, setSort} = state;
@@ -44,7 +51,7 @@ export function SessionGrid({
             {`IQR of ${grid.basisCount}`}
           </Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <LinkedHScroll link={link}>
           <View style={styles.row}>
             {grid.columns.map((c, i) => (
               <Pressable
@@ -74,15 +81,17 @@ export function SessionGrid({
                   />
                 </View>
                 <Text variant='dataSmall' tone='textMuted'>
-                  {c.n < 2 || c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
+                  {c.n < 2 || c.spreadS == null
+                    ? '—'
+                    : `${c.spreadS.toFixed(2)} s`}
                 </Text>
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </LinkedHScroll>
       </View>
       {grid.rows.map(r => (
-        <GridLapRow key={r.lapId} row={r} onTap={onTap} />
+        <GridLapRow key={r.lapId} row={r} link={link} onTap={onTap} />
       ))}
     </View>
   );
@@ -92,7 +101,15 @@ function isSorted(sort: GridSort, i: number): boolean {
   return sort.kind === 'column' && sort.index === i;
 }
 
-function GridLapRow({row, onTap}: {row: GridRow; onTap: (id: string) => void}) {
+function GridLapRow({
+  row,
+  link,
+  onTap,
+}: {
+  row: GridRow;
+  link: LinkedScroll;
+  onTap: (id: string) => void;
+}) {
   const {color} = useTheme();
   return (
     <Pressable
@@ -111,7 +128,7 @@ function GridLapRow({row, onTap}: {row: GridRow; onTap: (id: string) => void}) {
           </Text>
         ) : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <LinkedHScroll link={link}>
         <View style={styles.row}>
           {row.cells.map((c, i) => (
             <View
@@ -129,7 +146,7 @@ function GridLapRow({row, onTap}: {row: GridRow; onTap: (id: string) => void}) {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </LinkedHScroll>
     </Pressable>
   );
 }
@@ -158,7 +175,13 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'stretch'},
   lapRow: {minHeight: ROW_H, alignItems: 'center'},
   lap: {paddingHorizontal: space.sm, justifyContent: 'center'},
-  head: {paddingHorizontal: space.sm, gap: 2, justifyContent: 'center'},
+  // A full 44 pt box: the heads sit in a scroller, which clips any hit slop.
+  head: {
+    minHeight: size.hit,
+    paddingHorizontal: space.sm,
+    gap: 2,
+    justifyContent: 'center',
+  },
   barTrack: {height: 4, borderRadius: 2, overflow: 'hidden'},
   bar: {height: 4},
   cell: {

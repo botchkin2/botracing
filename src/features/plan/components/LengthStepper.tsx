@@ -37,14 +37,24 @@ export function LengthStepper({
   return (
     <View style={styles.row}>
       <View style={styles.stepper}>
-        <Chip label='−' minWidth={size.hit} onPress={() => onStep(-step)} />
+        <Chip
+          label='−'
+          accessibilityLabel={kind === 'min' ? 'Fewer minutes' : 'Fewer laps'}
+          minWidth={size.hit}
+          onPress={() => onStep(-step)}
+        />
         <NumberField
           label={kind === 'min' ? 'Minutes' : 'Laps'}
           showLabel={false}
           value={text}
           onChange={onText}
         />
-        <Chip label='+' minWidth={size.hit} onPress={() => onStep(step)} />
+        <Chip
+          label='+'
+          accessibilityLabel={kind === 'min' ? 'More minutes' : 'More laps'}
+          minWidth={size.hit}
+          onPress={() => onStep(step)}
+        />
       </View>
       <Segment options={KINDS} value={kind} onChange={onKind} />
     </View>

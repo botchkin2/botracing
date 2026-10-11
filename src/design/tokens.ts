@@ -128,37 +128,78 @@ export const lapColors: Record<Scheme, readonly string[]> = {
     '#c46a12',
   ],
 };
+/** Hue in degrees of a #rrggbb colour. */
+export function hueOf(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+
+/** The app's one-meaning colours (best, faster, slower, accent, off-track). A lap hue must not read as one of them. */
+export const RESERVED_HUE_GAP = 15;
+export function reservedHues(scheme: Scheme): number[] {
+  const c = colors[scheme];
+  return [c.accent, c.best, c.faster, c.slower, c.offTrack].map(hueOf);
+}
+const hueDistance = (a: number, b: number) => {
+  const d = Math.abs(a - b) % 360;
+  return Math.min(d, 360 - d);
+};
+
 /**
  * The colour of one lap by its colour slot (0 = the reference, then in lap
  * order): the palette first, then generated hues past it. Golden-angle steps
  * give each further slot a hue no earlier slot has, so no two laps on screen
- * share a colour (pit-wall #342).
+ * share a colour (pit-wall #342). A generated hue never lands within
+ * RESERVED_HUE_GAP degrees of a reserved one (slower red, faster green, best
+ * purple, accent orange, off-track red), so a lap line never reads as one of those.
  */
 export function lapColor(scheme: Scheme, index: number): string {
   const palette = lapColors[scheme];
   if (index < palette.length) return palette[index];
-  const hue = ((index - palette.length) * 137.508 + 20) % 360;
+  // The k-th allowed golden-angle hue: each slot takes the next hue that is
+  // not reserved, so the generated hues stay distinct.
+  const reserved = reservedHues(scheme);
+  const allowed = (h: number) =>
+    reserved.every(r => hueDistance(h, r) >= RESERVED_HUE_GAP);
+  const want = index - palette.length;
+  let found = -1;
+  let hue = 20;
+  for (let m = 0; found < want; m++) {
+    hue = (20 + m * 137.508) % 360;
+    if (allowed(hue)) found++;
+  }
   return scheme === 'dark'
     ? `hsl(${hue.toFixed(1)}, 70%, 68%)`
     : `hsl(${hue.toFixed(1)}, 60%, 42%)`;
 }
 
-/** Tinted mode (7–19 laps), hue cycle 255, 350, 185, 105, 225. */
-const lapTints: Record<Scheme, readonly string[]> = {
-  dark: ['#87a7d0', '#c793ab', '#70b3aa', '#aba874', '#73aec6'],
-  light: ['#6e88aa', '#a3788b', '#5b928b', '#8b895e', '#5d8ea2'],
-};
 const lapMuted: Record<Scheme, string> = {dark: '#5d646d', light: '#b9bec3'};
 
-export type LapMode = 'individual' | 'tinted' | 'grey';
+/**
+ * The one lap-count threshold. Up to this many laps each lap has its own row
+ * (Compare's grid, Corner's default set); above it the rows fold into the
+ * median. Every ticked lap is drawn at any count, in its own colour.
+ */
+export const INDIVIDUAL_MAX_LAPS = 6;
+export type LapMode = 'individual' | 'several';
 export const lapMode = (count: number): LapMode =>
-  count <= 6 ? 'individual' : count < 20 ? 'tinted' : 'grey';
+  count <= INDIVIDUAL_MAX_LAPS ? 'individual' : 'several';
 
 export type LapStroke = {
   color: string;
   width: number;
   opacity: number;
-  key: boolean;
 };
 
 export const stroke = {
@@ -176,56 +217,38 @@ export const dash = {
   overlay3: '1.5 2.5',
 } as const;
 
+/** Opacity of the laps not highlighted while one is (tap a lap to pick it out). */
+export const DIMMED_OPACITY = 0.25;
+
 /**
  * Stroke for the lap at `index` in the selection (0 = reference, negative =
- * the median basis, neutral).
- * In tinted/grey modes only the reference and the highlighted lap are key laps.
+ * the median basis, neutral). Every ticked lap is drawn in its own colour, at
+ * any count; the reference and the highlighted lap are the thicker strokes.
+ * While a lap is highlighted (`dimOthers`), the rest fade so that lap stands
+ * out; the reference and the median basis stay as they are.
  */
 export function lapStroke(
   scheme: Scheme,
   index: number,
-  count: number,
   highlighted: boolean,
+  dimOthers = false,
 ): LapStroke {
-  const mode = lapMode(count);
   if (index < 0)
     return {
       color: lapMuted[scheme],
       width: stroke.selected,
       opacity: 1,
-      key: true,
     };
   if (index === 0)
     return {
       color: lapColors[scheme][0],
       width: stroke.ref,
       opacity: 1,
-      key: true,
     };
-  if (mode === 'individual') {
-    return {
-      color: lapColor(scheme, index),
-      width: highlighted ? stroke.ref : stroke.selected,
-      opacity: 1,
-      key: true,
-    };
-  }
-  if (highlighted)
-    return {
-      color: lapColors[scheme][1],
-      width: stroke.ref,
-      opacity: 1,
-      key: true,
-    };
-  if (mode === 'tinted') {
-    const tint = lapTints[scheme][(index - 1) % lapTints[scheme].length];
-    return {color: tint, width: stroke.tinted, opacity: 0.55, key: false};
-  }
   return {
-    color: lapMuted[scheme],
-    width: stroke.grey,
-    opacity: scheme === 'dark' ? 0.45 : 1,
-    key: false,
+    color: lapColor(scheme, index),
+    width: highlighted ? stroke.ref : stroke.selected,
+    opacity: dimOthers && !highlighted ? DIMMED_OPACITY : 1,
   };
 }
 
@@ -240,6 +263,17 @@ export const fonts = {
 
 const tabular = {fontVariant: ['tabular-nums' as const]};
 
+/**
+ * Advance width of one monospace character in a type token: 0.6 em for IBM
+ * Plex Mono, plus its letter spacing. Use it to size a column to its text.
+ */
+export function monoCharWidth(token: {
+  fontSize: number;
+  letterSpacing?: number;
+}): number {
+  return token.fontSize * 0.6 + (token.letterSpacing ?? 0);
+}
+
 export const type = {
   display: {fontFamily: fonts.sansBold, fontSize: 24, lineHeight: 26},
   title: {fontFamily: fonts.sansBold, fontSize: 16, lineHeight: 20},
@@ -253,6 +287,13 @@ export const type = {
   },
   data: {fontFamily: fonts.mono, fontSize: 12, ...tabular},
   dataStrong: {fontFamily: fonts.monoMedium, fontSize: 12, ...tabular},
+  // The two numbers a session opens with (phone head): best and median.
+  dataHero: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 24,
+    lineHeight: 28,
+    ...tabular,
+  },
   dataSmall: {fontFamily: fonts.mono, fontSize: 11, ...tabular},
   tableHeader: {
     fontFamily: fonts.monoMedium,
@@ -283,6 +324,10 @@ export const space = {
 } as const;
 /** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
 export const disabledOpacity = 0.4;
+/** What every tappable looks like while a finger is on it (src/ui/Pressable.tsx). */
+export const pressedOpacity = 0.6;
+/** A lone × is a real box this big, at least: a mouse needs one too. */
+export const closeBox = 24;
 // Scatter dots: this session's laps, and earlier sessions' laps beside them.
 export const dotOpacity = {current: 0.7, earlier: 0.3} as const;
 

@@ -1,8 +1,8 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {hitBox, space, useTheme} from '@/src/design';
-import {Chip, Sheet, Text} from '@/src/ui';
+import {Chip, Pressable, Sheet, Text} from '@/src/ui';
 
 import {type Choice} from '../model';
 

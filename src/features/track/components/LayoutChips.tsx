@@ -1,7 +1,7 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {hitFor, Text} from '@/src/ui';
+import {hitFor, Pressable, Text} from '@/src/ui';
 
 // "Layouts in the game" (handoff T1): the current layout is inverted; a
 // tap opens that layout's Track page. Long names truncate.
@@ -29,7 +29,7 @@ export function LayoutChips({
             disabled={l.current}
             onPress={() => onOpen(l.trackId)}
             hitSlop={hit.hitSlop}
-            style={[hit.style, styles.hit]}>
+            style={styles.hit}>
             <View
               style={[
                 styles.chip,

@@ -1,13 +1,7 @@
 import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
 import {type ReactNode, useState} from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -36,6 +30,7 @@ import {
   FoldedSection,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   StatusBanner,
   Text,
 } from '@/src/ui';
@@ -211,7 +206,6 @@ function CornerView({
 
   const [notice, setNotice] = useState<string | null>(null);
   // Phone: the lap table is one tap away, the strips stay the first read.
-  const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
   const lapStyle = (
@@ -225,7 +219,7 @@ function CornerView({
           width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
           opacity: 1,
         }
-      : lapStroke(scheme, Math.max(1, selIndex), count, false);
+      : lapStroke(scheme, Math.max(1, selIndex), false);
   const lapColor = (
     onIndex: number | null,
     selIndex: number,
@@ -301,10 +295,20 @@ function CornerView({
       </Pressable>
       <View style={styles.flex} />
       {model.prev != null && (
-        <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
+        <Chip
+          label='‹'
+          accessibilityLabel='Previous corner'
+          minWidth={size.hit}
+          onPress={() => go(model.prev!)}
+        />
       )}
       {model.next != null && (
-        <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
+        <Chip
+          label='›'
+          accessibilityLabel='Next corner'
+          minWidth={size.hit}
+          onPress={() => go(model.next!)}
+        />
       )}
     </View>
   );

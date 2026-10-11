@@ -1,17 +1,19 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
-import {dash, space, useTheme} from '@/src/design';
+import {closeBox, dash, space, useTheme} from '@/src/design';
 import {
   CHANNEL_IDS,
   type ChannelId,
   MAX_OVERLAY,
 } from '@/src/state/comparePrefs';
-import {Chip, Text} from '@/src/ui';
+import {Chip, Pressable, Text} from '@/src/ui';
+
+import {detailTicks} from '../detailTicks';
 
 import {
   CHANNELS,
@@ -32,7 +34,7 @@ function offScaleNote(off: ChartModel['offScale']): string | null {
 export type LapStyle = (
   selIndex: number,
   highlighted: boolean,
-) => {color: string; width: number; opacity: number; key: boolean};
+) => {color: string; width: number; opacity: number};
 
 const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 // Round 3 R4a: brake fill at 16%, steering as a 1.2 pt line.
@@ -123,6 +125,11 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
+  // The first channel's axis; the pedals chart carries its own frame.
+  const yTicks =
+    !chart.pedals && chart.domains[first]
+      ? detailTicks(first, chart.domains[first]!)
+      : undefined;
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -156,7 +163,7 @@ export function ChartBlock({
       {loneEditor && (
         <Pressable
           accessibilityLabel={`Remove ${chart.title}`}
-          hitSlop={space.sm}
+          style={styles.closeBox}
           onPress={() => editor.onToggle(first)}>
           <Text variant='dataSmall' tone='textFaint'>
             ×
@@ -168,7 +175,9 @@ export function ChartBlock({
   const valueRows = (
     <>
       {chart.valueRows.map(r => (
-        <View key={r.channel} style={styles.overlayRow}>
+        <View
+          key={r.channel}
+          style={[styles.overlayRow, editor && styles.overlayRowEditing]}>
           {r.legend && (
             <>
               <LegendSwatch
@@ -190,14 +199,20 @@ export function ChartBlock({
           {editor && !loneEditor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
-              hitSlop={space.sm}
+              style={styles.closeBox}
               onPress={() => editor.onToggle(r.channel)}>
               <Text variant='dataSmall' tone='textFaint'>
                 ×
               </Text>
             </Pressable>
           )}
-          {valueTexts(r)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.rowScroll}
+            contentContainerStyle={styles.rowScrollContent}>
+            {valueTexts(r)}
+          </ScrollView>
         </View>
       ))}
       {editor && chart.channels.length < MAX_OVERLAY && (
@@ -234,6 +249,7 @@ export function ChartBlock({
         timeAxis={timeAxis}
         domain={chart.domains[first] ?? [0, 1]}
         series={series}
+        yTicks={yTicks}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
@@ -313,6 +329,16 @@ function LegendSwatch({
 }
 
 const styles = StyleSheet.create({
+  // The × of an editable chart row: a real 24 x 24 box (a mouse needs one too;
+  // the rows are too tight for slop to reach past their neighbours).
+  // With a × the row is as tall as the × box, so neighbours do not overlap it.
+  overlayRowEditing: {height: closeBox},
+  closeBox: {
+    minWidth: closeBox,
+    minHeight: closeBox,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   block: {gap: space.xxs},
   headerRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
@@ -322,6 +348,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
   },
+  // The values scroll sideways past the legend; 25 laps no longer overflow the chart.
+  rowScroll: {flex: 1, height: 17},
+  rowScrollContent: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   pills: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs},
   // Next to the label, not at the far edge: at 1440 the edge is ~1,300 pt
   // from the label (Botkin, thread 26 #385).

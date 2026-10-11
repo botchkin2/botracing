@@ -1,10 +1,10 @@
 import {useMemo} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Circle, Line, Rect} from 'react-native-svg';
 
 import {stackDots} from '@/src/analysis/dotStack';
 import {space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 // One measure across many laps (handoff §4 "dot strips", pit-wall thread 27
 // #621): a dot per lap on a line, with the p10–90 band and a median tick
