@@ -1030,6 +1030,12 @@ export type TrackMapData = {
   boundaries: MapBoundaries | null;
   quality: TrackMapQuality | null;
   georef: {
+    /**
+     * The origin the recording's Lat/Lon is measured around: LMU's fake
+     * 60°N 0°E when absent; an iRacing track's own origin, so its real GPS
+     * passes through unchanged (tools/track-fit/georef.json).
+     */
+    fakeOrigin?: {lat: number; lon: number};
     rotationDeg: number;
     mirror: number;
     originLat: number;
@@ -1120,6 +1126,13 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
             mirror: num(g.mirror) ?? 1,
             originLat: num(g.originLat) as number,
             originLon: num(g.originLon) as number,
+            ...(num(obj(g.fakeOrigin).lat) != null &&
+              num(obj(g.fakeOrigin).lon) != null && {
+                fakeOrigin: {
+                  lat: num(obj(g.fakeOrigin).lat) as number,
+                  lon: num(obj(g.fakeOrigin).lon) as number,
+                },
+              }),
           }
         : null,
     outline: lineStrings(features, kind => kind !== 'pit'),

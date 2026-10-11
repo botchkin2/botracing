@@ -20,6 +20,10 @@ node tools/track-fit/seed.mjs --write
 
 `seed.mjs` refuses any fit that comes back mirrored. A sim in real metres is never mirrored, so a mirrored fit is a bad fit.
 
+## iRacing
+
+iRacing's `Lat`/`Lon` are real WGS84, so its tracks need no fit. Their `georef.json` entries (`source: "iracing-gps"`) are the identity: `fakeOrigin` equals `originLat`/`originLon` (the .ibt YAML's `TrackLatitude`/`TrackLongitude`), with rotation 0 and mirror 1, so step 1 below measures around the track's own origin and step 3 undoes it exactly. `fakeOrigin` must reach the app: without it a point is measured around 60°N and lands far away (`toTrackMap` keeps it). They have no outline yet; `fit.py` is LMU-only. The entries cover every layout with 25 or more recordings on Botkin's PC (27).
+
 ## Applying a fit
 
 A lap point `(lat, lon)` from the recording goes to real WGS84 like this:

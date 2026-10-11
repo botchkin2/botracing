@@ -118,21 +118,22 @@ export function mapPlacer(
   const origin = georef
     ? {lat: georef.originLat, lon: georef.originLon}
     : LMU_FAKE_ORIGIN;
+  // The frame a recording's Lat/Lon is measured in: LMU's fake 60°N, or an
+  // iRacing track's own origin (its GPS is real; georef.json).
+  const fake = georef?.fakeOrigin ?? LMU_FAKE_ORIGIN;
   const toMetres = (lines: [number, number][][]) =>
     lines.map(line =>
       line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
     );
   const placeWorld: MapPlacer['placeWorld'] = points => {
-    const pts = points.map(p =>
-      fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
-    );
+    const pts = points.map(p => fromLocalMetres({x: p.x, y: p.z}, fake));
     const placed = georef ? applyGeoref(pts, georef) : pts;
     return placed.map(p => toLocalMetres(p, origin));
   };
   const traceToWorld: MapPlacer['traceToWorld'] = (t, from, to, stride) => {
     const out: Xy[] = [];
     for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride) {
-      const p = toLocalMetres({lat: t.lat[i], lon: t.lon[i]}, LMU_FAKE_ORIGIN);
+      const p = toLocalMetres({lat: t.lat[i], lon: t.lon[i]}, fake);
       out.push(p);
     }
     return out;
