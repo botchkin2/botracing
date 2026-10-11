@@ -1,7 +1,8 @@
 import {View} from 'react-native';
 import {G, Line, Rect} from 'react-native-svg';
 
-import {ChartLabel, ChartSvg} from './ChartLabel';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineUnder, centredBaseline} from './labelBox';
 
 import {type LaneRow} from '@/src/analysis/trafficLane';
 import {
@@ -10,7 +11,7 @@ import {
   timeGridStepM,
   type TimedGrid,
 } from '@/src/analysis/window';
-import {size, type as typeScale, useTheme} from '@/src/design';
+import {size, useTheme} from '@/src/design';
 
 import {laneGeometry} from './trafficLaneLayout';
 
@@ -108,20 +109,18 @@ export function TrafficLane({
                 <ChartLabel
                   key={`w${i}-${k}`}
                   x={Math.min(width - 28, t.x + 2)}
-                  y={y + TICK_FONT + 1}
+                  y={baselineUnder(y, TICK_FONT)}
                   fill={color.text}
-                  fontFamily={typeScale.axis.fontFamily}
                   fontSize={TICK_FONT}>
                   {t.label}
                 </ChartLabel>
               ))}
               <ChartLabel
                 x={width - 2}
-                y={y + size.trafficLaneRow - 3}
+                y={centredBaseline(y + size.trafficLaneRow / 2, TICK_PT)}
                 anchor='end'
                 fill={r.color}
-                fontFamily={typeScale.axis.fontFamily}
-                fontSize={9}>
+                fontSize={TICK_PT}>
                 {r.label}
               </ChartLabel>
             </G>

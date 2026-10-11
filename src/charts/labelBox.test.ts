@@ -60,4 +60,15 @@ describe('insideFrame', () => {
     const at = insideFrame('x'.repeat(30), 10, 20, 10, 'start', frame);
     expect(at.x).toBe(1);
   });
+
+  it('keeps the top edge of a label taller than the frame', () => {
+    const at = insideFrame('L', 5, 30, 50, 'start', frame);
+    expect(labelBox('L', at.x, at.baseline, 50, 'start').top).toBe(1);
+  });
+});
+
+describe('labelBox widths', () => {
+  it('counts the true minus as one glyph', () => {
+    expect(labelBox('−50 %', 0, 0, 10, 'start').right).toBe(30);
+  });
 });

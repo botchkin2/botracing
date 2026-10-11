@@ -1,6 +1,10 @@
 // The inside-the-box rule for chart text (pit-wall thread 1, bias #4194): every
-// chart svg clips at its edges, so a tick label, tag or legend is placed by its
-// text box and held inside the svg. Pure, so a test proves the box for any text.
+// chart svg clips at its edges, so a chart pads its plot by its labels' boxes
+// and places each label from its box: a tick centred on its line, a tag sitting
+// on an edge. Nothing is nudged; insideFrame is the safety net that ChartLabel
+// warns on. Pure, so tests prove the boxes.
+//
+// The metrics are the axis font's (IBM Plex Mono): ChartLabel draws only in it.
 
 // IBM Plex Mono's metrics (the axis font): an advance of 0.6 em per glyph, and
 // the box Chrome draws for 9 pt text: 9.33 above the baseline and 2.67 below
@@ -32,6 +36,29 @@ export function labelBox(
     top: baseline - ASCENT_EM * fontSize,
     bottom: baseline + DESCENT_EM * fontSize,
   };
+}
+
+/** The baseline that centres a label's box on a line at y (a tick on its gridline). */
+export function centredBaseline(y: number, fontSize: number): number {
+  return y + ((ASCENT_EM - DESCENT_EM) / 2) * fontSize;
+}
+
+/** The baseline of a label hanging just under a line at y (EDGE_PT below it). */
+export function baselineUnder(y: number, fontSize: number): number {
+  return y + EDGE_PT + ASCENT_EM * fontSize;
+}
+
+/** The baseline of a label standing just over a line at y (EDGE_PT above it). */
+export function baselineOver(y: number, fontSize: number): number {
+  return y - EDGE_PT - DESCENT_EM * fontSize;
+}
+
+/**
+ * How far a plot keeps its value range from the svg's top and bottom so a tick
+ * centred on the range's end still fits: half the label box, plus EDGE_PT.
+ */
+export function tickPad(fontSize: number): number {
+  return EDGE_PT + ((ASCENT_EM + DESCENT_EM) / 2) * fontSize;
 }
 
 /**

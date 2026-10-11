@@ -14,6 +14,9 @@ import {type Anchor, insideFrame} from './labelBox';
 // size, and ChartLabel draws its text held inside it, so no label is ever cut
 // by the svg's edge. Charts draw text only through ChartLabel.
 
+// Labels already reported as moved (dev only).
+const warned = new Set<string>();
+
 const Frame = createContext<{width: number; height: number} | null>(null);
 
 type SvgProps = ComponentProps<typeof Svg>;
@@ -38,9 +41,14 @@ export function ChartSvg({
   );
 }
 
+/** Tick and tag text in a chart: the axis face at the dense-axis size. */
+export const TICK_PT = typeScale.tick.fontSize;
+
 /**
- * A label at (x, y = baseline) in the axis font, moved only as far as needed
- * to keep its box inside the ChartSvg (or `frame`, for a nested area).
+ * A label at (x, y = baseline) in the axis font. The chart places it from its
+ * box (labelBox.ts) so it fits; if it would still cross the ChartSvg's edge (or
+ * `frame`'s), it is moved inside and a dev warning names it: that is a chart
+ * whose plot is not padded for its labels.
  */
 export function ChartLabel({
   x,
@@ -49,8 +57,8 @@ export function ChartLabel({
   fill,
   anchor = 'start',
   fontSize = typeScale.axis.fontSize,
-  fontFamily = typeScale.axis.fontFamily,
   frame,
+  lineY,
 }: {
   x: number;
   y: number;
@@ -58,8 +66,13 @@ export function ChartLabel({
   fill: string;
   anchor?: Anchor;
   fontSize?: number;
-  fontFamily?: string;
   frame?: {width: number; height: number};
+  /**
+   * The y of the line this label marks (a tick's value). On web it is written
+   * as data-line-y, so tools/dev/chartLabelProbe.js can measure the label
+   * against its line.
+   */
+  lineY?: number;
 }) {
   const ctx = useContext(Frame);
   const box = frame ?? ctx;
@@ -67,14 +80,25 @@ export function ChartLabel({
   // A label with no frame could be cut unseen: that is a bug, not a default.
   if (!box) throw new Error('ChartLabel outside a ChartSvg needs a frame');
   const at = insideFrame(text, x, y, fontSize, anchor, box);
+  const moved = Math.abs(at.x - x) > 0.05 || Math.abs(at.baseline - y) > 0.05;
+  if (__DEV__ && moved && !warned.has(text)) {
+    // Once per text: a chart redraws every frame while it plays.
+    warned.add(text);
+    console.warn(
+      `ChartLabel "${text}" moved ${(at.x - x).toFixed(1)}, ${(
+        at.baseline - y
+      ).toFixed(1)} pt to stay inside its chart: pad the plot for it`,
+    );
+  }
   return (
     <SvgText
       x={at.x}
       y={at.baseline}
       textAnchor={anchor}
       fill={fill}
-      fontFamily={fontFamily}
-      fontSize={fontSize}>
+      fontFamily={typeScale.axis.fontFamily}
+      fontSize={fontSize}
+      {...(lineY == null ? {} : {'data-line-y': lineY.toFixed(2)})}>
       {text}
     </SvgText>
   );

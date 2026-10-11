@@ -2,8 +2,15 @@ import {View} from 'react-native';
 import {Circle, G, Line} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg} from './ChartLabel';
+import {baselineUnder, centredBaseline, EDGE_PT, labelBox} from './labelBox';
 
-import {dash, dotOpacity, stroke, useTheme} from '@/src/design';
+import {
+  dash,
+  dotOpacity,
+  stroke,
+  type as typeScale,
+  useTheme,
+} from '@/src/design';
 
 // Fuel used per lap against lap time (practice view, pit-wall thread 36). Pure
 // props in, SVG out. Dots are neutral: colour has one meaning each, and lap
@@ -53,7 +60,16 @@ export function FuelScatter({
   fit?: {x1: number; y1: number; x2: number; y2: number} | null;
 }) {
   const {color} = useTheme();
-  const plotW = Math.max(1, width - PAD_L - PAD_R);
+  // The right pad holds half the widest x tick (centred on its line), so the
+  // last tick stays on its line inside the svg.
+  const padR =
+    Math.max(
+      PAD_R,
+      ...xTicks.map(
+        t => labelBox(t.label, 0, 0, typeScale.axis.fontSize, 'middle').right,
+      ),
+    ) + EDGE_PT;
+  const plotW = Math.max(1, width - PAD_L - padR);
   const plotH = Math.max(1, height - PAD_T - PAD_B);
   const xOf = (v: number) =>
     PAD_L + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plotW;
@@ -74,7 +90,8 @@ export function FuelScatter({
             />
             <ChartLabel
               x={PAD_L - 6}
-              y={yOf(t.v) + 3}
+              y={centredBaseline(yOf(t.v), typeScale.axis.fontSize)}
+              lineY={yOf(t.v)}
               anchor='end'
               fill={color.textMuted}>
               {t.label}
@@ -107,7 +124,10 @@ export function FuelScatter({
           fill={color.textFaint}>
           {xTitle}
         </ChartLabel>
-        <ChartLabel x={PAD_L} y={10} fill={color.textFaint}>
+        <ChartLabel
+          x={PAD_L}
+          y={baselineUnder(0, typeScale.axis.fontSize)}
+          fill={color.textFaint}>
           {yTitle}
         </ChartLabel>
         {fit ? (

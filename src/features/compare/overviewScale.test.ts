@@ -20,4 +20,10 @@ describe('overviewScale', () => {
     expect(s.domain).toEqual([-1, 1]);
     expect(s.ticks.map(t => t.label)).toEqual(['−1 s', '+1 s']);
   });
+
+  it('still labels both ends when every lap is level (zero range)', () => {
+    const s = overviewScale([{values: [0, 0, 0]}]);
+    expect(s.domain[0]).toBe(-s.domain[1]);
+    expect(s.ticks.length).toBe(2);
+  });
 });

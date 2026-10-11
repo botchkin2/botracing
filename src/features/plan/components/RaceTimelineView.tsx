@@ -3,6 +3,7 @@ import {PanResponder, StyleSheet, View} from 'react-native';
 import {G, Line, Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
+import {EDGE_PT} from '@/src/charts/labelBox';
 
 import {dash, size, stroke, useTheme} from '@/src/design';
 
@@ -87,7 +88,7 @@ export function RaceTimelineView({
           </G>
         ))}
         <ChartLabel
-          x={0}
+          x={EDGE_PT}
           y={laneY(0) + size.timelineLane / 2 + 3}
           fill={color.textSecondary}>
           Stints
@@ -152,7 +153,7 @@ export function RaceTimelineView({
         {lanes.map((lane, i) => (
           <G key={lane.key}>
             <ChartLabel
-              x={0}
+              x={EDGE_PT}
               y={laneY(i + 1) + size.timelineLane / 2 + 3}
               fill={color.textSecondary}>
               {lane.label}

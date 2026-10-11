@@ -1,7 +1,10 @@
 import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {Rect} from 'react-native-svg';
+import {Rect} from 'react-native-svg';
 
-import {radius, size, space, useTheme} from '@/src/design';
+import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
+import {baselineOver, baselineUnder} from '@/src/charts/labelBox';
+
+import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
 import {type HistoryModel} from '../history';
@@ -82,13 +85,7 @@ export function HistoryPanel({
               styles.trend,
               {width, height: size.trendHeight, backgroundColor: color.surface},
             ]}>
-            <Text variant='axis' tone='textFaint' style={styles.trendTop}>
-              {trend.fastest}
-            </Text>
-            <Text variant='axis' tone='textFaint' style={styles.trendBottom}>
-              {trend.floor}
-            </Text>
-            <Svg width={width} height={size.trendHeight}>
+            <ChartSvg width={width} height={size.trendHeight}>
               {trend.bars.map((b, i) => {
                 const bw = width / trend.bars.length;
                 const h =
@@ -104,7 +101,21 @@ export function HistoryPanel({
                   />
                 );
               })}
-            </Svg>
+              {/* The scale's ends, drawn over the bars: the fastest best at the
+                  top, the floor at the bottom. */}
+              <ChartLabel
+                x={space.xs}
+                y={baselineUnder(0, typeScale.axis.fontSize)}
+                fill={color.textFaint}>
+                {trend.fastest}
+              </ChartLabel>
+              <ChartLabel
+                x={space.xs}
+                y={baselineOver(size.trendHeight, typeScale.axis.fontSize)}
+                fill={color.textFaint}>
+                {trend.floor}
+              </ChartLabel>
+            </ChartSvg>
           </View>
           <View style={styles.trendAxis}>
             <Text variant='axis' tone='textFaint'>
@@ -154,8 +165,6 @@ const styles = StyleSheet.create({
   },
   bestText: {flex: 1, minWidth: 0},
   trend: {borderRadius: radius.xs, overflow: 'hidden', marginTop: space.sm},
-  trendTop: {position: 'absolute', left: space.xs, top: space.xxs},
-  trendBottom: {position: 'absolute', left: space.xs, bottom: space.xxs},
   trendAxis: {
     flexDirection: 'row',
     justifyContent: 'space-between',

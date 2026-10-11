@@ -2,9 +2,9 @@ import {useEffect, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
 import {Line, Rect} from 'react-native-svg';
 
-import {ChartLabel, ChartSvg} from './ChartLabel';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
 
-import {radius, type as typeScale, useTheme} from '@/src/design';
+import {radius, useTheme} from '@/src/design';
 
 // The map's stand-in when it is hidden (handoff §3 "Map (hidden) → strip"):
 // the lap as a bar, corner numbers under it, the chart window as a frame,
@@ -82,8 +82,7 @@ export function TrackStrip({
             y={H - 2}
             anchor='middle'
             fill={color.textFaint}
-            fontFamily={typeScale.axis.fontFamily}
-            fontSize={9}>
+            fontSize={TICK_PT}>
             {`S${c.n}`}
           </ChartLabel>
         ))}

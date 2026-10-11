@@ -13,7 +13,20 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import {ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
 
-import {ChartLabel, ChartSvg} from './ChartLabel';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, baselineUnder, labelBox} from './labelBox';
+import {
+  AXIS_H,
+  fitsRight,
+  labelledTicks,
+  markBaseline,
+  plotPad,
+  seriesTickBaseline,
+  xTickBaseline,
+  yLine,
+  yOfValue,
+  yTickBaseline,
+} from './traceAxis';
 
 import {
   distanceAtTime,
@@ -61,28 +74,18 @@ export type TraceSeries = {
 
 export type TraceBand = {low: number[]; high: number[]};
 
-const Y_PAD = 3;
 // Neighbour laps across the line are context, not the selected lap.
 const WRAP_OPACITY = 0.4;
 // How much the background covers what is outside a shaded stretch.
 const DIM_OPACITY = 0.6;
-const AXIS_H = 12;
 // A base band (a span along the bottom edge) is this thick, in points.
 const BASE_BAND_H = 4;
-// Labels closer than this to the right edge are dropped (handoff).
-const LABEL_EDGE_PT = 34;
 
-// Plot y of a value is a + b·v for a y range: its offset and scale.
 function markAt(x: number, edgeY: number, dir: 1 | -1): string {
   const tip = edgeY + dir * 5;
   return `M${(x - 3).toFixed(1)},${edgeY}L${(x + 3).toFixed(
     1,
   )},${edgeY}L${x.toFixed(1)},${tip}Z`;
-}
-
-function yLine([lo, hi]: [number, number], height: number): [number, number] {
-  const b = -(height - 2 * Y_PAD) / (hi - lo || 1);
-  return [Y_PAD - b * hi, b];
 }
 
 let clipSeq = 0;
@@ -177,22 +180,33 @@ export function TraceChart({
     tRef
       ? distanceAtTime(tRef, t0 + (px / width) * spanS)
       : startM + (px / width) * spanM;
+  // The plot is padded for its y ticks' boxes, so each sits on its value's line.
+  const pad = plotPad((yTicks?.length ?? 0) > 0, TICK_PT);
+  const yFor = (d: [number, number]) => (v: number) =>
+    yOfValue(d, height, pad, v);
+  // L and R beside the zero line start after the y tick labels, which also
+  // sit at the left edge (Corner's steering: "0 %" is on that line).
+  const sideX =
+    3 +
+    Math.max(
+      0,
+      ...(yTicks ?? []).map(
+        t => labelBox(t.label, 0, 0, TICK_PT, 'start').right + 4,
+      ),
+    );
   const firstTickSeries = series.findIndex(s => s.ticks != null);
   // A series' own tick labels: placed by the tick set's extremes, not the
-  // domain's (a steering domain is stretched past its ticks). The top tick sits
-  // inside its band under the band's top edge, the bottom one above its edge.
+  // domain's (a steering domain is stretched past its ticks).
   const seriesTickY = (d: [number, number], v: number) => {
-    const at = yFor(d)(v);
     const vals = series[firstTickSeries].ticks!.map(t => t.v);
-    if (v === Math.max(...vals)) return at + 10;
-    if (v === Math.min(...vals)) return at - 4;
-    return at + 3;
+    const place =
+      v === Math.max(...vals)
+        ? 'top'
+        : v === Math.min(...vals)
+        ? 'bottom'
+        : 'mid';
+    return seriesTickBaseline(yFor(d)(v), place, TICK_PT);
   };
-
-  const yFor =
-    ([lo, hi]: [number, number]) =>
-    (v: number) =>
-      Y_PAD + (1 - (v - lo) / (hi - lo || 1)) * (height - 2 * Y_PAD);
   // Ranges ease into a new scale (150 ms) instead of jumping.
   const [domainT, zeroDomainT, ...seriesDomainsT] = useTweenedRanges([
     domain,
@@ -242,6 +256,7 @@ export function TraceChart({
         sx,
         width,
         height,
+        pad,
         built[0],
         built[1],
         // Stride and thinning follow from these: a longer lap joining the
@@ -258,8 +273,8 @@ export function TraceChart({
       mPerPx,
     };
     // y: built range → shown (tweened) range, as scale and offset.
-    const [ab, bb] = yLine(built, height);
-    const [at, bt] = yLine(seriesDomainsT[si] ?? domainT, height);
+    const [ab, bb] = yLine(built, height, pad);
+    const [at, bt] = yLine(seriesDomainsT[si] ?? domainT, height, pad);
     const ky = bt / bb;
     return {
       ...s,
@@ -401,12 +416,12 @@ export function TraceChart({
                 stroke={color.grid}
                 strokeWidth={1}
               />
-              {gx < width - LABEL_EDGE_PT && (
+              {fitsRight(tickLabel(m), gx + 2, width, TICK_PT) && (
                 <ChartLabel
                   x={gx + 2}
-                  y={height + AXIS_H - 2}
+                  y={xTickBaseline(height, TICK_PT)}
                   fill={color.textFaint}
-                  fontSize={9}>
+                  fontSize={TICK_PT}>
                   {tickLabel(m)}
                 </ChartLabel>
               )}
@@ -426,12 +441,12 @@ export function TraceChart({
                 strokeWidth={1}
                 strokeDasharray={mk.solid ? undefined : dash.mark}
               />
-              {mk.label && mx < width - LABEL_EDGE_PT && (
+              {mk.label && fitsRight(mk.label, mx + 2, width, TICK_PT) && (
                 <ChartLabel
                   x={mx + 2}
-                  y={9}
+                  y={markBaseline(TICK_PT)}
                   fill={color.textFaint}
-                  fontSize={9}>
+                  fontSize={TICK_PT}>
                   {mk.label}
                 </ChartLabel>
               )}
@@ -460,13 +475,14 @@ export function TraceChart({
             strokeWidth={stroke.mark}
           />
         )}
-        {yTicks?.map(t => (
+        {labelledTicks(yTicks ?? [], yFor(domainT), TICK_PT).map(t => (
           <ChartLabel
             key={`y${t.v}`}
             x={3}
-            y={yFor(domainT)(t.v) + 3}
+            y={yTickBaseline(yFor(domainT)(t.v), TICK_PT)}
+            lineY={yFor(domainT)(t.v)}
             fill={color.textFaint}
-            fontSize={9}>
+            fontSize={TICK_PT}>
             {t.label}
           </ChartLabel>
         ))}
@@ -477,21 +493,26 @@ export function TraceChart({
               key={`s${t.v}`}
               x={3}
               y={seriesTickY(seriesDomainsT[firstTickSeries] ?? domainT, t.v)}
+              lineY={yFor(seriesDomainsT[firstTickSeries] ?? domainT)(t.v)}
               fill={color.textFaint}
-              fontSize={9}>
+              fontSize={TICK_PT}>
               {t.label}
             </ChartLabel>
           ))}
         {zeroLine && sideLabels && (
           <>
-            <ChartLabel x={3} y={yZero - 3} fill={color.textFaint} fontSize={9}>
+            <ChartLabel
+              x={sideX}
+              y={baselineOver(yZero, TICK_PT)}
+              fill={color.textFaint}
+              fontSize={TICK_PT}>
               {sideLabels.above}
             </ChartLabel>
             <ChartLabel
-              x={3}
-              y={yZero + 10}
+              x={sideX}
+              y={baselineUnder(yZero, TICK_PT)}
               fill={color.textFaint}
-              fontSize={9}>
+              fontSize={TICK_PT}>
               {sideLabels.below}
             </ChartLabel>
           </>

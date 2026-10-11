@@ -1,6 +1,7 @@
 import {G, Line, Path, Rect} from 'react-native-svg';
 
-import {ChartLabel, ChartSvg} from './ChartLabel';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, baselineUnder, EDGE_PT, labelBox} from './labelBox';
 
 import {
   CAR_WIDTH_M,
@@ -95,7 +96,21 @@ export function Radar({
                 stroke={color.median}
               />
               {sign === 1 && (
-                <ChartLabel x={6} y={y - 2} fill={color.textFaint} fontSize={9}>
+                <ChartLabel
+                  x={6}
+                  y={
+                    labelBox(
+                      `${m} m`,
+                      6,
+                      baselineOver(y, TICK_PT),
+                      TICK_PT,
+                      'start',
+                    ).top >= EDGE_PT
+                      ? baselineOver(y, TICK_PT)
+                      : baselineUnder(y, TICK_PT)
+                  }
+                  fill={color.textFaint}
+                  fontSize={TICK_PT}>
                   {`${m} m`}
                 </ChartLabel>
               )}
@@ -173,7 +188,7 @@ export function Radar({
           y={height - 5}
           anchor='end'
           fill={color.textFaint}
-          fontSize={9}>
+          fontSize={TICK_PT}>
           {sampleLabel}
         </ChartLabel>
       )}

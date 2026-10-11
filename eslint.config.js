@@ -158,4 +158,33 @@ module.exports = defineConfig([
       ],
     },
   },
+  // Chart text inside the box (src/charts/README.md): svg text is drawn only by
+  // ChartLabel, which keeps each label inside its chart. The maps place labels
+  // on the track's own geometry inside a transform, so they keep their own.
+  // Checked on the import, so an alias (Text as T) or a namespace import fails too.
+  {
+    files: ['src/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],
+    ignores: [
+      'src/charts/ChartLabel.tsx',
+      'src/charts/BrakeMap.tsx',
+      'src/charts/CarDots.tsx',
+      'src/charts/FollowMap.tsx',
+      'src/charts/TrackMap.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native-svg',
+              importNames: ['Text', 'TSpan', 'TextPath'],
+              message:
+                'Draw chart text with ChartLabel (src/charts/ChartLabel.tsx), which keeps it inside the svg.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);

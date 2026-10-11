@@ -1,10 +1,12 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 import {G, Line, Rect} from 'react-native-svg';
 
-import {ChartLabel, ChartSvg} from './ChartLabel';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, centredBaseline, EDGE_PT} from './labelBox';
 
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {dash, stroke, useTheme} from '@/src/design';
 
+import {lapBarsPlot, STUB_BOTTOM, STUB_H} from './lapBarsPlot';
 import {labelsBottom, labelY, placeTopLabels} from './topLabels';
 
 // One bar per lap around the median (handoff §2 "Lap times chart"). Up is
@@ -24,10 +26,7 @@ export type LapBar = {
   highlighted: boolean;
 };
 
-const STUB_H = 9;
-const STUB_BOTTOM = 14;
 const AXIS_H = 14;
-const TOP_PAD = 12;
 // Right gutter for the median label, so bars never sit under it.
 const GUTTER_W = 40;
 // The rails under the axis: one row each for TOW, TRAF and PIT.
@@ -71,7 +70,6 @@ export function LapTimeBars({
   const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
-  const axis = {...typeScale.axis, fontSize: 9};
   const railsH = rails ? RAIL_ROW_H * 3 + 2 : 0;
   const totalH = height + AXIS_H + railsH;
   // STINT, PIT and RESET labels share the top rows; one that would run into
@@ -110,10 +108,11 @@ export function LapTimeBars({
     width,
   );
 
-  // The plot starts below the last label row, so stacked labels never sit on
-  // a bar; with no more than one row it is TOP_PAD as before.
-  const plotTop = Math.max(TOP_PAD, labelsBottom(topLabels));
-  const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
+  const {plotTop, plotBottom} = lapBarsPlot(
+    height,
+    labelsBottom(topLabels),
+    TICK_PT,
+  );
   const mid = plotTop + (plotBottom - plotTop) / 2;
   const half = (plotBottom - plotTop) / 2;
   const yOf = (d: number) => mid - (d / rangeS) * half;
@@ -165,7 +164,7 @@ export function LapTimeBars({
         })}
         {topLabels.map(l => (
           <ChartLabel
-            fontSize={axis.fontSize}
+            fontSize={TICK_PT}
             key={l.key}
             x={l.x}
             anchor={l.anchor}
@@ -228,18 +227,20 @@ export function LapTimeBars({
           {d: -rangeS, label: `+${rangeS.toFixed(1)} s`},
         ].map(t => (
           <ChartLabel
-            fontSize={axis.fontSize}
+            fontSize={TICK_PT}
             key={t.label}
             x={2}
-            y={yOf(t.d) + 3}
+            y={centredBaseline(yOf(t.d), TICK_PT)}
+            lineY={yOf(t.d)}
             fill={color.textFaint}>
             {t.label}
           </ChartLabel>
         ))}
         <ChartLabel
-          fontSize={axis.fontSize}
-          x={width}
-          y={mid + 3}
+          fontSize={TICK_PT}
+          x={width - EDGE_PT}
+          y={centredBaseline(mid, TICK_PT)}
+          lineY={mid}
           anchor='end'
           fill={color.textFaint}>
           {medianLabel}
@@ -247,10 +248,10 @@ export function LapTimeBars({
         {bars.map((b, i) =>
           (i + 1) % 10 === 0 ? (
             <ChartLabel
-              fontSize={axis.fontSize}
+              fontSize={TICK_PT}
               key={`x-${i}`}
               x={xOf(i) + barW / 2}
-              y={height + AXIS_H - 3}
+              y={baselineOver(height + AXIS_H, TICK_PT)}
               anchor='middle'
               fill={color.textFaint}>
               {`L${i + 1}`}
@@ -274,9 +275,9 @@ export function LapTimeBars({
                   />
                 ))}
                 <ChartLabel
-                  fontSize={axis.fontSize}
-                  x={width}
-                  y={top + RAIL_ROW_H - 1}
+                  fontSize={TICK_PT}
+                  x={width - EDGE_PT}
+                  y={baselineOver(top + RAIL_ROW_H, TICK_PT)}
                   anchor='end'
                   fill={color.textFaint}>
                   {row.label}
