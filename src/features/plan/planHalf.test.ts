@@ -261,6 +261,10 @@ describe('buildPlanHalf', () => {
       {k: 'Fuel a lap', p: '2.40 L', a: '2.60 L'},
       {k: 'VE a lap', p: '3.5 %', a: '3.8 %'},
     ]);
+    // A median of 2.55 prints 2.6 here as on the Session page (toFixed gave 2.5).
+    expect(half({ownUse: {fuelL: 2.4, vePct: 2.55}}).rows.at(-1)!.a).toBe(
+      '2.6 %',
+    );
     // Under three green laps the race has no median of its own: no row, not a made-up one.
     expect(
       half({ownUse: {fuelL: null, vePct: null}}).rows.some(r =>

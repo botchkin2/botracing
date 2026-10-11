@@ -476,7 +476,7 @@ export function buildSessionModel(
       label: bits.join(' · ') + split,
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
     });
-    const stintNote = stintFuelLine(stint);
+    const stintNote = stintFuelLine(stintLaps);
     if (stintNote)
       rows.push({kind: 'note', key: `stint-${stint.n}-fuel`, text: stintNote});
     for (const l of stintLaps) {

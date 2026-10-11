@@ -93,7 +93,7 @@ describe('laps at full throttle by the slowest point', () => {
     expect(throttle.dots.map(d => d.lapId)).toEqual(['l0', 'l1', 'l4']);
     expect(throttle.dots.every(d => !d.flagged)).toBe(true);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 2 of 5 laps',
+      'Full pedal by the slowest point: 2 of 5 laps',
     );
     // The band is over the laps that have a point.
     expect(throttle.band?.p50).toBe(51);
@@ -101,7 +101,7 @@ describe('laps at full throttle by the slowest point', () => {
 
   it('one flat lap reads singular; none reads nothing', () => {
     expect(buildStrips([lap(0), flat(1)])[3].flatNote).toBe(
-      'Full throttle by the slowest point: 1 of 2 laps',
+      'Full pedal by the slowest point: 1 of 2 laps',
     );
     expect(buildStrips([lap(0), lap(1)])[3].flatNote).toBeNull();
   });
@@ -112,7 +112,7 @@ describe('laps at full throttle by the slowest point', () => {
     const throttle = buildStrips(laps)[3];
     expect(throttle.dots).toHaveLength(2);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 2 of 5 laps',
+      'Full pedal by the slowest point: 2 of 5 laps',
     );
   });
 
@@ -121,7 +121,7 @@ describe('laps at full throttle by the slowest point', () => {
     expect(throttle.empty).toBe(true);
     expect(throttle.dots).toEqual([]);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 3 of 3 laps',
+      'Full pedal by the slowest point: 3 of 3 laps',
     );
   });
 
