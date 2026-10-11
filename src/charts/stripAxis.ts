@@ -1,7 +1,7 @@
 // The dot strip's x axis (D45): where each value sits, which ticks are
 // labelled, and how far the plot keeps from the edges so the end labels fit
 // inside the svg (labelBox.ts, the inside-the-box rule). Pure.
-import {CHAR_EM, EDGE_PT} from './labelBox';
+import {EDGE_PT, textWidth, thinLabels} from './labelBox';
 import {type Scale} from './scale';
 
 /** Room between two neighbouring tick labels, in points. */
@@ -18,14 +18,11 @@ export type StripAxis = {
   ticks: {v: number; x: number; label: string; labelled: boolean}[];
 };
 
-const textWidth = (text: string, fontSize: number) =>
-  [...text].length * CHAR_EM * fontSize;
-
 /**
  * The axis for a strip `width` wide on `scale`. With `flipped` the larger
  * values are on the left (brake point: earlier on the lap). Labels that would
- * touch their neighbour are thinned to every k-th tick, counting from the low
- * end, so the step stays regular.
+ * touch their neighbour are thinned to every k-th tick, keeping both ends
+ * (labelBox.thinLabels).
  */
 export function stripAxis(
   scale: Scale,
@@ -44,19 +41,19 @@ export function stripAxis(
     const f = (v - scale.lo) / span;
     return padX + (flipped ? 1 - f : f) * plotW;
   };
-  const n = scale.ticks.length;
-  const spacing = n > 1 ? plotW / (n - 1) : plotW;
-  let k = Math.max(1, Math.ceil((widest + LABEL_GAP_PT) / (spacing || 1)));
-  // Keep the step regular and the far end labelled where it divides evenly.
-  while (k < n - 1 && (n - 1) % k !== 0) k++;
+  // Both ends keep their labels; the rest thin to every k-th tick
+  // (labelBox.thinLabels, the same rule as the trace charts' y ticks).
+  const labelled = new Set(
+    thinLabels(scale.ticks, x, widest + LABEL_GAP_PT).map(t => t.v),
+  );
   return {
     padX,
     x,
-    ticks: scale.ticks.map((t, i) => ({
+    ticks: scale.ticks.map(t => ({
       v: t.v,
       x: x(t.v),
       label: t.label,
-      labelled: i % k === 0,
+      labelled: labelled.has(t.v),
     })),
   };
 }
