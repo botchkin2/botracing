@@ -1,4 +1,3 @@
-import {raceGate} from './raceGate';
 import {useMemo} from 'react';
 
 import {placeFieldOnLine} from '@/src/analysis/fieldOnLine';
@@ -22,8 +21,10 @@ import {
   useTrackMap,
   useTrackSurface,
 } from '@/src/data/sessions';
-import {useLapTraces} from '@/src/data/traces';
+import {useLapTraceLoad} from '@/src/data/traces';
 import {shortTrackName} from '@/src/design';
+
+import {raceGate} from './raceGate';
 
 const SESSION_TITLE = {R: 'Race', Q: 'Qualifying', P: 'Practice'} as const;
 // Same 5 m grid as Compare, so the line and the laps agree.
@@ -41,6 +42,10 @@ export type RaceData =
   | {kind: 'no-field'; title: string}
   /** No timed lap: no racing line to put the cars on. */
   | {kind: 'no-lap'; title: string}
+  /** A best lap whose trace has no GPS or no length to grid on. */
+  | {kind: 'no-line'; title: string}
+  /** The best lap's trace failed to load. */
+  | {kind: 'line-error'; title: string; retry: () => void}
   | {kind: 'field-loading'; title: string}
   | {kind: 'field-error'; title: string; retry: () => void}
   | {
@@ -78,10 +83,11 @@ export function useRaceData(sessionId: string): RaceData {
   // A track with no map of its own (iRacing's) still has the lap's length.
   // (Its map document exists but holds no length: 0, not missing.)
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
-  const [refTrace] = useLapTraces(detail?.bestLapId ? [detail.bestLapId] : [], {
+  const refLoad = useLapTraceLoad(detail?.bestLapId ? [detail.bestLapId] : [], {
     lengthM,
     stepM: GRID_STEP_M,
   });
+  const [refTrace] = refLoad.traces;
   const placer = useMemo(
     () => mapPlacer(map.data ?? null, surface.data ?? null),
     [map.data, surface.data],
@@ -153,9 +159,16 @@ export function useRaceData(sessionId: string): RaceData {
     hasDetail: detail != null,
     hasField: hash !== null,
     fieldError: field.isError,
-    hasPositions: stored ? stored.hasPositions : null,
     hasBestLap: !noBestLap,
-    readyInputs: !!(prep && clock && line && !laps.isPending),
+    line: line
+      ? 'drawn'
+      : refLoad.load.kind === 'failed'
+      ? 'failed'
+      : (refTrace && refTrace.lat.length <= 2) ||
+        (!map.isPending && !band.isPending && lengthM === 0)
+      ? 'missing'
+      : 'pending',
+    readyInputs: !!(prep && clock && !laps.isPending),
   });
   if (gate === 'loading') return {kind: 'loading'};
   if (!detail) return {kind: 'error', message: 'Could not load this session.'};
@@ -166,9 +179,13 @@ export function useRaceData(sessionId: string): RaceData {
   if (gate === 'field-error')
     return {kind: 'field-error', title, retry: () => void field.refetch()};
   if (gate === 'no-lap') return {kind: 'no-lap', title};
-  // Lap numbers are needed to open on Compare's cursor; a failed laps request
-  // only means the clock opens at the start.
-  if (gate === 'field-loading' || !prep || !clock || !line)
+  if (gate === 'no-line') return {kind: 'no-line', title};
+  if (gate === 'line-error')
+    return {kind: 'line-error', title, retry: refLoad.retry};
+  // The gate is 'ready' only with these; the check is for the types. Lap
+  // numbers are needed to open on Compare's cursor; a failed laps request only
+  // means the clock opens at the start.
+  if (gate !== 'ready' || !prep || !clock || !line)
     return {kind: 'field-loading', title};
   return {
     kind: 'ready',

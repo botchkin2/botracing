@@ -77,6 +77,8 @@ const BOARD_BELOW_H = 260;
 
 const NO_FIELD_TITLE = 'No field data for this session';
 const NO_LAP_TITLE = 'No timed lap to draw the track';
+const NO_LINE_TITLE = 'No track line in this session';
+const LINE_ERROR_TEXT = 'Could not load the lap that draws the track';
 const FIELD_LOADING_TEXT = 'Loading field data';
 const FIELD_ERROR_TEXT = 'Field data didn’t load';
 const SKELETON_ROWS = 8;
@@ -167,21 +169,31 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
-  if (data.kind === 'no-field' || data.kind === 'no-lap') {
+  if (
+    data.kind === 'no-field' ||
+    data.kind === 'no-lap' ||
+    data.kind === 'no-line'
+  ) {
     return (
       <View style={styles.center}>
         <EmptyState
-          title={data.kind === 'no-lap' ? NO_LAP_TITLE : NO_FIELD_TITLE}
+          title={
+            data.kind === 'no-lap'
+              ? NO_LAP_TITLE
+              : data.kind === 'no-line'
+              ? NO_LINE_TITLE
+              : NO_FIELD_TITLE
+          }
         />
       </View>
     );
   }
-  if (data.kind === 'field-error') {
+  if (data.kind === 'field-error' || data.kind === 'line-error') {
     return (
       <View style={[styles.notice, {width}]}>
         <StatusBanner
           dot='idle'
-          text={FIELD_ERROR_TEXT}
+          text={data.kind === 'line-error' ? LINE_ERROR_TEXT : FIELD_ERROR_TEXT}
           actionLabel='Retry'
           onAction={data.retry}
         />
