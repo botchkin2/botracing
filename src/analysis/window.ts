@@ -154,6 +154,42 @@ export function playStep(
   return distanceAtTime(ref, t);
 }
 
+// The stretch of the reference lap a loop repeats, in elapsed seconds: what the
+// chart window covers around the cursor (clipped to the lap), or the whole lap.
+export function loopRange(
+  ref: TimedGrid,
+  cursorM: number,
+  mode: WindowMode,
+  win: number | null,
+): [number, number] {
+  const lapS = ref.timeS[ref.timeS.length - 1];
+  if (win == null) return [0, lapS];
+  const [a, b] =
+    mode === 'time'
+      ? windowTimeS(ref, cursorM, win)
+      : windowRange(ref, cursorM, mode, win).map(m => timeAtDistance(ref, m));
+  return [Math.max(0, a), Math.min(lapS, b)];
+}
+
+// One playback step that repeats [t0, t1] (loopRange) in either direction: past
+// an end it comes in from the other. A cursor outside the range, because it
+// was dragged there, joins at the end it is heading for.
+export function loopStep(
+  ref: TimedGrid,
+  cursorM: number,
+  dtS: number,
+  rate: number,
+  reverse: boolean,
+  range: [number, number],
+): number {
+  const [t0, t1] = range;
+  const span = t1 - t0;
+  if (span <= 0) return cursorM;
+  let t = timeAtDistance(ref, cursorM) + (reverse ? -dtS : dtS) * rate;
+  if (t < t0 || t > t1) t = t0 + ((((t - t0) % span) + span) % span);
+  return distanceAtTime(ref, t);
+}
+
 // Plays backwards by wall-clock seconds at a rate. Stops at the lap start
 // (distance 0) instead of looping.
 export function rewindStep(

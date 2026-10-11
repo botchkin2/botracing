@@ -120,3 +120,31 @@ describe('nextRate', () => {
     expect(nextRate(3)).toBe(1);
   });
 });
+
+describe('playTicker with a loop', () => {
+  it('repeats the range forward and backward instead of the lap', () => {
+    for (const reverse of [false, true]) {
+      const s = fakeState(reverse ? 220 : 380);
+      let t = 0;
+      const tick = playTicker(
+        () => ({ref, rate: 1, reverse, loop: [4, 8], move: s.move}),
+        () => t,
+      );
+      const seen: number[] = [];
+      for (let i = 1; i <= 120; i++) {
+        t = i * 16;
+        tick();
+        s.commit();
+        seen.push(s.get());
+      }
+      // 4 to 8 s on a 50 m/s reference is 200 to 400 m; it never leaves it.
+      expect(Math.min(...seen)).toBeGreaterThanOrEqual(200 - 1e-6);
+      expect(Math.max(...seen)).toBeLessThanOrEqual(400 + 1e-6);
+      // Heading the right way and having turned round at least once.
+      const turned = seen.some(
+        (m, i) => i > 0 && Math.abs(m - seen[i - 1]) > 100,
+      );
+      expect(turned).toBe(true);
+    }
+  });
+});
