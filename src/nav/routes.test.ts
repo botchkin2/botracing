@@ -107,3 +107,14 @@ describe('a lap of another session', () => {
     }
   });
 });
+
+describe('cornerHref: a compound section opens on All by default', () => {
+  it('leaves all out when the caller does not say, so the route reads a compound section whole', () => {
+    expect(cornerHref('s1', 2).params).not.toHaveProperty('all');
+  });
+
+  it('names one part with all=0 and All with all=1', () => {
+    expect(cornerHref('s1', 3, {}, false).params).toMatchObject({all: '0'});
+    expect(cornerHref('s1', 2, {}, true).params).toMatchObject({all: '1'});
+  });
+});
