@@ -1,6 +1,8 @@
 import {toggle} from '@/src/state/lapSelection';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
+import {type LabelFormat} from '@/src/charts/scale';
+import {signedSeconds, withUnit} from '@/src/charts/tickFormat';
 import {rangeOf} from '@/src/analysis/rangeIndex';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
@@ -97,10 +99,17 @@ type ChannelSpec = {
   /** Desktop workspace height (handoff D2). */
   desktopHeight: number;
   format: (v: number) => string;
+  /**
+   * The channel's y axis on a detail chart (detailTicks): its tick label, and
+   * the finest step it allows. Absent: no ticks (the pedals carry their own frame).
+   */
+  tick?: {label: LabelFormat; minStep?: number};
   pick: (t: GridTrace) => number[];
   /** Drawn from, and read at, its recorded samples (not the grid). */
   native?: NativeChannel;
 };
+
+const SPEED_UNIT = 'km/h';
 
 // Heights from the handoff (Compare chart heights).
 export const CHANNELS: Record<ChannelId, ChannelSpec> = {
@@ -108,6 +117,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     label: 'Time diff',
     unit: 's',
     kind: 'time',
+    tick: {label: signedSeconds},
     height: 62,
     desktopHeight: 96,
     format: v => formatGap(v),
@@ -115,8 +125,9 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   },
   speed: {
     label: 'Speed',
-    unit: 'km/h',
+    unit: SPEED_UNIT,
     kind: 'speed',
+    tick: {label: withUnit(SPEED_UNIT)},
     ySnap: 20,
     height: 104,
     desktopHeight: 150,
@@ -160,6 +171,8 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     label: 'Gear',
     unit: '',
     kind: 'gear',
+    // A gear is a whole number: never a step finer than one.
+    tick: {label: v => String(Math.round(v)), minStep: 1},
     height: 44,
     desktopHeight: 60,
     format: v => v.toFixed(0),
