@@ -34,11 +34,20 @@ const FIXED_W =
   WIDE_COLS.stint +
   WIDE_COLS.time +
   WIDE_COLS.gap;
-export function sectionColW(width: number, count: number): number {
+// The section head is IBM Plex Mono 9.5 px with 0.475 px letter spacing: a
+// 0.6 em advance per character plus the spacing. A column is never narrower
+// than its head ('T10A–T12' is 49 px), whatever the section names are.
+const HEAD_CHAR_W = 9.5 * 0.6 + 0.475;
+export function headWidth(heads: string[]): number {
+  return Math.ceil(Math.max(0, ...heads.map(h => h.length)) * HEAD_CHAR_W);
+}
+export function sectionColW(width: number, heads: string[]): number {
+  const count = heads.length;
   if (count === 0) return WIDE_COLS.sector;
   const room = width - FIXED_W - WIDE_GAP * (5 + count) - TAGS_MIN;
   return Math.max(
     SECTION_MIN,
+    headWidth(heads),
     Math.min(WIDE_COLS.sector, Math.floor(room / count)),
   );
 }
@@ -61,7 +70,7 @@ export function LapTableHeader({
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
-  const sectionW = wide ? sectionColW(width, heads.length) : cols.sector;
+  const sectionW = wide ? sectionColW(width, heads) : cols.sector;
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -230,7 +239,9 @@ export function LapRow({
   // The lap x section grid where the map has sections (desktop and phone); the game's sectors otherwise.
   const useSections = row.sections.length > 0;
   const cells = useSections ? row.sections : row.sectors;
-  const cellW = wide ? sectionColW(width, cells.length) : cols.sector;
+  const cellW = wide
+    ? sectionColW(width, sectionNames ?? cells.map(() => ''))
+    : cols.sector;
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
   return (
@@ -335,7 +346,7 @@ export function SectionFooter({
   width: number;
 }) {
   const {color} = useTheme();
-  const sectionW = sectionColW(width, table.heads.length);
+  const sectionW = sectionColW(width, table.heads);
   return (
     <View style={[styles.footerRows, {width, borderColor: color.lineHeader}]}>
       {table.footer.map(r => (
