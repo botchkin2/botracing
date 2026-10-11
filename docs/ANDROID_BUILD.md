@@ -149,6 +149,8 @@ By hand, once:
 
 Settings shows an **Android app** card (`src/features/settings/androidCard.ts`). In the installed app it appears only when `/api/android/latest` has a higher `versionCode` than the installed one (`expo-application`'s `nativeBuildVersion`), with an Update button. In a browser on an Android phone it offers the APK, like the Windows card. Anywhere else there is no card. Both open `/api/android/download` in the browser, so the first install asks to allow installs from the browser; the card says so in one line.
 
+In the installed app the card's first line is the running build: `App <version> · update <first 8 of expo-updates' updateId>`, or `built-in` when the app runs its own bundle (`Updates.isEmbeddedLaunch`; `runningLine` in `androidCard.ts`), and the line is only on the installed app, never a phone browser. It shows even when no update does.
+
 ## Over-the-air updates (EAS Update)
 
 `expo-updates` checks the `production` channel on launch and applies a new bundle on the next start (no UI). Only the `release` profile in `eas.json` has the channel, so development and preview builds never receive production updates. `app.json` sets `runtimeVersion.policy: "fingerprint"`: an update reaches only builds with the same native fingerprint, so a native change can never land on an older APK.
