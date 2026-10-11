@@ -1,9 +1,10 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 
 import {radius, size, useTheme} from '@/src/design';
 
 import {hitFor} from './hitArea';
+import {Pressable} from './Pressable';
 
 // 44 pt wide, but only as tall as a 32 pt lap row: taller would overlap the
 // rows above and below (design call in thread 27).

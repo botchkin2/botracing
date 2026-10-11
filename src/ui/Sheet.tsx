@@ -3,7 +3,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -13,6 +12,7 @@ import {radius, size, space, useLayout, useTheme} from '@/src/design';
 
 import {Button} from './Button';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 /**
  * The sheet shell shared by Edit charts and Rules: a bottom sheet on the phone,

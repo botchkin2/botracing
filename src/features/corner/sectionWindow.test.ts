@@ -256,7 +256,10 @@ describe('buildSectionWindow', () => {
     const none = buildSectionWindow({
       map: m,
       sectionN: 2,
-      laps: lapsOf(rawLap('old', section2(), {v: 1, rev: 2}), rawLap('b', section2())),
+      laps: lapsOf(
+        rawLap('old', section2(), {v: 1, rev: 2}),
+        rawLap('b', section2()),
+      ),
     });
     expect(none?.referenceNote).toBeNull();
   });

@@ -324,6 +324,10 @@ export const space = {
 } as const;
 /** A control that is on screen but cannot be used (Button, map zoom, last Compare chip). */
 export const disabledOpacity = 0.4;
+/** What every tappable looks like while a finger is on it (src/ui/Pressable.tsx). */
+export const pressedOpacity = 0.6;
+/** A lone × is a real box this big, at least: a mouse needs one too. */
+export const closeBox = 24;
 // Scatter dots: this session's laps, and earlier sessions' laps beside them.
 export const dotOpacity = {current: 0.7, earlier: 0.3} as const;
 
