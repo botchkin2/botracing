@@ -31,7 +31,7 @@ describe('buildSessionModel', () => {
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},
       {label: 'Best', value: '1:20.763', best: true},
-      {label: 'Median', value: '1:21.915'},
+      {label: 'Median', value: '1:21.915 · 16 laps'},
       {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });
@@ -54,7 +54,7 @@ describe('buildSessionModel', () => {
   it('stint header rows precede their laps', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
-      label: 'Stint 1 · L1–L17 · med 1:21.938 · ± 0.91 s',
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · ±SD 0.91 s',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });
@@ -214,8 +214,11 @@ describe('traffic tags, rails and the clean best', () => {
   const m = buildSessionModel(session, toLaps(raw), none);
 
   it('a towed best lap shows TOW first, then BEST', () => {
-    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual(['TOW 6.1', 'BEST']);
-    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0');
+    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual([
+      'TOW 6.1 s',
+      'BEST',
+    ]);
+    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0 s');
   });
 
   it('hollow bars and rails come from the traffic facts', () => {
@@ -278,7 +281,7 @@ describe('fuel and Virtual Energy rows', () => {
     expect(m.rows[i + 1]).toEqual({
       kind: 'note',
       key: expect.stringContaining('-pit'),
-      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps · VE) · +41.7 L · 91 s',
       pitLapIndex: 17,
     });
   });

@@ -115,7 +115,10 @@ describe('buildPitCard', () => {
     it('reads what was left, what was added, VE out, the lane and the tyres', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       const c = card.columns[0];
-      expect(c.inTank).toEqual({value: '9.4 L', note: '4 % VE · 1.1 laps'});
+      expect(c.inTank).toEqual({
+        value: '9.4 L',
+        note: '4 % VE · 1.1 laps · VE',
+      });
       expect(c.added).toEqual({value: '+40.1 L', note: '+62 % VE'});
       // 4 + 62 = 66 % out, at the next stint's 3.5 %/lap.
       expect(c.veOut).toEqual({
@@ -144,7 +147,7 @@ describe('buildPitCard', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       expect(card.end).toEqual({
         title: 'End of L9',
-        spare: '3.7 L / 4 % VE (1.1 laps)',
+        spare: '3.7 L / 4 % VE (1.1 laps · VE)',
         // 9.4 + 40.1 - 3.7 = 45.8 L used after.
         last: '+40.1 L · used 45.8 L after · 3.7 L left',
       });
@@ -591,11 +594,11 @@ describe('buildPitCard', () => {
       expect(card.hasVe).toBe(false);
       const c = card.columns[0];
       expect(c.veOut).toBeNull();
-      expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps'});
+      expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps · fuel'});
       expect(c.added).toEqual({value: '+40.1 L', note: null});
       expect(c.lane?.value).toBe('51.2 s');
       expect(card.key).toEqual([]);
-      expect(card.end?.spare).toBe('3.7 L (1.5 laps)');
+      expect(card.end?.spare).toBe('3.7 L (1.5 laps · fuel)');
     });
   });
 
@@ -628,7 +631,7 @@ describe('buildPitCard', () => {
         note: 'over 3 laps',
       });
       expect(card.end.title).toBe('End of L3');
-      expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps)');
+      expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps · VE)');
       expect(card.end.usedShare).toBeCloseTo(41.3 / 45, 5);
     });
 

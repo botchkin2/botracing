@@ -23,6 +23,7 @@ import type {
   SessionType,
 } from '@/src/data/sessions';
 
+import {limitingLaps} from './fuelLines';
 import {tyresText} from './pitReview';
 
 /** A bold value and a muted line under it. */
@@ -173,8 +174,7 @@ function lapsLeft(left: {
 
 function inCell(stop: PitStop, hasVe: boolean): Cell {
   const {fuelL, vePct} = stop.atEntry;
-  const left = lapsLeft(stop.lapsLeftAtEntry);
-  const lapsNote = left != null ? lapsOf(left) : null;
+  const lapsNote = limitingLaps(stop.lapsLeftAtEntry);
   if (hasVe)
     return {
       value: fuelL != null ? litres(fuelL) : vePct != null ? pct(vePct) : '—',
@@ -352,14 +352,14 @@ function column(
 
 /** "3.7 L / 4 % VE (1.1 laps)": what was left on the last whole lap. */
 function leftText(f: NonNullable<Lap['fuel']>, hasVe: boolean): string {
-  const l = lapsLeft({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe});
+  const l = limitingLaps({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe});
   return join(
     [
       f.endL != null && litres(f.endL),
       hasVe && f.veEndPct != null && `${pct(f.veEndPct)} VE`,
     ],
     ' / ',
-  ).concat(l != null ? ` (${lapsOf(l)})` : '');
+  ).concat(l != null ? ` (${l})` : '');
 }
 
 // "+40.1 L · used 37.0 L after · 3.1 L left". What the laps after the stop

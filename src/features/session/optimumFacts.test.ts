@@ -22,8 +22,8 @@ describe('optimumFacts', () => {
   it('names the optimal lap, the typical lap and the gap between them with the laps behind them', () => {
     expect(optimumFacts([stint()], 2, 1)).toEqual([
       {label: 'Optimal lap', value: '1:48.620 · 9 laps, 2 sectors'},
-      {label: 'Typical lap', value: '1:49.900 · 9 laps'},
-      {label: 'Inconsistency', value: '+1.280 s · 9 laps'},
+      {label: 'Typical lap', value: '1:49.900 · 9 laps, 2 sector medians'},
+      {label: 'Incons.', value: '+1.280 s · 9 laps'},
     ]);
   });
 
@@ -31,7 +31,7 @@ describe('optimumFacts', () => {
     expect(optimumFacts([stint()], 2, 3).map(f => f.label)).toEqual([
       'Optimal lap · stint 2',
       'Typical lap · stint 2',
-      'Inconsistency · stint 2',
+      'Incons. · stint 2',
     ]);
   });
 

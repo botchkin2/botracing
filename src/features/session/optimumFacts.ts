@@ -28,10 +28,12 @@ export function optimumFacts(
       },
       {
         label: `Typical lap${where}`,
-        value: `${formatLapTime(s.medianSumS)} · ${laps}`,
+        value: `${formatLapTime(
+          s.medianSumS,
+        )} · ${laps}, ${sectorCount} sector medians`,
       },
       {
-        label: `Inconsistency${where}`,
+        label: `Incons.${where}`,
         value: `+${(s.medianSumS - s.bestSumS).toFixed(3)} s · ${laps}`,
       },
     );
