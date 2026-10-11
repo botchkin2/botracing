@@ -21,12 +21,14 @@ export function TransportBar({
   spanLabel,
   playing,
   rewinding,
+  looping,
   rate,
   onMode,
   onStep,
   onLap,
   onPlay,
   onReverse,
+  onLoop,
   onBack,
   onForward,
   onRate,
@@ -40,6 +42,8 @@ export function TransportBar({
   spanLabel: string;
   playing: boolean;
   rewinding: boolean;
+  /** Playback repeats the window (or the whole lap) instead of stopping. */
+  looping: boolean;
   rate: PlayRate;
   onMode: (m: WindowMode) => void;
   onStep: (dir: -1 | 1) => void;
@@ -47,6 +51,7 @@ export function TransportBar({
   onLap: () => void;
   onPlay: () => void;
   onReverse: () => void;
+  onLoop: () => void;
   /** One step back / forward along the lap. */
   onBack: () => void;
   onForward: () => void;
@@ -138,10 +143,12 @@ export function TransportBar({
     onPress: () => void,
     glyph: (fill: string) => ReactNode,
     primary: boolean,
+    selected?: boolean,
   ) => (
     <Pressable
       accessibilityRole='button'
       accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : {selected}}
       onPress={onPress}
       {...hitFor(
         (size.hit - size.transport) / 2,
@@ -152,10 +159,13 @@ export function TransportBar({
           styles.play,
           primary
             ? {backgroundColor: color.accent}
-            : [styles.outlined, {borderColor: color.lineStrong}],
+            : [
+                styles.outlined,
+                {borderColor: selected ? color.accent : color.lineStrong},
+              ],
         ]}>
         <Svg width={14} height={14} viewBox='0 0 14 14'>
-          {glyph(primary ? color.bg : color.text)}
+          {glyph(primary ? color.bg : selected ? color.accent : color.text)}
         </Svg>
       </View>
     </Pressable>
@@ -192,6 +202,20 @@ export function TransportBar({
         f =>
           playing ? pauseGlyph(f) : <Path d='M3 1 L13 7 L3 13 Z' fill={f} />,
         true,
+      )}
+      {round(
+        'Loop',
+        onLoop,
+        f => (
+          <Path
+            d='M2 7 Q2 3 6 3 H11 M9 1 L11 3 L9 5 M12 7 Q12 11 8 11 H3 M5 9 L3 11 L5 13'
+            stroke={f}
+            strokeWidth={1.6}
+            fill='none'
+          />
+        ),
+        false,
+        looping,
       )}
       {round(
         'Step forward',

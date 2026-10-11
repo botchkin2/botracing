@@ -19,7 +19,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
-import {panCursor} from '@/src/analysis/window';
+import {loopRange, panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
@@ -250,6 +250,7 @@ function CompareView({
   const [chartsOpen, setChartsOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [reverse, setReverse] = useState(false);
+  const [looping, setLooping] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -289,8 +290,27 @@ function CompareView({
     reverse,
     move: onCursor,
   });
+  // A loop repeats the stretch the window covers when playback starts (or the
+  // loop is switched on), not the window as it travels with the cursor.
+  const loopSpan = useRef<[number, number] | null>(null);
+  const cursorNow = useRef(cursorM);
   useEffect(() => {
-    live.current = {ref, rate: prefs.rate, reverse, move: onCursor};
+    cursorNow.current = cursorM;
+  });
+  useEffect(() => {
+    loopSpan.current =
+      looping && playing && ref
+        ? loopRange(ref, cursorNow.current, prefs.windowMode, windowSizeValue)
+        : null;
+  }, [looping, playing, ref, prefs.windowMode, windowSizeValue]);
+  useEffect(() => {
+    live.current = {
+      ref,
+      rate: prefs.rate,
+      reverse,
+      loop: loopSpan.current,
+      move: onCursor,
+    };
   });
   const atStart = useRef(false);
   useEffect(() => {
@@ -304,8 +324,8 @@ function CompareView({
       () => performance.now(),
     );
     const tick = () => {
-      // Rewinding ends at the lap start.
-      if (live.current.reverse && atStart.current) {
+      // Rewinding ends at the lap start, unless it loops.
+      if (live.current.reverse && atStart.current && !live.current.loop) {
         setPlaying(false);
         return;
       }
@@ -785,6 +805,7 @@ function CompareView({
       spanLabel={spanLabel}
       playing={playing && !reverse}
       rewinding={playing && reverse}
+      looping={looping}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
@@ -799,6 +820,7 @@ function CompareView({
         setReverse(true);
         setPlaying(p => !p || !reverse);
       }}
+      onLoop={() => setLooping(l => !l)}
       onBack={() => moveBy(-KEY_STEP_M)}
       onForward={() => moveBy(KEY_STEP_M)}
       onRate={prefs.setRate}
