@@ -58,7 +58,7 @@ export function CornerGrid({
             accessibilityRole='button'
             accessibilityLabel={`Jump to ${heads[i]}`}
             style={[styles.head, {width: cellW, marginLeft: gap}]}>
-            <Text variant='tableHeader' tone='textMuted'>
+            <Text variant='tableHeader' tone='textMuted' asWritten>
               {heads[i]}
             </Text>
           </Pressable>

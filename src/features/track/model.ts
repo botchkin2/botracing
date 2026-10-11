@@ -148,7 +148,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
         new Set(s.parts.map(p => turnOfPart(turnLabel(p.n, p.official)))).size >
         1;
       groups.push({
-        title: spansTurns ? label.toUpperCase() : null,
+        title: spansTurns ? label : null,
         rows: s.parts.map(row),
       });
       continue;
