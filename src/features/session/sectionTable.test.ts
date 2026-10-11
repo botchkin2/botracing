@@ -20,7 +20,7 @@ describe('sectionTable on Road Atlanta (roadAtlantaGt3)', () => {
       })),
       laps: [],
     };
-    const table = sectionTable(times, map)!;
+    const table = sectionTable(times, new Set(), map)!;
     expect(table.targets.map(t => t.corner)).toEqual([null, 1, 2, 6, 7, 9]);
     expect(table.targets.map(t => t.whole)).toEqual([
       false,

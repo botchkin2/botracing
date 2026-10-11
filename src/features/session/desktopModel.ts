@@ -17,6 +17,7 @@ import {
 } from '@/src/design';
 
 import {type Selection} from './model';
+import {basisOf, lapTimeStats} from './selectionStats';
 
 // Desktop-only panels of the Session workspace (handoff "Desktop", D1 right
 // column): stints table and stint-vs-stint by corner.
@@ -25,11 +26,11 @@ import {type Selection} from './model';
 export type StintTableRow = {
   n: number;
   name: string;
-  /** "13/17": comparable / total laps. */
+  /** "13/17": the stint's basis (ticked) laps / all its laps. */
   count: string;
   median: string;
   best: string;
-  /** Standard deviation of comparable lap times, "0.91". */
+  /** IQR (p75 - p25) of the basis laps' times, "0.31": the one spread the app shows. */
   spread: string;
   /** "L1–L17". The fall-off trend is not shown (triage #20). */
   detail: string;
@@ -64,45 +65,56 @@ export function median(values: number[]): number | null {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
+/**
+ * One row per stint, over the stint's basis laps (the ticked ones, or the
+ * comparable ones with none ticked): the same median and IQR as the stint
+ * line in the lap table (selectionStats.ts).
+ */
 export function buildStintTable(
   session: SessionDetail,
   laps: Lap[],
+  ticked: ReadonlySet<string>,
 ): StintTableRow[] {
+  const basis = new Set(basisOf(laps, ticked).map(l => l.id));
   const rows: StintTableRow[] = [];
   for (const s of session.stints) {
     const stintLaps = laps.filter(l => l.stint === s.n);
     if (stintLaps.length === 0) continue;
     const first = stintLaps[0].lapIndex;
     const last = stintLaps[stintLaps.length - 1].lapIndex;
-    const detail = [`L${first}–L${last}`];
+    const picked = stintLaps.filter(l => basis.has(l.id));
+    const stats = lapTimeStats(picked);
     rows.push({
       n: s.n,
       name: `Stint ${s.n}`,
-      count: `${s.comparableCount}/${s.lapCount}`,
-      median: s.medianTimeS == null ? dash : formatLapTime(s.medianTimeS),
-      best: s.bestTimeS == null ? dash : formatLapTime(s.bestTimeS),
-      spread: s.stdevS == null ? dash : s.stdevS.toFixed(2),
-      detail: detail.join(' · '),
+      count: `${picked.length}/${stintLaps.length}`,
+      median: stats.medianS == null ? dash : formatLapTime(stats.medianS),
+      best: stats.bestS == null ? dash : formatLapTime(stats.bestS),
+      spread:
+        stats.n > 1 && stats.spreadS != null ? stats.spreadS.toFixed(2) : dash,
+      detail: `L${first}–L${last}`,
     });
   }
   return rows;
 }
 
 /**
- * Median segment time per corner for the second stint minus the first,
- * comparable laps only. Null unless two stints both have comparable laps
- * with corner times.
+ * Median segment time per corner for the second stint minus the first, over
+ * the basis laps. Null unless two stints both have basis laps with corner
+ * times.
  */
 export function buildStintVsStint(
   laps: Lap[],
   corners: CornerRef[] | null,
+  ticked: ReadonlySet<string> = new Set(),
 ): StintVsStintModel | null {
+  const basis = new Set(basisOf(laps, ticked).map(l => l.id));
   const stintNs = [...new Set(laps.map(l => l.stint))].sort((a, b) => a - b);
   const byStint = stintNs
     .map(n => ({
       n,
       times: laps
-        .filter(l => l.stint === n && l.comparable)
+        .filter(l => l.stint === n && basis.has(l.id))
         .map(lapCornerTimes)
         .filter(t => t.length > 0),
     }))
@@ -158,9 +170,10 @@ export function useSessionDesktopModel(
     if (!session.data || !laps.data) return null;
     // Corner numbers are the map's parts (T1–T11), in lapCornerTimes order.
     const corners = map.data ? trackCorners(map.data) : null;
+    const ticked = new Set(selection.laps);
     return {
-      stints: buildStintTable(session.data, laps.data),
-      stintVsStint: buildStintVsStint(laps.data, corners),
+      stints: buildStintTable(session.data, laps.data, ticked),
+      stintVsStint: buildStintVsStint(laps.data, corners, ticked),
     };
   }, [session.data, laps.data, map.data, selection]);
 }

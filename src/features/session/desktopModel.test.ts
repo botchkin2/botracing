@@ -20,15 +20,32 @@ describe('median', () => {
 });
 
 describe('buildStintTable', () => {
-  const rows = buildStintTable(session, laps);
+  const rows = buildStintTable(session, laps, new Set());
 
-  it('one row per stint from the stored stint stats', () => {
+  it('with nothing ticked, one row per stint over its comparable laps; spread is the IQR', () => {
+    // Recomputed from the fixture's lap times: stint 1's 13 comparable laps
+    // have p75 − p25 = 1.219 s (their standard deviation, shown before, 0.91).
     expect(
       rows.map(r => [r.name, r.count, r.median, r.best, r.spread]),
     ).toEqual([
-      ['Stint 1', '13/17', '1:21.938', '1:20.774', '0.91'],
+      ['Stint 1', '13/17', '1:21.938', '1:20.774', '1.22'],
       ['Stint 2', '3/5', '1:21.481', '1:20.763', '0.66'],
     ]);
+  });
+
+  it('follows the ticks: count, median, best and IQR are of the ticked laps', () => {
+    const fastest = laps
+      .filter(l => l.stint === 1 && l.comparable && l.timeS != null)
+      .sort((a, b) => (a.timeS as number) - (b.timeS as number))
+      .slice(0, 5);
+    const [s1, s2] = buildStintTable(
+      session,
+      laps,
+      new Set(fastest.map(l => l.id)),
+    );
+    expect(s1.count).toBe('5/17');
+    expect(s1.best).toBe('1:20.774');
+    expect(s2).toMatchObject({count: '0/5', median: '—', spread: '—'});
   });
 
   it('gives the laps of the stint and no fall-off', () => {
