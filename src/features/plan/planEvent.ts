@@ -42,12 +42,16 @@ export function eventsOf(sessions: SessionSummary[]): PlanEvent[] {
   return [...byWeek.values()].sort((a, b) => b.week.localeCompare(a.week));
 }
 
-/** "One Stint Sprint · week of 09-29 · 100 L"; the series and the load only when known. */
+/**
+ * "100 L · One Stint Sprint · week of 09-29"; the load and the series only
+ * when known. The load leads: on a phone the Rules chip cuts its label with an
+ * ellipsis from the end, and the fuel figure is the part that must stay.
+ */
 export function eventLabel(e: PlanEvent, loadL: number | null): string {
   return [
+    loadL != null ? `${Math.round(loadL * 10) / 10} L` : null,
     e.series,
     `week of ${e.week.slice(5)}`,
-    loadL != null ? `${Math.round(loadL * 10) / 10} L` : null,
   ]
     .filter(Boolean)
     .join(' · ');

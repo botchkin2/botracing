@@ -36,6 +36,12 @@ It prints one link per origin. Open a link once in the browser pane: the app sig
 
 Never add a path that accepts a uid from the URL or skips sign-in when local: that would be a real bypass. A custom token is not one; only the service account (or Token Creator) can mint it.
 
+## Measuring a width in the browser pane
+
+The pane's viewport presets and `resize_window` change the size but fire no `resize` event, neither on `window` nor on `window.visualViewport`. React Native web's `Dimensions` (behind `useWindowDimensions`, behind `useLayout`) listens to the second, so a page that was already loaded keeps laying itself out at the width it had, and a screen that sizes charts or cards in JS (Plan's cards, timeline and slider) reads wider than the new viewport: at 375 after a load at 440, the Plan column was 408 wide and nine elements sat past the edge. Real rotations and window resizes fire the event and re-lay the page at once; the app needs no fix for this.
+
+So set the size first and then **reload**, or, to keep the page, run `visualViewport.dispatchEvent(new Event('resize'))` in the pane and wait a moment. Measure after that (0 elements with `getBoundingClientRect().right` past `innerWidth` is the check). A measurement taken straight after a resize is of the old width (pit-wall, Plan at 375, #4495 and #4498).
+
 ## Test data
 
 `seat-test` has no sessions until some are uploaded through the real pipeline (LMU only; no iRacing until the sessions game filter exists): one race, one practice, one with several files.
