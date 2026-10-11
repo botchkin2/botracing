@@ -87,7 +87,7 @@ export const MEASURES: {
   {id: 'pickup', label: 'Throttle pickup', unit: 'm after apex', better: null},
   {
     id: 'throttle',
-    label: 'Full throttle',
+    label: 'Full pedal',
     unit: 'm after apex',
     better: 'lower',
   },

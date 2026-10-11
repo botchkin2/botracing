@@ -131,7 +131,7 @@ describe('candidate text', () => {
       {session: {...summaryA, startedAt: '2026-09-25T12:00:00Z'}, laps: lapsA},
     ]);
     expect(candidateLine(c)).toMatch(
-      /^L11 · 25 Sep · Race · 1:20\.743 · −13\.688 s$/,
+      /^L11 · Sep 25 · Race · 1:20\.743 · −13\.688 s$/,
     );
     expect(matchText(c.match)).toBe(
       'same car · same session type · load in band · tires kept · on track',

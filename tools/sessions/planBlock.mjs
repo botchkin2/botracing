@@ -7,11 +7,15 @@
 // and eventLoad read, computed once here. The series week is not stored: it
 // depends on the viewer's time zone and is worked out from startedAt.
 
+import {REFUEL_L_PER_S} from '../../src/analysis/refuel.ts';
+
 /**
  * Bump when the rules below change: it goes into analyze.mjs's blockVersions,
  * so every session is re-analysed once and the block is written again.
  */
-export const PLAN_VERSION = 1;
+// 2: a stop names its visit's kind (service, repair, penalty) and the pump's
+//    rate (fillLPerS); the pit loss is learnt from service visits only.
+export const PLAN_VERSION = 2;
 
 const finite = x => (Number.isFinite(x) ? x : null);
 
@@ -49,6 +53,12 @@ function planLap(lap, n) {
 // two laps of the stint's median green lap), so the Plan's pit lane base needs
 // no lap docs. The rules are pitBase.ts's own (pit-wall thread 36 #1071).
 const MIN_STINT_LAPS = 3;
+// A service stands still for its fill and little else: the stop, the lollipop,
+// the release. A visit that stood still longer than its fill plus this was
+// doing something else (a repair the classifier could not see once the
+// capture was pruned: Daytona 29 Sep, 4 L in a 60.6 s stop), so it teaches no
+// pit loss (bias, #496 review).
+const SERVICE_MARGIN_S = 10;
 const WHEELS = ['FL', 'FR', 'RL', 'RR'];
 
 const timeOf = lap => (lap.timed === false ? null : finite(lap.lapTime));
@@ -78,12 +88,22 @@ function stintMedianS(laps, stint) {
 
 /**
  * The stop's lane loss in seconds, or null when pitBase.ts would leave the stop
- * out: no fuel added, tyres unknown or changed, no timed in-lap, no clean
- * out-lap after it, or no stint median to set the laps against.
+ * out: not a service (a repair or a penalty stands still for something else,
+ * even when it also refuelled), a "service" that stood still longer than its
+ * fill plus SERVICE_MARGIN_S, no fuel added, tyres unknown or changed, no
+ * timed in-lap, no clean out-lap after it, or no stint median to set the laps
+ * against.
  */
 function lossOf(laps, i) {
   const lap = laps[i];
   const stop = lap.pitStop;
+  if (stop?.visit?.kind !== 'service') return null;
+  // The work must fit the time stood still: the fill at its measured rate.
+  const still = finite(stop.visit.stationaryS);
+  const fillS =
+    (finite(stop.added?.fuelL) ?? 0) /
+    (finite(stop.fillLPerS) ?? REFUEL_L_PER_S);
+  if (still == null || still > fillS + SERVICE_MARGIN_S) return null;
   const litres = finite(stop?.added?.fuelL);
   const inLap = timeOf(lap);
   if (!(litres > 0) || inLap == null) return null;
@@ -162,6 +182,10 @@ function raceBlock({laps, race, result}) {
               // For the pit lane base: litres added and the lane loss.
               addedL: finite(lap.pitStop.added?.fuelL),
               lossS: lossOf(laps, i),
+              // Why the car was in the lane (pitVisit.mjs) and the pump's rate.
+              kind: lap.pitStop.visit?.kind ?? null,
+              detail: lap.pitStop.visit?.detail ?? null,
+              fillLPerS: finite(lap.pitStop.fillLPerS),
             },
           ]
         : [],
@@ -174,7 +198,13 @@ function raceBlock({laps, race, result}) {
  * `laps` its lap docs in driving order (`n` is the 1-based position, the app's
  * `lapIndex`). `race` is null outside a race.
  */
-export function planBlock({sessionType, fuel, laps, race = null, result = null}) {
+export function planBlock({
+  sessionType,
+  fuel,
+  laps,
+  race = null,
+  result = null,
+}) {
   return {
     v: PLAN_VERSION,
     fuel: {
@@ -185,6 +215,8 @@ export function planBlock({sessionType, fuel, laps, race = null, result = null})
     },
     laps: laps.map((lap, i) => planLap(lap, i + 1)).filter(Boolean),
     // 'Race' (iRacing, LMU), the same test sync.mjs uses for the race length.
-    race: /^r/i.test(sessionType ?? '') ? raceBlock({laps, race, result}) : null,
+    race: /^r/i.test(sessionType ?? '')
+      ? raceBlock({laps, race, result})
+      : null,
   };
 }

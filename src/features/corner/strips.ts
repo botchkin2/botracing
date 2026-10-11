@@ -135,7 +135,7 @@ const SPECS: Record<StripMeasure, Spec> = {
   },
   throttle: {
     measure: 'throttle',
-    label: 'Full throttle',
+    label: 'Full pedal',
     unit: 'm after apex',
     value: l => l.throttleM,
     res: l => l.throttleResM,
@@ -243,7 +243,7 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     empty: dots.length === 0,
     flatNote:
       flat > 0
-        ? `Full throttle by the slowest point: ${flat} of ${laps.length} ${
+        ? `Full pedal by the slowest point: ${flat} of ${laps.length} ${
             laps.length === 1 ? 'lap' : 'laps'
           }`
         : null,

@@ -67,7 +67,7 @@ describe('switcherRows', () => {
       5,
     ).toISOString();
     const [row] = switcherRows([session({id: 'a', startedAt})], 'le-mans', 'a');
-    expect(row.date).toBe('14 Sep, 18:05');
+    expect(row.date).toBe('Sep 14, 18:05');
     expect(row.best).toBe('3:59.400');
   });
 });

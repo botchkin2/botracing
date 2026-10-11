@@ -1,5 +1,5 @@
 import {type PitModel} from '@/src/analysis/fuelPlan';
-import {REFUEL_L_PER_S, refuelMeasured} from '@/src/analysis/refuel';
+import {type RefuelRate, refuelRateOf} from '@/src/analysis/refuel';
 import {type PlanStop} from '@/src/data/sessions';
 
 // The pit lane base of a track and car, measured from his own stops there
@@ -23,23 +23,39 @@ function median(sorted: number[]): number {
 }
 
 /**
+ * The refuel rate of the history: the pump rate measured on his own race
+ * stops here (every visit that added fuel, a repair's included: the pump runs
+ * at its own rate whatever else the stop does), else the GT3 default
+ * (src/analysis/refuel.ts). `races` are the plan blocks' race sides.
+ */
+export function refuelRateFor(
+  races: {stops: PlanStop[]}[],
+  carClass: string,
+): RefuelRate | null {
+  return refuelRateOf(
+    races.flatMap(r => r.stops.map(s => s.fillLPerS)),
+    carClass,
+  );
+}
+
+/**
  * The median of (pit loss - litres added / refuel rate) over the race stops
- * the uploader could measure. `races` are the plan blocks' race sides of the
- * history, in any order. Null where the refuel rate is not measured for the
- * class, or under MIN_BASE_STOPS stops. The 3.4 L/s rate is `REFUEL_L_PER_S`,
- * measured in thread 34 on 5 stops (src/analysis/refuel.ts).
+ * the uploader could measure: services only (planBlock.mjs leaves a repair or a
+ * penalty without a loss). Null without a rate, or under MIN_BASE_STOPS stops.
  */
 export function pitLaneBase(
   races: {stops: PlanStop[]}[],
-  carClass: string,
+  rate: RefuelRate | null,
 ): PitBase | null {
-  if (!refuelMeasured(carClass)) return null;
+  if (!rate) return null;
   const bases: number[] = [];
   for (const race of races) {
     for (const stop of race.stops) {
       if (stop.lossS == null || !(stop.addedL != null && stop.addedL > 0))
         continue;
-      bases.push(stop.lossS - stop.addedL / REFUEL_L_PER_S);
+      // A block from before version 2 has no kind; one that does must be a service.
+      if (stop.kind != null && stop.kind !== 'service') continue;
+      bases.push(stop.lossS - stop.addedL / rate.lPerS);
     }
   }
   if (bases.length < MIN_BASE_STOPS) return null;
@@ -47,7 +63,10 @@ export function pitLaneBase(
   return {baseS: Math.max(0, median(bases)), stops: bases.length};
 }
 
-/** The model the planner takes; null without a base. */
-export function pitModelOf(base: PitBase | null): PitModel | null {
-  return base ? {baseS: base.baseS, refuelLPerS: REFUEL_L_PER_S} : null;
+/** The model the planner takes; null without a base or a rate. */
+export function pitModelOf(
+  base: PitBase | null,
+  rate: RefuelRate | null,
+): PitModel | null {
+  return base && rate ? {baseS: base.baseS, refuelLPerS: rate.lPerS} : null;
 }

@@ -22,7 +22,12 @@ describe('toPlanSessions', () => {
   it('reads the response of GET /plan: sessions newest first, the cap flag', () => {
     const out = toPlanSessions({
       items: [
-        {id: 'a', startedAt: '2026-10-09T10:00:00Z', sessionType: 'Race', plan: block},
+        {
+          id: 'a',
+          startedAt: '2026-10-09T10:00:00Z',
+          sessionType: 'Race',
+          plan: block,
+        },
         {id: 'b', startedAt: '2026-09-01T10:00:00Z', sessionType: 'Practice'},
       ],
       truncated: true,
@@ -73,14 +78,22 @@ describe('toPlanBlock', () => {
   });
 
   it('keeps laps as null for a session past the newest few, and drops a lap with a missing number', () => {
-    expect(toPlanBlock({v: 1, fuel: {}, laps: null, race: null})?.laps).toBeNull();
+    expect(
+      toPlanBlock({v: 1, fuel: {}, laps: null, race: null})?.laps,
+    ).toBeNull();
     const out = toPlanBlock({
       v: 1,
       fuel: {},
       laps: [{n: 1, usedL: 2, timeS: 90}, {n: 2, usedL: 2}, 'x'],
     });
     expect(out?.laps).toHaveLength(1);
-    expect(out?.laps?.[0]).toMatchObject({n: 1, usedL: 2, timeS: 90, veUsedPct: null, comparable: false});
+    expect(out?.laps?.[0]).toMatchObject({
+      n: 1,
+      usedL: 2,
+      timeS: 90,
+      veUsedPct: null,
+      comparable: false,
+    });
   });
 
   it('reads a race side, with a stop that carries its loss', () => {
@@ -98,11 +111,41 @@ describe('toPlanBlock', () => {
         formationL: 2.68,
         ownUse: {fuelL: 2.55, vePct: null},
         end: {lapIndex: 28, fuelL: 6.91, vePct: null},
-        stops: [{lapIndex: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18}],
+        stops: [
+          {lapIndex: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18},
+        ],
       },
     });
     expect(out?.race?.stops).toEqual([
-      {lapIndex: 19, fuelL: 6.98, vePct: null, addedL: 23, lossS: 34.18},
+      {
+        lapIndex: 19,
+        fuelL: 6.98,
+        vePct: null,
+        addedL: 23,
+        lossS: 34.18,
+        kind: null,
+        detail: null,
+        fillLPerS: null,
+      },
+    ]);
+    const v2 = toPlanBlock({
+      v: 2,
+      fuel: {},
+      laps: null,
+      race: {
+        raceLaps: 3,
+        end: {lapIndex: 4},
+        stops: [
+          {lapIndex: 2, kind: 'repair', detail: null, fillLPerS: 3.37},
+          {lapIndex: 3, kind: 'penalty', detail: 'stop-go'},
+          {lapIndex: 4, kind: 'nonsense'},
+        ],
+      },
+    });
+    expect(v2?.race?.stops.map(s => [s.kind, s.detail, s.fillLPerS])).toEqual([
+      ['repair', null, 3.37],
+      ['penalty', 'stop-go', null],
+      [null, null, null],
     ]);
     expect(out?.race?.formationL).toBe(2.68);
   });

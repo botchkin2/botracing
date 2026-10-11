@@ -69,6 +69,8 @@ export function raceFactsOfPlan(
       lapIndex: s.lapIndex,
       fuelL: s.fuelL,
       vePct: s.vePct,
+      kind: s.kind,
+      detail: s.detail,
     })),
   };
 }

@@ -100,7 +100,7 @@ describe('scheduledLength', () => {
 
 describe('the words the plan half prints', () => {
   it('names a date by hand, day then month', () => {
-    expect(dateOf('2026-09-26T00:38:00Z')).toBe('26 Sep');
+    expect(dateOf(new Date(2026, 8, 26, 12).toISOString())).toBe('Sep 26');
   });
 
   it('pluralises a count', () => {

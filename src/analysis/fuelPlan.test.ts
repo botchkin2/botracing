@@ -4,6 +4,7 @@ import {
   type GreenLap,
   MAX_PIT_PASSES,
   MIN_COMPARE_LAPS,
+  paceLaps,
   planRace,
   presetMismatch,
   startLoad,
@@ -37,6 +38,51 @@ const laps = (
     sessionId: i % 2 ? 'a' : 'b',
   }));
 
+describe('the plan basis: fuel from green laps, pace from comparable laps', () => {
+  // 6 comparable laps at 110 s, 3 traffic laps at 114 s that burn more.
+  const history = [
+    ...laps(6, 2.4, null, 110),
+    ...laps(3, 2.6, null, 114).map(l => ({...l, comparable: false})),
+  ];
+
+  it('takes the lap time over the comparable laps only', () => {
+    const p = planRace(rules(), history);
+    expect(p.perLap.lapTimeS?.median).toBe(110);
+    expect(p.perLap.lapTimeS?.n).toBe(6);
+    expect(p.perLap.lapTimeBasis).toBe('comparable');
+  });
+
+  it('takes fuel over every green lap, traffic included', () => {
+    const p = planRace(rules(), history);
+    expect(p.perLap.fuel?.n).toBe(9);
+    expect(p.history.laps).toBe(9);
+  });
+
+  it('falls back to the green laps, and says so, under three comparable laps', () => {
+    const few = [
+      ...laps(2, 2.4, null, 110),
+      ...laps(4, 2.6, null, 114).map(l => ({...l, comparable: false})),
+    ];
+    expect(paceLaps(few)).toBe(few);
+    const p = planRace(rules(), few);
+    expect(p.perLap.lapTimeS?.n).toBe(6);
+    expect(p.perLap.lapTimeBasis).toBe('green');
+  });
+
+  it('a timed race counts its laps at the comparable pace', () => {
+    // 6 comparable at 110 s and 7 traffic laps at 114 s: the green median is
+    // 114 (22 laps in 40 min), the comparable one 110 (2400 / 110, 22 laps too,
+    // but the median the plan reads must be 110).
+    const mixed = [
+      ...laps(6, 2.4, null, 110),
+      ...laps(7, 2.6, null, 114).map(l => ({...l, comparable: false})),
+    ];
+    const p = planRace(rules({lengthLaps: null, lengthMin: 40}), mixed);
+    expect(p.perLap.lapTimeS?.median).toBe(110);
+    expect(p.raceLaps?.estimate).toBe(Math.ceil(2400 / 110));
+  });
+});
+
 describe('usage', () => {
   it('needs three laps', () => {
     expect(usage([3, 3.1])).toBeNull();
@@ -55,7 +101,12 @@ describe('planRace', () => {
   it('shows nothing without history', () => {
     const p = planRace(rules(), []);
     expect(p.history).toEqual({laps: 0, sessions: 0});
-    expect(p.perLap).toEqual({fuel: null, ve: null, lapTimeS: null});
+    expect(p.perLap).toEqual({
+      fuel: null,
+      ve: null,
+      lapTimeS: null,
+      lapTimeBasis: 'green',
+    });
     expect(p.atMedian.stops).toBeNull();
     expect(p.atMedian.stint.laps).toBeNull();
     expect(p.dropStop).toBeNull();

@@ -10,27 +10,10 @@ export function formatLapTime(timeS: number): string {
   return `${minutes}:${seconds}`;
 }
 
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/** An ISO date as the day it fell on here: "25 Sep"; the empty string when it does not parse. */
+/** An ISO date as the day it fell on here: "Sep 25"; the empty string when it does not parse. */
 export function formatDay(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return Number.isNaN(d.getTime()) ? '' : dayMonthOf(d);
 }
 
 /** Signed gap with 3 decimals: "+0.312", "−0.105". Uses a true minus sign. */
@@ -52,6 +35,15 @@ export function formatRaceGap(gapS: number): string {
   const tenths = Math.round(gapS * 10);
   const minutes = Math.floor(tenths / 600);
   return `+${minutes}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
+}
+
+/**
+ * One decimal, half up on the stored value: a median of 2.55 prints "2.6", not
+ * the "2.5" that toFixed gives for the float just under it. For per-lap use
+ * figures, so Session and Plan print the same number for the same median.
+ */
+export function oneDecimal(v: number): string {
+  return (Math.round(v * 10 + 1e-9) / 10).toFixed(1);
 }
 
 /** Corner grid: 2 decimals, no leading zero: "+.21", "−1.04". */
@@ -76,12 +68,11 @@ export function formatDistance(distanceM: number): string {
 }
 
 /**
- * "14 Sep": the one place a short date is spelled, so no call site gets "Sept"
- * from en-GB. The day comes first, as in the frames; the month is the US
- * abbreviation. Device time zone.
+ * "Sep 14": the one place a short date is spelled, so no call site gets "Sept"
+ * from en-GB or a day-first "14 Sep". Month first, US style; device time zone.
  */
 export function dayMonthOf(d: Date): string {
-  return `${d.getDate()} ${monthOf(d)}`;
+  return `${monthOf(d)} ${d.getDate()}`;
 }
 
 // The one spelling of the short month: en-US, because en-GB gives "Sept".
@@ -89,13 +80,11 @@ function monthOf(d: Date): string {
   return d.toLocaleDateString('en-US', {month: 'short'});
 }
 
-/** "21 Sep 2026", in the device's time zone. */
+/** "Sep 21, 2026", in the device's time zone. */
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getDate()).padStart(2, '0')} ${monthOf(
-    d,
-  )} ${d.getFullYear()}`;
+  return `${dayMonthOf(d)}, ${d.getFullYear()}`;
 }
 
 /** 5891 → {km: "5.891 km", mi: "3.660 mi"} */
@@ -106,14 +95,14 @@ export function formatLength(distanceM: number): {km: string; mi: string} {
   };
 }
 
-/** "14 Sep", in the device's time zone. */
+/** "Sep 14", in the device's time zone. */
 export function formatDayMonth(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return dayMonthOf(d);
 }
 
-/** "14 Sep, 18:30" this year, "14 Sep 2025" for an earlier year; device time zone. */
+/** "Sep 14, 18:30" this year, "Sep 14, 2025" for an earlier year; device time zone. */
 export function formatDayMonthTime(
   iso: string,
   now: Date = new Date(),
@@ -121,7 +110,7 @@ export function formatDayMonthTime(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   if (d.getFullYear() !== now.getFullYear())
-    return `${formatDayMonth(iso)} ${d.getFullYear()}`;
+    return `${formatDayMonth(iso)}, ${d.getFullYear()}`;
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${formatDayMonth(iso)}, ${hh}:${mm}`;
