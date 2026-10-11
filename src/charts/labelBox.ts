@@ -5,13 +5,14 @@
 // warns on. Pure, so tests prove the boxes.
 //
 // The metrics are the axis font's (IBM Plex Mono): ChartLabel draws only in it.
+import {MONO_ADVANCE_EM} from '@/src/design/tokens';
 
 // IBM Plex Mono's metrics (the axis font): an advance of 0.6 em per glyph, and
 // the box Chrome draws for 9 pt text: 9.33 above the baseline and 2.67 below
 // (getBBox on the live Laps chart; the font's own 1.025 / 0.275, pixel-rounded).
 export const ASCENT_EM = 1.04;
 export const DESCENT_EM = 0.3;
-export const CHAR_EM = 0.6;
+export const CHAR_EM = MONO_ADVANCE_EM;
 // The box is kept this far inside the frame: a glyph's ink can overhang its
 // advance by 0.6 px ("TOW" measures 16.8 against a 16.2 advance).
 export const EDGE_PT = 1;

@@ -1,6 +1,6 @@
 import {describe, expect, test} from '@jest/globals';
 
-import {median, stintSpans, stripBars} from './lapStrip';
+import {stintSpans, stripBars} from './lapStrip';
 
 const lap = (
   id: string,
@@ -9,17 +9,6 @@ const lap = (
   comparable = true,
   pit = false,
 ) => ({id, timeS, stint, comparable, pit});
-
-describe('median', () => {
-  test('the middle value, or the mean of the two middle values', () => {
-    expect(median([3, 1, 2])).toBe(2);
-    expect(median([4, 1, 3, 2])).toBe(2.5);
-  });
-
-  test('an empty set has no median', () => {
-    expect(median([])).toBeNull();
-  });
-});
 
 describe('stripBars', () => {
   const laps = [lap('a', 80), lap('b', 81), lap('c', 83), lap('d', null)];
@@ -50,6 +39,17 @@ describe('stripBars', () => {
     const {bars, basisS} = stripBars([lap('a', null)], []);
     expect(basisS).toBeNull();
     expect(bars[0].deltaS).toBeNull();
+  });
+
+  test('ticked ids that are not laps of this session fall back to the comparable laps, like the grid', () => {
+    const {basisS} = stripBars(
+      [
+        {id: 'a', timeS: 80, stint: 1, comparable: true, pit: false},
+        {id: 'b', timeS: 82, stint: 1, comparable: true, pit: false},
+      ],
+      ['other-session-lap'],
+    );
+    expect(basisS).toBe(81);
   });
 });
 

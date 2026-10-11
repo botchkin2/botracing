@@ -42,7 +42,7 @@ const FIXED_W =
 // section names are. The head's width comes from the table-header type token.
 const HEAD_CHAR_W = monoCharWidth(type.tableHeader);
 export function headWidth(heads: string[]): number {
-  return Math.ceil(Math.max(0, ...heads.map(h => h.length)) * HEAD_CHAR_W);
+  return Math.ceil(Math.max(0, ...heads.map(h => [...h].length)) * HEAD_CHAR_W);
 }
 export function sectionColW(width: number, heads: string[]): number {
   const count = heads.length;
@@ -105,6 +105,7 @@ export function LapTableHeader({
             key={h}
             variant='tableHeader'
             tone='textMuted'
+            asWritten
             numberOfLines={1}
             style={[styles.right, {width: sectionW}]}>
             {h}
