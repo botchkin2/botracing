@@ -24,7 +24,9 @@ beforeEach(() => {
   }) as typeof requestAnimationFrame;
   globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame;
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function mount(startM: number) {
   const out: {api: ReturnType<typeof usePlayback>; cursor: number} = {
