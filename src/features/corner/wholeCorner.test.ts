@@ -283,9 +283,8 @@ describe('All on a compound corner', () => {
     expect(m.zoom.stretch.toM).toBe(1000);
     expect(m.zoom.windowM[0]).toBeLessThanOrEqual(500);
     expect(m.subtitle).toContain('vs median of 2');
-    // Names the compound, and not its own parts as "also in view".
-    expect(m.zoom.caption).not.toContain('also in view: T2');
-    expect(m.zoom.caption).not.toContain('T3');
+    // No "Shaded / also in view" prose: the chart names the neighbours itself.
+    expect(m.zoom.caption).not.toContain('also in view');
   });
 
   it('compares against the median of the set like any corner', () => {

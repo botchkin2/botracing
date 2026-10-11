@@ -137,37 +137,27 @@ describe('sectionChips', () => {
 describe('windowCaption', () => {
   const zoom: [number, number] = [350, 750];
 
-  it('names the shaded window and what is in view', () => {
-    expect(
-      windowCaption(
-        'T3',
-        {fromM: 700, toM: 740},
-        {fromM: 700, toM: 740},
-        [{label: 'T2', lapM: 580}],
-        zoom,
-      ),
-    ).toBe('Shaded: T3 · also in view: T2');
+  it('says nothing when the window sits inside the drawn stretch', () => {
+    expect(windowCaption({fromM: 700, toM: 740}, zoom)).toBe('');
   });
 
   it('says where a window runs past the drawn stretch, so the edge is not its end', () => {
+    expect(windowCaption({fromM: 700, toM: 1100}, zoom)).toBe(
+      'window continues later, not drawn',
+    );
+    expect(windowCaption({fromM: 100, toM: 500}, zoom)).toBe(
+      'window starts earlier, not drawn',
+    );
+  });
+
+  it('names where a part’s delta is drawn from, and when that start is not drawn', () => {
+    const from = {label: 'T2–3', lapM: 600, drawn: true};
+    expect(windowCaption({fromM: 700, toM: 740}, zoom, from)).toBe(
+      'delta from the start of T2–3',
+    );
     expect(
-      windowCaption(
-        'T10',
-        {fromM: 3900, toM: 4300},
-        {fromM: 700, toM: 1100},
-        [],
-        zoom,
-      ),
-    ).toBe('Shaded: T10 · window continues later, not drawn');
-    expect(
-      windowCaption(
-        'T1',
-        {fromM: 100, toM: 500},
-        {fromM: 100, toM: 500},
-        [],
-        zoom,
-      ),
-    ).toContain('window starts earlier, not drawn');
+      windowCaption({fromM: 700, toM: 740}, zoom, {...from, drawn: false}),
+    ).toBe('delta from the start of T2–3, not drawn');
   });
 });
 
@@ -177,7 +167,7 @@ describe('the Corner model with windows', () => {
   it('shades the part’s own window and anchors the delta at its start', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
-    expect(model.zoom.caption).toMatch(/^Shaded: T3/);
+    expect(model.zoom.caption).not.toContain('Shaded');
     expect(model.sections.map(s => s.label)).toEqual(['T1', 'T2–3']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
@@ -234,7 +224,7 @@ describe('the Corner model with windows', () => {
 
   it('keeps the old stretch for laps cut at other boundaries', () => {
     const model = build(m, {v: 1, rev: 2}, 3)!;
-    expect(model.zoom.caption).toMatch(/^Shaded: T3 · also in view/);
+    expect(model.zoom.caption).not.toContain('also in view');
     expect(model.zoom.stretch.fromM).toBe(700);
   });
 
