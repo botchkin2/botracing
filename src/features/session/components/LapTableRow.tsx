@@ -70,7 +70,9 @@ export function LapTableHeader({
 }) {
   const {color} = useTheme();
   const cols = colsFor(wide);
-  const sectionW = wide ? sectionColW(width, heads) : cols.sector;
+  const sectionW = wide
+    ? sectionColW(width, heads)
+    : Math.max(cols.sector, headWidth(heads));
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -241,7 +243,7 @@ export function LapRow({
   const cells = useSections ? row.sections : row.sectors;
   const cellW = wide
     ? sectionColW(width, sectionNames ?? cells.map(() => ''))
-    : cols.sector;
+    : Math.max(cols.sector, headWidth(sectionNames ?? cells.map(() => '')));
   // Desktop has room for every tag; the phone shows the first plus a count.
   const shownTags = wide ? row.tags : row.tags.slice(0, 1);
   return (
