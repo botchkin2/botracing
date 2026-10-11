@@ -15,7 +15,6 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
 
 import {AuthGate, startAuthSession} from '@/src/auth';
 import {
