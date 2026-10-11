@@ -7,7 +7,7 @@ import type {TiresCard} from './tireCard';
 const stint = (n: number) =>
   ({
     n,
-    tab: `S${n}`,
+    tab: `Stint ${n}`,
     title: `Stint ${n} · L1–L10`,
     sub: '8 green laps',
   } as TiresCard extends {stints: (infer S)[]} ? S : never);
