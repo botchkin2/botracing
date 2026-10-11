@@ -50,6 +50,12 @@ Worked example: `src/features/sessions/model.ts` and `model.test.ts`.
 
 Every screen follows the same shape: `use<Screen>Model(params)` combines the queries with `analysis` into one view model, and the screen renders it. Models are pure given their inputs and are unit-tested.
 
+### Numbers: one basis, named
+
+- **Gap basis (Compare):** the chips, the "vs" line and the All laps list measure against the same basis: the Ref lap if one is picked, else the median of the checked laps. The session median only stands in when nothing is checked.
+- **Fuel and VE per lap (Session, Plan):** the median over the stint's green laps (timed, whole, no pit, no yellow; `greenLaps` in `session/fuelUse.ts`), the set the stored stint medians and the Plan use. A slow or off-track lap still burns fuel. Printed with `oneDecimal` (`design/format.ts`, half up on the stored value) so Session and Plan show the same figure for the same median.
+- **Full pedal (Corner):** the driver's pedal, not the car's throttle (see the Corner table below).
+
 ### Corner: windows and the Parts row
 
 Corner shows one corner's window: a section's window (boundary to boundary, `tracks/{trackId}.boundaries`) when the section is one corner, or one part's window when it is compound. The charts frame the window from the section's start to the shown corner's end, and shade the window. A compound section's Parts row starts with **All** (`/session/[id]/corner/[n]?all=1`, `n` = first part): the whole window as one corner, same charts, table, Spread and braking map. Stepping through the parts is unchanged. Charts read the last part's slice file, which already runs from the section's start to its end. Which fact comes from where over the whole window (`src/features/corner/wholeCorner.ts`):
@@ -59,9 +65,9 @@ Corner shows one corner's window: a section's window (boundary to boundary, `tra
 | Time, slowest speed, apex speed | the section's own facts (full window) |
 | Brake point, peak brake, turn-in | one part for the whole set: the part most laps' first brake application brakes for (`brakeApps[0].part`; else the slowest point's part; ties to the earlier), measured to its apex; judged by that part's `minSpeedAtEdge` |
 | Pickup, lowest throttle | the last part, measured from its apex; judged by the section's `minSpeedAtEdge` |
-| Full throttle | the last part, from its apex, for every lap (a lap already flat there reads "at min"); judged by the section's `minSpeedAtEdge` |
+| Full pedal | the last part, from its apex, for every lap (a lap already flat there reads "at min"); judged by the section's `minSpeedAtEdge`. The point is the driver's unfiltered pedal at 95 % or more (`tools/sessions/pedalPoints.mjs`), not the car's throttle that the chart plots: that one dips under 95 % where traction control cuts while the pedal is floored |
 
-The card's Run-in / Corner / Exit split every lap at the same two distances: the lap's own onset and the map's exit for that corner, never the lap's full-throttle point (that is the table's Full throttle column), so the Corner and Exit gaps do not trade seconds when a lap gets to the throttle early or late. The run-in/corner boundary stays each lap's own onset on purpose: braking earlier is driving the corner differently, getting to the throttle earlier is the Full throttle column's fact. Where the map's exit is at or past the window's end, Exit is "—" (it happens in the next window), not 0.00.
+The card's Run-in / Corner / Exit split every lap at the same two distances: the lap's own onset and the map's exit for that corner, never the lap's full-throttle point (that is the table's Full pedal column), so the Corner and Exit gaps do not trade seconds when a lap gets to the throttle early or late. The run-in/corner boundary stays each lap's own onset on purpose: braking earlier is driving the corner differently, getting to the throttle earlier is the Full throttle column's fact. Where the map's exit is at or past the window's end, Exit is "—" (it happens in the next window), not 0.00.
 
 A fact the source cannot supply is "—" (never a boundary value). The braking map spans first entry to last exit and places each lap's points from the same apexes.
 

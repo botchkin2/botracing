@@ -54,6 +54,15 @@ export function formatRaceGap(gapS: number): string {
   return `+${minutes}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
 }
 
+/**
+ * One decimal, half up on the stored value: a median of 2.55 prints "2.6", not
+ * the "2.5" that toFixed gives for the float just under it. For per-lap use
+ * figures, so Session and Plan print the same number for the same median.
+ */
+export function oneDecimal(v: number): string {
+  return (Math.round(v * 10 + 1e-9) / 10).toFixed(1);
+}
+
 /** Corner grid: 2 decimals, no leading zero: "+.21", "−1.04". */
 export function formatCornerGap(deltaS: number): string {
   return formatGap(deltaS, 2).replace(/^([+−±])0\./, '$1.');

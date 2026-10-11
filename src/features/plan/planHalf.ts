@@ -9,6 +9,7 @@
 // the laps a stint burns times that use. They are labelled "at the median use".
 import type {FuelPlan, PlanRules, RaceFacts} from '@/src/analysis/fuelPlan';
 
+import {oneDecimal} from '@/src/design';
 import type {ActualEnd, ActualStop} from '@/src/features/session/pitCard';
 
 import {type PlanBasis, scheduledLength} from './planVsRace';
@@ -174,7 +175,7 @@ export function buildPlanHalf(input: {
           'VE a lap',
           plan.perLap.ve?.median ?? null,
           facts.ownUse.vePct,
-          v => `${v.toFixed(1)} %`,
+          v => `${oneDecimal(v)} %`,
         )
       : null,
   ].filter((r): r is PlanHalfRow => r != null);

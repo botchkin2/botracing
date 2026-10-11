@@ -2,8 +2,9 @@
 // facts (tools/sessions/fuelFacts.mjs). Pure. Numbers, units and what they
 // were measured against, never advice (CODE_STANDARDS §7).
 import type {Lap, PitStop} from '@/src/data/sessions';
+import {oneDecimal} from '@/src/design';
 
-import {greenLaps, median, oneDecimal} from './fuelUse';
+import {greenLaps, median} from './fuelUse';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;

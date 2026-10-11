@@ -6,7 +6,7 @@
 // than the laps inside each stint do (camber, #1205).
 import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
-import {formatLapTime} from '@/src/design';
+import {formatLapTime, oneDecimal} from '@/src/design';
 
 /** A stint gives a median from this many green laps. */
 export const MIN_STINT_LAPS = 4;
@@ -59,14 +59,6 @@ function quantile(sorted: number[], q: number): number {
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-
-/**
- * One decimal, half up on the stored value: a median of 2.55 prints "2.6", not
- * the "2.5" that toFixed gives for the float just under it.
- */
-export function oneDecimal(v: number): string {
-  return (Math.round(v * 10 + 1e-9) / 10).toFixed(1);
 }
 
 export function median(values: number[]): number | null {

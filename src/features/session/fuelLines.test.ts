@@ -3,7 +3,6 @@ import {describe, expect, it} from '@jest/globals';
 import type {Lap, PitStop} from '@/src/data/sessions';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
-import {oneDecimal} from './fuelUse';
 
 // Road Atlanta race 2026-09-26, the stop on lap 16 (thread 34).
 const stop: PitStop = {
@@ -85,9 +84,6 @@ describe('stintFuelLine', () => {
     expect(stintFuelLine([g(2.4, 2.5), g(2.4, 2.55), g(2.4, 2.6)])).toBe(
       'Fuel 2.40 L/lap · VE 2.6 %/lap',
     );
-    expect(oneDecimal(2.55)).toBe('2.6');
-    expect(oneDecimal(2.45)).toBe('2.5');
-    expect(oneDecimal(2.449)).toBe('2.4');
   });
 
   it('a lap that is not green is left out', () => {

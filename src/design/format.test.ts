@@ -11,6 +11,7 @@ import {
   formatGap,
   formatLapTime,
   formatRaceGap,
+  oneDecimal,
   turnLabel,
 } from './format';
 
@@ -47,6 +48,15 @@ describe('format', () => {
 describe('formatLength', () => {
   it('gives km and miles to the metre', () => {
     expect(formatLength(5891)).toEqual({km: '5.891 km', mi: '3.660 mi'});
+  });
+});
+
+describe('oneDecimal', () => {
+  it('rounds half up on the stored value, not on the float below it', () => {
+    expect(oneDecimal(2.55)).toBe('2.6');
+    expect(oneDecimal(2.45)).toBe('2.5');
+    expect(oneDecimal(2.449)).toBe('2.4');
+    expect(oneDecimal(2.5)).toBe('2.5');
   });
 });
 
