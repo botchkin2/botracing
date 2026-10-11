@@ -253,6 +253,18 @@ describe('an iRacing track (real GPS, identity georef)', () => {
     expect(placed[2].y).toBeCloseTo(500, 3);
   });
 
+  it('world metres are measured around its own origin too: a placed car lands on the drawn lap', () => {
+    const placer = mapPlacer(iracing);
+    const world = placer.traceToWorld(trace as never, 0, 2, 1);
+    expect(world[1].x).toBeCloseTo(1000, 3);
+    const back = placer.placeWorld(world.map(p => ({x: p.x, z: p.y})));
+    const drawn = placer.place(trace as never, 0, 2, 1);
+    back.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(drawn[i].x, 6);
+      expect(p.y).toBeCloseTo(drawn[i].y, 6);
+    });
+  });
+
   it('without its fakeOrigin it would land 60°N away: the adapter keeps it', () => {
     const kept = toTrackMap({
       quality: 'good',
