@@ -3,7 +3,7 @@
 // were measured against, never advice (CODE_STANDARDS §7).
 import type {Lap, PitStop} from '@/src/data/sessions';
 
-import {comparableGreenLaps, median} from './fuelUse';
+import {greenLaps, median, oneDecimal} from './fuelUse';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -38,12 +38,12 @@ export function pitLine(stop: PitStop): string | null {
 
 /**
  * The line under a stint header: its median use per lap, over the stint's
- * comparable green laps (the same set the fuel card uses, so the two agree).
+ * green laps (the same set the fuel card uses, so the two agree).
  * Null under 3 such laps, so the line is left out.
  * "Fuel 2.40 L/lap · VE 3.6 %/lap"
  */
 export function stintFuelLine(stintLaps: Lap[]): string | null {
-  const usable = comparableGreenLaps(stintLaps);
+  const usable = greenLaps(stintLaps);
   if (usable.length < MIN_NOTE_LAPS) return null;
   const fuelL = median(usable.map(l => l.fuel!.usedL as number));
   const ve = usable
@@ -52,7 +52,7 @@ export function stintFuelLine(stintLaps: Lap[]): string | null {
   const vePct = ve.length >= MIN_NOTE_LAPS ? median(ve) : null;
   const parts = [
     fuelL != null && `Fuel ${fuelL.toFixed(2)} L/lap`,
-    vePct != null && `VE ${vePct.toFixed(1)} %/lap`,
+    vePct != null && `VE ${oneDecimal(vePct)} %/lap`,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }

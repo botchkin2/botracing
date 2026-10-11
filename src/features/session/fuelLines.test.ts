@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import type {Lap, PitStop} from '@/src/data/sessions';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
+import {oneDecimal} from './fuelUse';
 
 // Road Atlanta race 2026-09-26, the stop on lap 16 (thread 34).
 const stop: PitStop = {
@@ -59,22 +60,45 @@ describe('stintFuelLine', () => {
       ...over,
     } as Lap);
 
-  it('the median use over the stint comparable green laps', () => {
+  it('the median use over the stint green laps', () => {
     expect(
       stintFuelLine([g(2.4, 3.5), g(2.4, 3.6), g(2.5, 3.7), g(2.3, 3.6)]),
     ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap');
   });
 
-  it('a slow or otherwise not comparable green lap is left out, as on the fuel card', () => {
-    const laps = [g(2.4, 2.5), g(2.4, 2.6), g(2.4, 2.6), g(2.4, 2.6)];
-    // The slow lap is green but not comparable: it must not move the median.
+  it('a slow green lap that is not comparable still counts: it burned fuel', () => {
+    const laps = [
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(3.0, 3.0, {comparable: false}),
+      g(3.0, 3.0, {comparable: false}),
+    ];
+    // The two slow laps move the median up, as in the stored stint medians.
+    expect(stintFuelLine(laps)).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
+    expect(stintFuelLine([...laps, g(3.0, 3.0, {comparable: false})])).toBe(
+      'Fuel 2.70 L/lap · VE 2.8 %/lap',
+    );
+  });
+
+  it('rounds a median of 2.55 up to 2.6, the same on the fuel card', () => {
+    expect(stintFuelLine([g(2.4, 2.5), g(2.4, 2.55), g(2.4, 2.6)])).toBe(
+      'Fuel 2.40 L/lap · VE 2.6 %/lap',
+    );
+    expect(oneDecimal(2.55)).toBe('2.6');
+    expect(oneDecimal(2.45)).toBe('2.5');
+    expect(oneDecimal(2.449)).toBe('2.4');
+  });
+
+  it('a lap that is not green is left out', () => {
+    const notGreen = {
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL: 9, veUsedPct: 9, green: false},
+    } as Lap;
     expect(
-      stintFuelLine([
-        ...laps,
-        g(2.4, 1.0, {comparable: false}),
-        g(2.4, 1.0, {comparable: false}),
-      ]),
-    ).toBe(stintFuelLine(laps));
+      stintFuelLine([g(2.4, 2.5), g(2.4, 2.5), g(2.4, 2.5), notGreen]),
+    ).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
   });
 
   it('under 3 such laps there is no line', () => {

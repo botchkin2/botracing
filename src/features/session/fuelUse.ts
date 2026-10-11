@@ -61,6 +61,14 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+/**
+ * One decimal, half up on the stored value: a median of 2.55 prints "2.6", not
+ * the "2.5" that toFixed gives for the float just under it.
+ */
+export function oneDecimal(v: number): string {
+  return (Math.round(v * 10 + 1e-9) / 10).toFixed(1);
+}
+
 export function median(values: number[]): number | null {
   if (values.length === 0) return null;
   return quantile(
@@ -76,14 +84,14 @@ function iqr(values: number[]): number | null {
 }
 
 /**
- * The laps a fuel or VE figure per lap is taken over, on every screen: green
- * (timed, whole, no pit, no yellow) and comparable, with a fuel use. One set,
- * so the stint note and the fuel card print the same number for a stint.
+ * The laps a fuel or VE figure per lap is taken over, on every screen: the
+ * green ones (timed, whole, no pit, no yellow) with a fuel use. Green, not
+ * comparable: a slow or off-track lap still burns fuel, and the stored stint
+ * medians and the Plan use the same set, so all of them print the same number.
  */
-export function comparableGreenLaps(laps: Lap[]): Lap[] {
+export function greenLaps(laps: Lap[]): Lap[] {
   return laps.filter(
     l =>
-      l.comparable &&
       l.fuel?.green === true &&
       l.fuel.usedL != null &&
       l.fuel.usedL > 0 &&
@@ -101,7 +109,7 @@ export function buildFuelUse(
   // start level, and the tank is not what the event allows (camber, #158).
   const limitL = session.fuel?.fillLimitL ?? null;
 
-  const usable = comparableGreenLaps(laps);
+  const usable = greenLaps(laps);
   if (usable.length === 0) return null;
   const points: FuelUsePoint[] = usable.map(l => ({
     lapId: l.id,
@@ -211,7 +219,7 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
       `${litres(s.medianFuelL)}/lap${
         s.fuelIqrL != null ? ` (spread ${s.fuelIqrL.toFixed(2)})` : ''
       }`,
-      s.medianVePct != null && `${s.medianVePct.toFixed(1)} % VE/lap`,
+      s.medianVePct != null && `${oneDecimal(s.medianVePct)} % VE/lap`,
       s.medianTimeS != null && formatLapTime(s.medianTimeS),
     ].filter(Boolean);
     const load = [
