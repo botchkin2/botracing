@@ -458,12 +458,12 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
     heads: ['S/F', 'T1', 'T2–5', 'T6', 'T7', 'T10a–T12'],
     sections: [null, 1, 2, 3, 4, 5],
     targets: [
-      {corner: null, whole: false},
-      {corner: 1, whole: false},
-      {corner: 2, whole: true},
-      {corner: 6, whole: false},
-      {corner: 7, whole: false},
-      {corner: 10, whole: false},
+      {corner: null},
+      {corner: 1},
+      {corner: 2},
+      {corner: 6},
+      {corner: 7},
+      {corner: 10},
     ],
     footer: [],
   };
@@ -471,20 +471,20 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
   it('opens the corner by its number, not the section number (S3 is T6, corner 6)', () => {
     expect(gridCellTargetOf(table, 3, 'L4', ['L4'])).toEqual({
       corner: 6,
-      whole: false,
       laps: ['L4'],
     });
   });
 
-  it('opens a compound section whole, on its first corner (S2 is T2–5: corner 2, all)', () => {
-    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.corner).toBe(2);
-    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.whole).toBe(true);
+  it('opens a compound section on its first part, not All (S2 is T2–5: corner 2)', () => {
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])).toEqual({
+      corner: 2,
+      laps: ['L4'],
+    });
   });
 
   it('keeps the checked set: the tapped lap is only a highlight', () => {
     expect(gridCellTargetOf(table, 1, 'L1', ['L4', 'L5'])).toEqual({
       corner: 1,
-      whole: false,
       laps: ['L4', 'L5'],
     });
   });

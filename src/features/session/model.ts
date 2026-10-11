@@ -170,10 +170,11 @@ export type SectionTable = {
   sections: (number | null)[];
   /**
    * Where a cell in each column opens Corner: the section's first corner (its
-   * number, not the section's), and whether the section is compound (opens
-   * whole). Null for the start straight and the game's sectors.
+   * number, not the section's). A compound section opens on that first part,
+   * not on All; All is one tap away in its Parts row. Null for the start
+   * straight and the game's sectors.
    */
-  targets: {corner: number | null; whole: boolean}[];
+  targets: {corner: number | null}[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -359,20 +360,10 @@ export function sectionTable(
   return {
     heads: times.segments.map(s => s.label),
     sections: times.segments.map(s => s.section ?? null),
-    targets: times.segments.map(s => {
-      const section =
-        s.section == null
-          ? undefined
-          : map?.sections.find(x => x.n === s.section);
-      return {
-        corner:
-          s.section != null && corners
-            ? firstCornerOf(corners, s.section)
-            : null,
-        // A compound section (more than one corner) opens whole, read from the map.
-        whole: section ? section.parts.length > 1 : s.compound === true,
-      };
-    }),
+    targets: times.segments.map(s => ({
+      corner:
+        s.section != null && corners ? firstCornerOf(corners, s.section) : null,
+    })),
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
@@ -670,21 +661,21 @@ export function useSessionScreenModel(id: string, selection: Selection) {
 }
 
 /**
- * Where a grid cell (lap x column) opens Corner: the column's first corner,
- * whole for a compound section; the tapped lap is the highlight, not added to
- * the set. Null where the column has no corner (the
- * start straight). Pure: the grid's taps and their tests read this one place.
+ * Where a grid cell (lap x column) opens Corner: the column's first corner, the
+ * first part of a compound section. The tapped lap is the highlight, not added
+ * to the set. Null where the column has no corner (the start straight). Pure:
+ * the grid's taps and their tests read this one place.
  */
 export function gridCellTargetOf(
   table: SectionTable,
   column: number,
   lapId: string,
   checked: string[],
-): {corner: number; whole: boolean; laps: string[]} | null {
+): {corner: number; laps: string[]} | null {
   const t = table.targets[column];
   if (!t || t.corner == null) return null;
   // The set is unchanged: the tapped lap is only highlighted.
-  return {corner: t.corner, whole: t.whole, laps: checked};
+  return {corner: t.corner, laps: checked};
 }
 
 /**
