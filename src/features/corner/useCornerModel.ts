@@ -159,7 +159,9 @@ export function useCornerModel(
           void refetchMap();
         },
       };
-    if (!session.data || !laps.data || !map.data) return {state: 'loading'};
+    if (!session.data || !laps.data || map.isPending) return {state: 'loading'};
+    // A track with no map yet (null, a 404): no corners to draw.
+    if (!map.data) return {state: 'missing', noMap: true};
     if (lapIds.length === 0) return {state: 'noLaps'};
     const model = buildCornerModel({
       session: session.data,

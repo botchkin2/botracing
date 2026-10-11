@@ -95,15 +95,16 @@ export async function fetchSessionBand(
   );
 }
 
-/** A track layout's corner map, by its id (GET /tracks/{trackId}/map). */
 /**
- * A track layout's map. A track with no map yet (404) is an empty map, not an
- * error: no sections, no corners. Corner and Track say so.
+ * A track layout's corner map, by its id (GET /tracks/{trackId}/map), or null
+ * when the layout has none (404: an iRacing track before its map is made). None
+ * is an answer, not a failure: it is kept for the hour a map is, so the screen
+ * draws without it and nothing asks again.
  */
 export async function fetchTrackMap(
   trackId: string,
   signal?: AbortSignal,
-): Promise<TrackMapData> {
+): Promise<TrackMapData | null> {
   try {
     return toTrackMap(
       await getJson<Record<string, unknown>>(
@@ -112,8 +113,7 @@ export async function fetchTrackMap(
       ),
     );
   } catch (error) {
-    if (error instanceof HttpError && error.status === 404)
-      return toTrackMap({trackId});
+    if (error instanceof HttpError && error.status === 404) return null;
     throw error;
   }
 }
