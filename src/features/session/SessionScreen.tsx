@@ -47,6 +47,7 @@ import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {SessionGrid} from './components/SessionGrid';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -159,6 +160,8 @@ function SessionView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const listRef = useRef<FlatList<RowModel>>(null);
+  // The lap table's rows and head scroll sideways as one (phone and tablet).
+  const tableLink = useLinkedScroll();
   const headerHeight = useRef(0);
   // Where the Pit stops / Fuel card starts in the header, for the energy line's tap.
   const pitCardY = useRef(0);
@@ -557,85 +560,90 @@ function SessionView({
             width: layout.isDesktop ? tableW + sideW + space.xxl : contentWidth,
           },
         ]}>
-        <FlatList
-          ref={listRef}
-          style={{width: tableW}}
-          data={model.rows}
-          keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={
-            <>
-              {header}
-              <View style={[styles.strip, {width: tableW}]}>
-                <LapStrip
-                  laps={model.strip}
+        <LinkedScrollContext.Provider value={tableLink}>
+          <FlatList
+            ref={listRef}
+            style={{width: tableW}}
+            data={model.rows}
+            keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
+            ListHeaderComponent={
+              <>
+                {header}
+                <View style={[styles.strip, {width: tableW}]}>
+                  <LapStrip
+                    laps={model.strip}
+                    ticked={selection.laps}
+                    onTap={id =>
+                      onSelectionChange({
+                        ...selection,
+                        laps: toggle(selection.laps, id),
+                      })
+                    }
+                    onDrag={ids => onSelectionChange({...selection, laps: ids})}
+                  />
+                </View>
+                <SessionGrid
+                  id={sessionId}
                   ticked={selection.laps}
-                  onTap={id =>
+                  onTap={lapId =>
                     onSelectionChange({
                       ...selection,
-                      laps: toggle(selection.laps, id),
+                      laps: toggle(selection.laps, lapId),
                     })
                   }
-                  onDrag={ids => onSelectionChange({...selection, laps: ids})}
                 />
-              </View>
-              <SessionGrid
-                id={sessionId}
-                ticked={selection.laps}
-                onTap={lapId =>
-                  onSelectionChange({
-                    ...selection,
-                    laps: toggle(selection.laps, lapId),
-                  })
-                }
-              />
-              <View style={styles.section}>
-                <LapTableHeader
-                  width={tableW}
-                  heads={model.sections?.heads}
-                  headTaps={sectionTaps}
-                  onHeadPress={i => {
-                    const corner = model.sections?.sections[i];
-                    if (corner != null)
-                      router.push(
-                        compareHref(sessionId, {laps: selection.laps, corner}),
-                      );
-                  }}
-                />
-              </View>
-            </>
-          }
-          ListFooterComponent={
-            <View style={[styles.footer, {width: tableW}]}>
-              <Text variant='dataSmall' tone='textMuted'>
-                {TAG_KEY}
-              </Text>
-              {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
-              {layout.isDesktop ? null : (
-                <>
-                  <FoldedSection
-                    title='Tires'
-                    summary={tiresSummary(model.tires)}
-                    defaultOpen>
-                    {tiresCard}
-                  </FoldedSection>
-                  {model.fuelUse && fuelCard ? (
+                <View style={styles.section}>
+                  <LapTableHeader
+                    width={tableW}
+                    heads={model.sections?.heads}
+                    headTaps={sectionTaps}
+                    onHeadPress={i => {
+                      const corner = model.sections?.sections[i];
+                      if (corner != null)
+                        router.push(
+                          compareHref(sessionId, {
+                            laps: selection.laps,
+                            corner,
+                          }),
+                        );
+                    }}
+                  />
+                </View>
+              </>
+            }
+            ListFooterComponent={
+              <View style={[styles.footer, {width: tableW}]}>
+                <Text variant='dataSmall' tone='textMuted'>
+                  {TAG_KEY}
+                </Text>
+                {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
+                {layout.isDesktop ? null : (
+                  <>
                     <FoldedSection
-                      title='Fuel use'
-                      summary={fuelSummary(model.fuelUse.fuelUse)}>
-                      {fuelCard}
+                      title='Tires'
+                      summary={tiresSummary(model.tires)}
+                      defaultOpen>
+                      {tiresCard}
                     </FoldedSection>
-                  ) : null}
-                </>
-              )}
-            </View>
-          }
-          getItemLayout={(_, index) => ({
-            length: ROW_H,
-            offset: headerHeight.current + ROW_H * index,
-            index,
-          })}
-          renderItem={({item}) => renderRow(item, tableW)}
-        />
+                    {model.fuelUse && fuelCard ? (
+                      <FoldedSection
+                        title='Fuel use'
+                        summary={fuelSummary(model.fuelUse.fuelUse)}>
+                        {fuelCard}
+                      </FoldedSection>
+                    ) : null}
+                  </>
+                )}
+              </View>
+            }
+            getItemLayout={(_, index) => ({
+              length: ROW_H,
+              offset: headerHeight.current + ROW_H * index,
+              index,
+            })}
+            renderItem={({item}) => renderRow(item, tableW)}
+          />
+        </LinkedScrollContext.Provider>
         {layout.isDesktop && (
           <View style={[styles.side, {width: sideW}]}>
             {model.detail ? (

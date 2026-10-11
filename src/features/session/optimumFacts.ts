@@ -13,7 +13,6 @@ import type {Fact} from './model';
 /** Three facts per stint with enough laps; empty before the sectors or under the floor. */
 export function optimumFacts(
   stints: StintOptimum[],
-  sectorCount: number,
   stintCount: number,
 ): Fact[] {
   const facts: Fact[] = [];
@@ -24,7 +23,7 @@ export function optimumFacts(
     facts.push(
       {
         label: `Optimal lap${where}`,
-        value: `${formatLapTime(s.bestSumS)} · ${laps}, ${sectorCount} sectors`,
+        value: `${formatLapTime(s.bestSumS)} · ${laps}`,
       },
       {
         label: `Typical lap${where}`,

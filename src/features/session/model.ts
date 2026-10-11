@@ -582,11 +582,7 @@ export function buildSessionModel(
       ...trafficPace,
     ],
     optimum: sectionTimes
-      ? optimumFacts(
-          segmentOptimum(sectionTimes),
-          sectionTimes.segments.length,
-          session.stints.length,
-        )
+      ? optimumFacts(segmentOptimum(sectionTimes), session.stints.length)
       : [],
     sections: sectionTable(sectionTimes, map),
     chart,
