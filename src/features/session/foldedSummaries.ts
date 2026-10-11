@@ -1,7 +1,25 @@
 // The one line each folded section shows on the phone Laps screen (apex, thread
 // 44 #1873): what is inside, in numbers, never a verdict.
 import type {FuelUse} from './fuelUse';
+import type {PitCard} from './pitCard';
 import type {TiresCard} from './tireCard';
+
+/**
+ * "2 stops · 95.6 s and 45.4 s in the lane": how many stops and the time each
+ * took in the lane (the ones that are measured). A race with no stop has the
+ * fuel card instead, which needs no line.
+ */
+export function pitSummary(card: PitCard): string | null {
+  if (card.kind !== 'stops') return null;
+  const lanes = card.columns
+    .map(c => c.lane?.value)
+    .filter((v): v is string => v != null);
+  const n = card.columns.length;
+  const stops = `${n} ${n === 1 ? 'stop' : 'stops'}`;
+  return lanes.length > 0
+    ? `${stops} · ${lanes.join(' and ')} in the lane`
+    : stops;
+}
 
 /** "Stint 2 · L14–L26 · 12 green laps", the last stint; the card opens on it. Short enough for one line at 375 pt. */
 export function tiresSummary(card: TiresCard): string | null {

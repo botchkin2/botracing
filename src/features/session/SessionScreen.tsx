@@ -46,7 +46,7 @@ import {EnergyLineRow} from './components/EnergyLineRow';
 import {PitCard} from './components/PitCard';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
-import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
 import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {SessionGrid} from './components/SessionGrid';
 import {SessionWorkspace} from './components/SessionWorkspace';
@@ -299,6 +299,18 @@ function SessionView({
     />
   ) : null;
 
+  const pitCard = model.pitCard ? (
+    <PitCard
+      card={model.pitCard}
+      width={tableW}
+      plan={
+        model.planVsRace && renderPlanHalf
+          ? renderPlanHalf(model.pitCard, model.planVsRace)
+          : null
+      }
+    />
+  ) : null;
+
   const header = (
     <View
       onLayout={e => (headerHeight.current = e.nativeEvent.layout.height)}
@@ -377,21 +389,28 @@ function SessionView({
         </View>
       ) : null}
 
-      {chartBlock(tableW)}
-
-      {model.pitCard && (
+      {/* Phone: the pit stops come first, as a fold that starts open and can be
+          closed (Botkin, 2026-10-11, 2h d); desktop keeps the card under the chart. */}
+      {!layout.isDesktop && model.pitCard && (
         <View
           style={styles.section}
           onLayout={e => (pitCardY.current = e.nativeEvent.layout.y)}>
-          <PitCard
-            card={model.pitCard}
-            width={tableW}
-            plan={
-              model.planVsRace && renderPlanHalf
-                ? renderPlanHalf(model.pitCard, model.planVsRace)
-                : null
-            }
-          />
+          <FoldedSection
+            title={model.pitCard.kind === 'stops' ? 'Pit stops' : 'Fuel'}
+            summary={pitSummary(model.pitCard)}
+            defaultOpen>
+            {pitCard}
+          </FoldedSection>
+        </View>
+      )}
+
+      {chartBlock(tableW)}
+
+      {layout.isDesktop && model.pitCard && (
+        <View
+          style={styles.section}
+          onLayout={e => (pitCardY.current = e.nativeEvent.layout.y)}>
+          {pitCard}
         </View>
       )}
 
