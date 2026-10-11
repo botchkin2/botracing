@@ -4,11 +4,10 @@ import {space, useTheme} from '@/src/design';
 import {Button, Text} from '@/src/ui';
 
 import {type PitPlan} from '../pitPlan';
-import {lapName} from '../planCards';
+import {lapName, stintLaps} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
-  stintLapRange,
   stintRow,
   stopLine,
   stopWarning,
@@ -93,7 +92,14 @@ export function PitPlanCard({
           ))}
         </View>
         {pit.stints.map((s, i) => {
-          const r = stintRow(s, unit, stintLapRange(pit, i));
+          const r = stintRow(
+            s,
+            unit,
+            stintLaps(
+              pit.stints.map(x => x.laps),
+              i,
+            ),
+          );
           return (
             <View key={s.n} style={styles.row}>
               <Text variant='data' style={styles.name}>
