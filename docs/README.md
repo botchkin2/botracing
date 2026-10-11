@@ -1,107 +1,30 @@
-# Development Guides
+# Docs
 
-This directory contains guides for common development issues and best practices in this React Native Web racing analytics application.
+The reference for how this app is built and how it behaves. Talk, plans, and half-formed ideas live in the pit wall, `C:/Users/Botkin/Projects/pit-wall` (its own local repo). New people start at `pit-wall/JOIN.md`. A note here is reference. A note there is a conversation.
 
-Talk, plans, and half-formed ideas live in the pit wall, `C:/Users/Botkin/Projects/pit-wall` (its own local repo). New people start at `pit-wall/JOIN.md`. A note here is reference. A note there is a conversation.
+## Start here
 
-## 📚 Available Guides
+- [Code standards](./CODE_STANDARDS.md): how code is written here; read before coding.
+- [Architecture](./ARCHITECTURE.md): layers, screens, and the rules every number follows (facts vs comparisons, one median, IQR).
+- [Testing](./TESTING.md): seat-test sign-in, live slots, test data, the tray end to end and update rehearsal, golden set.
 
-### [API Requests](./API_REQUESTS.md)
+## Data
 
-**Fixing redundant API calls and request deduplication**
+- [Data model](./DATA_MODEL.md): sessions, laps, tracks and what each field means.
+- [Storage](./STORAGE.md): Firestore and Storage layout, block versions, what the uploader writes.
+- [API](./API.md): the endpoints and what each returns.
+- [React Query](./REACT_QUERY.md): query keys, caching, empty answers (a 404 map is `null`).
+- [LMU recordings](./LMU_SYNC_NOTES.md): where Le Mans Ultimate recordings live, what one holds, and the rules taken from them (laps to keep, track limits, units).
+- [Owner copy](./OWNER_COPY.md): copying an owner's data to a uid: rules, runbook, rollback.
 
-- Multiple identical requests to same endpoints
-- HMR-safe caching strategies
-- Component lifecycle optimization
+## UI
 
-### [React Query](./REACT_QUERY.md)
+- [Layout rules](./LAYOUT.md): per-screen rule at 375, 1024, 1440 and 1920, and the probes that measure it.
+- [React Native Web](./REACT_NATIVE_WEB.md): what differs on web and how the app handles it.
+- Design handoffs (`design_handoff_*/`): the original designs, kept as history; where they disagree with the app, the app and these docs win.
 
-**Best practices for TanStack Query usage**
+## Build and upgrade
 
-- Query key stability and caching
-- Memoization patterns
-- Common pitfalls and solutions
-
-### [Component Optimization](./COMPONENT_OPTIMIZATION.md)
-
-**Performance optimization for React components**
-
-- React.memo usage
-- useMemo and useCallback patterns
-- State batching techniques
-
-### [Layout rules](./LAYOUT.md)
-
-**Per-screen layout rule at 375, 1024, 1440 and 1920, and how to measure it**
-
-- Breakpoints, what each screen does at each width
-- `tools/dev/layoutProbe.js`: side scroll, clipped and unreachable content, hit sizes
-
-### [LMU sync](./LMU_SYNC_NOTES.md)
-
-**Where Le Mans Ultimate laps live on this PC, and the plan to get them into the app**
-
-- DuckDB recordings, the CSV columns the chart already parses, and the unit conversions
-- Dev tools installed on this machine
-- The six-step plan for the sync script
-
-### [Major upgrades](./MAJOR_UPGRADES.md)
-
-**Major-version bumps held back from Dependabot, with their blockers**
-
-- ureq 3, firebase-admin 14, eslint 10: what blocks each and what its PR must prove
-
-### [React Native Web](./REACT_NATIVE_WEB.md)
-
-**Web-specific optimizations and compatibility**
-
-- Style prop differences
-- Animation compatibility
-- Platform-specific handling
-
-## 🎯 Quick Fixes
-
-### Redundant API Calls
-
-```bash
-# Check: Multiple identical network requests in dev tools
-# Fix: Implement global request cache + component memoization
-# See: API_REQUESTS.md
-```
-
-### Component Re-renders
-
-```bash
-# Check: Console logs showing excessive renders
-# Fix: React.memo + useMemo for expensive computations
-# See: COMPONENT_OPTIMIZATION.md
-```
-
-### Web Compatibility Issues
-
-```bash
-# Check: Animation warnings, style errors
-# Fix: useNativeDriver: false, correct style props
-# See: REACT_NATIVE_WEB.md
-```
-
-## 📋 Development Checklist
-
-Before deploying new features:
-
-- [ ] API requests are deduplicated
-- [ ] Components use React.memo appropriately
-- [ ] Animations work on web (useNativeDriver: false)
-- [ ] Styles use web-compatible props
-- [ ] No console.log statements in production
-- [ ] Query keys are stable and memoized
-
-## 🔗 Related Files
-
-- `PERFORMANCE_TIPS.md` - Comprehensive troubleshooting guide
-- `docs/REACT_QUERY.md` - React Query keys and caching
-- `src/data/` - API client, keys, query hooks and adapters per resource
-
----
-
-_Last updated: January 30, 2026_
+- [Android build](./ANDROID_BUILD.md): EAS and local Android builds.
+- [Major upgrades](./MAJOR_UPGRADES.md): major-version bumps held back from Dependabot, with their blockers.
+- The tray: `desktop/README.md`.

@@ -42,7 +42,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 - **Every color, font, size, space, radius, stroke and chart height comes from `src/design/tokens.ts`** via `useTheme()`. A raw hex, rgba, font name or magic number in a component is a bug. If the token is missing, add it to `tokens.ts` with the handoff reference, then use it.
 - **Color has one meaning each** (see the handoff): accent is UI only, `best` is best lap/sector only, lap colors are laps only, `faster`/`slower` always come with a sign. Never pick a color because it looks nice.
-- **Numbers are always Mono with tabular figures** (`type.data`, `type.axis`), always with a unit, and formatted by the shared formatters (`m:ss.sss`, signed 3-decimal gaps). Do not hand-format numbers in a component.
+- **Numbers are always Mono with tabular figures** (`type.data`, `type.axis`), always with a unit, and formatted by `src/design/format.ts` (`m:ss.sss`, signed 3-decimal gaps, US dates: `Oct 9`). Do not hand-format numbers in a component.
 - **Both themes, always.** Dark is the default; every component must render correctly in light too. Read colors from the theme, never from a module-level constant.
 - `StyleSheet.create` at the bottom of the file for static styles; inline only the values that depend on props or theme.
 
@@ -52,14 +52,15 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 - Breakpoints come from `size.desktopBreakpoint` through one `useLayout()` hook. No ad-hoc `Dimensions.get` checks in components.
 - **Hit areas are at least 44 pt**; use `hitSlop` to extend small drawn controls (checkboxes, chips).
 - **Every tappable is `Pressable` from `@/src/ui`, never react-native's** (lint enforces it). It dims while pressed (`pressedOpacity`) and makes `hitSlop` work on web, where react-native-web ignores the prop. Slop grows toward empty space only: the Pressable cuts it to half the gap to the next tappable and to nothing where drawn boxes touch, so it never takes a tap from a control drawn there. A control in a scroller, or between tight rows, needs a real 44 pt box: slop cannot pass a clipping parent. A lone × is a real 24 x 24 box (`closeBox`) even for a mouse. `tools/dev/hitProbe.js` checks all of this on a live page: no control's drawn box is answered by another.
-- No horizontal page scroll at 375 pt. Horizontal scroll is allowed only inside a component designed for it (lap chips).
+- No horizontal page scroll at 375 pt. Horizontal scroll only inside a component designed for it (lap chips; the phone lap table, whose rows scroll as one: `linkedScroll.tsx`).
 - Test on web and on a phone-sized viewport before calling a UI change done.
 
 ## 6. Charts and performance
 
 - Charts live in `src/charts/`, take plain arrays and scales as props, and know nothing about sessions, queries or routes.
 - **Draw recorded samples inside the window; grids only for cross-lap maths.** Charts draw each channel's real samples (`GridTrace.samples`) sliced to the window by index (`analysis/nativeSamples.ts`), joined by a monotone curve that never overshoots them; at whole-lap zoom, keep the min and max per point, never an in-between value. Readouts at the cursor are the nearest recorded sample. The 5 m grid is only for maths that must line laps up point by point: time diff, the p10–p90 band, section and corner stats (Botkin, pit-wall thread 26 #392/#397).
-- Memoize path strings by their inputs; the cursor moves, the traces should not rebuild on every frame. Gesture and playback updates go through Reanimated shared values, not React state, when they fire per frame.
+- Memoize path strings by their inputs; the cursor moves, the traces should not rebuild on every frame. Playback moves the cursor once a frame through `usePlayback` (one `requestAnimationFrame` loop by wall-clock time); a cursor step must stay cheap, which the Compare perf test checks against a same-run baseline (`model.perf.test.ts`).
+- **Chart text is `ChartLabel`, inside the box** (`src/charts/README.md`); ESLint refuses react-native-svg `Text`, `TSpan` and `TextPath` elsewhere. Measure with `tools/dev/chartLabelProbe.js` (`docs/LAYOUT.md`).
 - Stable query keys and memoized selectors per `docs/REACT_QUERY.md`. Heavy per-lap arrays load only when Compare opens, with visible progress.
 
 ## 7. The product rule: an instrument, not a coach

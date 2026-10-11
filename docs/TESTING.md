@@ -74,6 +74,16 @@ Stop it the same way the installer stops the real tray, with the same profile se
 
 `.github/workflows/tray-e2e.yml` builds the unsigned installer and runs `desktop/scripts/e2e-install.ps1` in 12 cells: Windows Server 2022 and 2025, an admin runner or a new standard user (`e2e-as-user.ps1`, a scheduled task so the profile is a real logon; the name is `Test Ünïcode` or, in two cells, plain `e2euser`), and node as on the runner, none on PATH, or a decoy that records if it runs. Each cell proves: the per-user silent install lands where the Uninstall entry says; the tray starts and stays up; a second launch by path, 8.3 name and extended-length (`\\?\`) form ends at once and leaves the first tray (same pid); the Run entry's command line starts one tray with no visible window (interactive cells only: session 0 shows no window to the check, and the log says so; a self-test shows the check still sees a plain form elsewhere); `--quit` ends the tray, with `quit.log` free of `exit forced` in an interactive cell (`desktop/README.md`); the uninstaller removes the install folder, Run entry and token. It does not sign in (the seat-test token for CI is #449's design); the local tray above is that proof.
 
+The `update` job, "Tray update rehearsal (N-1 to N)", builds 0.0.1 and 0.0.2 with a throwaway updater key made in the run, installs N-1 on the clean runner, lets it download N from a local endpoint, runs `botracing.exe --update` (the menu's "Restart to update") and checks that N runs, the old tray exited and exactly one tray is left (`desktop/scripts/e2e-update.ps1`). Never on this PC: the installer would quit and uninstall the real tray. Signed out, so the watcher-restart case (#511) is a unit test. Green before a tray tag (`desktop/README.md`).
+
+## Golden set (CI)
+
+`tools/golden/README.md`: four real sessions, cut to a few laps, run through the real analysis. `node tools/golden/gate.mjs origin/main` fails when an expected number changes without a line in `tools/golden/CHANGES.md` saying why.
+
+## Performance tests
+
+`src/features/compare/model.perf.test.ts` times a Compare rebuild and a cursor step at 60 laps against a plain pass over the same traces, measured in the same run, so a slower runner moves both. It prints the two ratios; ceilings 2 and 1 sit about 3x above what both the 7900X and CI read.
+
 ## The API in the emulators
 
 `functions/test/emulator/*.test.mjs` send real requests to the read API in the Firebase emulators (functions, Firestore, Auth, Storage; config `firebase.emulator.json`, a demo project, nothing reaches production). Run them with `npm run test:emulator` in `functions/`: it builds the functions, starts the emulators, seeds what each test needs and signs a user in through the Auth emulator. firebase-tools needs **Java 21+** (`JAVA_HOME`; on this PC Android Studio's `jbr` qualifies, the system JDK 17 does not). CI runs them in the `functions` job.
