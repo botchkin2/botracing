@@ -75,6 +75,11 @@ export type CompareSelection = {
   cursorM: number;
 };
 
+/** A selection as the link has it: no cursor when the link carries none. */
+export type UrlCompareSelection = Omit<CompareSelection, 'cursorM'> & {
+  cursorM: number | null;
+};
+
 /** Chart window: seconds (time) or metres (distance); size null = whole lap. */
 export type ChartWindow = {mode: WindowMode; size: number | null};
 export type ChartTimeAxis = {ref: GridTrace; windowS: [number, number]} | null;
@@ -640,17 +645,18 @@ export function sectionStartM(
 }
 
 /**
- * Where the cursor starts when Compare opens: a link that names a section but
- * carries no cursor (the Session grid's section heads) lands on that section's
- * start. A link with a cursor, or none and no section, keeps it.
+ * Where the cursor is: the link's cursor, else the start of the section the
+ * link names (the Session grid's section heads carry a section and no
+ * cursor), else the start of the lap. `null` is "the link has no cursor", so
+ * a cursor at 0 m stays a cursor.
  */
-export function landingCursorM(
+export function openingCursorM(
+  cursorM: number | null,
   corner: number | null,
-  cursorM: number,
   sectionEntryM: Record<number, number>,
 ): number {
-  if (corner == null || cursorM !== 0) return cursorM;
-  return sectionStartM(sectionEntryM, corner);
+  if (cursorM != null) return cursorM;
+  return corner == null ? 0 : sectionStartM(sectionEntryM, corner);
 }
 
 /** Within this many metres of its apex the cursor is "at the apex". */
@@ -728,7 +734,11 @@ export type CompareSetInputs = Omit<CompareInputs, 'selection'> & {
 };
 
 /** Everything about a selection that the cursor does not move; `atCursor` builds the model at one position. */
-export type CompareSet = {atCursor: (cursorM: number) => CompareModel};
+export type CompareSet = {
+  atCursor: (cursorM: number) => CompareModel;
+  /** Where each map section starts, so a link naming one can place the cursor. */
+  sectionEntryM: Record<number, number>;
+};
 
 export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const {session, laps, traces, band, map, selection} = input;
@@ -1275,6 +1285,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   };
 
   return {
+    sectionEntryM: fixed.sectionEntryM,
     atCursor: (at: number): CompareModel => {
       const cursorM = Math.max(0, Math.min(lengthM, at));
       const windowM: [number, number] = refTrace
@@ -1486,11 +1497,11 @@ export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
  * are kept as given, and nothing changes while the session or its laps are
  * still loading.
  */
-export function withDefaultLaps(
-  sel: CompareSelection,
+export function withDefaultLaps<S extends {laps: string[]}>(
+  sel: S,
   laps: Lap[] | undefined,
   session: DefaultSession | undefined,
-): CompareSelection {
+): S {
   if (sel.laps.length > 0 || !laps || !session) return sel;
   return {...sel, laps: openingLapIds(laps, session)};
 }

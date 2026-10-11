@@ -20,11 +20,12 @@ import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareSet,
+  openingCursorM,
   type ForeignLaps,
   type ChannelId,
   type CompareModel,
   type ChartWindow,
-  type CompareSelection,
+  type UrlCompareSelection,
 } from './model';
 
 import {buildFollowGeometry} from './followModel';
@@ -41,6 +42,8 @@ export type CompareResult =
   | {
       state: 'ready';
       model: CompareModel;
+      /** Where the cursor is: the one passed in, else the start of the linked section. */
+      cursorM: number;
       /** The selected laps' traces, for skeletons and the retry banner. */
       traceLoad: TraceLoad;
       retryTraces: () => void;
@@ -48,7 +51,7 @@ export type CompareResult =
 
 export function useCompareModel(
   sessionId: string,
-  selection: CompareSelection,
+  selection: UrlCompareSelection,
   charts?: ChannelId[][],
   window?: ChartWindow,
 ): CompareResult {
@@ -118,7 +121,9 @@ export function useCompareModel(
   const nearLine =
     window?.size != null &&
     lengthM > 0 &&
-    (selection.cursorM < WRAP_M || selection.cursorM > lengthM - WRAP_M);
+    (selection.cursorM == null ||
+      selection.cursorM < WRAP_M ||
+      selection.cursorM > lengthM - WRAP_M);
   const fetchIds = useMemo(() => {
     if (!nearLine || !laps.data) return knownIds;
     const extra = knownIds.flatMap(id => {
@@ -251,7 +256,7 @@ export function useCompareModel(
       basisTrace,
     ],
   );
-  const cursorM = selection.cursorM;
+  const urlCursorM = selection.cursorM;
   return useMemo((): CompareResult => {
     if (error)
       return {
@@ -265,16 +270,23 @@ export function useCompareModel(
     // A lap of another session is found once its session has loaded; until
     // then it would read as "not found".
     if (!set) return {state: 'loading'};
+    const cursorM = openingCursorM(
+      urlCursorM,
+      selection.corner,
+      set.sectionEntryM,
+    );
     return {
       state: 'ready',
       traceLoad,
       retryTraces,
+      cursorM,
       model: set.atCursor(cursorM),
     };
   }, [
     error,
     set,
-    cursorM,
+    urlCursorM,
+    selection.corner,
     traceLoad,
     retryTraces,
     refetchSession,
