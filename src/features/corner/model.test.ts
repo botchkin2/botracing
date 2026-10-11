@@ -11,8 +11,10 @@ import {
 
 import {
   buildCornerModel,
+  type CornerRow,
   cornerLapIds,
   MEASURES,
+  shownMeasures,
   sortRows,
   buildBrakeMap,
 } from './model';
@@ -708,5 +710,31 @@ describe('buildBrakeMap', () => {
 
   it('is null without the reference trace', () => {
     expect(buildBrakeMap([], undefined, 500)).toBeNull();
+  });
+});
+
+describe('shownMeasures', () => {
+  // Rows reduced to the cells the rule reads.
+  const row = (
+    values: Partial<Record<(typeof MEASURES)[number]['id'], string>>,
+  ) =>
+    ({
+      cells: Object.fromEntries(
+        MEASURES.map(m => [m.id, {value: values[m.id] ?? '—'}]),
+      ),
+    } as unknown as CornerRow);
+
+  it('leaves out a column that is a dash on every lap', () => {
+    const rows = [row({time: '5.123', minSpeed: '120'}), row({time: '5.200'})];
+    expect(shownMeasures(rows).map(m => m.id)).toEqual(['time', 'minSpeed']);
+  });
+
+  it('keeps a column one lap has a value in, and the at-the-edge mark counts as a value', () => {
+    const rows = [row({time: '5.1'}), row({time: '5.2', peakBrake: '80'})];
+    expect(shownMeasures(rows).map(m => m.id)).toEqual(['time', 'peakBrake']);
+  });
+
+  it('has no columns for no laps', () => {
+    expect(shownMeasures([])).toEqual([]);
   });
 });

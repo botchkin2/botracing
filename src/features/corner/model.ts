@@ -93,6 +93,15 @@ export const MEASURES: {
   {id: 'minThrottle', label: 'Min throttle %', unit: '%', better: null},
 ];
 
+/**
+ * The columns worth drawing: a measure no lap has a value for ("—" in every
+ * row, e.g. a flat part with no braking) is left out, not shown as a column of
+ * dashes. A lap's "at the edge" mark (AT_MIN) is a value.
+ */
+export function shownMeasures(rows: readonly CornerRow[]): typeof MEASURES {
+  return MEASURES.filter(m => rows.some(r => r.cells[m.id].value !== '—'));
+}
+
 export type CornerRow = {
   lapId: string;
   label: string;
@@ -542,30 +551,23 @@ export function buildCornerModel(input: {
   const anchorM = sectionFrame
     ? Math.max(sectionFrame.fromM, zoomWindow[0])
     : baseView.stretch.fromM;
-  const view =
+  const view = own && ownFrame ? {...baseView, stretch: ownFrame} : baseView;
+  // What the window's shading needs said; nothing without a window of its own.
+  const caption =
     own && ownFrame
-      ? {
-          ...baseView,
-          stretch: ownFrame,
-          caption: windowCaption(
-            whole ? sec.sectionLabel : turnLabel(sec.n, sec.official),
-            own,
-            ownFrame,
-            whole
-              ? baseView.neighbours.filter(n => !members.some(m => m.n === n.n))
-              : baseView.neighbours,
-            zoomWindow,
-            windows && isPart
-              ? {
-                  label: sec.sectionLabel,
-                  lapM: windows.section.fromM,
-                  drawn:
-                    sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
-                }
-              : null,
-          ),
-        }
-      : baseView;
+      ? windowCaption(
+          ownFrame,
+          zoomWindow,
+          windows && isPart
+            ? {
+                label: sec.sectionLabel,
+                lapM: windows.section.fromM,
+                drawn:
+                  sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
+              }
+            : null,
+        )
+      : '';
   // Over the whole compound window the map spans first entry to last exit, so
   // the first part's brake point is on it.
   const mapWindow: [number, number] = [
@@ -661,7 +663,7 @@ export function buildCornerModel(input: {
       dimmed: dimmedRanges(zoomWindow, view.stretch),
       brakeZone: brakeZone(lines, view.stretch.toM),
       neighbours: view.neighbours,
-      caption: view.caption,
+      caption,
     },
     brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView, mapWindow),
     prev: chips[(firstIdx - 1 + chips.length) % chips.length]?.n ?? null,

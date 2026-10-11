@@ -42,7 +42,7 @@ import {
   type CornerRow,
   type CornerSelection,
   type Measure,
-  MEASURES,
+  shownMeasures,
   sortRows,
 } from './model';
 import {type CornerBlock, cornerLayout} from './layout';
@@ -623,6 +623,7 @@ function PhoneCornerTable({
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  const shown = shownMeasures(rows);
   const [viewW, setViewW] = useState(0);
   const [contentW, setContentW] = useState(0);
   const [x, setX] = useState(0);
@@ -684,7 +685,7 @@ function PhoneCornerTable({
                 styles.measures,
                 {borderColor: color.lineHeader},
               ]}>
-              {MEASURES.map(m => (
+              {shown.map(m => (
                 <View key={m.id} style={styles.phoneCell}>
                   <Text
                     variant='tableHeader'
@@ -706,7 +707,7 @@ function PhoneCornerTable({
                 key={r.lapId}
                 onPress={() => onPressRow(r.lapId)}
                 style={[...rowStyle(r), styles.measures]}>
-                {MEASURES.map(m => {
+                {shown.map(m => {
                   const c = r.cells[m.id];
                   return (
                     <View key={m.id} style={styles.phoneCell}>
@@ -772,6 +773,7 @@ function CornerTable({
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  const shown = shownMeasures(rows);
   if (!sortable)
     return (
       <PhoneCornerTable
@@ -791,7 +793,7 @@ function CornerTable({
         <Text variant='tableHeader' tone='textMuted' style={styles.lapCol}>
           Lap
         </Text>
-        {MEASURES.map(m => {
+        {shown.map(m => {
           const active = sortable && sort.by === m.id;
           return (
             <Pressable
@@ -848,7 +850,7 @@ function CornerTable({
                 </Text>
               )}
             </View>
-            {MEASURES.map(m => {
+            {shown.map(m => {
               const c = r.cells[m.id];
               return (
                 <View key={m.id} style={styles.cellCol}>
