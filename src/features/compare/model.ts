@@ -57,6 +57,7 @@ import {
   tailBefore,
   WRAP_M,
 } from './neighbours';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -427,6 +428,8 @@ export type CompareModel = {
   sectionEntryM: Record<number, number>;
   /** Section number → its first single corner, which Corner opens. */
   sectionFirstCorner: Record<number, number>;
+  /** Sections with more than one corner: their Corner link opens All. */
+  sectionCompound: Record<number, boolean>;
 };
 
 export type AllLapsStint = {
@@ -1320,6 +1323,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
         s.n,
         firstCornerOf(trackCorners(map!), s.n) ?? s.n,
       ]),
+    ),
+    sectionCompound: Object.fromEntries(
+      (map?.sections ?? []).map(s => [s.n, isCompound(s)]),
     ),
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),

@@ -257,13 +257,16 @@ function CompareView({
       lapStroke(scheme, selIndex, highlighted, selection.hl != null),
     [scheme, selection.hl],
   );
-  // Compare works per section; Corner opens the section's first corner.
+  // Compare works per section; Corner opens the section's first corner, and
+  // a compound section opens All (the same rule as the session grid).
   const openCorner = (section: number) =>
     router.push(
-      cornerHref(sessionId, model.sectionFirstCorner[section] ?? section, {
-        laps: selection.laps,
-        hl: selection.hl,
-      }),
+      cornerHref(
+        sessionId,
+        model.sectionFirstCorner[section] ?? section,
+        {laps: selection.laps, hl: selection.hl},
+        model.sectionCompound[section] === true,
+      ),
     );
 
   // --- cursor movement: pan, keyboard, playback ---------------------------------

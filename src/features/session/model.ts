@@ -54,6 +54,7 @@ import {
   type TrafficRow,
   trafficRows,
 } from './trafficFacts';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -175,11 +176,11 @@ export type SectionTable = {
   sections: (number | null)[];
   /**
    * Where a cell in each column opens Corner: the section's first corner (its
-   * number, not the section's). A compound section opens on that first part,
-   * not on All; All is one tap away in its Parts row. Null for the start
+   * number, not the section's), and whether the section is compound (opens
+   * on All: "for compound turns, default select all"). Null for the start
    * straight and the game's sectors.
    */
-  targets: {corner: number | null}[];
+  targets: {corner: number | null; whole: boolean}[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -371,10 +372,20 @@ export function sectionTable(
   return {
     heads: times.segments.map(s => s.label),
     sections: times.segments.map(s => s.section ?? null),
-    targets: times.segments.map(s => ({
-      corner:
-        s.section != null && corners ? firstCornerOf(corners, s.section) : null,
-    })),
+    targets: times.segments.map(s => {
+      const section =
+        s.section == null
+          ? undefined
+          : map?.sections.find(x => x.n === s.section);
+      return {
+        corner:
+          s.section != null && corners
+            ? firstCornerOf(corners, s.section)
+            : null,
+        // A compound section (more than one corner) opens whole, read from the map.
+        whole: section ? isCompound(section) : s.compound === true,
+      };
+    }),
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
@@ -690,11 +701,11 @@ export function gridCellTargetOf(
   column: number,
   lapId: string,
   checked: string[],
-): {corner: number; laps: string[]} | null {
+): {corner: number; whole: boolean; laps: string[]} | null {
   const t = table.targets[column];
   if (!t || t.corner == null) return null;
   // The set is unchanged: the tapped lap is only highlighted.
-  return {corner: t.corner, laps: checked};
+  return {corner: t.corner, whole: t.whole, laps: checked};
 }
 
 /**

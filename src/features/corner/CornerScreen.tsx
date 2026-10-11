@@ -248,7 +248,7 @@ function CornerView({
       label={s.label}
       minWidth={size.hit}
       selected={s.selected}
-      onPress={() => go(s.firstCorner)}
+      onPress={() => go(s.firstCorner, s.compound)}
     />
   ));
   // "All" first: the whole compound window as one corner. Its URL names the
