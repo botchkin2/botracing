@@ -394,6 +394,11 @@ function lateFlagNote(
   return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }
 
+/** The lap names a stint covers: "L14–L28", or "L14" for one lap (racing-lap indexes, the formation lap is 0). */
+function lapSpan(first: number, last: number): string {
+  return first >= last ? lapName(last) : `${lapName(first)}–${lapName(last)}`;
+}
+
 /**
  * The lines a stops row prints, one per stint, one number a cell: the laps,
  * what the stint uses in the unit shown, and the stop that ends it with what
@@ -412,12 +417,18 @@ function describeRow(
   const formationUse = shown === 've' ? formation?.vePct : formation?.fuelL;
   if (values.length > 0 && formationUse != null)
     values[0] = Math.max(0, values[0] - formationUse);
+  // The laps each stint covers, by the names the stops use ("L2–L28"). With
+  // the Formation row the first stint starts after the formation lap (L1);
+  // without it, that lap is in the first stint, as on the Pit plan card.
+  let racingLaps = 0;
   const lines = r.stintLaps.map((laps, i): StintLine => {
+    const first = i === 0 ? (formationUse != null ? 1 : 0) : racingLaps + 1;
+    racingLaps += laps;
     const refuel = r.refuel[i];
     const seconds = refuel ? refuelSecondsAt(refuel.litres, rate) : null;
     return {
       n: i + 1,
-      laps: String(laps),
+      laps: lapSpan(first, racingLaps),
       use:
         values[i] == null
           ? null
