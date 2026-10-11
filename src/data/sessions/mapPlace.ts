@@ -91,6 +91,17 @@ const outlineUseCache = new WeakMap<
   WeakMap<object, Map<string, OutlineUse>>
 >();
 
+// A whole lap placed on the map, per (track map, trace, stride): the points
+// depend only on the map's georef and the trace, and Compare rebuilds its set
+// on every selection or data change, placing every ticked lap (#507). 60 laps
+// re-projected each time cost ~2 ms a build (radio, board #4376). Callers
+// read the points; they never change them.
+const NO_MAP = {};
+const lapPlaceCache = new WeakMap<
+  object,
+  WeakMap<GridTrace, Map<number, Xy[]>>
+>();
+
 /** Two laps of a track never share their first sample and length. */
 function traceKey(t: GridTrace): string {
   return `${t.lat.length}:${t.lat[0]}:${t.lon[0]}`;
@@ -126,12 +137,29 @@ export function mapPlacer(
     }
     return out;
   };
+  const byTrace =
+    lapPlaceCache.get(map ?? NO_MAP) ??
+    lapPlaceCache
+      .set(map ?? NO_MAP, new WeakMap<GridTrace, Map<number, Xy[]>>())
+      .get(map ?? NO_MAP)!;
   const place: MapPlacer['place'] = (t, from, to, stride) => {
+    // The whole lap is the common call (every map line); it is placed once.
+    const whole = from <= 0 && to >= t.lat.length - 1;
+    if (whole) {
+      const hit = byTrace.get(t)?.get(stride);
+      if (hit) return hit;
+    }
     const pts = [];
     for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
       pts.push({lat: t.lat[i], lon: t.lon[i]});
     const placed = georef ? applyGeoref(pts, georef) : pts;
-    return placed.map(p => toLocalMetres(p, origin));
+    const out = placed.map(p => toLocalMetres(p, origin));
+    if (whole) {
+      const strides = byTrace.get(t) ?? new Map<number, Xy[]>();
+      strides.set(stride, out);
+      byTrace.set(t, strides);
+    }
+    return out;
   };
   const osm = georef ? toMetres(map!.outline) : [];
   // The surface is in the game's world metres, placed like a car: the same
