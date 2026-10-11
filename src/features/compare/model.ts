@@ -221,8 +221,6 @@ export type LapRef = {
   selIndex: number;
   /** The Ref lap (Ref mode only). */
   isRef: boolean;
-  /** Ref or highlighted: full color, values shown, dot on the map. */
-  key: boolean;
   highlighted: boolean;
 };
 
@@ -819,9 +817,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     selIndex: slotOf.get(l.id) as number,
     isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
-    key: l.id === refLap?.id || l.id === hlId || mode === 'individual',
   }));
-  const keyRefs = lapRefs.filter(r => r.key);
 
   // Without a Ref lap the tables use the median of the checked laps; a lap
   // stands in only for a session not resynced yet, and that lap is the set's
@@ -1148,8 +1144,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     const placer = mapPlacer(map, input.surface ?? null);
     const project = (t: GridTrace, stride: number) =>
       placer.place(t, 0, t.lat.length - 1, stride);
-    const shown = lapRefs.filter(r => r.key || mode !== 'grey');
-    const lines = shown
+    const lines = lapRefs
       .filter(r => traces.has(r.lapId))
       .map(r => ({...r, points: project(traces.get(r.lapId)!, MAP_STRIDE)}))
       // The reference and highlighted lap are drawn last, on top.
@@ -1163,7 +1158,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     // checked lap's trace, which is also where Follow centres, so the dot goes
     // there. It stands for the basis, in the basis colour like its readout row.
     const dotsAt = (cursorM: number): MapModel['dots'] => {
-      const keyed = keyRefs
+      const keyed = lapRefs
         .filter(r => traces.has(r.lapId))
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
         // Same order as the lines: the reference dot on top.
@@ -1176,7 +1171,6 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           selIndex: BASIS_SLOT,
           isRef: false,
           highlighted: false,
-          key: true,
           at: pointAt(refTrace, cursorM),
         },
       ];
@@ -1267,7 +1261,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
             },
           ]
         : []),
-      ...keyRefs.map(r => ({
+      ...lapRefs.map(r => ({
         lapId: r.lapId,
         selIndex: r.selIndex,
         highlighted: r.highlighted,
@@ -1397,7 +1391,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
                     },
                   ]
                 : []),
-              ...keyRefs.map(r => {
+              ...lapRefs.map(r => {
                 const v = readAt(ch, r.lapId, cursorM);
                 return {
                   lapId: r.lapId,

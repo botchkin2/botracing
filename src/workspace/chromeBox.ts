@@ -54,8 +54,7 @@ export function chromeBox({
   const slots = lapSlots(found, ref);
   const lapRows = found.map(lap => ({
     label: `L${lap.lapIndex}`,
-    color: lapStroke(scheme, slots.get(lap.id) as number, found.length, false)
-      .color,
+    color: lapStroke(scheme, slots.get(lap.id) as number, false).color,
   }));
   const cornerLabel =
     cornerN == null
