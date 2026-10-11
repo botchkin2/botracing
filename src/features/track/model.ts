@@ -143,7 +143,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
         s.parts.map(p => turnLabel(p.n, p.official)),
       );
       groups.push({
-        title: label.toUpperCase(),
+        title: label,
         rows: s.parts.map(row),
       });
       continue;

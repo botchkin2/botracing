@@ -62,6 +62,7 @@ export function SessionGrid({
                 style={[styles.head, {width: CELL_W}]}>
                 <Text
                   variant='label'
+                  asWritten
                   tone={isSorted(sort, i) ? 'accentInk' : 'textSecondary'}>
                   {c.head}
                 </Text>
