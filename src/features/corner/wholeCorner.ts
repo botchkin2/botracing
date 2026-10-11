@@ -112,15 +112,8 @@ export function sliceCornerOf(
   return members[members.length - 1].n;
 }
 
-/** "T2–5" for a compound section, "T7" for one; from "S2 (T2–T5)". */
-export function wholeLabel(sectionLabel: string): string {
-  const inner = /\((.*)\)/.exec(sectionLabel)?.[1] ?? sectionLabel;
-  return inner.replace(/–T(?=\d)/g, '–');
-}
-
-/** "Turns 2–5" for a compound section, "Turn 7" for one; from "S2 (T2–T5)". */
-export function wholeTitle(sectionLabel: string): string {
-  const inner = /\((.*)\)/.exec(sectionLabel)?.[1] ?? sectionLabel;
-  const many = /[–,-]/.test(inner);
-  return `${many ? 'Turns' : 'Turn'} ${inner.replace(/T(?=\d)/g, '')}`;
+/** "Turns 2–5" for a compound section, "Turn 7" for one; from its name ("T2–5", sectionNameOf). */
+export function wholeTitle(sectionName: string): string {
+  const many = /[–,-]/.test(sectionName);
+  return `${many ? 'Turns' : 'Turn'} ${sectionName.replace(/T(?=\d)/g, '')}`;
 }

@@ -39,7 +39,8 @@ export type MapAnchor = {at: MapPoint; prev: MapPoint; next: MapPoint};
 
 export type MapMarks = {
   boundaries: MapAnchor[];
-  sections: {n: number; anchor: MapAnchor}[];
+  /** `label` is the section's name ("T2–5", analysis/turnNames sectionNameOf). */
+  sections: {n: number; label: string; anchor: MapAnchor}[];
   corners: {n: number; official?: string; anchor: MapAnchor}[];
 };
 
@@ -203,6 +204,7 @@ export function TrackMap({
     kind: 'section' | 'corner' | 'pit';
     n: number;
     official?: string;
+    label?: string;
     at: MapPoint;
   };
   const bandClear = (l: Label) =>
@@ -212,6 +214,7 @@ export function TrackMap({
     ...marks.sections.map(s => ({
       kind: 'section' as const,
       n: s.n,
+      label: s.label,
       at: off(s.anchor, SECTION_OFFSET),
     })),
     ...marks.corners.map(c => ({
@@ -230,7 +233,7 @@ export function TrackMap({
     .filter(bandClear);
   const textOf = (l: Label) =>
     l.kind === 'section'
-      ? `S${l.n}`
+      ? l.label ?? ''
       : l.kind === 'corner'
       ? turnLabel(l.n, l.official)
       : 'PIT';
@@ -386,7 +389,7 @@ export function TrackMap({
             fill={s.n === openSection ? color.text : color.mapLabel}
             fontFamily={fonts.monoBold}
             fontSize={SECTION_FONT}>
-            {`S${s.n}`}
+            {s.label}
           </SvgText>
         ))}
         {kept
@@ -483,7 +486,7 @@ export function TrackMap({
         <Pressable
           key={`hit${s.n}`}
           accessibilityRole='button'
-          accessibilityLabel={`Section ${s.n}`}
+          accessibilityLabel={s.label}
           onPress={() => onPressSection(s.n)}
           style={[styles.hit, {left: s.at.x - HIT / 2, top: s.at.y - HIT / 2}]}
         />

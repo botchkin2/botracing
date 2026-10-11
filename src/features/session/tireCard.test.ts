@@ -194,7 +194,7 @@ describe('buildTiresCard', () => {
       lap(4, 99, {stint: 2, tyres: null}),
       lap(5, 99, {stint: 3}),
     ];
-    expect(stints(laps).map(s => s.tab)).toEqual(['S1', 'S3']);
+    expect(stints(laps).map(s => s.tab)).toEqual(['Stint 1', 'Stint 3']);
   });
 });
 

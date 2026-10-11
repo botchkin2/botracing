@@ -119,7 +119,7 @@ export type ReadingRow = {label: string; wearPct: Record<Wheel, number | null>};
 
 export type StintTires = {
   n: number;
-  /** "S2". */
+  /** "Stint 2": never "S2", which names a game sector (#515). */
   tab: string;
   /** "Stint 2 · L14–L26". */
   title: string;
@@ -424,7 +424,7 @@ function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
   const kind = greenLaps.length >= MIN_TREND_LAPS ? 'trend' : 'readings';
   return {
     n,
-    tab: `S${n}`,
+    tab: `Stint ${n}`,
     title: `Stint ${n} · L${first}–L${last}`,
     sub: `${greenLaps.length} green ${greenLaps.length === 1 ? 'lap' : 'laps'}`,
     setAge: setAgeText(setAges(all, last), last),

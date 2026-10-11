@@ -568,7 +568,11 @@ function CompareView({
       <TrackStrip
         width={sideW}
         lengthM={model.lengthM}
-        corners={model.map.sectionApexes.map(b => ({n: b.n, m: b.apexM}))}
+        corners={model.map.sectionApexes.map(b => ({
+          n: b.n,
+          m: b.apexM,
+          label: b.label,
+        }))}
         windowM={model.windowM}
         markers={model.map.dots.map(d => ({
           key: d.lapId,
@@ -593,6 +597,7 @@ function CompareView({
       <CornerGrid
         width={sideW}
         corners={model.grid.corners}
+        heads={model.grid.heads}
         rows={model.grid.rows.map(r => ({
           key: r.key,
           label: r.label,

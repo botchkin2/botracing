@@ -395,7 +395,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               frameM={p.windowed ? model.windowM : undefined}
               marks={(model.map?.sectionApexes ?? []).map(b => ({
                 m: b.apexM,
-                label: `S${b.n}`,
+                label: b.label,
               }))}
               onScrub={m => {
                 p.onPause();
@@ -564,14 +564,14 @@ export function CompareWorkspace(p: WorkspaceProps) {
                 {/* One tap on the label moves playback to the section's start (D28). */}
                 <Pressable
                   accessibilityRole='button'
-                  accessibilityLabel={`Jump to S${n}`}
+                  accessibilityLabel={`Jump to ${model.grid!.heads[i]}`}
                   hitSlop={8}
                   onPress={() =>
                     p.onCursor(sectionStartM(model.sectionEntryM, n))
                   }
                   style={styles.sectionHead}>
                   <Text variant='dataSmall' tone='textMuted'>
-                    S{n} ·{' '}
+                    {model.grid!.heads[i]} ·{' '}
                     {formatDistance(sectionStartM(model.sectionEntryM, n))}
                   </Text>
                 </Pressable>

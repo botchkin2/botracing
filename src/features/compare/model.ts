@@ -13,6 +13,7 @@ import {
 } from '@/src/analysis/resample';
 import {anchorLapOf, lapSlots} from '@/src/analysis/lapSlots';
 import {medianBasisOf} from '@/src/analysis/medianBasis';
+import {sectionNameOf} from '@/src/analysis/turnNames';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
@@ -279,6 +280,8 @@ export type ChartModel = {
 
 export type CornerGridModel = {
   corners: number[];
+  /** Each column's section name ("T2–5"), the name every screen uses. */
+  heads: string[];
   rows: {
     key: string;
     label: string;
@@ -304,10 +307,10 @@ export type MapModel = {
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  /** Follow's position label, e.g. "Section 4 · T8 apex". */
+  /** Follow's position label, e.g. "T7–8 · T8 apex". */
   followPlace: string;
-  /** Each section's apex distance, for the strip. */
-  sectionApexes: {n: number; apexM: number}[];
+  /** Each section's apex distance and name, for the strip. */
+  sectionApexes: {n: number; label: string; apexM: number}[];
   attribution: string | null;
   /** Null until the geometry is built (the hook memoizes it). */
   follow: (FollowView & {geometry: FollowGeometry}) | null;
@@ -628,18 +631,20 @@ function domainOf(
 }
 
 export function cornerPlace(
-  sections: {n: number; entryM: number; exitM: number}[],
+  sections: (Pick<MapSection, 'n' | 'official' | 'entryM' | 'exitM'> & {
+    parts: readonly {n: number; official?: string}[];
+  })[],
   cursorM: number,
 ): string {
   const inside = sections.find(s => cursorM >= s.entryM && cursorM <= s.exitM);
-  if (inside) return `Section ${inside.n}`;
+  if (inside) return sectionNameOf(inside);
   const near = sections.find(
     s => cursorM < s.entryM && s.entryM - cursorM <= CORNER_NEAR_M,
   );
-  if (near) return `Section ${near.n}`;
+  if (near) return sectionNameOf(near);
   const before = [...sections].reverse().find(s => s.exitM < cursorM);
   const prev = before ?? sections[sections.length - 1];
-  return prev ? `After Section ${prev.n}` : '';
+  return prev ? `After ${sectionNameOf(prev)}` : '';
 }
 
 /**
@@ -672,9 +677,10 @@ export function openingCursorM(
 export const AT_APEX_M = 15;
 
 /**
- * Follow's position label (handoff v2 M1): the section, plus the corner when
- * the cursor is inside a corner's entry–exit range ("Section 4 · T8"), and
- * "T8 apex" only close to the apex itself.
+ * Follow's position label (handoff v2 M1): the section by its name, plus the
+ * corner when the cursor is inside a corner's entry–exit range and the
+ * section has more than one ("T2–5 · T3"; a one-corner section is its name
+ * alone, "T6"), and "apex" only close to the apex itself.
  */
 export function followPlace(sections: MapSection[], cursorM: number): string {
   const place = cornerPlace(sections, cursorM);
@@ -682,9 +688,10 @@ export function followPlace(sections: MapSection[], cursorM: number): string {
     for (const c of s.parts.length > 0 ? s.parts : [s])
       if (cursorM >= c.entryM && cursorM <= c.exitM) {
         const turn = turnLabel(c.n, c.official);
+        const where = turn === place ? turn : `${place} · ${turn}`;
         return Math.abs(cursorM - c.apexM) <= AT_APEX_M
-          ? `${place} · ${turn} apex`
-          : `${place} · ${turn}`;
+          ? `${where} apex`
+          : where;
       }
   return place;
 }
@@ -1059,6 +1066,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const corners = sectionNs.length
     ? sectionNs
     : Array.from({length: cornerCount}, (_, i) => i + 1);
+  // The map names its sections by their turns; without one only the number
+  // is known.
+  const heads = map
+    ? map.sections.map(sectionNameOf)
+    : corners.map(n => `#${n}`);
   // Against windows, a lap cut at other boundaries (or analysed before them)
   // has section times cut elsewhere: no cells for it.
   const diffRow = (lap: Lap) =>
@@ -1126,6 +1138,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     gridRows.length && ref
       ? {
           corners,
+          heads,
           rows: gridRows,
         }
       : null;
@@ -1196,6 +1209,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
       dotsAt,
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
+        label: sectionNameOf(s),
         apexM: s.apexM,
       })),
       attribution: placer.real ? map!.attribution : null,

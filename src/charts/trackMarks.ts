@@ -1,7 +1,10 @@
+import {sectionNameOf} from '@/src/analysis/turnNames';
+
 import {type MapAnchor, type MapMarks} from './TrackMap';
 
 // Track mode labels (handoff v2 M1a): a tick across the band at each
-// section boundary, S1–S5 labels inside the loop, corner numbers outside.
+// section boundary, section names ("T2–5") inside the loop, corner numbers
+// outside.
 // Each mark is an anchor on the reference line plus two neighbours, so the
 // chart can find the band's normal in screen space and offset from there.
 
@@ -43,7 +46,11 @@ export function buildTrackMarks(
         i + 1 < sorted.length
           ? sorted[i + 1].entryM
           : lengthM + (sorted[0]?.entryM ?? 0);
-      return {n: s.n, anchor: anchor(((s.entryM + end) / 2) % lengthM)};
+      return {
+        n: s.n,
+        label: sectionNameOf(s),
+        anchor: anchor(((s.entryM + end) / 2) % lengthM),
+      };
     }),
     corners: sorted.flatMap(s =>
       (s.parts.length > 0 ? s.parts : [s]).map(c => ({

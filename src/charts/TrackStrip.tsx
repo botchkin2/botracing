@@ -26,7 +26,8 @@ export function TrackStrip({
 }: {
   width: number;
   lengthM: number;
-  corners: {n: number; m: number}[];
+  /** Each section's apex and name ("T2–5"). */
+  corners: {n: number; m: number; label: string}[];
   windowM: [number, number];
   markers: StripMarker[];
   onScrub: (distanceM: number) => void;
@@ -83,7 +84,7 @@ export function TrackStrip({
             anchor='middle'
             fill={color.textFaint}
             fontSize={TICK_PT}>
-            {`S${c.n}`}
+            {c.label}
           </ChartLabel>
         ))}
         {markers.map(mk => (

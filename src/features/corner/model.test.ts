@@ -166,7 +166,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('header names the corner and its section', () => {
     expect(m.title).toBe('Turn 3');
-    expect(m.subtitle).toBe('in S2 (T2–3) · 3 laps · vs L1');
+    expect(m.subtitle).toBe('in T2–3 · 3 laps · vs L1');
     expect(m.sectionN).toBe(2);
     expect(m.corners).toEqual([
       {n: 1, label: 'T1'},
@@ -310,7 +310,7 @@ describe('buildCornerModel (per single corner)', () => {
 
   it('a section without parts is one corner', () => {
     const c1 = build(['a'], null, 1);
-    expect(c1.subtitle).toMatch(/in S1 \(T1\)/);
+    expect(c1.subtitle).toMatch(/^in T1 · /);
     expect(c1.rows[0].values.time).toBe(5);
   });
 
@@ -536,7 +536,11 @@ describe('strips at 7+ laps', () => {
 });
 
 describe('colour slots and the default highlight, by meaning', () => {
-  const withKeys = (keyLapIds: string[], refId: string | null, hl: string | null = null) =>
+  const withKeys = (
+    keyLapIds: string[],
+    refId: string | null,
+    hl: string | null = null,
+  ) =>
     buildCornerModel({
       session,
       laps,
@@ -553,8 +557,16 @@ describe('colour slots and the default highlight, by meaning', () => {
     Object.fromEntries(m.rows.map(r => [r.label, r.onIndex]));
 
   it('slot 0 belongs to the Ref lap only; the rest follow in lap-number order from 1', () => {
-    expect(slots(withKeys(['c', 'a', 'b'], 'c'))).toEqual({L1: 1, L2: 2, L3: 0});
-    expect(slots(withKeys(['b', 'c', 'a'], 'a'))).toEqual({L1: 0, L2: 1, L3: 2});
+    expect(slots(withKeys(['c', 'a', 'b'], 'c'))).toEqual({
+      L1: 1,
+      L2: 2,
+      L3: 0,
+    });
+    expect(slots(withKeys(['b', 'c', 'a'], 'a'))).toEqual({
+      L1: 0,
+      L2: 1,
+      L3: 2,
+    });
   });
 
   it('without a Ref nobody is slot 0, whichever lap was ticked first', () => {
@@ -570,7 +582,9 @@ describe('colour slots and the default highlight, by meaning', () => {
 
   it('with none highlighted, the best other lap is, not the second in the list', () => {
     // L3 (c) is the fastest of the three; L1 (a) is the Ref: the highlight is c.
-    expect(withKeys(['c', 'a', 'b'], 'a').rows.find(r => r.highlighted)?.lapId).toBe('c');
+    expect(
+      withKeys(['c', 'a', 'b'], 'a').rows.find(r => r.highlighted)?.lapId,
+    ).toBe('c');
   });
 });
 
