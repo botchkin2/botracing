@@ -100,6 +100,6 @@ describe('chromeBox', () => {
   it('says the short track and the day', () => {
     const box = chromeBox(base);
     expect(box.track).toBe('Le Mans');
-    expect(box.detail).toContain('14 Sep');
+    expect(box.detail).toContain('Sep 14');
   });
 });

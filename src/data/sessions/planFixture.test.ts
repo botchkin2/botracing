@@ -5,6 +5,8 @@
 // plan the app built from the full laps, and are held here.
 import {describe, expect, it} from '@jest/globals';
 
+import {refuelRateOf} from '@/src/analysis/refuel';
+
 import {fuelOnly, greenLapsOf} from '@/src/features/plan/model';
 import {formationBurnOf} from '@/src/features/plan/formation';
 import {pitLaneBase} from '@/src/features/plan/pitBase';
@@ -16,7 +18,7 @@ import {raceFactsOfPlan} from './raceFacts';
 const block = toPlanBlock(fixture.plan)!;
 
 describe('a real LMU race through the plan block', () => {
-  it('reads the block as the app\'s types, rows and race side intact', () => {
+  it("reads the block as the app's types, rows and race side intact", () => {
     expect(block.laps).toHaveLength(20);
     expect(block.fuel).toEqual({
       startL: 85,
@@ -29,7 +31,11 @@ describe('a real LMU race through the plan block', () => {
   });
 
   it('gives the planner 20 green laps with VE through the ratio, and median use 2.43 L', () => {
-    const laps = greenLapsOf(fixture.session.id, block.laps!, block.fuel.litresPerVePct);
+    const laps = greenLapsOf(
+      fixture.session.id,
+      block.laps!,
+      block.fuel.litresPerVePct,
+    );
     expect(laps).toHaveLength(20);
     expect(fuelOnly(laps)).toBe(false);
     const fuel = laps.map(l => l.fuelL).sort((a, b) => a - b);
@@ -62,6 +68,6 @@ describe('a real LMU race through the plan block', () => {
     expect(block.race?.formationL).toBe(3.27);
     const burn = formationBurnOf([block.race!.formationL], 2.43);
     expect(burn.kind).toBe('estimate');
-    expect(pitLaneBase([block.race!], 'GT3')).toBeNull();
+    expect(pitLaneBase([block.race!], refuelRateOf([], 'GT3'))).toBeNull();
   });
 });

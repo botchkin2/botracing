@@ -30,9 +30,29 @@ export type PlanStop = {
   vePct: number | null;
   /** Litres added in the stop. */
   addedL: number | null;
-  /** The stop's lane loss in seconds, or null when the pit lane base leaves it out. */
+  /** The stop's lane loss in seconds, or null when the pit lane base leaves it out (only a service teaches it). */
   lossS: number | null;
+  /** Why the car was in the lane (tools/sessions/pitVisit.mjs); null on a block before version 2. */
+  kind: PitVisitKind | null;
+  /** 'stop-go' or 'drive-through' for a penalty, else null. */
+  detail: string | null;
+  /** The pump's rate in this visit, litres over the fill (not over the stop); null under a litre added or before version 2. */
+  fillLPerS: number | null;
 };
+
+export type PitVisitKind =
+  | 'service'
+  | 'repair'
+  | 'penalty'
+  | 'through'
+  | 'unknown';
+const VISIT_KINDS: readonly PitVisitKind[] = [
+  'service',
+  'repair',
+  'penalty',
+  'through',
+  'unknown',
+];
 
 /** The race side: what "plan vs what happened" and the formation burn read. */
 export type PlanRace = {
@@ -113,6 +133,9 @@ function toStop(v: unknown): PlanStop | null {
     vePct: num(s.vePct),
     addedL: num(s.addedL),
     lossS: num(s.lossS),
+    kind: VISIT_KINDS.find(k => k === s.kind) ?? null,
+    detail: typeof s.detail === 'string' ? s.detail : null,
+    fillLPerS: num(s.fillLPerS),
   };
 }
 
@@ -175,7 +198,8 @@ export function toPlanSessions(raw: unknown): {
   return {
     items: items.flatMap(i => {
       const x = obj(i);
-      if (typeof x.id !== 'string' || typeof x.startedAt !== 'string') return [];
+      if (typeof x.id !== 'string' || typeof x.startedAt !== 'string')
+        return [];
       return [
         {
           id: x.id,

@@ -335,10 +335,9 @@ function cellsOf(
 }
 
 /**
- * The heads and the median, best and spread rows of the section columns. A
- * column under MIN_OPTIMUM_LAPS laps that were alone (no car ahead within 1 s,
- * no tow) has no statistics; its median cell then gives that count, and the
- * others stay dashes, so one number is shown once.
+ * The heads and the median, best and spread rows of the section columns, over
+ * every comparable lap: tow and traffic are flags, never exclusions. A column
+ * under MIN_OPTIMUM_LAPS laps has no statistics and shows dashes.
  */
 export function sectionTable(
   times: SegmentTimes | null,
@@ -350,13 +349,11 @@ export function sectionTable(
   const row = (
     label: string,
     pick: (s: (typeof stats)[number]) => number | null,
-    short?: (s: (typeof stats)[number]) => string | null,
   ) => ({
     label,
     cells: stats.map(s => {
       const v = pick(s);
-      if (v != null) return v.toFixed(2);
-      return short?.(s) ?? dash;
+      return v != null ? v.toFixed(2) : dash;
     }),
   });
   return {
@@ -377,11 +374,7 @@ export function sectionTable(
       };
     }),
     footer: [
-      row(
-        'Median',
-        s => s.medianS,
-        s => (s.n > 0 ? `${s.n} alone` : null),
-      ),
+      row('Median', s => s.medianS),
       row('Best', s => s.bestS),
       row('Spread', s => s.spreadS),
     ],
@@ -483,7 +476,7 @@ export function buildSessionModel(
       label: bits.join(' · ') + split,
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
     });
-    const stintNote = stintFuelLine(stint);
+    const stintNote = stintFuelLine(stintLaps);
     if (stintNote)
       rows.push({kind: 'note', key: `stint-${stint.n}-fuel`, text: stintNote});
     for (const l of stintLaps) {

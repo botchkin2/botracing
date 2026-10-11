@@ -95,6 +95,14 @@ test('a stop: fuel and VE at entry, what was added, how long in the pits', () =>
   assert.equal(stop.inPitS, 20);
 });
 
+test('a stop records the pump rate: litres over the fill, not over the stop', () => {
+  // 20 L at 2 L/s over 10 s of a 20 s stop: 2 L/s, not the 1 L/s of litres / stop.
+  const stop = lapPitStop(recording(), 150, 300, pits);
+  assert.ok(Math.abs(stop.fillLPerS - 2) < 0.05, `fill ${stop.fillLPerS}`);
+  // Nothing added: no rate.
+  assert.equal(lapPitStop(recording({service: false}), 150, 300, pits).fillLPerS, null);
+});
+
 test('a lap without a pit entry has no stop', () => {
   const s = recording();
   assert.equal(lapPitStop(s, 0, 100, pits), null);

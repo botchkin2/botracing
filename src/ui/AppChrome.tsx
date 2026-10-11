@@ -17,7 +17,7 @@ export type ChromeSession<T extends string = string> = {
   /** R, Q or P. */
   badge: string;
   track: string;
-  /** "Porsche 911 GT3 R · Manthey #91 · 14 Sep"; hidden when compact. */
+  /** "Porsche 911 GT3 R · Manthey #91 · Sep 14"; hidden when compact. */
   detail: string;
   tabs: readonly ChromeTab<T>[];
   activeTab: T | null;

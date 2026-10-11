@@ -57,7 +57,18 @@ describe('raceFactsOfPlan', () => {
     formationL: 3.3,
     ownUse: {fuelL: 2.4, vePct: null},
     end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
-    stops: [{lapIndex: 9, fuelL: 12, vePct: 40, addedL: 50, lossS: 31}],
+    stops: [
+      {
+        lapIndex: 9,
+        fuelL: 12,
+        vePct: 40,
+        addedL: 50,
+        lossS: 31,
+        kind: 'service' as const,
+        detail: null,
+        fillLPerS: 3.4,
+      },
+    ],
   };
   const when = '2026-09-26T00:38:00Z';
 
@@ -75,12 +86,16 @@ describe('raceFactsOfPlan', () => {
       classLeaderLapsDone: 21,
       ownUse: {fuelL: 2.4, vePct: null},
       end: {lapIndex: 21, fuelL: 33.2, vePct: 32.2},
-      stops: [{lapIndex: 9, fuelL: 12, vePct: 40}],
+      stops: [
+        {lapIndex: 9, fuelL: 12, vePct: 40, kind: 'service', detail: null},
+      ],
     });
   });
 
   it('has none outside a race, for a race with nothing to end on, and before the block existed', () => {
-    expect(raceFactsOfPlan({startedAt: when, plan: plan(null)}, 'k')).toBeNull();
+    expect(
+      raceFactsOfPlan({startedAt: when, plan: plan(null)}, 'k'),
+    ).toBeNull();
     expect(raceFactsOfPlan({startedAt: when, plan: null}, 'k')).toBeNull();
   });
 

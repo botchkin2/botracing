@@ -11,6 +11,7 @@ import {
   buildRaceModel,
   defaultFilter,
   displayModel,
+  gapText,
   labelRank,
   roadGapS,
   roadOffsetM,
@@ -86,6 +87,16 @@ const CLASSES: ClassTable = {
       paceS: null,
     },
 };
+
+describe('gapText', () => {
+  it('is blank only for the leader; an unknown gap is a dash, never blank', () => {
+    expect(gapText(car(0, 'GT3', 1, {gapS: 0}))).toBe('');
+    expect(gapText(car(1, 'GT3', 2, {gapS: 3.412}))).toBe('+3.412');
+    expect(gapText(car(2, 'GT3', 3, {gapS: 64.2}))).toBe('+1:04.2');
+    expect(gapText(car(3, 'GT3', 4, {lapsDown: 2, gapS: 80}))).toBe('+2 laps');
+    expect(gapText(car(4, 'GT3', 5, {gapS: null}))).toBe('—');
+  });
+});
 
 describe('displayModel', () => {
   it('drops the class LMU puts on the end of a model name', () => {

@@ -106,7 +106,7 @@ describe('buildPlanHalf', () => {
     expect(h.rows[3]).toEqual({k: 'In', p: '—', a: '4 % VE (1.1 laps)'});
   });
 
-  it('a DNF in a timed race names the class leader laps seen, or the minutes without them', () => {
+  it("a DNF's Finish row: the plan's flag against the DNF and the class leader seen", () => {
     const run = (classLeaderLapsDone: number | null) =>
       half(
         {
@@ -118,8 +118,13 @@ describe('buildPlanHalf', () => {
         },
         [actual(14)],
       ).rows[0];
-    expect(run(24)).toEqual({k: 'Finish', p: 'L24+', a: 'DNF L21'});
-    expect(run(null)).toEqual({k: 'Finish', p: '40 min', a: 'DNF L21'});
+    // 40 min at the 81 s median: 29.6, so 30 racing laps, the flag on L31.
+    expect(run(24)).toEqual({
+      k: 'Finish',
+      p: 'flag L31',
+      a: 'DNF L21 · leader L24+',
+    });
+    expect(run(null)).toEqual({k: 'Finish', p: 'flag L31', a: 'DNF L21'});
   });
 
   it('a DNF without the race minutes shows the laps seen and plans nothing', () => {
@@ -136,7 +141,7 @@ describe('buildPlanHalf', () => {
       [actual(11)],
     );
     expect(h.note).toBe('No race length on record.');
-    expect(h.rows).toEqual([{k: 'Finish', p: 'L23+', a: 'DNF L20'}]);
+    expect(h.rows).toEqual([{k: 'Finish', p: '—', a: 'DNF L20 · leader L23+'}]);
   });
 
   it('a DNF with the race minutes plans that distance', () => {
@@ -150,10 +155,76 @@ describe('buildPlanHalf', () => {
       },
       [actual(24)],
     );
-    expect(h.rows[0]).toEqual({k: 'Finish', p: 'L61+', a: 'DNF L41'});
+    // 90 min at 81 s: 66.7, so 67 racing laps, the flag on L68.
+    expect(h.rows[0]).toEqual({
+      k: 'Finish',
+      p: 'flag L68',
+      a: 'DNF L41 · leader L61+',
+    });
     expect(h.rows.filter(r => r.k.startsWith('Stop')).length).toBeGreaterThan(
       1,
     );
+  });
+
+  it('after a DNF, what is left is compared at the DNF lap, never at the plan flag', () => {
+    const h = half(
+      {
+        raceLaps: 20,
+        race: {minutes: 40},
+        leftEarly: true,
+        playerLapsDone: 21,
+        classLeaderLapsDone: 24,
+        end: {lapIndex: 21, fuelL: 3.7, vePct: 4},
+      },
+      [],
+    );
+    // At the end of L21: 20 racing laps and the formation lap, no planned stop
+    // before (the first is after racing lap 27): 21 x 3.4985 = 73.5 % used.
+    expect(h.rows.find(r => r.k.startsWith('Left at'))).toEqual({
+      k: 'Left at L21',
+      p: '27 % VE (7.6 laps)',
+      a: '4 % VE (1.1 laps)',
+    });
+    expect(h.rows.some(r => r.k === 'Spare')).toBe(false);
+  });
+
+  it('a short start: what is left is measured from the load the car had, the start its own row', () => {
+    // da3e's case (bias, #498): a 100 L limit, 87 L loaded, a DNF at L21.
+    const over = {
+      limitL: 100,
+      startL: 87,
+      startVePct: 87,
+      raceLaps: 20,
+      race: {minutes: 40},
+      leftEarly: true,
+      playerLapsDone: 21,
+      classLeaderLapsDone: 24,
+      end: {lapIndex: 21, fuelL: 3.7, vePct: 4},
+    };
+    // Fuel: 87 - 21 x 2.40 = 36.6 L, not 100 - 50.4 = 49.6 L.
+    const fuel = half(over, [], false);
+    expect(fuel.rows.find(r => r.k === 'Start')).toEqual({
+      k: 'Start',
+      p: '100 L',
+      a: '87 L',
+    });
+    expect(fuel.rows.find(r => r.k.startsWith('Left at'))?.p).toBe(
+      '36.6 L (15.3 laps)',
+    );
+    // VE: 87 - 21 x 3.4985 = 13.5 %, shown whole.
+    const ve = half(over, []);
+    expect(ve.rows.find(r => r.k === 'Start')).toEqual({
+      k: 'Start',
+      p: '100 % VE',
+      a: '87 % VE',
+    });
+    expect(ve.rows.find(r => r.k.startsWith('Left at'))?.p).toBe(
+      '14 % VE (3.9 laps)',
+    );
+  });
+
+  it('a full start has no Start row', () => {
+    expect(half().rows.some(r => r.k === 'Start')).toBe(false);
   });
 
   it('with no stop the plan is the one load to the flag', () => {
@@ -190,6 +261,10 @@ describe('buildPlanHalf', () => {
       {k: 'Fuel a lap', p: '2.40 L', a: '2.60 L'},
       {k: 'VE a lap', p: '3.5 %', a: '3.8 %'},
     ]);
+    // A median of 2.55 prints 2.6 here as on the Session page (toFixed gave 2.5).
+    expect(half({ownUse: {fuelL: 2.4, vePct: 2.55}}).rows.at(-1)!.a).toBe(
+      '2.6 %',
+    );
     // Under three green laps the race has no median of its own: no row, not a made-up one.
     expect(
       half({ownUse: {fuelL: null, vePct: null}}).rows.some(r =>

@@ -10,7 +10,7 @@ import {RaceLanes} from '@/src/charts';
 import {space} from '@/src/design';
 import {Segment, Text} from '@/src/ui';
 
-import {clockLabel} from '../clock';
+import {raceClockLabel} from '../clock';
 import type {RaceMode} from '../model';
 
 // YOUR RACE (handoff R1a/R1b): the label, the race clock and the zoom above the
@@ -33,6 +33,7 @@ export function RaceLanesBlock({
   zoom,
   onZoom,
   playheadS,
+  startS,
   width,
   desktop,
   onScrub,
@@ -42,6 +43,8 @@ export function RaceLanesBlock({
   zoom: LaneZoom;
   onZoom: (zoom: LaneZoom) => void;
   playheadS: number;
+  /** Race time of the start: the clocks count from it. */
+  startS: number;
   width: number;
   desktop: boolean;
   onScrub: (timeS: number) => void;
@@ -56,7 +59,7 @@ export function RaceLanesBlock({
           {mode === 'race' ? 'Your race' : 'Your session'}
         </Text>
         <Text variant='dataStrong' style={styles.clock}>
-          {clockLabel(playheadS)}
+          {raceClockLabel(playheadS, startS)}
         </Text>
         <Segment options={zooms(mode)} value={zoom} onChange={onZoom} />
       </View>
@@ -72,10 +75,10 @@ export function RaceLanesBlock({
       />
       <View style={[styles.times, {paddingLeft: labelWidth}]}>
         <Text variant='axis' tone='textFaint'>
-          {clockLabel(window.fromS)}
+          {raceClockLabel(window.fromS, startS)}
         </Text>
         <Text variant='axis' tone='textFaint'>
-          {clockLabel(window.toS)}
+          {raceClockLabel(window.toS, startS)}
         </Text>
       </View>
     </View>

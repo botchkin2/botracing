@@ -385,39 +385,36 @@ describe('traffic in the stint header and the lap detail', () => {
 });
 
 describe('sectionTable', () => {
-  // Three laps alone in the segment, two in a tow: under 5 alone, so no stats.
-  const lap = (id: string, t: number, alone: boolean) => ({
+  // Five laps timed in the segment, two of them in a tow: tow and traffic are
+  // flags, never exclusions (Botkin, 2026-10-01), so all five count.
+  const lap = (id: string, t: number) => ({
     id,
     stint: 1,
     comparable: true,
     timesS: [t],
-    alone: [alone],
   });
   const times = {
     segments: [{label: 'T7 entry–T7', range: {fromM: 0, toM: 100}}],
     laps: [
-      lap('a', 10, true),
-      lap('b', 10.1, true),
-      lap('c', 10.2, true),
-      lap('d', 10.3, false),
-      lap('e', 10.4, false),
+      lap('a', 10),
+      lap('b', 10.1),
+      lap('c', 10.2),
+      lap('d', 10.3),
+      lap('e', 10.4),
     ],
   };
 
-  it('gives the alone count in the median cell and dashes for the rest', () => {
+  it('gives median, best and spread over every comparable lap', () => {
     const table = sectionTable(times)!;
     const [median, best, spread] = table.footer;
-    expect(median.cells).toEqual(['3 alone']);
-    expect(best.cells).toEqual(['—']);
-    expect(spread.cells).toEqual(['—']);
+    expect(median.cells).toEqual(['10.20']);
+    expect(best.cells).toEqual(['10.00']);
+    expect(spread.cells).toEqual(['0.20']);
   });
 
-  it('gives the statistics once five laps were alone', () => {
-    const table = sectionTable({
-      ...times,
-      laps: [...times.laps, lap('f', 10.5, true), lap('g', 10.6, true)],
-    })!;
-    expect(table.footer[0].cells).toEqual(['10.20']);
+  it('shows dashes, not a count, under five laps', () => {
+    const table = sectionTable({...times, laps: times.laps.slice(0, 3)})!;
+    for (const row of table.footer) expect(row.cells).toEqual(['—']);
   });
 });
 
@@ -453,7 +450,6 @@ describe('lap colour slots follow the meaning, not the order laps were checked i
     expect(tray?.laps.map(l => l.selIndex).sort()).toEqual([1, 2]);
   });
 });
-
 
 describe('gridCellTargetOf (Road Atlanta numbering)', () => {
   // Heads S/F, T1, T2–5, T6, T7, T10a–T12. Sections 1..5: section 2 is the
