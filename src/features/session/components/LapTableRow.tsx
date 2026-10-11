@@ -1,6 +1,6 @@
 import {Pressable, StyleSheet, View} from 'react-native';
 
-import {fonts, size, space, useTheme} from '@/src/design';
+import {fonts, monoCharWidth, size, space, type, useTheme} from '@/src/design';
 import {Button, Checkbox, Text} from '@/src/ui';
 
 import {
@@ -34,10 +34,9 @@ const FIXED_W =
   WIDE_COLS.stint +
   WIDE_COLS.time +
   WIDE_COLS.gap;
-// The section head is IBM Plex Mono 9.5 px with 0.475 px letter spacing: a
-// 0.6 em advance per character plus the spacing. A column is never narrower
-// than its head ('T10A–T12' is 49 px), whatever the section names are.
-const HEAD_CHAR_W = 9.5 * 0.6 + 0.475;
+// A column is never narrower than its head ('T10A–T12' is 49 px), whatever the
+// section names are. The head's width comes from the table-header type token.
+const HEAD_CHAR_W = monoCharWidth(type.tableHeader);
 export function headWidth(heads: string[]): number {
   return Math.ceil(Math.max(0, ...heads.map(h => h.length)) * HEAD_CHAR_W);
 }
