@@ -1,6 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {insideFrame, labelBox, thinLabels} from './labelBox';
+import {
+  centredBaseline,
+  insideFrame,
+  labelBox,
+  labelRowHeight,
+  thinLabels,
+} from './labelBox';
 
 const frame = {width: 100, height: 40};
 const inside = (
@@ -70,6 +76,29 @@ describe('insideFrame', () => {
 describe('labelBox widths', () => {
   it('counts the true minus as one glyph', () => {
     expect(labelBox('−50 %', 0, 0, 10, 'start').right).toBe(30);
+  });
+});
+
+describe('labelRowHeight', () => {
+  it('holds a centred label inside its row, so rows of labels never touch', () => {
+    for (const fontSize of [9, 10, 12]) {
+      const h = labelRowHeight(fontSize);
+      const rows = [0, 1, 2].map(i => {
+        const baseline = centredBaseline(i * h + h / 2, fontSize);
+        return {
+          box: labelBox('PIT', 0, baseline, fontSize, 'start'),
+          baseline,
+        };
+      });
+      // The first sits EDGE_PT inside the frame: insideFrame does not move it.
+      const first = insideFrame('PIT', 0, rows[0].baseline, fontSize, 'start', {
+        width: 100,
+        height: 3 * h,
+      });
+      expect(first.baseline).toBeCloseTo(rows[0].baseline, 6);
+      for (let i = 1; i < rows.length; i++)
+        expect(rows[i].box.top).toBeGreaterThan(rows[i - 1].box.bottom);
+    }
   });
 });
 

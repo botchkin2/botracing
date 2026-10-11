@@ -48,6 +48,15 @@ export function centredBaseline(y: number, fontSize: number): number {
   return y + ((ASCENT_EM - DESCENT_EM) / 2) * fontSize;
 }
 
+/**
+ * The height of a row that holds one label of this size with the EDGE_PT the
+ * box keeps inside the frame on each side: the least a row may be, so the
+ * labels of neighbouring rows never touch.
+ */
+export function labelRowHeight(fontSize: number): number {
+  return Math.ceil((ASCENT_EM + DESCENT_EM) * fontSize + 2 * EDGE_PT);
+}
+
 /** The baseline of a label hanging just under a line at y (EDGE_PT below it). */
 export function baselineUnder(y: number, fontSize: number): number {
   return y + EDGE_PT + ASCENT_EM * fontSize;
