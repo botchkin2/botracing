@@ -1,9 +1,18 @@
 import {useEffect, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import Svg, {G, Line, Polygon, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Polygon, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {
+  baselineOver,
+  baselineUnder,
+  centredBaseline,
+  EDGE_PT,
+  labelBox,
+} from './labelBox';
 
 import type {RaceLanes as RaceLanesModel, Span} from '@/src/analysis/raceLanes';
-import {stroke, type as typeScale, useTheme} from '@/src/design';
+import {stroke, useTheme} from '@/src/design';
 
 import {laneScrubber, lanesLayout} from './raceLanesLayout';
 
@@ -13,6 +22,12 @@ import {laneScrubber, lanesLayout} from './raceLanesLayout';
 // control and the window's start and end times.
 
 const AXIS_H = 12;
+
+/** True when a lap label centred at x lies over the lanes, inside the svg. */
+function overLanes(text: string, x: number, left: number, width: number) {
+  const b = labelBox(text, x, 0, TICK_PT, 'middle');
+  return b.left >= left && b.right <= width - EDGE_PT;
+}
 
 export function RaceLanes({
   lanes,
@@ -51,7 +66,6 @@ export function RaceLanes({
   });
   const height = layout.height;
   const axisH = compact ? 0 : AXIS_H;
-  const axis = {...typeScale.axis, fontSize: 9};
 
   // PanResponder reads its handlers once; keep the latest inputs in a ref.
   const latest = useRef({window, laneWidth, labelWidth, onScrub});
@@ -84,7 +98,7 @@ export function RaceLanes({
       {...responder.panHandlers}
       // Web: a mouse drag scrubs; without this it also selects the labels.
       style={[styles.noSelect, {width, height: height + axisH}]}>
-      <Svg width={width} height={height + axisH} pointerEvents='none'>
+      <ChartSvg width={width} height={height + axisH} pointerEvents='none'>
         <Rect
           x={labelWidth}
           y={0}
@@ -102,30 +116,33 @@ export function RaceLanes({
               stroke={color.grid}
               strokeWidth={1}
             />
-            {l.label && !compact && (
-              <SvgText
-                x={labelWidth + l.x}
-                y={height + AXIS_H - 2}
-                textAnchor='middle'
-                fill={color.textFaint}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
-                {l.label}
-              </SvgText>
-            )}
+            {l.label &&
+              !compact &&
+              overLanes(l.label, labelWidth + l.x, labelWidth, width) && (
+                <ChartLabel
+                  fontSize={TICK_PT}
+                  x={labelWidth + l.x}
+                  y={baselineOver(height + AXIS_H, TICK_PT)}
+                  anchor='middle'
+                  fill={color.textFaint}>
+                  {l.label}
+                </ChartLabel>
+              )}
           </G>
         ))}
         {layout.rows.map(row => (
           <G key={row.key}>
             {!compact && (
-              <SvgText
-                x={0}
-                y={row.y + laneHeight - 2}
-                fill={color.textMuted}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
+              <ChartLabel
+                fontSize={TICK_PT}
+                x={EDGE_PT}
+                y={Math.max(
+                  centredBaseline(row.y + laneHeight / 2, TICK_PT),
+                  baselineUnder(0, TICK_PT),
+                )}
+                fill={color.textMuted}>
                 {row.label}
-              </SvgText>
+              </ChartLabel>
             )}
             {row.spans.map((s, i) => (
               <Rect
@@ -179,7 +196,7 @@ export function RaceLanes({
             strokeWidth={stroke.cursor * 2}
           />
         )}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

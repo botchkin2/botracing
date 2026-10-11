@@ -113,6 +113,9 @@ export function StopSlider({
           <Text variant='axis' tone='textMuted'>
             {lapName(min)}
           </Text>
+          <Text variant='axis' tone='textFaint'>
+            {lapName(Math.round((min + max) / 2))}
+          </Text>
           <Text variant='axis' tone='textMuted'>
             {lapName(max)}
           </Text>

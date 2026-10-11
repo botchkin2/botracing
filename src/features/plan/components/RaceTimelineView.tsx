@@ -1,8 +1,11 @@
 import {useEffect, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View} from 'react-native';
-import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Rect} from 'react-native-svg';
 
-import {dash, size, stroke, type as typeScale, useTheme} from '@/src/design';
+import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
+import {EDGE_PT} from '@/src/charts/labelBox';
+
+import {dash, size, stroke, useTheme} from '@/src/design';
 
 import {noPassText, type ReadyClassTiming} from '../classTiming';
 import {lapAt} from '../pitPlan';
@@ -42,7 +45,6 @@ export function RaceTimelineView({
   onStop?: (stop: number, lap: number) => void;
 }) {
   const {color} = useTheme();
-  const axis = typeScale.axis;
   const raceLaps = timing.raceLaps;
   const drag = useStopDrag(
     windows.map(w => w.planLap),
@@ -65,7 +67,7 @@ export function RaceTimelineView({
   const bounds = [0, ...timing.stopsAfter, raceLaps];
   return (
     <View>
-      <Svg width={width} height={height}>
+      <ChartSvg width={width} height={height}>
         {ticks.map(t => (
           <G key={t}>
             <Line
@@ -76,25 +78,21 @@ export function RaceTimelineView({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <SvgText
+            <ChartLabel
               x={xOf(t)}
               y={size.timelineAxis - 6}
-              textAnchor='middle'
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
-              {t}
-            </SvgText>
+              anchor='middle'
+              fill={color.textMuted}>
+              {`L${t}`}
+            </ChartLabel>
           </G>
         ))}
-        <SvgText
-          x={0}
+        <ChartLabel
+          x={EDGE_PT}
           y={laneY(0) + size.timelineLane / 2 + 3}
-          fill={color.textSecondary}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+          fill={color.textSecondary}>
           Stints
-        </SvgText>
+        </ChartLabel>
         {bounds.slice(0, -1).map((from, i) => {
           const x = xOf(from);
           const w = xOf(bounds[i + 1]) - x;
@@ -110,15 +108,13 @@ export function RaceTimelineView({
                 strokeWidth={stroke.grey}
               />
               {w >= LABEL_MIN_W ? (
-                <SvgText
+                <ChartLabel
                   x={x + w / 2}
                   y={laneY(0) + size.timelineLane / 2 + 3}
-                  textAnchor='middle'
-                  fill={color.text}
-                  fontFamily={axis.fontFamily}
-                  fontSize={axis.fontSize}>
+                  anchor='middle'
+                  fill={color.text}>
                   {i + 1}
-                </SvgText>
+                </ChartLabel>
               ) : null}
             </G>
           );
@@ -156,23 +152,19 @@ export function RaceTimelineView({
         ))}
         {lanes.map((lane, i) => (
           <G key={lane.key}>
-            <SvgText
-              x={0}
+            <ChartLabel
+              x={EDGE_PT}
               y={laneY(i + 1) + size.timelineLane / 2 + 3}
-              fill={color.textSecondary}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              fill={color.textSecondary}>
               {lane.label}
-            </SvgText>
+            </ChartLabel>
             {lane.passes.length === 0 ? (
-              <SvgText
+              <ChartLabel
                 x={plotX + 6}
                 y={laneY(i + 1) + size.timelineLane / 2 + 3}
-                fill={color.textMuted}
-                fontFamily={axis.fontFamily}
-                fontSize={axis.fontSize}>
+                fill={color.textMuted}>
                 {noPassText(raceLaps, lane.firstText)}
-              </SvgText>
+              </ChartLabel>
             ) : null}
             {lane.passes.map(p => (
               <G key={p.centre}>
@@ -208,7 +200,7 @@ export function RaceTimelineView({
             strokeDasharray={dash.pit}
           />
         ))}
-      </Svg>
+      </ChartSvg>
       {onStop ? (
         <View
           {...drag.panHandlers}

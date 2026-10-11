@@ -261,6 +261,9 @@ export const type = {
     textTransform: 'uppercase' as const,
   },
   axis: {fontFamily: fonts.monoMedium, fontSize: 9.5, ...tabular},
+  // Tick and tag text inside a chart's svg (dense axes: Compare, Corner, Laps,
+  // Race lanes), a half point under axis.
+  tick: {fontFamily: fonts.monoMedium, fontSize: 9, ...tabular},
   // Track page (Track page handoff): the layout name and the fact values.
   pageTitle: {fontFamily: fonts.sansBold, fontSize: 22, lineHeight: 25},
   factValue: {fontFamily: fonts.monoMedium, fontSize: 15, ...tabular},
