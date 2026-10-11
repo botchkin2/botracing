@@ -1,8 +1,12 @@
 import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Rect} from 'react-native-svg';
 
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, centredBaseline, EDGE_PT} from './labelBox';
 
+import {dash, stroke, useTheme} from '@/src/design';
+
+import {lapBarsPlot, STUB_BOTTOM, STUB_H} from './lapBarsPlot';
 import {labelsBottom, labelY, placeTopLabels} from './topLabels';
 
 // One bar per lap around the median (handoff §2 "Lap times chart"). Up is
@@ -22,10 +26,7 @@ export type LapBar = {
   highlighted: boolean;
 };
 
-const STUB_H = 9;
-const STUB_BOTTOM = 14;
 const AXIS_H = 14;
-const TOP_PAD = 12;
 // Right gutter for the median label, so bars never sit under it.
 const GUTTER_W = 40;
 // The rails under the axis: one row each for TOW, TRAF and PIT.
@@ -69,7 +70,6 @@ export function LapTimeBars({
   const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
-  const axis = {...typeScale.axis, fontSize: 9};
   const railsH = rails ? RAIL_ROW_H * 3 + 2 : 0;
   const totalH = height + AXIS_H + railsH;
   // STINT, PIT and RESET labels share the top rows; one that would run into
@@ -108,17 +108,18 @@ export function LapTimeBars({
     width,
   );
 
-  // The plot starts below the last label row, so stacked labels never sit on
-  // a bar; with no more than one row it is TOP_PAD as before.
-  const plotTop = Math.max(TOP_PAD, labelsBottom(topLabels));
-  const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
+  const {plotTop, plotBottom} = lapBarsPlot(
+    height,
+    labelsBottom(topLabels),
+    TICK_PT,
+  );
   const mid = plotTop + (plotBottom - plotTop) / 2;
   const half = (plotBottom - plotTop) / 2;
   const yOf = (d: number) => mid - (d / rangeS) * half;
 
   return (
     <View style={{width, height: totalH}}>
-      <Svg width={width} height={totalH}>
+      <ChartSvg width={width} height={totalH}>
         {/* A stint a reset opened: grey long dashes, not the plain rule.
             A reset inside a stint gets no line, only its tag (Botkin #609). */}
         {stintBreaks.map(b => {
@@ -162,16 +163,15 @@ export function LapTimeBars({
           );
         })}
         {topLabels.map(l => (
-          <SvgText
+          <ChartLabel
+            fontSize={TICK_PT}
             key={l.key}
             x={l.x}
-            textAnchor={l.anchor}
+            anchor={l.anchor}
             y={labelY(l.row)}
-            fill={l.color}
-            fontFamily={axis.fontFamily}
-            fontSize={axis.fontSize}>
+            fill={l.color}>
             {l.text}
-          </SvgText>
+          </ChartLabel>
         ))}
         {bars.map((b, i) => {
           const x = xOf(i);
@@ -221,27 +221,41 @@ export function LapTimeBars({
             </G>
           );
         })}
-        <SvgText
-          x={width}
-          y={mid + 3}
-          textAnchor='end'
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+        {/* The scale, with units: the top is the clamp, faster by rangeS. */}
+        {[
+          {d: rangeS, label: `−${rangeS.toFixed(1)} s`},
+          {d: -rangeS, label: `+${rangeS.toFixed(1)} s`},
+        ].map(t => (
+          <ChartLabel
+            fontSize={TICK_PT}
+            key={t.label}
+            x={2}
+            y={centredBaseline(yOf(t.d), TICK_PT)}
+            lineY={yOf(t.d)}
+            fill={color.textFaint}>
+            {t.label}
+          </ChartLabel>
+        ))}
+        <ChartLabel
+          fontSize={TICK_PT}
+          x={width - EDGE_PT}
+          y={centredBaseline(mid, TICK_PT)}
+          lineY={mid}
+          anchor='end'
+          fill={color.textFaint}>
           {medianLabel}
-        </SvgText>
+        </ChartLabel>
         {bars.map((b, i) =>
           (i + 1) % 10 === 0 ? (
-            <SvgText
+            <ChartLabel
+              fontSize={TICK_PT}
               key={`x-${i}`}
               x={xOf(i) + barW / 2}
-              y={height + AXIS_H - 3}
-              textAnchor='middle'
-              fill={color.textFaint}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
-              {i + 1}
-            </SvgText>
+              y={baselineOver(height + AXIS_H, TICK_PT)}
+              anchor='middle'
+              fill={color.textFaint}>
+              {`L${i + 1}`}
+            </ChartLabel>
           ) : null,
         )}
         {rails &&
@@ -260,19 +274,18 @@ export function LapTimeBars({
                     fill={railColor(row.key, color)}
                   />
                 ))}
-                <SvgText
-                  x={width}
-                  y={top + RAIL_ROW_H - 1}
-                  textAnchor='end'
-                  fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
-                  fontSize={axis.fontSize}>
+                <ChartLabel
+                  fontSize={TICK_PT}
+                  x={width - EDGE_PT}
+                  y={baselineOver(top + RAIL_ROW_H, TICK_PT)}
+                  anchor='end'
+                  fill={color.textFaint}>
                   {row.label}
-                </SvgText>
+                </ChartLabel>
               </G>
             );
           })}
-      </Svg>
+      </ChartSvg>
       {/* Hit targets: full-height columns, so thin bars are still tappable. */}
       <View style={StyleSheet.absoluteFill}>
         <View style={styles.hitRow}>

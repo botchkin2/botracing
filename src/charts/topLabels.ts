@@ -1,6 +1,8 @@
 // Where the lap-time chart's STINT, PIT and RESET labels go. Pure, so a test can
 // prove that no two labels' boxes overlap, at any width.
 
+import {baselineUnder} from './labelBox';
+
 // A text row is 11 pt tall (a 9 pt mono line box); the pitch is a point more,
 // so two rows never touch.
 export const LABEL_ROW = 12;
@@ -8,8 +10,9 @@ export const LABEL_ROW = 12;
 // over, so a label is never estimated narrower than it draws.
 export const LABEL_CHAR_W = 5.6;
 const GAP = 4;
-// Where the first row's text sits.
-export const LABEL_TOP = 9;
+// Where the first row's text sits: hanging under the svg's top edge, from the
+// 9 pt label box (labelBox.ts), so the top row is never cut.
+export const LABEL_TOP = baselineUnder(0, 9);
 
 export type TopLabel = {key: string; x: number; text: string; color: string};
 export type PlacedLabel = TopLabel & {row: number; anchor: 'start' | 'end'};

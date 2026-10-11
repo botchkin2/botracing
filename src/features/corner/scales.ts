@@ -26,7 +26,10 @@ export function speedScale(
   window: [number, number],
   stepM: number,
 ): Scale {
-  return fitScale(valuesInWindow(arrays, window, stepM), {symmetric: false});
+  return fitScale(valuesInWindow(arrays, window, stepM), {
+    symmetric: false,
+    format: withUnit('km/h'),
+  });
 }
 
 /** Delta from the entry (s): symmetric, so faster and slower read alike. */

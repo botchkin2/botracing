@@ -72,6 +72,7 @@ import {
   CHANNELS,
   type CompareModel,
   type CompareSelection,
+  type UrlCompareSelection,
   setRef,
   toggleHighlight,
   canRemoveLap,
@@ -83,7 +84,7 @@ import {type PlayInputs, playTicker} from './playback';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
-export type {CompareSelection} from './model';
+export type {CompareSelection, UrlCompareSelection} from './model';
 
 // Cars around without a radar (iRacing): cars each way, phone and desktop (apex #3210).
 const NEARBY_PHONE = 3;
@@ -118,7 +119,7 @@ export function CompareScreen({
   onSelectionChange,
 }: {
   sessionId: string;
-  selection: CompareSelection;
+  selection: UrlCompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
   // A URL with no laps opens on a fair reference and the median lap.
@@ -132,16 +133,40 @@ export function CompareScreen({
     () => withDefaultLaps(urlSelection, sessionLaps.data, sessionFacts),
     [urlSelection, sessionLaps.data, sessionFacts],
   );
-  // The cursor moves on every drag and playback frame, so it lives here,
-  // not in the URL.
-  const [cursorM, setCursorM] = useState(selection.cursorM);
+  // The cursor moves on every drag and playback frame, so a moved cursor
+  // lives here, not in the URL. It belongs to the link it was moved under: a
+  // new link (a section head, back/forward) starts from its own cursor, or
+  // from the section it names (useCompareModel).
+  const linkKey = `${urlSelection.corner}|${urlSelection.cursorM}`;
+  const [moved, setMoved] = useState<{linkKey: string; m: number} | null>(null);
+  const movedM = moved?.linkKey === linkKey ? moved.m : null;
+  const shownM = useRef(0);
+  // A functional update is folded into the state's own updater, so rapid
+  // playback frames and held keys each build on the previous one; only the
+  // first move after a landing starts from the resolved cursor.
+  const setCursorM = useCallback(
+    (next: SetStateAction<number>) =>
+      setMoved(prev => {
+        const from = prev?.linkKey === linkKey ? prev.m : shownM.current;
+        return {linkKey, m: typeof next === 'function' ? next(from) : next};
+      }),
+    [linkKey],
+  );
   const prefs = useComparePrefs();
   const size = windowSize(prefs.windowMode, prefs.windowStep);
   const result = useCompareModel(
     sessionId,
-    {...selection, cursorM},
+    {...selection, cursorM: movedM ?? selection.cursorM},
     prefs.charts,
     {mode: prefs.windowMode, size},
+  );
+  const cursorM = result.state === 'ready' ? result.cursorM : 0;
+  useEffect(() => {
+    shownM.current = cursorM;
+  });
+  const shownSelection = useMemo(
+    () => ({...selection, cursorM}),
+    [selection, cursorM],
   );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -174,7 +199,7 @@ export function CompareScreen({
       model={result.model}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
-      selection={selection}
+      selection={shownSelection}
       cursorM={cursorM}
       windowSizeValue={size}
       onCursor={setCursorM}

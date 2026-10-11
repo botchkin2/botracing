@@ -30,10 +30,10 @@ describe('trafficTags', () => {
 
   it('shows TOW from 1.0 s, TRAF from 2 s, BLUE for each faster-class pass, BTL from 5 s', () => {
     expect(trafficTags({...none, draftS: 0.9})).toEqual([]);
-    expect(trafficTags({...none, draftS: 6.14})).toEqual([{code: 'TOW 6.1'}]);
+    expect(trafficTags({...none, draftS: 6.14})).toEqual([{code: 'TOW 6.1 s'}]);
     expect(trafficTags({...none, trafficAheadS: 1.9})).toEqual([]);
     expect(trafficTags({...none, trafficAheadS: 4.2})).toEqual([
-      {code: 'TRAF 4.2'},
+      {code: 'TRAF 4.2 s'},
     ]);
     // Seconds with a faster car close behind are a fact in the lap detail, not a tag.
     expect(trafficTags({...none, blueFlagS: 3.5})).toEqual([]);
@@ -41,7 +41,7 @@ describe('trafficTags', () => {
       trafficTags({...none, overtakes: [{cls: 'Hyper', atM: 900}]}),
     ).toEqual([{code: 'BLUE 1'}]);
     expect(trafficTags({...none, battleS: 4.9})).toEqual([]);
-    expect(trafficTags({...none, battleS: 33.6})).toEqual([{code: 'BTL 34'}]);
+    expect(trafficTags({...none, battleS: 33.6})).toEqual([{code: 'BTL 34 s'}]);
   });
 
   it('PASS reads the own-class counts, with the sign only where there is a count', () => {
@@ -64,12 +64,12 @@ describe('orderTags', () => {
       codes([
         {code: 'BEST'},
         {code: 'HIT'},
-        {code: 'TOW 6.1'},
+        {code: 'TOW 6.1 s'},
         {code: 'PASS +1'},
         {code: 'OFF 2.0'},
         {code: 'SLOW'},
       ]),
-    ).toEqual(['SLOW', 'TOW 6.1', 'BEST', 'OFF 2.0', 'HIT', 'PASS +1']);
+    ).toEqual(['SLOW', 'TOW 6.1 s', 'BEST', 'OFF 2.0', 'HIT', 'PASS +1']);
     expect(codes([{code: 'BLUE 2.0'}, {code: 'TRAF'}, {code: 'OUT'}])).toEqual([
       'OUT',
       'TRAF',

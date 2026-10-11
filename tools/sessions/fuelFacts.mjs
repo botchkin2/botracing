@@ -96,7 +96,13 @@ export function lapFuel(s, i0, i1, pits) {
 
 // A wheel's wear reading rising by more than this within TYRE_STEP_S is a new
 // tyre (pit-wall thread 38, grip #1103: full sets and single wheels alike jump
-// to 100, dead-sensor wheels from 0). Real wear only falls, and the session
+// to 100, dead-sensor wheels from 0). A wheel whose sensor read 0 for a while
+// counts only when it comes back above its last live reading before the window:
+// the settled reading (the lowest in the TYRE_SETTLE_S after the rise) must beat
+// the last live reading before it. Road Atlanta 09-25 race: FL read 0 from 166 s,
+// came back with one sample of 100 at 271 s and settled at 95.5 a second later,
+// in a stop where nothing was fitted (its last live reading was 98.9; brake
+// #4280). Real wear only falls, and the session
 // start's garage exit steps 100 to 98, a fall. 0.5 sits between the channel's
 // float noise (a rise of at most 0.011 inside a pit window) and the smallest
 // real change (98.7 to 100, a short stint's tyre, 1.3): across the 516 local
@@ -117,6 +123,10 @@ const WHEELS = [
 // The wear reading updates a moment after the pit window opens or closes
 // (grip aligned on 1 s either side).
 const TYRE_MARGIN_S = 1;
+// A sensor back from 0 can read one sample of 100 before it settles (Road
+// Atlanta 09-25: 100 at 271.3 s, 95.5 from 272.2 s). Read the lowest this long
+// after a rise.
+const TYRE_SETTLE_S = 2;
 
 /**
  * Which wheels got a new tyre in the pit window [a, b] (b may be Infinity):
@@ -137,16 +147,48 @@ export function tyreChange(s, a, b) {
   const wheels = [];
   for (const [name, key] of channels) {
     const wear = s[key];
+    const before = lastLive(s.t, wear, lo - 1);
     let j = lo - 1;
     for (let i = lo; i <= hi; i++) {
       while (s.t[j] < s.t[i] - TYRE_STEP_S) j++;
-      if (wear[i] - wear[j] > TYRE_JUMP_PCT) {
+      if (
+        wear[i] - wear[j] > TYRE_JUMP_PCT &&
+        (before == null ||
+          settled(s.t, wear, i) - before > TYRE_JUMP_PCT)
+      ) {
         wheels.push(name);
         break;
       }
     }
   }
   return {changed: wheels.length > 0, wheels};
+}
+
+/**
+ * The last live reading at or before index `i`, or null: back over the dead
+ * sensor's zeros, then the highest reading in the TYRE_STEP_S before them, so
+ * the interpolated ramp down to 0 is not taken for the reading.
+ */
+function lastLive(t, wear, i) {
+  let k = i;
+  while (k >= 0 && !(wear[k] > 0)) k--;
+  if (k < 0) return null;
+  let m = wear[k];
+  for (let q = k - 1; q >= 0 && t[q] >= t[k] - TYRE_STEP_S; q--)
+    if (wear[q] > m) m = wear[q];
+  return m;
+}
+
+/**
+ * The lowest reading in the TYRE_SETTLE_S after index `i`: a sensor coming back
+ * can read one sample of 100 before it settles, and a fitted tyre stays at
+ * about 100 that long (the car is in the lane).
+ */
+function settled(t, wear, i) {
+  let m = wear[i];
+  for (let k = i + 1; k < t.length && t[k] <= t[i] + TYRE_SETTLE_S; k++)
+    if (wear[k] < m) m = wear[k];
+  return m;
 }
 
 /**

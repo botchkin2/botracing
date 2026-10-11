@@ -364,6 +364,29 @@ test('single wheels: a healthy one replaced alone, and a dead sensor read as 0',
   assert.deepEqual(tyreChange(dead, 200, 220), {changed: true, wheels: ['FR']});
 });
 
+test('a dead sensor coming back below its last live reading is not a new tyre', () => {
+  // Road Atlanta 09-25 race, lap 0: FL 98.9, then 0 from 166 s, back with one
+  // 10 Hz sample of 100 and settled at 95.5 a second later, inside a stop
+  // where nothing was fitted; the other wheels flat.
+  const back = wearRecording([
+    {wheel: 'fl', at: 150, from: 98.9, to: 98.9},
+    {wheel: 'fl', at: 166, from: 98.9, to: 0},
+    {wheel: 'fl', at: 208, from: 0, to: 100},
+    {wheel: 'fl', at: 209, from: 100, to: 95.5},
+  ]);
+  assert.deepEqual(tyreChange(back, 200, 220), {changed: false, wheels: []});
+  // The same, but a new tyre went on: it comes back at 100.
+  const fitted = wearRecording([
+    {wheel: 'fl', at: 150, from: 98.9, to: 98.9},
+    {wheel: 'fl', at: 166, from: 98.9, to: 0},
+    {wheel: 'fl', at: 208, from: 0, to: 100},
+  ]);
+  assert.deepEqual(tyreChange(fitted, 200, 220), {
+    changed: true,
+    wheels: ['FL'],
+  });
+});
+
 test('no change: wear that only falls, and a fall inside the window', () => {
   assert.deepEqual(tyreChange(wearRecording(), 200, 220), {
     changed: false,

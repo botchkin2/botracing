@@ -22,6 +22,5 @@ describe('sectionTable on Road Atlanta (roadAtlantaGt3)', () => {
     };
     const table = sectionTable(times, new Set(), map)!;
     expect(table.targets.map(t => t.corner)).toEqual([null, 1, 2, 6, 7, 9]);
-
   });
 });

@@ -11,6 +11,32 @@ const pct = (v: number) => `${Math.round(v)} %`;
 const laps = (v: number) => `${v.toFixed(1)} ${v === 1 ? 'lap' : 'laps'}`;
 
 /**
+ * Laps left on the tighter of the two meters, and which one it is when both
+ * are known (a tie is fuel). `meter` is null with only one meter: there is
+ * nothing to tell apart. Null when neither is known.
+ */
+export function limitingLeft(left: {
+  fuel: number | null;
+  ve: number | null;
+}): {laps: number; meter: 'fuel' | 'VE' | null} | null {
+  const {fuel, ve} = left;
+  if (fuel == null && ve == null) return null;
+  if (fuel == null) return {laps: ve as number, meter: null};
+  if (ve == null) return {laps: fuel, meter: null};
+  return ve < fuel ? {laps: ve, meter: 'VE'} : {laps: fuel, meter: 'fuel'};
+}
+
+/** "11.1 laps · VE" with both meters, "0.9 laps" with one; null with none. */
+export function limitingLaps(left: {
+  fuel: number | null;
+  ve: number | null;
+}): string | null {
+  const l = limitingLeft(left);
+  if (!l) return null;
+  return l.meter ? `${laps(l.laps)} · ${l.meter}` : laps(l.laps);
+}
+
+/**
  * The line under a pit-in lap: what was left when the car came in, in laps at
  * the stint's median use (the smaller of fuel and VE), and what the stop
  * added. Null without the fuel channels.
@@ -24,9 +50,9 @@ export function pitLine(stop: PitStop): string | null {
     vePct != null && `${pct(vePct)} VE`,
   ].filter(Boolean);
   const {fuel, ve} = stop.lapsLeftAtEntry;
-  const lapsLeft = [fuel, ve].filter((v): v is number => v != null);
+  const lapsLeft = limitingLaps({fuel, ve});
   const head = `Pit: ${left.join(' / ')} left${
-    lapsLeft.length ? ` (${laps(Math.min(...lapsLeft))})` : ''
+    lapsLeft ? ` (${lapsLeft})` : ''
   }`;
   const added = stop.added.fuelL;
   const time = stop.inPitS != null ? ` · ${stop.inPitS.toFixed(0)} s` : '';

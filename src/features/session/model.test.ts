@@ -216,8 +216,11 @@ describe('traffic tags, rails and the clean best', () => {
   const m = buildSessionModel(session, toLaps(raw), none);
 
   it('a towed best lap shows TOW first, then BEST', () => {
-    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual(['TOW 6.1', 'BEST']);
-    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0');
+    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual([
+      'TOW 6.1 s',
+      'BEST',
+    ]);
+    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0 s');
   });
 
   it('hollow bars and rails come from the traffic facts', () => {
@@ -280,7 +283,7 @@ describe('fuel and Virtual Energy rows', () => {
     expect(m.rows[i + 1]).toEqual({
       kind: 'note',
       key: expect.stringContaining('-pit'),
-      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps · VE) · +41.7 L · 91 s',
       pitLapIndex: 17,
     });
   });

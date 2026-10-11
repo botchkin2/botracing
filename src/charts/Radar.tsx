@@ -1,4 +1,7 @@
-import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
+import {G, Line, Path, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, baselineUnder, EDGE_PT, labelBox} from './labelBox';
 
 import {
   CAR_WIDTH_M,
@@ -6,7 +9,7 @@ import {
   type Radar as RadarData,
 } from '@/src/analysis/radar';
 import {type ClassSlot} from '@/src/analysis/fieldClasses';
-import {dash, type as typeScale, useTheme} from '@/src/design';
+import {dash, useTheme} from '@/src/design';
 
 // Cars around you (round 3 R2): heading-up, centred on the player, every car
 // to scale at its true position and heading. Pure props: the caller says which
@@ -50,13 +53,12 @@ export function Radar({
   };
   const ticks: number[] = [];
   for (let m = TICK_STEP_M; m <= rangeM; m += TICK_STEP_M) ticks.push(m);
-  const axis = typeScale.axis;
   const barH = height * SIDE_BAR_FRAC;
   const ownW = CAR_WIDTH_M * pxPerM;
   const ownL = PLAYER_LENGTH_M * pxPerM;
 
   return (
-    <Svg width={width} height={height}>
+    <ChartSvg width={width} height={height}>
       <Rect
         x={0.5}
         y={0.5}
@@ -94,14 +96,23 @@ export function Radar({
                 stroke={color.median}
               />
               {sign === 1 && (
-                <SvgText
+                <ChartLabel
                   x={6}
-                  y={y - 2}
+                  y={
+                    labelBox(
+                      `${m} m`,
+                      6,
+                      baselineOver(y, TICK_PT),
+                      TICK_PT,
+                      'start',
+                    ).top >= EDGE_PT
+                      ? baselineOver(y, TICK_PT)
+                      : baselineUnder(y, TICK_PT)
+                  }
                   fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
-                  fontSize={9}>
-                  {m}
-                </SvgText>
+                  fontSize={TICK_PT}>
+                  {`${m} m`}
+                </ChartLabel>
               )}
             </G>
           );
@@ -172,16 +183,15 @@ export function Radar({
         strokeWidth={1}
       />
       {sampleLabel && (
-        <SvgText
+        <ChartLabel
           x={width - 5}
           y={height - 5}
-          textAnchor='end'
+          anchor='end'
           fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={9}>
+          fontSize={TICK_PT}>
           {sampleLabel}
-        </SvgText>
+        </ChartLabel>
       )}
-    </Svg>
+    </ChartSvg>
   );
 }

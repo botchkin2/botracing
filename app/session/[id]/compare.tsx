@@ -3,7 +3,7 @@ import {useMemo} from 'react';
 
 import {
   CompareScreen,
-  type CompareSelection,
+  type UrlCompareSelection,
 } from '@/src/features/compare/CompareScreen';
 import {parseSelection} from '@/src/nav/routes';
 import {useLapSelection} from '@/src/features/session/useLapSelection';
@@ -21,10 +21,10 @@ export default function CompareRoute() {
   const router = useRouter();
   const {update} = useLapSelection();
   const {laps, ref, hl, c, t} = params;
-  const selection = useMemo<CompareSelection>(() => {
-    const sel = parseSelection({laps, ref, hl, c, t});
-    return {...sel, cursorM: sel.cursorM ?? 0};
-  }, [laps, ref, hl, c, t]);
+  const selection = useMemo<UrlCompareSelection>(
+    () => parseSelection({laps, ref, hl, c, t}),
+    [laps, ref, hl, c, t],
+  );
   return (
     <CompareScreen
       sessionId={params.id}

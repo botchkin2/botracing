@@ -29,8 +29,12 @@ export function lapTimeTenths(v: number): string {
     : `${sign}${(rest / 10).toFixed(1)}`;
 }
 
-/** A plain number with a unit: "100 %", "20 km/h". */
+/** A plain number with a unit: "100 %", "20 km/h", "−50 %" (the true minus). */
 export function withUnit(unit: string) {
-  return (v: number, decimals: number): string =>
-    `${v.toFixed(decimals)} ${unit}`;
+  return (v: number, decimals: number): string => {
+    const body = Math.abs(v).toFixed(decimals);
+    // The sign follows the rounded text: −0.001 at 0 dp is "0", no sign.
+    const sign = v < 0 && Number(body) !== 0 ? MINUS : '';
+    return `${sign}${body} ${unit}`;
+  };
 }

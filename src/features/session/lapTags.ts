@@ -8,7 +8,8 @@ import {type Lap, type LapTraffic} from '@/src/data/sessions';
 export const TOW_MIN_S = 1;
 export const TRAF_MIN_S = 2;
 export const BLUE_MIN_S = 1;
-// BTL shows from 5 s (R3).
+// BTL shows from 5 s (R3). TOW, TRAF and BTL are seconds and say so (Theme B:
+// every number has a unit); BLUE and PASS are counts.
 export const BTL_MIN_S = 5;
 // A lap towed this long is drawn hollow on the lap chart (R3c).
 export const TOW_HOLLOW_S = 5;
@@ -26,9 +27,9 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   if (!traffic) return [];
   const tags: {code: string}[] = [];
   if (traffic.draftS >= TOW_MIN_S)
-    tags.push({code: `TOW ${traffic.draftS.toFixed(1)}`});
+    tags.push({code: `TOW ${traffic.draftS.toFixed(1)} s`});
   if (traffic.trafficAheadS >= TRAF_MIN_S)
-    tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)}`});
+    tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)} s`});
   if (traffic.overtakes.length > 0)
     tags.push({code: `BLUE ${traffic.overtakes.length}`});
   const {passesMade: made, passesSuffered: lost} = traffic;
@@ -37,7 +38,7 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
     tags.push({code: `PASS ${parts.filter(Boolean).join(' ')}`});
   }
   if (traffic.battleS >= BTL_MIN_S)
-    tags.push({code: `BTL ${Math.round(traffic.battleS)}`});
+    tags.push({code: `BTL ${Math.round(traffic.battleS)} s`});
   return tags;
 }
 
