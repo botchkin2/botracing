@@ -247,7 +247,7 @@ fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Re
         }
     };
     note("quit requested", true);
-    sup.lock().unwrap().stop();
+    sup.lock().unwrap().shutdown();
     note("watcher stopped", false);
     let mut joined = true;
     for handle in [&rec.lmu, &rec.iracing] {
@@ -512,7 +512,7 @@ fn main() {
                     // Quit and "Restart to update" both stop the watcher first;
                     // a waiting update installs here, never while uploading.
                     "quit" | "update" => {
-                        sup_menu.lock().unwrap().stop();
+                        sup_menu.lock().unwrap().shutdown();
                         // Finish the open chunk and write endUtc before exiting.
                         if let Some(rec) = recorder_menu.lock().unwrap().as_mut() {
                             rec.stop(Duration::from_secs(5));
