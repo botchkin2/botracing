@@ -3,7 +3,9 @@
 // none are ticked; src/state/lapSelection.ts). Pure, so the strip is tested
 // without a screen.
 
-import {basisLaps} from '@/src/state/lapSelection';
+import {columnStats} from '@/src/analysis/segments';
+
+import {basisOf} from './selectionStats';
 
 export type StripLap = {
   id: string;
@@ -24,24 +26,14 @@ export type StripBar = {
   deltaS: number | null;
 };
 
-export function median(values: readonly number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = s.length >> 1;
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
 export function stripBars(
   laps: readonly StripLap[],
   ticked: readonly string[],
 ): {bars: StripBar[]; basisS: number | null} {
-  const comparable = laps
-    .filter(l => l.comparable && l.timeS != null)
-    .map(l => l.id);
-  const basis = new Set(basisLaps(ticked, comparable));
-  const basisS = median(
-    laps.flatMap(l => (basis.has(l.id) && l.timeS != null ? [l.timeS] : [])),
-  );
+  // The same basis as every other comparison (selectionStats): the ticked laps
+  // of this session, else every comparable lap.
+  const basis = basisOf(laps, new Set(ticked));
+  const basisS = columnStats(basis.map(l => l.timeS)).medianS;
   const bars = laps.map(l => ({
     lapId: l.id,
     stint: l.stint,

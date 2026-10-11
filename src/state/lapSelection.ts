@@ -19,13 +19,3 @@ export function replace(stint: readonly string[]): string[] {
   return [...new Set(stint)];
 }
 
-/**
- * The laps the strip's deltas are measured against: the ticked laps when any
- * are ticked, else every comparable lap (so an empty selection still reads).
- */
-export function basisLaps(
-  ticked: readonly string[],
-  comparable: readonly string[],
-): string[] {
-  return ticked.length > 0 ? [...ticked] : [...comparable];
-}

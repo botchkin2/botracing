@@ -1,6 +1,6 @@
 // The one line each folded section shows on the phone Laps screen (apex, thread
 // 44 #1873): what is inside, in numbers, never a verdict.
-import type {FuelUse} from './fuelUse';
+import {type FuelUse, median} from './fuelUse';
 import type {PitCard} from './pitCard';
 import type {TiresCard} from './tireCard';
 
@@ -33,11 +33,10 @@ export function tiresSummary(card: TiresCard): string | null {
  * the card's medians (green, comparable), every stint together, and how many.
  */
 export function fuelSummary(fuel: FuelUse): string | null {
-  const used = fuel.points.map(p => p.fuelL).sort((a, b) => a - b);
-  if (used.length === 0) return 'No stint with enough laps';
-  const mid = used.length >> 1;
-  const median = used.length % 2 ? used[mid] : (used[mid - 1] + used[mid]) / 2;
-  return `${median.toFixed(2)} L a lap · median of ${used.length} green ${
+  const used = fuel.points.map(p => p.fuelL);
+  const m = median(used);
+  if (m == null) return 'No stint with enough laps';
+  return `${m.toFixed(2)} L a lap · median of ${used.length} green ${
     used.length === 1 ? 'lap' : 'laps'
   }`;
 }

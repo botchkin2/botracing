@@ -1,6 +1,6 @@
 import {describe, expect, test} from '@jest/globals';
 
-import {basisLaps, replace, toggle} from './lapSelection';
+import {replace, toggle} from './lapSelection';
 
 describe('toggle', () => {
   test('a tap adds an unticked lap at the end', () => {
@@ -51,21 +51,3 @@ describe('replace', () => {
   });
 });
 
-describe('basisLaps', () => {
-  test('the ticked laps are the basis when any are ticked', () => {
-    expect(basisLaps(['b', 'c'], ['a', 'b', 'c', 'd'])).toEqual(['b', 'c']);
-  });
-
-  test('with nothing ticked, every comparable lap is the basis', () => {
-    expect(basisLaps([], ['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
-  });
-
-  test('with nothing ticked and no comparable lap, the basis is empty', () => {
-    expect(basisLaps([], [])).toEqual([]);
-  });
-
-  test('it returns a copy, not the input', () => {
-    const ticked = ['a'];
-    expect(basisLaps(ticked, [])).not.toBe(ticked);
-  });
-});
