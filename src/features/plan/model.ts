@@ -48,6 +48,26 @@ export type Combo = {
   sessions: SessionSummary[];
 };
 
+/**
+ * The Plan a track he has never driven opens on (M11: Tracks → Plan): the
+ * track with the car of his newest LMU session, his current car; the Plan's
+ * car picker changes it. Null with no LMU session to take a car from.
+ */
+export function undrivenPlanKey(
+  trackId: string,
+  sessions: SessionSummary[],
+): string | null {
+  const newest = sessions
+    .filter(s => s.sim === 'lmu' && s.lapCount > 0)
+    .reduce<SessionSummary | null>(
+      (a, s) => (a == null || s.startedAt > a.startedAt ? s : a),
+      null,
+    );
+  return newest
+    ? planComboKey(trackId, carLabel(newest.car).model, 'lmu')
+    : null;
+}
+
 /** Every track+car he has driven, the one he drove last first. */
 export function planCombos(sessions: SessionSummary[]): Combo[] {
   const byKey = new Map<string, Combo>();
@@ -668,7 +688,7 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
-        note: lapTimeS ? "all green laps" : undefined,
+        note: lapTimeS ? 'all green laps' : undefined,
       },
       ...(history.traffic?.clean.medianS != null
         ? [

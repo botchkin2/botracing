@@ -1,14 +1,10 @@
 import {useMemo} from 'react';
 
-import {
-  useTrackMap,
-  useSessions,
-  useTrackSurface,
-} from '@/src/data/sessions';
+import {useTrackMap, useSessions, useTrackSurface} from '@/src/data/sessions';
 import {useLapTraceLoad} from '@/src/data/traces';
 import {layoutsOf, trackInfo} from '@/src/data/tracks';
 
-import {type Combo, planCombos} from '../plan/model';
+import {type Combo, planCombos, undrivenPlanKey} from '../plan/model';
 
 import {buildTrackModel, referenceSession, type TrackModel} from './model';
 import {type MapPart, mapLoadOf} from './mapLoad';
@@ -25,6 +21,8 @@ export type TrackScreenState =
       model: TrackModel;
       /** One per car driven on this layout, for the Plan block. */
       plans: Combo[];
+      /** Never driven here: the Plan key for this track in his current car (M11), else null. */
+      undrivenPlan: string | null;
       refSessionId: string | null;
       /** The outline is still on its way (the map and the surface). */
       mapLoading: boolean;
@@ -41,6 +39,8 @@ export function useTrackModel(
 ): TrackScreenState {
   const info = trackInfo(trackId);
   const sessions = useSessions({trackId, ageDays: ALL_TIME_DAYS});
+  // Every track, for the car an undriven track's Plan opens with.
+  const everywhere = useSessions({ageDays: ALL_TIME_DAYS});
   const ref = sessions.data ? referenceSession(sessions.data.items) : null;
   const map = useTrackMap(trackId);
   const surface = useTrackSurface(trackId);
@@ -70,10 +70,15 @@ export function useTrackModel(
         failed: lap.load.kind === 'failed',
       },
     });
+    const plans = planCombos(sessions.data?.items ?? []);
     return {
       kind: 'ready',
       refSessionId: ref?.id ?? null,
-      plans: planCombos(sessions.data?.items ?? []),
+      plans,
+      undrivenPlan:
+        plans.length === 0
+          ? undrivenPlanKey(trackId, everywhere.data?.items ?? [])
+          : null,
       // The road is held back until the surface settles, like the map itself.
       mapLoading: mapState.loading,
       mapFailed: mapState.failed,
@@ -95,6 +100,7 @@ export function useTrackModel(
     sessions.isError,
     sessions.isPending,
     sessions.data,
+    everywhere.data,
     ref,
     map.data,
     surface.data,

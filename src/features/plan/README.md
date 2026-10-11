@@ -3,6 +3,7 @@
 The Plan screen: the stops, laps and fuel for the next race at a track and car, from the driver's own recorded laps, and the class pace of the cars he races with.
 
 - `PlanScreen.tsx`: layout (phone column; desktop setup | results | scatter) and which cards each `PlanState` draws (`planState.ts`).
+- Entry for a track he has never driven (M11): the Track page's Plan block shows one card that opens `planHref` for that track in the car of his newest LMU session (`undrivenPlanKey` in `model.ts`). The Plan opens its `undriven` state, where the car picker changes the car.
 - `usePlanData.ts`: the rules, history, plan and cards for one track and car; the Track page reads the same hook.
 - `model.ts`, `planCards.ts`, `pitPlan.ts`, `planHalf.ts`, `pooledUse.ts`: pure. Combos, the plan's rows and cards, the pit slider, pooled use.
 - The plan basis (pit-wall #4170): fuel and VE per lap over every green lap (a lap in traffic or a tow burns the same); the lap time and the traffic medians over the comparable green laps only (`analysis/fuelPlan.ts` `paceLaps`; under 3 comparable laps the green laps, and `perLap.lapTimeBasis` says so).
