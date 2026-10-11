@@ -57,6 +57,7 @@ import {
   tailBefore,
   WRAP_M,
 } from './neighbours';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -1318,7 +1319,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
       ]),
     ),
     sectionCompound: Object.fromEntries(
-      (map?.sections ?? []).map(s => [s.n, s.parts.length > 1]),
+      (map?.sections ?? []).map(s => [s.n, isCompound(s)]),
     ),
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),

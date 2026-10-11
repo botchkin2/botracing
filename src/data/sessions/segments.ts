@@ -9,6 +9,7 @@ import {
   type SegmentTimes,
 } from '@/src/analysis/segments';
 import {sectionNameOf} from '@/src/analysis/turnNames';
+import {isCompound} from './corners';
 
 import type {Lap, TrackMapData} from './adapters';
 import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
@@ -32,7 +33,7 @@ export function turnSegmentTimes(
           : sectionNameOf(section),
       range: {fromM: w.fromM, toM: w.toM},
       section: w.kind === 'start-straight' ? null : w.section ?? null,
-      compound: section != null && section.parts.length > 1,
+      compound: section != null && isCompound(section),
     };
   });
   const out: SegmentLap[] = [];

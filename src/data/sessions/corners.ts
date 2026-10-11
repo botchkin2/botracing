@@ -45,6 +45,13 @@ export function lapCornerFacts(
   return section.parts[corner.partIndex] ?? null;
 }
 
+/**
+ * A section is compound when it has more than one corner: it opens on All
+ * (its window read whole) and its Parts row lists the corners.
+ */
+export const isCompound = (section: {parts: readonly unknown[]}): boolean =>
+  section.parts.length > 1;
+
 /** The first corner of a section, for opening a section from Compare. */
 export function firstCornerOf(
   corners: TrackCorner[],

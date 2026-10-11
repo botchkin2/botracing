@@ -54,6 +54,7 @@ import {
   type TrafficRow,
   trafficRows,
 } from './trafficFacts';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -382,7 +383,7 @@ export function sectionTable(
             ? firstCornerOf(corners, s.section)
             : null,
         // A compound section (more than one corner) opens whole, read from the map.
-        whole: section ? section.parts.length > 1 : s.compound === true,
+        whole: section ? isCompound(section) : s.compound === true,
       };
     }),
     footer: [
