@@ -13,6 +13,8 @@ import {
 } from '@/src/state/comparePrefs';
 import {Chip, Pressable, Text} from '@/src/ui';
 
+import {detailTicks} from '../detailTicks';
+
 import {
   CHANNELS,
   type ChartModel,
@@ -123,6 +125,11 @@ export function ChartBlock({
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
+  // The first channel's axis; the pedals chart carries its own frame.
+  const yTicks =
+    !chart.pedals && chart.domains[first]
+      ? detailTicks(first, chart.domains[first]!)
+      : undefined;
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -242,6 +249,7 @@ export function ChartBlock({
         timeAxis={timeAxis}
         domain={chart.domains[first] ?? [0, 1]}
         series={series}
+        yTicks={yTicks}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
