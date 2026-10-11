@@ -427,6 +427,8 @@ export type CompareModel = {
   sectionEntryM: Record<number, number>;
   /** Section number → its first single corner, which Corner opens. */
   sectionFirstCorner: Record<number, number>;
+  /** Sections with more than one corner: their Corner link opens All. */
+  sectionCompound: Record<number, boolean>;
 };
 
 export type AllLapsStint = {
@@ -1314,6 +1316,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
         s.n,
         firstCornerOf(trackCorners(map!), s.n) ?? s.n,
       ]),
+    ),
+    sectionCompound: Object.fromEntries(
+      (map?.sections ?? []).map(s => [s.n, s.parts.length > 1]),
     ),
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),
