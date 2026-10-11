@@ -39,6 +39,7 @@ import {useSectionMode} from '@/src/state/sectionPrefs';
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
+import {type OptimumLine, optimumLines} from './optimumLines';
 import {energyLine, type EnergyLine} from './energyLine';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
@@ -187,6 +188,8 @@ export type SessionScreenModel = {
   facts: Fact[];
   /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
+  /** The phone's line under the chart, one per stint. */
+  optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
   chart: ChartModel | null;
@@ -403,6 +406,7 @@ export function buildSessionModel(
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
   const sectionTimes = segmentTimesFor(sectionMode, laps, map);
+  const stintOptimum = sectionTimes ? segmentOptimum(sectionTimes) : null;
   const sectorCells = cellsOf(sectorTimes, 1);
   const sectionCells = cellsOf(sectionTimes, 2);
 
@@ -581,8 +585,11 @@ export function buildSessionModel(
       {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
     ],
-    optimum: sectionTimes
-      ? optimumFacts(segmentOptimum(sectionTimes), session.stints.length)
+    optimum: stintOptimum
+      ? optimumFacts(stintOptimum, session.stints.length)
+      : [],
+    optimumLines: stintOptimum
+      ? optimumLines(stintOptimum, session.stints.length)
       : [],
     sections: sectionTable(sectionTimes, map),
     chart,

@@ -14,13 +14,14 @@ export function EnergyLineRow({
   onPress,
 }: {
   line: EnergyLine;
-  onPress: () => void;
+  /** Absent: the line is only read (inside the Pit stops fold, where the card is). */
+  onPress?: () => void;
 }) {
   return (
     <Pressable
-      accessibilityRole={line.target ? 'link' : 'text'}
+      accessibilityRole={line.target && onPress ? 'link' : 'text'}
       accessibilityLabel={`Energy: ${line.text}`}
-      disabled={line.target == null}
+      disabled={line.target == null || onPress == null}
       onPress={onPress}
       style={styles.row}>
       <Text variant='label' tone='textMuted'>

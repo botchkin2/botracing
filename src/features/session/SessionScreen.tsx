@@ -48,7 +48,9 @@ import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
 import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
+import {OptimumLines} from './components/OptimumLines';
 import {SessionGrid} from './components/SessionGrid';
+import {SessionHead} from './components/SessionHead';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -347,64 +349,58 @@ function SessionView({
           </Text>
         </Pressable>
       ) : null}
-      <View style={styles.facts}>
-        {model.facts.map(f => (
-          <View key={f.label}>
-            <Text variant='label' tone='textMuted'>
-              {f.label}
-            </Text>
-            <Text
-              variant='dataStrong'
-              tone={f.best ? 'best' : 'text'}
-              style={styles.factValue}>
-              {f.value}
-            </Text>
-          </View>
-        ))}
-      </View>
-      {model.energy ? (
-        <EnergyLineRow
-          line={model.energy}
-          onPress={() =>
-            model.energy?.target === 'pit'
-              ? listRef.current?.scrollToOffset({offset: pitCardY.current})
-              : listRef.current?.scrollToEnd()
-          }
-        />
-      ) : null}
-      {model.optimum.length > 0 ? (
-        <View style={styles.block}>
+      {layout.isDesktop ? (
+        <>
           <View style={styles.facts}>
-            {model.optimum.map(f => (
+            {model.facts.map(f => (
               <View key={f.label}>
                 <Text variant='label' tone='textMuted'>
                   {f.label}
                 </Text>
-                <Text variant='dataStrong' style={styles.factValue}>
+                <Text
+                  variant='dataStrong'
+                  tone={f.best ? 'best' : 'text'}
+                  style={styles.factValue}>
                   {f.value}
                 </Text>
               </View>
             ))}
           </View>
-        </View>
-      ) : null}
-
-      {/* Phone: the pit stops come first, as a fold that starts open and can be
-          closed (Botkin, 2026-10-11, 2h d); desktop keeps the card under the chart. */}
-      {!layout.isDesktop && model.pitCard && (
-        <View
-          style={styles.section}
-          onLayout={e => (pitCardY.current = e.nativeEvent.layout.y)}>
-          <FoldedSection
-            title={model.pitCard.kind === 'stops' ? 'Pit stops' : 'Fuel'}
-            summary={pitSummary(model.pitCard)}
-            defaultOpen>
-            {pitCard}
-          </FoldedSection>
-        </View>
+          {model.energy ? (
+            <EnergyLineRow
+              line={model.energy}
+              onPress={() =>
+                model.energy?.target === 'pit'
+                  ? listRef.current?.scrollToOffset({offset: pitCardY.current})
+                  : listRef.current?.scrollToEnd()
+              }
+            />
+          ) : null}
+          {model.optimum.length > 0 ? (
+            <View style={styles.block}>
+              <View style={styles.facts}>
+                {model.optimum.map(f => (
+                  <View key={f.label}>
+                    <Text variant='label' tone='textMuted'>
+                      {f.label}
+                    </Text>
+                    <Text variant='dataStrong' style={styles.factValue}>
+                      {f.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <SessionHead facts={model.facts} />
       )}
 
       {chartBlock(tableW)}
+      {!layout.isDesktop && model.optimumLines.length > 0 && (
+        <OptimumLines lines={model.optimumLines} />
+      )}
 
       {layout.isDesktop && model.pitCard && (
         <View
@@ -638,6 +634,19 @@ function SessionView({
                 {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
                 {layout.isDesktop ? null : (
                   <>
+                    {model.pitCard ? (
+                      <FoldedSection
+                        title={
+                          model.pitCard.kind === 'stops' ? 'Pit stops' : 'Fuel'
+                        }
+                        summary={pitSummary(model.pitCard)}
+                        defaultOpen={model.pitCard.kind === 'stops'}>
+                        {model.energy ? (
+                          <EnergyLineRow line={model.energy} />
+                        ) : null}
+                        {pitCard}
+                      </FoldedSection>
+                    ) : null}
                     <FoldedSection
                       title='Tires'
                       summary={tiresSummary(model.tires)}
