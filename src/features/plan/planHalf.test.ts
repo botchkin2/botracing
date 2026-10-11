@@ -188,6 +188,45 @@ describe('buildPlanHalf', () => {
     expect(h.rows.some(r => r.k === 'Spare')).toBe(false);
   });
 
+  it('a short start: what is left is measured from the load the car had, the start its own row', () => {
+    // da3e's case (bias, #498): a 100 L limit, 87 L loaded, a DNF at L21.
+    const over = {
+      limitL: 100,
+      startL: 87,
+      startVePct: 87,
+      raceLaps: 20,
+      race: {minutes: 40},
+      leftEarly: true,
+      playerLapsDone: 21,
+      classLeaderLapsDone: 24,
+      end: {lapIndex: 21, fuelL: 3.7, vePct: 4},
+    };
+    // Fuel: 87 - 21 x 2.40 = 36.6 L, not 100 - 50.4 = 49.6 L.
+    const fuel = half(over, [], false);
+    expect(fuel.rows.find(r => r.k === 'Start')).toEqual({
+      k: 'Start',
+      p: '100 L',
+      a: '87 L',
+    });
+    expect(fuel.rows.find(r => r.k.startsWith('Left at'))?.p).toBe(
+      '36.6 L (15.3 laps)',
+    );
+    // VE: 87 - 21 x 3.4985 = 13.5 %, shown whole.
+    const ve = half(over, []);
+    expect(ve.rows.find(r => r.k === 'Start')).toEqual({
+      k: 'Start',
+      p: '100 % VE',
+      a: '87 % VE',
+    });
+    expect(ve.rows.find(r => r.k.startsWith('Left at'))?.p).toBe(
+      '14 % VE (3.9 laps)',
+    );
+  });
+
+  it('a full start has no Start row', () => {
+    expect(half().rows.some(r => r.k === 'Start')).toBe(false);
+  });
+
   it('with no stop the plan is the one load to the flag', () => {
     const h = half({raceLaps: 20, race: null, classLeaderLapsDone: 21}, []);
     // 20 racing laps and the formation lap: 21 x 3.4985 = 73.5 % used.
