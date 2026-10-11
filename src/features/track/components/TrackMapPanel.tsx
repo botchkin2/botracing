@@ -85,7 +85,7 @@ export function TrackMapPanel({
           <View style={styles.empty}>
             {failed.length === 0 ? (
               <Text variant='dataSmall' tone='textMuted'>
-                {loading ? 'Loading the map…' : 'No map yet'}
+                {loading ? 'Loading the map…' : 'No track map yet'}
               </Text>
             ) : null}
           </View>

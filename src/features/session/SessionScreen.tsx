@@ -603,7 +603,7 @@ function SessionView({
                 <View style={styles.section}>
                   <LapTableHeader
                     width={tableW}
-                    heads={model.sections?.heads}
+                    heads={model.sections?.heads ?? model.sectorHeads}
                     headTaps={sectionTaps}
                     onHeadPress={i => {
                       const corner = model.sections?.sections[i];

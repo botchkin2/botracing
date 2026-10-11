@@ -198,6 +198,8 @@ export type SessionScreenModel = {
   optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
+  /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
+  sectorHeads: string[];
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
   rows: RowModel[];
@@ -574,6 +576,7 @@ export function buildSessionModel(
   const fuelUse = buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
+    sectorHeads: sectorTimes ? sectorTimes.segments.map(s => s.label) : [],
     strip: laps.map(l => ({
       id: l.id,
       timeS: l.timeS,
