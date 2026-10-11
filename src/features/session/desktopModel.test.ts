@@ -4,20 +4,12 @@ import {describe, expect, it} from '@jest/globals';
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
-import {buildStintTable, buildStintVsStint, median} from './desktopModel';
+import {buildStintTable, buildStintVsStint} from './desktopModel';
 
 // Road Atlanta race, 2026-09-26: 22 laps, stint 1 = L1–L17, stint 2 = L18–L22.
 // consistency.stints only stores stint 2 (trendPerLap 0).
 const session = toSessionDetail(fixture.session);
 const laps = toLaps(fixture.laps);
-
-describe('median', () => {
-  it('odd, even and empty', () => {
-    expect(median([3, 1, 2])).toBe(2);
-    expect(median([4, 1, 2, 3])).toBe(2.5);
-    expect(median([])).toBeNull();
-  });
-});
 
 describe('buildStintTable', () => {
   const rows = buildStintTable(session, laps, new Set());
@@ -76,12 +68,17 @@ describe('buildStintVsStint', () => {
   });
 
   it('matches a hand median for corner 1', () => {
+    const median = (xs: number[]) => {
+      const s = [...xs].sort((a, b) => a - b);
+      const mid = s.length >> 1;
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
     const c1 = (stint: number) =>
       median(
         laps
           .filter(l => l.stint === stint && l.comparable)
           .map(l => l.sections[0].parts[0].segTimeS as number),
-      )!;
+      );
     expect(m.rows[0].deltaS).toBeCloseTo(c1(2) - c1(1), 9);
   });
 

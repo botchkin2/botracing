@@ -3,7 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {sectionOptimum} from '@/src/analysis/sectionOptimum';
 import {type SegmentTimes} from '@/src/analysis/segments';
 // Adapters are internal to data/; tests may reach them to build real shapes.
-import {sectorSegmentTimes} from '@/src/data/sessions';
+import {openingLapIds, sectorSegmentTimes} from '@/src/data/sessions';
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
 import {formatLapTime} from '@/src/design';
 
@@ -167,5 +167,95 @@ describe('one answer per question (decision 2026-10-11)', () => {
       Math.max(-1.5, Math.min(1.5, medianS - (lap.timeS as number))),
       9,
     );
+  });
+});
+
+describe('a one-stint session opens on the numbers it showed before (decision 2026-10-11)', () => {
+  // Stint 1 of the fixture as a session of its own: 17 laps, 13 comparable,
+  // the stored median the uploader would give (81.938). The opening set is the
+  // 13 comparable laps. Every value below was printed by main (de6628c3) for
+  // this input; this branch must give the same.
+  const full = toSessionDetail(fixture.session);
+  const oneStint = laps.filter(l => l.stint === 1);
+  const single = {
+    ...full,
+    stints: full.stints.filter(s => s.n === 1),
+    medianTimeS: 81.938,
+  };
+  const open = openingLapIds(oneStint, single);
+  const m = buildSessionModel(single, oneStint, {
+    laps: open,
+    ref: null,
+    hl: null,
+  });
+
+  it('opens on the 13 comparable laps', () => {
+    expect(open).toHaveLength(13);
+  });
+
+  it('table medians, bests and spreads, Optimal, lap gaps, bars and best cells are unchanged', () => {
+    expect(m.sections!.footer.map(r => r.cells)).toEqual([
+      ['10.20', '42.71', '28.69'],
+      ['10.11', '42.08', '28.41'],
+      ['0.33', '0.62', '0.27'],
+    ]);
+    expect(m.optimum[0].value).toBe('1:20.591 · of 13');
+    const lapRows = m.rows.filter(r => r.kind === 'lap') as {
+      gap: string | null;
+      sectors: {best: boolean}[];
+    }[];
+    expect(lapRows.map(r => r.gap)).toEqual([
+      null,
+      '+1.752',
+      '−0.869',
+      '−1.030',
+      null,
+      '+0.359',
+      '+0.309',
+      '−1.164',
+      '−0.694',
+      '±0.000',
+      null,
+      '+0.525',
+      '+1.201',
+      '+1.148',
+      '−0.046',
+      '−0.265',
+      null,
+    ]);
+    expect(m.chart!.bars.map(b => +b.deltaS.toFixed(6))).toEqual([
+      0, -1.5, 0.869, 1.03, 0, -0.359, -0.309, 1.164, 0.694, 0, 0, -0.525,
+      -1.201, -1.148, 0.046, 0.265, 0,
+    ]);
+    expect(
+      lapRows.map(r => r.sectors.map(c => (c.best ? 1 : 0)).join('')),
+    ).toEqual([
+      '000',
+      '000',
+      '000',
+      '101',
+      '000',
+      '000',
+      '000',
+      '010',
+      '000',
+      '000',
+      '000',
+      '000',
+      '000',
+      '000',
+      '000',
+      '000',
+      '000',
+    ]);
+  });
+
+  it('Median is now the median lap (was Typical 1:21.605, the sum of sector medians)', () => {
+    expect(m.optimum.map(f => f.label)).toEqual([
+      'Optimal',
+      'Median',
+      'Inconsistency',
+    ]);
+    expect(m.optimum[1].value).toBe('1:21.938 · of 13');
   });
 });

@@ -1,5 +1,6 @@
 import {useMemo} from 'react';
 
+import {columnStats} from '@/src/analysis/segments';
 import {
   type Lap,
   lapCornerTimes,
@@ -58,12 +59,6 @@ export type CornerRef = {n: number; official?: string; apexM: number};
 
 const dash = '—';
 
-export function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
 
 /**
  * One row per stint, over the stint's basis laps (the ticked ones, or the
@@ -124,7 +119,7 @@ export function buildStintVsStint(
 
   const count = Math.min(...[...a.times, ...b.times].map(t => t.length));
   const medianAt = (times: (number | null)[][], i: number) =>
-    median(times.map(t => t[i]).filter((v): v is number => v != null));
+    columnStats(times.map(t => t[i])).medianS;
 
   const raw: {i: number; deltaS: number}[] = [];
   for (let i = 0; i < count; i++) {

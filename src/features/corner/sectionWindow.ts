@@ -278,6 +278,9 @@ function optimumRows(
   map: TrackMapData,
   sectionN: number,
 ): WindowOptimumRow[] {
+  // Corner's set is never empty when the card shows (it opens on the
+  // session's opening laps, the same basis Session uses), so it needs no
+  // fallback to the comparable laps.
   const optimum = sessionOptimum(laps, map, {picked: true});
   const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
   const at = optimum?.windows.findIndex(

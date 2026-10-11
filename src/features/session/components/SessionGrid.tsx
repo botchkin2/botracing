@@ -74,7 +74,7 @@ export function SessionGrid({
                   />
                 </View>
                 <Text variant='dataSmall' tone='textMuted'>
-                  {c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
+                  {c.n < 2 || c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
                 </Text>
               </Pressable>
             ))}
