@@ -18,6 +18,8 @@ on:
       - 'tools/sessions/**'
       - 'tools/capture/**'
       - '.github/workflows/tray-e2e.yml'
+  push:
+    tags: ['tray-v*']
   workflow_dispatch:
 
 permissions:
@@ -102,4 +104,82 @@ jobs:
           } else {
             ./desktop/scripts/e2e-as-user.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
           }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  # The update rehearsal (pit wall #4434/#4435): build N-1 and N from this code
+  # with a throwaway updater key made here (no repository secret; the real key
+  # stays in the tray-release Environment, and this never runs on Botkin's PC),
+  # serve N from 127.0.0.1, and check an installed N-1 downloads N and comes
+  # back as N after `botracing.exe --update` (the menu's "Restart to update";
+  # CI cannot click the tray). Signed out, so the #511 restart symptom (a
+  # signed-in tray after an update) is out of scope here. Green before a tag.
+  update:
+    name: Tray update rehearsal (N-1 to N)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    env:
+      PORT: '8765'
+      OLD: '0.0.1'
+      NEW: '0.0.2'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: Make a throwaway updater key
+        run: |
+          $key = Join-Path $env:RUNNER_TEMP "rehearsal.key"
+          npx tauri signer generate --ci -f -w $key
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "KEY_FILE=$key" >> $env:GITHUB_ENV
+
+      - name: Build N-1 and N
+        run: |
+          $pub = (Get-Content "$env:KEY_FILE.pub" -Raw).Trim()
+          $out = Join-Path $env:RUNNER_TEMP "rehearsal"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          function Build($version, [bool]$signed) {
+            $cfg = @{
+              version = $version
+              bundle  = @{ createUpdaterArtifacts = $signed }
+              plugins = @{ updater = @{
+                pubkey = $pub
+                endpoints = @("http://127.0.0.1:$env:PORT/latest.json")
+                dangerousInsecureTransportProtocol = $true
+              } }
+            }
+            $file = Join-Path $out "conf-$version.json"
+            $cfg | ConvertTo-Json -Depth 6 | Set-Content $file -Encoding utf8NoBOM
+            npx tauri build --config $file
+            if ($LASTEXITCODE -ne 0) { throw "build of $version failed" }
+            $setup = Get-ChildItem "src-tauri/target/release/bundle/nsis/*_$($version)_*-setup.exe" | Select-Object -First 1
+            if (-not $setup) { throw "no installer for $version" }
+            Copy-Item $setup.FullName (Join-Path $out "$version-setup.exe")
+            if ($signed) { Copy-Item "$($setup.FullName).sig" (Join-Path $out "$version-setup.exe.sig") }
+          }
+          Build $env:OLD $false
+          $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content $env:KEY_FILE -Raw
+          $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+          Build $env:NEW $true
+          Get-ChildItem $out | ForEach-Object { Write-Host "$($_.Name) $($_.Length)" }
+
+      - name: Install N-1, update to N with --update, uninstall
+        working-directory: .
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "rehearsal"
+          ./desktop/scripts/e2e-update.ps1 -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
