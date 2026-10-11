@@ -1,5 +1,5 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
@@ -171,17 +171,23 @@ export function ChartBlock({
               </Text>
             </>
           )}
-          {editor && !loneEditor && (
-            <Pressable
-              accessibilityLabel={`Remove ${r.label}`}
-              hitSlop={space.sm}
-              onPress={() => editor.onToggle(r.channel)}>
-              <Text variant='dataSmall' tone='textFaint'>
-                ×
-              </Text>
-            </Pressable>
-          )}
-          {valueTexts(r)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.rowScroll}
+            contentContainerStyle={styles.rowScrollContent}>
+            {editor && !loneEditor && (
+              <Pressable
+                accessibilityLabel={`Remove ${r.label}`}
+                hitSlop={space.sm}
+                onPress={() => editor.onToggle(r.channel)}>
+                <Text variant='dataSmall' tone='textFaint'>
+                  ×
+                </Text>
+              </Pressable>
+            )}
+            {valueTexts(r)}
+          </ScrollView>
         </View>
       ))}
       {editor && chart.channels.length < MAX_OVERLAY && (
@@ -309,6 +315,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
   },
+  // The values scroll sideways past the legend; 25 laps no longer overflow the chart.
+  rowScroll: {flex: 1, height: 17},
+  rowScrollContent: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   pills: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs},
   // Next to the label, not at the far edge: at 1440 the edge is ~1,300 pt
   // from the label (Botkin, thread 26 #385).
