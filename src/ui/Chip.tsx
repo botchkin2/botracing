@@ -1,10 +1,11 @@
 import {type ReactNode} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {hitFor} from './hitArea';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 /** 28 pt chip, 44 pt hit area. `selected` uses the accent border and tint. */
 export function Chip({
@@ -15,6 +16,7 @@ export function Chip({
   trailing,
   actions,
   minWidth,
+  accessibilityLabel,
   onPress,
 }: {
   label: string;
@@ -30,6 +32,8 @@ export function Chip({
   actions?: ReactNode;
   /** Wide enough to be a 44 pt target when the label is one glyph. */
   minWidth?: number;
+  /** What a glyph-only chip does ("Next corner"); the label is read when this is absent. */
+  accessibilityLabel?: string;
   onPress?: () => void;
 }) {
   const {color} = useTheme();
@@ -46,6 +50,7 @@ export function Chip({
       <View style={[styles.chip, styles.fit, chipStyle]}>
         <Pressable
           accessibilityRole='button'
+          accessibilityLabel={accessibilityLabel}
           accessibilityState={{selected}}
           onPress={onPress}
           hitSlop={hit.hitSlop}
@@ -62,6 +67,7 @@ export function Chip({
   return (
     <Pressable
       accessibilityRole='button'
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{selected}}
       onPress={onPress}
       hitSlop={hit.hitSlop}

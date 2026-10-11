@@ -1,5 +1,5 @@
 import {memo, useMemo} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {
   Circle,
   G,
@@ -21,6 +21,7 @@ import {fonts, type as typeScale, useTheme, turnLabel} from '@/src/design';
 import {MeasuredRoad, type MeasuredRunView} from './MeasuredRoad';
 
 import {CarDots, type MapCar} from './CarDots';
+import {Pressable} from '@/src/ui';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
 // The road, each lap's line and the brake ticks are world-space paths built

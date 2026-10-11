@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {type Field} from '@/src/analysis/field';
@@ -34,6 +34,7 @@ import {
   Chip,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   Segment,
   Text,
   TraceRetryBanner,
@@ -307,6 +308,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
           />
           <Chip
             label='−'
+            accessibilityLabel='Smaller window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, -1),
@@ -316,6 +318,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
           <Text variant='dataStrong'>{p.windowSizeLabel}</Text>
           <Chip
             label='+'
+            accessibilityLabel='Larger window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, 1),

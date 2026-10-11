@@ -1,9 +1,10 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {hitFor} from './hitArea';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 const BUTTON = 28;
 /** Width of the pair, for what is drawn beside them (the scale bar). */

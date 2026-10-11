@@ -1,11 +1,11 @@
 import type {ReactNode} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
 import {type PlayRate, type WindowStep} from '@/src/state/comparePrefs';
 import {nextRate} from '../playback';
-import {hitFor, Segment, Text} from '@/src/ui';
+import {hitFor, Pressable, Segment, Text} from '@/src/ui';
 
 import {type WindowMode} from '@/src/analysis/window';
 

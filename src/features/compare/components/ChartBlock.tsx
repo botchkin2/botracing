@@ -1,5 +1,5 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
@@ -11,7 +11,7 @@ import {
   type ChannelId,
   MAX_OVERLAY,
 } from '@/src/state/comparePrefs';
-import {Chip, Text} from '@/src/ui';
+import {Chip, Pressable, Text} from '@/src/ui';
 
 import {
   CHANNELS,

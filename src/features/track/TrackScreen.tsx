@@ -1,16 +1,10 @@
 import {useRouter} from 'expo-router';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref, trackHref, tracksHref} from '@/src/nav/routes';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';

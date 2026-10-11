@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -17,7 +16,7 @@ import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
-import {Button, Segment, Text} from '@/src/ui';
+import {Button, Pressable, Segment, Text} from '@/src/ui';
 
 import {androidCard, androidSurface, INSTALL_NOTE} from './androidCard';
 import {type ProblemRow, type UploaderCard, useSettingsModel} from './model';

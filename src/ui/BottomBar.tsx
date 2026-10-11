@@ -1,8 +1,9 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {size, useLayout, useTheme} from '@/src/design';
 
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 export type BottomBarItem<T extends string> = {key: T; label: string};
 

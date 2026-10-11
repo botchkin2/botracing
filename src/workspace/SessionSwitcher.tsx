@@ -1,10 +1,10 @@
 import {useRouter} from 'expo-router';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {useSessions} from '@/src/data/sessions';
 import {radius, size, space, useTheme} from '@/src/design';
 import {sessionHref, trackHref} from '@/src/nav/routes';
-import {Sheet, Text} from '@/src/ui';
+import {Pressable, Sheet, Text} from '@/src/ui';
 
 import {switcherRows} from './switcherRows';
 

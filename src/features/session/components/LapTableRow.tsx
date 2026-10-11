@@ -1,7 +1,7 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {fonts, size, space, useTheme} from '@/src/design';
-import {Button, Checkbox, Text} from '@/src/ui';
+import {Button, Checkbox, Pressable, Text} from '@/src/ui';
 
 import {
   type LapRowModel,

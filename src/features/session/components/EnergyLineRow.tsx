@@ -1,7 +1,7 @@
-import {Pressable, StyleSheet} from 'react-native';
+import {StyleSheet} from 'react-native';
 
 import {hitBox} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {type EnergyLine} from '../energyLine';
 

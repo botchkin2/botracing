@@ -12,7 +12,6 @@ import {
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -52,6 +51,7 @@ import {
   Button,
   Chip,
   hitFor,
+  Pressable,
   Segment,
   Skeleton,
   StatusBanner,

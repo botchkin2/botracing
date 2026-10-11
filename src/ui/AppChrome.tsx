@@ -1,4 +1,4 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
@@ -6,6 +6,7 @@ import {AppMark} from './AppMark';
 import {hitFor} from './hitArea';
 import {Segment} from './Segment';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 // 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
 export const MARK_SLOP = (size.hit - size.logo) / 2;

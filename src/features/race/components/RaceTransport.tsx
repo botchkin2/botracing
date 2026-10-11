@@ -1,10 +1,10 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import type {RaceLanes as RaceLanesModel} from '@/src/analysis/raceLanes';
 import {RaceLanes} from '@/src/charts';
 import {radius, size, space, useTheme} from '@/src/design';
-import {Segment, Text} from '@/src/ui';
+import {Pressable, Segment, Text} from '@/src/ui';
 
 import {RACE_RATES, type RaceRate, STEP_S} from '../clock';
 

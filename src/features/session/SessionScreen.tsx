@@ -7,13 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, FlatList, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
@@ -36,7 +30,7 @@ import {
 import {replace, toggle} from '@/src/state/lapSelection';
 import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
+import {FoldedSection, PANEL_DIVIDER_W, Pressable, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';

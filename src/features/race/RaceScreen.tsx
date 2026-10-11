@@ -1,6 +1,6 @@
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {offTrackEvents} from '@/src/analysis/offTrackEvents';
@@ -24,6 +24,7 @@ import {
   EmptyState,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   Skeleton,
   StatusBanner,
   Text,

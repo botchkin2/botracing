@@ -1,8 +1,9 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 export type SessionTabItem<T extends string> = {key: T; label: string};
 

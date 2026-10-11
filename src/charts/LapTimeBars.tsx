@@ -1,7 +1,8 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
 
 import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {Pressable} from '@/src/ui';
 
 // One bar per lap around the median (handoff §2 "Lap times chart"). Up is
 // faster. Excluded laps are outlined stubs on the baseline. Pure props: the

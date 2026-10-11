@@ -1,6 +1,6 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useMemo, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useSessions} from '@/src/data/sessions';
@@ -15,7 +15,14 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {EmptyState, Segment, Skeleton, StatusBanner, Text} from '@/src/ui';
+import {
+  EmptyState,
+  Pressable,
+  Segment,
+  Skeleton,
+  StatusBanner,
+  Text,
+} from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';

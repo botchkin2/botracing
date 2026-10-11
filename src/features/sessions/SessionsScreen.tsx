@@ -1,11 +1,5 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
-import {
-  ActivityIndicator,
-  Pressable,
-  SectionList,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, SectionList, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {hitBox, radius, size, space, useLayout, useTheme} from '@/src/design';
@@ -15,7 +9,15 @@ import {
   settingsHref,
   tracksHref,
 } from '@/src/nav/routes';
-import {AppMark, Badge, Button, hitFor, MARK_SLOP, Text} from '@/src/ui';
+import {
+  AppMark,
+  Badge,
+  Button,
+  hitFor,
+  MARK_SLOP,
+  Pressable,
+  Text,
+} from '@/src/ui';
 
 import {type SessionsFilter} from './filter';
 import {type DayGroup, type SessionRow, useSessionsModel} from './model';
