@@ -18,11 +18,14 @@ node tools/curate/curate.mjs sessions --track lmu-road_atlanta     # your local 
 node tools/curate/curate.mjs show lmu-road_atlanta                  # live rev, map, sessions across all users
 node tools/curate/curate.mjs plan-add lmu-road_atlanta --session 3fa9c1          # dry run
 node tools/curate/curate.mjs plan-add lmu-road_atlanta --session 3fa9c1 --apply --reason "first map from my 14-lap run"
+node tools/curate/curate.mjs sessions --sim iracing --track iracing-127-full_course   # iRacing's .ibt folder (IRACING_TELEMETRY)
 node tools/curate/curate.mjs plan-replace <track> --session <id> [--allow-renumber]
 node tools/curate/curate.mjs plan-refold <track> --sessions <id,id>
 node tools/curate/curate.mjs plan-undo <track> [--to-rev N]
 node tools/curate/curate.mjs history <track>
 ```
+
+`--sim iracing` reads iRacing's .ibt folder with the uploader's own adapter (`tools/sessions/sims.mjs`), so track ids match the sync's (`iracing-<TrackID>-<config>`). iRacing's Lat/Lon is real GPS, so the same fit makes its map (Road Atlanta: 4056 m, 5 sections, 11 turns from one 22-lap race). It needs no OSM fit to draw true to scale: its georef is the identity, `fakeOrigin` equal to `originLat`/`originLon` (`tools/track-fit/georef.json`).
 
 A session id is the uploader's (a prefix of 6+ characters). A dry run exits 1 when the plan is refused. `loader.mjs` makes the map and boundaries from the chosen session's local recordings (as a first session on that track would), or folds the chosen sessions onto the live map for a refold. `adminBackend.mjs` is the Firestore transaction behind `commit`.
 

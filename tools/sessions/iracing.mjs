@@ -355,6 +355,42 @@ function surfaceCode(loc, material) {
   return 0;
 }
 
+/**
+ * Where each of iRacing's own sectors starts, as a share of the lap, from the
+ * session YAML's SplitTimeInfo (the first is 0); [] when it has none.
+ */
+export function sectorStarts(yaml) {
+  const block = /SplitTimeInfo:\n Sectors:\n((?: .*\n)+)/.exec(yaml ?? '');
+  if (!block) return [];
+  return [...block[1].matchAll(/SectorStartPct:\s*([\d.]+)/g)].map(m =>
+    Number(m[1]),
+  );
+}
+
+/**
+ * The car entering each sector after the first: `[t, 'sector_start', sector,
+ * count]` rows, the sector numbered from 1, at the time LapDistPct passes its
+ * start (interpolated between samples). A drop at the line or a jump of half
+ * a lap (a reset, a tow) is not a crossing.
+ */
+export function sectorCrossings(t, pct, starts) {
+  const out = [];
+  if (starts.length < 2) return out;
+  for (let i = 1; i < pct.length; i++) {
+    const a = pct[i - 1];
+    const b = pct[i];
+    if (!(b > a) || b - a > 0.5) continue;
+    for (let k = 1; k < starts.length; k++) {
+      const s = starts[k];
+      if (a < s && s <= b) {
+        const at = t[i - 1] + ((s - a) / (b - a)) * (t[i] - t[i - 1]);
+        out.push([at, 'sector_start', k + 1, starts.length, '', '']);
+      }
+    }
+  }
+  return out;
+}
+
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
   const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
@@ -372,6 +408,7 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       'SessionFlags',
       'SteeringWheelAngleMax',
       'PlayerCarInPitStall',
+      'LapDistPct',
     ];
     const raw = readColumns(ibt, sources);
     const cols = {};
@@ -428,6 +465,9 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       events.push(
         ...emitChanges(t, loc, 'surface', (_, i) => surfaceCode(loc[i], mat[i])),
       );
+    }
+    if (raw.LapDistPct) {
+      events.push(...sectorCrossings(t, raw.LapDistPct, sectorStarts(ibt.yaml)));
     }
     if (raw.SessionFlags) {
       events.push(
