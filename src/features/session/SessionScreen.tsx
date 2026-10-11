@@ -477,10 +477,12 @@ function SessionView({
             gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
           if (target)
             router.push(
-              cornerHref(sessionId, target.corner, {
-                laps: target.laps,
-                hl: item.lapId,
-              }),
+              cornerHref(
+                sessionId,
+                target.corner,
+                {laps: target.laps, hl: item.lapId},
+                target.whole,
+              ),
             );
         }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}

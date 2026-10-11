@@ -270,6 +270,8 @@ export function sectionChips(
     sectionN: number;
     label: string;
     firstCorner: number;
+    /** More than one corner: its chip opens on All. */
+    compound: boolean;
     selected: boolean;
   }[];
   parts: {n: number; label: string; selected: boolean}[];
@@ -284,6 +286,7 @@ export function sectionChips(
       sectionN: c.sectionN,
       label: members.length > 1 ? c.sectionLabel : turnLabel(c.n, c.official),
       firstCorner: c.n,
+      compound: members.length > 1,
       selected: c.sectionN === current.sectionN,
     });
   }

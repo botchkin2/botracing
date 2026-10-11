@@ -22,5 +22,14 @@ describe('sectionTable on Road Atlanta (roadAtlantaGt3)', () => {
     };
     const table = sectionTable(times, new Set(), map)!;
     expect(table.targets.map(t => t.corner)).toEqual([null, 1, 2, 6, 7, 9]);
+    // Compound sections open on All; the single corners do not.
+    expect(table.targets.map(t => t.whole)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+    ]);
   });
 });
