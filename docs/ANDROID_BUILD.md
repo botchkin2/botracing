@@ -27,8 +27,7 @@ Add to PATH: `%ANDROID_HOME%\platform-tools`
 
 Through Android Studio's SDK Manager, install the platform and build-tools that match your Expo SDK version:
 
-- Expo 54 / React Native 0.81: Android SDK Platform **36**, Build-Tools 36.x
-- Expo 55+: check the [Expo SDK docs](https://docs.expo.dev) for the target version
+- Expo 57 / React Native 0.86: Android SDK Platform **36**, Build-Tools 36.0.0 (`react-native/gradle/libs.versions.toml`)
 - **Android SDK Platform-Tools** (adb, fastboot)
 
 Minimum SDK is API 24.
@@ -51,7 +50,7 @@ npm run build:android:development
 
 This runs `npx eas build --platform android --profile development`. The build happens on Expo's servers. Check your email or the EAS dashboard for the download link or QR code.
 
-Note: Use `npx eas-cli` for individual commands (e.g., `npx eas-cli whoami`). Due to the MSIX sandbox, global `npm install -g eas-cli` may not work as expected; npx reads the latest version from npm registry on each run.
+Note: use `npx eas-cli@24.8.0` (the version CI pins) for individual commands, e.g. `npx eas-cli@24.8.0 whoami`. A global `npm install -g` does not work under the MSIX sandbox.
 
 ### Local Build (Offline)
 
