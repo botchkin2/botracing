@@ -27,8 +27,8 @@ describe('lastRaceOf', () => {
       startedAt: '2026-09-27T20:00:00Z',
       raceLaps: 72,
       stops: [
-        {lap: 'L25', fuelL: 12.9, vePct: 4},
-        {lap: 'L49', fuelL: 10.1, vePct: 3},
+        {lap: 'L25', fuelL: 12.9, vePct: 4, kind: null, detail: null},
+        {lap: 'L49', fuelL: 10.1, vePct: 3, kind: null, detail: null},
       ],
       end: {lap: 'L73', fuelL: 4.9, vePct: 3},
       // What the car started the race with: offered to the Plan, not applied.
@@ -66,6 +66,34 @@ describe('lastRaceLine', () => {
     const fuelOnly = {...race, end: {lap: 'L73', fuelL: 4.9, vePct: null}};
     expect(lastRaceLine(fuelOnly)).toBe(
       '2 stops at L25, L49 · 4.9 L left at the end of L73',
+    );
+  });
+
+  it('names a repair or a penalty by what it was, not as a stop (1 Oct race, da3e)', () => {
+    const da3e = {
+      ...race,
+      end: null,
+      stops: [
+        {lap: 'L11', fuelL: 59.4, vePct: null, kind: 'repair', detail: null},
+        {
+          lap: 'L12',
+          fuelL: 57.2,
+          vePct: null,
+          kind: 'penalty',
+          detail: 'stop-go',
+        },
+      ],
+    };
+    expect(lastRaceLine(da3e)).toBe('no stop · repair L11 · stop-go L12');
+    const mixed = {
+      ...da3e,
+      stops: [
+        {lap: 'L20', fuelL: 8, vePct: null, kind: 'service', detail: null},
+        ...da3e.stops,
+      ],
+    };
+    expect(lastRaceLine(mixed)).toBe(
+      '1 stop at L20 · repair L11 · stop-go L12',
     );
   });
 

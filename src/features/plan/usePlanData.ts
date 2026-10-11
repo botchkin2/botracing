@@ -6,7 +6,7 @@ import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {formationBurnOf} from './formation';
 import {lastRaceOf} from './lastRace';
-import {pitLaneBase, pitModelOf} from './pitBase';
+import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
 import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
@@ -59,15 +59,17 @@ export function usePlanData(
     ...baseRules,
     rules: {...baseRules.rules, formationFactor: formation.factor},
   };
-  // The lane base comes from his own race stops here; the Plan counts no pit
-  // time without it (fewer than two stops, or a class the refuel rate is not
-  // measured for).
-  const pitBase = pitLaneBase(hist.races, combo?.sessions[0]?.carClass ?? '');
+  // The refuel rate and the lane base come from his own race stops here; the
+  // Plan counts no pit time without them (fewer than two service stops, or no
+  // fill measured and a class with no default rate).
+  const carClass = combo?.sessions[0]?.carClass ?? '';
+  const refuelRate = refuelRateFor(hist.races, carClass);
+  const pitBase = pitLaneBase(hist.races, refuelRate);
   const plan = rules
     ? planRace(
         rules.rules,
         greenLaps,
-        pitModelOf(pitBase),
+        pitModelOf(pitBase, refuelRate),
         hist.ratio?.perPctL ?? null,
       )
     : null;
@@ -89,11 +91,12 @@ export function usePlanData(
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
-            // Over the pooled green laps, which are comparable by construction.
+            // Over the comparable laps of the pooled green laps: a lap time is
+            // pace only when it is comparable (the plan basis, paceLaps).
             traffic: trafficMedians(
               greenLaps.map(l => ({
                 timeS: l.lapTimeS,
-                comparable: true,
+                comparable: l.comparable !== false,
                 traffic: l.traffic ?? null,
               })),
             ),
@@ -116,7 +119,7 @@ export function usePlanData(
           noVe,
           hist.ratio?.perPctL ?? null,
           unit,
-          combo?.sessions[0]?.carClass ?? '',
+          refuelRate,
         )
       : null;
   return {
@@ -128,6 +131,7 @@ export function usePlanData(
     greenLaps,
     plan,
     pitBase,
+    refuelRate,
     view,
     cards,
     formation,

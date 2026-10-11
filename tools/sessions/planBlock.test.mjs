@@ -127,7 +127,7 @@ test('a race adds its ending lap, stops, formation burn and own use, as raceFact
     ownUse: {fuelL: 2.4, vePct: null},
     end: {lapIndex: 9, fuelL: 12.5, vePct: 20},
     // the service on the first lap (not pit-in) is not a stop
-    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5, addedL: null, lossS: null}],
+    stops: [{lapIndex: 5, fuelL: 31.2, vePct: 55.5, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}],
   });
   assert.equal(plan.laps.length, 7, 'green laps with fuel used: 2-4 and 6-9');
 });
@@ -140,7 +140,7 @@ test('a race with nothing to end on, or not a race, has no race side', () => {
 
 test('a first-lap stop that ends in the pit lane is a real stop (Road Atlanta, 25 Sep)', () => {
   const laps = [raceLap(2.4, {pitIn: true, pitStop: {atEntry: {fuelL: 50, vePct: null}}}), raceLap(2.4)];
-  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null, addedL: null, lossS: null}]);
+  assert.deepEqual(planBlock({sessionType: 'Race', fuel, laps}).race.stops, [{lapIndex: 1, fuelL: 50, vePct: null, addedL: null, lossS: null, kind: null, detail: null, fillLPerS: null}]);
 });
 
 // A real LMU race (Road Atlanta, 3 Oct 2026) through the real sync: the block
@@ -171,6 +171,9 @@ test('a refuel stop carries the litres added and its lane loss against the stint
     atEntry: {fuelL: 12, vePct: null},
     added: {fuelL: added, vePct: null},
     tyres,
+    fillLPerS: 3.37,
+    // 40 L at 3.37 L/s is 11.9 s of fill; the car stood still 15 s.
+    visit: {kind: 'service', detail: null, stationaryS: 15},
   });
   const base = [
     stopLap(1, 90.2),
@@ -186,6 +189,8 @@ test('a refuel stop carries the litres added and its lane loss against the stint
   const stops = planBlock({sessionType: 'Race', fuel, laps: base}).race.stops;
   assert.equal(stops.length, 1);
   assert.equal(stops[0].addedL, 40);
+  assert.equal(stops[0].kind, 'service');
+  assert.equal(stops[0].fillLPerS, 3.37);
   assert.ok(Math.abs(stops[0].lossS - lossS) < 1e-9, String(stops[0].lossS));
 
   const lossOf = laps => planBlock({sessionType: 'Race', fuel, laps}).race.stops[0].lossS;
@@ -193,6 +198,26 @@ test('a refuel stop carries the litres added and its lane loss against the stint
   assert.equal(lossOf(withStop({tyres: {changed: true, wheels: ['FL']}})), null, 'tyres changed: pitBase leaves it out');
   assert.equal(lossOf(withStop({tyres: null})), null, 'tyres unknown: left out, not guessed');
   assert.equal(lossOf(withStop({added: {fuelL: 0}})), null, 'no fuel added');
+  // A repair that also refuelled (Daytona 29 Sep, 4 L in a 60 s repair) stood
+  // still for the repair: its time says nothing about the lane or the pump.
+  assert.equal(lossOf(withStop({visit: {kind: 'repair', detail: null}})), null, 'a repair teaches no pit loss');
+  assert.equal(lossOf(withStop({visit: {kind: 'penalty', detail: 'stop-go'}})), null, 'a penalty teaches no pit loss');
+  assert.equal(lossOf(withStop({visit: undefined})), null, 'an unclassified visit teaches no pit loss');
+  // Daytona 29 Sep without its capture (pruned after 7 days): the repair has no
+  // damage readings left, so it classes as a service. It stood still 60.6 s for
+  // 4.04 L (1.2 s of fill): not a service's time, so it teaches no pit loss
+  // (bias, #496 review). Its tyre change alone would also drop it; here the
+  // tyres are known and unchanged, so only the time rule can.
+  assert.equal(
+    lossOf(withStop({added: {fuelL: 4.04, vePct: null}, visit: {kind: 'service', detail: null, stationaryS: 60.6}})),
+    null,
+    'a "service" that stood still far longer than its fill teaches no pit loss',
+  );
+  assert.ok(
+    lossOf(withStop({added: {fuelL: 4.04, vePct: null}, visit: {kind: 'service', detail: null, stationaryS: 9}})) != null,
+    'a short top-up that fits its fill still teaches it',
+  );
+  assert.equal(lossOf(withStop({visit: {kind: 'service', detail: null}})), null, 'no stationary time: nothing to check, left out');
   assert.equal(lossOf(base.slice(0, 6).map((l, i) => (i === 5 ? {...l, pitOut: false} : l))), null, 'the next lap is not an out lap');
   assert.equal(lossOf(base.map((l, i) => (i < 4 && i > 1 ? {...l, comparable: false} : l))), null, 'under 3 clean laps in the stint: no median');
 });
