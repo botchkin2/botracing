@@ -101,10 +101,15 @@ export function TiresCard({
           ))}
         </View>
       ) : null}
+      {stint.wearRead === 'stops' ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {PIT_ONLY_NOTE}
+        </Text>
+      ) : null}
       <TireGrid
         cells={stint.wheels}
         width={width}
-        showBars={stint.kind === 'trend'}
+        showBars={stint.kind === 'trend' && stint.wearRead === 'every-lap'}
       />
       {stint.flatNote ? (
         <Text variant='dataSmall' tone='textMuted'>
@@ -133,6 +138,8 @@ export function TiresCard({
 }
 
 const SHORT_STINT_NOTE = 'Under 5 green laps: readings only';
+// The channel holds its pit reading between stops (tireCard.wearReadAtStopsOnly).
+const PIT_ONLY_NOTE = 'Wear is read in the pits only';
 
 const styles = StyleSheet.create({
   card: {gap: space.md},

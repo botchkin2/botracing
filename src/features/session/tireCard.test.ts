@@ -12,6 +12,7 @@ import {
   setAgeText,
   type StintTires,
   treadScale,
+  wearReadAtStopsOnly,
 } from './tireCard';
 
 const all = (v: number | null): PerWheel => ({FL: v, FR: v, RL: v, RR: v});
@@ -391,5 +392,46 @@ describe('treadScale', () => {
   it('keeps the standard scale with no readings', () => {
     expect(treadScale([zone(null, null, null)]).minC).toBe(70);
     expect(treadScale([]).minC).toBe(70);
+  });
+});
+
+describe('wear read at stops only (iRacing holds its pit reading, radio #4437)', () => {
+  const clean = {pitIn: false, pitOut: false, pitStop: null};
+  const run = (
+    wears: number[],
+    over: (i: number) => Partial<Lap> = () => ({}),
+  ) => wears.map((w, i) => lap(i + 1, w, {...clean, ...over(i)}));
+
+  it('a channel that never moves between laps is read at stops: no rate, no bars, the reading kept', () => {
+    const laps = run([99.8, 99.8, 99.8, 99.8, 99.8, 99.8]);
+    expect(wearReadAtStopsOnly(laps)).toBe(true);
+    const s = one(laps);
+    expect(s.wearRead).toBe('stops');
+    expect(s.kind).toBe('trend');
+    expect(
+      s.wheels.every(w => w.medianLossPct == null && w.bars.length === 0),
+    ).toBe(true);
+    expect(s.wheels.map(w => w.leftPct)).toEqual([99.8, 99.8, 99.8, 99.8]);
+  });
+
+  it('a running tire (one change anywhere) is read every lap, with its rate', () => {
+    const laps = run([99.0, 98.5, 98.0, 97.5, 97.0, 96.5]);
+    expect(wearReadAtStopsOnly(laps)).toBe(false);
+    expect(one(laps).wearRead).toBe('every-lap');
+    expect(one(laps).wheels[0].medianLossPct).toBeCloseTo(0.5, 6);
+  });
+
+  it('a change across a pit visit does not count; two clean equal pairs decide it', () => {
+    // Stops after L1 and L5 (the Sebring practice's shape): the reading
+    // moves only across them; L3–L4 and L7–L8 are the clean pairs.
+    const laps = run([100, 99.7, 99.7, 99.7, 99.7, 98.4, 98.4, 98.4], i => ({
+      pitIn: i === 0 || i === 4,
+      pitOut: i === 1 || i === 5,
+    }));
+    expect(wearReadAtStopsOnly(laps)).toBe(true);
+  });
+
+  it('one clean equal pair is not enough to tell', () => {
+    expect(wearReadAtStopsOnly(run([99, 99]))).toBe(false);
   });
 });
