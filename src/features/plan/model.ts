@@ -610,7 +610,7 @@ export function planView(
     lastRatio: number | null;
     /** The fill limits of the history sessions that have a ratio, for the note. */
     ratioLoadsL: number[];
-    /** The event the plan is for ("One Stint Sprint · week of 09-29 · 100 L"); null for a rule set or no event. */
+    /** The event the plan is for ("100 L · One Stint Sprint · week of 09-29"); null for a rule set or no event. */
     eventText?: string | null;
     /** Set when the newest session's use has moved away from the older ones. */
     drift: HistoryDrift | null;

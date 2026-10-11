@@ -26,7 +26,7 @@ export function RulesBlock({
   /** The numbers the plan is worked with, finished (`rulesCells`). */
   cells: RulesCell[];
   sheet: SheetProps;
-  /** The event the plan is for ("week of 09-29 · 100 L"), the chip's label when no rule set is picked. */
+  /** The event the plan is for ("100 L · One Stint Sprint · week of 09-29"), the chip's label when no rule set is picked. */
   eventText: string | null;
   /** The chip and its sheet alone, to sit among other chips (the phone). */
   compact?: boolean;
@@ -36,9 +36,10 @@ export function RulesBlock({
     <Chip
       label={
         'Rules: ' +
-        (sheet.preset ? sheet.preset.name : eventText ?? 'No limits') +
-        ' ▾'
+        (sheet.preset ? sheet.preset.name : eventText ?? 'No limits')
       }
+      // The chevron stays when a long label is cut: it says the chip opens.
+      trailing={<Text tone='textFaint'>▾</Text>}
       onPress={() => setOpen(true)}
     />
   );
