@@ -19,5 +19,5 @@ Round 4 adds the per-chart "?" spec (WHAT / MEASURED / DIRECTION / LINES) and th
 ## Grid hand-offs (Session lap × section grid)
 
 - Tap a column head (desktop and phone): Compare opens with the checked laps, zoomed to that section (`c` = the section number, Compare's own).
-- Tap a lap × section cell: Corner opens on the section's first corner, with that lap highlighted. A compound section (T2–5) opens whole (`all=1`). The tapped lap is only highlighted: it joins no median and does not change the checked set. The mapping is `gridCellTargetOf` in `src/features/session/model.ts`.
+- Tap a lap × section cell: Corner opens on the section's first corner, with that lap highlighted. A compound section (T2–5) opens on its first part (the URL names it; `all=1` is set only from the Parts row's All). The tapped lap is only highlighted: it joins no median and does not change the checked set. The mapping is `gridCellTargetOf` in `src/features/session/model.ts`.
 - The start straight (S/F) and the game's sectors open nothing: their heads and cells are plain text.
