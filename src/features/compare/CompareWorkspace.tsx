@@ -5,7 +5,9 @@ import Svg, {Path, Rect} from 'react-native-svg';
 import {type Field} from '@/src/analysis/field';
 import {TraceChart} from '@/src/charts';
 import {
+  closeGlyphSlop,
   cornerCell,
+  disabledOpacity,
   formatCornerGap,
   formatDistance,
   radius,
@@ -13,7 +15,6 @@ import {
   space,
   useLayout,
   useTheme,
-  disabledOpacity,
 } from '@/src/design';
 import {
   addChart,
@@ -191,7 +192,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   disabled: !canRemoveLap(selection, c.lapId),
                 }}
                 disabled={!canRemoveLap(selection, c.lapId)}
-                hitSlop={space.sm}
+                hitSlop={closeGlyphSlop}
                 onPress={() =>
                   p.onSelectionChange(removeLap(selection, c.lapId))
                 }>
@@ -315,7 +316,9 @@ export function CompareWorkspace(p: WorkspaceProps) {
               )
             }
           />
-          <Text variant='dataStrong'>{p.windowSizeLabel}</Text>
+          <Text variant='dataStrong' style={styles.windowSize}>
+            {p.windowSizeLabel}
+          </Text>
           <Chip
             label='+'
             accessibilityLabel='Larger window'
@@ -602,6 +605,8 @@ function overviewDomain(model: CompareModel): [number, number] {
 }
 
 const styles = StyleSheet.create({
+  // Wide enough for "200 m": the buttons beside it stay put between Time and Distance.
+  windowSize: {minWidth: 56, textAlign: 'center'},
   removeOff: {opacity: disabledOpacity},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},

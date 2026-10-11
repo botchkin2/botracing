@@ -613,7 +613,7 @@ function CompareView({
         {backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
       {layout.isDesktop || !oneChart ? (
-        <Text variant='label' tone='textMuted'>
+        <Text variant='label' tone='textMuted' style={styles.chartsLabel}>
           Charts
         </Text>
       ) : (
@@ -623,7 +623,7 @@ function CompareView({
           style={hitBox.link}
           hitSlop={space.md}
           onPress={() => setChartsOpen(o => !o)}>
-          <Text variant='label' tone='textMuted'>
+          <Text variant='label' tone='textMuted' style={styles.chartsLabel}>
             {chartsOpen ? 'Charts ▾' : 'Charts ▸'}
           </Text>
         </Pressable>
@@ -947,5 +947,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
   },
+  // "Charts" and "Charts ▸" take the same width, so the Stack / One chart
+  // switch does not slide under a finger when it changes the label.
+  chartsLabel: {minWidth: 64},
   oneTabs: {gap: space.xs},
 });

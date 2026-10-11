@@ -55,8 +55,16 @@ export function TransportBar({
   const {color} = useTheme();
   // The 28 pt control's touch area grows to 44 pt on native (hitSlop); web ignores it.
   const HIT_SLOP = (size.hit - size.chip) / 2;
+  const STEP_SLOP_Y = (size.hit - size.chip) / 2;
+  // The stepper's buttons are 28 x 28 pt: 8 pt each side, so each is a 44 pt
+  // target.
   const hit = {
-    hitSlop: {top: HIT_SLOP, bottom: HIT_SLOP, left: HIT_SLOP, right: HIT_SLOP},
+    hitSlop: {
+      top: STEP_SLOP_Y,
+      bottom: STEP_SLOP_Y,
+      left: HIT_SLOP,
+      right: HIT_SLOP,
+    },
   };
   const stepper = (
     <View style={[styles.stepper, {borderColor: color.lineStrong}]}>
@@ -111,9 +119,15 @@ export function TransportBar({
         value={mode}
         onChange={onMode}
       />
-      <Text variant='dataSmall' tone='textMuted' style={styles.flex}>
-        {spanLabel}
-      </Text>
+      {/* The span only where it has room: squeezed into the phone row it wrapped
+          to three lines and made the row taller in Time than in Distance. */}
+      {oneRow ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.flex}>
+          {spanLabel}
+        </Text>
+      ) : (
+        <View style={styles.flex} />
+      )}
       {stepper}
       {lapButton}
     </View>
@@ -235,8 +249,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     height: size.chip,
   },
-  stepBtn: {width: 28, alignItems: 'center', justifyContent: 'center'},
-  stepLabel: {minWidth: 40, textAlign: 'center'},
+  // The full height of the 28 pt stepper, so the slop reaches 44.
+  stepBtn: {
+    width: 28,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Wide enough for "200 m", so the buttons beside it stay put between Time and Distance.
+  stepLabel: {minWidth: 56, textAlign: 'center'},
   rateLabel: {minWidth: 36, textAlign: 'center'},
   lapBtn: {paddingHorizontal: space.md, justifyContent: 'center'},
   outlined: {borderWidth: 1},

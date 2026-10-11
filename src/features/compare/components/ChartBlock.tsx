@@ -140,7 +140,7 @@ export function ChartBlock({
       {loneEditor && (
         <Pressable
           accessibilityLabel={`Remove ${chart.title}`}
-          hitSlop={space.sm}
+          style={styles.closeBox}
           onPress={() => editor.onToggle(first)}>
           <Text variant='dataSmall' tone='textFaint'>
             ×
@@ -152,7 +152,9 @@ export function ChartBlock({
   const valueRows = (
     <>
       {chart.valueRows.map(r => (
-        <View key={r.channel} style={styles.overlayRow}>
+        <View
+          key={r.channel}
+          style={[styles.overlayRow, editor && styles.overlayRowEditing]}>
           {r.legend && (
             <>
               <LegendSwatch
@@ -174,7 +176,7 @@ export function ChartBlock({
           {editor && !loneEditor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
-              hitSlop={space.sm}
+              style={styles.closeBox}
               onPress={() => editor.onToggle(r.channel)}>
               <Text variant='dataSmall' tone='textFaint'>
                 ×
@@ -300,6 +302,16 @@ function LegendSwatch({
 }
 
 const styles = StyleSheet.create({
+  // The × of an editable chart row: a real 24 x 24 box (a mouse needs one too;
+  // the rows are too tight for slop to reach past their neighbours).
+  // With a × the row is as tall as the × box, so neighbours do not overlap it.
+  overlayRowEditing: {height: 24},
+  closeBox: {
+    minWidth: 24,
+    minHeight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   block: {gap: space.xxs},
   headerRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
