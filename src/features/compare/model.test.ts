@@ -912,9 +912,15 @@ describe('followPlace', () => {
     {...c(2, 500, 700), parts: []},
   ];
   it('adds the corner inside its range, using parts when there are any', () => {
-    expect(followPlace(s, 150)).toBe('Section 1 · T1 apex');
+    expect(followPlace(s, 120)).toBe('Section 1 · T1');
+    expect(followPlace(s, 225)).toBe('Section 1 · T2');
+    expect(followPlace(s, 520)).toBe('Section 2 · T2');
+  });
+  it('says apex only near the apex, not anywhere between entry and exit', () => {
+    expect(followPlace(s, 140)).toBe('Section 1 · T1 apex');
     expect(followPlace(s, 250)).toBe('Section 1 · T2 apex');
     expect(followPlace(s, 600)).toBe('Section 2 · T2 apex');
+    expect(followPlace(s, 600 + 16)).toBe('Section 2 · T2');
   });
   it('is the section alone between corners', () => {
     expect(followPlace(s, 190)).toBe('Section 1');

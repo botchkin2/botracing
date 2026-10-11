@@ -639,16 +639,24 @@ export function sectionStartM(
   return sectionEntryM[n] ?? 0;
 }
 
+/** Within this many metres of its apex the cursor is "at the apex". */
+export const AT_APEX_M = 15;
+
 /**
  * Follow's position label (handoff v2 M1): the section, plus the corner when
- * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
+ * the cursor is inside a corner's entry–exit range ("Section 4 · T8"), and
+ * "T8 apex" only close to the apex itself.
  */
 export function followPlace(sections: MapSection[], cursorM: number): string {
   const place = cornerPlace(sections, cursorM);
   for (const s of sections)
     for (const c of s.parts.length > 0 ? s.parts : [s])
-      if (cursorM >= c.entryM && cursorM <= c.exitM)
-        return `${place} · ${turnLabel(c.n, c.official)} apex`;
+      if (cursorM >= c.entryM && cursorM <= c.exitM) {
+        const turn = turnLabel(c.n, c.official);
+        return Math.abs(cursorM - c.apexM) <= AT_APEX_M
+          ? `${place} · ${turn} apex`
+          : `${place} · ${turn}`;
+      }
   return place;
 }
 
