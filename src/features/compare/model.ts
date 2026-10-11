@@ -28,7 +28,7 @@ import {
   type MapSection,
   mapPlacer,
   measuredCentreLines,
-  onCurrentBoundaries,
+  sectionWindowTimes,
   type TrackMapData,
   openingLapIds,
   trackCorners,
@@ -1084,19 +1084,25 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const heads = map
     ? map.sections.map(sectionNameOf)
     : corners.map(n => `#${n}`);
-  // Against windows, a lap cut at other boundaries (or analysed before them)
-  // has section times cut elsewhere: no cells for it.
-  const diffRow = (lap: Lap) =>
-    corners.map((n, i) => {
-      if (table.kind !== 'lap' && map && !onCurrentBoundaries(lap, map))
-        return null;
-      const a = lap.sections[i]?.segTimeS;
+  // A lap's time in a section is the one Session's grid shows: through the
+  // map's windows (sectionWindowTimes), so a pit, off-track or yellow window
+  // is no cell here either, and a lap cut at other boundaries has none.
+  // Without windows, the lap's own segment times.
+  const sectionTimesOf = (lap: Lap) => {
+    const byWindow = map ? sectionWindowTimes(lap, map) : null;
+    return (n: number, i: number): number | null =>
+      byWindow ? byWindow.get(n) ?? null : lap.sections[i]?.segTimeS ?? null;
+  };
+  const refTimes = ref ? sectionTimesOf(ref) : null;
+  const diffRow = (lap: Lap) => {
+    const timeOf = sectionTimesOf(lap);
+    return corners.map((n, i) => {
+      const a = timeOf(n, i);
       const b =
-        table.kind === 'lap'
-          ? ref?.sections[i]?.segTimeS
-          : table.sectionS.get(n);
+        table.kind === 'lap' ? refTimes?.(n, i) ?? null : table.sectionS.get(n);
       return a == null || b == null ? null : a - b;
     });
+  };
   let gridRows: CornerGridModel['rows'] = [];
   if (ref && cornerCount > 0 && table.kind !== 'lap') {
     // Against the checked set's medians the reference lap is a row like any
