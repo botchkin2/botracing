@@ -69,6 +69,7 @@ export function TrackScreen({
   const props = {
     model: state.model,
     plans: state.plans,
+    undrivenPlan: state.undrivenPlan,
     mapLoading: state.mapLoading,
     mapFailed: state.mapFailed,
     attribution: state.attribution,
@@ -89,6 +90,7 @@ export function TrackScreen({
 type ViewProps = {
   model: TrackModel;
   plans: Combo[];
+  undrivenPlan: string | null;
   mapLoading: boolean;
   mapFailed: MapPart[];
   attribution: string | null;
@@ -114,6 +116,7 @@ function Title({model}: {model: TrackModel}) {
 function TrackPhone({
   model,
   plans,
+  undrivenPlan,
   mapLoading,
   mapFailed,
   attribution,
@@ -175,7 +178,7 @@ function TrackPhone({
           ) : null}
         </View>
       ) : null}
-      <PlanBlock combos={plans} />
+      <PlanBlock combos={plans} undrivenKey={undrivenPlan} />
       {model.history ? (
         <HistoryPanel
           history={model.history}
@@ -193,6 +196,7 @@ function TrackPhone({
 function TrackDesktop({
   model,
   plans,
+  undrivenPlan,
   mapLoading,
   mapFailed,
   attribution,
@@ -208,7 +212,7 @@ function TrackDesktop({
   const mapH = wide ? size.trackMapDesk : Math.round(mapW * 0.8);
   const history = (
     <>
-      <PlanBlock combos={plans} />
+      <PlanBlock combos={plans} undrivenKey={undrivenPlan} />
       {model.history ? (
         <HistoryPanel
           history={model.history}

@@ -31,6 +31,7 @@ import {
   sessionLimitL,
   startChips,
   trackChoices,
+  undrivenPlanKey,
   veRatioFor,
 } from './model';
 
@@ -118,11 +119,7 @@ describe('greenLapsOf', () => {
   });
 
   it('marks a lap whose own VE was not recorded, even when the ratio gives it a VE', () => {
-    const out = greenLapsOf(
-      's1',
-      [planLap({veUsedPct: null}), planLap()],
-      0.7,
-    );
+    const out = greenLapsOf('s1', [planLap({veUsedPct: null}), planLap()], 0.7);
     expect(out.map(l => l.veMeasured)).toEqual([false, true]);
   });
 
@@ -139,7 +136,13 @@ describe('greenLapsOf', () => {
       's1',
       [
         planLap({
-          traffic: {aheadS: 6, passes: null, blueS: 0, battleS: 0.5, overtakes: 1},
+          traffic: {
+            aheadS: 6,
+            passes: null,
+            blueS: 0,
+            battleS: 0.5,
+            overtakes: 1,
+          },
         }),
       ],
       0.7,
@@ -729,7 +732,13 @@ describe('limitsOfPlan', () => {
       plan: plan
         ? {
             v: 1,
-            fuel: {fillLimitL, startL: null, tankL: null, litresPerVePct: null, litresPerVePctStop: null},
+            fuel: {
+              fillLimitL,
+              startL: null,
+              tankL: null,
+              litresPerVePct: null,
+              litresPerVePctStop: null,
+            },
             laps: null,
             race: null,
           }
@@ -750,7 +759,10 @@ describe('limitsOfPlan', () => {
 
   it('a session missing from the answer counts as a session with no limit in the history', () => {
     const combo = {
-      sessions: [session('a', '2026-10-09T10:00:00Z'), session('b', '2026-10-08T10:00:00Z')],
+      sessions: [
+        session('a', '2026-10-09T10:00:00Z'),
+        session('b', '2026-10-08T10:00:00Z'),
+      ],
     } as Combo;
     const answered = limitsOfPlan([row(75), undefined], false, true).limitsL;
     expect(historySessions(combo, answered).map(s => s.id)).toEqual(['a', 'b']);
@@ -869,5 +881,28 @@ describe('eventLoad', () => {
       litres: 117,
     });
     expect(eventLoad([null, undefined])).toBeNull();
+  });
+});
+
+describe('undrivenPlanKey', () => {
+  it('opens an undriven track with the car of his newest LMU session', () => {
+    const old = session('a', '2026-09-01T10:00:00Z', {
+      car: 'Ferrari 296 GT3 #21:LM',
+    });
+    const newest = session('b', '2026-10-09T10:00:00Z');
+    const iracing = session('c', '2026-10-10T10:00:00Z', {sim: 'iracing'});
+    const empty = session('d', '2026-10-11T10:00:00Z', {lapCount: 0});
+    expect(undrivenPlanKey('lmu-spa', [old, newest, iracing, empty])).toBe(
+      `lmu-spa|${carLabel(newest.car).model}`,
+    );
+  });
+
+  it('is null with no LMU session to take a car from', () => {
+    expect(undrivenPlanKey('lmu-spa', [])).toBeNull();
+    expect(
+      undrivenPlanKey('lmu-spa', [
+        session('c', '2026-10-10T10:00:00Z', {sim: 'iracing'}),
+      ]),
+    ).toBeNull();
   });
 });
