@@ -21,7 +21,7 @@ export function OptimumLines({lines}: {lines: OptimumLine[]}) {
           tone='textSecondary'>
           {`${l.label ? `${l.label} \u00b7 ` : ''}Optimal ${
             l.optimal
-          } \u00b7 Median ${l.median} \u00b7 ${l.inconsistency} \u00b7 ${
+          } \u00b7 Typical ${l.median} \u00b7 ${l.inconsistency} \u00b7 ${
             l.laps
           }`}
         </Text>
