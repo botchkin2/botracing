@@ -172,7 +172,8 @@ test('a refuel stop carries the litres added and its lane loss against the stint
     added: {fuelL: added, vePct: null},
     tyres,
     fillLPerS: 3.37,
-    visit: {kind: 'service', detail: null},
+    // 40 L at 3.37 L/s is 11.9 s of fill; the car stood still 15 s.
+    visit: {kind: 'service', detail: null, stationaryS: 15},
   });
   const base = [
     stopLap(1, 90.2),
@@ -202,6 +203,21 @@ test('a refuel stop carries the litres added and its lane loss against the stint
   assert.equal(lossOf(withStop({visit: {kind: 'repair', detail: null}})), null, 'a repair teaches no pit loss');
   assert.equal(lossOf(withStop({visit: {kind: 'penalty', detail: 'stop-go'}})), null, 'a penalty teaches no pit loss');
   assert.equal(lossOf(withStop({visit: undefined})), null, 'an unclassified visit teaches no pit loss');
+  // Daytona 29 Sep without its capture (pruned after 7 days): the repair has no
+  // damage readings left, so it classes as a service. It stood still 60.6 s for
+  // 4.04 L (1.2 s of fill): not a service's time, so it teaches no pit loss
+  // (bias, #496 review). Its tyre change alone would also drop it; here the
+  // tyres are known and unchanged, so only the time rule can.
+  assert.equal(
+    lossOf(withStop({added: {fuelL: 4.04, vePct: null}, visit: {kind: 'service', detail: null, stationaryS: 60.6}})),
+    null,
+    'a "service" that stood still far longer than its fill teaches no pit loss',
+  );
+  assert.ok(
+    lossOf(withStop({added: {fuelL: 4.04, vePct: null}, visit: {kind: 'service', detail: null, stationaryS: 9}})) != null,
+    'a short top-up that fits its fill still teaches it',
+  );
+  assert.equal(lossOf(withStop({visit: {kind: 'service', detail: null}})), null, 'no stationary time: nothing to check, left out');
   assert.equal(lossOf(base.slice(0, 6).map((l, i) => (i === 5 ? {...l, pitOut: false} : l))), null, 'the next lap is not an out lap');
   assert.equal(lossOf(base.map((l, i) => (i < 4 && i > 1 ? {...l, comparable: false} : l))), null, 'under 3 clean laps in the stint: no median');
 });
