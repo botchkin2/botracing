@@ -24,7 +24,7 @@ const corner = (
   sectionN: 1,
   sectionIndex: 0,
   partIndex: null,
-  sectionLabel: 'S1 (T1)',
+  sectionLabel: 'T1',
 });
 
 // A pair of close corners and a far one, on a 5,000 m lap.

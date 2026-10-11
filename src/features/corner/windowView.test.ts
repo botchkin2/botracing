@@ -116,7 +116,7 @@ describe('sectionChips', () => {
     const {sections} = sectionChips(all, all[0]);
     expect(sections.map(s => [s.label, s.firstCorner, s.selected])).toEqual([
       ['T1', 1, true],
-      ['S2 (T2–3)', 2, false],
+      ['T2–3', 2, false],
     ]);
   });
 
@@ -178,7 +178,7 @@ describe('the Corner model with windows', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
     expect(model.zoom.caption).toMatch(/^Shaded: T3/);
-    expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–3)']);
+    expect(model.sections.map(s => s.label)).toEqual(['T1', 'T2–3']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
 
@@ -189,7 +189,7 @@ describe('the Corner model with windows', () => {
     expect(t3.zoom.stretch.fromM).toBe(700);
     expect(t3.zoom.deltaFromM).toBe(500);
     expect(t3.zoom.windowM[0]).toBeLessThanOrEqual(500);
-    expect(t3.zoom.caption).toContain('delta from the start of S2');
+    expect(t3.zoom.caption).toContain('delta from the start of T2–3');
     expect(t3.zoom.caption).not.toContain('not drawn');
     // The first part starts where its section does: nothing to add.
     const t2 = build(m, {v: 1, rev: 3}, 2)!;

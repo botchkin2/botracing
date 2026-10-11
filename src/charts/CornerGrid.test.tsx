@@ -16,6 +16,7 @@ const grid = (
       <CornerGrid
         width={360}
         corners={[1, 2]}
+        heads={['T1', 'T2–5']}
         rows={[{key: 'a', label: 'L1', cells: [0.1, -0.2]}]}
         openCorner={null}
         onPressCorner={onPressCorner}
@@ -32,7 +33,7 @@ describe('CornerGrid on the phone', () => {
     act(() => {
       r = grid(jump, corner);
     });
-    const head = r!.root.findByProps({accessibilityLabel: 'Jump to S2'});
+    const head = r!.root.findByProps({accessibilityLabel: 'Jump to T2–5'});
     act(() => head.props.onPress());
     expect(jump).toHaveBeenCalledWith(2);
     expect(corner).not.toHaveBeenCalled();

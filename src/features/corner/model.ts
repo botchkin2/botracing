@@ -28,7 +28,6 @@ import {
   cornerSources,
   sectionMembers,
   entryPartOf,
-  wholeLabel,
   wholeTitle,
 } from './wholeCorner';
 import {
@@ -261,7 +260,7 @@ function ownWindow(
   };
 }
 
-/** One chip per section (a compound one reads "S5 (T8–T10)") and the parts of the current one. */
+/** One chip per section, by its name (a compound one reads "T8–10") and the parts of the current one. */
 export function sectionChips(
   all: TrackCorner[],
   current: TrackCorner,
@@ -546,9 +545,7 @@ export function buildCornerModel(input: {
           ...baseView,
           stretch: ownFrame,
           caption: windowCaption(
-            whole
-              ? wholeLabel(sec.sectionLabel)
-              : turnLabel(sec.n, sec.official),
+            whole ? sec.sectionLabel : turnLabel(sec.n, sec.official),
             own,
             ownFrame,
             whole
@@ -557,7 +554,7 @@ export function buildCornerModel(input: {
             zoomWindow,
             windows && isPart
               ? {
-                  label: `S${sec.sectionN}`,
+                  label: sec.sectionLabel,
                   lapM: windows.section.fromM,
                   drawn:
                     sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],

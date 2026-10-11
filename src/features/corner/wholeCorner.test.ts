@@ -333,7 +333,8 @@ describe('All on a compound corner', () => {
   });
 
   it('names a section by its turns', () => {
-    expect(wholeTitle('S2 (T2–T5)')).toBe('Turns 2–5');
-    expect(wholeTitle('S7 (T7)')).toBe('Turn 7');
+    expect(wholeTitle('T2–5')).toBe('Turns 2–5');
+    expect(wholeTitle('T7')).toBe('Turn 7');
+    expect(wholeTitle('T10a–T12')).toBe('Turns 10a–12');
   });
 });

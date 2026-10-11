@@ -106,7 +106,7 @@ export function viewCaption(
 
 /**
  * The caption when the corner has a window of its own (pit-wall thread 45):
- * "Shaded: S5 (T8–T10) · also in view: ...". A window that
+ * "Shaded: T8–10 · also in view: ...". A window that
  * runs past the zoom window says where it really ends and that the rest is not
  * drawn, so the shading ending at the edge is not read as the window's end
  * (setup #1760).

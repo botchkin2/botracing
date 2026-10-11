@@ -297,8 +297,8 @@ describe('buildCompareModel', () => {
   });
 
   it('position row names the corner under the cursor', () => {
-    expect(build().position.place).toBe('Section 2');
-    expect(build(sel({cursorM: 850})).position.place).toBe('After Section 2');
+    expect(build().position.place).toBe('T2');
+    expect(build(sel({cursorM: 850})).position.place).toBe('After T2');
     expect(build().position.distance).toBe('600 m');
   });
 
@@ -870,15 +870,15 @@ describe('selection edits', () => {
 
 describe('cornerPlace', () => {
   const s = [
-    {n: 1, entryM: 100, exitM: 300},
-    {n: 2, entryM: 500, exitM: 700},
+    {n: 1, entryM: 100, exitM: 300, parts: []},
+    {n: 2, entryM: 500, exitM: 700, parts: [{n: 2}, {n: 3}]},
   ];
-  it('inside, approaching and after', () => {
-    expect(cornerPlace(s, 200)).toBe('Section 1');
-    expect(cornerPlace(s, 400)).toBe('Section 2');
-    expect(cornerPlace(s, 310)).toBe('After Section 1');
-    expect(cornerPlace(s, 50)).toBe('Section 1');
-    expect(cornerPlace(s, 900)).toBe('After Section 2');
+  it('inside, approaching and after, by the section name every screen uses', () => {
+    expect(cornerPlace(s, 200)).toBe('T1');
+    expect(cornerPlace(s, 400)).toBe('T2–3');
+    expect(cornerPlace(s, 310)).toBe('After T1');
+    expect(cornerPlace(s, 50)).toBe('T1');
+    expect(cornerPlace(s, 900)).toBe('After T2–3');
   });
 });
 
@@ -938,20 +938,20 @@ describe('followPlace', () => {
     {...c(1, 100, 300), parts: [c(1, 100, 180), c(2, 200, 300)]},
     {...c(2, 500, 700), parts: []},
   ];
-  it('adds the corner inside its range, using parts when there are any', () => {
-    expect(followPlace(s, 120)).toBe('Section 1 · T1');
-    expect(followPlace(s, 225)).toBe('Section 1 · T2');
-    expect(followPlace(s, 520)).toBe('Section 2 · T2');
+  it('adds the corner inside its range when the section has more than one; a one-corner section is its name', () => {
+    expect(followPlace(s, 120)).toBe('T1–2 · T1');
+    expect(followPlace(s, 225)).toBe('T1–2 · T2');
+    expect(followPlace(s, 520)).toBe('T2');
   });
   it('says apex only near the apex, not anywhere between entry and exit', () => {
-    expect(followPlace(s, 140)).toBe('Section 1 · T1 apex');
-    expect(followPlace(s, 250)).toBe('Section 1 · T2 apex');
-    expect(followPlace(s, 600)).toBe('Section 2 · T2 apex');
-    expect(followPlace(s, 600 + 16)).toBe('Section 2 · T2');
+    expect(followPlace(s, 140)).toBe('T1–2 · T1 apex');
+    expect(followPlace(s, 250)).toBe('T1–2 · T2 apex');
+    expect(followPlace(s, 600)).toBe('T2 apex');
+    expect(followPlace(s, 600 + 16)).toBe('T2');
   });
   it('is the section alone between corners', () => {
-    expect(followPlace(s, 190)).toBe('Section 1');
-    expect(followPlace(s, 400)).toBe('Section 2');
+    expect(followPlace(s, 190)).toBe('T1–2');
+    expect(followPlace(s, 400)).toBe('T2');
   });
 });
 
