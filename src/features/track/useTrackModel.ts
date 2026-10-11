@@ -39,8 +39,11 @@ export function useTrackModel(
 ): TrackScreenState {
   const info = trackInfo(trackId);
   const sessions = useSessions({trackId, ageDays: ALL_TIME_DAYS});
-  // Every track, for the car an undriven track's Plan opens with.
-  const everywhere = useSessions({ageDays: ALL_TIME_DAYS});
+  // Every track, for the car an undriven track's Plan opens with: only asked
+  // once this track turns out to have no session of his.
+  const undriven =
+    sessions.data != null && planCombos(sessions.data.items).length === 0;
+  const everywhere = useSessions({ageDays: ALL_TIME_DAYS}, undriven);
   const ref = sessions.data ? referenceSession(sessions.data.items) : null;
   const map = useTrackMap(trackId);
   const surface = useTrackSurface(trackId);
