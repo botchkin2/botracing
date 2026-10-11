@@ -23,8 +23,11 @@ import {TreadZones} from './TreadZones';
 export function TiresCard({
   card,
   width,
+  titled = true,
 }: {
   card: TiresCardModel;
+  /** False inside a fold whose header already says Tires. */
+  titled?: boolean;
   /** The width the card may use, in points. */
   width: number;
 }) {
@@ -33,7 +36,7 @@ export function TiresCard({
   if (card.kind === 'absent') {
     return (
       <View style={styles.card}>
-        <Text variant='label'>Tires</Text>
+        {titled ? <Text variant='label'>Tires</Text> : null}
         <EmptyState title='No tire channels' />
       </View>
     );
@@ -43,7 +46,7 @@ export function TiresCard({
     card.stints[card.stints.length - 1];
   return (
     <View style={styles.card}>
-      <Text variant='label'>Tires</Text>
+      {titled ? <Text variant='label'>Tires</Text> : null}
       {card.stints.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <Segment

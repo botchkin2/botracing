@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type LapTraffic} from '@/src/data/sessions';
 
-import {lapTraffic, orderTags, trafficTags} from './lapTags';
+import {lapTraffic, orderTags, TAG_KEY, trafficTags} from './lapTags';
 
 const none: LapTraffic = {
   draftS: 0,
@@ -99,5 +99,40 @@ describe('lapTraffic', () => {
       heldUp: true,
       tick: true,
     });
+  });
+});
+
+describe('TAG_KEY', () => {
+  it('has a word for every code the rows can draw, in priority order', () => {
+    const codes = TAG_KEY.map(t => t.code);
+    expect(codes).toEqual([
+      'PART',
+      'PARK',
+      'OUT',
+      'IN',
+      'RESET',
+      'SLOW',
+      'TOW',
+      'BEST',
+      'OFF',
+      'HIT',
+      'TRAF',
+      'BLUE',
+      'PASS',
+      'BTL',
+    ]);
+    expect(TAG_KEY.every(t => t.meaning.length > 0)).toBe(true);
+    // The traffic tags trafficTags draws are all in the legend.
+    const traffic = {
+      draftS: 6,
+      trafficAheadS: 3,
+      overtakes: [{}],
+      blueFlagS: 2,
+      passesMade: 1,
+      passesSuffered: 1,
+      battleS: 9,
+    } as unknown as LapTraffic;
+    for (const t of trafficTags(traffic))
+      expect(codes).toContain(t.code.split(' ')[0]);
   });
 });
