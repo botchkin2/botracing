@@ -282,11 +282,8 @@ export const space = {
 export const disabledOpacity = 0.4;
 /** What every tappable looks like while a finger is on it (src/ui/Pressable.tsx). */
 export const pressedOpacity = 0.6;
-/**
- * Hit slop for a lone × glyph (about 7 x 14 pt drawn): 24 pt each way at least,
- * for a mouse as for a finger. Works on web through src/ui/Pressable.tsx.
- */
-export const closeGlyphSlop = {top: 6, bottom: 6, left: 9, right: 9} as const;
+/** A lone × is a real box this big, at least: a mouse needs one too. */
+export const closeBox = 24;
 // Scatter dots: this session's laps, and earlier sessions' laps beside them.
 export const dotOpacity = {current: 0.7, earlier: 0.3} as const;
 

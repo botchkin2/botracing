@@ -62,6 +62,9 @@ export function LapTableHeader({
   const {color} = useTheme();
   const cols = colsFor(wide);
   const sectionW = wide ? sectionColW(width, heads.length) : cols.sector;
+  // A head that opens Compare is a 44 pt box: the row is as tall, so the row
+  // under it does not sit on the head's drawn box.
+  const tappableHeads = !!onHeadPress && !!headTaps?.some(Boolean);
   const cell = (label: string, w?: number, right = true) => (
     <Text
       variant='tableHeader'
@@ -75,6 +78,7 @@ export function LapTableHeader({
       style={[
         styles.header,
         wide && styles.wide,
+        tappableHeads && styles.headerTall,
         {width, backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
       <View style={{width: cols.chk}} />
@@ -375,6 +379,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     alignSelf: 'center',
   },
+  // The head row when its section heads are taps.
+  headerTall: {height: MIN_TOUCH_PT},
   stint: {
     height: ROW_H,
     flexDirection: 'row',

@@ -54,7 +54,7 @@ export function Chip({
           accessibilityState={{selected}}
           onPress={onPress}
           hitSlop={hit.hitSlop}
-          style={[styles.body, hit.style]}>
+          style={styles.body}>
           {leading}
           <Text variant='dataStrong' numberOfLines={1} style={styles.label}>
             {label}
@@ -71,7 +71,7 @@ export function Chip({
       accessibilityState={{selected}}
       onPress={onPress}
       hitSlop={hit.hitSlop}
-      style={[hit.style, styles.fit]}>
+      style={styles.fit}>
       <View
         style={[
           styles.chip,

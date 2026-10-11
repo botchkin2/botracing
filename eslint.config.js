@@ -43,8 +43,24 @@ module.exports = defineConfig([
       'jsx-quotes': 'off', // Disable since Prettier handles quote consistency
       'react-native/no-inline-styles': 'warn', // Keep as warning, not error
       'react-hooks/exhaustive-deps': 'off', // Allow flexible dependency management
+      // Every tappable is src/ui/Pressable.tsx: it dims while pressed and makes
+      // hitSlop work on web (Theme G, docs/CODE_STANDARDS.md section 5).
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Pressable'],
+              message: "Use Pressable from '@/src/ui'.",
+            },
+          ],
+        },
+      ],
     },
   },
+  // The one place react-native's Pressable is wrapped.
+  {files: ['src/ui/Pressable.tsx'], rules: {'no-restricted-imports': 'off'}},
   {
     files: ['*.ts', '*.tsx'],
     rules: {

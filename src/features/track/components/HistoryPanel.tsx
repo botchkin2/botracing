@@ -1,8 +1,8 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Rect} from 'react-native-svg';
 
 import {radius, size, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {type HistoryModel} from '../history';
 

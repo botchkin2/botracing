@@ -78,8 +78,7 @@ function ZoomButton({
       accessibilityState={{disabled}}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={hit.hitSlop}
-      style={hit.style}>
+      hitSlop={hit.hitSlop}>
       <View
         style={[
           styles.button,

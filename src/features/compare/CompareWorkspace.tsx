@@ -5,7 +5,7 @@ import Svg, {Path, Rect} from 'react-native-svg';
 import {type Field} from '@/src/analysis/field';
 import {TraceChart} from '@/src/charts';
 import {
-  closeGlyphSlop,
+  closeBox,
   cornerCell,
   disabledOpacity,
   formatCornerGap,
@@ -192,7 +192,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   disabled: !canRemoveLap(selection, c.lapId),
                 }}
                 disabled={!canRemoveLap(selection, c.lapId)}
-                hitSlop={closeGlyphSlop}
+                style={styles.closeBox}
                 onPress={() =>
                   p.onSelectionChange(removeLap(selection, c.lapId))
                 }>
@@ -605,6 +605,14 @@ function overviewDomain(model: CompareModel): [number, number] {
 }
 
 const styles = StyleSheet.create({
+  // The lap chip's ×: a real box a mouse can hit, not slop (slop cannot take
+  // taps from the Set as Ref beside it).
+  closeBox: {
+    minWidth: closeBox,
+    minHeight: closeBox,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Wide enough for "200 m": the buttons beside it stay put between Time and Distance.
   windowSize: {minWidth: 56, textAlign: 'center'},
   removeOff: {opacity: disabledOpacity},

@@ -16,3 +16,5 @@ The checks, at every width: no side scroll on the page; nothing past the right e
 | Settings, Tracks | one column                               | one column, capped width                                                                    | one column, capped width                        |
 
 Measure with `tools/dev/layoutProbe.js` on a live slot (`docs/TESTING.md`): store it in `window.name`, navigate to each route at each width, run `eval(window.name)`. A scroller whose `bottom` is past the window's height is the #481 bug (its last rows are under the fold).
+
+For taps, `tools/dev/hitProbe.js` (same way, one expression): it samples every tappable's drawn box and fails when another tappable answers there, and lists controls under 44 pt (phone) or 24 pt (desktop) in what a tap reaches.

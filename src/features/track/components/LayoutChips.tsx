@@ -29,7 +29,7 @@ export function LayoutChips({
             disabled={l.current}
             onPress={() => onOpen(l.trackId)}
             hitSlop={hit.hitSlop}
-            style={[hit.style, styles.hit]}>
+            style={styles.hit}>
             <View
               style={[
                 styles.chip,

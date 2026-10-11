@@ -1,9 +1,10 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {hitFor} from './hitArea';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 export type ButtonKind = 'primary' | 'outline' | 'tertiary';
 
@@ -29,7 +30,7 @@ export function Button({
       onPress={onPress}
       disabled={disabled}
       {...hitFor(0, slop)}>
-      {({pressed}) => (
+      {() => (
         <View
           style={[
             styles.base,
@@ -37,7 +38,7 @@ export function Button({
             {
               backgroundColor: fill,
               borderColor: border,
-              opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
+              opacity: disabled ? 0.4 : 1,
             },
           ]}>
           <Text

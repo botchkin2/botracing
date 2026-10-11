@@ -5,7 +5,7 @@ import Svg, {Line, Rect} from 'react-native-svg';
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
 import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
-import {dash, space, useTheme} from '@/src/design';
+import {closeBox, dash, space, useTheme} from '@/src/design';
 import {
   CHANNEL_IDS,
   type ChannelId,
@@ -305,10 +305,10 @@ const styles = StyleSheet.create({
   // The × of an editable chart row: a real 24 x 24 box (a mouse needs one too;
   // the rows are too tight for slop to reach past their neighbours).
   // With a × the row is as tall as the × box, so neighbours do not overlap it.
-  overlayRowEditing: {height: 24},
+  overlayRowEditing: {height: closeBox},
   closeBox: {
-    minWidth: 24,
-    minHeight: 24,
+    minWidth: closeBox,
+    minHeight: closeBox,
     alignItems: 'center',
     justifyContent: 'center',
   },
