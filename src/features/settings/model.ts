@@ -88,7 +88,7 @@ export function formatClock(ms: number): string {
   return `${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
-/** "1 Oct". */
+/** "Oct 1". */
 export function formatDay(ms: number): string {
   return dayMonthOf(new Date(ms));
 }

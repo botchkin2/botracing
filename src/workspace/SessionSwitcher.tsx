@@ -29,7 +29,7 @@ export function SessionSwitcher({
   sessionId: string;
   trackId: string;
   trackName: string;
-  /** "Porsche 911 GT3 R · Manthey #91 · 14 Sep" */
+  /** "Porsche 911 GT3 R · Manthey #91 · Sep 14" */
   detail: string;
 }) {
   const router = useRouter();

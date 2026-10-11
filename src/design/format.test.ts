@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   formatCornerGap,
   dayMonthOf,
+  formatDay,
   formatDate,
   formatDayMonth,
   formatDayMonthTime,
@@ -75,8 +76,13 @@ describe('formatRaceGap', () => {
 });
 
 describe('formatDayMonth', () => {
-  it('is the day and short month', () => {
-    expect(formatDayMonth('2026-09-14T12:00:00Z')).toBe('14 Sep');
+  it('is the short month and the day, US order', () => {
+    expect(formatDayMonth(new Date(2026, 8, 14, 12).toISOString())).toBe(
+      'Sep 14',
+    );
+    expect(formatDayMonth(new Date(2026, 9, 9, 12).toISOString())).toBe(
+      'Oct 9',
+    );
   });
 
   it('is empty for a bad date', () => {
@@ -85,8 +91,14 @@ describe('formatDayMonth', () => {
 
   it('spells September "Sep", as the one short-date formatter, and the long form agrees', () => {
     const d = new Date(2026, 8, 5, 12);
-    expect(dayMonthOf(d)).toBe('5 Sep');
-    expect(formatDate(d.toISOString())).toBe('05 Sep 2026');
+    expect(dayMonthOf(d)).toBe('Sep 5');
+    expect(formatDate(d.toISOString())).toBe('Sep 5, 2026');
+  });
+
+  it('gives the day, not a leading zero, after the month', () => {
+    const d = new Date(2026, 9, 9, 12).toISOString();
+    expect(formatDay(d)).toBe('Oct 9');
+    expect(formatDate(d)).toBe('Oct 9, 2026');
   });
 });
 
@@ -96,13 +108,13 @@ describe('formatDayMonthTime', () => {
   it('adds the local time within the current year', () => {
     expect(
       formatDayMonthTime(new Date(2026, 8, 14, 18, 5).toISOString(), now),
-    ).toBe('14 Sep, 18:05');
+    ).toBe('Sep 14, 18:05');
   });
 
   it('adds the year for an earlier year', () => {
     expect(
       formatDayMonthTime(new Date(2025, 8, 14, 18, 5).toISOString(), now),
-    ).toBe('14 Sep 2025');
+    ).toBe('Sep 14, 2025');
   });
 
   it('is empty for a bad date', () => {
