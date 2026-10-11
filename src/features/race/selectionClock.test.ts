@@ -28,7 +28,9 @@ describe('raceTimeFor', () => {
     expect(raceTimeFor(sel({hl: 'a-002'}), laps, clock)).toBe(240);
     expect(raceTimeFor(sel({ref: 'a-002'}), laps, clock)).toBe(240);
     // The highlight wins over the Ref.
-    expect(raceTimeFor(sel({ref: 'a-002', hl: 'a-001'}), laps, clock)).toBe(140);
+    expect(raceTimeFor(sel({ref: 'a-002', hl: 'a-001'}), laps, clock)).toBe(
+      140,
+    );
   });
 
   it('with no Ref the best checked lap, wherever it sits in the list', () => {
@@ -38,8 +40,12 @@ describe('raceTimeFor', () => {
       {id: 'a-old', lapNumber: null, timeS: 70},
     ];
     // a-002 is faster: it is the lap whatever order the laps were checked in.
-    expect(raceTimeFor(sel({laps: ['a-001', 'a-002']}), timed, clock)).toBe(240);
-    expect(raceTimeFor(sel({laps: ['a-002', 'a-001']}), timed, clock)).toBe(240);
+    expect(raceTimeFor(sel({laps: ['a-001', 'a-002']}), timed, clock)).toBe(
+      240,
+    );
+    expect(raceTimeFor(sel({laps: ['a-002', 'a-001']}), timed, clock)).toBe(
+      240,
+    );
     // With no times at all, the lowest lap number, still not the list order.
     expect(raceTimeFor(sel({laps: ['a-002', 'a-001']}), laps, clock)).toBe(140);
   });

@@ -25,7 +25,10 @@ export type LapRef = {
 /** What Race writes back: the cursor, and the highlighted lap when it changed. */
 export type SelectionPatch = {hl: string | null; cursorM: number};
 
-function anchorId(selection: RaceSelection, laps: LapRef[]): string | undefined {
+function anchorId(
+  selection: RaceSelection,
+  laps: LapRef[],
+): string | undefined {
   if (selection.hl) return selection.hl;
   if (selection.ref && selection.laps.includes(selection.ref))
     return selection.ref;
@@ -33,7 +36,9 @@ function anchorId(selection: RaceSelection, laps: LapRef[]): string | undefined 
   // The best of the checked laps; with no times known, the lowest lap number.
   const timed = checked.filter(l => l.timeS != null);
   if (timed.length > 0)
-    return timed.reduce((a, b) => ((b.timeS as number) < (a.timeS as number) ? b : a)).id;
+    return timed.reduce((a, b) =>
+      (b.timeS as number) < (a.timeS as number) ? b : a,
+    ).id;
   return checked
     .filter(l => l.lapNumber != null)
     .sort((a, b) => (a.lapNumber as number) - (b.lapNumber as number))[0]?.id;

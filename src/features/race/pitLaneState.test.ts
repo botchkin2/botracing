@@ -66,9 +66,9 @@ describe('markPitLane on the real start of the Daytona race', () => {
     const fixed = markPitLane(cars, placer);
     expect(fixed.filter(c => c.state === 'off')).toHaveLength(0);
     expect(fixed.filter(c => c.state === 'pit')).toHaveLength(0);
-    expect(fixed.filter(c => c.state === 'running').length).toBeGreaterThanOrEqual(
-      58,
-    );
+    expect(
+      fixed.filter(c => c.state === 'running').length,
+    ).toBeGreaterThanOrEqual(58);
   });
 
   it('after the start, the same cars on the pit road are IN', () => {
@@ -101,7 +101,13 @@ describe('markPitLane', () => {
     state: 'off' | 'running',
     lapsDone = 1,
   ) =>
-    ({index, xM: x, zM: z, state, lapsDone} as unknown as (typeof cars)[number]);
+    ({
+      index,
+      xM: x,
+      zM: z,
+      state,
+      lapsDone,
+    } as unknown as (typeof cars)[number]);
 
   it('moves only off-track cars that sit on the lane', () => {
     const out = markPitLane(
