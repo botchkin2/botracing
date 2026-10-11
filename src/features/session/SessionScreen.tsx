@@ -38,6 +38,7 @@ import {LapCandidates} from './components/LapCandidates';
 import {FuelUseCard} from './components/FuelUseCard';
 import {EnergyLineRow} from './components/EnergyLineRow';
 import {PitCard} from './components/PitCard';
+import {TagKey} from './components/TagKey';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
 import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
@@ -74,9 +75,6 @@ const WIDE_MIN_CENTRE_W = 590;
 // Bars and lap table have nothing to fill more than this with; on a wider
 // window the right column grows instead (triage #9).
 const WIDE_MAX_CENTRE_W = 760;
-
-const TAG_KEY =
-  'OUT/IN pit · PART partial · PARK parked · SLOW outlier · OFF s off track · HIT impact · TOW slipstream · TRAF traffic · BLUE blue flag · PASS passes · BTL battle';
 
 export type {Selection} from './model';
 
@@ -286,7 +284,9 @@ function SessionView({
       )
     );
 
-  const tiresCard = <TiresCard card={model.tires} width={tableW} />;
+  const tiresCard = (
+    <TiresCard card={model.tires} width={tableW} titled={layout.isDesktop} />
+  );
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
@@ -547,7 +547,7 @@ function SessionView({
           </>
         }
         renderRow={(row, width) => renderRow(row, width, true)}
-        tagKey={TAG_KEY}
+        tagKey={<TagKey />}
         pitFocus={pitFocus}
         side={panel}
       />
@@ -619,9 +619,11 @@ function SessionView({
             }
             ListFooterComponent={
               <View style={[styles.footer, {width: tableW}]}>
-                <Text variant='dataSmall' tone='textMuted'>
-                  {TAG_KEY}
-                </Text>
+                {layout.isDesktop ? null : (
+                  <FoldedSection title='Tags' summary={null}>
+                    <TagKey />
+                  </FoldedSection>
+                )}
                 {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
                 {layout.isDesktop ? null : (
                   <>

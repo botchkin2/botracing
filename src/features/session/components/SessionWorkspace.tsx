@@ -57,7 +57,7 @@ export function SessionWorkspace({
   /** The race pit review or the practice fuel card, under the stints; null for other sessions. */
   cards: ReactNode;
   renderRow: (row: RowModel, width: number) => ReactNode;
-  tagKey: string;
+  tagKey: ReactNode;
   /** Set when a pit row was tapped: the side column scrolls to the cards. */
   pitFocus: {lapIndex: number; at: number} | null;
   /** The right column's width and the divider's handlers (usePanelWidth). */
@@ -217,9 +217,7 @@ export function SessionWorkspace({
                   <SectionFooter table={model.sections} width={innerW} />
                 </View>
               ) : null}
-              <Text variant='dataSmall' tone='textMuted'>
-                {tagKey}
-              </Text>
+              {tagKey}
             </View>
           }
         />
