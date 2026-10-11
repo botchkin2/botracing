@@ -24,7 +24,7 @@ import {
 export type LapStyle = (
   selIndex: number,
   highlighted: boolean,
-) => {color: string; width: number; opacity: number; key: boolean};
+) => {color: string; width: number; opacity: number};
 
 const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 // Round 3 R4a: brake fill at 16%, steering as a 1.2 pt line.

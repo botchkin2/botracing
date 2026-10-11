@@ -207,8 +207,6 @@ export type LapRef = {
   selIndex: number;
   /** The Ref lap (Ref mode only). */
   isRef: boolean;
-  /** Ref or highlighted: full color, values shown, dot on the map. */
-  key: boolean;
   highlighted: boolean;
 };
 
@@ -784,8 +782,6 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     selIndex: slotOf.get(l.id) as number,
     isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
-    // Every ticked lap is drawn on every chart and the map, at any count.
-    key: true,
   }));
 
   // Without a Ref lap the tables use the median of the checked laps; a lap
@@ -1136,7 +1132,6 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           selIndex: BASIS_SLOT,
           isRef: false,
           highlighted: false,
-          key: true,
           at: pointAt(refTrace, cursorM),
         },
       ];

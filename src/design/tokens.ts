@@ -134,10 +134,57 @@ export const lapColors: Record<Scheme, readonly string[]> = {
  * give each further slot a hue no earlier slot has, so no two laps on screen
  * share a colour (pit-wall #342).
  */
+/** Hue in degrees of a #rrggbb colour. */
+export function hueOf(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+
+/** The app's one-meaning colours (best, faster, slower, accent, off-track). A lap hue must not read as one of them. */
+export const RESERVED_HUE_GAP = 15;
+export function reservedHues(scheme: Scheme): number[] {
+  const c = colors[scheme];
+  return [c.accent, c.best, c.faster, c.slower, c.offTrack].map(hueOf);
+}
+const hueDistance = (a: number, b: number) => {
+  const d = Math.abs(a - b) % 360;
+  return Math.min(d, 360 - d);
+};
+
+/**
+ * The colour of one lap by its colour slot (0 = the reference, then in lap
+ * order): the palette first, then generated hues past it. Golden-angle steps
+ * give each further slot a hue no earlier slot has, so no two laps on screen
+ * share a colour (pit-wall #342). A generated hue never lands within
+ * RESERVED_HUE_GAP degrees of a reserved one (slower red, faster green, best
+ * purple, accent orange, off-track red), so a lap line never reads as one of those.
+ */
 export function lapColor(scheme: Scheme, index: number): string {
   const palette = lapColors[scheme];
   if (index < palette.length) return palette[index];
-  const hue = ((index - palette.length) * 137.508 + 20) % 360;
+  // The k-th allowed golden-angle hue: each slot takes the next hue that is
+  // not reserved, so the generated hues stay distinct.
+  const reserved = reservedHues(scheme);
+  const allowed = (h: number) =>
+    reserved.every(r => hueDistance(h, r) >= RESERVED_HUE_GAP);
+  const want = index - palette.length;
+  let found = -1;
+  let hue = 20;
+  for (let m = 0; found < want; m++) {
+    hue = (20 + m * 137.508) % 360;
+    if (allowed(hue)) found++;
+  }
   return scheme === 'dark'
     ? `hsl(${hue.toFixed(1)}, 70%, 68%)`
     : `hsl(${hue.toFixed(1)}, 60%, 42%)`;
@@ -159,7 +206,6 @@ export type LapStroke = {
   color: string;
   width: number;
   opacity: number;
-  key: boolean;
 };
 
 export const stroke = {
@@ -198,20 +244,17 @@ export function lapStroke(
       color: lapMuted[scheme],
       width: stroke.selected,
       opacity: 1,
-      key: true,
     };
   if (index === 0)
     return {
       color: lapColors[scheme][0],
       width: stroke.ref,
       opacity: 1,
-      key: true,
     };
   return {
     color: lapColor(scheme, index),
     width: highlighted ? stroke.ref : stroke.selected,
     opacity: dimOthers && !highlighted ? DIMMED_OPACITY : 1,
-    key: true,
   };
 }
 
