@@ -15,10 +15,12 @@ import {
   mapSessionType,
   playerCar,
   resetTimes,
+  sectorCrossings,
+  sectorStarts,
   slug,
   writeArchive,
 } from './iracing.mjs';
-import {loadRecording, splitAtResets} from './analyze.mjs';
+import {loadRecording, sectorSplits, splitAtResets} from './analyze.mjs';
 
 const GR86 =
   'C:\\Users\\Botkin\\Documents\\iRacing\\telemetry\\toyotagr86_virginia 2022 full 2024-10-18 11-06-57.ibt';
@@ -216,4 +218,33 @@ test("the player's class is its label, and an empty short name never reads the n
 
 test('describe: the Road Atlanta GT3 race names its class GT3', {skip: !existsSync(RA_RACE)}, () => {
   assert.equal(describe(RA_RACE).carClass, 'GT3');
+});
+
+test("iRacing's own sectors: starts from SplitTimeInfo, crossings, and a lap's times", () => {
+  const yaml =
+    'SplitTimeInfo:\n Sectors:\n - SectorNum: 0\n   SectorStartPct: 0.000000\n - SectorNum: 1\n   SectorStartPct: 0.250000\n - SectorNum: 2\n   SectorStartPct: 0.600000\nCarSetup:\n';
+  assert.deepEqual(sectorStarts(yaml), [0, 0.25, 0.6]);
+  assert.deepEqual(sectorStarts('WeekendInfo:\n'), []);
+
+  // One 10 s lap at a steady pace sampled every second, then a reset that
+  // jumps the car back: a jump is not a crossing.
+  const t = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const pct = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.0, 0.7];
+  const rows = sectorCrossings(t, pct, [0, 0.25, 0.6]);
+  assert.deepEqual(
+    rows.map(r => [Number(r[0].toFixed(6)), r[1], r[2], r[3]]),
+    [
+      [2.5, 'sector_start', 2, 3],
+      [6, 'sector_start', 3, 3],
+    ],
+  );
+
+  const events = rows.map(r => ({t: r[0], v: r[2], v2: r[3]}));
+  // The last sector runs to the game's lap time, as LMU's S3 does.
+  assert.deepEqual(sectorSplits(events, 0, 10, 10.002), [2.5, 3.5, 4.002]);
+  // A sector missing from the lap (an out-lap that joined late): no times.
+  assert.deepEqual(sectorSplits(events.slice(1), 0, 10, 10), []);
+  // No lap time, or a sector under half a second: no times.
+  assert.deepEqual(sectorSplits(events, 0, 10, null), []);
+  assert.deepEqual(sectorSplits(events, 0, 10, 6.3), []);
 });

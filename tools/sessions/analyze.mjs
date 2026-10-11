@@ -107,6 +107,8 @@ export const blockVersions = {
   sliceFrame: SLICE_FRAME_VERSION,
   // The lap doc's `traceHz`, and slices cut on it: iRacing's clock was 100 Hz on 60 Hz rows.
   traceClock: 1,
+  // iRacing's own sector times (sector_start events): every session re-syncs once.
+  iracingSectors: 1,
 };
 
 const GRID_M = 5;
@@ -249,6 +251,8 @@ export const eventKinds = [
   'minimum_path_wetness',
   // A reset to the pits inside one recording (iRacing, iracing.mjs).
   'reset',
+  // The car entering one of iRacing's own sectors (iracing.mjs sectorCrossings).
+  'sector_start',
 ];
 
 // A slower channel is stored held at the base rate. Its real sample k starts
@@ -348,8 +352,29 @@ function lastPositive(list, start, end) {
   return value;
 }
 
+/**
+ * A lap's times in iRacing's own sectors, from its `sector_start` events
+ * (v: the sector entered, 2..n; v2: n): every sector after the first must be
+ * entered once, in order, inside the lap, and each time must be over half a
+ * second, else []. The last runs to the game's lap time, as LMU's S3 does.
+ */
+export function sectorSplits(list, start, end, lapTime) {
+  const inLap = (list || []).filter(e => e.t > start && e.t < end);
+  if (lapTime == null || inLap.length === 0) return [];
+  const n = inLap[0].v2;
+  if (!(n >= 2) || inLap.length !== n - 1) return [];
+  if (inLap.some((e, i) => e.v !== i + 2 || e.v2 !== n)) return [];
+  const at = [start, ...inLap.map(e => e.t)];
+  const times = at.slice(1).map((t, i) => t - at[i]);
+  times.push(lapTime - (at[at.length - 1] - start));
+  if (times.some(s => !(s > 0.5))) return [];
+  return times.map(s => round(s, 3));
+}
+
 function sectorTimes(events, start, end, lapTime) {
   if (lapTime == null) return [];
+  if (events.sector_start?.length)
+    return sectorSplits(events.sector_start, start, end, lapTime);
   const s1 = lastPositive(events.sector1_time, start, end);
   const through2 = lastPositive(events.sector2_through_time, start, end);
   if (s1 == null || through2 == null) return [];

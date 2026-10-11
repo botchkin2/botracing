@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import * as lmu from '../sessions/lmu.mjs';
 import {sessionBoundaries} from '../sessions/layoutBoundaries.mjs';
 import {makeLap, map as synthMap} from '../sessions/syntheticLap.mjs';
-import {parseArgs, run} from './curate.mjs';
+import {parseArgs, run, simOf} from './curate.mjs';
 import {memoryCatalog} from './fixture.mjs';
 
 const MAP = {
@@ -155,5 +155,24 @@ test('a refused plan exits 1 even as a dry run, and undo of a fresh track says w
   assert.equal(
     (await run(['plan-undo', ID, '--to-rev', 'x'], deps(be))).code,
     1,
+  );
+});
+
+test('--sim picks the adapter and folder the sync would (default lmu)', () => {
+  const env = {LMU_TELEMETRY: 'L:/lmu', IRACING_TELEMETRY: 'I:/ir'};
+  const lm = simOf(parseArgs(['sessions']).flags, env);
+  assert.equal(lm.adapter.sim, 'lmu');
+  assert.equal(lm.folder, 'L:/lmu');
+  const ir = simOf(parseArgs(['sessions', '--sim', 'iracing']).flags, env);
+  assert.equal(ir.adapter.sim, 'iracing');
+  assert.equal(ir.folder, 'I:/ir');
+  // The track id is the uploader's: the layout slug of that sim.
+  assert.equal(
+    `${ir.adapter.sim}-${ir.adapter.slug('127-full_course')}`,
+    'iracing-127-full_course',
+  );
+  assert.throws(
+    () => simOf(parseArgs(['sessions', '--sim', 'acc']).flags, env),
+    /unknown sim/,
   );
 });

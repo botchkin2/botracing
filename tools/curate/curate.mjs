@@ -12,10 +12,12 @@
 // `--apply --reason "why"` to write it (needs Admin credentials today:
 // `gcloud auth application-default login`). `--by <name>` (or LAP_CURATOR) is
 // who is recorded. Reading local sessions needs `--owner <uid>` (or LAP_OWNER).
-// Neither has a default.
+// Neither has a default. `--sim iracing` reads iRacing's .ibt folder (default
+// lmu); iRacing's Lat/Lon is real GPS, so the same fit makes its corner map.
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {adapter as simAdapter, telemetryFolder} from '../sessions/sims.mjs';
 import {PlanRefused, applyPlan} from './apply.mjs';
 import {describeMap} from './diff.mjs';
 import {
@@ -45,6 +47,7 @@ const VALUED = new Set([
   '--to-rev',
   '--owner',
   '--work',
+  '--sim',
 ]);
 
 /** {_: positional args, flags: {name: value | true}} */
@@ -59,6 +62,16 @@ export function parseArgs(argv) {
     } else out.flags[a.slice(2)] = true;
   }
   return out;
+}
+
+/**
+ * The sim's adapter and telemetry folder for `--sim` (default lmu): the
+ * uploader's own table (sims.mjs), so the curator reads a folder exactly as the
+ * sync does. `--folder` still wins over the default folder.
+ */
+export function simOf(flags, env = process.env) {
+  const id = typeof flags.sim === 'string' ? flags.sim : 'lmu';
+  return {adapter: simAdapter(id), folder: telemetryFolder(id, env)};
 }
 
 /** The track id a session belongs to, as the uploader names it. */
@@ -240,7 +253,6 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   const {connect} = await import('../sessions/store.mjs');
-  const lmu = await import('../sessions/lmu.mjs');
   const {createRequire} = await import('node:module');
   const {adminBackend} = await import('./adminBackend.mjs');
   const here = fileURLToPath(new URL('.', import.meta.url));
@@ -250,10 +262,11 @@ if (
   const argv = process.argv.slice(2);
   const {flags} = parseArgs(argv);
   const {db} = connect();
+  const {adapter, folder} = simOf(flags);
   const result = await run(argv, {
     backend: adminBackend({db, FieldValue: admin.firestore.FieldValue}),
-    adapter: lmu,
-    folder: process.env.LMU_TELEMETRY || lmu.defaultFolder,
+    adapter,
+    folder,
     ownerId: process.env.LAP_OWNER,
     workDir:
       typeof flags.work === 'string'
