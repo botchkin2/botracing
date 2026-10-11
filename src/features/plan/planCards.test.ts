@@ -1,5 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {refuelRateOf} from '@/src/analysis/refuel';
+
 import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {pitWindows} from '@/src/analysis/pitWindow';
@@ -119,7 +121,7 @@ describe('buildPlanCards', () => {
       false,
       RATIO,
       'fuel',
-      'GT3',
+      refuelRateOf([], 'GT3'),
     );
     expect(fuelCards.stops.full!.lines.map(l => l.use)).toEqual([
       '64 L',

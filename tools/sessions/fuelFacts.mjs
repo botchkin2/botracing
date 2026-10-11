@@ -14,6 +14,7 @@
 // nearest 20 Hz samples: at most one 20 Hz step from a recorded value, about
 // 0.003 L driving and 0.2 L while refuelling.
 
+import {fillRateLPerS} from '../../src/analysis/refuel.ts';
 import {classifyVisit, repaired, stationaryS} from './pitVisit.mjs';
 
 // A pit window that starts within this long of the recording's start is the
@@ -204,6 +205,11 @@ export function lapPitStop(
       vePct: at(s.virtual_energy_pct, 2),
     },
     added: addedNow,
+    // The pump's rate in this window (litres over the rise, not over the stop),
+    // null under a litre added: what the Plan's refuel time is learnt from.
+    fillLPerS: s.fuel_l
+      ? round(fillRateLPerS(s.fuel_l, s.t, from, to), 2)
+      : null,
     inPitS,
     tyres,
     // Why the car was in the lane: service, repair, penalty or unknown (pitVisit.mjs).

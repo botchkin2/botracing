@@ -9,7 +9,11 @@ import {
   type PlanRules,
   stopRefuels,
 } from '@/src/analysis/fuelPlan';
-import {REFUEL_L_PER_S, refuelS} from '@/src/analysis/refuel';
+import {
+  type RefuelRate,
+  refuelRateScope,
+  refuelSecondsAt,
+} from '@/src/analysis/refuel';
 import {formatLapTime} from '@/src/design';
 
 import {effectiveUnit, type Unit} from './unit';
@@ -121,6 +125,8 @@ export type StopsCard = {
   perStintHeader: string;
   /** The head of the refuel column: "Refuel time" where seconds are known for the class, else "Refuel". */
   refuelHeader: string;
+  /** Where the refuel time's rate comes from ("refuel at 3.4 L/s · your 2 stops here"); null without a rate. */
+  refuelScope: string | null;
   /** Why there is no window, or the late-flag run-dry case; null when neither applies. */
   windowNote: string | null;
   /** The lap the flag can add, as a margin in numbers: what it uses at p90 and what the last stop would add; null with no stop or no late flag. */
@@ -154,7 +160,9 @@ function raceCard(
       pit
         ? `pit ${Math.round(pit.totalS)} s (${pit.stops} × ${Math.round(
             pit.baseS,
-          )} s + ${pit.refuelL.toFixed(0)} L at ${REFUEL_L_PER_S} L/s)`
+          )} s + ${pit.refuelL.toFixed(0)} L at ${pit.refuelLPerS.toFixed(
+            1,
+          )} L/s)`
         : null,
       race.settled ? null : 'longest pit time used',
     ]
@@ -386,9 +394,6 @@ function lateFlagNote(
   return atMost == null ? `${base}.` : `${base}, or at most ${atMost}.`;
 }
 
-/** Whether the refuelling time is known for the class: seconds, else litres. */
-const refuelInSeconds = (carClass: string) => refuelS(1, carClass) != null;
-
 /**
  * The lines a stops row prints, one per stint, one number a cell: the laps,
  * what the stint uses in the unit shown, and the stop that ends it with what
@@ -397,7 +402,8 @@ const refuelInSeconds = (carClass: string) => refuelS(1, carClass) != null;
 function describeRow(
   r: StopRow,
   unit: Unit,
-  carClass: string,
+  /** The refuel rate (measured, else the GT3 default); null shows litres, not seconds. */
+  rate: RefuelRate | null,
   /** What the formation lap burns, taken from stint 1's use: it has its own row. */
   formation: {fuelL: number | null; vePct: number | null} | null,
 ): StopRow {
@@ -408,7 +414,7 @@ function describeRow(
     values[0] = Math.max(0, values[0] - formationUse);
   const lines = r.stintLaps.map((laps, i): StintLine => {
     const refuel = r.refuel[i];
-    const seconds = refuel ? refuelS(refuel.litres, carClass) : null;
+    const seconds = refuel ? refuelSecondsAt(refuel.litres, rate) : null;
     return {
       n: i + 1,
       laps: String(laps),
@@ -457,7 +463,7 @@ function stopsCard(
   fuelOnly: boolean,
   ratioPerPctL: number | null,
   unit: Unit,
-  carClass: string,
+  rate: RefuelRate | null,
 ): StopsCard {
   // One plan (thread 44 #1877): the stops are full tanks at the p90 use, at the
   // plan's own lap count. The median's stops stay as a fact on the Race card
@@ -479,6 +485,7 @@ function stopsCard(
       windows: [],
       perStintHeader: 'Use per stint',
       refuelHeader: 'Refuel',
+      refuelScope: null,
       windowNote: null,
       lateFlag: null,
       formation: null,
@@ -570,11 +577,12 @@ function stopsCard(
       }
     : null;
   return {
-    full: full && describeRow(full, unit, carClass, formation),
-    equal: equal && describeRow(equal, unit, carClass, formation),
+    full: full && describeRow(full, unit, rate, formation),
+    equal: equal && describeRow(equal, unit, rate, formation),
     windows,
     perStintHeader: shownUnit === 've' ? 'VE per stint' : 'Fuel per stint',
-    refuelHeader: refuelInSeconds(carClass) ? 'Refuel time' : 'Refuel',
+    refuelHeader: rate ? 'Refuel time' : 'Refuel',
+    refuelScope: refuelRateScope(rate),
     windowNote,
     lateFlag: lateFlagMargin(plan, fuelStops, shownUnit, ratioPerPctL),
     formation,
@@ -606,12 +614,12 @@ export function buildPlanCards(
   ratioPerPctL: number | null = null,
   /** VE where the plan has it, unless fuel is asked for. */
   unit: Unit = 've',
-  /** The car class of the sessions, for the refuel rate; '' where unknown. */
-  carClass = '',
+  /** The refuel rate (pitBase.ts refuelRateFor); null shows litres, not seconds. */
+  rate: RefuelRate | null = null,
 ): PlanCards {
   return {
     race: raceCard(plan, rules, unit, fuelOnly),
     tank: tankCard(plan, rules, fuelOnly, unit),
-    stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, carClass),
+    stops: stopsCard(plan, rules, fuelOnly, ratioPerPctL, unit, rate),
   };
 }

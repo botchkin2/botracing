@@ -3,13 +3,18 @@
 // (src/analysis/traffic.ts), stamped with TRAFFIC_VERSION.
 import {paceOf} from '../../src/analysis/classLaps.ts';
 import {overtakesOf, TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
-import {lapFieldFacts} from './fieldTags.mjs';
+import {decodeField, fieldLengthM, lapFieldFacts} from './fieldTags.mjs';
 
 // windows: [{from, to}] on the session clock. One block per window, null when
 // the field has no player car.
 export function lapTraffic(field, windows) {
   const facts = lapFieldFacts(field, windows);
-  const overtakes = overtakesOf(field, windows, paceOf);
+  const overtakes = overtakesOf(
+    field,
+    windows,
+    paceOf,
+    fieldLengthM(decodeField(field).cars),
+  );
   return facts.map((f, k) =>
     f ? {...f, v: TRAFFIC_VERSION, overtakes: overtakes[k]} : null,
   );
