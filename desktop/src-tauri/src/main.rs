@@ -34,11 +34,18 @@ fn wants_quit(args: &[String]) -> bool {
     args.iter().skip(1).any(|a| a == "--quit")
 }
 
+/// True when a launch asks the running tray to quit and install a waiting
+/// update (`--update`): the menu's "Restart to update", for the CI rehearsal.
+fn wants_update(args: &[String]) -> bool {
+    args.iter().skip(1).any(|a| a == "--update")
+}
+
 /// True when this launch is a person starting BotRacing (the Start menu, a
 /// shortcut, the installer's finish): the window opens, once they are signed
 /// in. The logon start carries `--background` and stays a tray (`autostart`).
 fn opens_window_on_launch(args: &[String]) -> bool {
     !wants_quit(args)
+        && !wants_update(args)
         && !args
             .iter()
             .skip(1)
@@ -220,71 +227,109 @@ struct Recorders {
     iracing: Shared<Option<capture::runner::Handle>>,
 }
 
-/// Stops the watcher (so its sync ends) and both recorders (so a recording
-/// closes with its end time), then ends the tray. The one way out for `--quit`,
-/// whether it came as the window message or as the quit-request file.
-fn quit_tray(app: &tauri::AppHandle, sup: &Shared<sidecar::Supervisor>, rec: &Recorders) {
-    let started = std::time::Instant::now();
-    // The CI end-to-end prints this file when a tray stays up after `--quit`,
-    // so the cell says which step hung (thread 1 #3724). The first note starts
-    // the file over, so it holds one quit only.
-    let log = app
-        .try_state::<Arc<sidecar::Paths>>()
-        .map(|paths| paths.data.join("quit.log"));
-    let note = {
-        let log = log.clone();
-        move |step: &str, first: bool| {
-            let Some(log) = &log else { return };
-            let line = format!("{step} +{:.1}s
-", started.elapsed().as_secs_f32());
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(first)
-                .append(!first)
-                .open(log)
-                .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
-        }
-    };
-    note("quit requested", true);
-    sup.lock().unwrap().shutdown();
-    note("watcher stopped", false);
+/// The tray's own account of a quit, step by step, with times, in
+/// `<data>/quit.log`. The CI end-to-end prints it when a tray stays up after
+/// `--quit`, so the cell says which step hung (thread 1 #3724), and the update
+/// rehearsal reads "update installing <version>" from it. The first note
+/// starts the file over, so it holds one quit only.
+#[derive(Clone)]
+struct QuitLog {
+    file: Option<std::path::PathBuf>,
+    started: std::time::Instant,
+}
+
+impl QuitLog {
+    fn start(app: &tauri::AppHandle, first: &str) -> QuitLog {
+        let log = QuitLog {
+            file: app
+                .try_state::<Arc<sidecar::Paths>>()
+                .map(|paths| paths.data.join("quit.log")),
+            started: std::time::Instant::now(),
+        };
+        log.write(first, true);
+        log
+    }
+
+    fn note(&self, step: &str) {
+        self.write(step, false);
+    }
+
+    fn write(&self, step: &str, first: bool) {
+        let Some(file) = &self.file else { return };
+        let line = format!("{step} +{:.1}s\n", self.started.elapsed().as_secs_f32());
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(first)
+            .append(!first)
+            .open(file)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+    }
+}
+
+/// Whether a quit may install a waiting update.
+#[derive(Clone, Copy, PartialEq)]
+enum OnQuit {
+    /// `--quit`: the installer and uninstaller send it, so it never installs.
+    JustQuit,
+    /// Quit or "Restart to update" in the menu, or `--update`.
+    InstallWaitingUpdate,
+}
+
+/// The one way out of the tray. Stops the watcher (so its sync ends) and both
+/// recorders (so a recording closes with its end time); then, unless this is
+/// `--quit`, installs a waiting update (on Windows a started installer ends
+/// the process); then ends the tray.
+fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
+    let log = QuitLog::start(app, "quit requested");
+    if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
+        sup.lock().unwrap().shutdown();
+    }
+    log.note("watcher stopped");
     let mut joined = true;
-    for handle in [&rec.lmu, &rec.iracing] {
-        if let Some(r) = handle.lock().unwrap().as_mut() {
-            joined &= r.stop(Duration::from_secs(5));
+    if let Some(rec) = app.try_state::<Recorders>() {
+        for handle in [&rec.lmu, &rec.iracing] {
+            if let Some(r) = handle.lock().unwrap().as_mut() {
+                joined &= r.stop(Duration::from_secs(5));
+            }
         }
     }
-    note(
-        if joined {
-            "recorders stopped"
-        } else {
-            "recorder gave up after 5 s"
-        },
-        false,
-    );
+    log.note(if joined {
+        "recorders stopped"
+    } else {
+        "recorder gave up after 5 s"
+    });
+    if on_quit == OnQuit::InstallWaitingUpdate {
+        let pending = app
+            .try_state::<update::Slot>()
+            .and_then(|slot| slot.lock().unwrap().take());
+        match pending {
+            Some(pending) => {
+                log.note(&format!("update installing {}", pending.version));
+                // Returns only when the installer could not be started.
+                if let Err(why) = pending.install() {
+                    log.note(&format!("update failed: {why}"));
+                    if let Some(account) = app.try_state::<Shared<account::Account>>() {
+                        account.lock().unwrap().message = Some(format!("Update failed: {why}"));
+                    }
+                }
+            }
+            None => log.note("no update waiting"),
+        }
+    }
     // `app.exit` ends the event loop, and in a non-interactive session (a
     // scheduled task, the CI standard-user cells) the loop never returned: the
     // tray stayed up after every step above had finished (quit.log, thread 1).
     // A quit has finished its work by now, so the process ends either way. The
     // e2e fails an interactive cell whose quit.log says "exit forced".
+    let forced = log.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(3));
-        note("exit forced", false);
+        forced.note("exit forced");
         std::process::exit(0);
     });
-    note_exit_requested(&log, started);
+    log.note("exit requested");
     app.exit(0);
-}
-
-fn note_exit_requested(log: &Option<std::path::PathBuf>, started: std::time::Instant) {
-    let Some(log) = log else { return };
-    let line = format!("exit requested +{:.1}s
-", started.elapsed().as_secs_f32());
-    let _ = std::fs::OpenOptions::new()
-        .append(true)
-        .open(log)
-        .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
 }
 
 fn main() {
@@ -302,16 +347,16 @@ fn main() {
         builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // `botracing.exe --quit` is how the installer and uninstaller ask
             // the running tray to stop: the watcher is stopped first (so a
-            // recording closes with its end time), then the tray exits.
+            // recording closes with its end time), then the tray exits. It
+            // never installs an update: the installer itself sends it.
             if wants_quit(&args) {
-                if let (Some(sup), Some(rec)) = (
-                    app.try_state::<Shared<sidecar::Supervisor>>(),
-                    app.try_state::<Recorders>(),
-                ) {
-                    quit_tray(app, &sup, &rec);
-                } else {
-                    app.exit(0);
-                }
+                quit_tray(app, OnQuit::JustQuit);
+                return;
+            }
+            // `--update` is the menu's "Restart to update" from a command line
+            // (the CI update rehearsal): the same path, update included.
+            if wants_update(&args) {
+                quit_tray(app, OnQuit::InstallWaitingUpdate);
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
@@ -343,8 +388,10 @@ fn main() {
             // the tray is on this desktop. Reaching setup means it found none
             // here; a tray in another session or window station may still run,
             // so ask it through the quit-request file it watches, and exit:
-            // never start a tray in the middle of an uninstall.
-            if wants_quit(&std::env::args().collect::<Vec<_>>()) {
+            // never start a tray in the middle of an uninstall. `--update`
+            // with no tray to reach starts none either.
+            let args = std::env::args().collect::<Vec<_>>();
+            if wants_quit(&args) || wants_update(&args) {
                 if let Err(e) = quit_request::request(&paths.data) {
                     eprintln!("could not write the quit request: {e}");
                 }
@@ -385,6 +432,7 @@ fn main() {
             // is the one the tests describe.
             let current_version = app.package_info().version.to_string();
             let update_slot: update::Slot = Arc::new(Mutex::new(None));
+            app.manage(update_slot.clone());
             let initial = menu::menu_items_for(&menu::MenuState::initial(&current_version));
             // Every item the menu can have: the optional ones are built once
             // and added to or taken out of the menu as the state changes.
@@ -438,12 +486,8 @@ fn main() {
                 .then(|| capture::runner::start_iracing(capture::runner::capture_root())),
             ));
 
-            let (account_menu, sup_menu, pause_menu, slot_menu) = (
-                account.clone(),
-                supervisor.clone(),
-                check(&live, "pause"),
-                update_slot.clone(),
-            );
+            let (account_menu, sup_menu, pause_menu) =
+                (account.clone(), supervisor.clone(), check(&live, "pause"));
             // Only the real tray starts with Windows and updates itself; a
             // walkthrough profile does neither.
             if profile::is_default() {
@@ -473,8 +517,6 @@ fn main() {
                 lmu: recorder.clone(),
                 iracing: iracing.clone(),
             });
-            let recorder_menu = recorder.clone();
-            let iracing_menu = iracing.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
@@ -511,23 +553,7 @@ fn main() {
                     }
                     // Quit and "Restart to update" both stop the watcher first;
                     // a waiting update installs here, never while uploading.
-                    "quit" | "update" => {
-                        sup_menu.lock().unwrap().shutdown();
-                        // Finish the open chunk and write endUtc before exiting.
-                        if let Some(rec) = recorder_menu.lock().unwrap().as_mut() {
-                            rec.stop(Duration::from_secs(5));
-                        }
-                        if let Some(rec) = iracing_menu.lock().unwrap().as_mut() {
-                            rec.stop(Duration::from_secs(5));
-                        }
-                        let pending = slot_menu.lock().unwrap().take();
-                        if let Some(Err(why)) = pending.map(update::Pending::install) {
-                            account_menu.lock().unwrap().message =
-                                Some(format!("Update failed: {why}"));
-                        }
-                        // On Windows a started installer ends the process.
-                        app.exit(0);
-                    }
+                    "quit" | "update" => quit_tray(app, OnQuit::InstallWaitingUpdate),
                     _ => {}
                 })
                 .build(app)?;
@@ -543,16 +569,12 @@ fn main() {
             )
             .is_some();
             let mut ticks = 0u32;
-            let quit_recorders = Recorders {
-                lmu: recorder.clone(),
-                iracing: iracing.clone(),
-            };
             std::thread::spawn(move || {
                 loop {
                     // A `--quit` that could not reach this tray's window (another
                     // session or window station) asked through the file.
                     if quit_request::take(&paths.data) {
-                        quit_tray(&app_poll, &supervisor, &quit_recorders);
+                        quit_tray(&app_poll, OnQuit::JustQuit);
                         return;
                     }
                     // The network part runs without the account lock held.
@@ -733,7 +755,7 @@ fn sync_menu(menu: &Menu<tauri::Wry>, live: &[Live], specs: &[menu::Item]) {
 mod tests {
     use super::{
         launch_window, opens_on_start, opens_window_on_launch, seat_token_file, wants_quit,
-        LaunchWindow,
+        wants_update, LaunchWindow,
     };
 
     #[test]
@@ -770,6 +792,19 @@ mod tests {
             "argument 0 is the exe, never a request"
         );
         assert!(!wants_quit(&args(&["botracing.exe", "--quiet"])));
+        assert!(
+            !wants_quit(&args(&["botracing.exe", "--update"])),
+            "--update is not --quit: only it installs"
+        );
+    }
+
+    #[test]
+    fn only_an_update_argument_asks_the_tray_to_install_a_waiting_update() {
+        let args = |list: &[&str]| list.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(wants_update(&args(&["botracing.exe", "--update"])));
+        assert!(!wants_update(&args(&["botracing.exe", "--quit"])));
+        assert!(!wants_update(&args(&["--update"])), "argument 0 is the exe");
+        assert!(!opens_window_on_launch(&args(&["botracing.exe", "--update"])));
     }
 
     #[test]
