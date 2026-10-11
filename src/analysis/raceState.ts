@@ -10,7 +10,7 @@
 // to the nearest one, so every dot is a real sample (handoff R1, 5 Hz honesty).
 import {classOfCar} from './fieldClasses';
 import {trackLengthM} from './classLaps';
-import {ABSENT, type Field, updateAt} from './field';
+import {ABSENT, type Field, type FieldCar, updateAt} from './field';
 
 // Handoff R1d.
 export const STOPPED_KMH = 5;
@@ -28,6 +28,9 @@ export const OFF_HOLD_S = 0.3;
 // 10.8 s, every car), and a real stop lasts a minute or more; a drive-through
 // at the 60 km/h limit past a 300 m lane still takes ~18 s.
 export const MIN_PIT_S = 10;
+// ...and holds the pit-lane flag for this many consecutive updates, so a lone
+// update that reads "in the pits" is never an entry.
+export const MIN_PIT_UPDATES = 5;
 
 export type CarState = 'running' | 'pit' | 'stopped' | 'off' | 'garage';
 
@@ -66,6 +69,8 @@ export interface RaceCar {
 export interface RacePrep {
   field: Field;
   trackM: number;
+  /** The update the race starts at (raceStartUpdate); the length of the field when it never does. */
+  startU: number;
   /** Unwrapped distance driven along the track, metres; NaN while absent. */
   progressM: Float32Array[];
   /** Speed from the car's own movement between updates, km/h; NaN without a previous update. */
@@ -87,6 +92,71 @@ export interface MeasuredEdges {
   rightM: number[];
 }
 
+/**
+ * A car's distance along the track, metres, unwrapped: followed from its first
+ * sight by continuity (a car behind the start line on the first lap is behind
+ * it, not a lap ahead), then re-anchored on the game's laps counter once the
+ * race is on. A formation lap crosses the line without a lap of the race, so
+ * the cars that did it read a lap ahead of the cars that did not (2 Oct Road
+ * Atlanta: no gap for P4 to P12, pit cars a lap out). The counter is trusted
+ * well away from the line (a quarter to three quarters of the lap), where it
+ * and the distance cannot disagree; the first such update at or after
+ * `startU` fixes the whole lap offset for every update from `startU` on.
+ */
+export function progressOf(
+  car: FieldCar,
+  trackM: number,
+  startU: number,
+): Float32Array {
+  const n = car.lapDistM.length;
+  const prog = new Float32Array(n).fill(NaN);
+  if (trackM === 0) return prog;
+  let lastDist = NaN;
+  let lastProg = NaN;
+  for (let u = 0; u < n; u++) {
+    const d = car.lapDistM[u];
+    if (Number.isNaN(d)) continue;
+    if (Number.isNaN(lastProg)) {
+      const behindLine = car.lapsDone[u] === 0 && d > trackM * 0.75;
+      prog[u] = behindLine ? d - trackM : car.lapsDone[u] * trackM + d;
+    } else {
+      let step = d - lastDist;
+      if (step < -trackM / 2) step += trackM;
+      else if (step > trackM / 2) step -= trackM;
+      prog[u] = lastProg + step;
+    }
+    lastDist = d;
+    lastProg = prog[u];
+  }
+  for (let u = Math.max(0, startU); u < n; u++) {
+    const d = car.lapDistM[u];
+    if (Number.isNaN(d) || d <= trackM * 0.25 || d >= trackM * 0.75) continue;
+    const laps = Math.round((car.lapsDone[u] * trackM + d - prog[u]) / trackM);
+    if (laps !== 0) for (let k = startU; k < n; k++) prog[k] += laps * trackM;
+    break;
+  }
+  return prog;
+}
+
+/**
+ * The first update from which some car has completed a lap, held for at least
+ * `stableS` seconds: the race has started. A single update where every car
+ * reads laps done (da3e, 0.4 s: the previous session's state) is not a start.
+ * The length of the field when it never starts.
+ */
+export function raceStartUpdate(field: Field, stableS = 3): number {
+  const n = field.timeS.length;
+  const need = Math.max(2, Math.ceil(stableS * field.hz));
+  let run = 0;
+  for (let u = 0; u < n; u++) {
+    if (field.cars.some(c => c.lapsDone[u] > 0)) {
+      run++;
+      if (run >= need) return u - need + 1;
+    } else run = 0;
+  }
+  return n;
+}
+
 export function prepareRace(
   field: Field,
   edges: MeasuredEdges | null = null,
@@ -98,13 +168,12 @@ export function prepareRace(
   const slowRun: Int32Array[] = [];
   const pits: Int16Array[] = [];
   const firstSeen = new Int32Array(field.cars.length).fill(n);
+  const startU = raceStartUpdate(field);
   field.cars.forEach((c, i) => {
-    const prog = new Float32Array(n).fill(NaN);
+    const prog = progressOf(c, trackM, startU);
     const speed = new Float32Array(n).fill(NaN);
     const slow = new Int32Array(n);
     const pit = new Int16Array(n);
-    let lastDist = NaN;
-    let lastProg = NaN;
     let lastU = -1;
     let count = 0;
     let wasIn = 1; // starting in the pit lane is not an entry
@@ -115,20 +184,6 @@ export function prepareRace(
         continue;
       }
       if (firstSeen[i] === n) firstSeen[i] = u;
-      if (trackM === 0) {
-        prog[u] = NaN;
-      } else if (Number.isNaN(lastProg)) {
-        // First sight. A car still behind the start line on the first lap can
-        // report a distance near the lap's end (or a negative one, as LMU
-        // does on the grid): it is behind the line, not a lap ahead.
-        const behindLine = c.lapsDone[u] === 0 && d > trackM * 0.75;
-        prog[u] = behindLine ? d - trackM : c.lapsDone[u] * trackM + d;
-      } else {
-        let step = d - lastDist;
-        if (step < -trackM / 2) step += trackM;
-        else if (step > trackM / 2) step -= trackM;
-        prog[u] = lastProg + step;
-      }
       if (lastU >= 0) {
         const dt = field.timeS[u] - field.timeS[lastU];
         const moved = Math.hypot(c.xM[u] - c.xM[lastU], c.zM[u] - c.zM[lastU]);
@@ -143,16 +198,15 @@ export function prepareRace(
         // Formation: LMU sets inPits after t=0 while lapsDone is still 0
         // (38 of 54 cars at 10 s on that race). Not a stop.
         if (
-          raceHasStarted(field, u) &&
+          u >= startU &&
           Number.isFinite(stay) &&
-          stay >= MIN_PIT_S
+          stay >= MIN_PIT_S &&
+          pitRun(c.inPits, u) >= MIN_PIT_UPDATES
         )
           count++;
       }
       if (inPit !== ABSENT) wasIn = inPit;
       pit[u] = count;
-      lastDist = d;
-      lastProg = prog[u];
       lastU = u;
     }
     progressM.push(prog);
@@ -160,7 +214,17 @@ export function prepareRace(
     slowRun.push(slow);
     pits.push(pit);
   });
-  return {field, trackM, progressM, speedKmh, slowRun, pits, firstSeen, edges};
+  return {
+    field,
+    trackM,
+    startU,
+    progressM,
+    speedKmh,
+    slowRun,
+    pits,
+    firstSeen,
+    edges,
+  };
 }
 
 // How long the car stays in the pit lane from update `u`, seconds; runs to
@@ -173,11 +237,11 @@ function stayS(field: Field, inPits: Int8Array, u: number): number {
   return field.timeS[end + 1] - field.timeS[u];
 }
 
-function raceHasStarted(field: Field, u: number): boolean {
-  for (const c of field.cars) {
-    if (c.lapsDone[u] > 0) return true;
-  }
-  return false;
+// Consecutive updates from `u` the car stays flagged in the pit lane.
+function pitRun(inPits: Int8Array, u: number): number {
+  let end = u;
+  while (end + 1 < inPits.length && inPits[end + 1] === 1) end++;
+  return end - u + 1;
 }
 
 // Off the road at update u, from the offset alone (no hold).
@@ -213,7 +277,7 @@ export function stateOf(prep: RacePrep, car: number, u: number): CarState {
   const c = prep.field.cars[car];
   if (Number.isNaN(c.lapDistM[u])) return 'garage';
   if (c.inPits[u] === 1) {
-    return raceHasStarted(prep.field, u) ? 'pit' : 'running';
+    return u >= prep.startU ? 'pit' : 'running';
   }
   if (prep.slowRun[car][u] / prep.field.hz >= STOPPED_FOR_S) return 'stopped';
   if (offHeld(prep, car, u)) return 'off';
