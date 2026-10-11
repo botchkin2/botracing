@@ -3,7 +3,7 @@
 // tyres.mjs). Pure. Numbers, units and what they were measured against, never
 // advice (CODE_STANDARDS §7).
 //
-import {WHEELS, type Wheel} from '@/src/analysis/tyres';
+import {WHEELS, type Wheel, wearReadAtStops} from '@/src/analysis/tyres';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
 import {columnStats} from '@/src/analysis/segments';
@@ -12,17 +12,6 @@ const median = (values: number[]) => columnStats(values).medianS;
 
 /** A trend of wear per lap needs this many green laps (round 7 1C b). */
 export const MIN_TREND_LAPS = 5;
-
-/**
- * Lap-to-lap pairs that must all read the same wear on every wheel before a
- * session's wear counts as read at stops only. iRacing updates its wear channel
- * only in the pits (radio #4437: 15 laps of 99.8 / 98.4 / 99.5 / 96.4 on the
- * 28 Jul Daytona race), while a running tire loses wear on every lap (LMU,
- * about 0.5 % a lap). Every clean pair must be equal, so one change anywhere
- * in the session rules it out; two is enough to decide, and the 9 Oct Sebring
- * practice (stops after L0, L4 and L8) has exactly two clean pairs.
- */
-export const PIT_ONLY_PAIRS = 2;
 
 /** The wear bars run 0 to this, % of a new tyre lost on a lap (round 7 1A key). */
 export const WEAR_BAR_MAX_PCT = 1.4;
@@ -144,7 +133,8 @@ export type StintTires = {
   /**
    * How the session's wear was read: on every lap, or only at stops (the
    * channel holds its pit reading between stops). At stops only there is no
-   * rate, no bars and no table: each wheel shows the reading it had.
+   * rate, no bars and no table: each wheel shows the reading it had
+   * (analysis/tyres.ts wearReadAtStops).
    */
   wearRead: 'every-lap' | 'stops';
   wheels: WheelCell[];
@@ -358,32 +348,6 @@ export function setAgeText(ages: Record<Wheel, number>, lastLap: number) {
   ).join(' · ')}`;
 }
 
-/**
- * Whether the session's wear channel only changes at stops: at least
- * PIT_ONLY_PAIRS pairs of consecutive laps with readings, none of them
- * touching the pit lane, and every one equal on all four wheels. A property
- * of the channel, so it is decided once for the session (a stint between two
- * stops can be too short to tell). Pure, so the rule is tested on its own.
- */
-export function wearReadAtStopsOnly(laps: Lap[]): boolean {
-  const inPits = (l: Lap) => l.pitIn || l.pitOut || l.pitStop != null;
-  let pairs = 0;
-  for (let i = 1; i < laps.length; i++) {
-    const prev = laps[i - 1];
-    const lap = laps[i];
-    if (lap.lapIndex !== prev.lapIndex + 1 || inPits(prev) || inPits(lap))
-      continue;
-    const a = prev.tyres?.wearPct;
-    const b = lap.tyres?.wearPct;
-    if (!a || !b) continue;
-    const known = WHEELS.filter(w => a[w] != null && b[w] != null);
-    if (known.length === 0) continue;
-    if (known.some(w => a[w] !== b[w])) return false;
-    pairs++;
-  }
-  return pairs >= PIT_ONLY_PAIRS;
-}
-
 function stintTires(
   n: number,
   laps: Lap[],
@@ -508,13 +472,13 @@ function stintTires(
 
 /** The card, or `absent` when no lap in the session carries tyre facts. */
 export function buildTiresCard(
-  session: Pick<SessionDetail, 'stints'>,
+  session: Pick<SessionDetail, 'stints' | 'sim'>,
   laps: Lap[],
 ): TiresCard {
   const nums = session.stints.length
     ? session.stints.map(s => s.n)
     : [...new Set(laps.map(l => l.stint))].sort((a, b) => a - b);
-  const atStops = wearReadAtStopsOnly(laps);
+  const atStops = wearReadAtStops(session.sim, laps);
   const stints: StintTires[] = [];
   for (const n of nums) {
     const s = stintTires(

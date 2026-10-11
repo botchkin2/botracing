@@ -138,7 +138,7 @@ export function TiresCard({
 }
 
 const SHORT_STINT_NOTE = 'Under 5 green laps: readings only';
-// The channel holds its pit reading between stops (tireCard.wearReadAtStopsOnly).
+// The channel holds its pit reading between stops (analysis/tyres wearReadAtStops).
 const PIT_ONLY_NOTE = 'Wear is read in the pits only';
 
 const styles = StyleSheet.create({

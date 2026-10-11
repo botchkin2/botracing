@@ -92,6 +92,50 @@ export function freshTyres(
   return prev.endedInReset || (prev.tyres?.changed?.length ?? 0) > 0;
 }
 
+/** Clean lap-to-lap pairs that must all read the same before the channel counts as read at stops. */
+export const PIT_ONLY_PAIRS = 2;
+
+/**
+ * Whether a session's wear channel is only read at stops. A fact about the
+ * source: iRacing updates tire wear only in the pits and holds it between
+ * stops (radio #4437: 15 laps of 99.8 / 98.4 / 99.5 / 96.4 on the 28 Jul
+ * Daytona race). LMU's channel is live on every lap, so a flat LMU channel is
+ * a tire that really did not wear (wear switched off), never "read at stops"
+ * (brake, #532). For iRacing the laps confirm it: every clean pair of
+ * consecutive laps (neither touching the pit lane) equal on all four wheels,
+ * at least PIT_ONLY_PAIRS of them; a session that shows wear moving between
+ * stops is read as live.
+ */
+export function wearReadAtStops(
+  sim: string,
+  laps: readonly {
+    lapIndex: number;
+    pitIn: boolean;
+    pitOut: boolean;
+    pitStop?: unknown;
+    tyres: {wearPct: PerWheel | null} | null;
+  }[],
+): boolean {
+  if (sim !== 'iracing') return false;
+  const inPits = (l: (typeof laps)[number]) =>
+    l.pitIn || l.pitOut || l.pitStop != null;
+  let pairs = 0;
+  for (let i = 1; i < laps.length; i++) {
+    const prev = laps[i - 1];
+    const lap = laps[i];
+    if (lap.lapIndex !== prev.lapIndex + 1 || inPits(prev) || inPits(lap))
+      continue;
+    const a = prev.tyres?.wearPct;
+    const b = lap.tyres?.wearPct;
+    if (!a || !b) continue;
+    const known = WHEELS.filter(w => a[w] != null && b[w] != null);
+    if (known.length === 0) continue;
+    if (known.some(w => a[w] !== b[w])) return false;
+    pairs++;
+  }
+  return pairs >= PIT_ONLY_PAIRS;
+}
+
 /** A lap doc's `tyres`; null when the lap has none (older analysis, no channels). */
 export function toLapTyres(v: unknown): LapTyres | null {
   if (v == null || typeof v !== 'object') return null;
