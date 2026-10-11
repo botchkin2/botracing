@@ -1,13 +1,7 @@
 import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
 import {type ReactNode, useState} from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -36,6 +30,7 @@ import {
   FoldedSection,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   StatusBanner,
   Text,
 } from '@/src/ui';
@@ -300,10 +295,20 @@ function CornerView({
       </Pressable>
       <View style={styles.flex} />
       {model.prev != null && (
-        <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
+        <Chip
+          label='‹'
+          accessibilityLabel='Previous corner'
+          minWidth={size.hit}
+          onPress={() => go(model.prev!)}
+        />
       )}
       {model.next != null && (
-        <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
+        <Chip
+          label='›'
+          accessibilityLabel='Next corner'
+          minWidth={size.hit}
+          onPress={() => go(model.next!)}
+        />
       )}
     </View>
   );

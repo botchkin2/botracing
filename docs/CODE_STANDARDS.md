@@ -51,6 +51,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 - See section 0. Design at 390 pt wide with 16 pt gutters first, then add the ≥900 pt layout. Desktop is a proper multi-pane layout, not a stretched phone.
 - Breakpoints come from `size.desktopBreakpoint` through one `useLayout()` hook. No ad-hoc `Dimensions.get` checks in components.
 - **Hit areas are at least 44 pt**; use `hitSlop` to extend small drawn controls (checkboxes, chips).
+- **Every tappable is `Pressable` from `@/src/ui`, never react-native's** (lint enforces it). It dims while pressed (`pressedOpacity`) and makes `hitSlop` work on web, where react-native-web ignores the prop. Slop grows toward empty space only: the Pressable cuts it to half the gap to the next tappable and to nothing where drawn boxes touch, so it never takes a tap from a control drawn there. A control in a scroller, or between tight rows, needs a real 44 pt box: slop cannot pass a clipping parent. A lone × is a real 24 x 24 box (`closeBox`) even for a mouse. `tools/dev/hitProbe.js` checks all of this on a live page: no control's drawn box is answered by another.
 - No horizontal page scroll at 375 pt. Horizontal scroll is allowed only inside a component designed for it (lap chips).
 - Test on web and on a phone-sized viewport before calling a UI change done.
 

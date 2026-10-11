@@ -1,9 +1,9 @@
 import {memo, useEffect, useRef} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {type FieldClass} from '@/src/analysis/fieldClasses';
 import {classColor, radius, size, space, useTheme} from '@/src/design';
-import {Segment, Text} from '@/src/ui';
+import {Pressable, Segment, Text} from '@/src/ui';
 
 import {type CarLapsView} from '../carLapsView';
 import {

@@ -59,7 +59,6 @@ export type CornerRef = {n: number; official?: string; apexM: number};
 
 const dash = '—';
 
-
 /**
  * One row per stint, over the stint's basis laps (the ticked ones, or the
  * comparable ones with none ticked): the same median and IQR as the stint

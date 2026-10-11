@@ -1,11 +1,11 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
 import {baselineOver, baselineUnder} from '@/src/charts/labelBox';
 
 import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {type HistoryModel} from '../history';
 

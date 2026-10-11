@@ -1,10 +1,10 @@
 import {useRouter} from 'expo-router';
 import {useMemo, useState} from 'react';
-import {FlatList, Pressable, StyleSheet, View} from 'react-native';
+import {FlatList, StyleSheet, View} from 'react-native';
 
 import {size, space, useTheme} from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
-import {Badge, Text} from '@/src/ui';
+import {Badge, Pressable, Text} from '@/src/ui';
 
 import {
   DEFAULT_SORT,

@@ -89,7 +89,10 @@ export function sessionGrid(
             ? Math.max(-1, Math.min(1, deltaS / spreadS))
             : 0,
         best:
-          basis.has(lap.id) && timeS != null && bestS != null && timeS === bestS,
+          basis.has(lap.id) &&
+          timeS != null &&
+          bestS != null &&
+          timeS === bestS,
       };
     }),
   }));

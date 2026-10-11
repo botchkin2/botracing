@@ -1,8 +1,7 @@
 import {useState} from 'react';
-import {Pressable} from 'react-native';
 
 import {space} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 /**
  * A row's "Ref": muted until the pointer is over it or it has focus, then

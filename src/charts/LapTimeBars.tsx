@@ -1,5 +1,7 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {G, Line, Rect} from 'react-native-svg';
+
+import {Pressable} from '@/src/ui';
 
 import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
 import {baselineOver, centredBaseline, EDGE_PT} from './labelBox';

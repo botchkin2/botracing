@@ -1,7 +1,7 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {formatGap, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {formatGap, size, space, useTheme} from '@/src/design';
+import {Pressable, Text} from '@/src/ui';
 
 import {type GridRow, type GridSort} from '../grid';
 import {useSessionGrid} from '../useSessionGrid';
@@ -81,7 +81,9 @@ export function SessionGrid({
                   />
                 </View>
                 <Text variant='dataSmall' tone='textMuted'>
-                  {c.n < 2 || c.spreadS == null ? '—' : `${c.spreadS.toFixed(2)} s`}
+                  {c.n < 2 || c.spreadS == null
+                    ? '—'
+                    : `${c.spreadS.toFixed(2)} s`}
                 </Text>
               </Pressable>
             ))}
@@ -173,7 +175,13 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'stretch'},
   lapRow: {minHeight: ROW_H, alignItems: 'center'},
   lap: {paddingHorizontal: space.sm, justifyContent: 'center'},
-  head: {paddingHorizontal: space.sm, gap: 2, justifyContent: 'center'},
+  // A full 44 pt box: the heads sit in a scroller, which clips any hit slop.
+  head: {
+    minHeight: size.hit,
+    paddingHorizontal: space.sm,
+    gap: 2,
+    justifyContent: 'center',
+  },
   barTrack: {height: 4, borderRadius: 2, overflow: 'hidden'},
   bar: {height: 4},
   cell: {
