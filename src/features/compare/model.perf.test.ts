@@ -27,7 +27,12 @@ const BATCHES = 15;
  * run in alternating batches so a slow stretch of the runner hits both, and
  * the median batch ignores the outliers.
  */
-function inBaselines(fn: () => void, baseline: () => void, perBatch: number) {
+function inBaselines(
+  label: string,
+  fn: () => void,
+  baseline: () => void,
+  perBatch: number,
+) {
   const time = (f: () => void) => {
     const t0 = performance.now();
     for (let i = 0; i < perBatch; i++) f();
@@ -40,7 +45,10 @@ function inBaselines(fn: () => void, baseline: () => void, perBatch: number) {
   const ratios: number[] = [];
   for (let b = 0; b < BATCHES; b++) ratios.push(time(fn) / time(baseline));
   ratios.sort((a, b) => a - b);
-  return ratios[Math.floor(BATCHES / 2)];
+  const median = ratios[Math.floor(BATCHES / 2)];
+  // In the CI log, so the headroom on a runner is read, not assumed (brake #4470).
+  console.log(`perf ratio ${label}: ${median.toFixed(3)} passes`);
+  return median;
 }
 
 // A lap with speed, pedals and steering that vary along it, as real ones do.
@@ -119,7 +127,9 @@ describe('Compare at 60 laps', () => {
       });
     };
     // inBaselines warms first: the first build fills the per-array caches.
-    expect(inBaselines(step, scan, 30)).toBeLessThan(STEP_CEILING_SCANS);
+    expect(inBaselines('rebuild', step, scan, 30)).toBeLessThan(
+      STEP_CEILING_SCANS,
+    );
     expect(sink).toBeGreaterThan(0);
   });
 
@@ -138,6 +148,8 @@ describe('Compare at 60 laps', () => {
       cursorM = (cursorM + 37) % LENGTH_M;
       set.atCursor(cursorM);
     };
-    expect(inBaselines(step, scan, 60)).toBeLessThan(CURSOR_CEILING_SCANS);
+    expect(inBaselines('cursor', step, scan, 60)).toBeLessThan(
+      CURSOR_CEILING_SCANS,
+    );
   });
 });
