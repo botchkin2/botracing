@@ -128,12 +128,6 @@ export const lapColors: Record<Scheme, readonly string[]> = {
     '#c46a12',
   ],
 };
-/**
- * The colour of one lap by its colour slot (0 = the reference, then in lap
- * order): the palette first, then generated hues past it. Golden-angle steps
- * give each further slot a hue no earlier slot has, so no two laps on screen
- * share a colour (pit-wall #342).
- */
 /** Hue in degrees of a #rrggbb colour. */
 export function hueOf(hex: string): number {
   const n = parseInt(hex.slice(1), 16);
