@@ -156,6 +156,37 @@ describe('buildTrackModel', () => {
   });
 });
 
+describe('corner headings', () => {
+  it('has no heading over the parts of one turn, so a turn never shows its name twice', () => {
+    // Road Atlanta's T7 is cut into an entry and the turn itself, both named T7.
+    const phase = (n: number, apexM: number, official: string) => ({
+      ...corner(n, apexM),
+      official,
+    });
+    const m = buildTrackModel({
+      trackId: 'lmu-t',
+      info: info(),
+      layouts: [],
+      sessions: [session({})],
+      map: {
+        ...map(),
+        sections: [
+          {
+            ...corner(7, 200),
+            official: 'T7',
+            parts: [phase(7, 195, 'T7 entry'), phase(8, 205, 'T7')],
+          },
+          {...corner(9, 300), parts: [corner(9, 295), corner(10, 305)]},
+        ],
+      },
+      refTrace: squareTrace(),
+      selectedCorner: null,
+    });
+    expect(m.corners.map(g => g.title)).toEqual([null, 'T9–10']);
+    expect(m.corners[0].rows).toHaveLength(2);
+  });
+});
+
 describe('referenceSession', () => {
   it('takes the newest session on the stored corner map', () => {
     const picked = referenceSession([

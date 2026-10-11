@@ -16,7 +16,7 @@ import {type TrackInfo} from '@/src/data/tracks';
 import {formatLength, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
-import {sectionHeaderOf} from '@/src/analysis/turnNames';
+import {sectionHeaderOf, turnOfPart} from '@/src/analysis/turnNames';
 
 // Track page view model (Claude Design "Track page" v1 handoff). Pure: the
 // layout's bundled facts, its sessions, the track's stored corner map and
@@ -142,8 +142,13 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
       const label = sectionHeaderOf(
         s.parts.map(p => turnLabel(p.n, p.official)),
       );
+      // A heading over the parts of one turn ("T7" over "T7 entry" and "T7")
+      // only repeats their name: it is for sections that span turns.
+      const spansTurns =
+        new Set(s.parts.map(p => turnOfPart(turnLabel(p.n, p.official)))).size >
+        1;
       groups.push({
-        title: label.toUpperCase(),
+        title: spansTurns ? label.toUpperCase() : null,
         rows: s.parts.map(row),
       });
       continue;
