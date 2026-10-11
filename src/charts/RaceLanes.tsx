@@ -3,13 +3,7 @@ import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import {G, Line, Polygon, Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
-import {
-  baselineOver,
-  baselineUnder,
-  centredBaseline,
-  EDGE_PT,
-  labelBox,
-} from './labelBox';
+import {baselineOver, centredBaseline, EDGE_PT, labelBox} from './labelBox';
 
 import type {RaceLanes as RaceLanesModel, Span} from '@/src/analysis/raceLanes';
 import {stroke, useTheme} from '@/src/design';
@@ -45,7 +39,7 @@ export function RaceLanes({
   playheadS: number;
   /** Total width, label column included. */
   width: number;
-  /** 9 on the phone, 12 on the desktop workspace. */
+  /** At least the label's 11.7 + 2 pt edge (14 on the phone); 9 only for the label-less strip. */
   laneHeight: number;
   /** 44 on the phone, 56 on the desktop. */
   labelWidth: number;
@@ -136,10 +130,7 @@ export function RaceLanes({
               <ChartLabel
                 fontSize={TICK_PT}
                 x={EDGE_PT}
-                y={Math.max(
-                  centredBaseline(row.y + laneHeight / 2, TICK_PT),
-                  baselineUnder(0, TICK_PT),
-                )}
+                y={centredBaseline(row.y + laneHeight / 2, TICK_PT)}
                 fill={color.textMuted}>
                 {row.label}
               </ChartLabel>

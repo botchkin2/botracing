@@ -14,9 +14,10 @@ import {raceClockLabel} from '../clock';
 import type {RaceMode} from '../model';
 
 // YOUR RACE (handoff R1a/R1b): the label, the race clock and the zoom above the
-// lanes; the window's start and end times under them. Lanes are 9 pt high in a
-// 44 pt label column on the phone, 12 pt in 56 on desktop.
-const PHONE = {laneHeight: 9, labelWidth: 44};
+// lanes; the window's start and end times under them. A lane is at least its
+// name tall (9 pt type is 11.7 pt, and the first keeps 1 pt from the svg edge):
+// 14 pt in a 44 pt label column on the phone, 12 pt in 56 on desktop.
+const PHONE = {laneHeight: 14, labelWidth: 44};
 const DESKTOP = {laneHeight: 12, labelWidth: 56};
 
 // The whole-window zoom is named for what the session is: outside a race
