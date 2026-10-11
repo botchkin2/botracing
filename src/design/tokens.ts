@@ -143,16 +143,17 @@ export function lapColor(scheme: Scheme, index: number): string {
     : `hsl(${hue.toFixed(1)}, 60%, 42%)`;
 }
 
-/** Tinted mode (7–19 laps), hue cycle 255, 350, 185, 105, 225. */
-const lapTints: Record<Scheme, readonly string[]> = {
-  dark: ['#87a7d0', '#c793ab', '#70b3aa', '#aba874', '#73aec6'],
-  light: ['#6e88aa', '#a3788b', '#5b928b', '#8b895e', '#5d8ea2'],
-};
 const lapMuted: Record<Scheme, string> = {dark: '#5d646d', light: '#b9bec3'};
 
-export type LapMode = 'individual' | 'tinted' | 'grey';
+/**
+ * The one lap-count threshold. Up to this many laps each lap has its own row
+ * (Compare's grid, Corner's default set); above it the rows fold into the
+ * median. Every ticked lap is drawn at any count, in its own colour.
+ */
+export const INDIVIDUAL_MAX_LAPS = 6;
+export type LapMode = 'individual' | 'several';
 export const lapMode = (count: number): LapMode =>
-  count <= 6 ? 'individual' : count < 20 ? 'tinted' : 'grey';
+  count <= INDIVIDUAL_MAX_LAPS ? 'individual' : 'several';
 
 export type LapStroke = {
   color: string;
@@ -176,18 +177,22 @@ export const dash = {
   overlay3: '1.5 2.5',
 } as const;
 
+/** Opacity of the laps not highlighted while one is (tap a lap to pick it out). */
+export const DIMMED_OPACITY = 0.25;
+
 /**
  * Stroke for the lap at `index` in the selection (0 = reference, negative =
- * the median basis, neutral).
- * In tinted/grey modes only the reference and the highlighted lap are key laps.
+ * the median basis, neutral). Every ticked lap is drawn in its own colour, at
+ * any count; the reference and the highlighted lap are the thicker strokes.
+ * While a lap is highlighted (`dimOthers`), the rest fade so that lap stands
+ * out; the reference and the median basis stay as they are.
  */
 export function lapStroke(
   scheme: Scheme,
   index: number,
-  count: number,
   highlighted: boolean,
+  dimOthers = false,
 ): LapStroke {
-  const mode = lapMode(count);
   if (index < 0)
     return {
       color: lapMuted[scheme],
@@ -202,30 +207,11 @@ export function lapStroke(
       opacity: 1,
       key: true,
     };
-  if (mode === 'individual') {
-    return {
-      color: lapColor(scheme, index),
-      width: highlighted ? stroke.ref : stroke.selected,
-      opacity: 1,
-      key: true,
-    };
-  }
-  if (highlighted)
-    return {
-      color: lapColors[scheme][1],
-      width: stroke.ref,
-      opacity: 1,
-      key: true,
-    };
-  if (mode === 'tinted') {
-    const tint = lapTints[scheme][(index - 1) % lapTints[scheme].length];
-    return {color: tint, width: stroke.tinted, opacity: 0.55, key: false};
-  }
   return {
-    color: lapMuted[scheme],
-    width: stroke.grey,
-    opacity: scheme === 'dark' ? 0.45 : 1,
-    key: false,
+    color: lapColor(scheme, index),
+    width: highlighted ? stroke.ref : stroke.selected,
+    opacity: dimOthers && !highlighted ? DIMMED_OPACITY : 1,
+    key: true,
   };
 }
 
