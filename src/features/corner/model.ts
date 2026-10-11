@@ -548,25 +548,23 @@ export function buildCornerModel(input: {
   const anchorM = sectionFrame
     ? Math.max(sectionFrame.fromM, zoomWindow[0])
     : baseView.stretch.fromM;
-  const view =
+  const view = own && ownFrame ? {...baseView, stretch: ownFrame} : baseView;
+  // What the window's shading needs said; nothing without a window of its own.
+  const caption =
     own && ownFrame
-      ? {
-          ...baseView,
-          stretch: ownFrame,
-          caption: windowCaption(
-            ownFrame,
-            zoomWindow,
-            windows && isPart
-              ? {
-                  label: sec.sectionLabel,
-                  lapM: windows.section.fromM,
-                  drawn:
-                    sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
-                }
-              : null,
-          ),
-        }
-      : baseView;
+      ? windowCaption(
+          ownFrame,
+          zoomWindow,
+          windows && isPart
+            ? {
+                label: sec.sectionLabel,
+                lapM: windows.section.fromM,
+                drawn:
+                  sectionFrame != null && sectionFrame.fromM >= zoomWindow[0],
+              }
+            : null,
+        )
+      : '';
   // Over the whole compound window the map spans first entry to last exit, so
   // the first part's brake point is on it.
   const mapWindow: [number, number] = [
@@ -662,7 +660,7 @@ export function buildCornerModel(input: {
       dimmed: dimmedRanges(zoomWindow, view.stretch),
       brakeZone: brakeZone(lines, view.stretch.toM),
       neighbours: view.neighbours,
-      caption: 'caption' in view ? view.caption : '',
+      caption,
     },
     brakeMap: buildBrakeMap(rows, refTrace, sec.apexM, mapView, mapWindow),
     prev: chips[(firstIdx - 1 + chips.length) % chips.length]?.n ?? null,
