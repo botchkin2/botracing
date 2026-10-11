@@ -38,7 +38,7 @@ describe('pitLine', () => {
         lapsLeftAtEntry: {fuel: 0.9, ve: null},
         visit: null,
       }),
-    ).toBe('Pit: 7.2 L left (0.9 laps · fuel) · +41.7 L · 91 s');
+    ).toBe('Pit: 7.2 L left (0.9 laps) · +41.7 L · 91 s');
   });
 
   it('no fuel channels, no line', () => {
@@ -47,11 +47,12 @@ describe('pitLine', () => {
 });
 
 describe('limitingLaps', () => {
-  it('names the meter that runs out first; a tie reads fuel; none is null', () => {
+  it('names the meter that runs out first when both are shown; a tie reads fuel; one meter is not named; none is null', () => {
     expect(limitingLaps({fuel: 13.9, ve: 11.1})).toBe('11.1 laps · VE');
     expect(limitingLaps({fuel: 0.9, ve: 4})).toBe('0.9 laps · fuel');
     expect(limitingLaps({fuel: 5, ve: 5})).toBe('5.0 laps · fuel');
-    expect(limitingLaps({fuel: null, ve: 3})).toBe('3.0 laps · VE');
+    expect(limitingLaps({fuel: null, ve: 3})).toBe('3.0 laps');
+    expect(limitingLaps({fuel: 7.2, ve: null})).toBe('7.2 laps');
     expect(limitingLaps({fuel: null, ve: null})).toBeNull();
   });
 });

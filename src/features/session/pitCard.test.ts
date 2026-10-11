@@ -594,11 +594,11 @@ describe('buildPitCard', () => {
       expect(card.hasVe).toBe(false);
       const c = card.columns[0];
       expect(c.veOut).toBeNull();
-      expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps · fuel'});
+      expect(c.inTank).toEqual({value: '9.4 L', note: '2.6 laps'});
       expect(c.added).toEqual({value: '+40.1 L', note: null});
       expect(c.lane?.value).toBe('51.2 s');
       expect(card.key).toEqual([]);
-      expect(card.end?.spare).toBe('3.7 L (1.5 laps · fuel)');
+      expect(card.end?.spare).toBe('3.7 L (1.5 laps)');
     });
   });
 

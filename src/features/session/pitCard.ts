@@ -23,7 +23,7 @@ import type {
   SessionType,
 } from '@/src/data/sessions';
 
-import {limitingLaps} from './fuelLines';
+import {limitingLaps, limitingLeft} from './fuelLines';
 import {tyresText} from './pitReview';
 
 /** A bold value and a muted line under it. */
@@ -164,13 +164,8 @@ export function sessionHasVe(laps: Lap[]): boolean {
 }
 
 /** The tighter of the two meters' laps, as the lap table's pit line has it. */
-function lapsLeft(left: {
-  fuel: number | null;
-  ve: number | null;
-}): number | null {
-  const v = [left.fuel, left.ve].filter((x): x is number => x != null);
-  return v.length ? Math.min(...v) : null;
-}
+const lapsLeft = (left: {fuel: number | null; ve: number | null}) =>
+  limitingLeft(left)?.laps ?? null;
 
 function inCell(stop: PitStop, hasVe: boolean): Cell {
   const {fuelL, vePct} = stop.atEntry;

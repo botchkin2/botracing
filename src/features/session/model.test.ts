@@ -31,7 +31,7 @@ describe('buildSessionModel', () => {
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},
       {label: 'Best', value: '1:20.763', best: true},
-      {label: 'Median', value: '1:21.915 · 16 laps'},
+      {label: 'Median', value: '1:21.915'},
       {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });
@@ -54,7 +54,7 @@ describe('buildSessionModel', () => {
   it('stint header rows precede their laps', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
-      label: 'Stint 1 · L1–L17 · med 1:21.938 · ±SD 0.91 s',
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · ± 0.91 s',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });

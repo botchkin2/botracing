@@ -367,7 +367,7 @@ export function sectionTable(
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
-      row('IQR', s => s.spreadS),
+      row('Spread', s => s.spreadS),
     ],
   };
 }
@@ -459,7 +459,7 @@ export function buildSessionModel(
     const bits = [`Stint ${stint.n}`, `L${first}–L${last}`];
     if (stint.medianTimeS != null)
       bits.push(`med ${formatLapTime(stint.medianTimeS)}`);
-    if (stint.stdevS != null) bits.push(`±SD ${stint.stdevS.toFixed(2)} s`);
+    if (stint.stdevS != null) bits.push(`± ${stint.stdevS.toFixed(2)} s`);
     const split = stintTrafficText(stintLaps);
     rows.push({
       kind: 'stint',
@@ -569,14 +569,7 @@ export function buildSessionModel(
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
       },
-      {
-        label: 'Median',
-        // The basis: the comparable laps (the Typical lap below is the sectors').
-        value:
-          median == null
-            ? '—'
-            : `${timeOrDash(median)} · ${comparable.length} laps`,
-      },
+      {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
     ],
     optimum: sectionTimes
