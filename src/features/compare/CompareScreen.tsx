@@ -19,7 +19,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Svg, {Line} from 'react-native-svg';
 
-import {loopRange, panCursor} from '@/src/analysis/window';
+import {panCursor} from '@/src/analysis/window';
 import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
@@ -80,7 +80,7 @@ import {
   sectionStartM,
   withDefaultLaps,
 } from './model';
-import {type PlayInputs, playTicker} from './playback';
+import {usePlayback} from './usePlayback';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
@@ -248,9 +248,6 @@ function CompareView({
   // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [reverse, setReverse] = useState(false);
-  const [looping, setLooping] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
@@ -282,59 +279,22 @@ function CompareView({
   const moveBy = (dm: number) =>
     onCursor(c => Math.max(0, Math.min(model.lengthM, c + dm)));
 
-  // Playback: advance by wall-clock time on the reference lap, looping
-  // (features/compare/playback.ts).
-  const live = useRef<PlayInputs>({
+  const {
+    playing,
+    reverse,
+    looping,
+    setPlaying,
+    togglePlay,
+    toggleReverse,
+    toggleLoop,
+  } = usePlayback({
     ref,
     rate: prefs.rate,
-    reverse,
+    cursorM,
     move: onCursor,
+    windowMode: prefs.windowMode,
+    windowSize: windowSizeValue,
   });
-  // A loop repeats the stretch the window covers when playback starts (or the
-  // loop is switched on), not the window as it travels with the cursor.
-  const loopSpan = useRef<[number, number] | null>(null);
-  const cursorNow = useRef(cursorM);
-  useEffect(() => {
-    cursorNow.current = cursorM;
-  });
-  useEffect(() => {
-    loopSpan.current =
-      looping && playing && ref
-        ? loopRange(ref, cursorNow.current, prefs.windowMode, windowSizeValue)
-        : null;
-  }, [looping, playing, ref, prefs.windowMode, windowSizeValue]);
-  useEffect(() => {
-    live.current = {
-      ref,
-      rate: prefs.rate,
-      reverse,
-      loop: loopSpan.current,
-      move: onCursor,
-    };
-  });
-  const atStart = useRef(false);
-  useEffect(() => {
-    atStart.current = cursorM <= 0;
-  });
-  useEffect(() => {
-    if (!playing) return;
-    let frame = 0;
-    const step = playTicker(
-      () => live.current,
-      () => performance.now(),
-    );
-    const tick = () => {
-      // Rewinding ends at the lap start, unless it loops.
-      if (live.current.reverse && atStart.current && !live.current.loop) {
-        setPlaying(false);
-        return;
-      }
-      step();
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing]);
 
   // The URL keeps the cursor for links and reloads. Writing it on every
   // frame would flood navigation, so write once it settles: after a pause,
@@ -812,15 +772,9 @@ function CompareView({
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
       onLap={() => prefs.setWindowStep('lap')}
-      onPlay={() => {
-        setReverse(false);
-        setPlaying(p => !p || reverse);
-      }}
-      onReverse={() => {
-        setReverse(true);
-        setPlaying(p => !p || !reverse);
-      }}
-      onLoop={() => setLooping(l => !l)}
+      onPlay={togglePlay}
+      onReverse={toggleReverse}
+      onLoop={toggleLoop}
       onBack={() => moveBy(-KEY_STEP_M)}
       onForward={() => moveBy(KEY_STEP_M)}
       onRate={prefs.setRate}
@@ -881,10 +835,7 @@ function CompareView({
         lapStyle={lapStyle}
         onCursor={onCursor}
         onPan={pan}
-        onPlay={() => {
-          setReverse(false);
-          setPlaying(p => !p || reverse);
-        }}
+        onPlay={togglePlay}
         onPause={() => setPlaying(false)}
         onSelectionChange={onSelectionChange}
         onOpenSection={openCorner}
