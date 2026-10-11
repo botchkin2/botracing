@@ -24,6 +24,24 @@ import {type PitWindow, pitWindows} from '@/src/analysis/pitWindow';
 export const lapName = (racingLap: number) => `L${racingLap + 1}`;
 
 /**
+ * The words of a stint's use and of the formation lap's, on every Plan card
+ * (the Pit plan and the Stops cards print the same rows): a stint rounds to
+ * whole units ("95 %", "48 L"), the formation lap keeps one decimal.
+ */
+export function stintUseText(value: number | null, unit: Unit): string | null {
+  return value == null
+    ? null
+    : `${Math.round(value)} ${unit === 've' ? '%' : 'L'}`;
+}
+export function formationUseText(
+  formation: {fuelL: number | null; vePct: number | null} | null,
+  unit: Unit,
+): string | null {
+  const v = unit === 've' ? formation?.vePct : formation?.fuelL;
+  return v == null ? null : `${v.toFixed(1)} ${unit === 've' ? '%' : 'L'}`;
+}
+
+/**
  * The one way a stint's laps are named, on every Plan card: by the lap names
  * the stops use. The formation lap is L1 and is its own, so the first stint
  * starts at L2 ("L2–L13": the stop after L13 ends it); one lap reads "L14".
@@ -431,10 +449,7 @@ function describeRow(
     return {
       n: i + 1,
       laps: stintLaps(r.stintLaps, i),
-      use:
-        values[i] == null
-          ? null
-          : `${Math.round(values[i])} ${shown === 've' ? '%' : 'L'}`,
+      use: stintUseText(values[i] ?? null, shown),
       refuel: !refuel
         ? null
         : seconds != null
@@ -599,16 +614,7 @@ function stopsCard(
     windowNote,
     lateFlag: lateFlagMargin(plan, fuelStops, shownUnit, ratioPerPctL),
     formation,
-    formationUse:
-      formation == null
-        ? null
-        : shownUnit === 've'
-        ? formation.vePct == null
-          ? null
-          : `${formation.vePct.toFixed(1)} %`
-        : formation.fuelL == null
-        ? null
-        : `${formation.fuelL.toFixed(1)} L`,
+    formationUse: formationUseText(formation, shownUnit),
   };
 }
 

@@ -47,7 +47,7 @@ export type PitStint = {
   laps: number;
   /** Laps on the tyres: if they are changed at the stop that starts the stint, and if never changed. */
   tyreLaps: {onSet: number; sinceStart: number};
-  /** Used in the stint, formation lap included in the first; null without that meter's history. */
+  /** Used in the stint's racing laps; the formation lap is `PitPlan.formation`. Null without that meter's history. */
   fuelL: {median: number; p90: number} | null;
   vePct: {median: number; p90: number} | null;
   /** What is left at the end of the stint at the median use, from a full load; 0 when it ran dry. */
@@ -58,6 +58,12 @@ export type PitStint = {
 };
 
 export type PitPlan = {
+  /**
+   * What the formation lap burns at the median use, its own row on the card
+   * (as on the Stops card); null without a formation lap. The first load still
+   * has to cover it, which `left` and the dry tests count.
+   */
+  formation: {fuelL: number | null; vePct: number | null} | null;
   stops: SliderStop[];
   stints: PitStint[];
   /** Racing laps in the race with these stops. */
@@ -233,22 +239,27 @@ export function pitPlan(
   let sinceStart = 0;
   const stints: PitStint[] = worked.stints.map((laps, i) => {
     sinceStart += laps;
-    // The formation lap is burnt from the first load.
+    // The formation lap is burnt from the first load: it counts against the
+    // tank (left, dry) but is not in the stint's own use (PitPlan.formation).
     const formation = formationLaps(rules);
     const burnFuel = laps + (i === 0 ? formation.fuel : 0);
     const burnVe = laps + (i === 0 ? formation.ve : 0);
     const fuelL = fuel
+      ? {median: laps * fuel.median, p90: laps * fuel.p90}
+      : null;
+    const vePct = ve ? {median: laps * ve.median, p90: laps * ve.p90} : null;
+    const fuelBurnt = fuel
       ? {median: burnFuel * fuel.median, p90: burnFuel * fuel.p90}
       : null;
-    const vePct = ve
+    const veBurnt = ve
       ? {median: burnVe * ve.median, p90: burnVe * ve.p90}
       : null;
     // The first stint is tested against what the car starts with (parc #1902),
     // every later one against a full load.
     const loaded = i === 0 ? startLoad(rules) : rules;
     const dry = (pick: 'median' | 'p90') =>
-      (fuelL != null && fuelL[pick] > loaded.fuelL + EPS) ||
-      (vePct != null && vePct[pick] > loaded.vePct + EPS);
+      (fuelBurnt != null && fuelBurnt[pick] > loaded.fuelL + EPS) ||
+      (veBurnt != null && veBurnt[pick] > loaded.vePct + EPS);
     return {
       n: i + 1,
       laps,
@@ -256,15 +267,22 @@ export function pitPlan(
       fuelL,
       vePct,
       left: {
-        fuelL: fuelL ? Math.max(0, loaded.fuelL - fuelL.median) : null,
-        vePct: vePct ? Math.max(0, loaded.vePct - vePct.median) : null,
+        fuelL: fuelBurnt ? Math.max(0, loaded.fuelL - fuelBurnt.median) : null,
+        vePct: veBurnt ? Math.max(0, loaded.vePct - veBurnt.median) : null,
       },
       dryAtMedian: dry('median'),
       dryAtP90: dry('p90'),
     };
   });
 
+  const burnt = formationLaps(rules);
   return {
+    formation: rules.formationLap
+      ? {
+          fuelL: fuel ? burnt.fuel * fuel.median : null,
+          vePct: ve ? burnt.ve * ve.median : null,
+        }
+      : null,
     stops: clamped.map((c, i) => ({
       stop: i + 1,
       after: c.after,

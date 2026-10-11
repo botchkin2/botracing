@@ -4,7 +4,13 @@ import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {lapAt, pitPlan, type PitPlanInput, plannedStops} from './pitPlan';
 import {buildPlanCards, stintLaps} from './planCards';
-import {finalStintWarning, stintRow, stopLine, unitOf} from './pitPlanText';
+import {
+  finalStintWarning,
+  formationRow,
+  stintRow,
+  stopLine,
+  unitOf,
+} from './pitPlanText';
 
 // planCards.test.ts's example: a 2 h race at 101.2 s a lap, 2.38 L and 3.5 % VE
 // a lap, a 100 L / 100 % load and a formation lap, with the pit model.
@@ -134,14 +140,16 @@ describe('pitPlan', () => {
     expect(p.stints.at(-1)!.tyreLaps.sinceStart).toBe(p.finishLaps);
   });
 
-  it('the first stint carries the formation lap in what it uses', () => {
+  it('the formation lap is its own: the stints use only their laps, the first load still pays for it', () => {
     const {input, plan} = setup();
     const p = pitPlan(input)!;
-    expect(p.stints[0].fuelL!.median).toBeCloseTo(
-      (p.stints[0].laps + 1) * plan.perLap.fuel!.median,
-    );
-    expect(p.stints[1].fuelL!.median).toBeCloseTo(
-      p.stints[1].laps * plan.perLap.fuel!.median,
+    const median = plan.perLap.fuel!.median;
+    expect(p.stints[0].fuelL!.median).toBeCloseTo(p.stints[0].laps * median);
+    expect(p.stints[1].fuelL!.median).toBeCloseTo(p.stints[1].laps * median);
+    expect(p.formation!.fuelL).toBeGreaterThan(0);
+    // What is left at the end of stint 1 counts the formation lap's burn.
+    expect(p.stints[0].left.fuelL).toBeCloseTo(
+      Math.max(0, 100 - (p.stints[0].laps * median + p.formation!.fuelL!)),
     );
   });
 
@@ -242,6 +250,13 @@ describe('naming the laps of a stint', () => {
       // Each stint ends on the lap its stop is named for.
       p.stops.forEach((s, i) =>
         expect(pitCard[i].split('–').pop()).toBe(`L${s.after + 1}`),
+      );
+      // Same rows, same words: the Formation row and each stint's use.
+      const full = cards.stops.full!;
+      expect(formationRow(p, 've')!.use).toBe(cards.stops.formationUse);
+      expect(formationRow(p, 've')!.laps).toBe('L1');
+      p.stints.forEach((st, i) =>
+        expect(stintRow(st, 've', pitCard[i]).use).toBe(full.lines[i].use),
       );
       expect(stintRow(p.stints[0], 've', pitCard[0]).laps).toBe(pitCard[0]);
       expect(stintRow(p.stints[0], 've').laps).toBe(String(p.stints[0].laps));

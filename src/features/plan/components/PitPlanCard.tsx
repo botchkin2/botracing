@@ -8,6 +8,7 @@ import {lapName, stintLaps} from '../planCards';
 import {
   finalStintWarning,
   finishLine,
+  formationRow,
   stintRow,
   stopLine,
   stopWarning,
@@ -91,6 +92,25 @@ export function PitPlanCard({
             </Text>
           ))}
         </View>
+        {(() => {
+          const f = formationRow(pit, unit);
+          return f ? (
+            <View style={styles.row}>
+              <Text variant='data' style={styles.name}>
+                {f.label}
+              </Text>
+              <Text variant='data' style={styles.cell}>
+                {f.laps}
+              </Text>
+              <Text variant='data' style={styles.cell}>
+                {f.use}
+              </Text>
+              <Text variant='data' style={styles.cell}>
+                {f.tyres}
+              </Text>
+            </View>
+          ) : null;
+        })()}
         {pit.stints.map((s, i) => {
           const r = stintRow(
             s,
