@@ -1,38 +1,32 @@
-// The Session lines for the optimal lap and its gap (decisions/lap/2026-10-04-
-// sections-and-compare.md, triage #4/#5): per stint, the best time of every
-// sector summed ("Optimal lap"), the median of every sector summed ("Typical
-// lap"), and Σ(median − best) between them, with the laps behind it. The gap is
-// time lost to inconsistency, and it is only comparable within a session
-// (the optimum falls with every lap driven). Neither lap was driven, and
-// none is a target (CODE_STANDARDS §7).
-import {type StintOptimum} from '@/src/analysis/sectionOptimum';
-import {formatLapTime} from '@/src/design';
+// The Session lines for the optimal lap, per stint, over the ticked laps
+// (decisions/lap/2026-10-11-selection-and-numbers.md, after 2026-10-04-
+// sections-and-compare.md): Optimal is the best time of every segment summed,
+// Median the median lap time of the same laps, and Inconsistency the one minus
+// the other. Each says how many laps it is "of", and moves with the ticks.
+// Optimal was not driven and none is a target (CODE_STANDARDS §7).
+import {formatGap, formatLapTime} from '@/src/design';
 
 import type {Fact} from './model';
+import type {StintNumbers} from './selectionStats';
 
-/** Three facts per stint with enough laps; empty before the sectors or under the floor. */
+/** Three facts per stint with an Optimal; empty before the segments or under the floor. */
 export function optimumFacts(
-  stints: StintOptimum[],
-  sectorCount: number,
+  stints: StintNumbers[],
   stintCount: number,
 ): Fact[] {
   const facts: Fact[] = [];
   for (const s of stints) {
-    if (s.bestSumS == null || s.medianSumS == null) continue;
+    const medianS = s.lapTimes.medianS;
+    if (s.optimalS == null || medianS == null || s.inconsistencyS == null)
+      continue;
     const where = stintCount > 1 ? ` · stint ${s.stint}` : '';
-    const laps = `${s.lapCount} laps`;
+    const of = `of ${s.n}`;
     facts.push(
-      {
-        label: `Optimal lap${where}`,
-        value: `${formatLapTime(s.bestSumS)} · ${laps}, ${sectorCount} sectors`,
-      },
-      {
-        label: `Typical lap${where}`,
-        value: `${formatLapTime(s.medianSumS)} · ${laps}`,
-      },
+      {label: `Optimal${where}`, value: `${formatLapTime(s.optimalS)} · ${of}`},
+      {label: `Median${where}`, value: `${formatLapTime(medianS)} · ${of}`},
       {
         label: `Inconsistency${where}`,
-        value: `+${(s.medianSumS - s.bestSumS).toFixed(3)} s · ${laps}`,
+        value: `${formatGap(s.inconsistencyS)} s · ${of}`,
       },
     );
   }

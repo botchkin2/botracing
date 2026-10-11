@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
+import type {PitCard} from './pitCard';
 import type {FuelUse} from './fuelUse';
 import type {TiresCard} from './tireCard';
 
@@ -43,5 +44,28 @@ describe('fuelSummary', () => {
 
   it('says so when no lap is in the medians', () => {
     expect(fuelSummary(fuel([]))).toBe('No stint with enough laps');
+  });
+});
+
+describe('pitSummary', () => {
+  const stops = (lanes: (string | null)[]) =>
+    ({
+      kind: 'stops',
+      columns: lanes.map(v => ({lane: v == null ? null : {value: v}})),
+    } as unknown as PitCard);
+
+  it('counts the stops and gives the time each took in the lane', () => {
+    expect(pitSummary(stops(['95.6 s', '45.4 s']))).toBe(
+      '2 stops · 95.6 s and 45.4 s in the lane',
+    );
+    expect(pitSummary(stops(['58.0 s']))).toBe('1 stop · 58.0 s in the lane');
+  });
+
+  it('leaves out a lane time that is not measured', () => {
+    expect(pitSummary(stops([null, null]))).toBe('2 stops');
+  });
+
+  it('has no line for the fuel card of a race with no stop', () => {
+    expect(pitSummary({kind: 'fuel'} as unknown as PitCard)).toBeNull();
   });
 });

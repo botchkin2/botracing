@@ -140,7 +140,7 @@ describe('buildPlanHalf', () => {
       },
       [actual(11)],
     );
-    expect(h.note).toBe('No race length on record.');
+    expect(h.note).toBeNull();
     expect(h.rows).toEqual([{k: 'Finish', p: '—', a: 'DNF L20 · leader L23+'}]);
   });
 
@@ -283,10 +283,10 @@ describe('buildPlanHalf', () => {
     expect(spare.p).toContain(`${Math.round(100 - (e + 1) * 3.5)} % VE`);
   });
 
-  it('says so when the race length is not on record', () => {
+  it('has nothing to show when the race length is not on record', () => {
     const h = half({race: null, classLeaderLapsDone: null});
     expect(h.rows).toEqual([]);
-    expect(h.note).toBe('No race length on record.');
+    expect(h.note).toBeNull();
   });
 
   it('says why there is no plan instead of inventing one', () => {

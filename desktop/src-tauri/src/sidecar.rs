@@ -255,6 +255,9 @@ pub struct Supervisor {
     started_at: Option<Instant>,
     /// Uploads are allowed: signed in and not paused (account.rs decides).
     allowed: bool,
+    /// The tray is quitting or installing an update: no watcher starts again,
+    /// whatever the account says (`shutdown`).
+    shutting_down: bool,
     failures: u32,
     retry_at: Option<Instant>,
     last_report: Option<Instant>,
@@ -268,6 +271,7 @@ impl Supervisor {
             running: None,
             started_at: None,
             allowed: false,
+            shutting_down: false,
             failures: 0,
             retry_at: Some(Instant::now()),
             last_report: None,
@@ -278,7 +282,7 @@ impl Supervisor {
     /// Starts or stops the watcher to match what the account allows. Not
     /// allowed: the watcher and everything it started end now.
     pub fn set_allowed(&mut self, allowed: bool) {
-        if allowed == self.allowed {
+        if self.shutting_down || allowed == self.allowed {
             return;
         }
         self.allowed = allowed;
@@ -291,6 +295,16 @@ impl Supervisor {
         }
     }
 
+    /// For a quit or an update: ends the watcher for good. The poll loop keeps
+    /// ticking while the tray waits on the recorders and the installer runs;
+    /// without this it started a watcher again (and again, on each one's
+    /// death), each a doomed start of the old version.
+    pub fn shutdown(&mut self) {
+        self.shutting_down = true;
+        self.problem = None;
+        self.stop();
+    }
+
     pub fn stop(&mut self) {
         if let Some(running) = self.running.take() {
             running.stop();
@@ -300,7 +314,7 @@ impl Supervisor {
     /// Called every few seconds: notices a watcher that ended and starts
     /// another (after a wait that grows), or reports why it cannot.
     pub fn tick(&mut self, p: &Paths) {
-        if !self.allowed {
+        if !self.allowed || self.shutting_down {
             return;
         }
         if let Some(running) = self.running.as_mut() {
@@ -690,6 +704,40 @@ mod tests {
         s.tick(&p);
         assert!(s.problem.is_some());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // The quit and update paths keep the tray alive for the recorders' stop (up
+    // to 5 s each) and the installer, and the poll loop keeps ticking and asking
+    // set_allowed(true). A plain stop() let it start a watcher straight after
+    // (apex #4316: three old-version starts per update); shutdown() does not.
+    #[test]
+    fn a_shut_down_watcher_is_not_started_again_by_the_poll_loop() {
+        let base = std::env::temp_dir().join(format!("botracing-restart-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        touch(&base.join("root").join(SCRIPT));
+        std::fs::write(
+            base.join("root").join(SCRIPT),
+            "setInterval(() => {}, 1000);",
+        )
+        .unwrap();
+        let mut p = test_paths(Path::new("."));
+        p.root = base.join("root");
+        p.data = base.join("data");
+        let mut s = Supervisor::new();
+        s.set_allowed(true);
+        s.tick(&p);
+        assert!(s.running.is_some(), "first start");
+        s.shutdown(); // what "quit" and "update" do first
+        assert!(s.running.is_none());
+        // The 5 s poll loop, while the tray is still waiting on the recorders.
+        s.set_allowed(true);
+        s.tick(&p);
+        let restarted = s.running.is_some();
+        let problem = s.problem.clone();
+        s.stop();
+        let _ = std::fs::remove_dir_all(&base);
+        assert!(!restarted, "a watcher was started again after shutdown()");
+        assert!(problem.is_none(), "a deliberate stop reads as a problem: {problem:?}");
     }
 
     #[test]

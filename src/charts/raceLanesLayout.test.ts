@@ -80,9 +80,9 @@ describe('lanesLayout', () => {
     });
     // Laps 2, 3, 4 and 5 start at 100, 200, 300, 400... lap 1 is at 0.
     expect(l.lapLines.map(x => [Math.round(x.x), x.label])).toEqual([
-      [0, '2'],
+      [0, 'L2'],
       [67, null],
-      [133, '4'],
+      [133, 'L4'],
       [200, null],
     ]);
   });

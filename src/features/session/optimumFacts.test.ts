@@ -1,41 +1,41 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {type StintOptimum} from '@/src/analysis/sectionOptimum';
-
 import {optimumFacts} from './optimumFacts';
+import type {StintNumbers} from './selectionStats';
 
-const sector = {bestS: 1, bestLapId: 'a', medianS: 1, n: 9};
-const stint = (over: Partial<StintOptimum> = {}): StintOptimum => ({
+const stint = (over: Partial<StintNumbers> = {}): StintNumbers => ({
   stint: 2,
-  lapCount: 9,
-  windows: [sector, sector],
-  bestSumS: 108.62,
-  medianSumS: 109.9,
+  n: 9,
+  lapTimes: {n: 9, bestS: 108.9, medianS: 109.9, spreadS: 0.4},
+  optimalS: 108.62,
+  inconsistencyS: 1.28,
   ...over,
 });
 
 describe('optimumFacts', () => {
-  it('is empty before the sectors', () => {
-    expect(optimumFacts([], 2, 1)).toEqual([]);
+  it('is empty before the segments', () => {
+    expect(optimumFacts([], 1)).toEqual([]);
   });
 
-  it('names the optimal lap, the typical lap and the gap between them with the laps behind them', () => {
-    expect(optimumFacts([stint()], 2, 1)).toEqual([
-      {label: 'Optimal lap', value: '1:48.620 · 9 laps, 2 sectors'},
-      {label: 'Typical lap', value: '1:49.900 · 9 laps'},
-      {label: 'Inconsistency', value: '+1.280 s · 9 laps'},
+  it('names Optimal, Median and Inconsistency, each of the laps behind it', () => {
+    expect(optimumFacts([stint()], 1)).toEqual([
+      {label: 'Optimal', value: '1:48.620 · of 9'},
+      {label: 'Median', value: '1:49.900 · of 9'},
+      {label: 'Inconsistency', value: '+1.280 s · of 9'},
     ]);
   });
 
   it('adds the stint when the session has more than one', () => {
-    expect(optimumFacts([stint()], 2, 3).map(f => f.label)).toEqual([
-      'Optimal lap · stint 2',
-      'Typical lap · stint 2',
+    expect(optimumFacts([stint()], 3).map(f => f.label)).toEqual([
+      'Optimal · stint 2',
+      'Median · stint 2',
       'Inconsistency · stint 2',
     ]);
   });
 
-  it('shows nothing for a stint with a sector under the floor', () => {
-    expect(optimumFacts([stint({bestSumS: null})], 2, 1)).toEqual([]);
+  it('shows nothing for a stint without an Optimal', () => {
+    expect(
+      optimumFacts([stint({optimalS: null, inconsistencyS: null})], 1),
+    ).toEqual([]);
   });
 });

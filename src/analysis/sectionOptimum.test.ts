@@ -21,7 +21,6 @@ describe('sectionOptimum', () => {
       {n: 5, bestS: 20, bestLapId: 'l0', medianS: 22},
     ]);
     expect(s.bestSumS).toBe(30);
-    expect(s.medianSumS).toBe(34);
   });
 
   it('takes the best from different laps and the median of an even count', () => {
@@ -47,7 +46,6 @@ describe('sectionOptimum', () => {
       medianS: 22.5,
     });
     expect(s.bestSumS).toBe(30);
-    expect(s.medianSumS).toBe(35);
   });
 
   it('leaves out a stint under 5 laps', () => {
@@ -77,7 +75,6 @@ describe('sectionOptimum', () => {
     expect(s.windows[1].n).toBe(5);
     // A sum with a hole is not a lap.
     expect(s.bestSumS).toBeNull();
-    expect(s.medianSumS).toBeNull();
   });
 
   it('is empty without laps or windows', () => {

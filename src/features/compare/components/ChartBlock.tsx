@@ -1,5 +1,5 @@
 import {type ReactNode, useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
@@ -19,12 +19,20 @@ import {
   type ChartTimeAxis,
   type ChartValueRow,
   drawRank,
+  STEER_TICKS,
 } from '../model';
+
+/** "off scale: L1, L2" for the laps a fitted scale clips, by channel. */
+function offScaleNote(off: ChartModel['offScale']): string | null {
+  const names = Object.values(off).flat();
+  if (!names || names.length === 0) return null;
+  return `off scale: ${[...new Set(names)].join(', ')}`;
+}
 
 export type LapStyle = (
   selIndex: number,
   highlighted: boolean,
-) => {color: string; width: number; opacity: number; key: boolean};
+) => {color: string; width: number; opacity: number};
 
 const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 // Round 3 R4a: brake fill at 16%, steering as a 1.2 pt line.
@@ -106,6 +114,9 @@ export function ChartBlock({
         dash: chart.pedals ? undefined : OVERLAY_DASH[l.overlay],
         fill: chart.pedals && l.channel === 'brake' ? BRAKE_FILL : undefined,
         domain: chart.domains[l.channel],
+        // The steering band carries its own frame: L 100, 0, R 100.
+        ticks:
+          chart.pedals && l.channel === 'steering' ? STEER_TICKS : undefined,
         rank: drawRank(l),
         stepped: l.channel === 'gear',
       };
@@ -137,6 +148,11 @@ export function ChartBlock({
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
+      {offScaleNote(chart.offScale) ? (
+        <Text variant='dataSmall' tone='textFaint'>
+          {offScaleNote(chart.offScale)}
+        </Text>
+      ) : null}
       {loneEditor && (
         <Pressable
           accessibilityLabel={`Remove ${chart.title}`}
@@ -183,7 +199,13 @@ export function ChartBlock({
               </Text>
             </Pressable>
           )}
-          {valueTexts(r)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.rowScroll}
+            contentContainerStyle={styles.rowScrollContent}>
+            {valueTexts(r)}
+          </ScrollView>
         </View>
       ))}
       {editor && chart.channels.length < MAX_OVERLAY && (
@@ -222,9 +244,6 @@ export function ChartBlock({
         series={series}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
-        sideLabels={
-          chart.zeroLine === 'steering' ? {above: 'L', below: 'R'} : undefined
-        }
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
         cursorM={cursorM}
         onScrub={onScrub}
@@ -321,6 +340,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
   },
+  // The values scroll sideways past the legend; 25 laps no longer overflow the chart.
+  rowScroll: {flex: 1, height: 17},
+  rowScrollContent: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   pills: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs},
   // Next to the label, not at the far edge: at 1440 the edge is ~1,300 pt
   // from the label (Botkin, thread 26 #385).

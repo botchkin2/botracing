@@ -640,7 +640,6 @@ export function buildCornerModel(input: {
       map,
       sectionN: sec.sectionN,
       laps: set,
-      sessionLaps: laps,
       refId: input.refId ?? null,
     }),
     zoom: {

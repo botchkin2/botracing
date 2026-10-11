@@ -256,7 +256,10 @@ describe('buildSectionWindow', () => {
     const none = buildSectionWindow({
       map: m,
       sectionN: 2,
-      laps: lapsOf(rawLap('old', section2(), {v: 1, rev: 2}), rawLap('b', section2())),
+      laps: lapsOf(
+        rawLap('old', section2(), {v: 1, rev: 2}),
+        rawLap('b', section2()),
+      ),
     });
     expect(none?.referenceNote).toBeNull();
   });
@@ -312,14 +315,9 @@ describe('buildSectionWindow optimum', () => {
       ),
     );
 
-  it('shows the window best, median and gap over the session laps, with n', () => {
+  it('shows the window best, median and gap over the ticked laps, with n', () => {
     const laps = sixLaps();
-    const w = buildSectionWindow({
-      map: m,
-      sectionN: 2,
-      laps: laps.slice(0, 1),
-      sessionLaps: laps,
-    });
+    const w = buildSectionWindow({map: m, sectionN: 2, laps});
     expect(w?.optimum).toEqual([
       {
         label: 'Stint 1',
@@ -330,6 +328,21 @@ describe('buildSectionWindow optimum', () => {
         gap: '+0.250',
       },
     ]);
+  });
+
+  it('follows the ticks: untick the slowest and best, median and n move (decision 2026-10-11)', () => {
+    const laps = sixLaps();
+    const w = buildSectionWindow({map: m, sectionN: 2, laps: laps.slice(0, 5)});
+    // 12.0 … 12.4: median 12.2.
+    expect(w?.optimum[0]).toMatchObject({n: '5 laps', median: '12.200'});
+  });
+
+  it('counts a ticked lap that is not comparable: the user chose it', () => {
+    const laps = sixLaps().map((l, i) =>
+      i === 0 ? {...l, comparable: false} : l,
+    );
+    const w = buildSectionWindow({map: m, sectionN: 2, laps});
+    expect(w?.optimum[0]).toMatchObject({n: '6 laps', best: '12.000'});
   });
 
   it('is empty under 5 laps', () => {

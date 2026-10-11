@@ -81,7 +81,7 @@ export type SectionWindowModel = {
   /** The parts of a compound section to drill into; empty for one corner. */
   parts: {n: number; label: string; fromM: number; toM: number}[];
   rows: SectionWindowRow[];
-  /** Per stint of 5 or more laps, the window's best and median over every comparable lap; empty under 5 times. */
+  /** Per stint of 5 or more ticked laps, the window's best and median over them (decision 2026-10-11); empty under 5 times. */
   optimum: WindowOptimumRow[];
   /** Laps shown as "re-analysis pending". */
   pendingCount: number;
@@ -128,8 +128,6 @@ export function buildSectionWindow(input: {
   map: TrackMapData;
   sectionN: number;
   laps: Lap[];
-  /** Every lap of the session, for the window's best and median. */
-  sessionLaps?: Lap[];
   /** The Ref lap when one is picked; else each column is measured against the median of the set. */
   refId?: string | null;
 }): SectionWindowModel | null {
@@ -255,7 +253,7 @@ export function buildSectionWindow(input: {
       };
     }),
     rows,
-    optimum: optimumRows(input.sessionLaps ?? laps, map, sectionN),
+    optimum: optimumRows(laps, map, sectionN),
     pendingCount: states.filter(s => s === 'stale').length,
     // Only a picked Ref is "the reference": with none the basis is the median
     // of the set, and no lap in the list is singled out.
@@ -271,7 +269,9 @@ function refNote(
   const at = refId ? laps.findIndex(l => l.id === refId) : -1;
   if (at < 0 || laps.length < 2 || states[at] === 'ok') return null;
   return `Reference L${laps[at].lapIndex} ${
-    states[at] === 'stale' ? 'is pending re-analysis' : 'crosses the pit lane here'
+    states[at] === 'stale'
+      ? 'is pending re-analysis'
+      : 'crosses the pit lane here'
   }; no gaps.`;
 }
 
@@ -280,7 +280,10 @@ function optimumRows(
   map: TrackMapData,
   sectionN: number,
 ): WindowOptimumRow[] {
-  const optimum = sessionOptimum(laps, map);
+  // Corner's set is never empty when the card shows (it opens on the
+  // session's opening laps, the same basis Session uses), so it needs no
+  // fallback to the comparable laps.
+  const optimum = sessionOptimum(laps, map, {picked: true});
   const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
   const at = optimum?.windows.findIndex(
     w => w.kind === 'section' && w.section === sectionN,

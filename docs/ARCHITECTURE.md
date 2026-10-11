@@ -50,8 +50,22 @@ Worked example: `src/features/sessions/model.ts` and `model.test.ts`.
 
 Every screen follows the same shape: `use<Screen>Model(params)` combines the queries with `analysis` into one view model, and the screen renders it. Models are pure given their inputs and are unit-tested.
 
+### Session on the phone
+
+Under 900 pt the Session page reads, top to bottom: the head (Best and Median large, "21 laps · 14 comparable" under them; session facts), Lap times (the chart, then one Optimal · Median · gap · "of N" line per stint, `optimumLines.ts` over `StintNumbers`), Laps (the section grid and the lap table), then Pit stops (a fold, open when there were stops, the energy line inside), Tires (open) and Fuel use (folded). Desktop, and 900 to 1279, keep their own layout.
+
+The grid and the lap table scroll sideways as one (`session/components/linkedScroll.tsx`): every row and the head of a table share one offset, the lap column (grid) or checkbox, lap, time and vs med (table) stay pinned. One scroller drives at a time, from the first touch of a drag until its momentum ends, or until it has been quiet for 150 ms where there are no such events (a wheel on web); the offsets the others report back while it drives are ignored, or a fling would be pulled back. A scroller that mounts late (the table is virtualised) starts at the current offset.
+
 ### Numbers: one basis, named
 
+The rule (decision `pit-wall/decisions/lap/2026-10-11-selection-and-numbers.md`): **facts are the session's, comparisons are the selection's.** A fact says what happened and never moves with a tick: Laps, Comparable, Best, the session Median, energy, fuel, tires, pit stops. Anything that compares laps or measures spread is over the **basis laps**, the ticked ones (or the comparable ones when none is ticked), and says how many it is "of". Every number below is from `src/features/session/selectionStats.ts`, so one question has one answer on a screen.
+
+- **Session, per segment:** the grid heads, the desktop table under the lap list (Median / Best / IQR) and the best-cell marks are one computation (`segmentBasisStats`).
+- **Session, per lap:** the lap table's "vs med", the lap-time bars, the lap strip and the detail ("vs median of N") use the basis median.
+- **Session, per stint:** the stint line in the lap table ("med · IQR · of N"), the desktop Stints panel and the Optimal / Median / Inconsistency facts. Optimal is the best basis segments summed (each segment needs 5 times, `MIN_OPTIMUM_LAPS`); Median is the median lap time of the same laps, a time that was driven; Inconsistency = Median − Optimal. No "Typical lap".
+- **Corner:** the per-stint best and median rows of the window are over the ticked laps.
+- **Spread is the IQR (p75 − p25) everywhere, and is called IQR.** No standard deviation is shown.
+- **A ticked lap counts even when it is not comparable:** the user chose it. Pit, off-track and full-course yellow windows still drop out of a segment by themselves (`windowOptimum.ts`).
 - **Gap basis (Compare):** the chips, the "vs" line and the All laps list measure against the same basis: the Ref lap if one is picked, else the median of the checked laps. The session median only stands in when nothing is checked.
 - **Fuel and VE per lap (Session, Plan):** the median over the stint's green laps (timed, whole, no pit, no yellow; `greenLaps` in `session/fuelUse.ts`), the set the stored stint medians and the Plan use. A slow or off-track lap still burns fuel. Printed with `oneDecimal` (`design/format.ts`, half up on the stored value) so Session and Plan show the same figure for the same median.
 - **Full pedal (Corner):** the driver's pedal, not the car's throttle (see the Corner table below).

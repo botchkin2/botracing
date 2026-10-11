@@ -18,3 +18,5 @@ The checks, at every width: no side scroll on the page; nothing past the right e
 Measure with `tools/dev/layoutProbe.js` on a live slot (`docs/TESTING.md`): store it in `window.name`, navigate to each route at each width, run `eval(window.name)`. A scroller whose `bottom` is past the window's height is the #481 bug (its last rows are under the fold).
 
 For taps, `tools/dev/hitProbe.js` (same way, one expression): it samples every tappable's drawn box and fails when another tappable answers there, and lists controls under 44 pt (phone) or 24 pt (desktop) in what a tap reaches.
+
+Chart text: `tools/dev/chartLabelProbe.js`, the same way. It lists every svg's labels and any label box that crosses its svg's edge (`outside`, should be empty), plus text views laid over a clipped chart wrapper (`overlays`). The rule it checks is `src/charts/README.md` (inside the box).

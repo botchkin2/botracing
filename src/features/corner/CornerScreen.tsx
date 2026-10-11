@@ -206,7 +206,6 @@ function CornerView({
 
   const [notice, setNotice] = useState<string | null>(null);
   // Phone: the lap table is one tap away, the strips stay the first read.
-  const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
   const lapStyle = (
@@ -220,7 +219,7 @@ function CornerView({
           width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
           opacity: 1,
         }
-      : lapStroke(scheme, Math.max(1, selIndex), count, false);
+      : lapStroke(scheme, Math.max(1, selIndex), false);
   const lapColor = (
     onIndex: number | null,
     selIndex: number,
@@ -444,6 +443,7 @@ function CornerView({
                   minLabel={s.minLabel}
                   maxLabel={s.maxLabel}
                   unit={s.unit}
+                  midLabel={s.midLabel}
                   resolution={s.resolution}
                   leftWord={s.leftWord}
                   rightWord={s.rightWord}

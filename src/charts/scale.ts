@@ -63,6 +63,7 @@ export function fitScale(
       EMPTY.lo,
       EMPTY.hi,
       niceStep(EMPTY.hi - EMPTY.lo, maxTicks),
+      opts.format,
     );
   }
   if (opts.symmetric) {

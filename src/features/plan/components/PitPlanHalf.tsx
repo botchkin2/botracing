@@ -95,6 +95,9 @@ export function PlanHalfView({
   failed?: boolean;
 }) {
   const {color} = useTheme();
+  // No note and no rows: nothing to compare, so no card (not a header over an
+  // empty line).
+  if (half && !half.note && half.rows.length === 0 && !failed) return null;
   return (
     <View style={styles.card}>
       <View style={styles.title}>

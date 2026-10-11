@@ -54,7 +54,9 @@ describe('buildSessionModel', () => {
   it('stint header rows precede their laps', () => {
     expect(m.rows[0]).toMatchObject({
       kind: 'stint',
-      label: 'Stint 1 · L1–L17 · med 1:21.938 · ± 0.91 s',
+      // The opening ticks are none here, so the basis is the comparable laps:
+      // 13 of stint 1, IQR 1.219 s recomputed from the fixture's lap times.
+      label: 'Stint 1 · L1–L17 · med 1:21.938 · IQR 1.22 s · of 13',
     });
     expect(m.rows.filter(r => r.kind === 'stint')).toHaveLength(2);
   });
@@ -214,8 +216,11 @@ describe('traffic tags, rails and the clean best', () => {
   const m = buildSessionModel(session, toLaps(raw), none);
 
   it('a towed best lap shows TOW first, then BEST', () => {
-    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual(['TOW 6.1', 'BEST']);
-    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0');
+    expect(lapRow(m, 'L21').tags.map(t => t.code)).toEqual([
+      'TOW 6.1 s',
+      'BEST',
+    ]);
+    expect(lapRow(m, 'L10').tags.map(t => t.code)).toContain('TRAF 5.0 s');
   });
 
   it('hollow bars and rails come from the traffic facts', () => {
@@ -278,7 +283,7 @@ describe('fuel and Virtual Energy rows', () => {
     expect(m.rows[i + 1]).toEqual({
       kind: 'note',
       key: expect.stringContaining('-pit'),
-      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+      text: 'Pit: 33.3 L / 40 % VE left (11.1 laps · VE) · +41.7 L · 91 s',
       pitLapIndex: 17,
     });
   });
@@ -404,17 +409,23 @@ describe('sectionTable', () => {
     ],
   };
 
-  it('gives median, best and spread over every comparable lap', () => {
-    const table = sectionTable(times)!;
-    const [median, best, spread] = table.footer;
+  it('gives median, best and IQR over the basis laps, named IQR', () => {
+    const table = sectionTable(times, new Set(['a', 'b', 'c', 'd', 'e']))!;
+    expect(table.footer.map(r => r.label)).toEqual(['Median', 'Best', 'IQR']);
+    const [median, best, iqr] = table.footer;
     expect(median.cells).toEqual(['10.20']);
     expect(best.cells).toEqual(['10.00']);
-    expect(spread.cells).toEqual(['0.20']);
+    // 10.0 … 10.4: p75 10.3 − p25 10.1.
+    expect(iqr.cells).toEqual(['0.20']);
   });
 
-  it('shows dashes, not a count, under five laps', () => {
-    const table = sectionTable({...times, laps: times.laps.slice(0, 3)})!;
-    for (const row of table.footer) expect(row.cells).toEqual(['—']);
+  it('follows the ticks: unticking the slowest two moves every row', () => {
+    const table = sectionTable(times, new Set(['a', 'b', 'c']))!;
+    expect(table.footer.map(r => r.cells[0])).toEqual([
+      '10.10',
+      '10.00',
+      '0.10',
+    ]);
   });
 });
 
@@ -458,12 +469,12 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
     heads: ['S/F', 'T1', 'T2–5', 'T6', 'T7', 'T10a–T12'],
     sections: [null, 1, 2, 3, 4, 5],
     targets: [
-      {corner: null, whole: false},
-      {corner: 1, whole: false},
-      {corner: 2, whole: true},
-      {corner: 6, whole: false},
-      {corner: 7, whole: false},
-      {corner: 10, whole: false},
+      {corner: null},
+      {corner: 1},
+      {corner: 2},
+      {corner: 6},
+      {corner: 7},
+      {corner: 10},
     ],
     footer: [],
   };
@@ -471,20 +482,20 @@ describe('gridCellTargetOf (Road Atlanta numbering)', () => {
   it('opens the corner by its number, not the section number (S3 is T6, corner 6)', () => {
     expect(gridCellTargetOf(table, 3, 'L4', ['L4'])).toEqual({
       corner: 6,
-      whole: false,
       laps: ['L4'],
     });
   });
 
-  it('opens a compound section whole, on its first corner (S2 is T2–5: corner 2, all)', () => {
-    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.corner).toBe(2);
-    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])?.whole).toBe(true);
+  it('opens a compound section on its first part, not All (S2 is T2–5: corner 2)', () => {
+    expect(gridCellTargetOf(table, 2, 'L4', ['L4'])).toEqual({
+      corner: 2,
+      laps: ['L4'],
+    });
   });
 
   it('keeps the checked set: the tapped lap is only a highlight', () => {
     expect(gridCellTargetOf(table, 1, 'L1', ['L4', 'L5'])).toEqual({
       corner: 1,
-      whole: false,
       laps: ['L4', 'L5'],
     });
   });

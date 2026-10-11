@@ -1,5 +1,5 @@
-// Best and median time per corner window over one stint's laps, and the two
-// sums (pit-wall thread 46, #1771 as corrected in #1794 and #1802). Pure:
+// Best and median time per corner window over one stint's laps, and the best
+// times summed (pit-wall thread 46, #1771 as corrected in #1794 and #1802). Pure:
 // the caller decides which window times count and passes null for the rest.
 //
 // Only off-track, yellow and pit windows are left out (by the caller);
@@ -9,8 +9,9 @@
 // of a session describes a car that never ran.
 //
 // "Best sections summed" is a bound, not a lap anyone drove, and it falls as
-// laps are added; "sum of window medians" is not a driven lap either, but it
-// barely moves with the lap count. Both carry their n.
+// laps are added, so it carries its n. There is no sum of window medians: the
+// median a stint shows is its median lap time, a lap that was driven
+// (decisions/lap/2026-10-11-selection-and-numbers.md).
 
 /** Fewest times a window needs before its best and median are shown. */
 export const MIN_OPTIMUM_LAPS = 5;
@@ -39,7 +40,6 @@ export interface StintOptimum {
   windows: WindowOptimum[];
   /** Null unless every window has a best, since a sum with a hole is not a lap. */
   bestSumS: number | null;
-  medianSumS: number | null;
 }
 
 function median(sorted: number[]): number {
@@ -85,18 +85,12 @@ export function sectionOptimum(
       windows.push(windowOptimum(stintLaps, i));
     const whole = windowCount > 0 && windows.every(w => w.bestS != null);
     let bestSumS = 0;
-    let medianSumS = 0;
-    if (whole)
-      for (const w of windows) {
-        bestSumS += w.bestS as number;
-        medianSumS += w.medianS as number;
-      }
+    if (whole) for (const w of windows) bestSumS += w.bestS as number;
     out.push({
       stint,
       lapCount: stintLaps.length,
       windows,
       bestSumS: whole ? bestSumS : null,
-      medianSumS: whole ? medianSumS : null,
     });
   }
   return out;
