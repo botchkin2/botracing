@@ -95,17 +95,27 @@ export async function fetchSessionBand(
   );
 }
 
-/** A track layout's corner map, by its id (GET /tracks/{trackId}/map). */
+/**
+ * A track layout's corner map, by its id (GET /tracks/{trackId}/map), or null
+ * when the layout has none (404: an iRacing track before its map is made). None
+ * is an answer, not a failure: it is kept for the hour a map is, so the screen
+ * draws without it and nothing asks again.
+ */
 export async function fetchTrackMap(
   trackId: string,
   signal?: AbortSignal,
-): Promise<TrackMapData> {
-  return toTrackMap(
-    await getJson<Record<string, unknown>>(
-      `/tracks/${encodeURIComponent(trackId)}/map`,
-      signal,
-    ),
-  );
+): Promise<TrackMapData | null> {
+  try {
+    return toTrackMap(
+      await getJson<Record<string, unknown>>(
+        `/tracks/${encodeURIComponent(trackId)}/map`,
+        signal,
+      ),
+    );
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /** A track layout's measured surface, or null when it has none yet (404) or the file is not usable. */
