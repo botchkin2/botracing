@@ -52,6 +52,7 @@ import {
   type CompareModel,
   type CompareSelection,
   drawRank,
+  pressAllLapsRow,
   sectionStartM,
   setRef,
   toggleCompared,
@@ -158,8 +159,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
             {stint.rows.map(r => (
               <Pressable
                 key={r.lapId}
+                accessibilityLabel={`${
+                  r.selIndex != null ? 'Highlight' : 'Compare'
+                } ${r.label}`}
                 onPress={() =>
-                  p.onSelectionChange(toggleCompared(selection, r.lapId))
+                  p.onSelectionChange(pressAllLapsRow(selection, r.lapId))
                 }
                 style={[styles.allRow, !r.comparable && styles.dim]}>
                 <Checkbox

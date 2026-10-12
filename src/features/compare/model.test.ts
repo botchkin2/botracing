@@ -25,6 +25,7 @@ import {
   removeLap,
   sectionStartM,
   setRef,
+  pressAllLapsRow,
   toggleHighlight,
   toggleCompared,
   valuesAt,
@@ -858,6 +859,13 @@ describe('selection edits', () => {
   it('highlighting toggles', () => {
     expect(toggleHighlight(sel(), 'b').hl).toBe('b');
     expect(toggleHighlight(sel({hl: 'b'}), 'b').hl).toBeNull();
+  });
+  it('an All laps row highlights a ticked lap (the wide Compare has no other highlight control) and ticks an unticked one', () => {
+    const ticked = sel({laps: ['a', 'b', 'c']});
+    expect(pressAllLapsRow(ticked, 'b').hl).toBe('b');
+    expect(pressAllLapsRow(pressAllLapsRow(ticked, 'b'), 'b').hl).toBeNull();
+    expect(pressAllLapsRow(ticked, 'z').laps).toContain('z');
+    expect(pressAllLapsRow(ticked, 'z').hl).toBeNull();
   });
   it('the Ref lap cannot be removed, while another lap can', () => {
     expect(removeLap(sel({ref: 'a'}), 'a')).toEqual(sel({ref: 'a'}));
