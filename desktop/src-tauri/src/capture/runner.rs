@@ -294,15 +294,10 @@ pub fn start_iracing(root: PathBuf) -> Handle {
             while !stop_t.load(Ordering::SeqCst) {
                 let wait = rec.tick(now_ms());
                 *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
-                // In slices, so a quit is seen within one (stop_within).
-                let end = std::time::Instant::now() + wait;
-                while !stop_t.load(Ordering::SeqCst) {
-                    let left = end.saturating_duration_since(std::time::Instant::now());
-                    if left.is_zero() {
-                        break;
-                    }
-                    rec.src().wait(left.min(STOP_SLICE));
-                }
+                // One wait, as before: it returns early on the sim's next tick
+                // (the 60 Hz recording depends on that). Capped at STOP_SLICE so a
+                // quit is seen within one, and so is the sim starting.
+                rec.src().wait(wait.min(STOP_SLICE));
             }
             rec.shutdown(now_ms());
             *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
@@ -311,7 +306,6 @@ pub fn start_iracing(root: PathBuf) -> Handle {
     Handle { stop, join, line }
 }
 
-/// The loop: tick, publish the status for the menu, sleep what the tick asked.
 /// The longest a recorder sleeps before it looks at its stop flag again. With
 /// no game the tick asks for 5 s, and a quit waited that long for the thread
 /// while it held the tray's event loop (quit.log "recorders stopped +3.8s").
@@ -329,6 +323,7 @@ pub fn sleep_unless_stopped(d: Duration, stop: &AtomicBool) {
     }
 }
 
+/// The loop: tick, publish the status for the menu, sleep what the tick asked.
 pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<Line>) {
     while !stop.load(Ordering::SeqCst) {
         let sleep = rec.tick(now_ms());

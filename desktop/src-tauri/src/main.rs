@@ -287,7 +287,8 @@ enum OnQuit {
 fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
     let log = QuitLog::start(app, "quit requested");
     // The event loop notes when the exit reaches it and when it ends, so an
-    // "exit forced" says which step never came. Managed once: quit happens once.
+    // "exit forced" says which step never came. `manage` keeps the first value:
+    // a second quit in one run (none today) would note into the first log.
     app.manage(log.clone());
     log.note(&format!("windows open: {}", app.webview_windows().len()));
     let (app2, log2) = (app.clone(), log.clone());
