@@ -135,6 +135,27 @@ const captureRoot = resolve(
       resolve(process.env.LOCALAPPDATA || homedir(), 'lap-capture'),
   ),
 );
+// --live <captureDir>: live laps (syncLive.mjs). Only that capture's finished
+// laps, as archive parts; no game files, no analysis. Remote only.
+const liveDir = arg('--live', '');
+if (liveDir) {
+  if (!remoteStore) {
+    console.error('--live uploads; it needs --remote (or LAP_API).');
+    process.exit(2);
+  }
+  const {syncLive} = await import('./syncLive.mjs');
+  const capture = await import('./lmuCapture.mjs');
+  const r = await syncLive({
+    captureDir: resolve(liveDir),
+    ownerId,
+    work,
+    store: remoteStore,
+    capture,
+    log: line => console.log(line),
+  });
+  console.log(`live: done ${r.sessions}`);
+  process.exit(0);
+}
 // Sessions analyzed at once, each in its own worker thread. The work is
 // CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
 // default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at

@@ -1,0 +1,79 @@
+// sync.mjs --live <captureDir> (pit-wall thread 66): one capture's finished
+// laps up as archive parts while LMU runs. No analysis here: the session doc
+// says what the list shows and reads stale, and the first open analyses it in
+// the cloud. The watcher runs this at idle priority each time the recorder puts
+// a lap on disk (status.json lastLapAt).
+//
+// Each realtime stretch of the capture is a recording, grouped into sessions
+// the way game files are (sessionFiles.mjs), so ids are stable as laps arrive.
+// A part is written once (a finished lap never changes) and sent once (md5).
+import {existsSync, mkdirSync} from 'node:fs';
+import {basename, resolve} from 'node:path';
+import {groupFiles} from './sessionFiles.mjs';
+import {liveRecordingDoc, liveSessionDoc, partName} from './liveSession.mjs';
+
+/**
+ * @param {object} input
+ * @param {string} input.captureDir
+ * @param {string} input.ownerId
+ * @param {string} input.work            sync.mjs's work folder
+ * @param {{uploadLive: Function}} input.store
+ * @param {{describeCapture: Function, writeCaptureArchive: Function}} input.capture
+ * @param {() => string} [input.now]
+ * @param {(line: string) => void} [input.log]
+ */
+export async function syncLive({
+  captureDir,
+  ownerId,
+  work,
+  store,
+  capture,
+  now = () => new Date().toISOString(),
+  log = () => {},
+}) {
+  const {stretches} = capture.describeCapture(captureDir);
+  const files = stretches
+    .filter(s => s.laps.length > 0)
+    .map(s => ({
+      path: captureDir,
+      info: {...s.info, source: s.key},
+      laps: s.laps,
+    }));
+  if (files.length === 0) {
+    log(`live: no finished lap in ${basename(captureDir)}`);
+    return {sessions: 0};
+  }
+  let sessions = 0;
+  for (const session of groupFiles(files, ownerId)) {
+    const dir = resolve(work, 'live', session.id);
+    mkdirSync(dir, {recursive: true});
+    const recordings = [];
+    const upload = [];
+    for (const f of session.files) {
+      const sim = f.info.sim;
+      f.laps.forEach((lap, i) => {
+        const n = partName(i);
+        const samples = resolve(dir, `${f.id}.samples.${n}.parquet`);
+        const events = resolve(dir, `${f.id}.events.${n}.parquet`);
+        // A finished lap never changes: its part is written once.
+        if (!existsSync(samples) || !existsSync(events))
+          capture.writeCaptureArchive(captureDir, f.info, lap, samples, events);
+        const prefix = `archive/${sim}/${session.id}/${f.id}`;
+        upload.push({local: samples, dest: `${prefix}/samples.${n}.parquet`});
+        upload.push({local: events, dest: `${prefix}/events.${n}.parquet`});
+      });
+      recordings.push({id: f.id, info: f.info, parts: f.laps});
+    }
+    const out = {
+      session: liveSessionDoc({ownerId, sessionId: session.id, recordings, nowIso: now()}),
+      recordings: recordings.map(recording =>
+        liveRecordingDoc({ownerId, sessionId: session.id, recording}),
+      ),
+      files: upload,
+    };
+    log(`live: ${session.id} ${out.session.lapCount} laps`);
+    await store.uploadLive(out, {log});
+    sessions++;
+  }
+  return {sessions};
+}
