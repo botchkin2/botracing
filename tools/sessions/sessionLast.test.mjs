@@ -122,3 +122,13 @@ test('blocks taken from the stored docs are named in the stamp', async () => {
   assert.equal(stamp.blocks.raceLength, 1);
   assert.equal(stamp.blocks.tyres, 2);
 });
+
+test('a session stored under newer rules is left alone: nothing is written', async () => {
+  const newer = {analysis: analysisStamp(18, {}), race: {minutes: 40}};
+  const docs = new Map([['sessions/s1', newer]]);
+  const backend = backendOver(docs);
+  const r = await createStore(backend).upload(outFor());
+  assert.deepEqual(r, {skipped: 'newer'});
+  assert.deepEqual(backend.calls, []);
+  assert.equal(docs.get('sessions/s1'), newer);
+});
