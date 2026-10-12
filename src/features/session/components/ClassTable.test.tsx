@@ -79,7 +79,7 @@ describe('ClassTableView', () => {
     const open = texts(r);
     expect(open).toContain('+0.059');
     expect(open).toContain('+0.754');
-    expect(open.filter(s => s === 'BMW M4 LMGT3').length).toBe(6);
+    expect(open.filter(s => s === 'BMW M4').length).toBe(6);
     act(() => row.props.onPress());
     expect(texts(r)).not.toContain('+0.754');
   });

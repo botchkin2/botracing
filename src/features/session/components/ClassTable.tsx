@@ -12,6 +12,9 @@ import {type ClassEntry, type ClassRow, type ClassTable} from '../classTable';
 // best lap or sector, and a class best is not theirs. See classTable.ts.
 
 const COLS = {name: 3, a: 2.4, b: 2.4, c: 1} as const;
+// An unfolded car row: the name takes the room the gap does not need, so a
+// model like 'Porsche 911 GT3 R' fits at 375.
+const ENTRY_COLS = {name: 4.6, best: 2.4, gap: 1.8} as const;
 
 export function ClassTableView({table}: {table: ClassTable}) {
   const [open, setOpen] = useState<string | null>(null);
@@ -115,16 +118,16 @@ function EntryLine({entry, accent}: {entry: ClassEntry; accent: string}) {
       <Text
         variant={entry.player ? 'dataStrong' : 'dataSmall'}
         numberOfLines={1}
-        style={{flex: COLS.name}}>
+        style={{flex: ENTRY_COLS.name}}>
         {entry.car ?? ''}
       </Text>
-      <Text variant='dataSmall' style={[styles.num, {flex: COLS.a}]}>
+      <Text variant='dataSmall' style={[styles.num, {flex: ENTRY_COLS.best}]}>
         {formatLapTime(entry.bestS)}
       </Text>
       <Text
         variant='dataSmall'
         tone='textMuted'
-        style={[styles.num, {flex: COLS.b + COLS.c}]}>
+        style={[styles.num, {flex: ENTRY_COLS.gap}]}>
         {entry.rank === 1 ? '' : formatGap(entry.gapS)}
       </Text>
     </View>

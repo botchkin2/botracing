@@ -63,9 +63,19 @@ describe('classTable', () => {
     expect(e.filter(x => x.player)).toHaveLength(1);
   });
 
-  it('names cars the way the rest of the app does, and leaves an unnamed one blank', () => {
+  it('names cars the way the rest of the app does, without the class the row already sits under, and leaves an unnamed one blank', () => {
     const e = t.rows[0].entries;
-    expect(e[0].car).toBe('BMW M4 LMGT3');
+    expect(e[0].car).toBe('BMW M4');
+    // 'GT3 R' is the model, not the class: only LMU's class token goes.
+    expect(e.map(x => x.car)).toContain('Porsche 911 GT3 R');
+    const lmh = classTable({
+      ...base,
+      vehicles: ['Aston Martin Valkyrie LMH'],
+      classes: {
+        hypercar: {bestsS: [80, 81], vehicleAt: [0, 0], player: null},
+      },
+    })!;
+    expect(lmh.rows[0].entries[0].car).toBe('Aston Martin Valkyrie');
     expect(e[5].car).toBeNull();
   });
 

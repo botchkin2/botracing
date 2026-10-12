@@ -10,6 +10,7 @@ import {PANEL_DIVIDER_W, PanelDivider, Pressable, Text} from '@/src/ui';
 import {useSessionDesktopModel} from '../desktopModel';
 import {type RowModel, type Selection, type SessionScreenModel} from '../model';
 
+import {ClassTableView} from './ClassTable';
 import {EnergyLineRow} from './EnergyLineRow';
 import {LapTableHeader, SectionFooter, WIDE_ROW_H} from './LapTableRow';
 import {SessionGrid} from './SessionGrid';
@@ -172,6 +173,9 @@ export function SessionWorkspace({
                       ))}
                     </View>
                   </>
+                ) : null}
+                {model.classTable ? (
+                  <ClassTableView table={model.classTable} />
                 ) : null}
               </View>
               <View style={styles.chart}>{chart(innerW)}</View>

@@ -19,13 +19,24 @@ const LABELS: Record<PaceClass, string> = {
   other: 'Other',
 };
 
+/**
+ * The class LMU appends to a field car's model ("BMW M4 LMGT3", "Ferrari 296
+ * LMGT3 Evo", "Aston Martin Valkyrie LMH"): dropped, since the row already sits under its class and a 375
+ * column cuts the name otherwise.
+ */
+const CLASS_TOKEN = /\s+LM(?:GT3|GTE|P2|P3|H|DH)\b/i;
+
+/** A field car's name: the app's car-name rule, then without its class. */
+const fieldCarName = (vehicle: string) =>
+  carLabel(vehicle).model.replace(CLASS_TOKEN, '').trim();
+
 /** The fifth-fastest car stands for the front of a class; with fewer cars, the last one. */
 const FRONT_CARS = 5;
 
 export type ClassEntry = {
   /** Position in the class by best lap, from 1. */
   rank: number;
-  /** The car model as the app names cars (carLabel); null when the recorder had none. */
+  /** The car model as the app names cars (carLabel), without its class; null when the recorder had none. */
   car: string | null;
   bestS: number;
   /** Seconds behind the class's fastest car; 0 for the fastest. */
@@ -79,7 +90,7 @@ export function classTable(
       const vehicle = at >= 0 ? b.vehicles[at] ?? null : null;
       return {
         rank: i + 1,
-        car: vehicle ? carLabel(vehicle).model : null,
+        car: vehicle ? fieldCarName(vehicle) : null,
         bestS,
         gapS: bestS - best,
         player: c.player === i,
