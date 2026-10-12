@@ -2,7 +2,7 @@
 // bundles this file and everything it imports into functions/lib/engine.cjs):
 // analysis on open, the store over Admin credentials, and the versions a
 // stored session is checked against.
-export {AnalyzeError, analyzeStored} from './analyzeStored.mjs';
+export {AnalyzeError, analyzeStored, staleNow} from './analyzeStored.mjs';
 export {adminBackend} from './store.mjs';
 export {analysisVersion, blockVersions} from './analyze.mjs';
-export {isStale, stampNewer} from './versionKey.mjs';
+export {isStale} from './versionKey.mjs';

@@ -32,13 +32,16 @@ export function analysisStamp(analysisVersion, blockVersions, kept = []) {
 
 /**
  * Whether a session needs analysing again under these rules: no stamp (every
- * session written before stamps), an older analysis version, or any block
+ * session written before stamps), an older analysis version, a curated track
+ * that changed since (`catalog`, catalogStamp.mjs, when given), or any block
  * older than the code's. A kept block is left out of the test: nothing can
  * bring it up to date, so counting it would re-run the session on every open.
  */
-export function isStale(stamp, analysisVersion, blockVersions) {
+export function isStale(stamp, analysisVersion, blockVersions, catalog) {
   if (!stamp || typeof stamp.v !== 'number') return true;
   if (stamp.v < analysisVersion) return true;
+  // The curated track it was cut at, when the caller knows today's.
+  if (catalog !== undefined && stamp.catalog !== catalog) return true;
   const kept = new Set(stamp.kept ?? []);
   for (const [name, v] of Object.entries(blockVersions)) {
     if (kept.has(name)) continue;
