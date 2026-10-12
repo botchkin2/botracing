@@ -175,16 +175,6 @@ export function SessionWorkspace({
                 ) : null}
               </View>
               <View style={styles.chart}>{chart(innerW)}</View>
-              <SessionGrid
-                id={sessionId}
-                ticked={selection.laps}
-                onTap={lapId =>
-                  onSelectionChange({
-                    ...selection,
-                    laps: toggle(selection.laps, lapId),
-                  })
-                }
-              />
               <View style={[styles.rowPad, {backgroundColor: color.surface}]}>
                 <LapTableHeader
                   width={innerW}
@@ -217,6 +207,17 @@ export function SessionWorkspace({
                   <SectionFooter table={model.sections} width={innerW} />
                 </View>
               ) : null}
+              {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
+              <SessionGrid
+                id={sessionId}
+                ticked={selection.laps}
+                onTap={lapId =>
+                  onSelectionChange({
+                    ...selection,
+                    laps: toggle(selection.laps, lapId),
+                  })
+                }
+              />
               {tagKey}
             </View>
           }

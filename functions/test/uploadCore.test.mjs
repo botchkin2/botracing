@@ -990,3 +990,23 @@ test('the usage counters on a user that never sent a heartbeat have no heartbeat
   await write(w, 'tok-a', [lap('l1', 'uidA')]);
   assert.equal(w.usage.get('uidA').heartbeats, 0);
 });
+
+// The server never drops a write for being older (pit-wall thread 1 #4654):
+// a stored session analysed in the cloud under newer rules still takes a whole
+// write from an installed tray, which may bring a new drive, and then reads
+// stale until opened. The skip lives in the client (store.mjs).
+test('a write over a session analysed under newer rules still lands', async () => {
+  const w = world();
+  w.docs.set('sessions/s1', {
+    ownerId: 'uidA',
+    analysis: {v: 99, blocks: {}, kept: []},
+  });
+  const lap = {
+    op: 'set',
+    coll: 'laps',
+    id: 'l1',
+    data: {ownerId: 'uidA', sessionId: 's1', lapTime: 99},
+  };
+  assert.equal((await write(w, 'tok-a', [lap])).status, 204);
+  assert.equal(w.docs.get('laps/l1').lapTime, 99);
+});

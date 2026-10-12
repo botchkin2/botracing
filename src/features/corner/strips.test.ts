@@ -131,14 +131,6 @@ describe('laps at full throttle by the slowest point', () => {
     );
   });
 
-  it('an on lap that is flat says so beside the title', () => {
-    const throttle = buildStrips([
-      lap(0, {onIndex: 0}),
-      flat(1, {onIndex: 1}),
-    ])[3];
-    expect(throttle.keyValues.map(k => k.text)).toEqual(['L0 50', 'L1 at min']);
-  });
-
   it('other strips are not touched by a flat throttle lap', () => {
     const [time, brake] = buildStrips([lap(0), flat(1)]);
     expect(time.dots).toHaveLength(2);

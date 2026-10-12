@@ -26,6 +26,7 @@ import {parsePlanQuery} from './planQuery';
 import {traceDelivery} from './traceCore';
 import {notModified, trackIdOk} from './trackMapCore';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {sessionStale} from './engine';
 import {reportError} from './problems';
 
 if (!admin.apps.length) {
@@ -128,7 +129,10 @@ export const lmuApi = onRequest(
         // does not pass If-None-Match through): a client that holds this plan
         // gets a 304 and no download; within max-age it does not ask at all. A
         // plan changes only when a session is resynced or uploaded.
-        const etag = `"p-${createHash('sha1').update(body).digest('hex').slice(0, 20)}"`;
+        const etag = `"p-${createHash('sha1')
+          .update(body)
+          .digest('hex')
+          .slice(0, 20)}"`;
         res.set('Cache-Control', 'private, max-age=60');
         res.set('ETag', etag);
         if (notModified(req.headers['if-none-match'], etag)) {
@@ -264,6 +268,13 @@ export const lmuApi = onRequest(
           res.status(404).json({error: 'Not found'});
           return;
         }
+        // Made under older rules: the app asks analyzeApi to run it again
+        // (analysis on open, pit-wall thread 1 #4572).
+        if (!part)
+          body.stale = await sessionStale(body, async (coll, id) => {
+            const doc = await admin.firestore().doc(`${coll}/${id}`).get();
+            return doc.exists ? doc.data() : null;
+          });
         res.status(200).json(body);
         return;
       }

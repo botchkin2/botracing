@@ -55,6 +55,13 @@
         }
       },
       {
+        "source": "/api/analyze/**",
+        "function": {
+          "functionId": "analyzeApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/upload/**",
         "function": {
           "functionId": "uploadApi",

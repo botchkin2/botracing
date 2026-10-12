@@ -2,7 +2,13 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {analysisVersion, blockVersions} from './analyze.mjs';
-import {analysisStamp, isStale, versionKey, withKept} from './versionKey.mjs';
+import {
+  analysisStamp,
+  isStale,
+  stampNewer,
+  versionKey,
+  withKept,
+} from './versionKey.mjs';
 
 test('the key is the analysis version and every block, in a fixed order', () => {
   assert.equal(
@@ -91,4 +97,27 @@ test('a kept block carries the version it was made under, not the code version',
   // A stored doc from before stamps: 0, made under no known rule.
   assert.equal(withKept(fresh, ['pitVisit'], null).blocks.pitVisit, 0);
   assert.equal(withKept(fresh, [], stored), fresh);
+});
+
+test('a stored stamp is newer only when it was made under later rules', () => {
+  const code = analysisStamp(17, {tyres: 2, pitVisit: 3});
+  assert.equal(stampNewer(null, code), false);
+  assert.equal(stampNewer(code, code), false);
+  assert.equal(stampNewer(analysisStamp(18, {}), code), true);
+  assert.equal(stampNewer(analysisStamp(16, {tyres: 9}), code), false);
+  assert.equal(
+    stampNewer(analysisStamp(17, {tyres: 3, pitVisit: 3}), code),
+    true,
+  );
+  assert.equal(
+    stampNewer(analysisStamp(17, {tyres: 1, pitVisit: 3}), code),
+    false,
+  );
+  // A writer with no stamp (a tray from before stamps) is older than any stamp.
+  assert.equal(stampNewer(code, null), true);
+  // A kept block says nothing about the code that wrote the doc.
+  assert.equal(
+    stampNewer(analysisStamp(17, {tyres: 2, pitVisit: 9}, ['pitVisit']), code),
+    false,
+  );
 });

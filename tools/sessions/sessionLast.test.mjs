@@ -122,3 +122,60 @@ test('blocks taken from the stored docs are named in the stamp', async () => {
   assert.equal(stamp.blocks.raceLength, 1);
   assert.equal(stamp.blocks.tyres, 2);
 });
+
+test('a session stored under newer rules is left alone: nothing is written', async () => {
+  const newer = {analysis: analysisStamp(18, {}), race: {minutes: 40}};
+  const docs = new Map([['sessions/s1', newer]]);
+  const backend = backendOver(docs);
+  const r = await createStore(backend).upload(outFor());
+  assert.deepEqual(r, {skipped: 'newer'});
+  assert.deepEqual(backend.calls, []);
+  assert.equal(docs.get('sessions/s1'), newer);
+});
+
+test('a new drive lands even over a session analysed under newer rules', async () => {
+  const newer = {
+    analysis: analysisStamp(18, {}),
+    race: {minutes: 40},
+    recordingIds: ['r1'],
+  };
+  const docs = new Map([['sessions/s1', newer]]);
+  const backend = backendOver(docs);
+  const out = outFor();
+  out.session.recordingIds = ['r1', 'r2'];
+  const r = await createStore(backend).upload(out);
+  assert.notDeepEqual(r, {skipped: 'newer'});
+  assert.deepEqual(docs.get('sessions/s1').recordingIds, ['r1', 'r2']);
+  // Written under the older rules: it reads stale, and opening it runs it again.
+  assert.equal(docs.get('sessions/s1').analysis.v, 17);
+});
+
+test('a practice uploaded one drive at a time ends as the same docs as all at once', async () => {
+  const lapsOf = n =>
+    Array.from({length: n}, (_, k) => ({
+      id: `r${Math.floor(k / 2) + 1}-${String(k).padStart(3, '0')}`,
+      lapTime: 90 + k,
+      comparable: true,
+      traffic: null,
+      pitStop: null,
+    }));
+  const run = async steps => {
+    const docs = new Map();
+    const backend = backendOver(docs);
+    backend.sessionLapIds = async id =>
+      [...docs.keys()].filter(k => k.startsWith('laps/')).map(k => k.slice(5));
+    for (const drives of steps) {
+      const out = outFor();
+      out.session.recordingIds = Array.from(
+        {length: drives},
+        (_, k) => `r${k + 1}`,
+      );
+      out.laps = lapsOf(drives * 2);
+      out.recordings = out.session.recordingIds.map(id => ({id}));
+      await createStore(backend).upload(out);
+    }
+    const strip = ([k, v]) => [k, {...v, updatedAt: undefined}];
+    return [...docs].map(strip).sort(([a], [b]) => a.localeCompare(b));
+  };
+  assert.deepEqual(await run([1, 2, 3]), await run([3]));
+});

@@ -29,7 +29,8 @@ import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
-import {withKept} from './versionKey.mjs';
+import {stampNewer, withKept} from './versionKey.mjs';
+import {captureExtractPath} from './captureExtract.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -243,8 +244,28 @@ function boundaryOps(boundaries) {
 
 // out is what sync.mjs builds: {session, recordings, laps, band, track,
 // traces, files}. track is set only when this session made a new corner map.
+// A drive the stored session does not have yet (a practice's next run out
+// of the garage): new data, written whatever the stamps say. It lands with
+// this writer's stamp and reads stale until opened (pit-wall thread 1 #4651).
+function bringsNewRecordings(before, session) {
+  const stored = new Set(before?.recordingIds ?? []);
+  return (session.recordingIds ?? []).some(id => !stored.has(id));
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
+
+  // Never older analysis over newer, checked before any file is written: a
+  // PC behind the cloud's code leaves a session the cloud already analysed
+  // alone (pit-wall thread 1 #4573).
+  const before = await backend.getDoc('sessions', session.id);
+  if (
+    stampNewer(before?.analysis, session.analysis) &&
+    !bringsNewRecordings(before, session)
+  ) {
+    log('  skipped: the stored session was analysed under newer rules');
+    return {skipped: 'newer'};
+  }
 
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
@@ -294,6 +315,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   await Promise.all(workers);
   log(`  traces ${traces}`);
 
+  if (out.captureExtract)
+    await putGzip(
+      captureExtractPath(session.ownerId, session.id),
+      JSON.stringify(out.captureExtract),
+      'application/json',
+    );
   if (out.band) {
     await putGzip(
       session.band.path,
@@ -318,7 +345,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   }
   // The field: a new one replaces the stored one (and its file goes after the
   // doc points at the new one); no new one keeps what is stored (field.mjs).
-  const before = await backend.getDoc('sessions', session.id);
   // An iRacing field uploaded before fields carried classes, its capture gone:
   // the stored file with every car's class from the .ibt, as a new file that
   // replaces it (irClasses.relabelField).
@@ -483,10 +509,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // The session doc goes last, on its own: it carries the analysis stamp, so
   // it must never land fresh over laps that did not. A failure before it
   // leaves the old stamp, and the session is analysed again.
-  await backend.writeDocs(ops);
-  await backend.writeDocs([
-    {op: 'set', coll: 'sessions', id: session.id, data: session},
-  ]);
+  const writer = {stamp: session.analysis ?? null};
+  await backend.writeDocs(ops, writer);
+  await backend.writeDocs(
+    [{op: 'set', coll: 'sessions', id: session.id, data: session}],
+    writer,
+  );
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.
   if (kept.deletePath) await backend.deleteFile(kept.deletePath);
@@ -536,6 +564,14 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    // A session's capture extract on its own (captureExtract.mjs), for the
+    // sessions uploaded before extracts were kept.
+    putCaptureExtract: (ownerId, sessionId, extract) =>
+      backend.putFile(
+        captureExtractPath(ownerId, sessionId),
+        {body: Buffer.from(JSON.stringify(extract), 'utf8')},
+        {contentType: 'application/json', gzip: true},
+      ),
   };
 }
 
@@ -545,6 +581,8 @@ const admin = () => createStore(adminBackend(connect()));
 export const getTrack = trackId => admin().getTrack(trackId);
 export const updateEvents = items => admin().updateEvents(items);
 export const upload = (out, options) => admin().upload(out, options);
+export const putCaptureExtract = (ownerId, sessionId, extract) =>
+  admin().putCaptureExtract(ownerId, sessionId, extract);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>

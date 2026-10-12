@@ -56,17 +56,18 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {captureExtract} from './captureExtract.mjs';
 import {checkDoc} from './docShape.mjs';
-import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {packState, unpackState} from './layoutBoundaries.mjs';
 import {planBlock} from './planBlock.mjs';
-import {forgetOtherOwners, freshState, markDone} from './syncState.mjs';
+import {
+  forgetOtherOwners,
+  freshState,
+  markDone,
+  uploadDue,
+} from './syncState.mjs';
 
 import {openRemoteStore} from './remoteStore.mjs';
-import {
-  DEFAULT_RESYNC_CAP,
-  catalogStamp,
-  staleByCatalog,
-} from './catalogStamp.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -111,7 +112,6 @@ const firstWindowDays = Number(arg('--first-window-days', '0'));
 // A remote sync analyses again at most this many sessions per run because the
 // curated track catalog changed (newest first), so one edit does not send every
 // session of a busy track through the upload at once.
-const resyncCap = Number(arg('--catalog-resync-cap', DEFAULT_RESYNC_CAP));
 const only = arg('--only', '');
 // Session ids to leave alone this pass: the watcher's failed sessions still
 // waiting on their backoff.
@@ -177,10 +177,13 @@ function group(files) {
   // What a change of analysis or of a file's size makes a different session
   // fingerprint: the unchanged ones are not analysed again.
   for (const s of sessions) {
+    const sources = s.files.map(f => `${f.info.source}:${f.size}`);
     s.fingerprint = hash(
       versionKey(analysisVersion, blockVersions),
-      ...s.files.map(f => `${f.info.source}:${f.size}`),
+      ...sources,
     );
+    // The recordings alone: what makes an upload due again (uploadDue).
+    s.sources = hash(...sources);
   }
   return sessions;
 }
@@ -256,21 +259,6 @@ async function boundariesFor(trackId, store) {
   return state;
 }
 
-// The state of a track's curated data in the catalog this run read, once per
-// track (catalogStamp.mjs): what a session is recorded as analysed under.
-const catalogStamps = new Map();
-async function stampFor(trackId, store) {
-  if (!catalogStamps.has(trackId))
-    catalogStamps.set(
-      trackId,
-      catalogStamp(
-        await trackMapFor(trackId, store),
-        await boundariesFor(trackId, store),
-      ),
-    );
-  return catalogStamps.get(trackId);
-}
-
 function keepBoundaries(trackId, state) {
   boundaryStates.set(trackId, state);
   mkdirSync(resolve(work, 'tracks'), {recursive: true});
@@ -296,6 +284,47 @@ function eventsOf(s, eventWindows) {
     },
     recordings,
   };
+}
+
+// The session's track and wall-clock window, the key a capture joins on.
+function spanOf(s) {
+  const first = s.files[0].info;
+  const last = s.files[s.files.length - 1].info;
+  return {
+    tracks: [first.track, first.layout],
+    startMs: Date.parse(first.recordedAt),
+    endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
+  };
+}
+
+// Sessions uploaded before the tray kept capture extracts, whose capture is
+// still on the PC: their extract goes up once, by itself, with no analysis
+// (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
+// is sent once.
+async function uploadCaptureBacklog(sessions, state, store) {
+  state.extracts ??= {};
+  let sent = 0;
+  for (const s of sessions) {
+    if (!state.sessions[s.id] || state.extracts[s.id]) continue;
+    const span = spanOf(s);
+    const first = s.files[0].info;
+    const extract = captureExtract({
+      damage: damageFor(captureRoot, span),
+      raceLength:
+        first.sim === 'lmu' && /^r/i.test(first.sessionType)
+          ? raceLengthFor(captureRoot, span)
+          : null,
+    });
+    // No capture on the PC: nothing to keep, and nothing to try again.
+    if (extract) {
+      await store.putCaptureExtract(ownerId, s.id, extract);
+      sent++;
+    }
+    // Saved per session, so a run stopped mid-backlog resumes where it was.
+    state.extracts[s.id] = extract ? 'sent' : 'none';
+    saveState(state);
+  }
+  if (sent) log(`capture extracts kept for ${sent} uploaded session(s)`);
 }
 
 function build(
@@ -340,13 +369,7 @@ function build(
     });
   }
 
-  const last = s.files[s.files.length - 1].info;
-  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
-  const span = {
-    tracks: [first.track, first.layout],
-    startMs: Date.parse(first.recordedAt),
-    endMs,
-  };
+  const span = spanOf(s);
   // iRacing: the tray's live capture against the .ibt of the same drive, lap
   // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
   // Every capture this session read (field, damage, race length, the player
@@ -402,6 +425,12 @@ function build(
     // the field carried classes gets them (store.mjs, irClasses.relabelField).
     ibtDrivers,
     liveCheck,
+    // The capture's damage and race length, kept in the store for analysis
+    // on open once the capture is pruned (captureExtract.mjs).
+    captureExtract: captureExtract({
+      damage,
+      raceLength: sim === 'lmu' ? raceLength : null,
+    }),
     capturesUsed,
     files,
   };
@@ -507,80 +536,25 @@ async function main() {
   }
 
   // Newest first: recent sessions matter most, and a long backfill fills in
-  // the past last.
-  state.revs ??= {};
-  state.stamps ??= {};
-  // A session whose corner times were cut at boundaries that have since moved
-  // is re-analysed, even though nothing about its files changed.
-  const boundariesMoved = async s => {
-    const rev = (await boundariesFor(trackOf(s), store))?.rev;
-    return staleRev(state.revs[s.id], rev);
-  };
-  const stale = new Set();
-  if (!force && !local) {
-    for (const s of sessions) {
-      // --check evaluates every session, so a throw here shows even on a
-      // machine whose state has not seen them yet.
-      const same = state.sessions[s.id] === s.fingerprint;
-      if ((same || check) && (await boundariesMoved(s)) && same)
-        stale.add(s.id);
-    }
-  }
-  // A remote sync reads the curated catalog and re-analyses the sessions
-  // whose track changed in it (a map added, a map edited), per track, capped
-  // per run, newest first. The stamp is read once per track from the catalog.
-  const stamps = new Map();
-  const catalogStale = new Set();
-  if (catalogOnly && !force && !check) {
-    const synced = [...sessions]
-      .reverse()
-      .filter(s => state.sessions[s.id] === s.fingerprint)
-      .map(s => ({id: s.id, trackId: trackOf(s)}));
-    for (const {trackId} of synced)
-      if (!stamps.has(trackId))
-        stamps.set(trackId, await stampFor(trackId, store));
-    const found = staleByCatalog({
-      sessions: synced,
-      stamps: state.stamps,
-      current: stamps,
-      cap: resyncCap,
-    });
-    for (const [id, stamp] of found.adopt) state.stamps[id] = stamp;
-    if (found.adopt.size) saveState(state);
-    for (const id of found.stale) catalogStale.add(id);
-    if (catalogStale.size)
-      log(
-        `${catalogStale.size} session(s) on a track whose curated data changed`,
-      );
-    if (found.deferred)
-      log(
-        `${found.deferred} more wait for a later run (cap ${resyncCap} per run)`,
-      );
-  }
+  // the past last. A session is analysed here the first time it is seen, and
+  // again only when its recordings changed. A change of analysis rules or of
+  // the curated track never re-syncs a stored session: it reads stale, and
+  // opening it analyses it again in the cloud (pit-wall thread 1 #4611).
   let todo = [...sessions]
     .reverse()
-    .filter(
-      s =>
-        force ||
-        local ||
-        state.sessions[s.id] !== s.fingerprint ||
-        stale.has(s.id) ||
-        catalogStale.has(s.id),
-    );
-  if (stale.size) log(`${stale.size} session(s) on older corner boundaries`);
+    .filter(s => force || local || uploadDue(s, state));
   const waiting = todo.filter(s => skipIds.has(s.id));
   if (waiting.length) {
     log(`${waiting.length} session(s) waiting on a retry: skipped`);
     todo = todo.filter(s => !skipIds.has(s.id));
   }
+  if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by
   // curate from a named set (tools/curate, tools/sessions/surface.mjs).
   if (check) {
-    log(
-      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries`,
-    );
+    log(`check ok: ${sessions.length} sessions, ${todo.length} to do`);
     return;
   }
   const first = await runPool(todo, store, state, eventWindows);
@@ -682,9 +656,10 @@ async function runPool(
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
         if (!local) {
-          markDone(state, s.id, s.fingerprint, ownerId);
-          if (r.rev != null) state.revs[s.id] = r.rev;
-          if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
+          markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          state.extracts ??= {};
+          // Its extract, if the capture gave one, went up with it.
+          state.extracts[s.id] = 'with-session';
           saveState(state);
         }
       } else {

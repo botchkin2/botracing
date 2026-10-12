@@ -592,16 +592,6 @@ function SessionView({
                     onDrag={ids => onSelectionChange({...selection, laps: ids})}
                   />
                 </View>
-                <SessionGrid
-                  id={sessionId}
-                  ticked={selection.laps}
-                  onTap={lapId =>
-                    onSelectionChange({
-                      ...selection,
-                      laps: toggle(selection.laps, lapId),
-                    })
-                  }
-                />
                 <View style={styles.section}>
                   <LapTableHeader
                     width={tableW}
@@ -623,6 +613,17 @@ function SessionView({
             }
             ListFooterComponent={
               <View style={[styles.footer, {width: tableW}]}>
+                {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
+                <SessionGrid
+                  id={sessionId}
+                  ticked={selection.laps}
+                  onTap={lapId =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, lapId),
+                    })
+                  }
+                />
                 {layout.isDesktop ? null : (
                   <FoldedSection title='Tags' summary={null}>
                     <TagKey />

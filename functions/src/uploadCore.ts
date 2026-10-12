@@ -40,7 +40,7 @@ const READABLE = [...TRACK_DATA, 'sessions', 'laps'];
 const UPDATABLE = ['sessions', 'recordings'];
 const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
 // Bucket folders (docs/STORAGE.md) and which carry the owner key as segment 2.
-const OWNER_SCOPED = ['traces', 'bands', 'field', 'slices'];
+const OWNER_SCOPED = ['traces', 'bands', 'field', 'slices', 'inputs'];
 
 const CONTENT_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
 // The sims tools/sessions writes under archive/{sim}/.

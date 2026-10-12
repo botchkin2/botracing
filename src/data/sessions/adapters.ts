@@ -358,6 +358,8 @@ export function toSessionTraffic(v: unknown): SessionTraffic | null {
 
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
+  /** Made under older analysis rules: opening it runs it again (analysisOnOpen.ts). */
+  stale: boolean;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
   /** The Plan's block of this session (the uploader's planBlock.mjs); null before it existed. */
@@ -398,6 +400,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
   return {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
+    stale: raw.stale === true,
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),

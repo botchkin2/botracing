@@ -309,8 +309,12 @@ describe('All on a compound corner', () => {
     expect(sectionChips(all, all[1]).all).toEqual({selected: false});
     expect(sectionChips(all, all[0]).all).toBeNull();
     // A compound section's chip opens on All: the chip says so.
-    expect(chips.sections.find(x => x.sectionN === all[1].sectionN)?.compound).toBe(true);
-    expect(chips.sections.find(x => x.sectionN === all[0].sectionN)?.compound).toBe(false);
+    expect(
+      chips.sections.find(x => x.sectionN === all[1].sectionN)?.compound,
+    ).toBe(true);
+    expect(
+      chips.sections.find(x => x.sectionN === all[0].sectionN)?.compound,
+    ).toBe(false);
     expect(whole.all).toEqual({selected: true});
   });
 
