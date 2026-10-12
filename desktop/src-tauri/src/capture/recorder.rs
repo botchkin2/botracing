@@ -45,6 +45,9 @@ pub struct Status {
     pub layout_ok: Option<bool>,
     pub layout_reason: String,
     pub last_chunk_at: Option<String>,
+    /// When the chunk that ends at the player's last line crossing was on
+    /// disk: a finished lap is readable from then (live laps, pit-wall thread 66).
+    pub last_lap_at: Option<String>,
     pub session_dir: Option<String>,
     pub capture_bytes: u64,
     /// Share of the open capture's player frames missed, in percent.
@@ -59,6 +62,7 @@ impl Status {
             layout_ok: None,
             layout_reason: String::new(),
             last_chunk_at: None,
+            last_lap_at: None,
             session_dir: None,
             capture_bytes: 0,
             dropped_pct: 0.0,
@@ -72,6 +76,7 @@ impl Status {
             "layoutOk": self.layout_ok,
             "layoutReason": self.layout_reason,
             "lastChunkAt": self.last_chunk_at,
+            "lastLapAt": self.last_lap_at,
             "sessionDir": self.session_dir,
             "captureBytes": self.capture_bytes,
             "droppedPct": self.dropped_pct,
@@ -113,6 +118,10 @@ pub struct Recorder<S: Source> {
     frames: (u64, u64),
     /// Frames missed before the frame being added (set by `suspect`).
     missed: u64,
+    /// The player's lap number in the open capture's last frame.
+    last_lap: Option<i32>,
+    /// Lap-end chunks handed to the writer and not yet on disk.
+    laps_pending: usize,
     pub status: Status,
     status_written: Option<u64>,
     recounted: Option<u64>,
@@ -143,6 +152,8 @@ impl<S: Source> Recorder<S> {
             prev_motion: None,
             frames: (0, 0),
             missed: 0,
+            last_lap: None,
+            laps_pending: 0,
             status,
             status_written: None,
             recounted: None,
@@ -187,6 +198,9 @@ impl<S: Source> Recorder<S> {
                 let dir = capture.dir.file_name().map(|n| n.to_string_lossy().into_owned());
                 self.capture = Some(capture);
                 self.key = Some(key);
+                // A new capture starts its own lap count: no cut on its first frame.
+                self.last_lap = None;
+                self.laps_pending = 0;
                 self.player_ok = None;
                 self.prev_motion = None;
                 self.frames = (0, 0);
@@ -295,18 +309,7 @@ impl<S: Source> Recorder<S> {
             } else {
                 capture.written()
             };
-            match written {
-                // lastChunkAt: when a chunk is on disk, not when it was cut.
-                Ok(bytes) if bytes > 0 => {
-                    self.status.capture_bytes += bytes;
-                    self.set(now, |s| s.last_chunk_at = Some(iso(now)));
-                }
-                Ok(_) => self.set(now, |_| {}),
-                Err(why) => {
-                    let key = self.key.clone();
-                    self.refuse(now, key, &write_reason(&why));
-                }
-            }
+            self.chunks_written(now, written);
             if self.capture.is_some() {
                 return POLL;
             }
@@ -477,15 +480,60 @@ impl<S: Source> Recorder<S> {
             if suspect {
                 capture.note_suspect();
             }
-            capture.count("playerFrames", 1);
-            capture.count("missedFrames", missed);
-            capture.add_player(&sample.raw, now);
+            // The player crossed the line: the lap that ended is cut into a
+            // chunk of its own before the new lap's first frame, so it is on
+            // disk within a write instead of up to a minute later.
+            let lap = i32_at(&sample.raw, self.probe.t_lap);
+            let crossed = self.last_lap.is_some_and(|prev| prev != lap);
+            self.last_lap = Some(lap);
+            let cut = if crossed {
+                let written = capture.flush(now);
+                if written.is_ok() {
+                    self.laps_pending += 1;
+                }
+                Some(written)
+            } else {
+                None
+            };
+            if let Some(capture) = self.capture.as_mut() {
+                capture.count("playerFrames", 1);
+                capture.count("missedFrames", missed);
+                capture.add_player(&sample.raw, now);
+            }
+            if let Some(written) = cut {
+                self.chunks_written(now, written);
+            }
         }
         // The menu shows it only past 1%: set on a change of whole percent.
         if pct.floor() != self.status.dropped_pct.floor() {
             self.set(now, |s| s.dropped_pct = pct);
         } else {
             self.status.dropped_pct = pct;
+        }
+    }
+
+    /// What the writer finished: bytes counted, lastChunkAt (and lastLapAt
+    /// once a lap-end chunk is among them) set, or the capture refused.
+    fn chunks_written(&mut self, now: u64, written: Result<u64, String>) {
+        match written {
+            // lastChunkAt: when a chunk is on disk, not when it was cut.
+            Ok(bytes) if bytes > 0 => {
+                self.status.capture_bytes += bytes;
+                // The writer finishes chunks in order: a lap-end chunk handed
+                // over before this poll is on disk once anything is.
+                let lap = std::mem::take(&mut self.laps_pending) > 0;
+                self.set(now, |s| {
+                    s.last_chunk_at = Some(iso(now));
+                    if lap {
+                        s.last_lap_at = Some(iso(now));
+                    }
+                });
+            }
+            Ok(_) => self.set(now, |_| {}),
+            Err(why) => {
+                let key = self.key.clone();
+                self.refuse(now, key, &write_reason(&why));
+            }
         }
     }
 
@@ -809,6 +857,54 @@ mod tests {
         assert_eq!(rig.meta(&folder)["chunks"], 2);
         assert!(rig.root.join(&folder).join("player-0001.parquet").is_file());
         assert!(rec.status.capture_bytes > 0);
+    }
+
+    #[test]
+    fn a_line_crossing_cuts_the_lap_into_its_own_chunk_and_says_when_it_is_on_disk() {
+        let (rig, mut rec) = Rig::new("lapcut");
+        let lap = |n: i32| rig.put(rig.telem("mLapNumber"), &n.to_le_bytes());
+        rig.field("Road Atlanta", 10, 5.0);
+        lap(3);
+        rig.player("Road Atlanta", 5.00);
+        rec.tick(1_000);
+        rig.player("Road Atlanta", 5.01);
+        rec.tick(1_010);
+        assert_eq!(rec.status.last_lap_at, None);
+        // The line: lap 4 begins. Its first frame opens the next chunk, long
+        // before the 60 s rotation.
+        lap(4);
+        rig.player("Road Atlanta", 5.02);
+        rec.tick(1_020);
+        for i in 0..200 {
+            if rec.status.last_lap_at.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            rec.tick(1_021 + i);
+        }
+        assert!(rec.status.last_lap_at.is_some(), "the lap-end chunk never reached the disk");
+        let folder = rig.folders().remove(0);
+        assert!(rig.root.join(&folder).join("player-0000.parquet").is_file());
+        assert_eq!(rig.status_file()["lastLapAt"], rec.status.last_lap_at.clone().unwrap());
+        rec.shutdown(5_000);
+        // Two chunks: the lap that ended (2 frames), then the new lap's start.
+        assert_eq!(rig.meta(&folder)["chunks"], 2);
+        assert_eq!(rig.meta(&folder)["playerFrames"], 3);
+    }
+
+    #[test]
+    fn the_first_frame_of_a_capture_is_not_a_crossing() {
+        let (rig, mut rec) = Rig::new("lapfirst");
+        rig.put(rig.telem("mLapNumber"), &7_i32.to_le_bytes());
+        rig.field("Road Atlanta", 10, 5.0);
+        rig.player("Road Atlanta", 5.00);
+        rec.tick(1_000);
+        rig.player("Road Atlanta", 5.01);
+        rec.tick(1_010);
+        rec.shutdown(2_000);
+        let folder = rig.folders().remove(0);
+        assert_eq!(rig.meta(&folder)["chunks"], 1);
+        assert_eq!(rec.status.last_lap_at, None);
     }
 
     #[test]
