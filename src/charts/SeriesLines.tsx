@@ -4,6 +4,9 @@ import {Path} from 'react-native-svg';
 import {areaPath} from './chunkPaths';
 import {paint} from './paintExperiment';
 
+// Not in PathProps' types; react-native-svg on web passes it to the <path>.
+const SPEED = {shapeRendering: 'optimizeSpeed'} as Record<string, string>;
+
 // One series' line, as the chunks it draws (chunkPaths.ts). While Compare
 // plays, the chart scrolls these with a transform on a group outside this
 // component, and the chunk strings stay the same for many frames. This memo
@@ -73,7 +76,7 @@ function SeriesLinesView({
           strokeDasharray={dash}
           strokeLinejoin={paint.nojoin ? undefined : 'round'}
           vectorEffect={paint.nss ? undefined : 'non-scaling-stroke'}
-          shapeRendering={paint.speed ? 'optimizeSpeed' : undefined}
+          {...(paint.speed ? SPEED : {})}
           fill='none'
         />
       ))}
@@ -97,7 +100,7 @@ function SeriesLinesView({
           strokeDasharray={dash}
           strokeLinejoin={paint.nojoin ? undefined : 'round'}
           vectorEffect={paint.nss ? undefined : 'non-scaling-stroke'}
-          shapeRendering={paint.speed ? 'optimizeSpeed' : undefined}
+          {...(paint.speed ? SPEED : {})}
           fill='none'
         />
       ))}
