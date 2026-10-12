@@ -1,15 +1,15 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import type {RaceLanes as RaceLanesModel} from '@/src/analysis/raceLanes';
 import {RaceLanes} from '@/src/charts';
 import {radius, size, space, useTheme} from '@/src/design';
-import {Segment, Text} from '@/src/ui';
+import {Pressable, Segment, Text} from '@/src/ui';
 
 import {RACE_RATES, type RaceRate, STEP_S} from '../clock';
 
 const ICON = 16;
-// The phone's scrub strip: the five lanes over the whole session, 9 pt each
+// The phone's scrub strip: the six lanes over the whole session, 9 pt each
 // (the same height as the phone's lanes block), no labels.
 const STRIP_LANE_H = 9;
 

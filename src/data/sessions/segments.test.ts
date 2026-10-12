@@ -1,6 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {segmentOptimum} from '@/src/analysis/segments';
+import {sectionOptimum} from '@/src/analysis/sectionOptimum';
+import type {SegmentTimes} from '@/src/analysis/segments';
 
 import {toLaps, toTrackMap} from './adapters';
 import {
@@ -103,50 +104,6 @@ describe('turnSegmentTimes', () => {
   });
 });
 
-describe('tow and traffic per segment', () => {
-  // A car within 1 s ahead from 200 to 300 m of the field's 1000 m lap.
-  const near = {
-    aheadSpans: [{fromM: 200, toM: 300, s: 3}],
-    draftSpans: [],
-    blueSpans: [],
-    fieldLapM: 1000,
-  };
-
-  it('marks the segment the span falls in, and no other', () => {
-    const t = turnSegmentTimes(
-      toLaps([rawLap('a', 0, true, near), rawLap('b', 1)]),
-      map(),
-    );
-    expect(t?.laps[0].alone).toEqual([true, false]);
-    expect(t?.laps[1].alone).toBeUndefined();
-  });
-
-  it('scales the field’s lap distance to the map’s', () => {
-    // The field lapped 2000 m, the map is 1000 m: 200–300 m there is 100–150 m
-    // here, inside the start straight (0–150).
-    const t = turnSegmentTimes(
-      toLaps([rawLap('a', 0, true, {...near, fieldLapM: 2000})]),
-      map(),
-    );
-    expect(t?.laps[0].alone).toEqual([false, true]);
-  });
-
-  it('counts a tow the same way', () => {
-    const tow = {
-      ...near,
-      aheadSpans: [],
-      draftSpans: [{fromM: 0, toM: 100, s: 2}],
-    };
-    const t = turnSegmentTimes(toLaps([rawLap('a', 0, true, tow)]), map());
-    expect(t?.laps[0].alone).toEqual([false, true]);
-  });
-
-  it('cannot be told for the game’s sectors, which have no place on the lap', () => {
-    const t = sectorSegmentTimes(toLaps([rawLap('a', 0, true, near)]));
-    expect(t?.laps[0].alone).toBeUndefined();
-  });
-});
-
 describe('sectorSegmentTimes', () => {
   it('is S1 to S3 from the times every lap carries, with no place on the lap', () => {
     const t = sectorSegmentTimes(laps());
@@ -176,8 +133,13 @@ describe('segmentTimesFor', () => {
   });
 
   it('runs one optimum over either producer', () => {
-    const turns = segmentOptimum(turnSegmentTimes(laps(), map())!)[0];
-    const sectors = segmentOptimum(sectorSegmentTimes(laps())!)[0];
+    const optimum = (t: SegmentTimes) =>
+      sectionOptimum(
+        t.laps.map(l => ({id: l.id, stint: l.stint, windowsS: l.timesS})),
+        t.segments.length,
+      )[0];
+    const turns = optimum(turnSegmentTimes(laps(), map())!);
+    const sectors = optimum(sectorSegmentTimes(laps())!);
     expect(turns.bestSumS).toBe(100);
     expect(sectors.bestSumS).toBe(100);
   });

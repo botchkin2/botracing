@@ -7,7 +7,13 @@
 // laps, never from the car class: with no VE the VE parts are removed, not
 // shown as 0 or "—". The refuel time is litres added over the measured rate
 // and is left out where that rate is not measured (src/analysis/refuel.ts).
-import {refuelS, refuelScope} from '@/src/analysis/refuel';
+import {firstLapOf} from '@/src/analysis/lapSlots';
+import {
+  REFUEL_FUEL_MIN_L,
+  REFUEL_VE_MIN_PCT,
+  refuelS,
+  refuelScope,
+} from '@/src/analysis/refuel';
 import {WHEELS, type Wheel} from '@/src/analysis/tyres';
 import {endingLap, racePitLaps} from '@/src/data/sessions';
 import type {
@@ -17,6 +23,7 @@ import type {
   SessionType,
 } from '@/src/data/sessions';
 
+import {limitingLaps, limitingLeft} from './fuelLines';
 import {tyresText} from './pitReview';
 
 /** A bold value and a muted line under it. */
@@ -95,6 +102,19 @@ export type ActualEnd = {
   lapsLeft: number | null;
 };
 
+/**
+ * A refuel stop: the visit says it refuelled, or (sessions before the visit
+ * block) litres were added. Tyre, damage and penalty stops add none, so the
+ * plan (which only plans fuel) is never compared with them.
+ */
+export function isRefuelStop(stop: PitStop): boolean {
+  if (stop.visit) return stop.visit.did.includes('refuel');
+  return (
+    (stop.added.fuelL ?? 0) >= REFUEL_FUEL_MIN_L ||
+    (stop.added.vePct ?? 0) >= REFUEL_VE_MIN_PCT
+  );
+}
+
 /** The race's side of "Plan vs what happened". */
 export type PitActual = {stops: ActualStop[]; end: ActualEnd | null};
 
@@ -144,18 +164,12 @@ export function sessionHasVe(laps: Lap[]): boolean {
 }
 
 /** The tighter of the two meters' laps, as the lap table's pit line has it. */
-function lapsLeft(left: {
-  fuel: number | null;
-  ve: number | null;
-}): number | null {
-  const v = [left.fuel, left.ve].filter((x): x is number => x != null);
-  return v.length ? Math.min(...v) : null;
-}
+const lapsLeft = (left: {fuel: number | null; ve: number | null}) =>
+  limitingLeft(left)?.laps ?? null;
 
 function inCell(stop: PitStop, hasVe: boolean): Cell {
   const {fuelL, vePct} = stop.atEntry;
-  const left = lapsLeft(stop.lapsLeftAtEntry);
-  const lapsNote = left != null ? lapsOf(left) : null;
+  const lapsNote = limitingLaps(stop.lapsLeftAtEntry);
   if (hasVe)
     return {
       value: fuelL != null ? litres(fuelL) : vePct != null ? pct(vePct) : '—',
@@ -333,14 +347,14 @@ function column(
 
 /** "3.7 L / 4 % VE (1.1 laps)": what was left on the last whole lap. */
 function leftText(f: NonNullable<Lap['fuel']>, hasVe: boolean): string {
-  const l = lapsLeft({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe});
+  const l = limitingLaps({fuel: f.lapsLeftFuel, ve: f.lapsLeftVe});
   return join(
     [
       f.endL != null && litres(f.endL),
       hasVe && f.veEndPct != null && `${pct(f.veEndPct)} VE`,
     ],
     ' / ',
-  ).concat(l != null ? ` (${lapsOf(l)})` : '');
+  ).concat(l != null ? ` (${l})` : '');
 }
 
 // "+40.1 L · used 37.0 L after · 3.1 L left". What the laps after the stop
@@ -360,7 +374,8 @@ function fuelCard(
   ending: Lap,
   hasVe: boolean,
 ): FuelCard | null {
-  const first = allLaps[0]?.fuel;
+  // The start reading is the lap driven first, whatever the list's order.
+  const first = firstLapOf(allLaps)?.fuel;
   const f = ending.fuel;
   if (!first || !f || first.startL == null || f.endL == null) return null;
   const upto = allLaps.filter(l => l.lapIndex <= ending.lapIndex);
@@ -447,15 +462,17 @@ export function buildPitCard(
   return {
     kind: 'stops',
     actual: {
-      stops: pitLaps.map(l => {
-        const stop = l.pitStop as PitStop;
-        return {
-          lapIndex: l.lapIndex,
-          fuelL: stop.atEntry.fuelL,
-          vePct: hasVe ? stop.atEntry.vePct : null,
-          lapsLeft: lapsLeft(stop.lapsLeftAtEntry),
-        };
-      }),
+      stops: pitLaps
+        .filter(l => isRefuelStop(l.pitStop as PitStop))
+        .map(l => {
+          const stop = l.pitStop as PitStop;
+          return {
+            lapIndex: l.lapIndex,
+            fuelL: stop.atEntry.fuelL,
+            vePct: hasVe ? stop.atEntry.vePct : null,
+            lapsLeft: lapsLeft(stop.lapsLeftAtEntry),
+          };
+        }),
       end: f
         ? {
             fuelL: f.endL,

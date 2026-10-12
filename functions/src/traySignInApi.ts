@@ -6,6 +6,7 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {reportError} from './problems';
 import {
   CODES_PER_HOUR,
   HOUR_MS,
@@ -108,8 +109,8 @@ export const traySignInApi = onRequest(
       });
       res.status(out.status).json(out.json);
     } catch (error) {
-      // The message can name a uid or a token: log the kind of failure only.
-      console.error('tray sign-in failed', (error as Error).name);
+      // The message can name a uid or a token: reportError masks both.
+      await reportError('traySignInApi', error, {route: subPath(req)});
       res.status(500).json({error: 'sign-in failed'});
     }
   },

@@ -1,7 +1,15 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {ABSENT, type Field, type FieldCar} from './field';
-import {carsAt, OFF_TRACK_M, prepareRace, STOPPED_FOR_S} from './raceState';
+import {
+  CAR_HALF_WIDTH_M,
+  carsAt,
+  OFF_HOLD_S,
+  OFF_TRACK_M,
+  prepareRace,
+  raceStartUpdate,
+  STOPPED_FOR_S,
+} from './raceState';
 
 const HZ = 5;
 
@@ -271,13 +279,7 @@ describe('carsAt', () => {
     const inPit = (u: number) =>
       (u >= 10 && u < 20) || (u >= 40 && u < 115) || u >= 150;
     const f = field(160, [
-      car(
-        0,
-        'GT3',
-        160,
-        u => ({d: u * 10, pit: inPit(u), laps: 1}),
-        true,
-      ),
+      car(0, 'GT3', 160, u => ({d: u * 10, pit: inPit(u), laps: 1}), true),
       car(1, 'GT3', 160, u => ({d: u * 10, pit: u < 2, laps: 1})),
     ]);
     expect(at(f, 15 / HZ)[0]).toMatchObject({state: 'pit', pits: 0});
@@ -316,6 +318,50 @@ describe('carsAt', () => {
     expect(at(f, 0).map(c => c.state)).toEqual(['off', 'off', 'running']);
   });
 
+  describe('off track from the measured edge', () => {
+    // A 100 m lap, edges 6 m either side everywhere.
+    const edges = {
+      stepM: 10,
+      lengthM: 100,
+      leftM: Array(10).fill(6),
+      rightM: Array(10).fill(6),
+    };
+    const states = (f: Field, u: number) =>
+      carsAt(prepareRace(f, edges), f.timeS[u], false).map(c => c.state);
+
+    it('is off past the edge plus half a car, not past 7.5 m', () => {
+      const limit = 6 + CAR_HALF_WIDTH_M;
+      const f = field(2, [
+        car(0, 'GT3', 2, () => ({d: 10, lat: limit + 0.1}), true),
+        car(1, 'GT3', 2, () => ({d: 20, lat: -(limit + 0.1)})),
+        car(2, 'GT3', 2, () => ({d: 30, lat: limit - 0.1})),
+        car(3, 'GT3', 2, () => ({d: 40, lat: 7.2})),
+      ]);
+      // car 3 is 7.2 m out: inside 7.5 m, past edge + half a car (7 m), so off.
+      expect(states(f, 1)).toEqual(['off', 'off', 'running', 'off']);
+    });
+
+    it('needs the offset to hold for OFF_HOLD_S, not one update', () => {
+      const hold = Math.round(OFF_HOLD_S * HZ);
+      expect(hold).toBe(2);
+      const f = field(3, [
+        car(0, 'GT3', 3, u => ({d: 10, lat: u === 2 ? 9 : 0}), true),
+      ]);
+      // Off only at update 2: update 1 was on the road, so no hold.
+      expect(states(f, 2)).toEqual(['running']);
+      const g = field(3, [
+        car(0, 'GT3', 3, u => ({d: 10, lat: u >= 1 ? 9 : 0}), true),
+      ]);
+      expect(states(g, 2)).toEqual(['off']);
+    });
+
+    it('falls back to 7.5 m with no measured edge', () => {
+      const f = field(2, [car(0, 'GT3', 2, () => ({d: 10, lat: 7.6}), true)]);
+      const prep = prepareRace(f);
+      expect(carsAt(prep, f.timeS[1], false)[0].state).toBe('off');
+    });
+  });
+
   it('files without heading give null', () => {
     const f = field(2, [car(0, 'GT3', 2, u => ({d: u}), true)]);
     f.cars[0].yawRad = null;
@@ -324,5 +370,77 @@ describe('carsAt', () => {
 
   it('an empty field gives no cars', () => {
     expect(at(field(0, []), 0)).toEqual([]);
+  });
+});
+
+describe('the race start and the laps counter', () => {
+  const L = 1000;
+
+  it('a formation lap is not a lap of the race: the cars that drove it are not a lap ahead', () => {
+    // 20 m/s on a 1000 m track. F is first seen 700 m into
+    // the formation lap, crosses the line (the counter does not move) and
+    // again at the start (s = 2000, the counter reads 1). N is 600 m of race
+    // ahead of F and never drove the formation lap (a pit-lane start).
+    const n = 450;
+    const raceF = (u: number) => 700 + 4 * u - 1000;
+    const raceN = (u: number) => 300 + 4 * u;
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({
+        d: raceN(u) % L,
+        laps: Math.floor(raceN(u) / L),
+        place: 1,
+      })),
+      car(
+        1,
+        'GT3',
+        n,
+        u => ({
+          d: (700 + 4 * u) % L,
+          laps: Math.max(0, Math.floor(raceF(u) / L)),
+          place: 2,
+        }),
+        true,
+      ),
+    ]);
+    const cars = at(f, 400 / HZ);
+    // 600 m at 20 m/s: 30 s. Following the wraps from the first sight put F
+    // 400 m ahead of N: no gap at all.
+    expect(cars[1].gapS).toBeCloseTo(30, 0);
+    expect(cars[1].lapsDown).toBe(0);
+  });
+
+  it('a lone update that reads laps done is not the start, and starts no pit stop', () => {
+    const n = 400;
+    const f = field(n, [
+      car(
+        0,
+        'GT3',
+        n,
+        u => ({
+          d: 100 + u * 4,
+          // The previous session's state for one update: laps 5, in the pits.
+          laps: u === 2 ? 5 : 0,
+          pit: u >= 2 && u < 70,
+          place: 1,
+        }),
+        true,
+      ),
+    ]);
+    expect(raceStartUpdate(f)).toBe(f.timeS.length);
+    const prep = prepareRace(f);
+    expect(prep.pits[0][n - 1]).toBe(0);
+    expect(carsAt(prep, 3 / HZ, true)[0].state).toBe('running');
+  });
+
+  it('the start is the first update some car has laps done for a few seconds running', () => {
+    const n = 200;
+    const f = field(n, [
+      car(0, 'GT3', n, u => ({
+        d: 100 + u * 4,
+        laps: u === 2 || u >= 50 ? 1 : 0,
+      })),
+    ]);
+    expect(raceStartUpdate(f)).toBe(50);
+    expect(prepareRace(f).startU).toBe(50);
   });
 });

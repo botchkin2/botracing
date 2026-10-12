@@ -83,17 +83,19 @@ impl Handle {
     }
 
     /// Asks the thread to finish the open chunk and mark the capture ended,
-    /// and waits for it (or gives up after `wait`).
-    pub fn stop(&mut self, wait: Duration) {
+    /// and waits for it (or gives up after `wait`). True when the thread ended.
+    pub fn stop(&mut self, wait: Duration) -> bool {
         self.stop.store(true, Ordering::SeqCst);
-        let Some(join) = self.join.take() else { return };
+        let Some(join) = self.join.take() else { return true };
         let end = std::time::Instant::now() + wait;
         while !join.is_finished() && std::time::Instant::now() < end {
             std::thread::sleep(Duration::from_millis(20));
         }
         if join.is_finished() {
             let _ = join.join();
+            return true;
         }
+        false
     }
 }
 

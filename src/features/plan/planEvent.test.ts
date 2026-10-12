@@ -57,8 +57,8 @@ describe('eventsOf', () => {
 describe('eventLabel', () => {
   it('names the series only when known', () => {
     const e = {week: '2026-09-29', sessionIds: [], series: 'One Stint Sprint'};
-    expect(eventLabel(e, 100)).toBe('One Stint Sprint · week of 09-29 · 100 L');
-    expect(eventLabel({...e, series: null}, 75)).toBe('week of 09-29 · 75 L');
+    expect(eventLabel(e, 100)).toBe('100 L · One Stint Sprint · week of 09-29');
+    expect(eventLabel({...e, series: null}, 75)).toBe('75 L · week of 09-29');
     expect(eventLabel({...e, series: null}, null)).toBe('week of 09-29');
   });
 });

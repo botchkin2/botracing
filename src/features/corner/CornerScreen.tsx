@@ -1,12 +1,7 @@
+import {toggle as toggleTap} from '@/src/state/lapSelection';
 import {useRouter} from 'expo-router';
-import {useState} from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {type ReactNode, useState} from 'react';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
@@ -17,7 +12,7 @@ import {
 } from '@/src/charts';
 import {
   hitBox,
-  lapColors,
+  lapColor as slotColor,
   lapStroke,
   stroke,
   radius,
@@ -35,6 +30,7 @@ import {
   FoldedSection,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   StatusBanner,
   Text,
 } from '@/src/ui';
@@ -46,10 +42,11 @@ import {
   type CornerRow,
   type CornerSelection,
   type Measure,
-  MEASURES,
+  shownMeasures,
   sortRows,
 } from './model';
-import {MAX_ON_LAPS, toggleLap} from './keyLaps';
+import {type CornerBlock, cornerLayout} from './layout';
+import {resetLapIds} from './keyLaps';
 import {useCornerModel} from './useCornerModel';
 import {SectionWindowCard} from './SectionWindowCard';
 import {ZoomTraces, type ZoomHeights} from './ZoomTraces';
@@ -61,8 +58,20 @@ const PHONE_H: ZoomHeights = {
   speed: 96,
   brake: 52,
   throttle: 52,
+  gear: 40,
   delta: 0,
-  steering: 0,
+  steering: 40,
+  line: 0,
+};
+// Landscape phone: 375 pt of height, so the speed trace is the first screen's
+// chart and the pedals are tall enough to read, not 52 pt ribbons.
+const LANDSCAPE_H: ZoomHeights = {
+  speed: 150,
+  brake: 90,
+  throttle: 90,
+  gear: 40,
+  delta: 0,
+  steering: 60,
   line: 0,
 };
 // Desktop: the whole snapshot (delta, speed, brake, throttle, steering, line)
@@ -71,6 +80,7 @@ const DESK_H: ZoomHeights = {
   speed: 180,
   brake: 100,
   throttle: 100,
+  gear: 60,
   delta: 100,
   steering: 60,
   line: 130,
@@ -80,15 +90,21 @@ const DESK_H: ZoomHeights = {
 // less the 600 column, the divider and the gutters), so the default holds.
 const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
+// Ten rows of 40 pt before the table scrolls (Botkin, 2 Oct screenshots: four
+// showed too little of a long race).
+const WIDE_TABLE_BODY_H = 400;
 
 export function CornerScreen({
   sessionId,
   corner,
+  whole = false,
   selection,
   onSelectionChange,
 }: {
   sessionId: string;
   corner: number;
+  /** The compound corner's whole window ("All" in the Parts row). */
+  whole?: boolean;
   selection: CornerSelection;
   onSelectionChange: (next: CornerSelection) => void;
 }) {
@@ -98,7 +114,13 @@ export function CornerScreen({
   const [allComparable, setAllComparable] = useState(
     layout.isWide && selection.laps.length <= 1,
   );
-  const result = useCornerModel(sessionId, corner, selection, allComparable);
+  const result = useCornerModel(
+    sessionId,
+    corner,
+    selection,
+    allComparable,
+    whole,
+  );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -138,6 +160,7 @@ export function CornerScreen({
       model={result.model}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
+      openingIds={result.openingIds}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
       selection={selection}
@@ -153,6 +176,7 @@ function CornerView({
   model,
   lapIds,
   keyLapIds,
+  openingIds,
   traceLoad,
   onRetryTraces,
   selection,
@@ -164,6 +188,7 @@ function CornerView({
   model: CornerModel;
   lapIds: string[];
   keyLapIds: string[];
+  openingIds: string[];
   traceLoad: TraceLoad;
   onRetryTraces: () => void;
   selection: CornerSelection;
@@ -182,7 +207,6 @@ function CornerView({
 
   const [notice, setNotice] = useState<string | null>(null);
   // Phone: the lap table is one tap away, the strips stay the first read.
-  const count = lapIds.length;
   // A lap that is on has its own lap colour everywhere on the screen; the
   // rest keep the tinted or grey style of their mode.
   const lapStyle = (
@@ -192,11 +216,11 @@ function CornerView({
   ) =>
     onIndex != null
       ? {
-          color: lapColors[scheme][onIndex],
+          color: slotColor(scheme, onIndex),
           width: onIndex === 0 || highlighted ? stroke.ref : stroke.selected,
           opacity: 1,
         }
-      : lapStroke(scheme, Math.max(1, selIndex), count, false);
+      : lapStroke(scheme, Math.max(1, selIndex), false);
   const lapColor = (
     onIndex: number | null,
     selIndex: number,
@@ -206,22 +230,15 @@ function CornerView({
     onSelectionChange({...selection, hl: lapId});
   // With every comparable lap drawn, a dot tap turns that lap on or off
   // (thread 27 #624); the laps on are the URL's `laps`, as in Compare.
-  const toggle = (lapId: string) => {
-    const r = toggleLap(keyLapIds, lapId);
-    if (r.kind === 'full')
-      return setNotice(
-        `${MAX_ON_LAPS - 1} laps on besides the reference. Tap one off first.`,
-      );
-    if (r.kind === 'reference')
-      return setNotice('The reference stays on. Change it in Compare.');
-    setNotice(null);
-    onSelectionChange({...selection, laps: r.laps});
-  };
+  // A dot tap adds or removes that lap from the set on screen (no cap, no
+  // reference lap: src/state/lapSelection.ts).
+  const toggle = (lapId: string) =>
+    onSelectionChange({...selection, laps: toggleTap(keyLapIds, lapId)});
   const canToggle = allComparable && model.strips != null;
   const rowOf = new Map(model.rows.map(r => [r.lapId, r] as const));
-  const go = (n: number) =>
+  const go = (n: number, whole = false) =>
     router.replace(
-      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}),
+      cornerHref(sessionId, n, {laps: selection.laps, hl: selection.hl}, whole),
     );
 
   // One chip per section; a compound one (the bus stop) opens on its first
@@ -232,9 +249,20 @@ function CornerView({
       label={s.label}
       minWidth={size.hit}
       selected={s.selected}
-      onPress={() => go(s.firstCorner)}
+      onPress={() => go(s.firstCorner, s.compound)}
     />
   ));
+  // "All" first: the whole compound window as one corner. Its URL names the
+  // first part, so a step back from All lands before the section.
+  const allPartsChip = model.all ? (
+    <Chip
+      key='all'
+      label='All'
+      minWidth={size.hit}
+      selected={model.all.selected}
+      onPress={() => go(model.parts[0].n, true)}
+    />
+  ) : null;
   const partChips = model.parts.map(p => (
     <Chip
       key={p.n}
@@ -268,50 +296,61 @@ function CornerView({
       </Pressable>
       <View style={styles.flex} />
       {model.prev != null && (
-        <Chip label='‹' minWidth={size.hit} onPress={() => go(model.prev!)} />
+        <Chip
+          label='‹'
+          accessibilityLabel='Previous corner'
+          minWidth={size.hit}
+          onPress={() => go(model.prev!)}
+        />
       )}
       {model.next != null && (
-        <Chip label='›' minWidth={size.hit} onPress={() => go(model.next!)} />
+        <Chip
+          label='›'
+          accessibilityLabel='Next corner'
+          minWidth={size.hit}
+          onPress={() => go(model.next!)}
+        />
       )}
     </View>
   );
 
-  const header = (
+  const titleBlock = (
     <View style={styles.gap}>
-      {layout.isWide ? navRow : null}
       <Text variant='display'>{model.title}</Text>
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
-      {!layout.isDesktop && <SessionNav sessionId={sessionId} />}
-      {layout.isWide ? (
-        <View style={styles.wrap}>{cornerChips}</View>
-      ) : (
-        // One line that scrolls sideways: 25 corners wrapped to four rows.
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}>
-          {cornerChips}
-        </ScrollView>
-      )}
-      {partChips.length > 0 ? (
-        <View style={styles.wrap}>
-          <Text variant='label' tone='textMuted'>
-            Parts
-          </Text>
-          {partChips}
-        </View>
-      ) : null}
-      <View style={styles.row}>
-        <Chip
-          label={
-            allComparable ? '✓ All comparable laps' : '+ All comparable laps'
-          }
-          selected={allComparable}
-          onPress={() => onAllComparable(!allComparable)}
-        />
+    </View>
+  );
+  // One line that scrolls sideways on both layouts: 25 corners wrapped to
+  // four rows and pushed the table out of the first screen (D32).
+  const seekChips = (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipsRow}>
+      {cornerChips}
+    </ScrollView>
+  );
+  const partsRow =
+    partChips.length > 0 ? (
+      <View style={styles.wrap}>
+        <Text variant='label' tone='textMuted'>
+          Parts
+        </Text>
+        {allPartsChip}
+        {partChips}
       </View>
+    ) : null;
+  const allChip = (
+    <View style={styles.row}>
+      <Chip
+        label={
+          allComparable ? '✓ All comparable laps' : '+ All comparable laps'
+        }
+        selected={allComparable}
+        onPress={() => onAllComparable(!allComparable)}
+      />
     </View>
   );
 
@@ -336,20 +375,21 @@ function CornerView({
     />
   );
 
-  const measures = (
+  // The dot strips are the corner's charts, always shown (Botkin, 2 Oct
+  // screenshots); only the section window and the All chip fold.
+  const strips = (
     <View style={styles.gap}>
-      {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
           {canToggle && selection.laps.length >= 2 ? (
             <View style={styles.row}>
               <Chip
-                label='Reset to reference + best'
+                label='Reset'
                 onPress={() => {
                   setNotice(null);
                   onSelectionChange({
                     ...selection,
-                    laps: selection.laps.slice(0, 1),
+                    laps: resetLapIds(selection.ref, openingIds),
                   });
                 }}
               />
@@ -377,18 +417,6 @@ function CornerView({
                   {s.summary}
                 </Text>
               </View>
-              {s.keyValues.length > 0 ? (
-                <View style={styles.wrap}>
-                  {s.keyValues.map(k => (
-                    <Text
-                      key={k.onIndex}
-                      variant='dataSmall'
-                      style={{color: lapColors[scheme][k.onIndex]}}>
-                      {k.text}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
               {s.empty && s.flatNote ? null : s.empty ? (
                 <Text variant='dataSmall' tone='textFaint'>
                   No lap has a {s.label.toLowerCase()} in this corner.
@@ -396,14 +424,10 @@ function CornerView({
               ) : (
                 <DotStrip
                   width={layout.isWide ? 440 : layout.contentWidth}
-                  min={s.min}
-                  max={s.max}
+                  scale={s.scale}
                   flipped={s.flipped}
                   band={s.band}
                   coincidentWithin={s.coincidentWithin}
-                  minLabel={s.minLabel}
-                  maxLabel={s.maxLabel}
-                  unit={s.unit}
                   resolution={s.resolution}
                   leftWord={s.leftWord}
                   rightWord={s.rightWord}
@@ -413,7 +437,7 @@ function CornerView({
                       key: d.lapId,
                       value: d.value,
                       color: on
-                        ? lapColors[scheme][d.onIndex as number]
+                        ? slotColor(scheme, d.onIndex as number)
                         : color.barNeutral,
                       r: on ? 4.2 : 2.8,
                       opacity: on ? 1 : d.flagged ? 0.25 : 0.55,
@@ -443,13 +467,13 @@ function CornerView({
             </View>
           ))
         : null}
-      {model.strips && !layout.isWide ? (
-        <FoldedSection title='Laps' summary={`${model.rows.length} laps`}>
-          {lapTable}
-        </FoldedSection>
-      ) : (
-        lapTable
-      )}
+    </View>
+  );
+
+  const spread = (
+    <View style={styles.gap}>
+      {layout.isWide ? null : allChip}
+      {model.window ? <SectionWindowCard window={model.window} /> : null}
     </View>
   );
 
@@ -462,7 +486,11 @@ function CornerView({
   const tracesW = layout.isWide
     ? layout.width - left.width - PANEL_DIVIDER_W - 2 * space.xl
     : layout.contentWidth;
-  const h = layout.isWide ? DESK_H : PHONE_H;
+  const h = layout.isWide
+    ? DESK_H
+    : layout.isLandscapePhone
+    ? LANDSCAPE_H
+    : PHONE_H;
   const traces = (
     <ZoomTraces
       model={model}
@@ -476,6 +504,27 @@ function CornerView({
   );
 
   const top = {paddingTop: insets.top + space.lg};
+  const plan = cornerLayout(layout.isWide);
+  const shape = model.brakeMap ? (
+    <BrakeMapPanel
+      map={model.brakeMap}
+      width={layout.isWide ? left.width - 2 * space.xl : layout.contentWidth}
+      lapColor={lapColor}
+    />
+  ) : null;
+  const blocks: Record<CornerBlock, ReactNode> = {
+    charts: traces,
+    shape,
+    laps: lapTable,
+    strips,
+    spread: (
+      <FoldedSection title='Spread' summary={null}>
+        {spread}
+      </FoldedSection>
+    ),
+    nav: <SessionNav sessionId={sessionId} />,
+  };
+  const body = plan.order.map(id => <View key={id}>{blocks[id]}</View>);
   if (layout.isWide)
     return (
       <View
@@ -483,15 +532,12 @@ function CornerView({
         <ScrollView
           style={{width: left.width, flexGrow: 0}}
           contentContainerStyle={[styles.col, top]}>
-          {header}
-          {model.brakeMap && (
-            <BrakeMapPanel
-              map={model.brakeMap}
-              width={left.width - 2 * space.xl}
-              lapColor={lapColor}
-            />
-          )}
-          {measures}
+          {navRow}
+          {titleBlock}
+          {seekChips}
+          {partsRow}
+          {allChip}
+          {body}
         </ScrollView>
         <PanelDivider
           anchor='left'
@@ -508,14 +554,26 @@ function CornerView({
         </ScrollView>
       </View>
     );
+  // Phone: the Compare link and the corner chips stay pinned, so stepping is
+  // in reach wherever the page is scrolled.
+  // On a phone turned on its side only the corner chips stay pinned (stepping
+  // stays in reach); the Compare link and Parts scroll, or they would take most
+  // of the 375 pt.
+  const landscape = layout.isLandscapePhone;
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <View
         style={[
           styles.pinned,
-          {backgroundColor: color.bg, paddingTop: top.paddingTop},
+          {
+            backgroundColor: color.bg,
+            paddingTop: landscape ? insets.top : top.paddingTop,
+            paddingHorizontal: space.xl + layout.sideInset,
+          },
         ]}>
-        {navRow}
+        {landscape ? null : navRow}
+        {seekChips}
+        {landscape ? null : partsRow}
       </View>
       <ScrollView
         style={styles.flex}
@@ -526,16 +584,14 @@ function CornerView({
           // strips sized to it fit instead of overflowing past the gutter.
           {width: layout.contentWidth + 2 * space.xl, alignSelf: 'center'},
         ]}>
-        {header}
-        {model.brakeMap && (
-          <BrakeMapPanel
-            map={model.brakeMap}
-            width={layout.contentWidth}
-            lapColor={lapColor}
-          />
-        )}
-        {measures}
-        {traces}
+        {landscape ? (
+          <>
+            {navRow}
+            {partsRow}
+          </>
+        ) : null}
+        {titleBlock}
+        {body}
       </ScrollView>
     </View>
   );
@@ -564,6 +620,7 @@ function PhoneCornerTable({
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  const shown = shownMeasures(rows);
   const [viewW, setViewW] = useState(0);
   const [contentW, setContentW] = useState(0);
   const [x, setX] = useState(0);
@@ -625,7 +682,7 @@ function PhoneCornerTable({
                 styles.measures,
                 {borderColor: color.lineHeader},
               ]}>
-              {MEASURES.map(m => (
+              {shown.map(m => (
                 <View key={m.id} style={styles.phoneCell}>
                   <Text
                     variant='tableHeader'
@@ -647,7 +704,7 @@ function PhoneCornerTable({
                 key={r.lapId}
                 onPress={() => onPressRow(r.lapId)}
                 style={[...rowStyle(r), styles.measures]}>
-                {MEASURES.map(m => {
+                {shown.map(m => {
                   const c = r.cells[m.id];
                   return (
                     <View key={m.id} style={styles.phoneCell}>
@@ -713,6 +770,7 @@ function CornerTable({
   onPressRow: (lapId: string) => void;
 }) {
   const {color} = useTheme();
+  const shown = shownMeasures(rows);
   if (!sortable)
     return (
       <PhoneCornerTable
@@ -732,7 +790,7 @@ function CornerTable({
         <Text variant='tableHeader' tone='textMuted' style={styles.lapCol}>
           Lap
         </Text>
-        {MEASURES.map(m => {
+        {shown.map(m => {
           const active = sortable && sort.by === m.id;
           return (
             <Pressable
@@ -754,63 +812,68 @@ function CornerTable({
           );
         })}
       </View>
-      {rows.map(r => (
-        <Pressable
-          key={r.lapId}
-          onPress={() => onPressRow(r.lapId)}
-          style={[
-            styles.tableRow,
-            {borderColor: color.line},
-            r.highlighted && {backgroundColor: color.accentTint},
-          ]}>
-          <View style={styles.lapCol}>
-            <View style={styles.row}>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    backgroundColor: lapColor(
-                      r.onIndex,
-                      r.selIndex,
-                      r.highlighted,
-                    ),
-                  },
-                ]}
-              />
-              <Text variant='dataStrong'>{r.label}</Text>
-            </View>
-            {r.isRef && (
-              <Text variant='dataSmall' tone='textFaint'>
-                REF
-              </Text>
-            )}
-          </View>
-          {MEASURES.map(m => {
-            const c = r.cells[m.id];
-            return (
-              <View key={m.id} style={styles.cellCol}>
-                <Text variant='data' style={styles.right}>
-                  {c.value}
-                </Text>
-                {c.gap != null && (
-                  <Text
-                    variant='dataSmall'
-                    tone={
-                      m.id === 'time'
-                        ? c.better
-                          ? 'faster'
-                          : 'slower'
-                        : 'textMuted'
-                    }
-                    style={styles.right}>
-                    {c.gap}
-                  </Text>
-                )}
+      <ScrollView
+        style={styles.tableBody}
+        nestedScrollEnabled
+        showsVerticalScrollIndicator>
+        {rows.map(r => (
+          <Pressable
+            key={r.lapId}
+            onPress={() => onPressRow(r.lapId)}
+            style={[
+              styles.tableRow,
+              {borderColor: color.line},
+              r.highlighted && {backgroundColor: color.accentTint},
+            ]}>
+            <View style={styles.lapCol}>
+              <View style={styles.row}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      backgroundColor: lapColor(
+                        r.onIndex,
+                        r.selIndex,
+                        r.highlighted,
+                      ),
+                    },
+                  ]}
+                />
+                <Text variant='dataStrong'>{r.label}</Text>
               </View>
-            );
-          })}
-        </Pressable>
-      ))}
+              {r.isRef && (
+                <Text variant='dataSmall' tone='textFaint'>
+                  REF
+                </Text>
+              )}
+            </View>
+            {shown.map(m => {
+              const c = r.cells[m.id];
+              return (
+                <View key={m.id} style={styles.cellCol}>
+                  <Text variant='data' style={styles.right}>
+                    {c.value}
+                  </Text>
+                  {c.gap != null && (
+                    <Text
+                      variant='dataSmall'
+                      tone={
+                        m.id === 'time'
+                          ? c.better
+                            ? 'faster'
+                            : 'slower'
+                          : 'textMuted'
+                      }
+                      style={styles.right}>
+                      {c.gap}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </Pressable>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -897,6 +960,9 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   tableHead: {minHeight: 30, borderTopWidth: 1},
+  // Wide: the rows scroll under a fixed header, sized so the shape, the table
+  // and the strips share the first 1440x900 screen (D32).
+  tableBody: {maxHeight: WIDE_TABLE_BODY_H},
   lapCol: {width: 44},
   cellCol: {flex: 1},
   phoneTable: {flexDirection: 'row'},

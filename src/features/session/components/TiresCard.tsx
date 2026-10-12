@@ -23,8 +23,11 @@ import {TreadZones} from './TreadZones';
 export function TiresCard({
   card,
   width,
+  titled = true,
 }: {
   card: TiresCardModel;
+  /** False inside a fold whose header already says Tires. */
+  titled?: boolean;
   /** The width the card may use, in points. */
   width: number;
 }) {
@@ -33,7 +36,7 @@ export function TiresCard({
   if (card.kind === 'absent') {
     return (
       <View style={styles.card}>
-        <Text variant='label'>Tires</Text>
+        {titled ? <Text variant='label'>Tires</Text> : null}
         <EmptyState title='No tire channels' />
       </View>
     );
@@ -43,7 +46,7 @@ export function TiresCard({
     card.stints[card.stints.length - 1];
   return (
     <View style={styles.card}>
-      <Text variant='label'>Tires</Text>
+      {titled ? <Text variant='label'>Tires</Text> : null}
       {card.stints.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <Segment
@@ -98,10 +101,15 @@ export function TiresCard({
           ))}
         </View>
       ) : null}
+      {stint.wearRead === 'stops' ? (
+        <Text variant='dataSmall' tone='textMuted'>
+          {PIT_ONLY_NOTE}
+        </Text>
+      ) : null}
       <TireGrid
         cells={stint.wheels}
         width={width}
-        showBars={stint.kind === 'trend'}
+        showBars={stint.kind === 'trend' && stint.wearRead === 'every-lap'}
       />
       {stint.flatNote ? (
         <Text variant='dataSmall' tone='textMuted'>
@@ -109,18 +117,16 @@ export function TiresCard({
         </Text>
       ) : null}
       <AxleLines
-        title='Pressure'
+        title='Hot pressure · green-lap median'
         unit='kPa'
         series={stint.pressure}
         width={width}
-        medianLabel='median of the stabilised hot pressure, green laps'
       />
       <AxleLines
-        title='Rubber temperature'
+        title='Rubber temperature · green-lap median'
         unit='°C'
         series={stint.rubber}
         width={width}
-        medianLabel='median over the green laps'
       />
       <View style={styles.block}>
         <Text variant='label'>Stop cool-down</Text>
@@ -131,8 +137,9 @@ export function TiresCard({
   );
 }
 
-const SHORT_STINT_NOTE =
-  "A trend needs 5 green laps. The readings are listed instead: wear left at each lap's end.";
+const SHORT_STINT_NOTE = 'Under 5 green laps: readings only';
+// The channel holds its pit reading between stops (analysis/tyres wearReadAtStops).
+const PIT_ONLY_NOTE = 'Wear is read in the pits only';
 
 const styles = StyleSheet.create({
   card: {gap: space.md},
@@ -149,9 +156,9 @@ function TreadBlock({zones, width}: {zones: TreadZone[]; width: number}) {
   const scale = treadScale(zones);
   return (
     <View style={styles.block}>
-      <Text variant='label'>Tread zones</Text>
+      <Text variant='label'>Tread zones · green-lap median</Text>
       <Text variant='dataSmall' tone='textMuted'>
-        {`Green-lap median, °C · I inner · C centre · O outer · scale ${scale.minC}–${scale.maxC} °C`}
+        {`°C · I inner · C center · O outer · ${scale.minC}–${scale.maxC}`}
       </Text>
       <TreadZones zones={zones} width={width} scale={scale} />
     </View>

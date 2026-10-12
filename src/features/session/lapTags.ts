@@ -8,7 +8,8 @@ import {type Lap, type LapTraffic} from '@/src/data/sessions';
 export const TOW_MIN_S = 1;
 export const TRAF_MIN_S = 2;
 export const BLUE_MIN_S = 1;
-// BTL shows from 5 s (R3).
+// BTL shows from 5 s (R3). TOW, TRAF and BTL are seconds and say so (Theme B:
+// every number has a unit); BLUE and PASS are counts.
 export const BTL_MIN_S = 5;
 // A lap towed this long is drawn hollow on the lap chart (R3c).
 export const TOW_HOLLOW_S = 5;
@@ -26,9 +27,9 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   if (!traffic) return [];
   const tags: {code: string}[] = [];
   if (traffic.draftS >= TOW_MIN_S)
-    tags.push({code: `TOW ${traffic.draftS.toFixed(1)}`});
+    tags.push({code: `TOW ${traffic.draftS.toFixed(1)} s`});
   if (traffic.trafficAheadS >= TRAF_MIN_S)
-    tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)}`});
+    tags.push({code: `TRAF ${traffic.trafficAheadS.toFixed(1)} s`});
   if (traffic.overtakes.length > 0)
     tags.push({code: `BLUE ${traffic.overtakes.length}`});
   const {passesMade: made, passesSuffered: lost} = traffic;
@@ -37,7 +38,7 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
     tags.push({code: `PASS ${parts.filter(Boolean).join(' ')}`});
   }
   if (traffic.battleS >= BTL_MIN_S)
-    tags.push({code: `BTL ${Math.round(traffic.battleS)}`});
+    tags.push({code: `BTL ${Math.round(traffic.battleS)} s`});
   return tags;
 }
 
@@ -59,11 +60,38 @@ const PRIORITY = [
   'BLUE',
   'PASS',
   'BTL',
-];
+] as const;
+
+type TagCode = (typeof PRIORITY)[number];
+
+// The word for each code. Typed by TagCode: a code added to PRIORITY without a
+// word does not compile, so the legend cannot miss a tag the rows can draw.
+const MEANING: Record<TagCode, string> = {
+  PART: 'partial',
+  PARK: 'parked',
+  OUT: 'out lap',
+  IN: 'in lap',
+  RESET: 'reset',
+  SLOW: 'outlier',
+  TOW: 'slipstream',
+  BEST: 'best',
+  OFF: 'off track',
+  HIT: 'impact',
+  TRAF: 'traffic',
+  BLUE: 'blue flag',
+  PASS: 'passes',
+  BTL: 'battle',
+};
+
+/** The legend under the lap table: every code, in priority order, with its word. */
+export const TAG_KEY: {code: TagCode; meaning: string}[] = PRIORITY.map(
+  code => ({code, meaning: MEANING[code]}),
+);
 
 /** Tags in priority order; a code's first word is its rank ("TOW 6.1"). */
 export function orderTags<T extends {code: string}>(tags: T[]): T[] {
-  const rank = (t: T) => PRIORITY.indexOf(t.code.split(' ')[0]);
+  const rank = (t: T) =>
+    (PRIORITY as readonly string[]).indexOf(t.code.split(' ')[0]);
   return [...tags].sort((a, b) => rank(a) - rank(b));
 }
 

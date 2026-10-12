@@ -1,7 +1,7 @@
-import {Linking, Pressable, StyleSheet, View} from 'react-native';
+import {Linking, StyleSheet, View} from 'react-native';
 
 import {hitBox, size, space} from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 // About (handoff T1/05): the Wikipedia lead, with its CC BY-SA 4.0 credit
 // and link always visible under the text. The licence requires it.

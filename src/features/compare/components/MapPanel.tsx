@@ -111,91 +111,90 @@ export function MapPanel({
     );
   }
   return (
-    <View style={[styles.box, {backgroundColor: color.surface}]}>
-      {mode === 'follow' && f ? (
-        <FollowMap
-          width={width}
-          height={height}
-          centre={f.centre}
-          headingRad={f.headingRad}
-          visibleM={FOLLOW_SPANS_M[zoom]}
-          band={f.geometry.band}
-          bandFaded={f.geometry.bandFaded}
-          surface={f.geometry.surface}
-          lines={followLines}
-          ticks={followTicks}
-          dots={map.dots.map(d => ({
-            key: d.lapId,
-            at: d.at,
-            color: lapStyle(d.selIndex, d.highlighted).color,
-          }))}
-          inset={f.geometry.inset}
-          corners={f.geometry.corners}
-          scaleX={
-            zoomControls
-              ? MAP_ZOOM_BUTTONS_W + MAP_ZOOM_LABEL_W + 2 * space.xs + space.sm
-              : undefined
-          }
-        />
-      ) : (
-        <TrackMap
-          width={width}
-          height={height}
-          outline={map.outline}
-          outlineFaded={map.outlineFaded}
-          pitLane={map.pitLane}
-          lines={map.lines.map(l => ({...styled(l), points: l.points}))}
-          dots={map.dots.map(d => ({
-            key: d.lapId,
-            at: d.at,
-            color: lapStyle(d.selIndex, d.highlighted).color,
-          }))}
-          marks={map.marks}
-          openSection={openSection}
-          onPressSection={onPressSection}
-        />
-      )}
-      <View style={styles.topLeft} pointerEvents='box-none'>
-        <Segment options={MODES} value={mode} onChange={prefs.setMapMode} />
-        {mode === 'follow' && map.followPlace !== '' && (
-          <View style={[styles.label, {backgroundColor: color.surfaceOverlay}]}>
-            <Text variant='dataSmall' tone='textSecondary'>
-              {map.followPlace}
-            </Text>
-          </View>
+    <>
+      <View style={[styles.box, {backgroundColor: color.surface}]}>
+        {mode === 'follow' && f ? (
+          <FollowMap
+            width={width}
+            height={height}
+            centre={f.centre}
+            headingRad={f.headingRad}
+            visibleM={FOLLOW_SPANS_M[zoom]}
+            band={f.geometry.band}
+            bandFaded={f.geometry.bandFaded}
+            surface={f.geometry.surface}
+            lines={followLines}
+            ticks={followTicks}
+            dots={map.dots.map(d => ({
+              key: d.lapId,
+              at: d.at,
+              color: lapStyle(d.selIndex, d.highlighted).color,
+            }))}
+            inset={f.geometry.inset}
+            corners={f.geometry.corners}
+            scaleX={
+              zoomControls
+                ? MAP_ZOOM_BUTTONS_W +
+                  MAP_ZOOM_LABEL_W +
+                  2 * space.xs +
+                  space.sm
+                : undefined
+            }
+          />
+        ) : (
+          <TrackMap
+            width={width}
+            height={height}
+            outline={map.outline}
+            outlineFaded={map.outlineFaded}
+            pitLane={map.pitLane}
+            lines={map.lines.map(l => ({...styled(l), points: l.points}))}
+            dots={map.dots.map(d => ({
+              key: d.lapId,
+              at: d.at,
+              color: lapStyle(d.selIndex, d.highlighted).color,
+            }))}
+            marks={map.marks}
+            openSection={openSection}
+            onPressSection={onPressSection}
+          />
+        )}
+        <View style={styles.topLeft} pointerEvents='box-none'>
+          <Segment options={MODES} value={mode} onChange={prefs.setMapMode} />
+          {mode === 'follow' && map.followPlace !== '' && (
+            <View
+              style={[styles.label, {backgroundColor: color.surfaceOverlay}]}>
+              <Text variant='dataSmall' tone='textSecondary'>
+                {map.followPlace}
+              </Text>
+            </View>
+          )}
+        </View>
+        {mode === 'follow' && f ? radar : null}
+        {zoomControls && mode === 'follow' && f && (
+          <MapZoomButtons
+            canOut={zoom < FOLLOW_SPANS_M.length - 1}
+            canIn={zoom > 0}
+            onOut={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
+            onIn={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
+            rangeLabel={`${FOLLOW_SPANS_M[zoom]} m`}
+          />
+        )}
+        {map.attribution && (
+          <Text
+            variant='attribution'
+            tone='textFaint'
+            style={styles.attribution}>
+            {map.attribution}
+          </Text>
         )}
       </View>
-      {mode === 'follow' && f ? radar : null}
-      {zoomControls && mode === 'follow' && f && (
-        <MapZoomButtons
-          canOut={zoom < FOLLOW_SPANS_M.length - 1}
-          canIn={zoom > 0}
-          onOut={() => prefs.setMapZoom((zoom + 1) as MapZoom)}
-          onIn={() => prefs.setMapZoom((zoom - 1) as MapZoom)}
-          rangeLabel={`${FOLLOW_SPANS_M[zoom]} m`}
-        />
-      )}
-      {/* Track only: Follow has its inset in this corner. */}
-      {mode === 'track' && !map.realMap && (
-        <View
-          style={[
-            styles.chip,
-            {
-              borderColor: color.lineStrong,
-              backgroundColor: color.surfaceOverlay,
-            },
-          ]}>
-          <Text variant='dataSmall' tone='textMuted'>
-            Driven line
-          </Text>
-        </View>
-      )}
-      {map.attribution && (
-        <Text variant='attribution' tone='textFaint' style={styles.attribution}>
-          {map.attribution}
+      {mode === 'track' && !map.realMap ? (
+        <Text variant='dataSmall' tone='textMuted' style={styles.caption}>
+          Driven line
         </Text>
-      )}
-    </View>
+      ) : null}
+    </>
   );
 }
 
@@ -214,13 +213,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   attribution: {position: 'absolute', right: space.xs, bottom: space.xxs},
-  chip: {
-    position: 'absolute',
-    right: space.md,
-    top: space.md,
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xxs,
-  },
+  caption: {paddingTop: space.xs},
 });

@@ -49,11 +49,17 @@ export const repoRoot = resolve(here, '../..');
 export const outDir = resolve(here, '../src-tauri/resources');
 const cacheDir = resolve(outDir, '.cache');
 
+// desktop/node-version is the one pin: the bundled node here, and the node
+// CI's tray tests run (setup-node's node-version-file), so the two never
+// differ. 24.19.0 refused a \\?\ main script and 24.21.0 does not (thread 1 #3504).
+const nodeVersion = `v${readFileSync(resolve(here, '../node-version'), 'utf8').trim()}`;
+
 export const NODE = {
-  version: 'v24.19.0',
-  url: 'https://nodejs.org/dist/v24.19.0/win-x64/node.exe',
-  // win-x64/node.exe in https://nodejs.org/dist/v24.19.0/SHASUMS256.txt
-  sha256: '3602f2bb1a10f2cbab4c36886218a33c1ab3db87290e73b033c46c77147d0237',
+  version: nodeVersion,
+  url: `https://nodejs.org/dist/${nodeVersion}/win-x64/node.exe`,
+  // win-x64/node.exe in https://nodejs.org/dist/v24.21.0/SHASUMS256.txt.
+  // Changing desktop/node-version without this fails the hash check, by design.
+  sha256: 'ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32',
 };
 
 export const DUCKDB = {

@@ -1,12 +1,13 @@
 import {useRouter} from 'expo-router';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {Skeleton, Text} from '@/src/ui';
+import {Pressable, Skeleton, Text} from '@/src/ui';
 
 import {type Combo, rulesFor} from '../../plan/model';
+import {undrivenCombo} from '../../plan/planState';
 import {usePlanHistory, usePlanLimits} from '../../plan/usePlanHistory';
 import {planCardModel} from '../planCards';
 
@@ -15,9 +16,27 @@ import {planCardModel} from '../planCards';
 // screen, with the active preset and length, so the numbers here are the ones
 // the plan starts from.
 
-/** One card per car driven on this layout; nothing when there are none. */
-export function PlanBlock({combos}: {combos: Combo[]}) {
-  if (combos.length === 0) return null;
+/**
+ * One card per car driven on this layout. Never driven here: one card that
+ * opens the Plan for this track in his current car (M11), where the Plan shows
+ * its empty state and the car can be changed. Nothing with no car to offer.
+ */
+export function PlanBlock({
+  combos,
+  undrivenKey,
+}: {
+  combos: Combo[];
+  undrivenKey: string | null;
+}) {
+  if (combos.length === 0) {
+    const combo = undrivenKey ? undrivenCombo(undrivenKey) : null;
+    return combo ? (
+      <View style={styles.block}>
+        <Text variant='label'>Plan</Text>
+        <UndrivenCard combo={combo} />
+      </View>
+    ) : null;
+  }
   return (
     <View style={styles.block}>
       <Text variant='label'>Plan</Text>
@@ -37,14 +56,14 @@ function PlanCard({combo}: {combo: Combo}) {
   const length = useFuelPresets(s => s.length);
   const preset = presets.find(p => p.id === activeId) ?? null;
   const rules = rulesFor(preset, length, lastFuel);
-  const {chosen, lapsOf} = usePlanHistory(
+  const {chosen, loading: planLoading} = usePlanHistory(
     combo,
     limitsL,
     rules?.rules.fuelL ?? null,
     preset,
   );
   // The rules need the last session's fuel, and the laps need the sessions.
-  const loading = pending || (rules != null && lapsOf.pending);
+  const loading = pending || (rules != null && planLoading.pending);
   if (loading) return <Skeleton height={size.sessionRow} />;
   const card = planCardModel(combo, chosen.laps);
   return (
@@ -72,6 +91,36 @@ function PlanCard({combo}: {combo: Combo}) {
       </Text>
       <Text variant='dataSmall' tone={card.use ? 'textSecondary' : 'textMuted'}>
         {card.use ?? 'No green laps to plan from yet'}
+      </Text>
+    </Pressable>
+  );
+}
+
+function UndrivenCard({combo}: {combo: Combo}) {
+  const {color} = useTheme();
+  const router = useRouter();
+  return (
+    <Pressable
+      accessibilityRole='link'
+      accessibilityLabel={`Plan for ${combo.car}`}
+      onPress={() => router.push(planHref(combo.key))}
+      style={({pressed}) => [
+        styles.card,
+        {
+          borderColor: color.line,
+          backgroundColor: pressed ? color.surfaceRaised : color.surface,
+        },
+      ]}>
+      <View style={styles.head}>
+        <Text variant='bodyStrong' numberOfLines={1} style={styles.car}>
+          {combo.car}
+        </Text>
+        <Text variant='bodyStrong' tone='accentInk'>
+          Plan →
+        </Text>
+      </View>
+      <Text variant='dataSmall' tone='textMuted'>
+        No sessions here
       </Text>
     </Pressable>
   );

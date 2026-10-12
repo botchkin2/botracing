@@ -13,6 +13,13 @@
     "ignore": ["firebase.json", "**/.*"],
     "rewrites": [
       {
+        "source": "/api/plan",
+        "function": {
+          "functionId": "lmuApi",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/lmu/**",
         "function": {
           "functionId": "lmuApi",
@@ -44,6 +51,13 @@
         "source": "/api/android/download",
         "function": {
           "functionId": "androidApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/analyze/**",
+        "function": {
+          "functionId": "analyzeApi",
           "region": "us-central1"
         }
       },

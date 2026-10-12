@@ -4,6 +4,8 @@ import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
 import {basename, dirname, join} from 'node:path';
 import {homedir, tmpdir} from 'node:os';
 import {run, sqlPath} from './duck.mjs';
+import {carClasses, driversOfYaml} from './irClasses.mjs';
+import {raceLengthFromYaml} from './raceLength.mjs';
 import {
   openIbt,
   readColumns,
@@ -24,15 +26,29 @@ export const defaultFolder = join(
 // tasklist IMAGENAME, confirmed on this PC. Disk telemetry is Alt-L in the sim.
 export const gameExe = 'iRacingSim64DX11.exe';
 
-// See lmu.mjs. A .ibt still being written is left until it is closed, by
-// sync.mjs's own quiet time.
+// See lmu.mjs. The watcher never syncs while a sim runs (gameRunning in
+// watch.mjs), so a .ibt is closed by the time it looks and sync.mjs's own 3
+// minute quiet time would only hold a race back after the sim exits. A file
+// skipped for it anyway is looked at again (trigger.mjs, quietRetryAtMs).
+// Which sign of the steering channel (SteeringWheelAngle) is a right turn:
+// -1 here, iRacing's is positive to the left (correlation with yaw rate +0.61 on
+// the 9 Oct Sebring .ibt). cornerInputs.steerSignOf reads it off a lap's own
+// corners; the tests check it against this constant.
+export const steerRightSign = -1;
+
 export const watcher = {
   legacyLayout: false,
-  quietMin: null,
+  quietMin: 0,
   gameExeEnv: null,
 };
 
-export const describeVersion = 4;
+// Bump when describe() changes what it returns for a file already described
+// (describeCache.mjs: an entry of another version is described again).
+// 6: groupId is null for an offline drive (SubSessionID 0), so cached
+//    `iracing|0|0` ids stop merging every offline drive into one session.
+// 7: carClass is the class label ("GT3", irClasses.mjs); an offline drive's
+//    empty CarClassShortName read the next line ("CarClassRelSpeed: 52").
+export const describeVersion = 7;
 
 export function slug(name) {
   return String(name)
@@ -164,7 +180,7 @@ export function lapCrossings(t, laps, lastTimes) {
   return out;
 }
 
-function playerCar(yaml) {
+export function playerCar(yaml) {
   const idx = yamlField(yaml, 'DriverCarIdx');
   const drivers = yaml.split(/\n\s*Drivers:\s*\n/)[1] || '';
   const block = drivers.match(
@@ -172,12 +188,18 @@ function playerCar(yaml) {
   );
   const pick = key => {
     if (!block) return '';
-    const m = block[1].match(new RegExp(`${key}:\\s*(.+)`));
+    // Blanks, not \s: an empty value must not read the next line.
+    const m = block[1].match(new RegExp(`${key}:[ \\t]*(.*)`));
     return m ? m[1].trim() : '';
   };
+  // The class a driver reads, named from the class id like the field's cars
+  // (irClasses.mjs): "IMSA23" is iRacing's short name for the GT3s, and an
+  // offline drive has none.
+  const label = carClasses([], driversOfYaml(yaml)).get(Number(idx))
+    ?.classLabel;
   return {
     name: pick('CarScreenName') || pick('CarPath') || 'Unknown car',
-    carClass: pick('CarClassShortName') || '',
+    carClass: label || pick('CarClassShortName'),
     path: pick('CarPath'),
   };
 }
@@ -219,7 +241,11 @@ export function describe(path) {
       driver: yamlField(yaml, 'UserName'),
       recordedAt,
       sessionClock: `${sub}:${sess}`,
-      groupId: `${sim}|${sub}|${sess}`,
+      // Only an online sub-session names one weekend session. Every offline
+      // drive has SubSessionID 0, so 0|0|n would join all of them, years and
+      // tracks apart, into a few giant sessions (603 files in one on Botkin's PC,
+      // the 4 Oct Fuji drive among them): those group by the wall clock instead.
+      groupId: sub !== '0' ? `${sim}|${sub}|${sess}` : null,
       sessionType: session.mapped,
       sessionTypeRaw: session.raw,
       track: yamlField(yaml, 'TrackDisplayName') || 'Unknown track',
@@ -229,6 +255,8 @@ export function describe(path) {
       car: car.name,
       carClass: car.carClass,
       fuelSetup: fuelFromYaml(yaml),
+      // The event's race length, from the session info (raceLength.mjs).
+      raceLength: raceLengthFromYaml(yaml),
       weather: yamlField(yaml, 'TrackSkies'),
       baseHz: hz,
       ticks: n,
@@ -327,6 +355,42 @@ function surfaceCode(loc, material) {
   return 0;
 }
 
+/**
+ * Where each of iRacing's own sectors starts, as a share of the lap, from the
+ * session YAML's SplitTimeInfo (the first is 0); [] when it has none.
+ */
+export function sectorStarts(yaml) {
+  const block = /SplitTimeInfo:\n Sectors:\n((?: .*\n)+)/.exec(yaml ?? '');
+  if (!block) return [];
+  return [...block[1].matchAll(/SectorStartPct:\s*([\d.]+)/g)].map(m =>
+    Number(m[1]),
+  );
+}
+
+/**
+ * The car entering each sector after the first: `[t, 'sector_start', sector,
+ * count]` rows, the sector numbered from 1, at the time LapDistPct passes its
+ * start (interpolated between samples). A drop at the line or a jump of half
+ * a lap (a reset, a tow) is not a crossing.
+ */
+export function sectorCrossings(t, pct, starts) {
+  const out = [];
+  if (starts.length < 2) return out;
+  for (let i = 1; i < pct.length; i++) {
+    const a = pct[i - 1];
+    const b = pct[i];
+    if (!(b > a) || b - a > 0.5) continue;
+    for (let k = 1; k < starts.length; k++) {
+      const s = starts[k];
+      if (a < s && s <= b) {
+        const at = t[i - 1] + ((s - a) / (b - a)) * (t[i] - t[i - 1]);
+        out.push([at, 'sector_start', k + 1, starts.length, '', '']);
+      }
+    }
+  }
+  return out;
+}
+
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
   const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
@@ -344,6 +408,7 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       'SessionFlags',
       'SteeringWheelAngleMax',
       'PlayerCarInPitStall',
+      'LapDistPct',
     ];
     const raw = readColumns(ibt, sources);
     const cols = {};
@@ -400,6 +465,9 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       events.push(
         ...emitChanges(t, loc, 'surface', (_, i) => surfaceCode(loc[i], mat[i])),
       );
+    }
+    if (raw.LapDistPct) {
+      events.push(...sectorCrossings(t, raw.LapDistPct, sectorStarts(ibt.yaml)));
     }
     if (raw.SessionFlags) {
       events.push(

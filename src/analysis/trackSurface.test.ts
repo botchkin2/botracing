@@ -6,6 +6,8 @@ import {
   dropOsmInsideSurface,
   emptySurface,
   MAX_EDGE_M,
+  MIN_EDGE_LAPS,
+  measuredHalfWidths,
   type SurfaceLap,
   surfaceGeometry,
 } from './trackSurface';
@@ -152,6 +154,37 @@ describe('the edges and the start/finish line', () => {
     addLap(s, lap(0, -6, [100, 300]));
     addLap(s, lap(0, -6, [500, 700]));
     expect(surfaceGeometry(s).runs).toHaveLength(2);
+  });
+});
+
+describe('measuredHalfWidths', () => {
+  it('a side with fewer laps than MIN_EDGE_LAPS is not trusted, and takes the median', () => {
+    const s = emptySurface(LENGTH_M);
+    // Right side (+6 m) on 5 laps; left side (-9 m) on 2 laps only.
+    for (let i = 0; i < 5; i++) addLap(s, lap(0, 6));
+    for (let i = 0; i < MIN_EDGE_LAPS - 1; i++) addLap(s, lap(0, -9));
+    const hw = measuredHalfWidths(s)!;
+    expect(hw.rightM[10]).toBeCloseTo(6);
+    // The left side has 2 laps: below MIN_EDGE_LAPS, so the median of the
+    // measured sides (6 m) stands in, not the untrusted 9 m.
+    expect(hw.leftM[10]).toBeCloseTo(6);
+  });
+
+  it('a side no lap measured takes the median half-width', () => {
+    const s = emptySurface(LENGTH_M);
+    for (let i = 0; i < MIN_EDGE_LAPS; i++) addLap(s, lap(0, 4));
+    for (let i = 0; i < MIN_EDGE_LAPS; i++) addLap(s, lap(0, -8, [0, 300]));
+    const hw = measuredHalfWidths(s)!;
+    // Left is measured only on [0, 300) at 8 m; elsewhere it takes the median.
+    expect(hw.leftM[0]).toBeCloseTo(8);
+    expect(hw.leftM[50]).toBeCloseTo(hw.rightM[50]);
+    expect(hw.rightM[50]).toBeCloseTo(4);
+  });
+
+  it('is null when no bin has a trusted edge', () => {
+    const s = emptySurface(LENGTH_M);
+    addLap(s, lap(0, 6));
+    expect(measuredHalfWidths(s)).toBeNull();
   });
 });
 

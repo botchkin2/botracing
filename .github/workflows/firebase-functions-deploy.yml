@@ -7,6 +7,11 @@ on:
     # Only what the functions deploy reads; a UI or uploader merge rebuilds nothing.
     paths:
       - 'functions/**'
+      # analyzeApi bundles the session engine (functions/scripts/buildEngine.mjs):
+      # an analysis change must reach the cloud, or opened sessions run old rules.
+      - 'tools/sessions/**'
+      - 'src/analysis/**'
+      - 'src/design/carModels.ts'
       - 'firestore.rules'
       - 'firestore.indexes.json'
       - 'firebase.json'

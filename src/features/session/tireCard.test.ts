@@ -13,6 +13,7 @@ import {
   type StintTires,
   treadScale,
 } from './tireCard';
+import {wearReadAtStops} from '@/src/analysis/tyres';
 
 const all = (v: number | null): PerWheel => ({FL: v, FR: v, RL: v, RR: v});
 
@@ -41,17 +42,19 @@ const lap = (
   ...over,
 });
 
-const stints = (laps: Lap[]) => {
-  const card = buildTiresCard({stints: []}, laps);
+const stints = (laps: Lap[], sim = 'lmu') => {
+  const card = buildTiresCard({stints: [], sim}, laps);
   if (card.kind !== 'stints') throw new Error('no stints');
   return card.stints;
 };
-const one = (laps: Lap[]): StintTires => stints(laps)[0];
+const one = (laps: Lap[], sim = 'lmu'): StintTires => stints(laps, sim)[0];
 
 describe('buildTiresCard', () => {
   it('is absent when no lap carries tyre facts', () => {
     const laps = [lap(1, 99, {tyres: null}), lap(2, 98, {tyres: null})];
-    expect(buildTiresCard({stints: []}, laps)).toEqual({kind: 'absent'});
+    expect(buildTiresCard({stints: [], sim: 'lmu'}, laps)).toEqual({
+      kind: 'absent',
+    });
   });
 
   it('a trend needs five green laps; fewer lists the readings', () => {
@@ -194,7 +197,7 @@ describe('buildTiresCard', () => {
       lap(4, 99, {stint: 2, tyres: null}),
       lap(5, 99, {stint: 3}),
     ];
-    expect(stints(laps).map(s => s.tab)).toEqual(['S1', 'S3']);
+    expect(stints(laps).map(s => s.tab)).toEqual(['Stint 1', 'Stint 3']);
   });
 });
 
@@ -391,5 +394,54 @@ describe('treadScale', () => {
   it('keeps the standard scale with no readings', () => {
     expect(treadScale([zone(null, null, null)]).minC).toBe(70);
     expect(treadScale([]).minC).toBe(70);
+  });
+});
+
+describe('wear read at stops only (iRacing holds its pit reading, radio #4437)', () => {
+  const clean = {pitIn: false, pitOut: false, pitStop: null};
+  const run = (
+    wears: number[],
+    over: (i: number) => Partial<Lap> = () => ({}),
+  ) => wears.map((w, i) => lap(i + 1, w, {...clean, ...over(i)}));
+
+  it('an iRacing channel that never moves between laps is read at stops: no rate, no bars, the reading kept', () => {
+    const laps = run([99.8, 99.8, 99.8, 99.8, 99.8, 99.8]);
+    expect(wearReadAtStops('iracing', laps)).toBe(true);
+    const s = one(laps, 'iracing');
+    expect(s.wearRead).toBe('stops');
+    expect(s.kind).toBe('trend');
+    expect(
+      s.wheels.every(w => w.medianLossPct == null && w.bars.length === 0),
+    ).toBe(true);
+    expect(s.wheels.map(w => w.leftPct)).toEqual([99.8, 99.8, 99.8, 99.8]);
+  });
+
+  it('a running iRacing tire (one change anywhere) is read every lap, with its rate', () => {
+    const laps = run([99.0, 98.5, 98.0, 97.5, 97.0, 96.5]);
+    expect(wearReadAtStops('iracing', laps)).toBe(false);
+    expect(one(laps, 'iracing').wearRead).toBe('every-lap');
+    expect(one(laps, 'iracing').wheels[0].medianLossPct).toBeCloseTo(0.5, 6);
+  });
+
+  it('a flat LMU channel is a tire that did not wear (wear off), never "read at stops" (brake #532)', () => {
+    const laps = run([99.8, 99.8, 99.8, 99.8, 99.8, 99.8]);
+    expect(wearReadAtStops('lmu', laps)).toBe(false);
+    const s = one(laps, 'lmu');
+    expect(s.wearRead).toBe('every-lap');
+    expect(s.wheels[0].medianLossPct).toBe(0);
+  });
+
+  it('a change across a pit visit does not count; two clean equal pairs decide it', () => {
+    // Stops after L1 and L5 (the Sebring practice's shape): the reading
+    // moves only across them; L3–L4 and L7–L8 are the clean pairs.
+    const laps = run([100, 99.7, 99.7, 99.7, 99.7, 98.4, 98.4, 98.4], i => ({
+      pitIn: i === 0 || i === 4,
+      pitOut: i === 1 || i === 5,
+    }));
+    expect(wearReadAtStops('iracing', laps)).toBe(true);
+  });
+
+  it('one clean equal pair is not enough to tell', () => {
+    expect(wearReadAtStops('iracing', run([99, 99]))).toBe(false);
   });
 });

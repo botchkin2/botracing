@@ -445,21 +445,29 @@ describe('splitWindow', () => {
   const window = {fromM: 1000, toM: 1600};
 
   it('splits a window into run-in, corner and exit that add up to its time', () => {
-    const s = splitWindow(timeAt, window, {
-      onsetM: 1100,
-      fullThrottleAtM: 1400,
-    });
+    const s = splitWindow(timeAt, window, {onsetM: 1100, exitM: 1400});
     expect(s).toEqual({runInS: 2, cornerS: 6, exitS: 4});
-    expect(s.runInS + s.cornerS + s.exitS).toBe(timeAt(1600) - timeAt(1000));
+    expect(s.runInS + s.cornerS + s.exitS!).toBe(timeAt(1600) - timeAt(1000));
   });
 
-  it('starts the corner at the window with no brake and runs it to the end with no full throttle', () => {
-    expect(
-      splitWindow(timeAt, window, {onsetM: null, fullThrottleAtM: 1400}),
-    ).toEqual({runInS: 0, cornerS: 8, exitS: 4});
-    expect(
-      splitWindow(timeAt, window, {onsetM: 1100, fullThrottleAtM: null}),
-    ).toEqual({runInS: 2, cornerS: 10, exitS: 0});
+  it('starts the corner at the window with no brake', () => {
+    expect(splitWindow(timeAt, window, {onsetM: null, exitM: 1400})).toEqual({
+      runInS: 0,
+      cornerS: 8,
+      exitS: 4,
+    });
+  });
+
+  it('puts the corner/exit split at the same distance for every lap (D43)', () => {
+    // Two laps with different times through the same window: the split sits at
+    // 1400 m on both, so a lap is slower in the exit only if it drove it slower.
+    const slowCorner = (m: number) =>
+      m <= 1400 ? m / 40 : 35 + (m - 1400) / 50;
+    const a = splitWindow(timeAt, window, {onsetM: 1100, exitM: 1400});
+    const b = splitWindow(slowCorner, window, {onsetM: 1100, exitM: 1400});
+    expect(a.exitS).toBe(4);
+    expect(b.exitS).toBe(4);
+    expect(b.cornerS).toBeGreaterThan(a.cornerS);
   });
 
   it('splits a lift-only section at its lift onset, the same one the boundary uses', () => {
@@ -467,24 +475,31 @@ describe('splitWindow', () => {
     expect(kink.kind).toBe('lift');
     const s = splitWindow(timeAt, window, {
       onsetM: 1000 + (kink.onsetsM[0]! - 200),
-      fullThrottleAtM: 1400,
+      exitM: 1400,
     });
     expect(s.runInS).toBeGreaterThan(0);
-    expect(s.runInS + s.cornerS + s.exitS).toBeCloseTo(12, 9);
+    expect(s.runInS + s.cornerS + s.exitS!).toBeCloseTo(12, 9);
   });
 
   it('keeps the points in the window and in order', () => {
-    const early = splitWindow(timeAt, window, {
-      onsetM: 900,
-      fullThrottleAtM: 950,
-    });
+    const early = splitWindow(timeAt, window, {onsetM: 900, exitM: 950});
     expect(early).toEqual({runInS: 0, cornerS: 0, exitS: 12});
-    const late = splitWindow(timeAt, window, {
-      onsetM: 1500,
-      fullThrottleAtM: 1200,
-    });
-    expect(late.runInS + late.cornerS + late.exitS).toBeCloseTo(12, 9);
+    const late = splitWindow(timeAt, window, {onsetM: 1500, exitM: 1200});
+    expect(late.runInS + late.cornerS + late.exitS!).toBeCloseTo(12, 9);
     expect(late.cornerS).toBe(0);
+    // An exit past the window's end (the next window starts first): no exit.
+    // An exit at or past the window's end is not measured here: no exit time,
+    // not a zero; the corner runs to the end.
+    expect(splitWindow(timeAt, window, {onsetM: 1100, exitM: 2000})).toEqual({
+      runInS: 2,
+      cornerS: 10,
+      exitS: null,
+    });
+    expect(splitWindow(timeAt, window, {onsetM: 1100, exitM: 1600})).toEqual({
+      runInS: 2,
+      cornerS: 10,
+      exitS: null,
+    });
   });
 });
 

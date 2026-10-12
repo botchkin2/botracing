@@ -6,6 +6,7 @@ import {
   toSessionDetail,
   toTrackMap,
 } from '@/src/data/sessions/adapters';
+import {resampleTrace} from '@/src/analysis/resample';
 import {trackCorners} from '@/src/data/sessions';
 
 import {buildCornerModel, sectionChips} from './model';
@@ -101,6 +102,7 @@ const build = (
     band: null,
     traces: new Map(),
     lapIds: ['a', 'b'],
+    refId: 'a',
     keyLapIds: ['a', 'b'],
     hl: null,
     corner,
@@ -114,7 +116,7 @@ describe('sectionChips', () => {
     const {sections} = sectionChips(all, all[0]);
     expect(sections.map(s => [s.label, s.firstCorner, s.selected])).toEqual([
       ['T1', 1, true],
-      ['S2 (T2–T3)', 2, false],
+      ['T2–3', 2, false],
     ]);
   });
 
@@ -135,37 +137,27 @@ describe('sectionChips', () => {
 describe('windowCaption', () => {
   const zoom: [number, number] = [350, 750];
 
-  it('names the shaded window and what is in view', () => {
-    expect(
-      windowCaption(
-        'T3',
-        {fromM: 700, toM: 740},
-        {fromM: 700, toM: 740},
-        [{label: 'T2', lapM: 580}],
-        zoom,
-      ),
-    ).toBe('Shaded: T3 · also in view: T2');
+  it('says nothing when the window sits inside the drawn stretch', () => {
+    expect(windowCaption({fromM: 700, toM: 740}, zoom)).toBe('');
   });
 
   it('says where a window runs past the drawn stretch, so the edge is not its end', () => {
+    expect(windowCaption({fromM: 700, toM: 1100}, zoom)).toBe(
+      'window continues later, not drawn',
+    );
+    expect(windowCaption({fromM: 100, toM: 500}, zoom)).toBe(
+      'window starts earlier, not drawn',
+    );
+  });
+
+  it('names where a part’s delta is drawn from, and when that start is not drawn', () => {
+    const from = {label: 'T2–3', lapM: 600, drawn: true};
+    expect(windowCaption({fromM: 700, toM: 740}, zoom, from)).toBe(
+      'delta from the start of T2–3',
+    );
     expect(
-      windowCaption(
-        'T10',
-        {fromM: 3900, toM: 4300},
-        {fromM: 700, toM: 1100},
-        [],
-        zoom,
-      ),
-    ).toBe('Shaded: T10 · window continues later, not drawn');
-    expect(
-      windowCaption(
-        'T1',
-        {fromM: 100, toM: 500},
-        {fromM: 100, toM: 500},
-        [],
-        zoom,
-      ),
-    ).toContain('window starts earlier, not drawn');
+      windowCaption({fromM: 700, toM: 740}, zoom, {...from, drawn: false}),
+    ).toBe('delta from the start of T2–3, not drawn');
   });
 });
 
@@ -175,8 +167,8 @@ describe('the Corner model with windows', () => {
   it('shades the part’s own window and anchors the delta at its start', () => {
     const model = build(m, {v: 1, rev: 3}, 3)!;
     expect(model.zoom.stretch).toEqual({fromM: 700, toM: 1000});
-    expect(model.zoom.caption).toMatch(/^Shaded: T3/);
-    expect(model.sections.map(s => s.label)).toEqual(['T1', 'S2 (T2–T3)']);
+    expect(model.zoom.caption).not.toContain('Shaded');
+    expect(model.sections.map(s => s.label)).toEqual(['T1', 'T2–3']);
     expect(model.parts.map(p => p.label)).toEqual(['T2', 'T3']);
   });
 
@@ -187,7 +179,7 @@ describe('the Corner model with windows', () => {
     expect(t3.zoom.stretch.fromM).toBe(700);
     expect(t3.zoom.deltaFromM).toBe(500);
     expect(t3.zoom.windowM[0]).toBeLessThanOrEqual(500);
-    expect(t3.zoom.caption).toContain('delta from the start of S2');
+    expect(t3.zoom.caption).toContain('delta from the start of T2–3');
     expect(t3.zoom.caption).not.toContain('not drawn');
     // The first part starts where its section does: nothing to add.
     const t2 = build(m, {v: 1, rev: 3}, 2)!;
@@ -232,11 +224,84 @@ describe('the Corner model with windows', () => {
 
   it('keeps the old stretch for laps cut at other boundaries', () => {
     const model = build(m, {v: 1, rev: 2}, 3)!;
-    expect(model.zoom.caption).toMatch(/^Shaded: T3 · also in view/);
+    expect(model.zoom.caption).not.toContain('also in view');
     expect(model.zoom.stretch.fromM).toBe(700);
   });
 
   it('keeps the old stretch for a track with no boundaries', () => {
-    const model = build(mapWith(null), null, 3)!;
+    build(mapWith(null), null, 3);
+  });
+});
+
+// A lap at a constant speed on the grid, so every lap has a trace (zoom lines need one).
+function flatTrace(kph: number) {
+  const v = kph / 3.6;
+  const n = Math.ceil(1000 / v / 0.1) + 1;
+  const pct = Array.from({length: n}, (_, i) =>
+    Math.min(1, (i * 0.1 * v) / 1000),
+  );
+  const same = (x: number) => pct.map(() => x);
+  return resampleTrace(
+    {
+      lapDistPct: pct,
+      speedKph: same(kph),
+      throttlePct: same(100),
+      brakePct: same(0),
+      steeringPct: same(0),
+      gear: same(4),
+      lat: pct,
+      lon: same(0),
+    },
+    1000,
+    5,
+    10,
+  );
+}
+
+describe('a highlighted lap outside the set, with windows', () => {
+  const m = mapWith(boundaries);
+  const stamp = {v: 1, rev: 3};
+  const build = (hl: string | null) =>
+    buildCornerModel({
+      session,
+      laps: toLaps([
+        rawLap('a', stamp),
+        rawLap('b', stamp),
+        rawLap('c', stamp),
+      ]),
+      map: m,
+      band: null,
+      traces: new Map([
+        ['a', flatTrace(180)],
+        ['b', flatTrace(182)],
+        ['c', flatTrace(300)],
+      ]),
+      lapIds: ['a', 'b'],
+      refId: null,
+      keyLapIds: hl ? ['a', 'b', hl] : ['a', 'b'],
+      hl,
+      corner: 3,
+    })!;
+
+  it('the window keeps the set: same laps, same median gaps, with or without the highlight', () => {
+    const withC = build('c');
+    const without = build(null);
+    // Count: the set's two laps, not three.
+    expect(withC.window!.rows.map(r => r.lapId)).toEqual(['a', 'b']);
+    expect(without.window!.rows.map(r => r.lapId)).toEqual(['a', 'b']);
+    // Median over two laps is their mean, so the two gaps are equal and opposite.
+    expect(withC.window!.rows.map(r => r.time.gap)).toEqual(
+      without.window!.rows.map(r => r.time.gap),
+    );
+    expect(withC.window!.rows[0].time.gap).not.toBeNull();
+  });
+
+  it('a zoom line keeps its deltaS whether or not the lap is highlighted', () => {
+    const withC = build('c');
+    const without = build(null);
+    const deltaOf = (m: typeof withC, id: string) =>
+      m.zoom.lines.find(l => l.lapId === id)!.deltaS;
+    expect(deltaOf(withC, 'a')).toEqual(deltaOf(without, 'a'));
+    expect(deltaOf(withC, 'b')).toEqual(deltaOf(without, 'b'));
   });
 });

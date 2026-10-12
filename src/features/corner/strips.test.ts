@@ -38,12 +38,18 @@ describe('buildStrips', () => {
     expect(strips[2]).toMatchObject({leftWord: 'slower', rightWord: 'faster'});
   });
 
-  it('labels the ends and the pedal resolution', () => {
-    expect([brake.minLabel, brake.maxLabel, brake.resolution]).toEqual([
-      '100',
-      '119',
-      '±1.2 m',
+  it('gives the strip an axis in 1-2-5 steps with units on the ticks, and the pedal resolution (D45)', () => {
+    // Brake points 100 to 119 m: rounded out to 100–120 in 5 m steps.
+    expect(brake.scale.lo).toBe(100);
+    expect(brake.scale.hi).toBe(120);
+    expect(brake.scale.ticks.map(t => t.label)).toEqual([
+      '100 m',
+      '105 m',
+      '110 m',
+      '115 m',
+      '120 m',
     ]);
+    expect(brake.resolution).toBe('±1.2 m');
     expect(brake.coincidentWithin).toBe(1.2);
     expect(strips[3].resolution).toBeNull();
   });
@@ -93,7 +99,7 @@ describe('laps at full throttle by the slowest point', () => {
     expect(throttle.dots.map(d => d.lapId)).toEqual(['l0', 'l1', 'l4']);
     expect(throttle.dots.every(d => !d.flagged)).toBe(true);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 2 of 5 laps',
+      'Full pedal by the slowest point: 2 of 5 laps',
     );
     // The band is over the laps that have a point.
     expect(throttle.band?.p50).toBe(51);
@@ -101,7 +107,7 @@ describe('laps at full throttle by the slowest point', () => {
 
   it('one flat lap reads singular; none reads nothing', () => {
     expect(buildStrips([lap(0), flat(1)])[3].flatNote).toBe(
-      'Full throttle by the slowest point: 1 of 2 laps',
+      'Full pedal by the slowest point: 1 of 2 laps',
     );
     expect(buildStrips([lap(0), lap(1)])[3].flatNote).toBeNull();
   });
@@ -112,7 +118,7 @@ describe('laps at full throttle by the slowest point', () => {
     const throttle = buildStrips(laps)[3];
     expect(throttle.dots).toHaveLength(2);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 2 of 5 laps',
+      'Full pedal by the slowest point: 2 of 5 laps',
     );
   });
 
@@ -121,16 +127,8 @@ describe('laps at full throttle by the slowest point', () => {
     expect(throttle.empty).toBe(true);
     expect(throttle.dots).toEqual([]);
     expect(throttle.flatNote).toBe(
-      'Full throttle by the slowest point: 3 of 3 laps',
+      'Full pedal by the slowest point: 3 of 3 laps',
     );
-  });
-
-  it('an on lap that is flat says so beside the title', () => {
-    const throttle = buildStrips([
-      lap(0, {onIndex: 0}),
-      flat(1, {onIndex: 1}),
-    ])[3];
-    expect(throttle.keyValues.map(k => k.text)).toEqual(['L0 50', 'L1 at min']);
   });
 
   it('other strips are not touched by a flat throttle lap', () => {

@@ -87,9 +87,6 @@ function FuelBody({card, width}: {card: FuelCard; width: number}) {
             ]}
             label={`Used ${Math.round(used * 100)} % of what was loaded`}
           />
-          <Text variant='dataSmall' tone='textMuted'>
-            grey = used · white = left
-          </Text>
         </View>
       ) : null}
     </View>

@@ -5,7 +5,9 @@ import {type GridTrace} from '@/src/analysis/resample';
 import {buildTrackMarks, type MapAnchor, type MapMarks} from '@/src/charts';
 import {
   mapPlacer,
+  measuredCentreAt,
   measuredCentreLines,
+  type MeasuredRun,
   type SessionSummary,
   type TrackMapData,
   type Xy,
@@ -14,6 +16,7 @@ import {type TrackInfo} from '@/src/data/tracks';
 import {formatLength, turnLabel} from '@/src/design';
 
 import {buildHistory, type HistoryModel} from './history';
+import {sectionHeaderOf, turnOfPart} from '@/src/analysis/turnNames';
 
 // Track page view model (Claude Design "Track page" v1 handoff). Pure: the
 // layout's bundled facts, its sessions, the track's stored corner map and
@@ -38,16 +41,18 @@ export type TrackMapModel = {
   /** Outline stretches the line does not run along (drawn quietly). */
   outlineFaded: Xy[][];
   pitLane: Xy[][];
-  line: Xy[];
+  /** The reference lap's line; null until the lap has loaded. */
+  line: Xy[] | null;
   marks: MapMarks;
   startFinish: MapAnchor | null;
+  /** What placed the badges and S/F: the measured road, the lap, or nothing yet. */
+  marksFrom: 'surface' | 'lap' | null;
   /** Shown over the map when there is no reliable outline. */
   note: string | null;
 };
 
 export type TrackModel = {
   title: string;
-  countryCode: string | null;
   country: string | null;
   facts: TrackFact[];
   corners: TrackCornerGroup[];
@@ -97,14 +102,14 @@ export function referenceSession(
 export function buildTrackModel(input: TrackInputs): TrackModel {
   const {info, map, refTrace, selectedCorner} = input;
   const sessionName = input.sessions[0]?.track;
-  const shape =
-    map && refTrace ? placeLine(map, input.surface ?? null, refTrace) : null;
+  // The map is a map: its outline draws without a lap; the lap adds its layers.
+  const mapModel = map ? placeMap(map, input.surface ?? null, refTrace) : null;
 
   const names = new Map<number, string>();
   const corners = map
     ? map.sections.flatMap(s => (s.parts.length ? s.parts : [s]))
     : [];
-  if (map && refTrace && shape) {
+  if (map && refTrace && mapModel) {
     if (info && map.georef && canDrawOnRealMap(map.quality, map.georef)) {
       const georef = map.georef;
       const apexes = corners.map(c => {
@@ -134,14 +139,18 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
   const groups: TrackCornerGroup[] = [];
   for (const s of map?.sections ?? []) {
     if (s.parts.length > 1) {
-      const partNames = s.parts.map(p => names.get(p.n));
-      const label = partNames.every(Boolean)
-        ? partNames.join('–').toUpperCase()
-        : `${turnLabel(s.parts[0].n, s.parts[0].official)}–${turnLabel(
-            s.parts[s.parts.length - 1].n,
-            s.parts[s.parts.length - 1].official,
-          )}`;
-      groups.push({title: `S${s.n} · ${label}`, rows: s.parts.map(row)});
+      const label = sectionHeaderOf(
+        s.parts.map(p => turnLabel(p.n, p.official)),
+      );
+      // A heading over the parts of one turn ("T7" over "T7 entry" and "T7")
+      // only repeats their name: it is for sections that span turns.
+      const spansTurns =
+        new Set(s.parts.map(p => turnOfPart(turnLabel(p.n, p.official)))).size >
+        1;
+      groups.push({
+        title: spansTurns ? label : null,
+        rows: s.parts.map(row),
+      });
       continue;
     }
     const last = groups[groups.length - 1];
@@ -155,7 +164,6 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
 
   return {
     title: info?.layout ?? sessionName ?? input.trackId,
-    countryCode: info?.countryCode ?? null,
     country: info?.country ?? null,
     facts: buildFacts(info, map),
     corners: groups,
@@ -167,7 +175,7 @@ export function buildTrackModel(input: TrackInputs): TrackModel {
           }`,
         }
       : null,
-    map: map && shape ? shape.model : null,
+    map: mapModel,
     history: buildHistory(input.sessions),
     about: info?.summary
       ? {
@@ -209,33 +217,81 @@ function gridIndex(t: GridTrace, m: number): number {
   return i < 0 ? i + n : i;
 }
 
-function placeLine(
+function placeMap(
   map: TrackMapData,
   surface: TrackSurface | null,
-  t: GridTrace,
-): {line: Xy[]; model: TrackMapModel} | null {
-  if (t.lat.length < 3) return null;
+  t: GridTrace | null,
+): TrackMapModel | null {
   const placer = mapPlacer(map, surface);
-  const line = placer.place(t, 0, t.lat.length - 1, 1);
-  const split = placer.outlineUse(t);
-  const pointAt = (m: number) => line[gridIndex(t, m)];
-  const all = buildTrackMarks(
-    map.sections,
+  const lap = t && t.lat.length >= 3 ? t : null;
+  const line = lap ? placer.place(lap, 0, lap.lat.length - 1, 1) : null;
+  // The badges and S/F sit on the measured road when it covers every place
+  // they need, so a map is a map with no lap (thread 1 #3479); else on the lap.
+  const fromSurface = surfaceMarks(map, surface, placer.measured);
+  const fromLap =
+    lap && line && !fromSurface
+      ? lapMarks(map, lap, (m: number) => line[gridIndex(lap, m)])
+      : null;
+  const marks = fromSurface ?? fromLap;
+  const split = lap ? placer.outlineUse(lap) : null;
+  const outline = [
+    ...measuredCentreLines(placer.measured),
+    ...(split ? split.used : placer.outline),
+  ];
+  if (outline.length === 0 && !line) return null;
+  return {
+    real: placer.real,
+    outline,
+    outlineFaded: split ? split.unused : placer.nearMeasured,
+    pitLane: placer.pitLane,
+    line,
+    // Numbers only: the page has no section labels or boundary ticks.
+    marks: {boundaries: [], sections: [], corners: marks?.corners ?? []},
+    startFinish: marks?.startFinish ?? null,
+    marksFrom: fromSurface ? 'surface' : fromLap ? 'lap' : null,
+    note: line && !placer.real ? NO_OUTLINE_NOTE : null,
+  };
+}
+
+type PlacedMarks = {corners: MapMarks['corners']; startFinish: MapAnchor};
+
+function marksAlong(
+  map: TrackMapData,
+  lengthM: number,
+  pointAt: (m: number) => Xy,
+): PlacedMarks {
+  const all = buildTrackMarks(map.sections, lengthM, pointAt);
+  return {
+    corners: all.corners,
+    startFinish: {at: pointAt(0), prev: pointAt(-10), next: pointAt(10)},
+  };
+}
+
+function lapMarks(
+  map: TrackMapData,
+  t: GridTrace,
+  pointAt: (m: number) => Xy,
+): PlacedMarks {
+  return marksAlong(
+    map,
     map.lengthM || t.distanceM[t.distanceM.length - 1],
     pointAt,
   );
-  return {
-    line,
-    model: {
-      real: placer.real,
-      outline: [...measuredCentreLines(placer.measured), ...split.used],
-      outlineFaded: split.unused,
-      pitLane: placer.pitLane,
-      line,
-      // Numbers only: the page has no section labels or boundary ticks.
-      marks: {boundaries: [], sections: [], corners: all.corners},
-      startFinish: {at: pointAt(0), prev: pointAt(-10), next: pointAt(10)},
-      note: placer.real ? null : NO_OUTLINE_NOTE,
-    },
+}
+
+/** Marks on the measured road, or null when it misses any place they need. */
+function surfaceMarks(
+  map: TrackMapData,
+  surface: TrackSurface | null,
+  runs: MeasuredRun[],
+): PlacedMarks | null {
+  if (!surface || runs.length === 0 || !(map.lengthM > 0)) return null;
+  let missing = false;
+  const pointAt = (m: number): Xy => {
+    const p = measuredCentreAt(surface, runs, m / map.lengthM);
+    if (!p) missing = true;
+    return p ?? {x: 0, y: 0};
   };
+  const marks = marksAlong(map, map.lengthM, pointAt);
+  return missing ? null : marks;
 }

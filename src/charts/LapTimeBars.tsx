@@ -1,7 +1,15 @@
-import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {G, Line, Rect, Text as SvgText} from 'react-native-svg';
+import {StyleSheet, View} from 'react-native';
+import {G, Line, Rect} from 'react-native-svg';
 
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {Pressable} from '@/src/ui';
+
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {baselineOver, centredBaseline, EDGE_PT} from './labelBox';
+
+import {dash, stroke, useTheme} from '@/src/design';
+
+import {lapBarsPlot, STUB_BOTTOM, STUB_H} from './lapBarsPlot';
+import {labelsBottom, labelY, placeTopLabels} from './topLabels';
 
 // One bar per lap around the median (handoff §2 "Lap times chart"). Up is
 // faster. Excluded laps are outlined stubs on the baseline. Pure props: the
@@ -20,10 +28,7 @@ export type LapBar = {
   highlighted: boolean;
 };
 
-const STUB_H = 9;
-const STUB_BOTTOM = 14;
 const AXIS_H = 14;
-const TOP_PAD = 12;
 // Right gutter for the median label, so bars never sit under it.
 const GUTTER_W = 40;
 // The rails under the axis: one row each for TOW, TRAF and PIT.
@@ -66,12 +71,7 @@ export function LapTimeBars({
   const plotW = Math.max(0, width - GUTTER_W);
   const slot = plotW / n;
   const barW = Math.max(1, slot - 1.6);
-  const plotBottom = height - STUB_BOTTOM - STUB_H - 4;
-  const mid = TOP_PAD + (plotBottom - TOP_PAD) / 2;
-  const half = (plotBottom - TOP_PAD) / 2;
-  const yOf = (d: number) => mid - (d / rangeS) * half;
   const xOf = (i: number) => i * slot + (slot - barW) / 2;
-  const axis = {...typeScale.axis, fontSize: 9};
   const railsH = rails ? RAIL_ROW_H * 3 + 2 : 0;
   const totalH = height + AXIS_H + railsH;
   // STINT, PIT and RESET labels share the top rows; one that would run into
@@ -110,9 +110,18 @@ export function LapTimeBars({
     width,
   );
 
+  const {plotTop, plotBottom} = lapBarsPlot(
+    height,
+    labelsBottom(topLabels),
+    TICK_PT,
+  );
+  const mid = plotTop + (plotBottom - plotTop) / 2;
+  const half = (plotBottom - plotTop) / 2;
+  const yOf = (d: number) => mid - (d / rangeS) * half;
+
   return (
     <View style={{width, height: totalH}}>
-      <Svg width={width} height={totalH}>
+      <ChartSvg width={width} height={totalH}>
         {/* A stint a reset opened: grey long dashes, not the plain rule.
             A reset inside a stint gets no line, only its tag (Botkin #609). */}
         {stintBreaks.map(b => {
@@ -147,7 +156,7 @@ export function LapTimeBars({
               key={`pit-${i}`}
               x1={x}
               x2={x}
-              y1={TOP_PAD}
+              y1={plotTop}
               y2={height}
               stroke={color.accent}
               strokeWidth={1}
@@ -156,16 +165,15 @@ export function LapTimeBars({
           );
         })}
         {topLabels.map(l => (
-          <SvgText
+          <ChartLabel
+            fontSize={TICK_PT}
             key={l.key}
             x={l.x}
-            textAnchor={l.anchor}
-            y={9 + l.row * LABEL_ROW}
-            fill={l.color}
-            fontFamily={axis.fontFamily}
-            fontSize={axis.fontSize}>
+            anchor={l.anchor}
+            y={labelY(l.row)}
+            fill={l.color}>
             {l.text}
-          </SvgText>
+          </ChartLabel>
         ))}
         {bars.map((b, i) => {
           const x = xOf(i);
@@ -215,27 +223,41 @@ export function LapTimeBars({
             </G>
           );
         })}
-        <SvgText
-          x={width}
-          y={mid + 3}
-          textAnchor='end'
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+        {/* The scale, with units: the top is the clamp, faster by rangeS. */}
+        {[
+          {d: rangeS, label: `−${rangeS.toFixed(1)} s`},
+          {d: -rangeS, label: `+${rangeS.toFixed(1)} s`},
+        ].map(t => (
+          <ChartLabel
+            fontSize={TICK_PT}
+            key={t.label}
+            x={2}
+            y={centredBaseline(yOf(t.d), TICK_PT)}
+            lineY={yOf(t.d)}
+            fill={color.textFaint}>
+            {t.label}
+          </ChartLabel>
+        ))}
+        <ChartLabel
+          fontSize={TICK_PT}
+          x={width - EDGE_PT}
+          y={centredBaseline(mid, TICK_PT)}
+          lineY={mid}
+          anchor='end'
+          fill={color.textFaint}>
           {medianLabel}
-        </SvgText>
+        </ChartLabel>
         {bars.map((b, i) =>
           (i + 1) % 10 === 0 ? (
-            <SvgText
+            <ChartLabel
+              fontSize={TICK_PT}
               key={`x-${i}`}
               x={xOf(i) + barW / 2}
-              y={height + AXIS_H - 3}
-              textAnchor='middle'
-              fill={color.textFaint}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
-              {i + 1}
-            </SvgText>
+              y={baselineOver(height + AXIS_H, TICK_PT)}
+              anchor='middle'
+              fill={color.textFaint}>
+              {`L${i + 1}`}
+            </ChartLabel>
           ) : null,
         )}
         {rails &&
@@ -254,19 +276,18 @@ export function LapTimeBars({
                     fill={railColor(row.key, color)}
                   />
                 ))}
-                <SvgText
-                  x={width}
-                  y={top + RAIL_ROW_H - 1}
-                  textAnchor='end'
-                  fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
-                  fontSize={axis.fontSize}>
+                <ChartLabel
+                  fontSize={TICK_PT}
+                  x={width - EDGE_PT}
+                  y={baselineOver(top + RAIL_ROW_H, TICK_PT)}
+                  anchor='end'
+                  fill={color.textFaint}>
                   {row.label}
-                </SvgText>
+                </ChartLabel>
               </G>
             );
           })}
-      </Svg>
+      </ChartSvg>
       {/* Hit targets: full-height columns, so thin bars are still tappable. */}
       <View style={StyleSheet.absoluteFill}>
         <View style={styles.hitRow}>
@@ -304,37 +325,5 @@ function railColor(
   return color.accent;
 }
 
-const LABEL_ROW = 10;
 // A pit this many laps before a stint boundary is named by its label.
 const NEAR_LAPS = 3;
-// Mono 9 pt glyphs are 0.6 em, 5.4 pt wide.
-const LABEL_CHAR_W = 5.4;
-
-type TopLabel = {key: string; x: number; text: string; color: string};
-
-/**
- * Left to right, each label takes the first row where it clears the last.
- * One that would run past maxX is drawn right-aligned, ending at its line.
- */
-function placeTopLabels(
-  labels: TopLabel[],
-  maxX: number,
-): (TopLabel & {row: number; anchor: 'start' | 'end'})[] {
-  const rowEnds: number[] = [];
-  return [...labels]
-    .sort((a, b) => a.x - b.x)
-    .map(l => {
-      const w = l.text.length * LABEL_CHAR_W;
-      const flip = l.x + w > maxX;
-      const left = flip ? l.x - 6 - w : l.x;
-      let row = rowEnds.findIndex(end => end + 4 <= left);
-      if (row < 0) row = rowEnds.length;
-      rowEnds[row] = left + w;
-      return {
-        ...l,
-        x: flip ? l.x - 6 : l.x,
-        row,
-        anchor: flip ? 'end' : 'start',
-      };
-    });
-}

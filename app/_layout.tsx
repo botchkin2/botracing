@@ -8,14 +8,15 @@ import {
   usePathname,
 } from 'expo-router';
 import {StatusBar} from 'expo-status-bar';
-import {type ReactNode, useEffect} from 'react';
+import {type ReactNode, useEffect, useSyncExternalStore} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {
   SafeAreaInsetsContext,
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
+import '@/src/setup/reanimated';
+import {holdSplashForUpdate, startOtaUpdates} from '@/src/setup/ota';
 
 import {AuthGate, startAuthSession} from '@/src/auth';
 import {
@@ -29,17 +30,22 @@ import {
   type Destination,
   sessionTabOf,
 } from '@/src/nav/activeTab';
-import {BottomBar} from '@/src/ui';
+import {analysing} from '@/src/data/sessions';
+import {BottomBar, WorkingLine} from '@/src/ui';
 import {queryClient} from '@/src/utils/queryClient';
 import {DesktopChrome} from '@/src/workspace/DesktopChrome';
 import {usePlanCombo} from '@/src/workspace/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
+
+holdSplashForUpdate();
 
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
   useAppFonts();
   // Follow the sign-in for the life of the app.
   useEffect(() => startAuthSession(), []);
+  // Fetch an OTA update on launch (splash held) and on each return to the app.
+  useEffect(() => startOtaUpdates(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
@@ -47,10 +53,21 @@ export default function RootLayout() {
           <AuthGate>
             <Navigation />
           </AuthGate>
+          <AnalysingLine />
         </AppThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );
+}
+
+/** The top line while a session opened under older rules is analysed again. */
+function AnalysingLine() {
+  const count = useSyncExternalStore(
+    analysing.subscribe,
+    analysing.count,
+    analysing.count,
+  );
+  return <WorkingLine active={count > 0} />;
 }
 
 /** Navigation chrome takes its colors and scheme from the design tokens. */

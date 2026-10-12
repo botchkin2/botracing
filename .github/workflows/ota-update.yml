@@ -1,0 +1,86 @@
+# Publishes the JS bundle to the `production` channel with EAS Update, so
+# installed Android apps pick it up on their next launch without a new APK.
+# Runs on a push to main only when something the bundle is built from changed;
+# docs, tools, functions and desktop changes never run it.
+#
+# runtimeVersion is the "fingerprint" policy (app.json): an update reaches only
+# builds with the same native fingerprint. A native change needs a new APK
+# (docs/ANDROID_BUILD.md, Over-the-air updates).
+#
+# The Tests workflow runs on pull requests only, so this job runs tsc and jest
+# on the pushed commit itself before it publishes: a red main never ships.
+#
+# The runtimeVersion is the fingerprint of this checkout after `npm ci`
+# (fingerprint.config.js), the same value EAS computes for the APK build of the
+# same commit. The job summary prints it with the update group id.
+#
+# Runs in the `android-build` Environment (EXPO_TOKEN, no reviewer), which allows
+# branch main for this job and android-v* tags for the APK build.
+name: OTA update
+on:
+  push:
+    branches: [main]
+    # Everything runs it except what never reaches the bundle or the fingerprint
+    # (a deny-list, so a new import cannot silently fall out). `!` is documented
+    # for `paths` only; order matters, the re-includes follow their excludes:
+    # tools/track-info (src/data/tracks/catalog.ts imports its tracks.json) and
+    # this workflow.
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!**.md'
+      - '!desktop/**'
+      - '!functions/**'
+      - '!ops/**'
+      - '!scripts/**'
+      - '!tools/**'
+      - 'tools/track-info/**'
+      - '!.claude/**'
+      - '!.github/**'
+      - '.github/workflows/ota-update.yml'
+      - '!firebase*.json'
+      - '!firestore.*'
+      - '!.firebaserc'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ota-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Also a deployment-branch rule on the Environment (main and android-v*).
+    if: github.ref == 'refs/heads/main'
+    environment: android-build
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # EAS reads the app config and fingerprint through the project's own expo package.
+      - run: npm ci
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: App tests
+        run: npx jest
+
+      - name: Publish to production
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: >
+          npx --yes eas-cli@24.8.0 update --channel production --platform android
+          --message "${GITHUB_SHA::8}" --non-interactive --json
+          > "$RUNNER_TEMP/update.json"
+
+      # After the publish: a summary problem must not fail a published update.
+      - name: Summary (group, runtime version, message)
+        continue-on-error: true
+        run: node scripts/ota-summary.mjs "$RUNNER_TEMP/update.json" "${GITHUB_SHA::8}" >> "$GITHUB_STEP_SUMMARY"

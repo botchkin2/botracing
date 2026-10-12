@@ -1,3 +1,4 @@
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {describe, expect, it} from '@jest/globals';
 
 import {type RawTrace, resampleTrace} from '@/src/analysis/resample';
@@ -13,16 +14,18 @@ import {
 import {
   BASIS_ID,
   buildCompareModel,
-  medianBasisOf,
   snapOut,
   cornerPlace,
   pedalsDomains,
   followPlace,
   type CompareSelection,
   clearRef,
+  openingCursorM,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   setRef,
+  pressAllLapsRow,
   toggleHighlight,
   toggleCompared,
   valuesAt,
@@ -34,10 +37,10 @@ const LENGTH_M = 1000;
 // A lap on a 1000 m circle at constant speed, in LMU's fake-origin degrees.
 function circleLap(speedKph: number): RawTrace {
   const v = speedKph / 3.6;
-  const n = Math.ceil(LENGTH_M / v / 0.1) + 1;
-  const pct = Array.from({length: n}, (_, i) =>
-    Math.min(1, (i * 0.1 * v) / LENGTH_M),
-  );
+  // Every sample on the lap (pct below 1), none forced onto the line: the
+  // distance is the game's LapDistPct, so a clamped last sample would be a jump.
+  const n = Math.floor(LENGTH_M / v / 0.1) + 1;
+  const pct = Array.from({length: n}, (_, i) => (i * 0.1 * v) / LENGTH_M);
   const r = LENGTH_M / (2 * Math.PI);
   const same = (x: number) => pct.map(() => x);
   return {
@@ -107,6 +110,32 @@ const sel = (over: Partial<CompareSelection> = {}): CompareSelection => ({
 
 const build = (s = sel()) =>
   buildCompareModel({session, laps, traces, band: null, map, selection: s});
+
+describe('overview scales fit the comparable laps', () => {
+  it('a non-comparable lap off the fitted range is clipped and named, not stretched over', () => {
+    const laps2 = toLaps([
+      rawLap('a', 20.0, [5, 5]),
+      rawLap('b', 20.4, [5.3, 5.1]),
+      {...rawLap('d', 20.0, [5, 5]), comparable: false},
+    ]);
+    const traces2 = new Map([
+      ...traces,
+      ['d', resampleTrace(circleLap(300), LENGTH_M, 5, 10)],
+    ]);
+    const m = buildCompareModel({
+      session,
+      laps: laps2,
+      traces: traces2,
+      band: null,
+      map,
+      selection: sel({laps: ['a', 'b', 'd']}),
+    });
+    const speed = m.charts.find(c => c.title.startsWith('Speed'))!;
+    const [, hi] = speed.domains.speed!;
+    expect(hi).toBeLessThan(250);
+    expect(Object.values(speed.offScale).flat()).toEqual(['L3']);
+  });
+});
 
 describe('start/finish wrap', () => {
   const at = (lapIds: string[], cursorM: number) =>
@@ -186,7 +215,7 @@ describe('buildCompareModel', () => {
     const m = build();
     expect(m.charts.map(c => c.title)).toEqual([
       'Time diff vs median of 3',
-      'Speed',
+      'Speed km/h',
       'Throttle + Brake + Steering',
       'Gear',
     ]);
@@ -202,7 +231,7 @@ describe('buildCompareModel', () => {
     expect(l2.values[0]).toBe(0);
     expect(l2.values[200]).toBeGreaterThan(0.39);
     expect(m.charts[2].pedals).toBe(true);
-    expect(m.charts[2].height).toBe(140);
+    expect(m.charts[2].height).toBe(160);
   });
 
   it('reads values at the cursor for every shown lap', () => {
@@ -210,12 +239,14 @@ describe('buildCompareModel', () => {
     expect(speed.values.map(v => v.text)).toEqual(['180', '180', '176', '181']);
   });
 
-  it('grid shows each lap vs the reference per corner', () => {
+  it('grid shows each lap vs the reference per corner; with no Ref picked the stand-in is the best lap, not the lowest number', () => {
     const g = build().grid!;
     expect(g.corners).toEqual([1, 2]);
+    // L3 is the fastest of the checked laps: L1 and L2 are read against it.
+    expect(g.rows.map(r => r.label)).toEqual(['L1', 'L2']);
     expect(g.rows.map(r => r.cells.map(c => Number(c!.toFixed(2))))).toEqual([
-      [0.3, 0.1],
-      [-0.05, -0.05],
+      [0.05, 0.05],
+      [0.35, 0.15],
     ]);
   });
 
@@ -235,9 +266,8 @@ describe('buildCompareModel', () => {
     expect(mm.dots.map(d => d.label)).toEqual(['L1', 'L2', 'L3']);
   });
 
-  it('the map still draws the cursor when many laps are checked and none is key', () => {
-    // Eight laps is past the individual mode, with no Ref lap and none
-    // highlighted: no lap is a key lap, and the dot was missing (#273).
+  it('the map draws every ticked lap when many are checked, with no Ref lap and none highlighted', () => {
+    // Eight laps is past the individual mode: every ticked lap is on the map.
     const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const many = toLaps(
       ids.map((id, i) => rawLap(id, 20 + i * 0.1, [5 + i * 0.01, 5])),
@@ -258,17 +288,17 @@ describe('buildCompareModel', () => {
         selection: sel({laps: ids, ...s}),
       }).map!;
     const median = at({});
-    expect(median.dots).toHaveLength(1);
-    expect(median.dots[0].lapId).toBe(BASIS_ID);
+    expect(median.dots.map(d => d.lapId)).toEqual(ids);
     expect(median.follow).toBeNull(); // geometry is the hook's; the dot does not wait for it
-    // A Ref lap or a highlighted lap is its own dot, as before.
-    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toEqual(['c']);
-    expect(at({hl: 'e'}).dots.map(d => d.lapId)).toEqual(['e']);
+    // Every ticked lap is a dot; the Ref lap is drawn last, on top.
+    expect(at({ref: 'c'}).dots.map(d => d.lapId)).toHaveLength(8);
+    expect(at({ref: 'c'}).dots.at(-1)?.lapId).toBe('c');
+    expect(at({hl: 'e'}).dots.at(-1)?.lapId).toBe('e');
   });
 
   it('position row names the corner under the cursor', () => {
-    expect(build().position.place).toBe('Section 2');
-    expect(build(sel({cursorM: 850})).position.place).toBe('After Section 2');
+    expect(build().position.place).toBe('T2');
+    expect(build(sel({cursorM: 850})).position.place).toBe('After T2');
     expect(build().position.distance).toBe('600 m');
   });
 
@@ -316,6 +346,18 @@ describe('chart window', () => {
     expect(td.valueRows[0].values[2].text).toMatch(/ s$/);
     expect(td.valueRows[0].label).toBe('Time diff vs median of 3');
     expect(td.valueRows[0].unit).toBe('');
+    // A lone row is the chart's title, so it has no legend; an overlay row gets one.
+    expect(td.valueRows[0].legend).toBe(false);
+    expect(
+      m.charts.find(c => c.channels.length > 1)?.valueRows.every(r => r.legend),
+    ).toBe(true);
+    // A lone Speed chart keeps its unit in the title: no legend, so nowhere else.
+    const speed = m.charts.find(
+      c => c.channels.length === 1 && c.channels[0] === 'speed',
+    )!;
+    expect(speed.title).toBe('Speed km/h');
+    expect(speed.valueRows[0].legend).toBe(false);
+    expect(speed.valueRows[0].unit).toBe('km/h');
   });
 
   it('pedals chart shares one plot; apex lines inside the window only', () => {
@@ -394,6 +436,20 @@ describe('one color per lap, everywhere', () => {
 
 describe('desktop pieces', () => {
   const m = build();
+
+  it('the All laps gap is against the basis named above it, not the session median', () => {
+    // The session median is 20.0; the median of b and c is 20.15.
+    const two = build(sel({laps: ['b', 'c']}));
+    const gapOf = (m: typeof two, id: string) =>
+      m.allLaps.flatMap(g => g.rows).find(r => r.lapId === id)!.gap;
+    expect(two.chips.find(c => c.lapId === 'b')!.delta).toBe('+0.250');
+    expect(gapOf(two, 'b')).toBe('+0.250');
+    expect(gapOf(two, 'a')).toBe('−0.150');
+    // With a Ref the basis is that lap's time.
+    const ref = build(sel({laps: ['b', 'c'], ref: 'c'}));
+    expect(gapOf(ref, 'b')).toBe('+0.500');
+    expect(gapOf(ref, 'a')).toBe('+0.100');
+  });
 
   it('all laps by stint, with selection order', () => {
     expect(m.allLaps).toHaveLength(1);
@@ -474,11 +530,12 @@ describe('many laps', () => {
     selection: sel({laps: many.map(l => l.id), ref: 'm0', hl: 'm3'}),
   });
 
-  it('tinted mode above 6 laps: only ref and highlighted are key', () => {
-    expect(m.mode).toBe('tinted');
-    // Every checked lap has a chip; the readout holds the key laps.
+  it('above 6 laps every ticked lap is on: chips, readout and map', () => {
+    expect(m.mode).toBe('several');
     expect(m.chips).toHaveLength(8);
-    expect(m.charts[1].valueRows[0].values).toHaveLength(2);
+    expect(m.charts[1].valueRows[0].values).toHaveLength(8);
+    expect(m.map!.lines).toHaveLength(8);
+    expect(m.map!.dots).toHaveLength(8);
   });
 
   it('median mode, 11 laps, nothing highlighted: chips for all, readout leads with the basis', () => {
@@ -502,9 +559,13 @@ describe('many laps', () => {
       selection: sel({laps: eleven.map(l => l.id)}),
     });
     expect(out.chips).toHaveLength(11);
-    expect(out.readouts.map(r => r.lapId)).toEqual([BASIS_ID]);
+    // Every ticked lap reads out, after the basis row.
+    expect(out.readouts.map(r => r.lapId)).toEqual([
+      BASIS_ID,
+      ...eleven.map(l => l.id),
+    ]);
     const speed = out.charts[1].valueRows[0];
-    expect(speed.values).toHaveLength(1);
+    expect(speed.values).toHaveLength(12);
     expect(speed.values[0].lapId).toBe(BASIS_ID);
     expect(out.charts[0].valueRows[0].values[0].text).toBe('±0.000 s');
   });
@@ -544,15 +605,14 @@ describe('many laps', () => {
       expect(real).toHaveLength(n);
       expect(out.chips.some(c => c.isRef)).toBe(false);
       expect(real.every(c => c.selIndex >= 1)).toBe(true);
-      // Individual mode (up to six laps) gives every slot its own colour;
-      // above that the tints cycle.
-      if (n <= 6)
-        for (const scheme of ['dark', 'light'] as const)
-          for (const c of real)
-            expect(lapColors[scheme][c.selIndex]).toBeDefined();
+      // Every slot has its own colour at any count (the palette, then hues).
+      const colours = new Set(
+        real.map(c => lapStroke('dark', c.selIndex, false).color),
+      );
+      expect(colours.size).toBe(real.length);
       // And none is drawn with the reference stroke.
       for (const c of real)
-        expect(lapStroke('dark', c.selIndex, n, false).color).not.toBe(
+        expect(lapStroke('dark', c.selIndex, false).color).not.toBe(
           lapColors.dark[0],
         );
     }
@@ -647,6 +707,16 @@ describe('many laps', () => {
     expect(m.tableReference.grid).toBe('median of 7 checked laps');
     expect(m.grid).not.toBeNull();
     expect(m.grid!.rows.map(r => r.lapId)).toEqual(ids);
+    // A highlighted lap keeps every row too (#3309): the set stays visible.
+    const hl = buildCompareModel({
+      session,
+      laps: sectionLaps,
+      traces: sectionTraces,
+      band: null,
+      map: withBoundaries,
+      selection: {laps: ids, ref: null, hl: 'c', corner: null, cursorM: 600},
+    });
+    expect(hl.grid!.rows.map(r => r.lapId)).toEqual(ids);
   });
 
   it('grid shows the median row plus the highlighted lap', () => {
@@ -790,6 +860,13 @@ describe('selection edits', () => {
     expect(toggleHighlight(sel(), 'b').hl).toBe('b');
     expect(toggleHighlight(sel({hl: 'b'}), 'b').hl).toBeNull();
   });
+  it('an All laps row highlights a ticked lap (the wide Compare has no other highlight control) and ticks an unticked one', () => {
+    const ticked = sel({laps: ['a', 'b', 'c']});
+    expect(pressAllLapsRow(ticked, 'b').hl).toBe('b');
+    expect(pressAllLapsRow(pressAllLapsRow(ticked, 'b'), 'b').hl).toBeNull();
+    expect(pressAllLapsRow(ticked, 'z').laps).toContain('z');
+    expect(pressAllLapsRow(ticked, 'z').hl).toBeNull();
+  });
   it('the Ref lap cannot be removed, while another lap can', () => {
     expect(removeLap(sel({ref: 'a'}), 'a')).toEqual(sel({ref: 'a'}));
     expect(removeLap(sel({ref: 'a'}), 'b').laps).toEqual(['a', 'c']);
@@ -804,15 +881,15 @@ describe('selection edits', () => {
 
 describe('cornerPlace', () => {
   const s = [
-    {n: 1, entryM: 100, exitM: 300},
-    {n: 2, entryM: 500, exitM: 700},
+    {n: 1, entryM: 100, exitM: 300, parts: []},
+    {n: 2, entryM: 500, exitM: 700, parts: [{n: 2}, {n: 3}]},
   ];
-  it('inside, approaching and after', () => {
-    expect(cornerPlace(s, 200)).toBe('Section 1');
-    expect(cornerPlace(s, 400)).toBe('Section 2');
-    expect(cornerPlace(s, 310)).toBe('After Section 1');
-    expect(cornerPlace(s, 50)).toBe('Section 1');
-    expect(cornerPlace(s, 900)).toBe('After Section 2');
+  it('inside, approaching and after, by the section name every screen uses', () => {
+    expect(cornerPlace(s, 200)).toBe('T1');
+    expect(cornerPlace(s, 400)).toBe('T2–3');
+    expect(cornerPlace(s, 310)).toBe('After T1');
+    expect(cornerPlace(s, 50)).toBe('T1');
+    expect(cornerPlace(s, 900)).toBe('After T2–3');
   });
 });
 
@@ -872,14 +949,20 @@ describe('followPlace', () => {
     {...c(1, 100, 300), parts: [c(1, 100, 180), c(2, 200, 300)]},
     {...c(2, 500, 700), parts: []},
   ];
-  it('adds the corner inside its range, using parts when there are any', () => {
-    expect(followPlace(s, 150)).toBe('Section 1 · T1 apex');
-    expect(followPlace(s, 250)).toBe('Section 1 · T2 apex');
-    expect(followPlace(s, 600)).toBe('Section 2 · T2 apex');
+  it('adds the corner inside its range when the section has more than one; a one-corner section is its name', () => {
+    expect(followPlace(s, 120)).toBe('T1–2 · T1');
+    expect(followPlace(s, 225)).toBe('T1–2 · T2');
+    expect(followPlace(s, 520)).toBe('T2');
+  });
+  it('says apex only near the apex, not anywhere between entry and exit', () => {
+    expect(followPlace(s, 140)).toBe('T1–2 · T1 apex');
+    expect(followPlace(s, 250)).toBe('T1–2 · T2 apex');
+    expect(followPlace(s, 600)).toBe('T2 apex');
+    expect(followPlace(s, 600 + 16)).toBe('T2');
   });
   it('is the section alone between corners', () => {
-    expect(followPlace(s, 190)).toBe('Section 1');
-    expect(followPlace(s, 400)).toBe('Section 2');
+    expect(followPlace(s, 190)).toBe('T1–2');
+    expect(followPlace(s, 400)).toBe('T2');
   });
 });
 
@@ -930,15 +1013,18 @@ describe('snapOut', () => {
 describe('pedals chart layout', () => {
   // y as a fraction of the plot height, 0 = top.
   const frac = (v: number, [lo, hi]: [number, number]) => (hi - v) / (hi - lo);
-  const d = pedalsDomains(40);
+  const d = pedalsDomains();
+  // 96 pedals + 8 gap + 56 steering (Corner's steering height) = 160.
+  const H = 160;
 
-  it('puts the pedals in the top 96/140 and steering in the bottom 36/140', () => {
+  it('puts the pedals in the top 96 of 160 and steering in the bottom 56', () => {
     expect(frac(104, d.pedal)).toBeCloseTo(0);
-    expect(frac(-4, d.pedal)).toBeCloseTo(96 / 140);
-    expect(frac(40, d.steer)).toBeCloseTo(104 / 140);
-    expect(frac(-40, d.steer)).toBeCloseTo(1);
-    // Steering's zero is the middle of its band.
-    expect(frac(0, d.steer)).toBeCloseTo(122 / 140);
+    expect(frac(-4, d.pedal)).toBeCloseTo(96 / H);
+    // Steering is fixed: +100 at the band's top, -100 at the bottom.
+    expect(frac(100, d.steer)).toBeCloseTo(104 / H);
+    expect(frac(-100, d.steer)).toBeCloseTo(1);
+    // Its zero is the middle of the band.
+    expect(frac(0, d.steer)).toBeCloseTo((104 + 28) / H);
   });
 });
 
@@ -1128,5 +1214,27 @@ describe('which lap owns the radar', () => {
   it('stays null with one lap checked on the median: the median rule has no special case', () => {
     expect(at({laps: ['a']})).toBeNull();
     expect(at({laps: ['a'], hl: 'a'})?.lapId).toBe('a');
+  });
+});
+
+describe('sectionStartM (D28 quick jump)', () => {
+  it('is where the section starts on the reference lap, and the lap start when unknown', () => {
+    const entry = {1: 0, 2: 812.5, 3: 1644};
+    expect(sectionStartM(entry, 2)).toBe(812.5);
+    expect(sectionStartM(entry, 9)).toBe(0);
+  });
+});
+
+describe('openingCursorM (grid section-head hand-off)', () => {
+  const entry = {1: 0, 2: 812.5, 3: 1644};
+  it('starts on the named section when the link has no cursor', () => {
+    expect(openingCursorM(null, 3, entry)).toBe(1644);
+  });
+  it('keeps a cursor the link carries, 0 m included', () => {
+    expect(openingCursorM(250, 3, entry)).toBe(250);
+    expect(openingCursorM(0, 3, entry)).toBe(0);
+  });
+  it('starts at the lap start with no cursor and no section', () => {
+    expect(openingCursorM(null, null, entry)).toBe(0);
   });
 });

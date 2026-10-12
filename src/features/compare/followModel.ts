@@ -49,14 +49,19 @@ function headingAt(placer: MapPlacer, t: GridTrace, m: number): number {
   );
 }
 
-/** Built once per selection. `lapIds[0]` is the reference. */
+/**
+ * Built once per selection. `anchorId` is the lap whose line shapes the road
+ * and places the corner marks: the Ref lap when one is picked, else the set's
+ * best lap (analysis/lapSlots.ts anchorLapOf), never the first in the list.
+ */
 export function buildFollowGeometry(
   placer: MapPlacer,
   traces: Map<string, GridTrace>,
   lapIds: string[],
   corners: {n: number; official?: string; apexM: number}[],
+  anchorId: string | null,
 ): FollowGeometry | null {
-  const ref = traces.get(lapIds[0]);
+  const ref = anchorId ? traces.get(anchorId) : undefined;
   if (!ref) return null;
   const whole = (t: GridTrace, stride: number) =>
     placer.place(t, 0, t.lat.length - 1, stride);

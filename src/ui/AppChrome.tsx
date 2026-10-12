@@ -1,4 +1,4 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
@@ -6,6 +6,7 @@ import {AppMark} from './AppMark';
 import {hitFor} from './hitArea';
 import {Segment} from './Segment';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 // 18 pt mark grown to a 44 pt target (round 3 N1, review by pace).
 export const MARK_SLOP = (size.hit - size.logo) / 2;
@@ -16,12 +17,12 @@ export type ChromeSession<T extends string = string> = {
   /** R, Q or P. */
   badge: string;
   track: string;
-  /** "Porsche 911 GT3 R · Manthey #91 · 14 Sep"; hidden when compact. */
+  /** "Porsche 911 GT3 R · Manthey #91 · Sep 14"; hidden when compact. */
   detail: string;
   tabs: readonly ChromeTab<T>[];
   activeTab: T | null;
   onTab: (key: T) => void;
-  /** The selected laps in lap colours, reference first. */
+  /** The selected laps in their lap colours (Ref slot 0, the rest by lap number). */
   laps: readonly {label: string; color: string}[];
   /** Opens the session menu: other sessions at this track, the track page. */
   onMenu: () => void;

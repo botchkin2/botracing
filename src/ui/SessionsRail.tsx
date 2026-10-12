@@ -1,9 +1,10 @@
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {size, space, useTheme} from '@/src/design';
 
 import {Badge} from './Badge';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 export type RailRow = {
   id: string;

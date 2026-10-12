@@ -5,6 +5,17 @@ import {type Kept, nextKept, sameKept} from './keptSession';
 const open: Kept = {id: 's1', laps: 'a,b', hl: 'b', corner: null};
 
 describe('nextKept', () => {
+  it('keeps the picked Ref across tabs', () => {
+    const kept = nextKept(null, {
+      pathname: '/session/s1',
+      id: 's1',
+      laps: 'a,b',
+      ref: 'b',
+    });
+    expect(kept?.ref).toBe('b');
+    expect(sameKept(kept, {...(kept as Kept), ref: undefined})).toBe(false);
+  });
+
   it('remembers the open session with its selection', () => {
     expect(
       nextKept(null, {pathname: '/session/s1', id: 's1', laps: 'a,b', hl: 'b'}),
@@ -26,6 +37,7 @@ describe('nextKept', () => {
     expect(nextKept(t5, {pathname: '/session/s2', id: 's2'})).toEqual({
       id: 's2',
       laps: undefined,
+      ref: undefined,
       hl: undefined,
       corner: null,
     });

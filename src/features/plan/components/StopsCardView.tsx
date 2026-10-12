@@ -1,6 +1,5 @@
 import {StyleSheet, View} from 'react-native';
 
-import {refuelScope} from '@/src/analysis/refuel';
 import {space, useTheme} from '@/src/design';
 import {Text} from '@/src/ui';
 
@@ -14,13 +13,7 @@ import {type StintLine, type StopRow, type StopsCard} from '../planCards';
  * as the comparison in secondary ink. The formation lap has its own row, so
  * "after L10" after a first stint of 9 reads as L1 plus nine racing laps.
  */
-export function StopsCardView({
-  card,
-  carClass,
-}: {
-  card: StopsCard;
-  carClass: string;
-}) {
+export function StopsCardView({card}: {card: StopsCard}) {
   const {color} = useTheme();
   if (!card.full && !card.equal)
     return (
@@ -28,7 +21,7 @@ export function StopsCardView({
         no data: a median needs 3 green laps
       </Text>
     );
-  const scope = refuelScope(carClass);
+  const scope = card.refuelScope;
   const cells = (
     cols: (string | null)[],
     tone: 'text' | 'textSecondary' | 'textMuted',
@@ -67,7 +60,7 @@ export function StopsCardView({
           'tableHeader',
         )}
         {card.formationUse != null
-          ? cells(['Formation', '1', card.formationUse, null, null], tone)
+          ? cells(['Formation', 'L1', card.formationUse, null, null], tone)
           : null}
         {r.lines.map(l => (
           <View key={l.n}>{line(l)}</View>

@@ -1,6 +1,6 @@
 import {useLocalSearchParams, useRouter} from 'expo-router';
 import {useMemo, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useSessions} from '@/src/data/sessions';
@@ -15,7 +15,14 @@ import {
 } from '@/src/design';
 import {sessionHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {EmptyState, Segment, Skeleton, StatusBanner, Text} from '@/src/ui';
+import {
+  EmptyState,
+  Pressable,
+  Segment,
+  Skeleton,
+  StatusBanner,
+  Text,
+} from '@/src/ui';
 
 import {ClassTimingSection} from './components/ClassTimingSection';
 import {PitPlanCard} from './components/PitPlanCard';
@@ -31,6 +38,13 @@ import {RaceCardView} from './components/RaceCardView';
 import {StopsCardView} from './components/StopsCardView';
 import {TankCardView} from './components/TankCardView';
 import {lastRaceLine} from './lastRace';
+import {
+  pickerCombos,
+  planState,
+  planStateTitle,
+  resolveCombo,
+  showsLapCards,
+} from './planState';
 import {effectiveUnit, type Unit, UNITS} from './unit';
 import {
   carChoices,
@@ -38,7 +52,6 @@ import {
   comboTrack,
   defaultCombo,
   parseNumber,
-  isOtherSimCombo,
   planCombos,
   rulesCells,
   startChips,
@@ -69,11 +82,7 @@ export function PlanScreen() {
   const {combo: comboParam} = useLocalSearchParams<{combo?: string}>();
   const [comboKey, setComboKey] = useState<string | null>(comboParam ?? null);
   const [unit, setUnit] = useState<Unit>('ve');
-  const otherSim = isOtherSimCombo(sessions.data?.items ?? [], comboKey);
-  // A pair from another sim has no plan: never an LMU one under its name.
-  const combo = otherSim
-    ? null
-    : combos.find(c => c.key === comboKey) ?? defaultCombo(combos);
+  const combo = resolveCombo(combos, comboKey, defaultCombo(combos));
   // What the car starts with, as typed for this track and car; blank is a full
   // load, and the last race's start is only offered (parc #1902).
   const [startTyped, setStartTyped] = useState<{
@@ -114,7 +123,15 @@ export function PlanScreen() {
   // The switch shows only where there is VE to switch to.
   const hasVe = !data.fuelOnly && plan?.perLap.ve != null;
   const {lastFuel, pending: detailsPending} = limits;
-  const {history, lapsOf, measured} = hist;
+  const {history, loading: planLoading, measured} = hist;
+  const state = combo
+    ? planState({
+        combo,
+        planLaps: plan ? plan.history.laps : null,
+        rulesKnown: rules != null,
+      })
+    : 'ready';
+  const lapCards = showsLapCards(state);
 
   const presets = useFuelPresets(s => s.presets);
   const activeId = useFuelPresets(s => s.activeId);
@@ -209,12 +226,12 @@ export function PlanScreen() {
       <TrackCarPicker
         track={comboTrack(combo)}
         car={comboCar(combo)}
-        tracks={trackChoices(combos, combo)}
-        cars={carChoices(combos, combo)}
+        tracks={trackChoices(pickerCombos(combos, combo), combo)}
+        cars={carChoices(pickerCombos(combos, combo), combo)}
         onPick={setComboKey}>
         {wide ? null : rulesBlock(true)}
       </TrackCarPicker>
-      {!wide && view?.stale ? (
+      {!wide && lapCards && view?.stale ? (
         <StatusBanner
           dot='idle'
           text={`This preset may be stale: ${view.stale}.`}
@@ -265,7 +282,7 @@ export function PlanScreen() {
         />
       </Section>
 
-      {wide && rules ? (
+      {wide && lapCards && rules ? (
         <Section title='Start'>
           <StartLoad
             hasVe={hasVe}
@@ -295,29 +312,26 @@ export function PlanScreen() {
         </Section>
       ) : null}
 
-      {detailsPending ? (
+      {state === 'undriven' ? null : detailsPending ? (
+        <StatusBanner dot='waiting' text='Checking fill limit' />
+      ) : planLoading.pending ? (
         <StatusBanner
           dot='waiting'
-          text='Checking the fill limit of your sessions here.'
-        />
-      ) : lapsOf.pending ? (
-        <StatusBanner
-          dot='waiting'
-          text={`Loading the laps of ${history.length} ${
+          text={`Loading the plan of ${history.length} ${
             history.length === 1 ? 'session' : 'sessions'
           }.`}
         />
-      ) : lapsOf.failed > 0 ? (
+      ) : planLoading.failed ? (
         <StatusBanner
           dot='idle'
-          text={`${lapsOf.failed} of ${history.length} sessions did not load; the numbers use the rest.`}
+          text='The plan did not load; there is no history to plan from.'
         />
       ) : null}
     </>
   );
   // Use and lap time (D6a): the green laps the plan reads, in the unit shown.
   const scatter =
-    combo && view && wide ? (
+    combo && view && wide && lapCards ? (
       <View
         style={[
           styles.rail,
@@ -333,19 +347,12 @@ export function PlanScreen() {
     ) : null;
   const results = !combo ? null : (
     <>
-      {rules == null ? (
-        <EmptyState title='Max fuel is needed' />
-      ) : view && plan && plan.history.laps === 0 && !lapsOf.pending ? (
-        // A track and car never driven (or with no usable laps): the chips and
-        // the length stay, and one plain line replaces the Race card (chief's
-        // review of #318, triage #55).
-        <EmptyState
-          title={
-            history.length === 0 && !detailsPending
-              ? 'No laps at this track with this car'
-              : 'No fuel data for this combination yet'
-          }
-        />
+      {!lapCards ? (
+        // One label names the state; the chips, the length and the rules stay
+        // (owner's note M11). Nothing computed from laps is drawn.
+        state === 'no-laps' && planLoading.pending ? null : (
+          <EmptyState title={planStateTitle(state, combo) ?? ''} />
+        )
       ) : view ? (
         <>
           <Pair wide={wide}>
@@ -384,25 +391,8 @@ export function PlanScreen() {
             </>
           ) : data.cards && (wide || !slider.pit) ? (
             <PlanCard title='Stops'>
-              <StopsCardView
-                card={data.cards.stops}
-                carClass={combo.sessions[0]?.carClass ?? ''}
-              />
+              <StopsCardView card={data.cards.stops} />
             </PlanCard>
-          ) : null}
-          {wide && data.cards ? (
-            <ClassTimingSection
-              timing={classTiming}
-              // The stop line is where the slider has it.
-              windows={data.cards.stops.windows.map((w, i) => ({
-                ...w,
-                planLap: slider.pit?.stops[i]?.after ?? w.planLap,
-              }))}
-              windowNote={data.cards.stops.windowNote}
-              width={cardInnerW}
-              onStop={slider.pit ? slider.setStop : undefined}
-              wide={wide}
-            />
           ) : null}
           {wide ? (
             <Pair wide={wide}>
@@ -414,6 +404,24 @@ export function PlanScreen() {
             </Pair>
           ) : null}
         </>
+      ) : null}
+      {/* Class pace needs no fuel and none of his laps (D55): every state, both widths. */}
+      {state === 'undriven' || lapCards || !planLoading.pending ? (
+        <ClassTimingSection
+          timing={classTiming}
+          // The stop line is where the slider has it.
+          windows={
+            lapCards && data.cards
+              ? data.cards.stops.windows.map((w, i) => ({
+                  ...w,
+                  planLap: slider.pit?.stops[i]?.after ?? w.planLap,
+                }))
+              : []
+          }
+          windowNote={lapCards ? data.cards?.stops.windowNote ?? null : null}
+          width={cardInnerW}
+          onStop={lapCards && slider.pit ? slider.setStop : undefined}
+        />
       ) : null}
     </>
   );
@@ -432,13 +440,7 @@ export function PlanScreen() {
         {sessions.isPending ? (
           <Skeleton height={size.hit} />
         ) : combos.length === 0 || !combo ? (
-          <EmptyState
-            title={
-              otherSim
-                ? 'Plan is for Le Mans Ultimate sessions only'
-                : 'No sessions to plan from'
-            }
-          />
+          <EmptyState title='No sessions to plan from' />
         ) : wide ? (
           <View style={styles.split}>
             <View style={[styles.stack, {width: size.planSetup}]}>{setup}</View>

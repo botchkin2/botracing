@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import Svg, {Circle, G, Line, Path, Text as SvgText} from 'react-native-svg';
 
 import {placeBadges} from '@/src/analysis/badgePlace';
@@ -10,9 +10,11 @@ import {
   offsetFromLine,
   signedArea2,
 } from '@/src/analysis/loopSide';
-import {fonts, useTheme, turnLabel, turnNumber} from '@/src/design';
+import {turnBadgeOf} from '@/src/analysis/turnNames';
+import {fonts, useTheme, turnLabel} from '@/src/design';
 
 import {CarDots, type MapCar} from './CarDots';
+import {Pressable} from '@/src/ui';
 
 // Track map (handoff v2 M1a): the OSM band with edges and the pit lane when
 // the track has a good fit, else the driven line as a plain band; each lap's
@@ -37,7 +39,8 @@ export type MapAnchor = {at: MapPoint; prev: MapPoint; next: MapPoint};
 
 export type MapMarks = {
   boundaries: MapAnchor[];
-  sections: {n: number; anchor: MapAnchor}[];
+  /** `label` is the section's name ("T2–5", analysis/turnNames sectionNameOf). */
+  sections: {n: number; label: string; anchor: MapAnchor}[];
   corners: {n: number; official?: string; anchor: MapAnchor}[];
 };
 
@@ -116,8 +119,10 @@ export function TrackMap({
   const {color} = useTheme();
 
   // Fit to the laps (not the outline, which includes other layouts), north up.
+  // With no lap yet the outline is the only thing to fit to.
   const fit = useMemo(() => {
-    const all = lines.flatMap(l => l.points);
+    const all =
+      lines.length > 0 ? lines.flatMap(l => l.points) : outline.flat();
     if (all.length === 0) return null;
     const xs = all.map(p => p.x);
     const ys = all.map(p => p.y);
@@ -139,7 +144,7 @@ export function TrackMap({
       x: offX + (p.x - minX) * scale,
       y: height - (offY + (p.y - minY) * scale),
     });
-  }, [lines, width, height, badges?.size]);
+  }, [lines, outline, width, height, badges?.size]);
 
   const toPath = (pts: MapPoint[]) =>
     fit
@@ -168,7 +173,12 @@ export function TrackMap({
   const driven = linePaths[linePaths.length - 1];
   // The reference line on screen decides which side is inside the loop
   // (its winding), and keeps labels off the band.
-  const refScreen = (lines[lines.length - 1]?.points ?? []).map(fit);
+  // With no lap, the longest outline stands in for the winding.
+  const winding =
+    lines.length > 0
+      ? lines[lines.length - 1]?.points ?? []
+      : outline.reduce<MapPoint[]>((a, l) => (l.length > a.length ? l : a), []);
+  const refScreen = winding.map(fit);
   const clockwise = signedArea2(refScreen) > 0;
   // A point `offset` pt off the line at an anchor: positive is inside the
   // loop, negative outside.
@@ -194,6 +204,7 @@ export function TrackMap({
     kind: 'section' | 'corner' | 'pit';
     n: number;
     official?: string;
+    label?: string;
     at: MapPoint;
   };
   const bandClear = (l: Label) =>
@@ -203,6 +214,7 @@ export function TrackMap({
     ...marks.sections.map(s => ({
       kind: 'section' as const,
       n: s.n,
+      label: s.label,
       at: off(s.anchor, SECTION_OFFSET),
     })),
     ...marks.corners.map(c => ({
@@ -221,7 +233,7 @@ export function TrackMap({
     .filter(bandClear);
   const textOf = (l: Label) =>
     l.kind === 'section'
-      ? `S${l.n}`
+      ? l.label ?? ''
       : l.kind === 'corner'
       ? turnLabel(l.n, l.official)
       : 'PIT';
@@ -377,7 +389,7 @@ export function TrackMap({
             fill={s.n === openSection ? color.text : color.mapLabel}
             fontFamily={fonts.monoBold}
             fontSize={SECTION_FONT}>
-            {`S${s.n}`}
+            {s.label}
           </SvgText>
         ))}
         {kept
@@ -423,23 +435,27 @@ export function TrackMap({
             const on = c.n === badges.selected;
             return (
               <G key={`b${c.n}`}>
-                <Circle
-                  cx={at.x}
-                  cy={at.y}
-                  r={b.d / 2 - 0.5}
-                  fill={on ? color.accent : color.surfaceRaised}
-                  stroke={on ? color.accent : color.median}
-                  strokeWidth={1}
-                />
-                <SvgText
-                  x={at.x}
-                  y={at.y + b.font * 0.36}
-                  textAnchor='middle'
-                  fill={on ? color.bg : color.mapLabel}
-                  fontFamily={fonts.monoBold}
-                  fontSize={b.font}>
-                  {turnNumber(c.n, c.official)}
-                </SvgText>
+                {turnBadgeOf(turnLabel(c.n, c.official)) !== '' ? (
+                  <>
+                    <Circle
+                      cx={at.x}
+                      cy={at.y}
+                      r={b.d / 2 - 0.5}
+                      fill={on ? color.accent : color.surfaceRaised}
+                      stroke={on ? color.accent : color.median}
+                      strokeWidth={1}
+                    />
+                    <SvgText
+                      x={at.x}
+                      y={at.y + b.font * 0.36}
+                      textAnchor='middle'
+                      fill={on ? color.bg : color.mapLabel}
+                      fontFamily={fonts.monoBold}
+                      fontSize={b.font}>
+                      {turnBadgeOf(turnLabel(c.n, c.official))}
+                    </SvgText>
+                  </>
+                ) : null}
               </G>
             );
           })}
@@ -470,7 +486,7 @@ export function TrackMap({
         <Pressable
           key={`hit${s.n}`}
           accessibilityRole='button'
-          accessibilityLabel={`Section ${s.n}`}
+          accessibilityLabel={s.label}
           onPress={() => onPressSection(s.n)}
           style={[styles.hit, {left: s.at.x - HIT / 2, top: s.at.y - HIT / 2}]}
         />

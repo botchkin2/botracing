@@ -2,7 +2,16 @@
 // and hand them back in the lap shape the app already reads.
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
+import {type TraceMeta, traceIdOk} from './traceCore';
 import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
+import {mapEtag, surfaceEtag} from './trackMapCore';
+import {
+  PLAN_FIELDS,
+  PLAN_MAX_SESSIONS,
+  planRows,
+  type PlanCombo,
+  type PlanRow,
+} from './planQuery';
 import {
   pathInsideOwner,
   trustedTrackPath,
@@ -116,6 +125,7 @@ export async function listUploaders(owner: string): Promise<any[]> {
   return uploaderItems(
     owner,
     snap.docs.map(doc => ({id: doc.id, data: doc.data()})),
+    Date.now(),
   );
 }
 
@@ -220,6 +230,35 @@ export const SESSION_LIST_FIELDS = [
   'analysisVersion',
   'updatedAt',
 ];
+
+/**
+ * One combo's sessions for the Plan, newest first: a single query on the
+ * (ownerId, sim, trackId, carModel, startedAt) index with a projection, so no
+ * lap doc and no other session field is read. `truncated` says the combo had
+ * more than the cap.
+ */
+export async function listPlanSessions(
+  owner: string,
+  combo: PlanCombo,
+  lapSessions: number,
+): Promise<{items: PlanRow[]; truncated: boolean}> {
+  const snap = await admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', owner)
+    .where('sim', '==', combo.sim)
+    .where('trackId', '==', combo.trackId)
+    .where('carModel', '==', combo.carModel)
+    .orderBy('startedAt', 'desc')
+    .limit(PLAN_MAX_SESSIONS + 1)
+    .select(...PLAN_FIELDS)
+    .get();
+  const truncated = snap.docs.length > PLAN_MAX_SESSIONS;
+  return {
+    items: planRows(snap.docs.slice(0, PLAN_MAX_SESSIONS), lapSessions),
+    truncated,
+  };
+}
 
 export async function listSessions(
   owner: string,
@@ -442,19 +481,112 @@ export async function readTrackMap(
   };
 }
 
-// The lap's chart trace. Stored gzip-encoded; the client library unzips it.
-export async function readTrace(
+// A track layout's map by its id, for any signed-in user (shared app data, not
+// an owner's). `etag` is decided from the doc alone, so a client holding it is
+// answered without the outline download; `body` builds the full answer. Null
+// for an id with no track doc.
+export async function trackMapById(trackId: string): Promise<{
+  etag: string;
+  body: () => Promise<any>;
+} | null> {
+  const doc = await trackDoc(trackId).get();
+  if (!doc.exists || !doc.updateTime) return null;
+  const track = doc.data() || {};
+  return {
+    etag: mapEtag(doc.updateTime),
+    body: async () => {
+      let outline = null;
+      const outlinePath = trustedTrackPath(track.outline?.path);
+      if (outlinePath) {
+        try {
+          const [body] = await admin
+            .storage()
+            .bucket(BUCKET)
+            .file(outlinePath)
+            .download();
+          outline = JSON.parse(body.toString('utf8'));
+        } catch (error: any) {
+          if (error?.code !== 404) throw error;
+        }
+      }
+      return {
+        trackId,
+        track: track.track ?? null,
+        lengthM: track.lengthM ?? null,
+        corners: track.corners ?? [],
+        boundaries: track.boundaries ?? null,
+        quality: track.quality ?? null,
+        qualityNote: track.qualityNote ?? null,
+        georef: track.georef ?? null,
+        attribution: track.outline?.attribution ?? null,
+        outline,
+        // The measured surface's validator, so the client keys its copy by it.
+        surfaceRev: surfaceEtag(track.surface),
+      };
+    },
+  };
+}
+
+// A track layout's measured surface by its id: the stored gzip as is. The
+// etag comes from the doc (surface.mjs stamps it), so a 304 never downloads.
+export async function trackSurfaceById(trackId: string): Promise<{
+  etag: string;
+  gzip: () => Promise<Buffer | null>;
+} | null> {
+  const doc = await trackDoc(trackId).get();
+  const surface = doc.get('surface');
+  const etag = surfaceEtag(surface);
+  const path = trustedTrackPath(surface?.path);
+  if (!doc.exists || !etag || !path) return null;
+  return {
+    etag,
+    gzip: async () => {
+      try {
+        const [body] = await admin
+          .storage()
+          .bucket(BUCKET)
+          .file(path)
+          .download({decompress: false});
+        return body;
+      } catch (error: any) {
+        if (error?.code === 404) return null;
+        throw error;
+      }
+    },
+  };
+}
+
+// A lap's chart trace: the stored object's md5 and encoding (a metadata read,
+// no download), so a client that holds the trace gets a 304 for free.
+const traceFile = (owner: string, lapId: string) =>
+  admin.storage().bucket(BUCKET).file(`traces/${owner}/${lapId}/v2.csv.gz`);
+
+export async function readTraceMeta(
   owner: string,
   lapId: string,
-): Promise<string | null> {
-  if (!/^[0-9a-f]{16}-\d{3}$/.test(lapId)) return null;
-  const file = admin
-    .storage()
-    .bucket(BUCKET)
-    .file(`traces/${owner}/${lapId}/v2.csv.gz`);
+): Promise<TraceMeta | null> {
+  if (!traceIdOk(lapId)) return null;
   try {
-    const [body] = await file.download();
-    return body.toString('utf8');
+    const [meta] = await traceFile(owner, lapId).getMetadata();
+    return {md5Hash: meta.md5Hash, contentEncoding: meta.contentEncoding};
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
+// The trace's bytes: as stored (gzip) or, for an object stored as plain text,
+// the text. A trace is stored gzip-encoded; download() would unzip it.
+export async function readTraceBody(
+  owner: string,
+  lapId: string,
+  stored: boolean,
+): Promise<Buffer | null> {
+  try {
+    const [body] = await traceFile(owner, lapId).download({
+      decompress: !stored,
+    });
+    return body;
   } catch (error: any) {
     if (error?.code === 404) return null;
     throw error;

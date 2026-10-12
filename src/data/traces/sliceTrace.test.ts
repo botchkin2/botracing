@@ -57,7 +57,13 @@ describe('sliceToGridTrace', () => {
     expect(trace.samples.brakePct.values.length).toBe(
       slices.laps[0].samples.brakePct.values.length,
     );
-    expect(trace.samples.gear.values).toEqual([]);
+    expect(trace.samples.gear.values.length).toBeGreaterThan(0);
+  });
+
+  it('gear is a step channel: each grid point holds the last recorded gear', () => {
+    const gears = trace.gear.filter(g => !Number.isNaN(g));
+    expect(gears.length).toBeGreaterThan(0);
+    expect(gears.every(g => g === 3)).toBe(true);
   });
 
   it('a lap with no position has NaN lat and lon, so the map is left out', () => {

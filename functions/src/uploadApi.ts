@@ -4,6 +4,7 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {reportError} from './problems';
 import {
   DocStore,
   FileStore,
@@ -174,7 +175,7 @@ export const uploadApi = onRequest(
         res.status(out.status).json(out.json);
       }
     } catch (error) {
-      console.error('upload failed', error);
+      await reportError('uploadApi', error, {route: subPath(req)});
       res.status(500).json({error: 'upload failed'});
     }
   },

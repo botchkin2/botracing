@@ -3,10 +3,12 @@
 // tyres.mjs). Pure. Numbers, units and what they were measured against, never
 // advice (CODE_STANDARDS §7).
 //
-import {WHEELS, type Wheel} from '@/src/analysis/tyres';
+import {WHEELS, type Wheel, wearReadAtStops} from '@/src/analysis/tyres';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
-import {median} from './desktopModel';
+import {columnStats} from '@/src/analysis/segments';
+
+const median = (values: number[]) => columnStats(values).medianS;
 
 /** A trend of wear per lap needs this many green laps (round 7 1C b). */
 export const MIN_TREND_LAPS = 5;
@@ -117,7 +119,7 @@ export type ReadingRow = {label: string; wearPct: Record<Wheel, number | null>};
 
 export type StintTires = {
   n: number;
-  /** "S2". */
+  /** "Stint 2": never "S2", which names a game sector (#515). */
   tab: string;
   /** "Stint 2 · L14–L26". */
   title: string;
@@ -128,6 +130,13 @@ export type StintTires = {
   greenLaps: number;
   /** Bars and trend, or the readings as a table when there are too few green laps. */
   kind: 'trend' | 'readings';
+  /**
+   * How the session's wear was read: on every lap, or only at stops (the
+   * channel holds its pit reading between stops). At stops only there is no
+   * rate, no bars and no table: each wheel shows the reading it had
+   * (analysis/tyres.ts wearReadAtStops).
+   */
+  wearRead: 'every-lap' | 'stops';
   wheels: WheelCell[];
   /** Wear left after each green lap, for the table when `kind` is 'readings'. */
   readings: ReadingRow[];
@@ -339,7 +348,12 @@ export function setAgeText(ages: Record<Wheel, number>, lastLap: number) {
   ).join(' · ')}`;
 }
 
-function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
+function stintTires(
+  n: number,
+  laps: Lap[],
+  all: Lap[],
+  atStops: boolean,
+): StintTires | null {
   const withData = laps.filter(hasTyres);
   if (withData.length === 0) return null;
   const green = new Set(
@@ -368,7 +382,8 @@ function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
           ? prev.tyres?.wearPct?.[wheel]
           : null;
       // Every lap is a bar, so a lock-up on an untimed lap shows; only green laps feed the median.
-      if (w != null && before != null && before >= w)
+      // Read at stops only, a lap has no loss of its own to show.
+      if (!atStops && w != null && before != null && before >= w)
         bars.push({lapLabel: lapLabel(l), lossPct: before - w, green: isGreen});
       const h = isGreen ? l.tyres?.hotPressureKpa?.[wheel] : null;
       if (h != null) hot.push(h);
@@ -419,15 +434,17 @@ function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
           )
           .join(' ');
 
-  const kind = greenLaps.length >= MIN_TREND_LAPS ? 'trend' : 'readings';
+  const kind =
+    atStops || greenLaps.length >= MIN_TREND_LAPS ? 'trend' : 'readings';
   return {
     n,
-    tab: `S${n}`,
+    tab: `Stint ${n}`,
     title: `Stint ${n} · L${first}–L${last}`,
     sub: `${greenLaps.length} green ${greenLaps.length === 1 ? 'lap' : 'laps'}`,
     setAge: setAgeText(setAges(all, last), last),
     greenLaps: greenLaps.length,
     kind,
+    wearRead: atStops ? 'stops' : 'every-lap',
     wheels,
     readings: greenLaps.map(l => ({
       label: lapLabel(l),
@@ -455,18 +472,20 @@ function stintTires(n: number, laps: Lap[], all: Lap[]): StintTires | null {
 
 /** The card, or `absent` when no lap in the session carries tyre facts. */
 export function buildTiresCard(
-  session: Pick<SessionDetail, 'stints'>,
+  session: Pick<SessionDetail, 'stints' | 'sim'>,
   laps: Lap[],
 ): TiresCard {
   const nums = session.stints.length
     ? session.stints.map(s => s.n)
     : [...new Set(laps.map(l => l.stint))].sort((a, b) => a - b);
+  const atStops = wearReadAtStops(session.sim, laps);
   const stints: StintTires[] = [];
   for (const n of nums) {
     const s = stintTires(
       n,
       laps.filter(l => l.stint === n),
       laps,
+      atStops,
     );
     if (s) stints.push(s);
   }

@@ -7,13 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, FlatList, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
@@ -27,9 +21,16 @@ import {
   useTheme,
 } from '@/src/design';
 import {SessionNav} from '@/src/workspace/SessionNav';
-import {compareHref, sessionsHref, trackHref} from '@/src/nav/routes';
+import {
+  compareHref,
+  cornerHref,
+  sessionsHref,
+  trackHref,
+} from '@/src/nav/routes';
+import {replace, toggle} from '@/src/state/lapSelection';
+import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {FoldedSection, PANEL_DIVIDER_W, Text} from '@/src/ui';
+import {FoldedSection, PANEL_DIVIDER_W, Pressable, Text} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -37,9 +38,14 @@ import {LapCandidates} from './components/LapCandidates';
 import {FuelUseCard} from './components/FuelUseCard';
 import {EnergyLineRow} from './components/EnergyLineRow';
 import {PitCard} from './components/PitCard';
+import {TagKey} from './components/TagKey';
 import {TiresCard} from './components/TiresCard';
 import {type PitCard as PitCardModel} from './pitCard';
-import {fuelSummary, tiresSummary} from './foldedSummaries';
+import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
+import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
+import {OptimumLines} from './components/OptimumLines';
+import {SessionGrid} from './components/SessionGrid';
+import {SessionHead} from './components/SessionHead';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
   LapRow,
@@ -50,12 +56,12 @@ import {
 } from './components/LapTableRow';
 import {
   BAR_CLAMP_S,
+  gridCellTargetOf,
   type NoteRowModel,
   type RowModel,
   type Selection,
   type SessionScreenModel,
-  selectStint,
-  toggleLap,
+  useSessionOpeningLapIds,
   useSessionScreenModel,
 } from './model';
 
@@ -69,9 +75,6 @@ const WIDE_MIN_CENTRE_W = 590;
 // Bars and lap table have nothing to fill more than this with; on a wider
 // window the right column grows instead (triage #9).
 const WIDE_MAX_CENTRE_W = 760;
-
-const TAG_KEY =
-  'OUT/IN pit · PART partial · PARK parked · SLOW outlier · OFF s off track · HIT impact · TOW slipstream · TRAF traffic · BLUE blue flag · PASS passes · BTL battle';
 
 export type {Selection} from './model';
 
@@ -89,7 +92,15 @@ export function SessionScreen({
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
   renderPooledUse?: (planKey: string, width: number) => ReactNode;
 }) {
-  const result = useSessionScreenModel(sessionId, selection);
+  // The one selection for this screen: the URL's laps, or the opening set when
+  // the URL names none. The model, the table, the chart and the grid all read it.
+  const openingIds = useSessionOpeningLapIds(sessionId);
+  const resolved = useMemo<Selection>(
+    () =>
+      selection.laps.length > 0 ? selection : {...selection, laps: openingIds},
+    [selection, openingIds],
+  );
+  const result = useSessionScreenModel(sessionId, resolved);
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -115,7 +126,7 @@ export function SessionScreen({
     <SessionView
       sessionId={sessionId}
       model={result.model}
-      selection={selection}
+      selection={resolved}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
       renderPooledUse={renderPooledUse}
@@ -143,6 +154,8 @@ function SessionView({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const listRef = useRef<FlatList<RowModel>>(null);
+  // The lap table's rows and head scroll sideways as one (phone and tablet).
+  const tableLink = useLinkedScroll();
   const headerHeight = useRef(0);
   // Where the Pit stops / Fuel card starts in the header, for the energy line's tap.
   const pitCardY = useRef(0);
@@ -150,11 +163,10 @@ function SessionView({
   // the header height; scroll once that render has laid out.
   const pendingScroll = useRef<string | null>(null);
 
-  const count = selection.laps.length;
   const colorOf = useCallback(
     (selIndex: number, highlighted = false) =>
-      lapStroke(scheme, selIndex, count, highlighted).color,
-    [scheme, count],
+      lapStroke(scheme, selIndex, highlighted).color,
+    [scheme],
   );
 
   const {contentWidth} = layout;
@@ -223,8 +235,8 @@ function SessionView({
 
   const detailAction = () => {
     const d = model.detail;
-    if (!d || d.action === 'reference') return;
-    onSelectionChange(toggleLap(selection, d.lapId));
+    if (!d) return;
+    onSelectionChange({...selection, laps: toggle(selection.laps, d.lapId)});
   };
 
   const chartBlock = (width: number) =>
@@ -272,11 +284,25 @@ function SessionView({
       )
     );
 
-  const tiresCard = <TiresCard card={model.tires} width={tableW} />;
+  const tiresCard = (
+    <TiresCard card={model.tires} width={tableW} titled={layout.isDesktop} />
+  );
   const fuelCard = model.fuelUse ? (
     <FuelUseCard
       card={model.fuelUse}
       pooled={renderPooledUse?.(model.fuelUse.planKey, tableW)}
+    />
+  ) : null;
+
+  const pitCard = model.pitCard ? (
+    <PitCard
+      card={model.pitCard}
+      width={tableW}
+      plan={
+        model.planVsRace && renderPlanHalf
+          ? renderPlanHalf(model.pitCard, model.planVsRace)
+          : null
+      }
     />
   ) : null;
 
@@ -316,63 +342,64 @@ function SessionView({
           </Text>
         </Pressable>
       ) : null}
-      <View style={styles.facts}>
-        {model.facts.map(f => (
-          <View key={f.label}>
-            <Text variant='label' tone='textMuted'>
-              {f.label}
-            </Text>
-            <Text
-              variant='dataStrong'
-              tone={f.best ? 'best' : 'text'}
-              style={styles.factValue}>
-              {f.value}
-            </Text>
-          </View>
-        ))}
-      </View>
-      {model.energy ? (
-        <EnergyLineRow
-          line={model.energy}
-          onPress={() =>
-            model.energy?.target === 'pit'
-              ? listRef.current?.scrollToOffset({offset: pitCardY.current})
-              : listRef.current?.scrollToEnd()
-          }
-        />
-      ) : null}
-      {model.optimum.length > 0 ? (
-        <View style={styles.block}>
+      {layout.isDesktop ? (
+        <>
           <View style={styles.facts}>
-            {model.optimum.map(f => (
+            {model.facts.map(f => (
               <View key={f.label}>
                 <Text variant='label' tone='textMuted'>
                   {f.label}
                 </Text>
-                <Text variant='dataStrong' style={styles.factValue}>
+                <Text
+                  variant='dataStrong'
+                  tone={f.best ? 'best' : 'text'}
+                  style={styles.factValue}>
                   {f.value}
                 </Text>
               </View>
             ))}
           </View>
-        </View>
-      ) : null}
+          {model.energy ? (
+            <EnergyLineRow
+              line={model.energy}
+              onPress={() =>
+                model.energy?.target === 'pit'
+                  ? listRef.current?.scrollToOffset({offset: pitCardY.current})
+                  : listRef.current?.scrollToEnd()
+              }
+            />
+          ) : null}
+          {model.optimum.length > 0 ? (
+            <View style={styles.block}>
+              <View style={styles.facts}>
+                {model.optimum.map(f => (
+                  <View key={f.label}>
+                    <Text variant='label' tone='textMuted'>
+                      {f.label}
+                    </Text>
+                    <Text variant='dataStrong' style={styles.factValue}>
+                      {f.value}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <SessionHead facts={model.facts} />
+      )}
 
       {chartBlock(tableW)}
+      {!layout.isDesktop && model.optimumLines.length > 0 && (
+        <OptimumLines lines={model.optimumLines} />
+      )}
 
-      {model.pitCard && (
+      {layout.isDesktop && model.pitCard && (
         <View
           style={styles.section}
           onLayout={e => (pitCardY.current = e.nativeEvent.layout.y)}>
-          <PitCard
-            card={model.pitCard}
-            width={tableW}
-            plan={
-              model.planVsRace && renderPlanHalf
-                ? renderPlanHalf(model.pitCard, model.planVsRace)
-                : null
-            }
-          />
+          {pitCard}
         </View>
       )}
 
@@ -394,9 +421,6 @@ function SessionView({
           />
         </View>
       )}
-      <View style={styles.section}>
-        <LapTableHeader width={tableW} />
-      </View>
     </View>
   );
 
@@ -405,6 +429,9 @@ function SessionView({
       tray={model.tray}
       colorOf={i => colorOf(i)}
       onClear={() => onSelectionChange({laps: [], hl: selection.hl})}
+      onStint={lapIds =>
+        onSelectionChange({...selection, laps: replace(lapIds)})
+      }
       onCompare={() =>
         router.push(compareHref(sessionId, {laps: selection.laps}))
       }
@@ -418,6 +445,8 @@ function SessionView({
     return () => setPitFocus({lapIndex, at: Date.now()});
   };
 
+  // Which section columns open something: the game's sectors and the start straight do not.
+  const sectionTaps = model.sections?.targets.map(t => t.corner != null) ?? [];
   const renderRow = (item: RowModel, width: number, wide = false) =>
     item.kind === 'note' ? (
       <NoteRow
@@ -432,7 +461,7 @@ function SessionView({
         width={width}
         wide={wide}
         onSelectStint={() =>
-          onSelectionChange(selectStint(selection, item.lapIds))
+          onSelectionChange({...selection, laps: replace(item.lapIds)})
         }
       />
     ) : (
@@ -440,9 +469,30 @@ function SessionView({
         row={item}
         width={width}
         wide={wide}
+        sectionTaps={sectionTaps}
+        sectionNames={model.sections?.heads}
+        onSectionPress={i => {
+          const target =
+            model.sections &&
+            gridCellTargetOf(model.sections, i, item.lapId, selection.laps);
+          if (target)
+            router.push(
+              cornerHref(
+                sessionId,
+                target.corner,
+                {laps: target.laps, hl: item.lapId},
+                target.whole,
+              ),
+            );
+        }}
         lapColor={item.selIndex != null ? colorOf(item.selIndex) : undefined}
         onPress={() => highlight(item.lapId, false)}
-        onToggle={() => onSelectionChange(toggleLap(selection, item.lapId))}
+        onToggle={() =>
+          onSelectionChange({
+            ...selection,
+            laps: toggle(selection.laps, item.lapId),
+          })
+        }
       />
     );
 
@@ -499,7 +549,7 @@ function SessionView({
           </>
         }
         renderRow={(row, width) => renderRow(row, width, true)}
-        tagKey={TAG_KEY}
+        tagKey={<TagKey />}
         pitFocus={pitFocus}
         side={panel}
       />
@@ -518,44 +568,106 @@ function SessionView({
             width: layout.isDesktop ? tableW + sideW + space.xxl : contentWidth,
           },
         ]}>
-        <FlatList
-          ref={listRef}
-          style={{width: tableW}}
-          data={model.rows}
-          keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
-          ListHeaderComponent={header}
-          ListFooterComponent={
-            <View style={[styles.footer, {width: tableW}]}>
-              <Text variant='dataSmall' tone='textMuted'>
-                {TAG_KEY}
-              </Text>
-              {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
-              {layout.isDesktop ? null : (
-                <>
-                  <FoldedSection
-                    title='Tires'
-                    summary={tiresSummary(model.tires)}
-                    defaultOpen>
-                    {tiresCard}
+        <LinkedScrollContext.Provider value={tableLink}>
+          <FlatList
+            ref={listRef}
+            style={{width: tableW}}
+            data={model.rows}
+            keyExtractor={r => (r.kind === 'lap' ? r.lapId : r.key)}
+            ListHeaderComponent={
+              <>
+                {header}
+                <View style={[styles.strip, {width: tableW}]}>
+                  <LapStrip
+                    laps={model.strip}
+                    ticked={selection.laps}
+                    onTap={id =>
+                      onSelectionChange({
+                        ...selection,
+                        laps: toggle(selection.laps, id),
+                      })
+                    }
+                    onDrag={ids => onSelectionChange({...selection, laps: ids})}
+                  />
+                </View>
+                <View style={styles.section}>
+                  <LapTableHeader
+                    width={tableW}
+                    heads={model.sections?.heads ?? model.sectorHeads}
+                    headTaps={sectionTaps}
+                    onHeadPress={i => {
+                      const corner = model.sections?.sections[i];
+                      if (corner != null)
+                        router.push(
+                          compareHref(sessionId, {
+                            laps: selection.laps,
+                            corner,
+                          }),
+                        );
+                    }}
+                  />
+                </View>
+              </>
+            }
+            ListFooterComponent={
+              <View style={[styles.footer, {width: tableW}]}>
+                {/* The grid comes after the lap table (Botkin, 2 Oct screenshots). */}
+                <SessionGrid
+                  id={sessionId}
+                  ticked={selection.laps}
+                  onTap={lapId =>
+                    onSelectionChange({
+                      ...selection,
+                      laps: toggle(selection.laps, lapId),
+                    })
+                  }
+                />
+                {layout.isDesktop ? null : (
+                  <FoldedSection title='Tags' summary={null}>
+                    <TagKey />
                   </FoldedSection>
-                  {model.fuelUse && fuelCard ? (
+                )}
+                {/* The phone: the laps first, then the cards: Tires open, the rest folded to one line. */}
+                {layout.isDesktop ? null : (
+                  <>
+                    {model.pitCard ? (
+                      <FoldedSection
+                        title={
+                          model.pitCard.kind === 'stops' ? 'Pit stops' : 'Fuel'
+                        }
+                        summary={pitSummary(model.pitCard)}
+                        defaultOpen={model.pitCard.kind === 'stops'}>
+                        {model.energy ? (
+                          <EnergyLineRow line={model.energy} />
+                        ) : null}
+                        {pitCard}
+                      </FoldedSection>
+                    ) : null}
                     <FoldedSection
-                      title='Fuel use'
-                      summary={fuelSummary(model.fuelUse.fuelUse)}>
-                      {fuelCard}
+                      title='Tires'
+                      summary={tiresSummary(model.tires)}
+                      defaultOpen>
+                      {tiresCard}
                     </FoldedSection>
-                  ) : null}
-                </>
-              )}
-            </View>
-          }
-          getItemLayout={(_, index) => ({
-            length: ROW_H,
-            offset: headerHeight.current + ROW_H * index,
-            index,
-          })}
-          renderItem={({item}) => renderRow(item, tableW)}
-        />
+                    {model.fuelUse && fuelCard ? (
+                      <FoldedSection
+                        title='Fuel use'
+                        summary={fuelSummary(model.fuelUse.fuelUse)}>
+                        {fuelCard}
+                      </FoldedSection>
+                    ) : null}
+                  </>
+                )}
+              </View>
+            }
+            getItemLayout={(_, index) => ({
+              length: ROW_H,
+              offset: headerHeight.current + ROW_H * index,
+              index,
+            })}
+            renderItem={({item}) => renderRow(item, tableW)}
+          />
+        </LinkedScrollContext.Provider>
         {layout.isDesktop && (
           <View style={[styles.side, {width: sideW}]}>
             {model.detail ? (
@@ -586,6 +698,7 @@ function SessionView({
 }
 
 const styles = StyleSheet.create({
+  strip: {paddingBottom: space.md},
   screen: {flex: 1},
   center: {alignItems: 'center', justifyContent: 'center'},
   columns: {

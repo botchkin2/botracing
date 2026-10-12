@@ -306,6 +306,35 @@ function buildRun(
   return run;
 }
 
+/** A side needs this many laps before its measured edge is trusted (D53: 2-4 laps swung 2 m). */
+export const MIN_EDGE_LAPS = 3;
+
+/**
+ * The measured road's half-width each side, metres, per bin: the mean edge on
+ * that side (TrackEdge) where at least MIN_EDGE_LAPS laps measured it. A side
+ * no lap measured takes the median of all measured sides (what the map draws
+ * dashed, surfaceGeometry's halfWidthM). Null when no bin has any measured edge.
+ */
+export function measuredHalfWidths(
+  s: TrackSurface,
+): {leftM: number[]; rightM: number[]} | null {
+  const left = s.bins.map(b =>
+    b.lapsL >= MIN_EDGE_LAPS && b.nL > 0 ? -b.sL / b.nL : null,
+  );
+  const right = s.bins.map(b =>
+    b.lapsR >= MIN_EDGE_LAPS && b.nR > 0 ? b.sR / b.nR : null,
+  );
+  const all = [...left, ...right]
+    .filter((v): v is number => v != null)
+    .sort((a, b) => a - b);
+  if (all.length === 0) return null;
+  const median = all[Math.floor(all.length / 2)];
+  return {
+    leftM: left.map(v => v ?? median),
+    rightM: right.map(v => v ?? median),
+  };
+}
+
 export interface OsmWay {
   id: string | number;
   /** 'track' is a road of the layout; anything else (pit, service) is never dropped. */

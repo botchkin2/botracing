@@ -1,11 +1,11 @@
 import {useRouter} from 'expo-router';
 import {type ReactNode} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {space, useTheme} from '@/src/design';
 import {planHref} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {
   fuelUseRows,

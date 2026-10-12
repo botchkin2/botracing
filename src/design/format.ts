@@ -10,33 +10,18 @@ export function formatLapTime(timeS: number): string {
   return `${minutes}:${seconds}`;
 }
 
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/** An ISO date as the day it fell on here: "25 Sep"; the empty string when it does not parse. */
+/** An ISO date as the day it fell on here: "Sep 25"; the empty string when it does not parse. */
 export function formatDay(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return Number.isNaN(d.getTime()) ? '' : dayMonthOf(d);
 }
 
 /** Signed gap with 3 decimals: "+0.312", "−0.105". Uses a true minus sign. */
 export function formatGap(deltaS: number, decimals = 3): string {
-  const sign = deltaS > 0 ? '+' : deltaS < 0 ? '−' : '±';
-  return `${sign}${Math.abs(deltaS).toFixed(decimals)}`;
+  const text = Math.abs(deltaS).toFixed(decimals);
+  // The sign follows the rounded value: 0.0004 shows "±0.000", never "+0.000".
+  const sign = Number(text) === 0 ? '±' : deltaS > 0 ? '+' : '−';
+  return `${sign}${text}`;
 }
 
 /**
@@ -44,9 +29,21 @@ export function formatGap(deltaS: number, decimals = 3): string {
  * (a lapped car's gap is real time, so it can be minutes).
  */
 export function formatRaceGap(gapS: number): string {
-  if (gapS < 60) return `+${gapS.toFixed(3)}`;
-  const minutes = Math.floor(gapS / 60);
-  return `+${minutes}:${(gapS - minutes * 60).toFixed(1).padStart(4, '0')}`;
+  const ms = gapS.toFixed(3);
+  if (Number(ms) < 60) return `+${ms}`;
+  // Round to tenths before splitting minutes: 119.97 s is +2:00.0, not +1:60.0.
+  const tenths = Math.round(gapS * 10);
+  const minutes = Math.floor(tenths / 600);
+  return `+${minutes}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
+}
+
+/**
+ * One decimal, half up on the stored value: a median of 2.55 prints "2.6", not
+ * the "2.5" that toFixed gives for the float just under it. For per-lap use
+ * figures, so Session and Plan print the same number for the same median.
+ */
+export function oneDecimal(v: number): string {
+  return (Math.round(v * 10 + 1e-9) / 10).toFixed(1);
 }
 
 /** Corner grid: 2 decimals, no leading zero: "+.21", "−1.04". */
@@ -65,28 +62,29 @@ export function turnLabel(n: number, official?: string): string {
   return official ?? `T${n}`;
 }
 
-/**
- * The label without its "T" and any words after it, for badges and number
- * columns: "8", "10a" ("T7 entry" is "7").
- */
-export function turnNumber(n: number, official?: string): string {
-  return turnLabel(n, official).replace(/^T/, '').split(' ')[0];
-}
-
 /** "2,150 m" */
 export function formatDistance(distanceM: number): string {
   return `${Math.round(distanceM).toLocaleString('en-US')} m`;
 }
 
-/** "21 Sep 2026", in the device's time zone. */
+/**
+ * "Sep 14": the one place a short date is spelled, so no call site gets "Sept"
+ * from en-GB or a day-first "14 Sep". Month first, US style; device time zone.
+ */
+export function dayMonthOf(d: Date): string {
+  return `${monthOf(d)} ${d.getDate()}`;
+}
+
+// The one spelling of the short month: en-US, because en-GB gives "Sept".
+function monthOf(d: Date): string {
+  return d.toLocaleDateString('en-US', {month: 'short'});
+}
+
+/** "Sep 21, 2026", in the device's time zone. */
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return `${dayMonthOf(d)}, ${d.getFullYear()}`;
 }
 
 /** 5891 → {km: "5.891 km", mi: "3.660 mi"} */
@@ -97,16 +95,14 @@ export function formatLength(distanceM: number): {km: string; mi: string} {
   };
 }
 
-/** "14 Sep", in the device's time zone. */
+/** "Sep 14", in the device's time zone. */
 export function formatDayMonth(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  // en-GB spells September "Sept"; the frames say "14 Sep".
-  const month = d.toLocaleDateString('en-US', {month: 'short'});
-  return `${d.getDate()} ${month}`;
+  return dayMonthOf(d);
 }
 
-/** "14 Sep, 18:30" this year, "14 Sep 2025" for an earlier year; device time zone. */
+/** "Sep 14, 18:30" this year, "Sep 14, 2025" for an earlier year; device time zone. */
 export function formatDayMonthTime(
   iso: string,
   now: Date = new Date(),
@@ -114,7 +110,7 @@ export function formatDayMonthTime(
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   if (d.getFullYear() !== now.getFullYear())
-    return `${formatDayMonth(iso)} ${d.getFullYear()}`;
+    return `${formatDayMonth(iso)}, ${d.getFullYear()}`;
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${formatDayMonth(iso)}, ${hh}:${mm}`;

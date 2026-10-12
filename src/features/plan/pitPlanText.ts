@@ -1,5 +1,5 @@
 import {type PitPlan, type PitStint, type SliderStop} from './pitPlan';
-import {lapName} from './planCards';
+import {formationUseText, lapName, stintUseText} from './planCards';
 import {type Unit} from './unit';
 
 // The words of the Pit plan card, finished here so the component only draws.
@@ -58,22 +58,31 @@ export function stopWarning(s: SliderStop): string | null {
     : null;
 }
 
-/** One stint's row: laps, what it uses in `unit`, the tyre laps. */
+/** The formation lap's own row, as on the Stops card ("Formation · L1 · 3.5 %"); null without one. */
+export function formationRow(
+  p: PitPlan,
+  unit: Unit,
+): {label: string; laps: string; use: string; tyres: string} | null {
+  const use = formationUseText(p.formation, unit);
+  return use == null
+    ? null
+    : {label: 'Formation', laps: lapName(0), use, tyres: '–'};
+}
+
+/** One stint's row: laps (named by `stintLaps` when given, else the count), what it uses in `unit`, the tyre laps. */
 export function stintRow(
   s: PitStint,
   unit: Unit,
+  lapRange?: string,
 ): {label: string; laps: string; use: string; tyres: string} {
   return {
     label: `Stint ${s.n}`,
-    laps: String(s.laps),
+    laps: lapRange ?? String(s.laps),
     use:
-      unit === 've'
-        ? s.vePct
-          ? `${one(s.vePct.median)} %`
-          : '–'
-        : s.fuelL
-        ? `${one(s.fuelL.median)} L`
-        : '–',
+      stintUseText(
+        unit === 've' ? s.vePct?.median ?? null : s.fuelL?.median ?? null,
+        unit,
+      ) ?? '–',
     tyres: `${s.tyreLaps.onSet} · ${s.tyreLaps.sinceStart}`,
   };
 }

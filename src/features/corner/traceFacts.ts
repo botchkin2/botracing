@@ -29,7 +29,7 @@ export function noBrakeIn(
   );
 }
 
-/** "Showing 13 of 44 laps", or null when every lap is drawn. */
+/** "13 of 44 laps", or null when every lap is drawn. */
 export function lapsShownText(shown: number, total: number): string | null {
-  return shown < total ? `Showing ${shown} of ${total} laps` : null;
+  return shown < total ? `${shown} of ${total} laps` : null;
 }

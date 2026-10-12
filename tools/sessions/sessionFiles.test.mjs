@@ -105,6 +105,59 @@ test('groupId joins iRacing split files even when the wall clock would split the
   );
 });
 
+test('offline iRacing drives (no groupId) are separate sessions on different days, one when the clock runs on', () => {
+  // Every offline drive has SubSessionID 0; joining them by that id merged 603
+  // files over two years into one session (thread 1 #3941).
+  const day = d => new Date(Date.UTC(2026, 9, d, 14, 0, 0)).toISOString();
+  const offline = (n, over) =>
+    file(n, {
+      sim: 'iracing',
+      groupId: null,
+      sessionClock: '0:0',
+      layout: '444-grand_prix',
+      car: 'Ford Mustang GT3',
+      sessionType: 'Practice',
+      ...over,
+    });
+  const fuji = offline(0, {recordedAt: day(4), startT: 119, endT: 2240});
+  const sebring = offline(1, {recordedAt: day(9), startT: 90, endT: 1521});
+  const sessions = groupFiles([sebring, fuji], 'botkin');
+  assert.equal(sessions.length, 2);
+  assert.deepEqual(
+    sessions.map(x => x.files.length),
+    [1, 1],
+  );
+  // The next file of the same drive, a minute later with the game clock running on.
+  const next = offline(2, {
+    recordedAt: new Date(Date.parse(day(4)) + (2240 - 119 + 60) * 1000).toISOString(),
+    startT: 2300,
+    endT: 2900,
+  });
+  assert.equal(groupFiles([fuji, next], 'botkin').length, 1);
+});
+
+test('session ids are owner-scoped for iRacing, online and offline: one drive, two owners, two ids', () => {
+  const online = file(0, {sim: 'iracing', groupId: 'iracing|88284244|2'});
+  const offline = file(1, {sim: 'iracing', groupId: null, sessionClock: '0:0'});
+  for (const f of [online, offline]) {
+    // groupFiles writes the recording ids onto the file objects it is given:
+    // read each owner's ids before the next call.
+    const ids = owner => {
+      const [s] = groupFiles([f], owner);
+      return [s.id, s.files[0].id];
+    };
+    const [sessionA, fileA] = ids('owner-a');
+    const [sessionB, fileB] = ids('owner-b');
+    assert.notEqual(sessionA, sessionB);
+    assert.notEqual(fileA, fileB);
+  }
+  // The same owner and files give the same id every time.
+  assert.equal(
+    groupFiles([online], 'owner-a')[0].id,
+    groupFiles([online], 'owner-a')[0].id,
+  );
+});
+
 // -- scanning a folder ---------------------------------------------------------------------
 
 function fakeAdapter(infos) {

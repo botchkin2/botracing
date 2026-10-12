@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type TimedGrid} from '@/src/analysis/window';
 
-import {playTicker} from './playback';
+import {nextRate, playTicker} from './playback';
 
 // 1000 m at a steady 50 m/s: 20 s a lap.
 const ref: TimedGrid = (() => {
@@ -87,5 +87,64 @@ describe('playTicker', () => {
     tick();
     s.commit();
     expect(s.get()).toBe(100);
+  });
+});
+
+describe('playTicker reverse', () => {
+  it('runs back and holds at the lap start', () => {
+    const s = fakeState(100);
+    let t = 0;
+    const tick = playTicker(
+      () => ({ref, rate: 1, reverse: true, move: s.move}),
+      () => t,
+    );
+    t = 1000;
+    tick();
+    s.commit();
+    expect(s.get()).toBeCloseTo(87.5, 0);
+    for (let i = 0; i < 8; i++) {
+      t += 250;
+      tick();
+      s.commit();
+    }
+    expect(s.get()).toBe(0);
+  });
+});
+
+describe('nextRate', () => {
+  it('cycles and sends an unknown rate to 1', () => {
+    expect(nextRate(0.25)).toBe(0.5);
+    expect(nextRate(0.5)).toBe(1);
+    expect(nextRate(1)).toBe(2);
+    expect(nextRate(2)).toBe(0.25);
+    expect(nextRate(3)).toBe(1);
+  });
+});
+
+describe('playTicker with a loop', () => {
+  it('repeats the range forward and backward instead of the lap', () => {
+    for (const reverse of [false, true]) {
+      const s = fakeState(reverse ? 220 : 380);
+      let t = 0;
+      const tick = playTicker(
+        () => ({ref, rate: 1, reverse, loop: [4, 8], move: s.move}),
+        () => t,
+      );
+      const seen: number[] = [];
+      for (let i = 1; i <= 120; i++) {
+        t = i * 16;
+        tick();
+        s.commit();
+        seen.push(s.get());
+      }
+      // 4 to 8 s on a 50 m/s reference is 200 to 400 m; it never leaves it.
+      expect(Math.min(...seen)).toBeGreaterThanOrEqual(200 - 1e-6);
+      expect(Math.max(...seen)).toBeLessThanOrEqual(400 + 1e-6);
+      // Heading the right way and having turned round at least once.
+      const turned = seen.some(
+        (m, i) => i > 0 && Math.abs(m - seen[i - 1]) > 100,
+      );
+      expect(turned).toBe(true);
+    }
   });
 });

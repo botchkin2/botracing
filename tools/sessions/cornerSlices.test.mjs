@@ -118,6 +118,16 @@ test('parity: the slice equals the app path (parse, resample, slice) for every c
   assert.equal(slice.timeS.length, (SLICE_BEFORE_M + SLICE_AFTER_M) / 5 + 1);
 });
 
+test('the slice clock follows the lap trace rate: the same rows at 60 Hz run 100/60 as long', () => {
+  const csv = lapCsv();
+  const at100 = decode(build([{id: 'a', csv: () => csv}]), 1).laps[0];
+  const at60 = decode(build([{id: 'a', csv: () => csv, hz: 60}]), 1).laps[0];
+  const last = at100.timeS.length - 1;
+  // Elapsed time between two grid points of the slice, not since the line.
+  const span = x => x.timeS[last] - x.timeS[0];
+  assert.ok(Math.abs(span(at60) / span(at100) - 100 / 60) < 0.01);
+});
+
 test('a slower channel is not held or repeated: brake keeps its 50 Hz samples', () => {
   const csv = lapCsv();
   const out = build([{id: 'a', csv: () => csv}]);
@@ -173,7 +183,7 @@ test('no map, no slices', () => {
 });
 
 test('the decoder names the field that is wrong', () => {
-  assert.throws(() => decodeCornerSlices({v: 2}), /unknown format/);
+  assert.throws(() => decodeCornerSlices({v: 3}), /unknown format/);
   const good = JSON.parse(
     build([{id: 'a', csv: () => lapCsv()}]).files[0].text,
   );

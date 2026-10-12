@@ -40,9 +40,15 @@ import {parseTraceCsv} from '../../src/analysis/traceCsv.ts';
 export const SLICE_BEFORE_M = Math.max(ZOOM_BEFORE_M, MAP_BEFORE_M);
 export const SLICE_AFTER_M = Math.max(ZOOM_AFTER_M, MAP_AFTER_M);
 export const GRID_STEP_M = 5;
-// Still 1: the decoder reads a file's own `windowM`, so a wider window needs no
-// new format (src/analysis/cornerSlices.ts).
-export const SLICE_FORMAT = 1;
+// 2 adds gear (format 1 files have none, and the decoder reads them without it).
+// The decoder reads a file's own `windowM`, so a wider window needs no new format
+// (src/analysis/cornerSlices.ts).
+export const SLICE_FORMAT = 2;
+// The distance axis the slices are cut on. 1: LapDistPct times the layout's
+// length (src/analysis/resample.ts), the frame of the stored facts, the band and
+// the field; before it, distance was integrated from speed and sat 8 to 11 m off.
+// Bump when the frame changes: every session is cut again on the next sync.
+export const SLICE_FRAME_VERSION = 1;
 // A slice reaches this far past its corner window on each side, so the
 // delta from the boundary and the lines run to the window's edges (the pad
 // is shared with the screen: src/analysis/cornerWindows.ts).
@@ -60,6 +66,7 @@ const CHANNELS = [
   ['steeringPct', 2],
   ['pathLateralM', 2],
   ['trackEdgeM', 2],
+  ['gear', 0],
 ];
 
 /**
@@ -169,7 +176,7 @@ export function lapSlice(id, grid, apexM, lengthM, extent = null) {
 
 /**
  * The corner files of one session. laps: [{id, csv}] (csv is a function so a
- * lap's text is dropped after use); map: {lengthM, corners}. Returns
+ * lap's text is dropped after use; hz is its rows per second, default 100); map: {lengthM, corners}. Returns
  * {files: [{n, text}], corners, hash}, or null without a map.
  */
 export function buildCornerSlices(laps, map, windows = null) {
@@ -178,7 +185,7 @@ export function buildCornerSlices(laps, map, windows = null) {
   const perCorner = new Map(corners.map(c => [c.n, []]));
   for (const lap of laps) {
     const raw = parseTraceCsv(lap.csv());
-    const grid = resampleTrace(raw, map.lengthM, GRID_STEP_M);
+    const grid = resampleTrace(raw, map.lengthM, GRID_STEP_M, lap.hz);
     for (const c of corners) {
       const slice = lapSlice(lap.id, grid, c.apexM, map.lengthM, c.extent);
       if (slice) perCorner.get(c.n).push(slice);

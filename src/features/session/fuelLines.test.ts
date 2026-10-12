@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import type {Lap, PitStop} from '@/src/data/sessions';
 
-import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
+import {lapFuelLines, limitingLaps, pitLine, stintFuelLine} from './fuelLines';
 
 // Road Atlanta race 2026-09-26, the stop on lap 16 (thread 34).
 const stop: PitStop = {
@@ -17,13 +17,13 @@ const stop: PitStop = {
 describe('pitLine', () => {
   it('says what was left at entry in laps of the tighter budget, and what was added', () => {
     expect(pitLine(stop)).toBe(
-      'Pit: 33.3 L / 40 % VE left (11.1 laps) · +41.7 L · 91 s',
+      'Pit: 33.3 L / 40 % VE left (11.1 laps · VE) · +41.7 L · 91 s',
     );
   });
 
   it('a stop with nothing added reads +0.0 L, as long as a real refuel so it fits the row', () => {
     expect(pitLine({...stop, added: {fuelL: 0, vePct: 0}})).toBe(
-      'Pit: 33.3 L / 40 % VE left (11.1 laps) · +0.0 L · 91 s',
+      'Pit: 33.3 L / 40 % VE left (11.1 laps · VE) · +0.0 L · 91 s',
     );
   });
 
@@ -46,23 +46,77 @@ describe('pitLine', () => {
   });
 });
 
+describe('limitingLaps', () => {
+  it('names the meter that runs out first when both are shown; a tie reads fuel; one meter is not named; none is null', () => {
+    expect(limitingLaps({fuel: 13.9, ve: 11.1})).toBe('11.1 laps · VE');
+    expect(limitingLaps({fuel: 0.9, ve: 4})).toBe('0.9 laps · fuel');
+    expect(limitingLaps({fuel: 5, ve: 5})).toBe('5.0 laps · fuel');
+    expect(limitingLaps({fuel: null, ve: 3})).toBe('3.0 laps');
+    expect(limitingLaps({fuel: 7.2, ve: null})).toBe('7.2 laps');
+    expect(limitingLaps({fuel: null, ve: null})).toBeNull();
+  });
+});
+
 describe('stintFuelLine', () => {
-  it('the median use per green lap and how many laps it comes from', () => {
+  const g = (
+    usedL: number,
+    veUsedPct: number | null,
+    over: Partial<Lap> = {},
+  ) =>
+    ({
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL, veUsedPct, green: true},
+      ...over,
+    } as Lap);
+
+  it('the median use over the stint green laps', () => {
     expect(
-      stintFuelLine({medianFuelL: 2.4, medianVePct: 3.6, greenLaps: 15}),
+      stintFuelLine([g(2.4, 3.5), g(2.4, 3.6), g(2.5, 3.7), g(2.3, 3.6)]),
     ).toBe('Fuel 2.40 L/lap · VE 3.6 %/lap');
   });
 
-  it('under 3 green laps the uploader gives no median: no line', () => {
+  it('a slow green lap that is not comparable still counts: it burned fuel', () => {
+    const laps = [
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(2.4, 2.5),
+      g(3.0, 3.0, {comparable: false}),
+      g(3.0, 3.0, {comparable: false}),
+    ];
+    // The two slow laps move the median up, as in the stored stint medians.
+    expect(stintFuelLine(laps)).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
+    expect(stintFuelLine([...laps, g(3.0, 3.0, {comparable: false})])).toBe(
+      'Fuel 2.70 L/lap · VE 2.8 %/lap',
+    );
+  });
+
+  it('rounds a median of 2.55 up to 2.6, the same on the fuel card', () => {
+    expect(stintFuelLine([g(2.4, 2.5), g(2.4, 2.55), g(2.4, 2.6)])).toBe(
+      'Fuel 2.40 L/lap · VE 2.6 %/lap',
+    );
+  });
+
+  it('a lap that is not green is left out', () => {
+    const notGreen = {
+      comparable: true,
+      timeS: 80,
+      fuel: {usedL: 9, veUsedPct: 9, green: false},
+    } as Lap;
     expect(
-      stintFuelLine({medianFuelL: null, medianVePct: null, greenLaps: 2}),
-    ).toBeNull();
+      stintFuelLine([g(2.4, 2.5), g(2.4, 2.5), g(2.4, 2.5), notGreen]),
+    ).toBe('Fuel 2.40 L/lap · VE 2.5 %/lap');
+  });
+
+  it('under 3 such laps there is no line', () => {
+    expect(stintFuelLine([g(2.4, 3.6), g(2.4, 3.6)])).toBeNull();
+    expect(stintFuelLine([])).toBeNull();
   });
 
   it('fuel only, when VE is missing', () => {
-    expect(
-      stintFuelLine({medianFuelL: 3.4, medianVePct: null, greenLaps: 18}),
-    ).toBe('Fuel 3.40 L/lap');
+    expect(stintFuelLine([g(3.4, null), g(3.4, null), g(3.4, null)])).toBe(
+      'Fuel 3.40 L/lap',
+    );
   });
 });
 

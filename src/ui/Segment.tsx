@@ -1,9 +1,10 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {radius, size, space, useTheme} from '@/src/design';
 
 import {hitFor} from './hitArea';
 import {Text} from './Text';
+import {Pressable} from './Pressable';
 
 /** Two or three mutually exclusive options, e.g. Stack / One chart. */
 export function Segment<T extends string>({

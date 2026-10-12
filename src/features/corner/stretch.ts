@@ -29,11 +29,10 @@ export type NeighbourApex = {
 export type CornerView = {
   stretch: CornerStretch;
   neighbours: NeighbourApex[];
-  caption: string;
 };
 
 /**
- * The stretch, the neighbouring apexes inside the window, and the caption.
+ * The stretch and the neighbouring apexes inside the window.
  * `corners` are in track order; `lengthM` puts apexes across the start/finish
  * line into the window's frame (a corner just after the line is also just
  * before it).
@@ -72,52 +71,19 @@ export function cornerView(
   return {
     stretch,
     neighbours,
-    caption: viewCaption(
-      turnLabel(corner.n, corner.official),
-      {fromM: corner.entryM, toM: next.entryM},
-      neighbours,
-      overlappingLabels(corners, corner, lengthM),
-    ),
   };
 }
 
 /**
- * "Shaded: T8 · also in view: T9 · T8 and T9 overlap here". Says what is shown
- * and nothing else; no metres (triage #33). Labels are the chips' (official
- * ones where a track has them). `overlapping` are the other corners whose
- * entry-to-exit span shares track with this one's (the Bus Stop), so the
- * overlap is named instead of left for the reader to puzzle out. Empty when
- * there is nothing beyond the chip's own label.
- */
-export function viewCaption(
-  label: string,
-  stretch: CornerStretch,
-  neighbours: {label: string; lapM: number}[],
-  overlapping: string[] = [],
-): string {
-  const also = neighbours.map(n => n.label);
-  const rest = [
-    also.length > 0 ? `also in view: ${also.join(', ')}` : null,
-    overlapping.length > 0 ? overlapSentence([label, ...overlapping]) : null,
-  ].filter(Boolean);
-  // Nothing beyond the chip's own label: no caption (rake, #345).
-  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
-}
-
-/**
- * The caption when the corner has a window of its own (pit-wall thread 45):
- * "Shaded: S5 (T8–T10) · also in view: ...". A window that
- * runs past the zoom window says where it really ends and that the rest is not
- * drawn, so the shading ending at the edge is not read as the window's end
- * (setup #1760).
+ * What the window's own shading needs said, and nothing else: that the window
+ * runs past the zoom window (so the shading ending at the edge is not read as
+ * the window's end, setup #1760), and where the delta is drawn from. The
+ * neighbours' apexes are already named on the chart, so no "Shaded: T3 · also
+ * in view" sentence. Empty when there is nothing to say.
  */
 export function windowCaption(
-  label: string,
-  /** The window in lap metres, what the caption prints. */
-  window: CornerStretch,
-  /** The same window in the zoom window's frame, to see what runs past it. */
+  /** The window in the zoom window's frame, to see what runs past it. */
   inFrame: CornerStretch,
-  neighbours: {label: string; lapM: number}[],
   zoom: [number, number],
   /**
    * For a part of a compound section: the delta is drawn from the section's
@@ -127,53 +93,17 @@ export function windowCaption(
   deltaFrom: {label: string; lapM: number; drawn: boolean} | null = null,
 ): string {
   const [startM, endM] = zoom;
-  const cut = [
+  return [
     inFrame.fromM < startM ? 'window starts earlier, not drawn' : null,
     inFrame.toM > endM ? 'window continues later, not drawn' : null,
-  ].filter(Boolean);
-  const also = neighbours.map(n => n.label);
-  const rest = [
-    ...cut,
     deltaFrom
       ? `delta from the start of ${deltaFrom.label}${
           deltaFrom.drawn ? '' : ', not drawn'
         }`
       : null,
-    also.length > 0 ? `also in view: ${also.join(', ')}` : null,
-  ].filter(Boolean);
-  return rest.length > 0 ? [`Shaded: ${label}`, ...rest].join(' · ') : '';
-}
-
-// "T8 and T9 overlap here", "T8, T9 and T10 overlap here".
-function overlapSentence(labels: string[]): string {
-  const head = labels.slice(0, -1).join(', ');
-  return `${head} and ${labels[labels.length - 1]} overlap here`;
-}
-
-/**
- * Labels of the other corners whose entry-to-exit span shares track with this
- * corner's, on the lap or across the start/finish line.
- */
-export function overlappingLabels(
-  corners: TrackCorner[],
-  corner: TrackCorner,
-  lengthM: number,
-): string[] {
-  const shifts = lengthM > 0 ? [0, -lengthM, lengthM] : [0];
-  // A corner that runs over the line has its exit at a smaller distance than
-  // its entry: unroll it by one lap, as inWindowFrame does.
-  const spanOf = (c: TrackCorner): [number, number] => [
-    c.entryM,
-    c.exitM < c.entryM && lengthM > 0 ? c.exitM + lengthM : c.exitM,
-  ];
-  const [fromM, toM] = spanOf(corner);
-  return corners
-    .filter(c => c.n !== corner.n)
-    .filter(c => {
-      const [a, b] = spanOf(c);
-      return shifts.some(shift => a + shift < toM && fromM < b + shift);
-    })
-    .map(c => turnLabel(c.n, c.official));
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /**

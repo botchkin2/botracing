@@ -2,7 +2,8 @@
 //
 // A session that fails waits on its own backoff; every other session, and the
 // version resync, carries on (apex #741, scrutineer #742). The map is
-// {sessionId: {failures, atMs}}: failures in a row, and when it may run again.
+// {sessionId: {failures, atMs, lastAtMs, message}}: failures in a row, when it
+// may run again, when it last failed and why (the heartbeat's problems).
 import {retryDelayMin} from './trigger.mjs';
 
 // Ids still waiting at nowMs, for sync.mjs --skip.
@@ -12,12 +13,23 @@ export function waitingIds(retries, nowMs) {
 
 // The map after a sync: sessions that failed now get a longer wait, sessions
 // that were skipped keep theirs, everything else is done and drops out.
-export function nextRetries({retries, failedIds, skippedIds, nowMs}) {
+export function nextRetries({
+  retries,
+  failedIds,
+  skippedIds,
+  messages = {},
+  nowMs,
+}) {
   const next = {};
   for (const id of skippedIds) if (retries[id]) next[id] = retries[id];
   for (const id of failedIds) {
     const failures = (retries[id]?.failures ?? 0) + 1;
-    next[id] = {failures, atMs: nowMs + retryDelayMin(failures) * 60 * 1000};
+    next[id] = {
+      failures,
+      atMs: nowMs + retryDelayMin(failures) * 60 * 1000,
+      lastAtMs: nowMs,
+      message: messages[id] ?? null,
+    };
   }
   return next;
 }

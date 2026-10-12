@@ -41,6 +41,8 @@ const child = spawn(
       ...process.env,
       BROWSER: 'none',
       LIVE_SEAT_SIGNIN_PORT: String(found.port),
+      // The main checkout's functions/ holds firebase-admin; a worktree has none.
+      LIVE_MAIN_ROOT: root,
       // The service account's email, not a secret (docs/TESTING.md): the mint
       // impersonates it with the gcloud login on this PC.
       SMOKE_SERVICE_ACCOUNT:

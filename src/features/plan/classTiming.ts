@@ -1,25 +1,29 @@
-import {type PaceClass, type StartGap} from '@/src/analysis/classLaps';
+import {
+  paceClass,
+  type PaceClass,
+  type StartGap,
+} from '@/src/analysis/classLaps';
 import {type SessionClassLaps} from '@/src/data/sessions';
-import {formatLapTime} from '@/src/design';
+import {formatGap, formatLapTime} from '@/src/design';
 
 import {lapName} from './planCards';
 
-// Class timing on the Plan (round 6, section 2; pit-wall thread 44): when the
-// faster classes' cars, at their median lap, reach you over a race, from the
-// other cars' lap times the uploader keeps on each session (classLaps). Pure.
+// Class pace on the Plan (round 6, section 2; pit-wall thread 44; Botkin's
+// D55): every class's pace at the track and, against his own median, when the
+// faster ones reach him over a race, from the other cars' lap times the
+// uploader keeps on each session (classLaps). It needs no fuel and none of his
+// laps: he drives GT3 and will never have Hypercar laps of his own. Pure.
 // The input type is this model's own: one function in `useClassTiming` adapts
 // the session docs to it, so a change to the stored shape costs one place.
 
-/** Fewer sessions than this is not a class pace. (The uploader's own floor is 3 laps in a session; this is 3 sessions.) */
-export const MIN_CLASS_SESSIONS = 3;
-/** Races alone make the pool from this many; fewer, and practice joins them. */
-export const MIN_RACE_SESSIONS = 3;
 /** Enough passes to fill any race the Plan draws. */
 const MAX_PASSES = 20;
 
 /** One session at the track with other cars' laps, as this model reads it. */
 export type ClassSession = {
   kind: 'race' | 'practice';
+  /** The class he drove in it: grid gaps are measured from his car, so only his own class's races give his gaps. */
+  player: PaceClass | null;
   /** Per class: the median green lap of its cars in that session, and how many laps it rests on. */
   byClass: Partial<
     Record<
@@ -37,15 +41,26 @@ export type ClassSession = {
 };
 
 /**
+ * iRacing classes are right from CLASS_LAPS_VERSION 6: before, GTP and the
+ * IMSA GT3s pooled as `other`. LMU numbers did not change in 6, so older LMU
+ * docs stay in (bias, pit-wall thread 1 #4046).
+ */
+const MIN_VERSION: Partial<Record<string, number>> = {iracing: 6};
+
+/**
  * The one place a stored `classLaps` (the session list serves it, and so does
  * the full doc) becomes the model's input: qualifying has no class laps and is
- * left out; so is a session without a field or without a class pace.
+ * left out; so is a session without a field or without a class pace, and an
+ * iRacing doc older than its class fix.
  */
 export function classSessionOf(s: {
+  sim: string;
+  carClass: string;
   classLaps: SessionClassLaps | null;
 }): ClassSession | null {
   const doc = s.classLaps;
   if (!doc || doc.kind === 'qualify' || !doc.classes) return null;
+  if (doc.version < (MIN_VERSION[s.sim] ?? 0)) return null;
   const byClass: ClassSession['byClass'] = {};
   for (const [key, stats] of Object.entries(doc.classes)) {
     byClass[key as PaceClass] = {
@@ -58,21 +73,22 @@ export function classSessionOf(s: {
       }),
     };
   }
-  return {kind: doc.kind, byClass};
+  // Docs before version 6 do not name his class; LMU's car class says it.
+  const player = doc.player ?? (s.carClass ? paceClass(s.carClass) : null);
+  return {kind: doc.kind, player, byClass};
 }
 
 export type ClassTimingInput = {
-  /** Every race and practice at the track with a field, whatever car he drove. */
+  /** Every race and practice at the track in this sim with a field, whatever car he drove. */
   sessions: ClassSession[];
   /** His own class. */
   mine: {
-    /** Null when his sessions carry no class. */
+    /** Null when nothing says his class (a car he has not driven here). */
     key: PaceClass | null;
-    /** As LMU writes it ("LMGT3"); shown on the card. */
-    name: string;
-    /** The plan's median green lap; null without green laps. */
+    /** His median green lap here, as the fuel plan reads it; null without green laps. */
     medianLapS: number | null;
-    greenLaps: number;
+    /** Laps and sessions the median rests on. */
+    laps: number;
     sessions: number;
   };
   /** The plan's race length in laps; null when it has none. */
@@ -89,52 +105,45 @@ export type Pass = {
   hi: number;
 };
 
-export type FasterClass = {
+/** One row of the Class pace table. Every text is final; "—" is not measured. */
+export type ClassRow = {
   key: PaceClass;
   label: string;
-  /** Null when fewer than MIN_CLASS_SESSIONS sessions saw the class. */
-  estimate: {
-    lapText: string;
-    gainText: string;
-    firstText: string;
-    /** Where the grid gap came from, or "Assumes a level start." when no race recorded it. */
-    firstNote: string;
-    everyText: string;
-    passes: Pass[];
-  } | null;
-  /** "From 2 races, 1 practice · 280 laps", or the empty state's sentence. */
-  text: string;
+  /** His class. */
+  mine: boolean;
+  /** "1:38.0": the pooled median lap, to a tenth; approximate (line crossings at 5 Hz), the head says ≈. */
+  lapText: string;
+  /** The class median lap minus his median, s, the app's sign: "−12.0" faster, "+3.1" slower (the head says s). */
+  vsText: string;
+  /** Where, in his laps, it first reaches him: "L8–L11". */
+  firstText: string;
+  /** His laps between one pass and the next: "~7 laps". */
+  everyText: string;
+  /** "3 races · 280 laps · grid gap 10–20 s" */
+  srcText: string;
+  /** Faster than his median: it gets a lane on the timeline. */
+  reaches: boolean;
+  /** Passes inside the race; empty unless it reaches him. */
+  passes: Pass[];
 };
-
-export type YourClass = {
-  name: string;
-  classText: string;
-  classSrc: string;
-  youText: string;
-  youSrc: string;
-};
-
-export type ReadyClassTiming = Extract<ClassTiming, {kind: 'ready'}>;
 
 export type ClassTiming =
-  /** No session here has other cars' laps. */
+  /** No session here, in this sim, has other cars' laps. */
   | {kind: 'no-field'}
-  /** Nothing of his own to set the gain against. */
-  | {kind: 'no-laps'}
   | {
       kind: 'ready';
-      faster: FasterClass[];
-      /** No class was faster than his: the table is replaced by a sentence. */
-      noFaster: boolean;
-      yours: YourClass | null;
+      /** Fastest first. */
+      rows: ClassRow[];
+      /** His own median; null without green laps here. */
+      you: {lapText: string; srcText: string} | null;
       /** Laps the timeline spans, and where his stops fall on it. */
       raceLaps: number | null;
       stopsAfter: number[];
     };
 
+export type ReadyClassTiming = Extract<ClassTiming, {kind: 'ready'}>;
+
 export const NO_FIELD_TEXT = 'No other cars recorded here';
-export const NO_LAPS_TEXT = 'No green laps of yours here';
-export const NO_FASTER_TEXT = 'No faster class here';
 
 const LABELS: Record<PaceClass, string> = {
   hypercar: 'Hypercar',
@@ -143,8 +152,9 @@ const LABELS: Record<PaceClass, string> = {
   gte: 'GTE',
   other: 'Other',
 };
-// The fastest first, as the classes line up on a track.
-const ORDER: PaceClass[] = ['hypercar', 'lmp2', 'gte', 'gt3'];
+// `other` is not a class: it pools whatever the sims name oddly.
+const SHOWN: PaceClass[] = ['hypercar', 'lmp2', 'gte', 'gt3'];
+const NONE = '—';
 
 function median(values: number[]): number {
   const v = [...values].sort((a, b) => a - b);
@@ -155,36 +165,44 @@ function median(values: number[]): number {
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const thousands = (n: number) => n.toLocaleString('en-GB');
 
+/** A field lap to a tenth: the crossings are interpolated at 5 Hz, so the thousandths are not real. */
+const approxLap = (s: number) =>
+  formatLapTime(Math.round(s * 10) / 10).slice(0, -2);
+
 type Pooled = {
   medianS: number;
   p10S: number;
   p90S: number;
-  /** Median over the used races that recorded the start, leader and tail; null when none did. */
+  /** Median over the races that recorded the start, leader and tail; null when none did. */
   gap: StartGap | null;
-  /** True when practice laps are in the pool because races alone were too few. */
-  fromPractice: boolean;
+  kind: 'race' | 'practice';
   sessions: number;
-  races: number;
-  practices: number;
   laps: number;
 };
 
 /**
  * The median of the per-session medians: one long race does not outweigh the
- * rest. Races alone when there are MIN_RACE_SESSIONS of them (practice laps
- * are push laps and run faster than a race pace); otherwise every session,
- * marked as from practice.
+ * rest. Races alone whenever the class raced here: lapping is about race pace
+ * (fuel, tyres, traffic), and practice laps are push laps. Practice only when
+ * no race saw the class (bias, pit-wall thread 1 #4044). The grid gap is
+ * measured from his car, so it comes only from races he drove in `mine`: a
+ * gap to a Hypercar start says nothing about his GT3 start.
  */
-function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
+function pool(
+  sessions: ClassSession[],
+  key: PaceClass,
+  mine: PaceClass | null,
+): Pooled | null {
   const seen = sessions.flatMap(s => {
     const c = s.byClass[key];
-    return c ? [{kind: s.kind, ...c}] : [];
+    return c ? [{kind: s.kind, player: s.player, ...c}] : [];
   });
   if (seen.length === 0) return null;
   const races = seen.filter(s => s.kind === 'race');
-  const raceOnly = races.length >= MIN_RACE_SESSIONS;
-  const used = raceOnly ? races : seen;
-  const gaps = used.flatMap(s => (s.gap == null ? [] : [s.gap]));
+  const used = races.length > 0 ? races : seen;
+  const gaps = used.flatMap(s =>
+    s.gap == null || mine == null || s.player !== mine ? [] : [s.gap],
+  );
   return {
     medianS: median(used.map(s => s.medianS)),
     p10S: median(used.map(s => s.p10S)),
@@ -196,24 +214,26 @@ function pool(sessions: ClassSession[], key: PaceClass): Pooled | null {
             lastS: median(gaps.map(g => g.lastS)),
           }
         : null,
-    fromPractice: !raceOnly && used.some(s => s.kind === 'practice'),
-    sessions: seen.length,
-    races: used.filter(s => s.kind === 'race').length,
-    practices: used.filter(s => s.kind === 'practice').length,
+    kind: races.length > 0 ? 'race' : 'practice',
+    sessions: used.length,
     laps: used.reduce((a, s) => a + s.laps, 0),
   };
 }
 
-function fromText(p: Pooled): string {
-  const parts = [
-    p.races > 0 && plural(p.races, 'race'),
-    p.practices > 0 && plural(p.practices, 'practice'),
-  ].filter(Boolean);
-  return `From ${parts.join(', ')} · ${thousands(p.laps)} laps${
-    p.fromPractice
-      ? ` · under ${MIN_RACE_SESSIONS} races, so practice counts`
-      : ''
-  }`;
+/** "3 races · 280 laps", then the grid gap when the races recorded one. */
+function srcText(p: Pooled): string {
+  const parts = [plural(p.sessions, p.kind), `${thousands(p.laps)} laps`];
+  if (p.gap) {
+    // Negative: that end of the class started behind him.
+    const signed = (v: number) => (v < 0 ? `−${-v}` : String(v));
+    const [tail, lead] = [Math.round(p.gap.lastS), Math.round(p.gap.firstS)];
+    parts.push(
+      `grid gap ${
+        tail === lead ? signed(tail) : `${signed(tail)}–${signed(lead)}`
+      } s`,
+    );
+  }
+  return parts.join(' · ');
 }
 
 const LEVEL_START: StartGap = {firstS: 0, lastS: 0};
@@ -265,18 +285,12 @@ export function passesOf(
   return out;
 }
 
-/** "Grid gap 26-28 s": the class's tail to its leader. */
-const gapNote = (g: StartGap): string => {
-  const [tail, lead] = [Math.round(g.lastS), Math.round(g.firstS)];
-  return `Grid gap ${
-    tail === lead ? tail : `${tail}–${lead}`
-  } s, from the races' starts.`;
-};
-
-const rangeText = (lo: number, hi: number) =>
-  Number.isFinite(hi)
-    ? `${lapName(Math.ceil(lo))}–${lapName(Math.floor(hi))}`
-    : `${lapName(Math.ceil(lo))} or later`;
+function rangeText(lo: number, hi: number): string {
+  const first = Math.ceil(lo);
+  if (!Number.isFinite(hi)) return `${lapName(first)} or later`;
+  const last = Math.max(first, Math.floor(hi));
+  return first === last ? lapName(first) : `${lapName(first)}–${lapName(last)}`;
+}
 
 /** The words in a class lane that has no pass inside the race. */
 export const noPassText = (raceLaps: number, firstText: string) =>
@@ -284,69 +298,68 @@ export const noPassText = (raceLaps: number, firstText: string) =>
 
 export function classTiming(input: ClassTimingInput): ClassTiming {
   const {sessions, mine, raceLaps, stopsAfter} = input;
-  if (sessions.length === 0) return {kind: 'no-field'};
-  if (mine.medianLapS == null) return {kind: 'no-laps'};
   const myLap = mine.medianLapS;
 
-  const faster: FasterClass[] = [];
-  for (const key of ORDER) {
-    if (key === mine.key) continue;
-    const p = pool(sessions, key);
-    if (!p || p.medianS >= myLap) continue;
-    if (p.sessions < MIN_CLASS_SESSIONS) {
-      faster.push({
-        key,
-        label: LABELS[key],
-        estimate: null,
-        text: `No estimate. ${plural(p.sessions, 'session')} here had ${
-          LABELS[key]
-        } cars; an estimate needs ${MIN_CLASS_SESSIONS}.`,
-      });
-      continue;
-    }
-    const gain = myLap - p.medianS;
-    const every = catchLaps(p.medianS, myLap);
+  const pooled = SHOWN.flatMap(key => {
+    const p = pool(sessions, key, mine.key);
+    return p ? [{key, p}] : [];
+  }).sort((a, b) => a.p.medianS - b.p.medianS);
+  if (pooled.length === 0) return {kind: 'no-field'};
+
+  const rows: ClassRow[] = pooled.map(({key, p}) => {
+    const own = key === mine.key;
     const gap = p.gap ?? LEVEL_START;
-    const band = {
-      lo: firstCatch(p.p10S, myLap, gap.firstS),
-      hi: firstCatch(p.p90S, myLap, gap.lastS),
-    };
-    faster.push({
+    const base = {
       key,
       label: LABELS[key],
-      estimate: {
-        lapText: formatLapTime(p.medianS),
-        gainText: `${gain.toFixed(1)} s`,
-        firstText: rangeText(band.lo, band.hi),
-        firstNote: p.gap == null ? 'Assumes a level start.' : gapNote(p.gap),
-        everyText: `~${Math.round(every)} laps`,
-        passes: raceLaps == null ? [] : passesOf(p, myLap, raceLaps, gap),
-      },
-      text: fromText(p),
-    });
-  }
-
-  const mineClass = mine.key ? pool(sessions, mine.key) : null;
-  const yours: YourClass | null = mineClass
-    ? {
-        name: mine.name,
-        classText: formatLapTime(mineClass.medianS),
-        // Says which kinds of session it pools: a class card built from a
-        // practice must not read like one built from races.
-        classSrc: fromText(mineClass),
-        youText: formatLapTime(myLap),
-        youSrc: `${plural(mine.greenLaps, 'green lap')} · ${plural(
-          mine.sessions,
-          'session',
-        )}`,
-      }
-    : null;
+      mine: own,
+      lapText: approxLap(p.medianS),
+      srcText: srcText(p),
+    };
+    // vs you, first and every are against his median; his own class has none.
+    if (own || myLap == null)
+      return {
+        ...base,
+        vsText: NONE,
+        firstText: NONE,
+        everyText: NONE,
+        reaches: false,
+        passes: [],
+      };
+    // The class's lap against his, the app's sign: minus is faster.
+    const vsS = p.medianS - myLap;
+    const reaches = vsS < 0;
+    return {
+      ...base,
+      vsText: formatGap(vsS, 1),
+      firstText: reaches
+        ? rangeText(
+            firstCatch(p.p10S, myLap, gap.firstS),
+            firstCatch(p.p90S, myLap, gap.lastS),
+          )
+        : NONE,
+      everyText: reaches
+        ? `~${Math.round(catchLaps(p.medianS, myLap))} laps`
+        : NONE,
+      reaches,
+      passes:
+        reaches && raceLaps != null ? passesOf(p, myLap, raceLaps, gap) : [],
+    };
+  });
 
   return {
     kind: 'ready',
-    faster,
-    noFaster: faster.length === 0,
-    yours,
+    rows,
+    you:
+      myLap == null
+        ? null
+        : {
+            lapText: formatLapTime(myLap),
+            srcText: `${plural(mine.laps, 'lap')} · ${plural(
+              mine.sessions,
+              'session',
+            )}`,
+          },
     raceLaps,
     stopsAfter,
   };

@@ -70,12 +70,9 @@ fn stale(names: &[String], keep: &str) -> Vec<String> {
     names.iter().filter(|n| **n != kept).cloned().collect()
 }
 
-/// The menu line for the update item: its text and whether it can be clicked.
-pub fn menu_line(current: &str, pending: Option<&str>) -> (String, bool) {
-    match pending {
-        Some(version) => (format!("Restart to update to {version}"), true),
-        None => (format!("BotRacing {current}"), false),
-    }
+/// The update item's text while an update is waiting; None leaves the item out.
+pub fn menu_line(pending: Option<&str>) -> Option<String> {
+    pending.map(|version| format!("Restart to update to {version}"))
 }
 
 fn remove_stale(dir: &Path, keep: &str) {
@@ -164,10 +161,10 @@ mod tests {
 
     #[test]
     fn the_menu_line_offers_a_restart_only_when_an_update_is_waiting() {
-        assert_eq!(menu_line("0.1.0", None), ("BotRacing 0.1.0".into(), false));
+        assert_eq!(menu_line(None), None);
         assert_eq!(
-            menu_line("0.1.0", Some("0.1.1")),
-            ("Restart to update to 0.1.1".into(), true)
+            menu_line(Some("0.1.1")),
+            Some("Restart to update to 0.1.1".into())
         );
     }
 

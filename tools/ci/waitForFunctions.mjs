@@ -17,6 +17,10 @@ export const FUNCTIONS_WORKFLOW = 'firebase-functions-deploy.yml';
 // test keeps them in step with the workflow file.
 export const FUNCTIONS_PATHS = [
   /^functions\//,
+  // analyzeApi bundles the session engine (functions/scripts/buildEngine.mjs).
+  /^tools\/sessions\//,
+  /^src\/analysis\//,
+  /^src\/design\/carModels\.ts$/,
   /^firestore\.rules$/,
   /^firestore\.indexes\.json$/,
   /^firebase\.json$/,

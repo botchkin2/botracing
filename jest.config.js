@@ -5,4 +5,6 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
+  // Worktrees under .claude/ are copies of this repo: jest must not run their tests.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/\\.claude/'],
 };

@@ -129,17 +129,6 @@ test(
   },
 );
 
-test(
-  '"Upload older sessions…" (the request file) runs one sync, even with nothing new',
-  {skip: !windows},
-  () => {
-    writeFileSync(resolve(work, 'include-older'), '');
-    const beats = tick();
-    assert.ok(beats.some(b => b.state === 'syncing'));
-    assert.equal(runs(), 2);
-  },
-);
-
 // sync.mjs filters on the session's date, the watcher can only see file times.
 // A recording touched later than it was made counts as waiting until a sync has
 // described it; the sync skips it (outside the window) but its describe cache

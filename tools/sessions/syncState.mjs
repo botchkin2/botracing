@@ -5,9 +5,6 @@
 // (or as the real uid after the old uploader wrote as "botkin") sends the
 // backlog again instead of skipping it. Pure: sync.mjs does the file I/O.
 
-/** The file the tray menu's "Upload older sessions…" drops in the work folder; the next sync reads it and lifts the window. */
-export const OLDER_REQUEST = 'include-older';
-
 const DAY_MS = 86_400_000;
 
 /** A day, YYYY-MM-DD, `days` before `now`: the oldest recording a first run uploads. */
@@ -30,11 +27,31 @@ export function ownerOf(state, id) {
   return state.owners?.[id] ?? null;
 }
 
-/** Records a session as uploaded for `ownerId`. */
-export function markDone(state, id, fingerprint, ownerId) {
+/**
+ * Records a session as uploaded for `ownerId`, with the key of its recordings
+ * (`sources`, the files and their sizes) that uploadDue compares.
+ */
+export function markDone(state, id, fingerprint, ownerId, sources) {
   state.sessions[id] = fingerprint;
   state.owners ??= {};
   state.owners[id] = ownerId;
+  if (sources) {
+    state.sources ??= {};
+    state.sources[id] = sources;
+  }
+}
+
+/**
+ * Whether an upload sync analyses this session (pit-wall thread 1 #4611):
+ * never uploaded, or its recordings changed since (a file grew, a file
+ * joined). A change of analysis rules is never a reason: a stored session is
+ * the cloud's (analysis on open). A session uploaded before `sources` was kept
+ * counts as done: its recordings are taken as the ones uploaded.
+ */
+export function uploadDue(session, state) {
+  if (!state.sessions[session.id]) return true;
+  const was = state.sources?.[session.id];
+  return was != null && was !== session.sources;
 }
 
 /**
@@ -51,15 +68,11 @@ export function forgetOtherOwners(state, ownerId) {
     delete state.sessions[id];
     delete state.revs?.[id];
     delete state.stamps?.[id];
+    delete state.sources?.[id];
     delete state.owners?.[id];
     forgotten++;
   }
   return forgotten;
-}
-
-/** Drops the first-run window: every recording counts from here on. */
-export function liftWindow(state) {
-  state.since = null;
 }
 
 /**

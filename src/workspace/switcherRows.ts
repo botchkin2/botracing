@@ -5,7 +5,7 @@ export type SwitcherRow = {
   id: string;
   /** R, Q or P. */
   badge: string;
-  /** "14 Sep, 18:30", or "14 Sep 2025" from an earlier year */
+  /** "Sep 14, 18:30", or "Sep 14, 2025" from an earlier year */
   date: string;
   /** "Porsche 911 GT3 R · Manthey #91" */
   car: string;

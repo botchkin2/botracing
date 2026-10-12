@@ -13,11 +13,11 @@ import {
   type BoundaryWindow,
   type Lap,
   type MapBoundaries,
-  type MapSection,
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
 import {formatGap, turnLabel} from '@/src/design';
+import {sectionNameOf} from '@/src/analysis/turnNames';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -73,34 +73,26 @@ export type WindowOptimumRow = {
 };
 
 export type SectionWindowModel = {
-  /** "S5 (T8–T10)". */
+  /** The section's name, its turns: "T8–10". */
   label: string;
   fromM: number;
   toM: number;
   /** The parts of a compound section to drill into; empty for one corner. */
   parts: {n: number; label: string; fromM: number; toM: number}[];
   rows: SectionWindowRow[];
-  /** Per stint of 5 or more laps, the window's best and median over every comparable lap; empty under 5 times. */
+  /** Per stint of 5 or more ticked laps, the window's best and median over them (decision 2026-10-11); empty under 5 times. */
   optimum: WindowOptimumRow[];
   /** Laps shown as "re-analysis pending". */
   pendingCount: number;
   /**
-   * Said on the card when the first lap (the reference) cannot be compared,
-   * so empty gap cells are never the only sign: "Reference L12 is pending
-   * re-analysis; no gaps." Null when the reference compares, or no lap does.
+   * Said on the card when the picked Ref lap cannot be compared, so empty gap
+   * cells are never the only sign: "Reference L12 is pending re-analysis; no
+   * gaps." Null when no Ref is picked, or the Ref compares.
    */
   referenceNote: string | null;
 };
 
 const kph = (v: number | null) => (v == null ? '—' : `${Math.round(v)} km/h`);
-
-function sectionLabel(section: MapSection): string {
-  const cs = section.parts.length ? section.parts : [section];
-  const name = (c: MapSection['parts'][number]) => turnLabel(c.n, c.official);
-  const first = name(cs[0]);
-  const last = name(cs[cs.length - 1]);
-  return `S${section.n} (${cs.length > 1 ? `${first}–${last}` : first})`;
-}
 
 const seconds = (v: number | null) => (v == null ? '—' : v.toFixed(3));
 
@@ -121,15 +113,15 @@ function cell(v: number | null, ref: number | null, isRef: boolean): Cell {
 const EMPTY_CELL: Cell = {value: '—', gap: null, better: false};
 
 /**
- * The window of one section for the laps shown, in order (the first is the
- * reference). Null when the track has no boundaries yet or no such section.
+ * The window of one section for the laps shown. Null when the track has no
+ * boundaries yet or no such section.
  */
 export function buildSectionWindow(input: {
   map: TrackMapData;
   sectionN: number;
   laps: Lap[];
-  /** Every lap of the session, for the window's best and median. */
-  sessionLaps?: Lap[];
+  /** The Ref lap when one is picked; else each column is measured against the median of the set. */
+  refId?: string | null;
 }): SectionWindowModel | null {
   const {map, sectionN, laps} = input;
   const boundaries = map.boundaries;
@@ -147,8 +139,31 @@ export function buildSectionWindow(input: {
     return facts.window.pit ? 'pit' : 'ok';
   };
   const states = laps.map(stateOf);
-  const refIndex = states[0] === 'ok' ? 0 : -1;
-  const refFacts = refIndex === 0 ? laps[0].sections[index] : null;
+  // The basis: the picked Ref when it can be compared, else the median of the
+  // set's comparable laps, column by column (the same rule as Corner's table).
+  const refIndex = laps.findIndex(
+    (l, i) => l.id === input.refId && states[i] === 'ok',
+  );
+  const refFacts = refIndex >= 0 ? laps[refIndex].sections[index] : null;
+  const okWindows = laps
+    .map((l, i) => (states[i] === 'ok' ? l.sections[index]?.window : undefined))
+    .filter((w): w is NonNullable<typeof w> => w != null);
+  const medianOf = (xs: (number | null | undefined)[]) => {
+    const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
+    if (v.length === 0) return null;
+    const mid = Math.floor(v.length / 2);
+    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+  };
+  const medianBasis = {
+    time: medianOf(
+      laps.map((l, i) =>
+        states[i] === 'ok' ? l.sections[index]?.segTimeS : undefined,
+      ),
+    ),
+    runIn: medianOf(okWindows.map(w => w.runInS)),
+    corner: medianOf(okWindows.map(w => w.cornerS)),
+    exit: medianOf(okWindows.map(w => w.exitS)),
+  };
 
   // A brake application is measured to the apex of the corner braked for.
   const apexOf = (part: number | null) =>
@@ -180,6 +195,10 @@ export function buildSectionWindow(input: {
     const isRef = i === refIndex;
     const gapFrom = (v: number | null, r: number | null | undefined) =>
       cell(v, compare ? r ?? null : null, isRef);
+    const basisOf = (
+      key: keyof typeof medianBasis,
+      fromRef: number | null | undefined,
+    ) => (refIndex >= 0 ? fromRef : medianBasis[key]);
     const minWhere =
       facts.minSpeedKph == null || w.minSpeedAtM == null
         ? ''
@@ -188,10 +207,10 @@ export function buildSectionWindow(input: {
         : '';
     return {
       ...base,
-      time: gapFrom(facts.segTimeS, refFacts?.segTimeS),
-      runIn: gapFrom(w.runInS, rw?.runInS),
-      corner: gapFrom(w.cornerS, rw?.cornerS),
-      exit: gapFrom(w.exitS, rw?.exitS),
+      time: gapFrom(facts.segTimeS, basisOf('time', refFacts?.segTimeS)),
+      runIn: gapFrom(w.runInS, basisOf('runIn', rw?.runInS)),
+      corner: gapFrom(w.cornerS, basisOf('corner', rw?.cornerS)),
+      exit: gapFrom(w.exitS, basisOf('exit', rw?.exitS)),
       speeds: {
         onset: kph(w.onsetSpeedKph),
         min: `${kph(facts.minSpeedKph)}${minWhere}`,
@@ -213,7 +232,7 @@ export function buildSectionWindow(input: {
   });
 
   return {
-    label: sectionLabel(section),
+    label: sectionNameOf(section),
     fromM: window.fromM,
     toM: window.toM,
     parts: window.parts.map(p => {
@@ -226,17 +245,26 @@ export function buildSectionWindow(input: {
       };
     }),
     rows,
-    optimum: optimumRows(input.sessionLaps ?? laps, map, sectionN),
+    optimum: optimumRows(laps, map, sectionN),
     pendingCount: states.filter(s => s === 'stale').length,
-    referenceNote:
-      laps.length > 1 && states[0] !== 'ok'
-        ? `Reference L${laps[0].lapIndex} ${
-            states[0] === 'stale'
-              ? 'is pending re-analysis'
-              : 'crosses the pit lane here'
-          }; no gaps.`
-        : null,
+    // Only a picked Ref is "the reference": with none the basis is the median
+    // of the set, and no lap in the list is singled out.
+    referenceNote: refNote(input.refId, laps, states),
   };
+}
+
+function refNote(
+  refId: string | null | undefined,
+  laps: Lap[],
+  states: WindowRowState[],
+): string | null {
+  const at = refId ? laps.findIndex(l => l.id === refId) : -1;
+  if (at < 0 || laps.length < 2 || states[at] === 'ok') return null;
+  return `Reference L${laps[at].lapIndex} ${
+    states[at] === 'stale'
+      ? 'is pending re-analysis'
+      : 'crosses the pit lane here'
+  }; no gaps.`;
 }
 
 function optimumRows(
@@ -244,7 +272,10 @@ function optimumRows(
   map: TrackMapData,
   sectionN: number,
 ): WindowOptimumRow[] {
-  const optimum = sessionOptimum(laps, map);
+  // Corner's set is never empty when the card shows (it opens on the
+  // session's opening laps, the same basis Session uses), so it needs no
+  // fallback to the comparable laps.
+  const optimum = sessionOptimum(laps, map, {picked: true});
   const lapIndexOf = new Map(laps.map(l => [l.id, l.lapIndex]));
   const at = optimum?.windows.findIndex(
     w => w.kind === 'section' && w.section === sectionN,
@@ -256,7 +287,7 @@ function optimumRows(
     if (w.bestS == null || w.medianS == null) continue;
     rows.push({
       label: `Stint ${s.stint}`,
-      n: `${w.n} laps`,
+      n: `${w.n} ${w.n === 1 ? 'lap' : 'laps'}`,
       best: seconds(w.bestS),
       bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
       median: seconds(w.medianS),

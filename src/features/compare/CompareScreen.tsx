@@ -12,7 +12,6 @@ import {
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -25,6 +24,7 @@ import {CornerGrid, TrackStrip} from '@/src/charts';
 import {useField} from '@/src/data/field';
 import {
   type DefaultSession,
+  defaultSessionOf,
   useSession,
   useSessionLaps,
 } from '@/src/data/sessions';
@@ -51,6 +51,7 @@ import {
   Button,
   Chip,
   hitFor,
+  Pressable,
   Segment,
   Skeleton,
   StatusBanner,
@@ -71,17 +72,19 @@ import {
   CHANNELS,
   type CompareModel,
   type CompareSelection,
+  type UrlCompareSelection,
   setRef,
   toggleHighlight,
   canRemoveLap,
   removeLap,
+  sectionStartM,
   withDefaultLaps,
 } from './model';
-import {type PlayInputs, playTicker} from './playback';
+import {usePlayback} from './usePlayback';
 import {useCompareModel} from './useCompareModel';
 import {CompareWorkspace} from './CompareWorkspace';
 
-export type {CompareSelection} from './model';
+export type {CompareSelection, UrlCompareSelection} from './model';
 
 // Cars around without a radar (iRacing): cars each way, phone and desktop (apex #3210).
 const NEARBY_PHONE = 3;
@@ -93,6 +96,11 @@ const DESKTOP_MAP_H = 220;
 // Traces are the point on desktop (livery's spec, thread 24 #254).
 const DESKTOP_CHART_SCALE = 1.4;
 const ONE_CHART_H = 330;
+// Landscape phone: the one chart takes what the window leaves under the charts
+// bar and chart tabs, above the one-row transport and bottom bar, never less
+// than this.
+const ONE_CHART_LANDSCAPE_CHROME = 225;
+const ONE_CHART_LANDSCAPE_MIN_H = 140;
 // The chip's right 44 pt removes the lap (apex, thread 27 #867): the glyph is
 // ~8 wide with the chip's 8 pt padding on the right, so the rest grows left.
 const removeHit = hitFor({left: 14, right: space.md}, 15);
@@ -111,36 +119,54 @@ export function CompareScreen({
   onSelectionChange,
 }: {
   sessionId: string;
-  selection: CompareSelection;
+  selection: UrlCompareSelection;
   onSelectionChange: (next: CompareSelection) => void;
 }) {
   // A URL with no laps opens on a fair reference and the median lap.
   const sessionDoc = useSession(sessionId);
   const sessionLaps = useSessionLaps(sessionId);
   const sessionFacts = useMemo<DefaultSession | undefined>(
-    () =>
-      sessionDoc.data && {
-        id: sessionDoc.data.id,
-        bestLapId: sessionDoc.data.bestLapId,
-        car: sessionDoc.data.car,
-        sessionType: sessionDoc.data.sessionType,
-      },
+    () => sessionDoc.data && defaultSessionOf(sessionDoc.data),
     [sessionDoc.data],
   );
   const selection = useMemo(
     () => withDefaultLaps(urlSelection, sessionLaps.data, sessionFacts),
     [urlSelection, sessionLaps.data, sessionFacts],
   );
-  // The cursor moves on every drag and playback frame, so it lives here,
-  // not in the URL.
-  const [cursorM, setCursorM] = useState(selection.cursorM);
+  // The cursor moves on every drag and playback frame, so a moved cursor
+  // lives here, not in the URL. It belongs to the link it was moved under: a
+  // new link (a section head, back/forward) starts from its own cursor, or
+  // from the section it names (useCompareModel).
+  const linkKey = `${urlSelection.corner}|${urlSelection.cursorM}`;
+  const [moved, setMoved] = useState<{linkKey: string; m: number} | null>(null);
+  const movedM = moved?.linkKey === linkKey ? moved.m : null;
+  const shownM = useRef(0);
+  // A functional update is folded into the state's own updater, so rapid
+  // playback frames and held keys each build on the previous one; only the
+  // first move after a landing starts from the resolved cursor.
+  const setCursorM = useCallback(
+    (next: SetStateAction<number>) =>
+      setMoved(prev => {
+        const from = prev?.linkKey === linkKey ? prev.m : shownM.current;
+        return {linkKey, m: typeof next === 'function' ? next(from) : next};
+      }),
+    [linkKey],
+  );
   const prefs = useComparePrefs();
   const size = windowSize(prefs.windowMode, prefs.windowStep);
   const result = useCompareModel(
     sessionId,
-    {...selection, cursorM},
+    {...selection, cursorM: movedM ?? selection.cursorM},
     prefs.charts,
     {mode: prefs.windowMode, size},
+  );
+  const cursorM = result.state === 'ready' ? result.cursorM : 0;
+  useEffect(() => {
+    shownM.current = cursorM;
+  });
+  const shownSelection = useMemo(
+    () => ({...selection, cursorM}),
+    [selection, cursorM],
   );
   const {color} = useTheme();
   const insets = useSafeAreaInsets();
@@ -173,7 +199,7 @@ export function CompareScreen({
       model={result.model}
       traceLoad={result.traceLoad}
       onRetryTraces={result.retryTraces}
-      selection={selection}
+      selection={shownSelection}
       cursorM={cursorM}
       windowSizeValue={size}
       onCursor={setCursorM}
@@ -222,20 +248,23 @@ function CompareView({
   // Phone, One chart view: chart tabs and overlay pills sit
   // behind the Charts row until opened (round 3, pit-wall thread 27 #766).
   const [chartsOpen, setChartsOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
 
   const count = selection.laps.length;
   const lapStyle: LapStyle = useCallback(
-    (selIndex, highlighted) => lapStroke(scheme, selIndex, count, highlighted),
-    [scheme, count],
+    (selIndex, highlighted) =>
+      lapStroke(scheme, selIndex, highlighted, selection.hl != null),
+    [scheme, selection.hl],
   );
-  // Compare works per section; Corner opens the section's first corner.
+  // Compare works per section; Corner opens the section's first corner, and
+  // a compound section opens All (the same rule as the session grid).
   const openCorner = (section: number) =>
     router.push(
-      cornerHref(sessionId, model.sectionFirstCorner[section] ?? section, {
-        laps: selection.laps,
-        hl: selection.hl,
-      }),
+      cornerHref(
+        sessionId,
+        model.sectionFirstCorner[section] ?? section,
+        {laps: selection.laps, hl: selection.hl},
+        model.sectionCompound[section] === true,
+      ),
     );
 
   // --- cursor movement: pan, keyboard, playback ---------------------------------
@@ -250,26 +279,22 @@ function CompareView({
   const moveBy = (dm: number) =>
     onCursor(c => Math.max(0, Math.min(model.lengthM, c + dm)));
 
-  // Playback: advance by wall-clock time on the reference lap, looping
-  // (features/compare/playback.ts).
-  const live = useRef<PlayInputs>({ref, rate: prefs.rate, move: onCursor});
-  useEffect(() => {
-    live.current = {ref, rate: prefs.rate, move: onCursor};
+  const {
+    playing,
+    reverse,
+    looping,
+    setPlaying,
+    togglePlay,
+    toggleReverse,
+    toggleLoop,
+  } = usePlayback({
+    ref,
+    rate: prefs.rate,
+    cursorM,
+    move: onCursor,
+    windowMode: prefs.windowMode,
+    windowSize: windowSizeValue,
   });
-  useEffect(() => {
-    if (!playing) return;
-    let frame = 0;
-    const step = playTicker(
-      () => live.current,
-      () => performance.now(),
-    );
-    const tick = () => {
-      step();
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [playing]);
 
   // The URL keeps the cursor for links and reloads. Writing it on every
   // frame would flood navigation, so write once it settles: after a pause,
@@ -390,11 +415,6 @@ function CompareView({
         {model.reference}
       </Text>
     </View>
-  );
-  const referenceHint = (
-    <Text variant='dataSmall' tone='textFaint'>
-      {`Times vs ${model.tableReference.chips}`}
-    </Text>
   );
 
   const chipItems = (
@@ -531,7 +551,11 @@ function CompareView({
       <TrackStrip
         width={sideW}
         lengthM={model.lengthM}
-        corners={model.map.sectionApexes.map(b => ({n: b.n, m: b.apexM}))}
+        corners={model.map.sectionApexes.map(b => ({
+          n: b.n,
+          m: b.apexM,
+          label: b.label,
+        }))}
         windowM={model.windowM}
         markers={model.map.dots.map(d => ({
           key: d.lapId,
@@ -556,6 +580,7 @@ function CompareView({
       <CornerGrid
         width={sideW}
         corners={model.grid.corners}
+        heads={model.grid.heads}
         rows={model.grid.rows.map(r => ({
           key: r.key,
           label: r.label,
@@ -567,6 +592,7 @@ function CompareView({
         }))}
         openCorner={selection.corner}
         onPressCorner={openCorner}
+        onJumpSection={n => onCursor(sectionStartM(model.sectionEntryM, n))}
       />
     </Section>
   );
@@ -585,6 +611,12 @@ function CompareView({
     onPanStart: () => setPlaying(false),
   });
   const heightScale = layout.isDesktop ? DESKTOP_CHART_SCALE : 1;
+  const oneChartH = layout.isLandscapePhone
+    ? Math.max(
+        ONE_CHART_LANDSCAPE_MIN_H,
+        layout.height - insets.top - ONE_CHART_LANDSCAPE_CHROME,
+      )
+    : ONE_CHART_H;
   const focused = Math.min(prefs.focused, model.charts.length - 1);
   const focusedChart = model.charts[focused];
 
@@ -595,7 +627,7 @@ function CompareView({
         {backgroundColor: color.surface, borderColor: color.lineHeader},
       ]}>
       {layout.isDesktop || !oneChart ? (
-        <Text variant='label' tone='textMuted'>
+        <Text variant='label' tone='textMuted' style={styles.chartsLabel}>
           Charts
         </Text>
       ) : (
@@ -605,7 +637,7 @@ function CompareView({
           style={hitBox.link}
           hitSlop={space.md}
           onPress={() => setChartsOpen(o => !o)}>
-          <Text variant='label' tone='textMuted'>
+          <Text variant='label' tone='textMuted' style={styles.chartsLabel}>
             {chartsOpen ? 'Charts ▾' : 'Charts ▸'}
           </Text>
         </Pressable>
@@ -683,7 +715,7 @@ function CompareView({
             {c.title}
           </Text>
           <Skeleton
-            height={Math.round(oneChart ? ONE_CHART_H : c.height * heightScale)}
+            height={Math.round(oneChart ? oneChartH : c.height * heightScale)}
           />
         </View>
       ),
@@ -709,7 +741,7 @@ function CompareView({
   const chartList = noTraces
     ? skeletons
     : oneChart
-    ? focusedChart && phoneChart(focusedChart, ONE_CHART_H, true)
+    ? focusedChart && phoneChart(focusedChart, oneChartH, true)
     : model.charts.map((c, i) =>
         phoneChart(c, c.height * heightScale, i === model.charts.length - 1),
       );
@@ -722,7 +754,7 @@ function CompareView({
       : `≈ ${Math.round(model.windowM[1] - model.windowM[0])} m`;
   const transport = (
     <TransportBar
-      oneRow={layout.isDesktop}
+      oneRow={layout.isDesktop || layout.isLandscapePhone}
       mode={prefs.windowMode}
       step={prefs.windowStep}
       sizeLabel={
@@ -731,13 +763,20 @@ function CompareView({
           : `${windowSizeValue} ${prefs.windowMode === 'time' ? 's' : 'm'}`
       }
       spanLabel={spanLabel}
-      playing={playing}
+      playing={playing && !reverse}
+      rewinding={playing && reverse}
+      looping={looping}
       rate={prefs.rate}
       onMode={prefs.setWindowMode}
       onStep={dir =>
         prefs.setWindowStep(stepWindow(prefs.windowMode, prefs.windowStep, dir))
       }
-      onPlay={() => setPlaying(p => !p)}
+      onLap={() => prefs.setWindowStep('lap')}
+      onPlay={togglePlay}
+      onReverse={toggleReverse}
+      onLoop={toggleLoop}
+      onBack={() => moveBy(-KEY_STEP_M)}
+      onForward={() => moveBy(KEY_STEP_M)}
       onRate={prefs.setRate}
     />
   );
@@ -796,7 +835,7 @@ function CompareView({
         lapStyle={lapStyle}
         onCursor={onCursor}
         onPan={pan}
-        onPlay={() => setPlaying(p => !p)}
+        onPlay={togglePlay}
         onPause={() => setPlaying(false)}
         onSelectionChange={onSelectionChange}
         onOpenSection={openCorner}
@@ -813,7 +852,6 @@ function CompareView({
           <ScrollView style={{width: sideW}} contentContainerStyle={styles.col}>
             {header}
             {reference}
-            {referenceHint}
             {chips}
             {map}
             {radarPanel}
@@ -828,18 +866,25 @@ function CompareView({
         {editor}
       </View>
     );
+  // Landscape phone: the traces come first, so a turned phone opens on the
+  // chart, and the header, reference and lap chips follow below it.
+  const landscape = layout.isLandscapePhone;
+  const chrome = (
+    <>
+      {header}
+      {reference}
+      {chips}
+    </>
+  );
   return (
     <View style={[styles.screen, {backgroundColor: color.bg}]}>
       <ScrollView
         contentContainerStyle={[
           styles.col,
-          top,
+          landscape ? {paddingTop: insets.top} : top,
           {width: layout.contentWidth, alignSelf: 'center'},
         ]}>
-        {header}
-        {reference}
-        {referenceHint}
-        {chips}
+        {landscape ? null : chrome}
         {/* The plot ends and the Follow map starts on the next pixel, so the
             eye moves from the trace to the car without crossing anything
             (round 5, item 6). */}
@@ -850,8 +895,15 @@ function CompareView({
         {listField != null ? radarPanel : null}
         {position}
         {grid}
+        {landscape ? chrome : null}
       </ScrollView>
-      <View style={{paddingBottom: insets.bottom}}>{transport}</View>
+      <View
+        style={{
+          paddingBottom: insets.bottom,
+          paddingHorizontal: layout.sideInset,
+        }}>
+        {transport}
+      </View>
       {editor}
     </View>
   );
@@ -902,5 +954,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
   },
+  // "Charts" and "Charts ▸" take the same width, so the Stack / One chart
+  // switch does not slide under a finger when it changes the label.
+  chartsLabel: {minWidth: 64},
   oneTabs: {gap: space.xs},
 });

@@ -1,3 +1,4 @@
+import {lapSlots} from '@/src/analysis/lapSlots';
 import {
   type Lap,
   type SessionDetail,
@@ -9,7 +10,7 @@ import {
   lapStroke,
   type Scheme,
   shortTrackName,
-  turnNumber,
+  turnLabel,
 } from '@/src/design';
 import {type SessionTab} from '@/src/nav/activeTab';
 import {parseSelection} from '@/src/nav/routes';
@@ -40,29 +41,25 @@ export function chromeBox({
   /** Whether the session has a recorded field: the fourth tab is Race or Field. */
   hasField: boolean;
   laps: Pick<Lap, 'id' | 'lapIndex'>[] | undefined;
-  selection: {laps?: string; hl?: string};
+  selection: {laps?: string; ref?: string; hl?: string};
   cornerN: number | null;
   corners: Pick<TrackCorner, 'n' | 'official'>[] | undefined;
   tab: SessionTab | null;
   scheme: Scheme;
 }): ChromeBox {
   const car = carLabel(session.car);
-  const lapIds = parseSelection(selection).laps;
-  const lapRows = lapIds.flatMap((lapId, i) => {
-    const lap = laps?.find(l => l.id === lapId);
-    return lap
-      ? [
-          {
-            label: `L${lap.lapIndex}`,
-            color: lapStroke(scheme, i, lapIds.length, false).color,
-          },
-        ]
-      : [];
-  });
+  const {laps: lapIds, ref} = parseSelection(selection);
+  const found = lapIds.flatMap(lapId => laps?.find(l => l.id === lapId) ?? []);
+  // Chip colours are the lap's slot (Ref 0, the rest by lap number), not its URL position.
+  const slots = lapSlots(found, ref);
+  const lapRows = found.map(lap => ({
+    label: `L${lap.lapIndex}`,
+    color: lapStroke(scheme, slots.get(lap.id) as number, false).color,
+  }));
   const cornerLabel =
     cornerN == null
       ? 'Corner'
-      : `Corner T${turnNumber(
+      : `Corner ${turnLabel(
           cornerN,
           corners?.find(c => c.n === cornerN)?.official,
         )}`;

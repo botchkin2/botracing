@@ -32,6 +32,9 @@ export type HistoryModel = {
     bars: TrendBar[];
     from: string;
     to: string;
+    /** The scale's ends, with units: the fastest best (top) and the floor (bottom). */
+    fastest: string;
+    floor: string;
   } | null;
 };
 
@@ -113,5 +116,7 @@ function buildTrend(newestFirst: SessionSummary[]): HistoryModel['trend'] {
     bars: times.map(t => ({height01: (floor - t) / span, best: t === fastest})),
     from: formatDate(timed[0].startedAt),
     to: formatDate(timed[timed.length - 1].startedAt),
+    fastest: formatLapTime(fastest),
+    floor: formatLapTime(floor),
   };
 }

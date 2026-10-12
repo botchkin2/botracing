@@ -15,7 +15,8 @@ export interface EncodedField {
   hz: number;
   /** Tenths of a second from `et0`, one per update. */
   tDs: number[];
-  cars: {class: string; player?: boolean}[];
+  /** `classLabel`: iRacing only, the class a driver reads (tools/sessions/irClasses.mjs). */
+  cars: {class: string; classLabel?: string; player?: boolean}[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
   inPits: (number | null)[][];
@@ -31,11 +32,25 @@ export type PaceClass = 'hypercar' | 'lmp2' | 'gt3' | 'gte' | 'other';
 
 export function paceClass(carClass: string): PaceClass {
   const c = carClass.toLowerCase();
-  if (c.startsWith('hyper') || c === 'lmh' || c === 'lmdh') return 'hypercar';
+  // iRacing's GTP is the LMDh class LMU calls Hypercar.
+  if (c.startsWith('hyper') || c === 'lmh' || c === 'lmdh' || c === 'gtp')
+    return 'hypercar';
   if (c.startsWith('lmp2')) return 'lmp2';
   if (c.startsWith('gt3') || c === 'lmgt3') return 'gt3';
   if (c.startsWith('gte') || c === 'lmgte') return 'gte';
   return 'other';
+}
+
+/**
+ * A field car's pace class. iRacing's own short name says little ("IMSA23" is
+ * the IMSA GT3s, offline sessions leave it empty), so its label, named from
+ * the class id, comes first.
+ */
+export function carPaceClass(car: {
+  class: string;
+  classLabel?: string;
+}): PaceClass {
+  return paceClass(car.classLabel || car.class);
 }
 
 /**
@@ -51,9 +66,12 @@ export const PACE_RANK: Record<PaceClass, number> = {
   other: 0,
 };
 
-/** A class string as the traffic code wants it: the key and the rank. */
-export function paceOf(carClass: string): {key: PaceClass; rank: number} {
-  const key = paceClass(carClass);
+/** A field car's class as the traffic code wants it: the key and the rank (by label on iRacing, carPaceClass). */
+export function paceOf(car: {class: string; classLabel?: string}): {
+  key: PaceClass;
+  rank: number;
+} {
+  const key = carPaceClass(car);
   return {key, rank: PACE_RANK[key]};
 }
 
@@ -78,8 +96,13 @@ export type ClassLaps = Partial<Record<PaceClass, ClassLapStats>>;
  * A car sitting in the pits at Road Atlanta reported 4662 m while the field
  * wrapped at ~4080 m; every real crossing then looked like a teleport
  * (2 Oct race b4e55e, 0 of 922 crossings).
+ * 5: a crossing that reads up to 10 m short of zero is a crossing (see
+ * LINE_SLACK_M); before, such a crossing dropped its lap and the next.
+ * 6: iRacing cars pool by their class label (carPaceClass), and GTP is
+ * Hypercar: before, GTP and the IMSA GT3s fell into `other`. The doc names
+ * the player's class (`player`). LMU numbers are unchanged.
  */
-export const CLASS_LAPS_VERSION = 4;
+export const CLASS_LAPS_VERSION = 6;
 
 // A lap slower than this times the class median is a spin, a slow car or an
 // unflagged crash, not pace.
@@ -114,6 +137,11 @@ const WRAP_DROP_FRAC = 0.5;
 // the longest distance seen, short of the real one by up to a step. A jump
 // that is bigger (a reset to the garage, a teleport) is not a crossing.
 const MAX_SPEED_MS = 120;
+// ...but the counter can read a metre or two short of zero at the line (LMU,
+// 2 Oct Road Atlanta: 7 of the player's 20 crossings landed at -0 to -1 m),
+// and rejecting those dropped the lap they closed and the next one. The
+// Daytona changeover reads -450 m, far outside this.
+const LINE_SLACK_M = 10;
 const STEP_SLACK_M = 20;
 
 const undelta = (values: (number | null)[]): (number | null)[] => {
@@ -127,8 +155,8 @@ const undelta = (values: (number | null)[]): (number | null)[] => {
 // line: the car was `d / v` seconds past it at update u. The length is the
 // fallback when there is no clean update after.
 function crossingT(
-  lapDistM: (number | null)[],
-  etS: number[],
+  lapDistM: ArrayLike<number | null>,
+  etS: ArrayLike<number>,
   u: number,
   prev: number,
   lengthM: number,
@@ -156,13 +184,95 @@ export function carLaps(field: EncodedField): number[][] {
 type CarCrossings = {laps: number[]; firstT: number | null};
 
 /**
+ * One lap between two line crossings, as the walk saw it. `gap`: the car left
+ * the field during it, so its time is not known. `pit`: the car was in the
+ * pits at some update of it. `startInPit` / `endInPit`: in the pit lane at the
+ * update of the crossing that opened / closed it.
+ */
+export interface WalkedLap {
+  /** Update index of the crossing that closed the lap. */
+  endUpdate: number;
+  startT: number;
+  endT: number;
+  gap: boolean;
+  pit: boolean;
+  startInPit: boolean;
+  endInPit: boolean;
+}
+
+/**
+ * The one lap clock: a car's laps from its lap distance wrapping at the line.
+ * `lapDistM` is metres with null or NaN where the car was absent; `inPits` is
+ * 1 in the pits (anything else is out); `etS` is seconds, ascending.
+ * `firstT` is the first crossing; that one only starts the clock.
+ */
+export function walkCarLaps(
+  lapDistM: ArrayLike<number | null>,
+  inPits: ArrayLike<number | null>,
+  etS: ArrayLike<number>,
+  lengthM: number,
+): {laps: WalkedLap[]; firstT: number | null} {
+  const laps: WalkedLap[] = [];
+  let firstT: number | null = null;
+  let startT: number | null = null;
+  let startInPit = false;
+  let gap = false;
+  let pit = false;
+  let prev: number | null = null;
+  for (let u = 0; u < etS.length; u++) {
+    const d = lapDistM[u];
+    if (d === null || Number.isNaN(d)) {
+      gap = true;
+      prev = null;
+      continue;
+    }
+    if (inPits[u] === 1) pit = true;
+    if (prev !== null && prev > WRAP_FROM * lengthM && d < WRAP_TO * lengthM) {
+      const stepM = lengthM - prev + d;
+      const dt = etS[u] - etS[u - 1];
+      if (
+        d >= -LINE_SLACK_M &&
+        stepM >= -STEP_SLACK_M &&
+        stepM <= MAX_SPEED_MS * dt + STEP_SLACK_M
+      ) {
+        const at = crossingT(lapDistM, etS, u, prev, lengthM);
+        const endInPit = inPits[u] === 1;
+        if (startT !== null)
+          laps.push({
+            endUpdate: u,
+            startT,
+            endT: at,
+            gap,
+            pit,
+            startInPit,
+            endInPit,
+          });
+        if (firstT === null) firstT = at;
+        startT = at;
+        startInPit = endInPit;
+        gap = false;
+        pit = false;
+      } else {
+        // Not the line (the counter changing over, or a jump): whatever
+        // lap is running is not a lap.
+        startT = null;
+        gap = false;
+        pit = false;
+      }
+    }
+    prev = d;
+  }
+  return {laps, firstT};
+}
+
+/**
  * Metres of one lap. Cars wrap at the line; a car sitting in the pits can
  * report a longer lapDist, so the max is not the length. Each wrap's
  * (distance before + distance after) is a length sample; the median of those
  * is the line. 0 when nothing wrapped: callers show nothing rather than a
  * wrong length.
  */
-export function trackLengthM(lapDistM: (number | null)[][]): number {
+export function trackLengthM(lapDistM: Iterable<number | null>[]): number {
   const wraps: number[] = [];
   for (const row of lapDistM) {
     let prev: number | null = null;
@@ -195,47 +305,11 @@ function crossings(field: EncodedField): CarCrossings[] {
   if (lengthM === 0) return field.cars.map(() => ({laps: [], firstT: null}));
 
   return field.cars.map((_, i) => {
+    const walk = walkCarLaps(lapDist[i], field.inPits[i], etS, lengthM);
     const laps: number[] = [];
-    const lapDistM = lapDist[i];
-    let firstT: number | null = null;
-    let startT: number | null = null;
-    let clean = false;
-    let prev: number | null = null;
-    for (let u = 0; u < etS.length; u++) {
-      const d = lapDistM[u];
-      if (d === null) {
-        clean = false;
-        prev = null;
-        continue;
-      }
-      if (field.inPits[i][u] === 1) clean = false;
-      if (
-        prev !== null &&
-        prev > WRAP_FROM * lengthM &&
-        d < WRAP_TO * lengthM
-      ) {
-        const stepM = lengthM - prev + d;
-        const dt = etS[u] - etS[u - 1];
-        if (
-          d >= 0 &&
-          stepM >= -STEP_SLACK_M &&
-          stepM <= MAX_SPEED_MS * dt + STEP_SLACK_M
-        ) {
-          const at = crossingT(lapDistM, etS, u, prev, lengthM);
-          if (startT !== null && clean) laps.push(at - startT);
-          if (firstT === null) firstT = at;
-          startT = at;
-          clean = true;
-        } else {
-          // Not the line (the counter changing over, or a jump): whatever
-          // lap is running is not a lap.
-          startT = null;
-          clean = false;
-        }
-      }
-      prev = d;
-    }
-    return {laps, firstT};
+    for (const l of walk.laps)
+      if (!l.gap && !l.pit) laps.push(l.endT - l.startT);
+    return {laps, firstT: walk.firstT};
   });
 }
 
@@ -270,11 +344,11 @@ export function startGapsS(
   const me = field.cars.findIndex(c => c.player === true);
   const meT = me >= 0 ? firsts[me] : null;
   if (!inGrid(meT)) return null;
-  const myKey = paceClass(field.cars[me].class);
+  const myKey = carPaceClass(field.cars[me]);
   const crossed = new Map<PaceClass, {first: number; last: number}>();
   field.cars.forEach((c, i) => {
     const t = firsts[i];
-    const key = paceClass(c.class);
+    const key = carPaceClass(c);
     if (key === myKey || !inGrid(t)) return;
     const seen = crossed.get(key);
     crossed.set(key, {
@@ -327,6 +401,8 @@ export interface ClassLapsDoc {
   classes: ClassLaps | null;
   /** Races only: see startGapsS; null in other sessions or when the start cannot be read. */
   startGapsS: Partial<Record<PaceClass, StartGap>> | null;
+  /** The player's pace class; null when the field flags no player. From version 6. */
+  player: PaceClass | null;
 }
 
 function statsOf(kept: {car: number; t: number}[]): ClassLapStats | null {
@@ -381,7 +457,7 @@ export function classLaps(
   const per = carLaps(field);
   const byClass = new Map<PaceClass, {car: number; t: number}[]>();
   field.cars.forEach((c, i) => {
-    const key = paceClass(c.class);
+    const key = carPaceClass(c);
     const list = byClass.get(key) ?? [];
     for (const t of per[i]) list.push({car: i, t});
     byClass.set(key, list);
@@ -401,11 +477,13 @@ export function classLapsDoc(
   sessionType: string,
 ): ClassLapsDoc {
   const kind = sessionKind(sessionType);
+  const me = field.cars.find(c => c.player === true);
   return {
     version: CLASS_LAPS_VERSION,
     kind,
     classes: kind === 'qualify' ? null : classLaps(field, kind),
     startGapsS: kind === 'race' ? startGapsS(field) : null,
+    player: me ? carPaceClass(me) : null,
   };
 }
 

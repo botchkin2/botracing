@@ -1,8 +1,11 @@
-import {Pressable, StyleSheet, View} from 'react-native';
-import Svg, {Rect} from 'react-native-svg';
+import {StyleSheet, View} from 'react-native';
+import {Rect} from 'react-native-svg';
 
-import {radius, size, space, useTheme} from '@/src/design';
-import {Text} from '@/src/ui';
+import {ChartLabel, ChartSvg} from '@/src/charts/ChartLabel';
+import {baselineOver, baselineUnder} from '@/src/charts/labelBox';
+
+import {radius, size, space, type as typeScale, useTheme} from '@/src/design';
+import {Pressable, Text} from '@/src/ui';
 
 import {type HistoryModel} from '../history';
 
@@ -82,7 +85,7 @@ export function HistoryPanel({
               styles.trend,
               {width, height: size.trendHeight, backgroundColor: color.surface},
             ]}>
-            <Svg width={width} height={size.trendHeight}>
+            <ChartSvg width={width} height={size.trendHeight}>
               {trend.bars.map((b, i) => {
                 const bw = width / trend.bars.length;
                 const h =
@@ -98,7 +101,21 @@ export function HistoryPanel({
                   />
                 );
               })}
-            </Svg>
+              {/* The scale's ends, drawn over the bars: the fastest best at the
+                  top, the floor at the bottom. */}
+              <ChartLabel
+                x={space.xs}
+                y={baselineUnder(0, typeScale.axis.fontSize)}
+                fill={color.textFaint}>
+                {trend.fastest}
+              </ChartLabel>
+              <ChartLabel
+                x={space.xs}
+                y={baselineOver(size.trendHeight, typeScale.axis.fontSize)}
+                fill={color.textFaint}>
+                {trend.floor}
+              </ChartLabel>
+            </ChartSvg>
           </View>
           <View style={styles.trendAxis}>
             <Text variant='axis' tone='textFaint'>

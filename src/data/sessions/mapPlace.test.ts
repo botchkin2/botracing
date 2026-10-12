@@ -3,7 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {fromLocalMetres, LMU_FAKE_ORIGIN} from '@/src/analysis/geo';
 import {addLap, emptySurface} from '@/src/analysis/trackSurface';
 
-import {type TrackMapData} from './adapters';
+import {toTrackMap, type TrackMapData} from './adapters';
 import {mapPlacer} from './mapPlace';
 
 const world = [
@@ -222,5 +222,57 @@ describe('mapPlacer with a measured surface', () => {
     expect(placer.real).toBe(false);
     expect(placer.measured[0].centre[10].x).toBeCloseTo(102.5, 1);
     expect(Math.abs(placer.measured[0].centre[10].y)).toBeLessThan(0.05);
+  });
+});
+
+describe('an iRacing track (real GPS, identity georef)', () => {
+  // Sebring's origin from the .ibt YAML; iRacing's Lat/Lon is real WGS84.
+  const origin = {lat: 27.450203, lon: -81.353694};
+  const iracing = map(
+    {
+      fakeOrigin: origin,
+      rotationDeg: 0,
+      mirror: 1,
+      originLat: origin.lat,
+      originLon: origin.lon,
+    },
+    'good',
+  );
+  // 1 km east and 500 m north of the origin, as a trace would hold them.
+  const points = [
+    {x: 0, y: 0},
+    {x: 1000, y: 0},
+    {x: 1000, y: 500},
+  ].map(p => fromLocalMetres(p, origin));
+  const trace = {lat: points.map(p => p.lat), lon: points.map(p => p.lon)};
+
+  it('is drawn true to scale around its own origin', () => {
+    const placed = mapPlacer(iracing).place(trace as never, 0, 2, 1);
+    expect(placed[1].x).toBeCloseTo(1000, 3);
+    expect(placed[1].y).toBeCloseTo(0, 3);
+    expect(placed[2].y).toBeCloseTo(500, 3);
+  });
+
+  it('world metres are measured around its own origin too: a placed car lands on the drawn lap', () => {
+    const placer = mapPlacer(iracing);
+    const world = placer.traceToWorld(trace as never, 0, 2, 1);
+    expect(world[1].x).toBeCloseTo(1000, 3);
+    const back = placer.placeWorld(world.map(p => ({x: p.x, z: p.y})));
+    const drawn = placer.place(trace as never, 0, 2, 1);
+    back.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(drawn[i].x, 6);
+      expect(p.y).toBeCloseTo(drawn[i].y, 6);
+    });
+  });
+
+  it('without its fakeOrigin it would land 60°N away: the adapter keeps it', () => {
+    const kept = toTrackMap({
+      quality: 'good',
+      georef: {...iracing.georef},
+    }).georef;
+    expect(kept?.fakeOrigin).toEqual(origin);
+    expect(
+      toTrackMap({georef: {originLat: 1, originLon: 2}}).georef?.fakeOrigin,
+    ).toBeUndefined();
   });
 });

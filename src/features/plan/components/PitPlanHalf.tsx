@@ -57,13 +57,13 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
   const rules = baseRules && {
     ...baseRules,
     formationFactor: formationBurnOf(
-      hist.raceLaps,
+      hist.formationBurnsL,
       usage(laps.map(l => l.fuelL))?.median ?? null,
     ).factor,
   };
   const plan = rules && laps.length > 0 ? planRace(rules, laps) : null;
 
-  const loading = sessions.isPending || limits.pending || hist.lapsOf.pending;
+  const loading = sessions.isPending || limits.pending || hist.loading.pending;
   const half = loading
     ? null
     : buildPlanHalf({
@@ -82,19 +82,22 @@ export function PitPlanHalf({card, facts}: {card: PitCard; facts: RaceFacts}) {
         stops: card.actual.stops,
         end: card.actual.end,
       });
-  return <PlanHalfView half={half} failed={hist.lapsOf.failed} />;
+  return <PlanHalfView half={half} failed={hist.loading.failed} />;
 }
 
 /** The half itself, from finished rows: Plan in secondary ink, Actual at full ink. */
 export function PlanHalfView({
   half,
-  failed = 0,
+  failed = false,
 }: {
   /** Null while the earlier laps load. */
   half: PlanHalf | null;
-  failed?: number;
+  failed?: boolean;
 }) {
   const {color} = useTheme();
+  // No note and no rows: nothing to compare, so no card (not a header over an
+  // empty line).
+  if (half && !half.note && half.rows.length === 0 && !failed) return null;
   return (
     <View style={styles.card}>
       <View style={styles.title}>
@@ -147,9 +150,9 @@ export function PlanHalfView({
           Loading the earlier laps…
         </Text>
       )}
-      {failed > 0 ? (
+      {failed ? (
         <Text variant='dataSmall' tone='textMuted'>
-          {`${failed} earlier sessions did not load; the plan uses the rest.`}
+          {'The earlier sessions did not load; the plan has no history.'}
         </Text>
       ) : null}
     </View>

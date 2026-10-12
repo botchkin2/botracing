@@ -1,47 +1,9 @@
-# React Native Web Optimizations
+# React Native Web
 
-## 🎨 Style Compatibility
+The phone build is often the web one, so web differences are product bugs, not edge cases.
 
-```typescript
-// ✅ Use web-compatible style props
-<View
-  style={{
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)', // Not shadow*
-    textShadow: '1px 1px 2px rgba(0,0,0,0.5)', // Not textShadow*
-  }}
-/>
-```
-
-## 🎭 Animation Compatibility
-
-```typescript
-// ✅ Disable useNativeDriver for web
-Animated.timing(fadeAnim, {
-  toValue: 1,
-  duration: 300,
-  useNativeDriver: false, // Required for RN Web
-}).start();
-```
-
-## 🌐 Web-Specific Optimizations
-
-```typescript
-// ✅ Check platform for conditional logic
-import {Platform} from 'react-native';
-
-if (Platform.OS === 'web') {
-  // Web-specific code
-}
-
-// ✅ Use web-appropriate loading strategies
-const isWeb = Platform.OS === 'web';
-// Adjust chunk sizes, caching, etc. for web
-```
-
-## 🚨 Web-Specific Issues to Watch
-
-- ❌ `useNativeDriver: true` animations
-- ❌ `shadow*` and `textShadow*` style props
-- ❌ Native-specific libraries without web fallbacks
-- ❌ Synchronous storage operations
-- ❌ Platform-specific file extensions
+- **Taps:** react-native-web ignores `hitSlop`. Every tappable is `Pressable` from `@/src/ui` (ESLint refuses react-native's): it adds the slop on web, clamped so it never covers another tappable's drawn box, and a pressed look. A control in a scroller, or between tight rows, needs a real 44 pt box (`docs/CODE_STANDARDS.md` section 5).
+- **Chart text:** inside the svg through `ChartLabel` (`src/charts/README.md`); ESLint refuses react-native-svg `Text`, `TSpan` and `TextPath` elsewhere.
+- **Shadows:** `shadow*` style props do not draw on web; use `boxShadow` where a shadow matters.
+- **Widths:** `useLayout()` reads `useWindowDimensions`, which follows the window's `resize`. The browser pane fires none after a size change: reload before measuring (`docs/TESTING.md`).
+- **Platform code:** `Platform.OS === 'web'` inside the shared component, not a forked file per platform.

@@ -32,6 +32,8 @@ export type MeasuredRun = {
   rightDashed: (Xy | null)[];
   /** Every bin is measured: the road is a loop. */
   closed: boolean;
+  /** Metres along the lap, in the surface's frame, where centre[0] sits. */
+  fromM: number;
 };
 
 export type MapPlacer = {
@@ -44,6 +46,18 @@ export type MapPlacer = {
    * where a lap driven through it would be drawn.
    */
   placeWorld: (points: {x: number; z: number}[]) => Xy[];
+  /**
+   * A trace's samples in world metres (the fake-origin frame, x east, z north):
+   * the frame placeWorld takes. placeWorld(traceToWorld(t, ...)) equals
+   * place(t, ...) by construction, so a placed field and a drawn lap share one
+   * frame.
+   */
+  traceToWorld: (
+    t: GridTrace,
+    from: number,
+    to: number,
+    stride: number,
+  ) => Xy[];
   /**
    * OSM track lines in map metres; empty unless real. Where the track has a
    * measured surface the parts of these lines inside it are already gone: the
@@ -58,6 +72,8 @@ export type MapPlacer = {
   measured: MeasuredRun[];
   /** OSM pit lane lines in map metres; empty unless real. */
   pitLane: Xy[][];
+  /** OSM stretches beside the measured road: drawn faded with or without a lap. */
+  nearMeasured: Xy[][];
   /**
    * The outline split into stretches the trace's lap runs along and the rest,
    * which a map draws at low contrast (src/analysis/outlineUse.ts). Computed
@@ -73,6 +89,17 @@ const NO_SURFACE = {};
 const outlineUseCache = new WeakMap<
   TrackMapData,
   WeakMap<object, Map<string, OutlineUse>>
+>();
+
+// A whole lap placed on the map, per (track map, trace, stride): the points
+// depend only on the map's georef and the trace, and Compare rebuilds its set
+// on every selection or data change, placing every ticked lap (#507). 60 laps
+// re-projected each time cost ~2 ms a build (radio, board #4376). Callers
+// read the points; they never change them.
+const NO_MAP = {};
+const lapPlaceCache = new WeakMap<
+  object,
+  WeakMap<GridTrace, Map<number, Xy[]>>
 >();
 
 /** Two laps of a track never share their first sample and length. */
@@ -91,23 +118,49 @@ export function mapPlacer(
   const origin = georef
     ? {lat: georef.originLat, lon: georef.originLon}
     : LMU_FAKE_ORIGIN;
+  // The frame a recording's Lat/Lon is measured in: LMU's fake 60°N, or an
+  // iRacing track's own origin (its GPS is real; georef.json).
+  const fake = georef?.fakeOrigin ?? LMU_FAKE_ORIGIN;
   const toMetres = (lines: [number, number][][]) =>
     lines.map(line =>
       line.map(([lon, lat]) => toLocalMetres({lat, lon}, origin)),
     );
   const placeWorld: MapPlacer['placeWorld'] = points => {
-    const pts = points.map(p =>
-      fromLocalMetres({x: p.x, y: p.z}, LMU_FAKE_ORIGIN),
-    );
+    const pts = points.map(p => fromLocalMetres({x: p.x, y: p.z}, fake));
     const placed = georef ? applyGeoref(pts, georef) : pts;
     return placed.map(p => toLocalMetres(p, origin));
   };
+  const traceToWorld: MapPlacer['traceToWorld'] = (t, from, to, stride) => {
+    const out: Xy[] = [];
+    for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride) {
+      const p = toLocalMetres({lat: t.lat[i], lon: t.lon[i]}, fake);
+      out.push(p);
+    }
+    return out;
+  };
+  const byTrace =
+    lapPlaceCache.get(map ?? NO_MAP) ??
+    lapPlaceCache
+      .set(map ?? NO_MAP, new WeakMap<GridTrace, Map<number, Xy[]>>())
+      .get(map ?? NO_MAP)!;
   const place: MapPlacer['place'] = (t, from, to, stride) => {
+    // The whole lap is the common call (every map line); it is placed once.
+    const whole = from <= 0 && to >= t.lat.length - 1;
+    if (whole) {
+      const hit = byTrace.get(t)?.get(stride);
+      if (hit) return hit;
+    }
     const pts = [];
     for (let i = Math.max(0, from); i <= to && i < t.lat.length; i += stride)
       pts.push({lat: t.lat[i], lon: t.lon[i]});
     const placed = georef ? applyGeoref(pts, georef) : pts;
-    return placed.map(p => toLocalMetres(p, origin));
+    const out = placed.map(p => toLocalMetres(p, origin));
+    if (whole) {
+      const strides = byTrace.get(t) ?? new Map<number, Xy[]>();
+      strides.set(stride, out);
+      byTrace.set(t, strides);
+    }
+    return out;
   };
   const osm = georef ? toMetres(map!.outline) : [];
   // The surface is in the game's world metres, placed like a car: the same
@@ -142,8 +195,10 @@ export function mapPlacer(
     real: georef != null,
     place,
     placeWorld,
+    traceToWorld,
     outline,
     pitLane: georef ? toMetres(map!.pitLane) : [],
+    nearMeasured,
     outlineUse: trace => {
       if (!georef || map == null) return {used: [], unused: []};
       // The outline depends on the surface too (what it replaced is gone), so
@@ -190,7 +245,29 @@ function measuredRuns(
     leftDashed: placeAll(run.leftDashed),
     rightDashed: placeAll(run.rightDashed),
     closed: run.closed,
+    fromM: run.fromM,
   }));
+}
+
+/**
+ * The measured centre at a fraction of the lap (0 = the line), in map metres:
+ * where a map puts a corner badge or the start/finish without any lap (thread
+ * 1 #3479). The surface and the corner map measure the lap in their own
+ * metres, so the place is taken as a share of the lap, as corner slices do.
+ * Null where the surface has no centre there.
+ */
+export function measuredCentreAt(
+  surface: TrackSurface,
+  runs: MeasuredRun[],
+  fraction: number,
+): Xy | null {
+  const share = ((fraction % 1) + 1) % 1;
+  const m = share * surface.lengthM;
+  for (const run of runs) {
+    const i = Math.floor((m - run.fromM) / surface.stepM);
+    if (i >= 0 && i < run.centre.length) return run.centre[i];
+  }
+  return null;
 }
 
 /**

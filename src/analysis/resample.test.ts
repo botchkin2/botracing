@@ -3,6 +3,7 @@ import {describe, expect, it} from '@jest/globals';
 import {
   type RawTrace,
   gridIndex,
+  inferTraceHz,
   medianTrace,
   resampleTrace,
   timeDiffS,
@@ -11,10 +12,8 @@ import {
 // A lap at constant speed over a 1000 m track, sampled at 10 Hz.
 function constantLap(speedKph: number, lengthM = 1000): RawTrace {
   const v = speedKph / 3.6;
-  const samples = Math.ceil(lengthM / v / 0.1) + 1;
-  const pct = Array.from({length: samples}, (_, i) =>
-    Math.min(1, (i * 0.1 * v) / lengthM),
-  );
+  const samples = Math.floor(lengthM / v / 0.1) + 1;
+  const pct = Array.from({length: samples}, (_, i) => (i * 0.1 * v) / lengthM);
   const same = (x: number) => pct.map(() => x);
   return {
     lapDistPct: pct,
@@ -107,6 +106,97 @@ describe('resampleTrace', () => {
       raw[k].push(raw[k][0]);
     const g = resampleTrace(raw, 1000, 5);
     expect(g.lat[200]).toBeCloseTo(1);
+  });
+});
+
+describe("distance is the game's LapDistPct times the layout length", () => {
+  it('ignores the speed channel: a biased speed moves no metre', () => {
+    const raw = constantLap(180);
+    const biased = {...raw, speedKph: raw.speedKph.map(v => v * 1.07)};
+    const a = resampleTrace(raw, 1000, 5, 10);
+    const b = resampleTrace(biased, 1000, 5, 10);
+    expect(b.timeS).toEqual(a.timeS);
+    // 500 m on the grid is 500 m of lap progress: half the lap's time.
+    expect(a.timeS[100]).toBeCloseTo(10, 1);
+  });
+
+  it('a wider line adds no metres: progress is progress along the reference path', () => {
+    const raw = constantLap(180);
+    // Same progress per sample, but the car "drove" 5 % more path (speed up).
+    const wide = {...raw, speedKph: raw.speedKph.map(v => v * 1.05)};
+    expect(resampleTrace(wide, 1000, 5, 10).timeS[100]).toBeCloseTo(
+      resampleTrace(raw, 1000, 5, 10).timeS[100],
+      6,
+    );
+  });
+
+  it('holds a running maximum: a step back of a few centimetres never goes back', () => {
+    const raw = constantLap(180);
+    raw.lapDistPct = raw.lapDistPct.map((p, i) =>
+      i === 100 ? p - 0.00003 : p,
+    );
+    const g = resampleTrace(raw, 1000, 5, 10);
+    expect(g.timeS.every((t, i) => i === 0 || t >= g.timeS[i - 1])).toBe(true);
+    expect(g.timeS[100]).toBeCloseTo(10, 1);
+  });
+
+  it('a trace that starts just before the line is unrolled, with a clock from the line', () => {
+    const raw = constantLap(180);
+    // Two samples before the line (0.9996, 0.9998), then the lap from 0.
+    const lead = {
+      ...raw,
+      lapDistPct: [0.9996, 0.9998, ...raw.lapDistPct],
+      speedKph: [180, 180, ...raw.speedKph],
+      throttlePct: [100, 100, ...raw.throttlePct],
+      brakePct: [0, 0, ...raw.brakePct],
+      steeringPct: [0, 0, ...raw.steeringPct],
+      gear: [3, 3, ...raw.gear],
+      lat: [0, 0, ...raw.lat],
+      lon: [0, 0, ...raw.lon],
+    };
+    const a = resampleTrace(raw, 1000, 5, 10);
+    const b = resampleTrace(lead, 1000, 5, 10);
+    expect(b.distanceM).toHaveLength(a.distanceM.length);
+    // The lap is not cut short at the first wrap, and its clock starts at the line.
+    expect(b.timeS[0]).toBeCloseTo(0, 6);
+    expect(b.timeS[100]).toBeCloseTo(a.timeS[100], 1);
+  });
+});
+
+describe('the clock is row / sample rate', () => {
+  it('a 60 Hz trace (iRacing) ends at its lap time, not at 0.6 of it', () => {
+    // 20 s at 180 km/h: 1200 rows at 60 Hz.
+    const v = 180 / 3.6;
+    const rows = 20 * 60;
+    const pct = Array.from({length: rows}, (_, i) => ((i / 60) * v) / 1000);
+    const same = (x: number) => pct.map(() => x);
+    const raw = {
+      lapDistPct: pct,
+      speedKph: same(180),
+      throttlePct: same(100),
+      brakePct: same(0),
+      steeringPct: same(0),
+      gear: same(4),
+      lat: pct,
+      lon: same(0),
+    };
+    expect(resampleTrace(raw, 1000, 5, 60).timeS[200]).toBeCloseTo(20, 1);
+    // The default is LMU's 100 Hz: the same rows read as 12 s.
+    expect(resampleTrace(raw, 1000, 5).timeS[200]).toBeCloseTo(12, 1);
+  });
+});
+
+describe('inferTraceHz', () => {
+  it('snaps rows over the lap time to 60, 100 or 360', () => {
+    expect(inferTraceHz(7601, 126.696)).toBe(60);
+    expect(inferTraceHz(8147, 80.396)).toBe(100);
+    expect(inferTraceHz(30000, 83.2)).toBe(360);
+  });
+
+  it('reads 100 without a time, with too few rows, or far from every rate', () => {
+    expect(inferTraceHz(7601, null)).toBe(100);
+    expect(inferTraceHz(1, 80)).toBe(100);
+    expect(inferTraceHz(180, 1)).toBe(100);
   });
 });
 

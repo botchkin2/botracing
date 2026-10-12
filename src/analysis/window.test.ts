@@ -3,8 +3,11 @@ import {describe, expect, it} from '@jest/globals';
 import {
   distanceAtTime,
   gridStepM,
+  loopRange,
+  loopStep,
   panCursor,
   playStep,
+  rewindStep,
   type TimedGrid,
   timeAtDistance,
   timeAtIndex,
@@ -113,5 +116,55 @@ describe('playStep', () => {
     expect(playStep(ref, 250, 1, 0.5)).toBeCloseTo(275);
     // 990 m is 29.6 s; +1 s wraps to 0.6 s, which is 30 m at 50 m/s.
     expect(playStep(ref, 990, 1, 1)).toBeCloseTo(30);
+  });
+});
+
+describe('rewindStep', () => {
+  it('goes back by rate and stops at the lap start', () => {
+    expect(rewindStep(ref, 250, 1, 1)).toBeCloseTo(200);
+    expect(rewindStep(ref, 250, 1, 0.5)).toBeCloseTo(225);
+    expect(rewindStep(ref, 20, 1, 1)).toBe(0);
+    expect(rewindStep(ref, 0, 1, 1)).toBe(0);
+  });
+});
+
+describe('loopRange', () => {
+  it('is the window around the cursor in seconds, clipped to the lap', () => {
+    // 500 m is 10 s: a 4 s window is 8 to 12 s.
+    expect(loopRange(ref, 500, 'time', 4)).toEqual([8, 12]);
+    // Near the line the start is held at 0.
+    expect(loopRange(ref, 0, 'time', 4)).toEqual([0, 2]);
+    // Distance mode: 200 m around 500 m is 400 to 600 m, in time on the reference.
+    const [a, b] = loopRange(ref, 500, 'distance', 200);
+    expect(a).toBeCloseTo(8, 6);
+    expect(b).toBeCloseTo(14, 6);
+  });
+  it('is the whole lap without a window', () => {
+    expect(loopRange(ref, 300, 'time', null)).toEqual([0, 30]);
+  });
+});
+
+describe('loopStep', () => {
+  const range: [number, number] = [8, 12];
+  const at = (t: number) => distanceAtTime(ref, t);
+  it('plays on inside the range', () => {
+    const next = loopStep(ref, at(9), 1, 1, false, range);
+    expect(timeAtDistance(ref, next)).toBeCloseTo(10, 6);
+  });
+  it('comes back in at the start past the end, keeping the overshoot', () => {
+    const next = loopStep(ref, at(11.5), 1, 1, false, range);
+    expect(timeAtDistance(ref, next)).toBeCloseTo(8.5, 6);
+  });
+  it('plays backwards and comes in at the end past the start (no stop)', () => {
+    const next = loopStep(ref, at(8.5), 1, 1, true, range);
+    expect(timeAtDistance(ref, next)).toBeCloseTo(11.5, 6);
+  });
+  it('joins a cursor dragged outside the range at the end it is heading for', () => {
+    const f = loopStep(ref, at(20), 0, 1, false, range);
+    expect(timeAtDistance(ref, f)).toBeGreaterThanOrEqual(8);
+    expect(timeAtDistance(ref, f)).toBeLessThanOrEqual(12);
+  });
+  it('stays put on an empty range', () => {
+    expect(loopStep(ref, 100, 1, 1, false, [5, 5])).toBe(100);
   });
 });

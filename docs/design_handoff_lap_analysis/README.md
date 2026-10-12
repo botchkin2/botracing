@@ -96,10 +96,10 @@ A personal lap and race analysis app for a sim racer. It is used mostly on the p
 
 1. **Sessions**: sessions by day.
 2. **Session**: one chart of every lap's time across the race, plus a dense lap table. Laps are selected here for comparison.
-3. **Compare**: traces against a chosen reference lap, a map with moving markers, scrub, zoom, playback, and a per-corner time grid.
+3. **Compare**: traces against a basis (the median of the selected laps, or a Ref lap you pick), a map with moving markers, scrub, zoom, playback, and a per-corner time grid.
 4. **Corner**: every selected pass through one corner, with brake point, minimum speed and throttle pickup, and traces zoomed to that corner.
 
-The app offers tools, not conclusions. It generates no verdicts, scores or recommendations. Every chart carries a one-line explanation, every number has a unit, and the reference lap is always named.
+The app offers tools, not conclusions. It generates no verdicts, scores or recommendations. Every number has a unit and the basis (median of N laps, or the Ref lap) is always named; there are no explanatory sentences under charts.
 
 ## About the design files
 The files in this bundle are **design references created in HTML**. They are prototypes that show the intended look and behavior; they are not production code to copy. The task is to **recreate these designs in React Native** using the codebase's established patterns (navigation, state, charting). If there is no codebase yet, choose appropriate libraries; `react-native-svg` plus a small custom chart layer, or Skia, fits the charts shown here.
@@ -249,8 +249,8 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
 - **Interactions:**
   - Tap a bar: highlights that lap, scrolls the table so the row sits about 55% down the viewport, and shows the detail panel.
   - Tap a row: highlights it, and its bar is framed.
-  - Tap the checkbox: toggles selection. There is no cap on the number of laps; above 6 the tinted or grey rules apply. The reference (the first selected lap) cannot be removed from here.
-- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31", or "L16 ref + 21 laps"), "Clear", and a primary "Compare n →".
+  - Tap the checkbox: toggles selection. There is no cap on the number of laps; above 6 the tinted or grey rules apply. No lap is the reference by position: the basis is the median of the selected laps unless a Ref is picked in Compare.
+- **Compare tray:** floating, 12 pt from the sides and 18 pt from the bottom. It shows a color square per selected lap, a label ("L16 · L12 · L31" for up to three laps, "22 laps" above that), "Clear", and a primary "Compare n →". With two or more stints that have comparable laps, a row above it reads "Stint" and one chip per stint ("1", "2"; not S1, which is a sector head): a chip selects that stint's comparable laps and is marked while the selection is exactly them, so pick a stint, Compare, untick an outlier is three taps (D16, D17). The tray stays while there are stints to pick, even with nothing selected.
 - **No comparable laps (02c):** the chart is replaced by a card saying "3 laps, none comparable" with the reasons listed. The table still shows.
 
 **Exclusion reason copy:**
@@ -286,9 +286,9 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - Dragging along the strip scrubs.
 - **Position row:** "Corner 6" or "After Corner 6", the distance, and each shown lap's speed at the cursor in its color, followed by "km/h".
 - **Time per corner grid:**
-  - Explainer: "Time in each corner vs L16, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a corner to open it."
+  - Explainer: "Time in each corner vs L16, in seconds. Grey = within ±0.10 s. Red + = slower, green − = faster. Tap a section header (S1–S5) to move playback to that section's start; tap a cell to open that corner."
   - Columns `36 | 11 × 1fr`, 2 pt gaps, 24 pt cells. The open corner's cell has a 1 pt text-colored outline.
-  - Rows: one per non-reference lap. In tinted or grey mode, a "MED" row (the median difference of the selection) plus the highlighted lap's row.
+  - Rows: every checked lap, against the checked set's median (#3309). The highlighted lap's column header is bold. With a Ref lap, the reference is a row like any other, and in tinted or grey mode a "MED" row (the median difference of the selection) sits above the laps.
 - **Charts are user-composed.** Each chart holds 1–3 channels from Time diff, Speed, Throttle, Brake, Steering and Gear, overlaid on the same distance axis.
   - Default set: [Time diff] [Speed] [Throttle + Brake] [Steering] [Gear].
   - Overlay line style shows the channel: 1st solid, 2nd dashed `5 3`, 3rd dotted `1.5 2.5`. Lap color always shows the lap. Channels of the same kind (throttle + brake) share a 0–100% scale; mixed units keep their own scales, and the explainer says so ("Speed solid, Brake dashed. Each channel keeps its own scale.").
@@ -305,8 +305,8 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - "+ Add chart" at the bottom.
 - The chart setup persists per user (not per session), so the layout is the same every time Compare opens.
 - **Window (primary way to read traces):** the charts never show the whole lap by default. They show a short window around the cursor so corner detail is readable.
-  - **Time mode (default, speed-dependent):** the window is ±win/2 seconds of the reference lap around the cursor. Its distance span is dist(t + win/2) − dist(t − win/2), so it widens on straights and tightens in slow corners. Steps: 0.5 s, 1 s, **2 s**, 4 s, Lap.
-  - **Distance mode (fixed):** a window of win metres centred on the cursor. Steps: 50, 100, **200**, 400 m, Lap.
+  - **Time mode (default, speed-dependent):** the window is ±win/2 seconds of the reference lap around the cursor. Its distance span is dist(t + win/2) − dist(t − win/2), so it widens on straights and tightens in slow corners. Steps: 0.5 s, 1 s, **2 s**, 4 s, 15 s, Lap. A Lap button beside the stepper goes to the whole lap in one tap (D29).
+  - **Distance mode (fixed):** a window of win metres centred on the cursor. Steps: 50, 100, **200**, 400, 1,000 m, Lap.
   - **Lap:** the whole lap, for orientation only.
   - Inside a window, traces are drawn from every 5 m sample, smoothed with Catmull-Rom (except gear, which stays stepped). Gridlines use a nice step (5, 10, 20, 25, 50, 100 or 200 m) labelled with the lap distance, and corner apex lines are labelled "C6 apex".
   - Time diff is **rebased to the window**: plotted value = (lap.t[i] − ref.t[i]) − (lap.t[i0] − ref.t[i0]), where i0 is the window's left edge. Every lap starts at 0 on the left, so the slope shows where time is gained or lost inside the corner. The y-range is symmetric around 0 with a floor of ±0.02 s. Header values stay absolute (the total gap at the cursor). Windowed explainer: "Time gained or lost within this window, starting from 0 at its left edge. Line rising = losing time. Values are the total gap at the cursor."
@@ -366,13 +366,12 @@ Columns: 280 | 820 | 340.
   - **Lap-time distribution:** one row per stint (30 pt) in a 236 pt strip with a dot per comparable lap, the stint median as a white tick, and axis labels at min, mid and max. Selected laps use their lap color, the best lap is purple, the highlighted lap gets an accent ring. Clicking a dot highlights the lap.
   - **Stint 2 vs Stint 1 by corner:** median segment time per corner, stint 2 minus stint 1, as diverging bars (84 pt each side), faster green to the left of centre and slower red to the right, with a signed value and a Σ total.
   - The **lap detail panel** (the same as on the phone).
-- **Bottom of the right column:** the compare tray.
+- **Bottom of the centre column, under the list and outside it:** the compare tray, beside the grid where laps are ticked (D16; it used to sit at the bottom of the right column).
 
 ### D2 Compare workspace
 Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plus Copy link and Export CSV.
 - **Left, laps:**
-  - "Comparing" is a vertical list of the selected laps: color swatch, label, time, delta to ref, ×. Clicking a lap sets it as the reference.
-  - Below, **All laps** for the session: a compact checkbox list with time, gap and tags, grouped by stint. Clicking a row toggles it in the comparison.
+  - **All laps** for the session, one list: the Median / Ref switch at its top, then a compact checkbox list with time, gap and tags, grouped by stint, and Set ref on each row. Clicking a row toggles it in the comparison. There is no separate list of the selected laps above it (Botkin, 2 Oct screenshots: it repeated these rows).
 - **Centre:**
   - **Toolbar (surface):** play/pause (30 pt), rate segment, the Window block (Time / Distance, − 4 s +, "≈ 180 m"), and **Layout** preset chips (Default, Pedals, Braking, Separate).
   - **Whole-lap overview (780×58):** the running time diff over the full lap for the shown laps, corner ticks numbered underneath, and an **accent frame showing the detail window**. Click or drag on it to move the window, which also sets the cursor. The desktop shows the overview and the detail together; the phone has to choose one.
@@ -384,7 +383,7 @@ Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plu
 - **Right (360), scrolling:**
   - **Track map (320×220):** numbered corner badges (clicking one opens it in Corner) and a dot per lap at the cursor time.
   - **Values table:** "Hover · 2,093 m" or "Cursor · …", with rows Time diff, Speed, Throttle, Brake, Steering, Gear × a column per shown lap in its color, in Mono 12 tabular. This is the exact-values readout the phone can't fit.
-  - **Time per corner, transposed:** a row per corner (C1–C11 with distance) and a column per compared lap, using the same cells and color scale as the phone grid. The open corner row is tinted. Clicking a cell opens that corner.
+  - **Time per corner, transposed:** a row per corner (C1–C11 with distance) and a column per compared lap, using the same cells and color scale as the phone grid. The open corner row is tinted. Tapping a section header (S1–S5, desktop: the section label) moves playback to that section's start (D28); clicking a cell opens that corner.
 
 ### D3 Corner deep dive
 Columns: 600 | 840. The chrome also shows the corner chips C1–C11 and ‹ prev / next ›. The default is the whole race (38 laps), because the desktop is where distributions pay off.

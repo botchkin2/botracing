@@ -127,7 +127,7 @@ describe('buildSectionWindow', () => {
       sectionN: 2,
       laps: lapsOf(rawLap('a', section2())),
     });
-    expect(w?.label).toBe('S2 (T2–T4)');
+    expect(w?.label).toBe('T2–4');
     expect(w?.parts.map(p => [p.label, p.fromM, p.toM])).toEqual([
       ['T2', 500, 620],
       ['T3', 620, 760],
@@ -135,10 +135,11 @@ describe('buildSectionWindow', () => {
     ]);
   });
 
-  it('reads the split and gaps against the first lap, and the four speeds', () => {
+  it('reads the split and gaps against the picked Ref, and the four speeds', () => {
     const w = buildSectionWindow({
       map: m,
       sectionN: 2,
+      refId: 'a',
       laps: lapsOf(
         rawLap('a', section2()),
         rawLap('b', section2({runInS: 2.1, cornerS: 5.8, exitS: 4.2}, 12.1)),
@@ -186,17 +187,20 @@ describe('buildSectionWindow', () => {
     expect(w?.pendingCount).toBe(2);
   });
 
-  it('with a stale reference no lap gets a gap', () => {
+  it('a Ref that is stale is no basis: the comparable laps are measured against their median', () => {
     const w = buildSectionWindow({
       map: m,
       sectionN: 2,
+      refId: 'old',
       laps: lapsOf(
         rawLap('old', section2(), {v: 1, rev: 2}),
         rawLap('b', section2()),
       ),
     });
+    expect(w?.rows[0].state).toBe('stale');
     expect(w?.rows[1].state).toBe('ok');
-    expect(w?.rows[1].time.gap).toBeNull();
+    // The one comparable lap is its own median: a zero gap (±0.000), not a gap to the stale lap.
+    expect(w?.rows[1].time.gap).toBe('±0.000');
   });
 
   it('greys only the window the pit lane crosses, showing what it measured without a gap', () => {
@@ -228,6 +232,7 @@ describe('buildSectionWindow', () => {
         rawLap('old', section2(), {v: 1, rev: 2}),
         rawLap('b', section2()),
       ),
+      refId: 'old',
     });
     expect(stale?.referenceNote).toBe(
       'Reference L1 is pending re-analysis; no gaps.',
@@ -236,6 +241,7 @@ describe('buildSectionWindow', () => {
       map: m,
       sectionN: 2,
       laps: lapsOf(rawLap('p', section2({pit: true})), rawLap('b', section2())),
+      refId: 'p',
     });
     expect(pit?.referenceNote).toBe(
       'Reference L1 crosses the pit lane here; no gaps.',
@@ -246,6 +252,16 @@ describe('buildSectionWindow', () => {
       laps: lapsOf(rawLap('a', section2()), rawLap('b', section2())),
     });
     expect(ok?.referenceNote).toBeNull();
+    // No Ref picked: the first lap in the list is not a reference, whatever its state.
+    const none = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(
+        rawLap('old', section2(), {v: 1, rev: 2}),
+        rawLap('b', section2()),
+      ),
+    });
+    expect(none?.referenceNote).toBeNull();
   });
 
   it('a split that does not add up to the window time is a stored-data fault: pending, and named', () => {
@@ -299,14 +315,9 @@ describe('buildSectionWindow optimum', () => {
       ),
     );
 
-  it('shows the window best, median and gap over the session laps, with n', () => {
+  it('shows the window best, median and gap over the ticked laps, with n', () => {
     const laps = sixLaps();
-    const w = buildSectionWindow({
-      map: m,
-      sectionN: 2,
-      laps: laps.slice(0, 1),
-      sessionLaps: laps,
-    });
+    const w = buildSectionWindow({map: m, sectionN: 2, laps});
     expect(w?.optimum).toEqual([
       {
         label: 'Stint 1',
@@ -319,10 +330,25 @@ describe('buildSectionWindow optimum', () => {
     ]);
   });
 
+  it('follows the ticks: untick the slowest and best, median and n move (decision 2026-10-11)', () => {
+    const laps = sixLaps();
+    const w = buildSectionWindow({map: m, sectionN: 2, laps: laps.slice(0, 5)});
+    // 12.0 … 12.4: median 12.2.
+    expect(w?.optimum[0]).toMatchObject({n: '5 laps', median: '12.200'});
+  });
+
+  it('counts a ticked lap that is not comparable: the user chose it', () => {
+    const laps = sixLaps().map((l, i) =>
+      i === 0 ? {...l, comparable: false} : l,
+    );
+    const w = buildSectionWindow({map: m, sectionN: 2, laps});
+    expect(w?.optimum[0]).toMatchObject({n: '6 laps', best: '12.000'});
+  });
+
   it('is empty under 5 laps', () => {
     const laps = sixLaps().slice(0, 4);
-    expect(
-      buildSectionWindow({map: m, sectionN: 2, laps})?.optimum,
-    ).toEqual([]);
+    expect(buildSectionWindow({map: m, sectionN: 2, laps})?.optimum).toEqual(
+      [],
+    );
   });
 });

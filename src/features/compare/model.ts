@@ -1,5 +1,8 @@
+import {toggle} from '@/src/state/lapSelection';
 import {nearestSample, type NativeSamples} from '@/src/analysis/nativeSamples';
 import {lateralText} from '@/src/charts/screenLateral';
+import {type LabelFormat} from '@/src/charts/scale';
+import {signedSeconds, withUnit} from '@/src/charts/tickFormat';
 import {rangeOf} from '@/src/analysis/rangeIndex';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {type LaneRow, laneRowOf} from '@/src/analysis/trafficLane';
@@ -10,6 +13,9 @@ import {
   medianTrace,
   timeDiffS,
 } from '@/src/analysis/resample';
+import {anchorLapOf, lapSlots} from '@/src/analysis/lapSlots';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
+import {sectionNameOf} from '@/src/analysis/turnNames';
 import {sectionFitRange} from '@/src/analysis/sectionFit';
 import {type WindowMode, windowRange, windowTimeS} from '@/src/analysis/window';
 import {CHANNEL_IDS, type ChannelId, PRESETS} from '@/src/state/comparePrefs';
@@ -22,10 +28,9 @@ import {
   type MapSection,
   mapPlacer,
   measuredCentreLines,
-  onCurrentBoundaries,
+  sectionWindowTimes,
   type TrackMapData,
-  referenceDefaultLapIds,
-  stintSetLapIds,
+  openingLapIds,
   trackCorners,
 } from '@/src/data/sessions';
 import {
@@ -52,6 +57,7 @@ import {
   tailBefore,
   WRAP_M,
 } from './neighbours';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -73,6 +79,11 @@ export type CompareSelection = {
   cursorM: number;
 };
 
+/** A selection as the link has it: no cursor when the link carries none. */
+export type UrlCompareSelection = Omit<CompareSelection, 'cursorM'> & {
+  cursorM: number | null;
+};
+
 /** Chart window: seconds (time) or metres (distance); size null = whole lap. */
 export type ChartWindow = {mode: WindowMode; size: number | null};
 export type ChartTimeAxis = {ref: GridTrace; windowS: [number, number]} | null;
@@ -90,10 +101,17 @@ type ChannelSpec = {
   /** Desktop workspace height (handoff D2). */
   desktopHeight: number;
   format: (v: number) => string;
+  /**
+   * The channel's y axis on a detail chart (detailTicks): its tick label, and
+   * the finest step it allows. Absent: no ticks (the pedals carry their own frame).
+   */
+  tick?: {label: LabelFormat; minStep?: number};
   pick: (t: GridTrace) => number[];
   /** Drawn from, and read at, its recorded samples (not the grid). */
   native?: NativeChannel;
 };
+
+const SPEED_UNIT = 'km/h';
 
 // Heights from the handoff (Compare chart heights).
 export const CHANNELS: Record<ChannelId, ChannelSpec> = {
@@ -101,6 +119,7 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     label: 'Time diff',
     unit: 's',
     kind: 'time',
+    tick: {label: signedSeconds},
     height: 62,
     desktopHeight: 96,
     format: v => formatGap(v),
@@ -108,8 +127,9 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
   },
   speed: {
     label: 'Speed',
-    unit: 'km/h',
+    unit: SPEED_UNIT,
     kind: 'speed',
+    tick: {label: withUnit(SPEED_UNIT)},
     ySnap: 20,
     height: 104,
     desktopHeight: 150,
@@ -153,6 +173,8 @@ export const CHANNELS: Record<ChannelId, ChannelSpec> = {
     label: 'Gear',
     unit: '',
     kind: 'gear',
+    // A gear is a whole number: never a step finer than one.
+    tick: {label: v => String(Math.round(v)), minStep: 1},
     height: 44,
     desktopHeight: 60,
     format: v => v.toFixed(0),
@@ -167,12 +189,14 @@ export const DEFAULT_CHARTS: ChannelId[][] = PRESETS[0].charts;
 /**
  * The pedals chart (round 3 R4a): throttle line and brake fill share the top
  * of the plot, steering sits in its own band under them, all on one time axis.
- * Heights are the handoff's 96 (pedals) + 8 (gap) + 36 (steering) of 140.
+ * Heights in points: 96 (pedals) + 8 (gap) + the steering band, as tall as
+ * Corner's steering chart (CHANNELS.steering.height), so differences read.
  */
 export const PEDALS_CHART: ChannelId[] = ['throttle', 'brake', 'steering'];
-const PEDALS_H = 140;
-const PEDALS_TOP_FRAC = 96 / PEDALS_H;
-const STEER_BAND_FRAC = 36 / PEDALS_H;
+const PEDALS_TOP_PX = 96;
+const PEDALS_GAP_PX = 8;
+const STEER_BAND_PX = CHANNELS.steering.height;
+export const PEDALS_H = PEDALS_TOP_PX + PEDALS_GAP_PX + STEER_BAND_PX;
 
 export function isPedalsChart(chs: ChannelId[]): boolean {
   return (
@@ -182,22 +206,29 @@ export function isPedalsChart(chs: ChannelId[]): boolean {
 }
 
 /**
- * y domains that place both kinds in one plot: pedals (fixed −4..104) in the
- * top fraction, steering (±m, symmetric) in the bottom band, so the zero
- * line of the band is its own. A value's y is linear in its domain, so a
- * domain wider than the data leaves the rest of the plot empty for the other.
+ * y domains that place both kinds in one plot. Pedals: -4..104 in the top 96
+ * points. Steering: fixed +-100 % of lock in the bottom band, positive (left)
+ * up, so +100 sits at the band's top and -100 (right) at its bottom. A value's
+ * y is linear in its domain; the band is the only part steering can reach.
  */
-export function pedalsDomains(steerM: number): {
+export function pedalsDomains(): {
   pedal: [number, number];
   steer: [number, number];
 } {
-  const pedalSpan = 108 / PEDALS_TOP_FRAC;
-  const g = STEER_BAND_FRAC;
+  const pedalSpan = (108 * PEDALS_H) / PEDALS_TOP_PX;
+  const steerSpan = (200 * PEDALS_H) / STEER_BAND_PX;
   return {
     pedal: [104 - pedalSpan, 104],
-    steer: [-steerM, (steerM * (2 - g)) / g],
+    steer: [-100, -100 + steerSpan],
   };
 }
+
+/** Steering's labels on its band: left up (+), right down (-), centre 0. */
+export const STEER_TICKS: {v: number; label: string}[] = [
+  {v: 100, label: 'L 100'},
+  {v: 0, label: '0'},
+  {v: -100, label: 'R 100'},
+];
 
 export type LapRef = {
   lapId: string;
@@ -205,8 +236,6 @@ export type LapRef = {
   selIndex: number;
   /** The Ref lap (Ref mode only). */
   isRef: boolean;
-  /** Ref or highlighted: full color, values shown, dot on the map. */
-  key: boolean;
   highlighted: boolean;
 };
 
@@ -233,6 +262,8 @@ export type ChartValueRow = {
   channel: ChannelId;
   label: string;
   unit: string;
+  /** Whether the row's name is drawn as a legend. A lone row is the chart's title and says it once, there. */
+  legend: boolean;
   overlay: number;
   values: {
     lapId: string;
@@ -251,6 +282,8 @@ export type ChartModel = {
   lines: ChartLine[];
   /** Per-channel y domains, keyed by channel. */
   domains: Partial<Record<ChannelId, [number, number]>>;
+  /** Laps with samples off a fitted scale, by channel: drawn clipped, named. */
+  offScale: Partial<Record<ChannelId, string[]>>;
   band: {low: number[]; high: number[]} | null;
   /** The channel whose 0 gets a line (time diff, else steering), if any. */
   zeroLine: ChannelId | null;
@@ -261,6 +294,8 @@ export type ChartModel = {
 
 export type CornerGridModel = {
   corners: number[];
+  /** Each column's section name ("T2–5"), the name every screen uses. */
+  heads: string[];
   rows: {
     key: string;
     label: string;
@@ -286,10 +321,10 @@ export type MapModel = {
   marks: TrackMarks;
   lines: (LapRef & {points: {x: number; y: number}[]})[];
   dots: (LapRef & {at: {x: number; y: number}})[];
-  /** Follow's position label, e.g. "Section 4 · T8 apex". */
+  /** Follow's position label, e.g. "T7–8 · T8 apex". */
   followPlace: string;
-  /** Each section's apex distance, for the strip. */
-  sectionApexes: {n: number; apexM: number}[];
+  /** Each section's apex distance and name, for the strip. */
+  sectionApexes: {n: number; label: string; apexM: number}[];
   attribution: string | null;
   /** Null until the geometry is built (the hook memoizes it). */
   follow: (FollowView & {geometry: FollowGeometry}) | null;
@@ -393,6 +428,8 @@ export type CompareModel = {
   sectionEntryM: Record<number, number>;
   /** Section number → its first single corner, which Corner opens. */
   sectionFirstCorner: Record<number, number>;
+  /** Sections with more than one corner: their Corner link opens All. */
+  sectionCompound: Record<number, boolean>;
 };
 
 export type AllLapsStint = {
@@ -610,30 +647,68 @@ function domainOf(
 }
 
 export function cornerPlace(
-  sections: {n: number; entryM: number; exitM: number}[],
+  sections: (Pick<MapSection, 'n' | 'official' | 'entryM' | 'exitM'> & {
+    parts: readonly {n: number; official?: string}[];
+  })[],
   cursorM: number,
 ): string {
   const inside = sections.find(s => cursorM >= s.entryM && cursorM <= s.exitM);
-  if (inside) return `Section ${inside.n}`;
+  if (inside) return sectionNameOf(inside);
   const near = sections.find(
     s => cursorM < s.entryM && s.entryM - cursorM <= CORNER_NEAR_M,
   );
-  if (near) return `Section ${near.n}`;
+  if (near) return sectionNameOf(near);
   const before = [...sections].reverse().find(s => s.exitM < cursorM);
   const prev = before ?? sections[sections.length - 1];
-  return prev ? `After Section ${prev.n}` : '';
+  return prev ? `After ${sectionNameOf(prev)}` : '';
 }
 
 /**
- * Follow's position label (handoff v2 M1): the section, plus the corner when
- * the cursor is inside a corner's entry–exit range, e.g. "Section 4 · T8 apex".
+ * Where a section starts on the reference lap, in metres: the playback cursor's
+ * jump target (D28). An unknown section starts at the lap's start.
+ */
+export function sectionStartM(
+  sectionEntryM: Record<number, number>,
+  n: number,
+): number {
+  return sectionEntryM[n] ?? 0;
+}
+
+/**
+ * Where the cursor is: the link's cursor, else the start of the section the
+ * link names (the Session grid's section heads carry a section and no
+ * cursor), else the start of the lap. `null` is "the link has no cursor", so
+ * a cursor at 0 m stays a cursor.
+ */
+export function openingCursorM(
+  cursorM: number | null,
+  corner: number | null,
+  sectionEntryM: Record<number, number>,
+): number {
+  if (cursorM != null) return cursorM;
+  return corner == null ? 0 : sectionStartM(sectionEntryM, corner);
+}
+
+/** Within this many metres of its apex the cursor is "at the apex". */
+export const AT_APEX_M = 15;
+
+/**
+ * Follow's position label (handoff v2 M1): the section by its name, plus the
+ * corner when the cursor is inside a corner's entry–exit range and the
+ * section has more than one ("T2–5 · T3"; a one-corner section is its name
+ * alone, "T6"), and "apex" only close to the apex itself.
  */
 export function followPlace(sections: MapSection[], cursorM: number): string {
   const place = cornerPlace(sections, cursorM);
   for (const s of sections)
     for (const c of s.parts.length > 0 ? s.parts : [s])
-      if (cursorM >= c.entryM && cursorM <= c.exitM)
-        return `${place} · ${turnLabel(c.n, c.official)} apex`;
+      if (cursorM >= c.entryM && cursorM <= c.exitM) {
+        const turn = turnLabel(c.n, c.official);
+        const where = turn === place ? turn : `${place} · ${turn}`;
+        return Math.abs(cursorM - c.apexM) <= AT_APEX_M
+          ? `${where} apex`
+          : where;
+      }
   return place;
 }
 
@@ -673,18 +748,6 @@ const wrapCache = {
  * memoizes it per set of loaded traces, since the cursor moves every frame
  * and the model is rebuilt with it.
  */
-export function medianBasisOf(
-  laps: Lap[],
-  traces: Map<string, GridTrace>,
-): GridTrace | undefined {
-  const loaded = laps.filter(l => traces.has(l.id));
-  if (loaded.length === 0) return undefined;
-  const times = loaded.map(l => l.timeS);
-  return medianTrace(
-    loaded.map(l => traces.get(l.id)!),
-    times.every((t): t is number => t != null) ? times : undefined,
-  );
-}
 
 /**
  * One selection's model, built in two steps (pit-wall thread 1 #3245): the
@@ -703,7 +766,11 @@ export type CompareSetInputs = Omit<CompareInputs, 'selection'> & {
 };
 
 /** Everything about a selection that the cursor does not move; `atCursor` builds the model at one position. */
-export type CompareSet = {atCursor: (cursorM: number) => CompareModel};
+export type CompareSet = {
+  atCursor: (cursorM: number) => CompareModel;
+  /** Where each map section starts, so a link naming one can place the cursor. */
+  sectionEntryM: Record<number, number>;
+};
 
 export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const {session, laps, traces, band, map, selection} = input;
@@ -750,6 +817,9 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const basisTrace = refLap
     ? traces.get(refLap.id)
     : input.basisTrace ?? medianBasisOf(selected, traces);
+  // The unit a value row shows: the time diff's readout carries its own.
+  const rowUnit = (ch: ChannelId) =>
+    ch === 'timeDiff' ? '' : CHANNELS[ch].unit;
   // The time diff's label names its basis.
   const labelOf = (ch: ChannelId) =>
     ch === 'timeDiff' && count > 0
@@ -759,26 +829,23 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   // Colour slot: slot 0 is the reference stroke and belongs to the Ref lap
   // only; the others follow in lap-number order. Without a Ref lap (median
   // mode) no lap is the reference, so the slots start at 1.
-  const slots = refLap
-    ? selected.map(l =>
-        l.id === refLap.id
-          ? 0
-          : 1 + selected.filter(o => o.id !== refLap.id).indexOf(l),
-      )
-    : selected.map((_, i) => i + 1);
-  const lapRefs: LapRef[] = selected.map((l, i) => ({
+  const slotOf = lapSlots(
+    selected,
+    refLap?.id ?? null,
+    new Set(foreignTags.keys()),
+  );
+  const lapRefs: LapRef[] = selected.map(l => ({
     lapId: l.id,
     label: nameOf(l),
-    selIndex: slots[i],
+    selIndex: slotOf.get(l.id) as number,
     isRef: l.id === refLap?.id,
     highlighted: l.id === hlId,
-    key: l.id === refLap?.id || l.id === hlId || mode === 'individual',
   }));
-  const keyRefs = lapRefs.filter(r => r.key);
 
   // Without a Ref lap the tables use the median of the checked laps; a lap
-  // stands in only for a session not resynced yet, so its name is `ref`.
-  const ref = refLap ?? selected[0];
+  // stands in only for a session not resynced yet, and that lap is the set's
+  // best, not whichever has the lowest number.
+  const ref = refLap ?? anchorLapOf(selected, null);
   const table = tableReference({
     selected,
     sessionLaps: laps,
@@ -951,7 +1018,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     };
   };
 
-  const chartBases: Omit<ChartModel, 'domains' | 'valueRows'>[] = (
+  // Laps the fitted scales are taken from (see the domain fit below).
+  const comparableIds = new Set(
+    input.laps.filter(l => l.comparable).map(l => l.id),
+  );
+  const chartBases: Omit<ChartModel, 'domains' | 'offScale' | 'valueRows'>[] = (
     input.charts ?? DEFAULT_CHARTS
   ).map(chs => {
     const lines: ChartLine[] = [];
@@ -981,7 +1052,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     return {
       key: chs.join('+'),
       channels: chs,
-      title: chs.map(labelOf).join(' + '),
+      // A lone chart has no legend, so its unit goes in the title (Speed km/h).
+      title:
+        chs.map(labelOf).join(' + ') +
+        (chs.length === 1 && rowUnit(chs[0]) ? ` ${rowUnit(chs[0])}` : ''),
       height: pedals
         ? PEDALS_H
         : Math.max(...chs.map(c => CHANNELS[c].height)) +
@@ -1008,29 +1082,37 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
   const corners = sectionNs.length
     ? sectionNs
     : Array.from({length: cornerCount}, (_, i) => i + 1);
-  // Against windows, a lap cut at other boundaries (or analysed before them)
-  // has section times cut elsewhere: no cells for it.
-  const diffRow = (lap: Lap) =>
-    corners.map((n, i) => {
-      if (table.kind !== 'lap' && map && !onCurrentBoundaries(lap, map))
-        return null;
-      const a = lap.sections[i]?.segTimeS;
+  // The map names its sections by their turns; without one only the number
+  // is known.
+  const heads = map
+    ? map.sections.map(sectionNameOf)
+    : corners.map(n => `#${n}`);
+  // A lap's time in a section is the one Session's grid shows: through the
+  // map's windows (sectionWindowTimes), so a pit or off-track window
+  // is no cell here either, and a lap cut at other boundaries has none.
+  // Without windows, the lap's own segment times.
+  const sectionTimesOf = (lap: Lap) => {
+    const byWindow = map ? sectionWindowTimes(lap, map) : null;
+    return (n: number, i: number): number | null =>
+      byWindow ? byWindow.get(n) ?? null : lap.sections[i]?.segTimeS ?? null;
+  };
+  const refTimes = ref ? sectionTimesOf(ref) : null;
+  const diffRow = (lap: Lap) => {
+    const timeOf = sectionTimesOf(lap);
+    return corners.map((n, i) => {
+      const a = timeOf(n, i);
       const b =
-        table.kind === 'lap'
-          ? ref?.sections[i]?.segTimeS
-          : table.sectionS.get(n);
+        table.kind === 'lap' ? refTimes?.(n, i) ?? null : table.sectionS.get(n);
       return a == null || b == null ? null : a - b;
     });
+  };
   let gridRows: CornerGridModel['rows'] = [];
   if (ref && cornerCount > 0 && table.kind !== 'lap') {
     // Against the checked set's medians the reference lap is a row like any
-    // other (it is not zero); a long selection shows the laps in key. With no
-    // lap in key (the stint set's default, nothing highlighted) every checked
-    // lap is a row, so the section grid is never empty (#396 regression).
-    const anyKey = lapRefs.some(r => r.key);
-    const rowsOf = anyKey
-      ? lapRefs.filter(r => mode === 'individual' || r.key)
-      : lapRefs;
+    // other (it is not zero). Every checked lap is a row, whatever is in key
+    // or highlighted (#3309): the set stays visible, and the highlighted lap is
+    // emphasised in the grid, not filtered out.
+    const rowsOf = lapRefs;
     gridRows = rowsOf.map(r => ({
       key: r.lapId,
       label: r.label,
@@ -1078,6 +1160,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     gridRows.length && ref
       ? {
           corners,
+          heads,
           rows: gridRows,
         }
       : null;
@@ -1096,8 +1179,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     const placer = mapPlacer(map, input.surface ?? null);
     const project = (t: GridTrace, stride: number) =>
       placer.place(t, 0, t.lat.length - 1, stride);
-    const shown = lapRefs.filter(r => r.key || mode !== 'grey');
-    const lines = shown
+    const lines = lapRefs
       .filter(r => traces.has(r.lapId))
       .map(r => ({...r, points: project(traces.get(r.lapId)!, MAP_STRIDE)}))
       // The reference and highlighted lap are drawn last, on top.
@@ -1111,7 +1193,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     // checked lap's trace, which is also where Follow centres, so the dot goes
     // there. It stands for the basis, in the basis colour like its readout row.
     const dotsAt = (cursorM: number): MapModel['dots'] => {
-      const keyed = keyRefs
+      const keyed = lapRefs
         .filter(r => traces.has(r.lapId))
         .map(r => ({...r, at: pointAt(traces.get(r.lapId)!, cursorM)}))
         // Same order as the lines: the reference dot on top.
@@ -1124,7 +1206,6 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           selIndex: BASIS_SLOT,
           isRef: false,
           highlighted: false,
-          key: true,
           at: pointAt(refTrace, cursorM),
         },
       ];
@@ -1150,6 +1231,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
       dotsAt,
       sectionApexes: (map?.sections ?? []).map(s => ({
         n: s.n,
+        label: sectionNameOf(s),
         apexM: s.apexM,
       })),
       attribution: placer.real ? map!.attribution : null,
@@ -1184,6 +1266,10 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     allLaps: allLapsByStint(
       laps,
       session,
+      // The same basis as the chips and the line above them (the Ref lap, or
+      // the median of the checked laps); the session median only when nothing
+      // is checked and there is no such line.
+      basisLapS ?? session.medianTimeS,
       new Map(lapRefs.map(r => [r.lapId, r.selIndex])),
       refLap?.id ?? null,
     ),
@@ -1211,7 +1297,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
             },
           ]
         : []),
-      ...keyRefs.map(r => ({
+      ...lapRefs.map(r => ({
         lapId: r.lapId,
         selIndex: r.selIndex,
         highlighted: r.highlighted,
@@ -1238,12 +1324,16 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
         firstCornerOf(trackCorners(map!), s.n) ?? s.n,
       ]),
     ),
+    sectionCompound: Object.fromEntries(
+      (map?.sections ?? []).map(s => [s.n, isCompound(s)]),
+    ),
     sectionEntryM: Object.fromEntries(
       (map?.sections ?? []).map(s => [s.n, s.entryM]),
     ),
   };
 
   return {
+    sectionEntryM: fixed.sectionEntryM,
     atCursor: (at: number): CompareModel => {
       const cursorM = Math.max(0, Math.min(lengthM, at));
       const windowM: [number, number] = refTrace
@@ -1271,21 +1361,39 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           : base.lines;
         // Channels of the same kind share a scale; mixed kinds keep their own.
         const domains: ChartModel['domains'] = {};
+        const offScale: ChartModel['offScale'] = {};
         for (const ch of chs) {
           const kind = CHANNELS[ch].kind;
           const sameKind = lines.filter(l => CHANNELS[l.channel].kind === kind);
+          // A fitted scale takes its range from the comparable laps (the rule
+          // Corner uses); a lap outside that range is clipped and named.
+          const fitLines = sameKind.filter(l => comparableIds.has(l.lapId));
+          const fit = fitLines.length > 0 ? fitLines : sameKind;
           domains[ch] = domainOf(
-            sameKind.map(l => l.values),
+            fit.map(l => l.values),
             kind,
             fitI0,
             fitI1,
             windowed,
             CHANNELS[ch].ySnap,
           );
+          if (kind === 'time' || kind === 'speed') {
+            const [lo, hi] = domains[ch] as [number, number];
+            // Cached block extremes (rangeOf), as domainOf reads them: a
+            // cursor step does not scan every sample.
+            const off = sameKind
+              .filter(l => {
+                const [a, b] = windowed
+                  ? rangeOf(l.values, fitI0, fitI1)
+                  : rangeOf(l.values, 0, l.values.length - 1);
+                return a < lo || b > hi;
+              })
+              .map(l => l.label);
+            if (off.length > 0) offScale[ch] = off;
+          }
         }
         if (pedals) {
-          const steerM = Math.abs(domains.steering?.[1] ?? 5);
-          const d = pedalsDomains(steerM);
+          const d = pedalsDomains();
           domains.throttle = d.pedal;
           domains.brake = d.pedal;
           domains.steering = d.steer;
@@ -1295,11 +1403,13 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
           ...base,
           lines,
           domains,
+          offScale,
           valueRows: chs.map((ch, overlay) => ({
             channel: ch,
             label: labelOf(ch),
+            legend: chs.length > 1,
             // The readout text carries the time diff's unit.
-            unit: ch === 'timeDiff' ? '' : CHANNELS[ch].unit,
+            unit: rowUnit(ch),
             overlay,
             values: [
               ...(basisGrid
@@ -1320,7 +1430,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
                     },
                   ]
                 : []),
-              ...keyRefs.map(r => {
+              ...lapRefs.map(r => {
                 const v = readAt(ch, r.lapId, cursorM);
                 return {
                   lapId: r.lapId,
@@ -1377,10 +1487,11 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
 function allLapsByStint(
   laps: Lap[],
   session: SessionDetail,
+  basisS: number | null,
   slotOf: Map<string, number>,
   refId: string | null,
 ): AllLapsStint[] {
-  const median = session.medianTimeS;
+  const median = basisS;
   const stints = [...new Set(laps.map(l => l.stint))];
   return stints.map(n => ({
     key: `stint-${n}`,
@@ -1422,6 +1533,9 @@ function allLapsByStint(
 }
 
 /** Adds a lap to the comparison, or removes it; the Ref lap stays. */
+// One tap on a lap's row: the add and remove rule is the shared one
+// (src/state/lapSelection.ts). The Ref lap stays on while it is the basis,
+// and a removal goes through removeLap (which also clears the highlight).
 export function toggleCompared(
   sel: CompareSelection,
   lapId: string,
@@ -1429,7 +1543,7 @@ export function toggleCompared(
   if (sel.ref === lapId) return sel;
   return sel.laps.includes(lapId)
     ? removeLap(sel, lapId)
-    : {...sel, laps: [...sel.laps, lapId]};
+    : {...sel, laps: toggle(sel.laps, lapId)};
 }
 
 /** The median basis as a readout row: not a lap, drawn in the neutral basis colour. */
@@ -1450,17 +1564,13 @@ export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
  * are kept as given, and nothing changes while the session or its laps are
  * still loading.
  */
-export function withDefaultLaps(
-  sel: CompareSelection,
+export function withDefaultLaps<S extends {laps: string[]}>(
+  sel: S,
   laps: Lap[] | undefined,
   session: DefaultSession | undefined,
-): CompareSelection {
+): S {
   if (sel.laps.length > 0 || !laps || !session) return sel;
-  const set = stintSetLapIds(laps);
-  return {
-    ...sel,
-    laps: set.length > 0 ? set : referenceDefaultLapIds(laps, session),
-  };
+  return {...sel, laps: openingLapIds(laps, session)};
 }
 
 /**
@@ -1482,6 +1592,20 @@ export function toggleHighlight(
   lapId: string,
 ): CompareSelection {
   return {...sel, hl: sel.hl === lapId ? null : lapId};
+}
+
+/**
+ * A tap on an All laps row's label, time or gap (the checkbox ticks on its
+ * own): on a ticked lap it highlights it, the wide Compare's only highlight
+ * control; on an unticked lap it ticks it, as the whole row always did.
+ */
+export function pressAllLapsRow(
+  sel: CompareSelection,
+  lapId: string,
+): CompareSelection {
+  return sel.laps.includes(lapId)
+    ? toggleHighlight(sel, lapId)
+    : toggleCompared(sel, lapId);
 }
 
 /** Back to the median of the checked laps. */

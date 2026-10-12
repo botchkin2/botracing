@@ -43,8 +43,24 @@ module.exports = defineConfig([
       'jsx-quotes': 'off', // Disable since Prettier handles quote consistency
       'react-native/no-inline-styles': 'warn', // Keep as warning, not error
       'react-hooks/exhaustive-deps': 'off', // Allow flexible dependency management
+      // Every tappable is src/ui/Pressable.tsx: it dims while pressed and makes
+      // hitSlop work on web (Theme G, docs/CODE_STANDARDS.md section 5).
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Pressable'],
+              message: "Use Pressable from '@/src/ui'.",
+            },
+          ],
+        },
+      ],
     },
   },
+  // The one place react-native's Pressable is wrapped.
+  {files: ['src/ui/Pressable.tsx'], rules: {'no-restricted-imports': 'off'}},
   {
     files: ['*.ts', '*.tsx'],
     rules: {
@@ -152,6 +168,35 @@ module.exports = defineConfig([
               target: './src/features/settings',
               from: './src/features',
               except: ['./settings'],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // Chart text inside the box (src/charts/README.md): svg text is drawn only by
+  // ChartLabel, which keeps each label inside its chart. The maps place labels
+  // on the track's own geometry inside a transform, so they keep their own.
+  // Checked on the import, so an alias (Text as T) or a namespace import fails too.
+  {
+    files: ['src/**/*.{ts,tsx}', 'app/**/*.{ts,tsx}'],
+    ignores: [
+      'src/charts/ChartLabel.tsx',
+      'src/charts/BrakeMap.tsx',
+      'src/charts/CarDots.tsx',
+      'src/charts/FollowMap.tsx',
+      'src/charts/TrackMap.tsx',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native-svg',
+              importNames: ['Text', 'TSpan', 'TextPath'],
+              message:
+                'Draw chart text with ChartLabel (src/charts/ChartLabel.tsx), which keeps it inside the svg.',
             },
           ],
         },

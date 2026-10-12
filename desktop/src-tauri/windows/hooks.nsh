@@ -19,7 +19,10 @@
 !define BOTRACING_DATA "$LOCALAPPDATA\BotRacing"
 
 ; `botracing.exe --quit` goes to the running tray through its single-instance
-; hold; it stops the watcher and the recorder, then exits. Wait up to 5 s.
+; hold, or, when the tray is in another session or window station, through the
+; quit-request file in its data folder (quit_request.rs), which its poll loop
+; reads every 5 s. It stops the watcher and both recorders, then exits. Wait up
+; to 15 s, and count only this user's trays (another user's is not ours to wait for).
 !macro BOTRACING_QUIT_TRAY
   Push $0
   Push $1
@@ -29,7 +32,7 @@
   Pop $1
   StrCpy $2 0
   ${Do}
-    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq ${MAINBINARYNAME}.exe" /NH | find /I "${MAINBINARYNAME}.exe"'
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq ${MAINBINARYNAME}.exe" /FI "USERNAME eq %USERNAME%" /NH | find /I "${MAINBINARYNAME}.exe"'
     Pop $0
     Pop $1
     ; find exits 0 while the exe is still listed
@@ -37,7 +40,7 @@
       ${Break}
     ${EndIf}
     IntOp $2 $2 + 1
-    ${If} $2 >= 10
+    ${If} $2 >= 30
       ${Break}
     ${EndIf}
     Sleep 500

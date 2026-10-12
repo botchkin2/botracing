@@ -6,7 +6,7 @@
 // than the laps inside each stint do (camber, #1205).
 import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
-import {formatLapTime} from '@/src/design';
+import {formatLapTime, oneDecimal} from '@/src/design';
 
 /** A stint gives a median from this many green laps. */
 export const MIN_STINT_LAPS = 4;
@@ -61,7 +61,7 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
-function median(values: number[]): number | null {
+export function median(values: number[]): number | null {
   if (values.length === 0) return null;
   return quantile(
     [...values].sort((a, b) => a - b),
@@ -75,6 +75,22 @@ function iqr(values: number[]): number | null {
   return quantile(v, 0.75) - quantile(v, 0.25);
 }
 
+/**
+ * The laps a fuel or VE figure per lap is taken over, on every screen: the
+ * green ones (timed, whole, no pit, no yellow) with a fuel use. Green, not
+ * comparable: a slow or off-track lap still burns fuel, and the stored stint
+ * medians and the Plan use the same set, so all of them print the same number.
+ */
+export function greenLaps(laps: Lap[]): Lap[] {
+  return laps.filter(
+    l =>
+      l.fuel?.green === true &&
+      l.fuel.usedL != null &&
+      l.fuel.usedL > 0 &&
+      l.timeS != null,
+  );
+}
+
 /** Null for anything but a practice with green laps. */
 export function buildFuelUse(
   session: Pick<SessionDetail, 'sessionType' | 'fuel'>,
@@ -85,14 +101,7 @@ export function buildFuelUse(
   // start level, and the tank is not what the event allows (camber, #158).
   const limitL = session.fuel?.fillLimitL ?? null;
 
-  const usable = laps.filter(
-    l =>
-      l.comparable &&
-      l.fuel?.green === true &&
-      l.fuel.usedL != null &&
-      l.fuel.usedL > 0 &&
-      l.timeS != null,
-  );
+  const usable = greenLaps(laps);
   if (usable.length === 0) return null;
   const points: FuelUsePoint[] = usable.map(l => ({
     lapId: l.id,
@@ -200,9 +209,9 @@ export function fuelUseRows(fu: FuelUse): FuelUseRow[] {
       };
     const use = [
       `${litres(s.medianFuelL)}/lap${
-        s.fuelIqrL != null ? ` (spread ${s.fuelIqrL.toFixed(2)})` : ''
+        s.fuelIqrL != null ? ` (IQR ${s.fuelIqrL.toFixed(2)})` : ''
       }`,
-      s.medianVePct != null && `${s.medianVePct.toFixed(1)} % VE/lap`,
+      s.medianVePct != null && `${oneDecimal(s.medianVePct)} % VE/lap`,
       s.medianTimeS != null && formatLapTime(s.medianTimeS),
     ].filter(Boolean);
     const load = [
@@ -226,23 +235,26 @@ export function verdictText(fu: FuelUse): string {
   const v = fu.verdict;
   switch (v.kind) {
     case 'none':
-      return `No stint has ${MIN_STINT_LAPS} green laps, so there are no medians to compare.`;
+      return `Under ${MIN_STINT_LAPS} green laps in each stint: no median`;
     case 'one-stint':
-      return 'One stint has enough laps: nothing to compare between stints yet.';
-    case 'same':
-      return `Stints used ${v.lowL.toFixed(2)} to ${v.highL.toFixed(
-        2,
-      )} L a lap; the laps inside each stint vary more than that.`;
+      return 'One stint: nothing to compare';
+    case 'same': {
+      const low = v.lowL.toFixed(2);
+      const high = v.highL.toFixed(2);
+      return low === high
+        ? `Stints within lap IQR: ${low} L/lap`
+        : `Stints within lap IQR: ${low}–${high} L/lap`;
+    }
     case 'differs':
-      return 'The stints’ medians differ by more than the laps inside each stint vary.';
+      return 'Medians differ';
   }
 }
 
 /** "at the 75 L limit of this session" for the load lines; empty without a limit. */
 export function limitText(fu: FuelUse): string {
   return fu.limitL != null
-    ? `Loads use the ${fu.limitL.toFixed(0)} L limit of this session.`
-    : 'No fill limit on record for this session, so no load in laps of fuel.';
+    ? `Limit ${fu.limitL.toFixed(0)} L`
+    : 'No fill limit on record';
 }
 
 /**
@@ -262,11 +274,11 @@ export function planLinkText(
       sessionLimitL != null
         ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
         : 'This session has no fill limit on record';
-    return `${ran}; your ${planLabel} plan uses ${planLimitL.toFixed(
+    return `${laps}: not in ${planLabel} (${planLimitL.toFixed(
       0,
-    )} L, so these ${laps} are not in it ›`;
+    )} L). ${ran} ›`;
   }
-  return `These ${laps} feed your ${planLabel} plan ›`;
+  return `${laps} in ${planLabel} ›`;
 }
 
 /** The plan's race beside one load, when the plan's rules run at this session's fill limit. */
@@ -282,9 +294,7 @@ export function planRaceText(
     return null;
   const laps = raceLaps(length, fu.medianTimeS);
   if (laps == null) return null;
-  return `The plan’s race, ${lengthText}, is about ${laps.toFixed(0)} laps${
-    length.kind === 'min' && fu.medianTimeS != null
-      ? ` at this session’s median lap time`
-      : ''
-  }.`;
+  return `Race ${lengthText}: about ${laps.toFixed(0)} laps${
+    length.kind === 'min' && fu.medianTimeS != null ? ' at median lap' : ''
+  }`;
 }

@@ -1,13 +1,13 @@
 import {useRouter} from 'expo-router';
 import {useMemo} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useSessions} from '@/src/data/sessions';
 import {trackCatalog} from '@/src/data/tracks';
 import {size, space, useLayout, useTheme} from '@/src/design';
 import {sessionsHref, trackHref} from '@/src/nav/routes';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {buildTracksModel} from './model';
 

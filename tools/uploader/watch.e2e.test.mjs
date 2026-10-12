@@ -279,7 +279,9 @@ console.log('done 1, failed 0, unchanged 0');
     assert.equal(lines.length, 1);
     assert.match(lines[0], /--sim iracing$/);
     assert.match(lines[0], /--work \S*sessions[\\/]iracing /);
-    assert.ok(!lines[0].includes('--quiet-min'), lines[0]);
+    // The watcher never syncs with a sim running, so a closed .ibt is read at
+    // once, as LMU's is (a 3 minute wait held a race back after the sim exit).
+    assert.match(lines[0], /--quiet-min 0 /);
     const beats = readFileSync(beatsPath, 'utf8')
       .split('\n')
       .filter(Boolean)

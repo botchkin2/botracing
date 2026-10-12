@@ -25,6 +25,7 @@ import {
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
+import {PLAN_VERSION} from './planBlock.mjs';
 import {fileChange} from './fileChange.mjs';
 import {assignSessionLapNumbers} from './splitFileLaps.mjs';
 import {
@@ -43,6 +44,7 @@ import {PIT_VISIT_VERSION} from './pitVisit.mjs';
 import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
 import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
+import {SLICE_FORMAT, SLICE_FRAME_VERSION} from './cornerSlices.mjs';
 import {
   CORNER_BOUNDARIES_VERSION,
   mapKeyOf,
@@ -50,6 +52,7 @@ import {
 } from './layoutBoundaries.mjs';
 import {sampleTicks} from './pedalPoints.mjs';
 import {freshTyres} from '../../src/analysis/tyres.ts';
+import {CORNER_INPUTS_VERSION} from './cornerInputs.mjs';
 import {lapTyres, settleHotPressure, TYRES_VERSION} from './tyres.mjs';
 import {
   HYBRID_VERSION,
@@ -90,12 +93,22 @@ export const blockVersions = {
   gridLap: GRID_LAP_VERSION,
   hybrid: HYBRID_VERSION,
   cornerBoundaries: CORNER_BOUNDARIES_VERSION,
+  cornerInputs: CORNER_INPUTS_VERSION,
   pitVisit: PIT_VISIT_VERSION,
   classLaps: CLASS_LAPS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
   finish: FINISH_VERSION,
+  plan: PLAN_VERSION,
   inFileReset: IN_FILE_RESET_VERSION,
+  // Gear in the slices (format 2): the watcher re-syncs every session once.
+  cornerSlices: SLICE_FORMAT,
+  // Slices on LapDistPct x length, not integrated speed: every session re-cuts once.
+  sliceFrame: SLICE_FRAME_VERSION,
+  // The lap doc's `traceHz`, and slices cut on it: iRacing's clock was 100 Hz on 60 Hz rows.
+  traceClock: 1,
+  // iRacing's own sector times (sector_start events): every session re-syncs once.
+  iracingSectors: 1,
 };
 
 const GRID_M = 5;
@@ -111,7 +124,7 @@ export const MAP_MIN_LAPS = 8;
 export const trackMapVersion = 4;
 
 // Channels the analysis reads, by neutral name. Missing ones are skipped.
-const wanted = [
+export const wanted = [
   't',
   'speed_kmh',
   'throttle_pct',
@@ -220,7 +233,7 @@ export function loadRecording(recording, samplesPath, eventsPath) {
   return {recording, s, hz, baseHz: base, events, ticks: s.t.length};
 }
 
-const eventKinds = [
+export const eventKinds = [
   'lap',
   'lap_time',
   'in_pits',
@@ -238,6 +251,8 @@ const eventKinds = [
   'minimum_path_wetness',
   // A reset to the pits inside one recording (iRacing, iracing.mjs).
   'reset',
+  // The car entering one of iRacing's own sectors (iracing.mjs sectorCrossings).
+  'sector_start',
 ];
 
 // A slower channel is stored held at the base rate. Its real sample k starts
@@ -337,8 +352,29 @@ function lastPositive(list, start, end) {
   return value;
 }
 
+/**
+ * A lap's times in iRacing's own sectors, from its `sector_start` events
+ * (v: the sector entered, 2..n; v2: n): every sector after the first must be
+ * entered once, in order, inside the lap, and each time must be over half a
+ * second, else []. The last runs to the game's lap time, as LMU's S3 does.
+ */
+export function sectorSplits(list, start, end, lapTime) {
+  const inLap = (list || []).filter(e => e.t > start && e.t < end);
+  if (lapTime == null || inLap.length === 0) return [];
+  const n = inLap[0].v2;
+  if (!(n >= 2) || inLap.length !== n - 1) return [];
+  if (inLap.some((e, i) => e.v !== i + 2 || e.v2 !== n)) return [];
+  const at = [start, ...inLap.map(e => e.t)];
+  const times = at.slice(1).map((t, i) => t - at[i]);
+  times.push(lapTime - (at[at.length - 1] - start));
+  if (times.some(s => !(s > 0.5))) return [];
+  return times.map(s => round(s, 3));
+}
+
 function sectorTimes(events, start, end, lapTime) {
   if (lapTime == null) return [];
+  if (events.sector_start?.length)
+    return sectorSplits(events.sector_start, start, end, lapTime);
   const s1 = lastPositive(events.sector1_time, start, end);
   const through2 = lastPositive(events.sector2_through_time, start, end);
   if (s1 == null || through2 == null) return [];
@@ -575,6 +611,9 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
       b: Math.min(idxAt(s.t, seg.end), s.t.length - 1),
     }),
     distanceM: round(dist[dist.length - 1], 1),
+    // Rows per second of the trace CSV: the recording's base rate (LMU 100, iRacing
+    // 60). The CSV has no time column; the app's clock is row / traceHz.
+    traceHz: rec.baseHz,
     ...topSpeed(s, i0, i1, dist),
   };
 }
@@ -869,6 +908,7 @@ export function analyzeSession(
     sessionType = '',
     splitFiles = false,
     catalogOnly = false,
+    steerRightSign = 1,
   } = {},
 ) {
   const laps = [];
@@ -1062,6 +1102,7 @@ export function analyzeSession(
         pits: pitsOf[lap.rec],
         lengthM: map.lengthM,
         onsets: layout.onsets.get(lap),
+        steerRightSign,
       });
       lap.corners = facts.corners;
       lap.startStraight = facts.startStraight;

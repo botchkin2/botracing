@@ -1,130 +1,129 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {toLaps} from '@/src/data/sessions/adapters';
-import type {Lap, PitStop} from '@/src/data/sessions';
+import type {PlanStop} from '@/src/data/sessions';
 
-import fixture from '@/src/features/session/__fixtures__/roadAtlantaRace.json';
+import {refuelRateOf} from '@/src/analysis/refuel';
 
-import {MIN_BASE_STOPS, pitLaneBase, pitModelOf} from './pitBase';
+import {
+  MIN_BASE_STOPS,
+  pitLaneBase,
+  pitModelOf,
+  refuelRateFor,
+} from './pitBase';
 
-const base = toLaps([fixture.laps[0]])[0];
-
+// A race's stops as the uploader worked them out (tools/sessions/planBlock.mjs,
+// whose tests hold the rules for `lossS`: fuel added, tyres known and not
+// changed, a clean out-lap, a stint median). The app only turns each loss and
+// its litres into a base.
 const stop = (
-  inPitS: number | null,
-  addedL: number,
-  tyresChanged: boolean | null,
-): PitStop => ({
-  atEntry: {fuelL: 10, vePct: 10},
-  added: {fuelL: addedL, vePct: 0},
-  inPitS,
-  lapsLeftAtEntry: {fuel: null, ve: null},
-  visit: null,
-  tyres:
-    tyresChanged === null
-      ? null
-      : {
-          changed: tyresChanged,
-          wheels: [],
-          entryPct: null,
-          exitPct: null,
-          coolDown: null,
-          compound: null,
-        },
-});
-
-const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
-  ...base,
-  id: `l${lapIndex}`,
-  lapIndex,
-  timeS: 100,
-  stint: 1,
-  comparable: true,
-  pitIn: false,
-  pitOut: false,
-  partial: false,
-  pitStop: null,
+  lossS: number | null,
+  addedL: number | null,
+  over: Partial<PlanStop> = {},
+): PlanStop => ({
+  lapIndex: 5,
+  fuelL: 10,
+  vePct: 10,
+  addedL,
+  lossS,
+  kind: 'service',
+  detail: null,
+  fillLPerS: null,
   ...over,
 });
-
-// Four 100 s laps, an in-lap and an out-lap, then two more. Loss = in + out - 2 x 100.
-const race = (inS: number, outS: number, pitStop: PitStop | null) => ({
-  sessionType: 'R' as const,
-  laps: [
-    lap(1),
-    lap(2),
-    lap(3),
-    lap(4),
-    lap(5, {timeS: inS, pitIn: true, pitStop}),
-    lap(6, {timeS: outS, pitOut: true, stint: 2}),
-    lap(7, {stint: 2}),
-  ],
-});
+// The GT3 default, 3.4 L/s (no fill measured).
+const GT3 = refuelRateOf([], 'GT3');
+const race = (...stops: PlanStop[]) => ({stops});
 
 describe('pitLaneBase', () => {
-  it('is the median of pit loss minus litres / 3.4 over stops with fuel and no tyres', () => {
-    // Loss 135 + 125 - 200 = 60; 60 - 34 / 3.4 = 50. Loss 126 + 125 - 200 = 51; 51 - 51 / 3.4 = 36.
-    const b = pitLaneBase(
-      [
-        race(135, 125, stop(80, 34, false)),
-        race(126, 125, stop(80, 51, false)),
-      ],
-      'GT3',
-    );
+  it('is the median of pit loss minus litres / 3.4 over the measured stops', () => {
+    // Loss 60 - 34 / 3.4 = 50. Loss 51 - 51 / 3.4 = 36.
+    const b = pitLaneBase([race(stop(60, 34)), race(stop(51, 51))], GT3);
     expect(b).toEqual({baseS: 43, stops: 2});
   });
 
-  it('takes the loss, not the time in the lane', () => {
+  it('pools the stops of every race, several to a race', () => {
     const b = pitLaneBase(
-      [
-        race(135, 125, stop(999, 34, false)),
-        race(135, 125, stop(1, 34, false)),
-      ],
-      'GT3',
+      [race(stop(60, 34), stop(60, 34)), race(stop(60, 34))],
+      GT3,
     );
-    expect(b?.baseS).toBe(50);
+    expect(b).toEqual({baseS: 50, stops: 3});
   });
 
-  it('leaves out a tyre change, an unknown tyre state, no fuel and no out-lap', () => {
-    const fuelled = stop(80, 34, false);
-    const noOut = race(135, 125, fuelled);
-    noOut.laps.splice(5, 2);
+  it('leaves out a stop with no loss (tyres changed or unknown, no out-lap) or no fuel added', () => {
     const b = pitLaneBase(
       [
-        race(135, 125, fuelled),
-        race(135, 125, fuelled),
-        race(135, 125, stop(80, 34, true)),
-        race(135, 125, stop(80, 34, null)),
-        race(135, 125, stop(30, 0, false)),
-        noOut,
+        race(stop(60, 34), stop(60, 34)),
+        race(stop(null, 34), stop(60, 0), stop(60, null)),
       ],
-      'GT3',
+      GT3,
     );
     expect(b?.stops).toBe(2);
   });
 
-  it('leaves out a stop whose stint has under 3 green laps', () => {
-    const short = race(135, 125, stop(80, 34, false));
-    short.laps.splice(0, 3);
-    expect(pitLaneBase([short, short], 'GT3')).toBeNull();
+  it('is null under two stops, and where the refuel rate is not measured', () => {
+    expect(MIN_BASE_STOPS).toBe(2);
+    expect(pitLaneBase([race(stop(60, 34))], GT3)).toBeNull();
+    expect(pitLaneBase([], GT3)).toBeNull();
+    const two = [race(stop(60, 34), stop(60, 34))];
+    expect(pitLaneBase(two, refuelRateOf([], 'Hypercar'))).toBeNull();
   });
 
-  it('is null under two stops, outside a race, and where the refuel rate is not measured', () => {
-    expect(MIN_BASE_STOPS).toBe(2);
-    const one = race(135, 125, stop(80, 34, false));
-    expect(pitLaneBase([one], 'GT3')).toBeNull();
-    expect(pitLaneBase([one, one], 'Hypercar')).toBeNull();
-    expect(
-      pitLaneBase([{sessionType: 'P', laps: one.laps}, one], 'GT3'),
-    ).toBeNull();
+  it('learns from services only: a repair or a penalty that kept a loss is left out', () => {
+    const b = pitLaneBase(
+      [
+        race(stop(60, 34), stop(60, 34)),
+        race(stop(120, 4, {kind: 'repair'}), stop(45, 0, {kind: 'penalty'})),
+      ],
+      GT3,
+    );
+    expect(b).toEqual({baseS: 50, stops: 2});
+  });
+
+  it('a block from before the kind was stored counts its stops as before', () => {
+    const b = pitLaneBase(
+      [race(stop(60, 34, {kind: null}), stop(60, 34, {kind: null}))],
+      GT3,
+    );
+    expect(b?.stops).toBe(2);
+  });
+
+  it('uses the measured rate: 34 L at 1.7 L/s is 20 s, not 10', () => {
+    const slow = refuelRateOf([1.7], 'GT3');
+    const b = pitLaneBase([race(stop(60, 34), stop(60, 34))], slow);
+    expect(b?.baseS).toBe(40);
+  });
+
+  it('never goes below zero', () => {
+    const b = pitLaneBase([race(stop(5, 34), stop(5, 34))], GT3);
+    expect(b?.baseS).toBe(0);
   });
 });
 
 describe('pitModelOf', () => {
-  it('pairs the base with the refuel rate, and is null without a base', () => {
-    expect(pitModelOf({baseS: 43, stops: 2})).toEqual({
+  it('pairs the base with the refuel rate, and is null without either', () => {
+    expect(pitModelOf({baseS: 43, stops: 2}, GT3)).toEqual({
       baseS: 43,
       refuelLPerS: 3.4,
     });
-    expect(pitModelOf(null)).toBeNull();
+    expect(pitModelOf(null, GT3)).toBeNull();
+    expect(pitModelOf({baseS: 43, stops: 2}, null)).toBeNull();
+  });
+});
+
+describe('refuelRateFor', () => {
+  it('is the median pump rate of every visit that added fuel, a repair included', () => {
+    const r = refuelRateFor(
+      [
+        race(stop(60, 34, {fillLPerS: 3.4}), stop(null, 0)),
+        race(stop(120, 4, {kind: 'repair', fillLPerS: 3.37})),
+      ],
+      'Hypercar',
+    );
+    expect(r).toEqual({lPerS: 3.385, stops: 2, measured: true});
+  });
+
+  it('falls back to the GT3 rate with no fill measured, and to none for another class', () => {
+    expect(refuelRateFor([race(stop(60, 34))], 'GT3')).toEqual(GT3);
+    expect(refuelRateFor([race(stop(60, 34))], 'LMP2')).toBeNull();
   });
 });

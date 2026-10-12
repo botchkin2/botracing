@@ -13,6 +13,8 @@
 //   node functions/scripts/mintTestToken.mjs --origin http://localhost:19101 --origin https://<preview>.web.app
 // To upload test data as seat-test (sync.mjs --remote reads LAP_TOKEN_FILE), add
 // --id-token-file <path>: it writes seat-test's ID token there (good for an hour).
+// --custom-token-file <path>: the custom token a local test tray signs in with
+// (BOTRACING_SEAT_TOKEN_FILE, docs/TESTING.md).
 // A link is a credential for seat-test only: do not paste it anywhere shared.
 import {writeFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -113,6 +115,13 @@ if (
       create: args.includes('--create'),
     });
     for (const link of links) console.log(link);
+    // A local test tray signs in from this file (BOTRACING_SEAT_TOKEN_FILE);
+    // it has an hour to use it, then keeps itself signed in.
+    const customFile = args[args.indexOf('--custom-token-file') + 1];
+    if (args.includes('--custom-token-file') && customFile) {
+      writeFileSync(customFile, token);
+      console.log(`wrote seat-test's custom token to ${customFile}`);
+    }
     const tokenFile = args[args.indexOf('--id-token-file') + 1];
     if (args.includes('--id-token-file') && tokenFile) {
       writeFileSync(tokenFile, await exchangeForIdToken({customToken: token}));

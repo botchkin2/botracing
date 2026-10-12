@@ -14,6 +14,9 @@ import {
 describe('routes', () => {
   it('names a plan combo by track and car model', () => {
     expect(planComboKey('t1', '911 GT3 R')).toBe('t1|911 GT3 R');
+    expect(planComboKey('t1', '911 GT3 R', 'iracing')).toBe(
+      'iracing:t1|911 GT3 R',
+    );
     expect(planHref(planComboKey('t1', '911 GT3 R')).params.combo).toBe(
       't1|911 GT3 R',
     );
@@ -102,5 +105,16 @@ describe('a lap of another session', () => {
       expect(href.params.laps).toBe('a,b');
       expect(href.params.hl).toBeUndefined();
     }
+  });
+});
+
+describe('cornerHref: a compound section opens on All by default', () => {
+  it('leaves all out when the caller does not say, so the route reads a compound section whole', () => {
+    expect(cornerHref('s1', 2).params).not.toHaveProperty('all');
+  });
+
+  it('names one part with all=0 and All with all=1', () => {
+    expect(cornerHref('s1', 3, {}, false).params).toMatchObject({all: '0'});
+    expect(cornerHref('s1', 2, {}, true).params).toMatchObject({all: '1'});
   });
 });

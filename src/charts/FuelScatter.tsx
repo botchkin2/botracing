@@ -1,5 +1,8 @@
 import {View} from 'react-native';
-import Svg, {Circle, G, Line, Text as SvgText} from 'react-native-svg';
+import {Circle, G, Line} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg} from './ChartLabel';
+import {baselineUnder, centredBaseline, EDGE_PT, labelBox} from './labelBox';
 
 import {
   dash,
@@ -57,8 +60,16 @@ export function FuelScatter({
   fit?: {x1: number; y1: number; x2: number; y2: number} | null;
 }) {
   const {color} = useTheme();
-  const axis = typeScale.axis;
-  const plotW = Math.max(1, width - PAD_L - PAD_R);
+  // The right pad holds half the widest x tick (centred on its line), so the
+  // last tick stays on its line inside the svg.
+  const padR =
+    Math.max(
+      PAD_R,
+      ...xTicks.map(
+        t => labelBox(t.label, 0, 0, typeScale.axis.fontSize, 'middle').right,
+      ),
+    ) + EDGE_PT;
+  const plotW = Math.max(1, width - PAD_L - padR);
   const plotH = Math.max(1, height - PAD_T - PAD_B);
   const xOf = (v: number) =>
     PAD_L + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plotW;
@@ -66,7 +77,7 @@ export function FuelScatter({
     PAD_T + ((v - yDomain[0]) / (yDomain[1] - yDomain[0])) * plotH;
   return (
     <View>
-      <Svg width={width} height={height}>
+      <ChartSvg width={width} height={height}>
         {yTicks.map(t => (
           <G key={`y${t.v}`}>
             <Line
@@ -77,15 +88,14 @@ export function FuelScatter({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <SvgText
+            <ChartLabel
               x={PAD_L - 6}
-              y={yOf(t.v) + 3}
-              textAnchor='end'
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              y={centredBaseline(yOf(t.v), typeScale.axis.fontSize)}
+              lineY={yOf(t.v)}
+              anchor='end'
+              fill={color.textMuted}>
               {t.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ))}
         {xTicks.map(t => (
@@ -98,34 +108,28 @@ export function FuelScatter({
               stroke={color.line}
               strokeWidth={stroke.grey}
             />
-            <SvgText
+            <ChartLabel
               x={xOf(t.v)}
               y={PAD_T + plotH + 12}
-              textAnchor='middle'
-              fill={color.textMuted}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              anchor='middle'
+              fill={color.textMuted}>
               {t.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ))}
-        <SvgText
+        <ChartLabel
           x={PAD_L + plotW / 2}
           y={height - 4}
-          textAnchor='middle'
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+          anchor='middle'
+          fill={color.textFaint}>
           {xTitle}
-        </SvgText>
-        <SvgText
+        </ChartLabel>
+        <ChartLabel
           x={PAD_L}
-          y={10}
-          fill={color.textFaint}
-          fontFamily={axis.fontFamily}
-          fontSize={axis.fontSize}>
+          y={baselineUnder(0, typeScale.axis.fontSize)}
+          fill={color.textFaint}>
           {yTitle}
-        </SvgText>
+        </ChartLabel>
         {fit ? (
           <Line
             x1={xOf(fit.x1)}
@@ -158,18 +162,16 @@ export function FuelScatter({
               strokeWidth={1}
               strokeDasharray={dash.overlay2}
             />
-            <SvgText
+            <ChartLabel
               x={xOf(refX.x) + (xOf(refX.x) > width / 2 ? -4 : 4)}
               y={PAD_T + 10}
-              textAnchor={xOf(refX.x) > width / 2 ? 'end' : 'start'}
-              fill={color.textSecondary}
-              fontFamily={axis.fontFamily}
-              fontSize={axis.fontSize}>
+              anchor={xOf(refX.x) > width / 2 ? 'end' : 'start'}
+              fill={color.textSecondary}>
               {refX.label}
-            </SvgText>
+            </ChartLabel>
           </G>
         ) : null}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

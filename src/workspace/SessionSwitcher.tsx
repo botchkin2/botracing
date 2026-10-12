@@ -1,10 +1,10 @@
 import {useRouter} from 'expo-router';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {useSessions} from '@/src/data/sessions';
 import {radius, size, space, useTheme} from '@/src/design';
 import {sessionHref, trackHref} from '@/src/nav/routes';
-import {Sheet, Text} from '@/src/ui';
+import {Pressable, Sheet, Text} from '@/src/ui';
 
 import {switcherRows} from './switcherRows';
 
@@ -29,7 +29,7 @@ export function SessionSwitcher({
   sessionId: string;
   trackId: string;
   trackName: string;
-  /** "Porsche 911 GT3 R · Manthey #91 · 14 Sep" */
+  /** "Porsche 911 GT3 R · Manthey #91 · Sep 14" */
   detail: string;
 }) {
   const router = useRouter();

@@ -19,9 +19,11 @@ export interface TimedGrid {
 
 export type WindowMode = 'time' | 'distance';
 
-// Window steps from the handoff; the bold defaults are 2 s and 200 m.
-export const TIME_STEPS_S = [0.5, 1, 2, 4];
-export const DISTANCE_STEPS_M = [50, 100, 200, 400];
+// Window steps from the handoff; the bold defaults are 2 s and 200 m. 15 s is
+// the middle step between a 4 s window and the whole lap (D29).
+export const TIME_STEPS_S = [0.5, 1, 2, 4, 15];
+// 1,000 m is the mid step between 400 m and the whole lap (D29), roughly 15 s at GT3 speed.
+export const DISTANCE_STEPS_M = [50, 100, 200, 400, 1000];
 export const DEFAULT_WINDOW = {time: 2, distance: 200};
 
 // Elapsed time on the reference at a distance (linear between grid points).
@@ -150,4 +152,52 @@ export function playStep(
   let t = timeAtDistance(ref, cursorM) + dtS * rate;
   if (t >= lapS) t -= lapS;
   return distanceAtTime(ref, t);
+}
+
+// The stretch of the reference lap a loop repeats, in elapsed seconds: what the
+// chart window covers around the cursor (clipped to the lap), or the whole lap.
+export function loopRange(
+  ref: TimedGrid,
+  cursorM: number,
+  mode: WindowMode,
+  win: number | null,
+): [number, number] {
+  const lapS = ref.timeS[ref.timeS.length - 1];
+  if (win == null) return [0, lapS];
+  const [a, b] =
+    mode === 'time'
+      ? windowTimeS(ref, cursorM, win)
+      : windowRange(ref, cursorM, mode, win).map(m => timeAtDistance(ref, m));
+  return [Math.max(0, a), Math.min(lapS, b)];
+}
+
+// One playback step that repeats [t0, t1] (loopRange) in either direction: past
+// an end it comes in from the other. A cursor outside the range, because it
+// was dragged there, joins at the end it is heading for.
+export function loopStep(
+  ref: TimedGrid,
+  cursorM: number,
+  dtS: number,
+  rate: number,
+  reverse: boolean,
+  range: [number, number],
+): number {
+  const [t0, t1] = range;
+  const span = t1 - t0;
+  if (span <= 0) return cursorM;
+  let t = timeAtDistance(ref, cursorM) + (reverse ? -dtS : dtS) * rate;
+  if (t < t0 || t > t1) t = t0 + ((((t - t0) % span) + span) % span);
+  return distanceAtTime(ref, t);
+}
+
+// Plays backwards by wall-clock seconds at a rate. Stops at the lap start
+// (distance 0) instead of looping.
+export function rewindStep(
+  ref: TimedGrid,
+  cursorM: number,
+  dtS: number,
+  rate: number,
+): number {
+  const t = timeAtDistance(ref, cursorM) - dtS * rate;
+  return t <= 0 ? 0 : distanceAtTime(ref, t);
 }

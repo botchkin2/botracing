@@ -4,7 +4,12 @@ import type {Lap, PitStop} from '@/src/data/sessions';
 import {toLaps} from '@/src/data/sessions/adapters';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
-import {buildPitCard, type PitCardSession, sessionHasVe} from './pitCard';
+import {
+  buildPitCard,
+  isRefuelStop,
+  type PitCardSession,
+  sessionHasVe,
+} from './pitCard';
 
 const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   ...toLaps([{...fixture.laps[0], newTyres: false}])[0],
@@ -110,7 +115,10 @@ describe('buildPitCard', () => {
     it('reads what was left, what was added, VE out, the lane and the tyres', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       const c = card.columns[0];
-      expect(c.inTank).toEqual({value: '9.4 L', note: '4 % VE · 1.1 laps'});
+      expect(c.inTank).toEqual({
+        value: '9.4 L',
+        note: '4 % VE · 1.1 laps · VE',
+      });
       expect(c.added).toEqual({value: '+40.1 L', note: '+62 % VE'});
       // 4 + 62 = 66 % out, at the next stint's 3.5 %/lap.
       expect(c.veOut).toEqual({
@@ -139,7 +147,7 @@ describe('buildPitCard', () => {
       if (card?.kind !== 'stops') throw new Error('not a stops card');
       expect(card.end).toEqual({
         title: 'End of L9',
-        spare: '3.7 L / 4 % VE (1.1 laps)',
+        spare: '3.7 L / 4 % VE (1.1 laps · VE)',
         // 9.4 + 40.1 - 3.7 = 45.8 L used after.
         last: '+40.1 L · used 45.8 L after · 3.7 L left',
       });
@@ -623,7 +631,7 @@ describe('buildPitCard', () => {
         note: 'over 3 laps',
       });
       expect(card.end.title).toBe('End of L3');
-      expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps)');
+      expect(card.end.value).toBe('3.7 L / 4 % VE (1.1 laps · VE)');
       expect(card.end.usedShare).toBeCloseTo(41.3 / 45, 5);
     });
 
@@ -640,5 +648,52 @@ describe('buildPitCard', () => {
       // 30 + 15 - 3.7 = 41.3 L.
       expect(card.used.value).toBe('41.3 L / 64 % VE');
     });
+  });
+});
+
+describe('isRefuelStop', () => {
+  const stop = (added: number | null, did: string[] | null) =>
+    ({
+      atEntry: {fuelL: 10, vePct: null},
+      added: {fuelL: added, vePct: null},
+      inPitS: 20,
+      lapsLeftAtEntry: {fuel: 1, ve: null},
+      tyres: null,
+      visit:
+        did == null
+          ? null
+          : {
+              kind: 'service',
+              detail: null,
+              did,
+              stationaryS: null,
+              evidence: [],
+            },
+    } as unknown as Parameters<typeof isRefuelStop>[0]);
+
+  it('a visit that refuelled counts, even with tyres', () => {
+    expect(isRefuelStop(stop(0, ['tyres', 'refuel']))).toBe(true);
+  });
+  it('a tyre-only or repair-only visit does not count', () => {
+    expect(isRefuelStop(stop(0, ['tyres']))).toBe(false);
+    expect(isRefuelStop(stop(0, ['repair']))).toBe(false);
+  });
+  it('a penalty stop-go (no visit, no litres) does not count', () => {
+    expect(isRefuelStop(stop(0, []))).toBe(false);
+  });
+  it('without a visit block, litres added at the classifier thresholds decide', () => {
+    expect(isRefuelStop(stop(40, null))).toBe(true);
+    expect(isRefuelStop(stop(0, null))).toBe(false);
+    expect(isRefuelStop(stop(null, null))).toBe(false);
+    // sensor jitter below 1 L is not a refuel
+    expect(isRefuelStop(stop(0.1, null))).toBe(false);
+  });
+
+  it('without a visit block, a VE-only top-up counts', () => {
+    const ve = {
+      ...stop(0, null),
+      added: {fuelL: 0, vePct: 1},
+    } as unknown as Parameters<typeof isRefuelStop>[0];
+    expect(isRefuelStop(ve)).toBe(true);
   });
 });

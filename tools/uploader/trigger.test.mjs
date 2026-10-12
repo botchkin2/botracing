@@ -92,14 +92,22 @@ test('after a crash, the whole run waits for its retry, version bump or not', ()
   assert.equal(decide({...failing, nowMs: 131 * MIN}).run, true);
 });
 
-test('"Upload older sessions…" runs a sync with nothing new, but never in game', () => {
-  const idle = {...base, lastRunAtMs: 100 * MIN};
-  assert.deepEqual(decide({...idle, olderRequested: true}), {
+test('files a run skipped as too fresh are looked at again once their quiet time is up', () => {
+  // The skipped file is older than the run that skipped it, so without the
+  // recheck "nothing new" would hold until something else changes the folder.
+  const skipped = {...base, lastRunAtMs: 100 * MIN, newestMtimeMs: 99 * MIN};
+  assert.equal(decide({...skipped, quietRetryAtMs: 104 * MIN}).run, false);
+  assert.deepEqual(decide({...skipped, quietRetryAtMs: 101 * MIN}), {
     run: true,
-    reason: 'older sessions requested',
+    reason: 'files closed',
   });
+  // Never in game, and a crashed run still waits for its own retry first.
   assert.equal(
-    decide({...idle, olderRequested: true, gameRunning: true}).run,
+    decide({...skipped, quietRetryAtMs: 101 * MIN, gameRunning: true}).run,
+    false,
+  );
+  assert.equal(
+    decide({...skipped, quietRetryAtMs: 101 * MIN, retryAtMs: 110 * MIN}).run,
     false,
   );
 });

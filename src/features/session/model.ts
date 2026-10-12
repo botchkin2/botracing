@@ -1,32 +1,49 @@
 import {useMemo} from 'react';
 
+import type {StripLap} from './lapStrip';
+import {lapSlots} from '@/src/analysis/lapSlots';
 import type {RaceFacts} from '@/src/analysis/fuelPlan';
 import {
   type SectionMode,
-  segmentBests,
-  segmentOptimum,
-  segmentStats,
+  type SegmentStats,
   type SegmentTimes,
 } from '@/src/analysis/segments';
 
 import {
-  raceFacts,
+  defaultSessionOf,
+  firstCornerOf,
+  openingLapIds,
+  raceFactsOfPlan,
   type Lap,
   type SessionDetail,
   sectorSegmentTimes,
   segmentTimesFor,
+  trackCorners,
   type TrackMapData,
   useSession,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
 } from '@/src/data/sessions';
-import {carLabel, formatGap, formatLapTime, shortTrackName} from '@/src/design';
+import {
+  carLabel,
+  dayMonthOf,
+  formatGap,
+  formatLapTime,
+  shortTrackName,
+} from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
 import {useSectionMode} from '@/src/state/sectionPrefs';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
 import {buildFuelUse, type FuelUse} from './fuelUse';
 import {optimumFacts} from './optimumFacts';
+import {type OptimumLine, optimumLines} from './optimumLines';
+import {
+  basisOf,
+  lapTimeStats,
+  segmentBasisStats,
+  stintNumbers,
+} from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
@@ -37,14 +54,18 @@ import {
   type TrafficRow,
   trafficRows,
 } from './trafficFacts';
+import {isCompound} from '@/src/data/sessions/corners';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
-// not decided here; `selIndex` (0 = reference) picks the lap color.
+// not decided here; `selIndex` (analysis/lapSlots.ts: 0 only for a picked Ref,
+// the rest by lap number from 1, as in Compare) picks the lap color.
 
 export type Selection = {
-  /** Lap ids in selection order; the first is the reference. */
+  /** Checked lap ids; their order carries no meaning. */
   laps: string[];
+  /** The Ref lap when one is picked; absent, the checked laps are measured against their own median. */
+  ref?: string | null;
   /** The highlighted (tapped) lap. */
   hl: string | null;
 };
@@ -127,18 +148,39 @@ export type DetailModel = {
   fuel: string[];
   /** Seconds and counts from the field; null on a lap without one (round 7, 2B). */
   traffic: TrafficRow[] | null;
-  action: 'add' | 'remove' | 'reference';
+  action: 'add' | 'remove';
+};
+
+/** One stint the tray can select in a tap (D16/D17): its comparable laps. */
+export type StintPick = {
+  n: number;
+  /** "2", under a Stint label (S1-S3 are the sector heads). */
+  label: string;
+  lapIds: string[];
+  /** The selection is exactly this stint's comparable laps. */
+  active: boolean;
 };
 
 export type TrayModel = {
   laps: {lapId: string; selIndex: number}[];
   label: string;
   count: number;
+  /** Two or more stints with comparable laps; empty otherwise (one stint is already the default set). */
+  stints: StintPick[];
 };
 
 /** The desktop Laps table's section columns: their heads, and the median, best and spread rows under it. */
 export type SectionTable = {
   heads: string[];
+  /** The map section each head is (null for the start straight and the game's sectors). */
+  sections: (number | null)[];
+  /**
+   * Where a cell in each column opens Corner: the section's first corner (its
+   * number, not the section's), and whether the section is compound (opens
+   * on All: "for compound turns, default select all"). Null for the start
+   * straight and the game's sectors.
+   */
+  targets: {corner: number | null; whole: boolean}[];
   footer: {label: string; cells: string[]}[];
 };
 
@@ -147,11 +189,17 @@ export type SessionScreenModel = {
   subtitle: string;
   /** For the link to the layout's Track page. */
   trackId: string;
+  /** The lap strip's data: every lap in driving order (src/features/session/lapStrip.ts). */
+  strip: StripLap[];
   facts: Fact[];
   /** The optimal lap per stint; empty before the sections or under 5 laps. */
   optimum: Fact[];
+  /** The phone's line under the chart, one per stint. */
+  optimumLines: OptimumLine[];
   /** Null while no lap has sections or sector times. */
   sections: SectionTable | null;
+  /** The game's sector columns (S1..Sn) when laps carry sector times; none otherwise. */
+  sectorHeads: string[];
   chart: ChartModel | null;
   noComparable: {title: string; reasons: string[]} | null;
   rows: RowModel[];
@@ -182,7 +230,11 @@ export type FuelUseCardModel = {
 
 /** The Plan screen's key for this session's track and car. */
 function planKeyOf(session: SessionDetail): string {
-  return planComboKey(session.trackId, carLabel(session.car).model);
+  return planComboKey(
+    session.trackId,
+    carLabel(session.car).model,
+    session.sim,
+  );
 }
 
 function buildFuelUseCard(
@@ -250,7 +302,12 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
 /** Off-track time a comparable lap may carry (handoff exclusion copy). */
 export const OFF_TRACK_TOLERANCE_S = 1.0;
 
-function statusFor(lap: Lap, medianS: number | null): string {
+function statusFor(
+  lap: Lap,
+  medianS: number | null,
+  /** Laps the median is of. */
+  n: number,
+): string {
   if (!lap.comparable) {
     const why = lap.pitOut
       ? 'Pit out'
@@ -268,18 +325,19 @@ function statusFor(lap: Lap, medianS: number | null): string {
     return `Excluded · ${why}`;
   }
   if (lap.timeS == null || medianS == null) return 'Comparable';
-  return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median`;
+  return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median of ${n}`;
 }
 
 const dash = '—';
 
-/** A lap's cell in each segment: the time, and whether it is the best of the comparable laps. */
+/** A lap's cell in each segment: the time, and whether it is the best of the basis laps (the grid's best). */
 function cellsOf(
   times: SegmentTimes | null,
+  basis: ReadonlySet<string>,
   digits: number,
 ): (lapId: string) => {value: string; best: boolean}[] {
   if (!times) return () => [];
-  const bests = segmentBests(times);
+  const stats = segmentBasisStats(times, basis);
   const byId = new Map(times.laps.map(l => [l.id, l]));
   return lapId => {
     const lap = byId.get(lapId);
@@ -287,32 +345,53 @@ function cellsOf(
       const t = lap?.timesS[i] ?? null;
       return {
         value: t == null ? dash : t.toFixed(digits),
-        best: lap?.comparable === true && t != null && t === bests[i],
+        best: basis.has(lapId) && t != null && t === stats[i].bestS,
       };
     });
   };
 }
 
-/** The heads and the median, best and spread rows of the section columns. */
-function sectionTable(times: SegmentTimes | null): SectionTable | null {
+/**
+ * The heads and the median, best and IQR rows of the section columns, over
+ * the basis laps: the same numbers as the grid heads (selectionStats.ts), so
+ * the two never disagree. Tow and traffic are flags, never exclusions.
+ */
+export function sectionTable(
+  times: SegmentTimes | null,
+  basis: ReadonlySet<string>,
+  map?: TrackMapData | null,
+): SectionTable | null {
   if (!times) return null;
-  const stats = segmentStats(times);
-  const row = (
-    label: string,
-    pick: (s: (typeof stats)[number]) => number | null,
-  ) => ({
+  const stats = segmentBasisStats(times, basis);
+  const corners = map ? trackCorners(map) : null;
+  const row = (label: string, pick: (s: SegmentStats) => number | null) => ({
     label,
-    cells: stats.map(s => {
+    cells: stats.map((s: SegmentStats) => {
       const v = pick(s);
-      return v == null ? dash : v.toFixed(2);
+      return v != null ? v.toFixed(2) : dash;
     }),
   });
   return {
     heads: times.segments.map(s => s.label),
+    sections: times.segments.map(s => s.section ?? null),
+    targets: times.segments.map(s => {
+      const section =
+        s.section == null
+          ? undefined
+          : map?.sections.find(x => x.n === s.section);
+      return {
+        corner:
+          s.section != null && corners
+            ? firstCornerOf(corners, s.section)
+            : null,
+        // A compound section (more than one corner) opens whole, read from the map.
+        whole: section ? isCompound(section) : s.compound === true,
+      };
+    }),
     footer: [
       row('Median', s => s.medianS),
       row('Best', s => s.bestS),
-      row('Spread', s => s.spreadS),
+      row('IQR', s => s.spreadS),
     ],
   };
 }
@@ -326,11 +405,18 @@ export function buildSessionModel(
   /** Which segments the desktop table and the optimal lap read (Settings). */
   sectionMode: SectionMode = 'turns',
 ): SessionScreenModel {
-  const median = session.medianTimeS;
-  const selIndexOf = (id: string) => {
-    const i = selection.laps.indexOf(id);
-    return i < 0 ? null : i;
-  };
+  // The session's median is a fact (the head); every gap, bar and stint line is
+  // measured against the basis laps (the ticked ones), "of N".
+  const sessionMedianS = session.medianTimeS;
+  const basisLaps = basisOf(laps, new Set(selection.laps));
+  const basis = new Set(basisLaps.map(l => l.id));
+  const basisTimes = lapTimeStats(basisLaps);
+  const median = basisTimes.medianS;
+  const checked = selection.laps
+    .map(id => laps.find(l => l.id === id))
+    .filter((l): l is Lap => l != null);
+  const slotOf = lapSlots(checked, selection.ref ?? null);
+  const selIndexOf = (id: string) => slotOf.get(id) ?? null;
   const car = carLabel(session.car);
   const started = new Date(session.startedAt);
 
@@ -338,8 +424,11 @@ export function buildSessionModel(
   // segments the Settings toggle picks. Best = fastest among comparable laps.
   const sectorTimes = sectorSegmentTimes(laps);
   const sectionTimes = segmentTimesFor(sectionMode, laps, map);
-  const sectorCells = cellsOf(sectorTimes, 1);
-  const sectionCells = cellsOf(sectionTimes, 2);
+  const sectorCells = cellsOf(sectorTimes, basis, 1);
+  const sectionCells = cellsOf(sectionTimes, basis, 2);
+  const stintLines = new Map(
+    stintNumbers(laps, basis, sectionTimes).map(s => [s.stint, s]),
+  );
 
   const comparable = laps.filter(l => l.comparable);
 
@@ -384,7 +473,7 @@ export function buildSessionModel(
           title: `${laps.length} laps, none comparable`,
           reasons: laps.map(
             l =>
-              `${lapLabel(l)}: ${statusFor(l, median).replace(
+              `${lapLabel(l)}: ${statusFor(l, median, basisTimes.n).replace(
                 'Excluded · ',
                 '',
               )}`,
@@ -401,9 +490,13 @@ export function buildSessionModel(
     const first = stintLaps[0].lapIndex;
     const last = stintLaps[stintLaps.length - 1].lapIndex;
     const bits = [`Stint ${stint.n}`, `L${first}–L${last}`];
-    if (stint.medianTimeS != null)
-      bits.push(`med ${formatLapTime(stint.medianTimeS)}`);
-    if (stint.stdevS != null) bits.push(`± ${stint.stdevS.toFixed(2)} s`);
+    const line = stintLines.get(stint.n);
+    if (line?.lapTimes.medianS != null) {
+      bits.push(`med ${formatLapTime(line.lapTimes.medianS)}`);
+      if (line.n > 1 && line.lapTimes.spreadS != null)
+        bits.push(`IQR ${line.lapTimes.spreadS.toFixed(2)} s`);
+      bits.push(`of ${line.n}`);
+    }
     const split = stintTrafficText(stintLaps);
     rows.push({
       kind: 'stint',
@@ -411,7 +504,7 @@ export function buildSessionModel(
       label: bits.join(' · ') + split,
       lapIds: stintLaps.filter(l => l.comparable).map(l => l.id),
     });
-    const stintNote = stintFuelLine(stint);
+    const stintNote = stintFuelLine(stintLaps);
     if (stintNote)
       rows.push({kind: 'note', key: `stint-${stint.n}-fuel`, text: stintNote});
     for (const l of stintLaps) {
@@ -449,31 +542,33 @@ export function buildSessionModel(
   const detail: DetailModel | null = hlLap && {
     lapId: hlLap.id,
     title: `${lapLabel(hlLap)} · ${timeOrDash(hlLap.timeS)}`,
-    status: statusFor(hlLap, median),
+    status: statusFor(hlLap, median, basisTimes.n),
     excluded: !hlLap.comparable,
     fuel: lapFuelLines(hlLap),
     traffic: trafficRows(hlLap.traffic),
-    action:
-      selIndexOf(hlLap.id) === 0
-        ? 'reference'
-        : selIndexOf(hlLap.id) != null
-        ? 'remove'
-        : 'add',
+    action: selIndexOf(hlLap.id) != null ? 'remove' : 'add',
   };
 
-  const selected = selection.laps
-    .map(id => laps.find(l => l.id === id))
-    .filter((l): l is Lap => l != null);
-  const tray: TrayModel | null = selected.length
-    ? {
-        laps: selected.map((l, i) => ({lapId: l.id, selIndex: i})),
-        count: selected.length,
-        label:
-          selected.length <= 3
-            ? selected.map(lapLabel).join(' · ')
-            : `${lapLabel(selected[0])} ref + ${selected.length - 1} laps`,
-      }
-    : null;
+  const selected = checked;
+  const stints = stintPicks(rows, selection.laps);
+  // The tray stays while there are stints to pick, even with nothing selected.
+  const tray: TrayModel | null =
+    selected.length || stints.length
+      ? {
+          laps: selected.map(l => ({
+            lapId: l.id,
+            selIndex: slotOf.get(l.id) as number,
+          })),
+          count: selected.length,
+          label:
+            selected.length === 0
+              ? ''
+              : selected.length <= 3
+              ? selected.map(lapLabel).join(' · ')
+              : `${selected.length} laps`,
+          stints,
+        }
+      : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
   const trafficPace = trafficPaceFacts(session);
@@ -481,12 +576,20 @@ export function buildSessionModel(
   const fuelUse = buildFuelUseCard(session, laps);
   return {
     trackId: session.trackId,
+    sectorHeads: sectorTimes ? sectorTimes.segments.map(s => s.label) : [],
+    strip: laps.map(l => ({
+      id: l.id,
+      timeS: l.timeS,
+      stint: l.stint,
+      comparable: l.comparable,
+      pit: l.pitIn || l.pitOut,
+    })),
     title: `${TYPE_TITLE[session.sessionType]} · ${shortTrackName(
       session.track,
     )}`,
     subtitle: [
       session.trackVariant || session.track,
-      started.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}) +
+      dayMonthOf(started) +
         ` ${String(started.getHours()).padStart(2, '0')}:${String(
           started.getMinutes(),
         ).padStart(2, '0')}`,
@@ -504,17 +607,12 @@ export function buildSessionModel(
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
       },
-      {label: 'Median', value: timeOrDash(median)},
+      {label: 'Median', value: timeOrDash(sessionMedianS)},
       ...trafficPace,
     ],
-    optimum: sectionTimes
-      ? optimumFacts(
-          segmentOptimum(sectionTimes),
-          sectionTimes.segments.length,
-          session.stints.length,
-        )
-      : [],
-    sections: sectionTable(sectionTimes),
+    optimum: optimumFacts([...stintLines.values()], session.stints.length),
+    optimumLines: optimumLines([...stintLines.values()], session.stints.length),
+    sections: sectionTable(sectionTimes, basis, map),
     chart,
     noComparable,
     rows,
@@ -528,31 +626,42 @@ export function buildSessionModel(
     pitCard,
     tires: buildTiresCard(session, laps),
     fuelUse,
-    planVsRace: raceFacts(session, planKeyOf(session), laps),
+    planVsRace: raceFactsOfPlan(session, planKeyOf(session)),
   };
 }
 
-// --- selection edits (pure; the screen writes the result to the URL) --------
-
-export function toggleLap(sel: Selection, lapId: string): Selection {
-  const i = sel.laps.indexOf(lapId);
-  if (i === 0) return sel; // the reference is not removed from here
-  return {
-    ...sel,
-    laps: i < 0 ? [...sel.laps, lapId] : sel.laps.filter(id => id !== lapId),
-  };
+/** The laps the grid ticks when the URL names none: the set Compare opens on. */
+export function useSessionOpeningLapIds(id: string): string[] {
+  const session = useSession(id);
+  const laps = useSessionLaps(id);
+  return useMemo(() => {
+    const s = session.data;
+    if (!s || !laps.data) return [];
+    return openingLapIds(laps.data, defaultSessionOf(s));
+  }, [session.data, laps.data]);
 }
 
-export function selectStint(sel: Selection, lapIds: string[]): Selection {
-  const rest = lapIds.filter(id => !sel.laps.includes(id));
-  return {...sel, laps: [...sel.laps, ...rest]};
+/** The segment times the grid reads: the same sections the session table shows. */
+export function useSessionSegmentTimes(id: string): SegmentTimes | null {
+  const session = useSession(id);
+  const laps = useSessionLaps(id);
+  // The track's map, by track id (per-session map routes are gone, #432).
+  const map = useTrackMap(session.data?.trackId);
+  const sectionMode = useSectionMode();
+  return useMemo(
+    () =>
+      laps.data
+        ? segmentTimesFor(sectionMode, laps.data, map.data ?? null)
+        : null,
+    [laps.data, map.data, sectionMode],
+  );
 }
 
 export function useSessionScreenModel(id: string, selection: Selection) {
   const session = useSession(id);
   const laps = useSessionLaps(id);
   // Only the optimal lap needs the map; the screen draws without it.
-  const map = useSessionMap(id);
+  const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
   return useMemo(() => {
     if (session.isError || laps.isError) {
@@ -582,4 +691,46 @@ export function useSessionScreenModel(id: string, selection: Selection) {
     selection,
     sectionMode,
   ]);
+}
+
+/**
+ * Where a grid cell (lap x column) opens Corner: the column's first corner, the
+ * first part of a compound section. The tapped lap is the highlight, not added
+ * to the set. Null where the column has no corner (the start straight). Pure:
+ * the grid's taps and their tests read this one place.
+ */
+export function gridCellTargetOf(
+  table: SectionTable,
+  column: number,
+  lapId: string,
+  checked: string[],
+): {corner: number; whole: boolean; laps: string[]} | null {
+  const t = table.targets[column];
+  if (!t || t.corner == null) return null;
+  // The set is unchanged: the tapped lap is only highlighted.
+  return {corner: t.corner, whole: t.whole, laps: checked};
+}
+
+/**
+ * The stints the tray offers (D16/D17: pick a stint, compare, untick an
+ * outlier, three taps): each stint header's comparable laps, when two or more
+ * stints have any. A stint is active when the selection is exactly its laps,
+ * in any order.
+ */
+export function stintPicks(rows: RowModel[], selected: string[]): StintPick[] {
+  const picks = rows.flatMap(r =>
+    r.kind === 'stint' && r.lapIds.length > 0 ? [r] : [],
+  );
+  if (picks.length < 2) return [];
+  const chosen = new Set(selected);
+  return picks.map(r => {
+    const n = Number(r.key.slice('stint-'.length));
+    return {
+      n,
+      label: String(n),
+      lapIds: r.lapIds,
+      active:
+        r.lapIds.length === chosen.size && r.lapIds.every(id => chosen.has(id)),
+    };
+  });
 }

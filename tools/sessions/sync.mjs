@@ -26,7 +26,6 @@
 //
 // A file changed in the last few minutes is skipped: the game may still be
 // writing it. Running again later picks it up. Safe to run as often as you like.
-import {createHash} from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -34,31 +33,21 @@ import {
   readFileSync,
   statSync,
   renameSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
 import {Worker, isMainThread, parentPort} from 'node:worker_threads';
 import {resolve} from 'node:path';
 import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
-import {groupFiles, hash, scanFolder} from './sessionFiles.mjs';
+import {
+  groupFiles,
+  hash,
+  QUIET_MIN_DEFAULT,
+  scanFolder,
+} from './sessionFiles.mjs';
 import {versionKey} from './versionKey.mjs';
-import {
-  analysisVersion,
-  blockVersions,
-  analyzeSession,
-  loadRecording,
-  trackMapVersion,
-} from './analyze.mjs';
-import {
-  buildCornerSlices,
-  GRID_STEP_M,
-  SLICE_AFTER_M,
-  SLICE_BEFORE_M,
-  SLICE_FORMAT,
-} from './cornerSlices.mjs';
-import {classLapsDoc} from '../../src/analysis/classLaps.ts';
-import {finishDoc} from '../../src/analysis/raceResult.ts';
+import {analyzeFromArchive, slugId} from './analyzeFromArchive.mjs';
+import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
 import {fieldFor} from './field.mjs';
 import {capturesRead, markUploaded} from './captureMarker.mjs';
 import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
@@ -67,23 +56,18 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
+import {captureExtract} from './captureExtract.mjs';
 import {checkDoc} from './docShape.mjs';
-import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {packState, unpackState} from './layoutBoundaries.mjs';
+import {planBlock} from './planBlock.mjs';
 import {
   forgetOtherOwners,
   freshState,
-  liftWindow,
   markDone,
-  OLDER_REQUEST,
+  uploadDue,
 } from './syncState.mjs';
 
-import {lapTraffic} from './lapTraffic.mjs';
 import {openRemoteStore} from './remoteStore.mjs';
-import {
-  DEFAULT_RESYNC_CAP,
-  catalogStamp,
-  staleByCatalog,
-} from './catalogStamp.mjs';
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -128,7 +112,6 @@ const firstWindowDays = Number(arg('--first-window-days', '0'));
 // A remote sync analyses again at most this many sessions per run because the
 // curated track catalog changed (newest first), so one edit does not send every
 // session of a busy track through the upload at once.
-const resyncCap = Number(arg('--catalog-resync-cap', DEFAULT_RESYNC_CAP));
 const only = arg('--only', '');
 // Session ids to leave alone this pass: the watcher's failed sessions still
 // waiting on their backoff.
@@ -136,7 +119,7 @@ const skipIds = new Set(arg('--skip', '').split(',').filter(Boolean));
 const local = flag('--local');
 const check = flag('--check');
 const force = flag('--force');
-const quietMin = Number(arg('--quiet-min', '3'));
+const quietMin = Number(arg('--quiet-min', String(QUIET_MIN_DEFAULT)));
 // Replace this track's stored corner map with one built from the next
 // session analyzed there. Corner numbers change for every session after it.
 const rebuildTrack = arg('--rebuild-track', '');
@@ -144,7 +127,6 @@ const work = resolve(
   arg('--work', resolve(process.env.LOCALAPPDATA || homedir(), 'lap-sessions')),
 );
 const statePath = resolve(work, 'state.json');
-const olderRequestPath = resolve(work, OLDER_REQUEST);
 const logFolder = arg('--log-folder', process.env.LMU_LOG || undefined);
 const captureRoot = resolve(
   arg(
@@ -163,10 +145,6 @@ const jobs = Math.max(
     arg('--jobs', String(Math.max(1, Math.min(8, availableParallelism() - 2)))),
   ),
 );
-
-function plain(value) {
-  return JSON.parse(JSON.stringify(value));
-}
 
 function readState() {
   if (!existsSync(statePath))
@@ -199,10 +177,13 @@ function group(files) {
   // What a change of analysis or of a file's size makes a different session
   // fingerprint: the unchanged ones are not analysed again.
   for (const s of sessions) {
+    const sources = s.files.map(f => `${f.info.source}:${f.size}`);
     s.fingerprint = hash(
       versionKey(analysisVersion, blockVersions),
-      ...s.files.map(f => `${f.info.source}:${f.size}`),
+      ...sources,
     );
+    // The recordings alone: what makes an upload due again (uploadDue).
+    s.sources = hash(...sources);
   }
   return sessions;
 }
@@ -220,10 +201,6 @@ function ibtDriversOf(path) {
   } catch {
     return [];
   }
-}
-
-function slugId(sim, name) {
-  return `${sim}-${adapter.slug(name)}`;
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
@@ -282,21 +259,6 @@ async function boundariesFor(trackId, store) {
   return state;
 }
 
-// The state of a track's curated data in the catalog this run read, once per
-// track (catalogStamp.mjs): what a session is recorded as analysed under.
-const catalogStamps = new Map();
-async function stampFor(trackId, store) {
-  if (!catalogStamps.has(trackId))
-    catalogStamps.set(
-      trackId,
-      catalogStamp(
-        await trackMapFor(trackId, store),
-        await boundariesFor(trackId, store),
-      ),
-    );
-  return catalogStamps.get(trackId);
-}
-
 function keepBoundaries(trackId, state) {
   boundaryStates.set(trackId, state);
   mkdirSync(resolve(work, 'tracks'), {recursive: true});
@@ -324,6 +286,47 @@ function eventsOf(s, eventWindows) {
   };
 }
 
+// The session's track and wall-clock window, the key a capture joins on.
+function spanOf(s) {
+  const first = s.files[0].info;
+  const last = s.files[s.files.length - 1].info;
+  return {
+    tracks: [first.track, first.layout],
+    startMs: Date.parse(first.recordedAt),
+    endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
+  };
+}
+
+// Sessions uploaded before the tray kept capture extracts, whose capture is
+// still on the PC: their extract goes up once, by itself, with no analysis
+// (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
+// is sent once.
+async function uploadCaptureBacklog(sessions, state, store) {
+  state.extracts ??= {};
+  let sent = 0;
+  for (const s of sessions) {
+    if (!state.sessions[s.id] || state.extracts[s.id]) continue;
+    const span = spanOf(s);
+    const first = s.files[0].info;
+    const extract = captureExtract({
+      damage: damageFor(captureRoot, span),
+      raceLength:
+        first.sim === 'lmu' && /^r/i.test(first.sessionType)
+          ? raceLengthFor(captureRoot, span)
+          : null,
+    });
+    // No capture on the PC: nothing to keep, and nothing to try again.
+    if (extract) {
+      await store.putCaptureExtract(ownerId, s.id, extract);
+      sent++;
+    }
+    // Saved per session, so a run stopped mid-backlog resumes where it was.
+    state.extracts[s.id] = extract ? 'sent' : 'none';
+    saveState(state);
+  }
+  if (sent) log(`capture extracts kept for ${sent} uploaded session(s)`);
+}
+
 function build(
   s,
   trackMap,
@@ -336,7 +339,6 @@ function build(
   const first = s.files[0].info;
   const sim = first.sim;
   const files = [];
-  const recs = [];
   const archived = [];
   const recordings = [];
   const joined = eventsOf(s, eventWindows);
@@ -350,7 +352,6 @@ function build(
     const prefix = `archive/${sim}/${s.id}/${f.id}`;
     files.push({local: samples, dest: `${prefix}/samples.parquet`});
     files.push({local: events, dest: `${prefix}/events.parquet`});
-    recs.push(loadRecording(f.info, samples, events));
     const {_channels, _events, ...info} = f.info;
     recordings.push({
       ...info,
@@ -368,13 +369,7 @@ function build(
     });
   }
 
-  const last = s.files[s.files.length - 1].info;
-  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
-  const span = {
-    tracks: [first.track, first.layout],
-    startMs: Date.parse(first.recordedAt),
-    endMs,
-  };
+  const span = spanOf(s);
   // iRacing: the tray's live capture against the .ibt of the same drive, lap
   // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
   // Every capture this session read (field, damage, race length, the player
@@ -383,304 +378,74 @@ function build(
   const liveCheck =
     foldOnly || sim !== 'iracing'
       ? null
-      : liveLapCheck(
-          captureRoot,
-          span,
-          ibtCrossings(s.files.map(f => f.path)),
-        );
+      : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
   // The car's damage from the live capture, to tell a repair from a penalty
   // (pitVisit.mjs); null where the capture is gone.
   const damage = foldOnly ? null : damageFor(captureRoot, span);
-  // How long the race is, from the capture: {minutes}; null for other sessions and where the capture is gone.
+  // How long the race is: {minutes}. LMU: from the capture, null where it is gone.
+  // iRacing: from the .ibt's session info. Null for other sessions.
+  const ibtDrivers =
+    !foldOnly && sim === 'iracing' ? ibtDriversOf(s.files[0].path) : [];
   const raceLength =
     foldOnly || !/^r/i.test(first.sessionType)
       ? null
+      : sim === 'iracing'
+      ? first.raceLength ?? null
       : raceLengthFor(captureRoot, span);
-  const a = analyzeSession(recs, {
+  const out = analyzeFromArchive({
+    ownerId,
+    sessionId: s.id,
+    recordings: s.files.map(f => ({
+      id: f.id,
+      info: f.info,
+      samplesPath: resolve(dir, `${f.id}.samples.parquet`),
+      eventsPath: resolve(dir, `${f.id}.events.parquet`),
+    })),
     trackMap,
     boundaries,
-    sessionId: s.id,
-    foldOnly,
-    carDamage: damage,
-    sessionType: first.sessionType,
-    splitFiles: simName === 'iracing',
     catalogOnly,
+    foldOnly,
+    damage,
+    raceLength,
+    event: joined.session,
+    // Every car in the session, when the recorder ran (field.mjs, irField.mjs).
+    fieldFor: lite =>
+      (sim === 'iracing' ? irFieldFor : fieldFor)(
+        captureRoot,
+        span,
+        lite,
+        ibtDrivers,
+      ),
   });
-  if (foldOnly) return {a, archived};
-  // variant is for display; the layout key stays the id (iRacing's is a number
-  // and a slug, so its adapter also gives the layout's own name).
-  const track = {name: first.track, variant: first.layoutName ?? first.layout};
-  const trackId = slugId(sim, first.layout);
-  // A new corner map is stored as the track's own doc, where custom sectors
-  // and official turn names can attach later.
-  const trackDoc = a.newTrackMap
-    ? plain({
-        id: trackId,
-        ownerId,
-        sim,
-        track,
-        ...a.trackMap,
-        source: {sessionId: s.id, builtAt: new Date().toISOString()},
-        analysisVersion,
-      })
-    : null;
-  const car = {name: first.car, class: first.carClass};
-  const carId = slugId(sim, first.car);
-  const lapId = lap =>
-    `${s.files[lap.rec].id}-${String(lap.index).padStart(3, '0')}`;
-
-  // Every car in the session, when tools/capture recorded it (field.mjs).
-  const ibtDrivers = sim === 'iracing' ? ibtDriversOf(s.files[0].path) : [];
-  const fieldOut = (sim === 'iracing' ? irFieldFor : fieldFor)(
-    captureRoot,
-    span,
-    recs.map(r => ({t: r.s.t, lapDist: r.s.lap_dist_m})),
-    ibtDrivers,
-  );
-  // Traffic around the player per lap, from the field (lapTraffic.mjs). The
-  // windows go out with the laps: a sync without the capture reads the
-  // uploaded field with them (store.mjs).
-  const lapWindows = a.laps.map(lap => ({from: lap.startT, to: lap.endT}));
-  const tags = fieldOut.field ? lapTraffic(fieldOut.field, lapWindows) : null;
-
-  const traces = [];
-  const laps = a.laps.map((lap, k) => {
-    const rec = s.files[lap.rec].info;
-    const id = lapId(lap);
-    const tracePath = `traces/${ownerId}/${id}/v2.csv.gz`;
-    traces.push({dest: tracePath, csv: () => a.trace(lap)});
-    const startTime = new Date(
-      Date.parse(rec.recordedAt) + (lap.startT - rec.startT) * 1000,
-    ).toISOString();
-    return plain({
-      id,
-      ownerId,
-      sim,
-      sessionId: s.id,
-      recordingId: s.files[lap.rec].id,
-      trackId,
-      track,
-      carId,
-      car,
-      sessionType: first.sessionType,
-      startTime,
-      lapNumber: lap.lapNumber,
-      lapTime: lap.lapTime,
-      gameLapTime: lap.gameLapTime,
-      durationSec: lap.durationSec,
-      timed: lap.timed,
-      partial: lap.partial,
-      // 'grid' (the parked car and the roll to the line), 'file' (cut by a
-      // recording boundary), or null.
-      partialWhy: lap.partialWhy,
-      // A lap cut short by a reset to the garage, and the first lap after one.
-      endedInReset: lap.endedInReset,
-      afterReset: lap.afterReset,
-      incomplete: lap.partial || !lap.timed,
-      pitlane: lap.pitlane,
-      pitIn: lap.pitIn,
-      pitOut: lap.pitOut,
-      offtrack: lap.offtrack,
-      offTrackSec: lap.offTrackSec,
-      pastEdgeSec: lap.pastEdgeSec,
-      impactMax: lap.impactMax,
-      // The fastest recorded speed sample of the lap, and where.
-      maxSpeedKmh: lap.maxSpeedKmh,
-      maxSpeedAtM: lap.maxSpeedAtM,
-      sectors: lap.sectors,
-      stint: lap.stint,
-      comparable: lap.comparable,
-      clean: lap.clean,
-      reasons: lap.reasons,
-      distanceM: lap.distanceM,
-      // Conditions, and per-corner facts through the track's corners: what
-      // src/analysis/consistency.ts needs to rerun on any selection.
-      stintLap: lap.stintLap,
-      start: lap.start,
-      // Per wheel (FL FR RL RR): wear at the end of the lap, the lap's median
-      // pressure and temperatures, and the wheels changed in the stop that
-      // ended during it (tyres.mjs); null without the channels. The lap after
-      // a change is the first on new tyres (consistency's cold-tyres rule).
-      tyres: lap.tyres,
-      tyreCarcassC: lap.tyreCarcassC,
-      courseYellowSec: lap.courseYellowSec,
-      compound: lap.compound,
-      wetness: lap.wetness,
-      corners: lap.corners || [],
-      // The start straight, and the layout's boundary rev these corner times
-      // were cut at (a lap on an older rev is re-analysed, never compared).
-      startStraight: lap.startStraight ?? null,
-      cornerBoundaries: lap.cornerBoundaries ?? null,
-      // Fuel and Virtual Energy used on the lap, added back across a stop
-      // (fuelFacts.mjs), and the pit stop entered during it; null without
-      // the channels or a stop.
-      fuel: lap.fuel,
-      pitStop: lap.pitStop,
-      // The battery and motor energy of the lap (hybrid.mjs); null on a car
-      // without a hybrid.
-      hybrid: lap.hybrid,
-      // Cars around the player, seconds and counts (fieldTags.mjs); null
-      // when the session has no field.
-      traffic: tags?.[k] ?? null,
-      // Not in the default "normal racing" selection, and why.
-      excluded: lap.excluded,
-      // Against the session's normal racing laps: residual to the pace
-      // trend, and where an off-pace lap lost its time.
-      consistency: lap.consistency,
-      trace: {path: tracePath, rows: lap.i1 - lap.i0 + 1},
-      analysisVersion,
-    });
-  });
-
-  // Every lap's window around every corner, one file per corner
-  // (cornerSlices.mjs). Named by content like the field, so a resync never
-  // serves a stale cached slice.
-  const slices = buildCornerSlices(
-    a.laps.map(lap => ({id: lapId(lap), csv: () => a.trace(lap)})),
-    a.trackMap,
-    a.windows,
-  );
-  const slicePrefix = slices
-    ? `slices/${ownerId}/${s.id}/${slices.hash}`
-    : null;
-
-  // Named by its content, so the route can cache it as immutable: a resync
-  // that changes the field writes a new file (pitlane #680).
-  const fieldText = fieldOut.field ? JSON.stringify(fieldOut.field) : null;
-  const fieldHash = fieldText
-    ? createHash('sha1').update(fieldText).digest('hex').slice(0, 12)
-    : null;
-  const fieldPath = fieldHash
-    ? `field/${ownerId}/${s.id}/${fieldHash}.json.gz`
-    : null;
-  const session = plain({
-    id: s.id,
-    ownerId,
-    sim,
-    // This is still the layout id when nobody has curated the track. The
-    // storage-rules change must not refuse that upload: store trackId null
-    // until a curator maps it, and the app shows the laps with no map and
-    // no sections.
-    trackId,
-    track,
-    carId,
-    car,
-    sessionType: first.sessionType,
-    sessionClock: first.sessionClock,
-    weather: first.weather,
-    race: raceLength,
-    series: joined.session.series,
-    eventId: joined.session.eventId,
-    startedAt: first.recordedAt,
-    endedAt: new Date(endMs).toISOString(),
-    recordingIds: s.files.map(f => f.id),
-    ...a.summary,
-    bestLapId: a.best ? lapId(a.best) : null,
-    // The analysis names laps by index; the stored docs use lap ids.
-    consistency: {
-      ...a.consistency,
-      stints: a.consistency.stints.map(st => ({
-        ...st,
-        lapIds: st.lapIds.map(i => laps[Number(i)].id),
-      })),
-    },
-    // Where the corners came from: the track's stored map, a new stored map
-    // made from this session, or a map of this session's own (not stored:
-    // too few clean laps, or the stored map does not fit).
-    trackMapSource: a.trackMapSource,
-    trackMapMismatch: a.trackMapMismatch,
-    // The layout's corner boundaries these laps were cut at (rev), null on a
-    // map of this session's own.
-    cornerBoundaries: a.boundaries
-      ? {v: a.boundaries.state.v, rev: a.boundaries.state.rev}
-      : null,
-    // Start fuel, the fill limit and the tank in litres (fuelFacts.mjs); the
-    // limit and tank are null when the car setup is missing.
-    fuel: a.fuel,
-    band: a.band
-      ? {
-          path: `bands/${ownerId}/${s.id}/v1.json.gz`,
-          stepM: a.band.stepM,
-          lengthM: a.band.lengthM,
-          laps: a.band.laps,
-        }
-      : null,
-    field: fieldPath
-      ? {path: fieldPath, hash: fieldHash, ...fieldOut.meta}
-      : null,
-    // Lap times by class, from the field (src/analysis/classLaps.ts); null
-    // without one.
-    classLaps: fieldOut.field
-      ? classLapsDoc(fieldOut.field, first.sessionType)
-      : null,
-    // The player's finishing position in a race, from the same field
-    // (src/analysis/raceResult.ts); null without one and outside a race.
-    result: fieldOut.field
-      ? finishDoc(fieldOut.field, first.sessionType)
-      : null,
-    // Per-corner slices of every lap (cornerSlices.mjs): the corner numbers
-    // with a file at {prefix}/c{n}.json.gz, and the window they cover.
-    slices: slices
-      ? {
-          format: SLICE_FORMAT,
-          hash: slices.hash,
-          prefix: slicePrefix,
-          corners: slices.corners,
-          beforeM: SLICE_BEFORE_M,
-          afterM: SLICE_AFTER_M,
-          stepM: GRID_STEP_M,
-        }
-      : null,
-    lapTable: laps.map(lap => ({
-      id: lap.id,
-      lapNumber: lap.lapNumber,
-      lapTime: lap.lapTime,
-      stint: lap.stint,
-      comparable: lap.comparable,
-      reasons: lap.reasons,
-      offTrackSec: lap.offTrackSec,
-      maxSpeedKmh: lap.maxSpeedKmh,
-      endedInReset: lap.endedInReset,
-      afterReset: lap.afterReset,
-      excluded: lap.excluded,
-      offPace: lap.consistency?.offPace ?? null,
-    })),
-    analysisVersion,
-    updatedAt: new Date().toISOString(),
-  });
-
+  if (foldOnly) return {a: out.a, archived};
   return {
-    session,
+    ...out,
     recordings,
-    laps,
-    lapWindows,
     // iRacing: every car's class from the .ibt, so a stored field from before
     // the field carried classes gets them (store.mjs, irClasses.relabelField).
     ibtDrivers,
-    band: a.band,
-    fieldText,
-    slices,
-    fieldReason: fieldOut.reason,
     liveCheck,
+    // The capture's damage and race length, kept in the store for analysis
+    // on open once the capture is pruned (captureExtract.mjs).
+    captureExtract: captureExtract({
+      damage,
+      raceLength: sim === 'lmu' ? raceLength : null,
+    }),
     capturesUsed,
-    track: trackDoc,
-    // The layout's boundaries when this session changed them, to be kept.
-    boundaries:
-      a.boundaries && a.boundaries.changed
-        ? {
-            trackId,
-            state: a.boundaries.state,
-            windows: a.boundaries.windows,
-            moved: a.boundaries.moved,
-          }
-        : null,
-    boundariesRev: a.boundaries ? a.boundaries.state.rev : null,
-    traces,
     files,
   };
 }
 
 function writeLocal(out) {
+  // A local run has no stored docs to keep from, so its plan is the fresh one;
+  // an upload's is written by store.mjs.
+  out.session.plan = planBlock({
+    sessionType: out.session.sessionType,
+    fuel: out.session.fuel,
+    laps: out.laps,
+    race: out.session.race,
+    result: out.session.result,
+  });
   // The same shape check the upload runs (docShape.mjs), so a local run, the
   // one a worktree can do without credentials, fails on what Firestore would.
   checkDoc(`sessions/${out.session.id}`, out.session);
@@ -730,14 +495,6 @@ async function main() {
   const forgotten = forgetOtherOwners(state, ownerId);
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
-  // "Upload older sessions…" in the tray: the first-run window is lifted once.
-  if (existsSync(olderRequestPath)) {
-    liftWindow(state);
-    // Removed before the sync runs on purpose: the lift is saved with the
-    // state right after the scan, so a sync stopped for the game keeps it.
-    if (!check) rmSync(olderRequestPath);
-    log('older sessions included');
-  }
   if (!since && state.since) since = state.since;
   const files = scan(state);
   if (!check) saveState(state);
@@ -779,80 +536,25 @@ async function main() {
   }
 
   // Newest first: recent sessions matter most, and a long backfill fills in
-  // the past last.
-  state.revs ??= {};
-  state.stamps ??= {};
-  // A session whose corner times were cut at boundaries that have since moved
-  // is re-analysed, even though nothing about its files changed.
-  const boundariesMoved = async s => {
-    const rev = (await boundariesFor(trackOf(s), store))?.rev;
-    return staleRev(state.revs[s.id], rev);
-  };
-  const stale = new Set();
-  if (!force && !local) {
-    for (const s of sessions) {
-      // --check evaluates every session, so a throw here shows even on a
-      // machine whose state has not seen them yet.
-      const same = state.sessions[s.id] === s.fingerprint;
-      if ((same || check) && (await boundariesMoved(s)) && same)
-        stale.add(s.id);
-    }
-  }
-  // A remote sync reads the curated catalog and re-analyses the sessions
-  // whose track changed in it (a map added, a map edited), per track, capped
-  // per run, newest first. The stamp is read once per track from the catalog.
-  const stamps = new Map();
-  const catalogStale = new Set();
-  if (catalogOnly && !force && !check) {
-    const synced = [...sessions]
-      .reverse()
-      .filter(s => state.sessions[s.id] === s.fingerprint)
-      .map(s => ({id: s.id, trackId: trackOf(s)}));
-    for (const {trackId} of synced)
-      if (!stamps.has(trackId))
-        stamps.set(trackId, await stampFor(trackId, store));
-    const found = staleByCatalog({
-      sessions: synced,
-      stamps: state.stamps,
-      current: stamps,
-      cap: resyncCap,
-    });
-    for (const [id, stamp] of found.adopt) state.stamps[id] = stamp;
-    if (found.adopt.size) saveState(state);
-    for (const id of found.stale) catalogStale.add(id);
-    if (catalogStale.size)
-      log(
-        `${catalogStale.size} session(s) on a track whose curated data changed`,
-      );
-    if (found.deferred)
-      log(
-        `${found.deferred} more wait for a later run (cap ${resyncCap} per run)`,
-      );
-  }
+  // the past last. A session is analysed here the first time it is seen, and
+  // again only when its recordings changed. A change of analysis rules or of
+  // the curated track never re-syncs a stored session: it reads stale, and
+  // opening it analyses it again in the cloud (pit-wall thread 1 #4611).
   let todo = [...sessions]
     .reverse()
-    .filter(
-      s =>
-        force ||
-        local ||
-        state.sessions[s.id] !== s.fingerprint ||
-        stale.has(s.id) ||
-        catalogStale.has(s.id),
-    );
-  if (stale.size) log(`${stale.size} session(s) on older corner boundaries`);
+    .filter(s => force || local || uploadDue(s, state));
   const waiting = todo.filter(s => skipIds.has(s.id));
   if (waiting.length) {
     log(`${waiting.length} session(s) waiting on a retry: skipped`);
     todo = todo.filter(s => !skipIds.has(s.id));
   }
+  if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by
   // curate from a named set (tools/curate, tools/sessions/surface.mjs).
   if (check) {
-    log(
-      `check ok: ${sessions.length} sessions, ${todo.length} to do, ${stale.size} on older boundaries`,
-    );
+    log(`check ok: ${sessions.length} sessions, ${todo.length} to do`);
     return;
   }
   const first = await runPool(todo, store, state, eventWindows);
@@ -954,9 +656,10 @@ async function runPool(
         tracks.add(trackId);
         processed.push({s, rev: r.rev});
         if (!local) {
-          markDone(state, s.id, s.fingerprint, ownerId);
-          if (r.rev != null) state.revs[s.id] = r.rev;
-          if (catalogOnly) state.stamps[s.id] = await stampFor(trackId, store);
+          markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          state.extracts ??= {};
+          // Its extract, if the capture gave one, went up with it.
+          state.extracts[s.id] = 'with-session';
           saveState(state);
         }
       } else {

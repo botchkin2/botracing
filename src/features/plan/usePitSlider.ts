@@ -14,7 +14,7 @@ export function usePitSlider(
   data: ReturnType<typeof usePlanData>,
   comboKey: string,
 ) {
-  const {plan, rules, cards, fuelOnly, pitBase, hist} = data;
+  const {plan, rules, cards, fuelOnly, pitBase, refuelRate, hist} = data;
   const windows = cards?.stops.windows;
   const planned = useMemo(() => plannedStops(windows ?? []), [windows]);
   const planKey = `${comboKey}|${planned.join(',')}`;
@@ -30,11 +30,11 @@ export function usePitSlider(
             rules: rules.rules,
             fuelOnly,
             ratioPerPctL: hist.ratio?.perPctL ?? null,
-            pitModel: pitModelOf(pitBase),
+            pitModel: pitModelOf(pitBase, refuelRate),
             windows,
           }
         : null,
-    [plan, rules, windows, fuelOnly, hist.ratio, pitBase],
+    [plan, rules, windows, fuelOnly, hist.ratio, pitBase, refuelRate],
   );
   const pit = useMemo(
     () => (input ? pitPlan(input, chosen) : null),

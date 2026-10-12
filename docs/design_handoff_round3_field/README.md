@@ -70,7 +70,7 @@ Grid `1060 | 380`:
 | Focused | amber ring r+5, 1.8 pt | amber 3 pt inset bar + `--accent-tint` |
 | Pit lane | hollow: `#0d0f12` fill, 1.5 pt class-colour ring, drawn on the pit lane | "PIT" in amber |
 | Stopped | solid grey ring `#aeb4ba` 1.3 pt around the dot, after 2 s under 5 km/h outside the pit lane | "STOP" |
-| Off track | dashed ring `#aeb4ba` 1 pt `2 2`, at its true position, when more than 7.5 m from the centreline | "OFF" |
+| Off track | dashed ring `#aeb4ba` 1 pt `2 2`, at its true position, when its wheels are past the measured road edge at its lap distance plus 1 m (half a car), held 0.3 s; 7.5 m from the centreline where no edge is measured (ratchet, #457) | "OFF" |
 | Garage (reset) | removed from the map | row 50% opacity, "GAR", sorted last |
 
 ### R1e · Labels at 58 cars

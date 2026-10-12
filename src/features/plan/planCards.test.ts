@@ -1,5 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {refuelRateOf} from '@/src/analysis/refuel';
+
 import {type GreenLap, planRace, type PlanRules} from '@/src/analysis/fuelPlan';
 
 import {pitWindows} from '@/src/analysis/pitWindow';
@@ -106,10 +108,30 @@ describe('buildPlanCards', () => {
     // One line per stint, one number a cell, in the unit shown (VE first). The
     // formation lap has its own row, so stint 1 shows 98 - 3.5 = 94.5 -> 95 %.
     expect(full.lines).toEqual([
-      {n: 1, laps: '27', use: '95 %', refuel: '66.6 L', stopAfter: 'L28'},
-      {n: 2, laps: '28', use: '98 %', refuel: '39.1 L', stopAfter: 'L56'},
-      {n: 3, laps: '17', use: '60 %', refuel: null, stopAfter: null},
+      {n: 1, laps: 'L2–L28', use: '95 %', refuel: '66.6 L', stopAfter: 'L28'},
+      {n: 2, laps: 'L29–L56', use: '98 %', refuel: '39.1 L', stopAfter: 'L56'},
+      {n: 3, laps: 'L57–L73', use: '60 %', refuel: null, stopAfter: null},
     ]);
+    // The ranges and the stops are one answer: each stint ends on the lap the
+    // stop after it is named for, and the next one starts the lap after.
+    expect(full.lines.map(l => l.laps.split('–')[1])).toEqual([
+      'L28',
+      'L56',
+      'L73',
+    ]);
+    // The equal-stints table partitions the race the same way.
+    const equal = cards.stops.equal;
+    if (equal)
+      equal.lines.forEach((l, i) => {
+        const last = l.laps.split('–').pop();
+        if (l.stopAfter) expect(last).toBe(l.stopAfter);
+        if (i > 0) {
+          const prevLast = Number(
+            equal.lines[i - 1].laps.split('–').pop()!.slice(1),
+          );
+          expect(Number(l.laps.split('–')[0].slice(1))).toBe(prevLast + 1);
+        }
+      });
     expect(cards.stops.formationUse).toBe('3.5 %');
     expect(cards.stops.perStintHeader).toBe('VE per stint');
     expect(cards.stops.refuelHeader).toBe('Refuel');
@@ -119,7 +141,7 @@ describe('buildPlanCards', () => {
       false,
       RATIO,
       'fuel',
-      'GT3',
+      refuelRateOf([], 'GT3'),
     );
     expect(fuelCards.stops.full!.lines.map(l => l.use)).toEqual([
       '64 L',

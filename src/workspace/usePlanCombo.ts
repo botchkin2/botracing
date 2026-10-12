@@ -9,8 +9,8 @@ import {planComboKey} from '@/src/nav/routes';
 // Same window the Plan screen reads, so the two agree on what was driven last.
 const PLAN_HISTORY_DAYS = 3650;
 
-const comboKey = (s: Pick<SessionSummary, 'trackId' | 'car'>) =>
-  planComboKey(s.trackId, carLabel(s.car).model);
+const comboKey = (s: Pick<SessionSummary, 'trackId' | 'car' | 'sim'>) =>
+  planComboKey(s.trackId, carLabel(s.car).model, s.sim);
 
 /** "Le Mans · 911 GT3 R", the same words as the Plan chip. */
 const comboPair = (s: Pick<SessionSummary, 'track' | 'car'>) =>
@@ -18,9 +18,7 @@ const comboPair = (s: Pick<SessionSummary, 'track' | 'car'>) =>
 
 /**
  * The track and car the Plan link opens, and the pair the desktop bar shows.
- * An open LMU session names its own pair. An open session of another sim has
- * no Plan (Plan reads LMU's rules), so it names none: the link and the label
- * do not point at an unrelated car. With no session, the Track page's pair
+ * An open session names its own pair. With no session, the Track page's pair
  * (`trackId`), else the pair driven last (Plan's own default).
  */
 export function planChoice({
@@ -35,7 +33,7 @@ export function planChoice({
   driven: SessionSummary[];
 }): {key: string | undefined; pair: string | null} {
   if (sessionOpen) {
-    if (!session || session.sim !== 'lmu') return {key: undefined, pair: null};
+    if (!session) return {key: undefined, pair: null};
     return {key: comboKey(session), pair: comboPair(session)};
   }
   const named =
@@ -58,10 +56,8 @@ export function usePlanCombo(
     {ageDays: PLAN_HISTORY_DAYS},
     trackId != null || wantPair,
   );
-  // Newest first, LMU sessions with laps only, as the Plan chips are.
-  const driven = (sessions.data?.items ?? []).filter(
-    s => s.sim === 'lmu' && s.lapCount > 0,
-  );
+  // Newest first, sessions with laps only, as the Plan chips are.
+  const driven = (sessions.data?.items ?? []).filter(s => s.lapCount > 0);
   return planChoice({
     sessionOpen: sessionId != null,
     session: session.data,

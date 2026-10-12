@@ -1,16 +1,10 @@
 import {useRouter} from 'expo-router';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import {ActivityIndicator, ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {cornerHref, sessionHref, trackHref, tracksHref} from '@/src/nav/routes';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 import {AboutBlock} from './components/AboutBlock';
 import {CornerList} from './components/CornerList';
@@ -19,6 +13,7 @@ import {HistoryPanel} from './components/HistoryPanel';
 import {LayoutChips} from './components/LayoutChips';
 import {PlanBlock} from './components/PlanBlock';
 import {TrackMapPanel} from './components/TrackMapPanel';
+import {type MapPart} from './mapLoad';
 import {type Combo} from '../plan/model';
 
 import {type TrackModel} from './model';
@@ -74,7 +69,9 @@ export function TrackScreen({
   const props = {
     model: state.model,
     plans: state.plans,
+    undrivenPlan: state.undrivenPlan,
     mapLoading: state.mapLoading,
+    mapFailed: state.mapFailed,
     attribution: state.attribution,
     canOpenCorner: refSessionId != null,
     actions,
@@ -93,27 +90,20 @@ export function TrackScreen({
 type ViewProps = {
   model: TrackModel;
   plans: Combo[];
+  undrivenPlan: string | null;
   mapLoading: boolean;
+  mapFailed: MapPart[];
   attribution: string | null;
   canOpenCorner: boolean;
   actions: Actions;
 };
 
 function Title({model}: {model: TrackModel}) {
-  const {color} = useTheme();
   return (
     <View style={styles.title}>
       <Text variant='pageTitle'>{model.title}</Text>
       {model.country ? (
         <View style={styles.country}>
-          {model.countryCode ? (
-            <Text
-              variant='dataSmall'
-              tone='textSecondary'
-              style={[styles.cc, {borderColor: color.median}]}>
-              {model.countryCode}
-            </Text>
-          ) : null}
           <Text variant='dataSmall' tone='textMuted'>
             {model.country}
           </Text>
@@ -126,7 +116,9 @@ function Title({model}: {model: TrackModel}) {
 function TrackPhone({
   model,
   plans,
+  undrivenPlan,
   mapLoading,
+  mapFailed,
   attribution,
   canOpenCorner,
   actions,
@@ -158,6 +150,7 @@ function TrackPhone({
         onToggle={actions.toggleCorner}
         attribution={attribution}
         loading={mapLoading}
+        failed={mapFailed}
       />
       <FactTiles facts={model.facts} layout='grid' />
       {model.corners.length > 0 ? (
@@ -185,7 +178,7 @@ function TrackPhone({
           ) : null}
         </View>
       ) : null}
-      <PlanBlock combos={plans} />
+      <PlanBlock combos={plans} undrivenKey={undrivenPlan} />
       {model.history ? (
         <HistoryPanel
           history={model.history}
@@ -203,7 +196,9 @@ function TrackPhone({
 function TrackDesktop({
   model,
   plans,
+  undrivenPlan,
   mapLoading,
+  mapFailed,
   attribution,
   canOpenCorner,
   actions,
@@ -217,7 +212,7 @@ function TrackDesktop({
   const mapH = wide ? size.trackMapDesk : Math.round(mapW * 0.8);
   const history = (
     <>
-      <PlanBlock combos={plans} />
+      <PlanBlock combos={plans} undrivenKey={undrivenPlan} />
       {model.history ? (
         <HistoryPanel
           history={model.history}
@@ -292,6 +287,7 @@ function TrackDesktop({
             onToggle={actions.toggleCorner}
             attribution={attribution}
             loading={mapLoading}
+            failed={mapFailed}
           />
           <LayoutChips layouts={model.layouts} onOpen={actions.openLayout} />
         </ScrollView>
@@ -322,12 +318,6 @@ const styles = StyleSheet.create({
   back: {height: size.hit, justifyContent: 'center'},
   title: {gap: space.xs, flexShrink: 1},
   country: {flexDirection: 'row', alignItems: 'center', gap: space.md},
-  cc: {
-    borderWidth: 1,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.xs,
-    overflow: 'hidden',
-  },
   bleed: {marginHorizontal: -size.gutter, marginTop: space.md},
   selLine: {
     height: size.hit,

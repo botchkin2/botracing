@@ -1,3 +1,5 @@
+import {anchorLapOf} from '@/src/analysis/lapSlots';
+import {medianBasisOf} from '@/src/analysis/medianBasis';
 import {useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
@@ -6,8 +8,8 @@ import {
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
-  useSessionSurface,
+  useTrackMap,
+  useTrackSurface,
   useSessionsDetail,
   useSessionsLaps,
   mapPlacer,
@@ -18,12 +20,12 @@ import {type TraceLoad, useLapTraceLoad} from '@/src/data/traces';
 
 import {
   buildCompareSet,
-  medianBasisOf,
+  openingCursorM,
   type ForeignLaps,
   type ChannelId,
   type CompareModel,
   type ChartWindow,
-  type CompareSelection,
+  type UrlCompareSelection,
 } from './model';
 
 import {buildFollowGeometry} from './followModel';
@@ -40,6 +42,8 @@ export type CompareResult =
   | {
       state: 'ready';
       model: CompareModel;
+      /** Where the cursor is: the one passed in, else the start of the linked section. */
+      cursorM: number;
       /** The selected laps' traces, for skeletons and the retry banner. */
       traceLoad: TraceLoad;
       retryTraces: () => void;
@@ -47,15 +51,15 @@ export type CompareResult =
 
 export function useCompareModel(
   sessionId: string,
-  selection: CompareSelection,
+  selection: UrlCompareSelection,
   charts?: ChannelId[][],
   window?: ChartWindow,
 ): CompareResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
   const band = useSessionBand(sessionId);
-  const map = useSessionMap(sessionId);
-  const surface = useSessionSurface(sessionId);
+  const map = useTrackMap(session.data?.trackId);
+  const surface = useTrackSurface(session.data?.trackId);
   const lengthM = map.data?.lengthM || band.data?.lengthM || 0;
   // The checked laps by value, not by the array: a URL write or a re-parse
   // gives a new array of the same ids, which must not rebuild the set.
@@ -117,7 +121,9 @@ export function useCompareModel(
   const nearLine =
     window?.size != null &&
     lengthM > 0 &&
-    (selection.cursorM < WRAP_M || selection.cursorM > lengthM - WRAP_M);
+    (selection.cursorM == null ||
+      selection.cursorM < WRAP_M ||
+      selection.cursorM > lengthM - WRAP_M);
   const fetchIds = useMemo(() => {
     if (!nearLine || !laps.data) return knownIds;
     const extra = knownIds.flatMap(id => {
@@ -128,6 +134,15 @@ export function useCompareModel(
     });
     return [...new Set([...knownIds, ...extra])];
   }, [nearLine, laps.data, knownIds]);
+  // Each lap's trace rate (iRacing's is 60), for the clock.
+  const hzOf = useMemo(
+    () => Object.fromEntries((laps.data ?? []).map(l => [l.id, l.traceHz])),
+    [laps.data],
+  );
+  const timeOf = useMemo(
+    () => Object.fromEntries((laps.data ?? []).map(l => [l.id, l.timeS])),
+    [laps.data],
+  );
   // Traces are fetched by the lap's own id; the model knows the selection id.
   const traceIds = useMemo(
     () => fetchIds.map(id => parseLapRef(id).lapId),
@@ -137,7 +152,11 @@ export function useCompareModel(
     traces: grids,
     load: traceLoad,
     retry: retryTraces,
-  } = useLapTraceLoad(traceIds, {lengthM, stepM: GRID_STEP_M}, knownIds.length);
+  } = useLapTraceLoad(
+    traceIds,
+    {lengthM, stepM: GRID_STEP_M, hzOf, timeOf},
+    knownIds.length,
+  );
   const traces = useMemo(() => {
     const out = new Map<string, GridTrace>();
     fetchIds.forEach((id, i) => {
@@ -149,6 +168,15 @@ export function useCompareModel(
 
   // Follow's lines, band and inset only change with the selection, so build
   // them here once rather than on every cursor move (CODE_STANDARDS §6).
+  // The lap whose line shapes the road: the Ref lap when picked, else the
+  // set's best lap; the order the laps were checked in carries no meaning.
+  const anchorId = useMemo(() => {
+    const all = [...(laps.data ?? []), ...foreign.laps];
+    const known = knownIds
+      .map(id => all.find(l => l.id === id))
+      .filter((l): l is Lap => l != null);
+    return anchorLapOf(known, selection.ref)?.id ?? null;
+  }, [laps.data, foreign.laps, knownIds, selection.ref]);
   const followGeometry = useMemo(
     () =>
       buildFollowGeometry(
@@ -156,8 +184,9 @@ export function useCompareModel(
         traces,
         knownIds,
         map.data ? trackCorners(map.data) : [],
+        anchorId,
       ),
-    [map.data, surface.data, traces, knownIds],
+    [map.data, surface.data, traces, knownIds, anchorId],
   );
 
   // The median of the checked laps changes with the set of loaded traces, not
@@ -227,7 +256,7 @@ export function useCompareModel(
       basisTrace,
     ],
   );
-  const cursorM = selection.cursorM;
+  const urlCursorM = selection.cursorM;
   return useMemo((): CompareResult => {
     if (error)
       return {
@@ -241,16 +270,23 @@ export function useCompareModel(
     // A lap of another session is found once its session has loaded; until
     // then it would read as "not found".
     if (!set) return {state: 'loading'};
+    const cursorM = openingCursorM(
+      urlCursorM,
+      selection.corner,
+      set.sectionEntryM,
+    );
     return {
       state: 'ready',
       traceLoad,
       retryTraces,
+      cursorM,
       model: set.atCursor(cursorM),
     };
   }, [
     error,
     set,
-    cursorM,
+    urlCursorM,
+    selection.corner,
     traceLoad,
     retryTraces,
     refetchSession,

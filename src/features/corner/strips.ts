@@ -1,9 +1,12 @@
 // Corner screen dot strips (handoff §4, pit-wall thread 27 #621/#622/#678):
-// one measure across many laps. Each strip carries its scale (min and max
-// labels, with the pedal resolution where known), a p10–90 band and median,
+// one measure across many laps. Each strip carries its scale (an axis in 1-2-5
+// steps with units on its ticks, D45; the pedal resolution where known), a
+// p10–90 band and median,
 // and direction words in the axis's own order: position measures (brake,
 // full throttle) run in track order, left = earlier on the lap; values run
 // low to high. Nothing is flipped to put "better" on one side.
+import {fitScale, type Scale} from '@/src/charts/scale';
+import {withUnit} from '@/src/charts/tickFormat';
 
 export type StripMeasure =
   | 'time'
@@ -45,10 +48,12 @@ export type StripModel = {
   measure: StripMeasure;
   label: string;
   unit: string;
-  min: number;
-  max: number;
-  minLabel: string;
-  maxLabel: string;
+  /**
+   * The strip's axis (D45): the values' range rounded out to 1-2-5 steps, each
+   * tick labelled with its unit ("120 m", "4.20 s", "180 km/h"), so the spread
+   * of the dots can be read against a scale.
+   */
+  scale: Scale;
   /** "±1.2 m": the median sample spacing, where it is recorded. */
   resolution: string | null;
   /** Values closer than this are the same point on the strip. */
@@ -63,8 +68,6 @@ export type StripModel = {
   empty: boolean;
   /** Beside the title: "full throttle by the slowest point: 30 laps", the laps left off. */
   flatNote: string | null;
-  /** The on laps' values, for the line beside the title. */
-  keyValues: {onIndex: number; text: string}[];
   dots: StripDot[];
 };
 
@@ -76,6 +79,8 @@ type Spec = {
   measure: StripMeasure;
   label: string;
   unit: string;
+  /** The unit on each axis tick: the short form of `unit`. */
+  tickUnit: string;
   value: (l: StripLap) => number | null;
   res: (l: StripLap) => number | null;
   flipped: boolean;
@@ -86,11 +91,15 @@ type Spec = {
 
 const whole = (v: number) => `${Math.round(v)}`;
 
+// Ticks on a phone-wide strip: five keeps "120 m" labels apart at 343 pt.
+const STRIP_MAX_TICKS = 5;
+
 const SPECS: Record<StripMeasure, Spec> = {
   time: {
     measure: 'time',
     label: 'Time in corner',
     unit: 's',
+    tickUnit: 's',
     value: l => l.timeS,
     res: () => null,
     flipped: false,
@@ -102,6 +111,7 @@ const SPECS: Record<StripMeasure, Spec> = {
     measure: 'brake',
     label: 'Brake point',
     unit: 'm before apex',
+    tickUnit: 'm',
     value: l => l.brakeM,
     res: l => l.brakeResM,
     flipped: true,
@@ -113,6 +123,7 @@ const SPECS: Record<StripMeasure, Spec> = {
     measure: 'minSpeed',
     label: 'Min speed',
     unit: 'km/h',
+    tickUnit: 'km/h',
     value: l => l.minSpeedKph,
     res: () => null,
     flipped: false,
@@ -124,6 +135,7 @@ const SPECS: Record<StripMeasure, Spec> = {
     measure: 'apexSpeed',
     label: 'Apex speed',
     unit: 'km/h',
+    tickUnit: 'km/h',
     value: l => l.apexSpeedKph,
     res: () => null,
     flipped: false,
@@ -133,8 +145,9 @@ const SPECS: Record<StripMeasure, Spec> = {
   },
   throttle: {
     measure: 'throttle',
-    label: 'Full throttle',
+    label: 'Full pedal',
     unit: 'm after apex',
+    tickUnit: 'm',
     value: l => l.throttleM,
     res: l => l.throttleResM,
     flipped: false,
@@ -197,8 +210,6 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     .filter((r): r is number => r != null)
     .sort((a, b) => a - b);
   const resM = res.length ? quantile(res, 0.5) : null;
-  const min = vals[0] ?? 0;
-  const max = vals[vals.length - 1] ?? 1;
   const band =
     vals.length >= 3
       ? {
@@ -207,24 +218,16 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
           p90: quantile(vals, 0.9),
         }
       : null;
-  const keyValues = laps
-    .filter(l => l.onIndex != null && (spec.value(l) != null || isFlat(l)))
-    .sort((a, b) => (a.onIndex as number) - (b.onIndex as number))
-    .map(l => ({
-      onIndex: l.onIndex as number,
-      text: `${l.label} ${
-        spec.value(l) == null ? 'at min' : spec.fmt(spec.value(l) as number)
-      }`,
-    }));
   const flat = flatLaps;
   return {
     measure: spec.measure,
     label: spec.label,
     unit: spec.unit,
-    min,
-    max,
-    minLabel: spec.fmt(min),
-    maxLabel: spec.fmt(max),
+    scale: fitScale(vals, {
+      symmetric: false,
+      maxTicks: STRIP_MAX_TICKS,
+      format: withUnit(spec.tickUnit),
+    }),
     resolution: resM == null ? null : `±${resM.toFixed(1)} m`,
     coincidentWithin: resM ?? 0,
     flipped: spec.flipped,
@@ -236,11 +239,10 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
           band.p90,
         )}`
       : '',
-    keyValues,
     empty: dots.length === 0,
     flatNote:
       flat > 0
-        ? `Full throttle by the slowest point: ${flat} of ${laps.length} ${
+        ? `Full pedal by the slowest point: ${flat} of ${laps.length} ${
             laps.length === 1 ? 'lap' : 'laps'
           }`
         : null,

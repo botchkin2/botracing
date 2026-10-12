@@ -7,7 +7,7 @@
 //
 // Sampling is 5 Hz, so a pass that starts and ends inside 0.4 s is missed;
 // that is fine for a count of passes but not for timing one.
-import {paceOf} from '../../src/analysis/classLaps.ts';
+import {paceOf, trackLengthM} from '../../src/analysis/classLaps.ts';
 import {BLUE_BEHIND_S} from '../../src/analysis/traffic.ts';
 import {undelta} from './field.mjs';
 
@@ -56,7 +56,7 @@ export const DRAFT_MIN_KMH = 200;
 const round1 = v => Math.round(v * 10) / 10;
 
 // The field back to numbers: {etS[], cars: [{player, lapDistM[], laneM[],
-// inPits[], flag[], carClass}]} with null where a car was absent from an
+// inPits[], flag[], carClass, classLabel}]} with null where a car was absent from an
 // update.
 export function decodeField(field) {
   const etS = field.tDs.map(d => field.et0 + d / 10);
@@ -64,6 +64,9 @@ export function decodeField(field) {
   const cars = field.cars.map((c, i) => ({
     player: c.player,
     carClass: c.class,
+    // iRacing's class as a driver reads it (irClasses.mjs); its short name
+    // is empty offline, which made every car the player's class.
+    classLabel: c.classLabel,
     lapDistM: unit(field.lapDistDm[i]),
     laneM: unit(field.pathLateralDm[i]),
     inPits: field.inPits[i],
@@ -115,6 +118,21 @@ const EMPTY = () => ({
   fieldLapM: 0,
 });
 
+/**
+ * Metres of one lap: where the cars wrap at the line (the median wrap, as
+ * classLaps reads it), so a car parked in the pits with a longer lap distance
+ * cannot stretch it. The longest distance seen only when nothing wrapped (a
+ * field shorter than a lap). `cars` are decodeField's.
+ */
+export function fieldLengthM(cars) {
+  const wrapped = trackLengthM(cars.map(c => c.lapDistM));
+  if (wrapped > 0) return wrapped;
+  let L = 0;
+  for (const c of cars)
+    for (const d of c.lapDistM) if (d !== null && d > L) L = d;
+  return L;
+}
+
 // windows: [{from, to}] on the session clock (seconds, `from` inclusive).
 // Returns one facts object per window, or all null when there is no player
 // car in the field.
@@ -123,10 +141,10 @@ export function lapFieldFacts(field, windows) {
   const me = cars.findIndex(c => c.player);
   if (me < 0) return windows.map(() => null);
   const dt = 1 / field.hz;
-  let L = 0;
-  for (const c of cars)
-    for (const d of c.lapDistM) if (d !== null && d > L) L = d;
-  const playerRank = paceOf(cars[me].carClass).rank;
+  const L = fieldLengthM(cars);
+  const classOf = c => ({class: c.carClass, classLabel: c.classLabel});
+  const classKey = c => c.classLabel || c.carClass;
+  const playerRank = paceOf(classOf(cars[me])).rank;
   const out = windows.map(EMPTY);
   for (const f of out) f.fieldLapM = round1(L);
   const windowAt = et => windows.findIndex(w => et >= w.from && et < w.to);
@@ -177,9 +195,9 @@ export function lapFieldFacts(field, windows) {
       const c = cars[j];
       if (j === me || c.lapDistM[u] === null || c.inPits[u]) continue;
       const g = ahead(here, c.lapDistM[u], L);
-      const sameClass = c.carClass === p.carClass;
+      const sameClass = classKey(c) === classKey(p);
       if (sameClass) battleGapM = Math.min(battleGapM, Math.abs(g));
-      if (g < 0 && paceOf(c.carClass).rank > playerRank)
+      if (g < 0 && paceOf(classOf(c)).rank > playerRank)
         fasterBehindM = Math.min(fasterBehindM, -g);
       if (Math.abs(g) < PASS_WINDOW_M) {
         gapNow.set(j, g);

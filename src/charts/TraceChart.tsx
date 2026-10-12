@@ -1,16 +1,27 @@
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 
-import {
-  areaPath,
-  type ChunkFrame,
-  chunkPath,
-  chunksIn,
-  objectId,
-} from './chunkPaths';
+import {type ChunkFrame, chunkPath, chunksIn, objectId} from './chunkPaths';
+import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import Svg, {G, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
+import {ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
+
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {SeriesLines} from './SeriesLines';
+import {baselineOver, baselineUnder, labelBox} from './labelBox';
+import {
+  AXIS_H,
+  fitsRight,
+  labelledTicks,
+  markBaseline,
+  plotPad,
+  seriesTickBaseline,
+  xTickBaseline,
+  yLine,
+  yOfValue,
+  yTickBaseline,
+} from './traceAxis';
 
 import {
   distanceAtTime,
@@ -20,7 +31,7 @@ import {
   timeGridStepM,
   type TimedGrid,
 } from '@/src/analysis/window';
-import {dash, stroke, type as typeScale, useTheme} from '@/src/design';
+import {dash, stroke, useTheme} from '@/src/design';
 
 // Channels against distance on a shared grid (handoff §3 charts). Pure props:
 // the caller picks colors, widths and dashes.
@@ -45,6 +56,8 @@ export type TraceSeries = {
   fill?: number;
   /** Own y range; series without one share the chart's. */
   domain?: [number, number];
+  /** Y tick labels at this series' own range (a stacked chart's steering band). */
+  ticks?: {v: number; label: string}[];
   /** Discrete channel (gear): drawn as steps, never smoothed. */
   stepped?: boolean;
   /** Recorded samples: drawn instead of `values` when given. */
@@ -56,22 +69,19 @@ export type TraceSeries = {
 
 export type TraceBand = {low: number[]; high: number[]};
 
-const Y_PAD = 3;
-// Neighbour laps across the line are context, not the selected lap.
-const WRAP_OPACITY = 0.4;
 // How much the background covers what is outside a shaded stretch.
 const DIM_OPACITY = 0.6;
-const AXIS_H = 12;
 // A base band (a span along the bottom edge) is this thick, in points.
 const BASE_BAND_H = 4;
-// Labels closer than this to the right edge are dropped (handoff).
-const LABEL_EDGE_PT = 34;
 
-// Plot y of a value is a + b·v for a y range: its offset and scale.
-function yLine([lo, hi]: [number, number], height: number): [number, number] {
-  const b = -(height - 2 * Y_PAD) / (hi - lo || 1);
-  return [Y_PAD - b * hi, b];
+function markAt(x: number, edgeY: number, dir: 1 | -1): string {
+  const tip = edgeY + dir * 5;
+  return `M${(x - 3).toFixed(1)},${edgeY}L${(x + 3).toFixed(
+    1,
+  )},${edgeY}L${x.toFixed(1)},${tip}Z`;
 }
+
+let clipSeq = 0;
 
 export function TraceChart({
   width,
@@ -82,6 +92,7 @@ export function TraceChart({
   series,
   band,
   zeroLine,
+  yTicks,
   sideLabels,
   zeroDomain,
   cursorM,
@@ -108,6 +119,8 @@ export function TraceChart({
   series: TraceSeries[];
   band?: TraceBand;
   zeroLine?: boolean;
+  /** Labelled values on the left edge (the gear chart's gear numbers). */
+  yTicks?: {v: number; label: string}[];
   /** Words beside the zero line: above it, and below (lateral: L and R). */
   sideLabels?: {above: string; below: string};
   /** The y range the zero line belongs to, when it is not the chart's own
@@ -160,10 +173,33 @@ export function TraceChart({
     tRef
       ? distanceAtTime(tRef, t0 + (px / width) * spanS)
       : startM + (px / width) * spanM;
-  const yFor =
-    ([lo, hi]: [number, number]) =>
-    (v: number) =>
-      Y_PAD + (1 - (v - lo) / (hi - lo || 1)) * (height - 2 * Y_PAD);
+  // The plot is padded for its y ticks' boxes, so each sits on its value's line.
+  const pad = plotPad((yTicks?.length ?? 0) > 0, TICK_PT);
+  const yFor = (d: [number, number]) => (v: number) =>
+    yOfValue(d, height, pad, v);
+  // L and R beside the zero line start after the y tick labels, which also
+  // sit at the left edge (Corner's steering: "0 %" is on that line).
+  const sideX =
+    3 +
+    Math.max(
+      0,
+      ...(yTicks ?? []).map(
+        t => labelBox(t.label, 0, 0, TICK_PT, 'start').right + 4,
+      ),
+    );
+  const firstTickSeries = series.findIndex(s => s.ticks != null);
+  // A series' own tick labels: placed by the tick set's extremes, not the
+  // domain's (a steering domain is stretched past its ticks).
+  const seriesTickY = (d: [number, number], v: number) => {
+    const vals = series[firstTickSeries].ticks!.map(t => t.v);
+    const place =
+      v === Math.max(...vals)
+        ? 'top'
+        : v === Math.min(...vals)
+        ? 'bottom'
+        : 'mid';
+    return seriesTickBaseline(yFor(d)(v), place, TICK_PT);
+  };
   // Ranges ease into a new scale (150 ms) instead of jumping.
   const [domainT, zeroDomainT, ...seriesDomainsT] = useTweenedRanges([
     domain,
@@ -172,6 +208,24 @@ export function TraceChart({
   ]);
   const y = yFor(domainT);
   const yZero = yFor(zeroDomainT)(0);
+  // One clip per chart, so a series drawn past the scale stops at the plot edge.
+  const [clipId] = useState(() => `trace-clip-${++clipSeq}`);
+  // A marker where a series first leaves the scale: a small triangle on the edge
+  // it left by. Recorded-sample series (no values) are clipped but not marked.
+  const clipMarks = series.flatMap(s => {
+    if (s.samples) return [];
+    const [lo, hi] = s.domain ?? domain;
+    const exit = firstExit(s.values, from, to, lo, hi);
+    if (!exit) return [];
+    const edgeY = exit.edge === 'top' ? 0 : height;
+    return [
+      {
+        key: `${s.key}-${exit.edge}`,
+        color: s.color,
+        d: markAt(x(exit.index), edgeY, exit.edge === 'top' ? 1 : -1),
+      },
+    ];
+  });
   // Smooth only when zoomed in enough that points are far apart.
   const pointsPerPt = (to - from) / width;
 
@@ -195,6 +249,7 @@ export function TraceChart({
         sx,
         width,
         height,
+        pad,
         built[0],
         built[1],
         // Stride and thinning follow from these: a longer lap joining the
@@ -211,8 +266,8 @@ export function TraceChart({
       mPerPx,
     };
     // y: built range → shown (tweened) range, as scale and offset.
-    const [ab, bb] = yLine(built, height);
-    const [at, bt] = yLine(seriesDomainsT[si] ?? domainT, height);
+    const [ab, bb] = yLine(built, height, pad);
+    const [at, bt] = yLine(seriesDomainsT[si] ?? domainT, height, pad);
     const ky = bt / bb;
     return {
       ...s,
@@ -269,7 +324,7 @@ export function TraceChart({
   )
     if (m >= 0) gridMs.push(m);
   const tickLabel = (m: number) => {
-    if (gridOriginM == null) return `${Math.round(m)}`;
+    if (gridOriginM == null) return `${Math.round(m)} m`;
     const d = Math.round(m - gridOriginM);
     return d === 0 ? '' : `${d > 0 ? '+' : '−'}${Math.abs(d)} m`;
   };
@@ -317,14 +372,13 @@ export function TraceChart({
         onPointerLeave: () => onHover(null),
       }
     : {};
-  const axis = typeScale.axis;
   return (
     <View
       {...responder.panHandlers}
       {...hoverProps}
       // Web: a mouse drag pans; without this it also selects the axis text.
       style={[styles.noSelect, {width, height: height + AXIS_H}]}>
-      <Svg width={width} height={height + AXIS_H} pointerEvents='none'>
+      <ChartSvg width={width} height={height + AXIS_H} pointerEvents='none'>
         {stretchM && (
           <Rect
             x={xClamp(stretchM[0])}
@@ -355,15 +409,14 @@ export function TraceChart({
                 stroke={color.grid}
                 strokeWidth={1}
               />
-              {gx < width - LABEL_EDGE_PT && (
-                <SvgText
+              {fitsRight(tickLabel(m), gx + 2, width, TICK_PT) && (
+                <ChartLabel
                   x={gx + 2}
-                  y={height + AXIS_H - 2}
+                  y={xTickBaseline(height, TICK_PT)}
                   fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
-                  fontSize={9}>
+                  fontSize={TICK_PT}>
                   {tickLabel(m)}
-                </SvgText>
+                </ChartLabel>
               )}
             </G>
           );
@@ -381,15 +434,14 @@ export function TraceChart({
                 strokeWidth={1}
                 strokeDasharray={mk.solid ? undefined : dash.mark}
               />
-              {mk.label && mx < width - LABEL_EDGE_PT && (
-                <SvgText
+              {mk.label && fitsRight(mk.label, mx + 2, width, TICK_PT) && (
+                <ChartLabel
                   x={mx + 2}
-                  y={9}
+                  y={markBaseline(TICK_PT)}
                   fill={color.textFaint}
-                  fontFamily={axis.fontFamily}
-                  fontSize={9}>
+                  fontSize={TICK_PT}>
                   {mk.label}
-                </SvgText>
+                </ChartLabel>
               )}
             </G>
           );
@@ -416,65 +468,72 @@ export function TraceChart({
             strokeWidth={stroke.mark}
           />
         )}
+        {labelledTicks(yTicks ?? [], yFor(domainT), TICK_PT).map(t => (
+          <ChartLabel
+            key={`y${t.v}`}
+            x={3}
+            y={yTickBaseline(yFor(domainT)(t.v), TICK_PT)}
+            lineY={yFor(domainT)(t.v)}
+            fill={color.textFaint}
+            fontSize={TICK_PT}>
+            {t.label}
+          </ChartLabel>
+        ))}
+        {/* One series' ticks: every lap's steering series carries the same frame. */}
+        {firstTickSeries >= 0 &&
+          series[firstTickSeries].ticks?.map(t => (
+            <ChartLabel
+              key={`s${t.v}`}
+              x={3}
+              y={seriesTickY(seriesDomainsT[firstTickSeries] ?? domainT, t.v)}
+              lineY={yFor(seriesDomainsT[firstTickSeries] ?? domainT)(t.v)}
+              fill={color.textFaint}
+              fontSize={TICK_PT}>
+              {t.label}
+            </ChartLabel>
+          ))}
         {zeroLine && sideLabels && (
           <>
-            <SvgText
-              x={3}
-              y={yZero - 3}
+            <ChartLabel
+              x={sideX}
+              y={baselineOver(yZero, TICK_PT)}
               fill={color.textFaint}
-              fontFamily={axis.fontFamily}
-              fontSize={9}>
+              fontSize={TICK_PT}>
               {sideLabels.above}
-            </SvgText>
-            <SvgText
-              x={3}
-              y={yZero + 10}
+            </ChartLabel>
+            <ChartLabel
+              x={sideX}
+              y={baselineUnder(yZero, TICK_PT)}
               fill={color.textFaint}
-              fontFamily={axis.fontFamily}
-              fontSize={9}>
+              fontSize={TICK_PT}>
               {sideLabels.below}
-            </SvgText>
+            </ChartLabel>
           </>
         )}
-        {paths.map(p => (
-          <G key={p.key} transform={p.transform}>
-            {p.wraps.map(c => (
-              <Path
-                key={c.k}
-                d={c.d}
-                stroke={p.color}
-                strokeWidth={p.width}
-                strokeOpacity={p.opacity * WRAP_OPACITY}
-                strokeDasharray={p.dash}
-                strokeLinejoin='round'
-                vectorEffect='non-scaling-stroke'
-                fill='none'
+        <Defs>
+          <ClipPath id={clipId}>
+            <Rect x={0} y={0} width={width} height={height} />
+          </ClipPath>
+        </Defs>
+        {/* Values beyond the scale are drawn clipped at the plot edge, never past it. */}
+        <G clipPath={`url(#${clipId})`}>
+          {paths.map(p => (
+            <G key={p.key} transform={p.transform}>
+              <SeriesLines
+                ds={p.ds}
+                wraps={p.wraps}
+                color={p.color}
+                width={p.width}
+                opacity={p.opacity}
+                dash={p.dash}
+                fill={p.fill}
+                base={p.base}
               />
-            ))}
-            {p.ds.map(c =>
-              p.fill == null ? null : (
-                <Path
-                  key={`a${c.k}`}
-                  d={areaPath(c.d, p.base)}
-                  fill={p.color}
-                  fillOpacity={p.fill * p.opacity}
-                />
-              ),
-            )}
-            {p.ds.map(c => (
-              <Path
-                key={c.k}
-                d={c.d}
-                stroke={p.color}
-                strokeWidth={p.width}
-                strokeOpacity={p.opacity}
-                strokeDasharray={p.dash}
-                strokeLinejoin='round'
-                vectorEffect='non-scaling-stroke'
-                fill='none'
-              />
-            ))}
-          </G>
+            </G>
+          ))}
+        </G>
+        {clipMarks.map(m => (
+          <Path key={m.key} d={m.d} fill={m.color} />
         ))}
         {dimM?.map(([a, b]) => (
           <Rect
@@ -508,7 +567,7 @@ export function TraceChart({
             strokeWidth={stroke.cursor}
           />
         )}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

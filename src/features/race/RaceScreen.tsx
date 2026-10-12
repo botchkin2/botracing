@@ -1,11 +1,14 @@
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {type LaneZoom, raceLanes} from '@/src/analysis/raceLanes';
+import {offTrackEvents} from '@/src/analysis/offTrackEvents';
+import {onPitLane} from '@/src/analysis/pitLane';
+import {type LaneZoom, laneWindow, raceLanes} from '@/src/analysis/raceLanes';
 import {carsAt} from '@/src/analysis/raceState';
 import {fieldClasses} from '@/src/analysis/fieldClasses';
+import {carLapsOf} from '@/src/analysis/carLaps';
 import {updateAt} from '@/src/analysis/field';
 import {RADAR_RANGE_M, radarAt} from '@/src/analysis/radar';
 import {size, space, useLayout, useTheme} from '@/src/design';
@@ -21,12 +24,14 @@ import {
   EmptyState,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   Skeleton,
   StatusBanner,
   Text,
 } from '@/src/ui';
 
-import {clockLabel, nextRate, snapClock, stepBy} from './clock';
+import {nextRate, raceClockLabel, snapClock, stepBy} from './clock';
+import {carLapsView} from './carLapsView';
 import {Leaderboard} from './components/Leaderboard';
 import {RaceLegend} from './components/RaceLegend';
 import {
@@ -50,6 +55,7 @@ import {
   type SelectionPatch,
 } from './selectionClock';
 import {followCar, followViewFor} from './followTarget';
+import {offTrackMarks} from './offTrackMarks';
 import {markPitLane} from './pitLaneState';
 import {useRaceClock} from './useRaceClock';
 import {type RaceData, useRaceData} from './useRaceData';
@@ -70,6 +76,9 @@ const WIDE_MIN_MAP_W = 560;
 const BOARD_BELOW_H = 260;
 
 const NO_FIELD_TITLE = 'No field data for this session';
+const NO_LAP_TITLE = 'No timed lap to draw the track';
+const NO_LINE_TITLE = 'No track line in this session';
+const LINE_ERROR_TEXT = 'Could not load the lap that draws the track';
 const FIELD_LOADING_TEXT = 'Loading field data';
 const FIELD_ERROR_TEXT = 'Field data didn’t load';
 const SKELETON_ROWS = 8;
@@ -160,19 +169,31 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       </View>
     );
   }
-  if (data.kind === 'no-field') {
+  if (
+    data.kind === 'no-field' ||
+    data.kind === 'no-lap' ||
+    data.kind === 'no-line'
+  ) {
     return (
       <View style={styles.center}>
-        <EmptyState title={NO_FIELD_TITLE} />
+        <EmptyState
+          title={
+            data.kind === 'no-lap'
+              ? NO_LAP_TITLE
+              : data.kind === 'no-line'
+              ? NO_LINE_TITLE
+              : NO_FIELD_TITLE
+          }
+        />
       </View>
     );
   }
-  if (data.kind === 'field-error') {
+  if (data.kind === 'field-error' || data.kind === 'line-error') {
     return (
       <View style={[styles.notice, {width}]}>
         <StatusBanner
           dot='idle'
-          text={FIELD_ERROR_TEXT}
+          text={data.kind === 'line-error' ? LINE_ERROR_TEXT : FIELD_ERROR_TEXT}
           actionLabel='Retry'
           onAction={data.retry}
         />
@@ -253,9 +274,28 @@ function RaceView({
     clock.toggle();
   };
   // Built once per field, like the clock: it walks every update and car.
+  const meIndex = useMemo(
+    () => prep.field.cars.findIndex(c => c.player),
+    [prep.field],
+  );
+  // Off-track stretches per car, on the pit lane excluded (D52). Yours is in
+  // the lanes; the focused car's is computed when it is picked.
+  const offEventsOf = useCallback(
+    (carIndex: number) =>
+      offTrackEvents(prep, data.clock, carIndex, (xM, zM) => {
+        if (placer.pitLane.length === 0) return false;
+        const [at] = placer.placeWorld([{x: xM, z: zM}]);
+        return onPitLane(at, placer.pitLane);
+      }),
+    [prep, data.clock, placer],
+  );
+  const myOffEvents = useMemo(
+    () => (meIndex < 0 ? [] : offEventsOf(meIndex)),
+    [meIndex, offEventsOf],
+  );
   const lanes = useMemo(
-    () => raceLanes(prep.field, data.clock),
-    [prep.field, data.clock],
+    () => raceLanes(prep.field, data.clock, myOffEvents),
+    [prep.field, data.clock, myOffEvents],
   );
   // The session's classes, fastest first, with their colours and labels.
   const classes = useMemo(() => fieldClasses(prep.field), [prep.field]);
@@ -278,6 +318,8 @@ function RaceView({
   const snap = !clock.playing;
   const shownS = snap ? snapClock(clock.timeS, prep.field.hz) : clock.timeS;
   const u = updateAt(times, shownS);
+  // The race clock counts from the start, not from the first update.
+  const startS = prep.startU < times.length ? times[prep.startU] : 0;
   const cars = useMemo(
     () => markPitLane(carsAt(prep, shownS, snap), placer),
     [prep, shownS, snap, placer],
@@ -303,11 +345,42 @@ function RaceView({
       }),
     [sampleCars, filter, focus, mode, prep.trackM, classes],
   );
+  // The focused car's laps from the whole field, once per car picked; no
+  // laps (or no car) means no panel.
+  const carLaps = useMemo(() => {
+    if (focus === null) return null;
+    const car = sampleCars.find(c => c.index === focus);
+    if (!car) return null;
+    const view = carLapsView(
+      carLapsOf(prep.field, focus),
+      classes.of(car.classKey).title,
+    );
+    return view ? {index: focus, view} : null;
+    // sampleCars only supplies the class, which never changes for a car.
+  }, [focus, prep.field, classes]);
   const dots = useMemo(
     () =>
       buildRaceModel({cars, filter, focus, mode, trackM: prep.trackM, classes})
         .dots,
     [cars, filter, focus, mode, prep.trackM, classes],
+  );
+
+  // Where each car went off the road, within the lanes' window: yours always,
+  // the focused car's too (D52).
+  const focusOffEvents = useMemo(
+    () => (focus === null || focus === meIndex ? [] : offEventsOf(focus)),
+    [focus, meIndex, offEventsOf],
+  );
+  const offMarks = useMemo(
+    () =>
+      offTrackMarks(
+        [
+          {carIndex: meIndex, events: myOffEvents},
+          {carIndex: focus ?? -1, events: focusOffEvents},
+        ],
+        laneWindow(zoom, shownS, lanes),
+      ),
+    [meIndex, myOffEvents, focus, focusOffEvents, zoom, shownS, lanes],
   );
 
   // The radar shows the 5 Hz sample at or before the clock, even while the
@@ -380,6 +453,7 @@ function RaceView({
         line={line}
         outlineUse={outlineUse}
         dots={dots}
+        offMarks={offMarks}
         showCars={data.matches}
         attribution={data.attribution}
         // A field placed on the line by lap distance has no lateral picture:
@@ -393,7 +467,10 @@ function RaceView({
                 data: radarData,
                 // The sample time is printed on the large sizes only (R2).
                 sampleLabel: desktop
-                  ? `${clockLabel(times[Math.max(0, radarU)] ?? 0)} · 5 Hz`
+                  ? `${raceClockLabel(
+                      times[Math.max(0, radarU)] ?? 0,
+                      startS,
+                    )} · 5 Hz`
                   : undefined,
               }
         }
@@ -435,7 +512,12 @@ function RaceView({
       zoom={zoom}
       onZoom={setZoom}
       playheadS={shownS}
-      width={desktop ? columnW - size.gutter * 2 : layout.contentWidth}
+      startS={startS}
+      // Never negative: columnW is 0 until onLayout, and an SVG with a
+      // negative width logs an error.
+      width={
+        desktop ? Math.max(0, columnW - size.gutter * 2) : layout.contentWidth
+      }
       desktop={desktop}
       onScrub={scrub}
       mode={mode}
@@ -445,7 +527,7 @@ function RaceView({
     <RaceTransport
       playing={clock.playing}
       rate={clock.rate}
-      clock={clockLabel(shownS)}
+      clock={raceClockLabel(shownS, startS)}
       onToggle={toggle}
       onRate={clock.setRate}
       phone={
@@ -473,6 +555,7 @@ function RaceView({
       mode={mode}
       nearby={mode === 'field'}
       fallbackNote={rows.fallbackNote}
+      carLaps={carLaps}
     />
   );
   const boardPaged = (
@@ -487,44 +570,59 @@ function RaceView({
       paged
       nearby={mode === 'field'}
       fallbackNote={rows.fallbackNote}
+      carLaps={carLaps}
     />
   );
 
   if (desktop) {
+    const column = (
+      <View
+        style={styles.mapColumn}
+        onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
+        <View style={styles.subRow}>
+          <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
+            {sub}
+          </Text>
+        </View>
+        {roadLine ? (
+          <Text variant='dataSmall' tone='textSecondary'>
+            {roadLine}
+          </Text>
+        ) : null}
+        <View
+          style={styles.mapFill}
+          onLayout={e =>
+            setMapBox({
+              width: Math.floor(e.nativeEvent.layout.width),
+              height: Math.floor(e.nativeEvent.layout.height),
+            })
+          }>
+          {mapBox.width > 0 && mapBox.height > 0 ? map : null}
+        </View>
+        <RaceLegend classes={rows.classes} />
+        {lanesBlock}
+        {controls}
+        {layout.isWide ? null : (
+          <View style={[styles.boardBelow, {borderColor: color.line}]}>
+            {board}
+          </View>
+        )}
+      </View>
+    );
     return (
       <View style={styles.desktop}>
-        <View
-          style={styles.mapColumn}
-          onLayout={e => setColumnW(e.nativeEvent.layout.width)}>
-          <View style={styles.subRow}>
-            <Text variant='dataSmall' tone='textMuted' style={styles.flexFill}>
-              {sub}
-            </Text>
-          </View>
-          {roadLine ? (
-            <Text variant='dataSmall' tone='textSecondary'>
-              {roadLine}
-            </Text>
-          ) : null}
-          <View
-            style={styles.mapFill}
-            onLayout={e =>
-              setMapBox({
-                width: Math.floor(e.nativeEvent.layout.width),
-                height: Math.floor(e.nativeEvent.layout.height),
-              })
-            }>
-            {mapBox.width > 0 && mapBox.height > 0 ? map : null}
-          </View>
-          <RaceLegend classes={rows.classes} />
-          {lanesBlock}
-          {controls}
-          {layout.isWide ? null : (
-            <View style={[styles.boardBelow, {borderColor: color.line}]}>
-              {board}
-            </View>
-          )}
-        </View>
+        {layout.isWide ? (
+          column
+        ) : (
+          // 900 to 1279: the map, lanes, controls and the board below add up to
+          // more than a short window, so the column scrolls as a page; the map
+          // keeps its least height and the board is never cut off by the fold.
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.fillGrow}>
+            {column}
+          </ScrollView>
+        )}
         {layout.isWide ? (
           <>
             <PanelDivider
@@ -582,6 +680,7 @@ function RaceView({
 const styles = StyleSheet.create({
   screen: {flex: 1},
   fill: {flex: 1},
+  fillGrow: {flexGrow: 1},
   header: {
     flexDirection: 'row',
     alignItems: 'center',

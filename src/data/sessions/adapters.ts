@@ -11,6 +11,7 @@ import {
   type SessionTraffic,
 } from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
+import {type PlanBlock, toPlanBlock} from './planBlock';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
 import {turnLabelsOf} from '../tracks/catalog';
@@ -188,10 +189,14 @@ function toSlicePointer(raw: unknown): SlicePointer | null {
  * laps, and always for qualifying.
  */
 export type SessionClassLaps = {
+  /** CLASS_LAPS_VERSION it was computed with; 0 when the doc does not say. */
+  version: number;
   kind: ClassLapsKind;
   classes: ClassLaps | null;
   /** Races, from CLASS_LAPS_VERSION 2: seconds each class's first and last car crossed the line before the player; null otherwise. */
   startGapsS: Partial<Record<PaceClass, StartGap>> | null;
+  /** The player's pace class, from version 6; null before or when the field flags no player. */
+  player: PaceClass | null;
 };
 
 const PACE_CLASSES: PaceClass[] = ['hypercar', 'lmp2', 'gt3', 'gte', 'other'];
@@ -234,9 +239,11 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
     if (firstS != null && lastS != null) gaps[key] = {firstS, lastS};
   }
   return {
+    version: num(x.version) ?? 0,
     kind,
     classes: Object.keys(classes).length > 0 ? classes : null,
     startGapsS: Object.keys(gaps).length > 0 ? gaps : null,
+    player: PACE_CLASSES.find(k => k === x.player) ?? null,
   };
 }
 
@@ -293,8 +300,12 @@ export function toSessionTraffic(v: unknown): SessionTraffic | null {
 
 export type SessionDetail = SessionSummary & {
   trackVariant: string;
+  /** Made under older analysis rules: opening it runs it again (analysisOnOpen.ts). */
+  stale: boolean;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
+  /** The Plan's block of this session (the uploader's planBlock.mjs); null before it existed. */
+  plan: PlanBlock | null;
   stints: Stint[];
   /** The stored field of every car (src/data/field), or null without one. */
   field: FieldPointer | null;
@@ -329,12 +340,14 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
   return {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
+    stale: raw.stale === true,
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),
+    plan: toPlanBlock(raw.plan),
     stints: stints.map(s => {
       const x = obj(s);
       return {
@@ -368,6 +381,8 @@ export type LapReason =
 
 export type Lap = {
   id: string;
+  /** Rows per second of the lap's trace (LMU 100, iRacing 60): its clock is row / traceHz. null on a lap analysed before it was stored (the app infers it, inferTraceHz). */
+  traceHz: number | null;
   /** Position in driving order, from 1. Lap numbers restart per recording. */
   lapIndex: number;
   /** The game's laps-completed count when the lap began (0 is the first
@@ -548,6 +563,14 @@ export type CornerFacts = {
   /** How far apart the pedal samples around each point were, metres (#52). */
   brakeAtResM: number | null;
   fullThrottleAtResM: number | null;
+  /** The peak pedal % of the application braking for this corner; null when none (thread 58). */
+  peakBrakePct: number | null;
+  /** Where the steering turned in, on the corner's own side, metres of lap distance. */
+  turnInAtM: number | null;
+  /** Where the closed-throttle phase ended; null when the pedal never closed. */
+  throttlePickupAtM: number | null;
+  /** The lowest throttle % between the brake point and full throttle. */
+  minThrottlePct: number | null;
   /** The minimum fell on the corner's edge (#82): a boundary value. */
   minSpeedAtEdge: boolean;
   /** Full throttle fell on the search's start edge: flat through the turn. */
@@ -557,8 +580,6 @@ export type CornerFacts = {
   offTrackS: number;
   /** Seconds under a local yellow in this window; 0 on laps analysed before it. */
   localYellowS: number;
-  /** Seconds of full-course yellow in this window; 0 on laps analysed before it. */
-  courseYellowS: number;
   /**
    * The corner window (pit-wall thread 45): boundary to the next boundary in
    * the map's frame, with `segTimeS` its time, split at the lap's own onset
@@ -603,7 +624,6 @@ export type StartStraightFacts = {
   toM: number;
   offTrackS: number;
   localYellowS: number;
-  courseYellowS: number;
   pit: boolean;
 };
 
@@ -688,7 +708,6 @@ function toStartStraight(raw: unknown): StartStraightFacts | null {
     toM,
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
-    courseYellowS: num(x.courseYellowSec) ?? 0,
     pit: x.pit === true,
   };
 }
@@ -702,12 +721,15 @@ function toCornerFacts(raw: unknown): CornerFacts {
     fullThrottleAtM: num(x.fullThrottleAtM),
     brakeAtResM: num(x.brakeAtResM),
     fullThrottleAtResM: num(x.fullThrottleAtResM),
+    peakBrakePct: num(x.peakBrakePct),
+    turnInAtM: num(x.turnInAtM),
+    throttlePickupAtM: num(x.throttlePickupAtM),
+    minThrottlePct: num(x.minThrottlePct),
     minSpeedAtEdge: x.minSpeedAtEdge === true,
     fullThrottleAtEdge: x.fullThrottleAtEdge === true,
     apexSpeedKph: num(x.apexSpeedKmh),
     offTrackS: num(x.offTrackSec) ?? 0,
     localYellowS: num(x.localYellowSec) ?? 0,
-    courseYellowS: num(x.courseYellowSec) ?? 0,
     window: toWindowFacts(x),
   };
 }
@@ -902,6 +924,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     pitStop: toPitStop(raw.pitStop),
     tyres: toLapTyres(raw.tyres),
     newTyres: false,
+    traceHz: num(raw.traceHz),
   }));
   return laps.map((lap, i) =>
     freshTyres(laps[i - 1]) ? {...lap, newTyres: true} : lap,
@@ -1005,6 +1028,12 @@ export type TrackMapData = {
   boundaries: MapBoundaries | null;
   quality: TrackMapQuality | null;
   georef: {
+    /**
+     * The origin the recording's Lat/Lon is measured around: LMU's fake
+     * 60°N 0°E when absent; an iRacing track's own origin, so its real GPS
+     * passes through unchanged (tools/track-fit/georef.json).
+     */
+    fakeOrigin?: {lat: number; lon: number};
     rotationDeg: number;
     mirror: number;
     originLat: number;
@@ -1095,6 +1124,13 @@ export function toTrackMap(raw: Record<string, unknown>): TrackMapData {
             mirror: num(g.mirror) ?? 1,
             originLat: num(g.originLat) as number,
             originLon: num(g.originLon) as number,
+            ...(num(obj(g.fakeOrigin).lat) != null &&
+              num(obj(g.fakeOrigin).lon) != null && {
+                fakeOrigin: {
+                  lat: num(obj(g.fakeOrigin).lat) as number,
+                  lon: num(obj(g.fakeOrigin).lon) as number,
+                },
+              }),
           }
         : null,
     outline: lineStrings(features, kind => kind !== 'pit'),

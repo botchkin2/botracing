@@ -1,4 +1,4 @@
-import {Pressable, StyleSheet, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {
   cornerCell,
@@ -7,10 +7,10 @@ import {
   space,
   useTheme,
 } from '@/src/design';
-import {Text} from '@/src/ui';
+import {Pressable, Text} from '@/src/ui';
 
 // Time per section (handoff §3 "time per corner"; our corners are grouped
-// into sections S1..Sn): one row per lap, one cell per section, the
+// into sections, named by their turns): one row per lap, one cell per section, the
 // difference to the reference in seconds on the fixed color scale.
 
 export type CornerGridRow = {
@@ -28,15 +28,21 @@ const CELL_H = 24;
 export function CornerGrid({
   width,
   corners,
+  heads,
   rows,
   openCorner,
   onPressCorner,
+  onJumpSection,
 }: {
   width: number;
   corners: number[];
+  /** Each column's section name ("T2–5"). */
+  heads: string[];
   rows: CornerGridRow[];
   openCorner: number | null;
   onPressCorner: (n: number) => void;
+  /** One tap on a section's header moves playback to that section's start (D28). */
+  onJumpSection: (n: number) => void;
 }) {
   const {color} = useTheme();
   const gap = 2;
@@ -45,15 +51,15 @@ export function CornerGrid({
     <View style={{width, gap}}>
       <View style={styles.row}>
         <View style={{width: LABEL_W}} />
-        {corners.map(n => (
+        {corners.map((n, i) => (
           <Pressable
             key={n}
-            onPress={() => onPressCorner(n)}
+            onPress={() => onJumpSection(n)}
             accessibilityRole='button'
-            accessibilityLabel={`Section ${n}`}
+            accessibilityLabel={`Jump to ${heads[i]}`}
             style={[styles.head, {width: cellW, marginLeft: gap}]}>
-            <Text variant='tableHeader' tone='textMuted'>
-              {`S${n}`}
+            <Text variant='tableHeader' tone='textMuted' asWritten>
+              {heads[i]}
             </Text>
           </Pressable>
         ))}

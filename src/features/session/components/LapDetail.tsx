@@ -9,7 +9,6 @@ import {type DetailModel} from '../model';
 const ACTION_LABEL = {
   add: 'Add to compare',
   remove: 'Remove from compare',
-  reference: 'Reference',
 } as const;
 
 export function LapDetail({
@@ -72,7 +71,6 @@ export function LapDetail({
         <Button
           label={ACTION_LABEL[detail.action]}
           kind={detail.action === 'add' ? 'primary' : 'outline'}
-          disabled={detail.action === 'reference'}
           onPress={onAction}
         />
       </View>

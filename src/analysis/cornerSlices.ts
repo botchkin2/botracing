@@ -16,7 +16,8 @@ export type SliceChannel =
   | 'brakePct'
   | 'steeringPct'
   | 'pathLateralM'
-  | 'trackEdgeM';
+  | 'trackEdgeM'
+  | 'gear';
 
 export const SLICE_CHANNELS: SliceChannel[] = [
   'speedKph',
@@ -25,7 +26,11 @@ export const SLICE_CHANNELS: SliceChannel[] = [
   'steeringPct',
   'pathLateralM',
   'trackEdgeM',
+  'gear',
 ];
+
+// Format 1 predates gear: its files read with no gear samples.
+const OPTIONAL_IN_V1: SliceChannel[] = ['gear'];
 
 export interface SliceLap {
   id: string;
@@ -79,7 +84,8 @@ function undelta(deltas: number[], digits: number): number[] {
 
 export function decodeCornerSlices(raw: unknown): CornerSlices {
   if (!isObj(raw)) throw new Error('corner slice: not an object');
-  if (raw.v !== 1) throw new Error(`corner slice: unknown format ${raw.v}`);
+  if (raw.v !== 1 && raw.v !== 2)
+    throw new Error(`corner slice: unknown format ${raw.v}`);
   const digitsRaw = raw.digits;
   if (!isObj(digitsRaw)) throw new Error('corner slice: no digits');
   const digits = (key: string) => field(digitsRaw, key, 'digits');
@@ -103,8 +109,13 @@ export function decodeCornerSlices(raw: unknown): CornerSlices {
       const samples = {} as Record<SliceChannel, SliceSamples>;
       for (const ch of SLICE_CHANNELS) {
         const s = samplesRaw[ch];
-        if (!isObj(s))
+        if (!isObj(s)) {
+          if (raw.v === 1 && OPTIONAL_IN_V1.includes(ch)) {
+            samples[ch] = {distanceM: [], values: []};
+            continue;
+          }
           throw new Error(`corner slice: ${what}.samples.${ch} is missing`);
+        }
         samples[ch] = {
           distanceM: undelta(numberArray(s.d, `${what}.${ch}.d`), digits('d')),
           values: undelta(numberArray(s.v, `${what}.${ch}.v`), digits(ch)),
@@ -133,6 +144,25 @@ export function decodeCornerSlices(raw: unknown): CornerSlices {
  * a slice's window this gives the same numbers as the whole-lap grid, because
  * the slice keeps one sample either side. NaN for a channel with no samples.
  */
+/**
+ * The grid values of a discrete channel (gear): each grid point holds the last
+ * recorded value at or before it, as resample's stepper does for a whole lap.
+ * Before the first sample it holds the first value.
+ */
+export function steppedFromSamples(
+  s: SliceSamples,
+  distancesM: number[],
+): number[] {
+  const xs = s.distanceM;
+  const ys = s.values;
+  if (xs.length === 0) return distancesM.map(() => NaN);
+  let i = 0;
+  return distancesM.map(x => {
+    while (i < xs.length - 1 && xs[i + 1] <= x) i++;
+    return ys[i];
+  });
+}
+
 export function gridFromSamples(
   s: SliceSamples,
   distancesM: number[],

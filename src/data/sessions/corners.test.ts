@@ -30,8 +30,8 @@ describe('trackCorners', () => {
       [2, 2, 0],
       [3, 2, 1],
     ]);
-    expect(corners[1].sectionLabel).toBe('S2 (T2–T3)');
-    expect(corners[0].sectionLabel).toBe('S1 (T1)');
+    expect(corners[1].sectionLabel).toBe('T2–3');
+    expect(corners[0].sectionLabel).toBe('T1');
   });
 
   it('reads a lap’s facts per corner, from parts when present', () => {

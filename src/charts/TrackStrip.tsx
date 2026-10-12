@@ -1,8 +1,10 @@
 import {useEffect, useRef, useState} from 'react';
 import {PanResponder, View} from 'react-native';
-import Svg, {Line, Rect, Text as SvgText} from 'react-native-svg';
+import {Line, Rect} from 'react-native-svg';
 
-import {radius, type as typeScale, useTheme} from '@/src/design';
+import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+
+import {radius, useTheme} from '@/src/design';
 
 // The map's stand-in when it is hidden (handoff §3 "Map (hidden) → strip"):
 // the lap as a bar, corner numbers under it, the chart window as a frame,
@@ -24,7 +26,8 @@ export function TrackStrip({
 }: {
   width: number;
   lengthM: number;
-  corners: {n: number; m: number}[];
+  /** Each section's apex and name ("T2–5"). */
+  corners: {n: number; m: number; label: string}[];
   windowM: [number, number];
   markers: StripMarker[];
   onScrub: (distanceM: number) => void;
@@ -55,7 +58,7 @@ export function TrackStrip({
       {...responder.panHandlers}
       accessibilityLabel='Track strip: drag to move through the lap'
       style={{width, height: H}}>
-      <Svg width={width} height={H} pointerEvents='none'>
+      <ChartSvg width={width} height={H} pointerEvents='none'>
         <Rect
           x={0}
           y={BAR_Y}
@@ -74,16 +77,15 @@ export function TrackStrip({
           strokeWidth={1}
         />
         {corners.map(c => (
-          <SvgText
+          <ChartLabel
             key={c.n}
             x={x(c.m)}
             y={H - 2}
-            textAnchor='middle'
+            anchor='middle'
             fill={color.textFaint}
-            fontFamily={typeScale.axis.fontFamily}
-            fontSize={9}>
-            {`S${c.n}`}
-          </SvgText>
+            fontSize={TICK_PT}>
+            {c.label}
+          </ChartLabel>
         ))}
         {markers.map(mk => (
           <Line
@@ -96,7 +98,7 @@ export function TrackStrip({
             strokeWidth={3}
           />
         ))}
-      </Svg>
+      </ChartSvg>
     </View>
   );
 }

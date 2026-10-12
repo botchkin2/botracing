@@ -1,5 +1,5 @@
-import {useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import {useMemo, useState} from 'react';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Path, Rect} from 'react-native-svg';
 
 import {type Field} from '@/src/analysis/field';
@@ -9,11 +9,9 @@ import {
   formatCornerGap,
   formatDistance,
   radius,
-  size,
   space,
   useLayout,
   useTheme,
-  disabledOpacity,
 } from '@/src/design';
 import {
   addChart,
@@ -34,6 +32,7 @@ import {
   Chip,
   PANEL_DIVIDER_W,
   PanelDivider,
+  Pressable,
   Segment,
   Text,
   TraceRetryBanner,
@@ -46,15 +45,15 @@ import {MapPanel} from './components/MapPanel';
 import {RefAction} from './components/RefAction';
 import {ChartBlock, type LapStyle} from './components/ChartBlock';
 import {TrafficLaneBlock} from './components/TrafficLaneBlock';
+import {overviewScale} from './overviewScale';
 import {
   CHANNELS,
   type ChartValueRow,
   type CompareModel,
   type CompareSelection,
   drawRank,
-  toggleHighlight,
-  canRemoveLap,
-  removeLap,
+  pressAllLapsRow,
+  sectionStartM,
   setRef,
   toggleCompared,
   valuesAt,
@@ -105,6 +104,10 @@ export function CompareWorkspace(p: WorkspaceProps) {
   const prefs = useComparePrefs();
   const [hoverM, setHoverM] = useState<number | null>(null);
   const {model, selection, lapStyle} = p;
+  const overview = useMemo(
+    () => overviewScale(model.overview),
+    [model.overview],
+  );
 
   // Centre column minus its padding (D2: 820 column, 780 charts at 1440).
   // The right column's width: while dragging the live value, else the saved
@@ -116,7 +119,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
     layout.width - LEFT_W - MIN_CENTRE_W - PANEL_DIVIDER_W - space.xl * 2,
   );
   const rightW = Math.min(clampRightW(dragW ?? prefs.rightW), maxRightW);
-  const mapW = rightW - space.xl * 2;
+  const mapW = Math.max(0, rightW - space.xl * 2);
   const centreW = Math.max(
     MIN_CENTRE_W,
     layout.width - LEFT_W - rightW - PANEL_DIVIDER_W - space.xl * 2,
@@ -137,80 +140,17 @@ export function CompareWorkspace(p: WorkspaceProps) {
       <ScrollView
         style={[styles.left, {borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
+        {/* One list of every lap: the Median / Ref switch heads it, and a lap is
+            ticked, un-ticked or made the Ref in its own row (Botkin, 2 Oct
+            screenshots: the list of ticked laps above it repeated these rows). */}
         <Text variant='label' tone='textMuted'>
-          Laps
+          All laps
         </Text>
         <BasisSwitch
           selection={selection}
           fastestLapId={model.fastestLapId}
           onSelectionChange={p.onSelectionChange}
         />
-        {model.chips.map(c => (
-          <View
-            key={c.lapId}
-            style={[
-              styles.lapRow,
-              c.isRef && {backgroundColor: color.accentTint},
-            ]}>
-            {/* The row's own button; Ref and remove sit beside it, never inside. */}
-            <Pressable
-              accessibilityRole='button'
-              accessibilityLabel={`Highlight ${c.label}`}
-              onPress={() =>
-                p.onSelectionChange(toggleHighlight(selection, c.lapId))
-              }
-              style={styles.lapMain}>
-              <View
-                style={[
-                  styles.swatch,
-                  {backgroundColor: lapStyle(c.selIndex, c.highlighted).color},
-                ]}
-              />
-              <Text variant='dataStrong' style={styles.lapLabel}>
-                {c.label}
-              </Text>
-              <Text
-                variant='data'
-                tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}
-                style={styles.flex}>
-                {c.delta}
-              </Text>
-            </Pressable>
-            {!c.isRef && (
-              <RefAction
-                label={`Set ${c.label} as Ref`}
-                onPress={() => p.onSelectionChange(setRef(selection, c.lapId))}
-              />
-            )}
-            {!c.isRef && (
-              <Pressable
-                accessibilityLabel={`Remove ${c.label}`}
-                accessibilityState={{
-                  disabled: !canRemoveLap(selection, c.lapId),
-                }}
-                disabled={!canRemoveLap(selection, c.lapId)}
-                hitSlop={space.sm}
-                onPress={() =>
-                  p.onSelectionChange(removeLap(selection, c.lapId))
-                }>
-                {/* The last compared lap stays: removing it snaps back to the default. */}
-                <Text
-                  tone='textFaint'
-                  style={
-                    selection.laps.length <= 2 ? styles.removeOff : undefined
-                  }>
-                  ×
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        ))}
-        <Text variant='dataSmall' tone='textFaint'>
-          {`Times vs ${model.tableReference.chips}`}
-        </Text>
-        <Text variant='label' tone='textMuted' style={styles.gapTop}>
-          All laps
-        </Text>
         {model.allLaps.map(stint => (
           <View key={stint.key} style={styles.stint}>
             <Text variant='dataSmall' tone='textMuted'>
@@ -219,8 +159,11 @@ export function CompareWorkspace(p: WorkspaceProps) {
             {stint.rows.map(r => (
               <Pressable
                 key={r.lapId}
+                accessibilityLabel={`${
+                  r.selIndex != null ? 'Highlight' : 'Compare'
+                } ${r.label}`}
                 onPress={() =>
-                  p.onSelectionChange(toggleCompared(selection, r.lapId))
+                  p.onSelectionChange(pressAllLapsRow(selection, r.lapId))
                 }
                 style={[styles.allRow, !r.comparable && styles.dim]}>
                 <Checkbox
@@ -309,20 +252,29 @@ export function CompareWorkspace(p: WorkspaceProps) {
           />
           <Chip
             label='−'
+            accessibilityLabel='Smaller window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, -1),
               )
             }
           />
-          <Text variant='dataStrong'>{p.windowSizeLabel}</Text>
+          <Text variant='dataStrong' style={styles.windowSize}>
+            {p.windowSizeLabel}
+          </Text>
           <Chip
             label='+'
+            accessibilityLabel='Larger window'
             onPress={() =>
               prefs.setWindowStep(
                 stepWindow(prefs.windowMode, prefs.windowStep, 1),
               )
             }
+          />
+          <Chip
+            label='Lap'
+            selected={prefs.windowStep === 'lap'}
+            onPress={() => prefs.setWindowStep('lap')}
           />
           <Text variant='dataSmall' tone='textMuted'>
             {p.spanLabel}
@@ -361,7 +313,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
               height={OVERVIEW_H}
               stepM={model.stepM}
               windowM={[0, model.lengthM]}
-              domain={overviewDomain(model)}
+              domain={overview.domain}
+              yTicks={overview.ticks}
               series={model.overview
                 .map(l => {
                   const st = lapStyle(l.selIndex, l.highlighted);
@@ -380,7 +333,7 @@ export function CompareWorkspace(p: WorkspaceProps) {
               frameM={p.windowed ? model.windowM : undefined}
               marks={(model.map?.sectionApexes ?? []).map(b => ({
                 m: b.apexM,
-                label: `S${b.n}`,
+                label: b.label,
               }))}
               onScrub={m => {
                 p.onPause();
@@ -531,6 +484,8 @@ export function CompareWorkspace(p: WorkspaceProps) {
                       color: lapStyle(r.selIndex, r.lapId === selection.hl)
                         .color,
                     },
+                    // The highlighted lap's column is emphasised (#3309).
+                    r.lapId === selection.hl && styles.gridCellHl,
                   ]}>
                   {r.label}
                 </Text>
@@ -544,12 +499,20 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   styles.tableRow,
                   n === selection.corner && {backgroundColor: color.accentTint},
                 ]}>
-                <Text
-                  variant='dataSmall'
-                  tone='textMuted'
+                {/* One tap on the label moves playback to the section's start (D28). */}
+                <Pressable
+                  accessibilityRole='button'
+                  accessibilityLabel={`Jump to ${model.grid!.heads[i]}`}
+                  hitSlop={8}
+                  onPress={() =>
+                    p.onCursor(sectionStartM(model.sectionEntryM, n))
+                  }
                   style={styles.sectionHead}>
-                  S{n} · {formatDistance(model.sectionEntryM[n] ?? 0)}
-                </Text>
+                  <Text variant='dataSmall' tone='textMuted'>
+                    {model.grid!.heads[i]} ·{' '}
+                    {formatDistance(sectionStartM(model.sectionEntryM, n))}
+                  </Text>
+                </Pressable>
                 {model.grid!.rows.map(r => {
                   const d = r.cells[i];
                   const c = d == null ? null : cornerCell(d);
@@ -578,39 +541,15 @@ export function CompareWorkspace(p: WorkspaceProps) {
   );
 }
 
-function overviewDomain(model: CompareModel): [number, number] {
-  let m = 0.1;
-  for (const l of model.overview)
-    for (const v of l.values) m = Math.max(m, Math.abs(v));
-  return [-m, m];
-}
-
 const styles = StyleSheet.create({
-  removeOff: {opacity: disabledOpacity},
+  // Wide enough for "200 m": the buttons beside it stay put between Time and Distance.
+  windowSize: {minWidth: 56, textAlign: 'center'},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
   left: {width: LEFT_W, flexGrow: 0, borderRightWidth: 1},
   right: {flexGrow: 0},
   centre: {flex: 1},
-  gapTop: {marginTop: space.lg},
-  lapRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    height: size.lapRow,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.sm,
-  },
-  // The row's button: swatch, label and delta, taking what Ref and remove leave.
-  lapMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    height: '100%',
-  },
-  swatch: {width: 10, height: 3},
   lapLabel: {width: 34},
   stint: {gap: space.xxs},
   allRow: {
@@ -654,6 +593,7 @@ const styles = StyleSheet.create({
   tableCell: {width: 64, textAlign: 'right'},
   sectionHead: {width: 110},
   gridCell: {width: 52, textAlign: 'center'},
+  gridCellHl: {fontWeight: '700'},
   cell: {
     height: 24,
     borderRadius: radius.xs,

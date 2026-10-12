@@ -6,7 +6,13 @@
 
 import type {Dispatch, SetStateAction} from 'react';
 
-import {playStep, type TimedGrid} from '@/src/analysis/window';
+import {PLAY_RATES, type PlayRate} from '@/src/state/comparePrefs';
+import {
+  loopStep,
+  playStep,
+  rewindStep,
+  type TimedGrid,
+} from '@/src/analysis/window';
 
 /** Longest step one tick may take, so a resume after the app was in the
  * background doesn't jump the cursor laps ahead. */
@@ -15,6 +21,10 @@ export const MAX_STEP_S = 0.25;
 export interface PlayInputs {
   ref: TimedGrid | null;
   rate: number;
+  /** Play backwards; stops at the lap start. */
+  reverse?: boolean;
+  /** Repeat this stretch of the lap (elapsed seconds) instead of the lap. */
+  loop?: [number, number] | null;
   move: Dispatch<SetStateAction<number>>;
 }
 
@@ -28,7 +38,20 @@ export function playTicker(
     const now = clock();
     const dtS = Math.min(MAX_STEP_S, (now - last) / 1000);
     last = now;
-    const {ref, rate, move} = read();
-    if (ref) move(c => playStep(ref, c, dtS, rate));
+    const {ref, rate, reverse, loop, move} = read();
+    if (!ref) return;
+    if (loop) {
+      move(c => loopStep(ref, c, dtS, rate, !!reverse, loop));
+      return;
+    }
+    const advance = reverse ? rewindStep : playStep;
+    move(c => advance(ref, c, dtS, rate));
   };
+}
+
+/** The speed chip's next value: 0.25, 0.5, 1, 2, then round again. An unknown
+ * rate goes to 1. */
+export function nextRate(rate: number): PlayRate {
+  const i = (PLAY_RATES as readonly number[]).indexOf(rate);
+  return i < 0 ? 1 : PLAY_RATES[(i + 1) % PLAY_RATES.length];
 }

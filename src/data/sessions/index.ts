@@ -31,18 +31,29 @@ export type {
   TrackMapQuality,
   Wheel,
 } from './adapters';
+export {analysing} from './analysisOnOpen';
 export {type SessionFilter, sessionKeys} from './keys';
 export {
   useSessionFacets,
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
-  useSessionSurface,
+  useTrackMap,
+  useTrackMapOfSession,
+  useTrackSurface,
   useSessions,
   useSessionsDetail,
+  usePlanSessions,
   useSessionsLaps,
 } from './queries';
+export {
+  type PlanBlock,
+  type PlanLap,
+  type PlanRace,
+  type PlanSession,
+  type PlanStop,
+  type PlanTraffic,
+} from './planBlock';
 export {
   firstCornerOf,
   lapCornerFacts,
@@ -53,6 +64,7 @@ export {
 export {
   type MapPlacer,
   mapPlacer,
+  measuredCentreAt,
   measuredCentreLines,
   type MeasuredRun,
   type Xy,
@@ -60,11 +72,13 @@ export {
 export {
   type DefaultSession,
   defaultLapIds,
+  defaultSessionOf,
+  openingLapIds,
   referenceDefaultLapIds,
   stintSetLapIds,
   refLapOf,
 } from './defaultLaps';
-export {endingLap, raceFacts, racePitLaps} from './raceFacts';
+export {endingLap, raceFactsOfPlan, racePitLaps} from './raceFacts';
 export {
   sectorSegmentTimes,
   segmentTimesFor,
@@ -73,6 +87,7 @@ export {
 export {
   checkedWindowMedians,
   onCurrentBoundaries,
+  sectionWindowTimes,
   type SessionOptimum,
   sessionOptimum,
   stintWindowMedians,

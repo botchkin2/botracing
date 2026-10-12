@@ -63,6 +63,11 @@ describe('buildSessionsModel', () => {
     });
   });
 
+  it('says "1 lap", not "1 laps"', () => {
+    const [row] = buildSessionsModel([session({lapCount: 1})], now)[0].rows;
+    expect(row.railSubline).toBe('21:40 · 1 lap');
+  });
+
   it('shows a dash when a session has no timed lap', () => {
     const [row] = buildSessionsModel(
       [session({bestTimeS: null, medianTimeS: null})],
@@ -86,7 +91,7 @@ describe('desktop table', () => {
     const [row] = rows({startedAt: '2026-09-27T21:40:00'});
     expect(row.table).toEqual({
       startedAt: '2026-09-27T21:40:00',
-      dateText: '27 Sept 21:40',
+      dateText: 'Sep 27 21:40',
       carText: '911 GT3 R · Manthey #91',
       lapsN: 42,
       bestS: 99.733,

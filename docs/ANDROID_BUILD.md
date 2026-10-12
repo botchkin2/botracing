@@ -27,8 +27,7 @@ Add to PATH: `%ANDROID_HOME%\platform-tools`
 
 Through Android Studio's SDK Manager, install the platform and build-tools that match your Expo SDK version:
 
-- Expo 54 / React Native 0.81: Android SDK Platform **36**, Build-Tools 36.x
-- Expo 55+: check the [Expo SDK docs](https://docs.expo.dev) for the target version
+- Expo 57 / React Native 0.86: Android SDK Platform **36**, Build-Tools 36.0.0 (`react-native/gradle/libs.versions.toml`)
 - **Android SDK Platform-Tools** (adb, fastboot)
 
 Minimum SDK is API 24.
@@ -51,7 +50,7 @@ npm run build:android:development
 
 This runs `npx eas build --platform android --profile development`. The build happens on Expo's servers. Check your email or the EAS dashboard for the download link or QR code.
 
-Note: Use `npx eas-cli` for individual commands (e.g., `npx eas-cli whoami`). Due to the MSIX sandbox, global `npm install -g eas-cli` may not work as expected; npx reads the latest version from npm registry on each run.
+Note: use `npx eas-cli@24.8.0` (the version CI pins) for individual commands, e.g. `npx eas-cli@24.8.0 whoami`. A global `npm install -g` does not work under the MSIX sandbox.
 
 ### Local Build (Offline)
 
@@ -148,3 +147,19 @@ By hand, once:
 - **Google sign-in.** Google Cloud console (project botracing-61) > APIs & Services > Credentials > the Android OAuth client for `app.botracing.android`: add the keystore's SHA-1 (also on the `credentials` screen). Without it, Google sign-in on the installed APK answers DEVELOPER_ERROR (`src/auth/googleClient.ts`).
 
 Settings shows an **Android app** card (`src/features/settings/androidCard.ts`). In the installed app it appears only when `/api/android/latest` has a higher `versionCode` than the installed one (`expo-application`'s `nativeBuildVersion`), with an Update button. In a browser on an Android phone it offers the APK, like the Windows card. Anywhere else there is no card. Both open `/api/android/download` in the browser, so the first install asks to allow installs from the browser; the card says so in one line.
+
+In the installed app the card's first line is the running build: `App <version> · update <first 8 of expo-updates' updateId>`, or `built-in` when the app runs its own bundle (`Updates.isEmbeddedLaunch`; `runningLine` in `androidCard.ts`), and the line is only on the installed app, never a phone browser. It shows even when no update does.
+
+## Over-the-air updates (EAS Update)
+
+`expo-updates` checks the `production` channel. `app.json`'s ON_LOAD check with no fallback only downloads, so `src/setup/ota.ts` also fetches on launch and on every return to the foreground. It reloads only where nothing is being read (`src/setup/otaPolicy.ts`; `reloadAsync` restarts at the first screen): at launch before the first screen (the splash is held up to 3 s for the check), or on a return after 30 min or more in the background. Any other fetched update waits as pending and applies at the next such moment, or the next launch. Off in development and on web. Settings > Android app shows what the phone runs in one line: `App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05` (version, versionCode, runtime version, channel, update id and publish date from expo-updates; `built-in` for the build's own bundle). Read a phone's state there instead of assuming it matches an EAS build; the update id matches an `eas update:list` group.
+
+`.github/workflows/ota-update.yml` runs `tsc` and `jest` on the pushed commit (the Tests workflow runs on pull requests only), then `eas update --channel production --platform android`, on a push to main unless the push touches only docs, `*.md`, `desktop/`, `functions/`, `ops/`, `scripts/`, `tools/` (except `tools/track-info/`, which `catalog.ts` imports), `.claude/`, `.github/` (except this workflow) or the Firebase files. It is a deny-list, so `tsconfig.json`, `eas.json`, package files and any new top-level code run it.
+
+- **By update:** screens, logic, styles, JS-only dependencies, images and other assets.
+- **Needs an APK (new `android-v*` tag):** a native module or SDK change, `app.json` plugins, permissions, icon or splash, package name. These change the fingerprint; an update published for the new fingerprint reaches phones only after they install that APK.
+- **Roll back:** `npx eas-cli@24.8.0 update:republish --group <group id of the last good update> --platform android --message rollback` (`--channel` and `--group` are mutually exclusive; the group goes back onto its own branch, `production`). `npx eas-cli@24.8.0 update:list --branch production` shows the groups. Phones take it on their next launch.
+- **Same runtime version as the APK:** the build and the update both compute it with `@expo/fingerprint` over the same commit after `npm ci` (tracked files, `node_modules`, `app.json`, `eas.json`; no local-only files). `fingerprint.config.js` skips package.json scripts, `.gitignore` and version strings, so editing those does not strand phones. Check locally: `npx expo-updates fingerprint:generate --platform android`; the hash must equal the `Runtime version` in the OTA job summary (which also lists the update group id and message).
+- **APK updates are unchanged:** the Settings Android card still offers a new APK by `versionCode`.
+
+One-time setup: none. `android-build` allows branch `main` for OTA, same `EXPO_TOKEN` (done 2026-10-10). Updates start with the 1.0.2 APK: older installs have no updater.

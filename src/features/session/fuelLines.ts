@@ -1,11 +1,40 @@
 // The Session screen's fuel and Virtual Energy text, from the uploader's
 // facts (tools/sessions/fuelFacts.mjs). Pure. Numbers, units and what they
 // were measured against, never advice (CODE_STANDARDS §7).
-import type {Lap, PitStop, Stint} from '@/src/data/sessions';
+import type {Lap, PitStop} from '@/src/data/sessions';
+import {oneDecimal} from '@/src/design';
+
+import {greenLaps, median} from './fuelUse';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
-const laps = (v: number) => `${v.toFixed(1)} laps`;
+const laps = (v: number) => `${v.toFixed(1)} ${v === 1 ? 'lap' : 'laps'}`;
+
+/**
+ * Laps left on the tighter of the two meters, and which one it is when both
+ * are known (a tie is fuel). `meter` is null with only one meter: there is
+ * nothing to tell apart. Null when neither is known.
+ */
+export function limitingLeft(left: {
+  fuel: number | null;
+  ve: number | null;
+}): {laps: number; meter: 'fuel' | 'VE' | null} | null {
+  const {fuel, ve} = left;
+  if (fuel == null && ve == null) return null;
+  if (fuel == null) return {laps: ve as number, meter: null};
+  if (ve == null) return {laps: fuel, meter: null};
+  return ve < fuel ? {laps: ve, meter: 'VE'} : {laps: fuel, meter: 'fuel'};
+}
+
+/** "11.1 laps · VE" with both meters, "0.9 laps" with one; null with none. */
+export function limitingLaps(left: {
+  fuel: number | null;
+  ve: number | null;
+}): string | null {
+  const l = limitingLeft(left);
+  if (!l) return null;
+  return l.meter ? `${laps(l.laps)} · ${l.meter}` : laps(l.laps);
+}
 
 /**
  * The line under a pit-in lap: what was left when the car came in, in laps at
@@ -21,9 +50,9 @@ export function pitLine(stop: PitStop): string | null {
     vePct != null && `${pct(vePct)} VE`,
   ].filter(Boolean);
   const {fuel, ve} = stop.lapsLeftAtEntry;
-  const lapsLeft = [fuel, ve].filter((v): v is number => v != null);
+  const lapsLeft = limitingLaps({fuel, ve});
   const head = `Pit: ${left.join(' / ')} left${
-    lapsLeft.length ? ` (${laps(Math.min(...lapsLeft))})` : ''
+    lapsLeft ? ` (${lapsLeft})` : ''
   }`;
   const added = stop.added.fuelL;
   const time = stop.inPitS != null ? ` · ${stop.inPitS.toFixed(0)} s` : '';
@@ -35,20 +64,27 @@ export function pitLine(stop: PitStop): string | null {
 }
 
 /**
- * The line under a stint header: its median use per green lap and how many
- * laps that comes from. Null under 3 green laps (the uploader gives no median
- * then), so the line is left out.
+ * The line under a stint header: its median use per lap, over the stint's
+ * green laps (the same set the fuel card uses, so the two agree).
+ * Null under 3 such laps, so the line is left out.
  * "Fuel 2.40 L/lap · VE 3.6 %/lap"
  */
-export function stintFuelLine(
-  stint: Pick<Stint, 'medianFuelL' | 'medianVePct' | 'greenLaps'>,
-): string | null {
+export function stintFuelLine(stintLaps: Lap[]): string | null {
+  const usable = greenLaps(stintLaps);
+  if (usable.length < MIN_NOTE_LAPS) return null;
+  const fuelL = median(usable.map(l => l.fuel!.usedL as number));
+  const ve = usable
+    .map(l => l.fuel!.veUsedPct)
+    .filter((v): v is number => v != null && v > 0);
+  const vePct = ve.length >= MIN_NOTE_LAPS ? median(ve) : null;
   const parts = [
-    stint.medianFuelL != null && `Fuel ${stint.medianFuelL.toFixed(2)} L/lap`,
-    stint.medianVePct != null && `VE ${stint.medianVePct.toFixed(1)} %/lap`,
+    fuelL != null && `Fuel ${fuelL.toFixed(2)} L/lap`,
+    vePct != null && `VE ${oneDecimal(vePct)} %/lap`,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
+
+const MIN_NOTE_LAPS = 3;
 
 /**
  * The lap's fuel and VE lines for the detail panel: used, left, and laps left

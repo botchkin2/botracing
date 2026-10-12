@@ -5,6 +5,7 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {reportError} from './problems';
 import type {
   ReleaseDeps,
   ReleaseRequest,
@@ -92,7 +93,7 @@ export function releaseFunction(
           res.status(out.status).json(out.json);
         }
       } catch (error) {
-        console.error(`${prefix} failed`, error);
+        await reportError(prefix, error, {route: subPath(req, prefix)});
         res.status(500).json({error: 'release failed'});
       }
     },

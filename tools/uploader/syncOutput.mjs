@@ -24,6 +24,9 @@ export function newSyncResult() {
     folded: 0,
     inFold: false,
     failedIds: [],
+    // {sessionId: its first "failed:" line, without the prefix}: what the
+    // Settings Problems list says for that session.
+    failureOf: {},
     done: 0,
     failed: 0,
     errors: [],
@@ -32,6 +35,11 @@ export function newSyncResult() {
     // says (watch.mjs shows it as "sync crashed").
     crash: null,
     total: null,
+    // Files the sync left alone because they were written in the last few
+    // minutes ("N file(s) still being written, skipped for now").
+    waiting: 0,
+    // Recordings sync.mjs could not read ("skip <file>: <why>"): [{name, why}].
+    unreadable: [],
     // The closing "done N, failed M" line was read: the sync ran to its end.
     finished: false,
     // The surface fold that follows the sessions ("surface N/M tracks"), or
@@ -56,11 +64,23 @@ export function readSyncLine(result, line) {
   if (/^\s+failed: /.test(line)) {
     result.errors.push(line.trim());
     const id = result.sessions[result.sessions.length - 1];
-    if (!result.inFold && id && !result.failedIds.includes(id))
+    if (!result.inFold && id && !result.failedIds.includes(id)) {
       result.failedIds.push(id);
+      result.failureOf[id] = line.trim().replace(/^failed: /, '');
+    }
   }
   if (result.crash == null && /^(?:[A-Z]\w*)?Error\b[:\s]/.test(line))
     result.crash = line.trim();
+  const skip = line.match(/^skip (.+?): (.+)$/);
+  if (skip) {
+    // The reason repeats the file name ("<file> has no samples"): once is enough.
+    const why = skip[2].startsWith(skip[1])
+      ? skip[2].slice(skip[1].length).trim()
+      : skip[2];
+    result.unreadable.push({name: skip[1], why: why || skip[2]});
+  }
+  const waiting = line.match(/^(\d+) file\(s\) still being written/);
+  if (waiting) result.waiting = +waiting[1];
   const fold = readSurfaceProgress(line);
   if (fold) result.fold = fold;
   const end = line.match(/^done (\d+), failed (\d+)/);

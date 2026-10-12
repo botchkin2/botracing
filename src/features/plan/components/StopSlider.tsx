@@ -67,7 +67,12 @@ export function StopSlider({
   const xOf = (lap: number) => ((lap - min) / span) * trackW;
   return (
     <View style={styles.row}>
-      <Chip label='−' minWidth={size.hit} onPress={() => onChange(after - 1)} />
+      <Chip
+        label='−'
+        accessibilityLabel='Stop one lap earlier'
+        minWidth={size.hit}
+        onPress={() => onChange(after - 1)}
+      />
       <View style={styles.slider}>
         <View
           accessibilityRole='adjustable'
@@ -113,12 +118,20 @@ export function StopSlider({
           <Text variant='axis' tone='textMuted'>
             {lapName(min)}
           </Text>
+          <Text variant='axis' tone='textFaint'>
+            {lapName(Math.round((min + max) / 2))}
+          </Text>
           <Text variant='axis' tone='textMuted'>
             {lapName(max)}
           </Text>
         </View>
       </View>
-      <Chip label='+' minWidth={size.hit} onPress={() => onChange(after + 1)} />
+      <Chip
+        label='+'
+        accessibilityLabel='Stop one lap later'
+        minWidth={size.hit}
+        onPress={() => onChange(after + 1)}
+      />
     </View>
   );
 }

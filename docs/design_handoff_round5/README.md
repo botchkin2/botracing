@@ -1,6 +1,6 @@
 # Claude Design, rounds 4 and 5: Plan, fuel, pit stops, Race, Corner, the "?" pattern, and the nav
 
-Two review rounds of the screens we built after round 3. Round 4 corrected them from the brief; round 5 applied our feedback (`pit-wall/ideas/2026-09-30-claude-design-round4-feedback-1.md`) and added desktop frames. **Round 5 wins where the two differ.** Open the `.dc.html` files in a browser (they need `support.js` beside them). `round5-text.txt` is the round 5 text, for grep.
+Two review rounds of the screens we built after round 3. Round 4 corrected them from the brief; round 5 applied our feedback (`pit-wall/archive/ideas/2026-09-30-claude-design-round4-feedback-1.md`) and added desktop frames. **Round 5 wins where the two differ.** Open the `.dc.html` files in a browser (they need `support.js` beside them). `round5-text.txt` is the round 5 text, for grep.
 
 The sample figures are synthetic (Portimão, 2 h). Build from our real data, never from the numbers in these frames.
 
@@ -15,3 +15,9 @@ The sample figures are synthetic (Portimão, 2 h). Build from our real data, nev
 8. **Desktop:** Plan in 3 columns (inputs · answer · use-and-lap-time); Session with the Pit stops card in a 400 pt right column beside the lap table.
 
 Round 4 adds the per-chart "?" spec (WHAT / MEASURED / DIRECTION / LINES) and the nav: a phone bottom bar of Sessions / Plan / Settings, with Laps / Compare / Corner / Race as a segmented row under the session title.
+
+## Grid hand-offs (Session lap × section grid)
+
+- Tap a column head (desktop and phone): Compare opens with the checked laps, zoomed to that section (`c` = the section number, Compare's own).
+- Tap a lap × section cell: Corner opens on the section's first corner, with that lap highlighted. A compound section (T2–5) opens whole (`all=1`). The tapped lap is only highlighted: it joins no median and does not change the checked set. The mapping is `gridCellTargetOf` in `src/features/session/model.ts`.
+- The start straight (S/F) and the game's sectors open nothing: their heads and cells are plain text.

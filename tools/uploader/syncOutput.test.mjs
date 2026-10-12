@@ -23,6 +23,9 @@ const output = [
 test('reads which session failed, not just how many', () => {
   const r = run(output);
   assert.deepEqual(r.failedIds, ['bbbbbbbbbbbbbbbb']);
+  assert.deepEqual(r.failureOf, {
+    bbbbbbbbbbbbbbbb: 'Error: upload timed out | at x',
+  });
   assert.equal(r.done, 1);
   assert.equal(r.failed, 1);
   assert.equal(r.sessions[0], 'aaaaaaaaaaaaaaaa');
@@ -160,4 +163,29 @@ test('a sync that dies before its closing line reports the error line', () => {
 
 test('a finished sync with a failed session is not a crash', () => {
   assert.equal(run(output).crash, null);
+});
+
+test('a sync that left fresh files alone says how many', () => {
+  const r = newSyncResult();
+  assert.equal(r.waiting, 0);
+  readSyncLine(r, '1 file(s) still being written, skipped for now');
+  assert.equal(r.waiting, 1);
+  readSyncLine(r, 'done 0, failed 0, unchanged 0');
+  assert.equal(r.finished, true);
+});
+
+test('a recording the sync could not read is named once, with the reason', () => {
+  const r = newSyncResult();
+  readSyncLine(
+    r,
+    'skip fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt has no samples',
+  );
+  readSyncLine(r, 'skip b.ibt: could not open the file');
+  assert.deepEqual(r.unreadable, [
+    {
+      name: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt',
+      why: 'has no samples',
+    },
+    {name: 'b.ibt', why: 'could not open the file'},
+  ]);
 });

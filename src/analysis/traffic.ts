@@ -11,7 +11,8 @@ export interface TrafficField {
   et0: number;
   /** Tenths of a second from `et0`, one per update. */
   tDs: number[];
-  cars: {class: string; player?: boolean}[];
+  /** `classLabel`: iRacing only (tools/sessions/irClasses.mjs). */
+  cars: {class: string; classLabel?: string; player?: boolean}[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
   inPits: (number | null)[][];
@@ -53,23 +54,30 @@ const ahead = (a: number, b: number, lengthM: number) =>
 export function overtakesOf(
   field: TrafficField,
   windows: {from: number; to: number}[],
-  pace: (carClass: string) => PaceOf,
+  pace: (car: {class: string; classLabel?: string}) => PaceOf,
+  /**
+   * Metres of one lap, from where the cars wrap (the caller works it out:
+   * tools/sessions/fieldTags.mjs fieldLengthM). Without it, the longest lap
+   * distance any car reports, which a car parked in the pits can stretch.
+   */
+  lapLengthM?: number,
 ): Overtake[][] {
   const out: Overtake[][] = windows.map(() => []);
   const me = field.cars.findIndex(c => c.player === true);
   if (me < 0) return out;
   const etS = field.tDs.map(d => field.et0 + d / 10);
   const dist = field.lapDistDm.map(undeltaM);
-  let lengthM = 0;
-  for (const row of dist)
-    for (const d of row) if (d !== null && d > lengthM) lengthM = d;
+  let lengthM = lapLengthM ?? 0;
+  if (!(lengthM > 0))
+    for (const row of dist)
+      for (const d of row) if (d !== null && d > lengthM) lengthM = d;
   if (lengthM === 0) return out;
-  const mine = pace(field.cars[me].class);
+  const mine = pace(field.cars[me]);
   const player = dist[me];
 
   field.cars.forEach((c, j) => {
     if (j === me) return;
-    const theirs = pace(c.class);
+    const theirs = pace(c);
     if (theirs.rank <= mine.rank) return;
     // The last gap that was not exactly 0 m (decimetre positions make a gap
     // of 0 m a real sample, neither ahead nor behind), cleared while either
@@ -102,8 +110,15 @@ export function overtakesOf(
   return out;
 }
 
-/** Bump when the rules in this file or in lapFieldFacts change: a stale block is recomputed. */
-export const TRAFFIC_VERSION = 5;
+/**
+ * Bump when the rules in this file or in lapFieldFacts change: a stale block is
+ * recomputed. 6: iRacing cars are classed by their label (GTP is Hypercar; an
+ * offline drive no longer makes every car the player's class).
+ * 7: the lap length is where the cars wrap (median), not the longest lap
+ * distance any car reports: a car parked in the pits read 4662 m at Road
+ * Atlanta against a 4080 m lap and bent every gap (classLaps v4, canard #4166).
+ */
+export const TRAFFIC_VERSION = 7;
 
 // `blueFlagS` is seconds with a faster-class car this many seconds behind on
 // the road (tools/sessions/fieldTags.mjs, evidence in its comment).

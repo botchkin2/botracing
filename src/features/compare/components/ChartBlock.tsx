@@ -1,17 +1,19 @@
 import {type ReactNode, useState} from 'react';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
-import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
-import {dash, space, useTheme} from '@/src/design';
+import {screenLateralOnce, screenValuesOnce} from '@/src/charts/screenLateral';
+import {closeBox, dash, space, useTheme} from '@/src/design';
 import {
   CHANNEL_IDS,
   type ChannelId,
   MAX_OVERLAY,
 } from '@/src/state/comparePrefs';
-import {Chip, Text} from '@/src/ui';
+import {Chip, Pressable, Text} from '@/src/ui';
+
+import {detailTicks} from '../detailTicks';
 
 import {
   CHANNELS,
@@ -19,12 +21,20 @@ import {
   type ChartTimeAxis,
   type ChartValueRow,
   drawRank,
+  STEER_TICKS,
 } from '../model';
+
+/** "off scale: L1, L2" for the laps a fitted scale clips, by channel. */
+function offScaleNote(off: ChartModel['offScale']): string | null {
+  const names = Object.values(off).flat();
+  if (!names || names.length === 0) return null;
+  return `off scale: ${[...new Set(names)].join(', ')}`;
+}
 
 export type LapStyle = (
   selIndex: number,
   highlighted: boolean,
-) => {color: string; width: number; opacity: number; key: boolean};
+) => {color: string; width: number; opacity: number};
 
 const OVERLAY_DASH = [undefined, dash.overlay2, dash.overlay3];
 // Round 3 R4a: brake fill at 16%, steering as a 1.2 pt line.
@@ -89,10 +99,10 @@ export function ChartBlock({
       // Steering draws right DOWN (charts/screenLateral.ts); the data is +right.
       const flip = l.channel === 'steering';
       const screen = <T extends NativeSamples | undefined>(x: T) =>
-        flip && x ? (screenLateral(x) as T) : x;
+        flip && x ? (screenLateralOnce(x) as T) : x;
       return {
         key: `${l.channel}-${l.lapId}`,
-        values: flip ? l.values.map(toScreenLateral) : l.values,
+        values: flip ? screenValuesOnce(l.values) : l.values,
         samples: screen(l.samples),
         before: screen(l.before),
         after: screen(l.after),
@@ -106,12 +116,20 @@ export function ChartBlock({
         dash: chart.pedals ? undefined : OVERLAY_DASH[l.overlay],
         fill: chart.pedals && l.channel === 'brake' ? BRAKE_FILL : undefined,
         domain: chart.domains[l.channel],
+        // The steering band carries its own frame: L 100, 0, R 100.
+        ticks:
+          chart.pedals && l.channel === 'steering' ? STEER_TICKS : undefined,
         rank: drawRank(l),
         stepped: l.channel === 'gear',
       };
     })
     .sort((a, b) => a.rank - b.rank);
   const first = chart.channels[0];
+  // The first channel's axis; the pedals chart carries its own frame.
+  const yTicks =
+    !chart.pedals && chart.domains[first]
+      ? detailTicks(first, chart.domains[first]!)
+      : undefined;
   // D2: one "+ overlay" chip per header; the channel pills open on tap.
   const [pillsOpen, setPillsOpen] = useState(false);
   const valuesOf = (row: ChartValueRow) =>
@@ -129,42 +147,72 @@ export function ChartBlock({
     </View>
   );
 
+  // A lone chart's × removes the whole chart, so it sits on the title row,
+  // not beside the value (ratchet, #411 review).
+  const loneEditor = !!editor && chart.channels.length === 1;
   const titleRow = (
     <View style={styles.titleRow}>
       <Text variant='label' tone='textMuted'>
         {chart.title}
       </Text>
+      {offScaleNote(chart.offScale) ? (
+        <Text variant='dataSmall' tone='textFaint'>
+          {offScaleNote(chart.offScale)}
+        </Text>
+      ) : null}
+      {loneEditor && (
+        <Pressable
+          accessibilityLabel={`Remove ${chart.title}`}
+          style={styles.closeBox}
+          onPress={() => editor.onToggle(first)}>
+          <Text variant='dataSmall' tone='textFaint'>
+            ×
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
   const valueRows = (
     <>
       {chart.valueRows.map(r => (
-        <View key={r.channel} style={styles.overlayRow}>
-          <LegendSwatch
-            kind={
-              chart.pedals && r.channel === 'brake'
-                ? 'fill'
-                : chart.pedals && r.channel === 'steering'
-                ? 'band'
-                : 'line'
-            }
-            dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
-            color={color.textMuted}
-          />
-          <Text variant='dataSmall' tone='textMuted'>
-            {r.label} {r.unit}
-          </Text>
-          {editor && (
+        <View
+          key={r.channel}
+          style={[styles.overlayRow, editor && styles.overlayRowEditing]}>
+          {r.legend && (
+            <>
+              <LegendSwatch
+                kind={
+                  chart.pedals && r.channel === 'brake'
+                    ? 'fill'
+                    : chart.pedals && r.channel === 'steering'
+                    ? 'band'
+                    : 'line'
+                }
+                dash={chart.pedals ? undefined : OVERLAY_DASH[r.overlay]}
+                color={color.textMuted}
+              />
+              <Text variant='dataSmall' tone='textMuted'>
+                {r.label} {r.unit}
+              </Text>
+            </>
+          )}
+          {editor && !loneEditor && (
             <Pressable
               accessibilityLabel={`Remove ${r.label}`}
-              hitSlop={space.sm}
+              style={styles.closeBox}
               onPress={() => editor.onToggle(r.channel)}>
               <Text variant='dataSmall' tone='textFaint'>
                 ×
               </Text>
             </Pressable>
           )}
-          {valueTexts(r)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.rowScroll}
+            contentContainerStyle={styles.rowScrollContent}>
+            {valueTexts(r)}
+          </ScrollView>
         </View>
       ))}
       {editor && chart.channels.length < MAX_OVERLAY && (
@@ -201,11 +249,9 @@ export function ChartBlock({
         timeAxis={timeAxis}
         domain={chart.domains[first] ?? [0, 1]}
         series={series}
+        yTicks={yTicks}
         band={chart.band ?? undefined}
         zeroLine={chart.zeroLine != null}
-        sideLabels={
-          chart.zeroLine === 'steering' ? {above: 'L', below: 'R'} : undefined
-        }
         zeroDomain={chart.zeroLine ? chart.domains[chart.zeroLine] : undefined}
         cursorM={cursorM}
         onScrub={onScrub}
@@ -283,6 +329,16 @@ function LegendSwatch({
 }
 
 const styles = StyleSheet.create({
+  // The × of an editable chart row: a real 24 x 24 box (a mouse needs one too;
+  // the rows are too tight for slop to reach past their neighbours).
+  // With a × the row is as tall as the × box, so neighbours do not overlap it.
+  overlayRowEditing: {height: closeBox},
+  closeBox: {
+    minWidth: closeBox,
+    minHeight: closeBox,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   block: {gap: space.xxs},
   headerRow: {flexDirection: 'row', alignItems: 'baseline', gap: space.sm},
   titleRow: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
@@ -292,6 +348,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.sm,
   },
+  // The values scroll sideways past the legend; 25 laps no longer overflow the chart.
+  rowScroll: {flex: 1, height: 17},
+  rowScrollContent: {flexDirection: 'row', alignItems: 'center', gap: space.sm},
   pills: {flexDirection: 'row', flexWrap: 'wrap', gap: space.xs},
   // Next to the label, not at the far edge: at 1440 the edge is ~1,300 pt
   // from the label (Botkin, thread 26 #385).

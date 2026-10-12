@@ -7,50 +7,14 @@ import {
   type SectionMode,
   type SegmentLap,
   type SegmentTimes,
-  turnRangeLabel,
 } from '@/src/analysis/segments';
+import {sectionNameOf} from '@/src/analysis/turnNames';
+import {isCompound} from './corners';
 
-import type {
-  Lap,
-  LapTraffic,
-  MapCorner,
-  MapSection,
-  TrackMapData,
-} from './adapters';
+import type {Lap, TrackMapData} from './adapters';
 import {frameOf, isCurrent, windowTimesOf} from './windowOptimum';
 
 const START_LABEL = 'S/F';
-
-/** "T4" or "T2–5": the corners a section holds, by the same names the Corner screen uses. */
-function sectionLabel(s: MapSection): string {
-  const name = (c: MapCorner) => c.official ?? `T${c.n}`;
-  return turnRangeLabel((s.parts.length ? s.parts : [s]).map(name));
-}
-
-/**
- * Per segment: false where a car was within 1 s ahead or the lap was in a
- * tow. The spans are in the field's lap distance; segments are in the map's
- * frame, so the spans are scaled by the ratio of the two lap lengths. Without
- * a traffic block or the field's lap length nothing can be told, so nothing is
- * left out.
- */
-export function aloneIn(
-  traffic: LapTraffic | null,
-  mapLengthM: number,
-  segments: Segment[],
-): boolean[] | undefined {
-  if (!traffic || !traffic.fieldLapM || traffic.fieldLapM <= 0)
-    return undefined;
-  const k = mapLengthM / traffic.fieldLapM;
-  const spans = [...traffic.aheadSpans, ...traffic.draftSpans];
-  return segments.map(seg => {
-    const range = seg.range;
-    if (!range) return true;
-    return !spans.some(
-      sp => sp.fromM * k < range.toM && sp.toM * k > range.fromM,
-    );
-  });
-}
 
 /** One segment per corner window, in lap order; null before the track has windows or when no lap was cut at them. */
 export function turnSegmentTimes(
@@ -66,8 +30,10 @@ export function turnSegmentTimes(
       label:
         w.kind === 'start-straight' || !section
           ? START_LABEL
-          : sectionLabel(section),
+          : sectionNameOf(section),
       range: {fromM: w.fromM, toM: w.toM},
+      section: w.kind === 'start-straight' ? null : w.section ?? null,
+      compound: section != null && isCompound(section),
     };
   });
   const out: SegmentLap[] = [];
@@ -78,7 +44,8 @@ export function turnSegmentTimes(
       stint: lap.stint,
       comparable: lap.comparable,
       timesS: windowTimesOf(lap, frame),
-      alone: aloneIn(lap.traffic, map.lengthM, segments),
+      stop: lap.pitStop != null,
+      label: `L${lap.lapIndex}`,
     });
   }
   return out.length > 0 ? {segments, laps: out} : null;
@@ -93,6 +60,8 @@ export function sectorSegmentTimes(laps: Lap[]): SegmentTimes | null {
     stint: l.stint,
     comparable: l.comparable,
     timesS: Array.from({length: count}, (_, i) => l.sectorsS[i] ?? null),
+    stop: l.pitStop != null,
+    label: `L${l.lapIndex}`,
   }));
   return {
     segments: Array.from({length: count}, (_, i) => ({

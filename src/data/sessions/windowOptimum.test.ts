@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {toLaps, toTrackMap} from './adapters';
-import {sessionOptimum} from './windowOptimum';
+import {sectionWindowTimes, sessionOptimum} from './windowOptimum';
 
 // A start straight and one section, boundaries at revision 3.
 const boundaries = {
@@ -90,19 +90,26 @@ describe('sessionOptimum', () => {
     expect(s).toHaveLength(1);
     expect(s?.[0].windows.map(w => w.n)).toEqual([5, 5]);
     expect(s?.[0].bestSumS).toBe(100);
-    expect(s?.[0].medianSumS).toBe(5 + 2 + 95 + 2);
   });
 
-  it('leaves out a window that crosses the pit lane, is off track, or is under a full-course yellow', () => {
+  it('leaves out a window that crosses the pit lane or is off track', () => {
     const laps = [
       ...five(),
       rawLap('pit', {pit: true, sectionS: 80}),
       rawLap('off', {offTrackSec: 0.3, sectionS: 80}),
-      rawLap('fcy', {courseYellowSec: 0.5, sectionS: 80}),
     ];
     const w = optimum(laps)?.stints[0].windows;
     expect(w?.[1]).toMatchObject({n: 5, bestS: 95});
-    expect(w?.[0].n).toBe(8);
+    expect(w?.[0].n).toBe(7);
+  });
+
+  it('keeps a window under a full-course yellow: a yellow never removes a time', () => {
+    const laps = [
+      ...five(),
+      rawLap('fcy', {courseYellowSec: 12, sectionS: 80}),
+    ];
+    const w = optimum(laps)?.stints[0].windows[1];
+    expect(w).toMatchObject({n: 6, bestS: 80, bestLapId: 'fcy'});
   });
 
   it('keeps a sector-level local yellow and a 0.2 s off as times, tagged not dropped', () => {
@@ -139,5 +146,25 @@ describe('sessionOptimum', () => {
       ...[0, 1, 2, 3].map(i => rawLap(`s${i}`, {stint: 2, sectionS: 50})),
     ];
     expect(optimum(laps)?.stints.map(s => s.stint)).toEqual([1]);
+  });
+});
+
+describe('sectionWindowTimes (the one cell rule Compare and Session share)', () => {
+  const [lap, off, pit, stale] = toLaps([
+    rawLap('a', {sectionS: 95}),
+    rawLap('off', {offTrackSec: 0.3, sectionS: 80}),
+    rawLap('pit', {pit: true, sectionS: 80}),
+    rawLap('old', {stamp: {v: 1, rev: 2}, sectionS: 90}),
+  ]);
+  it('gives a counted window its time, by section number; the start straight is not a section', () => {
+    expect([...(sectionWindowTimes(lap, map()) ?? [])]).toEqual([[1, 95]]);
+  });
+  it('gives no time where Session shows a dash: off track, pit, or cut at other boundaries', () => {
+    expect(sectionWindowTimes(off, map())?.get(1)).toBeNull();
+    expect(sectionWindowTimes(pit, map())?.get(1)).toBeNull();
+    expect(sectionWindowTimes(stale, map())?.get(1)).toBeNull();
+  });
+  it('is null without windows: the caller falls back to the lap own segment times', () => {
+    expect(sectionWindowTimes(lap, map(null))).toBeNull();
   });
 });

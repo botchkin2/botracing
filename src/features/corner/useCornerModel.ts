@@ -2,10 +2,13 @@ import {useCallback, useMemo} from 'react';
 
 import {type GridTrace} from '@/src/analysis/resample';
 import {
+  defaultSessionOf,
+  openingLapIds,
   useSession,
   useSessionBand,
   useSessionLaps,
-  useSessionMap,
+  useTrackMap,
+  trackCorners,
 } from '@/src/data/sessions';
 import {
   sliceLoad,
@@ -20,9 +23,10 @@ import {
   cornerLapIds,
   type CornerModel,
   type CornerSelection,
-  referenceFirst,
 } from './model';
+import {lapMode} from '@/src/design';
 import {keyLapIds as keyLapsOf} from './keyLaps';
+import {sliceCornerOf} from './wholeCorner';
 
 export type CornerResult =
   | {state: 'loading'}
@@ -35,8 +39,10 @@ export type CornerResult =
       state: 'ready';
       model: CornerModel;
       lapIds: string[];
-      /** Laps on, reference first: what a strip tap toggles. */
+      /** Laps on: what a strip tap toggles (their order carries no meaning). */
       keyLapIds: string[];
+      /** The session's best lap, else the fastest drawn: what Reset keeps. */
+      openingIds: string[];
       traceLoad: TraceLoad;
       retryTraces: () => void;
     };
@@ -46,16 +52,13 @@ export function useCornerModel(
   corner: number,
   urlSelection: CornerSelection,
   allComparable: boolean,
+  whole = false,
 ): CornerResult {
   const session = useSession(sessionId);
   const laps = useSessionLaps(sessionId);
-  const selection = useMemo(
-    () =>
-      laps.data ? referenceFirst(urlSelection, laps.data) : urlSelection,
-    [urlSelection, laps.data],
-  );
+  const selection = urlSelection;
   const band = useSessionBand(sessionId);
-  const map = useSessionMap(sessionId);
+  const map = useTrackMap(session.data?.trackId);
 
   const lapIds = useMemo(
     () =>
@@ -64,13 +67,30 @@ export function useCornerModel(
             laps.data,
             selection,
             allComparable,
-            session.data?.bestLapId ?? null,
+            session.data ? defaultSessionOf(session.data) : null,
           )
         : [],
-    [laps.data, selection, allComparable, session.data?.bestLapId],
+    [laps.data, selection, allComparable, session.data],
+  );
+  // What Reset goes back to: the opening set, as Session and Compare open.
+  const openingIds = useMemo(
+    () =>
+      laps.data && session.data
+        ? openingLapIds(laps.data, defaultSessionOf(session.data))
+        : [],
+    [laps.data, session.data],
   );
   // The laps on: drawn in their own colour and named on the strips.
   const bestLapId = session.data?.bestLapId ?? null;
+  // The drawn laps, fastest first: "the best" and "the next" come from here.
+  const ranked = useMemo(
+    () =>
+      (laps.data ?? [])
+        .filter(l => lapIds.includes(l.id) && l.timeS != null)
+        .sort((a, b) => (a.timeS as number) - (b.timeS as number))
+        .map(l => l.id),
+    [laps.data, lapIds],
+  );
   const traceIds = useMemo(
     () =>
       keyLapsOf({
@@ -78,18 +98,26 @@ export function useCornerModel(
         selected: selection.laps,
         hl: selection.hl,
         bestLapId,
-        individual: lapIds.length < 7,
+        ranked,
+        individual: lapMode(lapIds.length) === 'individual',
       }),
-    [lapIds, selection.laps, selection.hl, bestLapId],
+    [lapIds, selection.laps, selection.hl, bestLapId, ranked],
   );
   // Every lap comes from the corner's slice file (one small fetch), so every
   // comparable lap draws, not only the laps on. A session the uploader has
   // not resynced since analysis version 13 has no file: nothing to draw yet.
   const slicePointer = session.data?.slices ?? null;
-  const hasFile = slicePointer?.corners.includes(corner) ?? false;
+  // "All" on a compound corner draws from its last part's file, which spans
+  // the whole section (wholeCorner.ts).
+  const sliceCorner = useMemo(
+    () =>
+      map.data ? sliceCornerOf(trackCorners(map.data), corner, whole) : corner,
+    [map.data, corner, whole],
+  );
+  const hasFile = slicePointer?.corners.includes(sliceCorner) ?? false;
   const slices = useCornerSlices(
     sessionId,
-    corner,
+    sliceCorner,
     hasFile ? slicePointer?.hash ?? null : null,
   );
   const {refetch: refetchSlices} = slices;
@@ -131,7 +159,9 @@ export function useCornerModel(
           void refetchMap();
         },
       };
-    if (!session.data || !laps.data || !map.data) return {state: 'loading'};
+    if (!session.data || !laps.data || map.isPending) return {state: 'loading'};
+    // A track with no map yet (null, a 404): no corners to draw.
+    if (!map.data) return {state: 'missing', noMap: true};
     if (lapIds.length === 0) return {state: 'noLaps'};
     const model = buildCornerModel({
       session: session.data,
@@ -142,7 +172,9 @@ export function useCornerModel(
       lapIds,
       keyLapIds: traceIds,
       hl: selection.hl,
+      refId: selection.ref ?? null,
       corner,
+      whole,
     });
     return model
       ? {
@@ -150,6 +182,7 @@ export function useCornerModel(
           model,
           lapIds,
           keyLapIds: traceIds,
+          openingIds,
           traceLoad,
           retryTraces,
         }
@@ -163,8 +196,13 @@ export function useCornerModel(
     traces,
     lapIds,
     traceIds,
+    bestLapId,
+    openingIds,
+    ranked,
     selection.hl,
+    selection.ref,
     corner,
+    whole,
     traceLoad,
     retryTraces,
     refetchSession,

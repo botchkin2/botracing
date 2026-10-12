@@ -1,17 +1,17 @@
 import {planRace, usage} from '@/src/analysis/fuelPlan';
 import {trafficMedians} from '@/src/analysis/traffic';
-import {raceFacts, useSession, useSessionLaps} from '@/src/data/sessions';
-import {carLabel} from '@/src/design';
+import {raceFactsOfPlan} from '@/src/data/sessions';
+import {planComboKey} from '@/src/nav/routes';
 import {useFuelPresets} from '@/src/state/fuelPresets';
 
 import {formationBurnOf} from './formation';
 import {lastRaceOf} from './lastRace';
-import {pitLaneBase, pitModelOf} from './pitBase';
+import {pitLaneBase, pitModelOf, refuelRateFor} from './pitBase';
 import {type Combo, fuelOnly, planView, rulesFor, sessionLimitL} from './model';
 import {eventLabel} from './planEvent';
 import {buildPlanCards} from './planCards';
 import {type Unit} from './unit';
-import {usePlanHistory, usePlanLimits} from './usePlanHistory';
+import {usePlanHistory, usePlanLimits, usePlanRows} from './usePlanHistory';
 
 /**
  * Everything the Plan screen shows for one track and car, as data: the rules
@@ -52,29 +52,24 @@ export function usePlanData(
   const greenLaps = hist.chosen.laps;
   // The formation lap burns what the driver's own races say, not a green lap.
   const formation = formationBurnOf(
-    hist.raceLaps,
+    hist.formationBurnsL,
     usage(greenLaps.map(l => l.fuelL))?.median ?? null,
   );
   const rules = baseRules && {
     ...baseRules,
     rules: {...baseRules.rules, formationFactor: formation.factor},
   };
-  // The lane base comes from his own race stops here; the Plan counts no pit
-  // time without it (fewer than two stops, or a class the refuel rate is not
-  // measured for).
-  const pitBase = pitLaneBase(
-    hist.history.flatMap((s, i) =>
-      hist.lapsOf.laps[i]
-        ? [{sessionType: s.sessionType, laps: hist.lapsOf.laps[i]}]
-        : [],
-    ),
-    combo?.sessions[0]?.carClass ?? '',
-  );
+  // The refuel rate and the lane base come from his own race stops here; the
+  // Plan counts no pit time without them (fewer than two service stops, or no
+  // fill measured and a class with no default rate).
+  const carClass = combo?.sessions[0]?.carClass ?? '';
+  const refuelRate = refuelRateFor(hist.races, carClass);
+  const pitBase = pitLaneBase(hist.races, refuelRate);
   const plan = rules
     ? planRace(
         rules.rules,
         greenLaps,
-        pitModelOf(pitBase),
+        pitModelOf(pitBase, refuelRate),
         hist.ratio?.perPctL ?? null,
       )
     : null;
@@ -96,11 +91,12 @@ export function usePlanData(
             ratio: hist.ratio,
             lastRatio: hist.measured.find(m => m.ratio != null)?.ratio ?? null,
             drift: hist.chosen.drift,
-            // Over the pooled green laps, which are comparable by construction.
+            // Over the comparable laps of the pooled green laps: a lap time is
+            // pace only when it is comparable (the plan basis, paceLaps).
             traffic: trafficMedians(
               greenLaps.map(l => ({
                 timeS: l.lapTimeS,
-                comparable: true,
+                comparable: l.comparable !== false,
                 traffic: l.traffic ?? null,
               })),
             ),
@@ -123,7 +119,7 @@ export function usePlanData(
           noVe,
           hist.ratio?.perPctL ?? null,
           unit,
-          combo?.sessions[0]?.carClass ?? '',
+          refuelRate,
         )
       : null;
   return {
@@ -135,6 +131,7 @@ export function usePlanData(
     greenLaps,
     plan,
     pitBase,
+    refuelRate,
     view,
     cards,
     formation,
@@ -153,15 +150,15 @@ export function useLastRaceHere(
   combo: Combo | null,
   event: {sessionIds: string[]} | null = null,
 ) {
+  const rows = usePlanRows(combo);
   const newest =
     combo?.sessions.find(
       s =>
         s.sessionType === 'R' &&
         (event == null || event.sessionIds.includes(s.id)),
     ) ?? null;
-  const detail = useSession(newest?.id ?? '');
-  const laps = useSessionLaps(newest?.id ?? null);
-  if (!newest || !detail.data || !laps.data) return null;
-  const key = `${detail.data.trackId}|${carLabel(detail.data.car).model}`;
-  return lastRaceOf(newest.id, raceFacts(detail.data, key, laps.data));
+  const row = newest ? rows.byId.get(newest.id) : undefined;
+  if (!combo || !newest || !row) return null;
+  const key = planComboKey(combo.trackId, combo.car, combo.sim);
+  return lastRaceOf(newest.id, raceFactsOfPlan(row, key));
 }

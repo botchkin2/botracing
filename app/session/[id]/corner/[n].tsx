@@ -6,6 +6,7 @@ import {
   type CornerSelection,
 } from '@/src/features/corner/CornerScreen';
 import {parseSelection} from '@/src/nav/routes';
+import {useLapSelection} from '@/src/features/session/useLapSelection';
 
 // The URL owns the selection: /session/[id]/corner/[n]?laps=ref,a,b&hl=
 export default function CornerRoute() {
@@ -15,8 +16,10 @@ export default function CornerRoute() {
     laps?: string;
     ref?: string;
     hl?: string;
+    all?: string;
   }>();
   const router = useRouter();
+  const {update} = useLapSelection();
   const {laps, ref, hl} = params;
   const selection = useMemo<CornerSelection>(() => {
     const sel = parseSelection({laps, ref, hl});
@@ -24,16 +27,13 @@ export default function CornerRoute() {
   }, [laps, ref, hl]);
   return (
     <CornerScreen
-      key={params.n}
+      key={`${params.n}${params.all === '0' ? '-part' : '-all'}`}
       sessionId={params.id}
       corner={Number(params.n)}
+      // No `all` in the link: a compound section opens on All. `all=0` is one part.
+      whole={params.all !== '0'}
       selection={selection}
-      onSelectionChange={next =>
-        router.setParams({
-          laps: next.laps.length ? next.laps.join(',') : undefined,
-          hl: next.hl ?? undefined,
-        })
-      }
+      onSelectionChange={next => update({laps: next.laps, hl: next.hl})}
     />
   );
 }
