@@ -8,12 +8,13 @@
 //
 // Columns carry iRacing's own variable names (an adapter maps them, as it does
 // for the .ibt). A chunk is written to a .tmp file and renamed, so a crash
-// leaves whole chunks only. meta.json without endUtc means the recorder did
+// leaves whole chunks only, on the capture writer thread (store.rs ChunkWriter),
+// so the 60 Hz poll never waits for the disk. meta.json without endUtc means the recorder did
 // not finish. Nothing here holds a name or id of a person: ir_session.rs
 // decides what is kept.
 
 use crate::capture::columns::{write_columns, Column};
-use crate::capture::store::{iso, slug, write_json};
+use crate::capture::store::{iso, slug, write_json, ChunkWriter};
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -79,6 +80,7 @@ pub struct IrCapture {
     pub player: Rows,
     pub field: Rows,
     pub session: Rows,
+    writer: ChunkWriter,
 }
 
 impl IrCapture {
@@ -108,6 +110,7 @@ impl IrCapture {
             player: Rows::default(),
             field: Rows::default(),
             session: Rows::default(),
+            writer: ChunkWriter::start(0)?,
         };
         cap.write_meta()?;
         Ok(cap)
@@ -127,48 +130,65 @@ impl IrCapture {
         ms.saturating_sub(self.chunk_started_ms) >= every_ms
     }
 
-    /// Writes the open chunk if it holds anything; returns the bytes written.
-    /// On an error the buffered rows are dropped, earlier chunks stay.
+    /// Hands the open chunk to the writer thread if it holds anything, and
+    /// returns at once with the bytes of the chunks finished since the last
+    /// call, or the first error (that chunk's rows are gone, earlier stay).
     pub fn flush(&mut self, ms: u64) -> Result<u64, String> {
-        if self.player.len() == 0 && self.field.len() == 0 && self.session.len() == 0 {
-            return Ok(0);
-        }
-        let n = self.chunks;
-        let mut written = 0;
-        let mut failure = None;
-        for (name, rows) in [
-            ("player", &mut self.player),
-            ("field", &mut self.field),
-            ("session", &mut self.session),
-        ] {
-            let (cols, count) = rows.take();
-            if count == 0 {
-                continue;
-            }
-            let path = self.dir.join(format!("{name}-{n:04}.parquet"));
-            let ordered: Vec<(String, Column)> = cols.into_iter().collect();
-            match write_columns(&path, &ordered) {
-                Ok(()) => written += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
-                Err(e) => failure = Some(e),
-            }
+        let finished = self.writer.finished();
+        if self.player.len() + self.field.len() + self.session.len() > 0 {
+            let n = self.chunks;
+            self.chunks += 1;
+            self.meta.insert("chunks".into(), json!(self.chunks));
+            let streams = [
+                ("player", self.player.take()),
+                ("field", self.field.take()),
+                ("session", self.session.take()),
+            ];
+            let (dir, meta) = (self.dir.clone(), self.meta.clone());
+            self.writer.send(Box::new(move || {
+                let mut written = 0;
+                for (name, (cols, count)) in streams {
+                    if count == 0 {
+                        continue;
+                    }
+                    let path = dir.join(format!("{name}-{n:04}.parquet"));
+                    let ordered: Vec<(String, Column)> = cols.into_iter().collect();
+                    write_columns(&path, &ordered)?;
+                    written += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                }
+                write_json(&dir.join("meta.json"), &Value::Object(meta))?;
+                Ok(written)
+            }))?;
         }
         self.chunk_started_ms = ms;
-        if let Some(e) = failure {
-            return Err(e);
-        }
-        self.chunks += 1;
-        self.meta.insert("chunks".into(), json!(self.chunks));
-        self.write_meta()?;
+        let written = finished?;
         self.bytes += written;
         Ok(written)
     }
 
-    /// Flushes and marks the capture finished.
+    /// Waits for the chunks handed over; their bytes (tests).
+    #[cfg(test)]
+    pub fn settle(&mut self) -> Result<u64, String> {
+        let written = self.writer.settle()?;
+        self.bytes += written;
+        Ok(written)
+    }
+
+    /// Flushes, waits for the writer, and marks the capture finished.
     pub fn close(&mut self, ms: u64) -> Result<u64, String> {
-        let written = self.flush(ms)?;
+        let before = self.flush(ms)?;
+        let rest = self.writer.finish()?;
+        self.bytes += rest;
         self.meta.insert("endUtc".into(), json!(iso(ms)));
         self.write_meta()?;
-        Ok(written)
+        Ok(before + rest)
+    }
+}
+
+impl Drop for IrCapture {
+    /// Dropped without close: the writer still finishes what it was given.
+    fn drop(&mut self) {
+        let _ = self.writer.finish();
     }
 }
 
@@ -210,7 +230,8 @@ mod tests {
         cap.session.push(vec![("SessionTime".into(), Cell::F64(12.5))]);
         let meta_text = std::fs::read_to_string(cap.dir.join("meta.json")).unwrap();
         assert!(meta_text.contains("\"endUtc\": null"));
-        assert!(cap.flush(60_000).unwrap() > 0);
+        cap.flush(60_000).unwrap();
+        assert!(cap.settle().unwrap() > 0);
         let (n, names) = rows_in(&cap.dir.join("player-0000.parquet"));
         assert_eq!(n, 3);
         assert_eq!(names, vec!["OnPitRoad", "Speed", "wall_ms"]);
