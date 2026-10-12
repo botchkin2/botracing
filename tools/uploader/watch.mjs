@@ -56,7 +56,7 @@ import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
-import {decide, retryDelayMin} from './trigger.mjs';
+import {decide, decideLive, retryDelayMin} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
@@ -72,7 +72,12 @@ const local = process.env.LOCALAPPDATA || homedir();
 const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
-const recorderStatus = resolve(local, 'lap-capture', 'status.json');
+// The capture root: LAP_CAPTURE, as the tray's recorder and sync.mjs read it.
+const captureRoot = process.env.LAP_CAPTURE || resolve(local, 'lap-capture');
+const recorderStatus = resolve(captureRoot, 'status.json');
+// One live upload at most this long: a lap is ~0.2 MB, so anything longer is
+// stuck and is stopped; the next lap retries it (pit-wall thread 66).
+const LIVE_TIMEOUT_MS = 120_000;
 const dash = process.argv.indexOf('--');
 const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
 // sync.mjs's work folder (the tray passes its own with --work) and its record
@@ -218,6 +223,46 @@ function syncArgsOf(sim) {
     '--sim',
     sim.id,
   ];
+}
+
+// Live laps: one capture's finished laps up as archive parts, while LMU runs.
+// Idle priority, no analysis on the PC (the session reads stale and is analysed
+// when opened), never stopped by the game guard (it exists for the game), but
+// stopped after LIVE_TIMEOUT_MS.
+function runLive(sessionDir) {
+  return new Promise(done => {
+    const args = [
+      syncScript,
+      ...syncArgsOf(SIMS.find(sim => sim.id === 'lmu')),
+      '--live',
+      resolve(captureRoot, sessionDir),
+    ];
+    const child = spawn(process.execPath, args, {windowsHide: true});
+    try {
+      setPriority(child.pid, constants.priority.PRIORITY_LOW);
+    } catch {
+      // Priority is a courtesy; the upload still runs.
+    }
+    const onData = chunk => {
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+        log(`  live | ${line}`);
+    };
+    child.stdout.setEncoding('utf8').on('data', onData);
+    child.stderr.setEncoding('utf8').on('data', onData);
+    const timer = setTimeout(() => {
+      try {
+        execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+          windowsHide: true,
+        });
+      } catch {
+        // Already gone.
+      }
+    }, LIVE_TIMEOUT_MS);
+    child.on('close', code => {
+      clearTimeout(timer);
+      done({code});
+    });
+  });
 }
 
 function runSync(sim, onProgress, skipIds) {
@@ -399,6 +444,29 @@ async function main() {
     }
     try {
       const running = gameRunning();
+      // Live laps first: a lap the recorder put on disk goes up while LMU runs.
+      const lmu = SIMS.find(sim => sim.id === 'lmu');
+      if (lmu && running && exeRunning(gameExeOf(lmu))) {
+        const recorder = readJson(recorderStatus, null);
+        const live = (watch.live ??= {});
+        const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
+        const plan = decideLive({
+          gameRunning: true,
+          lastLapAtMs,
+          lastLiveAtMs: live.lastLapAtMs ?? null,
+          liveBusy: false,
+        });
+        if (plan.run && recorder?.sessionDir) {
+          log(`live: ${plan.reason} (${recorder.sessionDir})`);
+          const startedMs = Date.now();
+          const r = await runLive(recorder.sessionDir);
+          log(`live: exit ${r.code} in ${Date.now() - startedMs} ms`);
+          // A failed upload is not recorded as done: the next lap sends every
+          // part not in the bucket yet, in order (parts are md5-skipped).
+          if (r.code === 0) live.lastLapAtMs = lastLapAtMs;
+          save();
+        }
+      }
       for (const sim of SIMS) {
         const st = stateOf(watch, sim);
         const recs = recordings(sim, st.lastRunAtMs);
