@@ -446,9 +446,19 @@ async function main() {
       const running = gameRunning();
       // Live laps first: a lap the recorder put on disk goes up while LMU runs.
       const lmu = SIMS.find(sim => sim.id === 'lmu');
+      const live = (watch.live ??= {});
+      const recorderNow = lmu ? readJson(recorderStatus, null) : null;
+      // The capture live laps were following has closed (the drive ended, the
+      // game quit): one last run sends its in-lap, game running or not.
+      if (live.dir && recorderNow?.sessionDir !== live.dir) {
+        log(`live: ${live.dir} closed, sending its last lap`);
+        const r = await runLive(live.dir);
+        log(`live: exit ${r.code}`);
+        if (r.code === 0) live.dir = null;
+        save();
+      }
       if (lmu && running && exeRunning(gameExeOf(lmu))) {
-        const recorder = readJson(recorderStatus, null);
-        const live = (watch.live ??= {});
+        const recorder = recorderNow;
         const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
         const plan = decideLive({
           gameRunning: true,
@@ -464,6 +474,7 @@ async function main() {
           // A failed upload is not recorded as done: the next lap sends every
           // part not in the bucket yet, in order (parts are md5-skipped).
           if (r.code === 0) live.lastLapAtMs = lastLapAtMs;
+          live.dir = recorder.sessionDir;
           save();
         }
       }

@@ -57,6 +57,7 @@ import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
 import {planBlock} from './planBlock.mjs';
@@ -517,8 +518,16 @@ async function main() {
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
   if (!since && state.since) since = state.since;
-  const files = scan(state);
+  const scanned = scan(state);
   if (!check) saveState(state);
+  // A drive live laps already uploaded (syncLive.mjs) is that session: its
+  // game file adds nothing the capture lacks (STORAGE.md, Live laps).
+  const liveIndex = readLiveIndex(work);
+  const files = scanned.filter(f => {
+    const cover = liveCover(liveIndex, f.info);
+    if (cover) log(`  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`);
+    return !cover;
+  });
   const sessions = group(files);
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 

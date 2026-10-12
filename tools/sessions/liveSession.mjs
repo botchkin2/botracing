@@ -4,6 +4,8 @@
 // (track, car, type, times, lap count, best lap) and a stamp older than any
 // analysis, so the first open analyses it in the cloud (analysis on open).
 // Pure: sync.mjs --live reads the capture and uploads; this only shapes docs.
+import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {slugId} from './analyzeFromArchive.mjs';
 import {analysisStamp} from './versionKey.mjs';
 
@@ -73,3 +75,35 @@ export function liveRecordingDoc({ownerId, sessionId, recording}) {
 }
 
 export const partName = i => String(i).padStart(3, '0');
+
+// What --live uploaded, by capture stretch: {key: {sessionId, sim, layout,
+// startMs, endMs}}. The game-file sync skips a recording a live stretch
+// covers, so one drive is one session with the live laps' ids.
+export const liveIndexPath = work => resolve(work, 'live', 'index.json');
+
+export function readLiveIndex(work) {
+  const path = liveIndexPath(work);
+  try {
+    return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeLiveIndex(work, index) {
+  writeFileSync(liveIndexPath(work), JSON.stringify(index, null, 1));
+}
+
+/**
+ * The live stretch covering a game recording, or null: same sim and layout,
+ * and the recording starts within the stretch (the game file and the capture
+ * open on the same realtime flag, ~2 s apart, lmuCapture.mjs).
+ */
+export function liveCover(index, info, slackMs = 15_000) {
+  const start = Date.parse(info.recordedAt);
+  for (const span of Object.values(index)) {
+    if (span.sim !== info.sim || span.layout !== info.layout) continue;
+    if (start >= span.startMs - slackMs && start <= span.endMs) return span;
+  }
+  return null;
+}

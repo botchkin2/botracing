@@ -10,7 +10,13 @@
 import {existsSync, mkdirSync} from 'node:fs';
 import {basename, resolve} from 'node:path';
 import {groupFiles} from './sessionFiles.mjs';
-import {liveRecordingDoc, liveSessionDoc, partName} from './liveSession.mjs';
+import {
+  liveRecordingDoc,
+  liveSessionDoc,
+  partName,
+  readLiveIndex,
+  writeLiveIndex,
+} from './liveSession.mjs';
 
 /**
  * @param {object} input
@@ -38,6 +44,7 @@ export async function syncLive({
       path: captureDir,
       info: {...s.info, source: s.key},
       laps: s.laps,
+      span: {startMs: s.startMs, endMs: s.endMs},
     }));
   if (files.length === 0) {
     log(`live: no finished lap in ${basename(captureDir)}`);
@@ -73,6 +80,17 @@ export async function syncLive({
     };
     log(`live: ${session.id} ${out.session.lapCount} laps`);
     await store.uploadLive(out, {log});
+    // Only once it is stored: the game-file sync then skips what it covers.
+    mkdirSync(resolve(work, 'live'), {recursive: true});
+    const index = readLiveIndex(work);
+    for (const f of session.files)
+      index[f.info.source] = {
+        sessionId: session.id,
+        sim: f.info.sim,
+        layout: f.info.layout,
+        ...f.span,
+      };
+    writeLiveIndex(work, index);
     sessions++;
   }
   return {sessions};

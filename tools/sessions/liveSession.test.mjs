@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {isStale} from './versionKey.mjs';
 import {analysisVersion, blockVersions} from './analyze.mjs';
-import {LIVE_STAMP, liveRecordingDoc, liveSessionDoc} from './liveSession.mjs';
+import {LIVE_STAMP, liveCover, liveRecordingDoc, liveSessionDoc} from './liveSession.mjs';
 
 const info = {
   sim: 'lmu',
@@ -58,4 +58,16 @@ test('the recording names one archive part per lap, in order', () => {
     'archive/lmu/s/r1/samples.002.parquet',
   ]);
   assert.equal(doc.durationSec, 251.9);
+});
+
+
+test('a game file a live stretch covers is found; another layout or time is not', () => {
+  const index = {
+    'cap#0': {sessionId: 's', sim: 'lmu', layout: 'RA', startMs: Date.parse('2026-10-12T20:00:00Z'), endMs: Date.parse('2026-10-12T20:40:00Z')},
+  };
+  const at = recordedAt => ({sim: 'lmu', layout: 'RA', recordedAt});
+  assert.equal(liveCover(index, at('2026-10-12T20:00:02Z'))?.sessionId, 's');
+  assert.equal(liveCover(index, at('2026-10-12T19:59:50Z'))?.sessionId, 's');
+  assert.equal(liveCover(index, at('2026-10-12T21:00:00Z')), null);
+  assert.equal(liveCover(index, {...at('2026-10-12T20:00:02Z'), layout: 'Sebring'}), null);
 });
