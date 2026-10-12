@@ -92,16 +92,24 @@ describe('sessionOptimum', () => {
     expect(s?.[0].bestSumS).toBe(100);
   });
 
-  it('leaves out a window that crosses the pit lane, is off track, or is under a full-course yellow', () => {
+  it('leaves out a window that crosses the pit lane or is off track', () => {
     const laps = [
       ...five(),
       rawLap('pit', {pit: true, sectionS: 80}),
       rawLap('off', {offTrackSec: 0.3, sectionS: 80}),
-      rawLap('fcy', {courseYellowSec: 0.5, sectionS: 80}),
     ];
     const w = optimum(laps)?.stints[0].windows;
     expect(w?.[1]).toMatchObject({n: 5, bestS: 95});
-    expect(w?.[0].n).toBe(8);
+    expect(w?.[0].n).toBe(7);
+  });
+
+  it('keeps a window under a full-course yellow: a yellow never removes a time', () => {
+    const laps = [
+      ...five(),
+      rawLap('fcy', {courseYellowSec: 12, sectionS: 80}),
+    ];
+    const w = optimum(laps)?.stints[0].windows[1];
+    expect(w).toMatchObject({n: 6, bestS: 80, bestLapId: 'fcy'});
   });
 
   it('keeps a sector-level local yellow and a 0.2 s off as times, tagged not dropped', () => {
