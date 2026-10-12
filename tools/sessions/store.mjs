@@ -239,6 +239,14 @@ function boundaryOps(boundaries) {
 
 // out is what sync.mjs builds: {session, recordings, laps, band, track,
 // traces, files}. track is set only when this session made a new corner map.
+// A drive the stored session does not have yet (a practice's next run out
+// of the garage): new data, written whatever the stamps say. It lands with
+// this writer's stamp and reads stale until opened (pit-wall thread 1 #4651).
+function bringsNewRecordings(before, session) {
+  const stored = new Set(before?.recordingIds ?? []);
+  return (session.recordingIds ?? []).some(id => !stored.has(id));
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -246,7 +254,10 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // PC behind the cloud's code leaves a session the cloud already analysed
   // alone (pit-wall thread 1 #4573).
   const before = await backend.getDoc('sessions', session.id);
-  if (stampNewer(before?.analysis, session.analysis)) {
+  if (
+    stampNewer(before?.analysis, session.analysis) &&
+    !bringsNewRecordings(before, session)
+  ) {
     log('  skipped: the stored session was analysed under newer rules');
     return {skipped: 'newer'};
   }
