@@ -14,6 +14,14 @@ live capture. Test: `lmuCapture.test.mjs` on `fixtures/lmu-capture` (laps 3-4 of
   `tick` = round((t - info.startT) * 400), so parts read through one glob equal one window
   (checked: 3 Oct, 22 parts vs one window, sample/event rows and lap docs identical).
 
+## Session clock restarts
+
+One capture can hold several sessions on one clock that restarts (2 Oct 23:38 practice:
+1201 s, then 0.1 s at 23:55:32). Stretches are numbered in wall-clock order, and each
+reads only the rows of its clock epoch (between restarts, by wall_ms), then by session
+time. Test fixture: `fixtures/lmu-capture-reset`. Chunks are read by glob: a long
+session's file list overran the Windows command line.
+
 ## Verified on the fixtures
 
 - The game's .duckdb spans one realtime stretch (2 Oct race through pit-lane stops is one
