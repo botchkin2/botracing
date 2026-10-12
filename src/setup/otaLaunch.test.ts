@@ -96,6 +96,19 @@ describe('runLaunch', () => {
     expect(d.hideSplash).toHaveBeenCalledTimes(1);
   });
 
+  it('hides the splash at the backstop when the reload resolves but the app does not restart', async () => {
+    const d = deps({fetchUpdate: async () => true});
+    const done = runLaunch(d);
+    await jest.advanceTimersByTimeAsync(0);
+    await done;
+    expect(d.reload).toHaveBeenCalledTimes(1);
+    expect(d.hideSplash).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(
+      (LAUNCH_HOLD_S + LAUNCH_BACKSTOP_S) * 1000,
+    );
+    expect(d.hideSplash).toHaveBeenCalledTimes(1);
+  });
+
   it('survives a hideSplash that rejects', async () => {
     const d = deps({
       hideSplash: async () => {

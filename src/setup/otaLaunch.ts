@@ -19,17 +19,20 @@ export type LaunchDeps = {
 
 export async function runLaunch(deps: LaunchDeps): Promise<void> {
   let hidden = false;
+  let backstop: ReturnType<typeof setTimeout> | undefined;
   const hide = async () => {
     if (hidden) return;
     hidden = true;
+    clearTimeout(backstop);
     try {
       await deps.hideSplash();
     } catch {
       // Already hidden, or the native side is gone: nothing left to do.
     }
   };
-  // Whatever else happens, the splash is down by then.
-  const backstop = setTimeout(
+  // Whatever else happens, the splash is down by then. Only hide() disarms
+  // it, so a reload that resolves without restarting still ends at the backstop.
+  backstop = setTimeout(
     () => void hide(),
     (LAUNCH_HOLD_S + LAUNCH_BACKSTOP_S) * 1000,
   );
@@ -55,6 +58,5 @@ export async function runLaunch(deps: LaunchDeps): Promise<void> {
     // A rejected reload: stay on this bundle and show it.
   } finally {
     if (!reloaded) await hide();
-    clearTimeout(backstop);
   }
 }
