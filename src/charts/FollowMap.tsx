@@ -189,24 +189,14 @@ export function FollowMap({
     [band, bandFaded, lines, surface],
   );
   // The layer's local (u, v) is (x - minX, maxY - y) in metres; this maps it to the screen.
+  // That map is a rotation and a uniform scale: pass it as plain transforms
+  // (react-native-web drops a matrix entry).
   const [ma, mb, mc, md, me, mf] = followMatrix(view);
-  const layerMatrix = [
-    ma,
-    mb,
-    0,
-    0,
-    -mc,
-    -md,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    ma * box.minX + mc * box.maxY + me,
-    mb * box.minX + md * box.maxY + mf,
-    0,
-    1,
+  const layerTransform = [
+    {translateX: ma * box.minX + mc * box.maxY + me},
+    {translateY: mb * box.minX + md * box.maxY + mf},
+    {rotate: `${Math.atan2(mb, ma)}rad`},
+    {scale: Math.hypot(ma, mb)},
   ];
 
   return (
@@ -216,7 +206,7 @@ export function FollowMap({
         <View
           style={[
             styles.layer,
-            {width: box.w, height: box.h, transform: [{matrix: layerMatrix}]},
+            {width: box.w, height: box.h, transform: layerTransform},
           ]}>
           <Svg width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`}>
             <G transform={`matrix(1 0 0 -1 ${-box.minX} ${box.maxY})`}>
