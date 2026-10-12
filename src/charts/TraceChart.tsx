@@ -1,12 +1,6 @@
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 
-import {
-  areaPath,
-  type ChunkFrame,
-  chunkPath,
-  chunksIn,
-  objectId,
-} from './chunkPaths';
+import {type ChunkFrame, chunkPath, chunksIn, objectId} from './chunkPaths';
 import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
@@ -14,6 +8,7 @@ import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
 import {ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
+import {SeriesLines} from './SeriesLines';
 import {baselineOver, baselineUnder, labelBox} from './labelBox';
 import {
   AXIS_H,
@@ -74,8 +69,6 @@ export type TraceSeries = {
 
 export type TraceBand = {low: number[]; high: number[]};
 
-// Neighbour laps across the line are context, not the selected lap.
-const WRAP_OPACITY = 0.4;
 // How much the background covers what is outside a shaded stretch.
 const DIM_OPACITY = 0.6;
 // A base band (a span along the bottom edge) is this thick, in points.
@@ -526,42 +519,16 @@ export function TraceChart({
         <G clipPath={`url(#${clipId})`}>
           {paths.map(p => (
             <G key={p.key} transform={p.transform}>
-              {p.wraps.map(c => (
-                <Path
-                  key={c.k}
-                  d={c.d}
-                  stroke={p.color}
-                  strokeWidth={p.width}
-                  strokeOpacity={p.opacity * WRAP_OPACITY}
-                  strokeDasharray={p.dash}
-                  strokeLinejoin='round'
-                  vectorEffect='non-scaling-stroke'
-                  fill='none'
-                />
-              ))}
-              {p.ds.map(c =>
-                p.fill == null ? null : (
-                  <Path
-                    key={`a${c.k}`}
-                    d={areaPath(c.d, p.base)}
-                    fill={p.color}
-                    fillOpacity={p.fill * p.opacity}
-                  />
-                ),
-              )}
-              {p.ds.map(c => (
-                <Path
-                  key={c.k}
-                  d={c.d}
-                  stroke={p.color}
-                  strokeWidth={p.width}
-                  strokeOpacity={p.opacity}
-                  strokeDasharray={p.dash}
-                  strokeLinejoin='round'
-                  vectorEffect='non-scaling-stroke'
-                  fill='none'
-                />
-              ))}
+              <SeriesLines
+                ds={p.ds}
+                wraps={p.wraps}
+                color={p.color}
+                width={p.width}
+                opacity={p.opacity}
+                dash={p.dash}
+                fill={p.fill}
+                base={p.base}
+              />
             </G>
           ))}
         </G>
