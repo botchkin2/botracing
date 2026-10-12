@@ -24,9 +24,7 @@ import {REFUEL_FUEL_MIN_L, REFUEL_VE_MIN_PCT} from '../../src/analysis/refuel.ts
 /** Bump when the rules below change: it goes into analyze.mjs's blockVersions, so sessions are re-analysed. */
 // 3: a dead wear sensor coming back below its last live reading is not a tyre
 // change, so such a stop with nothing else done is no longer a service (fuelFacts.mjs).
-// 4: a window that begins before the recording's first lap-counter change is
-// the session start, so it has no visit at all (fuelFacts isSessionStart).
-export const PIT_VISIT_VERSION = 4;
+export const PIT_VISIT_VERSION = 3;
 
 /** Slower than this is standing still (km/h). The game's speed reads 0.0 to 2.7 around a stop. */
 export const STATIONARY_KMH = 1;
