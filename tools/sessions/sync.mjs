@@ -178,7 +178,10 @@ function group(files) {
   // fingerprint: the unchanged ones are not analysed again.
   for (const s of sessions) {
     const sources = s.files.map(f => `${f.info.source}:${f.size}`);
-    s.fingerprint = hash(versionKey(analysisVersion, blockVersions), ...sources);
+    s.fingerprint = hash(
+      versionKey(analysisVersion, blockVersions),
+      ...sources,
+    );
     // The recordings alone: what makes an upload due again (uploadDue).
     s.sources = hash(...sources);
   }
@@ -283,6 +286,46 @@ function eventsOf(s, eventWindows) {
   };
 }
 
+// The session's track and wall-clock window, the key a capture joins on.
+function spanOf(s) {
+  const first = s.files[0].info;
+  const last = s.files[s.files.length - 1].info;
+  return {
+    tracks: [first.track, first.layout],
+    startMs: Date.parse(first.recordedAt),
+    endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
+  };
+}
+
+// Sessions uploaded before the tray kept capture extracts, whose capture is
+// still on the PC: their extract goes up once, by itself, with no analysis
+// (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
+// is sent once.
+async function uploadCaptureBacklog(sessions, state, store) {
+  state.extracts ??= {};
+  let sent = 0;
+  for (const s of sessions) {
+    if (!state.sessions[s.id] || state.extracts[s.id]) continue;
+    const span = spanOf(s);
+    const first = s.files[0].info;
+    const extract = captureExtract({
+      damage: damageFor(captureRoot, span),
+      raceLength:
+        first.sim === 'lmu' && /^r/i.test(first.sessionType)
+          ? raceLengthFor(captureRoot, span)
+          : null,
+    });
+    // No capture on the PC: nothing to keep, and nothing to try again.
+    state.extracts[s.id] = extract ? 'sent' : 'none';
+    if (extract) {
+      await store.putCaptureExtract(ownerId, s.id, extract);
+      sent++;
+    }
+  }
+  if (sent) log(`capture extracts kept for ${sent} uploaded session(s)`);
+  saveState(state);
+}
+
 function build(
   s,
   trackMap,
@@ -325,13 +368,7 @@ function build(
     });
   }
 
-  const last = s.files[s.files.length - 1].info;
-  const endMs = Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000;
-  const span = {
-    tracks: [first.track, first.layout],
-    startMs: Date.parse(first.recordedAt),
-    endMs,
-  };
+  const span = spanOf(s);
   // iRacing: the tray's live capture against the .ibt of the same drive, lap
   // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
   // Every capture this session read (field, damage, race length, the player
@@ -510,14 +547,13 @@ async function main() {
     log(`${waiting.length} session(s) waiting on a retry: skipped`);
     todo = todo.filter(s => !skipIds.has(s.id));
   }
+  if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by
   // curate from a named set (tools/curate, tools/sessions/surface.mjs).
   if (check) {
-    log(
-      `check ok: ${sessions.length} sessions, ${todo.length} to do`,
-    );
+    log(`check ok: ${sessions.length} sessions, ${todo.length} to do`);
     return;
   }
   const first = await runPool(todo, store, state, eventWindows);
@@ -620,6 +656,8 @@ async function runPool(
         processed.push({s, rev: r.rev});
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
+          state.extracts ??= {};
+          state.extracts[s.id] = 'sent';
           saveState(state);
         }
       } else {

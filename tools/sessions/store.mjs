@@ -537,6 +537,14 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    // A session's capture extract on its own (captureExtract.mjs), for the
+    // sessions uploaded before extracts were kept.
+    putCaptureExtract: (ownerId, sessionId, extract) =>
+      backend.putFile(
+        captureExtractPath(ownerId, sessionId),
+        {body: Buffer.from(JSON.stringify(extract), 'utf8')},
+        {contentType: 'application/json', gzip: true},
+      ),
   };
 }
 
@@ -546,6 +554,8 @@ const admin = () => createStore(adminBackend(connect()));
 export const getTrack = trackId => admin().getTrack(trackId);
 export const updateEvents = items => admin().updateEvents(items);
 export const upload = (out, options) => admin().upload(out, options);
+export const putCaptureExtract = (ownerId, sessionId, extract) =>
+  admin().putCaptureExtract(ownerId, sessionId, extract);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>
