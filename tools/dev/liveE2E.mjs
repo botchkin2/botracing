@@ -50,6 +50,8 @@ const watcher = spawn(
       LAP_LOCK_PIPE: String.raw`\\.\pipe\live-e2e-` + process.pid,
       LAP_GAME_EXE: 'node.exe',
       LAP_SIMS: 'lmu',
+      // The watcher ends with this script (parentGuard.mjs), even if it is killed.
+      LAP_PARENT_PID: String(process.pid),
     },
     windowsHide: true,
   },

@@ -33,11 +33,14 @@ if (!existsSync(resolve(from, 'meta.json')) || !arg('--out')) {
 }
 
 const glob = kind => sqlPath(resolve(from, `${kind}-*.parquet`));
-// The player's crossings: mLapStartET steps (the game's own line time).
+// The player's finished laps, as the recorder sees them: mLapNumber steps,
+// at the new lap's mLapStartET. Not every mLapStartET step: a race start sets
+// it while the lap number stays (lap 0 begins), which is no finished lap.
 const crossings = rows(
   ':memory:',
-  `SELECT DISTINCT mLapStartET t FROM read_parquet(${glob('player')})
-   WHERE mLapStartET > 0 ORDER BY t`,
+  `SELECT ls t FROM (SELECT mLapStartET ls, mLapNumber lap,
+     lag(mLapNumber) OVER (ORDER BY mElapsedTime) pl FROM read_parquet(${glob('player')}))
+   WHERE pl IS NOT NULL AND lap <> pl ORDER BY t`,
 ).map(r => Number(r.t));
 const [{t0, t1}] = rows(
   ':memory:',
@@ -100,4 +103,4 @@ for (let n = 0; n + 1 < cuts.length; n++) {
 }
 writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
 writeJson(status, {state: 'waiting', lastLapAt, sessionDir: null, updatedAt: iso()});
-console.log(`${iso()} replay done, ${cuts.length - 1} chunks`);
+console.log(`${iso()} replay done, ${lapsDone} laps`);
