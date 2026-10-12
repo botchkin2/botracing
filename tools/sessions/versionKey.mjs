@@ -15,3 +15,34 @@ export function versionKey(analysisVersion, blockVersions) {
     .join(',');
   return `${analysisVersion}|${blocks}`;
 }
+
+/**
+ * What the session doc records of the rules that made it: `{v, blocks, kept}`.
+ * `kept` names the blocks a resync took from the stored doc because their
+ * input (the live capture) is gone (keepCapture.mjs); they were made under an
+ * older rule and cannot be made again.
+ */
+export function analysisStamp(analysisVersion, blockVersions, kept = []) {
+  return {
+    v: analysisVersion,
+    blocks: {...blockVersions},
+    kept: [...new Set(kept)].sort(),
+  };
+}
+
+/**
+ * Whether a session needs analysing again under these rules: no stamp (every
+ * session written before stamps), an older analysis version, or any block
+ * older than the code's. A kept block is left out of the test: nothing can
+ * bring it up to date, so counting it would re-run the session on every open.
+ */
+export function isStale(stamp, analysisVersion, blockVersions) {
+  if (!stamp || typeof stamp.v !== 'number') return true;
+  if (stamp.v < analysisVersion) return true;
+  const kept = new Set(stamp.kept ?? []);
+  for (const [name, v] of Object.entries(blockVersions)) {
+    if (kept.has(name)) continue;
+    if (!(stamp.blocks?.[name] >= v)) return true;
+  }
+  return false;
+}

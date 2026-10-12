@@ -62,6 +62,8 @@ The same analysis code runs in the uploader and in the app, so a selection made 
 
 IDs are deterministic hashes, so re-uploading the same file overwrites instead of duplicating.
 
+The session doc's `analysis` is `{v, blocks, kept}`: the `analysisVersion` and every `blockVersions` entry the session and its laps were made under, and `kept`, the blocks a resync took from the stored docs because their input is gone (`raceLength`, `pitVisit`; `tools/sessions/keepCapture.mjs`). `isStale` (`tools/sessions/versionKey.mjs`) says a session needs analysing again: no stamp, an older version, or an older block that is not kept (a kept block can never be brought up to date, so it never counts). The uploader writes the session doc last, in a write of its own, after its recordings and laps have all landed; a failure before it leaves the old stamp. A write Firestore drops is an error, not a silent success (`docShape.mjs` `guardedWriter`).
+
 Firestore docs cap at 1 MiB. Anything per-sample goes in the bucket.
 
 ## Indexes

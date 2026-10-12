@@ -96,11 +96,22 @@ export function guardedWriter(writer) {
                 .join(' | ')}`,
         );
       }
-      for (const {op, ref, data, options} of held) {
-        if (op === 'set') writer.set(ref, data, options);
-        else writer.delete(ref);
-      }
+      // Firestore's bulkWriter resolves close() even when a write failed; only
+      // each write's own promise says so. A dropped write is an error here.
+      const writes = held.map(({op, ref, data, options}) =>
+        Promise.resolve(
+          op === 'set' ? writer.set(ref, data, options) : writer.delete(ref),
+        ).then(
+          () => null,
+          error => `${ref.path}: ${error.message}`,
+        ),
+      );
       await writer.close();
+      const failed = (await Promise.all(writes)).filter(Boolean);
+      if (failed.length > 0)
+        throw new Error(
+          `${failed.length} write(s) failed: ${failed.slice(0, 3).join(' | ')}`,
+        );
     },
   };
 }
