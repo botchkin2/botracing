@@ -55,7 +55,7 @@ pub fn line(l: &Line) -> String {
     }
 }
 
-fn now_ms() -> u64 {
+pub fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
@@ -281,7 +281,7 @@ fn run(stop: &AtomicBool, line: &Mutex<Line>, root: PathBuf, header_dir: PathBuf
 /// number of tools.
 #[cfg(windows)]
 pub fn start_iracing(root: PathBuf) -> Handle {
-    use crate::capture::ir_recorder::{line as ir_line, IrRecorder, IrSource};
+    use crate::capture::ir_recorder::{line as ir_line, IrRecorder};
     use crate::capture::win::IrShm;
     let stop = Arc::new(AtomicBool::new(false));
     let line = Arc::new(Mutex::new(Line::Text("Waiting for iRacing".into())));
@@ -291,14 +291,9 @@ pub fn start_iracing(root: PathBuf) -> Handle {
         .spawn(move || {
             crate::capture::win::lower_priority();
             let mut rec = IrRecorder::new(IrShm::new(), root);
-            while !stop_t.load(Ordering::SeqCst) {
-                let wait = rec.tick(now_ms());
+            crate::capture::ir_recorder::drive(&mut rec, &stop_t, |rec| {
                 *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
-                // One wait, as before: it returns early on the sim's next tick
-                // (the 60 Hz recording depends on that). Capped at STOP_SLICE so a
-                // quit is seen within one, and so is the sim starting.
-                rec.src().wait(wait.min(STOP_SLICE));
-            }
+            });
             rec.shutdown(now_ms());
             *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
         })
@@ -348,6 +343,18 @@ mod tests {
         stop.store(true, Ordering::SeqCst);
         h.join().unwrap();
         assert!(t.elapsed() < Duration::from_millis(400), "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn a_poll_shorter_than_a_slice_sleeps_its_own_length() {
+        // LMU while recording: the tick asks for POLL (4 ms); slicing must not
+        // stretch it, or 100 Hz frames are slept through.
+        let stop = AtomicBool::new(false);
+        let t = std::time::Instant::now();
+        for _ in 0..10 {
+            sleep_unless_stopped(Duration::from_millis(4), &stop);
+        }
+        assert!(t.elapsed() < Duration::from_millis(200), "{:?}", t.elapsed());
     }
 
     fn status(state: &'static str, reason: &str) -> Status {
