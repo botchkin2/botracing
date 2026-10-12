@@ -9,6 +9,7 @@ import {
   startQueryPersist,
 } from '../data/queryPersist';
 import {
+  beginAuthWait,
   endAuthWait,
   setIdTokenProvider,
   setUnauthorizedListener,
@@ -57,6 +58,11 @@ export function followFirebaseAuth(auth: Auth): () => void {
     stopPersist?.();
     setIdTokenProvider(null);
     setUnauthorizedListener(null);
-    endAuthWait();
+    // The root layout can unmount and mount again (a navigation the router did
+    // not make, a hot reload). The new tree's queries run before its layout
+    // effect starts this again, so they must wait for its first answer rather
+    // than go out with no token: the API's 401 shows the sign-in prompt to
+    // someone who is signed in.
+    beginAuthWait();
   };
 }
