@@ -43,7 +43,8 @@ import {
   idleState,
   problemsOf,
 } from './heartbeat.mjs';
-import {drivingNow} from './driving.mjs';
+import {inGarage, lmuState} from './driving.mjs';
+import {defaultLogFolder} from '../sessions/lmuEvents.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {parentGone} from './parentGuard.mjs';
 import {
@@ -148,22 +149,25 @@ function gameRunning() {
   return SIMS.some(sim => exeRunning(gameExeOf(sim)));
 }
 
-// A drive is being recorded in any watched sim's folder (driving.mjs): the
-// only time nothing syncs. In the garage or the menus the finished drives go.
-function driving(nowMs = Date.now()) {
-  return SIMS.some(sim => {
-    const folder = sim.folder;
-    if (!existsSync(folder)) return false;
-    const files = [];
+// The car is in LMU's garage, LMU is the only sim open, and nothing is being
+// written (driving.mjs): the finished drives can sync with the game open.
+// Anything else with a game open counts as driving, and nothing syncs.
+function inGarageNow(nowMs = Date.now()) {
+  const open = SIMS.filter(sim => exeRunning(gameExeOf(sim)));
+  if (open.length !== 1 || open[0].id !== 'lmu') return false;
+  const folder = open[0].folder;
+  const files = [];
+  if (existsSync(folder)) {
     for (const name of readdirSync(folder)) {
       try {
         files.push({name, mtimeMs: statSync(resolve(folder, name)).mtimeMs});
       } catch {
-        // Gone between the listing and the stat: not a drive.
+        // Gone between the listing and the stat.
       }
     }
-    return drivingNow(files, nowMs);
-  });
+  }
+  const state = lmuState(process.env.LMU_LOG || defaultLogFolder);
+  return inGarage({state, files, nowMs});
 }
 
 // sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,
@@ -277,7 +281,7 @@ function runSync(sim, onProgress, skipIds, inGame) {
     // The whole tree: the sync and the DuckDB processes it runs.
     // Stopped the moment a drive starts (game closed: the moment it opens).
     const guard = stopWhenGameStarts(child, {
-      gameRunning: inGame ? () => driving() : gameRunning,
+      gameRunning: inGame ? () => !inGarageNow() : gameRunning,
       kill: pid =>
         execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
           windowsHide: true,
@@ -439,7 +443,7 @@ async function main() {
     }
     try {
       const running = gameRunning();
-      const drivingNowFlag = running && driving();
+      const drivingNowFlag = running && !inGarageNow();
       for (const sim of SIMS) {
         const st = stateOf(watch, sim);
         const recs = recordings(sim, st.lastRunAtMs);

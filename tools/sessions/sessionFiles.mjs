@@ -63,6 +63,12 @@ export function scanFolder({
       try {
         info = adapter.describe(path);
       } catch (error) {
+        // The game still holds it (a drive being written): looked at again
+        // after the quiet time, never a skip for good (pit-wall thread 1 #4669).
+        if (isFileBusy(error)) {
+          skippedQuiet++;
+          continue;
+        }
         log(`skip ${name}: ${String(error.message).split('\n')[0]}`);
         continue;
       }
@@ -82,6 +88,17 @@ export function scanFolder({
   if (skippedQuiet)
     log(`${skippedQuiet} file(s) still being written, skipped for now`);
   return out;
+}
+
+/**
+ * A recording another process still holds open for writing: DuckDB's own lock
+ * ("Could not set lock on file", "Conflicting lock is held") or Windows'
+ * sharing violation. Not a broken file: the drive is still being written.
+ */
+export function isFileBusy(error) {
+  return /Could not set lock|Conflicting lock|being used by another process|cannot access the file/i.test(
+    String(error?.message ?? error),
+  );
 }
 
 // A session is recordings with the same owner, sim, track layout, car, and

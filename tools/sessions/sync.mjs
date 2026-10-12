@@ -42,6 +42,7 @@ import {adapter as adapterOf, telemetryFolder} from './sims.mjs';
 import {
   groupFiles,
   hash,
+  isFileBusy,
   QUIET_MIN_DEFAULT,
   scanFolder,
 } from './sessionFiles.mjs';
@@ -584,9 +585,9 @@ async function main() {
   // #4648): read from the tray log.
   const cpu = process.cpuUsage();
   log(
-    `cpu ${((cpu.user + cpu.system) / 1e6).toFixed(1)} s, peak memory ${Math.round(
-      process.resourceUsage().maxRSS / 1024,
-    )} MB`,
+    `cpu ${((cpu.user + cpu.system) / 1e6).toFixed(
+      1,
+    )} s, peak memory ${Math.round(process.resourceUsage().maxRSS / 1024)} MB`,
   );
   log(
     `done ${done}, failed ${failed}, unchanged ${
@@ -671,6 +672,10 @@ async function runPool(
           state.extracts[s.id] = 'with-session';
           saveState(state);
         }
+      } else if (isFileBusy(r.error)) {
+        // The game still holds a recording of it: not a failure, and no
+        // backoff. The watcher looks again after the quiet time (#4669).
+        log(`1 file(s) still being written, skipped for now`);
       } else {
         failed++;
         log(`  failed: ${r.error.split('\n').slice(0, 3).join(' | ')}`);

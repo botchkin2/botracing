@@ -9,7 +9,9 @@ import {groupFiles, hash, sameSession, scanFolder} from './sessionFiles.mjs';
 const info = (n, extra = {}) => ({
   sim: 'lmu',
   source: `Road Atlanta_P_${n}.duckdb`,
-  recordedAt: new Date(Date.UTC(2026, 8, 20, 10, 0, 0) + n * 20 * 60_000).toISOString(),
+  recordedAt: new Date(
+    Date.UTC(2026, 8, 20, 10, 0, 0) + n * 20 * 60_000,
+  ).toISOString(),
   layout: 'Road Atlanta',
   car: 'Porsche 911 GT3 R',
   sessionType: 'practice',
@@ -18,48 +20,97 @@ const info = (n, extra = {}) => ({
   endT: 1000 + n * 20 * 60 + 900,
   ...extra,
 });
-const file = (n, extra) => ({path: `/t/${n}.duckdb`, size: 100 + n, info: info(n, extra)});
+const file = (n, extra) => ({
+  path: `/t/${n}.duckdb`,
+  size: 100 + n,
+  info: info(n, extra),
+});
 
 test('files whose session timer kept pace with the wall clock are one session', () => {
   const [a, b, c] = [file(0), file(1), file(2)];
   assert.equal(sameSession(a.info, b.info), true);
   const sessions = groupFiles([c, a, b], 'botkin');
   assert.equal(sessions.length, 1);
-  assert.deepEqual(sessions[0].files.map(f => f.info.source), [a, b, c].map(f => f.info.source), 'in time order, whatever order they came in');
+  assert.deepEqual(
+    sessions[0].files.map(f => f.info.source),
+    [a, b, c].map(f => f.info.source),
+    'in time order, whatever order they came in',
+  );
 });
 
 test('a gap of more than six hours, a different car, layout or session type, or another owner is another session', () => {
   const far = file(30); // 10 hours later
   assert.equal(sameSession(file(0).info, far.info), false);
   assert.equal(groupFiles([file(0), far], 'botkin').length, 2);
-  for (const change of [{car: 'Ferrari 296 GT3'}, {layout: 'Daytona'}, {sessionType: 'race'}]) {
-    assert.equal(groupFiles([file(0), file(1, change)], 'botkin').length, 2, JSON.stringify(change));
+  for (const change of [
+    {car: 'Ferrari 296 GT3'},
+    {layout: 'Daytona'},
+    {sessionType: 'race'},
+  ]) {
+    assert.equal(
+      groupFiles([file(0), file(1, change)], 'botkin').length,
+      2,
+      JSON.stringify(change),
+    );
   }
   const ids = owner => groupFiles([file(0)], owner)[0].id;
-  assert.notEqual(ids('botkin'), ids('someone-else'), 'the owner is part of the id');
+  assert.notEqual(
+    ids('botkin'),
+    ids('someone-else'),
+    'the owner is part of the id',
+  );
 });
 
 test('a restart on the same session clock is the same session only after a short false start or right after the file', () => {
   // The timer did not advance with the wall clock (a race restart), same clock.
   const first = file(0, {startT: 5000, endT: 5100}); // a 100 s false start
   const restart = file(1, {startT: 5000, endT: 7000});
-  assert.equal(sameSession(first.info, restart.info), true, 'previous file was a short false start');
+  assert.equal(
+    sameSession(first.info, restart.info),
+    true,
+    'previous file was a short false start',
+  );
   // Two real races on the default clock must not merge.
   const longFirst = file(0, {startT: 5000, endT: 9000});
   const secondRace = file(1, {
     startT: 5000,
     endT: 9000,
-    recordedAt: new Date(Date.parse(longFirst.info.recordedAt) + 2 * 3600_000).toISOString(), // two hours later
+    recordedAt: new Date(
+      Date.parse(longFirst.info.recordedAt) + 2 * 3600_000,
+    ).toISOString(), // two hours later
   });
   assert.equal(sameSession(longFirst.info, secondRace.info), false);
-  assert.equal(sameSession(file(0, {sessionClock: 1}).info, file(1, {startT: 5000, sessionClock: 2}).info), false, 'a different clock is a different session');
+  assert.equal(
+    sameSession(
+      file(0, {sessionClock: 1}).info,
+      file(1, {startT: 5000, sessionClock: 2}).info,
+    ),
+    false,
+    'a different clock is a different session',
+  );
 });
 
 test('the ids are the hash of the owner key and the first recording, exactly as the store has them', () => {
   const [session] = groupFiles([file(0), file(1)], 'botkin');
   const first = session.files[0].info;
-  assert.equal(session.id, hash(['botkin', first.sim, first.layout, first.car, first.sessionType].join('|'), first.recordedAt));
-  assert.equal(session.files[1].id, hash('botkin', first.sim, session.files[1].info.source, session.files[1].info.recordedAt));
+  assert.equal(
+    session.id,
+    hash(
+      ['botkin', first.sim, first.layout, first.car, first.sessionType].join(
+        '|',
+      ),
+      first.recordedAt,
+    ),
+  );
+  assert.equal(
+    session.files[1].id,
+    hash(
+      'botkin',
+      first.sim,
+      session.files[1].info.source,
+      session.files[1].info.recordedAt,
+    ),
+  );
   assert.match(session.id, /^[0-9a-f]{16}$/);
 });
 
@@ -129,7 +180,9 @@ test('offline iRacing drives (no groupId) are separate sessions on different day
   );
   // The next file of the same drive, a minute later with the game clock running on.
   const next = offline(2, {
-    recordedAt: new Date(Date.parse(day(4)) + (2240 - 119 + 60) * 1000).toISOString(),
+    recordedAt: new Date(
+      Date.parse(day(4)) + (2240 - 119 + 60) * 1000,
+    ).toISOString(),
     startT: 2300,
     endT: 2900,
   });
@@ -198,19 +251,70 @@ test('a scan describes recordings, skips files still being written and short one
   const adapter = fakeAdapter(infos);
   const state = {files: {}};
   const lines = [];
-  const found = scanFolder({folder: dir, adapter, state, log: l => lines.push(l)});
-  assert.deepEqual(found.map(f => f.path.split(/[\\/]/).pop()).sort(), ['a.duckdb', 'b.duckdb']);
+  const found = scanFolder({
+    folder: dir,
+    adapter,
+    state,
+    log: l => lines.push(l),
+  });
+  assert.deepEqual(found.map(f => f.path.split(/[\\/]/).pop()).sort(), [
+    'a.duckdb',
+    'b.duckdb',
+  ]);
   assert.ok(lines.some(l => l.includes('1 file(s) still being written')));
-  assert.ok(lines.some(l => l.startsWith('skip broken.duckdb: not a database')), lines.join('|'));
+  assert.ok(
+    lines.some(l => l.startsWith('skip broken.duckdb: not a database')),
+    lines.join('|'),
+  );
   assert.equal(adapter.described.filter(p => p.endsWith('a.duckdb')).length, 1);
 
   // Again: unchanged files come from the cache, not described again.
   const before = adapter.described.length;
   scanFolder({folder: dir, adapter, state});
-  const again = adapter.described.slice(before).map(p => p.split(/[\\/]/).pop());
-  assert.ok(!again.includes('a.duckdb') && !again.includes('b.duckdb'), `re-described: ${again}`);
+  const again = adapter.described
+    .slice(before)
+    .map(p => p.split(/[\\/]/).pop());
+  assert.ok(
+    !again.includes('a.duckdb') && !again.includes('b.duckdb'),
+    `re-described: ${again}`,
+  );
 
-  assert.deepEqual(scanFolder({folder: dir, adapter, state, only: 'b.'}).map(f => f.path.split(/[\\/]/).pop()), ['b.duckdb']);
-  assert.deepEqual(scanFolder({folder: dir, adapter, state, since: '2026-09-21'}), [], 'nothing from that day on');
-  assert.throws(() => scanFolder({folder: join(dir, 'nope'), adapter, state}), /No telemetry folder at/);
+  assert.deepEqual(
+    scanFolder({folder: dir, adapter, state, only: 'b.'}).map(f =>
+      f.path.split(/[\\/]/).pop(),
+    ),
+    ['b.duckdb'],
+  );
+  assert.deepEqual(
+    scanFolder({folder: dir, adapter, state, since: '2026-09-21'}),
+    [],
+    'nothing from that day on',
+  );
+  assert.throws(
+    () => scanFolder({folder: join(dir, 'nope'), adapter, state}),
+    /No telemetry folder at/,
+  );
+});
+
+test('a recording the game still holds is still being written, not skipped for good', async () => {
+  const {isFileBusy} = await import('./sessionFiles.mjs');
+  // What duck.mjs throws for a .duckdb another process holds (a held copy, 12 Oct).
+  const held = new Error(
+    'unable to open database "x.duckdb": IO Error: Could not set lock on file "x.duckdb": Conflicting lock is held in duckdb.exe (PID 1)',
+  );
+  assert.equal(isFileBusy(held), true);
+  assert.equal(
+    isFileBusy(
+      new Error(
+        'The process cannot access the file because it is being used by another process',
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    isFileBusy(
+      new Error('Catalog Error: Table with name metadata does not exist'),
+    ),
+    false,
+  );
 });
