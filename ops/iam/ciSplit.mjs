@@ -22,6 +22,7 @@ import {gcloudRunner} from './gcloud.mjs';
 import {readPolicy} from './lib.mjs';
 import {
   CI,
+  PREVIEW_AUTH_ROLE,
   ciRoles,
   hasReleaseBinding,
   planCiSplit,
@@ -61,6 +62,12 @@ export function readState(run, c = CI) {
       `--project=${c.project}`, '--format=json']), true),
     false,
   );
+  // The preview account's custom role for Auth's authorized domains (ciSplitPlan.mjs).
+  const previewAuthRole = tryOr(
+    () => (run(['iam', 'roles', 'describe', PREVIEW_AUTH_ROLE.id,
+      `--project=${c.project}`, '--format=json']), true),
+    false,
+  );
   const bucketPolicy = tryOr(() => run(['storage', 'buckets', 'get-iam-policy',
     `gs://${c.bucket}`, `--project=${c.project}`, '--format=json']), null);
   const releases = {};
@@ -88,7 +95,7 @@ export function readState(run, c = CI) {
   const repoSecrets = names(gh(['secret', 'list', '--repo', c.repo]));
   const secrets = (run(['secrets', 'list', `--project=${c.project}`,
     '--format=json']) ?? []).map(s => s.name.split('/').pop());
-  return {policy, previewExists, releases, deployKeys, envs, envSecrets, repoSecrets, secrets};
+  return {policy, previewExists, previewAuthRole, releases, deployKeys, envs, envSecrets, repoSecrets, secrets};
 }
 
 function report(state, run, c = CI, title) {

@@ -4,10 +4,12 @@ import {
   CI,
   DEAD_SECRETS,
   DEPLOY_ROLES_REMOVED,
+  PREVIEW_AUTH_ROLE,
   PREVIEW_ROLES,
   RELEASE_ROLE,
   hasReleaseBinding,
   planCiSplit,
+  previewAuthRoleName,
   previewEmail,
   release,
   releaseCondition,
@@ -52,7 +54,9 @@ test('grant only adds: the preview account, its roles and key, the deploy Enviro
   assert.equal(steps.filter(s => s.gh?.[1] === 'delete' || s.run?.includes('delete')).length, 0);
   assert.deepEqual(
     steps.filter(s => s.run?.[1] === 'add-iam-policy-binding').map(s => s.run.at(-2)),
-    [...PREVIEW_ROLES, 'roles/cloudfunctions.admin'].map(r => `--role=${r}`),
+    [...PREVIEW_ROLES, previewAuthRoleName(), 'roles/cloudfunctions.admin'].map(
+      r => `--role=${r}`,
+    ),
   );
   assert.ok(whats(steps).some(w => w.startsWith('create the hosting-preview account')));
   assert.deepEqual(
@@ -72,10 +76,20 @@ test('no preview role is an Auth admin, a secret reader or a rules admin', () =>
     assert.doesNotMatch(role, /firebaseauth|secretmanager|firebaserules|owner|editor/);
 });
 
+test("the preview account's Auth role can read and write the config and nothing else", () => {
+  assert.deepEqual(PREVIEW_AUTH_ROLE.permissions, [
+    'firebaseauth.configs.get',
+    'firebaseauth.configs.update',
+  ]);
+  const create = planCiSplit(today(), 'grant').find(s => s.run?.[1] === 'roles');
+  assert.ok(create.run.includes('--permissions=firebaseauth.configs.get,firebaseauth.configs.update'));
+});
+
 test('grant run again after it worked has nothing left to do', () => {
   const s = today();
   s.previewExists = true;
-  s.policy.set(preview, new Set(PREVIEW_ROLES));
+  s.previewAuthRole = true;
+  s.policy.set(preview, new Set([...PREVIEW_ROLES, previewAuthRoleName()]));
   s.repoSecrets.add(CI.previewSecret);
   s.envs.add('deploy');
   s.envSecrets.deploy.add(CI.deploySecret);
