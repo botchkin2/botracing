@@ -2,6 +2,7 @@ import {type NativeSamples} from '@/src/analysis/nativeSamples';
 
 import {type ChunkFrame, chunkPath, chunksIn, objectId} from './chunkPaths';
 import {firstExit} from './firstExit';
+import {paint} from './paintExperiment';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
@@ -516,7 +517,7 @@ export function TraceChart({
           </ClipPath>
         </Defs>
         {/* Values beyond the scale are drawn clipped at the plot edge, never past it. */}
-        <G clipPath={`url(#${clipId})`}>
+        <G clipPath={paint.noclip ? undefined : `url(#${clipId})`}>
           {paths.map(p => (
             <G key={p.key} transform={p.transform}>
               <SeriesLines

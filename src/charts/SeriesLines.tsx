@@ -2,6 +2,7 @@ import {memo} from 'react';
 import {Path} from 'react-native-svg';
 
 import {areaPath} from './chunkPaths';
+import {paint} from './paintExperiment';
 
 // One series' line, as the chunks it draws (chunkPaths.ts). While Compare
 // plays, the chart scrolls these with a transform on a group outside this
@@ -70,8 +71,9 @@ function SeriesLinesView({
           strokeWidth={width}
           strokeOpacity={opacity * WRAP_OPACITY}
           strokeDasharray={dash}
-          strokeLinejoin='round'
-          vectorEffect='non-scaling-stroke'
+          strokeLinejoin={paint.nojoin ? undefined : 'round'}
+          vectorEffect={paint.nss ? undefined : 'non-scaling-stroke'}
+          shapeRendering={paint.speed ? 'optimizeSpeed' : undefined}
           fill='none'
         />
       ))}
@@ -93,8 +95,9 @@ function SeriesLinesView({
           strokeWidth={width}
           strokeOpacity={opacity}
           strokeDasharray={dash}
-          strokeLinejoin='round'
-          vectorEffect='non-scaling-stroke'
+          strokeLinejoin={paint.nojoin ? undefined : 'round'}
+          vectorEffect={paint.nss ? undefined : 'non-scaling-stroke'}
+          shapeRendering={paint.speed ? 'optimizeSpeed' : undefined}
           fill='none'
         />
       ))}
