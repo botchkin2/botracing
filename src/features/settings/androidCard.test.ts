@@ -1,6 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {androidCard, androidSurface, runningLine, runningLineOf} from './androidCard';
+import {
+  androidCard,
+  androidSurface,
+  publishedOf,
+  runningLine,
+  runningLineOf,
+} from './androidCard';
 
 const release = {version: '1.0.1', versionCode: 8};
 const idle = {isPending: false, isError: false};
@@ -113,53 +119,72 @@ it('has no card off Android', () => {
   ).toBeNull();
 });
 
+// Local-time constructor, so the tests do not depend on the machine's zone.
+const publishedAt = new Date(2026, 9, 12, 14, 5);
+
+describe('publishedOf', () => {
+  it('reads day, month and 24 h time', () => {
+    expect(publishedOf(publishedAt)).toBe('12 Oct 14:05');
+    expect(publishedOf(new Date(2026, 0, 3, 7, 0))).toBe('3 Jan 07:00');
+  });
+});
+
+const build = {
+  version: '1.0.2',
+  versionCode: 8,
+  runtimeVersion: 'cdf505f59da36800a8966cc251197d0c488b2a52',
+  channel: 'production',
+  updateId: 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f',
+  publishedAt,
+};
+const nothing = {
+  version: null,
+  versionCode: null,
+  runtimeVersion: null,
+  channel: null,
+  updateId: null,
+  publishedAt: null,
+};
+
 describe('runningLineOf', () => {
-  it('shows the version and the update id, first 8 characters', () => {
-    expect(runningLineOf('1.0.2', 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f')).toBe(
-      'App 1.0.2 · update d83c26a3',
+  it('shows version, versionCode, runtime (first 8), channel and publish date', () => {
+    expect(runningLineOf(build)).toBe(
+      'App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05',
     );
   });
 
   it("says 'built-in' when the app runs its own bundle", () => {
-    expect(runningLineOf('1.0.2', null)).toBe('App 1.0.2 · built-in');
+    expect(runningLineOf({...build, updateId: null, publishedAt: null})).toBe(
+      'App 1.0.2 (8) · runtime cdf505f5 · production · built-in',
+    );
   });
 
-  it('names the app without a version when none is known', () => {
-    expect(runningLineOf(null, null)).toBe('App · built-in');
+  it('leaves out what the phone does not report', () => {
+    expect(runningLineOf(nothing)).toBe('App · built-in');
+    expect(runningLineOf({...nothing, version: '1.0.2'})).toBe(
+      'App 1.0.2 · built-in',
+    );
   });
 });
 
 describe('runningLine', () => {
   it('shows nothing outside the installed app, so a phone browser never reads built-in', () => {
     expect(
-      runningLine({
-        surface: 'browser',
-        version: null,
-        updateId: null,
-        isEmbeddedLaunch: false,
-      }),
+      runningLine({...nothing, surface: 'browser', isEmbeddedLaunch: false}),
     ).toBeNull();
   });
 
-  it('reads built-in on a release build, even though its embedded bundle has an updateId', () => {
+  it('reads built-in on a release build, even though its embedded bundle has a createdAt', () => {
     expect(
-      runningLine({
-        surface: 'app',
-        version: '1.0.2',
-        updateId: 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f',
-        isEmbeddedLaunch: true,
-      }),
-    ).toBe('App 1.0.2 · built-in');
+      runningLine({...build, surface: 'app', isEmbeddedLaunch: true}),
+    ).toBe('App 1.0.2 (8) · runtime cdf505f5 · production · built-in');
   });
 
-  it('shows the update it runs when the launch is an OTA', () => {
+  it('shows the publish date when the launch is an OTA', () => {
     expect(
-      runningLine({
-        surface: 'app',
-        version: '1.0.2',
-        updateId: 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f',
-        isEmbeddedLaunch: false,
-      }),
-    ).toBe('App 1.0.2 · update d83c26a3');
+      runningLine({...build, surface: 'app', isEmbeddedLaunch: false}),
+    ).toBe(
+      'App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05',
+    );
   });
 });

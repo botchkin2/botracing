@@ -16,6 +16,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import '@/src/setup/reanimated';
+import {holdSplashForUpdate, startOtaUpdates} from '@/src/setup/ota';
 
 import {AuthGate, startAuthSession} from '@/src/auth';
 import {
@@ -35,11 +36,15 @@ import {DesktopChrome} from '@/src/workspace/DesktopChrome';
 import {usePlanCombo} from '@/src/workspace/usePlanCombo';
 import {useWorkspaceGo} from '@/src/workspace/useWorkspaceGo';
 
+holdSplashForUpdate();
+
 export default function RootLayout() {
   // Fonts load in the background; text falls back until they arrive.
   useAppFonts();
   // Follow the sign-in for the life of the app.
   useEffect(() => startAuthSession(), []);
+  // Fetch an OTA update on launch (splash held) and on each return to the app.
+  useEffect(() => startOtaUpdates(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
