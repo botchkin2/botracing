@@ -1,23 +1,26 @@
-// When a fetched OTA update may reload the app (pit-wall thread 1 #4531).
-// Pure, so each moment is tested; setup/ota.ts supplies the clock and touches.
+// When a fetched OTA update may reload the app (pit-wall thread 1 #4531, #4538).
+// reloadAsync restarts at the initial route, so a reload is only allowed where
+// nothing is being read: before the first screen shows, or when the driver
+// comes back to the app after a long time away. Idle is not "not using": a
+// chart studied without a touch is in use. Pure, so each moment is tested.
 
-/** Seconds after the JS starts in which a reload is invisible: no screen has settled. */
-export const LAUNCH_WINDOW_S = 10;
+/** Seconds the splash is held at launch for the update check and fetch. */
+export const LAUNCH_HOLD_S = 3;
 
-/** Seconds without a touch after which nothing is mid-interaction. */
-export const IDLE_S = 5;
+/** Seconds in the background after which a return is a fresh start. */
+export const FRESH_START_S = 30 * 60;
 
 /**
- * Reload now, or leave the fetched update for the next launch. An update
- * fetched just after launch reloads before anything is on screen to lose; later
- * (back in the foreground) it reloads only once the screen has been left
- * alone, so a drag, a scrub or a typed value is never cut off.
+ * Reload before the first screen when the update was fetched within the hold;
+ * `fetchedAfterS` is null when there was none, or it was not in time.
  */
-export function shouldReloadNow(q: {
-  /** Seconds since the app's JS started. */
-  sinceStartS: number;
-  /** Seconds since the last touch; counts from the start before any touch. */
-  idleS: number;
+export function shouldReloadAtLaunch(q: {
+  fetchedAfterS: number | null;
 }): boolean {
-  return q.sinceStartS <= LAUNCH_WINDOW_S || q.idleS >= IDLE_S;
+  return q.fetchedAfterS !== null && q.fetchedAfterS <= LAUNCH_HOLD_S;
+}
+
+/** Reload on a return to the foreground only after a long time away. */
+export function shouldReloadOnReturn(q: {backgroundedS: number}): boolean {
+  return q.backgroundedS >= FRESH_START_S;
 }

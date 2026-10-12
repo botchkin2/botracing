@@ -206,6 +206,7 @@ function AndroidApp() {
     versionCode: installedVersionCode,
     runtimeVersion: Updates.runtimeVersion,
     channel: Updates.channel,
+    updateId: Updates.updateId,
     publishedAt: Updates.createdAt,
     isEmbeddedLaunch: Updates.isEmbeddedLaunch,
   });

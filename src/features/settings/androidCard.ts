@@ -51,13 +51,15 @@ export type RunningBuild = {
   runtimeVersion: string | null;
   /** The EAS Update channel the build follows; null outside a release build. */
   channel: string | null;
+  /** expo-updates' updateId: which EAS update group the phone runs. */
+  updateId: string | null;
   /** When the OTA update it runs was published (createdAt). */
   publishedAt: Date | null;
 };
 
 /**
  * The running build in one line, so a phone's state is read, not guessed:
- * "App 1.0.2 (8) · runtime cdf505f5 · production · 12 Oct 14:05". The last part
+ * "App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05". The last part
  * is 'built-in' when it runs the build's own bundle. Parts the phone does not
  * report are left out.
  */
@@ -66,6 +68,7 @@ export function runningLineOf(b: RunningBuild): string {
     b.version ? `App ${b.version}` : 'App',
     b.runtimeVersion ? `runtime ${b.runtimeVersion.slice(0, 8)}` : null,
     b.channel,
+    b.updateId ? `update ${b.updateId.slice(0, 8)}` : null,
     b.publishedAt ? publishedOf(b.publishedAt) : 'built-in',
   ];
   if (b.versionCode != null) parts[0] += ` (${b.versionCode})`;
@@ -83,6 +86,7 @@ export function runningLine(
   if (q.surface !== 'app') return null;
   return runningLineOf({
     ...q,
+    updateId: q.isEmbeddedLaunch ? null : q.updateId,
     publishedAt: q.isEmbeddedLaunch ? null : q.publishedAt,
   });
 }

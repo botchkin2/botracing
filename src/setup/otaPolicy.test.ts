@@ -1,30 +1,37 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {IDLE_S, LAUNCH_WINDOW_S, shouldReloadNow} from './otaPolicy';
+import {
+  FRESH_START_S,
+  LAUNCH_HOLD_S,
+  shouldReloadAtLaunch,
+  shouldReloadOnReturn,
+} from './otaPolicy';
 
-describe('shouldReloadNow', () => {
-  it('reloads inside the launch window, even while the user is touching', () => {
-    expect(shouldReloadNow({sinceStartS: 1, idleS: 0})).toBe(true);
-    expect(shouldReloadNow({sinceStartS: LAUNCH_WINDOW_S, idleS: 0})).toBe(
-      true,
-    );
+describe('shouldReloadAtLaunch', () => {
+  it('reloads when the update arrived within the splash hold', () => {
+    expect(shouldReloadAtLaunch({fetchedAfterS: 0.4})).toBe(true);
+    expect(shouldReloadAtLaunch({fetchedAfterS: LAUNCH_HOLD_S})).toBe(true);
   });
 
-  it('after launch, waits while the user is mid-interaction', () => {
-    expect(shouldReloadNow({sinceStartS: 300, idleS: 0})).toBe(false);
-    expect(shouldReloadNow({sinceStartS: 300, idleS: IDLE_S - 0.1})).toBe(
+  it('does not reload when there was no update, or it came too late', () => {
+    expect(shouldReloadAtLaunch({fetchedAfterS: null})).toBe(false);
+    expect(shouldReloadAtLaunch({fetchedAfterS: LAUNCH_HOLD_S + 0.1})).toBe(
+      false,
+    );
+  });
+});
+
+describe('shouldReloadOnReturn', () => {
+  it('never reloads a short trip to another app', () => {
+    expect(shouldReloadOnReturn({backgroundedS: 0})).toBe(false);
+    expect(shouldReloadOnReturn({backgroundedS: 120})).toBe(false);
+    expect(shouldReloadOnReturn({backgroundedS: FRESH_START_S - 1})).toBe(
       false,
     );
   });
 
-  it('after launch, reloads once the screen has been left alone', () => {
-    expect(shouldReloadNow({sinceStartS: 300, idleS: IDLE_S})).toBe(true);
-    expect(shouldReloadNow({sinceStartS: 3600, idleS: 3000})).toBe(true);
-  });
-
-  it('just past the launch window, an active user still waits', () => {
-    expect(
-      shouldReloadNow({sinceStartS: LAUNCH_WINDOW_S + 0.1, idleS: 1}),
-    ).toBe(false);
+  it('reloads on a return after a long time away', () => {
+    expect(shouldReloadOnReturn({backgroundedS: FRESH_START_S})).toBe(true);
+    expect(shouldReloadOnReturn({backgroundedS: 6 * 3600})).toBe(true);
   });
 });

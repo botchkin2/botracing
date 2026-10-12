@@ -134,6 +134,7 @@ const build = {
   versionCode: 8,
   runtimeVersion: 'cdf505f59da36800a8966cc251197d0c488b2a52',
   channel: 'production',
+  updateId: 'd83c26a3-5f0e-4b1a-9c2d-0a1b2c3d4e5f',
   publishedAt,
 };
 const nothing = {
@@ -141,18 +142,19 @@ const nothing = {
   versionCode: null,
   runtimeVersion: null,
   channel: null,
+  updateId: null,
   publishedAt: null,
 };
 
 describe('runningLineOf', () => {
   it('shows version, versionCode, runtime (first 8), channel and publish date', () => {
     expect(runningLineOf(build)).toBe(
-      'App 1.0.2 (8) · runtime cdf505f5 · production · 12 Oct 14:05',
+      'App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05',
     );
   });
 
   it("says 'built-in' when the app runs its own bundle", () => {
-    expect(runningLineOf({...build, publishedAt: null})).toBe(
+    expect(runningLineOf({...build, updateId: null, publishedAt: null})).toBe(
       'App 1.0.2 (8) · runtime cdf505f5 · production · built-in',
     );
   });
@@ -181,6 +183,8 @@ describe('runningLine', () => {
   it('shows the publish date when the launch is an OTA', () => {
     expect(
       runningLine({...build, surface: 'app', isEmbeddedLaunch: false}),
-    ).toBe('App 1.0.2 (8) · runtime cdf505f5 · production · 12 Oct 14:05');
+    ).toBe(
+      'App 1.0.2 (8) · runtime cdf505f5 · production · update d83c26a3 · 12 Oct 14:05',
+    );
   });
 });
