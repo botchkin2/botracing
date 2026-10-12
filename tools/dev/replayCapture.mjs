@@ -24,6 +24,9 @@ const arg = (name, fallback) => {
 const from = resolve(arg('--from', ''));
 const root = resolve(arg('--out', ''));
 const speed = Number(arg('--speed', '1'));
+// --laps n: stop after the nth finished lap (the drive goes on, the test ends).
+const maxLaps = Number(arg('--laps', '0')) || Infinity;
+let lapsDone = 0;
 if (!existsSync(resolve(from, 'meta.json')) || !arg('--out')) {
   console.error('usage: --from <capture folder> --out <scratch root> [--speed n]');
   process.exit(2);
@@ -77,7 +80,10 @@ for (let n = 0; n + 1 < cuts.length; n++) {
   }
   writeJson(resolve(dir, 'meta.json'), {...meta, endUtc: null, chunks: n + 1});
   // A chunk that ends at a crossing is a finished lap on disk.
-  if (crossings.includes(b)) lastLapAt = iso();
+  if (crossings.includes(b)) {
+    lastLapAt = iso();
+    lapsDone++;
+  }
   writeJson(status, {
     state: 'recording',
     lastChunkAt: iso(),
@@ -86,6 +92,7 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     updatedAt: iso(),
   });
   console.log(`${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${crossings.includes(b) ? ' lap on disk' : ''}`);
+  if (lapsDone >= maxLaps) break;
 }
 writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
 writeJson(status, {state: 'waiting', lastLapAt, sessionDir: null, updatedAt: iso()});
