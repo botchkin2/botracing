@@ -240,7 +240,8 @@ export function TraceChart({
   const lapM = Math.max(0, ...series.map(s => (s.values.length - 1) * stepM));
   const uOfM = (m: number) => (tRef ? timeAtDistance(tRef, m) : m);
   const mPerPx = lapM / ((uOfM(lapM) || 1) * sx) || stepM;
-  const chunks = chunksIn(u0 * sx, u0 * sx + width, width);
+  const chunkPx = width / 4;
+  const chunks = chunksIn(u0 * sx, u0 * sx + width, chunkPx);
   const paths = series.map((s, si) => {
     const built = s.domain ?? domain;
     const frame: ChunkFrame = {
@@ -262,7 +263,7 @@ export function TraceChart({
       stepM,
       sx,
       y: yFor(built),
-      chunkPx: width,
+      chunkPx,
       mPerPx,
     };
     // y: built range → shown (tweened) range, as scale and offset.

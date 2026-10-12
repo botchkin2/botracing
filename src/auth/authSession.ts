@@ -1,3 +1,6 @@
+import {signInWithCustomToken} from 'firebase/auth';
+import {Linking} from 'react-native';
+
 import {beginAuthWait} from '../data/tokenSource';
 
 import {firebaseAuth} from './firebase';
@@ -12,7 +15,16 @@ beginAuthWait();
 export const signInRequired = true;
 
 /** Starts following the Firebase sign-in, restored from storage on launch. */
+// SCRATCH (tyre-native worktree only, never merged): sign in as seat-test from an
+// adb deep link botracing61://seat?ct=<custom token>, for emulator measurements.
+const seatLink = (url: string | null) => {
+  const m = url?.match(/[?&]ct=([^&]+)/);
+  if (m) void signInWithCustomToken(firebaseAuth(), decodeURIComponent(m[1]));
+};
+
 export function startAuthSession(): () => void {
   beginAuthWait();
+  void Linking.getInitialURL().then(seatLink);
+  Linking.addEventListener('url', e => seatLink(e.url));
   return followFirebaseAuth(firebaseAuth());
 }

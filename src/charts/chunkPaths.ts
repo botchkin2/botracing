@@ -195,7 +195,7 @@ export function areaPath(d: string, baseY: number): string {
 // last, not the whole lap: a lap of path strings for every line is megabytes
 // on a phone (scrutineer, #80).
 const KEEP_FRAMES = 4;
-const KEEP_CHUNKS = 6;
+const KEEP_CHUNKS = 12;
 const ids = new WeakMap<object, number>();
 let nextId = 1;
 /** A stable number for an object, for frame keys (e.g. the reference lap). */
