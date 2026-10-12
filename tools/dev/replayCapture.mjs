@@ -43,7 +43,11 @@ const [{t0, t1}] = rows(
   ':memory:',
   `SELECT min(mElapsedTime) t0, max(mElapsedTime) t1 FROM read_parquet(${glob('player')})`,
 );
-const cuts = [Number(t0), ...crossings.filter(t => t > Number(t0)), Number(t1) + 0.001];
+// The recorder cuts a lap's chunk 1 s after the crossing (recorder.rs
+// LAP_CUT_AFTER_S): the chunk then holds what marks the lap finished.
+const LAP_CUT_AFTER_S = 1.0;
+const lapCuts = crossings.filter(t => t > Number(t0)).map(t => t + LAP_CUT_AFTER_S);
+const cuts = [Number(t0), ...lapCuts, Number(t1) + 0.001];
 
 const dir = resolve(root, basename(from));
 mkdirSync(dir, {recursive: true});
@@ -80,7 +84,7 @@ for (let n = 0; n + 1 < cuts.length; n++) {
   }
   writeJson(resolve(dir, 'meta.json'), {...meta, endUtc: null, chunks: n + 1});
   // A chunk that ends at a crossing is a finished lap on disk.
-  if (crossings.includes(b)) {
+  if (lapCuts.includes(b)) {
     lastLapAt = iso();
     lapsDone++;
   }
@@ -91,7 +95,7 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     sessionDir: basename(from),
     updatedAt: iso(),
   });
-  console.log(`${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${crossings.includes(b) ? ' lap on disk' : ''}`);
+  console.log(`${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${lapCuts.includes(b) ? ' lap on disk' : ''}`);
   if (lapsDone >= maxLaps) break;
 }
 writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
