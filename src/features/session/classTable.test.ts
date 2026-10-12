@@ -10,13 +10,11 @@ const base: SessionClassBests = {
   vehicles: ['BMW M4 LMGT3', 'Porsche 911 GT3 R LMGT3', 'Cadillac V-Series.R'],
   classes: {
     hypercar: {
-      cars: 3,
       bestsS: [80, 81, 82],
       vehicleAt: [2, 2, -1],
       player: null,
     },
     gt3: {
-      cars: 6,
       bestsS: [98, 98.5, 99, 99.5, 100, 101],
       vehicleAt: [0, 0, 1, 0, 1, -1],
       player: 3,
@@ -33,7 +31,7 @@ describe('classTable', () => {
       ...base,
       classes: {
         ...base.classes,
-        lmp2: {cars: 2, bestsS: [88, 89], vehicleAt: [-1, -1], player: null},
+        lmp2: {bestsS: [88, 89], vehicleAt: [-1, -1], player: null},
       },
     })!;
     expect(lmp2.rows.map(r => r.key)).toEqual(['gt3', 'hypercar', 'lmp2']);
@@ -71,12 +69,35 @@ describe('classTable', () => {
     expect(e[5].car).toBeNull();
   });
 
+  it("shows the player's own lap as the official one wherever it appears: the You row, the unfolded entry, and a Best or 5th cell that is that lap", () => {
+    // The field's clock reads the player's 5th-fastest lap 1 ms away from the official best.
+    const t2 = classTable(base, 99.501)!;
+    const gt3 = t2.rows[0];
+    expect(gt3.mine).toEqual({bestS: 99.501, rank: 4});
+    expect(gt3.entries[3]).toMatchObject({player: true, bestS: 99.501});
+    expect(gt3.entries[3].gapS).toBeCloseTo(1.501, 6);
+    // Other cars stay on the field clock.
+    expect(gt3.entries[2].bestS).toBe(99);
+    // The player is 4th of 6 here; as 5th the fifth cell is the official lap too.
+    const fifth = classTable(
+      {
+        ...base,
+        classes: {
+          gt3: {...base.classes.gt3!, player: 4},
+        },
+      },
+      100.001,
+    )!;
+    expect(fifth.rows[0].fifthS).toBe(100.001);
+    expect(fifth.rows[0].mine?.bestS).toBe(100.001);
+  });
+
   it('is null with nothing to compare against: no block, or one car in the whole field', () => {
     expect(classTable(null)).toBeNull();
     expect(
       classTable({
         ...base,
-        classes: {gt3: {cars: 1, bestsS: [99], vehicleAt: [-1], player: 0}},
+        classes: {gt3: {bestsS: [99], vehicleAt: [-1], player: 0}},
       }),
     ).toBeNull();
   });

@@ -260,7 +260,6 @@ export type SessionClassBests = {
     Record<
       PaceClass,
       {
-        cars: number;
         bestsS: number[];
         vehicleAt: number[];
         /** Index into `bestsS` of the player's car, or null. */
@@ -294,7 +293,6 @@ export function toClassBests(v: unknown): SessionClassBests | null {
     if (vehicleAt.length !== bestsS.length) continue;
     const player = num(c.player);
     classes[key] = {
-      cars: bestsS.length,
       bestsS,
       vehicleAt,
       player:

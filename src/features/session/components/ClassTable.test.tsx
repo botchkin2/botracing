@@ -14,13 +14,11 @@ const bests: SessionClassBests = {
   vehicles: ['BMW M4 LMGT3', 'Cadillac V-Series.R'],
   classes: {
     hypercar: {
-      cars: 3,
       bestsS: [70.336, 70.5, 70.741],
       vehicleAt: [1, 1, -1],
       player: null,
     },
     gt3: {
-      cars: 6,
       bestsS: [79.641, 79.7, 79.8, 79.85, 79.885, 80.395],
       vehicleAt: [0, 0, 0, 0, 0, 0],
       player: 5,

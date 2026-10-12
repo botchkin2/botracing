@@ -621,7 +621,10 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
-    classTable: classTable(session.classBests),
+    classTable: classTable(
+      session.classBests,
+      bestLap?.timeS ?? session.bestTimeS,
+    ),
     energy: energyLine(
       session.sessionType,
       laps,

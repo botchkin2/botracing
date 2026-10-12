@@ -521,8 +521,6 @@ export function classLapsCurrent(
 export const CLASS_BESTS_VERSION = 1;
 
 export interface ClassBests {
-  /** Cars with a best lap in this class. */
-  cars: number;
   /** Each car's best lap in seconds, fastest first. */
   bestsS: number[];
   /**
@@ -583,7 +581,6 @@ export function classBestsDoc(
     const ranked = [...best].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
     const player = ranked.findIndex(([car]) => car === playerCar);
     classes[key] = {
-      cars: ranked.length,
       bestsS: ranked.map(([, t]) => round3(t)),
       vehicleAt: ranked.map(([car]) => vehicleIndex(car)),
       player: player < 0 ? null : player,

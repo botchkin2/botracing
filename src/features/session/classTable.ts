@@ -52,17 +52,29 @@ export type ClassTable = {rows: ClassRow[]};
  * car in the whole field (a practice alone). The player's class is first,
  * the others by pace, fastest class first.
  */
-export function classTable(b: SessionClassBests | null): ClassTable | null {
+export function classTable(
+  b: SessionClassBests | null,
+  officialBestS: number | null = null,
+): ClassTable | null {
   if (!b) return null;
   const keys = (Object.keys(b.classes) as PaceClass[]).filter(
     k => b.classes[k] != null,
   );
-  const total = keys.reduce((n, k) => n + (b.classes[k]?.cars ?? 0), 0);
+  const total = keys.reduce(
+    (n, k) => n + (b.classes[k]?.bestsS.length ?? 0),
+    0,
+  );
   if (keys.length === 0 || total < 2) return null;
   const rows = keys.map((key): ClassRow => {
     const c = b.classes[key]!;
     const best = c.bestsS[0];
-    const entries = c.bestsS.map((bestS, i): ClassEntry => {
+    const cars = c.bestsS.length;
+    const entries = c.bestsS.map((fieldS, i): ClassEntry => {
+      // The player's own lap is the one time the rest of the app shows (the head's
+      // Best, the official lap), never the field's clock 1 ms away from it; the
+      // other cars, and every rank and gap to a class best, stay on the field clock.
+      const bestS =
+        c.player === i && officialBestS != null ? officialBestS : fieldS;
       const at = c.vehicleAt[i];
       const vehicle = at >= 0 ? b.vehicles[at] ?? null : null;
       return {
@@ -76,12 +88,16 @@ export function classTable(b: SessionClassBests | null): ClassTable | null {
     return {
       key,
       label: LABELS[key],
-      bestS: best,
-      fifthS: c.bestsS[Math.min(FRONT_CARS, c.bestsS.length) - 1],
-      cars: c.bestsS.length,
+      // From the entries, so the player's own lap reads the same wherever it is.
+      bestS: entries[0].bestS,
+      fifthS: entries[Math.min(FRONT_CARS, cars) - 1].bestS,
+      cars,
       mine:
         c.player != null
-          ? {bestS: c.bestsS[c.player], rank: c.player + 1}
+          ? {
+              bestS: officialBestS ?? c.bestsS[c.player],
+              rank: c.player + 1,
+            }
           : null,
       entries,
     };

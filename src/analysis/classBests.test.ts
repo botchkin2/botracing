@@ -71,7 +71,7 @@ describe('classBestsDoc', () => {
 
   it('lists each car once per class, fastest first', () => {
     const gt3 = doc.classes.gt3!;
-    expect(gt3.cars).toBe(3);
+    expect(Object.keys(gt3).sort()).toEqual(['bestsS', 'player', 'vehicleAt']);
     expect(gt3.bestsS).toEqual([98, 99, 100]);
     const hyper = doc.classes.hypercar!;
     expect(hyper.bestsS).toEqual([80, 81, 82]);
