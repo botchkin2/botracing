@@ -2,7 +2,7 @@ import {useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {TraceChart, type TraceSeries} from '@/src/charts';
-import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
+import {screenLateralOnce, screenValuesOnce} from '@/src/charts/screenLateral';
 import {drawnGear} from './drawnGear';
 import {cornerScales, pedalScale, steeringScale} from './scales';
 import {lapColor, space, useTheme} from '@/src/design';
@@ -313,8 +313,8 @@ export function ZoomTraces({
             yTicks={steering.ticks}
             series={series(
               l => ({
-                values: l.steeringPct.map(toScreenLateral),
-                samples: screenLateral(l.samples.steeringPct),
+                values: screenValuesOnce(l.steeringPct),
+                samples: screenLateralOnce(l.samples.steeringPct),
               }),
               w => Math.min(w, STEERING_WIDTH),
             )}
@@ -348,7 +348,7 @@ export function ZoomTraces({
               series={[
                 ...edgeSeries(zoom.edges, color.textFaint),
                 ...series(l => ({
-                  samples: screenLateral(l.samples.pathLateralM),
+                  samples: screenLateralOnce(l.samples.pathLateralM),
                 })),
               ]}
               zeroLine
@@ -378,7 +378,7 @@ function edgeSeries(
   ].map(e => ({
     key: e.key,
     values: [],
-    samples: screenLateral(e.samples),
+    samples: screenLateralOnce(e.samples),
     color: colour,
     width: 1,
     opacity: 0.6,

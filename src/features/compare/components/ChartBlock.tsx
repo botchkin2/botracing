@@ -4,7 +4,7 @@ import Svg, {Line, Rect} from 'react-native-svg';
 
 import {type NativeSamples} from '@/src/analysis/nativeSamples';
 import {type TraceSeries, TraceChart} from '@/src/charts';
-import {screenLateral, toScreenLateral} from '@/src/charts/screenLateral';
+import {screenLateralOnce, screenValuesOnce} from '@/src/charts/screenLateral';
 import {closeBox, dash, space, useTheme} from '@/src/design';
 import {
   CHANNEL_IDS,
@@ -99,10 +99,10 @@ export function ChartBlock({
       // Steering draws right DOWN (charts/screenLateral.ts); the data is +right.
       const flip = l.channel === 'steering';
       const screen = <T extends NativeSamples | undefined>(x: T) =>
-        flip && x ? (screenLateral(x) as T) : x;
+        flip && x ? (screenLateralOnce(x) as T) : x;
       return {
         key: `${l.channel}-${l.lapId}`,
-        values: flip ? l.values.map(toScreenLateral) : l.values,
+        values: flip ? screenValuesOnce(l.values) : l.values,
         samples: screen(l.samples),
         before: screen(l.before),
         after: screen(l.after),
