@@ -32,9 +32,13 @@ import {createStore} from './store.mjs';
  */
 export async function staleNow(session, getDoc) {
   const trackId = session.trackId;
-  let trackMap = trackId ? await getDoc('tracks', trackId) : null;
+  let [trackMap, packed] = trackId
+    ? await Promise.all([
+        getDoc('tracks', trackId),
+        getDoc('trackBoundaries', trackId),
+      ])
+    : [null, null];
   if (trackMap && trackMap.mapVersion !== trackMapVersion) trackMap = null;
-  const packed = trackId ? await getDoc('trackBoundaries', trackId) : null;
   return isStale(
     session.analysis,
     analysisVersion,

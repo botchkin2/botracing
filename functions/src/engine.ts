@@ -47,6 +47,28 @@ export function loadEngine(): Engine {
   return engine;
 }
 
+// The curated track docs staleNow reads, kept per instance for a minute: every
+// session open would otherwise read both (two reads, ~10-20 ms in region, 200
+// ms from a PC; thread 1 #4629). A curator's edit reaches opens within it.
+export const TRACK_DOC_TTL_MS = 60_000;
+const trackDocs = new Map<string, {at: number; doc: Promise<unknown>}>();
+
+function trackDoc(
+  coll: string,
+  id: string,
+  getDoc: (coll: string, id: string) => Promise<unknown>,
+  now = Date.now(),
+): Promise<unknown> {
+  const key = `${coll}/${id}`;
+  const hit = trackDocs.get(key);
+  if (hit && now - hit.at < TRACK_DOC_TTL_MS) return hit.doc;
+  const doc = getDoc(coll, id);
+  trackDocs.set(key, {at: now, doc});
+  // A failed read is not kept.
+  doc.catch(() => trackDocs.delete(key));
+  return doc;
+}
+
 /**
  * Whether a stored session needs analysing again under the deployed code and
  * today's curated track. An engine that fails to load must not take the
@@ -58,7 +80,9 @@ export async function sessionStale(
   getDoc: (coll: string, id: string) => Promise<unknown>,
 ): Promise<boolean> {
   try {
-    return await loadEngine().staleNow(session, getDoc);
+    return await loadEngine().staleNow(session, (coll, id) =>
+      trackDoc(coll, id, getDoc),
+    );
   } catch (error) {
     console.error('staleness not known', error);
     return false;
