@@ -139,8 +139,8 @@
     },
     "lmu-race-silverstone-tyres": {
       "0.events.parquet": {
-        "sha256": "5ff67ef6f45075be8964c68ad87bd16ad1e8fffef2a7eded4f855d48dcae0bb5",
-        "bytes": 16767
+        "sha256": "365be34695fe66283b06301f606dd66351718fe04634b05ded6b222184948027",
+        "bytes": 16740
       },
       "0.info.json": {
         "sha256": "96b33d434dabc69294ace9d23dca21bce884f2e78b04595b58acde26455f4009",
