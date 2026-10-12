@@ -316,14 +316,15 @@ async function uploadCaptureBacklog(sessions, state, store) {
           : null,
     });
     // No capture on the PC: nothing to keep, and nothing to try again.
-    state.extracts[s.id] = extract ? 'sent' : 'none';
     if (extract) {
       await store.putCaptureExtract(ownerId, s.id, extract);
       sent++;
     }
+    // Saved per session, so a run stopped mid-backlog resumes where it was.
+    state.extracts[s.id] = extract ? 'sent' : 'none';
+    saveState(state);
   }
   if (sent) log(`capture extracts kept for ${sent} uploaded session(s)`);
-  saveState(state);
 }
 
 function build(
@@ -657,7 +658,8 @@ async function runPool(
         if (!local) {
           markDone(state, s.id, s.fingerprint, ownerId, s.sources);
           state.extracts ??= {};
-          state.extracts[s.id] = 'sent';
+          // Its extract, if the capture gave one, went up with it.
+          state.extracts[s.id] = 'with-session';
           saveState(state);
         }
       } else {
