@@ -280,11 +280,22 @@ enum OnQuit {
 /// recorders (so a recording closes with its end time); then, unless this is
 /// `--quit`, installs a waiting update (on Windows a started installer ends
 /// the process); then ends the tray.
-fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
+/// Runs `quit_tray` on a thread of its own, so the caller (the single-instance
+/// callback, which runs on the event loop's thread) returns at once and the
+/// loop is free to dispatch the exit (e2e, thread 1 #4769: on windows-2022 the
+/// exit reached the loop 2.4 s late or never inside the 3 s backstop).
+fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
     let log = QuitLog::start(app, "quit requested");
     // The event loop notes when the exit reaches it and when it ends, so an
-    // "exit forced" says which of the two never came (e2e, thread 1 #4759).
+    // "exit forced" says which step never came. Managed once: quit happens once.
     app.manage(log.clone());
+    log.note(&format!("windows open: {}", app.webview_windows().len()));
+    let (app2, log2) = (app.clone(), log.clone());
+    std::thread::spawn(move || quit_tray(&app2, on_quit, log2));
+    log.note("callback returned");
+}
+
+fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
         sup.lock().unwrap().shutdown();
     }
@@ -333,6 +344,7 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
     });
     log.note("exit requested");
     app.exit(0);
+    log.note("exit call returned");
 }
 
 fn main() {
@@ -353,13 +365,13 @@ fn main() {
             // recording closes with its end time), then the tray exits. It
             // never installs an update: the installer itself sends it.
             if wants_quit(&args) {
-                quit_tray(app, OnQuit::JustQuit);
+                quit_tray_async(app, OnQuit::JustQuit);
                 return;
             }
             // `--update` is the menu's "Restart to update" from a command line
             // (the CI update rehearsal): the same path, update included.
             if wants_update(&args) {
-                quit_tray(app, OnQuit::InstallWaitingUpdate);
+                quit_tray_async(app, OnQuit::InstallWaitingUpdate);
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
@@ -556,7 +568,7 @@ fn main() {
                     }
                     // Quit and "Restart to update" both stop the watcher first;
                     // a waiting update installs here, never while uploading.
-                    "quit" | "update" => quit_tray(app, OnQuit::InstallWaitingUpdate),
+                    "quit" | "update" => quit_tray_async(app, OnQuit::InstallWaitingUpdate),
                     _ => {}
                 })
                 .build(app)?;
@@ -577,7 +589,7 @@ fn main() {
                     // A `--quit` that could not reach this tray's window (another
                     // session or window station) asked through the file.
                     if quit_request::take(&paths.data) {
-                        quit_tray(&app_poll, OnQuit::JustQuit);
+                        quit_tray_async(&app_poll, OnQuit::JustQuit);
                         return;
                     }
                     // The network part runs without the account lock held.
