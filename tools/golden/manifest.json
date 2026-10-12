@@ -31,6 +31,16 @@
         7
       ]
     },
+    "lmu-race-silverstone-tyres": {
+      "why": "LMU race with a real service stop: refuel and all four tyres changed",
+      "sim": "lmu",
+      "recordedAt": "2026-09-16T00:39:05Z",
+      "sessionType": "Race",
+      "laps": [
+        11,
+        16
+      ]
+    },
     "lmu-practice-road-atlanta": {
       "why": "LMU practice over several files: off-track, pit and partial laps",
       "sim": "lmu",
@@ -125,6 +135,24 @@
       "golden.json": {
         "sha256": "7297510085ff434edf08dffa0836edb449e90582753381ae2aedf7968d786641",
         "bytes": 4583
+      }
+    },
+    "lmu-race-silverstone-tyres": {
+      "0.events.parquet": {
+        "sha256": "5ff67ef6f45075be8964c68ad87bd16ad1e8fffef2a7eded4f855d48dcae0bb5",
+        "bytes": 16767
+      },
+      "0.info.json": {
+        "sha256": "96b33d434dabc69294ace9d23dca21bce884f2e78b04595b58acde26455f4009",
+        "bytes": 18394
+      },
+      "0.samples.parquet": {
+        "sha256": "24c4b50db2fea199057c7f23a4531421df40a4280407ba87a9393e79d06d7f14",
+        "bytes": 802554
+      },
+      "golden.json": {
+        "sha256": "2d6a98f7306cb028a14f5eebd730a724487c4369bc9c244a0df8ee39761dade0",
+        "bytes": 7093
       }
     }
   }

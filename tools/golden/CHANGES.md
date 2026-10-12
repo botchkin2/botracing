@@ -19,3 +19,7 @@ Changed: new session
 ## 2026-10-10 lmu-practice-road-atlanta
 Why: first golden numbers for this session (LMU practice over two files with off-track, pit and partial laps); the baseline later changes are measured against.
 Changed: new session
+
+## 2026-10-12 lmu-race-silverstone-tyres
+Why: first golden numbers for this session (LMU race 16 Sep, laps 11 to 16, with a real service stop: 35 L added and all four tyres changed); it replaces the tyre-change coverage that lmu-race-daytona-tyres lost when its grid window stopped counting as a stop.
+Changed: new session
