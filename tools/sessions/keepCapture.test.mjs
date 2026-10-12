@@ -159,6 +159,7 @@ test('a resync without the capture keeps the stored race length and the repair, 
         lapTime: 100,
         comparable: true,
         traffic: null,
+        pitIn: true,
         fuel: {endL: 10, green: true, usedL: 3, veUsedPct: 0},
         pitStop: {inPitS: 95, visit: unknown},
       },
@@ -176,5 +177,6 @@ test('a resync without the capture keeps the stored race length and the repair, 
   const written = docs.get('sessions/s1');
   assert.deepEqual(written.race, {minutes: 40});
   assert.equal(written.plan.race.minutes, 40);
+  assert.equal(written.plan.race.stops[0].kind, 'repair');
   assert.equal(docs.get('laps/l1').pitStop.visit.kind, 'repair');
 });
