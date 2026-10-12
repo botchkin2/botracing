@@ -92,6 +92,9 @@ export async function analyzeStored({
   log = () => {},
   analyze = analyzeFromArchive,
 }) {
+  // Where an open's seconds go, in the function's log (pit-wall thread 1).
+  const t0 = performance.now();
+  const at = () => `${((performance.now() - t0) / 1000).toFixed(1)} s`;
   const session = await backend.getDoc('sessions', sessionId);
   // Another owner's session reads as absent, as the API's reads do.
   if (!session || session.ownerId !== owner)
@@ -124,6 +127,7 @@ export async function analyzeStored({
   const extract = stored
     ? readCaptureExtract(gunzipSync(stored).toString('utf8'))
     : null;
+  log(`${at()} archive downloaded`);
   const out = analyze({
     ownerId: owner,
     sessionId,
@@ -142,6 +146,7 @@ export async function analyzeStored({
     event: {series: session.series ?? null, eventId: session.eventId ?? null},
     fieldFor: () => ({field: null, reason: 'analysed from the store'}),
   });
+  log(`${at()} analysed, ${out.laps.length} laps`);
   await store.upload(
     {
       ...out,
@@ -154,5 +159,6 @@ export async function analyzeStored({
     },
     {log},
   );
+  log(`${at()} written`);
   return {laps: out.laps.length};
 }

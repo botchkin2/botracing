@@ -1,7 +1,10 @@
 import {beforeEach, expect, it, jest} from '@jest/globals';
 
+import {apiFetchAt} from '../http';
+
 import {
   analysing,
+  analyzeDeps,
   analyzeOnce,
   POLL_FOR_MS,
   POLL_MS,
@@ -85,4 +88,26 @@ it('counts the sessions in flight for the working line', async () => {
   off();
   expect(analysing.count()).toBe(0);
   expect(seen).toEqual([1, 0]);
+});
+
+it('a 200 counts as done only with the JSON answer of the function, not a web page', async () => {
+  const fetchAt = apiFetchAt as unknown as jest.Mock<
+    (url: string) => Promise<{status: number; json: () => Promise<unknown>}>
+  >;
+  const post = analyzeDeps({} as never).post;
+  fetchAt.mockResolvedValueOnce({
+    status: 200,
+    json: () => Promise.reject(new Error('not JSON: <!DOCTYPE html>')),
+  });
+  expect(await post('s1')).toEqual({status: 502});
+  fetchAt.mockResolvedValueOnce({
+    status: 200,
+    json: async () => ({state: 'done', laps: 21}),
+  });
+  expect(await post('s1')).toEqual({status: 200});
+  fetchAt.mockResolvedValueOnce({
+    status: 202,
+    json: async () => ({state: 'running'}),
+  });
+  expect(await post('s1')).toEqual({status: 202});
 });

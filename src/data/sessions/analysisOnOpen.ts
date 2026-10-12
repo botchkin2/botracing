@@ -82,6 +82,11 @@ export function analyzeDeps(client: QueryClient): AnalyzeDeps {
   return {
     post: async id => {
       const res = await apiFetchAt(analyzeUrl(id), {method: 'POST'});
+      // Only the function's own answer counts: a host without the route
+      // answers its web page with a 200 (seen before Hosting deployed it).
+      const body: unknown = await res.json().catch(() => null);
+      const state = (body as {state?: unknown} | null)?.state;
+      if (res.status === 200 && state !== 'done') return {status: 502};
       return {status: res.status};
     },
     isStale: async id => (await fetchSession(id)).stale,

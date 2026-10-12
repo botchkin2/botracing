@@ -24,7 +24,9 @@ export const analyzeApi = onRequest(
     // A 66-minute LMU race peaks near 0.9 GB (thread 1 #4550); one run per
     // instance, and a cap so a loop cannot run up a bill (apex #4573).
     memory: '2GiB',
-    cpu: 1,
+    // Two: the analysis is CPU-bound, and DuckDB's reads run beside Node's
+    // work (13.6 s per open on one vCPU, thread 1).
+    cpu: 2,
     concurrency: 1,
     maxInstances: 10,
     timeoutSeconds: 120,
@@ -79,7 +81,9 @@ export const analyzeApi = onRequest(
           },
           analyze: async (sessionId, owner) => {
             const {analyzeStored, adminBackend} = loadEngine();
-            const workDir = mkdtempSync(join(tmpdir(), `analyze-${sessionId}-`));
+            const workDir = mkdtempSync(
+              join(tmpdir(), `analyze-${sessionId}-`),
+            );
             try {
               return await analyzeStored({
                 backend: adminBackend({
@@ -89,6 +93,8 @@ export const analyzeApi = onRequest(
                 sessionId,
                 owner,
                 workDir,
+                log: (line: string) =>
+                  console.log(`analyze ${sessionId}: ${line}`),
               });
             } finally {
               // /tmp is memory on Cloud Run: the archive must not stay.
