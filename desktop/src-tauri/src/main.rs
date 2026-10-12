@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use tauri::Manager;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -280,8 +281,26 @@ enum OnQuit {
 /// recorders (so a recording closes with its end time); then, unless this is
 /// `--quit`, installs a waiting update (on Windows a started installer ends
 /// the process); then ends the tray.
-fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
+/// Runs `quit_tray` on a thread of its own, so the caller (the single-instance
+/// callback, which runs on the event loop's thread) returns at once and the
+/// loop is free to dispatch the exit (e2e, thread 1 #4769: on windows-2022 the
+/// exit reached the loop 2.4 s late or never inside the 3 s backstop).
+fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
     let log = QuitLog::start(app, "quit requested");
+    // The event loop notes when the exit reaches it and when it ends, so an
+    // "exit forced" says which step never came. `manage` keeps the first value:
+    // a second quit in one run (none today) would note into the first log.
+    app.manage(log.clone());
+    log.note(&format!("windows open: {}", app.webview_windows().len()));
+    let (app2, log2) = (app.clone(), log.clone());
+    std::thread::spawn(move || quit_tray(&app2, on_quit, log2));
+    log.note("callback returned");
+}
+
+/// The tray icon's id, so a quit can take it away itself (quit_tray).
+const TRAY_ID: &str = "tray";
+
+fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
         sup.lock().unwrap().shutdown();
     }
@@ -317,19 +336,33 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
             None => log.note("no update waiting"),
         }
     }
-    // `app.exit` ends the event loop, and in a non-interactive session (a
-    // scheduled task, the CI standard-user cells) the loop never returned: the
-    // tray stayed up after every step above had finished (quit.log, thread 1).
-    // A quit has finished its work by now, so the process ends either way. The
-    // e2e fails an interactive cell whose quit.log says "exit forced".
+    // Every step that matters is done: the watcher is stopped and every
+    // recording closed and written. The process ends within 3 s from here,
+    // through the event loop or not: on some windows-2022 sessions the loop is
+    // seconds late to see an exit, or never (thread 1 #4775), a bug of its own.
+    // Armed before the two steps below, which also go through the loop.
     let forced = log.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(3));
         forced.note("exit forced");
         std::process::exit(0);
     });
+    // What a normal end of the loop would do and a forced exit skips, done
+    // here so neither depends on it: the window's size and place (the plugin
+    // saves them only on RunEvent::Exit), and the icon (else a ghost stays in
+    // the notification area until the mouse passes over it).
+    match app.save_window_state(StateFlags::all()) {
+        Ok(()) => log.note("window state saved"),
+        Err(why) => log.note(&format!("window state not saved: {why}")),
+    }
+    log.note(if app.remove_tray_by_id(TRAY_ID).is_some() {
+        "tray icon removed"
+    } else {
+        "tray icon not found"
+    });
     log.note("exit requested");
     app.exit(0);
+    log.note("exit call returned");
 }
 
 fn main() {
@@ -350,13 +383,13 @@ fn main() {
             // recording closes with its end time), then the tray exits. It
             // never installs an update: the installer itself sends it.
             if wants_quit(&args) {
-                quit_tray(app, OnQuit::JustQuit);
+                quit_tray_async(app, OnQuit::JustQuit);
                 return;
             }
             // `--update` is the menu's "Restart to update" from a command line
             // (the CI update rehearsal): the same path, update included.
             if wants_update(&args) {
-                quit_tray(app, OnQuit::InstallWaitingUpdate);
+                quit_tray_async(app, OnQuit::InstallWaitingUpdate);
                 return;
             }
             // A second launch while the browser sign-in is open must not add a
@@ -517,7 +550,7 @@ fn main() {
                 lmu: recorder.clone(),
                 iracing: iracing.clone(),
             });
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id(TRAY_ID)
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
                 .menu(&menu)
@@ -553,7 +586,7 @@ fn main() {
                     }
                     // Quit and "Restart to update" both stop the watcher first;
                     // a waiting update installs here, never while uploading.
-                    "quit" | "update" => quit_tray(app, OnQuit::InstallWaitingUpdate),
+                    "quit" | "update" => quit_tray_async(app, OnQuit::InstallWaitingUpdate),
                     _ => {}
                 })
                 .build(app)?;
@@ -574,7 +607,7 @@ fn main() {
                     // A `--quit` that could not reach this tray's window (another
                     // session or window station) asked through the file.
                     if quit_request::take(&paths.data) {
-                        quit_tray(&app_poll, OnQuit::JustQuit);
+                        quit_tray_async(&app_poll, OnQuit::JustQuit);
                         return;
                     }
                     // The network part runs without the account lock held.
@@ -654,7 +687,20 @@ fn main() {
         })
         .build(context)
         .expect("BotRacing failed to start")
-        .run(|_app, event| {
+        .run(|app, event| {
+            match &event {
+                tauri::RunEvent::ExitRequested { .. } => {
+                    if let Some(log) = app.try_state::<QuitLog>() {
+                        log.note("exit reached the event loop");
+                    }
+                }
+                tauri::RunEvent::Exit => {
+                    if let Some(log) = app.try_state::<QuitLog>() {
+                        log.note("event loop ended");
+                    }
+                }
+                _ => {}
+            }
             // The tray has no windows, so the app would exit the moment it
             // looked like the last one closed: only Quit ends it (it exits
             // with a code).
