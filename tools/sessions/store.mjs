@@ -270,6 +270,14 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     return {skipped: 'newer'};
   }
 
+  // A live session gained a lap while this analysis ran: keep the count of
+  // what is stored and leave it stale, so the next open analyses that lap too.
+  if ((before?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
+    session.archiveParts = before.archiveParts;
+    session.analysis = {...session.analysis, v: 0};
+    log('  a lap arrived during this analysis: left stale');
+  }
+
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
   // sync tries again.

@@ -160,6 +160,16 @@ export async function analyzeStored({
     fieldFor: () => ({field: null, reason: 'analysed from the store'}),
   });
   log(`${at()} analysed, ${out.laps.length} laps`);
+  // A live session (pit-wall thread 66): say how many laps this analysis
+  // read, so a lap the tray adds meanwhile is not taken as analysed (store.mjs).
+  const analysedParts = recordings.reduce(
+    (n, r) => n + (r.info.archive?.parts?.length ?? 0),
+    0,
+  );
+  if (analysedParts > 0) {
+    out.session.archiveParts = analysedParts;
+    out.session.live = session.live ?? null;
+  }
   await store.upload(
     {
       ...out,

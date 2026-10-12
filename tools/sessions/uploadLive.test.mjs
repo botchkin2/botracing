@@ -87,3 +87,23 @@ test('the same parts again over an analysed session change nothing', async () =>
   assert.deepEqual(await createStore(b).uploadLive(lapsOut(2)), {skipped: 'newer'});
   assert.equal(b.order.length, 0);
 });
+
+test('a lap that lands while the cloud analyses is not taken as analysed', async () => {
+  // The tray stored 5 laps; the cloud analysed the 4 it read.
+  const docs = new Map([['sessions/s1', {analysis: {v: 0, blocks: {}}, archiveParts: 5, recordingIds: ['r1']}]]);
+  const b = backend(docs);
+  const out = {
+    session: {id: 's1', ownerId: 'o', recordingIds: ['r1'], archiveParts: 4, analysis: analysisStamp(17, {})},
+    recordings: [],
+    laps: [],
+    traces: [],
+    files: [],
+    band: null,
+    track: null,
+    boundaries: null,
+  };
+  await createStore({...b, sessionLapIds: async () => [], deleteFile: async () => {}, listFiles: async () => []}).upload(out);
+  const s = b.docs.get('sessions/s1');
+  assert.equal(s.archiveParts, 5);
+  assert.equal(s.analysis.v, 0);
+});

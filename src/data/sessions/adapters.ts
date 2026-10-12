@@ -358,6 +358,13 @@ export type SessionDetail = SessionSummary & {
   trackVariant: string;
   /** Made under older analysis rules: opening it runs it again (analysisOnOpen.ts). */
   stale: boolean;
+  /**
+   * Live laps (pit-wall thread 66): the tray uploads each lap while the game
+   * runs. `archiveParts` counts the laps stored so far, so a new lap is a new
+   * analysis; null on a session uploaded from game files.
+   */
+  live: boolean;
+  archiveParts: number | null;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
   /** The Plan's block of this session (the uploader's planBlock.mjs); null before it existed. */
@@ -399,6 +406,8 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
+    live: raw.live != null && typeof raw.live === 'object',
+    archiveParts: num(raw.archiveParts),
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),

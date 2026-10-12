@@ -111,3 +111,23 @@ it('a 200 counts as done only with the JSON answer of the function, not a web pa
   });
   expect(await post('s1')).toEqual({status: 202});
 });
+
+it('a live session runs again for each new lap, once per lap count', async () => {
+  const {d, calls} = deps();
+  expect(await analyzeOnce('s1', d, 's1#3')).toBe(true);
+  expect(await analyzeOnce('s1', d, 's1#3')).toBe(false);
+  expect(await analyzeOnce('s1', d, 's1#4')).toBe(true);
+  expect(calls.filter(c => c === 'post')).toHaveLength(2);
+});
+
+it('never two runs of one session at once, whatever the key', async () => {
+  let release: () => void = () => {};
+  const {d, calls} = deps({
+    post: () => new Promise(r => (release = () => r({status: 200})), void calls.push('post')),
+  });
+  const first = analyzeOnce('s1', d, 's1#3');
+  expect(await analyzeOnce('s1', d, 's1#4')).toBe(false);
+  release();
+  expect(await first).toBe(true);
+  expect(calls.filter(c => c === 'post')).toHaveLength(1);
+});
