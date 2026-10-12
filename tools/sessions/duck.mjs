@@ -1,7 +1,9 @@
 // Run SQL through the DuckDB CLI and read the result back as columns.
 import {spawnSync} from 'node:child_process';
-import {existsSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {existsSync, readFileSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -10,7 +12,9 @@ function findDuckdb() {
   const candidates = [
     process.env.DUCKDB,
     resolve(here, 'duckdb.exe'),
-    'C:\\Users\\Botkin\\AppData\\Local\\Temp\\duckdb-cli\\duckdb.exe',
+    // Where tools/runtime/update.ps1 and tools/capture/duckdb_cli.py look too.
+    process.env.LOCALAPPDATA &&
+      resolve(process.env.LOCALAPPDATA, 'Temp', 'duckdb-cli', 'duckdb.exe'),
   ].filter(Boolean);
   const found = candidates.find(candidate => existsSync(candidate));
   return found || 'duckdb';
@@ -45,9 +49,25 @@ export function run(db, query, {readonly = true} = {}) {
   return result.stdout;
 }
 
+// A SELECT's result as CSV text. The CLI's own -csv renderer takes 12 s for
+// a 66-minute LMU race (95 MB of text); COPY writes the same CSV in 0.25 s
+// (pit-wall thread 1, #4550).
+function select(db, query, {readonly = true} = {}) {
+  const file = join(tmpdir(), `duck-${randomUUID()}.csv`);
+  const body = query.trim().replace(/;$/, '');
+  try {
+    run(db, `COPY (${body}) TO ${sqlPath(file)} (FORMAT csv, HEADER)`, {
+      readonly,
+    });
+    return readFileSync(file, 'utf8');
+  } finally {
+    rmSync(file, {force: true});
+  }
+}
+
 // Rows as objects. Values stay strings; callers convert what they need.
 export function rows(db, query) {
-  const lines = run(db, query)
+  const lines = select(db, query)
     .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .filter(Boolean);
@@ -63,7 +83,7 @@ export function rows(db, query) {
 
 // Numeric columns as Float64Arrays, keyed by column name. Empty cells are NaN.
 export function columns(db, query) {
-  const lines = run(db, query)
+  const lines = select(db, query)
     .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .filter(Boolean);

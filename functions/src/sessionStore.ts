@@ -2,6 +2,7 @@
 // and hand them back in the lap shape the app already reads.
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
+import {type TraceMeta, traceIdOk} from './traceCore';
 import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
 import {mapEtag, surfaceEtag} from './trackMapCore';
 import {
@@ -555,19 +556,37 @@ export async function trackSurfaceById(trackId: string): Promise<{
   };
 }
 
-// The lap's chart trace. Stored gzip-encoded; the client library unzips it.
-export async function readTrace(
+// A lap's chart trace: the stored object's md5 and encoding (a metadata read,
+// no download), so a client that holds the trace gets a 304 for free.
+const traceFile = (owner: string, lapId: string) =>
+  admin.storage().bucket(BUCKET).file(`traces/${owner}/${lapId}/v2.csv.gz`);
+
+export async function readTraceMeta(
   owner: string,
   lapId: string,
-): Promise<string | null> {
-  if (!/^[0-9a-f]{16}-\d{3}$/.test(lapId)) return null;
-  const file = admin
-    .storage()
-    .bucket(BUCKET)
-    .file(`traces/${owner}/${lapId}/v2.csv.gz`);
+): Promise<TraceMeta | null> {
+  if (!traceIdOk(lapId)) return null;
   try {
-    const [body] = await file.download();
-    return body.toString('utf8');
+    const [meta] = await traceFile(owner, lapId).getMetadata();
+    return {md5Hash: meta.md5Hash, contentEncoding: meta.contentEncoding};
+  } catch (error: any) {
+    if (error?.code === 404) return null;
+    throw error;
+  }
+}
+
+// The trace's bytes: as stored (gzip) or, for an object stored as plain text,
+// the text. A trace is stored gzip-encoded; download() would unzip it.
+export async function readTraceBody(
+  owner: string,
+  lapId: string,
+  stored: boolean,
+): Promise<Buffer | null> {
+  try {
+    const [body] = await traceFile(owner, lapId).download({
+      decompress: !stored,
+    });
+    return body;
   } catch (error: any) {
     if (error?.code === 404) return null;
     throw error;
