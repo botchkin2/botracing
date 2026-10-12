@@ -129,6 +129,17 @@ const deps: UploadDeps = {
   stampNewer: (stored, mine) => loadEngine().stampNewer(stored, mine),
 };
 
+// The writer's analysis stamp (storeClient.mjs), or undefined when it sent
+// none or something unreadable: both count as older than any stamp.
+function stampOf(header: unknown): unknown {
+  if (typeof header !== 'string' || header.length > 4000) return undefined;
+  try {
+    return JSON.parse(header);
+  } catch {
+    return undefined;
+  }
+}
+
 // The /api/upload prefix the hosting rewrite adds.
 function subPath(req: {path?: string; url?: string}): string {
   const full = req.path || (req.url ?? '').split('?')[0];
@@ -165,6 +176,7 @@ export const uploadApi = onRequest(
         query,
         authorization: req.headers.authorization,
         json: req.body,
+        stamp: stampOf(req.headers['x-analysis-stamp']),
       });
       for (const [name, value] of Object.entries(out.headers ?? {}))
         res.set(name, value);

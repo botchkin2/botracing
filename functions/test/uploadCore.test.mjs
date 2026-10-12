@@ -992,8 +992,10 @@ test('the usage counters on a user that never sent a heartbeat have no heartbeat
 });
 
 // Analysis on open writes a newer stamp; a tray behind it must not write back
-// over it (pit-wall thread 1 #4573). The rule is the engine's own.
-test('a write over a session analysed under newer rules is refused, laps included', async () => {
+// over it (pit-wall thread 1 #4573), and an installed tray must not see a
+// failure it would retry forever (apex #4612): the write is answered as done
+// and dropped. The rule is the engine's own.
+test('writes over a session analysed under newer rules are answered as done and dropped', async () => {
   const {analysisStamp, stampNewer} = await import(
     '../../tools/sessions/versionKey.mjs'
   );
@@ -1002,21 +1004,62 @@ test('a write over a session analysed under newer rules is refused, laps include
   const newer = analysisStamp(18, {pitVisit: 4});
   const older = analysisStamp(17, {pitVisit: 3});
   w.docs.set('sessions/s1', {ownerId: 'uidA', analysis: newer});
-  const session = {op: 'set', coll: 'sessions', id: 's1', data: {ownerId: 'uidA', analysis: older}};
-  const lap = {op: 'set', coll: 'laps', id: 'l1', data: {ownerId: 'uidA', sessionId: 's1'}};
-  const sendAs = (stamp, ops) =>
-    call(w, 'tok-a', 'POST', '/docs/write', {json: {ops, stamp}});
-  // An older writer: its laps and its session doc are both refused.
-  assert.equal((await sendAs(older, [lap])).status, 409);
-  assert.equal((await sendAs(older, [session])).status, 409);
-  // A tray from before stamps sends none.
-  assert.equal((await write(w, 'tok-a', [lap])).status, 409);
-  assert.equal(w.docs.has('laps/l1'), false);
+  w.docs.set('laps/l1', {ownerId: 'uidA', sessionId: 's1', lapTime: 90});
+  w.files.set('slices/uidA/s1/h1/c1.json.gz', {bytes: Buffer.from('new')});
+  const lap = {
+    op: 'set',
+    coll: 'laps',
+    id: 'l1',
+    data: {ownerId: 'uidA', sessionId: 's1', lapTime: 99},
+  };
+  const session = {
+    op: 'set',
+    coll: 'sessions',
+    id: 's1',
+    data: {ownerId: 'uidA', analysis: older},
+  };
+  const as = (stamp, method, path, rest) =>
+    call(w, 'tok-a', method, path, {...rest, stamp});
+  // Docs, from an older writer and from a tray that sends no stamp.
+  assert.equal(
+    (await as(older, 'POST', '/docs/write', {json: {ops: [lap, session]}}))
+      .status,
+    204,
+  );
+  assert.equal((await write(w, 'tok-a', [lap])).status, 204);
+  assert.equal(w.docs.get('laps/l1').lapTime, 90);
   assert.deepEqual(w.docs.get('sessions/s1').analysis, newer);
+  // A trace of that session: the URL points at a throwaway object.
+  const url = await as(undefined, 'POST', '/file/upload-url', {
+    json: {
+      dest: 'traces/uidA/l1/v2.csv.gz',
+      contentType: 'text/csv',
+      gzip: true,
+      size: 10,
+    },
+  });
+  assert.equal(url.status, 200);
+  assert.equal(w.signed.get(url.json.url).path, 'discard/uidA/last');
+  // A delete of the cloud's current slices: answered, not done.
+  const del = await as(undefined, 'DELETE', '/file', {
+    query: {dest: 'slices/uidA/s1/h1/c1.json.gz'},
+  });
+  assert.equal(del.status, 204);
+  assert.ok(w.files.has('slices/uidA/s1/h1/c1.json.gz'));
   // The same rules or newer write as before.
-  assert.equal((await sendAs(newer, [lap])).status, 204);
-  // A session never stamped takes any writer, old trays included.
+  assert.equal(
+    (await as(newer, 'POST', '/docs/write', {json: {ops: [lap]}})).status,
+    204,
+  );
+  assert.equal(w.docs.get('laps/l1').lapTime, 99);
+  // A session never stamped takes any writer, stampless trays included.
   w.docs.set('sessions/s2', {ownerId: 'uidA'});
-  const lap2 = {op: 'set', coll: 'laps', id: 'l2', data: {ownerId: 'uidA', sessionId: 's2'}};
+  const lap2 = {
+    op: 'set',
+    coll: 'laps',
+    id: 'l2',
+    data: {ownerId: 'uidA', sessionId: 's2'},
+  };
   assert.equal((await write(w, 'tok-a', [lap2])).status, 204);
+  assert.ok(w.docs.has('laps/l2'));
 });

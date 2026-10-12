@@ -88,6 +88,15 @@ jobs:
         run: npx tsc --noEmit
       - name: Functions tests
         run: node --test functions/test/*.test.mjs
+      # The deploy's own build, on Linux as the deploy runs it: tsc, the session
+      # engine bundle and the pinned DuckDB CLI (functions/scripts/buildEngine.mjs).
+      # A failure here would stop every functions deploy, so it fails the PR.
+      - name: Functions build (engine bundle and Linux DuckDB)
+        working-directory: functions
+        run: |
+          npm run build
+          ./bin/duckdb -c "SELECT 42 AS answer"
+          node -e "const {sessionStale} = require('./lib/engine.js'); if (sessionStale(null) !== true) process.exit(1); console.log('engine loads; an unstamped session reads stale')"
       # Real requests to the API in the Firebase emulators (functions,
       # Firestore, Auth, Storage): functions/test/emulator. firebase-tools
       # needs Java 21+, which the Ubuntu image already has.
