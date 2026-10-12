@@ -4,6 +4,7 @@
 import * as admin from 'firebase-admin';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {loadEngine} from './engine';
 import {reportError} from './problems';
 import {
   DocStore,
@@ -123,6 +124,9 @@ const deps: UploadDeps = {
   },
   docs: firebaseDocs(),
   files: firebaseFiles(),
+  // The deployed engine's rule (engine.ts), so the check and the cloud's own
+  // analysis never disagree.
+  stampNewer: (stored, mine) => loadEngine().stampNewer(stored, mine),
 };
 
 // The /api/upload prefix the hosting rewrite adds.

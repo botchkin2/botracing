@@ -990,3 +990,33 @@ test('the usage counters on a user that never sent a heartbeat have no heartbeat
   await write(w, 'tok-a', [lap('l1', 'uidA')]);
   assert.equal(w.usage.get('uidA').heartbeats, 0);
 });
+
+// Analysis on open writes a newer stamp; a tray behind it must not write back
+// over it (pit-wall thread 1 #4573). The rule is the engine's own.
+test('a write over a session analysed under newer rules is refused, laps included', async () => {
+  const {analysisStamp, stampNewer} = await import(
+    '../../tools/sessions/versionKey.mjs'
+  );
+  const w = world();
+  w.deps.stampNewer = stampNewer;
+  const newer = analysisStamp(18, {pitVisit: 4});
+  const older = analysisStamp(17, {pitVisit: 3});
+  w.docs.set('sessions/s1', {ownerId: 'uidA', analysis: newer});
+  const session = {op: 'set', coll: 'sessions', id: 's1', data: {ownerId: 'uidA', analysis: older}};
+  const lap = {op: 'set', coll: 'laps', id: 'l1', data: {ownerId: 'uidA', sessionId: 's1'}};
+  const sendAs = (stamp, ops) =>
+    call(w, 'tok-a', 'POST', '/docs/write', {json: {ops, stamp}});
+  // An older writer: its laps and its session doc are both refused.
+  assert.equal((await sendAs(older, [lap])).status, 409);
+  assert.equal((await sendAs(older, [session])).status, 409);
+  // A tray from before stamps sends none.
+  assert.equal((await write(w, 'tok-a', [lap])).status, 409);
+  assert.equal(w.docs.has('laps/l1'), false);
+  assert.deepEqual(w.docs.get('sessions/s1').analysis, newer);
+  // The same rules or newer write as before.
+  assert.equal((await sendAs(newer, [lap])).status, 204);
+  // A session never stamped takes any writer, old trays included.
+  w.docs.set('sessions/s2', {ownerId: 'uidA'});
+  const lap2 = {op: 'set', coll: 'laps', id: 'l2', data: {ownerId: 'uidA', sessionId: 's2'}};
+  assert.equal((await write(w, 'tok-a', [lap2])).status, 204);
+});

@@ -113,7 +113,7 @@ export function httpBackend({
     },
     getDoc: (coll, id) =>
       jsonOf(`/doc/${encodeURIComponent(coll)}/${encodeURIComponent(id)}`),
-    async writeDocs(ops) {
+    async writeDocs(ops, {stamp} = {}) {
       // Track data is curated, never written by a user's sync (thread 2 #155):
       // the server refuses it, and this refuses to send it.
       for (const {coll} of ops) {
@@ -136,7 +136,8 @@ export function httpBackend({
       }
       await writer.close();
       for (const chunk of chunked(ops)) {
-        await call('POST', '/docs/write', {json: {ops: chunk}});
+        // The writer's stamp: the server refuses it over newer analysis.
+        await call('POST', '/docs/write', {json: {ops: chunk, stamp}});
       }
     },
     async updateDocs(ops) {

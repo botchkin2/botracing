@@ -475,10 +475,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // The session doc goes last, on its own: it carries the analysis stamp, so
   // it must never land fresh over laps that did not. A failure before it
   // leaves the old stamp, and the session is analysed again.
-  await backend.writeDocs(ops);
-  await backend.writeDocs([
-    {op: 'set', coll: 'sessions', id: session.id, data: session},
-  ]);
+  const writer = {stamp: session.analysis ?? null};
+  await backend.writeDocs(ops, writer);
+  await backend.writeDocs(
+    [{op: 'set', coll: 'sessions', id: session.id, data: session}],
+    writer,
+  );
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.
   if (kept.deletePath) await backend.deleteFile(kept.deletePath);

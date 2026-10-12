@@ -106,6 +106,12 @@ export interface UploadDeps {
   docs: DocStore;
   files: FileStore;
   now?: () => number;
+  /**
+   * Whether a stored session's analysis stamp is newer than the writer's
+   * (tools/sessions/versionKey.mjs stampNewer). Bound by uploadApi.ts to the
+   * deployed engine; without it nothing is checked.
+   */
+  stampNewer?: (stored: unknown, mine: unknown) => boolean;
 }
 
 export interface UploadRequest {
@@ -249,8 +255,10 @@ async function writeDocs(
   ownerKey: string,
   deps: UploadDeps,
   ops: unknown,
+  stamp?: unknown,
 ): Promise<void> {
   if (!Array.isArray(ops)) return refuse(400, 'ops must be a list');
+  await refuseOverNewer(ownerKey, deps, ops, stamp);
   if (ops.length > MAX_OPS) return refuse(413, 'too many ops in one request');
   const writes: Write[] = [];
   const delta: Usage = {docs: 0, docBytes: 0, files: 0, fileBytes: 0};
@@ -289,6 +297,35 @@ async function writeDocs(
   }
   await deps.docs.commit(writes);
   await deps.docs.addUsage(uid, delta);
+}
+
+// Never older analysis over newer (pit-wall thread 1 #4573): a tray behind
+// the cloud's code, which analysed this session again on open, must not write
+// its session, laps or recordings back over it. The writer sends the stamp of
+// its own code (store.mjs); a tray from before stamps sends none, which is
+// older than any stamp.
+async function refuseOverNewer(
+  ownerKey: string,
+  deps: UploadDeps,
+  ops: unknown[],
+  stamp: unknown,
+): Promise<void> {
+  if (!deps.stampNewer) return;
+  const sessions = new Set<string>();
+  for (const op of ops as Array<Record<string, unknown>>) {
+    if (op?.coll === 'sessions' && typeof op.id === 'string') sessions.add(op.id);
+    const data = op?.data as Record<string, unknown> | undefined;
+    if (
+      (op?.coll === 'laps' || op?.coll === 'recordings') &&
+      typeof data?.sessionId === 'string'
+    )
+      sessions.add(data.sessionId);
+  }
+  for (const id of sessions) {
+    const stored = await deps.docs.get(docPath('sessions', id));
+    if (stored && stored.ownerId === ownerKey && deps.stampNewer(stored.analysis, stamp ?? null))
+      refuse(409, `session ${id.slice(0, 40)} was analysed under newer rules`);
+  }
 }
 
 // Merge into documents that already exist; the ones that do not are reported,
@@ -556,7 +593,7 @@ async function route(
     return {status: 200, json: data};
   }
   if (method === 'POST' && path === '/docs/write') {
-    await writeDocs(uid, ownerKey, deps, body.ops);
+    await writeDocs(uid, ownerKey, deps, body.ops, body.stamp);
     return {status: 204};
   }
   if (method === 'POST' && path === '/heartbeat') {

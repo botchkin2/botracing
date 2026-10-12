@@ -24,6 +24,7 @@ import {Unauthorized, resolveOwner} from './ownerAccess';
 import {parsePlanQuery} from './planQuery';
 import {notModified, trackIdOk} from './trackMapCore';
 import {RUNTIME_ACCOUNT} from './runtime';
+import {sessionStale} from './engine';
 import {reportError} from './problems';
 
 if (!admin.apps.length) {
@@ -262,6 +263,9 @@ export const lmuApi = onRequest(
           res.status(404).json({error: 'Not found'});
           return;
         }
+        // Made under older rules: the app asks analyzeApi to run it again
+        // (analysis on open, pit-wall thread 1 #4572).
+        if (!part) body.stale = sessionStale(body.analysis);
         res.status(200).json(body);
         return;
       }
