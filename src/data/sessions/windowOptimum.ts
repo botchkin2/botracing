@@ -1,10 +1,11 @@
 // Feeds src/analysis/sectionOptimum.ts from a session's laps and the layout's
 // corner windows: which lap times count in which window. A window counts for a
 // comparable lap cut at the current boundaries unless the pit lane crosses it,
-// the lap went off track in it, or a full-course yellow ran through it. A
-// sector-level local yellow is a tag, not an exclusion: LMU's sector flag is
-// a third of the lap, so any incident in that third used to empty race
-// tables (thread 54, da3e67). Tow, traffic and blue flags never remove a
+// or the lap went off track in it. A yellow, local or full-course, is never
+// an exclusion (Botkin, decisions/lap/2026-10-11-selection-and-numbers.md): a
+// yellow says nothing about this driver's time. LMU's sector flag is a third
+// of the lap, so any incident in that third used to empty race tables
+// (thread 54, da3e67). Tow, traffic and blue flags never remove a
 // time (decisions/lap/2026-10-01-corner-windows.md).
 import {
   type OptimumLap,
@@ -21,11 +22,9 @@ import type {
   TrackMapData,
 } from './adapters';
 
-// The same cut-offs the consistency tags use (src/analysis/consistency.ts
-// cleanOffSec and yellowSec). Off is ≥2 wheels on loose for this long
-// (triage #49). Full-course yellow uses yellowSec; local yellow does not drop.
+// The same cut-off the consistency tags use (src/analysis/consistency.ts
+// cleanOffSec). Off is ≥2 wheels on loose for this long (triage #49).
 export const OPTIMUM_OFF_TRACK_S = 0.3;
-export const OPTIMUM_YELLOW_S = 0.5;
 
 export interface SessionOptimum {
   /** The windows the per-stint arrays follow, in lap order. */
@@ -36,15 +35,12 @@ export interface SessionOptimum {
 interface WindowFacts {
   segTimeS: number | null;
   offTrackS: number;
-  localYellowS: number;
-  courseYellowS: number;
   pit: boolean;
 }
 
 function countsAs(f: WindowFacts | null | undefined): number | null {
   if (!f || f.segTimeS == null) return null;
   if (f.pit || f.offTrackS >= OPTIMUM_OFF_TRACK_S) return null;
-  if (f.courseYellowS >= OPTIMUM_YELLOW_S) return null;
   return f.segTimeS;
 }
 
@@ -115,7 +111,7 @@ export function sectionWindowTimes(
  * Per stint, the best and median of each window. By default over the
  * comparable laps; with `picked`, over exactly the laps given, comparable or
  * not, since the user chose them (the Corner card's ticked laps, decision
- * 2026-10-11): a pit, off-track or yellow window is left out by itself. Null
+ * 2026-10-11): a pit or off-track window is left out by itself. Null
  * until the track has corner windows (before the resync).
  */
 export function sessionOptimum(
@@ -153,7 +149,7 @@ export interface WindowReference {
 /**
  * The median of each window over laps the user picked (Compare's checked
  * laps): any lap cut at the current boundaries, comparable or not, since the
- * user chose them and a pit, off-track or yellow window is left out by itself.
+ * user chose them and a pit or off-track window is left out by itself.
  */
 export function checkedWindowMedians(
   laps: Lap[],
