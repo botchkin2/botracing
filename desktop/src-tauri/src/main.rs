@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 use tauri::Manager;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -296,6 +297,9 @@ fn quit_tray_async(app: &tauri::AppHandle, on_quit: OnQuit) {
     log.note("callback returned");
 }
 
+/// The tray icon's id, so a quit can take it away itself (quit_tray).
+const TRAY_ID: &str = "tray";
+
 fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
         sup.lock().unwrap().shutdown();
@@ -332,16 +336,29 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
             None => log.note("no update waiting"),
         }
     }
-    // `app.exit` ends the event loop, and in a non-interactive session (a
-    // scheduled task, the CI standard-user cells) the loop never returned: the
-    // tray stayed up after every step above had finished (quit.log, thread 1).
-    // A quit has finished its work by now, so the process ends either way. The
-    // e2e fails an interactive cell whose quit.log says "exit forced".
+    // Every step that matters is done: the watcher is stopped and every
+    // recording closed and written. The process ends within 3 s from here,
+    // through the event loop or not: on some windows-2022 sessions the loop is
+    // seconds late to see an exit, or never (thread 1 #4775), a bug of its own.
+    // Armed before the two steps below, which also go through the loop.
     let forced = log.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(3));
         forced.note("exit forced");
         std::process::exit(0);
+    });
+    // What a normal end of the loop would do and a forced exit skips, done
+    // here so neither depends on it: the window's size and place (the plugin
+    // saves them only on RunEvent::Exit), and the icon (else a ghost stays in
+    // the notification area until the mouse passes over it).
+    match app.save_window_state(StateFlags::all()) {
+        Ok(()) => log.note("window state saved"),
+        Err(why) => log.note(&format!("window state not saved: {why}")),
+    }
+    log.note(if app.remove_tray_by_id(TRAY_ID).is_some() {
+        "tray icon removed"
+    } else {
+        "tray icon not found"
     });
     log.note("exit requested");
     app.exit(0);
@@ -533,7 +550,7 @@ fn main() {
                 lmu: recorder.clone(),
                 iracing: iracing.clone(),
             });
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id(TRAY_ID)
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
                 .menu(&menu)
