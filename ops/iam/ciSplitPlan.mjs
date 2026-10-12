@@ -33,14 +33,16 @@ export const CI = {
    * Each release job's own account, in its own Environment: its prefix in the
    * bucket and nothing else. Each Environment is made by its kind's setup
    * script (desktop/scripts/setup-release-env.ps1, scripts/setup-android-release.ps1).
-   * `secret` is the key's name in that Environment. A new kind uses a name no
-   * repo-level secret has, so a missing Environment secret fails the job
-   * instead of falling back to another key (rake #3302). The tray's still
-   * shares the deploy key's name.
+   * `secret` is the key's name in that Environment: a name no repo-level or
+   * other Environment's secret has, so a missing Environment secret fails the
+   * job instead of falling back to another key (rake #3302, #3304). Until
+   * 2026-10-09 the tray's key sat in tray-release under the deploy key's name
+   * (FIREBASE_SERVICE_ACCOUNT_BOTRACING_61); grant puts it under its own name
+   * and revoke deletes the old one and the old key.
    */
   releases: [
     {name: 'tray-release', env: 'tray-release', prefix: 'tray', title: 'tray-only', label: 'Tray release',
-      secret: 'FIREBASE_SERVICE_ACCOUNT_BOTRACING_61'},
+      secret: 'TRAY_RELEASE_SERVICE_ACCOUNT'},
     {name: 'android-release', env: 'android-release', prefix: 'android', title: 'android-only', label: 'Android release',
       secret: 'ANDROID_RELEASE_SERVICE_ACCOUNT'},
   ],
@@ -131,8 +133,9 @@ const SECRET_READERS = new Set([
  * `state`: {
  *   policy: Map(member -> Set(role)),             the project policy
  *   previewExists: boolean,                        the hosting-preview account
- *   releases: {[name]: {exists, bound}},           each release account, and whether it
- *                                                  has its prefix-only bucket binding
+ *   releases: {[name]: {exists, bound, keys}},     each release account, whether it has
+ *                                                  its prefix-only bucket binding, and
+ *                                                  its user-managed key ids, oldest first
  *   deployKeys: string[],                          user-managed key ids of the deploy account
  *   envs: Set(name),                               GitHub Environments that exist
  *   repoSecrets: Set(name), envSecrets: {env: Set(name)},
@@ -239,6 +242,25 @@ export function planCiSplit(state, phase, c = CI) {
         run: ['iam', 'service-accounts', 'keys', 'delete', id,
           `--iam-account=${c.deployEmail}`, `--project=${c.project}`, '--quiet'],
       });
+    // A release Environment holding its key under its own name: the copy
+    // under the deploy key's name goes, and every older key of the account
+    // (the one in that copy) with it. Run after a release has published on
+    // the new secret.
+    for (const r of c.releases) {
+      const held = state.envSecrets[r.env];
+      if (!held?.has(r.secret)) continue;
+      if (r.secret !== c.deploySecret && held.has(c.deploySecret))
+        steps.push({
+          what: `delete ${r.env} secret ${c.deploySecret} (${r.name}'s key is now ${r.secret})`,
+          gh: ['secret', 'delete', c.deploySecret, '--env', r.env, '--repo', c.repo],
+        });
+      for (const id of (state.releases[r.name]?.keys ?? []).slice(0, -1))
+        steps.push({
+          what: `delete old ${r.name} key ${id.slice(0, 8)}…`,
+          run: ['iam', 'service-accounts', 'keys', 'delete', id,
+            `--iam-account=${releaseEmail(r, c)}`, `--project=${c.project}`, '--quiet'],
+        });
+    }
     for (const name of DEAD_REPO_SECRETS)
       if (state.repoSecrets.has(name))
         steps.push({

@@ -6,7 +6,7 @@
 # uploads <dir>/<kind>/<version>/* to <kind>/<version>/ and then
 # <dir>/<kind>/latest.json to <kind>/latest.json, in gs://botracing-61-lmu,
 # with the token of the gcloud account the job signed in as (google-github-
-# actions/auth). The same rules as the tray's publish step (tray-release.yml):
+# actions/auth). Used by tray-release.yml and android-release.yml; the rules:
 #
 # A published version is immutable: users may already have it, so a fix is a
 # new version. The files first, latest.json last: a half-finished upload never

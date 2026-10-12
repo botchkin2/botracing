@@ -33,8 +33,8 @@ function today() {
     ]),
     previewExists: false,
     releases: {
-      'tray-release': {exists: false, bound: false},
-      'android-release': {exists: false, bound: false},
+      'tray-release': {exists: false, bound: false, keys: []},
+      'android-release': {exists: false, bound: false, keys: []},
     },
     deployKeys: ['old1', 'old2'],
     envs: new Set(['tray-release']),
@@ -82,7 +82,7 @@ test('grant run again after it worked has nothing left to do', () => {
   s.envSecrets['tray-release'].add(tray.secret);
   s.envs.add('android-release');
   s.envSecrets['android-release'] = new Set([android.secret]);
-  for (const r of CI.releases) s.releases[r.name] = {exists: true, bound: true};
+  for (const r of CI.releases) s.releases[r.name] = {exists: true, bound: true, keys: ['k']};
   s.policy.get(deploy).add('roles/cloudfunctions.admin');
   assert.deepEqual(planCiSplit(s, 'grant'), []);
 });
@@ -178,9 +178,45 @@ test('with the android-release Environment, grant puts the android account key t
   assert.deepEqual(keys.map(x => [x.keyTo.account, x.keyTo.secret]), [[releaseEmail(android), 'ANDROID_RELEASE_SERVICE_ACCOUNT']]);
 });
 
-test("android-release's key has a name no repo-level or other Environment secret has, so it can't fall back to another key", () => {
-  const others = [CI.deploySecret, CI.previewSecret, tray.secret, ...today().repoSecrets];
-  assert.ok(!others.includes(android.secret), android.secret);
+test("each release key has its own name, not the deploy, preview or another release's, so it can't fall back to another key", () => {
+  const names = CI.releases.map(r => r.secret);
+  assert.deepEqual(names, ['TRAY_RELEASE_SERVICE_ACCOUNT', 'ANDROID_RELEASE_SERVICE_ACCOUNT']);
+  assert.equal(new Set(names).size, names.length);
+  for (const name of names)
+    assert.ok(![CI.deploySecret, CI.previewSecret, ...today().repoSecrets].includes(name), name);
+});
+
+// 2026-10-09: tray-release holds the tray account's key under the deploy
+// key's name (rake #3304). grant adds it under its own name; revoke, after a
+// release has published on it, deletes the old copy and the old key.
+function trayOnOldName() {
+  const s = today();
+  s.releases['tray-release'] = {exists: true, bound: true, keys: ['oldTray']};
+  s.envSecrets['tray-release'].add(CI.deploySecret);
+  return s;
+}
+
+test('grant puts the tray key under its own name while the old copy is still there', () => {
+  const keys = planCiSplit(trayOnOldName(), 'grant').filter(x => x.keyTo?.env === 'tray-release');
+  assert.deepEqual(keys.map(x => [x.keyTo.account, x.keyTo.secret]), [[releaseEmail(tray), 'TRAY_RELEASE_SERVICE_ACCOUNT']]);
+});
+
+test('revoke leaves the tray alone until its key is under its own name', () => {
+  const steps = planCiSplit(trayOnOldName(), 'revoke');
+  assert.deepEqual(steps.filter(x => x.gh?.includes('tray-release') || x.run?.some(a => a.includes(releaseEmail(tray)))), []);
+});
+
+test('after the move, revoke deletes the old tray-release copy and every older tray key, keeping the newest', () => {
+  const s = trayOnOldName();
+  s.envSecrets['tray-release'].add(tray.secret);
+  s.releases['tray-release'].keys = ['oldTray', 'newTray'];
+  const steps = planCiSplit(s, 'revoke');
+  assert.ok(steps.some(x => x.gh?.join(' ') === `secret delete ${CI.deploySecret} --env tray-release --repo ${CI.repo}`));
+  assert.deepEqual(
+    steps.filter(x => x.run?.includes(`--iam-account=${releaseEmail(tray)}`)).map(x => x.run[4]),
+    ['oldTray'],
+  );
+  assert.ok(!steps.some(x => x.gh?.join(' ') === `secret delete ${tray.secret} --env tray-release --repo ${CI.repo}`));
 });
 
 test('hasReleaseBinding is true only for the conditioned binding for that account', () => {
