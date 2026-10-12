@@ -43,6 +43,7 @@ import {
   idleState,
   problemsOf,
 } from './heartbeat.mjs';
+import {drivingNow} from './driving.mjs';
 import {stopWhenGameStarts} from './gameGuard.mjs';
 import {parentGone} from './parentGuard.mjs';
 import {
@@ -142,9 +143,27 @@ function exeRunning(exe) {
   return out.includes(exe);
 }
 
-// Any watched sim: a sync in the garage costs VR frames whichever game is up.
+// Any watched sim is open.
 function gameRunning() {
   return SIMS.some(sim => exeRunning(gameExeOf(sim)));
+}
+
+// A drive is being recorded in any watched sim's folder (driving.mjs): the
+// only time nothing syncs. In the garage or the menus the finished drives go.
+function driving(nowMs = Date.now()) {
+  return SIMS.some(sim => {
+    const folder = sim.folder;
+    if (!existsSync(folder)) return false;
+    const files = [];
+    for (const name of readdirSync(folder)) {
+      try {
+        files.push({name, mtimeMs: statSync(resolve(folder, name)).mtimeMs});
+      } catch {
+        // Gone between the listing and the stat: not a drive.
+      }
+    }
+    return drivingNow(files, nowMs);
+  });
 }
 
 // sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,
@@ -204,8 +223,12 @@ function version() {
 // the session ids and the closing "done N, failed M" line feed the heartbeat.
 // sync.mjs skips files written in the last 3 minutes in case the game is
 // still writing them; the game is closed here, so nothing is.
-function syncArgsOf(sim) {
-  const {quietMin, legacyLayout} = sim.adapter.watcher;
+function syncArgsOf(sim, inGame) {
+  const {legacyLayout} = sim.adapter.watcher;
+  // With the game open the files of finished drives are closed by now (no
+  // write for DRIVING_WINDOW_MS), but a drive may start: half a minute of
+  // quiet keeps a file that was just written out of this run.
+  const quietMin = inGame ? 0.5 : sim.adapter.watcher.quietMin;
   const args = [...syncArgs];
   if (!legacyLayout) {
     const i = args.indexOf('--work');
@@ -220,13 +243,20 @@ function syncArgsOf(sim) {
   ];
 }
 
-function runSync(sim, onProgress, skipIds) {
+function runSync(sim, onProgress, skipIds, inGame) {
   return new Promise(done => {
-    const args = [syncScript, ...syncArgsOf(sim)];
+    const args = [syncScript, ...syncArgsOf(sim, inGame)];
+    const startedMs = Date.now();
     if (skipIds.length) args.push('--skip', skipIds.join(','));
     const child = spawn(process.execPath, args, {windowsHide: true});
     try {
-      setPriority(child.pid, constants.priority.PRIORITY_BELOW_NORMAL);
+      // In the garage with the game open: idle, so the game always comes first.
+      setPriority(
+        child.pid,
+        inGame
+          ? constants.priority.PRIORITY_LOW
+          : constants.priority.PRIORITY_BELOW_NORMAL,
+      );
     } catch {
       // Priority is a courtesy; the sync still runs.
     }
@@ -245,8 +275,9 @@ function runSync(sim, onProgress, skipIds) {
     child.stdout.setEncoding('utf8').on('data', onData);
     child.stderr.setEncoding('utf8').on('data', onData);
     // The whole tree: the sync and the DuckDB processes it runs.
+    // Stopped the moment a drive starts (game closed: the moment it opens).
     const guard = stopWhenGameStarts(child, {
-      gameRunning,
+      gameRunning: inGame ? () => driving() : gameRunning,
       kill: pid =>
         execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
           windowsHide: true,
@@ -254,6 +285,15 @@ function runSync(sim, onProgress, skipIds) {
     });
     child.on('close', code => {
       guard.cancel();
+      // What a sync costs, so the VR question answers itself from the log.
+      log(
+        `  sync ${sim.id}: ${inGame ? 'in the garage' : 'game closed'}, ${(
+          (Date.now() - startedMs) /
+          1000
+        ).toFixed(1)} s, exit ${code}${
+          guard.stopped() ? ', stopped: drive started' : ''
+        }`,
+      );
       done({...result, code, stoppedForGame: guard.stopped()});
     });
   });
@@ -399,11 +439,13 @@ async function main() {
     }
     try {
       const running = gameRunning();
+      const drivingNowFlag = running && driving();
       for (const sim of SIMS) {
         const st = stateOf(watch, sim);
         const recs = recordings(sim, st.lastRunAtMs);
         const plan = decide({
           gameRunning: running,
+          driving: drivingNowFlag,
           wasRunning,
           newestMtimeMs: recs?.newestMtimeMs ?? null,
           lastRunAtMs: st.lastRunAtMs ?? null,
@@ -446,6 +488,7 @@ async function main() {
                     beatProgress();
                   },
                   skippedIds,
+                  running,
                 ),
             );
           } finally {

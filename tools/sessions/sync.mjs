@@ -579,6 +579,15 @@ async function main() {
     failed += again.failed;
     again.tracks.forEach(t => tracks.add(t));
   }
+  // What the run cost this process (its worker threads included, the DuckDB
+  // processes it starts not), for the garage-upload VR question (thread 1
+  // #4648): read from the tray log.
+  const cpu = process.cpuUsage();
+  log(
+    `cpu ${((cpu.user + cpu.system) / 1e6).toFixed(1)} s, peak memory ${Math.round(
+      process.resourceUsage().maxRSS / 1024,
+    )} MB`,
+  );
   log(
     `done ${done}, failed ${failed}, unchanged ${
       sessions.length - first.done - first.failed

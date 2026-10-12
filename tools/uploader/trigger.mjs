@@ -27,6 +27,10 @@ export function retryDelayMin(failuresInRow) {
 export function decide({
   versionChanged = false,
   gameRunning,
+  // A drive being recorded right now (driving.mjs). With the game open and no
+  // drive running, the car is in the garage or the menus: the finished drives
+  // upload then (Botkin, pit-wall thread 1 #4648).
+  driving = gameRunning,
   wasRunning,
   newestMtimeMs,
   lastRunAtMs,
@@ -35,7 +39,7 @@ export function decide({
   quietRetryAtMs = null,
   nowMs,
 }) {
-  if (gameRunning) return {run: false, reason: 'game running'};
+  if (driving) return {run: false, reason: 'driving'};
   if (newestMtimeMs == null) return {run: false, reason: 'no telemetry'};
   // A crashed sync records neither the version nor the run time, so it waits
   // for its retry time whatever else is pending, or a bump would rerun it
@@ -59,5 +63,6 @@ export function decide({
   if (lastRunAtMs != null && newestMtimeMs <= lastRunAtMs) {
     return {run: false, reason: 'nothing new'};
   }
+  if (gameRunning) return {run: true, reason: 'drive finished'};
   return {run: true, reason: wasRunning ? 'game exited' : 'new telemetry'};
 }
