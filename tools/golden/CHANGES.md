@@ -19,3 +19,10 @@ Changed: new session
 ## 2026-10-10 lmu-practice-road-atlanta
 Why: first golden numbers for this session (LMU practice over two files with off-track, pit and partial laps); the baseline later changes are measured against.
 Changed: new session
+
+## 2026-10-12 lmu-race-daytona-tyres
+Why: #570 is reverted: Botkin says the 110 s window in this race is a real stop (fuel and repair), so the pre-start rule hid a real stop; the numbers return to the 2026-10-10 baseline (the stop with its 4 L and front-right tyre, 2 comparable laps).
+Changed:
+- fuel.litresPerVePctStop: null -> 1.303
+- consistency.overview: "3 laps. Best lap 108.922; best sections add up to 105.843." -> "2 laps. Best lap 108.922; best sections add up to 106.272."
+- laps.0.pitStop: null -> back to the stored service stop
