@@ -2,11 +2,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import {AppState} from 'react-native';
 
-import {
-  LAUNCH_HOLD_S,
-  shouldReloadAtLaunch,
-  shouldReloadOnReturn,
-} from './otaPolicy';
+import {runLaunch} from './otaLaunch';
+import {shouldReloadOnReturn} from './otaPolicy';
 
 // Over-the-air updates apply on the first open (pit-wall thread 1 #4531, #4538).
 // app.json's ON_LOAD check with no fallback only downloads, so a phone ran
@@ -47,22 +44,12 @@ export function holdSplashForUpdate(): void {
   }
 }
 
-async function onLaunch(): Promise<void> {
-  const startedMs = Date.now();
-  const timedOut = Symbol('timedOut');
-  const result = await Promise.race([
-    fetchUpdate(),
-    new Promise<typeof timedOut>(resolve =>
-      setTimeout(() => resolve(timedOut), LAUNCH_HOLD_S * 1000),
-    ),
-  ]);
-  const fetchedAfterS =
-    result === true ? (Date.now() - startedMs) / 1000 : null;
-  if (shouldReloadAtLaunch({fetchedAfterS})) {
-    await Updates.reloadAsync();
-    return;
-  }
-  await SplashScreen.hideAsync().catch(() => {});
+function onLaunch(): Promise<void> {
+  return runLaunch({
+    fetchUpdate,
+    reload: () => Updates.reloadAsync(),
+    hideSplash: () => SplashScreen.hideAsync(),
+  });
 }
 
 async function onReturn(): Promise<void> {

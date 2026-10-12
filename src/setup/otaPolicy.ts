@@ -7,6 +7,9 @@
 /** Seconds the splash is held at launch for the update check and fetch. */
 export const LAUNCH_HOLD_S = 3;
 
+/** Seconds past the hold at which the splash comes down whatever is still pending. */
+export const LAUNCH_BACKSTOP_S = 2;
+
 /** Seconds in the background after which a return is a fresh start. */
 export const FRESH_START_S = 30 * 60;
 
