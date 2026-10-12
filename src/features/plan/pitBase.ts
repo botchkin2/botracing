@@ -41,7 +41,8 @@ export function refuelRateFor(
 /**
  * The median of (pit loss - litres added / refuel rate) over the race stops
  * the uploader could measure: services only (planBlock.mjs leaves a repair or a
- * penalty without a loss). Null without a rate, or under MIN_BASE_STOPS stops.
+ * penalty without a loss, and a stop from a plan block with no kind is left
+ * out). Null without a rate, or under MIN_BASE_STOPS stops.
  */
 export function pitLaneBase(
   races: {stops: PlanStop[]}[],
@@ -53,8 +54,9 @@ export function pitLaneBase(
     for (const stop of race.stops) {
       if (stop.lossS == null || !(stop.addedL != null && stop.addedL > 0))
         continue;
-      // A block from before version 2 has no kind; one that does must be a service.
-      if (stop.kind != null && stop.kind !== 'service') continue;
+      // Services only. A block from before version 2 has no kind: its stand-still
+      // may be a repair or a penalty, so it is left out, not counted as a service.
+      if (stop.kind !== 'service') continue;
       bases.push(stop.lossS - stop.addedL / rate.lPerS);
     }
   }
