@@ -22,6 +22,8 @@ import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
+import {keepVisits, raceAfterSync} from './keepCapture.mjs';
+import {planBlock} from './planBlock.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -386,6 +388,28 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       lap.traffic = traffic[k];
     });
   }
+  // What only the capture gave, kept when it is gone (keepCapture.mjs): the
+  // race length, and the visits read from the car's damage.
+  session.race = raceAfterSync(session.race, before?.race ?? null, session);
+  if (out.damageMissing) {
+    const storedLaps = new Map();
+    for (const lap of out.laps) {
+      if (!lap.pitStop?.visit) continue;
+      const doc = await backend.getDoc('laps', lap.id);
+      if (doc) storedLaps.set(lap.id, doc);
+    }
+    const keptVisits = keepVisits(out.laps, storedLaps, {damageMissing: true});
+    if (keptVisits)
+      log(`  pit visits: kept ${keptVisits} stored (no damage record)`);
+  }
+  // The plan block reads the race, result, traffic and visits settled above.
+  session.plan = planBlock({
+    sessionType: session.sessionType,
+    fuel: session.fuel,
+    laps: out.laps,
+    race: session.race,
+    result: session.result,
+  });
   session.traffic = trafficMedians(
     out.laps.map(lap => ({
       timeS: lap.lapTime,

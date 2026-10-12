@@ -687,6 +687,9 @@ function build(
     fieldReason: fieldOut.reason,
     liveCheck,
     capturesUsed,
+    // No damage record this run (capture pruned): store.mjs keeps the stored
+    // visits that were read from damage (keepCapture.mjs).
+    damageMissing: !foldOnly && damage === null,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
