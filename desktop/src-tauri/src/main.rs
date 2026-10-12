@@ -282,6 +282,9 @@ enum OnQuit {
 /// the process); then ends the tray.
 fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit) {
     let log = QuitLog::start(app, "quit requested");
+    // The event loop notes when the exit reaches it and when it ends, so an
+    // "exit forced" says which of the two never came (e2e, thread 1 #4759).
+    app.manage(log.clone());
     if let Some(sup) = app.try_state::<Shared<sidecar::Supervisor>>() {
         sup.lock().unwrap().shutdown();
     }
@@ -654,7 +657,20 @@ fn main() {
         })
         .build(context)
         .expect("BotRacing failed to start")
-        .run(|_app, event| {
+        .run(|app, event| {
+            match &event {
+                tauri::RunEvent::ExitRequested { .. } => {
+                    if let Some(log) = app.try_state::<QuitLog>() {
+                        log.note("exit reached the event loop");
+                    }
+                }
+                tauri::RunEvent::Exit => {
+                    if let Some(log) = app.try_state::<QuitLog>() {
+                        log.note("event loop ended");
+                    }
+                }
+                _ => {}
+            }
             // The tray has no windows, so the app would exit the moment it
             // looked like the last one closed: only Quit ends it (it exits
             // with a code).

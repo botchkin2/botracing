@@ -294,7 +294,15 @@ pub fn start_iracing(root: PathBuf) -> Handle {
             while !stop_t.load(Ordering::SeqCst) {
                 let wait = rec.tick(now_ms());
                 *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
-                rec.src().wait(wait);
+                // In slices, so a quit is seen within one (stop_within).
+                let end = std::time::Instant::now() + wait;
+                while !stop_t.load(Ordering::SeqCst) {
+                    let left = end.saturating_duration_since(std::time::Instant::now());
+                    if left.is_zero() {
+                        break;
+                    }
+                    rec.src().wait(left.min(STOP_SLICE));
+                }
             }
             rec.shutdown(now_ms());
             *line_t.lock().unwrap() = Line::Text(ir_line(&rec.status));
@@ -304,11 +312,28 @@ pub fn start_iracing(root: PathBuf) -> Handle {
 }
 
 /// The loop: tick, publish the status for the menu, sleep what the tick asked.
+/// The longest a recorder sleeps before it looks at its stop flag again. With
+/// no game the tick asks for 5 s, and a quit waited that long for the thread
+/// while it held the tray's event loop (quit.log "recorders stopped +3.8s").
+pub const STOP_SLICE: Duration = Duration::from_millis(100);
+
+/// Sleeps `d`, or less when `stop` is set meanwhile.
+pub fn sleep_unless_stopped(d: Duration, stop: &AtomicBool) {
+    let end = std::time::Instant::now() + d;
+    while !stop.load(Ordering::SeqCst) {
+        let left = end.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return;
+        }
+        std::thread::sleep(left.min(STOP_SLICE));
+    }
+}
+
 pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<Line>) {
     while !stop.load(Ordering::SeqCst) {
         let sleep = rec.tick(now_ms());
         *line.lock().unwrap() = Line::Status(rec.status.clone());
-        std::thread::sleep(sleep);
+        sleep_unless_stopped(sleep, stop);
     }
     rec.shutdown(now_ms());
     *line.lock().unwrap() = Line::Status(rec.status.clone());
@@ -317,6 +342,18 @@ pub fn drive<S: Source>(rec: &mut Recorder<S>, stop: &AtomicBool, line: &Mutex<L
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stop_ends_a_long_sleep_within_one_slice() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let s2 = stop.clone();
+        let t = std::time::Instant::now();
+        let h = std::thread::spawn(move || sleep_unless_stopped(Duration::from_secs(5), &s2));
+        std::thread::sleep(Duration::from_millis(50));
+        stop.store(true, Ordering::SeqCst);
+        h.join().unwrap();
+        assert!(t.elapsed() < Duration::from_millis(400), "{:?}", t.elapsed());
+    }
 
     fn status(state: &'static str, reason: &str) -> Status {
         let mut s = Status::new();
