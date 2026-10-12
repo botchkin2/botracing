@@ -24,6 +24,7 @@ import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
+import {withKept} from './versionKey.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -390,7 +391,10 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   }
   // What only the capture gave, kept when it is gone (keepCapture.mjs): the
   // race length, and the visits read from the car's damage.
-  session.race = raceAfterSync(session.race, before?.race ?? null, session);
+  const keptBlocks = [];
+  const freshRace = session.race;
+  session.race = raceAfterSync(freshRace, before?.race ?? null, session);
+  if (session.race && !freshRace) keptBlocks.push('raceLength');
   if (out.damageMissing) {
     const storedLaps = new Map();
     for (const lap of out.laps) {
@@ -404,9 +408,17 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       if (doc) storedLaps.set(lap.id, doc);
     }
     const keptVisits = keepVisits(out.laps, storedLaps, {damageMissing: true});
-    if (keptVisits)
+    if (keptVisits) {
+      keptBlocks.push('pitVisit');
       log(`  pit visits: kept ${keptVisits} stored (no damage record)`);
+    }
   }
+  if (session.analysis)
+    session.analysis = withKept(
+      session.analysis,
+      keptBlocks,
+      before?.analysis ?? null,
+    );
   // The plan block reads the race, result, traffic and visits settled above.
   session.plan = planBlock({
     sessionType: session.sessionType,
@@ -428,7 +440,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     ops.push({op: 'set', coll: 'recordings', id: rec.id, data: rec});
   for (const lap of out.laps)
     ops.push({op: 'set', coll: 'laps', id: lap.id, data: lap});
-  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session});
   // Merge: the track doc also holds fields other tools write (the georef,
   // centerline, edges, corner names). A new corner map replaces only its own.
   if (out.track) {
@@ -453,7 +464,13 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       dropped++;
     }
   }
+  // The session doc goes last, on its own: it carries the analysis stamp, so
+  // it must never land fresh over laps that did not. A failure before it
+  // leaves the old stamp, and the session is analysed again.
   await backend.writeDocs(ops);
+  await backend.writeDocs([
+    {op: 'set', coll: 'sessions', id: session.id, data: session},
+  ]);
   // Only after the session points at the new file: a phone still holding the
   // old URL gets a 404 and refetches the session.
   if (kept.deletePath) await backend.deleteFile(kept.deletePath);

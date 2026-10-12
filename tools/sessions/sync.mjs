@@ -46,7 +46,7 @@ import {
   QUIET_MIN_DEFAULT,
   scanFolder,
 } from './sessionFiles.mjs';
-import {versionKey} from './versionKey.mjs';
+import {analysisStamp, versionKey} from './versionKey.mjs';
 import {
   analysisVersion,
   blockVersions,
@@ -661,6 +661,8 @@ function build(
       offPace: lap.consistency?.offPace ?? null,
     })),
     analysisVersion,
+    // The rules this session was made under; store.mjs adds what it kept.
+    analysis: analysisStamp(analysisVersion, blockVersions),
     updatedAt: new Date().toISOString(),
   });
 

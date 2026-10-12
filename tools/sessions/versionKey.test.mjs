@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {analysisVersion, blockVersions} from './analyze.mjs';
-import {versionKey} from './versionKey.mjs';
+import {analysisStamp, isStale, versionKey, withKept} from './versionKey.mjs';
 
 test('the key is the analysis version and every block, in a fixed order', () => {
   assert.equal(
@@ -41,4 +41,54 @@ test('state from before block versions has no key, so it reads as changed', () =
     stored.versionKey,
     versionKey(analysisVersion, blockVersions),
   );
+});
+
+test('a stamp records the versions and the kept blocks, sorted and once each', () => {
+  assert.deepEqual(
+    analysisStamp(17, {tyres: 2}, ['pitVisit', 'raceLength', 'pitVisit']),
+    {v: 17, blocks: {tyres: 2}, kept: ['pitVisit', 'raceLength']},
+  );
+});
+
+test('no stamp, an older analysis or an older block is stale', () => {
+  const code = {tyres: 2, pitVisit: 3};
+  assert.equal(isStale(null, 17, code), true);
+  assert.equal(isStale({}, 17, code), true);
+  assert.equal(isStale(analysisStamp(16, code), 17, code), true);
+  assert.equal(isStale(analysisStamp(17, {...code, tyres: 1}), 17, code), true);
+  assert.equal(isStale(analysisStamp(17, {tyres: 2}), 17, code), true);
+  assert.equal(isStale(analysisStamp(17, code), 17, code), false);
+});
+
+test('a kept block never makes the session stale, so an open does not re-run it forever', () => {
+  const code = {tyres: 2, pitVisit: 4, raceLength: 2};
+  const stamp = analysisStamp(17, {tyres: 2, pitVisit: 3, raceLength: 1}, [
+    'pitVisit',
+    'raceLength',
+  ]);
+  assert.equal(isStale(stamp, 17, code), false);
+  // A block that was not kept still counts.
+  assert.equal(isStale(stamp, 17, {...code, tyres: 3}), true);
+});
+
+test('the stamp of the real registry is fresh against itself', () => {
+  assert.equal(
+    isStale(
+      analysisStamp(analysisVersion, blockVersions),
+      analysisVersion,
+      blockVersions,
+    ),
+    false,
+  );
+});
+
+test('a kept block carries the version it was made under, not the code version', () => {
+  const fresh = analysisStamp(17, {pitVisit: 4, raceLength: 2, tyres: 2});
+  const stored = analysisStamp(17, {pitVisit: 3, raceLength: 1, tyres: 1});
+  const stamp = withKept(fresh, ['raceLength', 'pitVisit'], stored);
+  assert.deepEqual(stamp.blocks, {pitVisit: 3, raceLength: 1, tyres: 2});
+  assert.deepEqual(stamp.kept, ['pitVisit', 'raceLength']);
+  // A stored doc from before stamps: 0, made under no known rule.
+  assert.equal(withKept(fresh, ['pitVisit'], null).blocks.pitVisit, 0);
+  assert.equal(withKept(fresh, [], stored), fresh);
 });
