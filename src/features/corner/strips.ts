@@ -68,8 +68,6 @@ export type StripModel = {
   empty: boolean;
   /** Beside the title: "full throttle by the slowest point: 30 laps", the laps left off. */
   flatNote: string | null;
-  /** The on laps' values, for the line beside the title. */
-  keyValues: {onIndex: number; text: string}[];
   dots: StripDot[];
 };
 
@@ -220,15 +218,6 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
           p90: quantile(vals, 0.9),
         }
       : null;
-  const keyValues = laps
-    .filter(l => l.onIndex != null && (spec.value(l) != null || isFlat(l)))
-    .sort((a, b) => (a.onIndex as number) - (b.onIndex as number))
-    .map(l => ({
-      onIndex: l.onIndex as number,
-      text: `${l.label} ${
-        spec.value(l) == null ? 'at min' : spec.fmt(spec.value(l) as number)
-      }`,
-    }));
   const flat = flatLaps;
   return {
     measure: spec.measure,
@@ -250,7 +239,6 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
           band.p90,
         )}`
       : '',
-    keyValues,
     empty: dots.length === 0,
     flatNote:
       flat > 0

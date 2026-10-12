@@ -5,13 +5,10 @@ import Svg, {Path, Rect} from 'react-native-svg';
 import {type Field} from '@/src/analysis/field';
 import {TraceChart} from '@/src/charts';
 import {
-  closeBox,
   cornerCell,
-  disabledOpacity,
   formatCornerGap,
   formatDistance,
   radius,
-  size,
   space,
   useLayout,
   useTheme,
@@ -55,9 +52,6 @@ import {
   type CompareModel,
   type CompareSelection,
   drawRank,
-  toggleHighlight,
-  canRemoveLap,
-  removeLap,
   sectionStartM,
   setRef,
   toggleCompared,
@@ -145,77 +139,17 @@ export function CompareWorkspace(p: WorkspaceProps) {
       <ScrollView
         style={[styles.left, {borderColor: color.lineHeader}]}
         contentContainerStyle={styles.col}>
+        {/* One list of every lap: the Median / Ref switch heads it, and a lap is
+            ticked, un-ticked or made the Ref in its own row (Botkin, 2 Oct
+            screenshots: the list of ticked laps above it repeated these rows). */}
         <Text variant='label' tone='textMuted'>
-          Laps
+          All laps
         </Text>
         <BasisSwitch
           selection={selection}
           fastestLapId={model.fastestLapId}
           onSelectionChange={p.onSelectionChange}
         />
-        {model.chips.map(c => (
-          <View
-            key={c.lapId}
-            style={[
-              styles.lapRow,
-              c.isRef && {backgroundColor: color.accentTint},
-            ]}>
-            {/* The row's own button; Ref and remove sit beside it, never inside. */}
-            <Pressable
-              accessibilityRole='button'
-              accessibilityLabel={`Highlight ${c.label}`}
-              onPress={() =>
-                p.onSelectionChange(toggleHighlight(selection, c.lapId))
-              }
-              style={styles.lapMain}>
-              <View
-                style={[
-                  styles.swatch,
-                  {backgroundColor: lapStyle(c.selIndex, c.highlighted).color},
-                ]}
-              />
-              <Text variant='dataStrong' style={styles.lapLabel}>
-                {c.label}
-              </Text>
-              <Text
-                variant='data'
-                tone={c.isRef ? 'textMuted' : c.faster ? 'faster' : 'slower'}
-                style={styles.flex}>
-                {c.delta}
-              </Text>
-            </Pressable>
-            {!c.isRef && (
-              <RefAction
-                label={`Set ${c.label} as Ref`}
-                onPress={() => p.onSelectionChange(setRef(selection, c.lapId))}
-              />
-            )}
-            {!c.isRef && (
-              <Pressable
-                accessibilityLabel={`Remove ${c.label}`}
-                accessibilityState={{
-                  disabled: !canRemoveLap(selection, c.lapId),
-                }}
-                disabled={!canRemoveLap(selection, c.lapId)}
-                style={styles.closeBox}
-                onPress={() =>
-                  p.onSelectionChange(removeLap(selection, c.lapId))
-                }>
-                {/* The last compared lap stays: removing it snaps back to the default. */}
-                <Text
-                  tone='textFaint'
-                  style={
-                    selection.laps.length <= 2 ? styles.removeOff : undefined
-                  }>
-                  ×
-                </Text>
-              </Pressable>
-            )}
-          </View>
-        ))}
-        <Text variant='label' tone='textMuted' style={styles.gapTop}>
-          All laps
-        </Text>
         {model.allLaps.map(stint => (
           <View key={stint.key} style={styles.stint}>
             <Text variant='dataSmall' tone='textMuted'>
@@ -604,41 +538,14 @@ export function CompareWorkspace(p: WorkspaceProps) {
 }
 
 const styles = StyleSheet.create({
-  // The lap chip's ×: a real box a mouse can hit, not slop (slop cannot take
-  // taps from the Set as Ref beside it).
-  closeBox: {
-    minWidth: closeBox,
-    minHeight: closeBox,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   // Wide enough for "200 m": the buttons beside it stay put between Time and Distance.
   windowSize: {minWidth: 56, textAlign: 'center'},
-  removeOff: {opacity: disabledOpacity},
   root: {flex: 1, flexDirection: 'row'},
   flex: {flex: 1},
   col: {gap: space.md, padding: space.xl, paddingBottom: space.xxxl},
   left: {width: LEFT_W, flexGrow: 0, borderRightWidth: 1},
   right: {flexGrow: 0},
   centre: {flex: 1},
-  gapTop: {marginTop: space.lg},
-  lapRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    height: size.lapRow,
-    paddingHorizontal: space.xs,
-    borderRadius: radius.sm,
-  },
-  // The row's button: swatch, label and delta, taking what Ref and remove leave.
-  lapMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    height: '100%',
-  },
-  swatch: {width: 10, height: 3},
   lapLabel: {width: 34},
   stint: {gap: space.xxs},
   allRow: {
