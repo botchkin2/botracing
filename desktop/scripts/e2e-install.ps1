@@ -239,6 +239,8 @@ if (-not (Test-Path $quitLog)) { Fail "no quit.log: the quit never reached the t
 $quitLines = @(Get-Content $quitLog)
 Write-Host "quit.log: $($quitLines -join ' | ')"
 $exitAt = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match '^(exit forced|event loop ended)' })
+# The tray ends itself one of two ways, and says which; anything else ended it.
+if ($exitAt -lt 0) { Fail "quit.log has neither 'event loop ended' nor 'exit forced': something else ended the tray" }
 foreach ($step in @("watcher stopped", "recorders stopped", "window state saved", "tray icon removed")) {
   $at = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match "^$step " })
   if ($at -lt 0) { Fail "quit.log has no '$step': a quit must finish it before the tray ends" }
