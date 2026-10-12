@@ -1,0 +1,505 @@
+{
+ "sim": "lmu",
+ "source": "Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb",
+ "driver": "",
+ "recordedAt": "2026-10-03T00:12:27Z",
+ "sessionClock": "21:00:04",
+ "sessionType": "Race",
+ "track": "Michelin Raceway Road Atlanta",
+ "layout": "Michelin Raceway Road Atlanta",
+ "car": "Porsche 911 GT3 R LMGT3",
+ "carClass": "GT3",
+ "fuelSetup": {
+  "fillLimitL": 100,
+  "tankL": 117
+ },
+ "weather": "Mostly Cloudy",
+ "baseHz": 100,
+ "ticks": 17100,
+ "startT": 415.0075,
+ "endT": 585.9975,
+ "channels": [
+  {
+   "source": "Brake Pos",
+   "name": "brake_pct",
+   "hz": 50,
+   "unit": "%",
+   "columns": [
+    "brake_pct"
+   ]
+  },
+  {
+   "source": "Engine RPM",
+   "name": "rpm",
+   "hz": 100,
+   "unit": "RPM",
+   "columns": [
+    "rpm"
+   ]
+  },
+  {
+   "source": "Fuel Level",
+   "name": "fuel_l",
+   "hz": 20,
+   "unit": "L",
+   "columns": [
+    "fuel_l"
+   ]
+  },
+  {
+   "source": "GPS Latitude",
+   "name": "lat_deg",
+   "hz": 10,
+   "unit": "deg",
+   "columns": [
+    "lat_deg"
+   ]
+  },
+  {
+   "source": "GPS Longitude",
+   "name": "lon_deg",
+   "hz": 10,
+   "unit": "deg",
+   "columns": [
+    "lon_deg"
+   ]
+  },
+  {
+   "source": "GPS Time",
+   "name": "t",
+   "hz": 100,
+   "unit": "s",
+   "columns": [
+    "t"
+   ]
+  },
+  {
+   "source": "Ground Speed",
+   "name": "speed_kmh",
+   "hz": 100,
+   "unit": "km/h",
+   "columns": [
+    "speed_kmh"
+   ]
+  },
+  {
+   "source": "Lap Dist",
+   "name": "lap_dist_m",
+   "hz": 10,
+   "unit": "m",
+   "columns": [
+    "lap_dist_m"
+   ]
+  },
+  {
+   "source": "Path Lateral",
+   "name": "path_lateral_m",
+   "hz": 10,
+   "unit": "m",
+   "columns": [
+    "path_lateral_m"
+   ]
+  },
+  {
+   "source": "Regen Rate",
+   "name": "regen_rate",
+   "hz": 100,
+   "unit": "kW",
+   "columns": [
+    "regen_rate"
+   ]
+  },
+  {
+   "source": "SoC",
+   "name": "so_c",
+   "hz": 20,
+   "unit": "%",
+   "columns": [
+    "so_c"
+   ]
+  },
+  {
+   "source": "Steering Pos",
+   "name": "steer_pct",
+   "hz": 100,
+   "unit": "%",
+   "columns": [
+    "steer_pct"
+   ]
+  },
+  {
+   "source": "Throttle Pos",
+   "name": "throttle_pct",
+   "hz": 50,
+   "unit": "%",
+   "columns": [
+    "throttle_pct"
+   ]
+  },
+  {
+   "source": "Throttle Pos Unfiltered",
+   "name": "throttle_pos_unfiltered",
+   "hz": 50,
+   "unit": "%",
+   "columns": [
+    "throttle_pos_unfiltered"
+   ]
+  },
+  {
+   "source": "Track Edge",
+   "name": "track_edge_m",
+   "hz": 10,
+   "unit": "m",
+   "columns": [
+    "track_edge_m"
+   ]
+  },
+  {
+   "source": "Tyres Wear",
+   "name": "tyres_wear",
+   "hz": 10,
+   "unit": "%",
+   "columns": [
+    "tyres_wear_fl",
+    "tyres_wear_fr",
+    "tyres_wear_rl",
+    "tyres_wear_rr"
+   ]
+  },
+  {
+   "source": "TyresCarcassTemp",
+   "name": "tyres_carcass_temp",
+   "hz": 5,
+   "unit": "C",
+   "columns": [
+    "tyres_carcass_temp_fl",
+    "tyres_carcass_temp_fr",
+    "tyres_carcass_temp_rl",
+    "tyres_carcass_temp_rr"
+   ]
+  },
+  {
+   "source": "TyresPressure",
+   "name": "tyres_pressure",
+   "hz": 10,
+   "unit": "kPa",
+   "columns": [
+    "tyres_pressure_fl",
+    "tyres_pressure_fr",
+    "tyres_pressure_rl",
+    "tyres_pressure_rr"
+   ]
+  },
+  {
+   "source": "TyresRubberTemp",
+   "name": "tyres_rubber_temp",
+   "hz": 10,
+   "unit": "C",
+   "columns": [
+    "tyres_rubber_temp_fl",
+    "tyres_rubber_temp_fr",
+    "tyres_rubber_temp_rl",
+    "tyres_rubber_temp_rr"
+   ]
+  },
+  {
+   "source": "TyresTempCentre",
+   "name": "tyres_temp_centre",
+   "hz": 100,
+   "unit": "C",
+   "columns": [
+    "tyres_temp_centre_fl",
+    "tyres_temp_centre_fr",
+    "tyres_temp_centre_rl",
+    "tyres_temp_centre_rr"
+   ]
+  },
+  {
+   "source": "TyresTempLeft",
+   "name": "tyres_temp_left",
+   "hz": 100,
+   "unit": "C",
+   "columns": [
+    "tyres_temp_left_fl",
+    "tyres_temp_left_fr",
+    "tyres_temp_left_rl",
+    "tyres_temp_left_rr"
+   ]
+  },
+  {
+   "source": "TyresTempRight",
+   "name": "tyres_temp_right",
+   "hz": 100,
+   "unit": "C",
+   "columns": [
+    "tyres_temp_right_fl",
+    "tyres_temp_right_fr",
+    "tyres_temp_right_rl",
+    "tyres_temp_right_rr"
+   ]
+  },
+  {
+   "source": "Virtual Energy",
+   "name": "virtual_energy_pct",
+   "hz": 20,
+   "unit": "%",
+   "columns": [
+    "virtual_energy_pct"
+   ]
+  }
+ ],
+ "events": [
+  {
+   "source": "ABS",
+   "name": "abs",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "ABSLevel",
+   "name": "abslevel",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "AntiStall Activated",
+   "name": "anti_stall_activated",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Best LapTime",
+   "name": "best_lap_time",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Best Sector1",
+   "name": "best_sector1",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Best Sector2",
+   "name": "best_sector2",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Brake Bias Rear",
+   "name": "brake_bias_rear",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Brake Migration",
+   "name": "brake_migration",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "CloudDarkness",
+   "name": "cloud_darkness",
+   "unit": "%",
+   "width": 1
+  },
+  {
+   "source": "Current LapTime",
+   "name": "current_lap_time",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Current Sector",
+   "name": "current_sector",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Current Sector1",
+   "name": "sector1_time",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Current Sector2",
+   "name": "sector2_through_time",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Engine Max RPM",
+   "name": "engine_max_rpm",
+   "unit": "RPM",
+   "width": 1
+  },
+  {
+   "source": "Finish Status",
+   "name": "finish_status",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "FrontFlapActivated",
+   "name": "front_flap_activated",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "FuelMixtureMap",
+   "name": "fuel_mixture_map",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Gear",
+   "name": "gear",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Headlights State",
+   "name": "headlights_state",
+   "unit": "On/Off",
+   "width": 1
+  },
+  {
+   "source": "In Pits",
+   "name": "in_pits",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Lap",
+   "name": "lap",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Lap Time",
+   "name": "lap_time",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Last Sector1",
+   "name": "last_sector1",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "Last Sector2",
+   "name": "last_sector2",
+   "unit": "s",
+   "width": 1
+  },
+  {
+   "source": "LastImpactMagnitude",
+   "name": "impact",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "LaunchControlActive",
+   "name": "launch_control_active",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Minimum Path Wetness",
+   "name": "minimum_path_wetness",
+   "unit": "%",
+   "width": 1
+  },
+  {
+   "source": "OffpathWetness",
+   "name": "offpath_wetness",
+   "unit": "%",
+   "width": 1
+  },
+  {
+   "source": "RearFlapActivated",
+   "name": "rear_flap_activated",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "RearFlapLegalStatus",
+   "name": "rear_flap_legal_status",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Sector1 Flag",
+   "name": "sector1_flag",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Sector2 Flag",
+   "name": "sector2_flag",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Sector3 Flag",
+   "name": "sector3_flag",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "Speed Limiter",
+   "name": "speed_limiter",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "SurfaceTypes",
+   "name": "surface",
+   "unit": "",
+   "width": 4
+  },
+  {
+   "source": "TC",
+   "name": "tc",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "TCCut",
+   "name": "tccut",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "TCLevel",
+   "name": "tclevel",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "TCSlipAngle",
+   "name": "tcslip_angle",
+   "unit": "",
+   "width": 1
+  },
+  {
+   "source": "TyresCompound",
+   "name": "tyres_compound",
+   "unit": "",
+   "width": 4
+  },
+  {
+   "source": "WheelsDetached",
+   "name": "wheels_detached",
+   "unit": "",
+   "width": 4
+  },
+  {
+   "source": "Yellow Flag State",
+   "name": "yellow_flag",
+   "unit": "",
+   "width": 1
+  }
+ ]
+}
