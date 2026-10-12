@@ -32,6 +32,9 @@ const RECOUNT_MS: u64 = 5 * 60_000;
 /// (m/s per s, about 20 g) or the car moves further than speed allows.
 /// Counted, not dropped: it tells how often reads tear.
 const SUSPECT_ACCEL: f64 = 200.0;
+/// How long after a line crossing the lap's chunk is cut (seconds, player
+/// clock): past the new lap's first frames and the next 5 Hz scoring row.
+const LAP_CUT_AFTER_S: f64 = 1.0;
 
 /// What the recorder is doing: the same fields as the Python recorder's
 /// status.json, for the uploader's heartbeat. `session_dir` is the capture's
@@ -122,6 +125,8 @@ pub struct Recorder<S: Source> {
     last_lap: Option<i32>,
     /// Lap-end chunks handed to the writer and not yet on disk.
     laps_pending: usize,
+    /// When (player clock) the chunk that holds the last crossing is cut.
+    cut_due: Option<f64>,
     pub status: Status,
     status_written: Option<u64>,
     recounted: Option<u64>,
@@ -154,6 +159,7 @@ impl<S: Source> Recorder<S> {
             missed: 0,
             last_lap: None,
             laps_pending: 0,
+            cut_due: None,
             status,
             status_written: None,
             recounted: None,
@@ -201,6 +207,7 @@ impl<S: Source> Recorder<S> {
                 // A new capture starts its own lap count: no cut on its first frame.
                 self.last_lap = None;
                 self.laps_pending = 0;
+                self.cut_due = None;
                 self.player_ok = None;
                 self.prev_motion = None;
                 self.frames = (0, 0);
@@ -480,13 +487,20 @@ impl<S: Source> Recorder<S> {
             if suspect {
                 capture.note_suspect();
             }
-            // The player crossed the line: the lap that ended is cut into a
-            // chunk of its own before the new lap's first frame, so it is on
-            // disk within a write instead of up to a minute later.
+            // The player crossed the line: a chunk is cut LAP_CUT_AFTER_S later,
+            // so the lap that ended is on disk within a write instead of up to
+            // a minute later. Not at the crossing itself: the new lap's first
+            // frames (its mLapNumber and mLapStartET) and the scoring row with
+            // the game's lap time are what mark the lap finished
+            // (lmuCapture.mjs); a cut before them leaves it unfinished until
+            // the next chunk, a whole lap late (live e2e, thread 66).
             let lap = i32_at(&sample.raw, self.probe.t_lap);
-            let crossed = self.last_lap.is_some_and(|prev| prev != lap);
+            if self.last_lap.is_some_and(|prev| prev != lap) {
+                self.cut_due = Some(sample.et + LAP_CUT_AFTER_S);
+            }
             self.last_lap = Some(lap);
-            let cut = if crossed {
+            let cut = if self.cut_due.is_some_and(|due| sample.et >= due) {
+                self.cut_due = None;
                 let written = capture.flush(now);
                 if written.is_ok() {
                     self.laps_pending += 1;
@@ -875,21 +889,29 @@ mod tests {
         lap(4);
         rig.player("Road Atlanta", 5.02);
         rec.tick(1_020);
+        // Not at the crossing: a second later, so the chunk holds the new
+        // lap's first frames and the lap time.
+        rig.player("Road Atlanta", 5.50);
+        rec.tick(1_500);
+        assert_eq!(rec.status.last_lap_at, None);
+        rig.player("Road Atlanta", 6.03);
+        rec.tick(2_030);
         for i in 0..200 {
             if rec.status.last_lap_at.is_some() {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
-            rec.tick(1_021 + i);
+            rec.tick(2_031 + i);
         }
         assert!(rec.status.last_lap_at.is_some(), "the lap-end chunk never reached the disk");
         let folder = rig.folders().remove(0);
         assert!(rig.root.join(&folder).join("player-0000.parquet").is_file());
         assert_eq!(rig.status_file()["lastLapAt"], rec.status.last_lap_at.clone().unwrap());
         rec.shutdown(5_000);
-        // Two chunks: the lap that ended (2 frames), then the new lap's start.
+        // Two chunks: the lap that ended plus a second of the next (4 frames),
+        // then the rest.
         assert_eq!(rig.meta(&folder)["chunks"], 2);
-        assert_eq!(rig.meta(&folder)["playerFrames"], 3);
+        assert_eq!(rig.meta(&folder)["playerFrames"], 5);
     }
 
     #[test]
