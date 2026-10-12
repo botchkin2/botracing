@@ -109,6 +109,24 @@ describe('lapTyres', () => {
     assert.deepEqual(t.changed, []);
   });
 
+  it('skips a pit window that begins before the first lap-counter change (a grid held in the lane)', () => {
+    const s = recording();
+    const lap = {start: 1060, end: 1120};
+    const window = [[1095, 1110]];
+    assert.deepEqual(
+      lapTyres(s, 600, 1199, lap, window, 1, {firstCrossT: 1105}).changed,
+      [],
+    );
+    assert.deepEqual(
+      lapTyres(s, 600, 1199, lap, window, 1, {firstCrossT: 1090}).changed,
+      ['FR'],
+    );
+    assert.deepEqual(
+      lapTyres(s, 600, 1199, lap, window, 1, {firstCrossT: null}).changed,
+      ['FR'],
+    );
+  });
+
   it('puts a stop that never ends in the lap it was entered in', () => {
     const t = lapTyres(
       recording(),
