@@ -37,6 +37,17 @@ It scans the LMU telemetry folder, skips files written in the last 3 minutes, gr
 
 A session is recordings with the same sim, track layout, car, and session type, where the game's session timer kept pace with the wall clock between files (runs back to the pits) or restarted with the same session clock (a race restart).
 
+## Live laps
+
+While LMU runs, each lap goes up on its own, before the game saves its file (pit-wall thread 66).
+
+- **Recorder:** the tray's recorder cuts a capture chunk at each player line crossing (`mLapNumber` changes) and writes `lastLapAt` to `status.json` once that chunk is on disk (`capture/recorder.rs`). Chunks are written on a writer thread (`store.rs` `ChunkWriter`), so cutting one never drops a frame.
+- **Watcher:** when `lastLapAt` advances and LMU is running, it runs `sync.mjs --live <capture folder>` at idle priority, capped at 2 minutes (`watch.mjs` `runLive`, `trigger.mjs` `decideLive`). This is the one exception to "no sync while a game runs". A failed run is retried on the next lap.
+- **What goes up:** `syncLive.mjs` reads the capture with `lmuCapture.mjs`, which gives the same channels and events as `lmu.mjs`. A recording is one stretch of the session's `mInRealtime` flag (the same stretch the game writes as one .duckdb). Each finished lap is one archive part, half-open at the crossings: `archive/{sim}/{sessionId}/{recordingId}/samples.NNN.parquet` and `events.NNN.parquet`. The recording doc lists them in `archive.parts`. A part is written once and sent once (md5).
+- **Docs and analysis:** `store.mjs` `uploadLive` sends the parts in order, then the recording docs, then the session doc, merged. It carries `live`, `archiveParts`, `lapCount` and `bestLapTime` from the game's own lap times, and a version-0 stamp. No analysis runs on the PC. The session reads stale, and opening it analyses it in the cloud. `analyzeStored` reads a recording's parts through one glob, which gives the same docs as the whole file. A new part counts as new data over any stamp. A lap that lands while the cloud analyses leaves the session stale (`archiveParts` stays the stored count).
+- **App:** a live session's detail is read again after 30 s, and each new lap count allows one more analysis on open (`analysisOnOpen.ts` key `id#parts`).
+- **The game file:** once a capture covers the session, the game file adds nothing; the live laps and their ids stay.
+
 ## Online events
 
 A recording does not say which online event it was. LMU's trace logs (`UserData\Log\trace_*.txt`) do: one line per server join, with the series name and the official event id. `tools/sessions/lmuEvents.mjs` reads them. A join lasts until the game returns to the main menu, the next join, or the end of that log. A recording that starts inside a join gets `event: {eventId, series, kind, joinedAt, gapS}` (`kind` is `practice` or `race`; the race server holds qualifying and the race). The session gets `series` and `eventId` from its first matched recording. Offline sessions get `null`.
