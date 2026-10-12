@@ -19,32 +19,72 @@ export function androidSurface(
   return 'none';
 }
 
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** '12 Oct 14:05', in the phone's time zone. */
+export function publishedOf(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${pad(d.getHours())}:${pad(
+    d.getMinutes(),
+  )}`;
+}
+
+/** What identifies the installed build, read off the phone. */
+export type RunningBuild = {
+  version: string | null;
+  /** The native build number (versionCode); what an APK update compares on. */
+  versionCode: number | null;
+  /** expo-updates' runtimeVersion: the fingerprint an OTA update must match. */
+  runtimeVersion: string | null;
+  /** The EAS Update channel the build follows; null outside a release build. */
+  channel: string | null;
+  /** When the OTA update it runs was published (createdAt). */
+  publishedAt: Date | null;
+};
+
 /**
- * The running build in one line: the app's version and the OTA update it runs
- * (expo-updates' updateId, first 8 characters), or 'built-in' when it runs the
- * build's own bundle.
+ * The running build in one line, so a phone's state is read, not guessed:
+ * "App 1.0.2 (8) · runtime cdf505f5 · production · 12 Oct 14:05". The last part
+ * is 'built-in' when it runs the build's own bundle. Parts the phone does not
+ * report are left out.
  */
-export function runningLineOf(
-  version: string | null,
-  updateId: string | null,
-): string {
-  const app = version ? `App ${version}` : 'App';
-  return `${app} · ${updateId ? `update ${updateId.slice(0, 8)}` : 'built-in'}`;
+export function runningLineOf(b: RunningBuild): string {
+  const parts = [
+    b.version ? `App ${b.version}` : 'App',
+    b.runtimeVersion ? `runtime ${b.runtimeVersion.slice(0, 8)}` : null,
+    b.channel,
+    b.publishedAt ? publishedOf(b.publishedAt) : 'built-in',
+  ];
+  if (b.versionCode != null) parts[0] += ` (${b.versionCode})`;
+  return parts.filter(Boolean).join(' · ');
 }
 
 /**
  * The running line for the app's card, or null where the card is not the
- * installed app. A release build's embedded bundle carries its own updateId,
- * so it reads 'built-in' from isEmbeddedLaunch, not from the id.
+ * installed app. A release build's embedded bundle carries its own createdAt,
+ * so it reads 'built-in' from isEmbeddedLaunch, not from the date.
  */
-export function runningLine(q: {
-  surface: AndroidSurface;
-  version: string | null;
-  updateId: string | null;
-  isEmbeddedLaunch: boolean;
-}): string | null {
+export function runningLine(
+  q: RunningBuild & {surface: AndroidSurface; isEmbeddedLaunch: boolean},
+): string | null {
   if (q.surface !== 'app') return null;
-  return runningLineOf(q.version, q.isEmbeddedLaunch ? null : q.updateId);
+  return runningLineOf({
+    ...q,
+    publishedAt: q.isEmbeddedLaunch ? null : q.publishedAt,
+  });
 }
 
 export type AndroidCard = {

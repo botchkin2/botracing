@@ -203,7 +203,10 @@ function AndroidApp() {
   const running = runningLine({
     surface,
     version: Application.nativeApplicationVersion,
-    updateId: Updates.updateId,
+    versionCode: installedVersionCode,
+    runtimeVersion: Updates.runtimeVersion,
+    channel: Updates.channel,
+    publishedAt: Updates.createdAt,
     isEmbeddedLaunch: Updates.isEmbeddedLaunch,
   });
   return (

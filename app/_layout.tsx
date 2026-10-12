@@ -16,6 +16,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import '@/src/setup/reanimated';
+import {noteTouch, startOtaUpdates} from '@/src/setup/ota';
 
 import {AuthGate, startAuthSession} from '@/src/auth';
 import {
@@ -40,6 +41,8 @@ export default function RootLayout() {
   useAppFonts();
   // Follow the sign-in for the life of the app.
   useEffect(() => startAuthSession(), []);
+  // Fetch an OTA update on launch and on each return to the app.
+  useEffect(() => startOtaUpdates(), []);
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
@@ -79,7 +82,9 @@ function Navigation() {
   );
   return (
     <ThemeProvider value={navTheme}>
-      <View style={[styles.root, {backgroundColor: color.bg}]}>
+      <View
+        style={[styles.root, {backgroundColor: color.bg}]}
+        onStartShouldSetResponderCapture={noteTouch}>
         {isDesktop && <DesktopChrome />}
         <View style={styles.root}>
           {isDesktop ? stack : <PhoneFrame>{stack}</PhoneFrame>}
