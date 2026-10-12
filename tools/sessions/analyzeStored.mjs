@@ -108,10 +108,23 @@ export async function analyzeStored({
     const doc = await backend.getDoc('recordings', id);
     if (!doc?.archive)
       throw new AnalyzeError(409, `recording ${id} has no archive`);
-    const samplesPath = join(workDir, `${id}.samples.parquet`);
-    const eventsPath = join(workDir, `${id}.events.parquet`);
-    await download(backend, doc.archive.samples, owner, samplesPath);
-    await download(backend, doc.archive.events, owner, eventsPath);
+    // A live recording is stored in parts, one per lap, half-open at the
+    // line (pit-wall thread 66): read back as one file through a glob, which
+    // gives the same docs as the whole file.
+    const parts = doc.archive.parts ?? null;
+    if (parts) {
+      for (const [i, part] of parts.entries()) {
+        const n = String(i).padStart(3, '0');
+        await download(backend, part.samples, owner, join(workDir, `${id}.samples.${n}.parquet`));
+        await download(backend, part.events, owner, join(workDir, `${id}.events.${n}.parquet`));
+      }
+    }
+    const samplesPath = join(workDir, `${id}.samples${parts ? '.*' : ''}.parquet`);
+    const eventsPath = join(workDir, `${id}.events${parts ? '.*' : ''}.parquet`);
+    if (!parts) {
+      await download(backend, doc.archive.samples, owner, samplesPath);
+      await download(backend, doc.archive.events, owner, eventsPath);
+    }
     recordings.push({id, info: doc, samplesPath, eventsPath});
   }
   const store = createStore(backend);

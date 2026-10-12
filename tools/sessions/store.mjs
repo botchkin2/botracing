@@ -247,9 +247,12 @@ function boundaryOps(boundaries) {
 // A drive the stored session does not have yet (a practice's next run out
 // of the garage): new data, written whatever the stamps say. It lands with
 // this writer's stamp and reads stale until opened (pit-wall thread 1 #4651).
+// A live session's next lap is new data the same way: one more archive part
+// (pit-wall thread 66).
 function bringsNewRecordings(before, session) {
   const stored = new Set(before?.recordingIds ?? []);
-  return (session.recordingIds ?? []).some(id => !stored.has(id));
+  if ((session.recordingIds ?? []).some(id => !stored.has(id))) return true;
+  return (session.archiveParts ?? 0) > (before?.archiveParts ?? 0);
 }
 
 async function uploadSession(backend, out, {log = () => {}} = {}) {
