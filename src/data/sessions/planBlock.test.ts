@@ -2,6 +2,18 @@ import {describe, expect, it} from '@jest/globals';
 
 import {toPlanBlock, toPlanSessions} from './planBlock';
 
+describe('toPlanBlock', () => {
+  it('leaves out a fill limit above the tank, keeps the tank and the start', () => {
+    const out = toPlanBlock({
+      v: 1,
+      fuel: {fillLimitL: 1980, startL: 60, tankL: 105},
+      laps: null,
+      race: null,
+    });
+    expect(out?.fuel).toMatchObject({fillLimitL: null, startL: 60, tankL: 105});
+  });
+});
+
 describe('toPlanSessions', () => {
   const block = {
     v: 1,

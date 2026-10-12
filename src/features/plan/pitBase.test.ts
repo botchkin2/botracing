@@ -79,12 +79,18 @@ describe('pitLaneBase', () => {
     expect(b).toEqual({baseS: 50, stops: 2});
   });
 
-  it('a block from before the kind was stored counts its stops as before', () => {
-    const b = pitLaneBase(
+  it('a block from before the kind was stored is left out: its stand-still may be a repair', () => {
+    const none = pitLaneBase(
       [race(stop(60, 34, {kind: null}), stop(60, 34, {kind: null}))],
       GT3,
     );
-    expect(b?.stops).toBe(2);
+    expect(none).toBeNull();
+    // Beside services it neither counts nor moves the median.
+    const b = pitLaneBase(
+      [race(stop(60, 34), stop(60, 34), stop(200, 34, {kind: null}))],
+      GT3,
+    );
+    expect(b).toEqual({baseS: 50, stops: 2});
   });
 
   it('uses the measured rate: 34 L at 1.7 L/s is 20 s, not 10', () => {
