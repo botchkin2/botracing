@@ -538,6 +538,47 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 }
 
 // The store sync.mjs talks to, over any backend.
+// Live laps (pit-wall thread 66, liveSession.mjs): a session's new archive
+// parts, then its recording docs, then the session doc, merged so the fields a
+// cloud analysis wrote stay until the next one. Parts go up in order and the
+// docs only after all of them: an upload that fails part-way writes no doc, and
+// the next lap sends every part the bucket lacks (md5), so a lap is never lost
+// or out of order. Older-over-newer is refused unless a part is new.
+async function uploadLive(backend, out, {log = () => {}} = {}) {
+  const {session} = out;
+  const before = await backend.getDoc('sessions', session.id);
+  if (
+    stampNewer(before?.analysis, session.analysis) &&
+    !bringsNewRecordings(before, session)
+  ) {
+    log('  live: nothing new over the stored session');
+    return {skipped: 'newer'};
+  }
+  let sent = 0;
+  for (const file of out.files) {
+    const local = createHash('md5')
+      .update(readFileSync(file.local))
+      .digest('base64');
+    if ((await backend.fileMd5(file.dest)) === local) continue;
+    await backend.putFile(
+      file.dest,
+      {localPath: file.local},
+      {contentType: 'application/vnd.apache.parquet'},
+    );
+    sent++;
+  }
+  const ops = out.recordings.map(rec => ({
+    op: 'set',
+    coll: 'recordings',
+    id: rec.id,
+    data: rec,
+  }));
+  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session, merge: true});
+  await backend.writeDocs(ops);
+  log(`  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`);
+  return {sent};
+}
+
 export function createStore(backend) {
   return {
     // A track's stored corner map, or null.
@@ -567,6 +608,7 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    uploadLive: (out, options) => uploadLive(backend, out, options),
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>
