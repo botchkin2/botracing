@@ -10,6 +10,7 @@ import {
   lapFuel,
   litresPerVePct,
   markGreen,
+  isSessionStart,
   lapPitStop,
   tyreChange,
   lapsLeft,
@@ -111,6 +112,38 @@ test('a lap without a pit entry has no stop', () => {
 test('a pit window in the first 30 s is the drive off the grid, not a stop', () => {
   const s = recording();
   assert.equal(lapPitStop(s, 0, 100, [[7, 11]]), null);
+});
+
+test('a window that begins before the first lap-counter change is the session start, even when it ends after it', () => {
+  const s = recording();
+  // Held in the lane through the grid lap: the counter first moves at 210 s,
+  // inside the window [200, 220] (Road Atlanta 25 Sep: 257.6 to 345.0, counter at 266.8).
+  assert.equal(lapPitStop(s, 150, 300, pits, [], {firstCrossT: 210}), null);
+  // A window that begins after the first crossing is a stop.
+  assert.ok(lapPitStop(s, 150, 300, pits, [], {firstCrossT: 190}));
+  // A second window before the first crossing: the car left and came back.
+  assert.ok(lapPitStop(s, 150, 300, [[40, 50], ...pits], [], {firstCrossT: 210}));
+  // In a race every window before the first crossing is the grid.
+  assert.equal(lapPitStop(s, 150, 300, [[40, 50], ...pits], [], {firstCrossT: 210, race: true}), null);
+  // No lap-counter change in the recording: only the 30 s rule applies.
+  assert.ok(lapPitStop(s, 150, 300, pits, [], {firstCrossT: null}));
+});
+
+test('isSessionStart: the first 30 s, or before the first crossing (any window in a race, the first otherwise)', () => {
+  const win = [[257.6, 345], [2532.9, 2588.1]];
+  assert.equal(isSessionStart(7, [[7, 11]], 0), true);
+  assert.equal(isSessionStart(30, [[30, 40]], 0), false);
+  assert.equal(isSessionStart(257.6, win, 0, 266.8), true);
+  assert.equal(isSessionStart(257.6, win, 0, 257.6), false);
+  assert.equal(isSessionStart(257.6, win, 0, null), false);
+  // After the garage exit, a race still waiting for green in the lane (Daytona 29 Sep).
+  const daytona = [[7.3, 10.7], [263.5, 373.9]];
+  assert.equal(isSessionStart(263.5, daytona, 0, 276.8, true), true);
+  // Outside a race a later window before the crossing is a car that came back.
+  assert.equal(isSessionStart(172.3, [[0, 20], [172.3, 245.5]], 0, 226.8), false);
+  assert.equal(isSessionStart(172.3, [[0, 20], [172.3, 245.5]], 0, 226.8, true), true);
+  // Relative to the recording's own start.
+  assert.equal(isSessionStart(1010, [[1010, 1020]], 1000, null), true);
 });
 
 test('a stop with no service has added 0: a drive-through or a penalty', () => {

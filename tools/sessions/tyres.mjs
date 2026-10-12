@@ -4,7 +4,7 @@
 // during it. Plain numbers off the recording's own channels, on the shared
 // GPS-time clock the archive is written on (lmu.mjs writeArchive), so the
 // channels line up with each other and with the pit windows.
-import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
+import {isSessionStart, tyreChange} from './fuelFacts.mjs';
 
 /**
  * Bump when the rules below change: it goes into analyze.mjs's blockVersions,
@@ -18,8 +18,11 @@ import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
  * 3: `treadC`, the median temperature of the tread's inner, centre and outer
  * thirds per wheel; and the pit stop's `tyres` gains `coolDown` and `compound`
  * (fuelFacts.mjs). Thread 44 #1607.
+ * 4: a pit window that begins before the recording's first lap-counter change
+ * is the session start, not a stop (fuelFacts isSessionStart), so its tyre
+ * change is not read.
  */
-export const TYRES_VERSION = 3;
+export const TYRES_VERSION = 4;
 
 // Wheel names as the doc writes them, with the archive's channel suffix.
 const WHEELS = [
@@ -105,12 +108,20 @@ function perWheel(s, prefix, read) {
  *   out-lap.
  * - changed: the wheels with a new tyre in a pit window that ended during this
  *   lap, from the same per-stop test as the pit stop's `tyres` (fuelFacts
- *   tyreChange). A window in the first SESSION_START_S of the recording is the
- *   garage exit, not a stop. Null without a wear channel.
+ *   tyreChange). A window that is the session start (fuelFacts isSessionStart:
+ *   the garage exit, or before the first lap-counter change) is not a stop. Null without a wear channel.
  *
  * Null for the whole lap when the recording has none of these channels.
  */
-export function lapTyres(s, i0, i1, seg, pits, version) {
+export function lapTyres(
+  s,
+  i0,
+  i1,
+  seg,
+  pits,
+  version,
+  {firstCrossT = null, race = false} = {},
+) {
   const wearPct = perWheel(s, 'tyres_wear', c => (live(c[i1]) ? c[i1] : null));
   const out = {v: version, wearPct};
   const inLane = i => pits.some(([a, b]) => s.t[i] >= a && s.t[i] <= b);
@@ -139,7 +150,7 @@ export function lapTyres(s, i0, i1, seg, pits, version) {
   // A window belongs to the lap its pit exit falls in; one that never ends
   // (the session finished in the pits) to the lap it was entered in.
   const ending = pits.filter(([a, b]) =>
-    a - t0 < SESSION_START_S
+    isSessionStart(a, pits, t0, firstCrossT, race)
       ? false
       : b === Infinity
       ? a > seg.start && a <= seg.end

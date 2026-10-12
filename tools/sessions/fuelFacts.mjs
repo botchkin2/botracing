@@ -21,6 +21,27 @@ import {classifyVisit, repaired, stationaryS} from './pitVisit.mjs';
 // drive off the grid or out of the garage, not a stop (Daytona 09-29: 7 to
 // 11 s, no service).
 export const SESSION_START_S = 30;
+
+/**
+ * Whether the pit window starting at `a` (one of `pits`, the recording's
+ * windows in order) is the session start, not a stop: it begins within
+ * SESSION_START_S of the recording's start (`t0`), or before the recording's
+ * first lap-counter change (`firstCrossT`, null when there is none) and either
+ * the session is a race (`race`) or it is the recording's first window. A race
+ * held in the pit lane through its grid lap reads 87.4 s of standing there as a
+ * stop otherwise (Road Atlanta 25 Sep, pit-wall thread 1 #4280; Daytona 29 Sep:
+ * 110 s, "repaired" by the game's start reset). The counter first moves at the
+ * race's green flag, not when the car first passes the line, so the window may
+ * end after it. Outside a race only the first window qualifies: a later one
+ * before the first crossing is a car that left and came back (a practice outlap
+ * that returned to the box: 7 of 349 practices on this PC).
+ */
+export function isSessionStart(a, pits, t0, firstCrossT = null, race = false) {
+  if (a - t0 < SESSION_START_S) return true;
+  if (firstCrossT == null || a >= firstCrossT) return false;
+  return race || (pits.length > 0 && a === pits[0][0]);
+}
+
 // A stint's median needs at least this many green laps; fewer gives none,
 // never a borrowed session median (apex, thread 34 #958).
 export const MIN_GREEN_LAPS = 3;
@@ -209,8 +230,8 @@ function wearAt(s, at) {
 
 /**
  * The pit stop entered during the lap's time window (startT, endT] (its
- * first, if there are two), or null. A window that starts in the first SESSION_START_S of the
- * recording is not a stop. `added` can be 0: a drive-through or a penalty.
+ * first, if there are two), or null. A window that is the session start
+ * (isSessionStart) is not a stop. `added` can be 0: a drive-through or a penalty.
  */
 export function lapPitStop(
   s,
@@ -218,11 +239,11 @@ export function lapPitStop(
   endT,
   pits,
   compoundEvents = [],
-  {damage = null, race = false} = {},
+  {damage = null, race = false, firstCrossT = null} = {},
 ) {
   const t0 = s.t[0];
   const enter = pits.find(
-    ([a]) => a - t0 >= SESSION_START_S && a > startT && a <= endT,
+    ([a]) => !isSessionStart(a, pits, t0, firstCrossT, race) && a > startT && a <= endT,
   );
   if (!enter) return null;
   const [a, b] = enter;

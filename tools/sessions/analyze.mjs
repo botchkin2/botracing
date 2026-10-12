@@ -398,6 +398,16 @@ function isLoose(event) {
   return n >= 2;
 }
 
+/**
+ * When the lap counter first moves in a recording (s), or null when it never
+ * does: the first line crossing in the data's own terms. The lap event at the
+ * recording's start is the counter's state, not a crossing.
+ */
+export function firstCrossingT(lapEvents, tStart) {
+  const moved = (lapEvents || []).find(e => e.t - tStart > 1);
+  return moved ? moved.t : null;
+}
+
 // Start/finish segments of one recording, as tick ranges.
 function segments(rec) {
   const {s, events} = rec;
@@ -508,6 +518,7 @@ function lapDistance(rec, i0, i1) {
 
 function analyzeLap(rec, seg, pits, flags, visitFacts) {
   const {s, events} = rec;
+  const firstCross = firstCrossingT(events.lap, s.t[0]);
   const [i0, i1] = lapTicks(rec, seg);
   const dist = lapDistance(rec, i0, i1);
   const gameLapTime = lapTimeNear(events.lap_time, seg.end);
@@ -577,7 +588,10 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     impactMax: round(impactMax, 1),
     tyreCarcassC: round(carcass, 1),
     courseYellowSec: round(overlap(flags.course, seg.start, seg.end), 2),
-    tyres: lapTyres(s, i0, i1, seg, pits, TYRES_VERSION),
+    tyres: lapTyres(s, i0, i1, seg, pits, TYRES_VERSION, {
+      firstCrossT: firstCross,
+      race: visitFacts.race,
+    }),
     compound: compoundAt
       ? `${compoundAt.v}/${compoundAt.v2 ?? compoundAt.v}`
       : null,
@@ -603,14 +617,10 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
         : Math.min(idxAt(s.t, seg.end), s.t.length - 1),
       pits,
     ),
-    pitStop: lapPitStop(
-      s,
-      seg.start,
-      seg.end,
-      pits,
-      events.tyres_compound,
-      visitFacts,
-    ),
+    pitStop: lapPitStop(s, seg.start, seg.end, pits, events.tyres_compound, {
+      ...visitFacts,
+      firstCrossT: firstCross,
+    }),
     // Battery and motor energy on the lap (hybrid.mjs); null without a hybrid.
     hybrid: lapHybrid(s, rec.hz, rec.baseHz, i0, i1, i => dist[i - i0], {
       a: idxAt(s.t, seg.start),

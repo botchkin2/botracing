@@ -29,7 +29,7 @@
   "fillLimitL": null,
   "tankL": 117,
   "litresPerVePct": 0.974,
-  "litresPerVePctStop": 1.303
+  "litresPerVePctStop": null
  },
  "trackMapSource": "stored",
  "corners": 7,
@@ -43,7 +43,7 @@
   20.322
  ],
  "consistency": {
-  "overview": "2 laps. Best lap 108.922; best sections add up to 106.272."
+  "overview": "3 laps. Best lap 108.922; best sections add up to 105.843."
  },
  "laps": [
   {
@@ -69,22 +69,7 @@
     "veAddedPct": 0,
     "green": false
    },
-   "pitStop": {
-    "added": {
-     "fuelL": 4.04,
-     "vePct": 3.1
-    },
-    "atEntry": {
-     "fuelL": 96.03,
-     "vePct": 96.9
-    },
-    "inPitS": 110.4,
-    "tyresChanged": true,
-    "tyreWheels": [
-     "FR"
-    ],
-    "visit": "service"
-   },
+   "pitStop": null,
    "corners": []
   },
   {
