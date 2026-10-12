@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {analysisVersion, blockVersions} from './analyze.mjs';
-import {analysisStamp, isStale, versionKey} from './versionKey.mjs';
+import {analysisStamp, isStale, versionKey, withKept} from './versionKey.mjs';
 
 test('the key is the analysis version and every block, in a fixed order', () => {
   assert.equal(
@@ -80,4 +80,15 @@ test('the stamp of the real registry is fresh against itself', () => {
     ),
     false,
   );
+});
+
+test('a kept block carries the version it was made under, not the code version', () => {
+  const fresh = analysisStamp(17, {pitVisit: 4, raceLength: 2, tyres: 2});
+  const stored = analysisStamp(17, {pitVisit: 3, raceLength: 1, tyres: 1});
+  const stamp = withKept(fresh, ['raceLength', 'pitVisit'], stored);
+  assert.deepEqual(stamp.blocks, {pitVisit: 3, raceLength: 1, tyres: 2});
+  assert.deepEqual(stamp.kept, ['pitVisit', 'raceLength']);
+  // A stored doc from before stamps: 0, made under no known rule.
+  assert.equal(withKept(fresh, ['pitVisit'], null).blocks.pitVisit, 0);
+  assert.equal(withKept(fresh, [], stored), fresh);
 });

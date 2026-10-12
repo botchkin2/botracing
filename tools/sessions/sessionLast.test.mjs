@@ -102,7 +102,13 @@ test('a fresh run stamps no kept blocks', async () => {
 
 test('blocks taken from the stored docs are named in the stamp', async () => {
   const docs = new Map([
-    ['sessions/s1', {race: {minutes: 40}}],
+    [
+      'sessions/s1',
+      {
+        race: {minutes: 40},
+        analysis: analysisStamp(17, {pitVisit: 2, raceLength: 1, tyres: 1}),
+      },
+    ],
     ['laps/l1', {pitStop: {inPitS: 95, visit: repair}}],
   ]);
   await createStore(backendOver(docs)).upload(
@@ -111,4 +117,8 @@ test('blocks taken from the stored docs are named in the stamp', async () => {
   const stamp = docs.get('sessions/s1').analysis;
   assert.deepEqual(stamp.kept, ['pitVisit', 'raceLength']);
   assert.equal(stamp.v, 17);
+  // A consumer reading the kept blocks sees the rules they were made under.
+  assert.equal(stamp.blocks.pitVisit, 2);
+  assert.equal(stamp.blocks.raceLength, 1);
+  assert.equal(stamp.blocks.tyres, 2);
 });

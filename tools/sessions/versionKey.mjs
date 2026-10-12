@@ -46,3 +46,15 @@ export function isStale(stamp, analysisVersion, blockVersions) {
   }
   return false;
 }
+
+/**
+ * The stamp once some blocks were kept from the stored doc: each kept block
+ * says the version it was really made under (the stored stamp's, or 0 when
+ * the stored doc predates stamps), never the code's.
+ */
+export function withKept(stamp, kept, storedStamp) {
+  if (kept.length === 0) return stamp;
+  const blocks = {...stamp.blocks};
+  for (const name of kept) blocks[name] = storedStamp?.blocks?.[name] ?? 0;
+  return {...stamp, blocks, kept: [...new Set(kept)].sort()};
+}

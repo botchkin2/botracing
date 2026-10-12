@@ -24,6 +24,7 @@ import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
 import {keepVisits, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
+import {withKept} from './versionKey.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -412,8 +413,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       log(`  pit visits: kept ${keptVisits} stored (no damage record)`);
     }
   }
-  if (session.analysis && keptBlocks.length)
-    session.analysis = {...session.analysis, kept: keptBlocks.sort()};
+  if (session.analysis)
+    session.analysis = withKept(
+      session.analysis,
+      keptBlocks,
+      before?.analysis ?? null,
+    );
   // The plan block reads the race, result, traffic and visits settled above.
   session.plan = planBlock({
     sessionType: session.sessionType,
