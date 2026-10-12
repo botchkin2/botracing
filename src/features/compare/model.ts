@@ -1088,7 +1088,7 @@ export function buildCompareSet(input: CompareSetInputs): CompareSet {
     ? map.sections.map(sectionNameOf)
     : corners.map(n => `#${n}`);
   // A lap's time in a section is the one Session's grid shows: through the
-  // map's windows (sectionWindowTimes), so a pit, off-track or yellow window
+  // map's windows (sectionWindowTimes), so a pit or off-track window
   // is no cell here either, and a lap cut at other boundaries has none.
   // Without windows, the lap's own segment times.
   const sectionTimesOf = (lap: Lap) => {

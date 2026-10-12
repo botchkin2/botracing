@@ -2,7 +2,7 @@
 // times summed (pit-wall thread 46, #1771 as corrected in #1794 and #1802). Pure:
 // the caller decides which window times count and passes null for the rest.
 //
-// Only off-track, yellow and pit windows are left out (by the caller);
+// Only off-track and pit windows are left out (by the caller);
 // tow and traffic never remove a time (decisions/lap/2026-10-01-corner-
 // windows.md). Stints are kept apart because one stint is one fuel and tyre
 // arc: stitching a fresh-tyre corner to a low-fuel straight from the other end
