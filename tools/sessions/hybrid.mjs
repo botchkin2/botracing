@@ -1,5 +1,5 @@
 // Hybrid energy of a Hypercar lap (pit-wall thread 44 #1743, tach's audit
-// pit-wall/ideas/2026-09-30-hypercar-hybrid-audit.md): the battery's state of
+// pit-wall/archive/ideas/2026-09-30-hypercar-hybrid-audit.md): the battery's state of
 // charge at the lap's ends, the energy the motor deployed and the brakes
 // regenerated, where on the lap that happened, and the lift-and-coast before
 // each braking zone. Numbers off the recording's own channels, never advice.

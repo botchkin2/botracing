@@ -1,6 +1,6 @@
 # Claude Design, rounds 4 and 5: Plan, fuel, pit stops, Race, Corner, the "?" pattern, and the nav
 
-Two review rounds of the screens we built after round 3. Round 4 corrected them from the brief; round 5 applied our feedback (`pit-wall/ideas/2026-09-30-claude-design-round4-feedback-1.md`) and added desktop frames. **Round 5 wins where the two differ.** Open the `.dc.html` files in a browser (they need `support.js` beside them). `round5-text.txt` is the round 5 text, for grep.
+Two review rounds of the screens we built after round 3. Round 4 corrected them from the brief; round 5 applied our feedback (`pit-wall/archive/ideas/2026-09-30-claude-design-round4-feedback-1.md`) and added desktop frames. **Round 5 wins where the two differ.** Open the `.dc.html` files in a browser (they need `support.js` beside them). `round5-text.txt` is the round 5 text, for grep.
 
 The sample figures are synthetic (Portimão, 2 h). Build from our real data, never from the numbers in these frames.
 
