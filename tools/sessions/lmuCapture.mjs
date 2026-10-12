@@ -14,6 +14,8 @@
 // for all. Where the .duckdb differs (LMU_CAPTURE_NOTES.md):
 //   lap_dist_m        the last 5 Hz scoring mLapDist (or 0 at the crossing)
 //                     plus the speed integrated since; the .duckdb has 10 Hz.
+//                     Never below 0: scoring goes negative before the line on a
+//                     rolling start, which the .duckdb holds at ~0.001.
 //   path_lateral_m,   straight lines between the 5 Hz scoring rows.
 //   track_edge_m
 //   tyres_rubber_temp NOT in the capture: the mean of the three inner layers
@@ -35,6 +37,9 @@ const PAD_S = 2;
 // The game's physics clock: every mElapsedTime is a multiple of 1/400 s, so
 // this is a unique, window-independent row order.
 const TICK_HZ = 400;
+// Past an ended stretch's last row and under one 400 Hz step, so the trailing
+// part keeps that row and nothing after it.
+const END_PAD_S = 0.001;
 
 const chunkRe = /^(player|field|session)-\d+\.parquet$/;
 
@@ -184,8 +189,9 @@ function channelsInfo() {
  * Each has `key` (<folder>#<k>, stable as the capture grows), `info` (lmu.mjs
  * describe()'s shape), and `laps`: half-open [t0, t1) parts, the first from the
  * stretch start to the first crossing (partial), then crossing to crossing; a
- * closed stretch (realtime went off) also lists its last part up to the
- * realtime-off time (partial). A lap still being driven is not listed.
+ * stretch that has `ended` also lists its trailing part (partial). A lap still
+ * being driven is not listed. `startMs`/`endMs`: the wall clock (epoch ms) of
+ * the stretch's first and last row.
  * `lapTimeS` is the player's mLastLapTime just after the lap's closing
  * crossing, null when the game gave none and on partial parts.
  */
@@ -204,7 +210,7 @@ export function describeCapture(captureDir) {
       p AS (SELECT st.k, mElapsedTime t, wall_ms, mLapNumber lap, mLapStartET ls, mFuelCapacity cap
         FROM ${P} JOIN st ON mElapsedTime >= st.onT AND (st.offT IS NULL OR mElapsedTime < st.offT)),
       f AS (SELECT et, mTotalLaps, mLastLapTime, mVehicleName, mVehicleClass FROM ${F}),
-      span AS (SELECT k, count(*) n, min(t) t0, max(t) t1, arg_min(wall_ms, t) wall0,
+      span AS (SELECT k, count(*) n, min(t) t0, max(t) t1, arg_min(wall_ms, t) wall0, arg_max(wall_ms, t) wall1,
         arg_min(cap, t) cap, arg_min(lap, t) lap0 FROM p GROUP BY k),
       cross_ AS (SELECT k, ls::DOUBLE ls, lap FROM (SELECT *, lag(lap) OVER (PARTITION BY k ORDER BY t) pl FROM p)
         WHERE pl IS NOT NULL AND lap IS DISTINCT FROM pl),
@@ -214,7 +220,7 @@ export function describeCapture(captureDir) {
         FROM f JOIN st ON f.et >= st.onT AND (st.offT IS NULL OR f.et < st.offT) GROUP BY st.k)
     SELECT to_json({
       stretches: (SELECT list({k: st.k, onT: st.onT, offT: st.offT, tod: st.tod, ses: st.ses,
-        n: span.n, t0: span.t0, t1: span.t1, wall0: span.wall0, cap: span.cap, lap0: span.lap0,
+        n: span.n, t0: span.t0, t1: span.t1, wall0: span.wall0, wall1: span.wall1, cap: span.cap, lap0: span.lap0,
         car: car.car, cls: car.cls} ORDER BY st.k)
         FROM st JOIN span USING (k) LEFT JOIN car USING (k)),
       crossings: (SELECT list({k: k, ls: ls, lap: lap, llt: llt} ORDER BY k, ls) FROM timed)
@@ -241,9 +247,21 @@ export function describeCapture(captureDir) {
         lap = c.lap;
         partial = false;
       }
-      if (st.offT != null && st.offT > from)
-        laps.push({lapNumber: lap, t0: from, t1: st.offT, partial: true, lapTimeS: null});
-      return {key: `${folder}#${st.k}`, info: stretchInfo(meta, st), laps};
+      // Ended: realtime went off after it, or the recorder closed the capture
+      // (endUtc). Its trailing part then runs to the realtime-off time, or
+      // just past its last row.
+      const ended = st.offT != null || Boolean(meta.endUtc);
+      const end = st.offT ?? st.t1 + END_PAD_S;
+      if (ended && end > from)
+        laps.push({lapNumber: lap, t0: from, t1: end, partial: true, lapTimeS: null});
+      return {
+        key: `${folder}#${st.k}`,
+        ended,
+        startMs: Number(st.wall0),
+        endMs: Number(st.wall1),
+        info: stretchInfo(meta, st),
+        laps,
+      };
     }),
   };
 }
@@ -332,13 +350,16 @@ CREATE TEMP TABLE cr AS SELECT t AS seen, mLapStartET::DOUBLE AS ls, mLapNumber 
   WHERE plap IS NOT NULL AND mLapNumber IS DISTINCT FROM plap;
 -- Lap distance anchors: every scoring row's mLapDist, and 0 at each crossing.
 CREATE TEMP TABLE anc AS SELECT et AS at, d FROM f UNION ALL SELECT ls, 0 FROM cr;
+-- An anchor before the first player row reads back along that row's speed.
 CREATE TEMP TABLE ac AS SELECT anc.at, anc.d,
-  CASE WHEN pn.tn IS NULL OR pn.tn = pn.t THEN pn.cum + pn.v * (anc.at - pn.t)
+  CASE WHEN pn.t IS NULL THEN p1.cum - p1.v * (p1.t - anc.at)
+       WHEN pn.tn IS NULL OR pn.tn = pn.t THEN pn.cum + pn.v * (anc.at - pn.t)
        ELSE pn.cum + (pn.cn - pn.cum) * (anc.at - pn.t) / (pn.tn - pn.t) END AS cum_at
-  FROM anc ASOF JOIN pn ON anc.at >= pn.t;
+  FROM anc ASOF LEFT JOIN pn ON anc.at >= pn.t
+  CROSS JOIN (SELECT t, cum, v FROM pn ORDER BY t LIMIT 1) p1;
 COPY (
   SELECT ${samplesSelect.join(', ')} FROM (
-    SELECT p.*, ac.d + p.cum - ac.cum_at AS lap_dist,
+    SELECT p.*, greatest(ac.d + p.cum - ac.cum_at, 0) AS lap_dist,
       CASE WHEN fn.et IS NULL OR fn.et = fp.et THEN fp.lat ELSE fp.lat + (fn.lat - fp.lat) * (p.t - fp.et) / (fn.et - fp.et) END AS path_lateral,
       CASE WHEN fn.et IS NULL OR fn.et = fp.et THEN fp.edge ELSE fp.edge + (fn.edge - fp.edge) * (p.t - fp.et) / (fn.et - fp.et) END AS track_edge
     FROM (SELECT * FROM pl WHERE ${inWin('t')}) p
