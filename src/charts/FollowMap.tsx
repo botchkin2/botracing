@@ -25,9 +25,10 @@ import {Pressable} from '@/src/ui';
 
 // Follow map (handoff v2 M1b): heading-up chase view around the cursor.
 // The road, each lap's line and the brake ticks are world-space paths built
-// once and moved by one transform per frame; the dots, the 20 m scale bar
-// and the whole-lap inset are drawn in screen space. Inputs are metres
-// east/north.
+// once, on a static Svg of their own (1 unit = 1 m), and a frame moves that
+// layer with one View transform, so no path is re-recorded for it; the dots,
+// the 20 m scale bar and the whole-lap inset are drawn in screen space.
+// Inputs are metres east/north.
 
 export type FollowLine = {
   key: string;
@@ -74,6 +75,38 @@ function pathOf(
     d += `${i ? 'L' : 'M'}${q.x.toFixed(1)},${q.y.toFixed(1)}`;
   }
   return d;
+}
+
+/** Where the world layer sits: its box in metres, padded past the road's edge. */
+function worldBox(
+  groups: FollowXy[][],
+  surface: MeasuredRunView[] | undefined,
+): {minX: number; maxY: number; w: number; h: number} {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  const eat = (p: FollowXy | null) => {
+    if (!p) return;
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  };
+  for (const g of groups) for (const p of g) eat(p);
+  for (const r of surface ?? []) {
+    for (const p of r.centre) eat(p);
+    for (const side of [r.left, r.right, r.leftDashed, r.rightDashed])
+      for (const p of side) eat(p);
+  }
+  if (minX > maxX) return {minX: 0, maxY: 0, w: 1, h: 1};
+  const pad = ROAD_M * 2;
+  return {
+    minX: minX - pad,
+    maxY: maxY + pad,
+    w: maxX - minX + 2 * pad,
+    h: maxY - minY + 2 * pad,
+  };
 }
 
 export function FollowMap({
@@ -147,23 +180,52 @@ export function FollowMap({
     return shown;
   }, [cars, centre, headingRad, visibleM, width, height]);
   const bounds = useMemo(() => ({width, height}), [width, height]);
+  const box = useMemo(
+    () =>
+      worldBox(
+        [...band, ...(bandFaded ?? []), ...lines.map(l => l.points)],
+        surface,
+      ),
+    [band, bandFaded, lines, surface],
+  );
+  // The layer's local (u, v) is (x - minX, maxY - y) in metres; this maps it to the screen.
+  // That map is a rotation and a uniform scale: pass it as plain transforms
+  // (react-native-web drops a matrix entry).
+  const [ma, mb, mc, md, me, mf] = followMatrix(view);
+  const layerTransform = [
+    {translateX: ma * box.minX + mc * box.maxY + me},
+    {translateY: mb * box.minX + md * box.maxY + mf},
+    {rotate: `${Math.atan2(mb, ma)}rad`},
+    {scale: Math.hypot(ma, mb)},
+  ];
 
   return (
     <View style={{width, height}}>
+      {/* The world: drawn once at 1 unit per metre, moved by the matrix. */}
+      <View pointerEvents='none' style={[StyleSheet.absoluteFill, styles.clip]}>
+        <View
+          style={[
+            styles.layer,
+            {width: box.w, height: box.h, transform: layerTransform},
+          ]}>
+          <Svg width={box.w} height={box.h} viewBox={`0 0 ${box.w} ${box.h}`}>
+            <G transform={`matrix(1 0 0 -1 ${-box.minX} ${box.maxY})`}>
+              <World
+                band={band}
+                bandFaded={bandFaded}
+                surface={surface}
+                lines={lines}
+                ticks={ticks}
+                pt={1 / sc}
+                edge={color.followEdge}
+                fill={color.trackFill}
+                faded={color.outlineFaded}
+              />
+            </G>
+          </Svg>
+        </View>
+      </View>
       <Svg width={width} height={height}>
-        <G transform={`matrix(${followMatrix(view).join(' ')})`}>
-          <World
-            band={band}
-            bandFaded={bandFaded}
-            surface={surface}
-            lines={lines}
-            ticks={ticks}
-            edgeM={EDGE_W / sc}
-            edge={color.followEdge}
-            fill={color.trackFill}
-            faded={color.outlineFaded}
-          />
-        </G>
         {corners.map(c => {
           const q = project(c.at);
           if (q.x < 8 || q.x > width - 8 || q.y < 8 || q.y > height - 8)
@@ -250,7 +312,7 @@ const World = memo(function World({
   surface,
   lines,
   ticks,
-  edgeM,
+  pt,
   edge,
   fill,
   faded,
@@ -260,8 +322,8 @@ const World = memo(function World({
   surface?: MeasuredRunView[];
   lines: FollowLine[];
   ticks: FollowTicks[];
-  /** Edge width in metres at the current zoom. */
-  edgeM: number;
+  /** Metres per screen point at the current zoom: widths are set in metres. */
+  pt: number;
   edge: string;
   fill: string;
   faded: string;
@@ -294,7 +356,7 @@ const World = memo(function World({
           key={`e${i}`}
           d={d}
           stroke={edge}
-          strokeWidth={ROAD_M + 2 * edgeM}
+          strokeWidth={ROAD_M + 2 * EDGE_W * pt}
           strokeLinejoin='round'
           strokeLinecap='round'
           fill='none'
@@ -312,17 +374,16 @@ const World = memo(function World({
         />
       ))}
       {surface && surface.length > 0 ? (
-        <MeasuredRoad runs={surface} fill={fill} edge={edge} />
+        <MeasuredRoad runs={surface} fill={fill} edge={edge} pt={pt} />
       ) : null}
       {linePaths.map(l => (
         <Path
           key={l.key}
           d={l.d}
           stroke={l.color}
-          strokeWidth={l.width}
+          strokeWidth={l.width * pt}
           strokeOpacity={l.opacity}
           strokeLinejoin='round'
-          vectorEffect='non-scaling-stroke'
           fill='none'
         />
       ))}
@@ -335,8 +396,7 @@ const World = memo(function World({
             x2={b.x}
             y2={b.y}
             stroke={t.color}
-            strokeWidth={TICK_W}
-            vectorEffect='non-scaling-stroke'
+            strokeWidth={TICK_W * pt}
           />
         )),
       )}
@@ -394,6 +454,8 @@ function Inset({line, at}: {line: FollowXy[]; at: FollowXy}) {
 }
 
 const styles = StyleSheet.create({
+  clip: {overflow: 'hidden'},
+  layer: {position: 'absolute', left: 0, top: 0, transformOrigin: '0px 0px'},
   inset: {
     position: 'absolute',
     right: INSET_GAP,
