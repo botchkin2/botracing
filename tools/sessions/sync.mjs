@@ -71,10 +71,10 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
-import {planBlock} from './planBlock.mjs';
 import {carLabel} from '../../src/design/carModels.ts';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
+import {planBlock} from './planBlock.mjs';
 import {
   forgetOtherOwners,
   freshState,
@@ -664,14 +664,8 @@ function build(
     updatedAt: new Date().toISOString(),
   });
 
-  // What the Plan reads of this session, in one small block (planBlock.mjs).
-  session.plan = planBlock({
-    sessionType: session.sessionType,
-    fuel: session.fuel,
-    laps,
-    race: session.race,
-    result: session.result,
-  });
+  // session.plan is written by store.mjs, after it settles the race, result,
+  // traffic and visits that a resync keeps from the stored docs.
 
   return {
     session,
@@ -687,6 +681,9 @@ function build(
     fieldReason: fieldOut.reason,
     liveCheck,
     capturesUsed,
+    // No damage record this run (capture pruned): store.mjs keeps the stored
+    // visits that were read from damage (keepCapture.mjs).
+    damageMissing: !foldOnly && damage === null,
     track: trackDoc,
     // The layout's boundaries when this session changed them, to be kept.
     boundaries:
@@ -705,6 +702,15 @@ function build(
 }
 
 function writeLocal(out) {
+  // A local run has no stored docs to keep from, so its plan is the fresh one;
+  // an upload's is written by store.mjs.
+  out.session.plan = planBlock({
+    sessionType: out.session.sessionType,
+    fuel: out.session.fuel,
+    laps: out.laps,
+    race: out.session.race,
+    result: out.session.result,
+  });
   // The same shape check the upload runs (docShape.mjs), so a local run, the
   // one a worktree can do without credentials, fails on what Firestore would.
   checkDoc(`sessions/${out.session.id}`, out.session);

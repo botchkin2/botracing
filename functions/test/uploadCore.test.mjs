@@ -221,8 +221,11 @@ test("reads of another owner's documents are 404, not 403", async () => {
     query: {sessionId: 's1'},
   });
   assert.deepEqual(theirs.json, {ids: []});
-  // Not readable at all: laps, recordings, users.
-  for (const coll of ['laps', 'recordings', 'users'])
+  // Laps read like sessions: the owner's, never another owner's.
+  assert.equal((await call(w, 'tok-a', 'GET', '/doc/laps/l1')).status, 200);
+  assert.equal((await call(w, 'tok-b', 'GET', '/doc/laps/l1')).status, 404);
+  // Not readable at all: recordings, users.
+  for (const coll of ['recordings', 'users'])
     assert.equal(
       (await call(w, 'tok-a', 'GET', `/doc/${coll}/l1`)).status,
       403,
@@ -932,7 +935,9 @@ test('a problem of a kind this server does not know is dropped, the rest of the 
   const bad = await send(
     w,
     'tok-a',
-    beat({problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}]}),
+    beat({
+      problems: [{kind: 'sync-crashed', at: null, message: 'm'.repeat(121)}],
+    }),
   );
   assert.equal(bad.status, 400);
 });
@@ -947,7 +952,8 @@ test('a recording the uploader could not read is a problem named by its file', a
         {
           kind: 'file-unreadable',
           at: '2026-10-10T15:00:00.000Z',
-          message: 'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
+          message:
+            'fordmustanggt3_fuji gp 2026-10-04 10-52-05.ibt: has no samples',
         },
       ],
     }),

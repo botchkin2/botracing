@@ -13,7 +13,7 @@
 //   damage       the live capture's `mDentSeverity_0..7` and `mDetached`
 //                (playerDamage.mjs): lower at the exit than at the entry means
 //                the stop repaired something. Absent where the capture is not on
-//                the PC (it is pruned after a week): the visit then says so.
+//                the PC (it is pruned after 14 days): the visit then says so.
 //
 // Tonight's Road Atlanta race (2026-10-02) read by hand: visit 1, 95.6 s in the
 // lane, 61 s stationary, nothing added, dent sum 2 -> 0 and one detached part
