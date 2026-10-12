@@ -19,10 +19,13 @@ export interface Engine {
     blockVersions: Record<string, number>,
   ): boolean;
   stampNewer(stored: unknown, mine: unknown): boolean;
+<<<<<<< HEAD
   staleNow(
     session: Record<string, unknown>,
     getDoc: (coll: string, id: string) => Promise<unknown>,
   ): Promise<boolean>;
+=======
+>>>>>>> origin/main
   analysisVersion: number;
   blockVersions: Record<string, number>;
 }
@@ -47,6 +50,7 @@ export function loadEngine(): Engine {
   return engine;
 }
 
+<<<<<<< HEAD
 // The curated track docs staleNow reads, kept per instance for a minute: every
 // session open would otherwise read both (two reads, ~10-20 ms in region, 200
 // ms from a PC; thread 1 #4629). A curator's edit reaches opens within it.
@@ -85,6 +89,19 @@ export async function sessionStale(
     );
   } catch (error) {
     console.error('staleness not known', error);
+=======
+/**
+ * Whether a stored session needs analysing again under the deployed code. An
+ * engine that fails to load must not take the session route down with it:
+ * the session reads as fresh, and the error is logged.
+ */
+export function sessionStale(stamp: unknown): boolean {
+  try {
+    const e = loadEngine();
+    return e.isStale(stamp, e.analysisVersion, e.blockVersions);
+  } catch (error) {
+    console.error('engine did not load', error);
+>>>>>>> origin/main
     return false;
   }
 }
