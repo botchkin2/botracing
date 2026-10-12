@@ -247,6 +247,62 @@ export function toClassLaps(v: unknown): SessionClassLaps | null {
   };
 }
 
+/**
+ * Session doc `classBests` (src/analysis/classLaps.ts classBestsDoc): each
+ * class's cars by best lap, fastest first. A field of its own on the full doc,
+ * not in the list. `vehicleAt` indexes `vehicles`; -1 is a car the recorder
+ * did not name.
+ */
+export type SessionClassBests = {
+  version: number;
+  kind: ClassLapsKind;
+  classes: Partial<
+    Record<
+      PaceClass,
+      {
+        bestsS: number[];
+        vehicleAt: number[];
+        /** Index into `bestsS` of the player's car, or null. */
+        player: number | null;
+      }
+    >
+  >;
+  vehicles: string[];
+};
+
+const numbers = (v: unknown): number[] | null =>
+  Array.isArray(v) && v.every(x => typeof x === 'number' && Number.isFinite(x))
+    ? (v as number[])
+    : null;
+
+/** Null without the block (a session not yet analysed with it) or when its shape is not the stored one. */
+export function toClassBests(v: unknown): SessionClassBests | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const kind = x.kind;
+  if (kind !== 'race' && kind !== 'practice' && kind !== 'qualify') return null;
+  const vehicles = Array.isArray(x.vehicles)
+    ? x.vehicles.filter((s): s is string => typeof s === 'string')
+    : [];
+  const classes: SessionClassBests['classes'] = {};
+  for (const key of PACE_CLASSES) {
+    const c = obj(obj(x.classes)[key]);
+    const bestsS = numbers(c.bestsS);
+    const vehicleAt = numbers(c.vehicleAt);
+    if (!bestsS || !vehicleAt || bestsS.length === 0) continue;
+    if (vehicleAt.length !== bestsS.length) continue;
+    const player = num(c.player);
+    classes[key] = {
+      bestsS,
+      vehicleAt,
+      player:
+        player != null && player >= 0 && player < bestsS.length ? player : null,
+    };
+  }
+  if (Object.keys(classes).length === 0) return null;
+  return {version: num(x.version) ?? 0, kind, classes, vehicles};
+}
+
 /** A race's finishing position: the game's place overall and in class, and the field it was among. */
 export type FinishPlace = {
   overall: number;
@@ -311,6 +367,8 @@ export type SessionDetail = SessionSummary & {
   field: FieldPointer | null;
   /** Every class's lap times in this race, or null without a field. */
   classLaps: SessionClassLaps | null;
+  /** Each class's cars by best lap; null without a field or before a session has been analysed with it. */
+  classBests: SessionClassBests | null;
   /** Median of the clean laps and of the traffic laps; null without a field. */
   traffic: SessionTraffic | null;
   /** The per-corner trace slices the uploader wrote (analysis version 13 and
@@ -344,6 +402,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),
+    classBests: toClassBests(raw.classBests),
     traffic: toSessionTraffic(raw.traffic),
     slices: toSlicePointer(raw.slices),
     fuel: toSessionFuel(raw.fuel),

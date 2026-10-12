@@ -45,6 +45,7 @@ import {fuelSummary, pitSummary, tiresSummary} from './foldedSummaries';
 import {LinkedScrollContext, useLinkedScroll} from './components/linkedScroll';
 import {OptimumLines} from './components/OptimumLines';
 import {SessionGrid} from './components/SessionGrid';
+import {ClassTableView} from './components/ClassTable';
 import {SessionHead} from './components/SessionHead';
 import {SessionWorkspace} from './components/SessionWorkspace';
 import {
@@ -389,6 +390,7 @@ function SessionView({
       ) : (
         <SessionHead facts={model.facts} />
       )}
+      {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 
       {chartBlock(tableW)}
       {!layout.isDesktop && model.optimumLines.length > 0 && (

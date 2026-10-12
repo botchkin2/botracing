@@ -18,7 +18,7 @@ import {
   SLICE_BEFORE_M,
   SLICE_FORMAT,
 } from './cornerSlices.mjs';
-import {classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {classBestsDoc, classLapsDoc} from '../../src/analysis/classLaps.ts';
 import {finishDoc} from '../../src/analysis/raceResult.ts';
 import {carLabel} from '../../src/design/carModels.ts';
 import {lapTraffic} from './lapTraffic.mjs';
@@ -291,6 +291,11 @@ export function analyzeFromArchive({
     // without one.
     classLaps: fieldOut.field
       ? classLapsDoc(fieldOut.field, first.sessionType)
+      : null,
+    // The fastest cars of each class, from the same field; its own field of
+    // the doc because classLaps rides in the session list (classBests.test.ts).
+    classBests: fieldOut.field
+      ? classBestsDoc(fieldOut.field, first.sessionType)
       : null,
     // The player's finishing position in a race, from the same field
     // (src/analysis/raceResult.ts); null without one and outside a race.
