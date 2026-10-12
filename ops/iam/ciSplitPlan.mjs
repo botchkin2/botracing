@@ -80,10 +80,8 @@ export const previewEmail = (c = CI) =>
  * What a preview channel deploy needs: the same read-only helpers the deploy
  * account holds today (firebase-tools reads the web app's key, checks the
  * function rewrites, which are Cloud Run services in v2, and bills API calls
- * to the project), plus Hosting admin for the channel itself. No Auth admin: the CLI's step that adds the channel's domain to
- * Auth's authorized domains then fails and is skipped. Previews are checked
- * signed in as seat-test (#ct= custom token), which needs no authorized
- * domain, never with Google sign-in.
+ * to the project), plus Hosting admin for the channel itself. Auth's authorized domains come
+ * from PREVIEW_AUTH_ROLE below, not from an Auth admin role.
  */
 export const PREVIEW_ROLES = [
   'roles/firebasehosting.admin',
@@ -92,6 +90,25 @@ export const PREVIEW_ROLES = [
   'roles/run.viewer',
   'roles/serviceusage.serviceUsageConsumer',
 ];
+
+/**
+ * A custom role for the preview account: the CLI's channel deploy adds the
+ * channel's domain to Auth's authorized domains, and drops the domains of
+ * channels that are gone (firebase-tools hosting/api.js addAuthDomains,
+ * cleanAuthState); channel delete removes it. Without it Google sign-in on a
+ * preview fails with auth/unauthorized-domain, and Botkin reviews on previews
+ * (pit-wall thread 1 #4700). configs.update can write any Auth config field;
+ * accepted because firebasehosting.admin already lets this key replace the
+ * live site (#4702). Applied by Botkin 2026-10-12 (#4705).
+ */
+export const PREVIEW_AUTH_ROLE = {
+  id: 'previewAuthDomains',
+  title: 'Preview auth domains',
+  permissions: ['firebaseauth.configs.get', 'firebaseauth.configs.update'],
+};
+
+export const previewAuthRoleName = (c = CI) =>
+  `projects/${c.project}/roles/${PREVIEW_AUTH_ROLE.id}`;
 
 /**
  * Added to the deploy account: a new public HTTPS function needs its invoker
@@ -160,6 +177,19 @@ export function planCiSplit(state, phase, c = CI) {
           run: ['projects', 'add-iam-policy-binding', c.project,
             `--member=serviceAccount:${preview}`, `--role=${role}`, '--condition=None'],
         });
+    if (!state.previewAuthRole)
+      steps.push({
+        what: `custom role ${PREVIEW_AUTH_ROLE.id}: ${PREVIEW_AUTH_ROLE.permissions.join(', ')}`,
+        run: ['iam', 'roles', 'create', PREVIEW_AUTH_ROLE.id, `--project=${c.project}`,
+          `--title=${PREVIEW_AUTH_ROLE.title}`,
+          `--permissions=${PREVIEW_AUTH_ROLE.permissions.join(',')}`, '--stage=GA'],
+      });
+    if (!has(`serviceAccount:${preview}`, previewAuthRoleName(c)))
+      steps.push({
+        what: `${c.previewName}: ${PREVIEW_AUTH_ROLE.id}`,
+        run: ['projects', 'add-iam-policy-binding', c.project,
+          `--member=serviceAccount:${preview}`, `--role=${previewAuthRoleName(c)}`, '--condition=None'],
+      });
     for (const role of DEPLOY_ROLES_ADDED)
       if (!has(`serviceAccount:${c.deployEmail}`, role))
         steps.push({
