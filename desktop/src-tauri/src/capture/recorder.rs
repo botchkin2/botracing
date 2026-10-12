@@ -12,6 +12,7 @@ use crate::capture::sanity::{self, Verdict};
 use crate::capture::store::{dir_bytes, iso, write_json, Capture};
 use serde_json::{json, Map, Value};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 const POLL: Duration = Duration::from_millis(4); // 250 Hz: every 100 Hz telemetry frame
@@ -89,7 +90,8 @@ pub trait Source {
 }
 
 pub struct Recorder<S: Source> {
-    layout: Layout,
+    /// Shared with each capture's writer thread.
+    layout: Arc<Layout>,
     probe: Probe,
     root: PathBuf,
     source: S,
@@ -122,7 +124,7 @@ impl<S: Source> Recorder<S> {
         let mut status = Status::new();
         status.capture_bytes = dir_bytes(&root);
         Ok(Recorder {
-            layout,
+            layout: Arc::new(layout),
             probe,
             root,
             source,
@@ -200,7 +202,7 @@ impl<S: Source> Recorder<S> {
 
     fn close_capture(&mut self, now: u64) {
         if let Some(mut capture) = self.capture.take() {
-            match capture.close(&self.layout, now) {
+            match capture.close(now) {
                 Ok(bytes) => {
                     self.status.capture_bytes += bytes;
                     self.set(now, |s| s.last_chunk_at = Some(iso(now)));
@@ -230,7 +232,11 @@ impl<S: Source> Recorder<S> {
     fn refuse_and_remove(&mut self, now: u64, key: Option<(String, i32)>, reason: &str) {
         if let Some(capture) = self.capture.take() {
             self.status.capture_bytes = self.status.capture_bytes.saturating_sub(capture.bytes);
-            let _ = std::fs::remove_dir_all(&capture.dir);
+            let dir = capture.dir.clone();
+            // Dropped first: that waits for its writer thread, which may still be
+            // writing a chunk into the folder.
+            drop(capture);
+            let _ = std::fs::remove_dir_all(&dir);
         }
         self.refuse(now, key, reason);
     }
@@ -281,22 +287,25 @@ impl<S: Source> Recorder<S> {
         if self.capture.is_some() {
             self.player(now);
         }
-        if let Some(capture) = &self.capture {
-            if capture.due(now, self.chunk_ms) {
-                let flushed = self.capture.as_mut().map(|c| c.flush(&self.layout, now));
-                match flushed {
-                    Some(Ok(bytes)) => {
-                        self.status.capture_bytes += bytes;
-                        self.set(now, |s| s.last_chunk_at = Some(iso(now)));
-                    }
-                    Some(Err(why)) => {
-                        let key = self.key.clone();
-                        self.refuse(now, key, &write_reason(&why));
-                    }
-                    None => {}
-                }
+        if let Some(capture) = self.capture.as_mut() {
+            // A due chunk goes to the writer thread; either way, what the writer
+            // finished since the last poll is counted (store.rs ChunkWriter).
+            let written = if capture.due(now, self.chunk_ms) {
+                capture.flush(now)
             } else {
-                self.set(now, |_| {});
+                capture.written()
+            };
+            match written {
+                // lastChunkAt: when a chunk is on disk, not when it was cut.
+                Ok(bytes) if bytes > 0 => {
+                    self.status.capture_bytes += bytes;
+                    self.set(now, |s| s.last_chunk_at = Some(iso(now)));
+                }
+                Ok(_) => self.set(now, |_| {}),
+                Err(why) => {
+                    let key = self.key.clone();
+                    self.refuse(now, key, &write_reason(&why));
+                }
             }
             if self.capture.is_some() {
                 return POLL;
@@ -769,6 +778,15 @@ mod tests {
         rig.field("Road Atlanta", 10, 6.0);
         rig.player("Road Atlanta", 5.01);
         rec.tick(62_000);
+        // The chunk is written on the writer thread: its failure reaches the
+        // recorder on a later poll, not a rotation later.
+        for i in 0..200 {
+            if rec.status.state == "refused" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            rec.tick(62_001 + i);
+        }
         assert_eq!(rec.status.state, "refused");
         assert!(rec.status.layout_reason.contains("can't write"), "{}", rec.status.layout_reason);
         assert_eq!(rig.meta(&folder)["endUtc"], Value::Null);

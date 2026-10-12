@@ -73,6 +73,9 @@ struct Offsets {
     s_session: usize,
     s_n: usize,
     s_et: usize,
+    /// mInRealtime: on track. The recorder writes player rows only then (#442),
+    /// so a fake that never sets it records no player rows at all.
+    s_realtime: usize,
     v_base: usize,
     v_size: usize,
     v_name: usize,
@@ -107,6 +110,7 @@ fn offsets(l: &Layout) -> Offsets {
         s_session: s("mSession"),
         s_n: s("mNumVehicles"),
         s_et: s("mCurrentET"),
+        s_realtime: s("mInRealtime"),
         v_base: l.offsets["vehScoringInfo"],
         v_size: l.veh_size,
         v_name: v("mVehicleName"),
@@ -143,6 +147,7 @@ fn soak_the_recorder_against_a_fake_game() {
         put(&mut m, o.s_track, b"Soak Raceway\0");
         put(&mut m, o.s_session, &10_i32.to_le_bytes());
         put(&mut m, o.s_n, &(CARS as i32).to_le_bytes());
+        put(&mut m, o.s_realtime, &[1]);
         for i in 0..CARS {
             let base = o.v_base + i * o.v_size;
             put(&mut m, base + o.v_name, format!("Car #{i}\0").as_bytes());
