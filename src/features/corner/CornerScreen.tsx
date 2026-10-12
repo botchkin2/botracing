@@ -90,8 +90,9 @@ const DESK_H: ZoomHeights = {
 // less the 600 column, the divider and the gutters), so the default holds.
 const WIDE_MIN_CHARTS_W = 350;
 const BRAKE_MAP_H = 210;
-// Four rows of 40 pt.
-const WIDE_TABLE_BODY_H = 160;
+// Ten rows of 40 pt before the table scrolls (Botkin, 2 Oct screenshots: four
+// showed too little of a long race).
+const WIDE_TABLE_BODY_H = 400;
 
 export function CornerScreen({
   sessionId,
@@ -374,10 +375,10 @@ function CornerView({
     />
   );
 
-  const spread = (
+  // The dot strips are the corner's charts, always shown (Botkin, 2 Oct
+  // screenshots); only the section window and the All chip fold.
+  const strips = (
     <View style={styles.gap}>
-      {layout.isWide ? null : allChip}
-      {model.window ? <SectionWindowCard window={model.window} /> : null}
       {model.strips ? (
         <View style={styles.gap}>
           {canToggle && selection.laps.length >= 2 ? (
@@ -416,18 +417,6 @@ function CornerView({
                   {s.summary}
                 </Text>
               </View>
-              {s.keyValues.length > 0 ? (
-                <View style={styles.wrap}>
-                  {s.keyValues.map(k => (
-                    <Text
-                      key={k.onIndex}
-                      variant='dataSmall'
-                      style={{color: slotColor(scheme, k.onIndex)}}>
-                      {k.text}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
               {s.empty && s.flatNote ? null : s.empty ? (
                 <Text variant='dataSmall' tone='textFaint'>
                   No lap has a {s.label.toLowerCase()} in this corner.
@@ -481,6 +470,13 @@ function CornerView({
     </View>
   );
 
+  const spread = (
+    <View style={styles.gap}>
+      {layout.isWide ? null : allChip}
+      {model.window ? <SectionWindowCard window={model.window} /> : null}
+    </View>
+  );
+
   // Desktop: the left column is resizable (kept per viewer); the charts take
   // all the width it leaves.
   const left = usePanelWidth(
@@ -520,6 +516,7 @@ function CornerView({
     charts: traces,
     shape,
     laps: lapTable,
+    strips,
     spread: (
       <FoldedSection title='Spread' summary={null}>
         {spread}
@@ -964,7 +961,7 @@ const styles = StyleSheet.create({
   },
   tableHead: {minHeight: 30, borderTopWidth: 1},
   // Wide: the rows scroll under a fixed header, sized so the shape, the table
-  // and the Spread fold header share the first 1440x900 screen (D32).
+  // and the strips share the first 1440x900 screen (D32).
   tableBody: {maxHeight: WIDE_TABLE_BODY_H},
   lapCol: {width: 44},
   cellCol: {flex: 1},
