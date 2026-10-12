@@ -5,7 +5,7 @@ import {firstExit} from './firstExit';
 import {useTweenedRanges} from './useTweenedRanges';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {PanResponder, StyleSheet, View, type ViewStyle} from 'react-native';
-import {ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
+import Svg, {G, Line, Path, Rect} from 'react-native-svg';
 
 import {ChartLabel, ChartSvg, TICK_PT} from './ChartLabel';
 import {SeriesLines} from './SeriesLines';
@@ -80,8 +80,6 @@ function markAt(x: number, edgeY: number, dir: 1 | -1): string {
     1,
   )},${edgeY}L${x.toFixed(1)},${tip}Z`;
 }
-
-let clipSeq = 0;
 
 export function TraceChart({
   width,
@@ -208,8 +206,6 @@ export function TraceChart({
   ]);
   const y = yFor(domainT);
   const yZero = yFor(zeroDomainT)(0);
-  // One clip per chart, so a series drawn past the scale stops at the plot edge.
-  const [clipId] = useState(() => `trace-clip-${++clipSeq}`);
   // A marker where a series first leaves the scale: a small triangle on the edge
   // it left by. Recorded-sample series (no values) are clipped but not marked.
   const clipMarks = series.flatMap(s => {
@@ -240,8 +236,12 @@ export function TraceChart({
   const lapM = Math.max(0, ...series.map(s => (s.values.length - 1) * stepM));
   const uOfM = (m: number) => (tRef ? timeAtDistance(tRef, m) : m);
   const mPerPx = lapM / ((uOfM(lapM) || 1) * sx) || stepM;
-  const chunkPx = width / 4;
-  const chunks = chunksIn(u0 * sx, u0 * sx + width, chunkPx);
+  const chunks = chunksIn(u0 * sx, u0 * sx + width, width);
+  // The chunks drawn sit on a layer of their own (below), three windows wide;
+  // a frame moves that layer, so no path is re-recorded for it.
+  const layerBase = chunks[0] * width;
+  const layerW = chunks.length * width;
+  const layerX = layerBase - u0 * sx;
   const paths = series.map((s, si) => {
     const built = s.domain ?? domain;
     const frame: ChunkFrame = {
@@ -263,7 +263,7 @@ export function TraceChart({
       stepM,
       sx,
       y: yFor(built),
-      chunkPx,
+      chunkPx: width,
       mPerPx,
     };
     // y: built range → shown (tweened) range, as scale and offset.
@@ -272,7 +272,7 @@ export function TraceChart({
     const ky = bt / bb;
     return {
       ...s,
-      transform: `matrix(1 0 0 ${ky} ${-u0 * sx} ${at - ky * ab})`,
+      transform: `matrix(1 0 0 ${ky} 0 ${at - ky * ab})`,
       ds: chunks
         .map(k => ({k, d: chunkPath(s, frame, k)}))
         .filter(c => c.d !== ''),
@@ -511,28 +511,40 @@ export function TraceChart({
             </ChartLabel>
           </>
         )}
-        <Defs>
-          <ClipPath id={clipId}>
-            <Rect x={0} y={0} width={width} height={height} />
-          </ClipPath>
-        </Defs>
-        {/* Values beyond the scale are drawn clipped at the plot edge, never past it. */}
-        <G clipPath={`url(#${clipId})`}>
-          {paths.map(p => (
-            <G key={p.key} transform={p.transform}>
-              <SeriesLines
-                ds={p.ds}
-                wraps={p.wraps}
-                color={p.color}
-                width={p.width}
-                opacity={p.opacity}
-                dash={p.dash}
-                fill={p.fill}
-                base={p.base}
-              />
-            </G>
-          ))}
-        </G>
+      </ChartSvg>
+      {/* Values beyond the scale stop at the plot edge: the layer clips them. */}
+      <View pointerEvents='none' style={[styles.plot, {width, height}]}>
+        <View
+          style={[
+            styles.layer,
+            {width: layerW, height, transform: [{translateX: layerX}]},
+          ]}>
+          <Svg
+            width={layerW}
+            height={height}
+            viewBox={`${layerBase} 0 ${layerW} ${height}`}>
+            {paths.map(p => (
+              <G key={p.key} transform={p.transform}>
+                <SeriesLines
+                  ds={p.ds}
+                  wraps={p.wraps}
+                  color={p.color}
+                  width={p.width}
+                  opacity={p.opacity}
+                  dash={p.dash}
+                  fill={p.fill}
+                  base={p.base}
+                />
+              </G>
+            ))}
+          </Svg>
+        </View>
+      </View>
+      <ChartSvg
+        width={width}
+        height={height}
+        pointerEvents='none'
+        style={styles.layer}>
         {clipMarks.map(m => (
           <Path key={m.key} d={m.d} fill={m.color} />
         ))}
@@ -574,6 +586,9 @@ export function TraceChart({
 }
 
 const styles = StyleSheet.create({
+  // The lines' window: the plot, clipped.
+  plot: {position: 'absolute', left: 0, top: 0, overflow: 'hidden'},
+  layer: {position: 'absolute', left: 0, top: 0},
   // RN types userSelect for Text only; react-native-web applies it to any
   // view, and CSS inherits it to the SVG axis labels inside.
   noSelect: {userSelect: 'none'} as ViewStyle,
