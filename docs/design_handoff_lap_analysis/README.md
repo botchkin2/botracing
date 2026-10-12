@@ -371,8 +371,7 @@ Columns: 280 | 820 | 340.
 ### D2 Compare workspace
 Columns: 260 | 820 | 360. The chrome also shows **Reference** with its name, plus Copy link and Export CSV.
 - **Left, laps:**
-  - "Comparing" is a vertical list of the selected laps: color swatch, label, time, delta to ref, ×. Clicking a lap sets it as the reference.
-  - Below, **All laps** for the session: a compact checkbox list with time, gap and tags, grouped by stint. Clicking a row toggles it in the comparison.
+  - **All laps** for the session, one list: the Median / Ref switch at its top, then a compact checkbox list with time, gap and tags, grouped by stint, and Set ref on each row. Clicking a row toggles it in the comparison. There is no separate list of the selected laps above it (Botkin, 2 Oct screenshots: it repeated these rows).
 - **Centre:**
   - **Toolbar (surface):** play/pause (30 pt), rate segment, the Window block (Time / Distance, − 4 s +, "≈ 180 m"), and **Layout** preset chips (Default, Pedals, Braking, Separate).
   - **Whole-lap overview (780×58):** the running time diff over the full lap for the shown laps, corner ticks numbered underneath, and an **accent frame showing the detail window**. Click or drag on it to move the window, which also sets the cursor. The desktop shows the overview and the detail together; the phone has to choose one.

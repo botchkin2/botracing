@@ -1594,6 +1594,20 @@ export function toggleHighlight(
   return {...sel, hl: sel.hl === lapId ? null : lapId};
 }
 
+/**
+ * A tap on an All laps row's label, time or gap (the checkbox ticks on its
+ * own): on a ticked lap it highlights it, the wide Compare's only highlight
+ * control; on an unticked lap it ticks it, as the whole row always did.
+ */
+export function pressAllLapsRow(
+  sel: CompareSelection,
+  lapId: string,
+): CompareSelection {
+  return sel.laps.includes(lapId)
+    ? toggleHighlight(sel, lapId)
+    : toggleCompared(sel, lapId);
+}
+
 /** Back to the median of the checked laps. */
 export function clearRef(sel: CompareSelection): CompareSelection {
   return sel.ref == null ? sel : {...sel, ref: null};

@@ -52,7 +52,7 @@ Every screen follows the same shape: `use<Screen>Model(params)` combines the que
 
 ### Session on the phone
 
-Under 900 pt the Session page reads, top to bottom: the head (Best and Median large, "21 laps · 14 comparable" under them; session facts), Lap times (the chart, then one Optimal · Median · gap · "of N" line per stint, `optimumLines.ts` over `StintNumbers`), Laps (the section grid and the lap table), then Pit stops (a fold, open when there were stops, the energy line inside), Tires (open) and Fuel use (folded). Desktop, and 900 to 1279, keep their own layout.
+Under 900 pt the Session page reads, top to bottom: the head (Best and Median large, "21 laps · 14 comparable" under them; session facts), Lap times (the chart, then one Optimal · Median · gap · "of N" line per stint, `optimumLines.ts` over `StintNumbers`), Laps (the lap table, then the section grid), then Pit stops (a fold, open when there were stops, the energy line inside), Tires (open) and Fuel use (folded). Desktop, and 900 to 1279, keep their own layout.
 
 The grid and the lap table scroll sideways as one (`session/components/linkedScroll.tsx`): every row and the head of a table share one offset, the lap column (grid) or checkbox, lap, time and vs med (table) stay pinned. One scroller drives at a time, from the first touch of a drag until its momentum ends, or until it has been quiet for 150 ms where there are no such events (a wheel on web); the offsets the others report back while it drives are ignored, or a fling would be pulled back. A scroller that mounts late (the table is virtualised) starts at the current offset.
 
@@ -73,7 +73,7 @@ The rule (decision `pit-wall/decisions/lap/2026-10-11-selection-and-numbers.md`)
 
 ### Corner: windows and the Parts row
 
-Corner shows one corner's window: a section's window (boundary to boundary, `tracks/{trackId}.boundaries`) when the section is one corner, or one part's window when it is compound. The charts frame the window from the section's start to the shown corner's end, and shade the window. A compound section's Parts row starts with **All** (`/session/[id]/corner/[n]?all=1`, `n` = first part): the whole window as one corner, same charts, table, Spread and braking map. Stepping through the parts is unchanged. Charts read the last part's slice file, which already runs from the section's start to its end. Which fact comes from where over the whole window (`src/features/corner/wholeCorner.ts`):
+Corner shows one corner's window: a section's window (boundary to boundary, `tracks/{trackId}.boundaries`) when the section is one corner, or one part's window when it is compound. The charts frame the window from the section's start to the shown corner's end, and shade the window. A compound section's Parts row starts with **All** (`/session/[id]/corner/[n]?all=1`, `n` = first part): the whole window as one corner, same charts, table, dot strips, Spread and braking map. Stepping through the parts is unchanged. Charts read the last part's slice file, which already runs from the section's start to its end. Which fact comes from where over the whole window (`src/features/corner/wholeCorner.ts`):
 
 | Fact | Source |
 | --- | --- |

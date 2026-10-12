@@ -527,13 +527,12 @@ describe('strips at 7+ laps', () => {
     expect(m.strips![0].summary).toMatch(/^med 10\.100 · p10–90 /);
   });
 
-  it('colours the laps on and gives their values beside the title', () => {
+  it('colours the laps that are on', () => {
     const on = m.strips![0].dots.filter(d => d.onIndex != null);
     expect(on.map(d => [d.lapId, d.onIndex])).toEqual([
       ['m0', 0],
       ['m3', 1],
     ]);
-    expect(m.strips![0].keyValues.map(k => k.onIndex)).toEqual([0, 1]);
   });
 });
 
