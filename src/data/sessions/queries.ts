@@ -1,4 +1,5 @@
-import {useQueries, useQuery} from '@tanstack/react-query';
+import {useQueries, useQuery, useQueryClient} from '@tanstack/react-query';
+import {useEffect} from 'react';
 
 import {retryUnlessClientError} from '../http';
 
@@ -12,10 +13,12 @@ import {
   fetchSessions,
   fetchTrackSurface,
 } from './client';
+import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
 
-// A session is rewritten only by a resync, so detail data stays fresh for a
-// while; the list refreshes sooner to pick up new uploads.
+// A session is rewritten only by an upload or analysis on open (which
+// refetches it itself), so detail data stays fresh for a while; the list
+// refreshes sooner to pick up new uploads.
 const DETAIL_STALE_MS = 5 * 60_000;
 // A track map is curated (the server sends max-age 3600): an hour in memory too.
 const TRACK_MAP_STALE_MS = 60 * 60_000;
@@ -42,13 +45,21 @@ export function useSessionFacets() {
 
 /** `enabled` false skips the fetch, for callers that only sometimes have an id. */
 export function useSession(id: string, enabled = true) {
-  return useQuery({
+  const query = useQuery({
     enabled,
     queryKey: sessionKeys.detail(id),
     queryFn: ({signal}) => fetchSession(id, signal),
     staleTime: DETAIL_STALE_MS,
     retry: retryUnlessClientError,
   });
+  // Opening a session made under older rules analyses it again in the cloud;
+  // the stored numbers show until the new ones land (analysisOnOpen.ts).
+  const client = useQueryClient();
+  const stale = query.data?.stale === true;
+  useEffect(() => {
+    if (stale) void analyzeOnce(id, analyzeDeps(client));
+  }, [stale, id, client]);
+  return query;
 }
 
 export function useSessionLaps(id: string | null) {

@@ -20,6 +20,8 @@
 //   DELETE /file?dest=              -> 204
 //   GET    /files?prefix=           -> {names: string[]}
 // A 5xx or a dropped connection is retried (netRetry.mjs); a 4xx is not.
+import {analysisVersion, blockVersions} from './analyze.mjs';
+import {analysisStamp} from './versionKey.mjs';
 import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
 import {Buffer} from 'node:buffer';
@@ -77,7 +79,11 @@ export function httpBackend({
   api = defaultApi,
   token,
   fetch = globalThis.fetch,
+  // The rules this code analyses under, on every request: the server drops a
+  // write over a session the cloud analysed under newer ones (uploadCore.ts).
+  stamp = analysisStamp(analysisVersion, blockVersions),
 }) {
+  const stampHeader = JSON.stringify(stamp);
   const call = async (method, path, {query, json, body, headers} = {}) => {
     const url = new URL(`${api}${path}`);
     for (const [k, v] of Object.entries(query ?? {}))
@@ -87,6 +93,7 @@ export function httpBackend({
         method,
         headers: {
           authorization: `Bearer ${await token()}`,
+          'x-analysis-stamp': stampHeader,
           ...(json === undefined ? {} : {'content-type': 'application/json'}),
           ...headers,
         },

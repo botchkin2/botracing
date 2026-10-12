@@ -20,3 +20,4 @@ export * from './StatusBanner';
 export * from './TraceRetryBanner';
 export * from './SessionsRail';
 export * from './Text';
+export * from './WorkingLine';

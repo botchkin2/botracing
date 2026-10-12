@@ -106,6 +106,12 @@ export interface UploadDeps {
   docs: DocStore;
   files: FileStore;
   now?: () => number;
+  /**
+   * Whether a stored session's analysis stamp is newer than the writer's
+   * (tools/sessions/versionKey.mjs stampNewer). Bound by uploadApi.ts to the
+   * deployed engine; without it nothing is checked.
+   */
+  stampNewer?: (stored: unknown, mine: unknown) => boolean;
 }
 
 export interface UploadRequest {
@@ -114,6 +120,11 @@ export interface UploadRequest {
   query: Record<string, string | undefined>;
   authorization: string | undefined;
   json?: unknown;
+  /**
+   * The writer's analysis stamp (X-Analysis-Stamp, JSON; storeClient.mjs sends
+   * it on every call). A tray from before stamps sends none.
+   */
+  stamp?: unknown;
 }
 
 // 204 has no body; a file read has bytes; everything else has json.
@@ -249,8 +260,11 @@ async function writeDocs(
   ownerKey: string,
   deps: UploadDeps,
   ops: unknown,
+  stamp?: unknown,
 ): Promise<void> {
   if (!Array.isArray(ops)) return refuse(400, 'ops must be a list');
+  for (const id of sessionsOfOps(ops))
+    if (await sessionIsNewer(ownerKey, deps, id, stamp)) return;
   if (ops.length > MAX_OPS) return refuse(413, 'too many ops in one request');
   const writes: Write[] = [];
   const delta: Usage = {docs: 0, docBytes: 0, files: 0, fileBytes: 0};
@@ -289,6 +303,75 @@ async function writeDocs(
   }
   await deps.docs.commit(writes);
   await deps.docs.addUsage(uid, delta);
+}
+
+// Never older analysis over newer (pit-wall thread 1 #4573). Analysis on
+// open rewrites a session in the cloud; a tray behind the cloud's code must
+// not write its files, docs or deletes back over it. Such a write is answered
+// as done and dropped: an installed tray then marks the session uploaded and
+// never retries it, so no failure stands in Settings (apex #4612). A tray from
+// before stamps sends none, which is older than any stamp.
+async function sessionIsNewer(
+  ownerKey: string,
+  deps: UploadDeps,
+  sessionId: string,
+  stamp: unknown,
+): Promise<boolean> {
+  if (!deps.stampNewer) return false;
+  const stored = await deps.docs.get(docPath('sessions', sessionId));
+  return (
+    !!stored &&
+    stored.ownerId === ownerKey &&
+    deps.stampNewer(stored.analysis, stamp ?? null)
+  );
+}
+
+// The session a write belongs to: each doc op's own, or none.
+function sessionsOfOps(ops: unknown[]): Set<string> {
+  const sessions = new Set<string>();
+  for (const op of ops as Array<Record<string, unknown>>) {
+    if (op?.coll === 'sessions' && typeof op.id === 'string')
+      sessions.add(op.id);
+    const data = op?.data as Record<string, unknown> | undefined;
+    if (
+      (op?.coll === 'laps' || op?.coll === 'recordings') &&
+      typeof data?.sessionId === 'string'
+    )
+      sessions.add(data.sessionId);
+  }
+  return sessions;
+}
+
+// The session a file belongs to, from its client path (docs/STORAGE.md):
+// slices, bands and field are under the session's id; a trace under its lap's,
+// whose doc names the session. The archive is the same bytes every time.
+async function sessionOfFile(
+  deps: UploadDeps,
+  dest: unknown,
+): Promise<string | null> {
+  if (typeof dest !== 'string') return null;
+  const [folder, , id] = dest.split('/');
+  if (!id) return null;
+  if (folder === 'slices' || folder === 'bands' || folder === 'field')
+    return id;
+  if (folder === 'traces') {
+    const lap = await deps.docs.get(docPath('laps', id));
+    return typeof lap?.sessionId === 'string' ? lap.sessionId : null;
+  }
+  return null;
+}
+
+async function fileIsOverNewer(
+  ownerKey: string,
+  deps: UploadDeps,
+  dest: unknown,
+  stamp: unknown,
+): Promise<boolean> {
+  if (!deps.stampNewer) return false;
+  const sessionId = await sessionOfFile(deps, dest);
+  return (
+    !!sessionId && (await sessionIsNewer(ownerKey, deps, sessionId, stamp))
+  );
 }
 
 // Merge into documents that already exist; the ones that do not are reported,
@@ -556,7 +639,7 @@ async function route(
     return {status: 200, json: data};
   }
   if (method === 'POST' && path === '/docs/write') {
-    await writeDocs(uid, ownerKey, deps, body.ops);
+    await writeDocs(uid, ownerKey, deps, body.ops, req.stamp ?? body.stamp);
     return {status: 204};
   }
   if (method === 'POST' && path === '/heartbeat') {
@@ -591,6 +674,16 @@ async function route(
     const type = body.contentType;
     if (typeof type !== 'string' || !CONTENT_TYPE.test(type))
       return refuse(400, 'bad contentType');
+    if (await fileIsOverNewer(ownerKey, deps, body.dest, req.stamp)) {
+      // Somewhere harmless to put the bytes: one object per owner, overwritten.
+      const signed = await deps.files.signedUpload(`discard/${ownerKey}/last`, {
+        contentType: type,
+        contentEncoding: body.gzip === true ? 'gzip' : undefined,
+        maxBytes: size,
+        expiresMs: UPLOAD_URL_MS,
+      });
+      return {status: 200, json: signed};
+    }
     const before = await deps.files.stat(full);
     const signed = await deps.files.signedUpload(full, {
       contentType: type,
@@ -616,6 +709,8 @@ async function route(
   }
   if (method === 'DELETE' && path === '/file') {
     const full = filePath(ownerKey, query.dest);
+    if (await fileIsOverNewer(ownerKey, deps, query.dest, req.stamp))
+      return {status: 204};
     const before = await deps.files.stat(full);
     if (!before) return refuse(404, 'no such file');
     await deps.files.remove(full);

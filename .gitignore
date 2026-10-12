@@ -101,6 +101,8 @@ firestore-debug.log
 
 # Firebase Functions build output
 functions/lib/
+# The DuckDB CLI the functions build fetches (functions/scripts/buildEngine.mjs).
+functions/bin/
 
 # Logs
 logs
