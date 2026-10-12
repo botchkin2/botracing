@@ -265,6 +265,20 @@ function runLive(sessionDir) {
   });
 }
 
+// The wait between ticks. While the recorder records, status.json is read
+// every LIVE_POLL_MS (one small file) and a new lastLapAt ends the wait, so a
+// lap starts up within seconds instead of up to a whole tick.
+const LIVE_POLL_MS = 2_000;
+async function nextTick() {
+  const sleep = ms => new Promise(wake => setTimeout(wake, ms));
+  const first = readJson(recorderStatus, null);
+  if (first?.state !== 'recording') return sleep(TICK_SEC * 1000);
+  for (let waited = 0; waited < TICK_SEC * 1000; waited += LIVE_POLL_MS) {
+    await sleep(LIVE_POLL_MS);
+    if (readJson(recorderStatus, null)?.lastLapAt !== first.lastLapAt) return;
+  }
+}
+
 function runSync(sim, onProgress, skipIds) {
   return new Promise(done => {
     const args = [syncScript, ...syncArgsOf(sim)];
@@ -624,7 +638,7 @@ async function main() {
       log(`tick failed: ${String(error.stack || error)}`);
     }
     if (once) return;
-    await new Promise(wake => setTimeout(wake, TICK_SEC * 1000));
+    await nextTick();
   }
 }
 
