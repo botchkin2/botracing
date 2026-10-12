@@ -6,7 +6,8 @@ import {
   listLaps,
   listUploaders,
   listTracks,
-  readTrace,
+  readTraceBody,
+  readTraceMeta,
   readTrackMap,
   listFacets,
   listPlanSessions,
@@ -22,6 +23,7 @@ import {
 } from './sessionStore';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {parsePlanQuery} from './planQuery';
+import {traceDelivery} from './traceCore';
 import {notModified, trackIdOk} from './trackMapCore';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
@@ -274,12 +276,27 @@ export const lmuApi = onRequest(
       const csv = path.match(/\/laps\/([^/]+)\/csv$/);
       if (csv) {
         const id = decodeURIComponent(csv[1]);
-        const body = await readTrace(owner, id);
+        const meta = await readTraceMeta(owner, id);
+        const delivery =
+          meta && traceDelivery(meta, req.headers['if-none-match']);
+        if (!delivery) {
+          res.status(404).json({error: 'Lap telemetry not found'});
+          return;
+        }
+        // Revalidated, not immutable: a new analysis rewrites the same path.
+        res.set('Cache-Control', 'private, no-cache');
+        if (delivery.etag) res.set('ETag', delivery.etag);
+        if (delivery.send === 'not-modified') {
+          res.status(304).end();
+          return;
+        }
+        const body = await readTraceBody(owner, id, delivery.send === 'gzip');
         if (!body) {
           res.status(404).json({error: 'Lap telemetry not found'});
           return;
         }
         res.set('Content-Type', 'text/csv');
+        if (delivery.send === 'gzip') res.set('Content-Encoding', 'gzip');
         res.status(200).send(body);
         return;
       }
