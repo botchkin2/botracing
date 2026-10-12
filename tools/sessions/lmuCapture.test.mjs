@@ -9,13 +9,19 @@
 // to the same span with the analysis channels only; its events open with each
 // state's last value, as a file's first events do.
 import assert from 'node:assert/strict';
-import {mkdtempSync, readFileSync, rmSync} from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 import {analyzeFromArchive} from './analyzeFromArchive.mjs';
-import {rows} from './duck.mjs';
+import {rows, run} from './duck.mjs';
 import {needsDuckdb} from './duckTestSupport.mjs';
 import {describeCapture, writeCaptureArchive} from './lmuCapture.mjs';
 
@@ -169,3 +175,96 @@ test(
     });
   },
 );
+
+// fixtures/lmu-capture-reset: the 2 Oct 2026 23:38 Road Atlanta practice
+// capture, whose session clock restarts at 23:55:32 (1201 s, then 0.1 s), cut
+// to wall-clock slices around each realtime edge (same columns and stripping as
+// lmu-capture). Three stretches: 23:38:35, 23:40:11 and 23:56:19, matching the
+// game's three .duckdb files.
+const resetCapture = resolve(here, 'fixtures/lmu-capture-reset');
+const RESET_MS = 1790985332002;
+
+test(
+  'a session clock restart: stretches in wall-clock order, each on its own clock',
+  needsDuckdb,
+  () => {
+    const {stretches} = describeCapture(resetCapture);
+    assert.deepEqual(
+      stretches.map(st => [
+        st.key,
+        new Date(st.startMs).toISOString(),
+        +st.info.startT.toFixed(4),
+      ]),
+      [
+        ['lmu-capture-reset#0', '2026-10-02T23:38:35.929Z', 335.4025],
+        ['lmu-capture-reset#1', '2026-10-02T23:40:11.161Z', 430.6125],
+        ['lmu-capture-reset#2', '2026-10-02T23:56:19.319Z', 81.6025],
+      ],
+    );
+    // Each ends where its own realtime went off, on its own clock.
+    assert.deepEqual(
+      stretches.map(st => +st.laps.at(-1).t1.toFixed(3)),
+      [426.6, 1201.4, 216.404],
+    );
+    assert.ok(stretches.every(st => st.ended && st.startMs < st.endMs));
+    assert.equal(
+      stretches[2].endMs > RESET_MS && stretches[1].endMs < RESET_MS,
+      true,
+    );
+  },
+);
+
+test('a stretch reads only rows of its own clock epoch', needsDuckdb, () => {
+  const {stretches} = describeCapture(resetCapture);
+  const posix = p => p.replace(/\\/g, '/');
+  withTmp(dir => {
+    // The same capture split at the restart: what each epoch alone holds.
+    for (const [name, where] of [
+      ['before', `wall_ms < ${RESET_MS}`],
+      ['after', `wall_ms >= ${RESET_MS}`],
+    ]) {
+      const to = join(dir, name);
+      mkdirSync(to);
+      copyFileSync(join(resetCapture, 'meta.json'), join(to, 'meta.json'));
+      for (const kind of ['player', 'field', 'session']) {
+        run(
+          ':memory:',
+          `COPY (SELECT * FROM '${posix(
+            join(resetCapture, `${kind}-0000.parquet`),
+          )}' WHERE ${where})
+            TO '${posix(join(to, `${kind}-0000.parquet`))}' (FORMAT parquet)`,
+        );
+      }
+    }
+    for (const [k, alone] of [
+      [0, 'before'],
+      [2, 'after'],
+    ]) {
+      const st = stretches[k];
+      const window = {t0: st.laps[0].t0, t1: st.laps.at(-1).t1};
+      const whole = [
+        join(dir, `w${k}.s.parquet`),
+        join(dir, `w${k}.e.parquet`),
+      ];
+      const own = [join(dir, `o${k}.s.parquet`), join(dir, `o${k}.e.parquet`)];
+      writeCaptureArchive(resetCapture, st.info, window, ...whole);
+      writeCaptureArchive(join(dir, alone), st.info, window, ...own);
+      for (let i = 0; i < 2; i++) {
+        const [a, b] = [`'${posix(whole[i])}'`, `'${posix(own[i])}'`];
+        const [diff] = rows(
+          ':memory:',
+          `SELECT (SELECT count(*) FROM (SELECT * FROM ${a} EXCEPT ALL SELECT * FROM ${b})) +
+            (SELECT count(*) FROM (SELECT * FROM ${b} EXCEPT ALL SELECT * FROM ${a})) AS n,
+            (SELECT count(*) FROM ${a}) AS rows`,
+        );
+        assert.equal(Number(diff.n), 0, `stretch ${k} file ${i}`);
+        assert.ok(Number(diff.rows) > 0);
+      }
+      const [n] = rows(
+        ':memory:',
+        `SELECT count(*) n FROM '${posix(whole[0])}'`,
+      );
+      assert.equal(Number(n.n), st.info.ticks);
+    }
+  });
+});

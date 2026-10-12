@@ -49,20 +49,22 @@ const END_PAD_S = 0.001;
 
 const chunkRe = /^(player|field|session)-\d+\.parquet$/;
 
-// The finished chunks, by kind. The recorder writes .tmp and renames, so a
-// capture still being written only ever shows whole files here.
+// Each kind's chunks as a glob. The recorder writes .tmp and renames, so a
+// capture still being written only ever shows whole *.parquet files. A glob,
+// not the file list: a long session's list overruns the 32 KB Windows command
+// line the DuckDB CLI gets its SQL on.
 function chunks(dir) {
-  const out = {player: [], field: [], session: []};
-  for (const name of readdirSync(dir).sort()) {
-    const m = name.match(chunkRe);
-    if (m) out[m[1]].push(join(dir, name));
+  const names = readdirSync(dir);
+  const out = {};
+  for (const kind of ['player', 'field', 'session']) {
+    if (!names.some(name => chunkRe.test(name) && name.startsWith(kind)))
+      throw new Error(`${basename(dir)}: no ${kind} chunks`);
+    out[kind] = join(dir, `${kind}-*.parquet`);
   }
-  if (!out.player.length || !out.field.length || !out.session.length)
-    throw new Error(`${basename(dir)}: no player, field or session chunks`);
   return out;
 }
 
-const fileList = files => `[${files.map(sqlPath).join(', ')}]`;
+const fileList = glob => sqlPath(glob);
 const num = x => {
   if (!Number.isFinite(x)) throw new Error(`not a finite time: ${x}`);
   // A string cast parses the shortest round-trip form exactly; a bare literal
@@ -87,6 +89,17 @@ function clockOf(seconds) {
   )}:${pad(s % 60)}`;
 }
 
+// The session clock restarts inside one capture (a new session on the same
+// server: 2 Oct 23:38 capture, 1201 s then 0.1 s). Each restart opens a clock
+// epoch; rows are matched to a stretch by epoch (wall clock) and then by session
+// time, since session times repeat across epochs. `epochSql(s)` names the
+// epochs' wall-clock starts from session rows `s` with (w, e); `inEpoch(src)`
+// tags any rows with wall_ms by the epoch they fall in.
+const epochSql = s =>
+  `ep AS (SELECT e, CASE WHEN e = 0 THEN 0 ELSE min(w) END w0 FROM ${s} GROUP BY e)`;
+const inEpoch = src =>
+  `(SELECT x.*, coalesce(ep.e, 0) e FROM ${src} x ASOF LEFT JOIN ep ON x.wall_ms >= ep.w0)`;
+
 /**
  * The capture's recordings: one per stretch of mInRealtime on, in order.
  * Each has `key` (<folder>#<k>, stable as the capture grows), `info` (lmu.mjs
@@ -108,21 +121,30 @@ export function describeCapture(captureDir) {
   const S = `read_parquet(${fileList(files.session)})`;
   const [row] = rows(
     ':memory:',
-    `WITH s AS (SELECT mCurrentET t, mInRealtime r, mTimeOfDay tod, mSession ses,
-        coalesce(lag(mInRealtime) OVER (ORDER BY mCurrentET), false) pr FROM ${S}),
-      st AS (SELECT row_number() OVER (ORDER BY t) - 1 k, t onT, tod, ses,
-        (SELECT min(x.t) FROM s x WHERE NOT x.r AND x.t > s.t) offT FROM s WHERE r AND NOT pr),
-      p AS (SELECT st.k, mElapsedTime t, wall_ms, mLapNumber lap, mLapStartET ls, mFuelCapacity cap
-        FROM ${P} JOIN st ON mElapsedTime >= st.onT AND (st.offT IS NULL OR mElapsedTime < st.offT)),
-      f AS (SELECT et, mTotalLaps, mLastLapTime, mVehicleName, mVehicleClass FROM ${F}),
+    `WITH s0 AS (SELECT wall_ms w, mCurrentET t, mInRealtime r, mTimeOfDay tod, mSession ses,
+        lag(mCurrentET) OVER (ORDER BY wall_ms, mCurrentET) pt,
+        coalesce(lag(mInRealtime) OVER (ORDER BY wall_ms, mCurrentET), false) pr FROM ${S}),
+      s AS (SELECT *, coalesce(t < pt, false) rst,
+        sum(CASE WHEN t < pt THEN 1 ELSE 0 END) OVER (ORDER BY w, t) e FROM s0),
+      ${epochSql('s')},
+      st AS (SELECT row_number() OVER (ORDER BY w, t) - 1 k, e, t onT, w onW, tod, ses,
+        (SELECT arg_min(CASE WHEN x.rst THEN x.pt + ${END_PAD_S} ELSE x.t END, x.w) FROM s x
+          WHERE x.w > s.w AND (NOT x.r OR x.rst)) offT
+        FROM s WHERE r AND (NOT pr OR rst)),
+      p AS (SELECT st.k, st.e, mElapsedTime t, wall_ms, mLapNumber lap, mLapStartET ls, mFuelCapacity cap
+        FROM ${inEpoch(P)} q JOIN st ON q.e = st.e AND mElapsedTime >= st.onT
+          AND (st.offT IS NULL OR mElapsedTime < st.offT)),
+      f AS (SELECT e, et, mTotalLaps, mLastLapTime, mVehicleName, mVehicleClass FROM ${inEpoch(
+        F,
+      )}),
       span AS (SELECT k, count(*) n, min(t) t0, max(t) t1, arg_min(wall_ms, t) wall0, arg_max(wall_ms, t) wall1,
         arg_min(cap, t) cap, arg_min(lap, t) lap0 FROM p GROUP BY k),
-      cross_ AS (SELECT k, ls::DOUBLE ls, lap FROM (SELECT *, lag(lap) OVER (PARTITION BY k ORDER BY t) pl FROM p)
+      cross_ AS (SELECT k, e, ls::DOUBLE ls, lap FROM (SELECT *, lag(lap) OVER (PARTITION BY k ORDER BY t) pl FROM p)
         WHERE pl IS NOT NULL AND lap IS DISTINCT FROM pl),
       timed AS (SELECT c.k, c.ls, c.lap, f.mLastLapTime llt FROM cross_ c
-        ASOF LEFT JOIN f ON f.mTotalLaps = c.lap AND c.ls <= f.et),
+        ASOF LEFT JOIN f ON f.e = c.e AND f.mTotalLaps = c.lap AND c.ls <= f.et),
       car AS (SELECT st.k, arg_min(mVehicleName, et) car, arg_min(mVehicleClass, et) cls
-        FROM f JOIN st ON f.et >= st.onT AND (st.offT IS NULL OR f.et < st.offT) GROUP BY st.k)
+        FROM f JOIN st ON f.e = st.e AND f.et >= st.onT AND (st.offT IS NULL OR f.et < st.offT) GROUP BY st.k)
     SELECT to_json({
       stretches: (SELECT list({k: st.k, onT: st.onT, offT: st.offT, tod: st.tod, ses: st.ses,
         n: span.n, t0: span.t0, t1: span.t1, wall0: span.wall0, wall1: span.wall1, cap: span.cap, lap0: span.lap0,
@@ -222,6 +244,13 @@ export function writeCaptureArchive(
   eventsOut,
 ) {
   const files = chunks(captureDir);
+  const wall0 = Date.parse(info.recordedAt);
+  if (!Number.isFinite(wall0))
+    throw new Error(`recording info has no recordedAt: ${info.recordedAt}`);
+  // The rows of this recording's clock epoch (describeCapture): from the last
+  // session clock restart at or before its start to the next one.
+  const epoch = `wall_ms >= (SELECT coalesce(max(w), 0) FROM rs WHERE w <= ${wall0})
+    AND wall_ms < (SELECT coalesce(min(w), 9e15) FROM rs WHERE w > ${wall0})`;
   const S0 = num(info.startT);
   const lo = num(Math.max(t0 - PAD_S, info.startT - PAD_S));
   const hi = num(t1 + PAD_S);
@@ -265,13 +294,17 @@ export function writeCaptureArchive(
 
   const sql = `
 SET threads TO 4;
+CREATE TEMP TABLE rs AS SELECT w FROM (SELECT wall_ms w, mCurrentET t,
+  lag(mCurrentET) OVER (ORDER BY wall_ms, mCurrentET) pt FROM read_parquet(${fileList(
+    files.session,
+  )})) WHERE t < pt;
 CREATE TEMP TABLE p0 AS SELECT mElapsedTime AS t, ${playerCols
     .filter(c => c !== 'mElapsedTime')
     .join(', ')},
   sqrt(mLocalVel_x * mLocalVel_x + mLocalVel_y * mLocalVel_y + mLocalVel_z * mLocalVel_z) AS v
   FROM read_parquet(${fileList(
     files.player,
-  )}) WHERE mElapsedTime >= ${lo} AND mElapsedTime < ${hi};
+  )}) WHERE mElapsedTime >= ${lo} AND mElapsedTime < ${hi} AND ${epoch};
 CREATE TEMP TABLE pl AS SELECT *, sum(seg) OVER (ORDER BY t) AS cum FROM (
   SELECT *, coalesce(0.5 * (v + lag(v) OVER (ORDER BY t)) * (t - lag(t) OVER (ORDER BY t)), 0) AS seg FROM p0);
 CREATE TEMP TABLE pn AS SELECT t, cum, lead(t) OVER (ORDER BY t) AS tn, lead(cum) OVER (ORDER BY t) AS cn, v FROM pl;
@@ -279,12 +312,12 @@ CREATE TEMP TABLE f AS SELECT et, mTotalLaps AS lap, mLapDist AS d, mPathLateral
   mLapStartET::DOUBLE AS ls, mLastLapTime AS llt, mCurSector1 AS s1, mCurSector2 AS s2, mInPits::INT AS pit
   FROM read_parquet(${fileList(
     files.field,
-  )}) WHERE mIsPlayer AND et >= ${lo} AND et < ${hi};
+  )}) WHERE mIsPlayer AND et >= ${lo} AND et < ${hi} AND ${epoch};
 CREATE TEMP TABLE s AS SELECT mCurrentET AS t, mYellowFlagState AS y, mSectorFlag_0 AS f0, mSectorFlag_1 AS f1,
   mSectorFlag_2 AS f2, mMinPathWetness AS w
   FROM read_parquet(${fileList(
     files.session,
-  )}) WHERE mCurrentET >= ${lo} AND mCurrentET < ${hi};
+  )}) WHERE mCurrentET >= ${lo} AND mCurrentET < ${hi} AND ${epoch};
 -- The player rows from the recording's start, and its crossings.
 CREATE TEMP TABLE pr AS SELECT *, lag(mLapNumber) OVER (ORDER BY t) AS plap,
   lag(mLastImpactET) OVER (ORDER BY t) AS pimp FROM pl WHERE t >= ${S0};
