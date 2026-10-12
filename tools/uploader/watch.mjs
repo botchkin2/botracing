@@ -149,25 +149,13 @@ function gameRunning() {
   return SIMS.some(sim => exeRunning(gameExeOf(sim)));
 }
 
-// The car is in LMU's garage, LMU is the only sim open, and nothing is being
-// written (driving.mjs): the finished drives can sync with the game open.
-// Anything else with a game open counts as driving, and nothing syncs.
-function inGarageNow(nowMs = Date.now()) {
+// The car is in LMU's garage or menus and LMU is the only sim open
+// (driving.mjs): the finished drives can sync with the game open. Anything
+// else with a game open counts as driving, and nothing syncs.
+function inGarageNow() {
   const open = SIMS.filter(sim => exeRunning(gameExeOf(sim)));
   if (open.length !== 1 || open[0].id !== 'lmu') return false;
-  const folder = open[0].folder;
-  const files = [];
-  if (existsSync(folder)) {
-    for (const name of readdirSync(folder)) {
-      try {
-        files.push({name, mtimeMs: statSync(resolve(folder, name)).mtimeMs});
-      } catch {
-        // Gone between the listing and the stat.
-      }
-    }
-  }
-  const state = lmuState(process.env.LMU_LOG || defaultLogFolder);
-  return inGarage({state, files, nowMs});
+  return inGarage(lmuState(process.env.LMU_LOG || defaultLogFolder));
 }
 
 // sync.mjs's work folder per sim: the legacy-layout sim's is the one passed in,

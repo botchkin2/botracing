@@ -1,28 +1,17 @@
-// Whether the car is in LMU's garage, so the finished drives can upload while
-// the game is open (Botkin, pit-wall thread 1 #4648 to #4669).
+// Whether the car is in LMU's garage or menus, so the drives already finished
+// can upload while the game is open (Botkin, pit-wall thread 1 #4648, #4671).
 //
-// The game says so itself: its trace log (UserData\Log, the newest trace*.txt,
-// written as the game runs) has a line for every session state change,
-// "Changing session state from X to Y". On the 2 Oct log every drive's
-// .duckdb appears within 2 s of MONITOR_MENU -> DRIVING and is finished within
-// 1 s of DRIVING -> MONITOR_MENU (#4636). So the state is the signal, and the
-// telemetry folder is a second one: nothing may have been written there in the
-// last DRIVING_WINDOW_MS. Both must say "not driving".
+// One rule, from the game itself: its trace log (UserData\Log, the newest
+// trace*.txt, written as the game runs) has a line for every session state
+// change, "Changing session state from X to Y". LMU finishes a drive's .duckdb
+// within a second of DRIVING -> MONITOR_MENU (2 Oct log against file times,
+// #4636), so in the garage or the menus every drive is a finished file.
 //
-// iRacing has no such log, and nothing proves how often an .ibt is written
-// mid-drive (in the pit box it keeps growing), so with iRacing open nothing
-// syncs, as before.
+// iRacing has no such log, so with iRacing open nothing syncs, as before.
 import {closeSync, openSync, readSync, readdirSync, statSync} from 'node:fs';
 import {resolve} from 'node:path';
 
-/** No telemetry file may have been written this recently. */
-export const DRIVING_WINDOW_MS = 60_000;
-
-/**
- * The states the car is off track in: the garage monitor and the menus. Every
- * other one (DRIVING, PAUSED on track, PAUSED_AI_IN_PIT, END_OF_RACE_GRACE,
- * LOADING) is treated as a drive. From every transition in his logs.
- */
+/** The garage monitor and the menus. Every other state is a drive. */
 export const GARAGE_STATES = new Set(['MONITOR_MENU', 'DISABLED']);
 
 const STATE = /Changing session state from [A-Z_]+ to ([A-Z_]+)/g;
@@ -34,19 +23,9 @@ export function lastState(text) {
   return state;
 }
 
-/**
- * `files`: [{name, mtimeMs}] of a telemetry folder. True when any of them,
- * the recording or its WAL, was written in the last DRIVING_WINDOW_MS.
- */
-export function recentlyWritten(files, nowMs, windowMs = DRIVING_WINDOW_MS) {
-  return files.some(f => nowMs - f.mtimeMs < windowMs);
-}
-
-/** In the garage: the game's state says so and nothing is being written. */
-export function inGarage({state, files, nowMs}) {
-  return (
-    state != null && GARAGE_STATES.has(state) && !recentlyWritten(files, nowMs)
-  );
+/** In the garage or the menus. An unknown state is not. */
+export function inGarage(state) {
+  return state != null && GARAGE_STATES.has(state);
 }
 
 const TAIL_BYTES = 256 * 1024;
