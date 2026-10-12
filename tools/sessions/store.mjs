@@ -18,7 +18,12 @@ import {createRequire} from 'node:module';
 import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {gunzipSync, gzipSync} from 'node:zlib';
-import {classLapsCurrent, classLapsDoc} from '../../src/analysis/classLaps.ts';
+import {
+  classBestsCurrent,
+  classBestsDoc,
+  classLapsCurrent,
+  classLapsDoc,
+} from '../../src/analysis/classLaps.ts';
 import {finishCurrent, finishDoc} from '../../src/analysis/raceResult.ts';
 import {fieldAfterSync} from './field.mjs';
 import {relabelField} from './irClasses.mjs';
@@ -333,6 +338,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
         hash,
       };
       session.classLaps = classLapsDoc(relabeled, session.sessionType);
+      session.classBests = classBestsDoc(relabeled, session.sessionType);
       session.result = finishDoc(relabeled, session.sessionType);
       log('  field: classes added from the .ibt');
     }
@@ -369,6 +375,16 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
       const field = await load();
       session.classLaps = field
         ? classLapsDoc(field, session.sessionType)
+        : null;
+    }
+    // The fastest cars of each class, the same way.
+    const storedBests = before?.classBests ?? null;
+    if (classBestsCurrent(storedBests, session.sessionType)) {
+      session.classBests = storedBests;
+    } else {
+      const field = await load();
+      session.classBests = field
+        ? classBestsDoc(field, session.sessionType)
         : null;
     }
     // The finishing position, kept while it is this version and kind.

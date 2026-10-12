@@ -16,7 +16,13 @@ export interface EncodedField {
   /** Tenths of a second from `et0`, one per update. */
   tDs: number[];
   /** `classLabel`: iRacing only, the class a driver reads (tools/sessions/irClasses.mjs). */
-  cars: {class: string; classLabel?: string; player?: boolean}[];
+  cars: {
+    class: string;
+    classLabel?: string;
+    player?: boolean;
+    /** The car model as the recorder named it; null or absent when it had none. */
+    vehicle?: string | null;
+  }[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
   inPits: (number | null)[][];
@@ -498,6 +504,103 @@ export function classLapsCurrent(
 ): boolean {
   return (
     stored?.version === CLASS_LAPS_VERSION &&
+    stored.kind === sessionKind(sessionType)
+  );
+}
+
+// -- Class bests (pit-wall thread 1 #4637 to #4645) --------------------------
+// The fastest cars of each class, from the same field and the same lap clock,
+// for the Session head's class table. Its own session field (`classBests`),
+// not part of `classLaps`: that is in the session list's projection, and one
+// car list per class is 2.4 KB against its 148 bytes.
+
+/**
+ * Bump when the rules below change: it is `blockVersions.classBests`, so a
+ * stored session reads stale and is analysed again when it is opened.
+ */
+export const CLASS_BESTS_VERSION = 1;
+
+export interface ClassBests {
+  /** Cars with a best lap in this class. */
+  cars: number;
+  /** Each car's best lap in seconds, fastest first. */
+  bestsS: number[];
+  /**
+   * Parallel to `bestsS`: the car's model as an index into the doc's
+   * `vehicles`, or -1 when the recorder had none. Two flat arrays, not
+   * pairs: Firestore refuses an array inside an array (docShape.mjs).
+   */
+  vehicleAt: number[];
+  /** Index into `bestsS` of the player's car; null when it is in another class or has no lap. */
+  player: number | null;
+}
+
+export interface ClassBestsDoc {
+  version: number;
+  kind: ClassLapsKind;
+  classes: Partial<Record<PaceClass, ClassBests>>;
+  /** The car models, deduplicated; no names or numbers (the field has none). */
+  vehicles: string[];
+}
+
+/**
+ * Each car's best kept lap, per pace class. The lap rules are classLaps': green
+ * laps out of the pits, a physical floor under the class's own pace, and in
+ * practice a window around the car's best. Qualifying takes the practice rule:
+ * its floor sits on the median of the cars' bests, so a single push lap is a
+ * real best (a median of its laps would not be). The best is the minimum of
+ * the kept laps, so the slow-lap rules never move it.
+ */
+export function classBestsDoc(
+  field: EncodedField,
+  sessionType: string,
+): ClassBestsDoc {
+  const kind = sessionKind(sessionType);
+  const per = carLaps(field);
+  const byClass = new Map<PaceClass, {car: number; t: number}[]>();
+  field.cars.forEach((c, i) => {
+    const key = carPaceClass(c);
+    const list = byClass.get(key) ?? [];
+    for (const t of per[i]) list.push({car: i, t});
+    byClass.set(key, list);
+  });
+  const vehicles: string[] = [];
+  const vehicleIndex = (car: number): number => {
+    const v = field.cars[car]?.vehicle;
+    if (!v) return -1;
+    let at = vehicles.indexOf(v);
+    if (at < 0) at = vehicles.push(v) - 1;
+    return at;
+  };
+  const playerCar = field.cars.findIndex(c => c.player === true);
+  const classes: ClassBestsDoc['classes'] = {};
+  for (const [key, list] of byClass) {
+    const kept = keptLaps(list, kind === 'qualify' ? 'practice' : kind);
+    const best = new Map<number, number>();
+    for (const l of kept)
+      best.set(l.car, Math.min(best.get(l.car) ?? Infinity, l.t));
+    if (best.size === 0) continue;
+    const ranked = [...best].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    const player = ranked.findIndex(([car]) => car === playerCar);
+    classes[key] = {
+      cars: ranked.length,
+      bestsS: ranked.map(([, t]) => round3(t)),
+      vehicleAt: ranked.map(([car]) => vehicleIndex(car)),
+      player: player < 0 ? null : player,
+    };
+  }
+  return {version: CLASS_BESTS_VERSION, kind, classes, vehicles};
+}
+
+const round3 = (v: number) => Math.round(v * 1000) / 1000;
+
+/** Whether a stored `classBests` was computed by these rules, for this kind of session. */
+export function classBestsCurrent(
+  stored: Record<string, unknown> | null | undefined,
+  sessionType: string,
+): boolean {
+  return (
+    stored?.version === CLASS_BESTS_VERSION &&
     stored.kind === sessionKind(sessionType)
   );
 }

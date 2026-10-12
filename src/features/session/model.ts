@@ -45,6 +45,7 @@ import {
   stintNumbers,
 } from './selectionStats';
 import {energyLine, type EnergyLine} from './energyLine';
+import {classTable, type ClassTable} from './classTable';
 import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {lapTraffic, orderTags, trafficTags} from './lapTags';
@@ -207,6 +208,8 @@ export type SessionScreenModel = {
   tray: TrayModel | null;
   /** Energy at the start and end of the session, one line under the facts; null without readings. */
   energy: EnergyLine | null;
+  /** The fastest cars of each class, from the field; null without it or before the session is analysed with it. */
+  classTable: ClassTable | null;
   /** Races with a stop only. */
   pitCard: PitCard | null;
   /** Per-wheel wear, pressure and rubber temperature by stint. */
@@ -618,6 +621,7 @@ export function buildSessionModel(
     rows,
     detail,
     tray,
+    classTable: classTable(session.classBests),
     energy: energyLine(
       session.sessionType,
       laps,

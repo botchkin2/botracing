@@ -41,7 +41,11 @@ import {
 import {GRID_LAP_VERSION, partialWhy} from './gridLap.mjs';
 import {cornerFacts} from './cornerFacts.mjs';
 import {PIT_VISIT_VERSION} from './pitVisit.mjs';
-import {CLASS_LAPS_VERSION, sessionKind} from '../../src/analysis/classLaps.ts';
+import {
+  CLASS_BESTS_VERSION,
+  CLASS_LAPS_VERSION,
+  sessionKind,
+} from '../../src/analysis/classLaps.ts';
 import {FINISH_VERSION} from '../../src/analysis/raceResult.ts';
 import {RACE_LENGTH_VERSION} from './raceLength.mjs';
 import {SLICE_FORMAT, SLICE_FRAME_VERSION} from './cornerSlices.mjs';
@@ -96,6 +100,8 @@ export const blockVersions = {
   cornerInputs: CORNER_INPUTS_VERSION,
   pitVisit: PIT_VISIT_VERSION,
   classLaps: CLASS_LAPS_VERSION,
+  // Each class's fastest cars (the session doc's own `classBests`, not in the list).
+  classBests: CLASS_BESTS_VERSION,
   offTrack: OFF_TRACK_VERSION,
   raceLength: RACE_LENGTH_VERSION,
   finish: FINISH_VERSION,

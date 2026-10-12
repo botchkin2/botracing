@@ -6,6 +6,7 @@ export type {
   BoundaryWindow,
   BrakeApp,
   CornerWindowFacts,
+  SessionClassBests,
   SessionClassLaps,
   CornerFacts,
   Lap,
