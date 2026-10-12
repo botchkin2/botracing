@@ -240,7 +240,7 @@ function boundaryOps(boundaries) {
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
-  // The field file already in the bucket (the capture is gone after 7 days,
+  // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
   // sync tries again.
   const readStoredField = async path => {
@@ -395,7 +395,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     const storedLaps = new Map();
     for (const lap of out.laps) {
       if (!lap.pitStop?.visit) continue;
-      const doc = await backend.getDoc('laps', lap.id);
+      // An upload API that cannot read lap docs (an older server) keeps
+      // nothing; it must not fail the sync.
+      const doc = await backend.getDoc('laps', lap.id).catch(e => {
+        log(`  pit visits: could not read lap ${lap.id}: ${e.message}`);
+        return null;
+      });
       if (doc) storedLaps.set(lap.id, doc);
     }
     const keptVisits = keepVisits(out.laps, storedLaps, {damageMissing: true});

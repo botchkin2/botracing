@@ -71,7 +71,6 @@ import {driversOfYaml} from './irClasses.mjs';
 import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
-import {planBlock} from './planBlock.mjs';
 import {carLabel} from '../../src/design/carModels.ts';
 import {checkDoc} from './docShape.mjs';
 import {packState, staleRev, unpackState} from './layoutBoundaries.mjs';
@@ -664,14 +663,8 @@ function build(
     updatedAt: new Date().toISOString(),
   });
 
-  // What the Plan reads of this session, in one small block (planBlock.mjs).
-  session.plan = planBlock({
-    sessionType: session.sessionType,
-    fuel: session.fuel,
-    laps,
-    race: session.race,
-    result: session.result,
-  });
+  // session.plan is written by store.mjs, after it settles the race, result,
+  // traffic and visits that a resync keeps from the stored docs.
 
   return {
     session,

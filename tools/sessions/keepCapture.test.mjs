@@ -180,3 +180,57 @@ test('a resync without the capture keeps the stored race length and the repair, 
   assert.equal(written.plan.race.stops[0].kind, 'repair');
   assert.equal(docs.get('laps/l1').pitStop.visit.kind, 'repair');
 });
+
+test('an upload API that cannot read lap docs keeps nothing and does not fail the sync', async () => {
+  const {createStore} = await import('./store.mjs');
+  const docs = new Map([['sessions/s1', {race: {minutes: 40}}]]);
+  const backend = {
+    getDoc: async (coll, id) => {
+      if (coll === 'laps') throw new Error('403 not readable');
+      return docs.get(`${coll}/${id}`) ?? null;
+    },
+    writeDocs: async ops => {
+      for (const op of ops)
+        if (op.op === 'set') docs.set(`${op.coll}/${op.id}`, op.data);
+    },
+    sessionLapIds: async () => [],
+    fileMd5: async () => null,
+    putFile: async () => {},
+    deleteFile: async () => {},
+    listFiles: async () => [],
+  };
+  const out = {
+    session: {
+      id: 's1',
+      ownerId: 'o',
+      sim: 'lmu',
+      sessionType: 'Race',
+      race: null,
+      field: null,
+      slices: null,
+      fuel: null,
+      result: null,
+    },
+    recordings: [],
+    laps: [
+      {
+        id: 'l1',
+        lapTime: 100,
+        comparable: true,
+        traffic: null,
+        pitStop: {inPitS: 95, visit: unknown},
+      },
+    ],
+    lapWindows: [],
+    files: [],
+    traces: [],
+    band: null,
+    slices: null,
+    track: null,
+    boundaries: null,
+    damageMissing: true,
+  };
+  await createStore(backend).upload(out);
+  assert.deepEqual(docs.get('sessions/s1').race, {minutes: 40});
+  assert.equal(docs.get('laps/l1').pitStop.visit.kind, 'unknown');
+});

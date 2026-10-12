@@ -34,7 +34,8 @@ const OWNED = ['recordings', 'sessions', 'laps'];
 // Shared, read-only to everyone here; written by the admin tools only.
 const TRACK_DATA = ['tracks', 'trackBoundaries'];
 const WRITABLE = OWNED;
-const READABLE = [...TRACK_DATA, 'sessions'];
+// laps: a resync keeps the stored visits read from the car's damage (tools/sessions/keepCapture.mjs).
+const READABLE = [...TRACK_DATA, 'sessions', 'laps'];
 // update merges into an existing doc: only what the events pass sets.
 const UPDATABLE = ['sessions', 'recordings'];
 const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
@@ -380,7 +381,9 @@ function cleanProblems(v: unknown): Json {
   const known = all.filter(p => !unknownKind(p));
   if (known.length < all.length)
     console.warn(
-      `heartbeat: dropped ${all.length - known.length} problem(s) of an unknown kind: ${all
+      `heartbeat: dropped ${
+        all.length - known.length
+      } problem(s) of an unknown kind: ${all
         .filter(unknownKind)
         .map(p => String(p.kind).slice(0, 32))
         .join(', ')}`,
