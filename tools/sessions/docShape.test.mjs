@@ -130,8 +130,8 @@ test('several bad documents are counted in one error', async () => {
 test('a write the underlying writer drops is an error, not a silent success', async () => {
   // Firestore's bulkWriter: close() resolves, the failed write's own promise rejects.
   const failing = {
-    set: ref =>
-      ref.path === 'laps/bad'
+    set: target =>
+      target.path === 'laps/bad'
         ? Promise.reject(new Error('quota'))
         : Promise.resolve(),
     delete: () => Promise.resolve(),
