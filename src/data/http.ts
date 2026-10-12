@@ -25,6 +25,10 @@ const apiRoot = apiBaseUrl.endsWith('/lmu')
 export const releaseApiUrl = (kind: 'tray' | 'android', path: string): string =>
   `${apiRoot}/${kind}${path}`;
 
+/** POST /api/analyze/{id}: a stale session analysed again (analyzeApi). */
+export const analyzeUrl = (sessionId: string): string =>
+  `${apiRoot}/analyze/${encodeURIComponent(sessionId)}`;
+
 export class HttpError extends Error {
   constructor(readonly status: number, readonly path: string) {
     super(`GET ${path} → ${status}`);
@@ -36,11 +40,16 @@ export class HttpError extends Error {
  * is one). A 401 is reported so the app can ask them to sign in; it still
  * throws, like any other failure.
  */
-export async function apiFetch(
-  path: string,
+export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  return apiFetchAt(`${apiBaseUrl}${path}`, init);
+}
+
+/** apiFetch to a full URL beside the lap API (analyzeUrl). */
+export async function apiFetchAt(
+  url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(url, {
     ...init,
     headers: {...(await authHeaders()), ...init?.headers},
   });
