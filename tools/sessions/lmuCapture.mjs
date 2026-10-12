@@ -26,9 +26,15 @@
 import {readdirSync, readFileSync} from 'node:fs';
 import {basename, join} from 'node:path';
 import {rows, run, sqlPath} from './duck.mjs';
+import {
+  channelSql,
+  channelsInfo,
+  eventList,
+  playerCols,
+  wheelSql,
+  wheels,
+} from './lmuCaptureChannels.mjs';
 
-const KELVIN = 273.15;
-const wheels = ['fl', 'fr', 'rl', 'rr'];
 // Rows this far either side of a window: lag() needs the row before, a lap
 // time comes from the first scoring row after its crossing, and lap distance
 // and path lateral need the scoring rows around each player row. Larger than
@@ -76,112 +82,9 @@ function clockOf(seconds) {
   const s = Math.floor(Number(seconds));
   if (!Number.isFinite(s)) return '';
   const pad = v => String(v).padStart(2, '0');
-  return `${pad(Math.floor(s / 3600) % 24)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
-}
-
-// Channels as [archive name, unit, column type, SQL over the player row p and
-// the computed lap distance, path lateral and edge]. Types are lmu.mjs's by unit.
-const channelSql = [
-  ['speed_kmh', 'km/h', 'DECIMAL(7,2)', 'p.v * 3.6'],
-  ['rpm', 'RPM', 'INTEGER', 'p.mEngineRPM'],
-  ['throttle_pct', '%', 'DECIMAL(5,1)', 'p.mFilteredThrottle * 100'],
-  ['brake_pct', '%', 'DECIMAL(5,1)', 'p.mFilteredBrake * 100'],
-  ['clutch_pct', '%', 'DECIMAL(5,1)', 'p.mFilteredClutch * 100'],
-  ['steer_pct', '%', 'DECIMAL(5,1)', 'p.mFilteredSteering * 100'],
-  ['throttle_pos_unfiltered', '%', 'DECIMAL(5,1)', 'p.mUnfilteredThrottle * 100'],
-  ['brake_pos_unfiltered', '%', 'DECIMAL(5,1)', 'p.mUnfilteredBrake * 100'],
-  ['lap_dist_m', 'm', 'DECIMAL(10,4)', 'lap_dist'],
-  ['lat_deg', 'deg', 'DECIMAL(11,7)', '60 + p.mPos_z * 8.9947e-6'],
-  ['lon_deg', 'deg', 'DECIMAL(11,7)', 'p.mPos_x * 1.7978e-5'],
-  ['path_lateral_m', 'm', 'DECIMAL(10,4)', 'path_lateral'],
-  ['track_edge_m', 'm', 'DECIMAL(10,4)', 'track_edge'],
-  ['fuel_l', 'L', 'DECIMAL(6,2)', 'p.mFuel'],
-  ['virtual_energy_pct', '%', 'DECIMAL(5,1)', 'p.mVirtualEnergy * 100'],
-  // mSoC is already 0-100, as the .duckdb's State of Charge.
-  ['so_c', '%', 'DECIMAL(5,1)', 'p.mSoC'],
-  // The .duckdb's Regen Rate is watts under a kW label (hybrid.mjs); FLOAT
-  // there too, since watts overflow the kW decimal.
-  ['regen_rate', 'kW', 'FLOAT', 'p.mRegen * 1000'],
-];
-const wheelSql = [
-  ['tyres_wear', '%', 'DECIMAL(5,1)', w => `p.${w}_mWear * 100`],
-  ['tyres_pressure', 'kPa', 'DECIMAL(6,1)', w => `p.${w}_mPressure`],
-  ['tyres_carcass_temp', 'C', 'DECIMAL(5,1)', w => `p.${w}_mTireCarcassTemperature - ${KELVIN}`],
-  [
-    'tyres_rubber_temp',
-    'C',
-    'DECIMAL(5,1)',
-    w =>
-      `(p.${w}_mTireInnerLayerTemperature_0 + p.${w}_mTireInnerLayerTemperature_1 + ` +
-      `p.${w}_mTireInnerLayerTemperature_2 + p.${w}_mTireCarcassTemperature) / 4 - ${KELVIN}`,
-  ],
-  ['tyres_temp_left', 'C', 'DECIMAL(5,1)', w => `p.${w}_mTireInnerLayerTemperature_0 - ${KELVIN}`],
-  ['tyres_temp_centre', 'C', 'DECIMAL(5,1)', w => `p.${w}_mTireInnerLayerTemperature_1 - ${KELVIN}`],
-  ['tyres_temp_right', 'C', 'DECIMAL(5,1)', w => `p.${w}_mTireInnerLayerTemperature_2 - ${KELVIN}`],
-];
-
-const playerCols = [
-  'mElapsedTime',
-  'mLapNumber',
-  'mLapStartET',
-  'mPos_x',
-  'mPos_z',
-  'mEngineRPM',
-  'mFilteredThrottle',
-  'mFilteredBrake',
-  'mFilteredClutch',
-  'mFilteredSteering',
-  'mUnfilteredThrottle',
-  'mUnfilteredBrake',
-  'mFuel',
-  'mVirtualEnergy',
-  'mSoC',
-  'mRegen',
-  'mGear',
-  'mCurrentSector',
-  'mLastImpactET',
-  ...wheels.flatMap(w => [
-    `${w}_mWear`,
-    `${w}_mPressure`,
-    `${w}_mTireCarcassTemperature`,
-    `${w}_mTireInnerLayerTemperature_0`,
-    `${w}_mTireInnerLayerTemperature_1`,
-    `${w}_mTireInnerLayerTemperature_2`,
-    `${w}_mSurfaceType`,
-    `${w}_mCompoundIndex`,
-  ]),
-];
-
-const eventList = [
-  ['lap', 1],
-  ['lap_time', 1],
-  ['sector1_time', 1],
-  ['sector2_through_time', 1],
-  ['in_pits', 1],
-  ['gear', 1],
-  ['impact', 1],
-  ['surface', 4],
-  ['tyres_compound', 4],
-  ['current_sector', 1],
-  ['yellow_flag', 1],
-  ['sector1_flag', 1],
-  ['sector2_flag', 1],
-  ['sector3_flag', 1],
-  ['minimum_path_wetness', 1],
-];
-
-function channelsInfo() {
-  return [
-    {source: 'mElapsedTime', name: 't', hz: 100, unit: 's', columns: ['t']},
-    ...channelSql.map(([name, unit]) => ({source: 'capture', name, hz: 100, unit, columns: [name]})),
-    ...wheelSql.map(([name, unit]) => ({
-      source: 'capture',
-      name,
-      hz: 100,
-      unit,
-      columns: wheels.map(w => `${name}_${w}`),
-    })),
-  ];
+  return `${pad(Math.floor(s / 3600) % 24)}:${pad(
+    Math.floor(s / 60) % 60,
+  )}:${pad(s % 60)}`;
 }
 
 /**
@@ -199,7 +102,9 @@ export function describeCapture(captureDir) {
   const files = chunks(captureDir);
   const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
   const P = `read_parquet(${fileList(files.player)})`;
-  const F = `(SELECT * FROM read_parquet(${fileList(files.field)}) WHERE mIsPlayer)`;
+  const F = `(SELECT * FROM read_parquet(${fileList(
+    files.field,
+  )}) WHERE mIsPlayer)`;
   const S = `read_parquet(${fileList(files.session)})`;
   const [row] = rows(
     ':memory:',
@@ -253,7 +158,13 @@ export function describeCapture(captureDir) {
       const ended = st.offT != null || Boolean(meta.endUtc);
       const end = st.offT ?? st.t1 + END_PAD_S;
       if (ended && end > from)
-        laps.push({lapNumber: lap, t0: from, t1: end, partial: true, lapTimeS: null});
+        laps.push({
+          lapNumber: lap,
+          t0: from,
+          t1: end,
+          partial: true,
+          lapTimeS: null,
+        });
       return {
         key: `${folder}#${st.k}`,
         ended,
@@ -288,7 +199,12 @@ function stretchInfo(meta, st) {
     startT: Number(st.t0),
     endT: Number(st.t1),
     channels: channelsInfo(),
-    events: eventList.map(([name, width]) => ({source: 'capture', name, unit: '', width})),
+    events: eventList.map(([name, width]) => ({
+      source: 'capture',
+      name,
+      unit: '',
+      width,
+    })),
   };
 }
 
@@ -298,7 +214,13 @@ function stretchInfo(meta, st) {
  * recording's start (info.startT) carry every state's first value, as the
  * .duckdb's do; any later window carries only changes inside it.
  */
-export function writeCaptureArchive(captureDir, info, {t0, t1}, samplesOut, eventsOut) {
+export function writeCaptureArchive(
+  captureDir,
+  info,
+  {t0, t1},
+  samplesOut,
+  eventsOut,
+) {
   const files = chunks(captureDir);
   const S0 = num(info.startT);
   const lo = num(Math.max(t0 - PAD_S, info.startT - PAD_S));
@@ -314,35 +236,55 @@ export function writeCaptureArchive(captureDir, info, {t0, t1}, samplesOut, even
     `round((p.t - ${S0}) * ${TICK_HZ})::BIGINT AS tick`,
     'p.t::DECIMAL(12,4) AS t',
     ...channelSql.map(([name, , type, sql]) => `(${sql})::${type} AS ${name}`),
-    ...wheelSql.flatMap(([name, , type, sql]) => wheels.map(w => `(${sql(w)})::${type} AS ${name}_${w}`)),
+    ...wheelSql.flatMap(([name, , type, sql]) =>
+      wheels.map(w => `(${sql(w)})::${type} AS ${name}_${w}`),
+    ),
   ];
   // State events: a row whose value differs from the row before. A source's
   // first row (no row before) is the recording's initial state, at its start.
   const states = (table, col, name, values) => {
     const v = values.map((x, i) => `${x} AS v${i + 1}`).join(', ');
-    const prev = values.map((x, i) => `lag(v${i + 1}) OVER (ORDER BY ${col}) AS q${i + 1}`).join(', ');
-    const changed = values.map((_, i) => `v${i + 1} IS DISTINCT FROM q${i + 1}`).join(' OR ');
-    const pad = [0, 1, 2, 3].map(i => (i < values.length ? `v${i + 1}::DOUBLE` : 'NULL::DOUBLE')).join(', ');
+    const prev = values
+      .map((x, i) => `lag(v${i + 1}) OVER (ORDER BY ${col}) AS q${i + 1}`)
+      .join(', ');
+    const changed = values
+      .map((_, i) => `v${i + 1} IS DISTINCT FROM q${i + 1}`)
+      .join(' OR ');
+    const pad = [0, 1, 2, 3]
+      .map(i => (i < values.length ? `v${i + 1}::DOUBLE` : 'NULL::DOUBLE'))
+      .join(', ');
     return `SELECT greatest(${col}, ${S0}) AS t, '${name}' AS name, ${pad} FROM (
-      SELECT *, ${prev} FROM (SELECT ${col}, ${v} FROM ${table} WHERE ${fromStart(table, col)}))
+      SELECT *, ${prev} FROM (SELECT ${col}, ${v} FROM ${table} WHERE ${fromStart(
+      table,
+      col,
+    )}))
       WHERE ${changed}`;
   };
-  const initial = (name, value) => `SELECT ${S0}, '${name}', ${value}, NULL, NULL, NULL`;
+  const initial = (name, value) =>
+    `SELECT ${S0}, '${name}', ${value}, NULL, NULL, NULL`;
 
   const sql = `
 SET threads TO 4;
-CREATE TEMP TABLE p0 AS SELECT mElapsedTime AS t, ${playerCols.filter(c => c !== 'mElapsedTime').join(', ')},
+CREATE TEMP TABLE p0 AS SELECT mElapsedTime AS t, ${playerCols
+    .filter(c => c !== 'mElapsedTime')
+    .join(', ')},
   sqrt(mLocalVel_x * mLocalVel_x + mLocalVel_y * mLocalVel_y + mLocalVel_z * mLocalVel_z) AS v
-  FROM read_parquet(${fileList(files.player)}) WHERE mElapsedTime >= ${lo} AND mElapsedTime < ${hi};
+  FROM read_parquet(${fileList(
+    files.player,
+  )}) WHERE mElapsedTime >= ${lo} AND mElapsedTime < ${hi};
 CREATE TEMP TABLE pl AS SELECT *, sum(seg) OVER (ORDER BY t) AS cum FROM (
   SELECT *, coalesce(0.5 * (v + lag(v) OVER (ORDER BY t)) * (t - lag(t) OVER (ORDER BY t)), 0) AS seg FROM p0);
 CREATE TEMP TABLE pn AS SELECT t, cum, lead(t) OVER (ORDER BY t) AS tn, lead(cum) OVER (ORDER BY t) AS cn, v FROM pl;
 CREATE TEMP TABLE f AS SELECT et, mTotalLaps AS lap, mLapDist AS d, mPathLateral AS lat, mTrackEdge AS edge,
   mLapStartET::DOUBLE AS ls, mLastLapTime AS llt, mCurSector1 AS s1, mCurSector2 AS s2, mInPits::INT AS pit
-  FROM read_parquet(${fileList(files.field)}) WHERE mIsPlayer AND et >= ${lo} AND et < ${hi};
+  FROM read_parquet(${fileList(
+    files.field,
+  )}) WHERE mIsPlayer AND et >= ${lo} AND et < ${hi};
 CREATE TEMP TABLE s AS SELECT mCurrentET AS t, mYellowFlagState AS y, mSectorFlag_0 AS f0, mSectorFlag_1 AS f1,
   mSectorFlag_2 AS f2, mMinPathWetness AS w
-  FROM read_parquet(${fileList(files.session)}) WHERE mCurrentET >= ${lo} AND mCurrentET < ${hi};
+  FROM read_parquet(${fileList(
+    files.session,
+  )}) WHERE mCurrentET >= ${lo} AND mCurrentET < ${hi};
 -- The player rows from the recording's start, and its crossings.
 CREATE TEMP TABLE pr AS SELECT *, lag(mLapNumber) OVER (ORDER BY t) AS plap,
   lag(mLastImpactET) OVER (ORDER BY t) AS pimp FROM pl WHERE t >= ${S0};
@@ -367,7 +309,9 @@ COPY (
     ASOF LEFT JOIN f fp ON p.t >= fp.et
     ASOF LEFT JOIN f fn ON p.t < fn.et
   ) p ORDER BY tick
-) TO ${sqlPath(samplesOut)} (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 9, ROW_GROUP_SIZE 100000);
+) TO ${sqlPath(
+    samplesOut,
+  )} (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 9, ROW_GROUP_SIZE 100000);
 COPY (
   SELECT * FROM (
     ${initial('lap_time', 0)}
@@ -380,10 +324,16 @@ COPY (
       ASOF LEFT JOIN f ON f.lap = c.lap AND c.ls <= f.et
     -- Sector times land at the lap's start plus the time, as the .duckdb's do.
     UNION ALL SELECT ls + s1, 'sector1_time', s1, NULL, NULL, NULL FROM (
-      SELECT ls, s1, lag(s1) OVER (ORDER BY et) AS q, et FROM f WHERE ${fromStart('f', 'et')})
+      SELECT ls, s1, lag(s1) OVER (ORDER BY et) AS q, et FROM f WHERE ${fromStart(
+        'f',
+        'et',
+      )})
       WHERE q IS NOT NULL AND s1 > 0 AND s1 IS DISTINCT FROM q
     UNION ALL SELECT ls + s2, 'sector2_through_time', s2, NULL, NULL, NULL FROM (
-      SELECT ls, s2, lag(s2) OVER (ORDER BY et) AS q, et FROM f WHERE ${fromStart('f', 'et')})
+      SELECT ls, s2, lag(s2) OVER (ORDER BY et) AS q, et FROM f WHERE ${fromStart(
+        'f',
+        'et',
+      )})
       WHERE q IS NOT NULL AND s2 > 0 AND s2 IS DISTINCT FROM q
     -- The .duckdb logs an impact as a 0.04 s true pulse, not its magnitude.
     UNION ALL SELECT greatest(mLastImpactET, ${S0}), 'impact', 1, NULL, NULL, NULL FROM pr
@@ -391,10 +341,22 @@ COPY (
     UNION ALL SELECT greatest(mLastImpactET, ${S0}) + 0.04, 'impact', 0, NULL, NULL, NULL FROM pr
       WHERE pimp IS NOT NULL AND mLastImpactET > 0 AND mLastImpactET IS DISTINCT FROM pimp
     UNION ALL ${states('pl', 't', 'gear', ['mGear'])}
-    UNION ALL ${states('pl', 't', 'surface', wheels.map(w => `${w}_mSurfaceType`))}
-    UNION ALL ${states('pl', 't', 'tyres_compound', wheels.map(w => `${w}_mCompoundIndex`))}
+    UNION ALL ${states(
+      'pl',
+      't',
+      'surface',
+      wheels.map(w => `${w}_mSurfaceType`),
+    )}
+    UNION ALL ${states(
+      'pl',
+      't',
+      'tyres_compound',
+      wheels.map(w => `${w}_mCompoundIndex`),
+    )}
     -- Zero-based with the pit lane in the sign bit; the .duckdb counts 1, 2, 0.
-    UNION ALL ${states('pl', 't', 'current_sector', ['((mCurrentSector & 2147483647) + 1) % 3'])}
+    UNION ALL ${states('pl', 't', 'current_sector', [
+      '((mCurrentSector & 2147483647) + 1) % 3',
+    ])}
     UNION ALL ${states('f', 'et', 'in_pits', ['pit'])}
     UNION ALL ${states('s', 't', 'yellow_flag', ['y'])}
     UNION ALL ${states('s', 't', 'sector1_flag', ['f1'])}

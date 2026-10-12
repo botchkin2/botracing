@@ -1,42 +1,37 @@
-# LMU capture adapter: WIP notes (kingpin/capture-adapter)
+# LMU capture adapter: notes (kingpin/capture-adapter)
 
-Status: investigation only. `lmuCapture.mjs`, its test and fixture are NOT written yet.
-No CPU-per-lap number measured on this branch. No parity run on this branch.
+`lmuCapture.mjs` (+ `lmuCaptureChannels.mjs`) builds lmu.mjs's archive from the tray's
+live capture. Test: `lmuCapture.test.mjs` on `fixtures/lmu-capture` (laps 3-4 of the
+3 Oct race, capture + the matching .duckdb archive slice).
 
-## Verified on the fixtures (lap-fixtures/capture + telemetry)
+## Contract (uploader `sync --live`)
 
-- The game's .duckdb spans one realtime period: file created at realtime entry
-  (session `mInRealtime` 0->1; metadata RecordingTime = wall clock then, SessionTime =
-  `mTimeOfDay` then, e.g. 75623.195 s = 21:00:23), first sample ~1.7-2 s later
-  (2 Oct: realtime 23.2, GPS Time 25.1975; 3 Oct: 4.8 vs 6.5275), last sample at
-  realtime exit after the finish (fs=2, garage): 2027.25/2027.4, 1903.52/1903.6, 421.12/421.2.
-- 2 Oct race (repair + penalty stops) has ONE .duckdb (stops are pit-lane, not garage),
-  so "one .duckdb per stint" does not hold here; split recordings on `mInRealtime`
-  transitions, not on pit stops. uploaded.json lists two sessionIds for that capture: unexplained.
-- Daytona capture starts 0.25 s after the .duckdb (0.4225 vs 0.1725).
-- After the 3 Oct race the capture continues 1903-3057 s at 50 Hz with mInRealtime=0: cut there.
-- Hypercar scales: .duckdb SoC = `mSoC` as is (already 0-100; scratch adapter's `*100` is WRONG);
-  Regen Rate = `mRegen * 1000` (W under a kW label; -51554..164946 in both). VE = mVirtualEnergy*100.
-- .duckdb rates: pedals 50 Hz, lat/lon/lap dist/path lateral/edge 10 Hz, fuel/VE/SoC 20 Hz,
-  carcass 5 Hz, wear/pressure/rubber 10 Hz, tread L/C/R 100 Hz. Events sit on a 0.0025 s
-  grid (surface, gear), finer than the capture's 100 Hz: off-track seconds cannot match exactly.
-- Initial events at file start: lap_time 0, sector1/2 0, impact false.
+- `describeCapture(dir)` -> `{stretches: [{key, ended, startMs, endMs, info, laps}]}`; one
+  stretch per mInRealtime-on run. `laps`: `{lapNumber, t0, t1, partial, lapTimeS}`, half-open,
+  first part [stretch start, first crossing) partial; trailing part listed once `ended`
+  (realtime off after it, or meta.json endUtc).
+- `writeCaptureArchive(dir, info, {t0, t1}, samplesOut, eventsOut)`: one DuckDB run.
+  `tick` = round((t - info.startT) * 400), so parts read through one glob equal one window
+  (checked: 3 Oct, 22 parts vs one window, sample/event rows and lap docs identical).
 
-## Scratch parity (scratchpad cap/, 3 Oct, capture trimmed to the .duckdb window, from the
-earlier scratch run, not rerun here)
+## Verified on the fixtures
 
-Laps 0-21 both sides. lapTime identical except partial L21 (23.337 vs 23.340).
-Differs: startTime (~2 s, recordedAt source), durationSec med 0.008 max 0.017,
-distanceM med 3 m max 5.5, pastEdgeSec med 0.08 max 0.17, maxSpeedAtM <=0.6 m,
-rubber temp <=0.3 C (approximated), pressures/temps 0.1, offTrackSec <=0.07 and
-L4 offtrack/clean flips (surface sampled at 100 Hz vs 400 Hz). Stints, pit visits,
-fuel/VE, excluded, consistency: not shown differing in that run, but not checked on 2 Oct or Daytona.
+- The game's .duckdb spans one realtime stretch (2 Oct race through pit-lane stops is one
+  file). The .duckdb's first sample is ~1.7 s after realtime entry; the capture's stretch starts at it.
+- Hypercar: SoC = `mSoC` as is, Regen = `mRegen * 1000` (match the .duckdb scale, Daytona).
+- The .duckdb clamps negative lap distance (rolling start, before the line) to ~0.001; the
+  adapter clamps at 0.
 
-## Plan (unbuilt)
+## Known differences from the .duckdb archive (parity runs, same windows)
 
-One DuckDB CLI call per window: temp tables for player [t0-1, t1), player field rows
-[t0-1, t1+1), session rows; lap distance = anchor mLapDist (or 0 at mLapStartET) +
-trapezoid speed integral partitioned by anchor (window-independent, so parts concatenate);
-path lateral/edge by ASOF prev/next lerp; state events by lag() change detection with
-an initial event at window start (lap_time initial 0, skipped when the window starts on a crossing);
-two COPYs + one info SELECT. All channels 100 Hz.
+- Not in the capture: weather (''), venue name (track = the scoring/layout name, so Daytona's
+  track.name differs; layout and trackId match), the setup's fill limit (null).
+  Daytona tankL: mFuelCapacity 110 vs setup 106.
+- tyres_rubber_temp is approximated (mean of inner layers and carcass): 0.2-0.4 C on GT3,
+  2-3.5 C on the Hypercar.
+- Sampling: the capture is ~100 Hz on its own phase, the .duckdb 10/20/50 Hz on another, so
+  values read at a lap boundary can differ by one sample (2 Oct: fuel 0.01 L, VE 0.08 % on
+  2 laps; pit stationary 0.2 s), and surface-based off-track seconds by <= 0.07 s.
+- analyze.mjs edge: a first segment under 5 s whose lap distance resets at its last tick is
+  trimmed to that tick (lapTicks), so it is not marked partial; the .duckdb's 10 Hz distance
+  hides it. Fixture windows start 9 s before the line.
