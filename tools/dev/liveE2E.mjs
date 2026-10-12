@@ -91,8 +91,11 @@ const poll = async () => {
   if (!res.ok) return;
   const body = await res.json();
   const n = body.lapCount ?? 0;
+  // Only an upload after the lap reached the disk counts: a rerun lands on the
+  // same session (the capture's own clock names it), laps already stored.
+  const updated = Date.parse(body.live?.updatedAt ?? '') || 0;
   for (let k = 1; k <= n && k <= lapAt.length; k++) {
-    if (seen.has(k)) continue;
+    if (seen.has(k) || updated < lapAt[k - 1]) continue;
     seen.set(k, Date.now() - lapAt[k - 1]);
     console.log(`${stamp()} lap ${k} in the app ${(seen.get(k) / 1000).toFixed(1)} s after the line (lapCount ${n}, best ${body.bestLapTime})`);
   }
