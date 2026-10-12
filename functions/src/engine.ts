@@ -19,6 +19,10 @@ export interface Engine {
     blockVersions: Record<string, number>,
   ): boolean;
   stampNewer(stored: unknown, mine: unknown): boolean;
+  staleNow(
+    session: Record<string, unknown>,
+    getDoc: (coll: string, id: string) => Promise<unknown>,
+  ): Promise<boolean>;
   analysisVersion: number;
   blockVersions: Record<string, number>;
 }
@@ -44,16 +48,19 @@ export function loadEngine(): Engine {
 }
 
 /**
- * Whether a stored session needs analysing again under the deployed code. An
- * engine that fails to load must not take the session route down with it:
- * the session reads as fresh, and the error is logged.
+ * Whether a stored session needs analysing again under the deployed code and
+ * today's curated track. An engine that fails to load must not take the
+ * session route down with it: the session reads as fresh, and the error is
+ * logged.
  */
-export function sessionStale(stamp: unknown): boolean {
+export async function sessionStale(
+  session: Record<string, unknown>,
+  getDoc: (coll: string, id: string) => Promise<unknown>,
+): Promise<boolean> {
   try {
-    const e = loadEngine();
-    return e.isStale(stamp, e.analysisVersion, e.blockVersions);
+    return await loadEngine().staleNow(session, getDoc);
   } catch (error) {
-    console.error('engine did not load', error);
+    console.error('staleness not known', error);
     return false;
   }
 }

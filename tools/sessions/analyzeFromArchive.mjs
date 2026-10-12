@@ -4,6 +4,7 @@
 // so the same call works from the stored archive in the cloud.
 import {createHash} from 'node:crypto';
 import {analysisStamp} from './versionKey.mjs';
+import {catalogStamp} from './catalogStamp.mjs';
 import {
   analysisVersion,
   blockVersions,
@@ -325,7 +326,12 @@ export function analyzeFromArchive({
     })),
     analysisVersion,
     // The rules this session was made under; store.mjs adds what it kept.
-    analysis: analysisStamp(analysisVersion, blockVersions),
+    // and the curated track it was cut at (catalogStamp.mjs): a curator's edit
+    // makes the session stale as a rule change does.
+    analysis: {
+      ...analysisStamp(analysisVersion, blockVersions),
+      catalog: catalogStamp(trackMap, boundaries),
+    },
     updatedAt: new Date().toISOString(),
   });
 

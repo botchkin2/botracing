@@ -9,16 +9,39 @@
 //   field           the stored field file: store.mjs keeps it and works the
 //                   traffic, class laps and result out of it again
 //   damage, LMU race length
-//                   only the PC's live capture had them: store.mjs keeps the
+//                   the capture extract the tray uploaded with the session
+//                   (captureExtract.mjs); without one, store.mjs keeps the
 //                   stored values (keepCapture.mjs) and the stamp says kept
 //
 // Track data is curated (tools/curate): this never writes a map or boundaries.
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {gunzipSync} from 'node:zlib';
+import {captureExtractPath, readCaptureExtract} from './captureExtract.mjs';
 import {analyzeFromArchive} from './analyzeFromArchive.mjs';
-import {trackMapVersion} from './analyze.mjs';
+import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
+import {catalogStamp} from './catalogStamp.mjs';
+import {isStale} from './versionKey.mjs';
 import {unpackState} from './layoutBoundaries.mjs';
 import {createStore} from './store.mjs';
+
+/**
+ * Whether a stored session needs analysing again now: the rules it was made
+ * under, and the curated track it was cut at against today's (the same map
+ * and boundaries analyzeStored would use). `getDoc(coll, id)` reads the store.
+ */
+export async function staleNow(session, getDoc) {
+  const trackId = session.trackId;
+  let trackMap = trackId ? await getDoc('tracks', trackId) : null;
+  if (trackMap && trackMap.mapVersion !== trackMapVersion) trackMap = null;
+  const packed = trackId ? await getDoc('trackBoundaries', trackId) : null;
+  return isStale(
+    session.analysis,
+    analysisVersion,
+    blockVersions,
+    catalogStamp(trackMap, packed ? unpackState(packed) : null),
+  );
+}
 
 export class AnalyzeError extends Error {
   constructor(status, message) {
@@ -91,6 +114,12 @@ export async function analyzeStored({
   if (trackMap && trackMap.mapVersion !== trackMapVersion) trackMap = null;
   const packed = trackId ? await store.getBoundaries(trackId) : null;
   const first = recordings[0].info;
+  // What the PC's capture gave, when the tray kept it (captureExtract.mjs):
+  // with it a repair and the LMU race length are worked out again, not kept.
+  const stored = await backend.getFile(captureExtractPath(owner, sessionId));
+  const extract = stored
+    ? readCaptureExtract(gunzipSync(stored).toString('utf8'))
+    : null;
   const out = analyze({
     ownerId: owner,
     sessionId,
@@ -98,13 +127,14 @@ export async function analyzeStored({
     trackMap,
     boundaries: packed ? unpackState(packed) : null,
     catalogOnly: true,
-    damage: null,
+    damage: extract?.damage ?? null,
     // iRacing's comes from the .ibt's session info, kept on the recording doc;
-    // LMU's from the capture, which store.mjs keeps from the stored session.
-    raceLength:
-      first.sim === 'iracing' && /^r/i.test(first.sessionType ?? '')
-        ? first.raceLength ?? null
-        : null,
+    // LMU's from the capture extract, else store.mjs keeps the stored one.
+    raceLength: !/^r/i.test(first.sessionType ?? '')
+      ? null
+      : first.sim === 'iracing'
+      ? first.raceLength ?? null
+      : extract?.raceLength ?? null,
     event: {series: session.series ?? null, eventId: session.eventId ?? null},
     fieldFor: () => ({field: null, reason: 'analysed from the store'}),
   });

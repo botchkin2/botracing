@@ -267,7 +267,11 @@ export const lmuApi = onRequest(
         }
         // Made under older rules: the app asks analyzeApi to run it again
         // (analysis on open, pit-wall thread 1 #4572).
-        if (!part) body.stale = sessionStale(body.analysis);
+        if (!part)
+          body.stale = await sessionStale(body, async (coll, id) => {
+            const doc = await admin.firestore().doc(`${coll}/${id}`).get();
+            return doc.exists ? doc.data() : null;
+          });
         res.status(200).json(body);
         return;
       }

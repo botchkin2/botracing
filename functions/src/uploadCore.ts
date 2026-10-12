@@ -40,7 +40,7 @@ const READABLE = [...TRACK_DATA, 'sessions', 'laps'];
 const UPDATABLE = ['sessions', 'recordings'];
 const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
 // Bucket folders (docs/STORAGE.md) and which carry the owner key as segment 2.
-const OWNER_SCOPED = ['traces', 'bands', 'field', 'slices'];
+const OWNER_SCOPED = ['traces', 'bands', 'field', 'slices', 'inputs'];
 
 const CONTENT_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
 // The sims tools/sessions writes under archive/{sim}/.
@@ -352,8 +352,7 @@ async function sessionOfFile(
   if (typeof dest !== 'string') return null;
   const [folder, , id] = dest.split('/');
   if (!id) return null;
-  if (folder === 'slices' || folder === 'bands' || folder === 'field')
-    return id;
+  if (['slices', 'bands', 'field', 'inputs'].includes(folder)) return id;
   if (folder === 'traces') {
     const lap = await deps.docs.get(docPath('laps', id));
     return typeof lap?.sessionId === 'string' ? lap.sessionId : null;

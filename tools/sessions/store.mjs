@@ -25,6 +25,7 @@ import {relabelField} from './irClasses.mjs';
 import {keepVisits, raceAfterSync} from './keepCapture.mjs';
 import {planBlock} from './planBlock.mjs';
 import {stampNewer, withKept} from './versionKey.mjs';
+import {captureExtractPath} from './captureExtract.mjs';
 import {guardedWriter} from './docShape.mjs';
 import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
@@ -298,6 +299,12 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   await Promise.all(workers);
   log(`  traces ${traces}`);
 
+  if (out.captureExtract)
+    await putGzip(
+      captureExtractPath(session.ownerId, session.id),
+      JSON.stringify(out.captureExtract),
+      'application/json',
+    );
   if (out.band) {
     await putGzip(
       session.band.path,
