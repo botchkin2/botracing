@@ -72,7 +72,8 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 ## 8. Tests
 
 - **Every `analysis/` function and every `model.ts` has a colocated test** (`x.ts` → `x.test.ts`). Test behavior at the boundaries the handoff names: 6, 7, 19 and 20 selected laps; empty sessions; no comparable laps; partial and pit laps; the ±0.10 s and ±0.30 s grid cut-offs.
-- Use small handwritten fixtures in the test file. Real session files go in `__fixtures__/` next to the test and stay under 50 KB.
+- Pure analysis logic may use small handwritten fixtures in the test file. Real session files go in `__fixtures__/` next to the test and stay under 50 KB.
+- **Anything that crosses the tray/API line is tested with real payloads, never handwritten ones** (Botkin, 2026-10-13: uploader failures from type errors a test could have caught are not acceptable). Heartbeat/status, upload, live parts and archive bodies come from real captures of the tray (LMU and iRacing), saved in the golden set (`tools/golden/`); saving captures there needs no ask. Each message has one schema that the server validator uses. A PR that changes either side of that line runs the real tray uploader code against the functions emulator on those captures. A reviewer blocks a handwritten fixture for a tray/API message. Why: #597, a server test sent `gameVersion: '1.2'`, a value the tray never sends, and every heartbeat was refused during a live drive.
 - Components get tests only when they hold logic that cannot move to a model. Prefer moving the logic.
 - A bug fix starts with a failing test that reproduces it.
 - `npm test`, `npm run lint` and `npx tsc --noEmit` pass before every PR. Never skip or weaken a test to make it pass; if a test is wrong, say why in the PR.
