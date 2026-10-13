@@ -426,9 +426,13 @@ const HEARTBEAT_FIELDS: Record<string, (v: unknown) => boolean> = {
     v === null ||
     (isObj(v) &&
       str(v.state, 32) &&
+      // The tray's recorder writes LMU's version as the integer the game
+      // reports (14200; 0 when it reports none): a string-only check refused
+      // every heartbeat sent while LMU recorded (0.1.9, thread 1 #4983).
       (v.gameVersion === null ||
         v.gameVersion === undefined ||
-        str(v.gameVersion, 64)) &&
+        str(v.gameVersion, 64) ||
+        (Number.isInteger(v.gameVersion) && count(v.gameVersion))) &&
       (v.layoutOk === null ||
         v.layoutOk === undefined ||
         typeof v.layoutOk === 'boolean') &&
