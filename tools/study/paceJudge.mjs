@@ -392,4 +392,43 @@ export function judgeF(session, {k = 3, spikeK = null, floorS = 0.2} = {}) {
   return result;
 }
 
-export const JUDGES = {a: judgeA, b: judgeB, c: judgeC, d: judgeD, e: judgeE, f: judgeF};
+// ---- (a0) #577 exactly (tyre/default-outliers, consistency.ts paceOutliers) ---
+
+/**
+ * A port of the shipped rule, line for line: stints under 5 laps are not
+ * judged; the Theil-Sen slope (6+ laps over a range of 5+) is kept only when
+ * it moves the pace across the stint by 2+ robust sigma of what is left, else
+ * the stint is flat; sigma pools the judged stints only; out at r >= max(3σ,
+ * 0.3 s); a run of 3+ slow laps stays. (a)/(a+) above are a simplified
+ * stand-in (gasket, thread 1 #4899).
+ */
+export function judgeA0(session) {
+  const laps = allLaps(session);
+  const result = new Map(laps.map(l => [l.id, {out: false, p: 0, why: ''}]));
+  if (laps.length < MIN_LAPS) return result;
+  const res = new Map();
+  for (const stint of session.stints) {
+    if (stint.laps.length < 5) continue;
+    const xs = stint.laps.map((_, i) => i);
+    const ys = stint.laps.map(l => l.lapTime);
+    const range = xs.length - 1;
+    let slope = xs.length >= 6 && range >= 5 ? theilSen(ys)[1] : 0;
+    const fitted = robustSigma(ys.map((y, i) => y - slope * i));
+    if (Math.abs(slope) * range < 2 * fitted) slope = 0;
+    const intercept = median(ys.map((y, i) => y - slope * i));
+    stint.laps.forEach((l, i) => res.set(l, l.lapTime - (intercept + slope * i)));
+  }
+  if (!res.size) return result;
+  const limit = Math.max(3 * robustSigma([...res.values()]), GUARD_S);
+  for (const stint of session.stints) {
+    const slow = stint.laps.map(l => res.has(l) && res.get(l) >= limit);
+    const kept = inRuns(slow);
+    stint.laps.forEach((l, i) => {
+      if (slow[i] && !kept.has(i))
+        result.set(l.id, {out: true, p: 1, why: `lap +${res.get(l).toFixed(2)} s >= ${limit.toFixed(2)}`});
+    });
+  }
+  return result;
+}
+
+export const JUDGES = {a0: judgeA0, a: judgeA, b: judgeB, c: judgeC, d: judgeD, e: judgeE, f: judgeF};
