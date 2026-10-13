@@ -125,7 +125,10 @@ test('writeArchive: samples have km/h and fuel, no VE column', {skip: !existsSyn
     const info = describe(GR86);
     const samples = join(dir, 's.parquet');
     const events = join(dir, 'e.parquet');
-    writeArchive(GR86, info, samples, events);
+    // The repair reads {rounded} from it (archiveRepair.mjs): a dropped return was
+    // 26 of 26 "archive repair" failures on 0.1.8/0.1.9 (thread 1 #4974).
+    const written = writeArchive(GR86, info, samples, events);
+    assert.ok(Array.isArray(written?.rounded), "writeArchive returns {rounded}");
     const rec = loadRecording(info, samples, events);
     assert.ok(rec.s.speed_kmh);
     assert.ok(rec.s.speed_kmh[0] >= 0);

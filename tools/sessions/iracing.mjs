@@ -454,7 +454,7 @@ export const ARCHIVE_SOURCES = [
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
   try {
-    writeArchiveOf(
+    return writeArchiveOf(
       readColumns(ibt, ARCHIVE_SOURCES),
       {
         ticks: info.ticks,
