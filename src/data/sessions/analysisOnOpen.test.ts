@@ -123,7 +123,10 @@ it('a live session runs again for each new lap, once per lap count', async () =>
 it('never two runs of one session at once, whatever the key', async () => {
   let release: () => void = () => {};
   const {d, calls} = deps({
-    post: () => new Promise(r => (release = () => r({status: 200})), void calls.push('post')),
+    post: () => {
+      calls.push('post');
+      return new Promise(r => (release = () => r({status: 200})));
+    },
   });
   const first = analyzeOnce('s1', d, 's1#3');
   expect(await analyzeOnce('s1', d, 's1#4')).toBe(false);
