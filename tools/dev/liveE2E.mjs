@@ -274,6 +274,25 @@ if (!noScreen) {
     }),
   );
 }
+// The recording itself reached Storage through the signed-URL PUT, the one
+// step the emulator gate cannot run (pit wall #5133). uploadLive writes the lap
+// docs only after every part is up, so a lap in the app already implies it;
+// this says it outright, and fails a run where no part was ever sent (every
+// part skipped by md5 would measure nothing).
+let partsSent = 0;
+try {
+  for (const m of readFileSync(watchLog, 'utf8').matchAll(
+    /live: (\d+) of \d+ parts sent/g,
+  ))
+    partsSent += Number(m[1]);
+} catch {
+  // No log: the lap verdicts already fail.
+}
+console.log(`recording parts sent to Storage: ${partsSent}`);
+if (partsSent === 0 && !alreadyStored)
+  verdicts.push({
+    problems: ['no recording part was sent to Storage (signed-URL PUT)'],
+  });
 const problems = alreadyStored
   ? [
       'capture already uploaded ("nothing new over the stored session"): this run measured nothing, use another capture',
