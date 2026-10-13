@@ -1,4 +1,5 @@
 import {BRAKE_RELEASED_PCT} from '@/src/analysis/cornerBoundaries';
+import {median} from '@/src/analysis/setStats';
 
 /** A brake pedal run shorter than this does not end the application. */
 const QUIET_M = 10;
@@ -31,7 +32,8 @@ export function brakeZone(
     return span ? [span] : [];
   });
   if (spans.length === 0) return null;
-  return [median(spans.map(s => s[0])), median(spans.map(s => s[1]))];
+  // Spans is not empty here, so both medians exist.
+  return [median(spans.map(s => s[0]))!, median(spans.map(s => s[1]))!];
 }
 
 function zoneOf(line: BrakeZoneLine, toM: number): [number, number] | null {
@@ -66,10 +68,4 @@ function zoneOf(line: BrakeZoneLine, toM: number): [number, number] | null {
   }
   if (peakRelease == null) return null;
   return [line.brakeAtM, peakRelease];
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }

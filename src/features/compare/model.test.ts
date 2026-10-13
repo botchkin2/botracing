@@ -1218,10 +1218,11 @@ describe('which lap owns the radar', () => {
 });
 
 describe('sectionStartM (D28 quick jump)', () => {
-  it('is where the section starts on the reference lap, and the lap start when unknown', () => {
+  it('is where the section starts on the reference lap, and null when unknown', () => {
     const entry = {1: 0, 2: 812.5, 3: 1644};
     expect(sectionStartM(entry, 2)).toBe(812.5);
-    expect(sectionStartM(entry, 9)).toBe(0);
+    expect(sectionStartM(entry, 1)).toBe(0);
+    expect(sectionStartM(entry, 9)).toBeNull();
   });
 });
 

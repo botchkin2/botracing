@@ -12,12 +12,12 @@ describe('columnStats', () => {
     });
   });
 
-  it('counts a single time as its own median, with no spread', () => {
+  it('counts a single time as its own median, with no spread shown', () => {
     expect(columnStats([7.5])).toEqual({
       n: 1,
       bestS: 7.5,
       medianS: 7.5,
-      spreadS: 0,
+      spreadS: null,
     });
   });
 

@@ -50,12 +50,14 @@ import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {lapTraffic, orderTags, trafficTags} from './lapTags';
 import {
+  paceSplit,
   setText,
   stintTrafficText,
   type TrafficRow,
   trafficRows,
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
+import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -71,7 +73,21 @@ export type Selection = {
   hl: string | null;
 };
 
-export type Fact = {label: string; value: string; best?: boolean};
+/**
+ * A head fact. `basis` names the laps it is over when that is not obvious
+ * ("session" for a fact of the whole session, "of 13" for a comparison over the
+ * selection): every number names its set (decision 2026-10-11).
+ */
+export type Fact = {
+  label: string;
+  value: string;
+  best?: boolean;
+  basis?: string;
+};
+
+/** The label as the head prints it: "Best · session", "Median · of 13". */
+export const factLabel = (f: Fact): string =>
+  f.basis ? `${f.label} · ${f.basis}` : f.label;
 
 export type Bar = {
   lapId: string;
@@ -265,14 +281,24 @@ function buildFuelUseCard(
  * field's traffic block is analysed. A session with no field says so, once.
  * The traffic median is gone: it was accented and told him nothing (triage #13).
  */
-export function trafficPaceFacts(session: SessionDetail): Fact[] {
-  const {traffic, field} = session;
+export function trafficPaceFacts(
+  session: SessionDetail,
+  basisLaps: Lap[],
+): Fact[] {
+  const {field} = session;
+  // Of the basis laps, like every other median on the screen and the stint
+  // headers' own clean median (one answer to "clean median"), not the stored
+  // whole-session value.
+  const traffic = paceSplit(basisLaps);
   if (traffic == null)
     return field == null
       ? [{label: 'Clean median', value: 'No other cars recorded'}]
       : [];
   const facts: Fact[] = [];
-  const value = setText(traffic.clean, session.comparableCount);
+  const value = setText(
+    traffic.clean,
+    basisLaps.filter(l => l.comparable).length,
+  );
   if (value) facts.push({label: 'Clean median', value});
   return facts;
 }
@@ -327,7 +353,8 @@ function statusFor(
       : 'Not comparable';
     return `Excluded · ${why}`;
   }
-  if (lap.timeS == null || medianS == null) return 'Comparable';
+  if (lap.timeS == null || medianS == null || n < MIN_COMPARISON_LAPS)
+    return 'Comparable';
   return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median of ${n}`;
 }
 
@@ -408,9 +435,10 @@ export function buildSessionModel(
   /** Which segments the desktop table and the optimal lap read (Settings). */
   sectionMode: SectionMode = 'turns',
 ): SessionScreenModel {
-  // The session's median is a fact (the head); every gap, bar and stint line is
-  // measured against the basis laps (the ticked ones), "of N".
-  const sessionMedianS = session.medianTimeS;
+  // Every median, gap, bar and stint line, the head's Median included, is of
+  // the basis laps (the ticked ones): one answer to "the median" on the screen
+  // (decisions/lap/2026-10-11-selection-and-numbers.md). Best, Laps and
+  // Comparable stay the session's facts.
   const basisLaps = basisOf(laps, new Set(selection.laps));
   const basis = new Set(basisLaps.map(l => l.id));
   const basisTimes = lapTimeStats(basisLaps);
@@ -574,7 +602,7 @@ export function buildSessionModel(
       : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
-  const trafficPace = trafficPaceFacts(session);
+  const trafficPace = trafficPaceFacts(session, basisLaps);
   const pitCard = buildPitCard(session.sessionType, laps, session);
   const fuelUse = buildFuelUseCard(session, laps);
   return {
@@ -609,8 +637,14 @@ export function buildSessionModel(
         label: 'Best',
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
+        // A fact of the session: it can be a lap outside the selection.
+        basis: 'session',
       },
-      {label: 'Median', value: timeOrDash(sessionMedianS)},
+      {
+        label: 'Median',
+        value: timeOrDash(median),
+        basis: basisTimes.n > 0 ? `of ${basisTimes.n}` : undefined,
+      },
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], session.stints.length),

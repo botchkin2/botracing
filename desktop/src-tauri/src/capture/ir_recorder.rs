@@ -13,8 +13,8 @@ use crate::capture::frame::View;
 use crate::capture::ir_session::{self, SessionMeta};
 use crate::capture::ir_store::{Cell, IrCapture};
 use crate::capture::irsdk::{Frame, Kind, Reader, Var};
-use crate::capture::store::iso;
-use serde_json::Value;
+use crate::capture::store::{iso, write_json};
+use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -28,13 +28,21 @@ const FIELD_EVERY_MS: u64 = 200;
 const INFO_EVERY_MS: u64 = 500;
 /// The map is checked for a sim that went away or restarted this often.
 const ALIVE_EVERY_MS: u64 = 1_000;
+/// status-iracing.json is rewritten on a change, and at least this often, so
+/// the uploader can tell a live recorder from a stale file (as recorder.rs).
+const STATUS_MS: u64 = 30_000;
+/// How long after the player's Lap changes the lap's chunk is cut (seconds,
+/// sim clock). iRacing publishes LapLastLapTime up to 0.85 s after Lap changes
+/// (9 Oct Sebring .ibt), and the adapter waits up to 3 s for it
+/// (tools/sessions/iracing.mjs lapCrossings): the chunk must carry it.
+const LAP_CUT_AFTER_S: f64 = 3.1;
 
 /// The player car, one row per tick. What the .ibt adapter reads
 /// (tools/sessions/iracing.mjs CHANNELS) plus what only live data or the
 /// screens need. A variable the car does not have is simply not a column.
 pub const PLAYER: &[&str] = &[
     "SessionTime", "SessionNum", "Speed", "Throttle", "ThrottleRaw", "Brake", "BrakeRaw",
-    "Clutch", "SteeringWheelAngle", "RPM", "Gear", "LapDist", "LapDistPct", "Lap",
+    "Clutch", "SteeringWheelAngle", "SteeringWheelAngleMax", "RPM", "Gear", "LapDist", "LapDistPct", "Lap",
     "LapCompleted", "LapLastLapTime", "LapBestLapTime", "LapCurrentLapTime", "Lat", "Lon",
     "Alt", "FuelLevel", "OnPitRoad", "PlayerCarInPitStall", "PlayerTrackSurface",
     "PlayerTrackSurfaceMaterial", "SessionFlags", "PlayerCarPosition",
@@ -60,18 +68,46 @@ pub const SESSION: &[&str] = &[
     "WeatherDeclaredWet", "Skies", "WindVel", "WindDir", "RelativeHumidity",
 ];
 
-/// What the menu shows about this recorder.
+/// What the menu shows about this recorder, and what it writes to
+/// `<root>/status-iracing.json` for the uploader. `session_dir` is the open
+/// capture's folder name relative to the root: the heartbeat is served without
+/// sign-in, so no user path leaves the PC.
 #[derive(Clone, Debug, PartialEq)]
 pub struct IrStatus {
     /// no-sim | waiting | recording | error
     pub state: &'static str,
     pub reason: String,
+    pub session_dir: Option<String>,
+    /// When a chunk was last on disk (not when it was cut).
+    pub last_chunk_at: Option<String>,
+    /// When the chunk that ends at the player's last Lap change was on disk: a
+    /// finished lap is readable from then (live laps, pit-wall thread 66).
+    pub last_lap_at: Option<String>,
     pub capture_bytes: u64,
 }
 
 impl IrStatus {
     pub fn new() -> IrStatus {
-        IrStatus { state: "no-sim", reason: String::new(), capture_bytes: 0 }
+        IrStatus {
+            state: "no-sim",
+            reason: String::new(),
+            session_dir: None,
+            last_chunk_at: None,
+            last_lap_at: None,
+            capture_bytes: 0,
+        }
+    }
+
+    fn json(&self, now: u64) -> Value {
+        json!({
+            "state": self.state,
+            "reason": self.reason,
+            "sessionDir": self.session_dir,
+            "lastChunkAt": self.last_chunk_at,
+            "lastLapAt": self.last_lap_at,
+            "captureBytes": self.capture_bytes,
+            "updatedAt": iso(now),
+        })
     }
 }
 
@@ -135,6 +171,9 @@ struct Open<V> {
     field: Vec<Var>,
     session: Vec<Var>,
     gate: Vec<Var>,
+    /// The player's Lap and SessionTime, for the lap-end cut.
+    lap: Option<Var>,
+    time: Option<Var>,
 }
 
 /// Whether the player is on track and not watching a replay: only then is a
@@ -167,6 +206,13 @@ pub struct IrRecorder<S: IrSource> {
     last_info_ms: u64,
     last_alive_ms: u64,
     updates: i64,
+    /// The player's Lap in the open capture's last recorded frame.
+    last_lap: Option<i32>,
+    /// When (sim clock) the chunk that holds the last Lap change is cut.
+    cut_due: Option<f64>,
+    /// Lap-end chunks handed to the writer and not yet on disk.
+    laps_pending: usize,
+    status_written: Option<u64>,
     pub status: IrStatus,
 }
 
@@ -187,6 +233,10 @@ impl<S: IrSource> IrRecorder<S> {
             last_info_ms: 0,
             last_alive_ms: 0,
             updates: 0,
+            last_lap: None,
+            cut_due: None,
+            laps_pending: 0,
+            status_written: None,
             status: IrStatus::new(),
         }
     }
@@ -195,19 +245,74 @@ impl<S: IrSource> IrRecorder<S> {
         &mut self.src
     }
 
-    fn say(&mut self, state: &'static str, reason: &str) {
-        self.status.state = state;
-        self.status.reason = reason.to_string();
+    /// Applies a change to the status; the file is rewritten when anything
+    /// in it changed, or when it is STATUS_MS old.
+    fn set(&mut self, ms: u64, change: impl FnOnce(&mut IrStatus)) {
+        let before = self.status.clone();
+        change(&mut self.status);
         self.status.capture_bytes = self.cap.as_ref().map_or(0, |c| c.bytes);
+        self.status.session_dir = self
+            .cap
+            .as_ref()
+            .and_then(|c| c.dir.file_name())
+            .map(|n| n.to_string_lossy().into_owned());
+        let due = self.status_written.is_none_or(|at| ms.saturating_sub(at) >= STATUS_MS);
+        if before != self.status || due {
+            let _ = std::fs::create_dir_all(&self.root);
+            let _ = write_json(&self.root.join("status-iracing.json"), &self.status.json(ms));
+            self.status_written = Some(ms);
+        }
+    }
+
+    fn say(&mut self, ms: u64, state: &'static str, reason: &str) {
+        self.set(ms, |s| {
+            s.state = state;
+            s.reason = reason.to_string();
+        });
+    }
+
+    /// What the writer finished: lastChunkAt (and lastLapAt once a lap-end
+    /// chunk is among it) set, or the error state. False on an error.
+    fn chunks_written(&mut self, ms: u64, written: Result<u64, String>) -> bool {
+        match written {
+            Ok(bytes) if bytes > 0 => {
+                // The writer finishes chunks in order: a lap-end chunk handed
+                // over before this poll is on disk once anything is.
+                let lap = std::mem::take(&mut self.laps_pending) > 0;
+                self.set(ms, |s| {
+                    s.last_chunk_at = Some(iso(ms));
+                    if lap {
+                        s.last_lap_at = Some(iso(ms));
+                    }
+                });
+                true
+            }
+            Ok(_) => {
+                self.set(ms, |_| {});
+                true
+            }
+            Err(e) => {
+                self.say(ms, "error", &format!("could not write: {e}"));
+                false
+            }
+        }
+    }
+
+    /// A new capture counts its own laps: its first frame is not a crossing.
+    fn reset_laps(&mut self) {
+        self.last_lap = None;
+        self.cut_due = None;
+        self.laps_pending = 0;
     }
 
     /// Finishes the open capture (endUtc) and forgets the session.
     fn finish(&mut self, ms: u64) {
         if let Some(mut cap) = self.cap.take() {
-            if let Err(e) = cap.close(ms) {
-                self.say("error", &format!("could not write: {e}"));
-            }
+            // close waits for the writer, so a pending lap-end chunk is on disk.
+            let closed = cap.close(ms);
+            self.chunks_written(ms, closed);
         }
+        self.reset_laps();
         self.key = None;
         self.info_seen = None;
         self.last_tick = None;
@@ -227,23 +332,24 @@ impl<S: IrSource> IrRecorder<S> {
                 self.drop_sim(ms);
             }
             if self.status.state != "error" {
-                self.say("no-sim", "");
+                self.say(ms, "no-sim", "");
             }
             return NO_SIM;
         }
         if self.open.is_none() {
             let Ok(mut view) = self.src.open() else {
-                self.say("waiting", "");
+                self.say(ms, "waiting", "");
                 return WAITING;
             };
             let Some(reader) = Reader::open(&mut view) else {
                 // The map is zero-filled until a car is on track.
-                self.say("waiting", "");
+                self.say(ms, "waiting", "");
                 return WAITING;
             };
             let (player, field, session) =
                 (pick(&reader, PLAYER), pick(&reader, FIELD), pick(&reader, SESSION));
             let gate = pick(&reader, &["IsOnTrack", "IsReplayPlaying"]);
+            let (lap, time) = (reader.var("Lap").cloned(), reader.var("SessionTime").cloned());
             self.open = Some(Open {
                 view,
                 reader,
@@ -251,6 +357,8 @@ impl<S: IrSource> IrRecorder<S> {
                 field,
                 session,
                 gate,
+                lap,
+                time,
             });
             self.last_alive_ms = ms;
             self.last_info_ms = 0;
@@ -260,7 +368,7 @@ impl<S: IrSource> IrRecorder<S> {
             let alive = self.open.as_mut().is_some_and(|o| o.reader.alive(&mut o.view));
             if !alive {
                 self.drop_sim(ms);
-                self.say("waiting", "");
+                self.say(ms, "waiting", "");
                 return WAITING;
             }
         }
@@ -268,14 +376,44 @@ impl<S: IrSource> IrRecorder<S> {
             self.last_info_ms = ms;
             self.read_session_text(ms);
         }
-        let Some(open) = self.open.as_mut() else { return WAITING };
-        let Some(cap) = self.cap.as_mut() else {
+        if self.open.is_none() {
+            return WAITING;
+        }
+        if self.cap.is_none() {
             // No complete session text yet: nothing to record into.
-            self.say("waiting", "");
+            self.say(ms, "waiting", "");
             return POLL;
+        }
+        let (recorded, cut) = self.record_frame(ms);
+        if let Some(written) = cut {
+            // Counted after what the cut's flush reported: those bytes are
+            // earlier chunks, not the lap's.
+            if !self.chunks_written(ms, written) {
+                return POLL;
+            }
+            self.laps_pending += 1;
+        }
+        // On every poll, frame or not: a lap's chunk on disk is known within a
+        // poll, and a failed write at once.
+        let Some(cap) = self.cap.as_mut() else { return POLL };
+        let written = if cap.due(ms, self.chunk_ms) { cap.flush(ms) } else { cap.written() };
+        if !self.chunks_written(ms, written) {
+            return POLL;
+        }
+        if recorded {
+            self.say(ms, "recording", "");
+        }
+        POLL
+    }
+
+    /// Reads the sim's next tick into the open capture. Returns whether a row
+    /// was kept, and the result of the lap-end cut if this tick made one.
+    fn record_frame(&mut self, ms: u64) -> (bool, Option<Result<u64, String>>) {
+        let (Some(open), Some(cap)) = (self.open.as_mut(), self.cap.as_mut()) else {
+            return (false, None);
         };
         let Some(frame) = open.reader.frame(&mut open.view, self.last_tick) else {
-            return POLL;
+            return (false, None);
         };
         if let Some(prev) = self.last_tick {
             let gap = frame.tick.wrapping_sub(prev);
@@ -287,8 +425,25 @@ impl<S: IrSource> IrRecorder<S> {
         // Menus and replays are not recorded. The session stays open, so a
         // pause never starts a new session folder.
         if !on_track(&frame, &open.gate) {
-            return POLL;
+            return (false, None);
         }
+        // The player's Lap changed: the lap that ended is cut into a chunk
+        // LAP_CUT_AFTER_S later, so it is on disk within a write instead of up
+        // to a minute later. The frame at the due time opens the next chunk.
+        let time = open.time.as_ref().and_then(|v| frame.f64(v, 0));
+        if let (Some(lap), Some(t)) = (open.lap.as_ref().and_then(|v| frame.i32(v, 0)), time) {
+            if self.last_lap.is_some_and(|prev| prev != lap) {
+                self.cut_due = Some(t + LAP_CUT_AFTER_S);
+            }
+            self.last_lap = Some(lap);
+        }
+        let cut = match (self.cut_due, time) {
+            (Some(due), Some(t)) if t >= due => {
+                self.cut_due = None;
+                Some(cap.flush(ms))
+            }
+            _ => None,
+        };
         let player: Vec<&Var> = open.player.iter().collect();
         let mut row = cells(&frame, &player, 0);
         row.push(("wall_ms".into(), Cell::I64(ms as i64)));
@@ -324,14 +479,7 @@ impl<S: IrSource> IrRecorder<S> {
             self.updates += 1;
             cap.count("fieldUpdates", 1);
         }
-        if cap.due(ms, self.chunk_ms) {
-            if let Err(e) = cap.flush(ms) {
-                self.say("error", &format!("could not write: {e}"));
-                return POLL;
-            }
-        }
-        self.say("recording", "");
-        POLL
+        (true, cut)
     }
 
     /// A new or changed session text: a new session opens a new capture.
@@ -375,8 +523,9 @@ impl<S: IrSource> IrRecorder<S> {
                     self.key = Some(key);
                     self.last_field_ms = 0;
                     self.updates = 0;
+                    self.reset_laps();
                 }
-                Err(e) => self.say("error", &format!("could not write: {e}")),
+                Err(e) => self.say(ms, "error", &format!("could not write: {e}")),
             }
         } else if let Some(cap) = self.cap.as_mut() {
             // Same session, text changed (a driver joined): the cars list.
@@ -392,7 +541,7 @@ impl<S: IrSource> IrRecorder<S> {
     /// Finishes the open capture on quit.
     pub fn shutdown(&mut self, ms: u64) {
         self.drop_sim(ms);
-        self.say("no-sim", "");
+        self.say(ms, "no-sim", "");
     }
 }
 
@@ -481,6 +630,16 @@ mod tests {
         m[at + 56] = on_track as u8;
         m[at + 57] = replay as u8;
         put(m, 48 + slot * 16, t);
+    }
+
+    /// As `frame`, on lap `lap`.
+    fn frame_on_lap(m: &mut [u8], t: i32, lap: i32) {
+        frame(m, t, [0.1, 0.2, -1.0, 0.4]);
+        put(m, BUF0 + (t as usize % 3) * BUF_LEN + 4, lap);
+    }
+
+    fn status_file(root: &std::path::Path) -> Value {
+        serde_json::from_str(&std::fs::read_to_string(root.join("status-iracing.json")).unwrap()).unwrap()
     }
 
     struct Src(Rc<RefCell<Sim>>);
@@ -585,9 +744,10 @@ mod tests {
         (rec, sim, root)
     }
 
+    /// The capture folders under the root (status-iracing.json sits beside them).
     fn captures(root: &PathBuf) -> Vec<PathBuf> {
         let mut v: Vec<_> = std::fs::read_dir(root)
-            .map(|d| d.flatten().map(|e| e.path()).collect())
+            .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
             .unwrap_or_default();
         v.sort();
         v
@@ -715,6 +875,89 @@ mod tests {
         assert_eq!(captures(&root).len(), 2);
         let first = std::fs::read_to_string(captures(&root)[0].join("meta.json")).unwrap();
         assert!(!first.contains("\"endUtc\": null"), "the first is finished: {first}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_lap_change_cuts_the_lap_into_its_own_chunk_and_says_when_it_is_on_disk() {
+        let (mut rec, sim, root) = setup("lapcut", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        // Lap 3 for ticks 1 to 10; lap 4 from tick 11 (session time t / 60 s).
+        let lap_of = |t: i32| if t <= 10 { 3 } else { 4 };
+        let due = 11.0 / 60.0 + LAP_CUT_AFTER_S;
+        // The first tick at or past the crossing + 3.1 s opens the next chunk.
+        let first_after = (1..).find(|t| *t as f64 / 60.0 >= due).unwrap();
+        for t in 1..first_after {
+            frame_on_lap(&mut sim.borrow_mut().mem, t, lap_of(t));
+            rec.tick(ms);
+            ms += 17;
+        }
+        assert_eq!(rec.status.last_lap_at, None, "not cut before the lap time is published");
+        assert!(!captures(&root)[0].join("player-0000.parquet").exists());
+        frame_on_lap(&mut sim.borrow_mut().mem, first_after, 4);
+        rec.tick(ms);
+        // The writer is a thread: polls without a new tick pick its result up.
+        for _ in 0..200 {
+            if rec.status.last_lap_at.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+            ms += 4;
+            rec.tick(ms);
+        }
+        assert!(rec.status.last_lap_at.is_some(), "the lap-end chunk never reached the disk");
+        let dir = captures(&root).remove(0);
+        let (n, _) = rows(&dir.join("player-0000.parquet"));
+        assert_eq!(n, (first_after - 1) as usize, "the chunk ends just before the due tick");
+        let status = status_file(&root);
+        assert_eq!(status["lastLapAt"], rec.status.last_lap_at.clone().unwrap());
+        assert_eq!(status["lastChunkAt"], rec.status.last_lap_at.clone().unwrap());
+        rec.shutdown(ms);
+        let meta = std::fs::read_to_string(dir.join("meta.json")).unwrap();
+        assert!(meta.contains("\"chunks\": 2"), "{meta}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_first_frame_of_a_capture_is_not_a_crossing() {
+        let (mut rec, sim, root) = setup("lapfirst", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        // Lap 7 from the first frame, for 5 s of sim time: past any cut due.
+        for t in 1..=300 {
+            frame_on_lap(&mut sim.borrow_mut().mem, t, 7);
+            rec.tick(ms);
+            ms += 17;
+        }
+        rec.shutdown(ms);
+        let meta = std::fs::read_to_string(captures(&root)[0].join("meta.json")).unwrap();
+        assert!(meta.contains("\"chunks\": 1"), "{meta}");
+        assert_eq!(rec.status.last_lap_at, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_status_file_names_the_capture_while_recording() {
+        let (mut rec, sim, root) = setup("status", TEXT);
+        let mut ms = 1_700_000_000_000u64;
+        for t in 1..=5 {
+            frame(&mut sim.borrow_mut().mem, t, [0.1, 0.2, -1.0, 0.4]);
+            rec.tick(ms);
+            ms += 17;
+        }
+        let dir = captures(&root).remove(0);
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let status = status_file(&root);
+        assert_eq!(status["state"], "recording");
+        assert_eq!(status["sessionDir"], name.as_str());
+        assert_eq!(status["lastLapAt"], Value::Null);
+        for key in ["reason", "lastChunkAt", "captureBytes", "updatedAt"] {
+            assert!(status.get(key).is_some(), "{key} in {status}");
+        }
+        rec.shutdown(ms);
+        let status = status_file(&root);
+        assert_eq!(status["state"], "no-sim");
+        assert_eq!(status["sessionDir"], Value::Null);
+        assert!(status["lastChunkAt"].is_string(), "the close wrote the last chunk: {status}");
         let _ = std::fs::remove_dir_all(&root);
     }
 

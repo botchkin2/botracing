@@ -2,6 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 // Adapters are internal to data/; tests may reach them to build real shapes.
 import {toLaps, toSessionDetail} from '@/src/data/sessions/adapters';
+import type {Lap} from '@/src/data/sessions';
 
 import fixture from './__fixtures__/roadAtlantaRace.json';
 import {
@@ -30,8 +31,8 @@ describe('buildSessionModel', () => {
     expect(m.facts).toEqual([
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},
-      {label: 'Best', value: '1:20.763', best: true},
-      {label: 'Median', value: '1:21.915'},
+      {label: 'Best', value: '1:20.763', best: true, basis: 'session'},
+      {label: 'Median', value: '1:21.915', basis: 'of 16'},
       {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });
@@ -316,35 +317,51 @@ describe('fuel and Virtual Energy rows', () => {
 
 describe('trafficPaceFacts', () => {
   const field = {gridId: 'g'} as unknown as typeof session.field;
-  const set = (laps: number, medianS: number | null) => ({laps, medianS});
-  const withTraffic = (
-    clean: ReturnType<typeof set>,
-    traffic = set(0, null),
-  ) => ({...session, field, traffic: {v: 2, clean, traffic}});
+  const traffic = (aheadS: number) => ({
+    trafficAheadS: aheadS,
+    passesSufferedAll: 0,
+    blueFlagS: 0,
+    battleS: 0,
+    overtakes: [],
+  });
+  // A lap: its time, and its traffic block (null = no field recorded).
+  const lap = (timeS: number, aheadS: number | null, comparable = true) =>
+    ({
+      timeS,
+      comparable,
+      traffic: aheadS == null ? null : traffic(aheadS),
+    } as unknown as Lap);
+  const clean = [lap(81, 0), lap(82, 0), lap(83, 0), lap(84, 0)];
 
   it('says so when the session has no field', () => {
-    expect(trafficPaceFacts(session)).toEqual([
+    expect(trafficPaceFacts(session, [lap(81, null)])).toEqual([
       {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });
 
   it('is left out for a field not yet analysed for traffic', () => {
-    expect(trafficPaceFacts({...session, field})).toEqual([]);
+    expect(trafficPaceFacts({...session, field}, [lap(81, null)])).toEqual([]);
   });
 
-  it('shows the clean median with the laps behind it, and no traffic median', () => {
-    const s = withTraffic(set(12, 81.5), set(4, 83));
-    expect(trafficPaceFacts(s)).toEqual([
-      {
-        label: 'Clean median',
-        value: `1:21.500 · 12 of ${session.comparableCount} laps`,
-      },
+  it('is the clean median of the basis laps, with how many of them', () => {
+    const laps = [...clean, lap(90, 6), lap(91, 6)];
+    expect(trafficPaceFacts({...session, field}, laps)).toEqual([
+      {label: 'Clean median', value: '1:22.500 · 4 of 6 laps'},
+    ]);
+    // Drop a clean lap from the basis and the head moves with it.
+    expect(trafficPaceFacts({...session, field}, laps.slice(1))).toEqual([
+      {label: 'Clean median', value: '1:23.000 · 3 of 5 laps'},
     ]);
   });
 
   it('leaves a set out under the lap floor', () => {
-    const s = withTraffic(set(2, null), set(1, null));
-    expect(trafficPaceFacts(s)).toEqual([]);
+    expect(
+      trafficPaceFacts({...session, field}, [
+        lap(81, 0),
+        lap(82, 0),
+        lap(90, 6),
+      ]),
+    ).toEqual([]);
   });
 });
 

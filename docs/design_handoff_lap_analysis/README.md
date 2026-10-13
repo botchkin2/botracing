@@ -331,7 +331,7 @@ Two fonts: **IBM Plex Sans Condensed** (400, 500, 600) and **IBM Plex Mono** (40
   - The highlighted row gets accentTint. Tapping a row highlights that lap.
 - **20+ laps: dot strips.**
   - One strip per measure: time in corner, brake point, min speed, full throttle.
-  - Header shows the label, unit, "med X · p10–90 A–B", and the min and max at the ends of the axis.
+  - Header shows the label, unit, "med X · IQR W" (the one spread: p75 minus p25), and the min and max at the ends of the axis.
   - Dots: others r 2.8 in `#6b737c`; the reference r 4.2 in white; the highlighted lap r 4.2 in lap.1. Dots at the same value stack alternately up and down in 5 pt steps.
   - The brake point axis is flipped so left means earlier.
   - Tapping a dot highlights that lap; a line under the strips gives that lap's four values.

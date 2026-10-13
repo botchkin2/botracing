@@ -58,6 +58,7 @@ import {
   WRAP_M,
 } from './neighbours';
 import {isCompound} from '@/src/data/sessions/corners';
+import {median} from '@/src/analysis/setStats';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -547,13 +548,6 @@ export type CompareInputs = {
 const MAP_STRIDE = 4;
 const CORNER_NEAR_M = 180;
 
-function median(xs: number[]): number | null {
-  if (xs.length === 0) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
 // The start/finish line, solid and labelled, when the window runs past it
 // (the blank lead-in before the lap, or past its end).
 function lineMarks(
@@ -665,13 +659,14 @@ export function cornerPlace(
 
 /**
  * Where a section starts on the reference lap, in metres: the playback cursor's
- * jump target (D28). An unknown section starts at the lap's start.
+ * jump target (D28). Null for a section with no known start: no jump, no
+ * distance shown, never 0 m.
  */
 export function sectionStartM(
   sectionEntryM: Record<number, number>,
   n: number,
-): number {
-  return sectionEntryM[n] ?? 0;
+): number | null {
+  return sectionEntryM[n] ?? null;
 }
 
 /**
@@ -686,7 +681,8 @@ export function openingCursorM(
   sectionEntryM: Record<number, number>,
 ): number {
   if (cursorM != null) return cursorM;
-  return corner == null ? 0 : sectionStartM(sectionEntryM, corner);
+  // A section with no known start opens at the lap's start: a playhead has to be somewhere.
+  return (corner == null ? null : sectionStartM(sectionEntryM, corner)) ?? 0;
 }
 
 /** Within this many metres of its apex the cursor is "at the apex". */

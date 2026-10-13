@@ -34,6 +34,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
+import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {
   beatKey,
@@ -56,7 +57,7 @@ import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
-import {decide, retryDelayMin} from './trigger.mjs';
+import {decide, decideLive, retryDelayMin} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
@@ -72,7 +73,16 @@ const local = process.env.LOCALAPPDATA || homedir();
 const home = process.env.LAP_UPLOADER_HOME || resolve(local, 'lap-uploader');
 const statePath = resolve(home, 'state.json');
 const logPath = resolve(home, 'watch.log');
-const recorderStatus = resolve(local, 'lap-capture', 'status.json');
+// The capture root: LAP_CAPTURE, as the tray's recorder and sync.mjs read it.
+const captureRoot = process.env.LAP_CAPTURE || resolve(local, 'lap-capture');
+// The LMU recorder's status (the heartbeat shows it); each sim's live laps
+// read its own recorder's (adapter watcher.recorderStatus).
+const recorderStatus = resolve(captureRoot, 'status.json');
+const recorderStatusOf = sim =>
+  resolve(captureRoot, sim.adapter.watcher.recorderStatus);
+// One live upload at most this long: a lap is ~0.2 MB, so anything longer is
+// stuck and is stopped; the next lap retries it (pit-wall thread 66).
+const LIVE_TIMEOUT_MS = 120_000;
 const dash = process.argv.indexOf('--');
 const syncArgs = dash < 0 ? [] : process.argv.slice(dash + 1);
 // sync.mjs's work folder (the tray passes its own with --work) and its record
@@ -90,6 +100,8 @@ const SIMS = (process.env.LAP_SIMS || 'lmu,iracing')
   .map(id => id.trim())
   .filter(Boolean)
   .map(id => ({id, adapter: adapter(id), folder: telemetryFolder(id)}));
+// The sims whose tray recorder says when a lap is on disk: live laps.
+const LIVE_SIMS = SIMS.filter(sim => sim.adapter.watcher.recorderStatus);
 const gameExeOf = ({adapter: a}) =>
   (a.watcher.gameExeEnv && process.env[a.watcher.gameExeEnv]) || a.gameExe;
 const LOCK_PIPE =
@@ -220,6 +232,65 @@ function syncArgsOf(sim) {
   ];
 }
 
+// Live laps: one capture's finished laps up as archive parts, while the sim
+// runs (sync.mjs --sim <sim> --live, so its live index lands in that sim's
+// work folder, where its game-file sync looks). Idle priority, no analysis on the PC (the session reads stale and is analysed
+// when opened), never stopped by the game guard (it exists for the game), but
+// stopped after LIVE_TIMEOUT_MS.
+function runLive(sim, sessionDir) {
+  return new Promise(done => {
+    const args = [
+      syncScript,
+      ...syncArgsOf(sim),
+      '--live',
+      resolve(captureRoot, sessionDir),
+    ];
+    const child = spawn(process.execPath, args, {windowsHide: true});
+    try {
+      setPriority(child.pid, constants.priority.PRIORITY_LOW);
+    } catch {
+      // Priority is a courtesy; the upload still runs.
+    }
+    const onData = chunk => {
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+        log(`  live | ${line}`);
+    };
+    child.stdout.setEncoding('utf8').on('data', onData);
+    child.stderr.setEncoding('utf8').on('data', onData);
+    const timer = setTimeout(() => {
+      try {
+        execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+          windowsHide: true,
+        });
+      } catch {
+        // Already gone.
+      }
+    }, LIVE_TIMEOUT_MS);
+    child.on('close', code => {
+      clearTimeout(timer);
+      done({code});
+    });
+  });
+}
+
+// The wait between ticks. While a recorder records, its status file is read
+// every LIVE_POLL_MS (one small file) and a new lastLapAt ends the wait, so a
+// lap starts up within seconds instead of up to a whole tick.
+const LIVE_POLL_MS = 2_000;
+async function nextTick() {
+  const sleep = ms => new Promise(wake => setTimeout(wake, ms));
+  const lastLaps = () =>
+    LIVE_SIMS.map(sim => readJson(recorderStatusOf(sim), null));
+  const first = lastLaps();
+  if (!first.some(st => st?.state === 'recording'))
+    return sleep(TICK_SEC * 1000);
+  for (let waited = 0; waited < TICK_SEC * 1000; waited += LIVE_POLL_MS) {
+    await sleep(LIVE_POLL_MS);
+    const now = lastLaps();
+    if (now.some((st, i) => st?.lastLapAt !== first[i]?.lastLapAt)) return;
+  }
+}
+
 function runSync(sim, onProgress, skipIds) {
   return new Promise(done => {
     const args = [syncScript, ...syncArgsOf(sim)];
@@ -297,7 +368,9 @@ async function main() {
   const watch = readJson(statePath, {});
   // State from before block versions kept only analysisVersion: no versionKey
   // reads as changed, so the first run with this code syncs everything once.
-  const currentKey = versionKey(analysisVersion, blockVersions);
+  // The archive repair's version too: a tray that brings a new repair syncs
+  // once on its first start (game closed, as every run), not at the next drive.
+  const currentKey = `${versionKey(analysisVersion, blockVersions)}|repair${ARCHIVE_REPAIR}`;
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
@@ -399,6 +472,40 @@ async function main() {
     }
     try {
       const running = gameRunning();
+      // Live laps first: a lap a sim's recorder put on disk goes up while that
+      // sim runs. Each sim keeps its own record (watch.live[sim]).
+      for (const sim of LIVE_SIMS) {
+        const live = ((watch.live ??= {})[sim.id] ??= {});
+        const recorder = readJson(recorderStatusOf(sim), null);
+        // The capture live laps were following has closed (the drive ended,
+        // the game quit): one last run sends its in-lap, game running or not.
+        if (live.dir && recorder?.sessionDir !== live.dir) {
+          log(`live ${sim.id}: ${live.dir} closed, sending its last lap`);
+          const r = await runLive(sim, live.dir);
+          log(`live ${sim.id}: exit ${r.code}`);
+          if (r.code === 0) live.dir = null;
+          save();
+        }
+        if (!running || !exeRunning(gameExeOf(sim))) continue;
+        const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
+        const plan = decideLive({
+          gameRunning: true,
+          lastLapAtMs,
+          lastLiveAtMs: live.lastLapAtMs ?? null,
+          liveBusy: false,
+        });
+        if (plan.run && recorder?.sessionDir) {
+          log(`live ${sim.id}: ${plan.reason} (${recorder.sessionDir})`);
+          const startedMs = Date.now();
+          const r = await runLive(sim, recorder.sessionDir);
+          log(`live ${sim.id}: exit ${r.code} in ${Date.now() - startedMs} ms`);
+          // A failed upload is not recorded as done: the next lap sends every
+          // part not in the bucket yet, in order (parts are md5-skipped).
+          if (r.code === 0) live.lastLapAtMs = lastLapAtMs;
+          live.dir = recorder.sessionDir;
+          save();
+        }
+      }
       for (const sim of SIMS) {
         const st = stateOf(watch, sim);
         const recs = recordings(sim, st.lastRunAtMs);
@@ -545,7 +652,7 @@ async function main() {
       log(`tick failed: ${String(error.stack || error)}`);
     }
     if (once) return;
-    await new Promise(wake => setTimeout(wake, TICK_SEC * 1000));
+    await nextTick();
   }
 }
 

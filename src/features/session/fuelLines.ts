@@ -4,7 +4,8 @@
 import type {Lap, PitStop} from '@/src/data/sessions';
 import {oneDecimal} from '@/src/design';
 
-import {greenLaps, median} from './fuelUse';
+import {greenLaps, MIN_STINT_LAPS} from './fuelUse';
+import {median} from '@/src/analysis/setStats';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;
@@ -71,20 +72,18 @@ export function pitLine(stop: PitStop): string | null {
  */
 export function stintFuelLine(stintLaps: Lap[]): string | null {
   const usable = greenLaps(stintLaps);
-  if (usable.length < MIN_NOTE_LAPS) return null;
+  if (usable.length < MIN_STINT_LAPS) return null;
   const fuelL = median(usable.map(l => l.fuel!.usedL as number));
   const ve = usable
     .map(l => l.fuel!.veUsedPct)
     .filter((v): v is number => v != null && v > 0);
-  const vePct = ve.length >= MIN_NOTE_LAPS ? median(ve) : null;
+  const vePct = ve.length >= MIN_STINT_LAPS ? median(ve) : null;
   const parts = [
     fuelL != null && `Fuel ${fuelL.toFixed(2)} L/lap`,
     vePct != null && `VE ${oneDecimal(vePct)} %/lap`,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
-
-const MIN_NOTE_LAPS = 3;
 
 /**
  * The lap's fuel and VE lines for the detail panel: used, left, and laps left

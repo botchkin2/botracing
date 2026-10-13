@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "sim": "iracing",
+  "startUtc": "2026-10-09T14:10:41.000Z",
+  "endUtc": "2026-10-09T14:34:33.533Z",
+  "chunks": 2,
+  "playerRows": 2999,
+  "fieldUpdates": 250,
+  "cars": [
+    {
+      "carIdx": 0,
+      "carName": "Ford Mustang GT3",
+      "carNumber": "22",
+      "carPath": "fordmustanggt3",
+      "classColor": "#ff5888",
+      "classId": 4011,
+      "classLabel": "Ford Mustang GT3",
+      "className": "",
+      "isPlayer": true
+    }
+  ],
+  "fuelMaxL": 110,
+  "fuelMaxPct": 0.5,
+  "playerCarIdx": 0,
+  "sectorStarts": [
+    0,
+    0.130902,
+    0.3069,
+    0.44224,
+    0.53158,
+    0.658844,
+    0.876665
+  ],
+  "seriesId": 0,
+  "sessionNum": 0,
+  "sessionType": "Practice",
+  "sessions": [
+    {
+      "num": 0,
+      "time": "2400.0000 sec",
+      "type": "Practice"
+    },
+    {
+      "num": 1,
+      "time": "86400.0000 sec",
+      "type": "Lone Qualify"
+    },
+    {
+      "num": 2,
+      "time": "2100.0000 sec",
+      "type": "Race"
+    }
+  ],
+  "subSessionId": 0,
+  "track": "Sebring International Raceway",
+  "trackConfig": "International",
+  "trackId": 95,
+  "trackLengthM": 5793.8,
+  "trackShort": "sebring international",
+  "trackSkies": "Dynamic",
+  "sessionKey": "local-1791555041000:0",
+  "firstSeenUtc": "2026-10-09T14:10:41.000Z"
+}

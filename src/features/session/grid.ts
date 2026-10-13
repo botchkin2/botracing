@@ -9,6 +9,7 @@
 import {type SegmentTimes} from '@/src/analysis/segments';
 
 import {basisOf, segmentBasisStats} from './selectionStats';
+import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 export type GridSort =
   | {kind: 'lap'}
@@ -79,8 +80,12 @@ export function sessionGrid(
     ticked: ticked.has(lap.id),
     cells: times.segments.map((_, i) => {
       const timeS = lap.timesS[i] ?? null;
-      const {medianS, spreadS, bestS} = stats[i];
-      const deltaS = timeS != null && medianS != null ? timeS - medianS : null;
+      const {n, medianS, spreadS, bestS} = stats[i];
+      // A median of one lap is no comparison: no gap to it.
+      const deltaS =
+        timeS != null && medianS != null && n >= MIN_COMPARISON_LAPS
+          ? timeS - medianS
+          : null;
       return {
         timeS,
         deltaS,

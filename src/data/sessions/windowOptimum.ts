@@ -38,9 +38,20 @@ interface WindowFacts {
   pit: boolean;
 }
 
+/** Why a window's time is left out of every comparison; null when it counts. */
+export type WindowExclusion = 'pit' | 'off-track';
+
+/** The one rule: a pit lane crossing the window, or off track in it, removes its time; nothing else does. */
+export function windowExclusion(f: {
+  pit: boolean;
+  offTrackS: number;
+}): WindowExclusion | null {
+  if (f.pit) return 'pit';
+  return f.offTrackS >= OPTIMUM_OFF_TRACK_S ? 'off-track' : null;
+}
+
 function countsAs(f: WindowFacts | null | undefined): number | null {
-  if (!f || f.segTimeS == null) return null;
-  if (f.pit || f.offTrackS >= OPTIMUM_OFF_TRACK_S) return null;
+  if (!f || f.segTimeS == null || windowExclusion(f)) return null;
   return f.segTimeS;
 }
 
@@ -69,6 +80,27 @@ export function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
 /** False when the map has no windows, or the lap was cut at other ones: its window times are not comparable with the map's. */
 export function onCurrentBoundaries(lap: Lap, map: TrackMapData): boolean {
   return map.boundaries != null && isCurrent(lap, map.boundaries);
+}
+
+/**
+ * What a lap's window of a section is for the comparisons: cut at the map's
+ * current boundaries or not ('stale', shown as pending), left out ('pit',
+ * 'off-track'), or counted. Corner's table and card read this, so a window
+ * Compare and Session leave out is left out there too.
+ */
+export type SectionWindowState = 'counts' | 'stale' | WindowExclusion;
+
+export function sectionWindowState(
+  lap: Lap,
+  sectionIndex: number,
+  boundaries: MapBoundaries,
+): SectionWindowState {
+  const facts = lap.sections[sectionIndex];
+  if (!facts?.window || !isCurrent(lap, boundaries)) return 'stale';
+  return (
+    windowExclusion({pit: facts.window.pit, offTrackS: facts.offTrackS}) ??
+    'counts'
+  );
 }
 
 /** A lap's time in every window, null where it does not count (see the top of this file). */

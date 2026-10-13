@@ -144,8 +144,8 @@ describe('buildFuelUse', () => {
     expect(fu.stints[0].medianTimeS).toBe(81);
   });
 
-  it('gives no median under 4 laps, and says there is nothing to compare', () => {
-    const fu = buildFuelUse(session(), stintOf(1, [2.4, 2.41, 2.39]))!;
+  it('gives no median under 3 laps (the Planner floor), and says there is nothing to compare', () => {
+    const fu = buildFuelUse(session(), stintOf(1, [2.4, 2.41]))!;
     expect(fu.stints[0].medianFuelL).toBeNull();
     expect(fu.verdict.kind).toBe('none');
     expect(fuelUseRows(fu)[0].lines[0]).toContain('no median');

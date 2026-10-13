@@ -31,6 +31,7 @@ struct TelemInfoV01
 {
   long mID;
   double mElapsedTime;
+  long mLapNumber;
   char mVehicleName[64];
   char mTrackName[64];
   TelemVect3 mPos;

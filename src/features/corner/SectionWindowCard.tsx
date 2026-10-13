@@ -60,7 +60,8 @@ function labelOf(row: SectionWindowRow): string {
   const t = `time ${row.time.value} seconds${
     row.time.gap ? `, ${row.time.gap}` : ''
   }`;
-  return row.state === 'pit' ? `pit lane in this window, ${t}` : t;
+  if (row.state === 'pit') return `pit lane in this window, ${t}`;
+  return row.state === 'off-track' ? `off track in this window, ${t}` : t;
 }
 
 function WindowRow({row}: {row: SectionWindowRow}) {
@@ -73,7 +74,7 @@ function WindowRow({row}: {row: SectionWindowRow}) {
         </Text>
       </View>
     );
-  const muted = row.state === 'pit';
+  const muted = row.state !== 'ok';
   return (
     <>
       <View style={styles.line}>
@@ -83,7 +84,7 @@ function WindowRow({row}: {row: SectionWindowRow}) {
         <Measure cell={row.time} strong muted={muted} />
         {muted ? (
           <Text variant='dataSmall' tone='textMuted'>
-            pit lane in this window
+            {row.state === 'pit' ? 'pit lane in this window' : 'off track'}
           </Text>
         ) : null}
       </View>

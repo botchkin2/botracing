@@ -15,7 +15,8 @@ export const POLL_MS = 3000;
 export const POLL_FOR_MS = 120_000;
 
 // Once per session per app run: a run that failed is not retried until the
-// app starts again, so a broken session never loops.
+// app starts again, so a broken session never loops. A live session runs once
+// per stored lap count instead (its `key`): each new lap is new data.
 const started = new Set<string>();
 const running = new Set<string>();
 const listeners = new Set<() => void>();
@@ -49,9 +50,10 @@ export type AnalyzeDeps = {
 export async function analyzeOnce(
   sessionId: string,
   deps: AnalyzeDeps,
+  key: string = sessionId,
 ): Promise<boolean> {
-  if (started.has(sessionId)) return false;
-  started.add(sessionId);
+  if (started.has(key) || running.has(sessionId)) return false;
+  started.add(key);
   running.add(sessionId);
   changed();
   try {
