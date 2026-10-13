@@ -1,7 +1,7 @@
 import {
-  type PaceEvent,
   type PaceLap,
-  paceEvents,
+  sectionTimesOf,
+  slowLapIds,
 } from '@/src/analysis/paceEvents';
 import {type RefLap, rankReferenceLaps} from '@/src/analysis/referenceLap';
 
@@ -107,44 +107,39 @@ function paceCandidates(laps: Lap[]): Lap[] {
   );
 }
 
-/** A lap's seconds in each section, the start straight first (they add up to the lap time); null when it has none or one is missing. */
-function sectionTimesOf(lap: Lap): number[] | null {
-  const parts = [
-    lap.startStraight?.segTimeS ?? null,
-    ...lap.sections.map(s => s.segTimeS),
-  ];
-  return parts.length >= 2 && parts.every(t => t != null && t > 0)
-    ? (parts as number[])
-    : null;
-}
-
 /**
- * The laps that are events rather than the driver's repeatable pace, by id
- * (analysis/paceEvents.ts), each with how far above the pace curve it sits and
- * the limit. A lap with no stint position (an old lap doc) is placed by its
- * order in the list.
+ * The slow laps by id: the one definition (analysis/paceEvents.ts `slowLapIds`),
+ * the same the uploader stores as `reasons: ['slow']`. A lap with no stint
+ * position (an old lap doc) is placed by its order in the list.
  */
-export function paceEventsOf(laps: Lap[]): Map<string, PaceEvent> {
-  const input: PaceLap[] = paceCandidates(laps).map((l, i) => ({
-    id: l.id,
-    stint: l.stint,
-    stintLap: l.stintLap ?? i,
-    lapTime: l.timeS as number,
-    sections: sectionTimesOf(l),
-  }));
-  return new Map(paceEvents(input).map(e => [e.id, e]));
+export function slowLapIdsOf(laps: Lap[]): Set<string> {
+  return slowLapIds(
+    paceCandidates(laps).map(
+      (l, i): PaceLap => ({
+        id: l.id,
+        stint: l.stint,
+        stintLap: l.stintLap ?? i,
+        lapTime: l.timeS as number,
+        sections: sectionTimesOf(
+          l.startStraight?.segTimeS,
+          l.sections.map(x => x.segTimeS),
+        ),
+      }),
+    ),
+  );
 }
 
 /**
  * The laps a screen opens on when the URL names none: every lap that can be
- * compared at all except the events, across all stints
+ * compared at all except the slow ones, across all stints
  * (decisions/lap/2026-10-12-default-selection-outliers.md): a set against its
- * median, never a pair, and never cut by a flag. Under two laps there is no
- * set: the caller falls back to a pair.
+ * median, never a pair. A stored session not yet re-analysed has the old flags
+ * but gets this rule here. Under two laps there is no set: the caller falls
+ * back to a pair.
  */
 export function paceSetLapIds(laps: Lap[]): string[] {
-  const events = paceEventsOf(laps);
-  const set = paceCandidates(laps).filter(l => !events.has(l.id));
+  const slow = slowLapIdsOf(laps);
+  const set = paceCandidates(laps).filter(l => !slow.has(l.id));
   return set.length >= 2 ? set.map(l => l.id) : [];
 }
 

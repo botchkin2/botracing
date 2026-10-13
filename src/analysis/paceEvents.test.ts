@@ -5,6 +5,9 @@ import {
   MIN_EVENT_LAPS,
   type PaceLap,
   paceEvents,
+  sectionTimesOf,
+  slowLapIds,
+  smallSampleFactor,
   smoothPace,
 } from './paceEvents';
 
@@ -180,5 +183,40 @@ describe('smoothPace', () => {
   it('is the median under five laps', () => {
     expect(smoothPace([1, 5])).toEqual([3, 3]);
     expect(smoothPace([1, 2, 9])).toEqual([2, 2, 2]);
+  });
+});
+
+describe('one rule at every size (decision 2026-10-12)', () => {
+  it('judges a session of five laps: a lap 9 s slow is slow', () => {
+    const laps = driver([{stint: 1, laps: MIN_EVENT_LAPS, noise: 0.03}]);
+    laps[2] = withMistake(laps[2], 3, 9);
+    expect(ids(laps)).toEqual([laps[2].id]);
+  });
+
+  it('judges nothing in a session of four laps: with so few there is no pace', () => {
+    const laps = driver([{stint: 1, laps: MIN_EVENT_LAPS - 1, noise: 0.03}]);
+    laps[2] = withMistake(laps[2], 3, 9);
+    expect(ids(laps)).toEqual([]);
+    expect(slowLapIds(laps).size).toBe(0);
+  });
+
+  it('corrects the sigma of a few laps upward: the limit at 5 laps is 1.206 times the plain one', () => {
+    expect(smallSampleFactor(5)).toBeCloseTo(1.206, 3);
+    expect(smallSampleFactor(9)).toBeCloseTo(1.107, 3);
+    expect(smallSampleFactor(10)).toBeCloseTo(10 / 9.2, 6);
+    expect(smallSampleFactor(40)).toBeCloseTo(40 / 39.2, 6);
+  });
+
+  it('has slow laps as the ids of the events', () => {
+    const laps = driver([{stint: 1, laps: 20, noise: 0.03}]);
+    laps[7] = withMistake(laps[7], 2, 5);
+    expect([...slowLapIds(laps)]).toEqual([laps[7].id]);
+  });
+
+  it("builds a lap's sections from the start straight and the sections, or none", () => {
+    expect(sectionTimesOf(10, [20, 30])).toEqual([10, 20, 30]);
+    expect(sectionTimesOf(null, [20, 30])).toBeNull();
+    expect(sectionTimesOf(10, [20, null])).toBeNull();
+    expect(sectionTimesOf(10, [])).toBeNull();
   });
 });

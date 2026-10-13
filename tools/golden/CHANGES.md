@@ -33,3 +33,32 @@ Changed:
 - fuel.litresPerVePctStop: null -> 1.303
 - consistency.overview: "3 laps. Best lap 108.922; best sections add up to 105.843." -> "2 laps. Best lap 108.922; best sections add up to 106.272."
 - laps.0.pitStop: null -> the stored service stop
+
+## 2026-10-13 lmu-race-road-atlanta
+Why: slow laps are now decided by the one rule in src/analysis/paceEvents.ts (a lap far above its stint's pace curve, from the sections), replacing the median cut; a lap the old cut called slow can now stay comparable, and the comparable count, median and spread move with it (decisions/lap/2026-10-12-default-selection-outliers.md).
+Changed:
+- summary.comparableCount: 10 -> 11
+- summary.medianLapTime: 80.823 -> 80.869
+- summary.stdevLapTime: 0.624 -> 1.186
+
+## 2026-10-13 lmu-practice-road-atlanta
+Why: slow laps are now decided by the one rule in src/analysis/paceEvents.ts (a lap far above its stint's pace curve, from the sections), replacing the median cut; a lap the old cut called slow can now stay comparable, and the comparable count, median and spread move with it (decisions/lap/2026-10-12-default-selection-outliers.md).
+Changed:
+- summary.comparableCount: 10 -> 12
+- summary.medianLapTime: 80.775 -> 80.904
+- summary.stdevLapTime: 0.547 -> 1.179
+- stints.0.comparable: 10 -> 11
+- stints.0.medianLapTime: 80.775 -> 80.853
+- stints.0.stdevLapTime: 0.547 -> 1.009
+- stints.1.comparable: 0 -> 1
+- stints.1.bestLapTime: null -> 83.445
+- stints.1.medianLapTime: null -> 83.445
+- cornerMedians.0: 6.782 -> 6.797000000000001
+- cornerMedians.1: 13.96 -> 13.979
+- cornerMedians.2: 10.569500000000001 -> 10.603
+- cornerMedians.3: 28.9425 -> 28.945
+- cornerMedians.4: 16.4435 -> 16.454
+- laps.1.reasons.0: "slow" -> undefined
+- laps.1.comparable: false -> true
+- laps.15.reasons.0: "slow" -> undefined
+- laps.15.comparable: false -> true

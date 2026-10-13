@@ -17,6 +17,8 @@ function race(): Lap[] {
       stint: 1,
       comparable: true,
       timeS: 100 + i,
+      sections: [],
+      startStraight: null,
     } as unknown as Lap);
   for (let i = 0; i < 19; i++)
     laps.push({
@@ -24,12 +26,16 @@ function race(): Lap[] {
       stint: 2,
       comparable: true,
       timeS: 90 + i * 0.1,
+      sections: [],
+      startStraight: null,
     } as unknown as Lap);
   laps.push({
     id: 'x',
     stint: 2,
     comparable: false,
     timeS: 80,
+    sections: [],
+    startStraight: null,
   } as unknown as Lap);
   return laps;
 }
@@ -50,9 +56,10 @@ const timesOf = (ids: string[]): SegmentTimes => ({
 describe('grid opening set', () => {
   test('an empty URL selection gives medians over the racing stint', () => {
     const defaults = openingLapIds(race(), SESSION);
-    expect(defaults).toHaveLength(23);
+    // The 3-lap stint 1 is judged against its own median: its slowest lap (102 s) is slow.
+    expect(defaults).toHaveLength(22);
     const grid = sessionGrid(timesOf(race().map(l => l.id)), new Set(defaults));
-    expect(grid.columns[0].n).toBe(23);
+    expect(grid.columns[0].n).toBe(22);
     expect(grid.columns[0].medianS).not.toBeNull();
   });
 

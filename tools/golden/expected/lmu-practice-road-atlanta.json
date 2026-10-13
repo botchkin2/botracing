@@ -1,10 +1,10 @@
 {
  "summary": {
   "lapCount": 16,
-  "comparableCount": 10,
+  "comparableCount": 12,
   "bestLapTime": 79.968,
-  "medianLapTime": 80.775,
-  "stdevLapTime": 0.547
+  "medianLapTime": 80.904,
+  "stdevLapTime": 1.179
  },
  "stints": [
   {
@@ -13,10 +13,10 @@
    "firstLap": 0,
    "lastLap": 13,
    "laps": 14,
-   "comparable": 10,
+   "comparable": 11,
    "bestLapTime": 79.968,
-   "medianLapTime": 80.775,
-   "stdevLapTime": 0.547,
+   "medianLapTime": 80.853,
+   "stdevLapTime": 1.009,
    "greenLaps": 11,
    "medianFuelL": 2.43,
    "fuelSpreadL": 0.02,
@@ -29,9 +29,9 @@
    "firstLap": 15,
    "lastLap": 15,
    "laps": 2,
-   "comparable": 0,
-   "bestLapTime": null,
-   "medianLapTime": null,
+   "comparable": 1,
+   "bestLapTime": 83.445,
+   "medianLapTime": 83.445,
    "stdevLapTime": null,
    "greenLaps": 1,
    "medianFuelL": null,
@@ -50,11 +50,11 @@
  "trackMapSource": "stored",
  "corners": 5,
  "cornerMedians": [
-  6.782,
-  13.96,
-  10.569500000000001,
-  28.9425,
-  16.4435
+  6.797000000000001,
+  13.979,
+  10.603,
+  28.945,
+  16.454
  ],
  "consistency": {
   "overview": "7 laps. Scatter 0.17 s around the pace trend (raw spread 0.34 s). Best lap 79.968; best sections add up to 75.785. Pace trend -0.109 s/lap in stint 1. No lap off pace. Most time lost against repeatable pace: section 2 (0.4 s), section 4 (0.4 s)."
@@ -238,10 +238,8 @@
    "timed": true,
    "partial": false,
    "stint": 1,
-   "reasons": [
-    "slow"
-   ],
-   "comparable": false,
+   "reasons": [],
+   "comparable": true,
    "pitIn": false,
    "pitOut": false,
    "offtrack": false,
@@ -2321,10 +2319,8 @@
    "timed": true,
    "partial": false,
    "stint": 2,
-   "reasons": [
-    "slow"
-   ],
-   "comparable": false,
+   "reasons": [],
+   "comparable": true,
    "pitIn": false,
    "pitOut": false,
    "offtrack": false,

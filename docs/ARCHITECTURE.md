@@ -9,7 +9,7 @@ app/                              routes only: parse params, render features/<x>
   index.tsx                       Sessions
   session/[id]/index.tsx          Session
   session/[id]/compare.tsx        Compare   (?laps=ref,a,b&hl=&c=&t=&w=; no laps: every timed whole
-                                  non-pit lap minus the slow pace outliers, vs their median: paceSetLapIds, consistency.ts paceOutliers)
+                                  non-pit lap minus the slow ones, vs their median: paceSetLapIds, analysis/paceEvents.ts slowLapIds)
   session/[id]/corner/[n].tsx     Corner
   settings.tsx                    cache management, uploader status
 src/

@@ -14,7 +14,8 @@
 //      smoother and end rule): a curve, not a line, so a tyre knee is followed
 //      and a slower patch of 3+ laps is part of the curve, not a run of events;
 //   4. the residual is the lap time minus the curve; sigma is 1.4826 x MAD of
-//      the session's residuals (the Hampel identifier).
+//      the session's residuals (the Hampel identifier), corrected for the few
+//      laps it is taken from (smallSampleFactor).
 // Laps with no sections (or sections that do not line up) use the lap time as
 // the factor: the same curve and the same test. No straight line anywhere.
 // Neither sections nor recorded events (off-track, yellow, impact) decide: a lap
@@ -22,10 +23,31 @@
 // the .ts extension.
 import {median} from './setStats.ts';
 
-/** Under this many laps a session's pace is not judged: nothing is an event. */
-export const MIN_EVENT_LAPS = 12;
+/** Under this many candidate laps a session has no pace to judge: nothing is an event (with two or three laps no rule can tell a slow lap from a different pace). */
+export const MIN_EVENT_LAPS = 5;
 /** Robust sigmas above the curve (Leys et al. 2013 ask for 2.5 by default; a corner's loss is skewed, so 3.5: gasket's simulation, #4876/#4891). */
 export const EVENT_SIGMAS = 3.5;
+/**
+ * The small-sample correction for the MAD (Croux & Rousseeuw 1992, "Time-
+ * efficient algorithms for two highly robust estimators of scale"): a MAD from
+ * a few laps reads the sigma low, so the limit is multiplied by this. A table
+ * to 9 laps, n / (n - 0.8) from 10.
+ */
+const SMALL_SAMPLE = [
+  NaN,
+  NaN,
+  1.196,
+  1.495,
+  1.363,
+  1.206,
+  1.2,
+  1.14,
+  1.129,
+  1.107,
+];
+export const smallSampleFactor = (n: number) =>
+  n >= 10 ? n / (n - 0.8) : SMALL_SAMPLE[n] ?? 1;
+
 /** A guard only: a driver whose laps are near identical would otherwise flag 0.25 s laps. */
 export const EVENT_GUARD_S = 0.3;
 /** Laps in the running median that makes a stint's curve. */
@@ -100,6 +122,21 @@ export function smoothPace(f: readonly number[]): number[] {
   return rm;
 }
 
+/**
+ * A lap's section times as `PaceLap.sections` wants them: the start straight
+ * then the sections, all present and positive (they add up to the lap time),
+ * else null. The uploader and the app both build `sections` here.
+ */
+export function sectionTimesOf(
+  startStraightS: number | null | undefined,
+  sectionS: readonly (number | null | undefined)[],
+): number[] | null {
+  const parts = [startStraightS, ...sectionS];
+  return parts.length >= 2 && parts.every(t => t != null && t > 0)
+    ? (parts as number[])
+    : null;
+}
+
 /** The session's sections as every lap shares them: a count of 2 or more, the same on every lap. */
 function sectionCount(laps: readonly PaceLap[]): number {
   const n = laps[0]?.sections?.length ?? 0;
@@ -144,7 +181,9 @@ export function paceEvents(laps: readonly PaceLap[]): PaceEvent[] {
     own.forEach((l, i) => residual.set(l.id, l.lapTime - scale * curve[i]));
   }
   const limitS = Math.max(
-    EVENT_SIGMAS * robustSigma([...residual.values()]),
+    EVENT_SIGMAS *
+      smallSampleFactor(residual.size) *
+      robustSigma([...residual.values()]),
     EVENT_GUARD_S,
   );
   const events: PaceEvent[] = [];
@@ -158,31 +197,12 @@ export function paceEvents(laps: readonly PaceLap[]): PaceEvent[] {
 
 // ---- slow laps: the one function that says which laps are slow ---------------
 
-/** Under MIN_EVENT_LAPS a session's laps are cut by their median: this many robust sigmas above it... */
-export const SLOW_SIGMAS = 3;
-/** ...and at least this many seconds... */
-export const SLOW_MIN_S = 1.5;
-/** ...but never beyond this share of the median lap (a 7% slower lap is slow whatever the spread). */
-export const SLOW_MAX_FACTOR = 1.07;
-
 /**
- * The slow laps of a session's candidate laps (timed, whole, no pit lane): the
- * single definition the uploader stores as `reasons: ['slow']` and the app's
- * default selection leaves unticked. Two regimes, chosen here and nowhere
- * else: (f) (`paceEvents`) from MIN_EVENT_LAPS laps, and below it the median
- * cut a short session has always had (median + SLOW_SIGMAS robust sigmas, at
- * least SLOW_MIN_S, at most SLOW_MAX_FACTOR of the median), unchanged.
+ * The slow laps among a session's candidate laps (timed, whole, no pit lane):
+ * the single definition the uploader stores as `reasons: ['slow']` and the
+ * app's default selection leaves unticked. One rule for every session size:
+ * a session with fewer than MIN_EVENT_LAPS candidate laps has no slow lap.
  */
 export function slowLapIds(laps: readonly PaceLap[]): Set<string> {
-  if (laps.length >= MIN_EVENT_LAPS)
-    return new Set(paceEvents(laps).map(e => e.id));
-  const times = laps.map(l => l.lapTime);
-  const baseline = median(times);
-  if (!baseline) return new Set();
-  const spread = robustSigma(times);
-  const cut = Math.min(
-    baseline * SLOW_MAX_FACTOR,
-    baseline + Math.max(SLOW_SIGMAS * spread, SLOW_MIN_S),
-  );
-  return new Set(laps.filter(l => l.lapTime > cut).map(l => l.id));
+  return new Set(paceEvents(laps).map(e => e.id));
 }

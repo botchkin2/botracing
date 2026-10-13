@@ -741,6 +741,8 @@ describe('a URL with no laps', () => {
       partial: false,
       pitIn: false,
       pitOut: false,
+      sections: [],
+      startStraight: null,
       endedInReset: false,
       hadImpact: false,
       offTrackS: 0,
@@ -766,14 +768,13 @@ describe('a URL with no laps', () => {
   });
 
   it('takes the laps of every stint, not one stint', () => {
-    // The 1 Oct race: a long first stint, a one-lap stint, a shorter last one.
+    // The 1 Oct race in miniature: three stints, four laps: under five laps no
+    // lap is slow, so every lap is on.
     const race = [
       lap('s1a', 81.3, true, null, 1),
       lap('s1b', 81.2, true, null, 1),
-      lap('s1c', 81.8, true, null, 1),
       lap('s2a', 82.0, true, null, 2),
       lap('s3a', 81.0, true, null, 3),
-      lap('s3b', 80.9, true, null, 3),
     ];
     expect(withDefaultLaps(sel({laps: []}), race, facts).laps).toEqual(
       race.map(l => l.id),
@@ -792,7 +793,7 @@ describe('a URL with no laps', () => {
     expect(out).toHaveLength(13);
   });
 
-  it('keeps every lap under twelve: a few laps are no pace', () => {
+  it('keeps every lap under five: a few laps are no pace', () => {
     const few = [
       lap('a', 80),
       lap('b', 80.1),
