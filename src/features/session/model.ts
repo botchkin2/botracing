@@ -50,6 +50,7 @@ import {buildPitCard, type PitCard} from './pitCard';
 import {buildTiresCard, type TiresCard} from './tireCard';
 import {lapTraffic, orderTags, trafficTags} from './lapTags';
 import {
+  paceSplit,
   setText,
   stintTrafficText,
   type TrafficRow,
@@ -266,14 +267,24 @@ function buildFuelUseCard(
  * field's traffic block is analysed. A session with no field says so, once.
  * The traffic median is gone: it was accented and told him nothing (triage #13).
  */
-export function trafficPaceFacts(session: SessionDetail): Fact[] {
-  const {traffic, field} = session;
+export function trafficPaceFacts(
+  session: SessionDetail,
+  basisLaps: Lap[],
+): Fact[] {
+  const {field} = session;
+  // Of the basis laps, like every other median on the screen and the stint
+  // headers' own clean median (one answer to "clean median"), not the stored
+  // whole-session value.
+  const traffic = paceSplit(basisLaps);
   if (traffic == null)
     return field == null
       ? [{label: 'Clean median', value: 'No other cars recorded'}]
       : [];
   const facts: Fact[] = [];
-  const value = setText(traffic.clean, session.comparableCount);
+  const value = setText(
+    traffic.clean,
+    basisLaps.filter(l => l.comparable).length,
+  );
   if (value) facts.push({label: 'Clean median', value});
   return facts;
 }
@@ -577,7 +588,7 @@ export function buildSessionModel(
       : null;
 
   const bestLap = laps.find(l => l.id === session.bestLapId);
-  const trafficPace = trafficPaceFacts(session);
+  const trafficPace = trafficPaceFacts(session, basisLaps);
   const pitCard = buildPitCard(session.sessionType, laps, session);
   const fuelUse = buildFuelUseCard(session, laps);
   return {
