@@ -94,8 +94,9 @@ describe('windowMedians', () => {
     // No stint split: the set is the reference.
     expect(windowMedians(laps, 2)).toEqual([
       {n: 3, medianS: 12},
-      {n: 2, medianS: null},
+      {n: 2, medianS: 21},
     ]);
-    expect(windowMedians(laps, 2, 2)[1]).toEqual({n: 2, medianS: 21});
+    // Under the comparison floor (two laps) a window has no median to measure against.
+    expect(windowMedians([laps[0]], 2)[0]).toEqual({n: 1, medianS: null});
   });
 });

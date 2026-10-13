@@ -25,9 +25,11 @@ describe('tiresSummary', () => {
 });
 
 describe('fuelSummary', () => {
-  const fuel = (used: number[]) =>
+  // One stint (1) whose median counts, unless `enough` is false.
+  const fuel = (used: number[], enough = true) =>
     ({
-      points: used.map((fuelL, i) => ({lapId: `l${i}`, fuelL})),
+      points: used.map((fuelL, i) => ({lapId: `l${i}`, fuelL, stint: 1})),
+      stints: [{n: 1, medianFuelL: enough ? 3 : null}],
     } as unknown as FuelUse);
 
   it('is the median fuel use over the green laps, with how many', () => {
@@ -44,6 +46,10 @@ describe('fuelSummary', () => {
 
   it('says so when no lap is in the medians', () => {
     expect(fuelSummary(fuel([]))).toBe('No stint with enough laps');
+    // Laps of a stint the card gives no median are not in the fold either.
+    expect(fuelSummary(fuel([3, 3.2], false))).toBe(
+      'No stint with enough laps',
+    );
   });
 });
 

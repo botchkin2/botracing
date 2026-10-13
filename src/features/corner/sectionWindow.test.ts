@@ -201,8 +201,8 @@ describe('buildSectionWindow', () => {
     });
     expect(w?.rows[0].state).toBe('stale');
     expect(w?.rows[1].state).toBe('ok');
-    // The one comparable lap is its own median: a zero gap (±0.000), not a gap to the stale lap.
-    expect(w?.rows[1].time.gap).toBe('±0.000');
+    // One lap is no median to compare with (and not a gap to the stale lap): no gap, never ±0.000.
+    expect(w?.rows[1].time.gap).toBeNull();
   });
 
   it('leaves out a window the lap went off track in, as Compare and Session do: greyed, no gap, not in the median', () => {

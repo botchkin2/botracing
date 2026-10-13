@@ -23,7 +23,14 @@ import {
   type TrackMapData,
   trackCorners,
 } from '@/src/data/sessions';
-import {formatGap, lapMode, type LapMode, turnLabel} from '@/src/design';
+import {
+  formatGap,
+  formatSignedWhole,
+  formatWhole,
+  lapMode,
+  type LapMode,
+  turnLabel,
+} from '@/src/design';
 
 import {deltaFromEntry} from './deltaFromEntry';
 import {
@@ -44,7 +51,7 @@ import {
   type NeighbourApex,
   windowCaption,
 } from './stretch';
-import {median} from '@/src/analysis/setStats';
+import {medianOfSet} from '@/src/analysis/setStats';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
@@ -209,13 +216,13 @@ export const AT_MIN = 'at min';
 
 const fmt: Record<Measure, (v: number) => string> = {
   time: v => v.toFixed(3),
-  brake: v => `${Math.round(v)}`,
-  peakBrake: v => `${Math.round(v)}`,
-  turnIn: v => `${Math.round(v)}`,
-  minSpeed: v => `${Math.round(v)}`,
-  pickup: v => `${Math.round(v)}`,
-  throttle: v => `${Math.round(v)}`,
-  minThrottle: v => `${Math.round(v)}`,
+  brake: formatWhole,
+  peakBrake: formatWhole,
+  turnIn: formatWhole,
+  minSpeed: formatWhole,
+  pickup: formatWhole,
+  throttle: formatWhole,
+  minThrottle: formatWhole,
 };
 
 /**
@@ -430,7 +437,7 @@ export function buildCornerModel(input: {
   const basis = Object.fromEntries(
     MEASURES.map(m => [
       m.id,
-      refValues ? refValues[m.id] : median(allValues.map(v => v[m.id])),
+      refValues ? refValues[m.id] : medianOfSet(allValues.map(v => v[m.id])),
     ]),
   ) as Record<Measure, number | null>;
 
@@ -455,9 +462,7 @@ export function buildCornerModel(input: {
                 ? null
                 : m.id === 'time'
                 ? formatGap(d)
-                : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(
-                    Math.round(d),
-                  )}`,
+                : formatSignedWhole(d),
             better:
               d != null &&
               m.better != null &&

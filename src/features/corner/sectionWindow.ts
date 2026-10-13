@@ -16,9 +16,9 @@ import {
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
-import {formatGap, turnLabel} from '@/src/design';
+import {formatGap, formatWhole, turnLabel} from '@/src/design';
 import {sectionNameOf} from '@/src/analysis/turnNames';
-import {median} from '@/src/analysis/setStats';
+import {medianOfSet} from '@/src/analysis/setStats';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -151,14 +151,14 @@ export function buildSectionWindow(input: {
     .map((l, i) => (states[i] === 'ok' ? l.sections[index]?.window : undefined))
     .filter((w): w is NonNullable<typeof w> => w != null);
   const medianBasis = {
-    time: median(
+    time: medianOfSet(
       laps.map((l, i) =>
         states[i] === 'ok' ? l.sections[index]?.segTimeS : undefined,
       ),
     ),
-    runIn: median(okWindows.map(w => w.runInS)),
-    corner: median(okWindows.map(w => w.cornerS)),
-    exit: median(okWindows.map(w => w.exitS)),
+    runIn: medianOfSet(okWindows.map(w => w.runInS)),
+    corner: medianOfSet(okWindows.map(w => w.cornerS)),
+    exit: medianOfSet(okWindows.map(w => w.exitS)),
   };
 
   // A brake application is measured to the apex of the corner braked for.
@@ -217,7 +217,7 @@ export function buildSectionWindow(input: {
         const part = labelOf(a.part);
         return {
           label: `Brake ${k + 1}`,
-          onset: `${Math.round(apexOf(a.part) - a.onsetM)} m before ${
+          onset: `${formatWhole(apexOf(a.part) - a.onsetM)} m before ${
             part ?? 'the apex'
           }`,
           peak: `${Math.round(a.peakPct)} %`,
