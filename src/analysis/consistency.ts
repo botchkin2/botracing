@@ -948,6 +948,9 @@ export const OUTLIER_MIN_S = 0.3;
 /** Fewest laps a stint needs for `paceOutliers` to judge its laps: fewer have no pace trend. */
 export const MIN_STINT_PACE_LAPS = 5;
 
+/** The longest run of consecutive slow laps still called outliers: three in a row are a pace change (tyres fading, fuel, a damaged car), which stays in the selection. */
+export const MAX_OUTLIER_RUN = 2;
+
 /** What the default selection needs of a lap to judge its pace. */
 export interface PaceLap {
   id: string;
@@ -970,7 +973,8 @@ export interface PaceOutlier {
  * fits it), then OUTLIER_SIGMAS robust sigmas of the session's residuals and at
  * least OUTLIER_MIN_S, over every lap given; no flag decides it. Slow ones
  * only: a lap cannot be unusually fast (Botkin, 2026-10-13), so fast laps stay
- * in. With fewer than MIN_OUTLIER_LAPS laps there is no pace to be off, so none
+ * in. A run of more than MAX_OUTLIER_RUN slow laps in a row is a change of
+ * pace (tyres fading, fuel, damage), not outliers: it stays. With fewer than MIN_OUTLIER_LAPS laps there is no pace to be off, so none
  * is an outlier.
  */
 export function paceOutliers(
@@ -978,10 +982,32 @@ export function paceOutliers(
   t: Thresholds = defaultThresholds,
 ): PaceOutlier[] {
   const {residualS, limitS} = paceResiduals(laps, t);
-  return laps.flatMap(l => {
+  const slow = (l: PaceLap) => {
     const r = residualS.get(l.id);
-    return r != null && r >= limitS ? [{id: l.id, residualS: r}] : [];
-  });
+    return r != null && r >= limitS;
+  };
+  const out: PaceOutlier[] = [];
+  for (const n of unique(laps.map(l => l.stint))) {
+    const own = laps
+      .filter(l => l.stint === n)
+      .sort((x, y) => x.stintLap - y.stintLap);
+    let from = 0;
+    while (from < own.length) {
+      if (!slow(own[from])) {
+        from++;
+        continue;
+      }
+      let to = from;
+      while (to + 1 < own.length && slow(own[to + 1])) to++;
+      // A run longer than MAX_OUTLIER_RUN is a change of pace, not outliers.
+      if (to - from + 1 <= MAX_OUTLIER_RUN)
+        for (let i = from; i <= to; i++)
+          out.push({id: own[i].id, residualS: residualS.get(own[i].id)!});
+      from = to + 1;
+    }
+  }
+  const order = new Map(laps.map((l, i) => [l.id, i]));
+  return out.sort((x, y) => order.get(x.id)! - order.get(y.id)!);
 }
 
 export interface PaceResiduals {

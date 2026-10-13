@@ -76,3 +76,37 @@ describe('paceOutliers', () => {
     expect(paceOutliers([])).toEqual([]);
   });
 });
+
+describe('paceOutliers: a run of slow laps is a pace change', () => {
+  // Twelve steady laps, then slow ones at the end of the stint.
+  const withTail = (slow: number[]): PaceLap[] => [
+    ...stint(1, 12),
+    ...slow.map((t, i) => ({
+      id: `tail${i}`,
+      stint: 1,
+      stintLap: 12 + i,
+      lapTime: t,
+    })),
+  ];
+
+  it('drops one or two isolated slow laps', () => {
+    expect(ids(withTail([88]))).toEqual(['tail0']);
+    expect(ids(withTail([88, 89]))).toEqual(['tail0', 'tail1']);
+  });
+
+  it('keeps three or more slow laps in a row: tyres fading is the pace, not a mistake', () => {
+    expect(ids(withTail([88, 89, 88]))).toEqual([]);
+    expect(ids(withTail([88, 89, 88, 90]))).toEqual([]);
+  });
+
+  it('counts a run per stint, and a good lap in between breaks it', () => {
+    const laps = [
+      ...stint(1, 12),
+      {id: 'a', stint: 1, stintLap: 12, lapTime: 88},
+      {id: 'b', stint: 1, stintLap: 13, lapTime: 89},
+      {id: 'ok', stint: 1, stintLap: 14, lapTime: 80},
+      {id: 'c', stint: 1, stintLap: 15, lapTime: 88},
+    ];
+    expect(ids(laps)).toEqual(['a', 'b', 'c']);
+  });
+});
