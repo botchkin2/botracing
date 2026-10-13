@@ -3,6 +3,7 @@ import {formatDate} from '@/src/design';
 
 import {type Combo} from '../plan/model';
 import {median} from '@/src/analysis/setStats';
+import {MIN_GREEN_LAPS} from '@/src/analysis/fuelPlan';
 
 // The Plan block on the Track page (round 5, item 4): one card per car driven
 // at this track, above the session list. It says what the plan for that car
@@ -44,7 +45,8 @@ export const MIN_VE_LAPS = 3;
  * when fewer laps carry VE than fuel it gets its own n.
  */
 export function perLapUseLine(laps: GreenLap[]): string | null {
-  if (laps.length === 0) return null;
+  // The Plan's own floor: under 3 green laps there is no median to print.
+  if (laps.length < MIN_GREEN_LAPS) return null;
   const fuel = `Fuel ${median(laps.map(l => l.fuelL))!.toFixed(2)} L/lap`;
   const ve = laps.flatMap(l => (l.vePct == null ? [] : [l.vePct]));
   if (ve.length < MIN_VE_LAPS) return fuel;
