@@ -18,7 +18,7 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
-import {median, percentile} from './setStats';
+import {median, percentile} from './setStats.ts';
 
 export interface CornerFacts {
   // Entry to next entry (src/analysis/corners.ts), so the exit is included.

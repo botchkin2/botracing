@@ -13,7 +13,7 @@
 // median a stint shows is its median lap time, a lap that was driven
 // (decisions/lap/2026-10-11-selection-and-numbers.md).
 
-import {median, quantile} from './setStats';
+import {median, quantile} from './setStats.ts';
 
 /** Fewest times a window needs before its best and median are shown. */
 export const MIN_OPTIMUM_LAPS = 5;

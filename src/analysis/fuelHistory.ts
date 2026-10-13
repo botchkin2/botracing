@@ -8,7 +8,7 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
-import {median} from './setStats';
+import {median} from './setStats.ts';
 
 /** The fields of a green lap this reads; `GreenLap` in fuelPlan.ts has them. */
 export interface HistoryLap {

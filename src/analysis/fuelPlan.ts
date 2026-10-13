@@ -17,7 +17,7 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
-import {quantile} from './setStats';
+import {quantile} from './setStats.ts';
 
 /** One clean lap of the driver's history at this track and car. */
 export interface GreenLap {

@@ -4,7 +4,7 @@
 // sectors (src/data/sessions/segments.ts); the optimum, the column stats and
 // every screen take a `SegmentTimes` and never branch on which one it is.
 
-import {iqr, quantile, sortedFinite} from './setStats';
+import {iqr, quantile, sortedFinite} from './setStats.ts';
 
 /** What the Settings toggle picks: our turn sections, or the game's three sectors. */
 export type SectionMode = 'turns' | 'sectors';

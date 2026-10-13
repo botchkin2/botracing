@@ -13,7 +13,7 @@
 // unknown class's colour is only a pace rank, so keep it so.
 import {paceClass} from './classLaps';
 import {type FieldCar} from './field';
-import {median} from './setStats';
+import {median} from './setStats.ts';
 
 export type ClassSlot = 'class1' | 'class2' | 'class3' | 'other';
 
