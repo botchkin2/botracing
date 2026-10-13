@@ -3,7 +3,10 @@
 // as seat-test against the production API with LMU "running", and the time
 // from each lap reaching the disk to the session's lap count showing it.
 //
-//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> [--laps 4] [--speed 1]
+//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> [--laps 4] [--speed 1] [--max-lap-s 15]
+//
+// Exits 1, the release gate's fail, when a lap never reaches the app or takes
+// more than --max-lap-s from the disk to the session's lap count (liveGate.mjs).
 //
 // Scratch folders only: nothing of the real tray, capture or uploader is touched.
 import {spawn} from 'node:child_process';
@@ -11,6 +14,7 @@ import {mkdirSync, mkdtempSync, readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {liveVerdict} from './liveGate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (name, fallback) => {
@@ -21,6 +25,7 @@ const from = resolve(arg('--from', ''));
 const token = resolve(arg('--token', ''));
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
+const maxLapS = Number(arg('--max-lap-s', '15'));
 const api = process.env.LAP_API_BASE || 'https://botracing-61.web.app';
 
 const root = mkdtempSync(resolve(tmpdir(), 'live-e2e-'));
@@ -115,4 +120,7 @@ console.log(
   `session ${sessionId}; laps in the app ${seen.size}/${laps}; latency s: ${ms.map(v => (v / 1000).toFixed(1)).join(' ')}`,
 );
 console.log(`scratch: ${root} (watch.log in home/)`);
-process.exit(seen.size === laps ? 0 : 1);
+const verdict = liveVerdict({laps, latencyMs: seen, maxLapS});
+for (const p of verdict.problems) console.log(`FAIL: ${p}`);
+console.log(verdict.pass ? `PASS: ${laps} laps, each within ${maxLapS} s` : 'FAIL: live laps gate');
+process.exit(verdict.pass ? 0 : 1);
