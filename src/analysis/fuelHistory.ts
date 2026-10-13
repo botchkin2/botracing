@@ -8,6 +8,8 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
+import {median} from './setStats.ts';
+
 /** The fields of a green lap this reads; `GreenLap` in fuelPlan.ts has them. */
 export interface HistoryLap {
   fuelL: number;
@@ -30,13 +32,6 @@ export const SAME_LIMIT_L = 0.5;
 /** Whether a session's limit is the wanted one; unknown never matches. */
 export function sameLimit(limitL: number | null, wantedL: number): boolean {
   return limitL != null && Math.abs(limitL - wantedL) <= SAME_LIMIT_L;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const v = [...values].sort((a, b) => a - b);
-  const mid = v.length >> 1;
-  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
 }
 
 interface Medians {

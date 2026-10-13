@@ -4,7 +4,8 @@
 import type {Lap, PitStop} from '@/src/data/sessions';
 import {oneDecimal} from '@/src/design';
 
-import {greenLaps, median} from './fuelUse';
+import {greenLaps} from './fuelUse';
+import {median} from '@/src/analysis/setStats';
 
 const litres = (v: number) => `${v.toFixed(1)} L`;
 const pct = (v: number) => `${Math.round(v)} %`;

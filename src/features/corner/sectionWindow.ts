@@ -18,6 +18,7 @@ import {
 } from '@/src/data/sessions';
 import {formatGap, turnLabel} from '@/src/design';
 import {sectionNameOf} from '@/src/analysis/turnNames';
+import {median} from '@/src/analysis/setStats';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
@@ -148,21 +149,15 @@ export function buildSectionWindow(input: {
   const okWindows = laps
     .map((l, i) => (states[i] === 'ok' ? l.sections[index]?.window : undefined))
     .filter((w): w is NonNullable<typeof w> => w != null);
-  const medianOf = (xs: (number | null | undefined)[]) => {
-    const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
-    if (v.length === 0) return null;
-    const mid = Math.floor(v.length / 2);
-    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
-  };
   const medianBasis = {
-    time: medianOf(
+    time: median(
       laps.map((l, i) =>
         states[i] === 'ok' ? l.sections[index]?.segTimeS : undefined,
       ),
     ),
-    runIn: medianOf(okWindows.map(w => w.runInS)),
-    corner: medianOf(okWindows.map(w => w.cornerS)),
-    exit: medianOf(okWindows.map(w => w.exitS)),
+    runIn: median(okWindows.map(w => w.runInS)),
+    corner: median(okWindows.map(w => w.cornerS)),
+    exit: median(okWindows.map(w => w.exitS)),
   };
 
   // A brake application is measured to the apex of the corner braked for.
