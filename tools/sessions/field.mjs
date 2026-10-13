@@ -141,6 +141,9 @@ export function encode(r, cars) {
       class: c.class,
       vehicle: c.vehicle,
       player: c.player,
+      // The game's best lap in seconds (null: no timed lap); absent for a sim
+      // that gives none (iRacing), where the bests come from the laps.
+      ...(c.bestLapS !== undefined ? {bestLapS: c.bestLapS} : {}),
       // iRacing's class id and label (irClasses.mjs); LMU names its class.
       ...(c.classId != null
         ? {classId: c.classId, classLabel: c.classLabel}
@@ -197,8 +200,15 @@ export function undelta(values) {
   return values.map(d => (d === null ? null : (last += d)));
 }
 
+// duck.mjs hands a SQL NULL back as an empty string: only a positive number is a lap.
+const bestOf = v => (Number(v) > 0 ? Number(v) : null);
+
 function readRows(files, models, fromEt, toEt) {
   const src = `read_parquet([${files.map(sqlPath).join(', ')}])`;
+  // A capture from before the recorder wrote the game's best lap has no such column.
+  const hasBest = Object.keys(
+    columns(':memory:', `SELECT * FROM ${src} LIMIT 0`),
+  ).includes('mBestLapTime');
   const where = `WHERE et BETWEEN ${fromEt} AND ${toEt}`;
   const c = columns(
     ':memory:',
@@ -209,12 +219,17 @@ function readRows(files, models, fromEt, toEt) {
   const cars = rows(
     ':memory:',
     `SELECT mID AS id, any_value(mVehicleClass) AS class, ` +
-      `bool_or(mIsPlayer) AS player, min(et) AS first FROM ${src} ${where} GROUP BY mID ORDER BY first, mID`,
+      `bool_or(mIsPlayer) AS player, min(et) AS first, ` +
+      // The game's own best lap so far per car (-1 until it has one): the lowest
+      // positive reading is its final best (classBests v2, pit-wall #4687).
+      (hasBest ? 'min(mBestLapTime) FILTER (WHERE mBestLapTime > 0)' : 'NULL') +
+      ` AS bestLap FROM ${src} ${where} GROUP BY mID ORDER BY first, mID`,
   ).map(row => ({
     id: Number(row.id),
     class: row.class || '',
     vehicle: modelOf(models, row.id),
     player: row.player === 'true',
+    ...(hasBest ? {bestLapS: bestOf(row.bestLap)} : {}),
   }));
   return {c, cars};
 }

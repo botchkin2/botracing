@@ -40,16 +40,33 @@ export function raceLengthOf({endEt, greenStartEt}) {
 export function raceLengthFromYaml(yaml) {
   const text = String(yaml);
   const current = text.match(/^\s*CurrentSessionNum:\s*(\d+)/m)?.[1];
-  const races = text
+  const sessions = text
     .split(/^ - SessionNum:/m)
     .slice(1)
-    .filter(block => /^\s+SessionType:\s*Race\s*$/m.test(block));
+    .map(block => ({
+      num: block.trim().split(/\s/)[0],
+      type: /^\s+SessionType:\s*(.*?)\s*$/m.exec(block)?.[1] ?? '',
+      time: /^\s+SessionTime:\s*(.*?)\s*$/m.exec(block)?.[1] ?? '',
+    }));
+  return raceLengthOfSessions(current, sessions);
+}
+
+/**
+ * The same from the session list alone (the tray's iRacing capture keeps it in
+ * meta.json, ir_session.rs): `current` the file's session number, `sessions`
+ * [{num, type, time}] with time as the sim writes it (`2700.0000 sec`).
+ */
+export function raceLengthOfSessions(current, sessions) {
+  const races = (sessions ?? []).filter(s => s.type === 'Race');
   // A heat event lists several races: the file's own session when it is a
   // race, else the event's only race. Several and none of them the file's own
   // (or no current number, older files) is not guessed.
-  const own = races.find(b => b.trim().split(/\s/)[0] === current);
-  const block = own ?? (races.length === 1 ? races[0] : undefined);
-  const m = block?.match(/^\s+SessionTime:\s*([0-9.]+)\s*sec/m);
+  const own =
+    current == null
+      ? undefined
+      : races.find(s => String(s.num) === String(current));
+  const race = own ?? (races.length === 1 ? races[0] : undefined);
+  const m = /^([0-9.]+)\s*sec/.exec(race?.time ?? '');
   const minutes = m ? Math.round(Number(m[1]) / 60) : 0;
   return minutes > 0 ? {minutes} : null;
 }

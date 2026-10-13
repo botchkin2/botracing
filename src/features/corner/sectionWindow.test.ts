@@ -3,7 +3,9 @@ import {describe, expect, it, jest} from '@jest/globals';
 // Adapters are internal to data/; tests reach them to build real shapes.
 import {toLaps, toTrackMap} from '@/src/data/sessions/adapters';
 
-import {buildSectionWindow, isCurrent} from './sectionWindow';
+import {isCurrent} from '@/src/data/sessions';
+
+import {buildSectionWindow} from './sectionWindow';
 
 // S1 = T1 alone; S2 = a bus stop: T2, T3, T4 in one window. Boundaries tile
 // 0 to 1000 with a start straight before T1.
@@ -199,8 +201,26 @@ describe('buildSectionWindow', () => {
     });
     expect(w?.rows[0].state).toBe('stale');
     expect(w?.rows[1].state).toBe('ok');
-    // The one comparable lap is its own median: a zero gap (±0.000), not a gap to the stale lap.
-    expect(w?.rows[1].time.gap).toBe('±0.000');
+    // One lap is no median to compare with (and not a gap to the stale lap): no gap, never ±0.000.
+    expect(w?.rows[1].time.gap).toBeNull();
+  });
+
+  it('leaves out a window the lap went off track in, as Compare and Session do: greyed, no gap, not in the median', () => {
+    const w = buildSectionWindow({
+      map: m,
+      sectionN: 2,
+      laps: lapsOf(
+        rawLap('a', section2({}, 12)),
+        rawLap('b', section2({exitS: 5}, 13)),
+        rawLap('o', section2({offTrackSec: 0.5, exitS: 22}, 30)),
+        rawLap('s', section2({offTrackSec: 0.2, exitS: 6}, 14)),
+      ),
+    });
+    expect(w?.rows.map(r => r.state)).toEqual(['ok', 'ok', 'off-track', 'ok']);
+    // The median is of 12, 13 and 14 (0.2 s off still counts): 13.
+    expect(w?.rows[0].time.gap).toBe('−1.000');
+    expect(w?.rows[2].time.value).toBe('30.000');
+    expect(w?.rows[2].time.gap).toBeNull();
   });
 
   it('greys only the window the pit lane crosses, showing what it measured without a gap', () => {

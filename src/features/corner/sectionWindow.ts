@@ -12,20 +12,23 @@
 import {
   type BoundaryWindow,
   type Lap,
-  type MapBoundaries,
+  sectionWindowState,
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
-import {formatGap, turnLabel} from '@/src/design';
+import {formatGap, formatWhole, turnLabel} from '@/src/design';
 import {sectionNameOf} from '@/src/analysis/turnNames';
+import {medianOfSet} from '@/src/analysis/setStats';
 
 export type WindowRowState =
   /** Cut at the current boundaries: compared. */
   | 'ok'
   /** No window facts, or cut at other boundaries: shown as pending. */
   | 'stale'
-  /** The pit lane overlaps this window. */
-  | 'pit';
+  /** The pit lane overlaps this window: left out, like Compare and Session leave it. */
+  | 'pit'
+  /** Off track in this window (0.3 s or more): left out. */
+  | 'off-track';
 
 export type Cell = {value: string; gap: string | null; better: boolean};
 
@@ -134,9 +137,8 @@ export function buildSectionWindow(input: {
   const section = map.sections[index];
 
   const stateOf = (lap: Lap): WindowRowState => {
-    const facts = lap.sections[index];
-    if (!facts?.window || !isCurrent(lap, boundaries)) return 'stale';
-    return facts.window.pit ? 'pit' : 'ok';
+    const state = sectionWindowState(lap, index, boundaries);
+    return state === 'counts' ? 'ok' : state;
   };
   const states = laps.map(stateOf);
   // The basis: the picked Ref when it can be compared, else the median of the
@@ -148,21 +150,15 @@ export function buildSectionWindow(input: {
   const okWindows = laps
     .map((l, i) => (states[i] === 'ok' ? l.sections[index]?.window : undefined))
     .filter((w): w is NonNullable<typeof w> => w != null);
-  const medianOf = (xs: (number | null | undefined)[]) => {
-    const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
-    if (v.length === 0) return null;
-    const mid = Math.floor(v.length / 2);
-    return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
-  };
   const medianBasis = {
-    time: medianOf(
+    time: medianOfSet(
       laps.map((l, i) =>
         states[i] === 'ok' ? l.sections[index]?.segTimeS : undefined,
       ),
     ),
-    runIn: medianOf(okWindows.map(w => w.runInS)),
-    corner: medianOf(okWindows.map(w => w.cornerS)),
-    exit: medianOf(okWindows.map(w => w.exitS)),
+    runIn: medianOfSet(okWindows.map(w => w.runInS)),
+    corner: medianOfSet(okWindows.map(w => w.cornerS)),
+    exit: medianOfSet(okWindows.map(w => w.exitS)),
   };
 
   // A brake application is measured to the apex of the corner braked for.
@@ -221,7 +217,7 @@ export function buildSectionWindow(input: {
         const part = labelOf(a.part);
         return {
           label: `Brake ${k + 1}`,
-          onset: `${Math.round(apexOf(a.part) - a.onsetM)} m before ${
+          onset: `${formatWhole(apexOf(a.part) - a.onsetM)} m before ${
             part ?? 'the apex'
           }`,
           peak: `${Math.round(a.peakPct)} %`,
@@ -263,7 +259,9 @@ function refNote(
   return `Reference L${laps[at].lapIndex} ${
     states[at] === 'stale'
       ? 'is pending re-analysis'
-      : 'crosses the pit lane here'
+      : states[at] === 'pit'
+      ? 'crosses the pit lane here'
+      : 'went off track here'
   }; no gaps.`;
 }
 
@@ -289,18 +287,12 @@ function optimumRows(
       label: `Stint ${s.stint}`,
       n: `${w.n} ${w.n === 1 ? 'lap' : 'laps'}`,
       best: seconds(w.bestS),
-      bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
+      bestLap: lapIndexOf.has(w.bestLapId ?? '')
+        ? `L${lapIndexOf.get(w.bestLapId ?? '')}`
+        : '—',
       median: seconds(w.medianS),
       gap: formatGap(w.medianS - w.bestS),
     });
   }
   return rows;
-}
-
-/** Whether a lap's windows were cut at the boundaries the map carries now. */
-export function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
-  const stamp = lap.cornerBoundaries;
-  return (
-    stamp != null && stamp.v === boundaries.v && stamp.rev === boundaries.rev
-  );
 }

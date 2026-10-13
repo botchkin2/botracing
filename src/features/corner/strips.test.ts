@@ -54,8 +54,8 @@ describe('buildStrips', () => {
     expect(strips[3].resolution).toBeNull();
   });
 
-  it('has a p10–90 band and median', () => {
-    expect(brake.band).toEqual({p10: 101.9, p50: 109.5, p90: 117.1});
+  it('has an IQR band and median', () => {
+    expect(brake.band).toEqual({p25: 104.75, p50: 109.5, p75: 114.25});
   });
 });
 

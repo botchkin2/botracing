@@ -1,7 +1,7 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {decide, retryDelayMin} from './trigger.mjs';
+import {decide, decideLive, retryDelayMin} from './trigger.mjs';
 
 const MIN = 60 * 1000;
 const base = {
@@ -110,4 +110,24 @@ test('files a run skipped as too fresh are looked at again once their quiet time
     decide({...skipped, quietRetryAtMs: 101 * MIN, retryAtMs: 110 * MIN}).run,
     false,
   );
+});
+
+
+test('live: a new lap on disk while LMU runs is uploaded', () => {
+  assert.deepEqual(
+    decideLive({gameRunning: true, lastLapAtMs: 2000, lastLiveAtMs: 1000, liveBusy: false}),
+    {run: true, reason: 'new lap'},
+  );
+});
+
+test('live: the same lap twice, a running upload, or no game is not', () => {
+  const at = {gameRunning: true, lastLapAtMs: 2000, liveBusy: false};
+  assert.equal(decideLive({...at, lastLiveAtMs: 2000}).run, false);
+  assert.equal(decideLive({...at, lastLiveAtMs: 1000, liveBusy: true}).run, false);
+  assert.equal(decideLive({...at, gameRunning: false, lastLiveAtMs: 1000}).run, false);
+  assert.equal(decideLive({...at, lastLapAtMs: null, lastLiveAtMs: null}).run, false);
+});
+
+test('live: the first lap of a session goes up', () => {
+  assert.equal(decideLive({gameRunning: true, lastLapAtMs: 5, lastLiveAtMs: null, liveBusy: false}).run, true);
 });

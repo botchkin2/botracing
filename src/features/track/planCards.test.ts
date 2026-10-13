@@ -69,9 +69,13 @@ describe('perLapUseLine', () => {
   });
 
   it('drops VE, not zero, when no lap carries it (fuel-only)', () => {
-    expect(perLapUseLine([lap(2.3, null), lap(2.5, null)])).toBe(
-      'Fuel 2.40 L/lap',
-    );
+    expect(
+      perLapUseLine([lap(2.3, null), lap(2.5, null), lap(2.4, null)]),
+    ).toBe('Fuel 2.40 L/lap');
+  });
+
+  it('prints nothing under the Plan\x27s floor of three green laps', () => {
+    expect(perLapUseLine([lap(2.3, 3.4), lap(2.5, 3.6)])).toBeNull();
   });
 
   it('shows VE only from three laps that carry it', () => {

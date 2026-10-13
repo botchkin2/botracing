@@ -6,9 +6,7 @@
 import {WHEELS, type Wheel, wearReadAtStops} from '@/src/analysis/tyres';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 
-import {columnStats} from '@/src/analysis/segments';
-
-const median = (values: number[]) => columnStats(values).medianS;
+import {median} from '@/src/analysis/setStats';
 
 /** A trend of wear per lap needs this many green laps (round 7 1C b). */
 export const MIN_TREND_LAPS = 5;

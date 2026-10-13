@@ -87,7 +87,10 @@ export {
 } from './segments';
 export {
   checkedWindowMedians,
+  isCurrent,
   onCurrentBoundaries,
+  sectionWindowState,
+  type SectionWindowState,
   sectionWindowTimes,
   type SessionOptimum,
   sessionOptimum,

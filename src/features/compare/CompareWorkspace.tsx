@@ -504,13 +504,14 @@ export function CompareWorkspace(p: WorkspaceProps) {
                   accessibilityRole='button'
                   accessibilityLabel={`Jump to ${model.grid!.heads[i]}`}
                   hitSlop={8}
-                  onPress={() =>
-                    p.onCursor(sectionStartM(model.sectionEntryM, n))
-                  }
+                  onPress={() => {
+                    const at = sectionStartM(model.sectionEntryM, n);
+                    if (at != null) p.onCursor(at);
+                  }}
                   style={styles.sectionHead}>
                   <Text variant='dataSmall' tone='textMuted'>
                     {model.grid!.heads[i]} ·{' '}
-                    {formatDistance(sectionStartM(model.sectionEntryM, n))}
+                    {sectionStartLabel(model.sectionEntryM, n)}
                   </Text>
                 </Pressable>
                 {model.grid!.rows.map(r => {
@@ -539,6 +540,15 @@ export function CompareWorkspace(p: WorkspaceProps) {
       </ScrollView>
     </View>
   );
+}
+
+/** A section's start as the table row names it; empty when it is not known. */
+function sectionStartLabel(
+  sectionEntryM: Record<number, number>,
+  n: number,
+): string {
+  const at = sectionStartM(sectionEntryM, n);
+  return at == null ? '—' : formatDistance(at);
 }
 
 const styles = StyleSheet.create({

@@ -653,7 +653,11 @@ export function planView(
   const stale = [fuelStale, ratioStale].filter(Boolean).join(' · ') || null;
 
   const cards: Card[] = [];
-  const {fuel, ve, lapTimeS} = plan.perLap;
+  const {fuel, ve, lapTimeS, lapTimeBasis} = plan.perLap;
+  // The lap time is over the comparable green laps, or the green laps when too
+  // few are comparable (`paceLaps`): say which, never "all green laps" for the first.
+  const paceSet =
+    lapTimeBasis === 'green' ? 'green laps' : 'comparable green laps';
   const shown = effectiveUnit(unit, ve != null);
   const since = history.since ? `, since ${formatDate(history.since)}` : '';
   const driftRow = history.drift ? driftRowOf(history.drift) : null;
@@ -688,7 +692,7 @@ export function planView(
               lapTimeS.p10,
             )} to ${lapTime(lapTimeS.p90)})`
           : 'no data',
-        note: lapTimeS ? 'all green laps' : undefined,
+        note: lapTimeS ? paceSet : undefined,
       },
       ...(history.traffic?.clean.medianS != null
         ? [
@@ -737,9 +741,11 @@ export function planView(
         return `${name}: not the limit (${fmt(
           perLap,
         )} a lap would still reach)`;
-      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}, ${(
-        savePctOfMedian ?? 0
-      ).toFixed(1)} % less than your median)`;
+      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}${
+        savePctOfMedian == null
+          ? ''
+          : `, ${savePctOfMedian.toFixed(1)} % less than your median`
+      })`;
     };
     const rows: Row[] = [
       {
@@ -776,7 +782,7 @@ export function planView(
         ? {
             label,
             value: `median ${lapTime(c.medianLapTimeS)}`,
-            note: `all green laps: ${lapTime(c.allMedianLapTimeS)}`,
+            note: `${paceSet}: ${lapTime(c.allMedianLapTimeS)}`,
           }
         : {
             label,

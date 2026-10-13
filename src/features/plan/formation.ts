@@ -7,6 +7,7 @@ import {
   FORMATION_FUEL_ESTIMATE,
   type FormationFactor,
 } from '@/src/analysis/fuelPlan';
+import {median} from '@/src/analysis/setStats';
 
 /** Races needed before the burn is measured rather than estimated. */
 export const MIN_FORMATION_RACES = 2;
@@ -20,12 +21,6 @@ export type FormationBurn = {
   /** The median burn in litres when measured. */
   burnL: number | null;
 };
-
-function median(values: number[]): number {
-  const s = [...values].sort((a, b) => a - b);
-  const mid = s.length >> 1;
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
 
 /**
  * The median first-lap burn over the driver's races at this track and car,
@@ -44,7 +39,7 @@ export function formationBurnOf(
     greenFuelL != null &&
     greenFuelL > 0
   ) {
-    const burnL = median(burns);
+    const burnL = median(burns)!; // burns holds at least MIN_FORMATION_RACES values
     return {
       factor: {fuel: burnL / greenFuelL, ve: 1},
       kind: 'measured',

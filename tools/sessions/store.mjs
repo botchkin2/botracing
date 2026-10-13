@@ -247,9 +247,12 @@ function boundaryOps(boundaries) {
 // A drive the stored session does not have yet (a practice's next run out
 // of the garage): new data, written whatever the stamps say. It lands with
 // this writer's stamp and reads stale until opened (pit-wall thread 1 #4651).
+// A live session's next lap is new data the same way: one more archive part
+// (pit-wall thread 66).
 function bringsNewRecordings(before, session) {
   const stored = new Set(before?.recordingIds ?? []);
-  return (session.recordingIds ?? []).some(id => !stored.has(id));
+  if ((session.recordingIds ?? []).some(id => !stored.has(id))) return true;
+  return (session.archiveParts ?? 0) > (before?.archiveParts ?? 0);
 }
 
 async function uploadSession(backend, out, {log = () => {}} = {}) {
@@ -265,6 +268,14 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   ) {
     log('  skipped: the stored session was analysed under newer rules');
     return {skipped: 'newer'};
+  }
+
+  // A live session gained a lap while this analysis ran: keep the count of
+  // what is stored and leave it stale, so the next open analyses that lap too.
+  if ((before?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
+    session.archiveParts = before.archiveParts;
+    session.analysis = {...session.analysis, v: 0};
+    log('  a lap arrived during this analysis: left stale');
   }
 
   // The field file already in the bucket (the capture is gone after 14 days,
@@ -535,6 +546,47 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 }
 
 // The store sync.mjs talks to, over any backend.
+// Live laps (pit-wall thread 66, liveSession.mjs): a session's new archive
+// parts, then its recording docs, then the session doc, merged so the fields a
+// cloud analysis wrote stay until the next one. Parts go up in order and the
+// docs only after all of them: an upload that fails part-way writes no doc, and
+// the next lap sends every part the bucket lacks (md5), so a lap is never lost
+// or out of order. Older-over-newer is refused unless a part is new.
+async function uploadLive(backend, out, {log = () => {}} = {}) {
+  const {session} = out;
+  const before = await backend.getDoc('sessions', session.id);
+  if (
+    stampNewer(before?.analysis, session.analysis) &&
+    !bringsNewRecordings(before, session)
+  ) {
+    log('  live: nothing new over the stored session');
+    return {skipped: 'newer'};
+  }
+  let sent = 0;
+  for (const file of out.files) {
+    const local = createHash('md5')
+      .update(readFileSync(file.local))
+      .digest('base64');
+    if ((await backend.fileMd5(file.dest)) === local) continue;
+    await backend.putFile(
+      file.dest,
+      {localPath: file.local},
+      {contentType: 'application/vnd.apache.parquet'},
+    );
+    sent++;
+  }
+  const ops = out.recordings.map(rec => ({
+    op: 'set',
+    coll: 'recordings',
+    id: rec.id,
+    data: rec,
+  }));
+  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session, merge: true});
+  await backend.writeDocs(ops);
+  log(`  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`);
+  return {sent};
+}
+
 export function createStore(backend) {
   return {
     // A track's stored corner map, or null.
@@ -564,6 +616,35 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    uploadLive: (out, options) => uploadLive(backend, out, options),
+    // One archive file put in place of the stored one when their bytes
+    // differ; true when it was sent.
+    async replaceArchiveFile(dest, localPath) {
+      const local = createHash('md5')
+        .update(readFileSync(localPath))
+        .digest('base64');
+      if ((await backend.fileMd5(dest)) === local) return false;
+      await backend.putFile(
+        dest,
+        {localPath},
+        {contentType: 'application/vnd.apache.parquet'},
+      );
+      return true;
+    },
+    // A session whose archive changed under it: it reads stale, so the next
+    // open analyses it again from the new archive (analysis on open). Merged:
+    // only the stamp's version goes, every stored block stays.
+    // ownerId: the upload API refuses a doc that does not name its owner.
+    markStale: (sessionId, ownerId) =>
+      backend.writeDocs([
+        {
+          op: 'set',
+          coll: 'sessions',
+          id: sessionId,
+          data: {ownerId, analysis: {v: 0}},
+          merge: true,
+        },
+      ]),
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>

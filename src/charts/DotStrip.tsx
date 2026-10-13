@@ -12,7 +12,7 @@ import {type Scale} from './scale';
 import {stripAxis} from './stripAxis';
 
 // One measure across many laps (handoff §4 "dot strips", pit-wall thread 27
-// #621): a dot per lap on a line, with the p10–90 band and a median tick
+// #621): a dot per lap on a line, with the IQR band (p25 to p75) and a median tick
 // under the dots, an axis in 1-2-5 steps with units on its ticks (D45), and
 // the direction words (and resolution) below. Dots stay on the line and stack
 // only where they overlap. Pure props; the caller picks each dot's color and
@@ -56,7 +56,8 @@ export function DotStrip({
   scale: Scale;
   /** Left = larger values (brake point: left is earlier on the lap). */
   flipped: boolean;
-  band: {p10: number; p50: number; p90: number} | null;
+  /** The interquartile range (p25, p75) and the median: the one spread every screen shows. */
+  band: {p25: number; p50: number; p75: number} | null;
   /** Values this close are one point (the channel's resolution). */
   coincidentWithin: number;
   resolution: string | null;
@@ -97,8 +98,8 @@ export function DotStrip({
         <ChartSvg width={width} height={svgH}>
           {band && (
             <Rect
-              x={Math.min(x(band.p10), x(band.p90))}
-              width={Math.abs(x(band.p90) - x(band.p10))}
+              x={Math.min(x(band.p25), x(band.p75))}
+              width={Math.abs(x(band.p75) - x(band.p25))}
               y={mid - BAND_H / 2}
               height={BAND_H}
               fill={color.band}

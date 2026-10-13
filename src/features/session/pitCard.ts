@@ -184,12 +184,11 @@ function inCell(stop: PitStop, hasVe: boolean): Cell {
 function addedCell(stop: PitStop, hasVe: boolean): Cell {
   const {fuelL, vePct} = stop.added;
   const kind = stop.visit?.kind;
-  if (kind === 'repair')
-    return {value: `+${litres(fuelL ?? 0)}`, note: 'repair'};
-  if (kind === 'penalty')
-    return {value: `+${litres(fuelL ?? 0)}`, note: 'penalty'};
-  if (kind === 'through')
-    return {value: `+${litres(fuelL ?? 0)}`, note: 'drive-through'};
+  // An unknown amount is empty, never +0.0 L.
+  const plus = fuelL == null ? '—' : `+${litres(fuelL)}`;
+  if (kind === 'repair') return {value: plus, note: 'repair'};
+  if (kind === 'penalty') return {value: plus, note: 'penalty'};
+  if (kind === 'through') return {value: plus, note: 'drive-through'};
   // Nothing added, and the visit was not classified: still the fuel fact.
   if (fuelL === 0) return {value: `+${litres(0)}`, note: 'nothing added'};
   return {

@@ -8,7 +8,12 @@ import {toggle} from '@/src/state/lapSelection';
 import {PANEL_DIVIDER_W, PanelDivider, Pressable, Text} from '@/src/ui';
 
 import {useSessionDesktopModel} from '../desktopModel';
-import {type RowModel, type Selection, type SessionScreenModel} from '../model';
+import {
+  factLabel,
+  type RowModel,
+  type Selection,
+  type SessionScreenModel,
+} from '../model';
 
 import {ClassTableView} from './ClassTable';
 import {EnergyLineRow} from './EnergyLineRow';
@@ -134,7 +139,7 @@ export function SessionWorkspace({
                   {model.facts.map(f => (
                     <View key={f.label}>
                       <Text variant='tableHeader' tone='textMuted'>
-                        {f.label}
+                        {factLabel(f)}
                       </Text>
                       <Text
                         variant='dataStrong'
