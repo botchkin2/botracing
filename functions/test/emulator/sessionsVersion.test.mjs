@@ -16,6 +16,7 @@ admin.initializeApp({projectId: PROJECT});
 
 let idToken;
 let uid;
+let n = 0; // each write gets its own stamp: the list and facets tests share the docs
 const db = () => admin.firestore();
 const stamp = i => new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString();
 const session = (i, extra = {}) => ({
@@ -27,25 +28,37 @@ const session = (i, extra = {}) => ({
   changedAt: stamp(i),
   ...extra,
 });
-const get = path => fetch(`${API}${path}`, {headers: {authorization: `Bearer ${idToken}`}});
+const get = path =>
+  fetch(`${API}${path}`, {headers: {authorization: `Bearer ${idToken}`}});
 
 before(async () => {
   for (const host of ['FIRESTORE_EMULATOR_HOST', 'FIREBASE_AUTH_EMULATOR_HOST'])
-    assert.ok(process.env[host], `${host} is not set: run through the emulators`);
+    assert.ok(
+      process.env[host],
+      `${host} is not set: run through the emulators`,
+    );
   const res = await fetch(
     `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake`,
     {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({email: 'version@example.com', password: 'secret12', returnSecureToken: true}),
+      body: JSON.stringify({
+        email: 'version@example.com',
+        password: 'secret12',
+        returnSecureToken: true,
+      }),
     },
   );
   const body = await res.json();
   idToken = body.idToken;
   uid = body.localId;
   const batch = db().batch();
-  for (let i = 0; i < 170; i++) batch.set(db().doc(`sessions/v${String(i).padStart(3, '0')}`), session(i));
-  batch.set(db().doc('sessions/other-owner'), session(0, {ownerId: 'someone-else', changedAt: stamp(999)}));
+  for (let i = 0; i < 170; i++)
+    batch.set(db().doc(`sessions/v${String(i).padStart(3, '0')}`), session(i));
+  batch.set(
+    db().doc('sessions/other-owner'),
+    session(0, {ownerId: 'someone-else', changedAt: stamp(999)}),
+  );
   await batch.commit();
 });
 
@@ -59,7 +72,10 @@ for (const [name, path] of [
     assert.match(first.version, /^[0-9a-f]{16}$/);
     const again = await get(asking(first.version));
     const text = await again.text();
-    assert.deepEqual(JSON.parse(text), {unchanged: true, version: first.version});
+    assert.deepEqual(JSON.parse(text), {
+      unchanged: true,
+      version: first.version,
+    });
     assert.ok(text.length < 100, `${text.length} bytes, not 170 sessions`);
     const wrong = await (await get(asking('0000000000000000'))).json();
     assert.equal(wrong.version, first.version);
@@ -68,12 +84,18 @@ for (const [name, path] of [
 
   test(`${name}: a session written, added or removed moves the version; another owner's does not`, async () => {
     const v0 = (await (await get(path)).json()).version;
-    await db().doc('sessions/other-owner').set(session(0, {ownerId: 'someone-else', changedAt: stamp(5000)}));
+    await db()
+      .doc('sessions/other-owner')
+      .set(session(0, {ownerId: 'someone-else', changedAt: stamp(5000)}));
     assert.equal((await (await get(path)).json()).version, v0, 'another owner');
-    await db().doc('sessions/v000').update({changedAt: stamp(3000)});
+    await db()
+      .doc('sessions/v000')
+      .update({changedAt: stamp(3000 + (n += 1))});
     const v1 = (await (await get(path)).json()).version;
     assert.notEqual(v1, v0, 'a write');
-    await db().doc('sessions/v-new').set(session(1, {changedAt: stamp(1)}));
+    await db()
+      .doc('sessions/v-new')
+      .set(session(1, {changedAt: stamp(1)}));
     const v2 = (await (await get(path)).json()).version;
     assert.notEqual(v2, v1, 'an added session');
     await db().doc('sessions/v-new').delete();
