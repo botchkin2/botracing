@@ -10,6 +10,7 @@ import {
 import {applyAuthState, type AuthStore} from './authStore';
 import {popupFallsBackToRedirect, signInMessage} from './signInResult';
 import {
+  AuthTokenError,
   authHeaders,
   beginAuthWait,
   endAuthWait,
@@ -232,11 +233,48 @@ describe('tokenSource', () => {
     }
   });
 
-  it('sends no header, rather than throwing, when the refresh fails', async () => {
+  it('throws AuthTokenError, never a bare request, when the refresh fails', async () => {
+    // Signed in, token expired, no signal (the phone out of the car): an
+    // offline error to retry, not a 401 that asks a signed-in person to sign in.
+    const cause = new Error('auth/network-request-failed');
     setIdTokenProvider(async () => {
-      throw new Error('offline');
+      throw cause;
     });
-    expect(await authHeaders()).toEqual({});
+    const thrown = await authHeaders().catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(AuthTokenError);
+    expect((thrown as AuthTokenError).cause).toBe(cause);
+  });
+
+  it('a request past the gate when the root remounts waits for the next answer', async () => {
+    setIdTokenProvider(async () => 'old');
+    const racing = authHeaders(); // past the gate, provider not yet read
+    // followFirebase stop(): the provider is nulled and the gate reopened
+    // before the call resumes.
+    setIdTokenProvider(null);
+    beginAuthWait();
+    let settled = false;
+    void racing.then(() => (settled = true));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    setIdTokenProvider(async () => 'new');
+    endAuthWait();
+    expect(await racing).toEqual({Authorization: 'Bearer new'});
+  });
+
+  it('waits for a reopened gate once only, so a stuck SDK still ends', async () => {
+    jest.useFakeTimers();
+    try {
+      setIdTokenProvider(async () => 'old');
+      const racing = authHeaders();
+      setIdTokenProvider(null);
+      beginAuthWait();
+      await jest.advanceTimersByTimeAsync(10_001);
+      expect(await racing).toEqual({});
+    } finally {
+      endAuthWait();
+      jest.useRealTimers();
+    }
   });
 
   it('reports a 401 to whoever listens, and to nobody otherwise', () => {
