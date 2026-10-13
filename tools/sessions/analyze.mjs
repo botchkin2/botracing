@@ -1049,17 +1049,6 @@ export function analyzeSession(
         lap.grid = onGrid(recs[lap.rec], lap, gridN);
       }
     }
-    const bandLaps = (comparable.length >= 3 ? comparable : pool).filter(
-      l => l.grid,
-    );
-    band = {
-      stepM: GRID_M,
-      lengthM: round(best.distanceM, 1),
-      laps: bandLaps.length,
-      speed: stats(bandLaps, 'speed', gridN, 1),
-      throttle: stats(bandLaps, 'throttle', gridN, 1),
-      brake: stats(bandLaps, 'brake', gridN, 1),
-    };
   }
 
   // The track's corners: the stored map when it fits this lap length, else
@@ -1153,6 +1142,25 @@ export function analyzeSession(
 
   // The slow flag again, now that the laps have their sections.
   markSlow(laps);
+
+  // The band, over the final flags (the grids were cut above, on the best lap's length).
+  if (best && best.distanceM > 100) {
+    const finalComparable = laps.filter(l => l.comparable);
+    const finalPool = finalComparable.length
+      ? finalComparable
+      : laps.filter(l => l.timed && !l.partial);
+    const bandLaps = (
+      finalComparable.length >= 3 ? finalComparable : finalPool
+    ).filter(l => l.grid);
+    band = {
+      stepM: GRID_M,
+      lengthM: round(best.distanceM, 1),
+      laps: bandLaps.length,
+      speed: stats(bandLaps, 'speed', gridN, 1),
+      throttle: stats(bandLaps, 'throttle', gridN, 1),
+      brake: stats(bandLaps, 'brake', gridN, 1),
+    };
+  }
 
   // Consistency: the laps run in normal racing conditions, through the
   // shared module the app also runs on a driver's own selection.

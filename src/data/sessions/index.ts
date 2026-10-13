@@ -77,7 +77,6 @@ export {
   openingLapIds,
   referenceDefaultLapIds,
   paceSetLapIds,
-  slowLapIdsOf,
   refLapOf,
 } from './defaultLaps';
 export {endingLap, raceFactsOfPlan, racePitLaps} from './raceFacts';

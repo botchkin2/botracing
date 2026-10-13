@@ -741,8 +741,7 @@ describe('a URL with no laps', () => {
       partial: false,
       pitIn: false,
       pitOut: false,
-      sections: [],
-      startStraight: null,
+      reasons: [],
       endedInReset: false,
       hadImpact: false,
       offTrackS: 0,
@@ -781,30 +780,17 @@ describe('a URL with no laps', () => {
     );
   });
 
-  it('leaves out the slow outliers of the session pace, not the fast laps', () => {
-    // Twelve laps at 80 s in a steady stint, one 9 s slow, one 0.9 s fast.
-    const stint = Array.from({length: 12}, (_, i) =>
-      lap(`p${i}`, 80 + (i % 3) * 0.05),
-    );
-    const race = [...stint, lap('slow', 89), lap('fast', 79.1)];
-    const out = withDefaultLaps(sel({laps: []}), race, facts).laps;
-    expect(out).not.toContain('slow');
-    expect(out).toContain('fast');
-    expect(out).toHaveLength(13);
-  });
-
-  it('keeps every lap under five: a few laps are no pace', () => {
-    const few = [
+  it('leaves out the laps the uploader marked slow, and keeps the fast ones', () => {
+    const race = [
       lap('a', 80),
       lap('b', 80.1),
-      lap('c', 80.05),
-      lap('slow', 95),
+      {...lap('slow', 89), reasons: ['slow']} as Lap,
+      lap('fast', 79.1),
     ];
-    expect(withDefaultLaps(sel({laps: []}), few, facts).laps).toEqual([
+    expect(withDefaultLaps(sel({laps: []}), race, facts).laps).toEqual([
       'a',
       'b',
-      'c',
-      'slow',
+      'fast',
     ]);
   });
 

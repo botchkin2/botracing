@@ -1,8 +1,3 @@
-import {
-  type PaceLap,
-  sectionTimesOf,
-  slowLapIds,
-} from '@/src/analysis/paceEvents';
 import {type RefLap, rankReferenceLaps} from '@/src/analysis/referenceLap';
 
 import type {Lap} from './adapters';
@@ -108,38 +103,16 @@ function paceCandidates(laps: Lap[]): Lap[] {
 }
 
 /**
- * The slow laps by id: the one definition (analysis/paceEvents.ts `slowLapIds`),
- * the same the uploader stores as `reasons: ['slow']`. A lap with no stint
- * position (an old lap doc) is placed by its order in the list.
- */
-export function slowLapIdsOf(laps: Lap[]): Set<string> {
-  return slowLapIds(
-    paceCandidates(laps).map(
-      (l, i): PaceLap => ({
-        id: l.id,
-        stint: l.stint,
-        stintLap: l.stintLap ?? i,
-        lapTime: l.timeS as number,
-        sections: sectionTimesOf(
-          l.startStraight?.segTimeS,
-          l.sections.map(x => x.segTimeS),
-        ),
-      }),
-    ),
-  );
-}
-
-/**
  * The laps a screen opens on when the URL names none: every lap that can be
- * compared at all except the slow ones, across all stints
- * (decisions/lap/2026-10-12-default-selection-outliers.md): a set against its
- * median, never a pair. A stored session not yet re-analysed has the old flags
- * but gets this rule here. Under two laps there is no set: the caller falls
- * back to a pair.
+ * compared at all (timed, whole, not an in- or out-lap) except the slow ones,
+ * across all stints (decisions/lap/2026-10-12-default-selection-outliers.md): a
+ * set against its median, never a pair. "Slow" is the stored reason the uploader
+ * set with the one rule in analysis/paceEvents.ts, so the app computes nothing
+ * a second time; a session analysed before it re-analyses on open. Under two
+ * laps there is no set: the caller falls back to a pair.
  */
 export function paceSetLapIds(laps: Lap[]): string[] {
-  const slow = slowLapIdsOf(laps);
-  const set = paceCandidates(laps).filter(l => !slow.has(l.id));
+  const set = paceCandidates(laps).filter(l => !l.reasons.includes('slow'));
   return set.length >= 2 ? set.map(l => l.id) : [];
 }
 
