@@ -34,6 +34,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
+import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
 import {
   beatKey,
@@ -297,7 +298,9 @@ async function main() {
   const watch = readJson(statePath, {});
   // State from before block versions kept only analysisVersion: no versionKey
   // reads as changed, so the first run with this code syncs everything once.
-  const currentKey = versionKey(analysisVersion, blockVersions);
+  // The archive repair's version too: a tray that brings a new repair syncs
+  // once on its first start (game closed, as every run), not at the next drive.
+  const currentKey = `${versionKey(analysisVersion, blockVersions)}|repair${ARCHIVE_REPAIR}`;
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
