@@ -32,6 +32,10 @@ on:
         description: The version stamped into it (X.Y.Z)
         type: string
         required: true
+      candidate-sha256:
+        description: Its sha256 from the release's build; checked before any use
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -111,8 +115,12 @@ jobs:
       - name: Install, launch, launch again, uninstall
         shell: pwsh
         run: |
-          $setup = Get-ChildItem installer/*-setup.exe | Select-Object -First 1
-          if (-not $setup) { throw "no installer was downloaded" }
+          if ("${{ inputs.candidate-sha256 }}") {
+            $setup = Get-Item (./desktop/scripts/candidate.ps1 -Dir installer -Sha256 "${{ inputs.candidate-sha256 }}")
+          } else {
+            $setup = Get-ChildItem installer/*-setup.exe | Select-Object -First 1
+            if (-not $setup) { throw "no installer was downloaded" }
+          }
           if ("${{ matrix.account }}" -eq "runner") {
             ./desktop/scripts/e2e-install.ps1 -Installer $setup.FullName -Node ${{ matrix.node }}
           } elseif ("${{ matrix.account }}" -eq "standard-ascii") {
@@ -201,8 +209,7 @@ jobs:
           if ($env:CANDIDATE) {
             # N is the exact installer the release ships, signed here with the
             # throwaway key N-1 trusts (a detached .sig; the exe is unchanged).
-            $cand = Get-ChildItem "$env:RUNNER_TEMP/candidate/*-setup.exe" | Select-Object -First 1
-            if (-not $cand) { throw "no candidate installer was downloaded" }
+            $cand = Get-Item (& "$env:GITHUB_WORKSPACE/desktop/scripts/candidate.ps1" -Dir "$env:RUNNER_TEMP/candidate" -Sha256 "${{ inputs.candidate-sha256 }}")
             Copy-Item $cand.FullName (Join-Path $out "$env:NEW-setup.exe")
             npx tauri signer sign (Join-Path $out "$env:NEW-setup.exe")
             if ($LASTEXITCODE -ne 0) { throw "signing the candidate failed" }

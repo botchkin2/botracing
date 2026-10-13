@@ -53,6 +53,8 @@ jobs:
         working-directory: desktop
     outputs:
       sha: ${{ steps.where.outputs.sha }}
+      # The installer's sha256: every gate and publish check it before use.
+      sha256: ${{ steps.hash.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -99,6 +101,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         shell: pwsh
 
+      - name: The candidate's sha256
+        id: hash
+        shell: pwsh
+        run: |
+          $found = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if ($found.Count -ne 1) { throw "expected one -setup.exe, found $($found.Count)" }
+          # The file name carries the stamped version: a mismatch never ships.
+          if ($found[0].Name -notlike "*_${{ inputs.version }}_*") { throw "$($found[0].Name) is not version ${{ inputs.version }}" }
+          $sha = (Get-FileHash $found[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "$($found[0].Name) sha256 $sha"
+          "sha256=$sha" >> $env:GITHUB_OUTPUT
+
       - uses: actions/upload-artifact@v7
         with:
           name: candidate
@@ -112,6 +126,7 @@ jobs:
     with:
       candidate-artifact: candidate
       candidate-version: ${{ inputs.version }}
+      candidate-sha256: ${{ needs.build.outputs.sha256 }}
 
   live:
     name: Live laps on the installed candidate
@@ -125,6 +140,7 @@ jobs:
           # The gate scripts and the replay (it reads the capture through
           # tools/sessions/duck.mjs); the uploader under test is the installed one.
           sparse-checkout: |
+            desktop/scripts
             tools/dev
             tools/sessions
 
@@ -149,9 +165,8 @@ jobs:
       - name: Install the candidate (per user, silent)
         shell: pwsh
         run: |
-          $setup = Get-ChildItem candidate/*-setup.exe | Select-Object -First 1
-          if (-not $setup) { throw "no candidate installer was downloaded" }
-          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $setup = ./desktop/scripts/candidate.ps1 -Dir candidate -Sha256 "${{ needs.build.outputs.sha256 }}"
+          Start-Process $setup -ArgumentList '/S' -Wait
           $app = Join-Path $env:LOCALAPPDATA 'BotRacing'
           if (-not (Test-Path "$app\node\node.exe")) { throw "the installer left no node.exe in $app" }
           # The tray the installer started is not the one under test: the gate
@@ -214,11 +229,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          $setup = Get-ChildItem "$env:RUNNER_TEMP/candidate/*-setup.exe" | Select-Object -First 1
-          if (-not $setup) { throw "no candidate installer was downloaded" }
-          npx tauri signer sign $setup.FullName
+          $setup = ./scripts/candidate.ps1 -Dir "$env:RUNNER_TEMP/candidate" -Sha256 "${{ needs.build.outputs.sha256 }}"
+          npx tauri signer sign $setup
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/release-manifest.mjs layout $setup.FullName "${{ inputs.version }}" ../release
+          node scripts/release-manifest.mjs layout $setup "${{ inputs.version }}" ../release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Sign in to Google Cloud

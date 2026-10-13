@@ -162,11 +162,14 @@ if (!noScreen) {
 // The capture's session was already stored: nothing can "arrive", so the run
 // says so and stops, instead of reporting laps that never reached the app. The
 // replay shifts the capture's clock to now (replayCapture.mjs), so this is a
-// harness fault, not a product miss.
+// harness fault, not a product miss. Only before the first lap arrives: in a
+// valid run the watcher logs the same line once the cloud analysis writes a
+// newer stamp (sidepod, #608 review), and that must not wipe real verdicts.
 let alreadyStored = false;
 const poll = async () => {
   try {
     if (
+      seen.size === 0 &&
       readFileSync(watchLog, 'utf8').includes(
         'nothing new over the stored session',
       )
