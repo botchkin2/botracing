@@ -108,6 +108,11 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
   };
 }
 
+function toLiveAt(v: unknown): number | null {
+  const t = Date.parse(str(obj(v).updatedAt));
+  return Number.isFinite(t) ? t : null;
+}
+
 // --- session detail -------------------------------------------------------
 
 export type Stint = {
@@ -361,10 +366,11 @@ export type SessionDetail = SessionSummary & {
   stale: boolean;
   /**
    * Live laps (pit-wall thread 66): the tray uploads each lap while the game
-   * runs. `archiveParts` counts the laps stored so far, so a new lap is a new
-   * analysis; null on a session uploaded from game files.
+   * runs (`liveAt`, live.ts). `archiveParts` counts the laps stored so far, so a
+   * new lap is a new analysis; null on a session uploaded from game files.
    */
-  live: boolean;
+  /** `live.updatedAt` in ms (the tray's last lap upload); null on a session never live. */
+  liveAt: number | null;
   archiveParts: number | null;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
@@ -407,8 +413,8 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     ...toSessionSummary(raw),
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
-    live: raw.live != null && typeof raw.live === 'object',
     archiveParts: num(raw.archiveParts),
+    liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),
