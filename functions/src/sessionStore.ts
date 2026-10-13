@@ -228,6 +228,8 @@ export const SESSION_LIST_FIELDS = [
   // column is always empty even when the full doc has `result`.
   'result',
   'analysisVersion',
+  // The tray's last live lap: the list polls while one is fresh.
+  'live',
   'updatedAt',
 ];
 

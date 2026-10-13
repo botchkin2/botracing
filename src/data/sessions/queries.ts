@@ -15,6 +15,7 @@ import {
 } from './client';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
+import {isLive, livePoll} from './live';
 
 // A session is rewritten only by an upload or analysis on open (which
 // refetches it itself), so detail data stays fresh for a while; the list
@@ -31,6 +32,11 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
     queryKey: sessionKeys.list(filter),
     queryFn: ({signal}) => fetchSessions(filter, signal),
     staleTime: 60_000,
+    // A session being driven gains a lap every minute or two; the list shows it.
+    refetchInterval: q =>
+      q.state.data?.items.some(i => isLive(i.liveAt))
+        ? livePoll(Date.now())
+        : false,
     retry: retryUnlessClientError,
   });
 }
@@ -51,7 +57,11 @@ export function useSession(id: string, enabled = true) {
     enabled,
     queryKey: sessionKeys.detail(id),
     queryFn: ({signal}) => fetchSession(id, signal),
-    staleTime: q => (q.state.data?.live ? LIVE_STALE_MS : DETAIL_STALE_MS),
+    staleTime: q =>
+      isLive(q.state.data?.liveAt) ? LIVE_STALE_MS : DETAIL_STALE_MS,
+    // Read again while it is driven: a stale query refetches only on mount or
+    // focus, so an open screen never saw the next lap (thread 1 #4983).
+    refetchInterval: q => livePoll(q.state.data?.liveAt),
     retry: retryUnlessClientError,
   });
   // Opening a session made under older rules analyses it again in the cloud;
@@ -60,9 +70,13 @@ export function useSession(id: string, enabled = true) {
   const client = useQueryClient();
   const stale = query.data?.stale === true;
   const parts = query.data?.archiveParts ?? null;
+  // dataUpdatedAt: a lap that landed while an analysis ran is tried again once
+  // that analysis has refetched the session, not at the lap after.
+  const readAt = query.dataUpdatedAt;
   useEffect(() => {
-    if (stale) void analyzeOnce(id, analyzeDeps(client), `${id}#${parts ?? ''}`);
-  }, [stale, id, parts, client]);
+    if (stale)
+      void analyzeOnce(id, analyzeDeps(client), `${id}#${parts ?? ''}`);
+  }, [stale, id, parts, client, readAt]);
   return query;
 }
 

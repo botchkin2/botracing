@@ -45,6 +45,17 @@ describe('toSessionSummary', () => {
   });
 });
 
+describe('toSessionSummary live stamp', () => {
+  it('reads live.updatedAt in ms, null on a session never live', () => {
+    expect(toSessionSummary(raw).liveAt).toBeNull();
+    expect(
+      toSessionSummary({...raw, live: {updatedAt: '2026-10-13T02:36:40.000Z'}})
+        .liveAt,
+    ).toBe(Date.parse('2026-10-13T02:36:40.000Z'));
+    expect(toSessionSummary({...raw, live: {}}).liveAt).toBeNull();
+  });
+});
+
 describe('toSessionSummary class laps', () => {
   const stats = {cars: 8, laps: 120, medianS: 215.4, p10S: 213, p90S: 219};
 

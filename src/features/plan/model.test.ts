@@ -59,6 +59,7 @@ const session = (
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: startedAt,
+  liveAt: null,
   ...over,
 });
 
