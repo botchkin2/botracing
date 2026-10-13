@@ -1,6 +1,13 @@
 import {describe, expect, it} from '@jest/globals';
 
-import {LIVE_FRESH_MS, LIVE_POLL_MS, isLive, livePoll} from './live';
+import {
+  LIST_POLL_MS,
+  LIVE_FRESH_MS,
+  LIVE_POLL_MS,
+  isLive,
+  listPoll,
+  livePoll,
+} from './live';
 
 describe('live', () => {
   const now = 1_000_000_000;
@@ -17,5 +24,10 @@ describe('live', () => {
     expect(livePoll(Date.now())).toBe(LIVE_POLL_MS);
     expect(livePoll(Date.now() - 2 * LIVE_FRESH_MS)).toBe(false);
     expect(livePoll(null)).toBe(false);
+  });
+  it('polls the list fast while it shows a live session, slowly otherwise', () => {
+    expect(listPoll([null, Date.now()])).toBe(LIVE_POLL_MS);
+    expect(listPoll([null, Date.now() - 2 * LIVE_FRESH_MS])).toBe(LIST_POLL_MS);
+    expect(listPoll(undefined)).toBe(LIST_POLL_MS);
   });
 });

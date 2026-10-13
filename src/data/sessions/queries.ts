@@ -1,5 +1,5 @@
 import {useQueries, useQuery, useQueryClient} from '@tanstack/react-query';
-import {useEffect} from 'react';
+import {useEffect, useRef} from 'react';
 
 import {retryUnlessClientError} from '../http';
 
@@ -15,7 +15,7 @@ import {
 } from './client';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
-import {isLive, livePoll} from './live';
+import {isLive, listPoll, livePoll} from './live';
 
 // A session is rewritten only by an upload or analysis on open (which
 // refetches it itself), so detail data stays fresh for a while; the list
@@ -33,10 +33,7 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
     queryFn: ({signal}) => fetchSessions(filter, signal),
     staleTime: 60_000,
     // A session being driven gains a lap every minute or two; the list shows it.
-    refetchInterval: q =>
-      q.state.data?.items.some(i => isLive(i.liveAt))
-        ? livePoll(Date.now())
-        : false,
+    refetchInterval: q => listPoll(q.state.data?.items.map(i => i.liveAt)),
     retry: retryUnlessClientError,
   });
 }
@@ -77,6 +74,20 @@ export function useSession(id: string, enabled = true) {
     if (stale)
       void analyzeOnce(id, analyzeDeps(client), `${id}#${parts ?? ''}`);
   }, [stale, id, parts, client, readAt]);
+  // The lap table and band are other queries (5 min stale): when the doc is
+  // rewritten under an open screen, by a lap upload or by an analysis another
+  // device ran, they are read again with it.
+  const docAt = query.data?.updatedAt;
+  const seen = useRef<{id: string; at: string} | null>(null);
+  useEffect(() => {
+    if (!docAt) return;
+    const was = seen.current;
+    if (was && was.id === id && was.at !== docAt) {
+      void client.invalidateQueries({queryKey: sessionKeys.laps(id)});
+      void client.invalidateQueries({queryKey: sessionKeys.band(id)});
+    }
+    seen.current = {id, at: docAt};
+  }, [docAt, id, client]);
   return query;
 }
 
