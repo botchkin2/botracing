@@ -41,6 +41,25 @@ pub struct SessionMeta {
     pub session_type: String,
     pub player_idx: i64,
     pub drivers: Vec<Driver>,
+    /// WeekendInfo TrackName: the sim's short name ("sebring international").
+    pub track_short: String,
+    pub track_skies: String,
+    /// The player car's tank (DriverCarFuelMaxLtr) and the share of it this
+    /// session allows (DriverCarMaxFuelPct, 0 to 1); 0 when absent.
+    pub fuel_max_l: f64,
+    pub fuel_max_pct: f64,
+    /// SplitTimeInfo: where each sector starts, as a share of the lap, in order.
+    pub sector_starts: Vec<f64>,
+    pub sessions: Vec<Session>,
+}
+
+/// One item of SessionInfo Sessions. `time` is the sim's own text
+/// ("2700.0000 sec" or "unlimited").
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Session {
+    pub num: i64,
+    pub kind: String,
+    pub time: String,
 }
 
 /// `(indent, text)` with the list dash taken off: " - CarIdx: 3" is
@@ -77,6 +96,11 @@ fn int(value: &str) -> i64 {
     value.trim().parse().unwrap_or(0)
 }
 
+/// The leading number of "110.000" or "0.500 %"; 0 when there is none.
+fn float(value: &str) -> f64 {
+    value.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or(0.0)
+}
+
 fn km_to_m(value: &str) -> f64 {
     value
         .split_whitespace()
@@ -88,11 +112,9 @@ fn km_to_m(value: &str) -> f64 {
 pub fn parse(text: &str) -> SessionMeta {
     let mut meta = SessionMeta::default();
     let mut section = "";
-    // The sessions list: (SessionNum, SessionType) pairs, resolved at the end
-    // against CurrentSessionNum.
-    let mut sessions: Vec<(i64, String)> = Vec::new();
     let mut current_session = 0;
     let mut in_sessions = false;
+    let mut in_sectors = false;
     let mut driver: Option<Driver> = None;
     let mut in_drivers = false;
 
@@ -113,9 +135,11 @@ pub fn parse(text: &str) -> SessionMeta {
                 "WeekendInfo" => "weekend",
                 "SessionInfo" => "session",
                 "DriverInfo" => "driver",
+                "SplitTimeInfo" => "split",
                 _ => "",
             };
             in_sessions = false;
+            in_sectors = false;
             in_drivers = false;
             continue;
         }
@@ -132,6 +156,8 @@ pub fn parse(text: &str) -> SessionMeta {
                 "TrackLength" => meta.track_length_m = km_to_m(value),
                 "SeriesID" => meta.series_id = int(value),
                 "SubSessionID" => meta.sub_session_id = int(value),
+                "TrackName" => meta.track_short = value.to_string(),
+                "TrackSkies" => meta.track_skies = value.to_string(),
                 _ => {}
             },
             "session" => {
@@ -139,17 +165,34 @@ pub fn parse(text: &str) -> SessionMeta {
                     current_session = int(value);
                 } else if indent == 1 && key == "Sessions" {
                     in_sessions = true;
-                } else if in_sessions && key == "SessionNum" && item.is_some() {
-                    sessions.push((int(value), String::new()));
-                } else if in_sessions && key == "SessionType" {
-                    if let Some(last) = sessions.last_mut() {
-                        last.1 = value.to_string();
+                } else if in_sessions && indent == 1 && key == "SessionNum" && item.is_some() {
+                    meta.sessions.push(Session { num: int(value), ..Session::default() });
+                } else if in_sessions && indent == 3 && item.is_none() {
+                    // Only the item's own keys: its nested lists (ResultsFastestLap
+                    // and the like) sit deeper or start with a dash.
+                    if let Some(last) = meta.sessions.last_mut() {
+                        match key {
+                            "SessionType" => last.kind = value.to_string(),
+                            "SessionTime" => last.time = value.to_string(),
+                            _ => {}
+                        }
                     }
+                }
+            }
+            "split" => {
+                if indent == 1 && key == "Sectors" {
+                    in_sectors = true;
+                } else if in_sectors && indent == 3 && key == "SectorStartPct" {
+                    meta.sector_starts.push(float(value));
                 }
             }
             "driver" => {
                 if indent == 1 && key == "DriverCarIdx" {
                     meta.player_idx = int(value);
+                } else if indent == 1 && key == "DriverCarFuelMaxLtr" {
+                    meta.fuel_max_l = float(value);
+                } else if indent == 1 && key == "DriverCarMaxFuelPct" {
+                    meta.fuel_max_pct = float(value);
                 } else if indent == 1 && key == "Drivers" {
                     in_drivers = true;
                 } else if in_drivers {
@@ -176,10 +219,11 @@ pub fn parse(text: &str) -> SessionMeta {
     }
     push_driver(&mut driver, &mut meta.drivers);
     meta.session_num = current_session;
-    meta.session_type = sessions
+    meta.session_type = meta
+        .sessions
         .iter()
-        .find(|(n, _)| *n == current_session)
-        .map(|(_, t)| t.clone())
+        .find(|s| s.num == current_session)
+        .map(|s| s.kind.clone())
         .unwrap_or_default();
     meta
 }
@@ -239,6 +283,11 @@ impl SessionMeta {
                 })
             })
             .collect();
+        let sessions: Vec<Value> = self
+            .sessions
+            .iter()
+            .map(|s| json!({"num": s.num, "type": s.kind, "time": s.time}))
+            .collect();
         json!({
             "trackId": self.track_id,
             "track": self.track_name,
@@ -250,6 +299,12 @@ impl SessionMeta {
             "sessionType": self.session_type,
             "playerCarIdx": self.player_idx,
             "cars": drivers,
+            "trackShort": self.track_short,
+            "trackSkies": self.track_skies,
+            "fuelMaxL": self.fuel_max_l,
+            "fuelMaxPct": self.fuel_max_pct,
+            "sectorStarts": self.sector_starts,
+            "sessions": sessions,
         })
     }
 
@@ -268,7 +323,7 @@ impl SessionMeta {
 mod tests {
     use super::*;
 
-    const TEXT: &str = "---\nWeekendInfo:\n TrackName: roadatlanta\n TrackID: 127\n TrackLength: 4.06 km\n TrackDisplayName: Road Atlanta\n TrackConfigName: Full Course\n SeriesID: 447\n SubSessionID: 88284244\n WeekendOptions:\n  NumStarters: 3\nSessionInfo:\n CurrentSessionNum: 1\n Sessions:\n - SessionNum: 0\n   SessionType: Practice\n   SessionName: PRACTICE\n - SessionNum: 1\n   SessionType: Race\n   SessionName: RACE\nDriverInfo:\n DriverCarIdx: 2\n Drivers:\n - CarIdx: 0\n   UserName: Ren\u{e9}e Dupont\n   TeamName: Team: Les \u{c9}toiles\n   CustID: 111\n   UserID: 222\n   CarNumber: \"7\"\n   CarClassID: 11\n   CarClassShortName: GT3\n   CarScreenName: BMW M4 GT3\n   CarPath: bmwm4gt3\n   IsSpectator: 0\n - CarIdx: 1\n   UserName: Pace Car\n   CarNumber: \"0\"\n   CarIsPaceCar: 1\n   IsSpectator: 0\n - CarIdx: 2\n   UserName: Botkin Q\n   CustID: 333\n   CarNumber: \"12\"\n   CarClassID: 11\n   CarClassShortName: GT3\n   CarScreenName: Ford Mustang GT3\n   CarPath: fordmustanggt3\n   IsSpectator: 0\n - CarIdx: 3\n   UserName: Watcher\n   CarNumber: \"99\"\n   IsSpectator: 1\n...\n";
+    const TEXT: &str = "---\nWeekendInfo:\n TrackName: roadatlanta\n TrackID: 127\n TrackLength: 4.06 km\n TrackDisplayName: Road Atlanta\n TrackConfigName: Full Course\n SeriesID: 447\n SubSessionID: 88284244\n TrackSkies: Partly Cloudy\n WeekendOptions:\n  NumStarters: 3\nSessionInfo:\n CurrentSessionNum: 1\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: 2700.0000 sec\n   SessionType: Practice\n   SessionName: PRACTICE\n   ResultsPositions:\n   - Position: 1\n     UserName: Hidden Racer\n     SessionTime: 1.0000 sec\n   ResultsFastestLap:\n   - CarIdx: 255\n     SessionType: Nested\n   - SessionType: Dashed\n - SessionNum: 1\n   SessionTime: unlimited\n   SessionType: Race\n   SessionName: RACE\nDriverInfo:\n DriverCarIdx: 2\n DriverCarFuelMaxLtr: 110.000\n DriverCarMaxFuelPct: 0.500\n Drivers:\n - CarIdx: 0\n   UserName: Ren\u{e9}e Dupont\n   TeamName: Team: Les \u{c9}toiles\n   CustID: 111\n   UserID: 222\n   CarNumber: \"7\"\n   CarClassID: 11\n   CarClassShortName: GT3\n   CarScreenName: BMW M4 GT3\n   CarPath: bmwm4gt3\n   IsSpectator: 0\n - CarIdx: 1\n   UserName: Pace Car\n   CarNumber: \"0\"\n   CarIsPaceCar: 1\n   IsSpectator: 0\n - CarIdx: 2\n   UserName: Botkin Q\n   CustID: 333\n   CarNumber: \"12\"\n   CarClassID: 11\n   CarClassShortName: GT3\n   CarScreenName: Ford Mustang GT3\n   CarPath: fordmustanggt3\n   IsSpectator: 0\n - CarIdx: 3\n   UserName: Watcher\n   CarNumber: \"99\"\n   IsSpectator: 1\nSplitTimeInfo:\n Sectors:\n - SectorNum: 0\n   SectorStartPct: 0.000000\n - SectorNum: 1\n   SectorStartPct: 0.130902\n - SectorNum: 2\n   SectorStartPct: 0.306900\nCarSetup:\n SectorStartPct: 0.9\n...\n";
 
     #[test]
     fn reads_the_track_session_and_cars() {
@@ -289,11 +344,62 @@ mod tests {
     #[test]
     fn what_is_written_has_no_names_or_ids_of_people() {
         let text = parse(TEXT).to_json().to_string();
-        for secret in ["Dupont", "toiles", "Botkin", "Watcher", "111", "222", "333", "UserName", "CustID", "TeamName"] {
+        for secret in ["Dupont", "toiles", "Botkin", "Watcher", "Hidden", "111", "222", "333", "UserName", "CustID", "TeamName"] {
             assert!(!text.contains(secret), "{secret} reached the output: {text}");
         }
         assert!(text.contains("Ford Mustang GT3"));
         assert!(text.contains("\"isPlayer\":true"));
+    }
+
+    #[test]
+    fn keeps_track_skies_fuel_sectors_and_the_sessions_list() {
+        let m = parse(TEXT);
+        assert_eq!(m.track_short, "roadatlanta");
+        assert_eq!(m.track_skies, "Partly Cloudy");
+        assert_eq!((m.fuel_max_l, m.fuel_max_pct), (110.0, 0.5));
+        // CarSetup's own SectorStartPct is not SplitTimeInfo's.
+        assert_eq!(m.sector_starts, vec![0.0, 0.130902, 0.3069]);
+        // The nested results lists' keys (deeper, or a dashed item) are not
+        // the session's own.
+        let want = vec![
+            Session { num: 0, kind: "Practice".into(), time: "2700.0000 sec".into() },
+            Session { num: 1, kind: "Race".into(), time: "unlimited".into() },
+        ];
+        assert_eq!(m.sessions, want);
+        assert_eq!(m.session_type, "Race");
+        let json = m.to_json();
+        assert_eq!(json["trackShort"], "roadatlanta");
+        assert_eq!(json["trackSkies"], "Partly Cloudy");
+        assert_eq!(json["fuelMaxL"], 110.0);
+        assert_eq!(json["fuelMaxPct"], 0.5);
+        assert_eq!(json["sectorStarts"], json!([0.0, 0.130902, 0.3069]));
+        assert_eq!(json["sessions"][0], json!({"num": 0, "type": "Practice", "time": "2700.0000 sec"}));
+        assert_eq!(json["sessions"][1], json!({"num": 1, "type": "Race", "time": "unlimited"}));
+    }
+
+    #[test]
+    fn absent_fuel_and_sectors_are_zero_and_empty() {
+        let m = parse(OFFLINE);
+        assert_eq!((m.fuel_max_l, m.fuel_max_pct), (0.0, 0.0));
+        let json = m.to_json();
+        assert_eq!(json["sectorStarts"], json!([]));
+        assert_eq!(json["sessions"], json!([]));
+        assert_eq!(json["trackSkies"], "");
+    }
+
+    /// A tool for a parity run, not a check: IR_SESSION_TEXT names a file of
+    /// session text as the sim publishes it (Windows-1252), IR_META_OUT where
+    /// the meta it gives is written.
+    #[test]
+    #[ignore]
+    fn session_text_to_meta() {
+        let input = std::env::var("IR_SESSION_TEXT").expect("IR_SESSION_TEXT");
+        let output = std::env::var("IR_META_OUT").expect("IR_META_OUT");
+        // Byte to the char of that code point (latin1): the keys kept are
+        // ASCII, so this reads them as the live decode_cp1252 does.
+        let text: String = std::fs::read(input).unwrap().into_iter().map(char::from).collect();
+        let meta = parse(&text).to_json();
+        std::fs::write(output, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
     }
 
     #[test]

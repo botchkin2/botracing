@@ -77,6 +77,8 @@ pub struct Probe {
     pub t_id: usize,
     pub t_et: usize,
     pub t_gear: usize,
+    /// mLapNumber: a change is the player crossing the line (a chunk is cut there).
+    pub t_lap: usize,
     pub t_vel: [usize; 3],
     pub t_pos: [usize; 3],
     /// Per wheel: the three tyre temperatures, the carcass and the brake.
@@ -120,6 +122,7 @@ impl Probe {
             t_id: offset_of(layout, "TelemInfoV01", "mID")?,
             t_et: layout.telem_et,
             t_gear: offset_of(layout, "TelemInfoV01", "mGear")?,
+            t_lap: offset_of(layout, "TelemInfoV01", "mLapNumber")?,
             t_vel: xyz("TelemInfoV01", "mLocalVel")?,
             t_pos: xyz("TelemInfoV01", "mPos")?,
             t_temps,
