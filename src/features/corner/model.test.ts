@@ -634,7 +634,7 @@ describe('lap choice', () => {
     ]);
     expect(
       cornerLapIds(timed, {laps: [], hl: null}, false, sessionOf('b')),
-    ).toEqual(['a', 'b', 'c']); // the session's opening set, as Session and Compare open
+    ).toEqual(['a', 'b', 'c', 'x']); // the session's opening set, as Session and Compare open
     expect(cornerLapIds(timed, {laps: [], hl: null}, false, null)).toEqual([
       'b',
       'a',

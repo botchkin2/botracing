@@ -460,6 +460,8 @@ export type Lap = {
   timeS: number | null;
   sectorsS: (number | null)[];
   stint: number;
+  /** Laps into the stint, from 0; null on an old lap doc. */
+  stintLap: number | null;
   comparable: boolean;
   reasons: LapReason[];
   pitIn: boolean;
@@ -969,6 +971,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     timeS: raw.timed === false ? null : num(raw.lapTime),
     sectorsS: Array.isArray(raw.sectors) ? raw.sectors.map(num) : [],
     stint: num(raw.stint) ?? 1,
+    stintLap: num(raw.stintLap),
     comparable: raw.comparable === true,
     reasons: Array.isArray(raw.reasons) ? raw.reasons.map(r => str(r)) : [],
     pitIn: raw.pitIn === true,

@@ -24,6 +24,7 @@ import {
   selectNormalRacing,
 } from '../../src/analysis/consistency.ts';
 import {findTrackSections} from '../../src/analysis/corners.ts';
+import {sectionTimesOf, slowLapIds} from '../../src/analysis/paceEvents.ts';
 import {TRAFFIC_VERSION} from '../../src/analysis/traffic.ts';
 import {PLAN_VERSION} from './planBlock.mjs';
 import {fileChange} from './fileChange.mjs';
@@ -115,12 +116,46 @@ export const blockVersions = {
   traceClock: 1,
   // iRacing's own sector times (sector_start events): every session re-syncs once.
   iracingSectors: 1,
+  // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
+  slowLaps: 1,
 };
 
 const GRID_M = 5;
-const SLOW_SIGMAS = 3;
-const SLOW_MIN_SEC = 1.5;
-const SLOW_MAX_FACTOR = 1.07;
+/**
+ * Sets `reasons: ['slow']`, `comparable` and `clean` on every lap: slow is
+ * decided by slowLapIds over the candidate laps (timed, whole, no pit lane),
+ * from their section times where every lap has them. Run again, same function,
+ * once the sections are known; the flag of a session with no map stays the
+ * lap-time one.
+ */
+function markSlow(laps) {
+  for (const lap of laps) lap.reasons = lap.reasons.filter(r => r !== 'slow');
+  const at = new Map(laps.map((lap, i) => [lap, i]));
+  const first = new Map();
+  laps.forEach((lap, i) => {
+    if (!first.has(lap.stint)) first.set(lap.stint, i);
+  });
+  const slow = slowLapIds(
+    laps
+      .filter(lap => lap.reasons.length === 0)
+      .map(lap => ({
+        id: String(at.get(lap)),
+        stint: lap.stint,
+        stintLap: at.get(lap) - first.get(lap.stint),
+        lapTime: lap.lapTime,
+        sections: sectionTimesOf(
+          lap.startStraight?.segTime,
+          (lap.corners ?? []).map(c => c.segTime),
+        ),
+      })),
+  );
+  for (const lap of laps) {
+    if (slow.has(String(at.get(lap)))) lap.reasons.push('slow');
+    lap.comparable = lap.reasons.length === 0;
+    lap.clean = lap.comparable && !lap.offtrack;
+  }
+}
+
 // A track's stored corner map is built only from a session with at least
 // this many clean laps of the same length.
 export const MAP_MIN_LAPS = 8;
@@ -988,28 +1023,13 @@ export function analyzeSession(
     if (lap.pitOut) reasons.push('pit-out');
     lap.reasons = reasons;
   }
-  // Slow: well outside this session's own spread (median + k robust sigmas),
-  // so a consistent session gets a tight cut and a messy one a looser cut.
-  const candidates = laps
-    .filter(l => l.reasons.length === 0)
-    .map(l => l.lapTime);
-  const baseline = median(candidates);
-  const spread = baseline
-    ? 1.4826 * median(candidates.map(t => Math.abs(t - baseline)))
-    : 0;
-  const slowCut = baseline
-    ? Math.min(
-        baseline * SLOW_MAX_FACTOR,
-        baseline + Math.max(SLOW_SIGMAS * spread, SLOW_MIN_SEC),
-      )
-    : Infinity;
-  for (const lap of laps) {
-    if (lap.reasons.length === 0 && lap.lapTime > slowCut) {
-      lap.reasons.push('slow');
-    }
-    lap.comparable = lap.reasons.length === 0;
-    lap.clean = lap.comparable && !lap.offtrack;
-  }
+  // Slow: a lap well above its stint's pace curve, by the one rule in
+  // src/analysis/paceEvents.ts (the app's default selection reads the same).
+  // It judges from the section times when the laps have them, which they do
+  // only after the corner facts below: this first pass has the lap times (the
+  // best lap, the band and the map are built from it), and the pass after the
+  // corner facts settles the flag with the sections.
+  markSlow(laps);
 
   const comparable = laps.filter(l => l.comparable);
   const pool = comparable.length
@@ -1029,17 +1049,6 @@ export function analyzeSession(
         lap.grid = onGrid(recs[lap.rec], lap, gridN);
       }
     }
-    const bandLaps = (comparable.length >= 3 ? comparable : pool).filter(
-      l => l.grid,
-    );
-    band = {
-      stepM: GRID_M,
-      lengthM: round(best.distanceM, 1),
-      laps: bandLaps.length,
-      speed: stats(bandLaps, 'speed', gridN, 1),
-      throttle: stats(bandLaps, 'throttle', gridN, 1),
-      brake: stats(bandLaps, 'brake', gridN, 1),
-    };
   }
 
   // The track's corners: the stored map when it fits this lap length, else
@@ -1129,6 +1138,28 @@ export function analyzeSession(
         rev: layout.state.rev,
       };
     }
+  }
+
+  // The slow flag again, now that the laps have their sections.
+  markSlow(laps);
+
+  // The band, over the final flags (the grids were cut above, on the best lap's length).
+  if (best && best.distanceM > 100) {
+    const finalComparable = laps.filter(l => l.comparable);
+    const finalPool = finalComparable.length
+      ? finalComparable
+      : laps.filter(l => l.timed && !l.partial);
+    const bandLaps = (
+      finalComparable.length >= 3 ? finalComparable : finalPool
+    ).filter(l => l.grid);
+    band = {
+      stepM: GRID_M,
+      lengthM: round(best.distanceM, 1),
+      laps: bandLaps.length,
+      speed: stats(bandLaps, 'speed', gridN, 1),
+      throttle: stats(bandLaps, 'throttle', gridN, 1),
+      brake: stats(bandLaps, 'brake', gridN, 1),
+    };
   }
 
   // Consistency: the laps run in normal racing conditions, through the

@@ -12,6 +12,7 @@ const lap = (lapIndex: number, over: Partial<Lap> = {}): Lap => ({
   timeS: 80,
   sectorsS: [],
   stint: 1,
+  stintLap: null,
   comparable: true,
   reasons: [],
   pitIn: false,

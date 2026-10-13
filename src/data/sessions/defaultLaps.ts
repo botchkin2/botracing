@@ -95,40 +95,33 @@ export function referenceDefaultLapIds(
     : defaultLapIds(laps, session.bestLapId);
 }
 
-/**
- * The laps Compare opens on when the URL names none: every comparable lap of
- * one stint, so the screen is a set of laps against their median, never a
- * pair (apex, pit-wall thread 1 #3229). The stint is the one with the most
- * comparable laps, the later one on a tie: the run that was the session's
- * racing pace. A session of one stint is all its comparable laps. Under two
- * comparable laps there is no set: the caller falls back to a pair.
- */
-export function stintSetLapIds(laps: Lap[]): string[] {
-  const byStint = new Map<number, Lap[]>();
-  for (const l of laps) {
-    if (!l.comparable || l.timeS == null) continue;
-    byStint.set(l.stint, [...(byStint.get(l.stint) ?? []), l]);
-  }
-  let best: Lap[] = [];
-  let bestStint = -Infinity;
-  for (const [stint, list] of byStint) {
-    if (
-      list.length > best.length ||
-      (list.length === best.length && stint > bestStint)
-    ) {
-      best = list;
-      bestStint = stint;
-    }
-  }
-  return best.length >= 2 ? best.map(l => l.id) : [];
+/** The laps whose pace is judged: timed, whole, and not in or out of the pits (an in- or out-lap is a different lap). */
+function paceCandidates(laps: Lap[]): Lap[] {
+  return laps.filter(
+    l => l.timeS != null && !l.partial && !l.pitIn && !l.pitOut,
+  );
 }
 
 /**
- * The laps a session screen opens on when the URL names none: the stint set,
- * else the reference pair. Compare and the session grid both read this, so
- * they never disagree about what is selected.
+ * The laps a screen opens on when the URL names none: every lap that can be
+ * compared at all (timed, whole, not an in- or out-lap) except the slow ones,
+ * across all stints (decisions/lap/2026-10-12-default-selection-outliers.md): a
+ * set against its median, never a pair. "Slow" is the stored reason the uploader
+ * set with the one rule in analysis/paceEvents.ts, so the app computes nothing
+ * a second time; a session analysed before it re-analyses on open. Under two
+ * laps there is no set: the caller falls back to a pair.
+ */
+export function paceSetLapIds(laps: Lap[]): string[] {
+  const set = paceCandidates(laps).filter(l => !l.reasons.includes('slow'));
+  return set.length >= 2 ? set.map(l => l.id) : [];
+}
+
+/**
+ * The laps a session screen opens on when the URL names none: the pace set,
+ * else the reference pair. Compare, Corner and the session grid all read this,
+ * so they never disagree about what is selected.
  */
 export function openingLapIds(laps: Lap[], session: DefaultSession): string[] {
-  const set = stintSetLapIds(laps);
+  const set = paceSetLapIds(laps);
   return set.length > 0 ? set : referenceDefaultLapIds(laps, session);
 }

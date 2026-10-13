@@ -35,7 +35,18 @@ for (const name of Object.keys(manifest.sessions)) {
       return;
     }
     const expected = JSON.parse(readFileSync(resolve(here, 'expected', `${name}.json`), 'utf8'));
-    const actual = JSON.parse(JSON.stringify(summaryOf(analyzeGolden(got.dir))));
+    const analysis = analyzeGolden(got.dir);
+    const actual = JSON.parse(JSON.stringify(summaryOf(analysis)));
+    // The band is built from the FINAL slow flags (the pass after the corner
+    // facts): its lap count is the final comparable set's laps with a grid.
+    if (analysis.band) {
+      const all = analysis.laps;
+      const comparable = all.filter(l => l.comparable);
+      const pool = comparable.length ? comparable : all.filter(l => l.timed && !l.partial);
+      const bandLaps = (comparable.length >= 3 ? comparable : pool).filter(l => l.grid);
+      assert.ok(bandLaps.length > 0, `${name}: no lap with a grid to check the band against`);
+      assert.equal(analysis.band.laps, bandLaps.length, `${name}: band.laps is not the final comparable set`);
+    }
     const moved = diffSummary(expected, actual, 25);
     assert.equal(
       moved.length,

@@ -1553,8 +1553,8 @@ export const drawRank = (r: {isRef: boolean; highlighted: boolean}) =>
 // --- selection edits (pure; the route writes them to the URL) ----------------
 
 /**
- * A URL with no laps opens on a set: every comparable lap of the session's
- * main stint against their median (`stintSetLapIds`). Under two comparable
+ * A URL with no laps opens on a set: every lap that can be compared minus the
+ * pace outliers, against their median (`paceSetLapIds`). Under two such
  * laps it opens on a fair reference and the median lap
  * (`referenceDefaultLapIds`), so Compare is never empty. Laps the URL names
  * are kept as given, and nothing changes while the session or its laps are
