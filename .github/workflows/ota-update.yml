@@ -44,6 +44,8 @@ on:
 
 permissions:
   contents: read
+  # waitForDeploys reads the other workflows' runs for this commit.
+  actions: read
 
 concurrency:
   group: ota-update
@@ -71,6 +73,16 @@ jobs:
 
       - name: App tests
         run: npx jest
+
+      # The new bundle talks to the server of this same push (the API rename,
+      # #591: /api/sessions exists only once dataApi and its Hosting rewrites
+      # are live). Publish only after the deploys this push needs have
+      # succeeded; a failed deploy leaves phones on the previous bundle.
+      - name: Wait for the functions and hosting deploys of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node tools/ci/waitForDeploys.mjs
 
       - name: Publish to production
         env:
