@@ -71,7 +71,7 @@ jobs:
       - name: Golden drift gate
         run: node tools/golden/gate.mjs origin/main
       - name: Uploader and session tools
-        run: node --test tools/golden/*.test.mjs tools/sessions/*.test.mjs tools/curate/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
+        run: node --test contract/*.test.mjs tools/golden/*.test.mjs tools/sessions/*.test.mjs tools/curate/*.test.mjs tools/uploader/*.test.mjs tools/ci/*.test.mjs tools/dev/*.test.mjs ops/backups/*.test.mjs ops/iam/*.test.mjs scripts/*.test.mjs
   # The functions had no CI of their own: their types and tests (the upload
   # endpoint, the read API's owner rules, the admin scripts) ran only by hand.
   functions:
