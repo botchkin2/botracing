@@ -111,6 +111,19 @@ fn devtools_args(debug_build: bool, port: Option<&str>) -> Option<String> {
 /// window, and the second build would fail on the taken label.
 static OPENING: Mutex<()> = Mutex::new(());
 
+/// Whether a window is being opened right now (`open` holds OPENING for the
+/// whole build). On windows-2022 a WebView2 build takes 2 to 9 s on the main
+/// thread, and the event loop sees nothing else until it ends (roadmap 2r,
+/// thread 1 #4955): a quit then ends the process itself (main.rs quit_tray).
+pub fn opening() -> bool {
+    held(&OPENING)
+}
+
+/// True while another holder has the lock; a poisoned lock is no build.
+fn held(lock: &Mutex<()>) -> bool {
+    matches!(lock.try_lock(), Err(std::sync::TryLockError::WouldBlock))
+}
+
 /// Shows the window, creating it the first time. Call off the main thread: a
 /// window built from a menu handler on Windows can deadlock.
 pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
@@ -334,6 +347,30 @@ pub fn sign_out(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_lock_held_elsewhere_is_a_build_in_progress() {
+        let lock = Mutex::new(());
+        assert!(!super::held(&lock));
+        let guard = lock.lock().unwrap();
+        // held() is asked from another thread, as quit_tray asks it.
+        let busy = std::thread::scope(|s| s.spawn(|| super::held(&lock)).join().unwrap());
+        assert!(busy);
+        drop(guard);
+        assert!(!super::held(&lock));
+    }
+
+    #[test]
+    fn a_poisoned_lock_is_no_build() {
+        let lock = std::sync::Arc::new(Mutex::new(()));
+        let l2 = lock.clone();
+        let _ = std::thread::spawn(move || {
+            let _g = l2.lock().unwrap();
+            panic!("poison it");
+        })
+        .join();
+        assert!(!super::held(&lock));
+    }
+
     use super::*;
     use std::collections::BTreeSet;
 

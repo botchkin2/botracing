@@ -231,16 +231,17 @@ if ((Trays).Count -gt 0) {
 }
 # Every cleanup step must be done before the process ends, by the event loop
 # or by the tray's own exit 3 s later ("exit forced"): the forced exit is
-# allowed, a missing step is not (thread 1 #4778). On some windows-2022
-# sessions the loop is seconds late to see an exit: a bug of its own, traced
-# by the "exit reached the event loop" / "event loop ended" notes below.
+# allowed, a missing step is not (thread 1 #4778). A quit while the window is
+# still being built ends the process at once ("exit now: window still being
+# built"): a WebView2 build holds the main thread for up to 9 s on
+# windows-2022, and the loop would see the exit only after it (thread 1 #4955).
 $quitLog = Join-Path $data "quit.log"
 if (-not (Test-Path $quitLog)) { Fail "no quit.log: the quit never reached the tray" }
 $quitLines = @(Get-Content $quitLog)
 Write-Host "quit.log: $($quitLines -join ' | ')"
-$exitAt = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match '^(exit forced|event loop ended)' })
+$exitAt = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match '^(exit forced|event loop ended|exit now: window still being built)' })
 # The tray ends itself one of two ways, and says which; anything else ended it.
-if ($exitAt -lt 0) { Fail "quit.log has neither 'event loop ended' nor 'exit forced': something else ended the tray" }
+if ($exitAt -lt 0) { Fail "quit.log has none of 'event loop ended', 'exit now', 'exit forced': something else ended the tray" }
 foreach ($step in @("watcher stopped", "recorders stopped", "window state saved", "tray icon removed")) {
   $at = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match "^$step " })
   if ($at -lt 0) { Fail "quit.log has no '$step': a quit must finish it before the tray ends" }
