@@ -76,6 +76,7 @@ export {
   defaultSessionOf,
   openingLapIds,
   referenceDefaultLapIds,
+  paceEventsOf,
   paceSetLapIds,
   refLapOf,
 } from './defaultLaps';

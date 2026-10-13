@@ -1,4 +1,8 @@
-import {paceOutliers} from '@/src/analysis/consistency';
+import {
+  type PaceEvent,
+  type PaceLap,
+  paceEvents,
+} from '@/src/analysis/paceEvents';
 import {type RefLap, rankReferenceLaps} from '@/src/analysis/referenceLap';
 
 import type {Lap} from './adapters';
@@ -96,30 +100,51 @@ export function referenceDefaultLapIds(
     : defaultLapIds(laps, session.bestLapId);
 }
 
-/**
- * The laps a screen opens on when the URL names none: every lap that can be
- * compared at all (timed, whole, not an in- or out-lap) except the ones the
- * session's own pace model calls outliers, slow or fast, across all stints
- * (decisions/lap/2026-10-12-default-selection-outliers.md): a set against its
- * median, never a pair, and never cut by a flag. A lap with no stint position
- * (an old lap doc) is judged by its place in the list. Under two laps there is
- * no set: the caller falls back to a pair.
- */
-export function paceSetLapIds(laps: Lap[]): string[] {
-  const candidates = laps.filter(
+/** The laps whose pace is judged: timed, whole, and not in or out of the pits (an in- or out-lap is a different lap). */
+function paceCandidates(laps: Lap[]): Lap[] {
+  return laps.filter(
     l => l.timeS != null && !l.partial && !l.pitIn && !l.pitOut,
   );
-  const outliers = new Set(
-    paceOutliers(
-      candidates.map((l, i) => ({
-        id: l.id,
-        stint: l.stint,
-        stintLap: l.stintLap ?? i,
-        lapTime: l.timeS as number,
-      })),
-    ).map(o => o.id),
-  );
-  const set = candidates.filter(l => !outliers.has(l.id));
+}
+
+/** A lap's seconds in each section, the start straight first (they add up to the lap time); null when it has none or one is missing. */
+function sectionTimesOf(lap: Lap): number[] | null {
+  const parts = [
+    lap.startStraight?.segTimeS ?? null,
+    ...lap.sections.map(s => s.segTimeS),
+  ];
+  return parts.length >= 2 && parts.every(t => t != null && t > 0)
+    ? (parts as number[])
+    : null;
+}
+
+/**
+ * The laps that are events rather than the driver's repeatable pace, by id
+ * (analysis/paceEvents.ts), each with how far above the pace curve it sits and
+ * the limit. A lap with no stint position (an old lap doc) is placed by its
+ * order in the list.
+ */
+export function paceEventsOf(laps: Lap[]): Map<string, PaceEvent> {
+  const input: PaceLap[] = paceCandidates(laps).map((l, i) => ({
+    id: l.id,
+    stint: l.stint,
+    stintLap: l.stintLap ?? i,
+    lapTime: l.timeS as number,
+    sections: sectionTimesOf(l),
+  }));
+  return new Map(paceEvents(input).map(e => [e.id, e]));
+}
+
+/**
+ * The laps a screen opens on when the URL names none: every lap that can be
+ * compared at all except the events, across all stints
+ * (decisions/lap/2026-10-12-default-selection-outliers.md): a set against its
+ * median, never a pair, and never cut by a flag. Under two laps there is no
+ * set: the caller falls back to a pair.
+ */
+export function paceSetLapIds(laps: Lap[]): string[] {
+  const events = paceEventsOf(laps);
+  const set = paceCandidates(laps).filter(l => !events.has(l.id));
   return set.length >= 2 ? set.map(l => l.id) : [];
 }
 
