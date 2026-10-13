@@ -290,10 +290,13 @@ describe('buildPlanHalf', () => {
   });
 
   it('says why there is no plan instead of inventing one', () => {
+    // No fill limit: nothing to plan, and no line saying so.
     expect(half({limitL: null}).rows).toEqual([]);
-    expect(half({limitL: null}).note).toBe(
-      'No fill limit on record for this race.',
-    );
+    expect(half({limitL: null}).note).toBeNull();
+    // A DNF still shows, with no plan side.
+    const dnf = half({limitL: null, leftEarly: true, playerLapsDone: 21});
+    expect(dnf.note).toBeNull();
+    expect(dnf.rows.map(r => [r.k, r.p])).toEqual([['Finish', '—']]);
     const none = buildPlanHalf({
       facts: facts(),
       plan: null,

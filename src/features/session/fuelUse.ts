@@ -232,11 +232,9 @@ export function verdictText(fu: FuelUse): string {
   }
 }
 
-/** "at the 75 L limit of this session" for the load lines; empty without a limit. */
-export function limitText(fu: FuelUse): string {
-  return fu.limitL != null
-    ? `Limit ${fu.limitL.toFixed(0)} L`
-    : 'No fill limit on record';
+/** "Limit 75 L" under the load lines; null without a limit (no line, roadmap 2i). */
+export function limitText(fu: FuelUse): string | null {
+  return fu.limitL != null ? `Limit ${fu.limitL.toFixed(0)} L` : null;
 }
 
 /**
@@ -252,13 +250,11 @@ export function planLinkText(
 ): string {
   const laps = `${greenLaps} green lap${greenLaps === 1 ? '' : 's'}`;
   if (planLimitL != null && !planMatchesLimit(sessionLimitL, planLimitL)) {
-    const ran =
-      sessionLimitL != null
-        ? `This session ran at the ${sessionLimitL.toFixed(0)} L limit`
-        : 'This session has no fill limit on record';
-    return `${laps}: not in ${planLabel} (${planLimitL.toFixed(
-      0,
-    )} L). ${ran} ›`;
+    const plan = `${laps}: not in ${planLabel} (${planLimitL.toFixed(0)} L)`;
+    // Without a limit there is nothing to set beside the plan's (roadmap 2i).
+    return sessionLimitL != null
+      ? `${plan}. This session ran at the ${sessionLimitL.toFixed(0)} L limit ›`
+      : `${plan} ›`;
   }
   return `${laps} in ${planLabel} ›`;
 }
