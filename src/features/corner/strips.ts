@@ -1,7 +1,7 @@
 // Corner screen dot strips (handoff §4, pit-wall thread 27 #621/#622/#678):
 // one measure across many laps. Each strip carries its scale (an axis in 1-2-5
 // steps with units on its ticks, D45; the pedal resolution where known), a
-// p10–90 band and median,
+// IQR band (p25 to p75) and median,
 // and direction words in the axis's own order: position measures (brake,
 // full throttle) run in track order, left = earlier on the lap; values run
 // low to high. Nothing is flipped to put "better" on one side.
@@ -64,7 +64,7 @@ export type StripModel = {
   flipped: boolean;
   leftWord: string;
   rightWord: string;
-  band: {p10: number; p50: number; p90: number} | null;
+  band: {p25: number; p50: number; p75: number} | null;
   summary: string;
   /** No lap has this measure here (a corner taken without braking). */
   empty: boolean;
@@ -207,9 +207,9 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
   const band =
     vals.length >= 3
       ? {
-          p10: quantile(vals, 0.1),
+          p25: quantile(vals, 0.25),
           p50: quantile(vals, 0.5),
-          p90: quantile(vals, 0.9),
+          p75: quantile(vals, 0.75),
         }
       : null;
   const flat = flatLaps;
@@ -229,9 +229,7 @@ function buildStrip(spec: Spec, laps: StripLap[]): StripModel {
     rightWord: spec.rightWord,
     band,
     summary: band
-      ? `med ${spec.fmt(band.p50)} · p10–90 ${spec.fmt(band.p10)}–${spec.fmt(
-          band.p90,
-        )}`
+      ? `med ${spec.fmt(band.p50)} · IQR ${spec.fmt(band.p75 - band.p25)}`
       : '',
     empty: dots.length === 0,
     flatNote:

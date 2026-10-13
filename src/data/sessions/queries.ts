@@ -20,6 +20,8 @@ import {type SessionFilter, sessionKeys} from './keys';
 // refetches it itself), so detail data stays fresh for a while; the list
 // refreshes sooner to pick up new uploads.
 const DETAIL_STALE_MS = 5 * 60_000;
+/** A live session gains a lap every minute or two: read it again sooner. */
+const LIVE_STALE_MS = 30_000;
 // A track map is curated (the server sends max-age 3600): an hour in memory too.
 const TRACK_MAP_STALE_MS = 60 * 60_000;
 
@@ -49,16 +51,18 @@ export function useSession(id: string, enabled = true) {
     enabled,
     queryKey: sessionKeys.detail(id),
     queryFn: ({signal}) => fetchSession(id, signal),
-    staleTime: DETAIL_STALE_MS,
+    staleTime: q => (q.state.data?.live ? LIVE_STALE_MS : DETAIL_STALE_MS),
     retry: retryUnlessClientError,
   });
   // Opening a session made under older rules analyses it again in the cloud;
-  // the stored numbers show until the new ones land (analysisOnOpen.ts).
+  // the stored numbers show until the new ones land (analysisOnOpen.ts). A
+  // live session again for each lap the tray adds.
   const client = useQueryClient();
   const stale = query.data?.stale === true;
+  const parts = query.data?.archiveParts ?? null;
   useEffect(() => {
-    if (stale) void analyzeOnce(id, analyzeDeps(client));
-  }, [stale, id, client]);
+    if (stale) void analyzeOnce(id, analyzeDeps(client), `${id}#${parts ?? ''}`);
+  }, [stale, id, parts, client]);
   return query;
 }
 

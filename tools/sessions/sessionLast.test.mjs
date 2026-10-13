@@ -179,3 +179,29 @@ test('a practice uploaded one drive at a time ends as the same docs as all at on
   };
   assert.deepEqual(await run([1, 2, 3]), await run([3]));
 });
+
+test("a live session's next lap (one more archive part) lands over a newer stamp", async () => {
+  const newer = {
+    analysis: analysisStamp(18, {}),
+    recordingIds: ['r1'],
+    archiveParts: 4,
+  };
+  const docs = new Map([['sessions/s1', newer]]);
+  const backend = backendOver(docs);
+  const out = outFor();
+  out.session.recordingIds = ['r1'];
+  out.session.archiveParts = 5;
+  const r = await createStore(backend).upload(out);
+  assert.notDeepEqual(r, {skipped: 'newer'});
+  assert.equal(docs.get('sessions/s1').archiveParts, 5);
+});
+
+test('the same parts again over a newer stamp is still skipped', async () => {
+  const newer = {analysis: analysisStamp(18, {}), recordingIds: ['r1'], archiveParts: 5};
+  const docs = new Map([['sessions/s1', newer]]);
+  const backend = backendOver(docs);
+  const out = outFor();
+  out.session.recordingIds = ['r1'];
+  out.session.archiveParts = 5;
+  assert.deepEqual(await createStore(backend).upload(out), {skipped: 'newer'});
+});

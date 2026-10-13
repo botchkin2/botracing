@@ -166,6 +166,15 @@ impl IrCapture {
         Ok(written)
     }
 
+    /// Bytes of the chunks the writer finished since the last call, or its
+    /// first error; never waits. Asked on every poll, so a chunk on disk (a
+    /// finished lap) is known within a poll, not at the next rotation.
+    pub fn written(&mut self) -> Result<u64, String> {
+        let written = self.writer.finished()?;
+        self.bytes += written;
+        Ok(written)
+    }
+
     /// Waits for the chunks handed over; their bytes (tests).
     #[cfg(test)]
     pub fn settle(&mut self) -> Result<u64, String> {

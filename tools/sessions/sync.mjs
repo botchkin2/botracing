@@ -57,6 +57,7 @@ import {openIbt} from './ibt.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
@@ -136,6 +137,33 @@ const captureRoot = resolve(
       resolve(process.env.LOCALAPPDATA || homedir(), 'lap-capture'),
   ),
 );
+// --live <captureDir>: live laps (syncLive.mjs). Only that capture's finished
+// laps, as archive parts; no game files, no analysis. Remote only.
+const liveDir = arg('--live', '');
+if (liveDir) {
+  if (!remoteStore) {
+    console.error('--live uploads; it needs --remote (or LAP_API).');
+    process.exit(2);
+  }
+  const {captureAdapterFor, syncLive} = await import('./syncLive.mjs');
+  // The work folder is the sim's (watch.mjs passes --sim): a capture of another
+  // sim would write its live index where that sim's sync never reads it.
+  const {sim: captureSim, adapter: capture} = captureAdapterFor(resolve(liveDir));
+  if (captureSim !== simName) {
+    console.error(`--live: the capture is ${captureSim}, this sync is --sim ${simName}.`);
+    process.exit(2);
+  }
+  const r = await syncLive({
+    captureDir: resolve(liveDir),
+    ownerId,
+    work,
+    store: remoteStore,
+    capture,
+    log: line => console.log(line),
+  });
+  console.log(`live: done ${r.sessions}`);
+  process.exit(0);
+}
 // Sessions analyzed at once, each in its own worker thread. The work is
 // CPU-bound (DuckDB read and analysis), one core per session. At most 8 by
 // default: on 41 sessions 8 jobs took 65 s against 286 s serial (4.4x) at
@@ -515,8 +543,16 @@ async function main() {
   if (forgotten)
     log(`${forgotten} session(s) were uploaded for another account: new here`);
   if (!since && state.since) since = state.since;
-  const files = scan(state);
+  const scanned = scan(state);
   if (!check) saveState(state);
+  // A drive live laps already uploaded (syncLive.mjs) is that session: its
+  // game file adds nothing the capture lacks (STORAGE.md, Live laps).
+  const liveIndex = readLiveIndex(work);
+  const files = scanned.filter(f => {
+    const cover = liveCover(liveIndex, f.info);
+    if (cover) log(`  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`);
+    return !cover;
+  });
   const sessions = group(files);
   log(`${files.length} recordings in ${sessions.length} sessions (${folder})`);
 

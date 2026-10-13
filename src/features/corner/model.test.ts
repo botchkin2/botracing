@@ -524,7 +524,7 @@ describe('strips at 7+ laps', () => {
       'throttle',
     ]);
     expect(m.strips![1].flipped).toBe(true);
-    expect(m.strips![0].summary).toMatch(/^med 10\.100 · p10–90 /);
+    expect(m.strips![0].summary).toMatch(/^med 10\.100 · IQR /);
   });
 
   it('colours the laps that are on', () => {
