@@ -16,7 +16,7 @@ import {
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
-import {formatGap, turnLabel} from '@/src/design';
+import {formatGap, formatWhole, turnLabel} from '@/src/design';
 import {sectionNameOf} from '@/src/analysis/turnNames';
 import {medianOfSet} from '@/src/analysis/setStats';
 
@@ -217,7 +217,7 @@ export function buildSectionWindow(input: {
         const part = labelOf(a.part);
         return {
           label: `Brake ${k + 1}`,
-          onset: `${Math.round(apexOf(a.part) - a.onsetM)} m before ${
+          onset: `${formatWhole(apexOf(a.part) - a.onsetM)} m before ${
             part ?? 'the apex'
           }`,
           peak: `${Math.round(a.peakPct)} %`,

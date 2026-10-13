@@ -8,6 +8,7 @@
 import {fitScale, type Scale} from '@/src/charts/scale';
 import {withUnit} from '@/src/charts/tickFormat';
 import {quantile} from '@/src/analysis/setStats';
+import {formatWhole} from '@/src/design';
 
 export type StripMeasure =
   | 'time'
@@ -90,7 +91,7 @@ type Spec = {
   fmt: (v: number) => string;
 };
 
-const whole = (v: number) => `${Math.round(v)}`;
+const whole = formatWhole;
 
 // Ticks on a phone-wide strip: five keeps "120 m" labels apart at 343 pt.
 const STRIP_MAX_TICKS = 5;
