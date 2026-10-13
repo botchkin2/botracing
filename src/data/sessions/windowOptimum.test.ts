@@ -1,7 +1,12 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {toLaps, toTrackMap} from './adapters';
-import {sectionWindowTimes, sessionOptimum} from './windowOptimum';
+import {
+  sectionWindowState,
+  sectionWindowTimes,
+  sessionOptimum,
+  windowExclusion,
+} from './windowOptimum';
 
 // A start straight and one section, boundaries at revision 3.
 const boundaries = {
@@ -166,5 +171,29 @@ describe('sectionWindowTimes (the one cell rule Compare and Session share)', () 
   });
   it('is null without windows: the caller falls back to the lap own segment times', () => {
     expect(sectionWindowTimes(lap, map(null))).toBeNull();
+  });
+});
+
+describe('windowExclusion and sectionWindowState (the one rule Corner, Compare and Session share)', () => {
+  it('leaves a window out for the pit lane, or 0.3 s or more off track, and for nothing else', () => {
+    expect(windowExclusion({pit: true, offTrackS: 0})).toBe('pit');
+    expect(windowExclusion({pit: false, offTrackS: 0.3})).toBe('off-track');
+    expect(windowExclusion({pit: false, offTrackS: 0.29})).toBeNull();
+  });
+
+  it('says counts, pit, off-track, or stale (cut at other boundaries) for a lap window', () => {
+    const laps = toLaps([
+      rawLap('a'),
+      rawLap('p', {pit: true}),
+      rawLap('o', {offTrackSec: 0.3}),
+      rawLap('s', {stamp: {v: 1, rev: 2}}),
+    ]);
+    const b = map().boundaries!;
+    expect(laps.map(l => sectionWindowState(l, 0, b))).toEqual([
+      'counts',
+      'pit',
+      'off-track',
+      'stale',
+    ]);
   });
 });

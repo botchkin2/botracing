@@ -13,8 +13,10 @@ import {turnTitleOf} from '@/src/analysis/turnNames';
 import {
   type DefaultSession,
   defaultLapIds,
+  isCurrent,
   type Lap,
   openingLapIds,
+  sectionWindowState,
   type SessionBand,
   type SessionDetail,
   type TrackCorner,
@@ -30,11 +32,7 @@ import {
   entryPartOf,
   wholeTitle,
 } from './wholeCorner';
-import {
-  buildSectionWindow,
-  isCurrent,
-  type SectionWindowModel,
-} from './sectionWindow';
+import {buildSectionWindow, type SectionWindowModel} from './sectionWindow';
 import {brakeZone} from './brakeZone';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
@@ -392,8 +390,14 @@ export function buildCornerModel(input: {
     const x = exit.facts;
     const entryEdge = e?.minSpeedAtEdge === true;
     const exitEdge = f?.minSpeedAtEdge === true;
+    // The window's time counts the way Compare's and Session's section times
+    // do: not when the pit lane crosses it or the lap went off track in it
+    // (data/sessions/windowOptimum.ts). With no windows on the map yet, as there.
+    const counts =
+      !map.boundaries ||
+      sectionWindowState(l, sec.sectionIndex, map.boundaries) === 'counts';
     return {
-      time: f?.segTimeS ?? null,
+      time: counts ? f?.segTimeS ?? null : null,
       brake: e?.brakeAtM == null ? null : entry.apexM - e.brakeAtM,
       peakBrake: e?.peakBrakePct ?? null,
       turnIn:
