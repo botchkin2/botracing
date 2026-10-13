@@ -3,12 +3,12 @@ import {StyleSheet, View} from 'react-native';
 import {space} from '@/src/design';
 import {Text} from '@/src/ui';
 
-import type {Fact} from '../model';
+import {type Fact, factLabel} from '../model';
 
 /**
  * The phone's head: Best and Median large, side by side, and under them one
- * line of the rest ("21 laps · 14 comparable"). Session facts, not the
- * selection's. The desktop keeps its row of facts.
+ * line of the rest ("21 laps · 14 comparable"). Best is the session's, Median
+ * is of the selection and says how many laps. The desktop keeps its row of facts.
  */
 export function SessionHead({facts}: {facts: Fact[]}) {
   const hero = ['Best', 'Median']
@@ -30,7 +30,7 @@ export function SessionHead({facts}: {facts: Fact[]}) {
         {hero.map(f => (
           <View key={f.label}>
             <Text variant='label' tone='textMuted'>
-              {f.label}
+              {factLabel(f)}
             </Text>
             <Text variant='dataHero' tone={f.best ? 'best' : 'text'}>
               {f.value}
