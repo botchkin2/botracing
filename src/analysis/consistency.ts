@@ -982,8 +982,33 @@ export function paceOutliers(
   laps: readonly PaceLap[],
   t: Thresholds = defaultThresholds,
 ): PaceOutlier[] {
-  if (laps.length < MIN_OUTLIER_LAPS) return [];
-  const residual = new Map<string, number>();
+  const {residualS, limitS} = paceResiduals(laps, t);
+  return laps.flatMap(l => {
+    const r = residualS.get(l.id);
+    return r != null && r >= limitS ? [{id: l.id, residualS: r}] : [];
+  });
+}
+
+export interface PaceResiduals {
+  /** Seconds off the stint's trend, per judged lap; positive is slower. */
+  residualS: Map<string, number>;
+  /** The session's robust sigma of those residuals. */
+  sigmaS: number;
+  /** A lap this much slower or more is an outlier; Infinity when too few laps to judge. */
+  limitS: number;
+  /** The fitted slope per stint (seconds per lap into the stint). */
+  slopeByStint: Map<number, number>;
+}
+
+/** What `paceOutliers` judged by: each lap's residual from its stint's trend, and the limit. */
+export function paceResiduals(
+  laps: readonly PaceLap[],
+  t: Thresholds = defaultThresholds,
+): PaceResiduals {
+  const residualS = new Map<string, number>();
+  const slopeByStint = new Map<number, number>();
+  if (laps.length < MIN_OUTLIER_LAPS)
+    return {residualS, sigmaS: 0, limitS: Infinity, slopeByStint};
   for (const n of unique(laps.map(l => l.stint))) {
     const own = laps.filter(l => l.stint === n);
     // A stint this short has no pace trend: its laps are not judged.
@@ -993,13 +1018,15 @@ export function paceOutliers(
       own.map(l => l.lapTime),
       t,
     );
+    slopeByStint.set(n, slope);
     for (const l of own)
-      residual.set(l.id, l.lapTime - (intercept + slope * l.stintLap));
+      residualS.set(l.id, l.lapTime - (intercept + slope * l.stintLap));
   }
-  const sigma = robustSigma([...residual.values()]) ?? 0;
-  const limit = Math.max(t.offPaceZ * sigma, t.offPaceMinSec);
-  return laps.flatMap(l => {
-    const r = residual.get(l.id);
-    return r != null && r >= limit ? [{id: l.id, residualS: r}] : [];
-  });
+  const sigmaS = robustSigma([...residualS.values()]) ?? 0;
+  return {
+    residualS,
+    sigmaS,
+    limitS: Math.max(t.offPaceZ * sigmaS, t.offPaceMinSec),
+    slopeByStint,
+  };
 }
