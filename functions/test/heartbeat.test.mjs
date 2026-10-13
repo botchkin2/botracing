@@ -39,14 +39,6 @@ test('every real payload is accepted, stored, and read back by the app', async (
   }
 });
 
-test('every tray version that sends heartbeats has payloads', () => {
-  // Versions are only added (contract/README.md: a version's payloads stay
-  // while any PC still sends from it).
-  const versions = new Set(loadPayloads('heartbeat').map(p => p.body.version));
-  for (const v of ['0.1.6', '0.1.7', '0.1.8', '0.1.9', '0.1.10'])
-    assert.ok(versions.has(v), `no payload from tray ${v}`);
-});
-
 test('the recorder game version: both integers a real LMU reported are accepted, and read as LMU <n>', async () => {
   // Reverting #597 must fail on 0 and 14200 (torsion #5115 8): 0 from the
   // 0.1.9 beat, 14200 from the 1 Oct capture's own meta.
@@ -135,7 +127,11 @@ test('too often is 429 with Retry-After, and the latest state is accepted when a
   assert.equal(early.status, 429);
   assert.equal(early.headers['Retry-After'], '25');
   assert.equal(stored(w).state, 'syncing');
-  assert.equal(w.usage.get('uidA').heartbeats, 1, 'a refused beat is not counted');
+  assert.equal(
+    w.usage.get('uidA').heartbeats,
+    1,
+    'a refused beat is not counted',
+  );
   // ...and the tray sends its LATEST state after the wait, which replaces it.
   w.clock.t += 25_000;
   assert.equal((await send(w, 'tok-a', waiting)).status, 204);

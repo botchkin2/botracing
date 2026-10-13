@@ -6,7 +6,9 @@ import {handleUpload} from '../src/uploadCore.ts';
 
 // In-memory Firestore and bucket, behind the interfaces uploadApi.ts binds to
 // Firebase. users/{uid} holds the owner-key mapping and the usage counters.
-export function world(tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'}) {
+export function world(
+  tokens = {'tok-a': 'uidA', 'tok-b': 'uidB', 'tok-k': 'uidK'},
+) {
   const docs = new Map([['users/uidK', {ownerKey: 'botkin'}]]);
   const files = new Map();
   const usage = new Map();

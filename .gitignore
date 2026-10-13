@@ -183,3 +183,6 @@ app-example
 
 # Which worktree each live-N slot serves (tools/dev/liveSlots.mjs); per machine
 .claude/live-slots.local.json
+
+# Contract replay emulator config (functions/test/replay/emulators.mjs)
+.replay-firebase-*.json
