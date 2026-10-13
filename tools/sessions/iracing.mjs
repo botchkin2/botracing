@@ -460,9 +460,19 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
     mkdirSync(dirname(eventsOut), {recursive: true});
     writeCsv(samplesCsv, headers, rows);
     samplesCsvToParquet(samplesCsv, headers, samplesOut);
-    // The channels the old guessed types rounded in this file (the archive
-    // repair sends only those sessions again; sync.mjs repairIracingArchives).
-    rounded = guessedWholeNumbers(samplesCsv);
+    // The channels the old guessed types rounded in this file: guessed whole
+    // numbers AND holding a decimal somewhere. A guess that lost nothing (wear
+    // that never left 100) needs no repair (archiveRepair.mjs).
+    const guessed = guessedWholeNumbers(samplesCsv);
+    rounded = guessed.length
+      ? guessed.filter(c => {
+          const [r] = rowsOf(
+            ':memory:',
+            `SELECT count(*) n FROM read_parquet(${sqlPath(samplesOut)}) WHERE "${c}" <> round("${c}")`,
+          );
+          return Number(r.n) > 0;
+        })
+      : [];
 
     const t = cols.t;
     const events = [];
