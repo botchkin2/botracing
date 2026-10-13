@@ -58,7 +58,7 @@ export async function run(judgeMap = judges, N = 400) {
       for (let d = 0; d < N; d++) {
         const sections = 4 + Math.floor(9 * r()),
           base = [80, 105, 125][Math.floor(3 * r())];
-        const drv = makeDriver(r, {level, sections, base, laps: 25});
+        const drv = makeDriver(r, {level, sections, base, laps: Number(process.env.SIM_LAPS ?? 25)});
         const flags = judge(drv).map(x => x.out);
         const truth = med(drv.laps.map(l => l.cleanTime));
         // spread: robust sigma of (lap time - the noise-free expectation) over the kept laps vs over the clean times
