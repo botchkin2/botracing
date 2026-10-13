@@ -136,7 +136,22 @@ if (!noScreen) {
   listBaseline = await listPane.text();
   console.log(`${stamp()} list pane open (${listBaseline.length} chars)`);
 }
+// The capture's session was already stored: nothing can "arrive", so the run
+// says so and stops, instead of reporting laps that never reached the app. The
+// replay shifts the capture's clock to now (replayCapture.mjs), so this is a
+// harness fault, not a product miss.
+let alreadyStored = false;
 const poll = async () => {
+  try {
+    if (
+      readFileSync(watchLog, 'utf8').includes(
+        'nothing new over the stored session',
+      )
+    )
+      alreadyStored = true;
+  } catch {
+    // No log yet.
+  }
   if (!sessionId) {
     try {
       const m = readFileSync(watchLog, 'utf8').match(
@@ -200,7 +215,7 @@ const poll = async () => {
 const done = () =>
   seen.size >= laps && (noScreen || (onScreen.size >= laps && onList.has(1)));
 const until = Date.now() + (laps * 100_000) / Number(speed) + 180_000;
-while (Date.now() < until && !done()) {
+while (Date.now() < until && !done() && !alreadyStored) {
   await new Promise(r => setTimeout(r, 2000));
   await poll().catch(err => console.log(`${stamp()} poll: ${err.message}`));
 }
@@ -233,7 +248,11 @@ if (!noScreen) {
     }),
   );
 }
-const problems = verdicts.flatMap(v => v.problems);
+const problems = alreadyStored
+  ? [
+      'capture already uploaded ("nothing new over the stored session"): this run measured nothing, use another capture',
+    ]
+  : verdicts.flatMap(v => v.problems);
 for (const p of problems) console.log(`FAIL: ${p}`);
 const pass = problems.length === 0;
 console.log(
