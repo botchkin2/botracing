@@ -4,8 +4,8 @@
 //   mismatch   a shown number that differs from the recompute
 //   set        a number computed on another set of laps than its label says
 //   zero       a 0 shown where a value is missing (a spread of one lap)
-//   selection  the opening selection is not "every comparable lap" (decision
-//              2026-10-11 point 3)
+//   selection  the opening selection is not the pace set: candidates minus the
+//              slow laps (decision 2026-10-12)
 // Pure: the runner (numbersAudit.test.ts) fetches, this checks. The recompute
 // below deliberately shares no code with src/analysis/setStats.ts.
 import {formatLapTime} from '@/src/design';
@@ -61,6 +61,110 @@ const TOL_S = 0.0006;
 const same = (a: number | null, b: number | null) =>
   a == null || b == null ? a === b : Math.abs(a - b) <= TOL_S;
 
+// -- the slow rule, recomputed from its text (paceEvents.ts header; decisions/lap/2026-10-12) --
+
+type PaceIn = {
+  id: string;
+  stint: number;
+  order: number;
+  lapTime: number;
+  sections: number[] | null;
+};
+const isCandidate = (l: Lap) =>
+  l.timeS != null && !l.partial && !l.pitIn && !l.pitOut;
+const med = (a: number[]): number => {
+  const s = a.filter(Number.isFinite).sort((x, y) => x - y);
+  const n = s.length;
+  return n === 0 ? NaN : n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2;
+};
+const rsig = (a: number[]): number =>
+  1.4826 * med(a.map(v => Math.abs(v - med(a))));
+const wmed = (xs: number[], ws: number[]): number => {
+  const v = xs
+    .map((x, i): [number, number] => [x, ws[i]])
+    .filter(([x, w]) => Number.isFinite(x) && w > 0)
+    .sort((p, q) => p[0] - q[0]);
+  const tot = v.reduce((t, [, w]) => t + w, 0);
+  let acc = 0;
+  for (const [x, w] of v) {
+    acc += w;
+    if (acc >= tot / 2) return x;
+  }
+  return NaN;
+};
+// Croux & Rousseeuw 1992 small-sample factor for the MAD: a table to 9, n/(n-0.8) above.
+const CR: Record<number, number> = {
+  2: 1.196,
+  3: 1.495,
+  4: 1.363,
+  5: 1.206,
+  6: 1.2,
+  7: 1.14,
+  8: 1.129,
+  9: 1.107,
+};
+const crFactor = (n: number) => (n >= 10 ? n / (n - 0.8) : CR[n] ?? 1);
+function curveOf(f: number[]): number[] {
+  const n = f.length;
+  if (n < 5) return f.map(() => med(f));
+  const rm: number[] = new Array(n).fill(NaN);
+  for (let i = 2; i < n - 2; i++) rm[i] = med(f.slice(i - 2, i + 3));
+  rm[1] = med(f.slice(0, 3));
+  rm[n - 2] = med(f.slice(n - 3));
+  rm[0] = med([f[0], rm[1], 3 * rm[1] - 2 * rm[2]]);
+  rm[n - 1] = med([f[n - 1], rm[n - 2], 3 * rm[n - 2] - 2 * rm[n - 3]]);
+  return rm;
+}
+/** The slow laps of a session: (f) with the small-sample factor, 3.5 sigma, at least 0.3 s, 5+ candidate laps. */
+export function expectedSlow(all: Lap[]): Set<string> {
+  const cand = all.filter(isCandidate);
+  const laps: PaceIn[] = cand.map((l, i) => {
+    const parts = [
+      l.startStraight?.segTimeS,
+      ...l.sections.map(x => x.segTimeS),
+    ];
+    const ok = parts.length >= 2 && parts.every(t => t != null && t > 0);
+    const own = (l as {stintLap?: number}).stintLap;
+    return {
+      id: l.id,
+      stint: l.stint,
+      order: own ?? i,
+      lapTime: l.timeS as number,
+      sections: ok ? (parts as number[]) : null,
+    };
+  });
+  if (laps.length < 5) return new Set();
+  const n = laps[0].sections?.length ?? 0;
+  const ok = n >= 2 && laps.every(l => l.sections?.length === n);
+  const base = ok
+    ? Array.from({length: n}, (_, s) =>
+        med(laps.map(l => (l.sections as number[])[s])),
+      )
+    : [];
+  const total = ok ? base.reduce((x, y) => x + y, 0) : 1;
+  const fac = new Map(
+    laps.map(l => [
+      l.id,
+      ok
+        ? wmed(
+            (l.sections as number[]).map((t, s) => t / base[s]),
+            base,
+          )
+        : l.lapTime,
+    ]),
+  );
+  const res = new Map<string, number>();
+  for (const st of [...new Set(laps.map(l => l.stint))]) {
+    const own = laps
+      .filter(l => l.stint === st)
+      .sort((x, y) => x.order - y.order);
+    const c = curveOf(own.map(l => fac.get(l.id) as number));
+    own.forEach((l, i) => res.set(l.id, l.lapTime - total * c[i]));
+  }
+  const lim = Math.max(3.5 * crFactor(res.size) * rsig([...res.values()]), 0.3);
+  return new Set([...res].filter(([, r]) => r > lim).map(([id]) => id));
+}
+
 const lapText = (v: number | null) => (v == null ? '—' : formatLapTime(v));
 const num = (v: number | null, d = 3) => (v == null ? '—' : v.toFixed(d));
 
@@ -88,18 +192,25 @@ export function auditSession(
   const all = stats(comparable.map(l => l.timeS));
   const sel = stats(basis.map(l => l.timeS));
 
-  // selection: decision 2026-10-11 point 3, the default is every comparable lap.
-  const comparableIds = new Set(comparable.map(l => l.id));
+  // selection: the default is every lap that can be compared (timed, whole, not in or
+  // out of the pits) except the slow ones (decision 2026-10-12, one rule for every
+  // size). The slow set is recomputed here from the rule's text (expectedSlow),
+  // not by the app's function.
+  const slow = expectedSlow(laps);
+  const expected = new Set(
+    laps.filter(l => isCandidate(l) && !slow.has(l.id)).map(l => l.id),
+  );
+  const enough = expected.size >= 2;
   if (
-    opening.length !== comparableIds.size ||
-    opening.some(id => !comparableIds.has(id))
+    enough &&
+    (opening.length !== expected.size || opening.some(id => !expected.has(id)))
   ) {
     add({
       type: 'selection',
       what: 'opening selection',
       shown: `${opening.length} laps`,
-      expected: `${comparableIds.size} comparable laps`,
-      note: 'default is not "every comparable lap"',
+      expected: `${expected.size} laps (candidates minus ${slow.size} slow)`,
+      note: 'default is not the pace set',
     });
   }
 
