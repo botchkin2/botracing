@@ -41,6 +41,7 @@ before(() => {
 appendFileSync(${JSON.stringify(
       callsPath,
     )}, JSON.stringify(process.argv.slice(2)) + '\\n');
+console.log('live: 0123456789abcdef 1 laps');
 console.log('live: done 1');`,
   );
 });
@@ -88,6 +89,13 @@ test(
     });
     const [call, ...more] = tick();
     assert.equal(more.length, 0);
+    // A live lap moves the heartbeat's lastUploadAt / lastSessionId, the
+    // signal the app's session list refetches on (thread 1 #5019, #5020).
+    const state = JSON.parse(
+      readFileSync(resolve(local, 'lap-uploader', 'state.json'), 'utf8'),
+    );
+    assert.equal(state.lastSessionId, '0123456789abcdef');
+    assert.ok(Date.parse(state.lastUploadAt) > Date.now() - 120_000);
     assert.equal(call[call.indexOf('--sim') + 1], 'iracing');
     assert.equal(call[call.indexOf('--live') + 1], resolve(capture, 'cap-a'));
     // The same lap again: nothing to send.
