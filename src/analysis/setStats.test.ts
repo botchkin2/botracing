@@ -3,6 +3,8 @@ import {describe, expect, it} from '@jest/globals';
 import {
   iqr,
   median,
+  medianOfSet,
+  MIN_COMPARISON_LAPS,
   MIN_SPREAD_N,
   percentile,
   quantile,
@@ -40,5 +42,12 @@ describe('setStats', () => {
     expect(iqr([null, 7.5])).toBeNull();
     expect(MIN_SPREAD_N).toBe(2);
     expect(iqr([1, 2])).toBe(0.5);
+  });
+
+  it('has no median to measure against under two values: a set of one is no comparison', () => {
+    expect(MIN_COMPARISON_LAPS).toBe(2);
+    expect(medianOfSet([80])).toBeNull();
+    expect(medianOfSet([null, 80])).toBeNull();
+    expect(medianOfSet([80, 82])).toBe(81);
   });
 });

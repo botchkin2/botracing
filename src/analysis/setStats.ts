@@ -10,6 +10,9 @@ export type Sample = number | null | undefined;
 /** Fewest values a spread (IQR) is shown for: one value has no spread, and 0 would say it was perfectly consistent. */
 export const MIN_SPREAD_N = 2;
 
+/** Fewest laps whose median a gap is measured against: a median of one lap is that lap itself, so a gap to it would be a pair and read "±0.000". Every "vs median" on every screen uses this one floor. */
+export const MIN_COMPARISON_LAPS = 2;
+
 /** The finite values of `values`, ascending. */
 export function sortedFinite(values: readonly Sample[]): number[] {
   const out: number[] = [];
@@ -44,4 +47,11 @@ export function median(values: readonly Sample[]): number | null {
 export function iqr(values: readonly Sample[]): number | null {
   const s = sortedFinite(values);
   return s.length < MIN_SPREAD_N ? null : quantile(s, 0.75) - quantile(s, 0.25);
+}
+
+/** The median a gap is measured against: null under MIN_COMPARISON_LAPS values (a set of one is no comparison). */
+export function medianOfSet(values: readonly Sample[]): number | null {
+  return sortedFinite(values).length < MIN_COMPARISON_LAPS
+    ? null
+    : median(values);
 }
