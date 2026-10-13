@@ -14,13 +14,7 @@ import {redactSecrets} from '../problemsCore.ts';
 
 import {SAFE_SEGMENT} from './segment.ts';
 
-type Json =
-  | null
-  | boolean
-  | number
-  | string
-  | Json[]
-  | {[key: string]: Json};
+type Json = null | boolean | number | string | Json[] | {[key: string]: Json};
 
 export const HEARTBEAT_STATES = [
   'idle',
