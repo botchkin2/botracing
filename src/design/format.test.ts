@@ -11,6 +11,9 @@ import {
   formatLength,
   formatGap,
   formatLapTime,
+  formatSignedWhole,
+  formatWhole,
+  roundHalfAway,
   formatRaceGap,
   oneDecimal,
   turnLabel,
@@ -43,6 +46,43 @@ describe('format', () => {
   });
   it('distance', () => {
     expect(formatDistance(2150.4)).toBe('2,150 m');
+  });
+});
+
+describe('symmetric rounding and the true minus', () => {
+  it('a pair of laps either side of their median prints the same digits (the float below the tie must not round down)', () => {
+    // Corner T1–3 of the Daytona 29 Sep race: 13.584 and 13.319, median 13.4515.
+    const median = (13.584 + 13.319) / 2;
+    expect(formatGap(13.584 - median)).toBe('+0.133');
+    expect(formatGap(13.319 - median)).toBe('−0.133');
+    expect(formatCornerGap(13.584 - median)).toBe('+.13');
+    expect(formatCornerGap(13.319 - median)).toBe('−.13');
+    // Whole numbers: 81 and 60.2 around 70.6 (a .5 either side after float noise).
+    expect(formatSignedWhole(81.2 - 70.7)).toBe('+11');
+    expect(formatSignedWhole(60.2 - 70.7)).toBe('−11');
+  });
+
+  it('roundHalfAway', () => {
+    expect(roundHalfAway(10.5)).toBe(11);
+    expect(roundHalfAway(-10.5)).toBe(-11);
+    expect(roundHalfAway(0.1325, 3)).toBe(0.133);
+    expect(roundHalfAway(-0.1325, 3)).toBe(-0.133);
+    expect(roundHalfAway(0.4)).toBe(0);
+  });
+
+  it('formatWhole uses U+2212, never a hyphen or "−0"', () => {
+    expect(formatWhole(241)).toBe('241');
+    expect(formatWhole(-30)).toBe('−30');
+    expect(formatWhole(-30.4)).toBe('−30');
+    expect(formatWhole(-0.4)).toBe('0');
+    expect(formatWhole(0)).toBe('0');
+  });
+
+  it('formatSignedWhole follows the rounded value', () => {
+    expect(formatSignedWhole(11)).toBe('+11');
+    expect(formatSignedWhole(-4)).toBe('−4');
+    expect(formatSignedWhole(0.3)).toBe('±0');
+    expect(formatSignedWhole(-0.3)).toBe('±0');
   });
 });
 
