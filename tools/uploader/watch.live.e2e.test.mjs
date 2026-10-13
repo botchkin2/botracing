@@ -116,3 +116,58 @@ test('the capture closing sends its last lap once', {skip: !windows}, () => {
   );
   assert.deepEqual(tick(), []);
 });
+
+// A failed live upload (a network blip) is tried again within seconds, not at
+// the next 30 s tick: the real watcher running, a stand-in sync that fails
+// once and then succeeds (thread 1 #5006: a connect timeout held a lap 46 s).
+test('a failed live upload is tried again within seconds', {skip: !windows}, async () => {
+  const {spawn} = await import('node:child_process');
+  const failOnce = resolve(root, 'fail-once.mjs');
+  const flag = resolve(root, 'failed-once');
+  const timesPath = resolve(root, 'times.jsonl');
+  writeFileSync(
+    failOnce,
+    `import {appendFileSync, existsSync, writeFileSync} from 'node:fs';
+appendFileSync(${JSON.stringify(timesPath)}, Date.now() + '\\n');
+if (!existsSync(${JSON.stringify(flag)})) {
+  writeFileSync(${JSON.stringify(flag)}, '1');
+  console.error('fetch failed: ConnectTimeoutError');
+  process.exit(1);
+}
+console.log('live: done 1');`,
+  );
+  status({
+    state: 'recording',
+    sessionDir: 'cap-retry',
+    lastLapAt: '2026-10-12T21:00:00.000Z',
+  });
+  const child = spawn(process.execPath, [watch], {
+    env: {
+      ...process.env,
+      LOCALAPPDATA: local,
+      IRACING_TELEMETRY: resolve(root, 'telemetry'),
+      LAP_SYNC_SCRIPT: failOnce,
+      LAP_HEARTBEAT_FILE: resolve(root, 'beats-retry.jsonl'),
+      LAP_LOCK_PIPE: String.raw`\\.\pipe\lap-uploader-watch-retry-${process.pid}`,
+      LAP_IRACING_EXE: basename(process.execPath),
+      LAP_SIMS: 'iracing',
+    },
+    stdio: 'ignore',
+  });
+  const runs = () =>
+    existsSync(timesPath)
+      ? readFileSync(timesPath, 'utf8').split('\n').filter(Boolean).map(Number)
+      : [];
+  try {
+    const until = Date.now() + 60_000;
+    while (runs().length < 2 && Date.now() < until)
+      await new Promise(r => setTimeout(r, 500));
+  } finally {
+    child.kill();
+  }
+  const [first, second] = runs();
+  assert.ok(second, 'the failed upload was never tried again');
+  const gapS = (second - first) / 1000;
+  // 5 s retry plus a 2 s status poll and the run's own start-up; a tick is 30 s.
+  assert.ok(gapS < 15, `retried after ${gapS.toFixed(1)} s`);
+});
