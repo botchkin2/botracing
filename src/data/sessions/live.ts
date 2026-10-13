@@ -8,7 +8,7 @@ export const LIVE_POLL_MS = 5_000;
 export const LIVE_FRESH_MS = 10 * 60_000;
 
 /** How often the Sessions list looks for a drive that has just started. */
-export const LIST_POLL_MS = 10_000;
+export const LIST_POLL_MS = 30_000;
 
 /**
  * `liveAt`: `live.updatedAt` in ms, null on a session that never was live.
