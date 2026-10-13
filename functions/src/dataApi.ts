@@ -1,0 +1,347 @@
+import {createHash} from 'node:crypto';
+
+import * as admin from 'firebase-admin';
+import type {Request} from 'firebase-functions/v2/https';
+import {onRequest} from 'firebase-functions/v2/https';
+import type {Response} from 'express';
+import {
+  listLaps,
+  listUploaders,
+  listTracks,
+  readTraceBody,
+  readTraceMeta,
+  readTrackMap,
+  listFacets,
+  listPlanSessions,
+  listSessions,
+  readSession,
+  readSessionLaps,
+  readBand,
+  readCornerSlicesGzip,
+  readSurfaceGzip,
+  readFieldGzip,
+  trackMapById,
+  trackSurfaceById,
+} from './sessionStore';
+import {Unauthorized, resolveOwner} from './ownerAccess';
+import {parsePlanQuery} from './planQuery';
+import {traceDelivery} from './traceCore';
+import {notModified, trackIdOk} from './trackMapCore';
+import {RUNTIME_ACCOUNT} from './runtime';
+import {sessionStale} from './engine';
+import {reportError} from './problems';
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+// The API is read-only. Any local dev server (any port) and any PR preview
+// channel may call it with a signed-in token. Seats kept building proxies
+// because only three localhost ports were allowed.
+const ALLOWED_ORIGIN =
+  /^(https:\/\/botracing-61(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
+
+function allowCors(req: any, res: any) {
+  const origin = req.headers.origin;
+  const allowOrigin =
+    typeof origin === 'string' && ALLOWED_ORIGIN.test(origin)
+      ? origin
+      : 'https://botracing-61.web.app';
+  res.set('Access-Control-Allow-Origin', allowOrigin);
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Credentials', 'true');
+  res.set('Cache-Control', 'private');
+}
+
+function pathname(req: any): string {
+  let path =
+    req.path ||
+    (typeof req.url === 'string' ? req.url.split('?')[0] : '') ||
+    '';
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      path = '';
+    }
+  }
+  return path;
+}
+
+type Handler = (req: Request, res: Response) => void | Promise<void>;
+
+const handle: Handler = async (req, res) => {
+  allowCors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  if (req.method !== 'GET') {
+    res.status(405).json({error: 'GET only'});
+    return;
+  }
+
+  const path = pathname(req);
+  // Who is asking: the signed-in user's owner key (ownerAccess.ts). A missing
+  // or bad token is a 401.
+  res.set('Vary', 'Authorization, Origin');
+  let owner: string;
+  try {
+    owner = await resolveOwner(
+      {
+        verifyToken: async idToken => ({
+          uid: (await admin.auth().verifyIdToken(idToken)).uid,
+        }),
+        readOwnerKey: async uid => {
+          const key = (await admin.firestore().doc(`users/${uid}`).get()).get(
+            'ownerKey',
+          );
+          return typeof key === 'string' ? key : null;
+        },
+      },
+      req.headers.authorization,
+    );
+  } catch (error) {
+    if (error instanceof Unauthorized) {
+      res.status(401).json({error: error.message});
+      return;
+    }
+    throw error;
+  }
+  try {
+    // API v2, shaped for the redesigned screens (Sessions, Session, Compare,
+    // Corner). Straight from the store, no legacy lap shape.
+    if (/\/uploaders$/.test(path)) {
+      res.status(200).json({items: await listUploaders(owner)});
+      return;
+    }
+    // The Plan's one request per track and car (docs/API.md): the sessions'
+    // plan blocks, a projection query, no lap docs.
+    if (/\/plan$/.test(path)) {
+      const asked = parsePlanQuery(req.query);
+      if (!asked.ok) {
+        res.status(400).json({error: asked.error});
+        return;
+      }
+      const body = JSON.stringify(
+        await listPlanSessions(owner, asked.combo, asked.lapSessions),
+      );
+      // A validator over the body, set here (not left to the framework, which
+      // does not pass If-None-Match through): a client that holds this plan
+      // gets a 304 and no download; within max-age it does not ask at all. A
+      // plan changes only when a session is resynced or uploaded.
+      const etag = `"p-${createHash('sha1')
+        .update(body)
+        .digest('hex')
+        .slice(0, 20)}"`;
+      res.set('Cache-Control', 'private, max-age=60');
+      res.set('ETag', etag);
+      if (notModified(req.headers['if-none-match'], etag)) {
+        res.status(304).end();
+        return;
+      }
+      res.status(200).type('json').send(body);
+      return;
+    }
+    // A track layout's map and measured surface, by track id: shared app
+    // data, the same for every signed-in user, no session needed
+    // (trackMapCore.ts). Both carry an ETag; within max-age a second open is
+    // served from the client's cache, after it a 304 without a download.
+    const trackRoute = path.match(/\/tracks\/([^/]+)\/(map|surface)$/);
+    if (trackRoute) {
+      const [, trackId, part] = trackRoute;
+      const found = !trackIdOk(trackId)
+        ? null
+        : part === 'map'
+        ? await trackMapById(trackId)
+        : await trackSurfaceById(trackId);
+      if (!found) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // The map changes when the curator writes it; the surface after a sync.
+      res.set(
+        'Cache-Control',
+        part === 'map' ? 'private, max-age=3600' : 'private, max-age=300',
+      );
+      res.set('ETag', found.etag);
+      if (notModified(req.headers['if-none-match'], found.etag)) {
+        res.status(304).end();
+        return;
+      }
+      if ('body' in found) {
+        res.status(200).json(await found.body());
+        return;
+      }
+      const gz = await found.gzip();
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.status(200).send(gz);
+      return;
+    }
+    if (/\/sessions\/facets$/.test(path)) {
+      res.status(200).json(await listFacets(owner));
+      return;
+    }
+    if (/\/sessions$/.test(path)) {
+      const age = Number(req.query.age);
+      const items = await listSessions(owner, {
+        ageDays: Number.isFinite(age) ? age : undefined,
+        trackId: req.query.track ? String(req.query.track) : undefined,
+        sim: req.query.sim ? String(req.query.sim) : undefined,
+      });
+      res.status(200).json({items, total: items.length});
+      return;
+    }
+    const field = path.match(
+      /\/sessions\/([0-9a-f]{16})\/field(?:\/([0-9a-f]{12}))?$/,
+    );
+    if (field) {
+      const [, id, hash] = field;
+      const gz = await readFieldGzip(owner, id, hash);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // The stored gzip as-is. Under /field/{hash} the content can never
+      // change (a new field has a new hash); plain /field must revalidate.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set(
+        'Cache-Control',
+        hash ? 'private, max-age=31536000, immutable' : 'private, no-cache',
+      );
+      res.status(200).send(gz);
+      return;
+    }
+    const slices = path.match(
+      /\/sessions\/([0-9a-f]{16})\/corners\/(\d{1,3})\/laps(?:\/([0-9a-f]{12}))?$/,
+    );
+    if (slices) {
+      const [, id, corner, hash] = slices;
+      const gz = await readCornerSlicesGzip(owner, id, Number(corner), hash);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // Same caching as /field: under /laps/{hash} the bytes never change.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set(
+        'Cache-Control',
+        hash ? 'private, max-age=31536000, immutable' : 'private, no-cache',
+      );
+      res.status(200).send(gz);
+      return;
+    }
+    const surface = path.match(/\/sessions\/([0-9a-f]{16})\/surface$/);
+    if (surface) {
+      const gz = await readSurfaceGzip(owner, surface[1]);
+      if (!gz) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // The stored gzip as is; it changes whenever a session is folded in.
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Encoding', 'gzip');
+      res.set('Cache-Control', 'private, no-cache');
+      res.status(200).send(gz);
+      return;
+    }
+    const v2 = path.match(/\/sessions\/([0-9a-f]{16})(?:\/(laps|band|map))?$/);
+    if (v2) {
+      const [, id, part] = v2;
+      const body =
+        part === 'laps'
+          ? await readSessionLaps(owner, id)
+          : part === 'band'
+          ? await readBand(owner, id)
+          : part === 'map'
+          ? await readTrackMap(owner, id)
+          : await readSession(owner, id);
+      if (!body) {
+        res.status(404).json({error: 'Not found'});
+        return;
+      }
+      // Made under older rules: the app asks analyzeApi to run it again
+      // (analysis on open, pit-wall thread 1 #4572).
+      if (!part)
+        body.stale = await sessionStale(body, async (coll, id) => {
+          const doc = await admin.firestore().doc(`${coll}/${id}`).get();
+          return doc.exists ? doc.data() : null;
+        });
+      res.status(200).json(body);
+      return;
+    }
+
+    if (path.endsWith('/tracks')) {
+      res.status(200).json({items: await listTracks(owner)});
+      return;
+    }
+
+    const csv = path.match(/\/laps\/([^/]+)\/csv$/);
+    if (csv) {
+      const id = decodeURIComponent(csv[1]);
+      const meta = await readTraceMeta(owner, id);
+      const delivery =
+        meta && traceDelivery(meta, req.headers['if-none-match']);
+      if (!delivery) {
+        res.status(404).json({error: 'Lap telemetry not found'});
+        return;
+      }
+      // Revalidated, not immutable: a new analysis rewrites the same path.
+      res.set('Cache-Control', 'private, no-cache');
+      if (delivery.etag) res.set('ETag', delivery.etag);
+      if (delivery.send === 'not-modified') {
+        res.status(304).end();
+        return;
+      }
+      const body = await readTraceBody(owner, id, delivery.send === 'gzip');
+      if (!body) {
+        res.status(404).json({error: 'Lap telemetry not found'});
+        return;
+      }
+      res.set('Content-Type', 'text/csv');
+      if (delivery.send === 'gzip') res.set('Content-Encoding', 'gzip');
+      res.status(200).send(body);
+      return;
+    }
+
+    if (path.endsWith('/laps')) {
+      const trackFilter = String(req.query.tracks || '')
+        .split(',')
+        .map(value => Number(value))
+        .filter(value => Number.isFinite(value) && value !== 0);
+      const event = String(req.query.event || '');
+      const age = Number(req.query.age);
+      const stored = await listLaps(owner, {
+        ageDays: Number.isFinite(age) ? age : undefined,
+        trackIds: trackFilter,
+        event: event || undefined,
+      });
+      res.status(200).json({items: stored, total: stored.length});
+      return;
+    }
+
+    res.status(404).json({error: 'Not found', path});
+  } catch (error: unknown) {
+    await reportError('dataApi', error, {route: path});
+    res.status(500).json({error: 'LMU data is not available'});
+  }
+};
+
+export const dataApi = onRequest({serviceAccount: RUNTIME_ACCOUNT}, handle);
+
+/**
+ * The old function name, answering the old /api/lmu/** route until every
+ * installed client (Android before its OTA, old tools) is updated; then both
+ * this export and the route are deleted (roadmap row). A deployed function
+ * that disappears from the source aborts a non-interactive deploy, so it
+ * stays exported until it is deleted with `firebase functions:delete lmuApi`.
+ */
+export const lmuApi = onRequest({serviceAccount: RUNTIME_ACCOUNT}, handle);

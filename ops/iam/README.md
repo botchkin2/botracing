@@ -61,13 +61,13 @@ Check: the audit with `--deploy-account` lists it. Undo: the same with `remove-i
 
 ### Step 3: the functions run as it (a code PR, after 1 and 2 are confirmed)
 
-`serviceAccount: 'lap-runtime@botracing-61.iam.gserviceaccount.com'` in the options of `lmuApi` and `uploadApi` (and the curator function when it exists), in `functions/src`. Merged only after steps 1 and 2 are confirmed; the functions deploy workflow applies it. **Not in this PR.** Rollback: revert that one PR (the default account is untouched until step 5).
+`serviceAccount: 'lap-runtime@botracing-61.iam.gserviceaccount.com'` in the options of `dataApi` and `uploadApi` (and the curator function when it exists), in `functions/src`. Merged only after steps 1 and 2 are confirmed; the functions deploy workflow applies it. **Not in this PR.** Rollback: revert that one PR (the default account is untouched until step 5).
 
-Check: `node ops/iam/audit.mjs` shows `lmuApi runs as lap-runtime@...` and `uploadApi runs as lap-runtime@...`.
+Check: `node ops/iam/audit.mjs` shows `dataApi runs as lap-runtime@...` and `uploadApi runs as lap-runtime@...`.
 
 ### Step 4: prove it with a real signed-in session (no revoke before this)
 
-- `GET /api/lmu/sessions` with Botkin's token: 200 and his sessions.
+- `GET /api/sessions` with Botkin's token: 200 and his sessions.
 - A signed upload URL issued and used (a tray upload, or `ops`/smoke), a heartbeat accepted, a track read.
 - Read the function logs for ten minutes after the switch: `gcloud logging read 'severity>=ERROR AND (textPayload:"PERMISSION_DENIED" OR jsonPayload.message:"PERMISSION_DENIED")' --project=$P --freshness=15m`. If a third grant is needed it shows here; add it, do not revoke.
 - **Prove the restriction itself** without deleting anything: the audit reads each role's real permissions, and the policy troubleshooter answers the question for the runtime account directly (read-only):

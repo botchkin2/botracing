@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const admin = require('firebase-admin');
 
 const PROJECT = process.env.GCLOUD_PROJECT || 'demo-botracing';
-const API = `http://127.0.0.1:5101/${PROJECT}/us-central1/lmuApi`;
+const API = `http://127.0.0.1:5101/${PROJECT}/us-central1/dataApi`;
 const BUCKET = 'botracing-61-lmu';
 const TRACK = 'lmu-test_ring';
 

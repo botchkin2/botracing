@@ -1,9 +1,9 @@
 // Alerting for the two functions (pit wall thread 3 #10). Pure planning, no
 // gcloud and no network, so the tests run anywhere; enable.mjs does the calling.
 //
-//   Log-based metrics   count 5xx and 401 responses of lmuApi and uploadApi
+//   Log-based metrics   count 5xx and 401 responses of dataApi and uploadApi
 //   Alert policies      email when either count spikes (5xx: any burst; 401: a flood)
-//   Uptime checks       /api/upload/me and /api/lmu/tracks, from outside, every 5 min
+//   Uptime checks       /api/upload/me and /api/tracks, from outside, every 5 min
 //   Budget              the project's spend, mails billing admins at 50/90/100 %
 //
 // The functions are 2nd gen, so their logs are Cloud Run revision logs and the
@@ -11,12 +11,12 @@
 
 export const CONFIG = {
   project: 'botracing-61',
-  services: ['lmuapi', 'uploadapi'],
+  services: ['dataapi', 'uploadapi'],
   host: 'botracing-61.web.app',
   // Uptime: a path is up when it answers 401 with an error body (the function
   // is running and refusing a caller with no token, which is what a check from
   // outside is).
-  paths: ['/api/upload/me', '/api/lmu/tracks'],
+  paths: ['/api/upload/me', '/api/tracks'],
   // Spikes, per 5-minute window, summed over both functions.
   errors5xxPerWindow: 5,
   unauthorized401PerWindow: 50,
@@ -35,12 +35,12 @@ export function planMetrics(config = CONFIG) {
   return [
     {
       name: 'botracing_http_5xx',
-      description: 'HTTP 5xx responses from lmuApi and uploadApi',
+      description: 'HTTP 5xx responses from dataApi and uploadApi',
       filter: `${base} AND httpRequest.status>=500`,
     },
     {
       name: 'botracing_http_401',
-      description: 'HTTP 401 responses from lmuApi and uploadApi',
+      description: 'HTTP 401 responses from dataApi and uploadApi',
       filter: `${base} AND httpRequest.status=401`,
     },
   ];

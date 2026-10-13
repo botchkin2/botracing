@@ -4,9 +4,9 @@ Alerting for the two functions (pit wall thread 3 #10: the #274 hosting failure 
 
 | Watches                                   | How                                                                                                  | Fires when                              |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Server errors from `lmuApi`, `uploadApi`  | log-based metric `botracing_http_5xx` + alert policy                                                 | more than 5 in 5 minutes                |
+| Server errors from `dataApi`, `uploadApi`  | log-based metric `botracing_http_5xx` + alert policy                                                 | more than 5 in 5 minutes                |
 | Auth failures (token expiry, a bad build) | log-based metric `botracing_http_401` + alert policy                                                 | more than 50 in 5 minutes               |
-| The site or a function being down         | uptime checks on `/api/upload/me` and `/api/lmu/tracks` every 5 min, plus one alert policy per check | a check fails from more than one region |
+| The site or a function being down         | uptime checks on `/api/upload/me` and `/api/tracks` every 5 min, plus one alert policy per check | a check fails from more than one region |
 | Spend                                     | budget on the project, mails billing admins                                                          | 50 %, 90 %, 100 % of 25 USD a month     |
 
 An anonymous call to either path must answer **401 with a JSON error**; that is what "up" means. A 2xx would be the hosting catch-all (`** -> /index.html`) answering for a lost rewrite (the #274 class), so it counts as down. The limits and the budget are in `lib.mjs` (`CONFIG`); change them there.

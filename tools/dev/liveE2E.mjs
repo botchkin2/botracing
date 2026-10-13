@@ -87,7 +87,7 @@ const poll = async () => {
     }
     return;
   }
-  const res = await fetch(`${api}/api/lmu/sessions/${sessionId}`, {
+  const res = await fetch(`${api}/api/sessions/${sessionId}`, {
     headers: {Authorization: `Bearer ${readFileSync(token, 'utf8').trim()}`},
   });
   if (!res.ok) return;

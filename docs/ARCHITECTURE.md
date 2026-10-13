@@ -86,7 +86,7 @@ The card's Run-in / Corner / Exit split every lap at the same two distances: the
 
 A fact the source cannot supply is "—" (never a boundary value). The braking map spans first entry to last exit and places each lap's points from the same apexes.
 
-## Data hooks (API v2, `/api/lmu`)
+## Data hooks (API v2, `/api`)
 
 `useSessions(filter)`, `useSession(id)`, `useSessionLaps(id)`, `useSessionBand(id)`, `useSessionMap(id)`, `useLapTraces(lapIds)`. Key factories: `sessionKeys.*`, `lapKeys.*`. Uploaded sessions are immutable: staleTime is ∞, and cache busting uses the session `version`.
 

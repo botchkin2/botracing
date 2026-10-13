@@ -12,7 +12,7 @@ export const CONFIG = {
   bucket: 'botracing-61-lmu',
   region: 'us-central1',
   /** The functions that must run as the runtime account. */
-  functions: ['lmuApi', 'uploadApi'],
+  functions: ['dataApi', 'uploadApi'],
   runtimeName: 'lap-runtime',
 };
 

@@ -48,7 +48,7 @@ const child = spawn(
       SMOKE_SERVICE_ACCOUNT:
         process.env.SMOKE_SERVICE_ACCOUNT ??
         'firebase-adminsdk-fbsvc@botracing-61.iam.gserviceaccount.com',
-      EXPO_PUBLIC_LMU_API_BASE: 'https://botracing-61.web.app/api/lmu',
+      EXPO_PUBLIC_API_BASE: 'https://botracing-61.web.app/api',
     },
   },
 );
