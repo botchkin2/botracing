@@ -71,3 +71,9 @@ test('a game file a live stretch covers is found; another layout or time is not'
   assert.equal(liveCover(index, at('2026-10-12T21:00:00Z')), null);
   assert.equal(liveCover(index, {...at('2026-10-12T20:00:02Z'), layout: 'Sebring'}), null);
 });
+
+test('the best lap is stored to 3 decimals, as an analysed session (the capture gives a float32)', () => {
+  const parts = [recording.parts[0], {...recording.parts[1], lapTimeS: 80.49142456054688}];
+  const doc = liveSessionDoc({ownerId: 'o', sessionId: 's', recordings: [{...recording, parts}], nowIso: 'x'});
+  assert.equal(doc.bestLapTime, 80.491);
+});

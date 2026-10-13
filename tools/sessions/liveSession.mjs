@@ -46,7 +46,8 @@ export function liveSessionDoc({ownerId, sessionId, recordings, nowIso}) {
     recordingIds: recordings.map(r => r.id),
     archiveParts: recordings.reduce((n, r) => n + r.parts.length, 0),
     lapCount: recordings.reduce((n, r) => n + r.parts.length, 0),
-    bestLapTime: timed.length ? Math.min(...timed) : null,
+    // 3 decimals as every analysed doc; the capture's lap time is a float32.
+    bestLapTime: timed.length ? Math.round(Math.min(...timed) * 1000) / 1000 : null,
     live: {updatedAt: nowIso},
     analysis: LIVE_STAMP,
     updatedAt: nowIso,
