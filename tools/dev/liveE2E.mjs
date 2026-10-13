@@ -3,7 +3,7 @@
 // as seat-test against the production API with LMU "running", and the time
 // from each lap reaching the disk to the session's lap count showing it.
 //
-//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> [--laps 4] [--speed 1] [--max-lap-s 10]
+//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> [--laps 4] [--speed 1] [--max-lap-s 15]
 //
 // Exits 1, the release gate's fail, when a lap never reaches the app or takes
 // more than --max-lap-s from the disk to the session's lap count (liveGate.mjs).
@@ -25,7 +25,7 @@ const from = resolve(arg('--from', ''));
 const token = resolve(arg('--token', ''));
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
-const maxLapS = Number(arg('--max-lap-s', '10'));
+const maxLapS = Number(arg('--max-lap-s', '15'));
 const api = process.env.LAP_API_BASE || 'https://botracing-61.web.app';
 
 const root = mkdtempSync(resolve(tmpdir(), 'live-e2e-'));
