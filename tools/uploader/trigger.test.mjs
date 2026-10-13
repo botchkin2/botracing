@@ -1,7 +1,7 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {decide, decideLive, retryDelayMin} from './trigger.mjs';
+import {decide, decideLive, liveWake, retryDelayMin} from './trigger.mjs';
 
 const MIN = 60 * 1000;
 const base = {
@@ -130,4 +130,20 @@ test('live: the same lap twice, a running upload, or no game is not', () => {
 
 test('live: the first lap of a session goes up', () => {
   assert.equal(decideLive({gameRunning: true, lastLapAtMs: 5, lastLiveAtMs: null, liveBusy: false}).run, true);
+});
+
+test('liveWake: a new lap on disk ends the wait', () => {
+  const rec = {state: 'recording', lastLapAt: 'a'};
+  assert.equal(liveWake([rec], [rec]), false);
+  assert.equal(liveWake([rec], [{...rec, lastLapAt: 'b'}]), true);
+  assert.equal(liveWake([{state: 'recording'}], [rec]), true);
+});
+
+test('liveWake: a recorder that starts recording ends the wait (the first lap of a drive is not held a whole tick)', () => {
+  assert.equal(liveWake([{state: 'waiting'}], [{state: 'recording'}]), true);
+  assert.equal(liveWake([null], [{state: 'recording'}]), true);
+  assert.equal(liveWake([{state: 'waiting'}], [{state: 'waiting'}]), false);
+  assert.equal(liveWake([null, null], [null, null]), false);
+  // iRacing's recorder (the second sim) starting counts too.
+  assert.equal(liveWake([null, {state: 'waiting'}], [null, {state: 'recording'}]), true);
 });

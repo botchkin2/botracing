@@ -57,7 +57,7 @@ import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
-import {decide, decideLive, retryDelayMin} from './trigger.mjs';
+import {decide, decideLive, liveWake, retryDelayMin} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
@@ -273,21 +273,19 @@ function runLive(sim, sessionDir) {
   });
 }
 
-// The wait between ticks. While a recorder records, its status file is read
-// every LIVE_POLL_MS (one small file) and a new lastLapAt ends the wait, so a
-// lap starts up within seconds instead of up to a whole tick.
+// The wait between ticks. The recorders' status files are read every
+// LIVE_POLL_MS (small files) and a new lap on disk, or a recorder that starts
+// recording, ends the wait (trigger.mjs liveWake), so a lap starts up within
+// seconds instead of up to a whole tick, the drive's first lap included.
 const LIVE_POLL_MS = 2_000;
 async function nextTick() {
   const sleep = ms => new Promise(wake => setTimeout(wake, ms));
-  const lastLaps = () =>
+  const statuses = () =>
     LIVE_SIMS.map(sim => readJson(recorderStatusOf(sim), null));
-  const first = lastLaps();
-  if (!first.some(st => st?.state === 'recording'))
-    return sleep(TICK_SEC * 1000);
+  const first = statuses();
   for (let waited = 0; waited < TICK_SEC * 1000; waited += LIVE_POLL_MS) {
     await sleep(LIVE_POLL_MS);
-    const now = lastLaps();
-    if (now.some((st, i) => st?.lastLapAt !== first[i]?.lastLapAt)) return;
+    if (liveWake(first, statuses())) return;
   }
 }
 
