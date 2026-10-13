@@ -67,7 +67,7 @@ jobs:
       # APIs answer JSON (a 401 is JSON too), never HTML.
       - name: Check the API rewrites are live
         run: |
-          for path in api/upload/me api/lmu/tracks; do
+          for path in api/upload/me api/tracks; do
             ok=false
             for attempt in 1 2 3 4 5 6; do
               type=$(curl -s -o /dev/null -w '%{content_type}' "https://botracing-61.web.app/$path")

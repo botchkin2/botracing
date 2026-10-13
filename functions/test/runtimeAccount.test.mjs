@@ -13,11 +13,11 @@ test('the runtime account in the functions is the one the IAM audit and runbook 
 
 test('both functions run as it, and nothing else in src sets another account', () => {
   assert.match(
-    src('lmuApi.ts'),
+    src('dataApi.ts'),
     /onRequest\(\s*\{serviceAccount: RUNTIME_ACCOUNT\}/,
   );
   assert.match(src('uploadApi.ts'), /serviceAccount: RUNTIME_ACCOUNT/);
-  for (const file of ['lmuApi.ts', 'uploadApi.ts', 'index.ts'])
+  for (const file of ['dataApi.ts', 'uploadApi.ts', 'index.ts'])
     assert.ok(
       !/serviceAccount:\s*['"`]/.test(src(file)),
       `${file} must use RUNTIME_ACCOUNT, not a literal`,

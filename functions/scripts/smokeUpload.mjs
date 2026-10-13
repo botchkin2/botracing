@@ -39,7 +39,7 @@ async function run() {
     meB.ownerKey,
     'A and B must be different users',
   );
-  // lmuApi lists the legacy owner's sessions, so a stub doc under it would
+  // dataApi lists the legacy owner's sessions, so a stub doc under it would
   // show in the live app until cleanup.
   for (const key of [meA.ownerKey, meB.ownerKey])
     assert.notEqual(

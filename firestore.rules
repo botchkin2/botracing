@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// The app never talks to Firestore directly. It reads through the lmuApi
+// The app never talks to Firestore directly. It reads through the dataApi
 // function, which uses the Admin SDK and bypasses these rules. The PC
 // uploader writes with Admin credentials too. So clients get nothing.
 service cloud.firestore {

@@ -30,7 +30,7 @@ const arg = name => {
   const i = process.argv.indexOf(`--${name}`);
   return i > 0 ? process.argv[i + 1] : null;
 };
-const API = arg('api') ?? 'https://botracing-61.web.app/api/lmu';
+const API = arg('api') ?? 'https://botracing-61.web.app/api';
 const OUT = resolve(arg('out') ?? 'surface-audit');
 const ONLY = arg('track');
 // A kept OSM stretch shorter than this is fit noise, not a road.

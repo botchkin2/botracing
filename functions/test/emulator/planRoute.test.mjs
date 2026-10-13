@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const admin = require('firebase-admin');
 
 const PROJECT = process.env.GCLOUD_PROJECT || 'demo-botracing';
-const API = `http://127.0.0.1:5101/${PROJECT}/us-central1/lmuApi`;
+const API = `http://127.0.0.1:5101/${PROJECT}/us-central1/dataApi`;
 admin.initializeApp({projectId: PROJECT});
 
 const COMBO = 'sim=iracing&trackId=iracing-127-full&car=Ford%20Mustang%20GT3';

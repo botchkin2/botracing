@@ -16,7 +16,7 @@
       "runtimeArgs": [
         "cross-env",
         "BROWSER=none",
-        "EXPO_PUBLIC_LMU_API_BASE=http://127.0.0.1:5001/botracing-61/us-central1/lmuApi/api/lmu",
+        "EXPO_PUBLIC_API_BASE=http://127.0.0.1:5001/botracing-61/us-central1/dataApi/api",
         "expo",
         "start",
         "--web",

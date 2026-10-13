@@ -360,6 +360,13 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     } else {
         "tray icon not found"
     });
+    // A window still being built holds the main thread (a WebView2 build takes
+    // up to 9 s on windows-2022), so the loop would see the exit only after it:
+    // every step is done, so end here instead of waiting (roadmap 2r).
+    if viewer::opening() {
+        log.note("exit now: window still being built");
+        std::process::exit(0);
+    }
     log.note("exit requested");
     app.exit(0);
     log.note("exit call returned");

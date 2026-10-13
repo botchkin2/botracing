@@ -1,6 +1,6 @@
 // The session engine bundled from tools/sessions (scripts/buildEngine.mjs ->
 // lib/engine.cjs), loaded on first use: analysis on open (analyzeApi.ts) and
-// the staleness test the session route answers with (lmuApi.ts).
+// the staleness test the session route answers with (dataApi.ts).
 import {chmodSync, copyFileSync, existsSync} from 'fs';
 import {tmpdir} from 'os';
 import {join, resolve} from 'path';

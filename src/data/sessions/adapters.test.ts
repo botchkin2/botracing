@@ -12,7 +12,7 @@ import {
 } from './adapters';
 import {trackCorners} from './corners';
 
-// Shape as served by GET /api/lmu/sessions on 2026-09-27.
+// Shape as served by GET /api/sessions on 2026-09-27.
 const raw = {
   id: 'fd111c3353f7bcad',
   sim: 'lmu',

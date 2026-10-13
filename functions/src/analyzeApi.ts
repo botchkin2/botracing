@@ -14,7 +14,7 @@ import {RUNTIME_ACCOUNT} from './runtime';
 if (!admin.apps.length) admin.initializeApp();
 
 const BUCKET = 'botracing-61-lmu';
-// The same origins lmuApi.ts allows: the site, its preview channels, a local
+// The same origins dataApi.ts allows: the site, its preview channels, a local
 // dev server.
 const ALLOWED_ORIGIN =
   /^(https:\/\/botracing-61(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;

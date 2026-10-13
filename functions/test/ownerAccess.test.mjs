@@ -116,7 +116,7 @@ const store = readFileSync(
   new URL('../src/sessionStore.ts', import.meta.url),
   'utf8',
 );
-const api = readFileSync(new URL('../src/lmuApi.ts', import.meta.url), 'utf8');
+const api = readFileSync(new URL('../src/dataApi.ts', import.meta.url), 'utf8');
 
 test('sessionStore has no baked-in owner and every reader takes the owner first', () => {
   assert.doesNotMatch(store, /\bOWNER\b/);

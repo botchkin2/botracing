@@ -11,9 +11,9 @@ import {
   planUptimePolicies,
 } from './lib.mjs';
 
-test('metrics watch both services and the two statuses', () => {
+test('metrics watch the read function, the old read function that still answers /api/lmu, the upload function, and the two statuses', () => {
   const [m5, m4] = planMetrics();
-  assert.match(m5.filter, /"lmuapi" OR "uploadapi"/);
+  assert.match(m5.filter, /"dataapi" OR "lmuapi" OR "uploadapi"/);
   assert.match(m5.filter, /status>=500/);
   assert.match(m4.filter, /status=401/);
 });
@@ -32,7 +32,7 @@ test('uptime checks accept only a 401 with an error body', () => {
   assert.equal(u.contentMatchers[0].content, 'error');
   assert.deepEqual(
     planUptime().map(x => x.httpCheck.path),
-    ['/api/upload/me', '/api/lmu/tracks'],
+    ['/api/upload/me', '/api/tracks'],
   );
 });
 

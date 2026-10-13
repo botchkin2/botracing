@@ -15,7 +15,49 @@
       {
         "source": "/api/plan",
         "function": {
-          "functionId": "lmuApi",
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/uploaders",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/sessions",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/sessions/**",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/tracks",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/tracks/**",
+        "function": {
+          "functionId": "dataApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/laps/**",
+        "function": {
+          "functionId": "dataApi",
           "region": "us-central1"
         }
       },
@@ -70,15 +112,24 @@
       },
       {
         "source": "/api/tray/code",
-        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+        "function": {
+          "functionId": "traySignInApi",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/tray/token",
-        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+        "function": {
+          "functionId": "traySignInApi",
+          "region": "us-central1"
+        }
       },
       {
         "source": "/api/tray/viewer",
-        "function": {"functionId": "traySignInApi", "region": "us-central1"}
+        "function": {
+          "functionId": "traySignInApi",
+          "region": "us-central1"
+        }
       },
       {
         "source": "**",
@@ -132,6 +183,24 @@
           {
             "key": "Cache-Control",
             "value": "private"
+          }
+        ]
+      },
+      {
+        "source": "/api/sessions/*/field",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/api/sessions/*/field/*",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "private, max-age=31536000, immutable"
           }
         ]
       },

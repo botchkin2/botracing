@@ -133,7 +133,7 @@ test(
           join(dir, `i${k}.s.parquet`),
           join(dir, `i${k}.e.parquet`),
         ];
-        writeArchiveOf(
+        const written = writeArchiveOf(
           raw,
           {
             ticks: st.info.ticks,
@@ -143,6 +143,7 @@ test(
           },
           ...ibt,
         );
+        assert.ok(Array.isArray(written.rounded), "writeArchiveOf returns {rounded}");
         const cap = [
           join(dir, `c${k}.s.parquet`),
           join(dir, `c${k}.e.parquet`),

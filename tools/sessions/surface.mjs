@@ -10,7 +10,7 @@
 //   Firestore tracks/{trackId}.surface = {path, format, laps, bins, updatedAt}
 //
 // Run:
-//   node tools/sessions/surface.mjs --api https://botracing-61.web.app/api/lmu --out DIR [--track ID]
+//   node tools/sessions/surface.mjs --api https://botracing-61.web.app/api --out DIR [--track ID]
 //       read-only from the public API, writes DIR/{trackId}.json (no cloud access)
 //   node tools/sessions/surface.mjs [--track ID] --sessions id,id [--dry]
 //   node tools/sessions/surface.mjs [--track ID] --owner UID [--dry]

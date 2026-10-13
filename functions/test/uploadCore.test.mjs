@@ -834,6 +834,8 @@ test('a heartbeat is checked field by field', async () => {
     {problems: Array(11).fill({kind: 'sync-crashed', at: null, message: 'm'})},
     {disk: {captureBytes: 1}},
     {recorder: {state: 5}},
+    {recorder: {state: 'recording', gameVersion: -1}},
+    {recorder: {state: 'recording', gameVersion: 1.5}},
     {label: 'L'.repeat(65)},
     {lastSessionId: 'x'.repeat(65)},
   ];
@@ -864,6 +866,23 @@ test('a heartbeat is checked field by field', async () => {
     lastSessionId: null,
   });
   assert.equal((await send(w, 'tok-a', ok)).status, 204);
+  // The recorder block exactly as the tray's status.json gives it while LMU
+  // records: gameVersion is the game's integer (0 when it reports none). A
+  // string-only check refused all of these on 0.1.9 (thread 1 #4983).
+  for (const gameVersion of [0, 14200]) {
+    const recording = beat({
+      recorder: {
+        state: 'recording',
+        gameVersion,
+        layoutOk: true,
+        layoutReason: '',
+        lastChunkAt: '2026-10-13T02:40:35.842Z',
+        updatedAt: '2026-10-13T02:41:05.845Z',
+      },
+    });
+    // A fresh world: one heartbeat per host per interval (the one above took it).
+    assert.equal((await send(world(), 'tok-a', recording)).status, 204, `gameVersion ${gameVersion}`);
+  }
   const stored = [...w.docs.values()].find(d => Array.isArray(d.problems));
   assert.deepEqual(
     stored.problems,

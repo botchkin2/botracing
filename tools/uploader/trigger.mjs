@@ -75,3 +75,20 @@ export function decideLive({gameRunning, lastLapAtMs, lastLiveAtMs, liveBusy}) {
     return {run: false, reason: 'no new lap'};
   return {run: true, reason: 'new lap'};
 }
+
+/**
+ * Whether the watcher's wait between ticks ends now, from each live sim's
+ * recorder status (status.json / status-iracing.json, null when absent) at the
+ * start of the wait (`first`) and now: a new lap on disk (lastLapAt moved), or
+ * a recorder that started recording since. The status is read every few
+ * seconds whatever the state at the start: a wait that began before the game
+ * did would otherwise sleep a whole tick and hold the drive's first lap (17.9 s
+ * and 27.9 s in the replays, thread 66 #4790, thread 1 #4958).
+ */
+export function liveWake(first, now) {
+  return now.some((st, i) => {
+    const was = first[i];
+    if ((st?.lastLapAt ?? null) !== (was?.lastLapAt ?? null)) return true;
+    return st?.state === 'recording' && was?.state !== 'recording';
+  });
+}

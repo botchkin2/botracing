@@ -63,7 +63,7 @@ test('a client holding the validator gets a 304; anything else gets the body', (
 
 // The route itself is bound to Firestore and Storage: its shape is checked in
 // the source, as ownerAccess.test.mjs does for the other readers.
-const api = readFileSync(new URL('../src/lmuApi.ts', import.meta.url), 'utf8');
+const api = readFileSync(new URL('../src/dataApi.ts', import.meta.url), 'utf8');
 
 test('the track routes check the id, send an ETag, answer a 304, and never cache publicly', () => {
   const route = api.split("const trackRoute = path.match(")[1]?.split('\n      if (/')[0] ?? '';

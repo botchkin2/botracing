@@ -107,7 +107,7 @@ function fakeRun({
       return policy(members);
     if (args[0] === 'functions')
       return [
-        fn('lmuApi', runAs.lmuApi),
+        fn('dataApi', runAs.dataApi),
         fn('uploadApi', runAs.uploadApi),
         fn('other', COMPUTE),
       ];
@@ -155,7 +155,7 @@ const run = (opts, extra = {}) => {
 test('before the split: Editor on the default accounts and the functions running as one fails, and says what to do', () => {
   const r = run({
     members: BEFORE,
-    runAs: {lmuApi: COMPUTE, uploadApi: COMPUTE},
+    runAs: {dataApi: COMPUTE, lmuApi: COMPUTE, uploadApi: COMPUTE},
     runtimeExists: false,
   });
   assert.equal(r.result.ok, false);
@@ -174,7 +174,7 @@ test('before the split: Editor on the default accounts and the functions running
   );
   assert.match(
     r.text,
-    /lmuApi runs as .*, a default account \(Editor\): switch it to lap-runtime@/,
+    /dataApi runs as .*, a default account \(Editor\): switch it to lap-runtime@/,
   );
   assert.match(
     r.text,
@@ -187,10 +187,10 @@ test('before the split: Editor on the default accounts and the functions running
 test('in the middle (account made and granted, functions switched, Editor still on) it still fails, on the Editor alone', () => {
   const r = run({
     members: MIDDLE,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
   });
   assert.equal(r.result.ok, false);
-  assert.match(r.text, /lmuApi runs as lap-runtime@/);
+  assert.match(r.text, /dataApi runs as lap-runtime@/);
   assert.match(r.text, /uploadApi runs as lap-runtime@/);
   assert.match(r.text, /roles\/datastore\.user: granted/);
   assert.match(
@@ -209,7 +209,7 @@ test('in the middle (account made and granted, functions switched, Editor still 
 
 test('after the split it passes, and the deploy account is listed with its roles', () => {
   const r = run(
-    {members: AFTER, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}},
+    {members: AFTER, runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME}},
     {deployAccount: DEPLOY},
   );
   assert.equal(r.result.ok, true, r.text);
@@ -226,7 +226,7 @@ test('the deploy account while it still has Editor is a warning that step 6 narr
   const r = run(
     {
       members: AFTER_WITH_DEPLOY_EDITOR(),
-      runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+      runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     },
     {deployAccount: DEPLOY},
   );
@@ -257,7 +257,7 @@ test('the runtime account holding Editor, or any role beyond the two, is a failu
       'roles/editor',
     ],
   };
-  const r = run({members, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}});
+  const r = run({members, runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME}});
   assert.equal(r.result.ok, false);
   assert.match(
     r.text,
@@ -270,7 +270,7 @@ test('what could not be read is said so, and an unreadable policy fails everythi
   const noRole = run(
     {
       members: {...AFTER, [sa(DEPLOY)]: ['roles/custom.thing']},
-      runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+      runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     },
     {deployAccount: DEPLOY},
   );
@@ -284,14 +284,14 @@ test('what could not be read is said so, and an unreadable policy fails everythi
   );
   const noPolicy = run({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     fail: ['projects get-iam-policy botracing-61'],
   });
   assert.equal(noPolicy.result.ok, false);
   assert.match(noPolicy.text, /project IAM policy could not be read/);
   const noBucket = run({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     fail: ['storage buckets get-iam-policy'],
   });
   assert.match(
@@ -300,7 +300,7 @@ test('what could not be read is said so, and an unreadable policy fails everythi
   );
   const missing = run({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: null},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: null},
   });
   assert.match(
     missing.text,
@@ -310,7 +310,7 @@ test('what could not be read is said so, and an unreadable policy fails everythi
 
 test('the audit only reads: every gcloud call is a get-iam-policy, describe or list', () => {
   const r = run(
-    {members: AFTER, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}},
+    {members: AFTER, runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME}},
     {deployAccount: DEPLOY},
   );
   assert.ok(r.calls.length > 5);
@@ -358,7 +358,7 @@ test('the readers: a policy by member, second-generation function accounts, cond
     'old@x',
   );
   const state = gatherState(
-    fakeRun({members: AFTER, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}}).run,
+    fakeRun({members: AFTER, runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME}}).run,
   );
   assert.equal(state.project.number, NUMBER);
   assert.equal(state.runtimeExists, true);
@@ -382,7 +382,7 @@ test('Google-managed service agents are ok, not warnings, and are never asked fo
     [sa(agent)]: ['roles/editor'],
     [sa(cloudservices)]: ['roles/editor'],
   };
-  const r = run({members, runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME}});
+  const r = run({members, runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME}});
   assert.equal(r.result.ok, true, r.text);
   assert.ok(
     r.text.includes(
@@ -405,7 +405,7 @@ test('user-managed keys are listed: none is ok, one is a warning with its date, 
   const key = {validAfterTime: '2026-01-28T00:00:00Z'};
   const r = run({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     keys: {[DEPLOY]: [key]},
   });
   assert.match(
@@ -415,7 +415,7 @@ test('user-managed keys are listed: none is ok, one is a warning with its date, 
   assert.ok(r.text.includes(`${RUNTIME} has no user-managed keys`), r.text);
   const base = fakeRun({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
   });
   const flaky = args => {
     if (args.includes('keys')) throw new Error('PERMISSION_DENIED');
@@ -430,7 +430,7 @@ test('a storage.admin granted on the bucket alone shows up in who can change the
   const other = 'extra@botracing-61.iam.gserviceaccount.com';
   const r = run({
     members: {...AFTER, [sa(other)]: ['roles/logging.logWriter']},
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     bucketExtra: {[sa(other)]: ['roles/storage.admin']},
   });
   assert.match(
@@ -442,7 +442,7 @@ test('a storage.admin granted on the bucket alone shows up in who can change the
 test("the bucket's convenience members are groups, not people: Owner is ok, Editor warns that it includes the service accounts", () => {
   const r = run({
     members: AFTER,
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
     bucketExtra: {
       'projectOwner:botracing-61': ['roles/storage.admin'],
       'projectEditor:botracing-61': ['roles/storage.admin'],
@@ -463,7 +463,7 @@ test('the legacy Cloud Build agent is Google-managed too, and its keys are not l
   const build = `${NUMBER}@cloudbuild.gserviceaccount.com`;
   const r = run({
     members: {...AFTER, [sa(build)]: ['roles/cloudbuild.builds.builder']},
-    runAs: {lmuApi: RUNTIME, uploadApi: RUNTIME},
+    runAs: {dataApi: RUNTIME, lmuApi: RUNTIME, uploadApi: RUNTIME},
   });
   assert.ok(!r.calls.some(c => c.join(' ').includes(`--iam-account=${build}`)));
   assert.doesNotMatch(r.text, /keys could not be listed/);

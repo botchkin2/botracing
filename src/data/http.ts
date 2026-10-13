@@ -3,15 +3,15 @@ import {Platform} from 'react-native';
 import {authHeaders, reportUnauthorized} from './tokenSource';
 
 // The lap API (docs/API.md). Same origin on the deployed web app; otherwise
-// EXPO_PUBLIC_LMU_API_BASE, else production.
-const PRODUCTION_API = 'https://botracing-61.web.app/api/lmu';
+// EXPO_PUBLIC_API_BASE, else production.
+const PRODUCTION_API = 'https://botracing-61.web.app/api';
 
 export const apiBaseUrl: string =
-  process.env.EXPO_PUBLIC_LMU_API_BASE ||
+  process.env.EXPO_PUBLIC_API_BASE ||
   (Platform.OS === 'web' &&
   typeof window !== 'undefined' &&
   window.location?.protocol === 'https:'
-    ? `${window.location.origin}/api/lmu`
+    ? `${window.location.origin}/api`
     : PRODUCTION_API);
 
 /**
@@ -19,8 +19,8 @@ export const apiBaseUrl: string =
  * same origin on the deployed app, production otherwise. Their /latest and
  * /download answer without a sign-in.
  */
-const apiRoot = apiBaseUrl.endsWith('/lmu')
-  ? apiBaseUrl.slice(0, -'/lmu'.length)
+const apiRoot = apiBaseUrl.endsWith('/api')
+  ? apiBaseUrl
   : 'https://botracing-61.web.app/api';
 export const releaseApiUrl = (kind: 'tray' | 'android', path: string): string =>
   `${apiRoot}/${kind}${path}`;
