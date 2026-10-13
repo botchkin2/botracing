@@ -13,6 +13,8 @@
 // median a stint shows is its median lap time, a lap that was driven
 // (decisions/lap/2026-10-11-selection-and-numbers.md).
 
+import {median, quantile} from './setStats';
+
 /** Fewest times a window needs before its best and median are shown. */
 export const MIN_OPTIMUM_LAPS = 5;
 
@@ -42,11 +44,6 @@ export interface StintOptimum {
   bestSumS: number | null;
 }
 
-function median(sorted: number[]): number {
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
 function windowOptimum(laps: OptimumLap[], index: number): WindowOptimum {
   const times: {id: string; t: number}[] = [];
   for (const lap of laps) {
@@ -62,7 +59,7 @@ function windowOptimum(laps: OptimumLap[], index: number): WindowOptimum {
     n: times.length,
     bestS: best.t,
     bestLapId: best.id,
-    medianS: median(sorted),
+    medianS: quantile(sorted, 0.5),
   };
 }
 
@@ -125,8 +122,7 @@ export function windowMedians(
     }
     out.push({
       n: times.length,
-      medianS:
-        times.length < minLaps ? null : median(times.sort((a, b) => a - b)),
+      medianS: times.length < minLaps ? null : median(times),
     });
   }
   return out;

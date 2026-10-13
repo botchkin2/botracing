@@ -7,6 +7,7 @@
 import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 import {formatLapTime, oneDecimal} from '@/src/design';
+import {iqr, median} from '@/src/analysis/setStats';
 
 /** A stint gives a median from this many green laps. */
 export const MIN_STINT_LAPS = 4;
@@ -53,27 +54,6 @@ export type FuelUse = {
   /** Median lap time over the laps in the medians. */
   medianTimeS: number | null;
 };
-
-function quantile(sorted: number[], q: number): number {
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
-
-export function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  return quantile(
-    [...values].sort((a, b) => a - b),
-    0.5,
-  );
-}
-
-function iqr(values: number[]): number | null {
-  if (values.length < 2) return null;
-  const v = [...values].sort((a, b) => a - b);
-  return quantile(v, 0.75) - quantile(v, 0.25);
-}
 
 /**
  * The laps a fuel or VE figure per lap is taken over, on every screen: the

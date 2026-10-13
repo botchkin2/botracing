@@ -18,6 +18,8 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node runs it as is.
 
+import {median, percentile} from './setStats';
+
 export interface CornerFacts {
   // Entry to next entry (src/analysis/corners.ts), so the exit is included.
   segTime: number;
@@ -313,7 +315,7 @@ export function selectNormalRacing(
         .filter(l => (l.compound ?? '-') === key)
         .map(l => l.tyreCarcassC)
         .filter((v): v is number => v != null);
-      warmBy.set(key, temps.length >= 4 ? quantile(temps, 0.75) : null);
+      warmBy.set(key, temps.length >= 4 ? percentile(temps, 0.75) : null);
     }
     return warmBy.get(key)!;
   };
@@ -647,7 +649,7 @@ export function analyzeConsistency(
 
   const corners: CornerResult[] = range(nc).map(k => {
     const values = deltasOf(k);
-    const p25 = quantile(values, 0.25) ?? 0;
+    const p25 = percentile(values, 0.25) ?? 0;
     // Bests come from the most common conditions only, so a dry optimal
     // lap never borrows a section from a wet one (or the other way round).
     const clean = withCorners.filter(
@@ -907,19 +909,6 @@ function robustSigma(list: number[]): number | null {
   const m = median(list);
   if (m == null) return null;
   return 1.4826 * (median(list.map(v => Math.abs(v - m))) ?? 0);
-}
-
-function median(list: number[]): number | null {
-  return quantile(list, 0.5);
-}
-
-function quantile(list: number[], q: number): number | null {
-  const sorted = list.filter(Number.isFinite).sort((a, b) => a - b);
-  if (sorted.length === 0) return null;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
 function stdev(list: number[]): number | null {

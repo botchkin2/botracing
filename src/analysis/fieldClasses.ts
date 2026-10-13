@@ -13,6 +13,7 @@
 // unknown class's colour is only a pace rank, so keep it so.
 import {paceClass} from './classLaps';
 import {type FieldCar} from './field';
+import {median} from './setStats';
 
 export type ClassSlot = 'class1' | 'class2' | 'class3' | 'other';
 
@@ -107,13 +108,6 @@ export function cleanLapsS(
     prev = laps;
   }
   return out;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const v = [...values].sort((a, b) => a - b);
-  const mid = v.length >> 1;
-  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
 }
 
 /**

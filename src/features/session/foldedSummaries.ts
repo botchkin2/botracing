@@ -1,8 +1,9 @@
 // The one line each folded section shows on the phone Laps screen (apex, thread
 // 44 #1873): what is inside, in numbers, never a verdict.
-import {type FuelUse, median} from './fuelUse';
+import {type FuelUse} from './fuelUse';
 import type {PitCard} from './pitCard';
 import type {TiresCard} from './tireCard';
+import {median} from '@/src/analysis/setStats';
 
 /**
  * "2 stops · 95.6 s and 45.4 s in the lane": how many stops and the time each

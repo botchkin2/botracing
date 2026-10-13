@@ -3,6 +3,7 @@ import {type SessionSummary} from '@/src/data/sessions';
 
 import {type ClassTimingInput, classSessionOf} from './classTiming';
 import {type Combo, HISTORY_SESSIONS} from './model';
+import {median} from '@/src/analysis/setStats';
 
 // The session list and the plan in force, as the class pace model reads them.
 // Pure: useClassTiming only gathers these inputs.
@@ -15,13 +16,6 @@ export type PlanPace = {
   raceLaps: number | null;
   stopsAfter: number[];
 };
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const v = [...values].sort((a, b) => a - b);
-  const mid = (v.length - 1) / 2;
-  return (v[Math.floor(mid)] + v[Math.ceil(mid)]) / 2;
-}
 
 export function classPaceInput(input: {
   combo: Combo;

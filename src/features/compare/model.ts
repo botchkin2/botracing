@@ -58,6 +58,7 @@ import {
   WRAP_M,
 } from './neighbours';
 import {isCompound} from '@/src/data/sessions/corners';
+import {median} from '@/src/analysis/setStats';
 
 // Compare screen view model (handoff §3). Pure: session data, resampled
 // traces and the URL selection in; everything the screen draws out. Colors
@@ -546,13 +547,6 @@ export type CompareInputs = {
 // Map lines are drawn every 20 m: plenty at phone size, a fifth of the points.
 const MAP_STRIDE = 4;
 const CORNER_NEAR_M = 180;
-
-function median(xs: number[]): number | null {
-  if (xs.length === 0) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
 
 // The start/finish line, solid and labelled, when the window runs past it
 // (the blank lead-in before the lap, or past its end).
