@@ -564,6 +564,23 @@ export function createStore(backend) {
       return backend.updateDocs(ops);
     },
     upload: (out, options) => uploadSession(backend, out, options),
+    // A recording doc, or null (the archive repair reads where its file is).
+    getRecording: id => backend.getDoc('recordings', id),
+    // One archive file put in place of the stored one when their bytes
+    // differ; true when it was sent.
+    async replaceArchiveFile(dest, localPath) {
+      const local = createHash('md5').update(readFileSync(localPath)).digest('base64');
+      if ((await backend.fileMd5(dest)) === local) return false;
+      await backend.putFile(dest, {localPath}, {contentType: 'application/vnd.apache.parquet'});
+      return true;
+    },
+    // A session whose archive changed under it: it reads stale, so the next
+    // open analyses it again from the new archive (analysis on open). Merged:
+    // only the stamp's version goes, every stored block stays.
+    markStale: sessionId =>
+      backend.writeDocs([
+        {op: 'set', coll: 'sessions', id: sessionId, data: {analysis: {v: 0}}, merge: true},
+      ]),
     // A session's capture extract on its own (captureExtract.mjs), for the
     // sessions uploaded before extracts were kept.
     putCaptureExtract: (ownerId, sessionId, extract) =>
