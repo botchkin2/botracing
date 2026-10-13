@@ -3,7 +3,12 @@
 // Layout: docs/STORAGE.md. Written by tools/sessions/sync.mjs.
 import * as admin from 'firebase-admin';
 import {type TraceMeta, traceIdOk} from './traceCore';
-import {DEFAULT_AGE_DAYS, foldFacets, listCutoff} from './sessionQuery';
+import {
+  DEFAULT_AGE_DAYS,
+  foldFacets,
+  listCutoff,
+  listVersion,
+} from './sessionQuery';
 import {mapEtag, surfaceEtag} from './trackMapCore';
 import {
   PLAN_FIELDS,
@@ -12,11 +17,7 @@ import {
   type PlanCombo,
   type PlanRow,
 } from './planQuery';
-import {
-  pathInsideOwner,
-  trustedTrackPath,
-  uploaderItems,
-} from './ownerAccess';
+import {pathInsideOwner, trustedTrackPath, uploaderItems} from './ownerAccess';
 
 // Every reader takes the owner key of the request (ownerAccess.ts). A request
 // with no token is refused before it gets here.
@@ -258,6 +259,37 @@ export async function listPlanSessions(
     items: planRows(snap.docs.slice(0, PLAN_MAX_SESSIONS), lapSessions),
     truncated,
   };
+}
+
+/**
+ * The owner's session-list version (sessionQuery.ts listVersion), for two cheap
+ * reads: a count aggregation (one read per 1000 index entries) and the newest
+ * server stamp `changedAt` (one doc). Every write to a session doc stamps it
+ * (uploadApi commit, store.mjs adminBackend), a delete moves the count.
+ */
+export async function sessionsVersion(owner: string): Promise<string | null> {
+  const sessions = admin
+    .firestore()
+    .collection('sessions')
+    .where('ownerId', '==', owner);
+  try {
+    const [count, newest] = await Promise.all([
+      sessions.count().get(),
+      sessions.orderBy('changedAt', 'desc').limit(1).select('changedAt').get(),
+    ]);
+    const at = newest.docs[0]?.get('changedAt');
+    return listVersion(
+      owner,
+      count.data().count,
+      typeof at === 'string' ? at : null,
+    );
+  } catch (error) {
+    // The (ownerId, changedAt) index deploys with the functions and builds in
+    // the background: until it is ready the list is simply read in full, as
+    // before, with no version.
+    console.warn('sessionsVersion', (error as Error).message);
+    return null;
+  }
 }
 
 export async function listSessions(
