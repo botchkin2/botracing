@@ -109,3 +109,65 @@ test('a failed repair is logged and tried again next time; the other sessions go
   assert.deepEqual(state.archiveRepair, {s2: ARCHIVE_REPAIR});
   assert.match(lines[0], /archive repair s1: offline/);
 });
+
+// The real adapter, not a mock: writeArchive's return is what the repair reads,
+// and a dropped return was 26 of 26 failed repairs on 0.1.8 and 0.1.9 that the
+// mocked tests above could not see (thread 1 #4974). A synthetic .ibt (no real
+// telemetry, so it runs in CI): tyre wear whole for 26,000 rows, then 98.51,
+// the case the CSV's guessed types rounded.
+test('the real iRacing writeArchive feeds the repair: a rounded file goes up and its session reads stale', async () => {
+  const {writeTestIbt} = await import('./testIbt.mjs');
+  const iracing = await import('./iracing.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'repair-real-'));
+  const n = 27000;
+  const t = Array.from({length: n}, (_, i) => i / 60);
+  const lapLen = 3600;
+  const wear = Array.from({length: n}, (_, i) => (i < 26000 ? 99 : 98.51));
+  const f = values => ({type: 'float', values});
+  const path = join(dir, 'synthetic.ibt');
+  writeTestIbt(path, {
+    yaml: 'WeekendInfo:\n TrackName: synthetic\n TrackDisplayName: Synthetic\n TrackLength: 3.60 km\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionType: Practice\n',
+    channels: {
+      SessionTime: {type: 'double', values: t},
+      Lap: {type: 'int', values: t.map((_, i) => 1 + Math.floor(i / lapLen))},
+      LapDistPct: f(t.map((_, i) => (i % lapLen) / lapLen)),
+      LapDist: f(t.map((_, i) => ((i % lapLen) / lapLen) * 3600)),
+      Speed: f(t.map(() => 50)),
+      Throttle: f(t.map(() => 1)),
+      Brake: f(t.map(() => 0)),
+      IsOnTrack: {type: 'bool', values: t.map(() => 1)},
+      LFwearL: f(wear),
+      RFwearL: f(wear),
+      LRwearL: f(wear),
+      RRwearL: f(wear),
+    },
+  });
+  const info = iracing.describe(path);
+  const calls = [];
+  const store = {
+    async replaceArchiveFile(dest) {
+      calls.push(['put', dest]);
+      return true;
+    },
+    async markStale(id, owner) {
+      calls.push(['stale', id, owner]);
+    },
+  };
+  const state = {sessions: {s1: {}}};
+  const n2 = await repairArchives({
+    sessions: [{id: 's1', files: [{id: 'r1', path, info}]}],
+    state,
+    store,
+    writeArchive: iracing.writeArchive,
+    dir: join(dir, 'work'),
+    save: () => {},
+    sim: 'iracing',
+    ownerId: 'o',
+    log: line => calls.push(['log', line]),
+  });
+  assert.deepEqual(calls, [
+    ['put', 'archive/iracing/s1/r1/samples.parquet'],
+    ['stale', 's1', 'o'],
+  ]);
+  assert.equal(n2, 1);
+});
