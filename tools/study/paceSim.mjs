@@ -3,6 +3,7 @@
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
+import {judgeA, judgeARun} from './paceJudgeA.mjs';
 import {rng, makeDriver} from './paceSimGen.mjs';
 const med = a => {
   const s = [...a].sort((x, y) => x - y);
@@ -20,37 +21,6 @@ function sen(xs, ys) {
       sl.push((ys[j] - ys[i]) / (xs[j] - xs[i]));
   return med(sl) ?? 0;
 }
-// judge (a): #577 as decided: robust straight trend, 3 sigma of residuals, 0.3 s guard, min 12 laps, slow only.
-export function judgeA(stint, {z = 3, guard = 0.3, min = 12} = {}) {
-  const ys = stint.laps.map(l => l.lapTime),
-    xs = ys.map((_, i) => i);
-  if (ys.length < min) return ys.map(() => ({out: false}));
-  const range = xs.length - 1;
-  let slope = xs.length >= 6 && range >= 5 ? sen(xs, ys) : 0;
-  const fit = rsig(ys.map((y, i) => y - slope * xs[i]));
-  if (Math.abs(slope) * range < 2 * fit) slope = 0;
-  const ic = med(ys.map((y, i) => y - slope * xs[i]));
-  const res = ys.map((y, i) => y - (ic + slope * xs[i]));
-  const lim = Math.max(z * rsig(res), guard);
-  return res.map(r => ({out: r >= lim, p: null}));
-}
-// the (a) with the run rule (a run of 3+ slow laps stays): #577's built variant
-export function judgeARun(stint, o) {
-  const base = judgeA(stint, o).map(x => x.out);
-  const keep = [...base];
-  let i = 0;
-  while (i < base.length) {
-    if (!base[i]) {
-      i++;
-      continue;
-    }
-    let j = i;
-    while (j + 1 < base.length && base[j + 1]) j++;
-    if (j - i + 1 > 2) for (let k = i; k <= j; k++) keep[k] = false;
-    i = j + 1;
-  }
-  return keep.map(out => ({out}));
-}
 export const judges = {
   '(a) 3σ lap residual, straight trend': judgeA,
   '(a+) same, run of 3+ stays': judgeARun,
@@ -66,7 +36,7 @@ export async function run(judgeMap = judges, N = 400) {
         `   (${N} drivers per level, 4-12 sections, 80/105/125 s, 25 laps; 4% section mistakes, 3% spread events, ~3% pace-change starts)`,
     );
     console.log(
-      'level s | mistakes caught 0.3-1/1-3/3-10 s | spread events caught | clean dropped | pace-change laps dropped | kept-median error vs truth (s): mean abs, [all-laps median error]',
+      'level s | mistakes caught 0.3-1/1-3/3-10 s | spread events caught | clean dropped | pace-change laps dropped | kept-median error (s) [keep all] | spread kept/true [keep all] | slope error (s/lap) [keep all]',
     );
     for (const level of levels) {
       const r = rng(7 + Math.round(level * 1000));
@@ -80,13 +50,43 @@ export async function run(judgeMap = judges, N = 400) {
         pc = [0, 0];
       let errKept = 0,
         errAll = 0,
-        ne = 0;
+        ne = 0,
+        spK = 0,
+        spA = 0,
+        slK = 0,
+        slA = 0;
       for (let d = 0; d < N; d++) {
         const sections = 4 + Math.floor(9 * r()),
           base = [80, 105, 125][Math.floor(3 * r())];
         const drv = makeDriver(r, {level, sections, base, laps: 25});
         const flags = judge(drv).map(x => x.out);
         const truth = med(drv.laps.map(l => l.cleanTime));
+        // spread: robust sigma of (lap time - the noise-free expectation) over the kept laps vs over the clean times
+        const rs = ls => rsig(ls.map(l => l.lapTime - l.expected));
+        const keptLaps = drv.laps.filter((_, i) => !flags[i]);
+        const trueSpread = rsig(drv.laps.map(l => l.cleanTime - l.expected));
+        if (keptLaps.length >= 5 && trueSpread > 0) {
+          spK += rs(keptLaps) / trueSpread;
+          spA += rs(drv.laps) / trueSpread;
+        }
+        // stint slope: Theil-Sen of time against lap index, kept vs all, against the slope of the clean times
+        const slopeOf = pts => {
+          const sl = [];
+          for (let i = 0; i < pts.length; i++)
+            for (let j = i + 1; j < pts.length; j++)
+              sl.push((pts[j][1] - pts[i][1]) / (pts[j][0] - pts[i][0]));
+          return med(sl);
+        };
+        const idx = drv.laps.map((l, i) => [i, l]);
+        const trueSlope = slopeOf(idx.map(([i, l]) => [i, l.cleanTime]));
+        const keptSlope = slopeOf(
+          idx.filter(([i]) => !flags[i]).map(([i, l]) => [i, l.lapTime]),
+        );
+        const allSlope = slopeOf(idx.map(([i, l]) => [i, l.lapTime]));
+        if (keptSlope != null) {
+          slK += Math.abs(keptSlope - trueSlope);
+          slA += Math.abs(allSlope - trueSlope);
+        }
         const kept = drv.laps.filter((_, i) => !flags[i]).map(l => l.lapTime);
         if (kept.length) {
           errKept += Math.abs(med(kept) - truth);
@@ -118,7 +118,9 @@ export async function run(judgeMap = judges, N = 400) {
           cl[1]
         ).toFixed(1)}% | ${pct(pc)} | ${(errKept / ne).toFixed(3)} [${(
           errAll / ne
-        ).toFixed(3)}]`,
+        ).toFixed(3)}] | ${(spK / ne).toFixed(2)} [${(spA / ne).toFixed(
+          2,
+        )}] | ${(slK / ne).toFixed(3)} [${(slA / ne).toFixed(3)}]`,
       );
     }
   }
