@@ -43,6 +43,24 @@ function Fail($message) {
       if (Test-Path $file) { Write-Host "-- $log"; Get-Content $file -Tail 40 }
     }
   }
+  # What a still-running installer waits on (thread 1 #4986: the 0.0.2
+  # installer was alive 180 s after --update with no tray left): every process
+  # under it, with its command line, and whether the WebView2 runtime the
+  # installer checks for is registered.
+  $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+  $roots = @($procs | Where-Object { $_.Name -match 'BotRacing.*(installer|setup)' -or $_.Name -match '^BotRacing_.*setup' })
+  if ($roots.Count) {
+    Write-Host "-- installer processes and their children"
+    $queue = [System.Collections.Generic.Queue[object]]::new()
+    foreach ($r in $roots) { $queue.Enqueue(@($r, 0)) }
+    while ($queue.Count) {
+      $item = $queue.Dequeue(); $proc = $item[0]; $depth = $item[1]
+      Write-Host ("   " + ("  " * $depth) + "pid $($proc.ProcessId) $($proc.Name) started $($proc.CreationDate): $($proc.CommandLine)")
+      foreach ($child in @($procs | Where-Object { $_.ParentProcessId -eq $proc.ProcessId })) { $queue.Enqueue(@($child, $depth + 1)) }
+    }
+  } else { Write-Host "-- no installer process running" }
+  $wv = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue
+  Write-Host "-- WebView2 runtime registered: $(if ($wv) { $wv.pv } else { 'no' })"
   if ($server -and -not $server.HasExited) { $server.Kill() }
   exit 1
 }
