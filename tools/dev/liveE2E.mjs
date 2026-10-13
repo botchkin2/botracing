@@ -30,6 +30,9 @@ const token = resolve(arg('--token', ''));
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
 const maxLapS = Number(arg('--max-lap-s', '15'));
+// The Sessions list learns of a drive from the uploader signal (one /uploaders
+// call a minute), not a poll of its own: its limit is 75 s, apart from the laps'.
+const maxListS = Number(arg('--max-list-s', '75'));
 // The screen check: a headless pane signed in as seat-test (a custom token from
 // functions/scripts/mintTestToken.mjs --custom-token-file) opens the live
 // session, and each lap must show on the screen within the limit too. Without
@@ -225,7 +228,7 @@ if (!noScreen) {
     liveVerdict({
       laps: 1,
       latencyMs: onList,
-      maxLapS,
+      maxLapS: maxListS,
       where: 'the Sessions list (open, untouched)',
     }),
   );
