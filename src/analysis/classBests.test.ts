@@ -99,6 +99,7 @@ describe('classBestsDoc', () => {
     expect(Object.keys(doc).sort()).toEqual([
       'classes',
       'kind',
+      'source',
       'vehicles',
       'version',
     ]);
@@ -125,6 +126,59 @@ describe('classBestsDoc by session kind', () => {
     const doc = classBestsDoc(field, 'Practice');
     expect(doc.kind).toBe('practice');
     expect(doc.classes.hypercar!.bestsS[0]).toBe(80);
+  });
+});
+
+describe("the game's own best lap (classBests 2)", () => {
+  // The same field, each car also carrying mBestLapTime. The line-crossing
+  // clock reads 98 for the 98 s car; the game says 98.123.
+  const withBests = (bests: (number | null)[]): EncodedField => ({
+    ...field,
+    cars: field.cars.map((c, i) => ({...c, bestLapS: bests[i]})),
+  });
+
+  it("takes each car's best from bestLapS, exactly as the game timed it", () => {
+    const doc = classBestsDoc(
+      withBests([100.404, 98.123, 99.27, 80.011, 82.5, 81.249]),
+      'Race',
+    );
+    expect(doc.source).toBe('game');
+    expect(doc.classes.gt3!.bestsS).toEqual([98.123, 99.27, 100.404]);
+    expect(doc.classes.hypercar!.bestsS).toEqual([80.011, 81.249, 82.5]);
+    expect(doc.classes.gt3!.player).toBe(2);
+  });
+
+  it('a car with no timed lap (null) has no best; a class with none is left out', () => {
+    const doc = classBestsDoc(
+      withBests([100.4, null, 99.2, null, null, null]),
+      'Race',
+    );
+    expect(doc.classes.gt3!.bestsS).toEqual([99.2, 100.4]);
+    expect(doc.classes.hypercar).toBeUndefined();
+  });
+
+  it("does not apply the lap rules to the game's number (a single push lap in qualifying)", () => {
+    const doc = classBestsDoc(
+      withBests([100.4, 98.1, 99.2, 80, 82, 81]),
+      'Qualify',
+    );
+    expect(doc.classes.gt3!.bestsS[0]).toBe(98.1);
+  });
+
+  it('a field without bestLapS, or only some cars with it, keeps the line-crossing rule', () => {
+    expect(classBestsDoc(field, 'Race').source).toBe('laps');
+    const partial: EncodedField = {
+      ...field,
+      cars: field.cars.map((c, i) => (i === 0 ? {...c, bestLapS: 97} : c)),
+    };
+    const doc = classBestsDoc(partial, 'Race');
+    expect(doc.source).toBe('laps');
+    expect(doc.classes.gt3!.bestsS).toEqual([98, 99, 100]);
+  });
+
+  it('a version 1 stored doc reads stale', () => {
+    const doc = classBestsDoc(field, 'Race');
+    expect(classBestsCurrent({...doc, version: 1}, 'Race')).toBe(false);
   });
 });
 
