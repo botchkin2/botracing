@@ -30,8 +30,8 @@ describe('buildSessionModel', () => {
     expect(m.facts).toEqual([
       {label: 'Laps', value: '22'},
       {label: 'Comparable', value: '16'},
-      {label: 'Best', value: '1:20.763', best: true},
-      {label: 'Median', value: '1:21.915'},
+      {label: 'Best', value: '1:20.763', best: true, basis: 'session'},
+      {label: 'Median', value: '1:21.915', basis: 'of 16'},
       {label: 'Clean median', value: 'No other cars recorded'},
     ]);
   });

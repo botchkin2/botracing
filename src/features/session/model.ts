@@ -72,7 +72,21 @@ export type Selection = {
   hl: string | null;
 };
 
-export type Fact = {label: string; value: string; best?: boolean};
+/**
+ * A head fact. `basis` names the laps it is over when that is not obvious
+ * ("session" for a fact of the whole session, "of 13" for a comparison over the
+ * selection): every number names its set (decision 2026-10-11).
+ */
+export type Fact = {
+  label: string;
+  value: string;
+  best?: boolean;
+  basis?: string;
+};
+
+/** The label as the head prints it: "Best · session", "Median · of 13". */
+export const factLabel = (f: Fact): string =>
+  f.basis ? `${f.label} · ${f.basis}` : f.label;
 
 export type Bar = {
   lapId: string;
@@ -612,8 +626,14 @@ export function buildSessionModel(
         label: 'Best',
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
+        // A fact of the session: it can be a lap outside the selection.
+        basis: 'session',
       },
-      {label: 'Median', value: timeOrDash(median)},
+      {
+        label: 'Median',
+        value: timeOrDash(median),
+        basis: basisTimes.n > 0 ? `of ${basisTimes.n}` : undefined,
+      },
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], session.stints.length),
