@@ -287,7 +287,9 @@ function optimumRows(
       label: `Stint ${s.stint}`,
       n: `${w.n} ${w.n === 1 ? 'lap' : 'laps'}`,
       best: seconds(w.bestS),
-      bestLap: `L${lapIndexOf.get(w.bestLapId ?? '') ?? '?'}`,
+      bestLap: lapIndexOf.has(w.bestLapId ?? '')
+        ? `L${lapIndexOf.get(w.bestLapId ?? '')}`
+        : '—',
       median: seconds(w.medianS),
       gap: formatGap(w.medianS - w.bestS),
     });
