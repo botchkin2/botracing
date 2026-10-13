@@ -737,3 +737,83 @@ describe('shownMeasures', () => {
     expect(shownMeasures([])).toEqual([]);
   });
 });
+
+describe('the Corner time counts as Compare and Session count it', () => {
+  // One section (T1) with windows: a pit window or 0.3 s off track removes a
+  // lap's time from the column and from its median; stale laps have none.
+  const boundaries = {
+    v: 1,
+    rev: 3,
+    startsM: [150],
+    marginM: [20],
+    windows: [
+      {kind: 'start-straight', section: null, fromM: 0, toM: 150, parts: []},
+      {kind: 'section', section: 1, fromM: 150, toM: 1000, parts: []},
+    ],
+  };
+  const windowMap = toTrackMap({
+    lengthM: 1000,
+    boundaries,
+    corners: [{n: 1, entryM: 200, apexM: 250, exitM: 300, parts: []}],
+    outline: {features: []},
+  });
+  const raw = (
+    id: string,
+    time: number,
+    over: Record<string, unknown> = {},
+    stamp: unknown = {v: 1, rev: 3},
+  ) => ({
+    id,
+    lapTime: 100,
+    comparable: true,
+    reasons: [],
+    cornerBoundaries: stamp,
+    corners: [
+      {
+        segTime: time,
+        fromM: 150,
+        toM: 1000,
+        runInS: time / 3,
+        cornerS: time / 3,
+        exitS: time / 3,
+        pit: false,
+        brakeApps: [],
+        parts: [],
+        ...over,
+      },
+    ],
+  });
+  const windowLaps = toLaps([
+    raw('a', 12),
+    raw('b', 14),
+    raw('c', 40, {pit: true}),
+    raw('d', 30, {offTrackSec: 0.5}),
+    raw('e', 13, {offTrackSec: 0.2}),
+    raw('f', 11, {}, {v: 1, rev: 2}),
+  ]);
+  const m = buildCornerModel({
+    session,
+    laps: windowLaps,
+    map: windowMap,
+    band: null,
+    traces: new Map(),
+    lapIds: windowLaps.map(l => l.id),
+    keyLapIds: ['a'],
+    hl: null,
+    corner: 1,
+  })!;
+  const time = (id: string) => m.rows.find(r => r.lapId === id)!.values.time;
+
+  it('has no time for a pit window, an off-track window, or a lap cut at other boundaries', () => {
+    expect(time('a')).toBe(12);
+    expect(time('c')).toBeNull();
+    expect(time('d')).toBeNull();
+    expect(time('f')).toBeNull();
+  });
+
+  it('keeps a window under 0.3 s off track, and takes the median of the times that count', () => {
+    expect(time('e')).toBe(13);
+    // 12, 13, 14: the median is 13, so a is 1 s under it.
+    expect(m.rows.find(r => r.lapId === 'a')!.cells.time.gap).toBe('−1.000');
+  });
+});

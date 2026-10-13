@@ -12,7 +12,7 @@
 import {
   type BoundaryWindow,
   type Lap,
-  type MapBoundaries,
+  sectionWindowState,
   sessionOptimum,
   type TrackMapData,
 } from '@/src/data/sessions';
@@ -24,8 +24,10 @@ export type WindowRowState =
   | 'ok'
   /** No window facts, or cut at other boundaries: shown as pending. */
   | 'stale'
-  /** The pit lane overlaps this window. */
-  | 'pit';
+  /** The pit lane overlaps this window: left out, like Compare and Session leave it. */
+  | 'pit'
+  /** Off track in this window (0.3 s or more): left out. */
+  | 'off-track';
 
 export type Cell = {value: string; gap: string | null; better: boolean};
 
@@ -134,9 +136,8 @@ export function buildSectionWindow(input: {
   const section = map.sections[index];
 
   const stateOf = (lap: Lap): WindowRowState => {
-    const facts = lap.sections[index];
-    if (!facts?.window || !isCurrent(lap, boundaries)) return 'stale';
-    return facts.window.pit ? 'pit' : 'ok';
+    const state = sectionWindowState(lap, index, boundaries);
+    return state === 'counts' ? 'ok' : state;
   };
   const states = laps.map(stateOf);
   // The basis: the picked Ref when it can be compared, else the median of the
@@ -263,7 +264,9 @@ function refNote(
   return `Reference L${laps[at].lapIndex} ${
     states[at] === 'stale'
       ? 'is pending re-analysis'
-      : 'crosses the pit lane here'
+      : states[at] === 'pit'
+      ? 'crosses the pit lane here'
+      : 'went off track here'
   }; no gaps.`;
 }
 
@@ -295,12 +298,4 @@ function optimumRows(
     });
   }
   return rows;
-}
-
-/** Whether a lap's windows were cut at the boundaries the map carries now. */
-export function isCurrent(lap: Lap, boundaries: MapBoundaries): boolean {
-  const stamp = lap.cornerBoundaries;
-  return (
-    stamp != null && stamp.v === boundaries.v && stamp.rev === boundaries.rev
-  );
 }
