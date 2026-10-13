@@ -146,23 +146,23 @@ export function auditSession(
       note: 'the head best is a lap outside the selection',
     });
 
-  // Median: a comparison, so the selection's.
+  // Median: a comparison, so the selection's (decision 2026-10-11). Shown as the
+  // median of all comparable laps while the selection is smaller is a 'set'
+  // finding (the set is not the one the screen compares by); anything else that
+  // differs is a plain mismatch.
   const medShown = parseLap(fact('Median') ?? '');
-  if (!same(medShown, all.median))
+  if (sel.n > 0 && !same(medShown, sel.median)) {
+    const ofAll = same(medShown, all.median);
     add({
-      type: 'mismatch',
+      type: ofAll ? 'set' : 'mismatch',
       what: 'head.median',
-      shown: fact('Median') ?? '—',
-      expected: `${lapText(all.median)} (median of ${all.n} comparable)`,
-    });
-  if (sel.n > 0 && !same(medShown, sel.median))
-    add({
-      type: 'set',
-      what: 'head.median',
-      shown: `${fact('Median')} (all ${all.n} comparable)`,
+      shown: ofAll
+        ? `${fact('Median')} (all ${all.n} comparable)`
+        : String(fact('Median') ?? '—'),
       expected: `${lapText(sel.median)} (selection of ${sel.n})`,
-      note: "a median is a comparison: the selection's",
+      note: ofAll ? "a median is a comparison: the selection's" : undefined,
     });
+  }
 
   // Lap rows: gap = time - selection median.
   for (const row of model.rows) {
