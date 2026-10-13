@@ -56,6 +56,7 @@ import {
   trafficRows,
 } from './trafficFacts';
 import {isCompound} from '@/src/data/sessions/corners';
+import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 
 // Session screen view model (handoff §2). buildSessionModel is pure: session,
 // laps and the URL selection in, everything the screen draws out. Colors are
@@ -327,7 +328,8 @@ function statusFor(
       : 'Not comparable';
     return `Excluded · ${why}`;
   }
-  if (lap.timeS == null || medianS == null) return 'Comparable';
+  if (lap.timeS == null || medianS == null || n < MIN_COMPARISON_LAPS)
+    return 'Comparable';
   return `Comparable · ${formatGap(lap.timeS - medianS)} s vs median of ${n}`;
 }
 

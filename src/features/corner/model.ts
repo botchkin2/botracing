@@ -46,7 +46,7 @@ import {
   type NeighbourApex,
   windowCaption,
 } from './stretch';
-import {median} from '@/src/analysis/setStats';
+import {medianOfSet} from '@/src/analysis/setStats';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
@@ -426,7 +426,7 @@ export function buildCornerModel(input: {
   const basis = Object.fromEntries(
     MEASURES.map(m => [
       m.id,
-      refValues ? refValues[m.id] : median(allValues.map(v => v[m.id])),
+      refValues ? refValues[m.id] : medianOfSet(allValues.map(v => v[m.id])),
     ]),
   ) as Record<Measure, number | null>;
 
