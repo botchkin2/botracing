@@ -781,18 +781,18 @@ describe('a URL with no laps', () => {
   });
 
   it('leaves out the slow outliers of the session pace, not the fast laps', () => {
-    // Nine laps at 80 s in a steady stint, one 9 s slow, one 0.9 s fast.
-    const stint = Array.from({length: 9}, (_, i) =>
+    // Twelve laps at 80 s in a steady stint, one 9 s slow, one 0.9 s fast.
+    const stint = Array.from({length: 12}, (_, i) =>
       lap(`p${i}`, 80 + (i % 3) * 0.05),
     );
     const race = [...stint, lap('slow', 89), lap('fast', 79.1)];
     const out = withDefaultLaps(sel({laps: []}), race, facts).laps;
     expect(out).not.toContain('slow');
     expect(out).toContain('fast');
-    expect(out).toHaveLength(10);
+    expect(out).toHaveLength(13);
   });
 
-  it('keeps every lap under eight: two sigma of a few laps is no pace', () => {
+  it('keeps every lap under twelve: a few laps are no pace', () => {
     const few = [
       lap('a', 80),
       lap('b', 80.1),

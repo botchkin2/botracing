@@ -21,7 +21,7 @@ const ids = (laps: readonly PaceLap[]) => paceOutliers(laps).map(o => o.id);
 describe('paceOutliers', () => {
   it('marks a lap far slower than its stint, with how much', () => {
     const laps = [
-      ...stint(1, 10),
+      ...stint(1, 12),
       {id: 'slow', stint: 1, stintLap: 10, lapTime: 89},
     ];
     expect(paceOutliers(laps)).toEqual([
@@ -31,7 +31,7 @@ describe('paceOutliers', () => {
 
   it('leaves fast laps in: a lap cannot be unusually fast', () => {
     const laps = [
-      ...stint(1, 10),
+      ...stint(1, 12),
       {id: 'fast', stint: 1, stintLap: 10, lapTime: 78},
     ];
     expect(ids(laps)).toEqual([]);
@@ -68,7 +68,7 @@ describe('paceOutliers', () => {
   });
 
   it('does not judge the laps of a stint too short to have a pace trend', () => {
-    const laps = [...stint(1, 10), ...stint(2, MIN_STINT_PACE_LAPS - 1, 95)];
+    const laps = [...stint(1, 12), ...stint(2, MIN_STINT_PACE_LAPS - 1, 95)];
     expect(ids(laps)).toEqual([]);
   });
 

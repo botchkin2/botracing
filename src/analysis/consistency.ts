@@ -936,8 +936,14 @@ function round(value: number | null, digits: number): number | null {
   return Math.round(value * p) / p;
 }
 
-/** Fewest laps `paceOutliers` judges: below it two sigmas of a few laps would drop a third of them (apex, 2026-10-13). */
-export const MIN_OUTLIER_LAPS = 8;
+/** Fewest laps `paceOutliers` judges: below it a few laps would lose a third of themselves to the rule (Botkin, 2026-10-13). */
+export const MIN_OUTLIER_LAPS = 12;
+
+/** A lap is an outlier when it is this many robust sigmas of the session's residuals slower than its stint's trend... */
+export const OUTLIER_SIGMAS = 3;
+
+/** ...and at least this many seconds. Selection-specific: the consistency analysis keeps its own `offPaceZ` / `offPaceMinSec` (Botkin, 2026-10-13: a lap that costs a second is an event, not scatter). */
+export const OUTLIER_MIN_S = 1;
 
 /** Fewest laps a stint needs for `paceOutliers` to judge its laps: fewer have no pace trend. */
 export const MIN_STINT_PACE_LAPS = 5;
@@ -960,9 +966,9 @@ export interface PaceOutlier {
 /**
  * The laps whose time sits far above their stint's pace trend: the outliers
  * the default selection leaves out (decisions/lap/2026-10-12-default-selection-
- * outliers.md). The rule `analyzeConsistency` calls off pace (a robust trend
- * per stint, then `offPaceZ` robust sigmas of the session's residuals and at
- * least `offPaceMinSec`), over every lap given; no flag decides it. Slow ones
+ * outliers.md). A robust trend per stint (`fitTrend`, as `analyzeConsistency`
+ * fits it), then OUTLIER_SIGMAS robust sigmas of the session's residuals and at
+ * least OUTLIER_MIN_S, over every lap given; no flag decides it. Slow ones
  * only: a lap cannot be unusually fast (Botkin, 2026-10-13), so fast laps stay
  * in. With fewer than MIN_OUTLIER_LAPS laps there is no pace to be off, so none
  * is an outlier.
@@ -1015,7 +1021,7 @@ export function paceResiduals(
   return {
     residualS,
     sigmaS,
-    limitS: Math.max(t.offPaceZ * sigmaS, t.offPaceMinSec),
+    limitS: Math.max(OUTLIER_SIGMAS * sigmaS, OUTLIER_MIN_S),
     trendByStint,
   };
 }
