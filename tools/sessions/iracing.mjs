@@ -110,7 +110,8 @@ export const CHANNELS = [
   {source: 'RRtempR', name: 'tyres_temp_right_rr', unit: 'C', scale: 1},
 ];
 
-const YELLOW =
+/** SessionFlags bits that mean a yellow (the yellow_flag event). */
+export const YELLOW =
   0x00000008 | 0x00000100 | 0x00004000 | 0x00008000;
 
 export function mapSessionType(raw) {
@@ -205,8 +206,14 @@ export function playerCar(yaml) {
 }
 
 function fuelFromYaml(yaml) {
-  const tank = Number(yamlField(yaml, 'DriverCarFuelMaxLtr'));
-  const pct = Number(yamlField(yaml, 'DriverCarMaxFuelPct'));
+  return fuelSetupOf(
+    Number(yamlField(yaml, 'DriverCarFuelMaxLtr')),
+    Number(yamlField(yaml, 'DriverCarMaxFuelPct')),
+  );
+}
+
+/** The tank and fill limit from DriverCarFuelMaxLtr and DriverCarMaxFuelPct. */
+export function fuelSetupOf(tank, pct) {
   return {
     fillLimitL:
       tank > 0 && pct > 0 ? Math.round(tank * pct * 10) / 10 : tank > 0 ? tank : null,
@@ -286,9 +293,16 @@ export function describe(path) {
 
 function scaleOf(channel, ibt) {
   if (channel.scale !== 'steer') return channel.scale;
-  const max = ibt.byName.has('SteeringWheelAngleMax')
-    ? Math.abs(sampleAt(ibt, 'SteeringWheelAngleMax', 0) || 0)
-    : 0;
+  return steerScale(
+    ibt.byName.has('SteeringWheelAngleMax')
+      ? sampleAt(ibt, 'SteeringWheelAngleMax', 0)
+      : null,
+  );
+}
+
+/** steer_pct per radian of SteeringWheelAngle, from the car's lock (rad). */
+export function steerScale(maxRad) {
+  const max = Math.abs(maxRad || 0);
   return 100 / (max > 0.1 ? max : Math.PI);
 }
 
@@ -332,9 +346,9 @@ export function resetTimes(t, inStall, onPitRoad, fuel = null) {
 }
 
 /** How far before the stall flag a reset's refill may come, seconds. */
-const RESET_LEAD_S = 0.25;
+export const RESET_LEAD_S = 0.25;
 /** A rise in one tick bigger than any fuel-level noise: a refill. */
-const RESET_REFILL_L = 0.5;
+export const RESET_REFILL_L = 0.5;
 
 function emitChanges(t, values, name, map = v => v) {
   const rows = [];
@@ -347,13 +361,18 @@ function emitChanges(t, values, name, map = v => v) {
   return rows;
 }
 
-function surfaceCode(loc, material) {
+export function surfaceCode(loc, material) {
   if (loc === 0) return 2;
   if (material >= 15 && material <= 18) return 2;
   if (material >= 19 && material <= 22) return 3;
   if (material === 23 || material === 24 || material === 25) return 4;
   return 0;
 }
+
+/** surfaceCode in SQL, over two column expressions (irLiveCapture.mjs). */
+export const surfaceSql = (loc, material) =>
+  `CASE WHEN ${loc} = 0 THEN 2 WHEN ${material} BETWEEN 15 AND 18 THEN 2
+    WHEN ${material} BETWEEN 19 AND 22 THEN 3 WHEN ${material} IN (23, 24, 25) THEN 4 ELSE 0 END`;
 
 /**
  * Where each of iRacing's own sectors starts, as a share of the lap, from the
