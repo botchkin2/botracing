@@ -7,9 +7,6 @@ export const LIVE_POLL_MS = 5_000;
 /** A lap lands every minute or two; past this the drive is over. */
 export const LIVE_FRESH_MS = 10 * 60_000;
 
-/** How often the Sessions list is read again (it reads every session of the owner per call: not faster). */
-export const LIST_POLL_MS = 30_000;
-
 /**
  * `liveAt`: `live.updatedAt` in ms, null on a session that never was live.
  * The server's stamp is compared with this device's clock, so a clock a few

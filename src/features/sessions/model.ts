@@ -2,6 +2,7 @@ import {useMemo} from 'react';
 
 import {
   type SessionSummary,
+  useNewUploads,
   useSessionFacets,
   useSessions,
 } from '@/src/data/sessions';
@@ -160,7 +161,9 @@ export function buildSessionsModel(
       badge: s.sessionType,
       track: shortTrackName(s.track),
       typeLabel: TYPE_LABEL[s.sessionType],
-      railSubline: `${hhmm(started)} · ${s.lapCount} ${s.lapCount === 1 ? 'lap' : 'laps'}`,
+      railSubline: `${hhmm(started)} · ${s.lapCount} ${
+        s.lapCount === 1 ? 'lap' : 'laps'
+      }`,
       subline: [hhmm(started), car.shortModel].filter(Boolean).join(' · '),
       entry: car.entry,
       laps: String(s.lapCount),
@@ -265,6 +268,8 @@ export function sortRows(rows: SessionRow[], sort: Sort): SessionRow[] {
 export function useSessionsModel(
   wanted: SessionsFilter = NO_FILTER,
 ): SessionsModel {
+  // The list has no interval: a PC's new upload reads it again.
+  useNewUploads();
   const facets = useSessionFacets();
   // Both reads start at once. The list comes from the URL; the facets only
   // correct it when the URL names a game or track nothing was driven in.
