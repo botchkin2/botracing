@@ -9,6 +9,7 @@ laps (pit-wall thread 1 #4835). Read only: GET requests as `seat-test`.
   for any all-sessions check. `signInFromFile(tokenFile)` signs the data layer in.
 - `dumpSessions.test.ts`: writes every session as one JSON line (`sessions.ndjson`)
   so a check can run offline over the same data.
+- `loadSessions.ts`: the other sources: a dump file (`AUDIT_NDJSON`: `dumpSessions.test.ts`, or `adminDump.cjs`, which reads one owner's raw docs with the server's own readers and this PC's Google login; read only), or a `sync.mjs --local --work <dir>` folder (`AUDIT_LOCAL`: the stored docs of every local recording, analysed by this tree's code, with locally built corner maps).
 - `numbersAudit.ts`: `auditSession(session, laps, map)` returns findings of four
   types: `mismatch` (a shown number differs from the recompute), `set` (a number
   computed on another set of laps than its label says: head median over all

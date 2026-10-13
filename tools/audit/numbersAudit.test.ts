@@ -1,22 +1,25 @@
 // Runs the numbers audit over every session (read only). Skipped unless
 // AUDIT_TOKEN_FILE is set (an ID token file, docs/TESTING.md), or AUDIT_NDJSON
-// names a dump written by dumpSessions.test.ts:
+// names a dump (dumpSessions.test.ts, or adminDump.cjs), or AUDIT_LOCAL names a
+// `sync.mjs --local --work` folder (loadSessions.ts):
 //
 //   AUDIT_TOKEN_FILE=<token file> npx jest tools/audit/numbersAudit
 //   AUDIT_NDJSON=<sessions.ndjson> npx jest tools/audit/numbersAudit
 //
 // AUDIT_REPORT=<file> also writes the full report as JSON. Rerun after a
 // Theme 1 / Theme 2 PR: the counts go to 0.
-import {readFileSync, writeFileSync} from 'node:fs';
+import {writeFileSync} from 'node:fs';
 
 import {describe, expect, it} from '@jest/globals';
 
 import {signInFromFile, walkSessions, type WalkedSession} from './allSessions';
+import {fromLocalWork, fromNdjson} from './loadSessions';
 import {auditSession, summarise, type Finding} from './numbersAudit';
 
 const tokenFile = process.env.AUDIT_TOKEN_FILE;
 const ndjson = process.env.AUDIT_NDJSON;
-const run = tokenFile || ndjson ? describe : describe.skip;
+const local = process.env.AUDIT_LOCAL;
+const run = tokenFile || ndjson || local ? describe : describe.skip;
 
 run('numbers audit', () => {
   it('reports every finding over every session', async () => {
@@ -30,11 +33,11 @@ run('numbers audit', () => {
         findings: auditSession(s.session, s.laps, s.map),
       });
     };
-    if (ndjson) {
-      for (const line of readFileSync(ndjson, 'utf8')
-        .split('\n')
-        .filter(Boolean))
-        check(JSON.parse(line));
+    if (ndjson || local) {
+      for (const s of ndjson
+        ? fromNdjson(ndjson)
+        : fromLocalWork(local as string))
+        check(s);
     } else {
       signInFromFile(tokenFile as string);
       await walkSessions(check, {
