@@ -51,8 +51,6 @@ export type SessionSummary = {
    */
   cornerMapSource: 'stored' | 'new' | 'session' | null;
   updatedAt: string;
-  /** `live.updatedAt` in ms (the tray's last lap upload); null on a session never live. */
-  liveAt: number | null;
 };
 
 export type SessionListResponse = {items: RawSession[]; total: number};
@@ -107,7 +105,6 @@ export function toSessionSummary(raw: RawSession): SessionSummary {
     eventId: str(raw.eventId) || null,
     cornerMapSource: toCornerMapSource(raw.trackMapSource),
     updatedAt: str(raw.updatedAt),
-    liveAt: toLiveAt(raw.live),
   };
 }
 
@@ -372,6 +369,8 @@ export type SessionDetail = SessionSummary & {
    * runs (`liveAt`, live.ts). `archiveParts` counts the laps stored so far, so a
    * new lap is a new analysis; null on a session uploaded from game files.
    */
+  /** `live.updatedAt` in ms (the tray's last lap upload); null on a session never live. */
+  liveAt: number | null;
   archiveParts: number | null;
   /** Null on sessions analysed before the fuel facts. */
   fuel: SessionFuel | null;
@@ -415,6 +414,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     trackVariant: str(obj(raw.track).variant),
     stale: raw.stale === true,
     archiveParts: num(raw.archiveParts),
+    liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
     classLaps: toClassLaps(raw.classLaps),

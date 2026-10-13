@@ -15,7 +15,7 @@ import {
 } from './client';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
-import {isLive, listPoll, livePoll} from './live';
+import {isLive, LIST_POLL_MS, livePoll} from './live';
 
 // A session is rewritten only by an upload or analysis on open (which
 // refetches it itself), so detail data stays fresh for a while; the list
@@ -44,8 +44,8 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
     queryFn: ({signal}) => fetchSessions(filter, signal),
     staleTime: 60_000,
     ...FRESH_ON_RETURN,
-    // A session being driven gains a lap every minute or two; the list shows it.
-    refetchInterval: q => listPoll(q.state.data?.items.map(i => i.liveAt)),
+    // A drive that starts while the list is open appears within this.
+    refetchInterval: LIST_POLL_MS,
     retry: retryUnlessClientError,
   });
 }

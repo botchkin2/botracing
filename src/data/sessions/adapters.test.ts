@@ -45,14 +45,14 @@ describe('toSessionSummary', () => {
   });
 });
 
-describe('toSessionSummary live stamp', () => {
+describe('toSessionDetail live stamp', () => {
   it('reads live.updatedAt in ms, null on a session never live', () => {
-    expect(toSessionSummary(raw).liveAt).toBeNull();
+    expect(toSessionDetail(raw).liveAt).toBeNull();
     expect(
-      toSessionSummary({...raw, live: {updatedAt: '2026-10-13T02:36:40.000Z'}})
+      toSessionDetail({...raw, live: {updatedAt: '2026-10-13T02:36:40.000Z'}})
         .liveAt,
     ).toBe(Date.parse('2026-10-13T02:36:40.000Z'));
-    expect(toSessionSummary({...raw, live: {}}).liveAt).toBeNull();
+    expect(toSessionDetail({...raw, live: {}}).liveAt).toBeNull();
   });
 });
 

@@ -7,7 +7,7 @@ export const LIVE_POLL_MS = 5_000;
 /** A lap lands every minute or two; past this the drive is over. */
 export const LIVE_FRESH_MS = 10 * 60_000;
 
-/** How often the Sessions list looks for a drive that has just started. */
+/** How often the Sessions list is read again (it reads every session of the owner per call: not faster). */
 export const LIST_POLL_MS = 30_000;
 
 /**
@@ -22,12 +22,4 @@ export function isLive(liveAt: number | null | undefined, now = Date.now()) {
 /** React Query's `refetchInterval` for a live session; false stops the poll. */
 export function livePoll(liveAt: number | null | undefined) {
   return isLive(liveAt) ? LIVE_POLL_MS : false;
-}
-
-/**
- * The Sessions list: fast while it shows a live session, slow otherwise, so a
- * drive that starts while the list is open appears and the fast poll takes over.
- */
-export function listPoll(liveAts: (number | null)[] | undefined) {
-  return liveAts?.some(at => isLive(at)) ? LIVE_POLL_MS : LIST_POLL_MS;
 }

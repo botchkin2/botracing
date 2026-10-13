@@ -36,7 +36,6 @@ const session = (over: Partial<SessionSummary>): SessionSummary => ({
   eventId: null,
   cornerMapSource: 'stored',
   updatedAt: '2026-09-01T12:00:00Z',
-  liveAt: null,
   ...over,
 });
 
