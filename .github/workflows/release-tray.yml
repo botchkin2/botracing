@@ -1,0 +1,254 @@
+# "Release tray" (roadmap 2w; pit-wall thread 1 #5035 to #5053): one run from
+# main to a published tray, with no hand steps but Botkin's approval.
+#
+# The installer is built ONCE and every gate tests that file, the one that
+# ships. Before this, the e2e tested an unsigned build without the Firebase key
+# and the release job built a second installer from scratch with the secrets:
+# the tested exe was never the shipped exe.
+#
+#   build    stamps `version` into this checkout only (main stays 0.0.0, so a
+#            local or rc build is never a release; the tag is the record),
+#            runs the tests, builds the installer with no secrets (the
+#            Firebase key is the public web key, a repo variable), and keeps it
+#            as the artifact `candidate`.
+#   gates    tray-e2e.yml on that artifact: the 12 installer cells, and the
+#            update rehearsal from an N-1 to this exact exe (signed there with
+#            a throwaway key, a detached .sig).
+#   live     installs the candidate on a clean runner and replays a real LMU
+#            capture through the INSTALLED tray's node and uploader, as
+#            seat-test against production (tools/dev/liveE2E.mjs): every lap
+#            in the API, on an open session screen and in the Sessions list
+#            within the limits of thread 1 #5051. Seat-test's refresh token is
+#            the only credential (secret SEAT_TEST_REFRESH_TOKEN): it can only
+#            ever be seat-test.
+#   publish  only when all of that is green, in the tray-release Environment
+#            (Botkin approves the run there): signs the SAME exe with the
+#            updater key, publishes it, tags tray-vX on the built commit and
+#            checks GET /api/tray/latest answers X.
+#
+# Run: Actions > Release tray > Run workflow on main, version X.Y.Z.
+name: Release tray
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The release, X.Y.Z (higher than the last tray-v tag)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-tray
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the candidate
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    outputs:
+      sha: ${{ steps.where.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: From main, a new version
+        id: where
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "run Release tray on main, not $GITHUB_REF"; exit 1; fi
+          if git ls-remote --exit-code --tags origin "refs/tags/tray-v$VERSION" >/dev/null; then echo "tray-v$VERSION exists: a version is never published twice"; exit 1; fi
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: desktop/node-version
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: npm ci
+
+      - name: Stamp the version (this checkout only)
+        run: node scripts/release-manifest.mjs stamp "${{ inputs.version }}"
+
+      - name: Tests
+        run: |
+          node --test scripts/*.test.mjs
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      # No updater key here: the .sig is made in `publish` over this same file.
+      - name: Build the installer
+        env:
+          BOTRACING_FIREBASE_API_KEY: ${{ vars.BOTRACING_FIREBASE_API_KEY }}
+        run: |
+          if (-not $env:BOTRACING_FIREBASE_API_KEY) { throw "repo variable BOTRACING_FIREBASE_API_KEY is not set" }
+          npx tauri build --config src-tauri/tauri.unsigned.conf.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: candidate
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          retention-days: 14
+
+  gates:
+    name: Gates
+    needs: build
+    uses: ./.github/workflows/tray-e2e.yml
+    with:
+      candidate-artifact: candidate
+      candidate-version: ${{ inputs.version }}
+
+  live:
+    name: Live laps on the installed candidate
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+          # The gate scripts and the replay (it reads the capture through
+          # tools/sessions/duck.mjs); the uploader under test is the installed one.
+          sparse-checkout: |
+            tools/dev
+            tools/sessions
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: candidate
+          path: candidate
+
+      - name: Sign in to Google Cloud (read-only, golden/)
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      # A real LMU capture, 3 laps of Road Atlanta (3 Oct): player and session
+      # tables only, no field (other drivers' names stay out of CI).
+      - name: The capture
+        shell: bash
+        run: gcloud storage cp -r gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03 "$RUNNER_TEMP/capture"
+
+      - name: Install the candidate (per user, silent)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem candidate/*-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "no candidate installer was downloaded" }
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $app = Join-Path $env:LOCALAPPDATA 'BotRacing'
+          if (-not (Test-Path "$app\node\node.exe")) { throw "the installer left no node.exe in $app" }
+          # The tray the installer started is not the one under test: the gate
+          # runs the installed node and uploader itself, against scratch folders.
+          & "$app\botracing.exe" --quit
+          "APP=$app" >> $env:GITHUB_ENV
+          # The replay reads the capture with the DuckDB CLI the tray ships
+          # (duck.mjs looks beside itself first).
+          Copy-Item "$app\app\tools\sessions\duckdb.exe" tools/sessions/duckdb.exe
+
+      - name: Replay, as seat-test, against production
+        shell: pwsh
+        env:
+          SEAT_TEST_REFRESH_TOKEN: ${{ secrets.SEAT_TEST_REFRESH_TOKEN }}
+        run: |
+          if (-not $env:SEAT_TEST_REFRESH_TOKEN) { throw "secret SEAT_TEST_REFRESH_TOKEN is not set (see the PR that added this workflow)" }
+          $tokenFile = Join-Path $env:RUNNER_TEMP 'seat.refresh'
+          Set-Content -Path $tokenFile -Value $env:SEAT_TEST_REFRESH_TOKEN -NoNewline
+          # The installed tray's own node runs the gate and the uploader.
+          & "$env:APP\node\node.exe" tools/dev/liveE2E.mjs --from "$env:RUNNER_TEMP/capture" --refresh-token $tokenFile --node "$env:APP\node\node.exe" --app "$env:APP\app" --laps 3 --speed 1
+          $code = $LASTEXITCODE
+          Remove-Item $tokenFile -Force
+          exit $code
+
+  publish:
+    name: Publish ${{ inputs.version }}
+    needs: [build, gates, live]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Botkin approves here; the updater key and the publish account live only
+    # in this Environment.
+    environment: tray-release
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: desktop/node-version
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: candidate
+          path: ${{ runner.temp }}/candidate
+
+      # The same exe the gates tested: only a detached signature is added.
+      - name: Sign the tested installer
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $setup = Get-ChildItem "$env:RUNNER_TEMP/candidate/*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "no candidate installer was downloaded" }
+          npx tauri signer sign $setup.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/release-manifest.mjs layout $setup.FullName "${{ inputs.version }}" ../release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Sign in to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.TRAY_RELEASE_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Publish to Storage
+        shell: bash
+        run: bash ../scripts/publish-release.sh tray "${{ inputs.version }}" ../release
+
+      - name: Tag the built commit
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          git tag "tray-v$VERSION" "$SHA"
+          git push origin "tray-v$VERSION"
+
+      - name: The update endpoint answers the new version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for i in $(seq 1 10); do
+            got=$(curl -fsS "https://botracing-61.web.app/api/tray/latest?target=windows&arch=x86_64&current_version=0.0.0" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))' || true)
+            if [ "$got" = "$VERSION" ]; then echo "GET /api/tray/latest answers $VERSION"; exit 0; fi
+            sleep 6
+          done
+          echo "GET /api/tray/latest answers '$got', not $VERSION"; exit 1

@@ -18,20 +18,34 @@ on:
       - 'tools/sessions/**'
       - 'tools/capture/**'
       - '.github/workflows/tray-e2e.yml'
-  push:
-    tags: ['tray-v*']
   workflow_dispatch:
+  # "Release tray" (release-tray.yml, roadmap 2w) calls this with the one
+  # installer it built and will ship: the cells install that exact file, and
+  # the rehearsal updates N-1 to it, instead of building their own.
+  workflow_call:
+    inputs:
+      candidate-artifact:
+        description: The artifact holding the release's -setup.exe
+        type: string
+        required: true
+      candidate-version:
+        description: The version stamped into it (X.Y.Z)
+        type: string
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: tray-e2e-${{ github.event.pull_request.number || github.ref }}
+  # A release's call runs inside its own run; it never cancels a PR's.
+  group: tray-e2e-${{ inputs.candidate-version && format('release-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     name: Build the installer
+    # A release brings its own installer (candidate-artifact).
+    if: ${{ !inputs.candidate-artifact }}
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -64,6 +78,8 @@ jobs:
   e2e:
     name: Tray installer end to end (${{ matrix.os }}, ${{ matrix.account }}, node ${{ matrix.node }})
     needs: build
+    # Runs after this workflow's own build, or with the release's installer.
+    if: ${{ !cancelled() && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.candidate-artifact)) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -89,7 +105,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: e2e-installer
+          name: ${{ inputs.candidate-artifact || 'e2e-installer' }}
           path: installer
 
       - name: Install, launch, launch again, uninstall
@@ -124,7 +140,9 @@ jobs:
     env:
       PORT: '8765'
       OLD: '0.0.1'
-      NEW: '0.0.2'
+      # A release's rehearsal updates N-1 to the release itself.
+      NEW: ${{ inputs.candidate-version || '0.0.2' }}
+      CANDIDATE: ${{ inputs.candidate-artifact }}
     steps:
       - uses: actions/checkout@v7
 
@@ -146,6 +164,12 @@ jobs:
           npx tauri signer generate --ci -f -w $key
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "KEY_FILE=$key" >> $env:GITHUB_ENV
+
+      - uses: actions/download-artifact@v8
+        if: ${{ inputs.candidate-artifact }}
+        with:
+          name: ${{ inputs.candidate-artifact }}
+          path: ${{ runner.temp }}/candidate
 
       - name: Build N-1 and N
         run: |
@@ -174,7 +198,18 @@ jobs:
           Build $env:OLD $false
           $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content $env:KEY_FILE -Raw
           $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-          Build $env:NEW $true
+          if ($env:CANDIDATE) {
+            # N is the exact installer the release ships, signed here with the
+            # throwaway key N-1 trusts (a detached .sig; the exe is unchanged).
+            $cand = Get-ChildItem "$env:RUNNER_TEMP/candidate/*-setup.exe" | Select-Object -First 1
+            if (-not $cand) { throw "no candidate installer was downloaded" }
+            Copy-Item $cand.FullName (Join-Path $out "$env:NEW-setup.exe")
+            npx tauri signer sign (Join-Path $out "$env:NEW-setup.exe")
+            if ($LASTEXITCODE -ne 0) { throw "signing the candidate failed" }
+            if (-not (Test-Path (Join-Path $out "$env:NEW-setup.exe.sig"))) { throw "no .sig beside the candidate" }
+          } else {
+            Build $env:NEW $true
+          }
           Get-ChildItem $out | ForEach-Object { Write-Host "$($_.Name) $($_.Length)" }
 
       - name: Install N-1, update to N with --update, uninstall
