@@ -58,7 +58,7 @@ The grid and the lap table scroll sideways as one (`session/components/linkedScr
 
 ### Numbers: one basis, named
 
-The rule (decision `pit-wall/decisions/lap/2026-10-11-selection-and-numbers.md`): **facts are the session's, comparisons are the selection's.** A fact says what happened and never moves with a tick: Laps, Comparable, Best, the session Median, energy, fuel, tires, pit stops. Anything that compares laps or measures spread is over the **basis laps**, the ticked ones (or the comparable ones when none is ticked), and says how many it is "of". Every number below is from `src/features/session/selectionStats.ts`, so one question has one answer on a screen.
+The rule (decision `pit-wall/decisions/lap/2026-10-11-selection-and-numbers.md`): **facts are the session's, comparisons are the selection's.** A fact says what happened and never moves with a tick: Laps, Comparable, Best, energy, fuel, tires, pit stops. The head's Median is a comparison like any other: of the basis laps. Anything that compares laps or measures spread is over the **basis laps**, the ticked ones (or the comparable ones when none is ticked), and says how many it is "of". Every number below is from `src/features/session/selectionStats.ts`, so one question has one answer on a screen.
 
 - **Session, per segment:** the grid heads, the desktop table under the lap list (Median / Best / IQR) and the best-cell marks are one computation (`segmentBasisStats`).
 - **Session, per lap:** the lap table's "vs med", the lap-time bars, the lap strip and the detail ("vs median of N") use the basis median.
