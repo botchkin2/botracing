@@ -996,8 +996,8 @@ export interface PaceResiduals {
   sigmaS: number;
   /** A lap this much slower or more is an outlier; Infinity when too few laps to judge. */
   limitS: number;
-  /** The fitted slope per stint (seconds per lap into the stint). */
-  slopeByStint: Map<number, number>;
+  /** The fitted trend per judged stint: seconds per lap into the stint, and the intercept. */
+  trendByStint: Map<number, {slope: number; intercept: number}>;
 }
 
 /** What `paceOutliers` judged by: each lap's residual from its stint's trend, and the limit. */
@@ -1006,9 +1006,9 @@ export function paceResiduals(
   t: Thresholds = defaultThresholds,
 ): PaceResiduals {
   const residualS = new Map<string, number>();
-  const slopeByStint = new Map<number, number>();
+  const trendByStint = new Map<number, {slope: number; intercept: number}>();
   if (laps.length < MIN_OUTLIER_LAPS)
-    return {residualS, sigmaS: 0, limitS: Infinity, slopeByStint};
+    return {residualS, sigmaS: 0, limitS: Infinity, trendByStint};
   for (const n of unique(laps.map(l => l.stint))) {
     const own = laps.filter(l => l.stint === n);
     // A stint this short has no pace trend: its laps are not judged.
@@ -1018,7 +1018,7 @@ export function paceResiduals(
       own.map(l => l.lapTime),
       t,
     );
-    slopeByStint.set(n, slope);
+    trendByStint.set(n, {slope, intercept});
     for (const l of own)
       residualS.set(l.id, l.lapTime - (intercept + slope * l.stintLap));
   }
@@ -1027,6 +1027,6 @@ export function paceResiduals(
     residualS,
     sigmaS,
     limitS: Math.max(t.offPaceZ * sigmaS, t.offPaceMinSec),
-    slopeByStint,
+    trendByStint,
   };
 }
