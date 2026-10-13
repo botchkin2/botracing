@@ -8,9 +8,11 @@ import {sameLimit} from '@/src/analysis/fuelHistory';
 import type {Lap, SessionDetail} from '@/src/data/sessions';
 import {formatLapTime, oneDecimal} from '@/src/design';
 import {iqr, median} from '@/src/analysis/setStats';
+import {MIN_GREEN_LAPS} from '@/src/analysis/fuelPlan';
 
 /** A stint gives a median from this many green laps. */
-export const MIN_STINT_LAPS = 4;
+/** The fewest green laps a stint needs for a median use: the Plan's own floor, so a stint line, this card and the Plan give a number for the same laps. */
+export const MIN_STINT_LAPS = MIN_GREEN_LAPS;
 /** Stints differ when their medians are further apart than this share of the use, and than the laps inside them. */
 export const MIN_DIFF_FRACTION = 0.03;
 
