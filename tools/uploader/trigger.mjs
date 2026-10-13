@@ -62,12 +62,11 @@ export function decide({
   return {run: true, reason: wasRunning ? 'game exited' : 'new telemetry'};
 }
 
-// Live laps (pit-wall thread 66): while LMU runs, a lap the recorder has put on
-// disk (status.json lastLapAt) is uploaded on its own, as one archive part,
-// without analysis on the PC. The one exception to "never while the game
-// runs": the work is one lap's parquet read and a ~0.2 MB upload at idle
-// priority, measured per lap before it ships. Only LMU's capture has the
-// signal; any other game running still means no sync.
+// Live laps (pit-wall thread 66): while a sim runs, a lap its tray recorder
+// has put on disk (the recorder status file's lastLapAt: LMU and iRacing) is
+// uploaded on its own, as one archive part, without analysis on the PC. The one
+// exception to "never while the game runs": the work is one lap's parquet read
+// and a ~0.2 MB upload at idle priority, measured per lap before it ships.
 export function decideLive({gameRunning, lastLapAtMs, lastLiveAtMs, liveBusy}) {
   if (!gameRunning) return {run: false, reason: 'game not running'};
   if (lastLapAtMs == null) return {run: false, reason: 'no lap yet'};

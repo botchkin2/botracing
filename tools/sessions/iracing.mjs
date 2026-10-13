@@ -39,7 +39,10 @@ export const steerRightSign = -1;
 export const watcher = {
   legacyLayout: false,
   quietMin: 0,
-  gameExeEnv: null,
+  // A test seam, as lmu.mjs's LAP_GAME_EXE (watch.live.e2e.test.mjs).
+  gameExeEnv: 'LAP_IRACING_EXE',
+  // The tray's iRacing recorder's status (ir_recorder.rs), as lmu.mjs's.
+  recorderStatus: 'status-iracing.json',
 };
 
 // Bump when describe() changes what it returns for a file already described
@@ -291,15 +294,6 @@ export function describe(path) {
   }
 }
 
-function scaleOf(channel, ibt) {
-  if (channel.scale !== 'steer') return channel.scale;
-  return steerScale(
-    ibt.byName.has('SteeringWheelAngleMax')
-      ? sampleAt(ibt, 'SteeringWheelAngleMax', 0)
-      : null,
-  );
-}
-
 /** steer_pct per radian of SteeringWheelAngle, from the car's lock (rad). */
 export function steerScale(maxRad) {
   const max = Math.abs(maxRad || 0);
@@ -410,34 +404,66 @@ export function sectorCrossings(t, pct, starts) {
   return out;
 }
 
+/** What writeArchiveOf reads: the channels and the event sources. */
+export const ARCHIVE_SOURCES = [
+  ...CHANNELS.map(c => c.source),
+  'Lap',
+  'LapLastLapTime',
+  'OnPitRoad',
+  'Gear',
+  'PlayerTrackSurface',
+  'PlayerTrackSurfaceMaterial',
+  'SessionFlags',
+  'SteeringWheelAngleMax',
+  'PlayerCarInPitStall',
+  'LapDistPct',
+];
+
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
-  const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
+  try {
+    writeArchiveOf(
+      readColumns(ibt, ARCHIVE_SOURCES),
+      {
+        ticks: info.ticks,
+        steerMaxRad: ibt.byName.has('SteeringWheelAngleMax')
+          ? sampleAt(ibt, 'SteeringWheelAngleMax', 0)
+          : null,
+        sectorStarts: sectorStarts(ibt.yaml),
+        name: basename(path),
+      },
+      samplesOut,
+      eventsOut,
+    );
+  } finally {
+    ibt.close();
+  }
+}
+
+/**
+ * The archive of one recording from its iRacing columns (`raw`, by variable
+ * name, in tick order): an .ibt's, or a live capture stretch's in a test
+ * (irLiveCapture.test.mjs). `ticks` rows; `steerMaxRad` the car's
+ * SteeringWheelAngleMax at the start; `sectorStarts` from SplitTimeInfo.
+ */
+export function writeArchiveOf(
+  raw,
+  {ticks, steerMaxRad, sectorStarts: starts, name: fileName},
+  samplesOut,
+  eventsOut,
+) {
+  const tmp = `${tmpdir()}/ibt-${process.pid}-${String(fileName).replace(/\s+/g, '_')}`;
   const samplesCsv = `${tmp}.samples.csv`;
   const eventsCsv = `${tmp}.events.csv`;
   try {
-    const sources = [
-      ...CHANNELS.map(c => c.source),
-      'Lap',
-      'LapLastLapTime',
-      'OnPitRoad',
-      'Gear',
-      'PlayerTrackSurface',
-      'PlayerTrackSurfaceMaterial',
-      'SessionFlags',
-      'SteeringWheelAngleMax',
-      'PlayerCarInPitStall',
-      'LapDistPct',
-    ];
-    const raw = readColumns(ibt, sources);
     const cols = {};
     for (const ch of CHANNELS) {
       if (!raw[ch.source]) continue;
-      const k = scaleOf(ch, ibt);
+      const k = ch.scale === 'steer' ? steerScale(steerMaxRad) : ch.scale;
       cols[ch.name] = Float64Array.from(raw[ch.source], x => x * k);
     }
     const headers = ['tick', ...Object.keys(cols)];
-    const n = info.ticks;
+    const n = ticks;
     const rows = [];
     for (let i = 0; i < n; i++) {
       rows.push([i, ...headers.slice(1).map(name => cols[name][i])]);
@@ -486,7 +512,7 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       );
     }
     if (raw.LapDistPct) {
-      events.push(...sectorCrossings(t, raw.LapDistPct, sectorStarts(ibt.yaml)));
+      events.push(...sectorCrossings(t, raw.LapDistPct, starts));
     }
     if (raw.SessionFlags) {
       events.push(
@@ -507,7 +533,6 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       {readonly: false},
     );
   } finally {
-    ibt.close();
     for (const f of [samplesCsv, eventsCsv]) {
       try {
         unlinkSync(f);

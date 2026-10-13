@@ -37,6 +37,9 @@ export const watcher = {
   legacyLayout: true,
   quietMin: 0,
   gameExeEnv: 'LAP_GAME_EXE',
+  // The tray's LMU recorder's status in the capture root: lastLapAt says when a
+  // finished lap is on disk (live laps, watch.mjs).
+  recorderStatus: 'status.json',
 };
 
 const channelNames = {

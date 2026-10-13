@@ -1,5 +1,6 @@
 // sync.mjs --live <captureDir> (pit-wall thread 66): one capture's finished
-// laps up as archive parts while LMU runs. No analysis here: the session doc
+// laps up as archive parts while the sim runs (LMU: lmuCapture.mjs, iRacing:
+// irLiveCapture.mjs, picked by the capture's meta.json sim). No analysis here: the session doc
 // says what the list shows and reads stale, and the first open analyses it in
 // the cloud. The watcher runs this at idle priority each time the recorder puts
 // a lap on disk (status.json lastLapAt).
@@ -7,8 +8,10 @@
 // Each realtime stretch of the capture is a recording, grouped into sessions
 // the way game files are (sessionFiles.mjs), so ids are stable as laps arrive.
 // A part is written once (a finished lap never changes) and sent once (md5).
-import {existsSync, mkdirSync} from 'node:fs';
-import {basename, resolve} from 'node:path';
+import {existsSync, mkdirSync, readFileSync} from 'node:fs';
+import {basename, join, resolve} from 'node:path';
+import * as irLiveCapture from './irLiveCapture.mjs';
+import * as lmuCapture from './lmuCapture.mjs';
 import {groupFiles} from './sessionFiles.mjs';
 import {
   liveRecordingDoc,
@@ -18,13 +21,31 @@ import {
   writeLiveIndex,
 } from './liveSession.mjs';
 
+const captureAdapters = {lmu: lmuCapture, iracing: irLiveCapture};
+
+/**
+ * The capture's sim and adapter, from its meta.json: the iRacing recorder
+ * writes sim 'iracing'; the LMU recorder's meta.json names no sim.
+ */
+export function captureAdapterFor(captureDir) {
+  const meta = JSON.parse(readFileSync(join(captureDir, 'meta.json'), 'utf8'));
+  const sim = meta.sim ?? 'lmu';
+  const adapter = captureAdapters[sim];
+  if (!adapter)
+    throw new Error(
+      `${basename(captureDir)}: no live adapter for sim "${sim}"`,
+    );
+  return {sim, adapter};
+}
+
 /**
  * @param {object} input
  * @param {string} input.captureDir
  * @param {string} input.ownerId
  * @param {string} input.work            sync.mjs's work folder
  * @param {{uploadLive: Function}} input.store
- * @param {{describeCapture: Function, writeCaptureArchive: Function}} input.capture
+ * @param {{describeCapture: Function, writeCaptureArchive: Function}} [input.capture]
+ *   the capture's adapter (default: by its meta.json sim, captureAdapterFor)
  * @param {() => string} [input.now]
  * @param {(line: string) => void} [input.log]
  */
@@ -33,7 +54,7 @@ export async function syncLive({
   ownerId,
   work,
   store,
-  capture,
+  capture = captureAdapterFor(captureDir).adapter,
   now = () => new Date().toISOString(),
   log = () => {},
 }) {
@@ -72,7 +93,12 @@ export async function syncLive({
       recordings.push({id: f.id, info: f.info, parts: f.laps});
     }
     const out = {
-      session: liveSessionDoc({ownerId, sessionId: session.id, recordings, nowIso: now()}),
+      session: liveSessionDoc({
+        ownerId,
+        sessionId: session.id,
+        recordings,
+        nowIso: now(),
+      }),
       recordings: recordings.map(recording =>
         liveRecordingDoc({ownerId, sessionId: session.id, recording}),
       ),

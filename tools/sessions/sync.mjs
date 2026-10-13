@@ -144,8 +144,14 @@ if (liveDir) {
     console.error('--live uploads; it needs --remote (or LAP_API).');
     process.exit(2);
   }
-  const {syncLive} = await import('./syncLive.mjs');
-  const capture = await import('./lmuCapture.mjs');
+  const {captureAdapterFor, syncLive} = await import('./syncLive.mjs');
+  // The work folder is the sim's (watch.mjs passes --sim): a capture of another
+  // sim would write its live index where that sim's sync never reads it.
+  const {sim: captureSim, adapter: capture} = captureAdapterFor(resolve(liveDir));
+  if (captureSim !== simName) {
+    console.error(`--live: the capture is ${captureSim}, this sync is --sim ${simName}.`);
+    process.exit(2);
+  }
   const r = await syncLive({
     captureDir: resolve(liveDir),
     ownerId,
