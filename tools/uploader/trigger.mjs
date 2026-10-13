@@ -92,3 +92,15 @@ export function liveWake(first, now) {
     return st?.state === 'recording' && was?.state !== 'recording';
   });
 }
+
+/**
+ * How long after a failed live upload the watcher tries again: 5 s, doubling
+ * with each failure in a row, at most 30 s (one tick). A failed run is not
+ * recorded as done, but the wait between ticks ended early only for a new
+ * lap, so a network blip held the lap a whole tick (46.1 s for a lap whose
+ * upload timed out on connecting, thread 1 #5006).
+ */
+export function liveRetryDelayMs(failuresInRow) {
+  if (!(failuresInRow > 0)) return null;
+  return Math.min(5_000 * 2 ** (failuresInRow - 1), 30_000);
+}
