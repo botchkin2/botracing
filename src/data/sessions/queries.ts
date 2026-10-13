@@ -21,6 +21,17 @@ import {isLive, listPoll, livePoll} from './live';
 // refetches it itself), so detail data stays fresh for a while; the list
 // refreshes sooner to pick up new uploads.
 const DETAIL_STALE_MS = 5 * 60_000;
+/**
+ * The app's QueryClient never refetches on mount, focus or reconnect (utils/
+ * queryClient.ts), so a screen showing what a drive, an upload or an analysis
+ * changes must ask for it: a stale query is read again when its screen opens,
+ * when the app comes back to the foreground and when the network returns.
+ */
+const FRESH_ON_RETURN = {
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
+} as const;
 /** A live session gains a lap every minute or two: read it again sooner. */
 const LIVE_STALE_MS = 30_000;
 // A track map is curated (the server sends max-age 3600): an hour in memory too.
@@ -32,6 +43,7 @@ export function useSessions(filter: SessionFilter = {}, enabled = true) {
     queryKey: sessionKeys.list(filter),
     queryFn: ({signal}) => fetchSessions(filter, signal),
     staleTime: 60_000,
+    ...FRESH_ON_RETURN,
     // A session being driven gains a lap every minute or two; the list shows it.
     refetchInterval: q => listPoll(q.state.data?.items.map(i => i.liveAt)),
     retry: retryUnlessClientError,
@@ -44,6 +56,7 @@ export function useSessionFacets() {
     queryKey: sessionKeys.facets,
     queryFn: ({signal}) => fetchSessionFacets(signal),
     staleTime: 60_000,
+    ...FRESH_ON_RETURN,
     retry: retryUnlessClientError,
   });
 }
@@ -56,6 +69,7 @@ export function useSession(id: string, enabled = true) {
     queryFn: ({signal}) => fetchSession(id, signal),
     staleTime: q =>
       isLive(q.state.data?.liveAt) ? LIVE_STALE_MS : DETAIL_STALE_MS,
+    ...FRESH_ON_RETURN,
     // Read again while it is driven: a stale query refetches only on mount or
     // focus, so an open screen never saw the next lap (thread 1 #4983).
     refetchInterval: q => livePoll(q.state.data?.liveAt),
@@ -98,6 +112,7 @@ export function useSessionLaps(id: string | null) {
     queryFn: ({signal}) => fetchSessionLaps(id!, signal),
     enabled: id != null,
     staleTime: DETAIL_STALE_MS,
+    ...FRESH_ON_RETURN,
     retry: retryUnlessClientError,
   });
 }
@@ -167,6 +182,7 @@ export function useSessionBand(id: string) {
     queryKey: sessionKeys.band(id),
     queryFn: ({signal}) => fetchSessionBand(id, signal),
     staleTime: DETAIL_STALE_MS,
+    ...FRESH_ON_RETURN,
     retry: retryUnlessClientError,
   });
 }
