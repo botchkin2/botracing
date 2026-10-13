@@ -119,6 +119,20 @@ replay.stdout.setEncoding('utf8').on('data', chunk => {
 const seen = new Map();
 const onScreen = new Map();
 let pane = null;
+// The Sessions list, open and untouched from before the first lap: the drive
+// must change it by itself (Botkin had to filter to LMU to find the live
+// session, thread 1 #4997). Its text is the baseline; the first change after
+// lap 1 reached the disk is the list showing the drive (new row, or the laps
+// column of the row it lands on).
+let listPane = null;
+let listBaseline = null;
+const onList = new Map();
+if (!noScreen) {
+  listPane = await openPane({origin: api, customTokenFile: customToken});
+  await listPane.goto('/', 4000);
+  listBaseline = await listPane.text();
+  console.log(`${stamp()} list pane open (${listBaseline.length} chars)`);
+}
 const poll = async () => {
   if (!sessionId) {
     try {
@@ -156,6 +170,16 @@ const poll = async () => {
   }
   // The screen is read after the API, in the same tick: a lap counts on the
   // screen only once the app has it, and the clock is not a tick behind.
+  if (listPane && !onList.has(1) && lapAt.length > 0) {
+    if ((await listPane.text()) !== listBaseline) {
+      onList.set(1, Date.now() - lapAt[0]);
+      console.log(
+        `${stamp()} list changed ${(onList.get(1) / 1000).toFixed(
+          1,
+        )} s after lap 1 reached the disk`,
+      );
+    }
+  }
   if (pane) {
     const shown = screenLapCount(await pane.text());
     for (let k = 1; shown != null && k <= shown && k <= lapAt.length; k++) {
@@ -170,13 +194,15 @@ const poll = async () => {
   }
 };
 
-const done = () => seen.size >= laps && (noScreen || onScreen.size >= laps);
+const done = () =>
+  seen.size >= laps && (noScreen || (onScreen.size >= laps && onList.has(1)));
 const until = Date.now() + (laps * 100_000) / Number(speed) + 180_000;
 while (Date.now() < until && !done()) {
   await new Promise(r => setTimeout(r, 2000));
   await poll().catch(err => console.log(`${stamp()} poll: ${err.message}`));
 }
 if (pane) await pane.close();
+if (listPane) await listPane.close();
 watcher.kill();
 replay.kill();
 const ms = [...seen.values()].sort((a, b) => a - b);
@@ -196,6 +222,12 @@ if (!noScreen) {
   );
   verdicts.push(
     liveVerdict({laps, latencyMs: onScreen, maxLapS, where: 'the screen'}),
+    liveVerdict({
+      laps: 1,
+      latencyMs: onList,
+      maxLapS,
+      where: 'the Sessions list (open, untouched)',
+    }),
   );
 }
 const problems = verdicts.flatMap(v => v.problems);
