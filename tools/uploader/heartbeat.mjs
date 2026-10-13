@@ -22,6 +22,12 @@ export function scrub(message) {
 // means it is not running.
 export const RECORDER_STALE_SEC = 120;
 
+// The server refuses longer text (functions/src/contract/heartbeat.ts
+// LABEL_MAX, LAYOUT_REASON_MAX; contract tests check they agree): the beat is
+// cut to fit rather than refused whole.
+export const LABEL_MAX = 64;
+export const LAYOUT_REASON_MAX = 200;
+
 const iso0 = ms => (ms != null ? new Date(ms).toISOString() : null);
 
 /**
@@ -72,7 +78,11 @@ export function heartbeatDoc({
 }) {
   return {
     hostId,
-    label,
+    // config.json is the user's: any value, any length.
+    label:
+      typeof label === 'string' && label.trim()
+        ? label.slice(0, LABEL_MAX)
+        : 'Race PC',
     version,
     lmuFound,
     state,
@@ -162,7 +172,13 @@ function recorderBlock(status, nowMs) {
     state: stale ? 'not-running' : status.state,
     gameVersion: status.gameVersion ?? null,
     layoutOk: status.layoutOk ?? null,
-    layoutReason: status.layoutReason ?? null,
+    // The recorder's reason can carry an OS error with a user path (a
+    // capture folder it cannot write): Settings shows it, so it is scrubbed
+    // like any error, and cut to what the server takes.
+    layoutReason:
+      status.layoutReason == null
+        ? null
+        : redact(scrub(status.layoutReason)).slice(0, LAYOUT_REASON_MAX),
     lastChunkAt: status.lastChunkAt ?? null,
     updatedAt: status.updatedAt ?? null,
   };
