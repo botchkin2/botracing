@@ -1,3 +1,4 @@
+import {paceOutliers} from '@/src/analysis/consistency';
 import {type RefLap, rankReferenceLaps} from '@/src/analysis/referenceLap';
 
 import type {Lap} from './adapters';
@@ -96,39 +97,38 @@ export function referenceDefaultLapIds(
 }
 
 /**
- * The laps Compare opens on when the URL names none: every comparable lap of
- * one stint, so the screen is a set of laps against their median, never a
- * pair (apex, pit-wall thread 1 #3229). The stint is the one with the most
- * comparable laps, the later one on a tie: the run that was the session's
- * racing pace. A session of one stint is all its comparable laps. Under two
- * comparable laps there is no set: the caller falls back to a pair.
+ * The laps a screen opens on when the URL names none: every lap that can be
+ * compared at all (timed, whole, not an in- or out-lap) except the ones the
+ * session's own pace model calls outliers, slow or fast, across all stints
+ * (decisions/lap/2026-10-12-default-selection-outliers.md): a set against its
+ * median, never a pair, and never cut by a flag. A lap with no stint position
+ * (an old lap doc) is judged by its place in the list. Under two laps there is
+ * no set: the caller falls back to a pair.
  */
-export function stintSetLapIds(laps: Lap[]): string[] {
-  const byStint = new Map<number, Lap[]>();
-  for (const l of laps) {
-    if (!l.comparable || l.timeS == null) continue;
-    byStint.set(l.stint, [...(byStint.get(l.stint) ?? []), l]);
-  }
-  let best: Lap[] = [];
-  let bestStint = -Infinity;
-  for (const [stint, list] of byStint) {
-    if (
-      list.length > best.length ||
-      (list.length === best.length && stint > bestStint)
-    ) {
-      best = list;
-      bestStint = stint;
-    }
-  }
-  return best.length >= 2 ? best.map(l => l.id) : [];
+export function paceSetLapIds(laps: Lap[]): string[] {
+  const candidates = laps.filter(
+    l => l.timeS != null && !l.partial && !l.pitIn && !l.pitOut,
+  );
+  const outliers = new Set(
+    paceOutliers(
+      candidates.map((l, i) => ({
+        id: l.id,
+        stint: l.stint,
+        stintLap: l.stintLap ?? i,
+        lapTime: l.timeS as number,
+      })),
+    ).map(o => o.id),
+  );
+  const set = candidates.filter(l => !outliers.has(l.id));
+  return set.length >= 2 ? set.map(l => l.id) : [];
 }
 
 /**
- * The laps a session screen opens on when the URL names none: the stint set,
- * else the reference pair. Compare and the session grid both read this, so
- * they never disagree about what is selected.
+ * The laps a session screen opens on when the URL names none: the pace set,
+ * else the reference pair. Compare, Corner and the session grid all read this,
+ * so they never disagree about what is selected.
  */
 export function openingLapIds(laps: Lap[], session: DefaultSession): string[] {
-  const set = stintSetLapIds(laps);
+  const set = paceSetLapIds(laps);
   return set.length > 0 ? set : referenceDefaultLapIds(laps, session);
 }

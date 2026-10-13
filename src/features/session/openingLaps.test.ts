@@ -50,9 +50,9 @@ const timesOf = (ids: string[]): SegmentTimes => ({
 describe('grid opening set', () => {
   test('an empty URL selection gives medians over the racing stint', () => {
     const defaults = openingLapIds(race(), SESSION);
-    expect(defaults).toHaveLength(19);
+    expect(defaults).toHaveLength(23);
     const grid = sessionGrid(timesOf(race().map(l => l.id)), new Set(defaults));
-    expect(grid.columns[0].n).toBe(19);
+    expect(grid.columns[0].n).toBe(23);
     expect(grid.columns[0].medianS).not.toBeNull();
   });
 

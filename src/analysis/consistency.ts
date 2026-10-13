@@ -946,3 +946,60 @@ function round(value: number | null, digits: number): number | null {
   const p = 10 ** digits;
   return Math.round(value * p) / p;
 }
+
+/** Fewest laps `paceOutliers` judges: below it two sigmas of a few laps would drop a third of them (apex, 2026-10-13). */
+export const MIN_OUTLIER_LAPS = 8;
+
+/** Fewest laps a stint needs for `paceOutliers` to judge its laps: fewer have no pace trend. */
+export const MIN_STINT_PACE_LAPS = 5;
+
+/** What the default selection needs of a lap to judge its pace. */
+export interface PaceLap {
+  id: string;
+  stint: number;
+  /** Laps into the stint: the pace trend runs along it. */
+  stintLap: number;
+  lapTime: number;
+}
+
+export interface PaceOutlier {
+  id: string;
+  /** Seconds slower than the stint's pace trend. */
+  residualS: number;
+}
+
+/**
+ * The laps whose time sits far above their stint's pace trend: the outliers
+ * the default selection leaves out (decisions/lap/2026-10-12-default-selection-
+ * outliers.md). The rule `analyzeConsistency` calls off pace (a robust trend
+ * per stint, then `offPaceZ` robust sigmas of the session's residuals and at
+ * least `offPaceMinSec`), over every lap given; no flag decides it. Slow ones
+ * only: a lap cannot be unusually fast (Botkin, 2026-10-13), so fast laps stay
+ * in. With fewer than MIN_OUTLIER_LAPS laps there is no pace to be off, so none
+ * is an outlier.
+ */
+export function paceOutliers(
+  laps: readonly PaceLap[],
+  t: Thresholds = defaultThresholds,
+): PaceOutlier[] {
+  if (laps.length < MIN_OUTLIER_LAPS) return [];
+  const residual = new Map<string, number>();
+  for (const n of unique(laps.map(l => l.stint))) {
+    const own = laps.filter(l => l.stint === n);
+    // A stint this short has no pace trend: its laps are not judged.
+    if (own.length < MIN_STINT_PACE_LAPS) continue;
+    const {slope, intercept} = fitTrend(
+      own.map(l => l.stintLap),
+      own.map(l => l.lapTime),
+      t,
+    );
+    for (const l of own)
+      residual.set(l.id, l.lapTime - (intercept + slope * l.stintLap));
+  }
+  const sigma = robustSigma([...residual.values()]) ?? 0;
+  const limit = Math.max(t.offPaceZ * sigma, t.offPaceMinSec);
+  return laps.flatMap(l => {
+    const r = residual.get(l.id);
+    return r != null && r >= limit ? [{id: l.id, residualS: r}] : [];
+  });
+}
