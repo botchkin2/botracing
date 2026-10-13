@@ -58,6 +58,7 @@ import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
+import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
 import {planBlock} from './planBlock.mjs';
@@ -355,6 +356,24 @@ async function uploadCaptureBacklog(sessions, state, store) {
   if (sent) log(`capture extracts kept for ${sent} uploaded session(s)`);
 }
 
+// The one-time repair of iRacing archives written with guessed types
+// (archiveRepair.mjs).
+async function repairIracingArchives(sessions, state, store) {
+  if (simName !== 'iracing') return;
+  const repaired = await repairArchives({
+    sessions,
+    state,
+    store,
+    writeArchive: adapter.writeArchive,
+    dir: resolve(work, 'repair'),
+    save: () => saveState(state),
+    sim: simName,
+    ownerId,
+    log,
+  });
+  if (repaired) log(`iRacing archives repaired for ${repaired} session(s)`);
+}
+
 function build(
   s,
   trackMap,
@@ -585,6 +604,7 @@ async function main() {
     todo = todo.filter(s => !skipIds.has(s.id));
   }
   if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
   // A sync never writes a track. Boundaries and the surface are rebuilt by

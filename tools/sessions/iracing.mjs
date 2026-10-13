@@ -3,7 +3,7 @@
 import {mkdirSync, unlinkSync, writeFileSync} from 'node:fs';
 import {basename, dirname, join} from 'node:path';
 import {homedir, tmpdir} from 'node:os';
-import {run, sqlPath} from './duck.mjs';
+import {rows as rowsOf, run, sqlPath} from './duck.mjs';
 import {carClasses, driversOfYaml} from './irClasses.mjs';
 import {raceLengthFromYaml} from './raceLength.mjs';
 import {
@@ -300,6 +300,38 @@ export function steerScale(maxRad) {
   return 100 / (max > 0.1 ? max : Math.PI);
 }
 
+/**
+ * The samples CSV as parquet, every channel a DOUBLE and the tick a BIGINT.
+ * The types are given, not guessed: DuckDB's CSV sniffer reads a sample of the
+ * rows, so a channel whose sampled rows were whole numbers (tyre wear that only
+ * changes in the pits, a pedal held at 0 or 100 early on) became BIGINT and
+ * every later decimal was rounded (Fuji 4 Oct: wear 98.51 stored as 99;
+ * pit-wall thread 1 #4842, #4851). Exported for its test.
+ */
+/** The channels DuckDB's CSV sniffer would type as whole numbers: what the
+ * archive write rounded before its types were given. */
+export function guessedWholeNumbers(csvPath) {
+  return rowsOf(
+    ':memory:',
+    `SELECT column_name c, column_type t FROM (DESCRIBE SELECT * FROM read_csv(${sqlPath(csvPath)}, AUTO_DETECT=true, HEADER=true))`,
+  )
+    .filter(r => r.c !== 'tick' && /INT/.test(r.t))
+    .map(r => r.c);
+}
+
+export function samplesCsvToParquet(csvPath, headers, out) {
+  const columns = headers
+    .map(h => `'${h}': '${h === 'tick' ? 'BIGINT' : 'DOUBLE'}'`)
+    .join(', ');
+  run(
+    ':memory:',
+    `COPY (SELECT * FROM read_csv(${sqlPath(csvPath)}, HEADER=true, AUTO_DETECT=false, DELIM=',', QUOTE='"', COLUMNS={${columns}}) ORDER BY tick) TO ${sqlPath(
+      out,
+    )} (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 9, ROW_GROUP_SIZE 100000)`,
+    {readonly: false},
+  );
+}
+
 function csvEscape(v) {
   if (v == null || v === '') return '';
   if (typeof v === 'string') {
@@ -455,6 +487,7 @@ export function writeArchiveOf(
   const tmp = `${tmpdir()}/ibt-${process.pid}-${String(fileName).replace(/\s+/g, '_')}`;
   const samplesCsv = `${tmp}.samples.csv`;
   const eventsCsv = `${tmp}.events.csv`;
+  let rounded = [];
   try {
     const cols = {};
     for (const ch of CHANNELS) {
@@ -471,15 +504,20 @@ export function writeArchiveOf(
     mkdirSync(dirname(samplesOut), {recursive: true});
     mkdirSync(dirname(eventsOut), {recursive: true});
     writeCsv(samplesCsv, headers, rows);
-    run(
-      ':memory:',
-      `COPY (SELECT * FROM read_csv(${sqlPath(
-        samplesCsv,
-      )}, AUTO_DETECT=true, HEADER=true) ORDER BY CAST(tick AS BIGINT)) TO ${sqlPath(
-        samplesOut,
-      )} (FORMAT parquet, COMPRESSION zstd, COMPRESSION_LEVEL 9, ROW_GROUP_SIZE 100000)`,
-      {readonly: false},
-    );
+    samplesCsvToParquet(samplesCsv, headers, samplesOut);
+    // The channels the old guessed types rounded in this file: guessed whole
+    // numbers AND holding a decimal somewhere. A guess that lost nothing (wear
+    // that never left 100) needs no repair (archiveRepair.mjs).
+    const guessed = guessedWholeNumbers(samplesCsv);
+    rounded = guessed.length
+      ? guessed.filter(c => {
+          const [r] = rowsOf(
+            ':memory:',
+            `SELECT count(*) n FROM read_parquet(${sqlPath(samplesOut)}) WHERE "${c}" <> round("${c}")`,
+          );
+          return Number(r.n) > 0;
+        })
+      : [];
 
     const t = cols.t;
     const events = [];
@@ -541,4 +579,5 @@ export function writeArchiveOf(
       }
     }
   }
+  return {rounded};
 }

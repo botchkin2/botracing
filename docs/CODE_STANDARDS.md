@@ -42,7 +42,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 
 - **Every color, font, size, space, radius, stroke and chart height comes from `src/design/tokens.ts`** via `useTheme()`. A raw hex, rgba, font name or magic number in a component is a bug. If the token is missing, add it to `tokens.ts` with the handoff reference, then use it.
 - **Color has one meaning each** (see the handoff): accent is UI only, `best` is best lap/sector only, lap colors are laps only, `faster`/`slower` always come with a sign. Never pick a color because it looks nice.
-- **Numbers are always Mono with tabular figures** (`type.data`, `type.axis`), always with a unit, and formatted by `src/design/format.ts` (`m:ss.sss`, signed 3-decimal gaps, US dates: `Oct 9`). Do not hand-format numbers in a component.
+- **Numbers are always Mono with tabular figures** (`type.data`, `type.axis`), always with a unit, and formatted by `src/design/format.ts` (`m:ss.sss`, signed 3-decimal gaps, whole numbers with `formatWhole` / `formatSignedWhole`, US dates: `Oct 9`). A negative number prints with U+2212, never a hyphen, and rounding is half away from zero (`roundHalfAway`) so a pair of values either side of their median print the same digits. Do not hand-format numbers in a component.
 - **Both themes, always.** Dark is the default; every component must render correctly in light too. Read colors from the theme, never from a module-level constant.
 - `StyleSheet.create` at the bottom of the file for static styles; inline only the values that depend on props or theme.
 

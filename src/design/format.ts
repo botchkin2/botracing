@@ -16,9 +16,32 @@ export function formatDay(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : dayMonthOf(d);
 }
 
+/**
+ * Round half away from zero on the stored value, so +x and −x print the same
+ * digits: a median of two laps puts them exactly 0.1325 s either side, and
+ * toFixed on the float just below or above that tie printed +0.133 and −0.132.
+ * The 1e-9 absorbs the float noise of a subtraction.
+ */
+export function roundHalfAway(v: number, decimals = 0): number {
+  const p = 10 ** decimals;
+  return (Math.sign(v) * Math.round(Math.abs(v) * p + 1e-9)) / p;
+}
+
+/** A whole number with a true minus sign: "241", "−30"; never "-30" or "−0". */
+export function formatWhole(v: number): string {
+  const r = roundHalfAway(v);
+  return r < 0 ? `−${Math.abs(r)}` : String(Math.abs(r));
+}
+
+/** A signed whole-number difference: "+11", "−11", "±0"; the sign follows the rounded value. */
+export function formatSignedWhole(delta: number): string {
+  const r = roundHalfAway(delta);
+  return `${r > 0 ? '+' : r < 0 ? '−' : '±'}${Math.abs(r)}`;
+}
+
 /** Signed gap with 3 decimals: "+0.312", "−0.105". Uses a true minus sign. */
 export function formatGap(deltaS: number, decimals = 3): string {
-  const text = Math.abs(deltaS).toFixed(decimals);
+  const text = roundHalfAway(Math.abs(deltaS), decimals).toFixed(decimals);
   // The sign follows the rounded value: 0.0004 shows "±0.000", never "+0.000".
   const sign = Number(text) === 0 ? '±' : deltaS > 0 ? '+' : '−';
   return `${sign}${text}`;

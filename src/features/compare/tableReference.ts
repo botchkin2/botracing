@@ -6,6 +6,7 @@
 // lap itself. With a Ref lap picked on purpose, that lap alone. Pure: laps and
 // the map in, a named reference out; every header prints `label`.
 import {anchorLapOf} from '@/src/analysis/lapSlots';
+import {MIN_COMPARISON_LAPS} from '@/src/analysis/setStats';
 import {
   checkedWindowMedians,
   type Lap,
@@ -13,8 +14,6 @@ import {
   type TrackMapData,
   type WindowReference,
 } from '@/src/data/sessions';
-
-const MIN_SET_LAPS = 2;
 
 export type TableReferenceKind = 'set' | 'stint' | 'lap';
 
@@ -63,9 +62,9 @@ export function tableReference(input: {
     totalS: null,
   };
   if (input.refLap || !map?.boundaries) return lapRef;
-  if (selected.length >= MIN_SET_LAPS) {
-    const set = checkedWindowMedians(selected, map, MIN_SET_LAPS);
-    if (set && set.laps >= MIN_SET_LAPS) {
+  if (selected.length >= MIN_COMPARISON_LAPS) {
+    const set = checkedWindowMedians(selected, map, MIN_COMPARISON_LAPS);
+    if (set && set.laps >= MIN_COMPARISON_LAPS) {
       const m = fromWindows(set);
       if (m.sectionS.size > 0)
         return {

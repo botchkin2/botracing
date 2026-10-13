@@ -13,7 +13,7 @@
 // median a stint shows is its median lap time, a lap that was driven
 // (decisions/lap/2026-10-11-selection-and-numbers.md).
 
-import {median, quantile} from './setStats.ts';
+import {median, MIN_COMPARISON_LAPS, quantile} from './setStats.ts';
 
 /** Fewest times a window needs before its best and median are shown. */
 export const MIN_OPTIMUM_LAPS = 5;
@@ -93,9 +93,6 @@ export function sectionOptimum(
   return out;
 }
 
-/** Fewest checked laps a window's median needs before the checked set is the reference (apex, thread 44 #1835). */
-export const MIN_CHECKED_LAPS = 3;
-
 export interface WindowMedian {
   /** Times that counted for this window. */
   n: number;
@@ -111,7 +108,7 @@ export interface WindowMedian {
 export function windowMedians(
   laps: OptimumLap[],
   windowCount: number,
-  minLaps = MIN_CHECKED_LAPS,
+  minLaps = MIN_COMPARISON_LAPS,
 ): WindowMedian[] {
   const out: WindowMedian[] = [];
   for (let i = 0; i < windowCount; i++) {
