@@ -144,3 +144,65 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Release script tests
         run: node --test scripts/*.test.mjs
+  # Roadmap row 0, layer 2 (contract/README.md): the tray's own watcher replays
+  # a real capture as a live drive against the API in the emulators, through
+  # the Hosting emulator's /api rewrites (functions/test/replay). Any refused
+  # request, lost lap, or heartbeat the contract refuses fails it. It always
+  # runs and reports, and passes at once when nothing on the tray/API line
+  # changed: a required check behind a path filter would hold every other PR
+  # forever (torsion #5115 5). Windows: the watcher's lock and game check are
+  # the tray's.
+  contract-replay:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Anything on the tray/API line?
+        id: scope
+        run: |
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD |
+            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing on the tray/API line changed: no replay needed."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v7
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version-file: desktop/node-version  # the node the tray ships
+      - name: Functions build
+        if: steps.scope.outputs.run == 'true'
+        run: npm ci --prefix functions && npm --prefix functions run build
+      # The same pinned CLI the tray ships (desktop/scripts/stage-resources.mjs).
+      - name: DuckDB CLI
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          curl -sSL -o duckdb.zip https://github.com/duckdb/duckdb/releases/download/v1.4.2/duckdb_cli-windows-amd64.zip
+          echo "2a31d67cf54aec3494fb331147edddfee1cd7f3fadcb5b84056f9bc28cf76576  duckdb.zip" | sha256sum -c -
+          unzip -q duckdb.zip -d "$RUNNER_TEMP/duckdb"
+          echo "DUCKDB=$RUNNER_TEMP/duckdb/duckdb.exe" >> "$GITHUB_ENV"
+      # The replay is the gate: without the golden credential it fails rather
+      # than passes unchecked.
+      - name: Golden set (credential)
+        if: steps.scope.outputs.run == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GOLDEN_READER_SERVICE_ACCOUNT }}
+      - name: Golden set (gcloud)
+        if: steps.scope.outputs.run == 'true'
+        uses: google-github-actions/setup-gcloud@v3
+      - name: The capture (Road Atlanta 3 Oct, 3 laps)
+        if: steps.scope.outputs.run == 'true'
+        run: gcloud storage cp -r gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03 "$RUNNER_TEMP/"
+      - name: Replay against the API in the emulators
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          node functions/test/replay/emulators.mjs -- node functions/test/replay/run.mjs --from "$RUNNER_TEMP/road-atlanta-2026-10-03" --laps 3 --speed 4
