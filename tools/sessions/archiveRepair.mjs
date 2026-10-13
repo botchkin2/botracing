@@ -13,35 +13,61 @@ import {resolve} from 'node:path';
 export const ARCHIVE_REPAIR = 1;
 
 /** Returns how many sessions were repaired. */
-export async function repairArchives({sessions, state, store, writeArchive, dir, save, sim}) {
+export async function repairArchives({
+  sessions,
+  state,
+  store,
+  writeArchive,
+  dir,
+  save,
+  sim,
+  ownerId,
+  log = () => {},
+}) {
   state.archiveRepair ??= {};
   mkdirSync(dir, {recursive: true});
   let repaired = 0;
   for (const s of sessions) {
-    if (!state.sessions[s.id] || state.archiveRepair[s.id] === ARCHIVE_REPAIR) continue;
-    let changed = false;
-    for (const f of s.files) {
-      const samples = resolve(dir, `${f.id}.samples.parquet`);
-      const events = resolve(dir, `${f.id}.events.parquet`);
-      try {
-        const {rounded} = writeArchive(f.path, f.info, samples, events);
-        // Nothing the old guessed types rounded: the stored file is right.
-        if (rounded.length === 0) continue;
-        const doc = await store.getRecording(f.id);
-        const dest =
-          doc?.archive?.samples ?? `archive/${sim}/${s.id}/${f.id}/samples.parquet`;
-        if (await store.replaceArchiveFile(dest, samples)) changed = true;
-      } finally {
-        rmSync(samples, {force: true});
-        rmSync(events, {force: true});
-      }
-    }
-    if (changed) {
-      await store.markStale(s.id);
-      repaired++;
+    if (!state.sessions[s.id] || state.archiveRepair[s.id] === ARCHIVE_REPAIR)
+      continue;
+    try {
+      if (await repairOne(s, {store, writeArchive, dir, sim, ownerId}))
+        repaired++;
+    } catch (error) {
+      // Not recorded: the next sync tries this session again. Never stops
+      // the sync around it.
+      const why = String(error.message || error).split('\n')[0];
+      log(`archive repair ${s.id}: ${why}`);
+      continue;
     }
     state.archiveRepair[s.id] = ARCHIVE_REPAIR;
     save();
   }
   return repaired;
+}
+
+async function repairOne(s, {store, writeArchive, dir, sim, ownerId}) {
+  let changed = false;
+  for (const f of s.files) {
+    const samples = resolve(dir, `${f.id}.samples.parquet`);
+    const events = resolve(dir, `${f.id}.events.parquet`);
+    try {
+      const {rounded} = writeArchive(f.path, f.info, samples, events);
+      // Nothing the old guessed types rounded: the stored file is right.
+      if (rounded.length === 0) continue;
+      // The path every upload writes (sync.mjs build); analysis on open
+      // reads it first (analyzeStored.mjs archiveCandidates).
+      const dest = `archive/${sim}/${s.id}/${f.id}/samples.parquet`;
+      // Sent only when the stored bytes differ, but stale either way: a run
+      // that put the file and then failed before marking it leaves the same
+      // bytes behind, and the session must still be analysed again.
+      await store.replaceArchiveFile(dest, samples);
+      changed = true;
+    } finally {
+      rmSync(samples, {force: true});
+      rmSync(events, {force: true});
+    }
+  }
+  if (changed) await store.markStale(s.id, ownerId);
+  return changed;
 }

@@ -340,6 +340,8 @@ async function repairIracingArchives(sessions, state, store) {
     dir: resolve(work, 'repair'),
     save: () => saveState(state),
     sim: simName,
+    ownerId,
+    log,
   });
   if (repaired) log(`iRacing archives repaired for ${repaired} session(s)`);
 }

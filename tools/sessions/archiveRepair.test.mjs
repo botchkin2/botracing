@@ -10,9 +10,8 @@ import {ARCHIVE_REPAIR, repairArchives} from './archiveRepair.mjs';
 function setup({sameBytes = false} = {}) {
   const calls = [];
   const store = {
-    getRecording: async id => (id === 'r1' ? {archive: {samples: 'archive/iracing/s1/r1/samples.parquet'}} : null),
     replaceArchiveFile: async dest => (calls.push(['put', dest]), !sameBytes),
-    markStale: async id => void calls.push(['stale', id]),
+    markStale: async (id, owner) => void calls.push(['stale', id, owner]),
   };
   const writeArchive = (path, _info, samples) => {
     writeFileSync(samples, path);
@@ -27,25 +26,86 @@ function setup({sameBytes = false} = {}) {
   return {calls, store, writeArchive, sessions, state};
 }
 
-test('only a rounded file goes up, at the path its recording names, and its session reads stale', async () => {
+test('only a rounded file goes up, at the archive path, and its session reads stale', async () => {
   const {calls, store, writeArchive, sessions, state} = setup();
   const dir = mkdtempSync(join(tmpdir(), 'repair-'));
   let saves = 0;
-  const n = await repairArchives({sessions, state, store, writeArchive, dir, save: () => saves++, sim: 'iracing'});
+  const n = await repairArchives({
+    sessions,
+    state,
+    store,
+    writeArchive,
+    dir,
+    save: () => saves++,
+    sim: 'iracing',
+    ownerId: 'o',
+  });
   assert.equal(n, 1);
-  assert.deepEqual(calls, [['put', 'archive/iracing/s1/r1/samples.parquet'], ['stale', 's1']]);
-  assert.deepEqual(state.archiveRepair, {s1: ARCHIVE_REPAIR, s2: ARCHIVE_REPAIR});
+  assert.deepEqual(calls, [
+    ['put', 'archive/iracing/s1/r1/samples.parquet'],
+    ['stale', 's1', 'o'],
+  ]);
+  assert.deepEqual(state.archiveRepair, {
+    s1: ARCHIVE_REPAIR,
+    s2: ARCHIVE_REPAIR,
+  });
   assert.equal(saves, 2);
   // Once only: a second run sends nothing.
   calls.length = 0;
-  assert.equal(await repairArchives({sessions, state, store, writeArchive, dir, save: () => {}, sim: 'iracing'}), 0);
+  assert.equal(
+    await repairArchives({
+      sessions,
+      state,
+      store,
+      writeArchive,
+      dir,
+      save: () => {},
+      sim: 'iracing',
+      ownerId: 'o',
+    }),
+    0,
+  );
   assert.deepEqual(calls, []);
 });
 
-test('a rounded file whose stored bytes already match is not a repair', async () => {
-  const {calls, store, writeArchive, sessions, state} = setup({sameBytes: true});
+test('a rounded file already in place (an earlier run stopped before the stale mark) still marks its session stale', async () => {
+  const {calls, store, writeArchive, sessions, state} = setup({
+    sameBytes: true,
+  });
   const dir = mkdtempSync(join(tmpdir(), 'repair-'));
-  const n = await repairArchives({sessions, state, store, writeArchive, dir, save: () => {}, sim: 'iracing'});
+  const n = await repairArchives({
+    sessions,
+    state,
+    store,
+    writeArchive,
+    dir,
+    save: () => {},
+    sim: 'iracing',
+    ownerId: 'o',
+  });
+  assert.equal(n, 1);
+  assert.deepEqual(calls, [['put', 'archive/iracing/s1/r1/samples.parquet'], ['stale', 's1', 'o']]);
+});
+
+test('a failed repair is logged and tried again next time; the other sessions go on', async () => {
+  const {store, writeArchive, sessions, state} = setup();
+  store.replaceArchiveFile = async () => {
+    throw new Error('offline');
+  };
+  const lines = [];
+  const dir = mkdtempSync(join(tmpdir(), 'repair-'));
+  const n = await repairArchives({
+    sessions,
+    state,
+    store,
+    writeArchive,
+    dir,
+    save: () => {},
+    sim: 'iracing',
+    ownerId: 'o',
+    log: l => lines.push(l),
+  });
   assert.equal(n, 0);
-  assert.deepEqual(calls, [['put', 'archive/iracing/s1/r1/samples.parquet']]);
+  assert.deepEqual(state.archiveRepair, {s2: ARCHIVE_REPAIR});
+  assert.match(lines[0], /archive repair s1: offline/);
 });
