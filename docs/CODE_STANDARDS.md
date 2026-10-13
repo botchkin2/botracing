@@ -78,7 +78,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
   - Each message has one schema in `functions/src/contract/`. The server validates with it, and the senders are checked against it: the watcher's output and the Rust recorder's JSON shape in their own tests, so drift on the tray side fails too.
   - Captures are refreshed by the release that changes a shape (the release gate captures the new tray's heartbeats) and after an LMU or iRacing update.
   - Analysis fixtures are separate: `tools/golden/` stays the analysis set, in the private bucket.
-  - Until the emulator replay of roadmap row 0 lands, a PR that changes either side of the line pastes a replay of a contract capture against the emulator.
+  - Until the emulator replay of roadmap row 0 lands, a PR that changes either side of the line pastes the contract tests' output (`node --test contract/` and `functions/test/heartbeat.test.mjs`).
 - Components get tests only when they hold logic that cannot move to a model. Prefer moving the logic.
 - A bug fix starts with a failing test that reproduces it.
 - `npm test`, `npm run lint` and `npx tsc --noEmit` pass before every PR. Never skip or weaken a test to make it pass; if a test is wrong, say why in the PR.
