@@ -562,9 +562,7 @@ fn main() {
                 lmu: recorder.clone(),
                 iracing: iracing.clone(),
             });
-            // DIAGNOSTIC (roadmap 2r, this branch only): no tray icon at all, to see
-            // whether the main thread is still held after a quit without one.
-            let _no_tray_diag = TrayIconBuilder::with_id(TRAY_ID)
+            TrayIconBuilder::with_id(TRAY_ID)
                 .icon(app.default_window_icon().cloned().expect("icon"))
                 .tooltip(profile::tooltip())
                 .menu(&menu)
@@ -603,7 +601,7 @@ fn main() {
                     "quit" | "update" => quit_tray_async(app, OnQuit::InstallWaitingUpdate),
                     _ => {}
                 })
-                ;
+                .build(app)?;
 
             let cleanup_poll = cleanup_paths.clone();
             let menu_poll = menu.clone();
