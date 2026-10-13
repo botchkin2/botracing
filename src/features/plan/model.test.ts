@@ -405,7 +405,7 @@ describe('planView', () => {
     const rows = withTraffic.cards[0].rows;
     const time = rows.find(r => r.label === 'Lap time')!;
     expect(time.value).toBe('1:50.000  (1:50.000 to 1:50.000)');
-    expect(time.note).toBe('all green laps');
+    expect(time.note).toBe('comparable green laps');
     const clean = rows.find(r => r.label === 'Clean laps')!;
     expect(clean.value).toBe('1:48.200');
     expect(clean.note).toBeUndefined();
