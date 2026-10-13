@@ -107,6 +107,23 @@ fn devtools_args(debug_build: bool, port: Option<&str>) -> Option<String> {
     debug_build.then(|| format!("{DEFAULT_BROWSER_ARGS} --remote-debugging-port={port}"))
 }
 
+/// Diagnostic (roadmap 2r): the window build's steps with the wall clock in
+/// ms, in <data>/viewer.log, to line them up with quit.log.
+pub fn vlog(app: &AppHandle, step: &str) {
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    if let Some(paths) = app.try_state::<Arc<Paths>>() {
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(paths.data.join("viewer.log"))
+            .and_then(|mut f| std::io::Write::write_all(&mut f, format!("{ms} {step}
+").as_bytes()));
+    }
+}
+
 /// One open at a time: two quick clicks of "Open BotRacing" would both find no
 /// window, and the second build would fail on the taken label.
 static OPENING: Mutex<()> = Mutex::new(());
@@ -114,6 +131,7 @@ static OPENING: Mutex<()> = Mutex::new(());
 /// Shows the window, creating it the first time. Call off the main thread: a
 /// window built from a menu handler on Windows can deadlock.
 pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
+    vlog(app, "open: called");
     let _one = OPENING.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.unminimize();
@@ -123,7 +141,10 @@ pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
     }
     wipe_if_owed(webview_data);
     let url = app_url();
-    let target = if reachable(&url) {
+    vlog(app, "open: reachable check");
+    let up = reachable(&url);
+    vlog(app, &format!("open: reachable {up}"));
+    let target = if up {
         WebviewUrl::External(url.parse::<Url>().map_err(|e| e.to_string())?)
     } else {
         WebviewUrl::App(OFFLINE_PAGE.into())
@@ -133,7 +154,8 @@ pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
     if let Some(args) = devtools_args(cfg!(debug_assertions), port.as_deref()) {
         builder = builder.additional_browser_args(&args);
     }
-    let window = builder
+    vlog(app, "open: build start");
+    let built = builder
         .title("BotRacing")
         .inner_size(1200.0, 800.0)
         // The window's own storage, apart from the tray's data and per profile
@@ -146,7 +168,9 @@ pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
             NewWindowResponse::Deny
         })
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    vlog(app, &format!("open: build {}", if built.is_ok() { "done".to_string() } else { format!("failed {:?}", built.as_ref().err()) }));
+    let window = built?;
     // Closing hides: the tray keeps running, and the next open is instant.
     let hidden = window.clone();
     window.on_window_event(move |event| {

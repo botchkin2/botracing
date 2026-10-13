@@ -247,7 +247,11 @@ impl QuitLog {
                 .map(|paths| paths.data.join("quit.log")),
             started: std::time::Instant::now(),
         };
-        log.write(first, true);
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        log.write(&format!("{first} (unix ms {ms})"), true);
         log
     }
 
