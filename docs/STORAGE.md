@@ -25,7 +25,7 @@ Nothing is deleted on a schedule.
 
 `events.parquet` is `(t, name, v1..v4)`, one row per change: `lap`, `lap_time`, `in_pits`, `gear`, `surface`, `impact`, and the rest.
 
-A new sim needs one adapter that writes these two files. Analysis only reads them. Every channel column is a DOUBLE, its type given, never guessed: iRacing archives written before that (`iracing.mjs` read its own CSV with DuckDB guessing types from a sample) have whole-number channels where the sampled rows were whole numbers, tyre wear and sometimes the pedals, rounded. The tray repairs those once from the .ibt still on the PC and the session reads stale until opened (`archiveRepair.mjs`).
+A new sim needs one adapter that writes these two files. Analysis only reads them. Every channel column is a DOUBLE, its type given, never guessed: iRacing archives written before that (`iracing.mjs` read its own CSV with DuckDB guessing types from a sample) have whole-number channels where the sampled rows were whole numbers, tyre wear and sometimes the pedals, rounded. The tray repairs those once from the .ibt still on the PC and the session reads stale until opened (`archiveRepair.mjs`): only a file the old types would have rounded is sent, and only when its bytes differ from the stored one; the repair's version is part of the watcher's run key, so a tray that brings it syncs once on its first start, never while a game runs.
 
 ## Uploading
 
