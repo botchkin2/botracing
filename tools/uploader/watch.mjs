@@ -57,7 +57,13 @@ import {createHeartbeatSender, httpSend} from './heartbeatSender.mjs';
 import {earliestRetryMs, nextRetries, waitingIds} from './retries.mjs';
 import {runWithBeats} from './syncBeats.mjs';
 import {clearStaleSyncing, stateOf} from './watchState.mjs';
-import {decide, decideLive, liveWake, retryDelayMin} from './trigger.mjs';
+import {
+  decide,
+  decideLive,
+  liveRetryDelayMs,
+  liveWake,
+  retryDelayMin,
+} from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
@@ -278,6 +284,9 @@ function runLive(sim, sessionDir) {
 // recording, ends the wait (trigger.mjs liveWake), so a lap starts up within
 // seconds instead of up to a whole tick, the drive's first lap included.
 const LIVE_POLL_MS = 2_000;
+// When a failed live upload is tried again (liveRetryDelayMs), else null.
+let liveRetryAtMs = null;
+let liveFailuresInRow = 0;
 async function nextTick() {
   const sleep = ms => new Promise(wake => setTimeout(wake, ms));
   const statuses = () =>
@@ -286,6 +295,7 @@ async function nextTick() {
   for (let waited = 0; waited < TICK_SEC * 1000; waited += LIVE_POLL_MS) {
     await sleep(LIVE_POLL_MS);
     if (liveWake(first, statuses())) return;
+    if (liveRetryAtMs != null && Date.now() >= liveRetryAtMs) return;
   }
 }
 
@@ -500,6 +510,10 @@ async function main() {
           // A failed upload is not recorded as done: the next lap sends every
           // part not in the bucket yet, in order (parts are md5-skipped).
           if (r.code === 0) live.lastLapAtMs = lastLapAtMs;
+          // A failure is tried again within seconds, not at the next tick.
+          liveFailuresInRow = r.code === 0 ? 0 : liveFailuresInRow + 1;
+          const delay = liveRetryDelayMs(liveFailuresInRow);
+          liveRetryAtMs = delay == null ? null : Date.now() + delay;
           live.dir = recorder.sessionDir;
           save();
         }

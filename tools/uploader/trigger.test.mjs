@@ -1,7 +1,13 @@
 // Run: node --test tools/uploader/
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {decide, decideLive, liveWake, retryDelayMin} from './trigger.mjs';
+import {
+  decide,
+  decideLive,
+  liveRetryDelayMs,
+  liveWake,
+  retryDelayMin,
+} from './trigger.mjs';
 
 const MIN = 60 * 1000;
 const base = {
@@ -146,4 +152,13 @@ test('liveWake: a recorder that starts recording ends the wait (the first lap of
   assert.equal(liveWake([null, null], [null, null]), false);
   // iRacing's recorder (the second sim) starting counts too.
   assert.equal(liveWake([null, {state: 'waiting'}], [null, {state: 'recording'}]), true);
+});
+
+test('liveRetryDelayMs: a failed live upload is tried again in 5 s, doubling, at most a tick', () => {
+  assert.equal(liveRetryDelayMs(0), null);
+  assert.equal(liveRetryDelayMs(1), 5_000);
+  assert.equal(liveRetryDelayMs(2), 10_000);
+  assert.equal(liveRetryDelayMs(3), 20_000);
+  assert.equal(liveRetryDelayMs(4), 30_000);
+  assert.equal(liveRetryDelayMs(9), 30_000);
 });
