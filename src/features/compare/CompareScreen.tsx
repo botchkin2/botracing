@@ -592,7 +592,10 @@ function CompareView({
         }))}
         openCorner={selection.corner}
         onPressCorner={openCorner}
-        onJumpSection={n => onCursor(sectionStartM(model.sectionEntryM, n))}
+        onJumpSection={n => {
+          const at = sectionStartM(model.sectionEntryM, n);
+          if (at != null) onCursor(at);
+        }}
       />
     </Section>
   );

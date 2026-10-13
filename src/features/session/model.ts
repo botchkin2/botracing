@@ -408,9 +408,10 @@ export function buildSessionModel(
   /** Which segments the desktop table and the optimal lap read (Settings). */
   sectionMode: SectionMode = 'turns',
 ): SessionScreenModel {
-  // The session's median is a fact (the head); every gap, bar and stint line is
-  // measured against the basis laps (the ticked ones), "of N".
-  const sessionMedianS = session.medianTimeS;
+  // Every median, gap, bar and stint line, the head's Median included, is of
+  // the basis laps (the ticked ones): one answer to "the median" on the screen
+  // (decisions/lap/2026-10-11-selection-and-numbers.md). Best, Laps and
+  // Comparable stay the session's facts.
   const basisLaps = basisOf(laps, new Set(selection.laps));
   const basis = new Set(basisLaps.map(l => l.id));
   const basisTimes = lapTimeStats(basisLaps);
@@ -610,7 +611,7 @@ export function buildSessionModel(
         value: timeOrDash(bestLap?.timeS ?? session.bestTimeS),
         best: true,
       },
-      {label: 'Median', value: timeOrDash(sessionMedianS)},
+      {label: 'Median', value: timeOrDash(median)},
       ...trafficPace,
     ],
     optimum: optimumFacts([...stintLines.values()], session.stints.length),

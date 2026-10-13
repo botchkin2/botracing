@@ -659,13 +659,14 @@ export function cornerPlace(
 
 /**
  * Where a section starts on the reference lap, in metres: the playback cursor's
- * jump target (D28). An unknown section starts at the lap's start.
+ * jump target (D28). Null for a section with no known start: no jump, no
+ * distance shown, never 0 m.
  */
 export function sectionStartM(
   sectionEntryM: Record<number, number>,
   n: number,
-): number {
-  return sectionEntryM[n] ?? 0;
+): number | null {
+  return sectionEntryM[n] ?? null;
 }
 
 /**
@@ -680,7 +681,8 @@ export function openingCursorM(
   sectionEntryM: Record<number, number>,
 ): number {
   if (cursorM != null) return cursorM;
-  return corner == null ? 0 : sectionStartM(sectionEntryM, corner);
+  // A section with no known start opens at the lap's start: a playhead has to be somewhere.
+  return (corner == null ? null : sectionStartM(sectionEntryM, corner)) ?? 0;
 }
 
 /** Within this many metres of its apex the cursor is "at the apex". */
