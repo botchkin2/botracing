@@ -202,6 +202,49 @@ test(
   },
 );
 
+test(
+  "fieldFor: each car's bestLapS is the game's lowest positive mBestLapTime, null with none",
+  needsDuckdb,
+  () => {
+    const root = mkdtempSync(join(tmpdir(), 'field-'));
+    const dir = join(root, '2026-09-26T00-38-00Z_road-atlanta_10');
+    mkdirSync(dir);
+    writeFileSync(
+      join(dir, 'meta.json'),
+      JSON.stringify({
+        track: 'Michelin Raceway Road Atlanta',
+        startUtc: '2026-09-26T00:38:00Z',
+        endUtc: '2026-09-26T01:40:00Z',
+      }),
+    );
+    // The game reads -1 until a car has a lap; car 1 sets 99.5 then 98.501.
+    run(
+      ':memory:',
+      `COPY (SELECT 1000 + u * 0.2 AS et, id AS mID, id = 1 AS mIsPlayer, ` +
+        `id AS mPlace, 0 AS mTotalLaps, (u * 0.2 * 40 + (id - 1) * 30) AS mLapDist, 0.5 AS mPathLateral, ` +
+        `u * 1.0 AS mPos_x, -u * 1.0 AS mPos_z, 0.0 AS mOri_2_x, -1.0 AS mOri_2_z, false AS mInPits, 0 AS mFlag, ` +
+        `CASE WHEN id = 2 THEN -1.0 WHEN u < 100 THEN -1.0 WHEN u < 200 THEN 99.5 ELSE 98.501 END AS mBestLapTime, ` +
+        `CASE WHEN id = 1 THEN 'GT3' ELSE 'LMP2' END AS mVehicleClass ` +
+        `FROM range(300) r(u), (VALUES (1), (2)) c(id)) TO ${sqlPath(
+          join(dir, 'field-0000.parquet'),
+        )} (FORMAT parquet)`,
+    );
+    const t = Float64Array.from({length: 6000}, (_, i) => 1000 + i * 0.01);
+    const session = {
+      tracks: ['Michelin Raceway Road Atlanta'],
+      startMs: Date.parse('2026-09-26T00:40:00Z'),
+      endMs: Date.parse('2026-09-26T01:30:00Z'),
+    };
+    const out = fieldFor(root, session, [
+      {t, lapDist: Float64Array.from(t, x => (x - 1000) * 40)},
+    ]);
+    assert.deepEqual(
+      out.field.cars.map(c => c.bestLapS),
+      [98.501, null],
+    );
+  },
+);
+
 test('fieldAfterSync: no new field keeps the stored one; a new one replaces it', () => {
   const stored = {path: 'field/o/s/aaaaaaaaaaaa.json.gz', hash: 'aaaaaaaaaaaa'};
   const fresh = {path: 'field/o/s/bbbbbbbbbbbb.json.gz', hash: 'bbbbbbbbbbbb'};

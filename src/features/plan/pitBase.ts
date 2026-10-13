@@ -1,6 +1,7 @@
 import {type PitModel} from '@/src/analysis/fuelPlan';
 import {type RefuelRate, refuelRateOf} from '@/src/analysis/refuel';
 import {type PlanStop} from '@/src/data/sessions';
+import {median} from '@/src/analysis/setStats';
 
 // The pit lane base of a track and car, measured from his own stops there
 // (pit-wall thread 36 #1071: a stop is a per-track base plus litres / rate,
@@ -16,11 +17,6 @@ import {type PlanStop} from '@/src/data/sessions';
 export const MIN_BASE_STOPS = 2;
 
 export type PitBase = {baseS: number; stops: number};
-
-function median(sorted: number[]): number {
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
 
 /**
  * The refuel rate of the history: the pump rate measured on his own race
@@ -61,8 +57,7 @@ export function pitLaneBase(
     }
   }
   if (bases.length < MIN_BASE_STOPS) return null;
-  bases.sort((a, b) => a - b);
-  return {baseS: Math.max(0, median(bases)), stops: bases.length};
+  return {baseS: Math.max(0, median(bases)!), stops: bases.length};
 }
 
 /** The model the planner takes; null without a base or a rate. */

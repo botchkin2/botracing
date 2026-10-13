@@ -29,9 +29,9 @@ describe('columnStats over the ticked laps', () => {
     expect(g.columns[1]).toMatchObject({n: 3, medianS: 20.0, bestS: 19.8});
   });
 
-  test('a single ticked lap is its own median, with no spread', () => {
+  test('a single ticked lap is its own median, with no spread shown', () => {
     const g = sessionGrid(times(), ticked('L2'));
-    expect(g.columns[0]).toMatchObject({n: 1, medianS: 10.2, spreadS: 0});
+    expect(g.columns[0]).toMatchObject({n: 1, medianS: 10.2, spreadS: null});
   });
 
   test('with nothing ticked the columns are of the comparable laps, as the table under it', () => {

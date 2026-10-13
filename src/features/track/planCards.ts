@@ -2,6 +2,7 @@ import {type GreenLap} from '@/src/analysis/fuelPlan';
 import {formatDate} from '@/src/design';
 
 import {type Combo} from '../plan/model';
+import {median} from '@/src/analysis/setStats';
 
 // The Plan block on the Track page (round 5, item 4): one card per car driven
 // at this track, above the session list. It says what the plan for that car
@@ -21,12 +22,6 @@ export type PlanCardModel = {
 };
 
 const NO_RACE = 'No race here yet';
-
-function median(values: number[]): number {
-  const v = [...values].sort((a, b) => a - b);
-  const mid = (v.length - 1) / 2;
-  return (v[Math.floor(mid)] + v[Math.ceil(mid)]) / 2;
-}
 
 /**
  * The newest race in the combo (sessions come newest first), by date only. A
@@ -50,10 +45,10 @@ export const MIN_VE_LAPS = 3;
  */
 export function perLapUseLine(laps: GreenLap[]): string | null {
   if (laps.length === 0) return null;
-  const fuel = `Fuel ${median(laps.map(l => l.fuelL)).toFixed(2)} L/lap`;
+  const fuel = `Fuel ${median(laps.map(l => l.fuelL))!.toFixed(2)} L/lap`;
   const ve = laps.flatMap(l => (l.vePct == null ? [] : [l.vePct]));
   if (ve.length < MIN_VE_LAPS) return fuel;
-  const veText = `VE ${median(ve).toFixed(2)} %/lap`;
+  const veText = `VE ${median(ve)!.toFixed(2)} %/lap`;
   return `${fuel} · ${veText}`;
 }
 

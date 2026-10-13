@@ -22,6 +22,12 @@ export interface EncodedField {
     player?: boolean;
     /** The car model as the recorder named it; null or absent when it had none. */
     vehicle?: string | null;
+    /**
+     * The game's own best lap for the car in seconds (LMU's mBestLapTime, exact);
+     * null: it set no timed lap. Absent in a field written before classBests 2
+     * and for iRacing: the best is then read off the laps.
+     */
+    bestLapS?: number | null;
   }[];
   /** Per car, deltas in decimetres; null = the car was absent. */
   lapDistDm: (number | null)[][];
@@ -465,7 +471,9 @@ export function classLaps(
   field.cars.forEach((c, i) => {
     const key = carPaceClass(c);
     const list = byClass.get(key) ?? [];
-    for (const t of per[i]) list.push({car: i, t});
+    if (per) for (const t of per[i]) list.push({car: i, t});
+    else if (c.bestLapS != null && c.bestLapS > 0)
+      list.push({car: i, t: c.bestLapS});
     byClass.set(key, list);
   });
   const out: ClassLaps = {};
@@ -518,7 +526,10 @@ export function classLapsCurrent(
  * Bump when the rules below change: it is `blockVersions.classBests`, so a
  * stored session reads stale and is analysed again when it is opened.
  */
-export const CLASS_BESTS_VERSION = 1;
+// 2: where the field has the game's own best lap per car (`bestLapS`), that is the
+// car's best, not the line-crossing minimum (kingpin #4687: 80.395 against the
+// official 80.396). A field without it keeps the line-crossing rule.
+export const CLASS_BESTS_VERSION = 2;
 
 export interface ClassBests {
   /** Each car's best lap in seconds, fastest first. */
@@ -536,6 +547,8 @@ export interface ClassBests {
 export interface ClassBestsDoc {
   version: number;
   kind: ClassLapsKind;
+  /** Where the bests came from: the game's own best lap, or the laps' line crossings. */
+  source: 'game' | 'laps';
   classes: Partial<Record<PaceClass, ClassBests>>;
   /** The car models, deduplicated; no names or numbers (the field has none). */
   vehicles: string[];
@@ -548,18 +561,27 @@ export interface ClassBestsDoc {
  * its floor sits on the median of the cars' bests, so a single push lap is a
  * real best (a median of its laps would not be). The best is the minimum of
  * the kept laps, so the slow-lap rules never move it.
+ *
+ * When every car carries the game's own best lap (`bestLapS`, LMU captures from
+ * classBests 2) that is the best: exact, and the game's own validity rule. A car
+ * with none (null) has no best. The lap rules above then do not apply.
  */
 export function classBestsDoc(
   field: EncodedField,
   sessionType: string,
 ): ClassBestsDoc {
   const kind = sessionKind(sessionType);
-  const per = carLaps(field);
+  const gameBests = field.cars.every(c => c.bestLapS !== undefined);
+  const per = gameBests ? null : carLaps(field);
   const byClass = new Map<PaceClass, {car: number; t: number}[]>();
   field.cars.forEach((c, i) => {
     const key = carPaceClass(c);
     const list = byClass.get(key) ?? [];
-    for (const t of per[i]) list.push({car: i, t});
+    if (per) {
+      for (const t of per[i]) list.push({car: i, t});
+    } else if (c.bestLapS != null && c.bestLapS > 0) {
+      list.push({car: i, t: c.bestLapS});
+    }
     byClass.set(key, list);
   });
   const vehicles: string[] = [];
@@ -573,7 +595,9 @@ export function classBestsDoc(
   const playerCar = field.cars.findIndex(c => c.player === true);
   const classes: ClassBestsDoc['classes'] = {};
   for (const [key, list] of byClass) {
-    const kept = keptLaps(list, kind === 'qualify' ? 'practice' : kind);
+    const kept = per
+      ? keptLaps(list, kind === 'qualify' ? 'practice' : kind)
+      : list;
     const best = new Map<number, number>();
     for (const l of kept)
       best.set(l.car, Math.min(best.get(l.car) ?? Infinity, l.t));
@@ -586,7 +610,13 @@ export function classBestsDoc(
       player: player < 0 ? null : player,
     };
   }
-  return {version: CLASS_BESTS_VERSION, kind, classes, vehicles};
+  return {
+    version: CLASS_BESTS_VERSION,
+    kind,
+    source: gameBests ? 'game' : 'laps',
+    classes,
+    vehicles,
+  };
 }
 
 const round3 = (v: number) => Math.round(v * 1000) / 1000;

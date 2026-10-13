@@ -4,6 +4,8 @@
 // sectors (src/data/sessions/segments.ts); the optimum, the column stats and
 // every screen take a `SegmentTimes` and never branch on which one it is.
 
+import {iqr, quantile, sortedFinite} from './setStats.ts';
+
 /** What the Settings toggle picks: our turn sections, or the game's three sectors. */
 export type SectionMode = 'turns' | 'sectors';
 
@@ -57,27 +59,19 @@ export function turnRangeLabel(corners: readonly string[]): string {
   return `${first}–${bare ? last.slice(1) : last}`;
 }
 
-function percentile(sorted: number[], p: number): number {
-  const at = (sorted.length - 1) * p;
-  const lo = Math.floor(at);
-  const hi = Math.ceil(at);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
-}
-
 /**
  * Best, median and IQR of one column over exactly these times (null skipped):
- * no minimum count, so one ticked lap gives its own time as the median. Every
+ * one ticked lap gives its own time as the median and no spread (`iqr`). Every
  * Session median, best mark and IQR over the ticked laps is this
  * (src/features/session/selectionStats.ts).
  */
 export function columnStats(timesS: readonly (number | null)[]): SegmentStats {
-  const xs = timesS.filter((t): t is number => t != null && Number.isFinite(t));
+  const xs = sortedFinite(timesS);
   if (xs.length === 0) return {n: 0, bestS: null, medianS: null, spreadS: null};
-  xs.sort((a, b) => a - b);
   return {
     n: xs.length,
     bestS: xs[0],
-    medianS: percentile(xs, 0.5),
-    spreadS: percentile(xs, 0.75) - percentile(xs, 0.25),
+    medianS: quantile(xs, 0.5),
+    spreadS: iqr(xs),
   };
 }
