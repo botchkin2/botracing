@@ -257,9 +257,16 @@ function runLive(sim, sessionDir) {
     } catch {
       // Priority is a courtesy; the upload still runs.
     }
+    // The live session's id, from the sync's own "live: <id> N laps" line:
+    // the heartbeat names it, so the app sees a session change without
+    // reading its whole list.
+    let sessionId = null;
     const onData = chunk => {
-      for (const line of String(chunk).split(/\r?\n/).filter(Boolean))
+      for (const line of String(chunk).split(/\r?\n/).filter(Boolean)) {
+        const m = /^live: ([0-9a-f]{16}) \d+ laps/.exec(line);
+        if (m) sessionId = m[1];
         log(`  live | ${line}`);
+      }
     };
     child.stdout.setEncoding('utf8').on('data', onData);
     child.stderr.setEncoding('utf8').on('data', onData);
@@ -274,7 +281,7 @@ function runLive(sim, sessionDir) {
     }, LIVE_TIMEOUT_MS);
     child.on('close', code => {
       clearTimeout(timer);
-      done({code});
+      done({code, sessionId});
     });
   });
 }
@@ -509,7 +516,14 @@ async function main() {
           log(`live ${sim.id}: exit ${r.code} in ${Date.now() - startedMs} ms`);
           // A failed upload is not recorded as done: the next lap sends every
           // part not in the bucket yet, in order (parts are md5-skipped).
-          if (r.code === 0) live.lastLapAtMs = lastLapAtMs;
+          if (r.code === 0) {
+            live.lastLapAtMs = lastLapAtMs;
+            // The heartbeat's lastUploadAt / lastSessionId move with a live
+            // lap too, as with a game-file sync: the app refetches its session
+            // list when they change instead of polling it (thread 1 #5019).
+            watch.lastUploadAt = new Date().toISOString();
+            watch.lastSessionId = r.sessionId ?? watch.lastSessionId;
+          }
           // A failure is tried again within seconds, not at the next tick.
           liveFailuresInRow = r.code === 0 ? 0 : liveFailuresInRow + 1;
           const delay = liveRetryDelayMs(liveFailuresInRow);
