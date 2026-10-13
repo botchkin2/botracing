@@ -41,7 +41,12 @@ test('every released tray from the oldest with payloads on has payloads', () => 
   // The list is the repo's own tray-v tags, never a hand list. A release is
   // checked one cycle late (its beats exist only once it runs; torsion
   // #5124): the release build fails when the last released tray has none.
-  const versions = new Set(loadPayloads('heartbeat').map(p => p.body.version));
+  // A watcher run from a checkout reports its commit, not a tray version.
+  const versions = new Set(
+    loadPayloads('heartbeat')
+      .map(p => p.body.version)
+      .filter(v => /^\d+\.\d+\.\d+$/.test(v)),
+  );
   const oldest = [...versions].sort((a, b) => (older(a, b) ? -1 : 1))[0];
   const tags = execFileSync('git', ['tag', '--list', 'tray-v*'], {
     encoding: 'utf8',

@@ -2,6 +2,9 @@
 // PCs without Admin credentials (the BotRacing tray). Rules and limits are in
 // uploadCore.ts; this binds them to Firebase Auth, Firestore and Storage.
 import * as admin from 'firebase-admin';
+// The modular export: the emulator's wrapped admin.firestore has no
+// FieldValue (the contract replay's heartbeats were 500s there).
+import {FieldValue} from 'firebase-admin/firestore';
 import {onRequest} from 'firebase-functions/v2/https';
 import {RUNTIME_ACCOUNT} from './runtime';
 import {reportError} from './problems';
@@ -48,7 +51,7 @@ function firebaseDocs(): DocStore {
       await batch.commit();
     },
     async addUsage(uid, delta) {
-      const inc = admin.firestore.FieldValue.increment;
+      const inc = FieldValue.increment;
       await db.doc(`users/${uid}`).set(
         {
           usage: {
@@ -86,6 +89,20 @@ function firebaseFiles(): FileStore {
         'x-goog-content-length-range': `0,${maxBytes}`,
       };
       if (contentEncoding) headers['Content-Encoding'] = contentEncoding;
+      // The Storage emulator cannot check a signature and takes no PUT: the
+      // contract replay (contract/README.md) uploads with its media POST.
+      const emulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+      if (process.env.FUNCTIONS_EMULATOR === 'true' && emulator) {
+        const name = encodeURIComponent(path);
+        const encoding = contentEncoding
+          ? `&contentEncoding=${contentEncoding}`
+          : '';
+        return {
+          url: `http://${emulator}/upload/storage/v1/b/${BUCKET}/o?uploadType=media&name=${name}${encoding}`,
+          headers,
+          method: 'POST' as const,
+        };
+      }
       const [url] = await bucket.file(path).getSignedUrl({
         version: 'v4',
         action: 'write',
@@ -97,7 +114,7 @@ function firebaseFiles(): FileStore {
           ...(contentEncoding ? {'content-encoding': contentEncoding} : {}),
         },
       });
-      return {url, headers};
+      return {url, headers, method: 'PUT' as const};
     },
     async read(path) {
       const file = bucket.file(path);

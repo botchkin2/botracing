@@ -17,7 +17,9 @@ import {fileURLToPath} from 'node:url';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const HOSTING_PORT = 5102;
 const real = JSON.parse(readFileSync(join(repo, 'firebase.json'), 'utf8'));
-const base = JSON.parse(readFileSync(join(repo, 'firebase.emulator.json'), 'utf8'));
+const base = JSON.parse(
+  readFileSync(join(repo, 'firebase.emulator.json'), 'utf8'),
+);
 
 // No web app is served: an empty public folder, the real /api rewrites.
 const work = mkdtempSync(join(tmpdir(), 'replay-'));

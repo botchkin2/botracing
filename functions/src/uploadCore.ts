@@ -85,8 +85,9 @@ export interface DocStore {
 
 export interface FileStore {
   stat(path: string): Promise<{md5Hash: string; size: number} | null>;
-  // A short-lived URL that accepts one PUT to `path`, with exactly these
-  // headers; Storage refuses a body over maxBytes (x-goog-content-length-range).
+  // A short-lived URL that accepts one upload to `path` (`method`, PUT unless
+  // said), with exactly these headers; Storage refuses a body over maxBytes
+  // (x-goog-content-length-range).
   signedUpload(
     path: string,
     options: {
@@ -95,7 +96,11 @@ export interface FileStore {
       maxBytes: number;
       expiresMs: number;
     },
-  ): Promise<{url: string; headers: Record<string, string>}>;
+  ): Promise<{
+    url: string;
+    headers: Record<string, string>;
+    method?: 'PUT' | 'POST';
+  }>;
   read(path: string): Promise<Uint8Array | null>;
   remove(path: string): Promise<void>;
   list(prefix: string): Promise<string[]>;
