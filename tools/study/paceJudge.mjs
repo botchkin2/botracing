@@ -337,4 +337,59 @@ export function judgeE(session, {k = 5, floorS = 0.2, kLap = 3} = {}) {
   return result;
 }
 
-export const JUDGES = {a: judgeA, b: judgeB, c: judgeC, d: judgeD, e: judgeE};
+// ---- (f) lap residual against the section-shared pace curve ----------------
+
+/**
+ * (e)'s stint curve (the median of the lap's sections against their bases,
+ * smoothed by a running median, so a mistake in one or two sections cannot
+ * bend it and a run of 3+ laps is part of it), but the decision is on the
+ * whole lap time against that curve: 3 sigma of the session's residuals, the
+ * 0.3 s guard. Sections name where the time went; they do not decide.
+ * (e)'s per-section spike test dropped 9-27 % of clean laps in the
+ * simulation: a corner's loss is skewed, so one section's tail is no event.
+ */
+export function judgeF(session, {k = 3, spikeK = null, floorS = 0.2} = {}) {
+  const short = tooShort(session);
+  if (short) return short;
+  if (!hasSections(session)) return judgeA(session);
+  const laps = allLaps(session);
+  const n = laps[0].sections.length;
+  const base = Array.from({length: n}, (_, s) => median(laps.map(l => l.sections[s])));
+  const total = base.reduce((t, b) => t + b, 0);
+  const f = new Map(laps.map(l => [l, weightedMedian(l.sections.map((t, s) => t / base[s]), base)]));
+  const res = new Map();
+  for (const stint of session.stints) {
+    const fh = smoothPace(stint.laps.map(l => f.get(l)));
+    stint.laps.forEach((l, i) => res.set(l, l.lapTime - total * fh[i]));
+  }
+  const sigma = robustSigma([...res.values()]);
+  const limit = Math.max(k * sigma, GUARD_S);
+  const resid = laps.map(l => l.sections.map((t, s) => t - base[s] * f.get(l)));
+  const spikes = spikeK == null ? null : sectionSpikes(laps, resid, n, spikeK, floorS);
+  const result = new Map();
+  laps.forEach((l, i) => {
+    const r = res.get(l);
+    const lapOut = r > limit;
+    const sp = spikes?.get(l.id);
+    const out = lapOut || !!sp?.out;
+    // Where the time went: the two sections with the most loss against the lap's own pace.
+    const where = resid[i]
+      .map((e, s) => [e, s])
+      .sort((a, b) => b[0] - a[0])
+      .slice(0, 2)
+      .filter(([e]) => e > 0.05)
+      .map(([e, s]) => `S${s} +${e.toFixed(2)}`)
+      .join(', ');
+    const ev = evidenceOf(l);
+    result.set(l.id, {
+      out,
+      p: out ? 1 : 0,
+      why: out
+        ? [`lap +${r.toFixed(2)} s (limit ${limit.toFixed(2)})`, where, ev.length && `(${ev.join(', ')})`].filter(Boolean).join(' ')
+        : '',
+    });
+  });
+  return result;
+}
+
+export const JUDGES = {a: judgeA, b: judgeB, c: judgeC, d: judgeD, e: judgeE, f: judgeF};
