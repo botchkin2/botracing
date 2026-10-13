@@ -1,6 +1,6 @@
 // Who is asking, and which stored files they may be handed. No Firebase
 // imports, so node --test runs it (functions/test/ownerAccess.test.mjs);
-// lmuApi.ts binds it to Admin Auth and Firestore.
+// dataApi.ts binds it to Admin Auth and Firestore.
 
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}$/;
 

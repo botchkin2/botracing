@@ -58,7 +58,7 @@ const session = (id, extra = {}) => ({
 function fakeFetch(routes) {
   const seen = [];
   const fetch = async (url, init = {}) => {
-    const path = new URL(url).pathname.replace('/api/lmu', '');
+    const path = new URL(url).pathname.replace('/api', '');
     seen.push({path, auth: init.headers?.authorization});
     const hit = routes(path, init);
     const [status, body, binary] = hit ?? [404, {}];
@@ -98,9 +98,9 @@ test('ids are not part of what a session says, so a copy lists the same as its o
       items: [session('cccc', {startedAt: '2026-09-23'}), session('dddd')],
     },
   ]);
-  const before = await snapshotSessions(old.fetch, {api: 'https://x/api/lmu'});
+  const before = await snapshotSessions(old.fetch, {api: 'https://x/api'});
   const after = await snapshotSessions(copy.fetch, {
-    api: 'https://x/api/lmu',
+    api: 'https://x/api',
     token: 'T',
   });
   assert.deepEqual(compareSnapshots(before, after), []);
@@ -116,7 +116,7 @@ test('a changed session, or a missing one, is a difference', async () => {
   const mk = items =>
     snapshotSessions(
       fakeFetch(() => [200, {total: items.length, items}]).fetch,
-      {api: 'https://x/api/lmu'},
+      {api: 'https://x/api'},
     );
   const before = await mk([
     session('a'),
@@ -147,7 +147,7 @@ test("a copied session is read through the API: laps, a lap's telemetry and its 
     return null;
   });
   const good = await checkRead(ok.fetch, {
-    api: 'https://x/api/lmu',
+    api: 'https://x/api',
     token: 'T',
     newIds: ['aaaaaaaaaaaaaaaa'],
   });
@@ -167,7 +167,7 @@ test("a copied session is read through the API: laps, a lap's telemetry and its 
       : null,
   );
   const r = await checkRead(bad.fetch, {
-    api: 'https://x/api/lmu',
+    api: 'https://x/api',
     token: 'T',
     newIds: ['aaaaaaaaaaaaaaaa'],
     requireSurface: ['aaaaaaaaaaaaaaaa'],
@@ -176,7 +176,7 @@ test("a copied session is read through the API: laps, a lap's telemetry and its 
   assert.ok(r.diffs.some(d => d.includes('surface answered 404')));
   // Not required: a note, not a failure.
   const soft = await checkRead(bad.fetch, {
-    api: 'https://x/api/lmu',
+    api: 'https://x/api',
     token: 'T',
     newIds: ['aaaaaaaaaaaaaaaa'],
   });

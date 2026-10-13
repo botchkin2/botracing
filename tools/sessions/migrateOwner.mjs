@@ -44,7 +44,7 @@ const has = name => args.includes(name);
 
 const from = flag('--from') ?? LEGACY_OWNER;
 const to = flag('--to');
-const api = flag('--api') ?? 'https://botracing-61.web.app/api/lmu';
+const api = flag('--api') ?? 'https://botracing-61.web.app/api';
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{5,127}$/;
 
 function stop(message) {

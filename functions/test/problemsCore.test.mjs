@@ -71,22 +71,22 @@ test('the same kind of error counts in one doc; another kind gets its own', asyn
   );
   assert.equal(a, b);
   assert.equal(
-    fingerprintOf('lmuApi', '/x', a),
-    fingerprintOf('lmuApi', '/x', b),
+    fingerprintOf('dataApi', '/x', a),
+    fingerprintOf('dataApi', '/x', b),
   );
   assert.notEqual(
-    fingerprintOf('lmuApi', '/x', a),
+    fingerprintOf('dataApi', '/x', a),
     fingerprintOf('uploadApi', '/x', a),
   );
   assert.notEqual(
-    fingerprintOf('lmuApi', '/x', a),
-    fingerprintOf('lmuApi', '/y', a),
+    fingerprintOf('dataApi', '/x', a),
+    fingerprintOf('dataApi', '/y', a),
   );
 });
 
 test('a 5xx is written with its route masked and a 30-day expiry; a 4xx is only logged', async () => {
   const r = reporter();
-  await r.report('lmuApi', new Error('boom'), {
+  await r.report('dataApi', new Error('boom'), {
     route: '/sessions/4dda01bc58a237af?x=1',
   });
   assert.equal(r.writes.length, 1);
@@ -95,7 +95,7 @@ test('a 5xx is written with its route masked and a 30-day expiry; a 4xx is only 
   assert.equal(w.status, 500);
   assert.equal(w.count, 1);
   assert.equal(w.expiresAt - w.at, PROBLEM_TTL_MS);
-  await r.report('lmuApi', new Error('nope'), {route: '/x', status: 404});
+  await r.report('dataApi', new Error('nope'), {route: '/x', status: 404});
   assert.equal(r.writes.length, 1);
   assert.equal(r.logs.length, 2);
 });
@@ -122,7 +122,7 @@ test('a storm is throttled per kind: counts accumulate into the next write', asy
 test('the stored doc adds up the count, keeps firstAt, and expires 30 days after the last error', () => {
   const w = {
     id: 'f',
-    where: 'lmuApi',
+    where: 'dataApi',
     route: '/x',
     status: 500,
     message: 'Error: boom',
@@ -161,7 +161,7 @@ test('reporting never throws: a failed write or a failed logger is swallowed', a
 });
 
 test('every function catch-all reports through reportError, none logs the raw error', () => {
-  for (const f of ['lmuApi', 'uploadApi', 'releaseApi', 'traySignInApi']) {
+  for (const f of ['dataApi', 'uploadApi', 'releaseApi', 'traySignInApi']) {
     const src = readFileSync(
       new URL(`../src/${f}.ts`, import.meta.url),
       'utf8',

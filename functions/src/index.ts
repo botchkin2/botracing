@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 
-export {lmuApi} from './lmuApi';
+export {dataApi, lmuApi} from './dataApi';
 export {trayApi} from './trayApi';
 export {androidApi} from './androidApi';
 export {traySignInApi} from './traySignInApi';
