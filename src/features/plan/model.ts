@@ -737,9 +737,11 @@ export function planView(
         return `${name}: not the limit (${fmt(
           perLap,
         )} a lap would still reach)`;
-      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}, ${(
-        savePctOfMedian ?? 0
-      ).toFixed(1)} % less than your median)`;
+      return `${name}: at most ${fmt(perLap)} a lap  (${fmt(save)}${
+        savePctOfMedian == null
+          ? ''
+          : `, ${savePctOfMedian.toFixed(1)} % less than your median`
+      })`;
     };
     const rows: Row[] = [
       {

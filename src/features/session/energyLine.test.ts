@@ -93,6 +93,22 @@ describe('energyLine', () => {
     );
   });
 
+  it('does not say a stop added nothing when its amount is not known', () => {
+    const laps = [
+      lap(1, {fuel: fuel()}),
+      lap(2, {
+        fuel: fuel(),
+        pitIn: true,
+        pitStop: stop(0, 0) && {
+          ...stop(0, 0),
+          added: {fuelL: null, vePct: null},
+        },
+      }),
+      lap(3, {fuel: fuel()}),
+    ];
+    expect(energyLine('R', laps, 'pit')?.text).toBe('VE 87 % → 3 % · 1 stop');
+  });
+
   it('falls back to litres with no VE stored', () => {
     const laps = [
       lap(1, {fuel: fuel(noVe)}),
