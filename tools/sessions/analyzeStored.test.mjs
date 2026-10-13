@@ -141,3 +141,37 @@ test('a missing archive is a 409, not a half analysis', async () => {
   );
   assert.equal(backend.written.length, 0);
 });
+
+test('a live recording stored in parts is downloaded part by part and read back through one glob', async () => {
+  const live = {
+    ...recording,
+    archive: {
+      parts: [0, 1, 2].map(i => ({
+        samples: `archive/lmu/s1/r1/samples.00${i}.parquet`,
+        events: `archive/lmu/s1/r1/events.00${i}.parquet`,
+      })),
+    },
+  };
+  const files = new Map();
+  for (const i of [0, 1, 2]) {
+    files.set(`archive/botkin/lmu/s1/r1/samples.00${i}.parquet`, Buffer.from(`S${i}`));
+    files.set(`archive/botkin/lmu/s1/r1/events.00${i}.parquet`, Buffer.from(`E${i}`));
+  }
+  const backend = storeOf({session, recordings: [live], files});
+  let input;
+  const workDir = mkdtempSync(join(tmpdir(), 'analyzeStored-parts-'));
+  await analyzeStored({
+    backend,
+    sessionId: 's1',
+    owner: 'botkin',
+    workDir,
+    analyze: i => ((input = i), engineOut()),
+  });
+  const {samplesPath, eventsPath} = input.recordings[0];
+  assert.match(samplesPath, /r1\.samples\.\*\.parquet$/);
+  assert.match(eventsPath, /r1\.events\.\*\.parquet$/);
+  for (const i of [0, 1, 2]) {
+    assert.equal(readFileSync(join(workDir, `r1.samples.00${i}.parquet`), 'utf8'), `S${i}`);
+    assert.equal(readFileSync(join(workDir, `r1.events.00${i}.parquet`), 'utf8'), `E${i}`);
+  }
+});

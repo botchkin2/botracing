@@ -39,7 +39,10 @@ export const steerRightSign = -1;
 export const watcher = {
   legacyLayout: false,
   quietMin: 0,
-  gameExeEnv: null,
+  // A test seam, as lmu.mjs's LAP_GAME_EXE (watch.live.e2e.test.mjs).
+  gameExeEnv: 'LAP_IRACING_EXE',
+  // The tray's iRacing recorder's status (ir_recorder.rs), as lmu.mjs's.
+  recorderStatus: 'status-iracing.json',
 };
 
 // Bump when describe() changes what it returns for a file already described
@@ -110,7 +113,8 @@ export const CHANNELS = [
   {source: 'RRtempR', name: 'tyres_temp_right_rr', unit: 'C', scale: 1},
 ];
 
-const YELLOW =
+/** SessionFlags bits that mean a yellow (the yellow_flag event). */
+export const YELLOW =
   0x00000008 | 0x00000100 | 0x00004000 | 0x00008000;
 
 export function mapSessionType(raw) {
@@ -205,8 +209,14 @@ export function playerCar(yaml) {
 }
 
 function fuelFromYaml(yaml) {
-  const tank = Number(yamlField(yaml, 'DriverCarFuelMaxLtr'));
-  const pct = Number(yamlField(yaml, 'DriverCarMaxFuelPct'));
+  return fuelSetupOf(
+    Number(yamlField(yaml, 'DriverCarFuelMaxLtr')),
+    Number(yamlField(yaml, 'DriverCarMaxFuelPct')),
+  );
+}
+
+/** The tank and fill limit from DriverCarFuelMaxLtr and DriverCarMaxFuelPct. */
+export function fuelSetupOf(tank, pct) {
   return {
     fillLimitL:
       tank > 0 && pct > 0 ? Math.round(tank * pct * 10) / 10 : tank > 0 ? tank : null,
@@ -284,11 +294,9 @@ export function describe(path) {
   }
 }
 
-function scaleOf(channel, ibt) {
-  if (channel.scale !== 'steer') return channel.scale;
-  const max = ibt.byName.has('SteeringWheelAngleMax')
-    ? Math.abs(sampleAt(ibt, 'SteeringWheelAngleMax', 0) || 0)
-    : 0;
+/** steer_pct per radian of SteeringWheelAngle, from the car's lock (rad). */
+export function steerScale(maxRad) {
+  const max = Math.abs(maxRad || 0);
   return 100 / (max > 0.1 ? max : Math.PI);
 }
 
@@ -364,9 +372,9 @@ export function resetTimes(t, inStall, onPitRoad, fuel = null) {
 }
 
 /** How far before the stall flag a reset's refill may come, seconds. */
-const RESET_LEAD_S = 0.25;
+export const RESET_LEAD_S = 0.25;
 /** A rise in one tick bigger than any fuel-level noise: a refill. */
-const RESET_REFILL_L = 0.5;
+export const RESET_REFILL_L = 0.5;
 
 function emitChanges(t, values, name, map = v => v) {
   const rows = [];
@@ -379,13 +387,18 @@ function emitChanges(t, values, name, map = v => v) {
   return rows;
 }
 
-function surfaceCode(loc, material) {
+export function surfaceCode(loc, material) {
   if (loc === 0) return 2;
   if (material >= 15 && material <= 18) return 2;
   if (material >= 19 && material <= 22) return 3;
   if (material === 23 || material === 24 || material === 25) return 4;
   return 0;
 }
+
+/** surfaceCode in SQL, over two column expressions (irLiveCapture.mjs). */
+export const surfaceSql = (loc, material) =>
+  `CASE WHEN ${loc} = 0 THEN 2 WHEN ${material} BETWEEN 15 AND 18 THEN 2
+    WHEN ${material} BETWEEN 19 AND 22 THEN 3 WHEN ${material} IN (23, 24, 25) THEN 4 ELSE 0 END`;
 
 /**
  * Where each of iRacing's own sectors starts, as a share of the lap, from the
@@ -423,35 +436,67 @@ export function sectorCrossings(t, pct, starts) {
   return out;
 }
 
+/** What writeArchiveOf reads: the channels and the event sources. */
+export const ARCHIVE_SOURCES = [
+  ...CHANNELS.map(c => c.source),
+  'Lap',
+  'LapLastLapTime',
+  'OnPitRoad',
+  'Gear',
+  'PlayerTrackSurface',
+  'PlayerTrackSurfaceMaterial',
+  'SessionFlags',
+  'SteeringWheelAngleMax',
+  'PlayerCarInPitStall',
+  'LapDistPct',
+];
+
 export function writeArchive(path, info, samplesOut, eventsOut) {
   const ibt = openIbt(path);
-  const tmp = `${tmpdir()}/ibt-${process.pid}-${basename(path).replace(/\s+/g, '_')}`;
+  try {
+    writeArchiveOf(
+      readColumns(ibt, ARCHIVE_SOURCES),
+      {
+        ticks: info.ticks,
+        steerMaxRad: ibt.byName.has('SteeringWheelAngleMax')
+          ? sampleAt(ibt, 'SteeringWheelAngleMax', 0)
+          : null,
+        sectorStarts: sectorStarts(ibt.yaml),
+        name: basename(path),
+      },
+      samplesOut,
+      eventsOut,
+    );
+  } finally {
+    ibt.close();
+  }
+}
+
+/**
+ * The archive of one recording from its iRacing columns (`raw`, by variable
+ * name, in tick order): an .ibt's, or a live capture stretch's in a test
+ * (irLiveCapture.test.mjs). `ticks` rows; `steerMaxRad` the car's
+ * SteeringWheelAngleMax at the start; `sectorStarts` from SplitTimeInfo.
+ */
+export function writeArchiveOf(
+  raw,
+  {ticks, steerMaxRad, sectorStarts: starts, name: fileName},
+  samplesOut,
+  eventsOut,
+) {
+  const tmp = `${tmpdir()}/ibt-${process.pid}-${String(fileName).replace(/\s+/g, '_')}`;
   const samplesCsv = `${tmp}.samples.csv`;
   const eventsCsv = `${tmp}.events.csv`;
   let rounded = [];
   try {
-    const sources = [
-      ...CHANNELS.map(c => c.source),
-      'Lap',
-      'LapLastLapTime',
-      'OnPitRoad',
-      'Gear',
-      'PlayerTrackSurface',
-      'PlayerTrackSurfaceMaterial',
-      'SessionFlags',
-      'SteeringWheelAngleMax',
-      'PlayerCarInPitStall',
-      'LapDistPct',
-    ];
-    const raw = readColumns(ibt, sources);
     const cols = {};
     for (const ch of CHANNELS) {
       if (!raw[ch.source]) continue;
-      const k = scaleOf(ch, ibt);
+      const k = ch.scale === 'steer' ? steerScale(steerMaxRad) : ch.scale;
       cols[ch.name] = Float64Array.from(raw[ch.source], x => x * k);
     }
     const headers = ['tick', ...Object.keys(cols)];
-    const n = info.ticks;
+    const n = ticks;
     const rows = [];
     for (let i = 0; i < n; i++) {
       rows.push([i, ...headers.slice(1).map(name => cols[name][i])]);
@@ -505,7 +550,7 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       );
     }
     if (raw.LapDistPct) {
-      events.push(...sectorCrossings(t, raw.LapDistPct, sectorStarts(ibt.yaml)));
+      events.push(...sectorCrossings(t, raw.LapDistPct, starts));
     }
     if (raw.SessionFlags) {
       events.push(
@@ -526,7 +571,6 @@ export function writeArchive(path, info, samplesOut, eventsOut) {
       {readonly: false},
     );
   } finally {
-    ibt.close();
     for (const f of [samplesCsv, eventsCsv]) {
       try {
         unlinkSync(f);
