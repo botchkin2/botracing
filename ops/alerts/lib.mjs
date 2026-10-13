@@ -11,7 +11,8 @@
 
 export const CONFIG = {
   project: 'botracing-61',
-  services: ['dataapi', 'uploadapi'],
+  // lmuapi: the old read function, still deployed and answering /api/lmu/** until the roadmap's row 2u deletes it.
+  services: ['dataapi', 'lmuapi', 'uploadapi'],
   host: 'botracing-61.web.app',
   // Uptime: a path is up when it answers 401 with an error body (the function
   // is running and refusing a caller with no token, which is what a check from
