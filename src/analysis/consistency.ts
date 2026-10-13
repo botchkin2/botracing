@@ -942,8 +942,8 @@ export const MIN_OUTLIER_LAPS = 12;
 /** A lap is an outlier when it is this many robust sigmas of the session's residuals slower than its stint's trend... */
 export const OUTLIER_SIGMAS = 3;
 
-/** ...and at least this share of the stint's median lap time: 1 s on an 80 s lap, fair on a 2 minute lap. Selection-specific: the consistency analysis keeps its own `offPaceZ` / `offPaceMinSec` (Botkin and apex, 2026-10-13: a lap that costs this much is an event, not scatter). */
-export const OUTLIER_MIN_SHARE = 0.0125;
+/** ...and at least this many seconds: a guard only, for a driver whose laps are near identical (sigma under 0.1 s), whose 3 sigma would flag 0.25 s laps. The limit follows the driver's own scatter (Botkin: scale with consistency); a fixed floor would keep a consistent driver's 1-2 s mistakes. Selection-specific: the consistency analysis keeps its own `offPaceZ` / `offPaceMinSec`. */
+export const OUTLIER_MIN_S = 0.3;
 
 /** Fewest laps a stint needs for `paceOutliers` to judge its laps: fewer have no pace trend. */
 export const MIN_STINT_PACE_LAPS = 5;
@@ -968,7 +968,7 @@ export interface PaceOutlier {
  * the default selection leaves out (decisions/lap/2026-10-12-default-selection-
  * outliers.md). A robust trend per stint (`fitTrend`, as `analyzeConsistency`
  * fits it), then OUTLIER_SIGMAS robust sigmas of the session's residuals and at
- * least OUTLIER_MIN_SHARE of the stint's median lap, over every lap given; no flag decides it. Slow ones
+ * least OUTLIER_MIN_S, over every lap given; no flag decides it. Slow ones
  * only: a lap cannot be unusually fast (Botkin, 2026-10-13), so fast laps stay
  * in. With fewer than MIN_OUTLIER_LAPS laps there is no pace to be off, so none
  * is an outlier.
@@ -977,12 +977,10 @@ export function paceOutliers(
   laps: readonly PaceLap[],
   t: Thresholds = defaultThresholds,
 ): PaceOutlier[] {
-  const {residualS, limitByStint} = paceResiduals(laps, t);
+  const {residualS, limitS} = paceResiduals(laps, t);
   return laps.flatMap(l => {
     const r = residualS.get(l.id);
-    return r != null && r >= (limitByStint.get(l.stint) ?? Infinity)
-      ? [{id: l.id, residualS: r}]
-      : [];
+    return r != null && r >= limitS ? [{id: l.id, residualS: r}] : [];
   });
 }
 
@@ -991,8 +989,8 @@ export interface PaceResiduals {
   residualS: Map<string, number>;
   /** The session's robust sigma of those residuals. */
   sigmaS: number;
-  /** A lap of the stint this much slower than its trend or more is an outlier; empty when too few laps to judge. */
-  limitByStint: Map<number, number>;
+  /** A lap this much slower than its trend or more is an outlier; Infinity when too few laps to judge. */
+  limitS: number;
   /** The fitted trend per judged stint: seconds per lap into the stint, and the intercept. */
   trendByStint: Map<number, {slope: number; intercept: number}>;
 }
@@ -1004,10 +1002,8 @@ export function paceResiduals(
 ): PaceResiduals {
   const residualS = new Map<string, number>();
   const trendByStint = new Map<number, {slope: number; intercept: number}>();
-  const limitByStint = new Map<number, number>();
   if (laps.length < MIN_OUTLIER_LAPS)
-    return {residualS, sigmaS: 0, limitByStint, trendByStint};
-  const medianOfStint = new Map<number, number>();
+    return {residualS, sigmaS: 0, limitS: Infinity, trendByStint};
   for (const n of unique(laps.map(l => l.stint))) {
     const own = laps.filter(l => l.stint === n);
     // A stint this short has no pace trend: its laps are not judged.
@@ -1018,15 +1014,14 @@ export function paceResiduals(
       t,
     );
     trendByStint.set(n, {slope, intercept});
-    medianOfStint.set(n, median(own.map(l => l.lapTime)) ?? 0);
     for (const l of own)
       residualS.set(l.id, l.lapTime - (intercept + slope * l.stintLap));
   }
   const sigmaS = robustSigma([...residualS.values()]) ?? 0;
-  for (const [n, lapS] of medianOfStint)
-    limitByStint.set(
-      n,
-      Math.max(OUTLIER_SIGMAS * sigmaS, OUTLIER_MIN_SHARE * lapS),
-    );
-  return {residualS, sigmaS, limitByStint, trendByStint};
+  return {
+    residualS,
+    sigmaS,
+    limitS: Math.max(OUTLIER_SIGMAS * sigmaS, OUTLIER_MIN_S),
+    trendByStint,
+  };
 }
