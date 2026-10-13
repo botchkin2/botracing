@@ -1,9 +1,20 @@
-import {QueryClient} from '@tanstack/react-query';
+import {focusManager, QueryClient} from '@tanstack/react-query';
+import {AppState, Platform} from 'react-native';
 
 // The web build renders every route once in Node. A cache timer there keeps
 // Node alive and the export never exits, so no cache timers on the server.
 export const onServer = typeof window === 'undefined';
 export const cacheTime = (ms: number) => (onServer ? Infinity : ms);
+
+// The browser reports focus itself (visibilitychange); the phone's app coming to
+// the foreground is AppState, which React Query does not read by itself.
+if (Platform.OS !== 'web')
+  focusManager.setEventListener(handleFocus => {
+    const sub = AppState.addEventListener('change', state =>
+      handleFocus(state === 'active'),
+    );
+    return () => sub.remove();
+  });
 
 export const queryClient = new QueryClient({
   defaultOptions: {

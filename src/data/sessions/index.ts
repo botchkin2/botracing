@@ -47,6 +47,7 @@ export {
   usePlanSessions,
   useSessionsLaps,
 } from './queries';
+export {useNewUploads} from './useNewUploads';
 export {
   type PlanBlock,
   type PlanLap,

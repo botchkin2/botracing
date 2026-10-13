@@ -134,3 +134,26 @@ it('never two runs of one session at once, whatever the key', async () => {
   expect(await first).toBe(true);
   expect(calls.filter(c => c === 'post')).toHaveLength(1);
 });
+
+it('a live lap that lands while an analysis runs is analysed once that one has finished', async () => {
+  let release: () => void = () => {};
+  const {d, calls} = deps({
+    post: async () => {
+      calls.push('post');
+      await new Promise<void>(resolve => (release = resolve));
+      return {status: 200};
+    },
+  });
+  const first = analyzeOnce('s1', d, 's1#3');
+  // The next lap's key while the first runs: refused, and not consumed.
+  expect(await analyzeOnce('s1', d, 's1#4')).toBe(false);
+  release();
+  expect(await first).toBe(true);
+  // The screen asks again when the session is read again (useSession dataUpdatedAt).
+  const again = analyzeOnce('s1', d, 's1#4');
+  release();
+  expect(await again).toBe(true);
+  // Polls of the same lap count ask many times: once only.
+  expect(await analyzeOnce('s1', d, 's1#4')).toBe(false);
+  expect(calls.filter(c => c === 'post')).toHaveLength(2);
+});
