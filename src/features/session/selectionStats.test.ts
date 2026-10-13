@@ -113,8 +113,20 @@ describe('one answer per question (decision 2026-10-11)', () => {
       m.rows.find(r => r.kind === 'stint')!;
     expect(stintLabel(after)).not.toEqual(stintLabel(before));
     expect(after.chart!.bars).not.toEqual(before.chart!.bars);
-    // The session facts do not move: they are what happened.
-    expect(after.facts).toEqual(before.facts);
+    // The session facts (laps, comparable, best) do not move: they are what
+    // happened. The head's Median is a comparison, so it moves with the ticks.
+    const facts = (m: ReturnType<typeof model>) =>
+      m.facts.filter(f => f.label !== 'Median');
+    expect(facts(after)).toEqual(facts(before));
+    const medianFact = (m: ReturnType<typeof model>) =>
+      m.facts.find(f => f.label === 'Median')?.value;
+    expect(medianFact(after)).toBe(
+      formatLapTime(
+        lapTimeStats(comparable.filter(l => l.id !== worst.id))
+          .medianS as number,
+      ),
+    );
+    expect(medianFact(after)).not.toBe(medianFact(before));
   });
 
   it('the stint line, the Median fact and the Stints panel give one median, IQR and count', () => {

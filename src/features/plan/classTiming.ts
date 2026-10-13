@@ -7,6 +7,7 @@ import {type SessionClassLaps} from '@/src/data/sessions';
 import {formatGap, formatLapTime} from '@/src/design';
 
 import {lapName} from './planCards';
+import {median} from '@/src/analysis/setStats';
 
 // Class pace on the Plan (round 6, section 2; pit-wall thread 44; Botkin's
 // D55): every class's pace at the track and, against his own median, when the
@@ -156,12 +157,6 @@ const LABELS: Record<PaceClass, string> = {
 const SHOWN: PaceClass[] = ['hypercar', 'lmp2', 'gte', 'gt3'];
 const NONE = '—';
 
-function median(values: number[]): number {
-  const v = [...values].sort((a, b) => a - b);
-  const mid = (v.length - 1) / 2;
-  return (v[Math.floor(mid)] + v[Math.ceil(mid)]) / 2;
-}
-
 const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const thousands = (n: number) => n.toLocaleString('en-GB');
 
@@ -204,14 +199,15 @@ function pool(
     s.gap == null || mine == null || s.player !== mine ? [] : [s.gap],
   );
   return {
-    medianS: median(used.map(s => s.medianS)),
-    p10S: median(used.map(s => s.p10S)),
-    p90S: median(used.map(s => s.p90S)),
+    // `used` is not empty, so each median exists.
+    medianS: median(used.map(s => s.medianS))!,
+    p10S: median(used.map(s => s.p10S))!,
+    p90S: median(used.map(s => s.p90S))!,
     gap:
       gaps.length > 0
         ? {
-            firstS: median(gaps.map(g => g.firstS)),
-            lastS: median(gaps.map(g => g.lastS)),
+            firstS: median(gaps.map(g => g.firstS))!,
+            lastS: median(gaps.map(g => g.lastS))!,
           }
         : null,
     kind: races.length > 0 ? 'race' : 'practice',

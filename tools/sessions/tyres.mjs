@@ -18,8 +18,10 @@ import {SESSION_START_S, tyreChange} from './fuelFacts.mjs';
  * 3: `treadC`, the median temperature of the tread's inner, centre and outer
  * thirds per wheel; and the pit stop's `tyres` gains `coolDown` and `compound`
  * (fuelFacts.mjs). Thread 44 #1607.
+ * 4: #570's start-window rule, reverted. 5: sessions analysed under 4 recompute
+ * on open (the rule is gone, so every window counts again).
  */
-export const TYRES_VERSION = 3;
+export const TYRES_VERSION = 5;
 
 // Wheel names as the doc writes them, with the archive's channel suffix.
 const WHEELS = [

@@ -17,6 +17,8 @@
 //
 // Plain TypeScript with erasable syntax only, no imports: Node can run it.
 
+import {quantile} from './setStats.ts';
+
 /** One clean lap of the driver's history at this track and car. */
 export interface GreenLap {
   fuelL: number;
@@ -305,13 +307,6 @@ export interface FuelPlan {
    * count (own estimate, and one more when the flag can fall late).
    */
   loadToFinish: LoadToFinish[] | null;
-}
-
-function quantile(sorted: number[], q: number): number {
-  const at = (sorted.length - 1) * q;
-  const lo = Math.floor(at);
-  const hi = Math.ceil(at);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
 }
 
 /**

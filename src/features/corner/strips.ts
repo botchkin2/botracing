@@ -7,6 +7,7 @@
 // low to high. Nothing is flipped to put "better" on one side.
 import {fitScale, type Scale} from '@/src/charts/scale';
 import {withUnit} from '@/src/charts/tickFormat';
+import {quantile} from '@/src/analysis/setStats';
 
 export type StripMeasure =
   | 'time'
@@ -156,14 +157,6 @@ const SPECS: Record<StripMeasure, Spec> = {
     fmt: whole,
   },
 };
-
-export function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return NaN;
-  const i = (sorted.length - 1) * q;
-  const lo = Math.floor(i);
-  const hi = Math.ceil(i);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
-}
 
 /** Which speed strip a corner gets: min speed, unless it is mostly an edge. */
 export function speedMeasure(laps: StripLap[]): 'minSpeed' | 'apexSpeed' {

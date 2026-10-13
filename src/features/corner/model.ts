@@ -13,8 +13,10 @@ import {turnTitleOf} from '@/src/analysis/turnNames';
 import {
   type DefaultSession,
   defaultLapIds,
+  isCurrent,
   type Lap,
   openingLapIds,
+  sectionWindowState,
   type SessionBand,
   type SessionDetail,
   type TrackCorner,
@@ -30,11 +32,7 @@ import {
   entryPartOf,
   wholeTitle,
 } from './wholeCorner';
-import {
-  buildSectionWindow,
-  isCurrent,
-  type SectionWindowModel,
-} from './sectionWindow';
+import {buildSectionWindow, type SectionWindowModel} from './sectionWindow';
 import {brakeZone} from './brakeZone';
 import {buildStrips, type StripModel} from './strips';
 import {type EdgeRun, edgeRuns} from './trackEdges';
@@ -46,6 +44,7 @@ import {
   type NeighbourApex,
   windowCaption,
 } from './stretch';
+import {median} from '@/src/analysis/setStats';
 
 // Corner screen view model (handoff §4, D3), per single corner (T1..Tn).
 // Every lap doc carries facts per corner (sections' parts): time from the
@@ -315,13 +314,6 @@ export function sectionChips(
 }
 
 /** The median of the non-null numbers; null when there are none. */
-function medianOf(xs: (number | null)[]): number | null {
-  const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
-  if (v.length === 0) return null;
-  const mid = Math.floor(v.length / 2);
-  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
-}
-
 export function buildCornerModel(input: {
   session: SessionDetail;
   laps: Lap[];
@@ -398,8 +390,14 @@ export function buildCornerModel(input: {
     const x = exit.facts;
     const entryEdge = e?.minSpeedAtEdge === true;
     const exitEdge = f?.minSpeedAtEdge === true;
+    // The window's time counts the way Compare's and Session's section times
+    // do: not when the pit lane crosses it or the lap went off track in it
+    // (data/sessions/windowOptimum.ts). With no windows on the map yet, as there.
+    const counts =
+      !map.boundaries ||
+      sectionWindowState(l, sec.sectionIndex, map.boundaries) === 'counts';
     return {
-      time: f?.segTimeS ?? null,
+      time: counts ? f?.segTimeS ?? null : null,
       brake: e?.brakeAtM == null ? null : entry.apexM - e.brakeAtM,
       peakBrake: e?.peakBrakePct ?? null,
       turnIn:
@@ -432,7 +430,7 @@ export function buildCornerModel(input: {
   const basis = Object.fromEntries(
     MEASURES.map(m => [
       m.id,
-      refValues ? refValues[m.id] : medianOf(allValues.map(v => v[m.id])),
+      refValues ? refValues[m.id] : median(allValues.map(v => v[m.id])),
     ]),
   ) as Record<Measure, number | null>;
 

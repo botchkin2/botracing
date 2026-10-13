@@ -229,18 +229,22 @@ if ((Trays).Count -gt 0) {
   if (Test-Path (Join-Path $data "quit.log")) { Write-Host "quit.log:"; Get-Content (Join-Path $data "quit.log") | ForEach-Object { Write-Host "  $_" } } else { Write-Host "quit.log: none" }
   Fail "timed out after 20s waiting for: the tray to quit after --quit"
 }
-# The tray ends the process itself 3 s after asking its event loop to exit (the
-# fallback for a non-interactive session). In an interactive session the loop
-# must end it: a quit.log that says "exit forced" there means app.exit broke.
+# Every cleanup step must be done before the process ends, by the event loop
+# or by the tray's own exit 3 s later ("exit forced"): the forced exit is
+# allowed, a missing step is not (thread 1 #4778). On some windows-2022
+# sessions the loop is seconds late to see an exit: a bug of its own, traced
+# by the "exit reached the event loop" / "event loop ended" notes below.
 $quitLog = Join-Path $data "quit.log"
-if (Test-Path $quitLog) {
-  $quitLines = @(Get-Content $quitLog)
-  Write-Host "quit.log: $($quitLines -join ' | ')"
-  if ((Get-Process -Id $PID).SessionId -ne 0 -and ($quitLines -match "exit forced")) {
-    Fail "the tray's event loop did not end on --quit in an interactive session (quit.log: exit forced)"
-  }
-} else {
-  Write-Host "quit.log: none (the quit went by another route)"
+if (-not (Test-Path $quitLog)) { Fail "no quit.log: the quit never reached the tray" }
+$quitLines = @(Get-Content $quitLog)
+Write-Host "quit.log: $($quitLines -join ' | ')"
+$exitAt = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match '^(exit forced|event loop ended)' })
+# The tray ends itself one of two ways, and says which; anything else ended it.
+if ($exitAt -lt 0) { Fail "quit.log has neither 'event loop ended' nor 'exit forced': something else ended the tray" }
+foreach ($step in @("watcher stopped", "recorders stopped", "window state saved", "tray icon removed")) {
+  $at = [array]::FindIndex([string[]]$quitLines, [Predicate[string]]{ param($l) $l -match "^$step " })
+  if ($at -lt 0) { Fail "quit.log has no '$step': a quit must finish it before the tray ends" }
+  if ($exitAt -ge 0 -and $at -gt $exitAt) { Fail "quit.log: '$step' came after the process was ending" }
 }
 # What Windows runs at logon is the Run value's command line. Run exactly that
 # (a real sign-out and sign-in cannot be done on a runner; that is proven once on

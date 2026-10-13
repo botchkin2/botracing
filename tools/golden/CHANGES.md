@@ -19,3 +19,17 @@ Changed: new session
 ## 2026-10-10 lmu-practice-road-atlanta
 Why: first golden numbers for this session (LMU practice over two files with off-track, pit and partial laps); the baseline later changes are measured against.
 Changed: new session
+
+## 2026-10-12 lmu-race-daytona-tyres
+Why: the 110 s window before the green flag (263 s in, the lap counter first moves at 277 s) is the race start held in the pit lane, not a stop (pitVisit 4, tyres 4: a race window that begins before the first lap-counter change is the session start). Its 4 L top-up and front-right tyre set no longer count as a stop; the lap after it is no longer cold tyres, so 3 laps are comparable, not 2.
+Changed:
+- fuel.litresPerVePctStop: 1.303 -> null
+- consistency.overview: "2 laps. Best lap 108.922; best sections add up to 106.272." -> "3 laps. Best lap 108.922; best sections add up to 105.843."
+- laps.0.pitStop: {"added":{"fuelL":4.04,"vePct":3.1},"atEntry":{"fuelL":96.03,"vePct":96.9},"inPitS":110.4,"tyresChanged":true,"tyreWheels":["FR"],"visit":"service"} -> null
+
+## 2026-10-12 lmu-race-daytona-tyres
+Why: #570 is reverted because Botkin says the 110 s window in this race is a real stop (fuel and repair); the numbers return to the 2026-10-10 baseline, with the stop, its 4 L and front-right tyre, and 2 comparable laps.
+Changed:
+- fuel.litresPerVePctStop: null -> 1.303
+- consistency.overview: "3 laps. Best lap 108.922; best sections add up to 105.843." -> "2 laps. Best lap 108.922; best sections add up to 106.272."
+- laps.0.pitStop: null -> the stored service stop

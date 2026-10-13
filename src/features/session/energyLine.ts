@@ -33,11 +33,19 @@ export function energyLine(
   if (!first || !last) return null;
   const hasVe = sessionHasVe(laps);
   const stops = racePitLaps(sessionType, laps);
-  const add = (pick: (l: Lap) => number | null | undefined) =>
-    stops.reduce((s, l) => s + (pick(l) ?? 0), 0);
+  // Null when a stop has no reading: a missing amount is not "nothing added".
+  const add = (pick: (l: Lap) => number | null | undefined): number | null => {
+    let sum = 0;
+    for (const l of stops) {
+      const v = pick(l);
+      if (v == null) return null;
+      sum += v;
+    }
+    return sum;
+  };
 
   let range: string;
-  let added: number;
+  let added: number | null;
   let addedText: (v: number) => string;
   if (hasVe) {
     if (first.veStartPct == null || last.veEndPct == null) return null;
@@ -53,7 +61,11 @@ export function energyLine(
   const stopsText =
     stops.length > 0
       ? `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}` +
-        (added > 0 ? ` added ${addedText(added)}` : ' added nothing')
+        (added == null
+          ? ''
+          : added > 0
+          ? ` added ${addedText(added)}`
+          : ' added nothing')
       : null;
   return {text: [range, stopsText].filter(Boolean).join(' · '), target: opens};
 }

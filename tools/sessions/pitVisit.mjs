@@ -24,7 +24,9 @@ import {REFUEL_FUEL_MIN_L, REFUEL_VE_MIN_PCT} from '../../src/analysis/refuel.ts
 /** Bump when the rules below change: it goes into analyze.mjs's blockVersions, so sessions are re-analysed. */
 // 3: a dead wear sensor coming back below its last live reading is not a tyre
 // change, so such a stop with nothing else done is no longer a service (fuelFacts.mjs).
-export const PIT_VISIT_VERSION = 3;
+// 4: #570's start-window rule, reverted (Botkin: the Daytona 29 Sep window is a
+// real stop, fuel and repair). 5: sessions analysed under 4 recompute on open.
+export const PIT_VISIT_VERSION = 5;
 
 /** Slower than this is standing still (km/h). The game's speed reads 0.0 to 2.7 around a stop. */
 export const STATIONARY_KMH = 1;

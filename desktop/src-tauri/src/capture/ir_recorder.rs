@@ -130,6 +130,23 @@ pub trait IrSource {
     }
 }
 
+/// The recorder's loop (runner.rs start_iracing): tick, report, wait. One wait
+/// per tick: it returns early on the sim's next tick, which is what records
+/// every 60 Hz frame. Capped at STOP_SLICE, so a quit (`stop`) or the sim
+/// starting is seen within it.
+pub fn drive<S: IrSource>(
+    rec: &mut IrRecorder<S>,
+    stop: &std::sync::atomic::AtomicBool,
+    mut each: impl FnMut(&IrRecorder<S>),
+) {
+    use crate::capture::runner::{now_ms, STOP_SLICE};
+    while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+        let wait = rec.tick(now_ms());
+        each(rec);
+        rec.src().wait(wait.min(STOP_SLICE));
+    }
+}
+
 fn cells(frame: &Frame, vars: &[&Var], index: usize) -> Vec<(String, Cell)> {
     let mut row = Vec::with_capacity(vars.len());
     for v in vars {
@@ -643,6 +660,80 @@ mod tests {
             Ok(SimView(self.0.clone()))
         }
         fn wait(&mut self, _limit: Duration) {}
+    }
+
+    /// A sim whose data event fires on every wait: each wait brings one new
+    /// 60 Hz frame (what IrShm's event-driven wait does), and stops the loop
+    /// after `frames`. It keeps every limit the loop asked for.
+    struct Ticking {
+        sim: Rc<RefCell<Sim>>,
+        t: i32,
+        frames: i32,
+        stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        limits: Rc<RefCell<Vec<Duration>>>,
+    }
+
+    impl IrSource for Ticking {
+        type V = SimView;
+        fn running(&mut self) -> bool {
+            self.sim.borrow().running
+        }
+        fn open(&mut self) -> Result<SimView, String> {
+            Ok(SimView(self.sim.clone()))
+        }
+        fn wait(&mut self, limit: Duration) {
+            self.limits.borrow_mut().push(limit);
+            if !self.sim.borrow().running {
+                return;
+            }
+            if self.t >= self.frames {
+                self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+                return;
+            }
+            self.t += 1;
+            frame(&mut self.sim.borrow_mut().mem, self.t, [0.10, 0.20, -1.0, 0.40]);
+        }
+    }
+
+    #[test]
+    fn the_loop_records_every_frame_the_sim_signals() {
+        let root = std::env::temp_dir().join(format!("ir-rec-rate-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let sim = Rc::new(RefCell::new(Sim { mem: sim_memory(TEXT), running: true }));
+        frame(&mut sim.borrow_mut().mem, 1, [0.10, 0.20, -1.0, 0.40]);
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let limits = Rc::new(RefCell::new(Vec::new()));
+        let src = Ticking { sim: sim.clone(), t: 1, frames: 60, stop: stop.clone(), limits: limits.clone() };
+        let mut rec = IrRecorder::new(src, root.clone());
+        drive(&mut rec, &stop, |_| {});
+        rec.shutdown(crate::capture::runner::now_ms());
+        let dirs = captures(&root);
+        let (n, _) = rows(&dirs[0].join("player-0000.parquet"));
+        // A second of the sim at 60 Hz: every frame, not one per wait limit.
+        assert_eq!(n, 60);
+        assert!(limits.borrow().iter().all(|l| *l <= crate::capture::runner::STOP_SLICE));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn with_no_sim_the_loop_still_looks_at_its_stop_every_slice() {
+        let root = std::env::temp_dir().join(format!("ir-rec-nosim-{}", std::process::id()));
+        let sim = Rc::new(RefCell::new(Sim { mem: sim_memory(TEXT), running: false }));
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let limits = Rc::new(RefCell::new(Vec::new()));
+        let src = Ticking { sim, t: 0, frames: 0, stop: stop.clone(), limits: limits.clone() };
+        let mut rec = IrRecorder::new(src, root);
+        let mut ticks = 0;
+        let stop2 = stop.clone();
+        drive(&mut rec, &stop, move |_| {
+            ticks += 1;
+            if ticks == 3 {
+                stop2.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        });
+        // The tick asked for NO_SIM (5 s); every wait was at most one slice.
+        assert_eq!(limits.borrow().len(), 3);
+        assert!(limits.borrow().iter().all(|l| *l == crate::capture::runner::STOP_SLICE));
     }
 
     fn setup(tag: &str, text: &str) -> (IrRecorder<Src>, Rc<RefCell<Sim>>, PathBuf) {

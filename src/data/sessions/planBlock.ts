@@ -4,6 +4,7 @@
 // response. A session uploaded before the block existed has `plan: null`: no
 // data, never zero.
 import type {SessionFuel, SessionType} from './adapters';
+import {fillLimitWithinTank} from './fuelLimits';
 
 export type PlanTraffic = {
   aheadS: number | null;
@@ -172,7 +173,7 @@ export function toPlanBlock(v: unknown): PlanBlock | null {
     v: num(p.v) ?? 0,
     fuel: {
       startL: num(fuel.startL),
-      fillLimitL: num(fuel.fillLimitL),
+      fillLimitL: fillLimitWithinTank(num(fuel.fillLimitL), num(fuel.tankL)),
       tankL: num(fuel.tankL),
       litresPerVePct: num(fuel.litresPerVePct),
       // Only the sessions' own doc carries the stop cross-check.

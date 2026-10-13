@@ -187,6 +187,15 @@ describe('fuel facts', () => {
     ).toMatchObject({startL: 100, fillLimitL: null, tankL: null});
   });
 
+  it('leaves out a fill limit above the tank (read wrongly before analysis 16)', () => {
+    expect(
+      toSessionDetail({
+        ...raw,
+        fuel: {startL: 84, fillLimitL: 1980, tankL: 105},
+      }).fuel,
+    ).toMatchObject({startL: 84, fillLimitL: null, tankL: 105});
+  });
+
   it('reads a lap fuel, null when the lap has none', () => {
     const [plain, withFuel] = toLaps([
       {id: 'a'},

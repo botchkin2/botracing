@@ -77,7 +77,7 @@ function TireCell({
         </Text>
       </View>
       <Text variant='dataStrong' style={styles.big}>
-        {flat ? '0 kPa' : pct(cell.leftPct)}
+        {flat ? '—' : pct(cell.leftPct)}
       </Text>
       {flat ? (
         <Text variant='dataSmall' tone='textMuted'>

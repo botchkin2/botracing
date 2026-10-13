@@ -293,6 +293,29 @@ describe('buildPitCard', () => {
     expect(penalty.columns[0].added.note).toBe('penalty');
   });
 
+  it('a repair or penalty with an unknown amount reads empty, never +0.0 L', () => {
+    const unknown = oneStop.map(l =>
+      l.id === 'l6'
+        ? {
+            ...l,
+            pitStop: stop({
+              added: {fuelL: null, vePct: null},
+              visit: {
+                kind: 'repair' as const,
+                detail: null,
+                did: ['repair' as const],
+                stationaryS: 10,
+                evidence: [],
+              },
+            }),
+          }
+        : l,
+    );
+    const card = buildPitCard('R', unknown, session());
+    if (card?.kind !== 'stops') throw new Error('not a stops card');
+    expect(card.columns[0].added).toEqual({value: '—', note: 'repair'});
+  });
+
   it('a class the rate is not measured on has the lane time alone, never a guess', () => {
     const card = buildPitCard('R', oneStop, session({carClass: 'LMP2'}));
     if (card?.kind !== 'stops') throw new Error('not a stops card');

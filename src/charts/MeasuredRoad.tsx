@@ -21,7 +21,7 @@ export type MeasuredRunView = {
 
 const ROAD_M = 12;
 const EDGE_W = 1.3;
-const DASH = '5 4';
+const DASH = [5, 4];
 
 const at = (p: FollowXy) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
 
@@ -65,10 +65,13 @@ export const MeasuredRoad = memo(function MeasuredRoad({
   runs,
   fill,
   edge,
+  pt,
 }: {
   runs: MeasuredRunView[];
   fill: string;
   edge: string;
+  /** Metres per screen point: the layer is scaled by its parent, so widths are set in metres. */
+  pt: number;
 }) {
   const paths = useMemo(
     () =>
@@ -105,8 +108,7 @@ export const MeasuredRoad = memo(function MeasuredRoad({
           key={`s${i}`}
           d={p.solid}
           stroke={edge}
-          strokeWidth={EDGE_W}
-          vectorEffect='non-scaling-stroke'
+          strokeWidth={EDGE_W * pt}
           strokeLinejoin='round'
           fill='none'
         />
@@ -117,9 +119,8 @@ export const MeasuredRoad = memo(function MeasuredRoad({
           d={p.dashed}
           stroke={edge}
           strokeOpacity={0.6}
-          strokeWidth={EDGE_W}
-          strokeDasharray={DASH}
-          vectorEffect='non-scaling-stroke'
+          strokeWidth={EDGE_W * pt}
+          strokeDasharray={`${DASH[0] * pt} ${DASH[1] * pt}`}
           fill='none'
         />
       ))}

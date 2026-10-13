@@ -11,6 +11,7 @@ import {
   type SessionTraffic,
 } from '@/src/analysis/traffic';
 import {freshTyres, type LapTyres, toLapTyres} from '@/src/analysis/tyres';
+import {fillLimitWithinTank} from './fuelLimits';
 import {type PlanBlock, toPlanBlock} from './planBlock';
 import {type FieldPointer, toFieldPointer} from '../field/adapters';
 import {type TrackSurface} from '@/src/analysis/trackSurface';
@@ -158,7 +159,7 @@ function toSessionFuel(v: unknown): SessionFuel | null {
   const x = obj(v);
   return {
     startL: num(x.startL),
-    fillLimitL: num(x.fillLimitL),
+    fillLimitL: fillLimitWithinTank(num(x.fillLimitL), num(x.tankL)),
     tankL: num(x.tankL),
     litresPerVePct: num(x.litresPerVePct),
     litresPerVePctStop: num(x.litresPerVePctStop),

@@ -1,6 +1,7 @@
 import {type PitModel} from '@/src/analysis/fuelPlan';
 import {type RefuelRate, refuelRateOf} from '@/src/analysis/refuel';
 import {type PlanStop} from '@/src/data/sessions';
+import {median} from '@/src/analysis/setStats';
 
 // The pit lane base of a track and car, measured from his own stops there
 // (pit-wall thread 36 #1071: a stop is a per-track base plus litres / rate,
@@ -16,11 +17,6 @@ import {type PlanStop} from '@/src/data/sessions';
 export const MIN_BASE_STOPS = 2;
 
 export type PitBase = {baseS: number; stops: number};
-
-function median(sorted: number[]): number {
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
 
 /**
  * The refuel rate of the history: the pump rate measured on his own race
@@ -41,7 +37,8 @@ export function refuelRateFor(
 /**
  * The median of (pit loss - litres added / refuel rate) over the race stops
  * the uploader could measure: services only (planBlock.mjs leaves a repair or a
- * penalty without a loss). Null without a rate, or under MIN_BASE_STOPS stops.
+ * penalty without a loss, and a stop from a plan block with no kind is left
+ * out). Null without a rate, or under MIN_BASE_STOPS stops.
  */
 export function pitLaneBase(
   races: {stops: PlanStop[]}[],
@@ -53,14 +50,14 @@ export function pitLaneBase(
     for (const stop of race.stops) {
       if (stop.lossS == null || !(stop.addedL != null && stop.addedL > 0))
         continue;
-      // A block from before version 2 has no kind; one that does must be a service.
-      if (stop.kind != null && stop.kind !== 'service') continue;
+      // Services only. A block from before version 2 has no kind: its stand-still
+      // may be a repair or a penalty, so it is left out, not counted as a service.
+      if (stop.kind !== 'service') continue;
       bases.push(stop.lossS - stop.addedL / rate.lPerS);
     }
   }
   if (bases.length < MIN_BASE_STOPS) return null;
-  bases.sort((a, b) => a - b);
-  return {baseS: Math.max(0, median(bases)), stops: bases.length};
+  return {baseS: Math.max(0, median(bases)!), stops: bases.length};
 }
 
 /** The model the planner takes; null without a base or a rate. */
