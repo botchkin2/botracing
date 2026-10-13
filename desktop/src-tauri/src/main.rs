@@ -360,6 +360,18 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     } else {
         "tray icon not found"
     });
+    // Roadmap 2r: on some windows-2022 sessions the exit reaches the loop
+    // seconds late. A probe asks the main thread to note itself every 100 ms
+    // until the process ends: if those notes keep coming while the exit is
+    // late, the loop runs but the exit waits; if they stop, the loop is held.
+    let (probe_app, probe_log) = (app.clone(), log.clone());
+    std::thread::spawn(move || {
+        for i in 1..=30 {
+            std::thread::sleep(Duration::from_millis(100));
+            let note = probe_log.clone();
+            let _ = probe_app.run_on_main_thread(move || note.note(&format!("main thread alive {i}")));
+        }
+    });
     log.note("exit requested");
     app.exit(0);
     log.note("exit call returned");
