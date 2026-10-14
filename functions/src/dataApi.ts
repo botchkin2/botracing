@@ -14,6 +14,7 @@ import {
   listFacets,
   listPlanSessions,
   listSessions,
+  sessionsVersion,
   readSession,
   readSessionLaps,
   readBand,
@@ -185,17 +186,37 @@ const handle: Handler = async (req, res) => {
       return;
     }
     if (/\/sessions\/facets$/.test(path)) {
-      res.status(200).json(await listFacets(owner));
+      const version = await sessionsVersion(owner);
+      if (version && req.query.v === version) {
+        res.status(200).json({unchanged: true, version});
+        return;
+      }
+      res.status(200).json({
+        ...(await listFacets(owner)),
+        ...(version ? {version} : {}),
+      });
       return;
     }
     if (/\/sessions$/.test(path)) {
+      // A client holding this list's version asks with `?v=`: unchanged costs
+      // a count and one doc, not every session. Hosting passes no
+      // If-None-Match to the function, so the validator is a query value.
+      const version = await sessionsVersion(owner);
+      if (version && req.query.v === version) {
+        res.status(200).json({unchanged: true, version});
+        return;
+      }
       const age = Number(req.query.age);
       const items = await listSessions(owner, {
         ageDays: Number.isFinite(age) ? age : undefined,
         trackId: req.query.track ? String(req.query.track) : undefined,
         sim: req.query.sim ? String(req.query.sim) : undefined,
       });
-      res.status(200).json({items, total: items.length});
+      res.status(200).json({
+        items,
+        total: items.length,
+        ...(version ? {version} : {}),
+      });
       return;
     }
     const field = path.match(

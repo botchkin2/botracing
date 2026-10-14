@@ -83,6 +83,7 @@ Firestore docs cap at 1 MiB. Anything per-sample goes in the bucket.
 `firestore.indexes.json` covers these queries:
 
 - An owner's sessions, newest first, optionally at one track.
+- An owner's newest `changedAt` (the session list's version, `sessionsVersion`). It builds in the background after a deploy; until then the list is read in full with no version.
 - A session's recordings in order.
 - A session's laps in order.
 - The best laps for an owner at a track in a car.

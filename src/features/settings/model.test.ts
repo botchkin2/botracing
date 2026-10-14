@@ -58,6 +58,12 @@ describe('uploaderCard', () => {
       'Capture 5.0 GB · 210 GB free',
       'Recorder recording · LMU 1.2',
     ]);
+    // A PC that cannot read its free space says nothing about it.
+    const unknownFree = uploaderCard(
+      rig({disk: {captureBytes: 5.04e9, freeBytes: null}}),
+      NOW,
+    );
+    expect(unknownFree.lines).toContain('Capture 5.0 GB');
   });
 
   it('says when a failed session is tried again, not error', () => {

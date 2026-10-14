@@ -55,7 +55,15 @@ export function adminCopyBackend({db, bucket}) {
       return doc.exists ? doc.data() : null;
     },
     async setDoc(path, data) {
-      await db.doc(path).set(data);
+      // A session write stamps changedAt, the session list's version
+      // (functions/src/sessionStore.ts sessionsVersion).
+      await db
+        .doc(path)
+        .set(
+          path.startsWith('sessions/')
+            ? {...data, changedAt: new Date().toISOString()}
+            : data,
+        );
     },
     async statFile(path) {
       try {

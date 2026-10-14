@@ -967,4 +967,36 @@ mod tests {
         // Two frames, not four ticks.
         assert_eq!(rec.capture.as_ref().unwrap().player_rows(), 2);
     }
+
+    #[test]
+    fn every_status_the_recorder_writes_makes_a_beat_the_server_takes() {
+        // Each state as the recorder sets it, with the values LMU really gave:
+        // 14200 and 0 (contract/payloads/capture-meta, #597).
+        let at = Some(iso(1_790_000_000_000));
+        let mut recording = Status::new();
+        recording.state = "recording";
+        recording.game_version = Some(14200);
+        recording.layout_ok = Some(true);
+        recording.last_chunk_at = at.clone();
+        recording.last_lap_at = at.clone();
+        recording.session_dir = Some("2026-10-13T00-15-00Z_track_10".into());
+        recording.capture_bytes = 1_105_883_643;
+        recording.dropped_pct = 0.37;
+        let mut waiting = recording.clone();
+        waiting.state = "waiting";
+        waiting.game_version = Some(0);
+        waiting.session_dir = None;
+        let mut refused = Status::new();
+        refused.state = "refused";
+        refused.layout_ok = Some(false);
+        refused.layout_reason = write_reason(&format!(
+            r"C:\Users\Jane Doe\AppData\Local\lap-capture\{}: Access is denied. (os error 5)",
+            "x".repeat(300)
+        ));
+        let mut stopped = recording.clone();
+        stopped.state = "stopped";
+        for s in [Status::new(), recording, waiting, refused, stopped] {
+            crate::contract::server_takes("recorder-status", &s.json(1_790_000_001_000));
+        }
+    }
 }
