@@ -196,6 +196,7 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
 
   const failures = [];
   const allowed = new Map();
+  const used = new Set();
   for (const [path, a, b] of all) {
     const g = generic(path);
     // The session's lap table lists the laps in order: row i is lap i's.
@@ -216,10 +217,12 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
         forms.some(f => f && e.re.test(f)) &&
         withinTolerance(e, a, b),
     );
-    if (rule) allowed.set(rule.path, (allowed.get(rule.path) ?? 0) + 1);
-    else failures.push({path, capture: a, game: b});
+    if (rule) {
+      allowed.set(rule.path, (allowed.get(rule.path) ?? 0) + 1);
+      used.add(rule);
+    } else failures.push({path, capture: a, game: b});
   }
-  return {failures, allowed: Object.fromEntries(allowed), compared: all.length};
+  return {failures, allowed: Object.fromEntries(allowed), used, compared: all.length};
 }
 
 if (process.argv[1]?.endsWith('parity.mjs')) {

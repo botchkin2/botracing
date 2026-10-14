@@ -97,18 +97,47 @@ const pairs = pairsDir
 test('the pairs are there when PARITY_PAIRS is set', {skip: !pairsDir && 'PARITY_PAIRS not set'}, () => {
   assert.ok(pairs.length >= 2, `pairs in ${pairsDir}: ${pairs}`);
 });
+// The entries that explained something, over all the pairs (see the last test).
+const usedEntries = new Set();
 for (const name of pairs.length ? pairs : ['(none)'])
   test(
     `pair ${name}: the capture path and the game-file path agree, and both are complete`,
     {skip: pairs.length ? false : 'PARITY_PAIRS not set (CI contract-replay sets it)'},
     async () => {
       const pair = await buildPair(join(pairsDir, name));
-      const r = judge(pair);
+      const r = judge({...pair, name});
+      for (const e of r.used) usedEntries.add(e);
       assert.deepEqual(r.failures, [], 'differences outside parityAllow.json');
       assert.deepEqual(checkSession(pair.capture, {otherCars: pair.otherCars}), [], 'capture path');
       assert.deepEqual(checkSession(pair.game, {otherCars: pair.otherCars}), [], 'game-file path');
     },
   );
+
+// A gap entry says "deleted when fixed"; nothing else notices the fix, and the
+// stale entry would hide the next regression. judge() is given the pair's name
+// here (a pair-scoped entry could not match without it).
+test(
+  'every gap and pair entry still explains a difference on some pair (fixed? delete the entry)',
+  {skip: pairs.length ? false : 'PARITY_PAIRS not set (CI contract-replay sets it)'},
+  () => {
+    const unused = loadAllow()
+      .filter(e => (e.gap || e.pair) && ![...usedEntries].some(u => u.path === e.path && u.pair === e.pair))
+      .map(e => `${e.pair ?? 'all pairs'}: ${e.path}`);
+    assert.deepEqual(unused, [], 'entries that matched nothing');
+  },
+);
+
+test('a section time 5.9 s off is not explained by the edge-scaling gap (one tolerance per unit)', () => {
+  const edge = loadAllow().filter(e => e.gap && e.tol != null);
+  const bounds = {};
+  for (const [unit, field] of [['m', 'onsetM'], ['s', 'segTime'], ['kmh', 'apexSpeedKmh']]) {
+    const path = `laps.#.corners.#.${field}`;
+    const rules = edge.filter(e => e.re.test(path));
+    assert.equal(rules.length, 1, `${unit}: one edge entry for ${field}`);
+    bounds[unit] = rules[0].tol;
+  }
+  assert.ok(bounds.m >= 6 && bounds.s <= 0.3 && bounds.kmh <= 3, JSON.stringify(bounds));
+});
 
 test('the manifest refuses an invalid flag on a pit lap', () => {
   const misses = checkSession(
