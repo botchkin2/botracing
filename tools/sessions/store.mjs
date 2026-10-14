@@ -601,6 +601,25 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     );
     sent++;
   }
+  // The field and the capture extract the live path made (liveInputs.mjs):
+  // the field is named by its content, so an unchanged one is not sent again;
+  // the session then points at it, and analysis keeps and reads it (the
+  // kept-field path in uploadSession). The extract is a few KB, sent as is.
+  if (out.fieldText && out.field && out.field.hash !== before?.field?.hash) {
+    await backend.putFile(
+      out.field.path,
+      {body: Buffer.from(out.fieldText)},
+      {contentType: 'application/json', gzip: true},
+    );
+    session.field = out.field;
+    log(`  live: field ${out.field.cars} cars`);
+  } else if (before?.field) session.field = before.field;
+  if (out.captureExtract)
+    await backend.putFile(
+      captureExtractPath(session.ownerId, session.id),
+      {body: Buffer.from(JSON.stringify(out.captureExtract))},
+      {contentType: 'application/json', gzip: true},
+    );
   const ops = out.recordings.map(rec => ({
     op: 'set',
     coll: 'recordings',

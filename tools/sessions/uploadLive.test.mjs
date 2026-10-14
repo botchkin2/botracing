@@ -24,10 +24,11 @@ function backend(docs = new Map()) {
       }
     },
     fileMd5: async dest => files.get(dest) ?? null,
-    putFile: async (dest, {localPath}) => {
+    putFile: async (dest, {localPath, body}) => {
       if (b.offline) throw new Error('offline');
       const {readFileSync} = await import('node:fs');
-      files.set(dest, createHash('md5').update(readFileSync(localPath)).digest('base64'));
+      const bytes = body ?? readFileSync(localPath);
+      files.set(dest, createHash('md5').update(bytes).digest('base64'));
       b.order.push(dest);
     },
   };
@@ -106,4 +107,40 @@ test('a lap that lands while the cloud analyses is not taken as analysed', async
   const s = b.docs.get('sessions/s1');
   assert.equal(s.archiveParts, 5);
   assert.equal(s.analysis.v, 0);
+});
+
+// The field and the capture extract made on the live path (liveInputs.mjs,
+// roadmap row 0a): the live session carries every car, as a game-file sync did.
+const withField = (n, hash) => ({
+  ...lapsOut(n),
+  field: {path: `field/o/s1/${hash}.json.gz`, hash, cars: 6, hz: 5},
+  fieldText: JSON.stringify({cars: [], hash}),
+  captureExtract: {v: 1, damage: {et: [1], dent: [0], detached: [0]}, raceLength: null},
+});
+
+test('a live lap uploads the field and points the session at it; the capture extract goes with it', async () => {
+  const b = backend();
+  await createStore(b).uploadLive(withField(1, 'aaaa11112222'));
+  assert.ok(b.files.has('field/o/s1/aaaa11112222.json.gz'));
+  assert.equal(b.docs.get('sessions/s1').field.cars, 6);
+  assert.ok([...b.files.keys()].some(k => k.endsWith('/s1/capture.json.gz')));
+});
+
+test('an unchanged field is not sent again; a grown one replaces it', async () => {
+  const b = backend();
+  const store = createStore(b);
+  await store.uploadLive(withField(1, 'aaaa11112222'));
+  const sent = b.order.filter(d => d.startsWith('field/')).length;
+  await store.uploadLive(withField(2, 'aaaa11112222'));
+  assert.equal(b.order.filter(d => d.startsWith('field/')).length, sent, 'same hash: not sent');
+  await store.uploadLive(withField(3, 'bbbb33334444'));
+  assert.equal(b.docs.get('sessions/s1').field.hash, 'bbbb33334444');
+});
+
+test('a lap with no field keeps the stored one', async () => {
+  const b = backend();
+  const store = createStore(b);
+  await store.uploadLive(withField(1, 'aaaa11112222'));
+  await store.uploadLive(lapsOut(2));
+  assert.equal(b.docs.get('sessions/s1').field.hash, 'aaaa11112222');
 });
