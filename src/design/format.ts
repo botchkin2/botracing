@@ -138,3 +138,34 @@ export function formatDayMonthTime(
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${formatDayMonth(iso)}, ${hh}:${mm}`;
 }
+
+/**
+ * A moment's clock time: "00:41" today, "Oct 13, 00:41" on an earlier day this
+ * year, "Oct 13, 2025" before that; device time zone.
+ */
+export function formatClock(ms: number, now: Date = new Date()): string {
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return '';
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (!sameDay) return formatDayMonthTime(d.toISOString(), now);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes(),
+  ).padStart(2, '0')}`;
+}
+
+/**
+ * The line a screen shows while it draws data a failed refetch could not
+ * renew: "Offline · 00:41", the time of the data shown (src/data/queryState.ts
+ * offlineSince; pit-wall thread 1 #5216).
+ */
+export function formatOffline(
+  offlineSince: number | null,
+  now: Date = new Date(),
+): string | null {
+  return offlineSince == null
+    ? null
+    : `Offline · ${formatClock(offlineSince, now)}`;
+}

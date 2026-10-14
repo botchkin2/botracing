@@ -108,6 +108,14 @@ export function SessionsScreen() {
           </Text>
         </View>
       )}
+      {(model.state === 'offline' ||
+        (model.state === 'ready' && model.offlineText)) && (
+        <View style={[styles.column, {width: contentWidth}]}>
+          <Text tone='textMuted' style={styles.status}>
+            {model.state === 'ready' ? model.offlineText : 'Offline'}
+          </Text>
+        </View>
+      )}
       {model.state === 'empty' && <EmptyState width={contentWidth} />}
       {/* History exists but none in the recent window: the chips still offer the older tracks. */}
       {model.state === 'ready' && model.days.length === 0 && (
