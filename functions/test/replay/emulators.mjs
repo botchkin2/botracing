@@ -3,11 +3,13 @@
 // takes the path a tray's does (torsion #5115 2). The rewrites come from
 // firebase.json itself, never a copy.
 //
-//   node functions/test/replay/emulators.mjs -- <command>
+//   node functions/test/replay/emulators.mjs -- <script.mjs> [args...]
 //
-// runs <command> with the emulators up (firebase emulators:exec) and
-// REPLAY_API set to the Hosting emulator's origin. The functions must be
-// built first (npm --prefix functions run build).
+// runs `node <script.mjs>` with the emulators up (firebase emulators:exec),
+// REPLAY_API set to the Hosting emulator's origin and the args in
+// REPLAY_ARGV (JSON): emulators:exec takes one command string, which would
+// split a path with spaces. The functions must be built first
+// (npm --prefix functions run build).
 import {spawnSync} from 'node:child_process';
 import {mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -39,7 +41,8 @@ const path = join(repo, `.replay-firebase-${process.pid}.json`);
 writeFileSync(path, JSON.stringify(config, null, 1));
 
 const at = process.argv.indexOf('--');
-const command = process.argv.slice(at + 1).join(' ');
+const [script, ...args] = process.argv.slice(at + 1);
+const command = `node ${relative(repo, resolve(script)).split(sep).join('/')}`;
 const r = spawnSync(
   'npx',
   [
@@ -58,7 +61,11 @@ const r = spawnSync(
     cwd: repo,
     stdio: 'inherit',
     shell: true,
-    env: {...process.env, REPLAY_API: `http://127.0.0.1:${HOSTING_PORT}`},
+    env: {
+      ...process.env,
+      REPLAY_API: `http://127.0.0.1:${HOSTING_PORT}`,
+      REPLAY_ARGV: JSON.stringify(args),
+    },
   },
 );
 try {

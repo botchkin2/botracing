@@ -109,7 +109,7 @@ jobs:
         # The image's JAVA_HOME_21_X64 is a machine variable: the workflow's
         # env context does not see it, the shell does.
         run: |
-          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export JAVA_HOME="$(cygpath "$JAVA_HOME_21_X64")"
           export PATH="$JAVA_HOME/bin:$PATH"
           java -version
           npm run test:emulator
@@ -216,9 +216,20 @@ jobs:
           37928e31cc497f6fcf7fee13ecfbcdb89166f82b08cb080026a7a6ff7aed717b  field-0000.parquet
           63ea035560c47aa72aea48c09b094d132626dfdef53e0ed5dbfc6c1f389ec6c9  session-0000.parquet
           SUMS
+      - name: The finished files (an LMU .duckdb, an iRacing .ibt)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          d="$RUNNER_TEMP/finished-file"
+          mkdir -p "$d"
+          gcloud storage cp "gs://botracing-61-lmu/golden/finished-file/Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb" "gs://botracing-61-lmu/golden/finished-file/fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt" "$d/"
+          cd "$d"
+          sha256sum -c - <<SUMS
+          bce60cf49e96bab6a4d624a650cc82e2b8a7dabe1fe37b1b163951b579b9c750  Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb
+          c1fd5038e3fb2e041aecd34d1b129e6601a038d7ff0a2272b44bb5b13b2a3021  fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt
+          SUMS
       - name: Replay against the API in the emulators
         if: steps.scope.outputs.run == 'true'
         run: |
-          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export JAVA_HOME="$(cygpath "$JAVA_HOME_21_X64")"
           export PATH="$JAVA_HOME/bin:$PATH"
-          node functions/test/replay/emulators.mjs -- node functions/test/replay/run.mjs --from "$RUNNER_TEMP/road-atlanta-2026-10-03" --laps 3 --speed 4
+          node functions/test/replay/emulators.mjs -- functions/test/replay/run.mjs --live "$RUNNER_TEMP/road-atlanta-2026-10-03" --laps 3 --speed 4 --file "$RUNNER_TEMP/finished-file/Michelin Raceway Road Atlanta_P_2026-09-25T23_51_06Z.duckdb" --file "$RUNNER_TEMP/finished-file/fordmustanggt3_roadatlanta full 2026-08-27 20-49-07.ibt"
