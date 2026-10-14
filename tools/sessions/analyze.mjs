@@ -370,7 +370,9 @@ function pitIntervals(list) {
   return out;
 }
 
-function lapTimeNear(list, t) {
+// The lap_time event's value nearest t within 0.75 s, or null. The game logs
+// -1 for a lap it did not count (cut track, out-lap).
+function lapTimeEventNear(list, t) {
   let best = null;
   let bestDt = 0.75;
   for (const event of list || []) {
@@ -380,7 +382,12 @@ function lapTimeNear(list, t) {
       best = event.v;
     }
   }
-  return best != null && best > 0 ? best : null;
+  return best;
+}
+
+function lapTimeNear(list, t) {
+  const v = lapTimeEventNear(list, t);
+  return v != null && v > 0 ? v : null;
 }
 
 function lastPositive(list, start, end) {
@@ -547,6 +554,11 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
   const dist = lapDistance(rec, i0, i1);
   const gameLapTime = lapTimeNear(events.lap_time, seg.end);
   const timed = gameLapTime != null;
+  // Invalid: the game closed the lap at a real crossing with no time (<= 0).
+  // A recording's end is no crossing, whatever event sits there.
+  const endsAtCrossing = seg.end < s.t[s.t.length - 1] - 0.5;
+  const endTime = lapTimeEventNear(events.lap_time, seg.end);
+  const invalid = endsAtCrossing && endTime != null && endTime <= 0;
   // A grid start is the parked car and the roll to the line, not a lap.
   const why = partialWhy(seg.partial, dist, seg.end - seg.start);
 
@@ -601,6 +613,7 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
     gameLapTime: timed ? round(gameLapTime, 3) : null,
     lapTime: round(timed ? gameLapTime : seg.end - seg.start, 3),
     timed,
+    invalid,
     partial: why !== null,
     partialWhy: why,
     pitlane,

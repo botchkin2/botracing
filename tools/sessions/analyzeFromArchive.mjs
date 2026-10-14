@@ -140,6 +140,8 @@ export function analyzeFromArchive({
       gameLapTime: lap.gameLapTime,
       durationSec: lap.durationSec,
       timed: lap.timed,
+      // The game gave this lap -1 at its closing line (a real crossing).
+      invalid: lap.invalid,
       partial: lap.partial,
       // 'grid' (the parked car and the roll to the line), 'file' (cut by a
       // recording boundary), or null.
