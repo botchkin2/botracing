@@ -32,3 +32,27 @@ Locally, `gcloud auth login` is enough, or run `make.mjs` on a PC with the sessi
 
 Slices are never regenerated for a small reason: every new one is another 1 to 4 MB in
 the bucket, and the manifest's sha256s change with it.
+
+## The parity pair
+
+One drive recorded twice, by the tray's capture and by the game: the golden
+live capture (`golden/live-capture/road-atlanta-2026-10-03/`, the first five
+laps of the 2026-10-03 Road Atlanta race) and the game's file of the same race
+cut to that window (`golden/parity/road-atlanta-2026-10-03/`, driver name
+replaced), with the curated track docs both paths read (`catalog.json`).
+
+- `parity.mjs <pair folder>`: builds the drive through today's capture path
+  (`syncLive` → `analyzeStored`) and game-file path (`buildSession`, sync.mjs's
+  build → `store.upload`) into memory (`memoryStore.mjs`), compares every
+  session and lap field, and checks both against the feature manifest
+  (`tools/sessions/manifest.mjs`). Prints each unexplained difference and miss.
+- `parityAllow.json`: what may differ, each entry with its reason and, for
+  numbers, its tolerance. An entry marked `gap` is a known missing feature
+  (`docs/SESSION_PIPELINE.md`, Gaps) and is deleted when that gap closes.
+- `parity.test.mjs`: the rules everywhere; the pair where `PARITY_PAIR` names
+  its folder. CI's `contract-replay` job fetches the pair (sha256-pinned in
+  `.github/workflows/test.yml`) on any change to the tray, sessions, golden or
+  API code.
+- `cutGameFile.mjs <in.duckdb> <out.duckdb> <untilT>`: how the game file was
+  cut (every channel up to `untilT` on the GPS Time clock, every event to
+  `ts <= untilT`, the driver's name replaced).

@@ -170,7 +170,7 @@ jobs:
         id: scope
         run: |
           if git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD |
-            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture)/|src/(analysis|data/uploaders)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
+            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture|golden)/|src/(analysis|data/uploaders)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing on the tray/API line changed: no replay needed."
@@ -216,6 +216,24 @@ jobs:
           37928e31cc497f6fcf7fee13ecfbcdb89166f82b08cb080026a7a6ff7aed717b  field-0000.parquet
           63ea035560c47aa72aea48c09b094d132626dfdef53e0ed5dbfc6c1f389ec6c9  session-0000.parquet
           SUMS
+      # docs/SESSION_PIPELINE.md: the same drive through the capture path and
+      # the game-file path must agree (tools/golden/parityAllow.json says what
+      # may differ, and why), and both must have every feature (manifest.mjs).
+      - name: Parity gate (capture vs game file, the same drive)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          p="$RUNNER_TEMP/parity-pair"
+          mkdir -p "$p/capture" "$p/game"
+          cp -r "$RUNNER_TEMP/road-atlanta-2026-10-03" "$p/capture/"
+          g=gs://botracing-61-lmu/golden/parity/road-atlanta-2026-10-03
+          gcloud storage cp "$g/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb" "$p/game/"
+          gcloud storage cp "$g/catalog.json" "$p/"
+          (cd "$p" && sha256sum -c - <<SUMS
+          5703aae394415c68cc50f5cdfff835c64d5af669ee9e2852794eabd9302707ee  game/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb
+          f1e7f00da39f4d515b7742d5ed34af5cf88daef37802e7d9ff3c5a779144812f  catalog.json
+          SUMS
+          )
+          PARITY_PAIR="$p" node --test tools/golden/parity.test.mjs
       - name: The finished files (an LMU .duckdb, an iRacing .ibt)
         if: steps.scope.outputs.run == 'true'
         run: |
