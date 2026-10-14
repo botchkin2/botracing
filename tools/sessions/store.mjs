@@ -289,6 +289,17 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     log('  a lap arrived during this analysis: left stale');
   }
 
+  // Never roll the live stamp back: analysis writes the stamp it read at its
+  // start (analyzeStored.mjs), and a lap uploaded meanwhile moved it. Rolled
+  // back, the run's own stale check would see no change and the lap would
+  // wait for an open (sidepod on #614). ISO times compare as text.
+  const storedLive = before?.live?.updatedAt;
+  if (
+    typeof storedLive === 'string' &&
+    storedLive > (session.live?.updatedAt ?? '')
+  )
+    session.live = before.live;
+
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
   // sync tries again.

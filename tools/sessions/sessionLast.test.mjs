@@ -205,3 +205,30 @@ test('the same parts again over a newer stamp is still skipped', async () => {
   out.session.archiveParts = 5;
   assert.deepEqual(await createStore(backend).upload(out), {skipped: 'newer'});
 });
+
+test("analysis never rolls the live stamp back: a lap uploaded during the run keeps its stamp", async () => {
+  // Stored: the live upload of lap 6 landed while analysis of 5 laps ran.
+  const stored = {
+    analysis: analysisStamp(1, {}),
+    recordingIds: ['r1'],
+    archiveParts: 6,
+    live: {updatedAt: '2026-10-14T01:15:57.674Z'},
+  };
+  const docs = new Map([['sessions/s1', stored]]);
+  const out = outFor();
+  out.session.recordingIds = ['r1'];
+  out.session.archiveParts = 5;
+  // The stamp the analysis read at its start.
+  out.session.live = {updatedAt: '2026-10-14T01:13:54.425Z'};
+  await createStore(backendOver(docs)).upload(out);
+  assert.equal(docs.get('sessions/s1').live.updatedAt, '2026-10-14T01:15:57.674Z');
+});
+
+test('a newer live stamp from the upload itself is written', async () => {
+  const docs = new Map([['sessions/s1', {recordingIds: ['r1'], live: {updatedAt: '2026-10-14T01:13:54Z'}}]]);
+  const out = outFor();
+  out.session.recordingIds = ['r1'];
+  out.session.live = {updatedAt: '2026-10-14T01:15:57Z'};
+  await createStore(backendOver(docs)).upload(out);
+  assert.equal(docs.get('sessions/s1').live.updatedAt, '2026-10-14T01:15:57Z');
+});
