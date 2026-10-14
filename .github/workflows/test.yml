@@ -236,7 +236,8 @@ jobs:
           924669c91dc135e2b7043e5f649b15a883663363338dff7b50142cb6f8af722e  road-atlanta-2026-10-02-practice.tar.gz
           SUMS
           )
-          tar -xzf "$RUNNER_TEMP/road-atlanta-2026-10-02-practice.tar.gz" -C "$pairs"
+          # Relative names: Git Bash's tar reads "D:\..." as a remote host "D".
+          (cd "$RUNNER_TEMP" && tar -xzf road-atlanta-2026-10-02-practice.tar.gz -C parity-pairs)
           (cd "$p" && sha256sum -c - <<SUMS
           5703aae394415c68cc50f5cdfff835c64d5af669ee9e2852794eabd9302707ee  game/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb
           f1e7f00da39f4d515b7742d5ed34af5cf88daef37802e7d9ff3c5a779144812f  catalog.json
