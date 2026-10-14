@@ -6,7 +6,7 @@ import {mkdtempSync, rmSync} from 'fs';
 import {tmpdir} from 'os';
 import {join} from 'path';
 import {onRequest} from 'firebase-functions/v2/https';
-import {LEASE_MS, handleAnalyze} from './analyzeCore';
+import {type AnalyzeDeps, LEASE_MS, handleAnalyze} from './analyzeCore';
 import {loadEngine} from './engine';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
@@ -18,6 +18,61 @@ const BUCKET = 'botracing-61-lmu';
 // dev server.
 const ALLOWED_ORIGIN =
   /^(https:\/\/botracing-61(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
+
+/**
+ * The lease, the engine run and the live stamp, for an open (analyzeApi) and a
+ * live lap (liveAnalyze.ts): one place, so both run the same way.
+ */
+export function engineDeps(
+  db: admin.firestore.Firestore,
+): Omit<AnalyzeDeps, 'owner'> {
+  const lease = (id: string) => db.doc(`analysisRuns/${id}`);
+  return {
+    takeLease: (id, owner, now) =>
+      db.runTransaction(async tx => {
+        const held = await tx.get(lease(id));
+        if (held.exists && (held.get('until') as number) > now)
+          return false;
+        tx.set(lease(id), {owner, until: now + LEASE_MS});
+        return true;
+      }),
+    releaseLease: async id => {
+      await lease(id).delete();
+    },
+    extendLease: async (id, owner, now) => {
+      await lease(id).set({owner, until: now + LEASE_MS});
+    },
+    liveStamp: async id => {
+      const at = (await db.doc(`sessions/${id}`).get()).get(
+        'live.updatedAt',
+      );
+      return typeof at === 'string' ? at : null;
+    },
+    analyze: async (sessionId, owner) => {
+      const {analyzeStored, adminBackend} = loadEngine();
+      const workDir = mkdtempSync(
+        join(tmpdir(), `analyze-${sessionId}-`),
+      );
+      try {
+        return await analyzeStored({
+          backend: adminBackend({
+            db,
+            bucket: admin.storage().bucket(BUCKET),
+          }),
+          sessionId,
+          owner,
+          workDir,
+          log: (line: string) =>
+            console.log(`analyze ${sessionId}: ${line}`),
+        });
+      } finally {
+        // /tmp is memory on Cloud Run: the archive must not stay.
+        rmSync(workDir, {recursive: true, force: true});
+      }
+    },
+    now: () => Date.now(),
+  };
+}
 
 export const analyzeApi = onRequest(
   {
@@ -49,7 +104,6 @@ export const analyzeApi = onRequest(
       return;
     }
     const db = admin.firestore();
-    const lease = (id: string) => db.doc(`analysisRuns/${id}`);
     try {
       const reply = await handleAnalyze(
         {
@@ -68,40 +122,7 @@ export const analyzeApi = onRequest(
               },
               authorization,
             ),
-          takeLease: (id, owner, now) =>
-            db.runTransaction(async tx => {
-              const held = await tx.get(lease(id));
-              if (held.exists && (held.get('until') as number) > now)
-                return false;
-              tx.set(lease(id), {owner, until: now + LEASE_MS});
-              return true;
-            }),
-          releaseLease: async id => {
-            await lease(id).delete();
-          },
-          analyze: async (sessionId, owner) => {
-            const {analyzeStored, adminBackend} = loadEngine();
-            const workDir = mkdtempSync(
-              join(tmpdir(), `analyze-${sessionId}-`),
-            );
-            try {
-              return await analyzeStored({
-                backend: adminBackend({
-                  db,
-                  bucket: admin.storage().bucket(BUCKET),
-                }),
-                sessionId,
-                owner,
-                workDir,
-                log: (line: string) =>
-                  console.log(`analyze ${sessionId}: ${line}`),
-              });
-            } finally {
-              // /tmp is memory on Cloud Run: the archive must not stay.
-              rmSync(workDir, {recursive: true, force: true});
-            }
-          },
-          now: () => Date.now(),
+          ...engineDeps(db),
         },
         req.method,
         req.path,

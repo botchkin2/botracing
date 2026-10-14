@@ -95,3 +95,62 @@ test('an engine failure other than 404/409 propagates, and the lease is let go',
   );
   assert.equal(w.leases.size, 0);
 });
+
+// Live laps (roadmap row 1, pit wall #5232-#5252): a run goes again while laps
+// land during it, so the last lap of a drive is analysed without an open.
+import {MAX_RUNS, gainedLiveLap, runAnalysis} from '../src/analyzeCore.ts';
+
+function liveWorld(stamps) {
+  const w = world();
+  let at = 0;
+  const reads = [];
+  w.deps.liveStamp = async () => {
+    reads.push(stamps[Math.min(at, stamps.length - 1)]);
+    return stamps[Math.min(at++, stamps.length - 1)];
+  };
+  const extended = [];
+  w.deps.extendLease = async (id, owner, now) => {
+    extended.push(now);
+    w.leases.set(id, now + LEASE_MS);
+  };
+  return {...w, extended};
+}
+
+test('a lap that lands during a run makes the run go again; then it stops', async () => {
+  // Stamp read before and after each run: lap 5 lands during run 1.
+  const w = liveWorld(['t4', 't5', 't5', 't5']);
+  const run = await runAnalysis(w.deps, ID, 'botkin');
+  assert.deepEqual(run, {state: 'done', laps: 21});
+  assert.equal(w.runs.length, 2);
+  assert.equal(w.extended.length, 1, 'the lease is extended before the second run');
+  assert.equal(w.leases.size, 0, 'and let go after');
+});
+
+test('re-runs stop at MAX_RUNS even if laps keep landing', async () => {
+  const w = liveWorld(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
+  await runAnalysis(w.deps, ID, 'botkin');
+  assert.equal(w.runs.length, MAX_RUNS);
+});
+
+test('a session that was never live runs once', async () => {
+  const w = liveWorld([null]);
+  await runAnalysis(w.deps, ID, 'botkin');
+  assert.equal(w.runs.length, 1);
+});
+
+test('a live lap while a run holds the lease starts nothing', async () => {
+  const w = liveWorld(['t1']);
+  await w.deps.takeLease(ID, 'botkin', w.deps.now());
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
+  assert.equal(w.runs.length, 0);
+});
+
+test('only a live upload that raises the lap count starts a run, never analysis writing back', () => {
+  const live = n => ({live: {updatedAt: 'x'}, lapCount: n});
+  assert.equal(gainedLiveLap(live(4), live(5)), true);
+  assert.equal(gainedLiveLap(undefined, live(1)), true);
+  // Analysis writes the doc with the same lap count: no loop.
+  assert.equal(gainedLiveLap(live(5), {...live(5), analysis: {v: 2}}), false);
+  // A game-file sync (no live block) never starts it.
+  assert.equal(gainedLiveLap({lapCount: 4}, {lapCount: 9}), false);
+});
