@@ -26,6 +26,7 @@ import {compareHref, cornerHref} from '@/src/nav/routes';
 import {type TraceLoad} from '@/src/data/traces';
 import {usePanelWidth} from '@/src/state/panelPrefs';
 import {
+  OfflineLine,
   Chip,
   FoldedSection,
   PANEL_DIVIDER_W,
@@ -134,6 +135,8 @@ export function CornerScreen({
         ]}>
         {result.state === 'loading' ? (
           <ActivityIndicator color={color.accent} />
+        ) : result.state === 'offline' ? (
+          <Text tone='textMuted'>Offline</Text>
         ) : result.state === 'error' ? (
           <View style={styles.banner}>
             <StatusBanner
@@ -158,6 +161,7 @@ export function CornerScreen({
     <CornerView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       lapIds={result.lapIds}
       keyLapIds={result.keyLapIds}
       openingIds={result.openingIds}
@@ -174,6 +178,7 @@ export function CornerScreen({
 function CornerView({
   sessionId,
   model,
+  offlineText,
   lapIds,
   keyLapIds,
   openingIds,
@@ -186,6 +191,8 @@ function CornerView({
 }: {
   sessionId: string;
   model: CornerModel;
+  /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+  offlineText: string | null;
   lapIds: string[];
   keyLapIds: string[];
   openingIds: string[];
@@ -320,6 +327,7 @@ function CornerView({
       <Text variant='dataSmall' tone='textMuted'>
         {model.subtitle}
       </Text>
+      <OfflineLine text={offlineText} />
     </View>
   );
   // One line that scrolls sideways on both layouts: 25 corners wrapped to
