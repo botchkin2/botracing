@@ -58,7 +58,42 @@ function Fail($message) {
       Write-Host ("   " + ("  " * $depth) + "pid $($proc.ProcessId) $($proc.Name) started $($proc.CreationDate): $($proc.CommandLine)")
       foreach ($child in @($procs | Where-Object { $_.ParentProcessId -eq $proc.ProcessId })) { $queue.Enqueue(@($child, $depth + 1)) }
     }
+    # What it shows (passive mode has UI): every top-level window of each
+    # installer process, its title and its controls' text (row 4: a dialog
+    # waiting on a click would hang it with no child process).
+    if (-not ("E2EWin" -as [type])) {
+      Add-Type -TypeDefinition @'
+using System; using System.Text; using System.Collections.Generic; using System.Runtime.InteropServices;
+public static class E2EWin {
+  delegate bool Each(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumWindows(Each f, IntPtr p);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr w, Each f, IntPtr p);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  static string T(IntPtr h) { var b = new StringBuilder(512); GetWindowText(h, b, 512); return b.ToString(); }
+  static string C(IntPtr h) { var b = new StringBuilder(256); GetClassName(h, b, 256); return b.ToString(); }
+  public static List<string> Of(uint pid) {
+    var o = new List<string>();
+    EnumWindows((h, p) => { uint q; GetWindowThreadProcessId(h, out q); if (q == pid) {
+      o.Add("window [" + C(h) + "] visible=" + IsWindowVisible(h) + ": " + T(h));
+      EnumChildWindows(h, (c, p2) => { var t = T(c); if (t.Length > 0) o.Add("    [" + C(c) + "] " + t); return true; }, IntPtr.Zero);
+    } return true; }, IntPtr.Zero);
+    return o;
+  }
+}
+'@
+    }
+    foreach ($r in $roots) {
+      Write-Host "-- windows of pid $($r.ProcessId)"
+      foreach ($line in [E2EWin]::Of([uint32]$r.ProcessId)) { Write-Host "   $line" }
+    }
   } else { Write-Host "-- no installer process running" }
+  # Anything still running from the install folder (the watcher's node, a
+  # recorder) holds its files: the installer cannot replace them.
+  $left = @($procs | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($data, [StringComparison]::OrdinalIgnoreCase) })
+  Write-Host "-- processes running from $data`: $(if ($left.Count) { ($left | ForEach-Object { "pid $($_.ProcessId) $($_.ExecutablePath)" }) -join '; ' } else { 'none' })"
   $wv = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -ErrorAction SilentlyContinue
   Write-Host "-- WebView2 runtime registered: $(if ($wv) { $wv.pv } else { 'no' })"
   if ($server -and -not $server.HasExited) { $server.Kill() }

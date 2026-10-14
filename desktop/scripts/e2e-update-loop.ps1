@@ -5,7 +5,7 @@
 #
 #   ./desktop/scripts/e2e-update-loop.ps1 -Runs 30 -Old .. -New .. -Signature .. -Version .. -Port .. -Out <dir>
 #
-# Each run's whole output goes to <Out>/run-<i>.log. After a failed run the
+# Each run's whole output goes to <Out>/run-<i>.log. The
 # runner is reset before each run (installer, tray and test server ended, the
 # install and its data removed) so every run starts clean. <Out>/summary.txt counts the
 # failures by the wait that timed out ("UPDATE E2E FAILED: ..."). Exits 1 when
