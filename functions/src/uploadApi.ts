@@ -109,9 +109,14 @@ function firebaseFiles(): FileStore {
         const encoding = contentEncoding
           ? `&contentEncoding=${contentEncoding}`
           : '';
+        // The query sets the object's contentEncoding. A Content-Encoding
+        // header on this POST would be taken as the request's own encoding:
+        // the emulator inflates the body and stores plain JSON marked gzip,
+        // which the reader then fails to gunzip (#619 contract-replay).
+        const {'Content-Encoding': _sent, ...plain} = headers;
         return {
           url: `http://${emulator}/upload/storage/v1/b/${BUCKET}/o?uploadType=media&name=${name}${encoding}`,
-          headers,
+          headers: plain,
           method: 'POST' as const,
         };
       }
