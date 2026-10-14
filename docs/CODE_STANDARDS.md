@@ -72,7 +72,13 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 ## 8. Tests
 
 - **Every `analysis/` function and every `model.ts` has a colocated test** (`x.ts` → `x.test.ts`). Test behavior at the boundaries the handoff names: 6, 7, 19 and 20 selected laps; empty sessions; no comparable laps; partial and pit laps; the ±0.10 s and ±0.30 s grid cut-offs.
-- Use small handwritten fixtures in the test file. Real session files go in `__fixtures__/` next to the test and stay under 50 KB.
+- Pure analysis logic may use small handwritten fixtures in the test file. Real session files go in `__fixtures__/` next to the test and stay under 50 KB.
+- **Tray/API messages are tested with real payloads** (Botkin, 2026-10-13: uploader failures from type errors a test could have caught are not acceptable). Why: #597, a server test sent `gameVersion: '1.2'`, a value the tray never sends (it sends 0 or 14200), and every heartbeat was refused during a live drive. The rules:
+  - *Accept* cases are real bodies captured from the tray (LMU and iRacing, per tray version) in `contract/payloads/`, scrubbed by the loader's rule (`contract/README.md`). *Reject* cases are a real payload with one field changed through `mutate()`, named in the test. No body is written inline: tests get payloads only through the `contract/` loader, and a lint fails anything else.
+  - Each message has one schema in `functions/src/contract/`. The server validates with it, and the senders are checked against it: the watcher's output and the Rust recorder's JSON shape in their own tests, so drift on the tray side fails too.
+  - Captures are refreshed by the change that needs them: a sender body with a key or JSON type no saved payload has fails until a real one is saved, and every released tray needs payloads (`contract/heartbeat.test.mjs`). Also after an LMU or iRacing update.
+  - Analysis fixtures are separate: `tools/golden/` stays the analysis set, in the private bucket.
+  - The `contract-replay` CI job runs the tray's own watcher on real recordings (a live capture and finished LMU and iRacing files from `golden/`) against the API in the emulators, through Hosting's `/api` rewrites (`functions/test/replay/`). Any refused request, lost lap or refused heartbeat fails it.
 - Components get tests only when they hold logic that cannot move to a model. Prefer moving the logic.
 - A bug fix starts with a failing test that reproduces it.
 - `npm test`, `npm run lint` and `npx tsc --noEmit` pass before every PR. Never skip or weaken a test to make it pass; if a test is wrong, say why in the PR.

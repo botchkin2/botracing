@@ -26,13 +26,13 @@ import {
   renameSync,
   statSync,
   statfsSync,
-  writeFileSync,
 } from 'node:fs';
 import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
+import {replaceFile} from '../sessions/replaceFile.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
 import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
@@ -385,17 +385,16 @@ async function main() {
   // reads as changed, so the first run with this code syncs everything once.
   // The archive repair's version too: a tray that brings a new repair syncs
   // once on its first start (game closed, as every run), not at the next drive.
-  const currentKey = `${versionKey(analysisVersion, blockVersions)}|repair${ARCHIVE_REPAIR}`;
+  const currentKey = `${versionKey(
+    analysisVersion,
+    blockVersions,
+  )}|repair${ARCHIVE_REPAIR}`;
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
   clearStaleSyncing(watch, SIMS);
   // Written to a temp file and renamed, so the tray never reads a half-written state.json.
-  const save = () => {
-    const tmp = `${statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(watch));
-    renameSync(tmp, statePath);
-  };
+  const save = () => replaceFile(statePath, JSON.stringify(watch));
   save();
   let wasRunning = false;
   let lastKey = '';
@@ -502,7 +501,9 @@ async function main() {
           save();
         }
         if (!running || !exeRunning(gameExeOf(sim))) continue;
-        const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
+        const lastLapAtMs = recorder?.lastLapAt
+          ? Date.parse(recorder.lastLapAt)
+          : null;
         const plan = decideLive({
           gameRunning: true,
           lastLapAtMs,

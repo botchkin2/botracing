@@ -176,7 +176,7 @@ describe('buildFuelUse', () => {
     expect(fu.stints[0].loadLaps.fuel).toBeNull();
     // 100 % VE is the full load whatever the start.
     expect(fu.stints[0].loadLaps.ve).not.toBeNull();
-    expect(limitText(fu)).toContain('No fill limit on record');
+    expect(limitText(fu)).toBeNull();
   });
 
   it('has no load in laps of fuel without a fill limit on record', () => {
@@ -226,7 +226,7 @@ describe('planLinkText', () => {
       '12 green laps: not in Road Atlanta · 911 GT3 R (79 L). This session ran at the 75 L limit ›',
     );
     expect(planLinkText(12, 'X', null, 79)).toBe(
-      '12 green laps: not in X (79 L). This session has no fill limit on record ›',
+      '12 green laps: not in X (79 L) ›',
     );
   });
 });

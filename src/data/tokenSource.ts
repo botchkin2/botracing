@@ -61,17 +61,36 @@ export const bearer = (token: string | null): Record<string, string> =>
   token ? {Authorization: `Bearer ${token}`} : {};
 
 /**
+ * The ID token could not be had for someone who is signed in: the refresh of
+ * an expired token failed, most often for want of signal. Not a 4xx, so React
+ * Query retries it (retryUnlessClientError), and no request goes out bare: a
+ * bare request's 401 would ask a signed-in person to sign in.
+ */
+export class AuthTokenError extends Error {
+  constructor(readonly cause: unknown) {
+    super('could not get the ID token');
+    this.name = 'AuthTokenError';
+  }
+}
+
+/**
  * The Authorization header for the API: the current ID token (the SDK
- * refreshes it before it expires), or nothing when signed out. A failed
- * refresh sends no header rather than throwing, so the API answers 401 and the
- * sign-in prompt shows, instead of the screen showing a network error.
+ * refreshes it before it expires), or nothing only when signed out. A failed
+ * refresh throws AuthTokenError.
  */
 export async function authHeaders(): Promise<Record<string, string>> {
+  const started = waiting;
   await authSettled();
+  // The root remounted after this call passed the gate (followFirebase's stop
+  // nulls the provider and opens a new wait): wait for that answer, once, so a
+  // stuck SDK still ends after AUTH_WAIT_MS rather than looping.
+  if (!provider && waiting && waiting !== started) await authSettled();
   if (!provider) return {};
+  let token: string | null;
   try {
-    return bearer(await provider());
-  } catch {
-    return {};
+    token = await provider();
+  } catch (e) {
+    throw new AuthTokenError(e);
   }
+  return bearer(token);
 }

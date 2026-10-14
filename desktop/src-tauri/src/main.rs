@@ -7,6 +7,8 @@ mod auth;
 mod autostart;
 mod browser;
 mod capture;
+#[cfg(test)]
+mod contract;
 mod failure_report;
 mod install;
 mod menu;

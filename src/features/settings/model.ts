@@ -171,9 +171,11 @@ export function uploaderCard(u: Uploader, nowMs: number): UploaderCard {
       u.queue > 0 ? ` · ${u.queue} queued` : ''
     }`,
     u.disk
-      ? `Capture ${formatBytes(u.disk.captureBytes)} · ${formatBytes(
-          u.disk.freeBytes,
-        )} free`
+      ? `Capture ${formatBytes(u.disk.captureBytes)}${
+          u.disk.freeBytes != null
+            ? ` · ${formatBytes(u.disk.freeBytes)} free`
+            : ''
+        }`
       : '',
     u.recorder && u.recorder.layoutOk
       ? `Recorder ${recorderState(u.recorder)}${

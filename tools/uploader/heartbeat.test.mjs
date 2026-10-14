@@ -11,6 +11,17 @@ import {
   problemsOf,
   scrub,
 } from './heartbeat.mjs';
+import {mutate, payload} from '../../contract/payloads.mjs';
+
+// The recorder's real status.json (contract/README.md), recording, fresh at nowMs.
+const STATUS = [
+  ['state', 'recording'],
+  ['lastChunkAt', '2026-09-29T09:59:30Z'],
+  ['updatedAt', '2026-09-29T09:59:40Z'],
+].reduce(
+  (s, [path, value]) => mutate(s, path, value),
+  payload('recorder-status', '0.1.10-no-game'),
+);
 
 const nowMs = Date.parse('2026-09-29T10:00:00Z');
 const input = {
@@ -26,14 +37,7 @@ const input = {
   },
   queue: 0,
   freeBytes: 500e9,
-  recorder: {
-    state: 'recording',
-    gameVersion: '1.2.3',
-    layoutOk: true,
-    lastChunkAt: '2026-09-29T09:59:30Z',
-    captureBytes: 123,
-    updatedAt: '2026-09-29T09:59:40Z',
-  },
+  recorder: STATUS,
   nowMs,
 };
 
@@ -43,7 +47,10 @@ test('matches the contract the app reads', () => {
   assert.equal(doc.label, 'Race PC');
   assert.ok(!JSON.stringify(doc).includes('BOTKIN'));
   assert.equal(doc.lastSeenAt, '2026-09-29T10:00:00.000Z');
-  assert.deepEqual(doc.disk, {captureBytes: 123, freeBytes: 500e9});
+  assert.deepEqual(doc.disk, {
+    captureBytes: STATUS.captureBytes,
+    freeBytes: 500e9,
+  });
   assert.equal(doc.recorder.state, 'recording');
   assert.equal(doc.recorder.updatedAt, '2026-09-29T09:59:40Z');
   assert.equal(doc.lastError, null);
@@ -149,11 +156,11 @@ test('problems: a crashed sync, each session on a retry, a stopped recorder, new
         },
       },
     ],
-    recorder: {
-      ...input.recorder,
-      layoutOk: false,
-      layoutReason: 'struct size 1234 != 1240',
-    },
+    recorder: mutate(
+      mutate(input.recorder, 'layoutOk', false),
+      'layoutReason',
+      'struct size 1234 != 1240',
+    ),
     nowMs,
   });
   assert.deepEqual(
@@ -249,29 +256,63 @@ test('each sim has its own queue, and only the sim being synced has the progress
     'iracing',
     {done: 2, total: 5},
   );
-  assert.deepEqual(sims.lmu, {queue: 0, syncing: false, progress: null, retryAt: null, lastError: null});
-  assert.deepEqual(sims.iracing, {queue: 5, syncing: true, progress: {done: 2, total: 5}, retryAt: null, lastError: null});
+  assert.deepEqual(sims.lmu, {
+    queue: 0,
+    syncing: false,
+    progress: null,
+    retryAt: null,
+    lastError: null,
+  });
+  assert.deepEqual(sims.iracing, {
+    queue: 5,
+    syncing: true,
+    progress: {done: 2, total: 5},
+    retryAt: null,
+    lastError: null,
+  });
   // Nothing syncing: nobody has progress, whatever the watcher last reported.
-  assert.equal(simsDoc([{id: 'lmu', queue: 1}], null, {done: 1, total: 2}).lmu.progress, null);
+  assert.equal(
+    simsDoc([{id: 'lmu', queue: 1}], null, {done: 1, total: 2}).lmu.progress,
+    null,
+  );
 });
 
 test('each sim keeps its own retry time and error, with user folders scrubbed', () => {
   const sims = simsDoc([
-    {id: 'lmu', queue: 1, retryAtMs: Date.UTC(2026, 9, 9, 12), lastError: {at: '2026-10-09T11:00:00Z', message: String.raw`boom in C:SERSBOTKINX`}},
+    {
+      id: 'lmu',
+      queue: 1,
+      retryAtMs: Date.UTC(2026, 9, 9, 12),
+      lastError: {
+        at: '2026-10-09T11:00:00Z',
+        message: String.raw`boom in C:SERSBOTKINX`,
+      },
+    },
     {id: 'iracing', queue: 0},
   ]);
   assert.equal(sims.lmu.retryAt, '2026-10-09T12:00:00.000Z');
-  assert.ok(!sims.lmu.lastError.message.includes('Botkin'), sims.lmu.lastError.message);
+  assert.ok(
+    !sims.lmu.lastError.message.includes('Botkin'),
+    sims.lmu.lastError.message,
+  );
   assert.equal(sims.iracing.retryAt, null);
   assert.equal(sims.iracing.lastError, null);
 });
 
 test('the heartbeat carries the sims, and a change in one sim forces a write', () => {
-  const sims = n => simsDoc([{id: 'lmu', queue: n}, {id: 'iracing', queue: 0}]);
+  const sims = n =>
+    simsDoc([
+      {id: 'lmu', queue: n},
+      {id: 'iracing', queue: 0},
+    ]);
   const a = heartbeatDoc({...input, sims: sims(0)});
   assert.deepEqual(Object.keys(a.sims), ['lmu', 'iracing']);
   assert.notEqual(beatKey(a), beatKey(heartbeatDoc({...input, sims: sims(1)})));
-  assert.deepEqual(heartbeatDoc(input).sims, {}, 'an old caller still gets a doc');
+  assert.deepEqual(
+    heartbeatDoc(input).sims,
+    {},
+    'an old caller still gets a doc',
+  );
 });
 
 test('problems: a recording the sync could not read is named by its file', () => {

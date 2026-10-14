@@ -93,6 +93,23 @@ const writeJson = (path, value) => {
   renameSync(`${path}.tmp`, path);
 };
 const iso = () => new Date().toISOString();
+// status.json as the recorder writes it (recorder.rs Status::json), every
+// field: the watcher sends it on in its heartbeat, and the contract replay
+// checks its shape against the real ones (contract/README.md).
+const recorderStatus = (state, fields) => ({
+  captureBytes: 0,
+  droppedPct: 0,
+  gameVersion: meta.gameVersion ?? null,
+  lastChunkAt: null,
+  lastLapAt,
+  layoutOk: true,
+  layoutReason: '',
+  pid: process.pid,
+  sessionDir: null,
+  state,
+  updatedAt: iso(),
+  ...fields,
+});
 
 writeJson(resolve(dir, 'meta.json'), {...meta, endUtc: null, chunks: 0});
 let lastLapAt = null;
@@ -125,13 +142,13 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     lastLapAt = iso();
     lapsDone++;
   }
-  writeJson(status, {
-    state: 'recording',
-    lastChunkAt: iso(),
-    lastLapAt,
-    sessionDir: folder,
-    updatedAt: iso(),
-  });
+  writeJson(
+    status,
+    recorderStatus('recording', {
+      lastChunkAt: iso(),
+      sessionDir: folder,
+    }),
+  );
   console.log(
     `${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${
       lapCuts.includes(b) ? ' lap on disk' : ''
@@ -140,10 +157,5 @@ for (let n = 0; n + 1 < cuts.length; n++) {
   if (lapsDone >= maxLaps) break;
 }
 writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
-writeJson(status, {
-  state: 'waiting',
-  lastLapAt,
-  sessionDir: null,
-  updatedAt: iso(),
-});
+writeJson(status, recorderStatus('waiting'));
 console.log(`${iso()} replay done, ${lapsDone} laps`);
