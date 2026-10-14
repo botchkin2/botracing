@@ -121,6 +121,9 @@ export const CHANNELS = [
  */
 export const CAUTION = 0x00004000 | 0x00008000;
 
+/** The yellow_flag event's value for one SessionFlags sample. */
+export const yellowFlagOf = flags => (flags & CAUTION ? 1 : 0);
+
 export function mapSessionType(raw) {
   const t = String(raw).toLowerCase();
   if (t.includes('race')) return 'Race';
@@ -558,9 +561,7 @@ export function writeArchiveOf(
     }
     if (raw.SessionFlags) {
       events.push(
-        ...emitChanges(t, raw.SessionFlags, 'yellow_flag', v =>
-          v & CAUTION ? 1 : 0,
-        ),
+        ...emitChanges(t, raw.SessionFlags, 'yellow_flag', yellowFlagOf),
       );
     }
     events.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
