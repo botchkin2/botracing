@@ -38,6 +38,9 @@ const argv = process.env.REPLAY_ARGV
 const all = name => argv.flatMap((a, i) => (a === name ? [argv[i + 1]] : []));
 const arg = (name, fallback) => all(name)[0] ?? fallback;
 const laps = Number(arg('--laps', '3'));
+// After the last lap's upload, its rows must be in the session within this:
+// one analysis run (the emulator is slower than the cloud's 2 vCPU).
+const LAPS_WITHIN_MS = 90_000;
 const speed = arg('--speed', '4');
 const api = process.env.REPLAY_API;
 const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
@@ -94,6 +97,7 @@ function checkWatcher(what, home, fail) {
 async function live(from) {
   const fail = why => problems.push(`live ${basename(from)}: ${why}`);
   if (!existsSync(join(from, 'meta.json'))) return fail('no capture there');
+  const token = await newUser();
   const run = spawn(
     process.execPath,
     [
@@ -101,7 +105,7 @@ async function live(from) {
       '--from',
       from,
       '--token',
-      await newUser(),
+      token,
       '--no-screen',
       '--laps',
       String(laps),
@@ -121,6 +125,27 @@ async function live(from) {
   run.stderr.setEncoding('utf8').on('data', c => process.stderr.write(c));
   const code = await new Promise(r => run.on('exit', r));
   if (code !== 0) fail(`liveE2E exited ${code}`);
+  // The laps as the session screen reads them, with nobody opening the
+  // session (no POST /api/analyze here): the live upload alone must make them
+  // exist, through liveAnalyze (roadmap row 1, pit wall #5232). lapCount on
+  // the session doc is not enough: tonight's drive had it while /laps was
+  // empty for 22 s.
+  const sessionId = out.match(/session ([0-9a-f]{16});/)?.[1];
+  if (!sessionId) return fail('no session id in the liveE2E output');
+  const lapsUntil = Date.now() + LAPS_WITHIN_MS;
+  let rows = 0;
+  while (Date.now() < lapsUntil) {
+    const res = await fetch(`${api}/api/sessions/${sessionId}/laps`, {
+      headers: {Authorization: `Bearer ${readFileSync(token, 'utf8').trim()}`},
+    });
+    rows = res.ok ? ((await res.json()).items ?? []).length : 0;
+    if (rows >= laps) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  if (rows < laps)
+    fail(`${rows} of ${laps} laps in /sessions/${sessionId}/laps ${LAPS_WITHIN_MS / 1000} s after the last upload, nobody opening it`);
+  else
+    console.log(`live ${basename(from)}: ${rows} lap rows in the session, nobody opening it`);
   const scratch = out.match(/scratch: (.+?) \(watch\.log/)?.[1];
   if (!scratch) return fail('no scratch folder in the liveE2E output');
   checkWatcher(`live ${basename(from)}`, join(scratch, 'home'), fail);

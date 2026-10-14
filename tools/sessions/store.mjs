@@ -266,6 +266,27 @@ function bringsNewRecordings(before, session) {
   return (session.archiveParts ?? 0) > (before?.archiveParts ?? 0);
 }
 
+// A live session's lap uploaded while this analysis ran (most of its time
+// goes on the files and laps above): read the doc again right before the
+// session write and keep what the upload set. Never roll the live stamp back
+// (liveAnalyze's re-run watches it; sidepod on #614), and keep the stored
+// part count and leave the session stale, so the new lap is analysed too.
+// The window left is one read to one write; a lap landing in it is still
+// picked up by the next lap's run, or by an open. ISO times compare as text.
+export function keepNewerLive(session, stored, log = () => {}) {
+  const storedLive = stored?.live?.updatedAt;
+  if (
+    typeof storedLive === 'string' &&
+    storedLive > (session.live?.updatedAt ?? '')
+  )
+    session.live = stored.live;
+  if ((stored?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
+    session.archiveParts = stored.archiveParts;
+    session.analysis = {...session.analysis, v: 0};
+    log('  a lap arrived during this analysis: left stale');
+  }
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -281,13 +302,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     return {skipped: 'newer'};
   }
 
-  // A live session gained a lap while this analysis ran: keep the count of
-  // what is stored and leave it stale, so the next open analyses that lap too.
-  if ((before?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
-    session.archiveParts = before.archiveParts;
-    session.analysis = {...session.analysis, v: 0};
-    log('  a lap arrived during this analysis: left stale');
-  }
 
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
@@ -533,6 +547,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // leaves the old stamp, and the session is analysed again.
   const writer = {stamp: session.analysis ?? null};
   await backend.writeDocs(ops, writer);
+  keepNewerLive(session, await backend.getDoc('sessions', session.id), log);
   await backend.writeDocs(
     [{op: 'set', coll: 'sessions', id: session.id, data: session}],
     writer,
