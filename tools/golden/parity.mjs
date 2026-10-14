@@ -172,11 +172,17 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
   // A lap path also has its role, so a rule can say "the last lap" or "an
   // untimed lap" instead of a lap number of one pair.
   const lastNumber = Math.max(-1, ...capture.laps.map(l => l.lapNumber));
+  const firstNumber = Math.min(Infinity, ...capture.laps.map(l => l.lapNumber));
+  const roleOf = lap => ({
+    first: lap.lapNumber === firstNumber,
+    last: lap.lapNumber === lastNumber,
+    untimed: lap.timed === false,
+  });
   const lapRole = new Map();
   const byNumber = new Map(game.laps.map(l => [l.lapNumber, l]));
   for (const lap of capture.laps) {
     const other = byNumber.get(lap.lapNumber);
-    const role = {last: lap.lapNumber === lastNumber, untimed: lap.timed === false};
+    const role = roleOf(lap);
     if (!other) all.push([`laps.${lap.lapNumber}`, 'present', 'missing']);
     else
       for (const [p, a, b] of differences(lap, other)) {
@@ -192,8 +198,17 @@ export function judge({capture, game, name: pairName}, allow = loadAllow()) {
   const allowed = new Map();
   for (const [path, a, b] of all) {
     const g = generic(path);
-    const role = lapRole.get(path) ?? {};
-    const forms = [g, path, role.last ? g.replace(/^laps\.#/, 'laps.last') : null];
+    // The session's lap table lists the laps in order: row i is lap i's.
+    const row = path.match(/^session\.lapTable\.(\d+)\./);
+    const tableLap = row ? capture.laps[Number(row[1])] : null;
+    const role = lapRole.get(path) ?? (tableLap ? roleOf(tableLap) : {});
+    const lapForm = name => g.replace(/^(laps|session\.lapTable)\.#/, `$1.${name}`);
+    const forms = [
+      g,
+      path,
+      role.last ? lapForm('last') : null,
+      role.first ? lapForm('first') : null,
+    ];
     const rule = allow.find(
       e =>
         (e.pair == null || e.pair === pairName) &&
