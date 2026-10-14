@@ -22,21 +22,58 @@ export const LIVE = {
 export const RECEIVER = 'roles/eventarc.eventReceiver';
 export const INVOKER = 'roles/run.invoker';
 
+// The project's first event-triggered function: the Firebase CLI checks these
+// Google service-agent bindings before it deploys one, whatever account the
+// function runs as, and fails the deploy when one is missing (firebase-tools
+// lib/deploy/functions/checkIam.js ensureServiceAgentRoles, haveServices
+// empty; the #614 deploy, run 38497100019). Our deploy account cannot grant
+// them, so they are here. The compute account runs none of our functions
+// (all run as lap-runtime) and our HTTP functions are open to callers anyway,
+// so run.invoker on it adds nothing to who can call them.
+export const AGENT_BINDINGS = [
+  {
+    member: 'serviceAccount:service-702873435846@gcp-sa-pubsub.iam.gserviceaccount.com',
+    role: 'roles/iam.serviceAccountTokenCreator',
+  },
+  {
+    member: 'serviceAccount:702873435846-compute@developer.gserviceaccount.com',
+    role: INVOKER,
+  },
+  {
+    member: 'serviceAccount:702873435846-compute@developer.gserviceaccount.com',
+    role: RECEIVER,
+  },
+];
+
 const member = (l = LIVE) => `serviceAccount:${l.runtime}`;
 
-/** Whether a policy (gcloud JSON) gives the runtime account `role`, unconditioned. */
-export function grants(policyJson, role, l = LIVE) {
+/** Whether a policy (gcloud JSON) gives `who` `role`, unconditioned. */
+export function has(policyJson, role, who) {
   return (policyJson?.bindings ?? []).some(
-    b => b.role === role && !b.condition && (b.members ?? []).includes(member(l)),
+    b => b.role === role && !b.condition && (b.members ?? []).includes(who),
   );
 }
 
+/** Whether a policy (gcloud JSON) gives the runtime account `role`, unconditioned. */
+export function grants(policyJson, role, l = LIVE) {
+  return has(policyJson, role, member(l));
+}
+
 /**
- * The steps still to take. state: {receiver, serviceExists, invoker}. Only
- * adds: it never removes a role.
+ * The steps still to take. state: {receiver, serviceExists, invoker, agents}
+ * (agents: one boolean per AGENT_BINDINGS entry). Only adds: it never removes
+ * a role.
  */
 export function planLiveAnalyze(state, l = LIVE) {
   const steps = [];
+  AGENT_BINDINGS.forEach((b, i) => {
+    if (state.agents?.[i]) return;
+    steps.push({
+      what: `${b.member.replace('serviceAccount:', '')}: ${b.role} on ${l.project} (the deploy's first event function)`,
+      run: ['projects', 'add-iam-policy-binding', l.project, `--member=${b.member}`,
+        `--role=${b.role}`, '--condition=None'],
+    });
+  });
   if (!state.receiver)
     steps.push({
       what: `${l.runtime}: ${RECEIVER} on ${l.project}`,

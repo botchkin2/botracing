@@ -11,7 +11,7 @@
 import {pathToFileURL} from 'node:url';
 import {gcloudRunner} from './gcloud.mjs';
 import {runWithRetry} from './ciSplit.mjs';
-import {INVOKER, LIVE, RECEIVER, grants, planLiveAnalyze} from './liveAnalyzePlan.mjs';
+import {AGENT_BINDINGS, INVOKER, LIVE, RECEIVER, grants, has, planLiveAnalyze} from './liveAnalyzePlan.mjs';
 
 function tryOr(fn, fallback) {
   try {
@@ -38,6 +38,7 @@ export function readState(run, l = LIVE) {
     : null;
   return {
     receiver: grants(project, RECEIVER, l),
+    agents: AGENT_BINDINGS.map(b => has(project, b.role, b.member)),
     serviceExists,
     invoker: grants(service, INVOKER, l),
   };
