@@ -3,18 +3,30 @@
 // Firebase imports, so node --test runs it (functions/test/analyzeCore.test.mjs);
 // analyzeApi.ts binds it to Firestore and the bundled engine.
 
-export const LEASE_MS = 150_000;
+// A run holds analysisRuns/{id} for LEASE_MS and renews it every
+// LEASE_RENEW_MS while it works, so a run of any length keeps it and a crashed
+// one frees it within LEASE_MS. Each run's lease carries its own token: a run
+// renews and releases only its own (spring #5375: with a fixed 150 s lease and
+// a 300 s run, a second run took the lease and the first deleted it).
+export const LEASE_MS = 90_000;
+export const LEASE_RENEW_MS = 30_000;
 const SESSION_ID = /^[0-9a-f]{16}$/;
 
 export interface AnalyzeDeps {
   /** The caller's owner key (ownerAccess.ts resolveOwner); throws Unauthorized. */
   owner(authorization: string | undefined): Promise<string>;
   /**
-   * Takes analysisRuns/{id} for LEASE_MS in a transaction: true when taken,
-   * false while another run holds it.
+   * Takes analysisRuns/{id} for LEASE_MS in a transaction with this run's
+   * token: true when taken, false while another run holds it.
    */
-  takeLease(sessionId: string, owner: string, now: number): Promise<boolean>;
-  releaseLease(sessionId: string): Promise<void>;
+  takeLease(
+    sessionId: string,
+    owner: string,
+    now: number,
+    token: string,
+  ): Promise<boolean>;
+  /** Deletes the lease only while it still carries `token`. */
+  releaseLease(sessionId: string, token: string): Promise<void>;
   /** The engine: analyzeStored. Rejects with {status} for 404 and 409. */
   analyze(sessionId: string, owner: string): Promise<{laps: number}>;
   /**
@@ -22,8 +34,20 @@ export interface AnalyzeDeps {
    * it was never live. A lap uploaded during a run moves it.
    */
   liveStamp?(sessionId: string): Promise<string | null>;
-  /** Moves the held lease's end to now + LEASE_MS, before another run. */
-  extendLease?(sessionId: string, owner: string, now: number): Promise<void>;
+  /**
+   * Moves the lease's end to now + LEASE_MS while it still carries `token`;
+   * false when another run has it (this one then stops writing).
+   */
+  extendLease(
+    sessionId: string,
+    owner: string,
+    now: number,
+    token: string,
+  ): Promise<boolean>;
+  /** Calls `fn` every `ms` until the returned stop is called. */
+  every(ms: number, fn: () => void): () => void;
+  /** A run's lease token, unique per run. */
+  token(): string;
   now(): number;
 }
 
@@ -72,12 +96,17 @@ export async function runAnalysis(
   sessionId: string,
   owner: string,
 ): Promise<Run> {
-  if (!(await deps.takeLease(sessionId, owner, deps.now())))
+  const token = deps.token();
+  if (!(await deps.takeLease(sessionId, owner, deps.now(), token)))
     return {state: 'running'};
+  const stop = deps.every(LEASE_RENEW_MS, () => {
+    void deps.extendLease(sessionId, owner, deps.now(), token).catch(() => {});
+  });
   try {
     let laps = 0;
     for (let run = 1; run <= MAX_RUNS; run++) {
-      if (run > 1) await deps.extendLease?.(sessionId, owner, deps.now());
+      if (run > 1 && !(await deps.extendLease(sessionId, owner, deps.now(), token)))
+        break;
       const before = deps.liveStamp ? await deps.liveStamp(sessionId) : null;
       ({laps} = await deps.analyze(sessionId, owner));
       if (!deps.liveStamp || before === null) break;
@@ -90,7 +119,8 @@ export async function runAnalysis(
       return {state: 'refused', status, message: (error as Error).message};
     throw error;
   } finally {
-    await deps.releaseLease(sessionId);
+    stop();
+    await deps.releaseLease(sessionId, token);
   }
 }
 

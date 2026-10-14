@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {LEASE_MS, handleAnalyze} from '../src/analyzeCore.ts';
+import {LEASE_MS, LEASE_RENEW_MS, handleAnalyze} from '../src/analyzeCore.ts';
 import {Unauthorized} from '../src/ownerAccess.ts';
 
 const ID = '4c96f9dfd54fd9ab';
@@ -8,19 +8,33 @@ const ID = '4c96f9dfd54fd9ab';
 function world({owners = {'Bearer a': 'botkin'}, analyze} = {}) {
   const leases = new Map();
   const runs = [];
+  const timers = [];
+  let tokens = 0;
   let clock = 1_000_000;
   const deps = {
     owner: async auth => {
       if (!owners[auth]) throw new Unauthorized('sign in');
       return owners[auth];
     },
-    takeLease: async (id, owner, now) => {
+    takeLease: async (id, owner, now, token) => {
       const held = leases.get(id);
-      if (held && held > now) return false;
-      leases.set(id, now + LEASE_MS);
+      if (held && held.until > now) return false;
+      leases.set(id, {until: now + LEASE_MS, token});
       return true;
     },
-    releaseLease: async id => void leases.delete(id),
+    releaseLease: async (id, token) => {
+      if (leases.get(id)?.token === token) leases.delete(id);
+    },
+    extendLease: async (id, owner, now, token) => {
+      if (leases.get(id)?.token !== token) return false;
+      leases.set(id, {until: now + LEASE_MS, token});
+      return true;
+    },
+    every: (ms, fn) => {
+      timers.push(fn);
+      return () => timers.splice(timers.indexOf(fn), 1);
+    },
+    token: () => `run-${++tokens}`,
     analyze:
       analyze ??
       (async (id, owner) => {
@@ -29,7 +43,7 @@ function world({owners = {'Bearer a': 'botkin'}, analyze} = {}) {
       }),
     now: () => clock,
   };
-  return {deps, leases, runs, tick: ms => (clock += ms)};
+  return {deps, leases, runs, timers, tick: ms => (clock += ms)};
 }
 
 test('the owner analyses their session; the lease is let go after', async () => {
@@ -62,7 +76,7 @@ test("another owner's session is a 404 from the engine, and the lease is let go"
 
 test('a second open while a run holds the lease starts nothing: 202', async () => {
   const w = world();
-  w.leases.set(ID, 1_000_000 + 60_000);
+  w.leases.set(ID, {until: 1_000_000 + 60_000, token: 'other'});
   const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
   assert.deepEqual(r, {status: 202, body: {state: 'running'}});
   assert.equal(w.runs.length, 0);
@@ -70,7 +84,7 @@ test('a second open while a run holds the lease starts nothing: 202', async () =
 
 test('a lease left by a crashed run expires', async () => {
   const w = world();
-  w.leases.set(ID, 1_000_000 - 1);
+  w.leases.set(ID, {until: 1_000_000 - 1, token: 'crashed'});
   const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
   assert.equal(r.status, 200);
 });
@@ -109,9 +123,10 @@ function liveWorld(stamps) {
     return stamps[Math.min(at++, stamps.length - 1)];
   };
   const extended = [];
-  w.deps.extendLease = async (id, owner, now) => {
+  const base = w.deps.extendLease;
+  w.deps.extendLease = async (id, owner, now, token) => {
     extended.push(now);
-    w.leases.set(id, now + LEASE_MS);
+    return base(id, owner, now, token);
   };
   return {...w, extended};
 }
@@ -140,7 +155,7 @@ test('a session that was never live runs once', async () => {
 
 test('a live lap while a run holds the lease starts nothing', async () => {
   const w = liveWorld(['t1']);
-  await w.deps.takeLease(ID, 'botkin', w.deps.now());
+  await w.deps.takeLease(ID, 'botkin', w.deps.now(), 'other-run');
   assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
   assert.equal(w.runs.length, 0);
 });
@@ -156,4 +171,54 @@ test("only a live upload's new stamp starts a run: lap 1's create too, never ana
   assert.equal(liveLapLanded(live('t5', 6), live('t6', 6)), true);
   // A game-file sync (no live block) never starts it.
   assert.equal(liveLapLanded({lapCount: 4}, {lapCount: 9}), false);
+});
+
+// spring #5375: a run longer than the lease must keep it, and a run must never
+// release a lease another run holds.
+test('a long run renews its lease while it works, so no second run starts', async () => {
+  let second;
+  const w = world({
+    analyze: async () => {
+      // Two renewals' worth of work: the lease would have run out without them.
+      for (let i = 0; i < 4; i++) {
+        w.tick(LEASE_RENEW_MS);
+        for (const fn of [...w.timers]) fn();
+        await Promise.resolve();
+      }
+      second = await runAnalysis(w.deps, ID, 'botkin');
+      return {laps: 21};
+    },
+  });
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'done', laps: 21});
+  assert.deepEqual(second, {state: 'running'}, 'the renewed lease kept the second run out');
+  assert.equal(w.timers.length, 0, 'renewal stops with the run');
+});
+
+test("a run never deletes another run's lease", async () => {
+  const w = world({
+    analyze: async () => {
+      // This run's lease is gone (expired, another run holds it now).
+      w.leases.set(ID, {until: w.deps.now() + LEASE_MS, token: 'the-other-run'});
+      return {laps: 21};
+    },
+  });
+  await runAnalysis(w.deps, ID, 'botkin');
+  assert.equal(w.leases.get(ID)?.token, 'the-other-run');
+});
+
+test('a run whose lease was taken over stops before running again', async () => {
+  let calls = 0;
+  const w = world({
+    analyze: async () => {
+      calls++;
+      w.leases.set(ID, {until: w.deps.now() + LEASE_MS, token: 'the-other-run'});
+      return {laps: 21};
+    },
+  });
+  w.deps.liveStamp = (() => {
+    let n = 0;
+    return async () => `t${n++}`;
+  })();
+  await runAnalysis(w.deps, ID, 'botkin');
+  assert.equal(calls, 1, 'the stamp moved, but the lease is not ours: no second write');
 });

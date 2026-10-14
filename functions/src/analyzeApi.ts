@@ -1,6 +1,7 @@
 // POST /api/analyze/{sessionId}: analysis on open (analyzeCore.ts). Runs the
 // session engine bundled from tools/sessions (scripts/buildEngine.mjs) with
 // the DuckDB CLI it ships with, one run per instance.
+import {randomUUID} from 'crypto';
 import * as admin from 'firebase-admin';
 import {mkdtempSync, rmSync} from 'fs';
 import {tmpdir} from 'os';
@@ -28,20 +29,31 @@ export function engineDeps(
 ): Omit<AnalyzeDeps, 'owner'> {
   const lease = (id: string) => db.doc(`analysisRuns/${id}`);
   return {
-    takeLease: (id, owner, now) =>
+    takeLease: (id, owner, now, token) =>
       db.runTransaction(async tx => {
         const held = await tx.get(lease(id));
         if (held.exists && (held.get('until') as number) > now)
           return false;
-        tx.set(lease(id), {owner, until: now + LEASE_MS});
+        tx.set(lease(id), {owner, until: now + LEASE_MS, token});
         return true;
       }),
-    releaseLease: async id => {
-      await lease(id).delete();
+    releaseLease: (id, token) =>
+      db.runTransaction(async tx => {
+        const held = await tx.get(lease(id));
+        if (held.exists && held.get('token') === token) tx.delete(lease(id));
+      }),
+    extendLease: (id, owner, now, token) =>
+      db.runTransaction(async tx => {
+        const held = await tx.get(lease(id));
+        if (!held.exists || held.get('token') !== token) return false;
+        tx.set(lease(id), {owner, until: now + LEASE_MS, token});
+        return true;
+      }),
+    every: (ms, fn) => {
+      const timer = setInterval(fn, ms);
+      return () => clearInterval(timer);
     },
-    extendLease: async (id, owner, now) => {
-      await lease(id).set({owner, until: now + LEASE_MS});
-    },
+    token: () => randomUUID(),
     liveStamp: async id => {
       const at = (await db.doc(`sessions/${id}`).get()).get(
         'live.updatedAt',
