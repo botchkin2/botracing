@@ -294,10 +294,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // Never older analysis over newer, checked before any file is written: a
   // PC behind the cloud's code leaves a session the cloud already analysed
   // alone (pit-wall thread 1 #4573).
-  const [before, ...stored] = await Promise.all([
-    backend.getDoc('sessions', session.id),
-    ...out.recordings.map(rec => backend.getDoc('recordings', rec.id)),
-  ]);
+  const before = await backend.getDoc('sessions', session.id);
   if (
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
