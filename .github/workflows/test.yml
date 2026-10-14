@@ -109,7 +109,7 @@ jobs:
         # The image's JAVA_HOME_21_X64 is a machine variable: the workflow's
         # env context does not see it, the shell does.
         run: |
-          export JAVA_HOME="$(cygpath "$JAVA_HOME_21_X64")"
+          export JAVA_HOME="$JAVA_HOME_21_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
           java -version
           npm run test:emulator
