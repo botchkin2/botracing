@@ -129,3 +129,24 @@ describe('kept while signed in', () => {
     expect(store.data.size).toBe(0);
   });
 });
+
+// Roadmap 6b (apex #5254): the Sessions list is now kept, and it is one
+// person's drives. A second person on the same phone never sees them.
+describe("the kept Sessions list is one person's", () => {
+  const LIST = ['sessions', 'list', {}];
+  it('comes back for that person only, and is gone after sign-out', async () => {
+    const before = newClient();
+    before.setQueryData(LIST, {items: [{id: 'mine'}]});
+    const raw = snapshotOf(before, 'u1', NOW);
+    expect(restoreSnapshot(newClient(), raw, 'u1', NOW + 1000)).toBe(true);
+    const other = newClient();
+    expect(restoreSnapshot(other, raw, 'u2', NOW + 1000)).toBe(false);
+    expect(other.getQueryData(LIST)).toBeUndefined();
+
+    // Sign-out (followFirebase: uid null) forgets the stored snapshot.
+    const store = memoryStore();
+    await store.setItem('query-cache', raw);
+    await forgetQueryPersist(store);
+    expect(await loadSnapshot(store)).toBeNull();
+  });
+});
