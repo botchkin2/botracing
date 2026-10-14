@@ -170,7 +170,7 @@ jobs:
         id: scope
         run: |
           if git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD |
-            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
+            grep -qE '^(desktop/|functions/|tools/(uploader|sessions|dev|capture)/|src/(analysis|data/uploaders)/|contract/|firebase(\.emulator)?\.json$|\.github/workflows/test\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "Nothing on the tray/API line changed: no replay needed."

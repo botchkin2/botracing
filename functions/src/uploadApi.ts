@@ -91,6 +91,9 @@ function firebaseFiles(): FileStore {
       if (contentEncoding) headers['Content-Encoding'] = contentEncoding;
       // The Storage emulator cannot check a signature and takes no PUT: the
       // contract replay (contract/README.md) uploads with its media POST.
+      // It also enforces no x-goog-content-length-range, so the replay cannot
+      // catch an upload-size regression: the release gate's live run against
+      // production does (release-tray.yml, parts sent).
       const emulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
       if (process.env.FUNCTIONS_EMULATOR === 'true' && emulator) {
         const name = encodeURIComponent(path);

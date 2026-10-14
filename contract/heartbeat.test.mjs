@@ -55,7 +55,12 @@ test('every released tray from the oldest with payloads on has payloads', () => 
     .map(t => t.trim().replace(/^tray-v/, ''))
     .filter(v => /^\d+\.\d+\.\d+$/.test(v));
   assert.ok(tags.length > 0, 'no tray-v tags: fetch them (fetch-depth: 0)');
-  const missing = tags.filter(v => !older(v, oldest) && !versions.has(v));
+  // Not the newest tag: its beats reach the repo in a PR after its release,
+  // and until then every open PR would be red (torsion on #611).
+  const newest = [...tags].sort((a, b) => (older(a, b) ? -1 : 1)).at(-1);
+  const missing = tags.filter(
+    v => v !== newest && !older(v, oldest) && !versions.has(v),
+  );
   assert.deepEqual(
     missing,
     [],
