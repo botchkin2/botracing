@@ -222,18 +222,27 @@ jobs:
       - name: Parity gate (capture vs game file, the same drive)
         if: steps.scope.outputs.run == 'true'
         run: |
-          p="$RUNNER_TEMP/parity-pair"
+          pairs="$RUNNER_TEMP/parity-pairs"
+          g=gs://botracing-61-lmu/golden/parity
+          # The race: the capture fetched above, the game file cut to its window.
+          p="$pairs/road-atlanta-2026-10-03-race"
           mkdir -p "$p/capture" "$p/game"
           cp -r "$RUNNER_TEMP/road-atlanta-2026-10-03" "$p/capture/"
-          g=gs://botracing-61-lmu/golden/parity/road-atlanta-2026-10-03
-          gcloud storage cp "$g/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb" "$p/game/"
-          gcloud storage cp "$g/catalog.json" "$p/"
+          gcloud storage cp "$g/road-atlanta-2026-10-03/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb" "$p/game/"
+          gcloud storage cp "$g/road-atlanta-2026-10-03/catalog.json" "$p/"
+          # The practice: a reset, out-laps and a lap the game invalidated.
+          gcloud storage cp "$g/road-atlanta-2026-10-02-practice.tar.gz" "$RUNNER_TEMP/"
+          (cd "$RUNNER_TEMP" && sha256sum -c - <<SUMS
+          924669c91dc135e2b7043e5f649b15a883663363338dff7b50142cb6f8af722e  road-atlanta-2026-10-02-practice.tar.gz
+          SUMS
+          )
+          tar -xzf "$RUNNER_TEMP/road-atlanta-2026-10-02-practice.tar.gz" -C "$pairs"
           (cd "$p" && sha256sum -c - <<SUMS
           5703aae394415c68cc50f5cdfff835c64d5af669ee9e2852794eabd9302707ee  game/Michelin Raceway Road Atlanta_R_2026-10-03T00_12_27Z.duckdb
           f1e7f00da39f4d515b7742d5ed34af5cf88daef37802e7d9ff3c5a779144812f  catalog.json
           SUMS
           )
-          PARITY_PAIR="$p" node --test tools/golden/parity.test.mjs
+          PARITY_PAIRS="$pairs" node --test tools/golden/parity.test.mjs
       - name: The finished files (an LMU .duckdb, an iRacing .ibt)
         if: steps.scope.outputs.run == 'true'
         run: |
