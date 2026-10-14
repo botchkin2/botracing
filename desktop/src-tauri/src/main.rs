@@ -372,7 +372,24 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
     log.note("exit call returned");
 }
 
+/// A launch from the taskbar, Start menu or a shortcut while the tray runs
+/// ends here at once and the running tray opens the window. Windows lets only
+/// the process the person clicked bring a window to the front, and that is
+/// this one, not the tray: without this the window opened behind whatever was
+/// in front, or only flashed (pit wall #5225/#5226). Handing the right on is
+/// the documented way; it lapses with the next input if nobody uses it.
+fn pass_on_foreground_right() {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            AllowSetForegroundWindow, ASFW_ANY,
+        };
+        AllowSetForegroundWindow(ASFW_ANY);
+    }
+}
+
 fn main() {
+    pass_on_foreground_right();
     let builder = tauri::Builder::default();
     // The single-instance hold is named after the app identifier; a profile
     // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
