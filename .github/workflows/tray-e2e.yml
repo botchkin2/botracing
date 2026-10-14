@@ -19,6 +19,11 @@ on:
       - 'tools/capture/**'
       - '.github/workflows/tray-e2e.yml'
   workflow_dispatch:
+    inputs:
+      rehearsals:
+        description: Run the update rehearsal this many times on one runner (roadmap row 4); 1 is the normal check
+        type: number
+        default: 1
   # "Release tray" (release-tray.yml, roadmap 2w) calls this with the one
   # installer it built and will ship: the cells install that exact file, and
   # the rehearsal updates N-1 to it, instead of building their own.
@@ -48,8 +53,9 @@ concurrency:
 jobs:
   build:
     name: Build the installer
-    # A release brings its own installer (candidate-artifact).
-    if: ${{ !inputs.candidate-artifact }}
+    # A release brings its own installer (candidate-artifact); a rehearsal
+    # loop (rehearsals > 1) is about the update only.
+    if: ${{ !inputs.candidate-artifact && !(inputs.rehearsals > 1) }}
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -82,8 +88,9 @@ jobs:
   e2e:
     name: Tray installer end to end (${{ matrix.os }}, ${{ matrix.account }}, node ${{ matrix.node }})
     needs: build
-    # Runs after this workflow's own build, or with the release's installer.
-    if: ${{ !cancelled() && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.candidate-artifact)) }}
+    # Runs after this workflow's own build, or with the release's installer;
+    # never in a rehearsal loop (rehearsals > 1), which is about the update only.
+    if: ${{ !cancelled() && !(inputs.rehearsals > 1) && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.candidate-artifact)) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -140,7 +147,8 @@ jobs:
   update:
     name: Tray update rehearsal (N-1 to N)
     runs-on: windows-latest
-    timeout-minutes: 45
+    # About 3 min a rehearsal after the build.
+    timeout-minutes: ${{ inputs.rehearsals > 1 && 180 || 45 }}
     defaults:
       run:
         working-directory: desktop
@@ -221,7 +229,20 @@ jobs:
 
       - name: Install N-1, update to N with --update, uninstall
         working-directory: .
+        env:
+          REHEARSALS: ${{ inputs.rehearsals || 1 }}
         run: |
           $out = Join-Path $env:RUNNER_TEMP "rehearsal"
-          ./desktop/scripts/e2e-update.ps1 -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT
+          if ([int]$env:REHEARSALS -gt 1) {
+            ./desktop/scripts/e2e-update-loop.ps1 -Runs ([int]$env:REHEARSALS) -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT -Out "$env:RUNNER_TEMP/rehearsal-logs"
+          } else {
+            ./desktop/scripts/e2e-update.ps1 -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT
+          }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() && inputs.rehearsals > 1 }}
+        with:
+          name: rehearsal-logs
+          path: ${{ runner.temp }}/rehearsal-logs
+          retention-days: 14
