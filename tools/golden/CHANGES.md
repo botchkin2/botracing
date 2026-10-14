@@ -62,3 +62,8 @@ Changed:
 - laps.1.comparable: false -> true
 - laps.15.reasons.0: "slow" -> undefined
 - laps.15.comparable: false -> true
+
+## 2026-10-14 iracing-race-road-atlanta
+Why: a lap with an iRacing local yellow was excluded as a full-course yellow; a yellow never selects a lap (decision 2026-10-11 #4), so it now counts (6 -> 7 laps).
+Changed:
+- consistency.overview: "6 laps. Scatter 0.81 s around the pace trend (raw spread 0.94 s). Best lap 79.345; best sections add up to 75.240. No lap off pace. Most time lost against repeatable pace: section 2 (2.3 s), section 6 (1.1 s)." -> "7 laps. Scatter 0.72 s around the pace trend (raw spread 0.86 s). Best lap 79.345; best sections add up to 75.240. No lap off pace. Most time lost against repeatable pace: section 2 (2.2 s), section 6 (1.6 s)."

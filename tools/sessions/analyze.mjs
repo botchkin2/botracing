@@ -11,7 +11,7 @@
 //   per lap     per-corner segment time (brake to brake), min speed, brake
 //               point, full throttle, off-track and local-yellow time, and the
 //               conditions the lap was driven in (stint lap, tyre temperature,
-//               fresh tyres, full-course yellow).
+//               fresh tyres, full-course caution for the fuel set).
 //   consistency pace trend, scatter, and where each off-pace lap lost its
 //               time, over the "normal racing" laps (src/analysis/consistency.ts,
 //               the same code the app runs on a selection).
@@ -118,6 +118,9 @@ export const blockVersions = {
   iracingSectors: 1,
   // Which laps are slow (src/analysis/paceEvents.ts replaced the median cut): every session re-analyses once.
   slowLaps: 1,
+  // A yellow never selects a lap; iRacing's local yellows are not a course
+  // caution (decision 2026-10-11 #4, pit wall #5171): every session re-analyses once.
+  yellowNeverSelects: 1,
 };
 
 const GRID_M = 5;

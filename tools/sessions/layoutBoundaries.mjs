@@ -36,7 +36,6 @@ function pedalTrace(lap, lengthM) {
 const measures = lap =>
   lap.comparable &&
   lap.clean &&
-  !(lap.courseYellowSec > 0) &&
   !lap.pitlane &&
   !lap.pitIn &&
   !lap.pitOut;
