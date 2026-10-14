@@ -130,6 +130,9 @@ test(
       l.pitIn,
       l.pitOut,
       l.excluded,
+      // A pit out-lap closes with lap time -1 in the capture and no time in
+      // the game file: not invalid in either (spring #5422).
+      l.invalid,
     ];
     assert.deepEqual(cap.laps.map(flags), duck.laps.map(flags));
   },
@@ -201,10 +204,16 @@ test(
         ['lmu-capture-reset#2', '2026-10-02T23:56:19.319Z', 81.6025],
       ],
     );
-    // Each ends where its own realtime went off, on its own clock.
+    // Each ends where its own realtime went off, on its own clock; the second
+    // at its reset's lap bump (1201.22), as its .duckdb does (endT 1201.195).
     assert.deepEqual(
       stretches.map(st => +st.laps.at(-1).t1.toFixed(3)),
-      [426.6, 1201.4, 216.404],
+      [426.6, 1201.22, 216.404],
+    );
+    // mCloudCoverage 3 at each start; the three .duckdb files say Mostly Cloudy.
+    assert.deepEqual(
+      stretches.map(st => st.info.weather),
+      ['Mostly Cloudy', 'Mostly Cloudy', 'Mostly Cloudy'],
     );
     assert.ok(stretches.every(st => st.ended && st.startMs < st.endMs));
     assert.equal(
@@ -267,4 +276,124 @@ test('a stretch reads only rows of its own clock epoch', needsDuckdb, () => {
       assert.equal(Number(n.n), st.info.ticks);
     }
   });
+});
+
+// fixtures/lmu-capture-bump: the 14 Oct 2026 Silverstone practice capture,
+// 6236-6275 s (same columns and stripping as lmu-capture). A reset to the
+// garage at 6260.2: the game bumps mLapNumber 18 -> 19 at 6260.06 with no lap
+// time and refills the tank to 75 L, then realtime goes off; the next stretch
+// starts in the pits at 6266.0. The game's .duckdb ends lap 18 mid-lap.
+const bumpCapture = resolve(here, 'fixtures/lmu-capture-bump');
+
+test(
+  'a reset ends the cut lap as the trailing partial, not at its lap bump',
+  needsDuckdb,
+  () => {
+    const {stretches} = describeCapture(bumpCapture);
+    assert.deepEqual(
+      stretches.map(st =>
+        st.laps.map(l => [l.lapNumber, l.partial, +l.t1.toFixed(2)]),
+      ),
+      [
+        [
+          [17, true, 6241.14],
+          [18, true, 6260.06],
+        ],
+        [[19, true, 6274.99]],
+      ],
+    );
+    assert.equal(stretches[0].info.weather, 'Mostly Cloudy');
+    const a = withTmp(dir => {
+      const recordings = stretches.map((st, k) => {
+        const samplesPath = join(dir, `${k}.s.parquet`);
+        const eventsPath = join(dir, `${k}.e.parquet`);
+        writeCaptureArchive(
+          bumpCapture,
+          st.info,
+          {t0: st.laps[0].t0, t1: st.laps.at(-1).t1},
+          samplesPath,
+          eventsPath,
+        );
+        return {id: `r${k}`, info: st.info, samplesPath, eventsPath};
+      });
+      return analyzeFromArchive({
+        ownerId: 'o',
+        sessionId: 's',
+        recordings,
+        trackMap: null,
+        boundaries: null,
+        catalogOnly: true,
+        damage: null,
+        raceLength: null,
+        event: {series: null, eventId: null},
+        fieldFor: () => ({field: null}),
+      });
+    });
+    const cut = a.laps.find(l => l.lapNumber === 18);
+    const next = a.laps.find(l => l.lapNumber === 19);
+    assert.equal(cut.partial, true);
+    assert.equal(cut.partialWhy, 'file');
+    assert.equal(cut.endedInReset, true);
+    assert.equal(cut.invalid, false);
+    assert.equal(next.afterReset, true);
+    // The refill at the reset is not on the cut lap (it was -17.22 L).
+    assert.equal(cut.fuel.usedL, 0.19);
+    assert.equal(a.session.weather, 'Mostly Cloudy');
+  },
+);
+
+// fixtures/lmu-capture-invalid: the same capture, 7018-7040 s. Lap 24 closes
+// at 7028.63 on a real crossing with mLastLapTime -1 (the game did not count it).
+test(
+  'a lap closed at a real crossing with lap time -1 is invalid',
+  needsDuckdb,
+  () => {
+    const [st] = describeCapture(
+      resolve(here, 'fixtures/lmu-capture-invalid'),
+    ).stretches;
+    const a = withTmp(dir => {
+      const s = join(dir, 's.parquet');
+      const e = join(dir, 'e.parquet');
+      writeCaptureArchive(
+        resolve(here, 'fixtures/lmu-capture-invalid'),
+        st.info,
+        {t0: st.laps[0].t0, t1: st.laps.at(-1).t1},
+        s,
+        e,
+      );
+      return analyze(st.info, s, e);
+    });
+    assert.deepEqual(
+      a.laps.map(l => [l.lapNumber, l.invalid, l.timed]),
+      [
+        [24, true, false],
+        [25, false, false],
+      ],
+    );
+  },
+);
+
+// fixtures/lmu-capture-pitlaps: the same capture, 3530-3735 s, the player's
+// rows only. Lap 3 ends at 3536.8 into the pit lane, lap 4 leaves it at
+// 3598.8 and closes at 3728.3; both close with mLastLapTime -1, which is the
+// pit, not the game's track-limits call (spring #5422).
+test('a pit in-lap and out-lap closing with lap time -1 are not invalid', needsDuckdb, () => {
+  const dir = resolve(here, 'fixtures/lmu-capture-pitlaps');
+  // The garage visit splits the capture: the in-lap ends the first stretch.
+  const laps = describeCapture(dir).stretches.flatMap(st =>
+    withTmp(tmp => {
+      const s = join(tmp, 's.parquet');
+      const e = join(tmp, 'e.parquet');
+      writeCaptureArchive(dir, st.info, {t0: st.laps[0].t0, t1: st.laps.at(-1).t1}, s, e);
+      return analyze(st.info, s, e).laps;
+    }),
+  );
+  assert.deepEqual(
+    laps.map(l => [l.lapNumber, l.pitIn, l.pitOut, l.invalid]),
+    [
+      [3, false, false, false],
+      [4, false, true, false],
+      [5, false, false, false],
+    ],
+  );
 });

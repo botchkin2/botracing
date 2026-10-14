@@ -82,7 +82,8 @@ async function download(backend, path, ownerKey, to) {
 /**
  * Analyse the stored session `sessionId` of `owner` again and write it back.
  * `workDir` is an empty folder for the downloaded archive. `analyze` is the
- * engine; tests pass their own.
+ * engine; tests pass their own. `beforeWrite` runs right before the session is
+ * written and throws to stop it (the cloud's lease fence, analyzeCore.ts).
  */
 export async function analyzeStored({
   backend,
@@ -91,6 +92,7 @@ export async function analyzeStored({
   workDir,
   log = () => {},
   analyze = analyzeFromArchive,
+  beforeWrite = async () => {},
 }) {
   // Where an open's seconds go, in the function's log (pit-wall thread 1).
   const t0 = performance.now();
@@ -170,6 +172,7 @@ export async function analyzeStored({
     out.session.archiveParts = analysedParts;
     out.session.live = session.live ?? null;
   }
+  await beforeWrite();
   await store.upload(
     {
       ...out,
