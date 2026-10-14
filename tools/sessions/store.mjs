@@ -578,6 +578,24 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 // docs only after all of them: an upload that fails part-way writes no doc, and
 // the next lap sends every part the bucket lacks (md5), so a lap is never lost
 // or out of order. Older-over-newer is refused unless a part is new.
+// The live path's field file and capture extract (liveInputs.mjs).
+async function putLiveInputs(backend, out, session, log) {
+  if (out.fieldText && out.field) {
+    await backend.putFile(
+      out.field.path,
+      {body: Buffer.from(out.fieldText)},
+      {contentType: 'application/json', gzip: true},
+    );
+    log(`  live: field ${out.field.cars} cars`);
+  }
+  if (out.captureExtract)
+    await backend.putFile(
+      captureExtractPath(session.ownerId, session.id),
+      {body: Buffer.from(JSON.stringify(out.captureExtract))},
+      {contentType: 'application/json', gzip: true},
+    );
+}
+
 async function uploadLive(backend, out, {log = () => {}} = {}) {
   const {session} = out;
   const before = await backend.getDoc('sessions', session.id);
@@ -585,6 +603,24 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
   ) {
+    // No new lap, but a session from before live laps carried the field
+    // (roadmap row 0a): its field and capture extract go up once, alone, and
+    // the session reads stale so the next open works out the class laps,
+    // bests and traffic from the field (uploadSession's kept-field path).
+    if (out.fieldText && out.field && !before?.field) {
+      await putLiveInputs(backend, out, session, log);
+      await backend.writeDocs([
+        {
+          op: 'set',
+          coll: 'sessions',
+          id: session.id,
+          data: {field: out.field, analysis: {...before.analysis, v: 0}},
+          merge: true,
+        },
+      ]);
+      log('  live: field added to the stored session; it reads stale');
+      return {skipped: 'newer', field: 'added'};
+    }
     log('  live: nothing new over the stored session');
     return {skipped: 'newer'};
   }
@@ -600,6 +636,17 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
       {contentType: 'application/vnd.apache.parquet'},
     );
     sent++;
+  }
+  // The field and the capture extract the live path made (liveInputs.mjs):
+  // the field is named by its content, so an unchanged one is not sent again;
+  // the session then points at it, and analysis keeps and reads it (the
+  // kept-field path in uploadSession). The extract is a few KB, sent as is.
+  if (out.fieldText && out.field && out.field.hash !== before?.field?.hash) {
+    await putLiveInputs(backend, out, session, log);
+    session.field = out.field;
+  } else {
+    if (before?.field) session.field = before.field;
+    if (out.captureExtract) await putLiveInputs(backend, {...out, fieldText: null}, session, log);
   }
   const ops = out.recordings.map(rec => ({
     op: 'set',

@@ -146,6 +146,19 @@ async function live(from) {
     fail(`${rows} of ${laps} laps in /sessions/${sessionId}/laps ${LAPS_WITHIN_MS / 1000} s after the last upload, nobody opening it`);
   else
     console.log(`live ${basename(from)}: ${rows} lap rows in the session, nobody opening it`);
+  // Every car, as the session's Race and field screens read it (roadmap row
+  // 0a): a live session had no field from tray 0.1.9 until #619.
+  const fieldRes = await fetch(`${api}/api/sessions/${sessionId}/field`, {
+    headers: {Authorization: `Bearer ${readFileSync(token, 'utf8').trim()}`},
+  });
+  if (!fieldRes.ok) fail(`no field for /sessions/${sessionId} (${fieldRes.status})`);
+  else {
+    // fetch inflates it already (the route sends Content-Encoding: gzip).
+    const fieldDoc = await fieldRes.json();
+    const cars = fieldDoc.cars?.length ?? 0;
+    if (cars < 2) fail(`the field has ${cars} car(s); the capture has every car`);
+    else console.log(`live ${basename(from)}: field with ${cars} cars`);
+  }
   const scratch = out.match(/scratch: (.+?) \(watch\.log/)?.[1];
   if (!scratch) return fail('no scratch folder in the liveE2E output');
   checkWatcher(`live ${basename(from)}`, join(scratch, 'home'), fail);

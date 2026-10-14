@@ -223,6 +223,9 @@ impl Capture {
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let mut all = Map::new();
         all.insert("version".into(), json!(VERSION));
+        // The tray that recorded it: a recorder bug is then a version range,
+        // not a guess from the data (brokenWheels.mjs, pit wall #5405).
+        all.insert("recorderVersion".into(), json!(env!("CARGO_PKG_VERSION")));
         all.insert("startUtc".into(), json!(iso(start_ms)));
         all.insert("endUtc".into(), Value::Null);
         all.insert("chunks".into(), json!(0));
