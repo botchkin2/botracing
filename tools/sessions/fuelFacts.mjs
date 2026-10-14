@@ -406,8 +406,11 @@ const stdev = values => {
 /**
  * A lap whose use counts as normal running: timed, whole, not the session's
  * first lap (a standing or rolling start burns differently: Road Atlanta
- * 09-26 lap 0 used 0.73 L against 2.4), no pit in or out, no full-course
- * yellow, not cut short by a reset.
+ * 09-26 lap 0 used 0.73 L against 2.4), no pit in or out, not cut short by a
+ * reset, and no full-course caution: a lap behind the safety car burns far
+ * less, so it would pull the fuel per lap down and the Plan would run dry.
+ * That is the burn, not lap selection (where a yellow never counts, decision
+ * 2026-10-11 #4); the flag is the course state only (iracing.mjs CAUTION).
  */
 export function isGreen(lap) {
   return (

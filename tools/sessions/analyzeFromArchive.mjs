@@ -175,7 +175,6 @@ export function analyzeFromArchive({
       // a change is the first on new tyres (consistency's cold-tyres rule).
       tyres: lap.tyres,
       tyreCarcassC: lap.tyreCarcassC,
-      courseYellowSec: lap.courseYellowSec,
       compound: lap.compound,
       wetness: lap.wetness,
       corners: lap.corners || [],
