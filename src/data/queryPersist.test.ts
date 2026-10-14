@@ -55,6 +55,12 @@ describe('which queries a reopen keeps', () => {
     expect(isPersisted(['sessions', 'detail', 's1'])).toBe(false);
     expect(isPersisted(['traces', 'x'])).toBe(false);
   });
+
+  it('the Sessions list and its facets, so an app opened with no signal lists the drives', () => {
+    expect(isPersisted(['sessions', 'list', {}])).toBe(true);
+    expect(isPersisted(['sessions', 'facets'])).toBe(true);
+    expect(isPersisted(['sessions', 'band', 's1'])).toBe(false);
+  });
 });
 
 describe('snapshot and restore', () => {
@@ -74,7 +80,9 @@ describe('snapshot and restore', () => {
     expect(restoreSnapshot(fresh(), raw, 'u2', NOW)).toBe(false);
     const old = JSON.stringify({...JSON.parse(raw), v: PERSIST_VERSION - 1});
     expect(restoreSnapshot(fresh(), old, 'u1', NOW)).toBe(false);
-    expect(restoreSnapshot(fresh(), raw, 'u1', NOW + MAX_AGE_MS + 1)).toBe(false);
+    expect(restoreSnapshot(fresh(), raw, 'u1', NOW + MAX_AGE_MS + 1)).toBe(
+      false,
+    );
     expect(restoreSnapshot(fresh(), '{not json', 'u1', NOW)).toBe(false);
     expect(restoreSnapshot(fresh(), null, 'u1', NOW)).toBe(false);
   });
