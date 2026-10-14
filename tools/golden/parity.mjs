@@ -104,6 +104,7 @@ export async function buildPair(pairDir) {
       capture: sessionOf(liveStore, liveIds[0]),
       game: sessionOf(gameStore, groups[0].id),
       otherCars,
+      name: basename(pairDir),
     };
   } finally {
     rmSync(work, {recursive: true, force: true});
@@ -145,8 +146,22 @@ export function loadAllow(file = join(here, 'parityAllow.json')) {
 // lap.12.corners.3.brakeAtM → laps.#.corners.#.brakeAtM: one rule per field.
 const generic = path => path.replace(/\.\d+(?=\.|$)/g, '.#');
 
-/** The differences the allow-list does not explain, with what it did allow. */
-export function judge({capture, game}, allow = loadAllow()) {
+// `tol` bounds numbers; `tolS` bounds two times by seconds. No bound: any value.
+function withinTolerance(rule, a, b) {
+  if (rule.tolS != null) {
+    const [x, y] = [Date.parse(a), Date.parse(b)];
+    return Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= rule.tolS * 1000;
+  }
+  if (rule.tol == null) return true;
+  return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= rule.tol;
+}
+
+/**
+ * The differences the allow-list does not explain, with what it did allow.
+ * An entry with `pair` applies to that pair only; `when: "untimed"` to laps the
+ * game did not time.
+ */
+export function judge({capture, game, name: pairName}, allow = loadAllow()) {
   const all = [
     ...differences(capture.session, game.session).map(([p, a, b]) => [
       `session.${p}`,
@@ -154,13 +169,21 @@ export function judge({capture, game}, allow = loadAllow()) {
       b,
     ]),
   ];
+  // A lap path also has its role, so a rule can say "the last lap" or "an
+  // untimed lap" instead of a lap number of one pair.
+  const lastNumber = Math.max(-1, ...capture.laps.map(l => l.lapNumber));
+  const lapRole = new Map();
   const byNumber = new Map(game.laps.map(l => [l.lapNumber, l]));
   for (const lap of capture.laps) {
     const other = byNumber.get(lap.lapNumber);
+    const role = {last: lap.lapNumber === lastNumber, untimed: lap.timed === false};
     if (!other) all.push([`laps.${lap.lapNumber}`, 'present', 'missing']);
     else
-      for (const [p, a, b] of differences(lap, other))
-        all.push([`laps.${lap.lapNumber}.${p}`, a, b]);
+      for (const [p, a, b] of differences(lap, other)) {
+        const path = `laps.${lap.lapNumber}.${p}`;
+        lapRole.set(path, role);
+        all.push([path, a, b]);
+      }
     byNumber.delete(lap.lapNumber);
   }
   for (const n of byNumber.keys()) all.push([`laps.${n}`, 'missing', 'present']);
@@ -169,11 +192,14 @@ export function judge({capture, game}, allow = loadAllow()) {
   const allowed = new Map();
   for (const [path, a, b] of all) {
     const g = generic(path);
+    const role = lapRole.get(path) ?? {};
+    const forms = [g, path, role.last ? g.replace(/^laps\.#/, 'laps.last') : null];
     const rule = allow.find(
       e =>
-        (e.re.test(g) || e.re.test(path)) &&
-        (e.tol == null ||
-          (typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= e.tol)),
+        (e.pair == null || e.pair === pairName) &&
+        (e.when !== 'untimed' || role.untimed) &&
+        forms.some(f => f && e.re.test(f)) &&
+        withinTolerance(e, a, b),
     );
     if (rule) allowed.set(rule.path, (allowed.get(rule.path) ?? 0) + 1);
     else failures.push({path, capture: a, game: b});

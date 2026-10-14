@@ -18,9 +18,13 @@ export function checkSession({session, laps}, {otherCars = 0} = {}) {
   if (!session) return ['session: missing'];
   if (laps.length === 0) miss('laps', 'none');
 
-  for (const lap of laps.filter(whole))
-    if (!lap.timed && lap.invalid !== true)
+  for (const lap of laps) {
+    if (whole(lap) && !lap.timed && lap.invalid !== true)
       miss('lap time', `L${lap.lapNumber + 1} has neither a time nor the game's invalid flag`);
+    // The flag is the game's track-limits call, and only that: never a pit lap.
+    if (lap.invalid === true && (lap.pitIn || lap.pitOut))
+      miss('invalid', `L${lap.lapNumber + 1} is a pit lap flagged invalid`);
+  }
 
   if (!session.weather) miss('weather', 'empty');
   if (session.fuel?.startL == null) miss('fuel', 'no start level');

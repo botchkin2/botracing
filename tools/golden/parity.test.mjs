@@ -1,7 +1,9 @@
 // The parity gate (docs/SESSION_PIPELINE.md). The rules run everywhere; the
-// real pair (a capture and the game file of the same drive) runs where
-// PARITY_PAIR names its folder, which CI's contract-replay job fetches.
+// real pairs (a capture and the game file of the same drive) run where
+// PARITY_PAIRS names their folder, which CI's contract-replay job fetches.
 import assert from 'node:assert/strict';
+import {existsSync, readdirSync} from 'node:fs';
+import {join} from 'node:path';
 import {test} from 'node:test';
 
 import {checkSession} from '../sessions/manifest.mjs';
@@ -87,15 +89,50 @@ test('a whole lap the game invalidated is not a miss; a cut or pit lap is never 
   assert.deepEqual(checkSession({session: session(), laps}, {otherCars: 1}), []);
 });
 
-const pairDir = process.env.PARITY_PAIR;
-test(
-  'the golden pair: the capture path and the game-file path agree, and both are complete',
-  {skip: pairDir ? false : 'PARITY_PAIR not set (CI contract-replay sets it)'},
-  async () => {
-    const pair = await buildPair(pairDir);
-    const r = judge(pair);
-    assert.deepEqual(r.failures, [], 'differences outside parityAllow.json');
-    assert.deepEqual(checkSession(pair.capture, {otherCars: pair.otherCars}), [], 'capture path');
-    assert.deepEqual(checkSession(pair.game, {otherCars: pair.otherCars}), [], 'game-file path');
-  },
-);
+// PARITY_PAIRS: a folder of pairs, one folder each (see README).
+const pairsDir = process.env.PARITY_PAIRS;
+const pairs = pairsDir
+  ? readdirSync(pairsDir).filter(n => existsSync(join(pairsDir, n, 'catalog.json')))
+  : [];
+test('the pairs are there when PARITY_PAIRS is set', {skip: !pairsDir && 'PARITY_PAIRS not set'}, () => {
+  assert.ok(pairs.length >= 2, `pairs in ${pairsDir}: ${pairs}`);
+});
+for (const name of pairs.length ? pairs : ['(none)'])
+  test(
+    `pair ${name}: the capture path and the game-file path agree, and both are complete`,
+    {skip: pairs.length ? false : 'PARITY_PAIRS not set (CI contract-replay sets it)'},
+    async () => {
+      const pair = await buildPair(join(pairsDir, name));
+      const r = judge(pair);
+      assert.deepEqual(r.failures, [], 'differences outside parityAllow.json');
+      assert.deepEqual(checkSession(pair.capture, {otherCars: pair.otherCars}), [], 'capture path');
+      assert.deepEqual(checkSession(pair.game, {otherCars: pair.otherCars}), [], 'game-file path');
+    },
+  );
+
+test('the manifest refuses an invalid flag on a pit lap', () => {
+  const misses = checkSession(
+    {session: session(), laps: [lap({timed: false, invalid: true, pitOut: true})]},
+    {otherCars: 1},
+  );
+  assert.ok(misses.some(m => m.startsWith('invalid:')), String(misses));
+});
+
+test('a rule can name the last lap, an untimed lap, a pair, and bound two times in seconds', () => {
+  const allow = [
+    {path: 'laps\.last\.lapTime', tol: 0.02, re: /^laps\.last\.lapTime$/},
+    {path: 'laps\.#\.durationSec', when: 'untimed', tol: 2, re: /^laps\.#\.durationSec$/},
+    {path: 'laps\.#\.impactMax', pair: 'p1', re: /^laps\.#\.impactMax$/},
+    {path: 'session\.startedAt', tolS: 2, re: /^session\.startedAt$/},
+  ];
+  const run = (capture, game, name = 'p1') =>
+    judge({capture: {session: capture.s ?? {}, laps: capture.l}, game: {session: game.s ?? {}, laps: game.l}, name}, allow).failures.map(f => f.path);
+  const two = over => [lap({lapNumber: 1, ...over[0]}), lap({lapNumber: 2, ...over[1]})];
+  assert.deepEqual(run({l: two([{}, {lapTime: 5.006}])}, {l: two([{}, {lapTime: 4.988}])}), []);
+  assert.deepEqual(run({l: two([{lapTime: 5.006}, {}])}, {l: two([{lapTime: 4.988}, {}])}), ['laps.1.lapTime']);
+  assert.deepEqual(run({l: two([{timed: false, durationSec: 91}, {}])}, {l: two([{timed: false, durationSec: 89.3}, {}])}), []);
+  assert.deepEqual(run({l: two([{durationSec: 91}, {}])}, {l: two([{durationSec: 89.3}, {}])}), ['laps.1.durationSec']);
+  assert.deepEqual(run({l: two([{impactMax: 0}, {}])}, {l: two([{impactMax: 1}, {}])}, 'p2'), ['laps.1.impactMax']);
+  assert.deepEqual(run({s: {startedAt: '2026-10-03T00:12:27.285Z'}, l: []}, {s: {startedAt: '2026-10-03T00:12:27Z'}, l: []}), []);
+  assert.deepEqual(run({s: {startedAt: '2026-10-03T01:12:27Z'}, l: []}, {s: {startedAt: '2026-10-03T00:12:27Z'}, l: []}), ['session.startedAt']);
+});
