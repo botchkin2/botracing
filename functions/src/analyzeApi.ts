@@ -7,7 +7,7 @@ import {mkdtempSync, rmSync} from 'fs';
 import {tmpdir} from 'os';
 import {join} from 'path';
 import {onRequest} from 'firebase-functions/v2/https';
-import {type AnalyzeDeps, LEASE_MS, handleAnalyze} from './analyzeCore';
+import {type AnalyzeDeps, handleAnalyze} from './analyzeCore';
 import {loadEngine} from './engine';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
@@ -27,32 +27,21 @@ const ALLOWED_ORIGIN =
 export function engineDeps(
   db: admin.firestore.Firestore,
 ): Omit<AnalyzeDeps, 'owner'> {
-  const lease = (id: string) => db.doc(`analysisRuns/${id}`);
   return {
-    takeLease: (id, owner, now, token) =>
-      db.runTransaction(async tx => {
-        const held = await tx.get(lease(id));
-        if (held.exists && (held.get('until') as number) > now)
-          return false;
-        tx.set(lease(id), {owner, until: now + LEASE_MS, token});
-        return true;
+    runTx: (id, fn) =>
+      db.runTransaction(tx => {
+        const ref = db.doc(`analysisRuns/${id}`);
+        return fn({
+          get: async () => {
+            const held = await tx.get(ref);
+            return held.exists
+              ? {until: held.get('until') as number, token: held.get('token') as string}
+              : null;
+          },
+          set: lease => void tx.set(ref, lease),
+          delete: () => void tx.delete(ref),
+        });
       }),
-    releaseLease: (id, token) =>
-      db.runTransaction(async tx => {
-        const held = await tx.get(lease(id));
-        if (held.exists && held.get('token') === token) tx.delete(lease(id));
-      }),
-    extendLease: (id, owner, now, token) =>
-      db.runTransaction(async tx => {
-        const held = await tx.get(lease(id));
-        if (!held.exists || held.get('token') !== token) return false;
-        tx.set(lease(id), {owner, until: now + LEASE_MS, token});
-        return true;
-      }),
-    every: (ms, fn) => {
-      const timer = setInterval(fn, ms);
-      return () => clearInterval(timer);
-    },
     token: () => randomUUID(),
     liveStamp: async id => {
       const at = (await db.doc(`sessions/${id}`).get()).get(
@@ -60,7 +49,7 @@ export function engineDeps(
       );
       return typeof at === 'string' ? at : null;
     },
-    analyze: async (sessionId, owner) => {
+    analyze: async (sessionId, owner, fence) => {
       const {analyzeStored, adminBackend} = loadEngine();
       const workDir = mkdtempSync(
         join(tmpdir(), `analyze-${sessionId}-`),
@@ -74,6 +63,7 @@ export function engineDeps(
           sessionId,
           owner,
           workDir,
+          beforeWrite: fence,
           log: (line: string) =>
             console.log(`analyze ${sessionId}: ${line}`),
         });
