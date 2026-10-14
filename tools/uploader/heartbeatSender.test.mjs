@@ -12,6 +12,10 @@ import {
   httpSend,
   statusKey,
 } from './heartbeatSender.mjs';
+import {mutate, payload} from '../../contract/payloads.mjs';
+
+// A real beat's recorder block (contract/README.md).
+const RECORDER = payload('heartbeat', '0.1.9-in-game-rec-recording').recorder;
 
 const doc = (over = {}) => ({
   hostId: 'ab12cd34',
@@ -25,7 +29,7 @@ const doc = (over = {}) => ({
   retryAt: null,
   queue: 0,
   progress: null,
-  recorder: {state: 'running', layoutOk: true},
+  recorder: RECORDER,
   ...over,
 });
 
@@ -134,7 +138,7 @@ test('statusKey ignores progress, queue and the time', () => {
   assert.notEqual(statusKey(doc()), statusKey(doc({state: 'syncing'})));
   assert.notEqual(
     statusKey(doc()),
-    statusKey(doc({recorder: {state: 'stopped', layoutOk: true}})),
+    statusKey(mutate(doc(), 'recorder.state', 'stopped')),
   );
 });
 

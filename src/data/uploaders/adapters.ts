@@ -56,7 +56,8 @@ export type Uploader = {
   sessionsDone: number;
   /** Newest first, as the PC sent them; unknown kinds are dropped. */
   problems: UploaderProblem[];
-  disk: {captureBytes: number; freeBytes: number} | null;
+  /** freeBytes null: the PC could not read its free space. */
+  disk: {captureBytes: number; freeBytes: number | null} | null;
   /** The shared-memory recorder (thread 30 #460). layoutOk false means the
    *  game changed its struct layout and the recorder stopped writing. */
   recorder: {
@@ -164,16 +165,16 @@ export function toUploader(raw: unknown): Uploader {
     disk: disk
       ? {
           captureBytes: num(disk.captureBytes) ?? 0,
-          freeBytes: num(disk.freeBytes) ?? 0,
+          freeBytes: num(disk.freeBytes),
         }
       : null,
     recorder: rec
       ? {
           state: str(rec.state) ?? 'idle',
-          // The game reports its version as a number.
+          // The game reports its version as a number, 0 when it reports none.
           gameVersion:
             str(rec.gameVersion) ??
-            (num(rec.gameVersion) != null ? String(rec.gameVersion) : null),
+            (num(rec.gameVersion) ? String(rec.gameVersion) : null),
           layoutOk: rec.layoutOk !== false,
           layoutReason: str(rec.layoutReason),
           lastChunkAt: time(rec.lastChunkAt),
