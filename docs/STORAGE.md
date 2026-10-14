@@ -13,7 +13,7 @@ How recorded sessions are kept. The decision and its reasons are in the pit-wall
 | Corner slices (every lap around each corner)                 | `gs://botracing-61-lmu/slices/{ownerId}/{sessionId}/{hash}/c{n}.json.gz`                                                                                                                                                                         | The Corner screen draws every lap without fetching whole-lap CSVs. One small file per corner; the folder is named by content, so a resync never serves a stale slice                                                                  |
 | Measured track surface                                       | `gs://botracing-61-lmu/surface/{trackId}/v1.json.gz`                                                                                                                                                                                             | The centre path and the road edges the game measured, summed per 10 m over every session's laps at a track layout, so a session adds to the old ones. One file per track, about 12 KB gzipped. The track doc's `surface` points at it |
 | Capture extract (damage series, LMU race length) | `gs://botracing-61-lmu/inputs/{ownerId}/{sessionId}/capture.json.gz` | `tools/sessions/captureExtract.mjs`: what only the PC's live capture knew, a few KB, so analysis on open can tell a repair and know the race length after the capture is pruned (14 days) |
-| Field (every car, 5 Hz)                                      | `gs://botracing-61-lmu/field/{ownerId}/{sessionId}/{hash}.json.gz`                                                                                                                                                                               | From the local live capture (`tools/capture`), joined at sync time. No names. About 2 MB per race-hour.                                                                                                                               |
+| Field (every car, 5 Hz)                                      | `gs://botracing-61-lmu/field/{ownerId}/{sessionId}/{hash}.json.gz`                                                                                                                                                                               | From the live capture (how it reaches a session: `docs/SESSION_PIPELINE.md`). No names. About 2 MB per race-hour.                                                                                                                               |
 
 The raw `.duckdb` from LMU is never uploaded.
 
@@ -27,26 +27,11 @@ Nothing is deleted on a schedule.
 
 A new sim needs one adapter that writes these two files. Analysis only reads them. Every channel column is a DOUBLE, its type given, never guessed: iRacing archives written before that (`iracing.mjs` read its own CSV with DuckDB guessing types from a sample) have whole-number channels where the sampled rows were whole numbers, tyre wear and sometimes the pedals, rounded. The tray repairs those once from the .ibt still on the PC and the session reads stale until opened (`archiveRepair.mjs`): only a file the old types would have rounded is sent, and only when its bytes differ from the stored one; the repair's version is part of the watcher's run key, so a tray that brings it syncs once on its first start, never while a game runs.
 
-## Uploading
+## Uploading and live laps
 
-```bash
-node tools/sessions/sync.mjs
-```
+How a drive becomes a stored session (the recorder, live laps, the game-file sync, the end of a drive, analysis in the cloud, and what the app reads): `docs/SESSION_PIPELINE.md`.
 
-It scans the LMU telemetry folder, skips files written in the last 3 minutes, groups recordings into sessions, and uploads a session the first time it sees it and again only when its recordings changed (a file grew, a file joined; `uploadDue`, `syncState.mjs`). A change of analysis rules or of the curated track never re-syncs a stored session: the session reads `stale` and is analysed again in the cloud when it is opened (`POST /api/analyze/{id}`, docs/API.md), so an analysis change needs no tray release. Each upload also keeps the session's capture extract (below); a first run of this version sends the extract of every uploaded session whose capture is still on the PC, once, with no analysis. `--local` writes everything to the work folder instead. `--list` shows the grouping. `--since YYYY-MM-DD` limits by day. It needs `npm ci --prefix functions` once and `gcloud auth application-default login`.
-
-A session is recordings with the same sim, track layout, car, and session type, where the game's session timer kept pace with the wall clock between files (runs back to the pits) or restarted with the same session clock (a race restart).
-
-## Live laps
-
-While LMU runs, each lap goes up on its own, before the game saves its file (pit-wall thread 66).
-
-- **Recorder:** the tray's recorder cuts a capture chunk at each player line crossing (`mLapNumber` changes) and writes `lastLapAt` to `status.json` once that chunk is on disk (`capture/recorder.rs`). Chunks are written on a writer thread (`store.rs` `ChunkWriter`), so cutting one never drops a frame.
-- **Watcher:** when `lastLapAt` advances and LMU is running, it runs `sync.mjs --live <capture folder>` at idle priority, capped at 2 minutes (`watch.mjs` `runLive`, `trigger.mjs` `decideLive`). This is the one exception to "no sync while a game runs". A failed run is retried on the next lap.
-- **What goes up:** `syncLive.mjs` reads the capture with `lmuCapture.mjs`, which gives the same channels and events as `lmu.mjs`. A recording is one stretch of the session's `mInRealtime` flag (the same stretch the game writes as one .duckdb). Each finished lap is one archive part, half-open at the crossings: `archive/{sim}/{sessionId}/{recordingId}/samples.NNN.parquet` and `events.NNN.parquet`. The recording doc lists them in `archive.parts`. A part is written once and sent once (md5).
-- **Docs and analysis:** `store.mjs` `uploadLive` sends the parts in order, then the recording docs, then the session doc, merged. It carries `live`, `archiveParts`, `lapCount` and `bestLapTime` from the game's own lap times, and a version-0 stamp. No analysis runs on the PC. The session reads stale, and opening it analyses it in the cloud. `analyzeStored` reads a recording's parts through one glob, which gives the same docs as the whole file. A new part counts as new data over any stamp. A lap that lands while the cloud analyses leaves the session stale (`archiveParts` stays the stored count).
-- **App:** a session is live while `live.updatedAt` is under 10 minutes old (the doc keeps `live` after the drive; `src/data/sessions/live.ts`). An open live session's detail is read every 5 s, and the Sessions list has no interval (it reads all of the owner's sessions per call): it is read again on mount and focus, and when the uploaders (one small call a minute while the list is open, `useNewUploads`) report a new `lastUploadAt` or `lastSessionId`, so a drive that starts while it is open appears. React Query refetches a stale query only on mount, focus or reconnect, so without the polls an open screen never saw the next lap (0.1.9); the list, facets, detail, laps and band now also refetch when stale on those three (`queries.ts` `FRESH_ON_RETURN`). Each new lap count allows one more analysis on open (`analysisOnOpen.ts` key `id#parts`), and a lap that landed during an analysis is tried again once that analysis has refetched the session.
-- **The game file:** once a capture covers the session, the game file adds nothing; the live laps and their ids stay. Except a capture whose four wheels read as one (the 0.1.9-0.1.10 recorder, `brokenWheels.mjs`): it covers nothing, and the game file builds the drive with the real wheels. Its live session is deleted by hand (`deleteSessions.mjs`) after the owner says yes.
+A session is recordings with the same sim, track layout, car, and session type, where the game's session timer kept pace with the wall clock between files (runs back to the pits) or restarted with the same session clock (a race restart) (`sessionFiles.mjs`).
 
 ## Online events
 
@@ -108,7 +93,7 @@ Limits: the window is clipped at the start/finish line (a corner within 350 m of
 
 ## Field
 
-When the recorder (`tools/capture`) was running, `sync.mjs` joins its captures to the session (`tools/sessions/field.mjs`). A capture joins when its time window overlaps the session's and its track matches (the scoring name, or the recording's venue or layout). It is then aligned on the session clock: field `et` and the `.duckdb` GPS Time are the same clock. The alignment is checked: the player car's lap distance must agree between the two sources to within 20 m (median). If it doesn't (a restart or rejoin reset the clock), the session gets `field: null` and the sync logs why.
+When the recorder was running, `tools/sessions/field.mjs` joins its captures to the session (which code calls it, and when: `docs/SESSION_PIPELINE.md`). A capture joins when its time window overlaps the session's and its track matches (the scoring name, or the recording's venue or layout). It is then aligned on the session clock: field `et` and the `.duckdb` GPS Time are the same clock. The alignment is checked: the player car's lap distance must agree between the two sources to within 20 m (median). If it doesn't (a restart or rejoin reset the clock), the session gets `field: null` and the sync logs why.
 
 A capture the recorder never closed (no `endUtc`: crash, kill, power) ends at its last chunk, so it cannot join a later session on the same track. Cars are labelled with the model the recorder read from each car's telemetry slot (`meta.vehicleModels`), never the entry name, which carries the car number.
 
@@ -120,7 +105,7 @@ The session doc then has `field: {path, hash, hz, cars, durationS, captures, ali
 
 ## The analysis engine
 
-`tools/sessions/analyzeFromArchive.mjs` turns one session's archive into its docs and files: the session doc, the lap docs, traces, slices, the band, the field file and a new track map. Everything it reads is on its input: the recordings' descriptions (the recording docs), their archive parquet paths, the stored track map and boundaries, and what the PC alone knew, passed in as values (the damage series, the LMU race length, the online event) or as `fieldFor`, which joins the field to the loaded recordings. `sync.mjs` gathers those on the PC and calls it; analysis on open will call it with the same inputs read from the store (pit-wall thread 1 #4572).
+Its callers and the inputs each passes: `docs/SESSION_PIPELINE.md` (Analysis).
 
 ## Uploading without Admin credentials
 
