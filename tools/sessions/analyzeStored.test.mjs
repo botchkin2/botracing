@@ -113,6 +113,28 @@ test('a stored session is analysed from its archive with the stored inputs, and 
   assert.ok(backend.written.includes('sessions/s1'));
 });
 
+test('a fence that throws before the write leaves the session unwritten (the lease, analyzeCore.ts)', async () => {
+  const files = new Map([
+    ['archive/botkin/lmu/s1/r1/samples.parquet', Buffer.from('S')],
+    ['archive/botkin/lmu/s1/r1/events.parquet', Buffer.from('E')],
+  ]);
+  const backend = storeOf({session, recordings: [recording], files});
+  await assert.rejects(
+    analyzeStored({
+      backend,
+      sessionId: 's1',
+      owner: 'botkin',
+      workDir: mkdtempSync(join(tmpdir(), 'aS-')),
+      analyze: engineOut,
+      beforeWrite: async () => {
+        throw Object.assign(new Error('lease lost'), {status: 409});
+      },
+    }),
+    /lease lost/,
+  );
+  assert.equal(backend.written.length, 0);
+});
+
 test("another owner's session reads as not found", async () => {
   const backend = storeOf({session, recordings: [recording], files: new Map()});
   await assert.rejects(

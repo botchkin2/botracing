@@ -48,6 +48,7 @@ What the DuckDB file does contain, confirmed on the Road Atlanta practice file a
 
 - `SurfaceTypes`, one value per wheel. `0` dry asphalt, `1` wet asphalt, `2` grass, `3` dirt, `4` gravel, `5` rumble strip, `6` special. This file had grass (about 1,000 wheel samples) and a little gravel, plus a lot of rumble. Grass or gravel means a wheel left the asphalt. Rumble is a kerb, not an off.
 - `Path Lateral` is the car's offset from the approximate center path. `Track Edge` is the edge distance on the car's side of that path. On this file, 150 of 6,762 samples sat past that edge.
+- Sign and kerb (Silverstone 2026-10-14 L25, pit wall #5394): negative `Path Lateral` is left of travel, and `Track Edge` carries the same sign. `Track Edge` sits inside the kerb's outer edge: with the centre 2.2 m past it, the outer wheels still read kerb (surface 5). A rule for "all four wheels past the line" needs a legal kerb lap (no invalidation) as its negative test.
 - `In Pits` marks the pit lane.
 - Sector flag channels are described in the header as local yellows. This file only stores the values 1 and 11, so they are not a track-limits signal until that encoding is known.
 

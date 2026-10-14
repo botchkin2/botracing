@@ -104,6 +104,7 @@ a gap at the end.
 
 After the game exits (and on a timer), the watcher runs `sync.mjs` per sim:
 - it scans the telemetry folder, groups recordings into sessions (`sessionFiles.mjs`) and skips files the live index covers;
+  - except a capture whose four wheels read as one (the 0.1.9-0.1.10 recorder, `brokenWheels.mjs`): it covers nothing, and the game file builds the drive with the real wheels. Its live session is deleted by hand (`deleteSessions.mjs`) after the owner says yes;
 - `build()` converts each recording to the neutral archive, runs `analyzeFromArchive` locally (the field and extract come from a capture if one is on the PC, else none), and `store.upload` sends archive, laps, traces, slices, field and session.
 
 ### Tests that cover this half

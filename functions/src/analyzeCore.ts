@@ -3,27 +3,74 @@
 // Firebase imports, so node --test runs it (functions/test/analyzeCore.test.mjs);
 // analyzeApi.ts binds it to Firestore and the bundled engine.
 
-export const LEASE_MS = 150_000;
+// One run per session (pit-wall #621 Design): a run holds analysisRuns/{id}
+// for LEASE_MS, longer than either function's timeout (analyzeApi 120 s,
+// liveAnalyze 300 s), so a lease cannot run out while its run is alive and no
+// renewal is needed; a crashed run frees it within LEASE_MS. Each lease
+// carries its run's token: a run releases only its own, and its session write
+// is fenced on it (spring #5375, #5389).
+export const LEASE_MS = 330_000;
 const SESSION_ID = /^[0-9a-f]{16}$/;
+
+/** analysisRuns/{id} inside one transaction (Firestore, or a test's map). */
+export interface LeaseTx {
+  get(): Promise<{until: number; token: string} | null>;
+  set(lease: {owner: string; until: number; token: string}): void;
+  delete(): void;
+}
+export type RunTx = <T>(id: string, fn: (tx: LeaseTx) => Promise<T>) => Promise<T>;
+
+/** The lease rules, the same for Firestore and the tests. */
+export function leases(runTx: RunTx) {
+  return {
+    /** True when taken for this token; false while another run holds it. */
+    take: (id: string, owner: string, now: number, token: string) =>
+      runTx(id, async tx => {
+        const held = await tx.get();
+        if (held && held.until > now) return false;
+        tx.set({owner, until: now + LEASE_MS, token});
+        return true;
+      }),
+    /** Whether `token` still holds the lease at `now`. */
+    holds: (id: string, now: number, token: string) =>
+      runTx(id, async tx => {
+        const held = await tx.get();
+        return !!held && held.token === token && held.until > now;
+      }),
+    /** Deletes the lease only while it carries `token`. */
+    release: (id: string, token: string) =>
+      runTx(id, async tx => {
+        if ((await tx.get())?.token === token) tx.delete();
+      }),
+  };
+}
+
+export class LeaseLost extends Error {
+  status = 409 as const;
+}
 
 export interface AnalyzeDeps {
   /** The caller's owner key (ownerAccess.ts resolveOwner); throws Unauthorized. */
   owner(authorization: string | undefined): Promise<string>;
+  /** analysisRuns/{id} in a transaction: `leases` applies the rules. */
+  runTx: RunTx;
   /**
-   * Takes analysisRuns/{id} for LEASE_MS in a transaction: true when taken,
-   * false while another run holds it.
+   * The engine: analyzeStored. Calls `fence` right before it writes the
+   * session; `fence` throws LeaseLost when this run no longer holds the lease.
+   * Rejects with {status} for 404 and 409.
    */
-  takeLease(sessionId: string, owner: string, now: number): Promise<boolean>;
-  releaseLease(sessionId: string): Promise<void>;
-  /** The engine: analyzeStored. Rejects with {status} for 404 and 409. */
-  analyze(sessionId: string, owner: string): Promise<{laps: number}>;
+  analyze(
+    sessionId: string,
+    owner: string,
+    fence: () => Promise<void>,
+  ): Promise<{laps: number}>;
   /**
    * The session's live upload stamp (sessions/{id}.live.updatedAt), null when
    * it was never live. A lap uploaded during a run moves it.
    */
   liveStamp?(sessionId: string): Promise<string | null>;
-  /** Moves the held lease's end to now + LEASE_MS, before another run. */
-  extendLease?(sessionId: string, owner: string, now: number): Promise<void>;
+  /** A run's lease token, unique per run. */
+  token(): string;
   now(): number;
 }
 
@@ -72,25 +119,33 @@ export async function runAnalysis(
   sessionId: string,
   owner: string,
 ): Promise<Run> {
-  if (!(await deps.takeLease(sessionId, owner, deps.now())))
+  const lease = leases(deps.runTx);
+  const token = deps.token();
+  if (!(await lease.take(sessionId, owner, deps.now(), token)))
     return {state: 'running'};
+  const fence = async () => {
+    if (!(await lease.holds(sessionId, deps.now(), token)))
+      throw new LeaseLost('analysis lease lost: another run holds it');
+  };
   try {
     let laps = 0;
     for (let run = 1; run <= MAX_RUNS; run++) {
-      if (run > 1) await deps.extendLease?.(sessionId, owner, deps.now());
       const before = deps.liveStamp ? await deps.liveStamp(sessionId) : null;
-      ({laps} = await deps.analyze(sessionId, owner));
+      ({laps} = await deps.analyze(sessionId, owner, fence));
       if (!deps.liveStamp || before === null) break;
       if ((await deps.liveStamp(sessionId)) === before) break;
     }
     return {state: 'done', laps};
   } catch (error) {
+    // Another run holds the session now and writes it: as if it had been
+    // running when this one asked.
+    if (error instanceof LeaseLost) return {state: 'running'};
     const status = (error as {status?: unknown})?.status;
     if (status === 404 || status === 409)
       return {state: 'refused', status, message: (error as Error).message};
     throw error;
   } finally {
-    await deps.releaseLease(sessionId);
+    await lease.release(sessionId, token);
   }
 }
 
