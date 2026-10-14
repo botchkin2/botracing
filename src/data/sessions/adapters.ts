@@ -479,6 +479,12 @@ export type Lap = {
    * laps analysed before the grid rule (blockVersions.gridLap).
    */
   partialWhy?: 'grid' | 'file' | null;
+  /**
+   * A whole lap the game invalidated (it gave −1 at the crossing; the lap
+   * doc's `invalid`): its line-to-line time, for display only. timeS stays null, so no median, best or selection uses it. Null on
+   * timed, partial and pit laps.
+   */
+  invalidTimeS: number | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
@@ -985,6 +991,15 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     endedInReset: raw.endedInReset === true,
     partial: raw.partial === true || raw.incomplete === true,
     partialWhy: toPartialWhy(raw.partialWhy),
+    // Only the analysis's own `invalid` (the game gave −1 at a real crossing,
+    // not a reset's lap bump): never inferred from 'untimed' (sidepod #5337).
+    invalidTimeS:
+      raw.invalid === true &&
+      raw.partial !== true &&
+      raw.pitIn !== true &&
+      raw.pitOut !== true
+        ? num(raw.lapTime)
+        : null,
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({

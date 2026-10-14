@@ -107,6 +107,7 @@ describe('TAG_KEY', () => {
     const codes = TAG_KEY.map(t => t.code);
     expect(codes).toEqual([
       'PART',
+      'INV',
       'PARK',
       'OUT',
       'IN',

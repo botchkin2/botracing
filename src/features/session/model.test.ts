@@ -73,6 +73,44 @@ describe('buildSessionModel', () => {
     expect(r.chart?.resets).toEqual([13]);
   });
 
+  it('a whole lap the game did not time reads INV with its own time, and counts in nothing', () => {
+    // L25 of 682524ed (2026-10-14): LMU invalidated a full lap; it read PART, no time.
+    const raw = fixture.laps.map((l, i) =>
+      i === 12
+        ? {...l, timed: false, invalid: true, lapTime: 121.627, partial: false, comparable: false, reasons: ['untimed']}
+        : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    const row = lapRow(r, 'L13');
+    const codes = row.tags.map(t => t.code);
+    expect(codes).toContain('INV');
+    expect(codes).not.toContain('PART');
+    expect(row.time).toBe('2:01.627');
+    expect(toLaps(raw)[12].timeS).toBeNull();
+    const ids = raw.map(l => l.id);
+    const d = buildSessionModel(session, toLaps(raw), {laps: [], hl: ids[12]});
+    expect(d.detail).toMatchObject({status: 'Excluded · Invalid'});
+  });
+
+  it('an untimed lap without the invalid fact is not INV (a reset fragment stays PART)', () => {
+    // L4 of 682524ed: 80 s cut by a reset, untimed, stored before the reset fix as whole.
+    const raw = fixture.laps.map((l, i) =>
+      i === 12 ? {...l, timed: false, lapTime: 80.673, partial: false, reasons: ['untimed']} : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    expect(lapRow(r, 'L13').tags.map(t => t.code)).toContain('PART');
+    expect(lapRow(r, 'L13').time).toBe('—');
+  });
+
+  it('a pit or cut lap the game did not time is not INV', () => {
+    const raw = fixture.laps.map((l, i) =>
+      i === 12 ? {...l, timed: false, partial: true, reasons: ['untimed']} : i === 13 ? {...l, timed: false, pitOut: true, reasons: ['untimed', 'pit-out']} : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    expect(lapRow(r, 'L13').tags.map(t => t.code)).toContain('PART');
+    expect(lapRow(r, 'L14').tags.map(t => t.code)).not.toContain('INV');
+  });
+
   it('a parked start reads PARK, not PART, ', () => {
     const raw = fixture.laps.map((l, i) =>
       i === 12
