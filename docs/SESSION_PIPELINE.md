@@ -80,9 +80,9 @@ length, event, kept values.
 | Damage | `playerDamage.mjs damageFor`, stored as the capture extract (`captureExtract.mjs`) | capture | `neverResync.test.mjs:57` (S); `damageFor`: **none** |
 | Race length | `raceLength.mjs raceLengthFor` (LMU), `.ibt` YAML (iRacing) | capture / .ibt | `raceLength.test.mjs`, `keepCapture.test.mjs` (S) |
 | Weather | `analyzeFromArchive.mjs:249` from `recording.weather` | game file (`lmu.mjs:178`); the capture sets `''` (`lmuCapture.mjs:218`) | **none** |
-| GPS | trace and map channels (`analyze.mjs` 683-702, 796-810, 841) | LMU: game file only; the capture's `lat_deg` is computed from `mPos` (`lmuCaptureChannels.mjs:24-25`) | `geo.test.mjs` (S + one real sample) |
+| GPS | trace and map channels (`analyze.mjs` 683-702, 796-810, 841) | LMU: game file only. **The capture has no GPS:** its `lat_deg`/`lon_deg` are world metres projected onto a made-up point at 60° N (`lmuCaptureChannels.mjs:24-25`), a wrong value under GPS names. Target: absent (`{absent: 'capture has no GPS'}`) or named `world_x_m`/`world_z_m`, until the game file supplies GPS | `geo.test.mjs` (S + one real sample); capture: **none** |
 | Track map, boundaries | `analyze.mjs planTrackMap`, `catalogStamp` | curated `tracks/` and `trackBoundaries/` docs | `catalogOnly.test.mjs`, `catalogStamp.test.mjs` (S); golden `trackMapSource` (R) |
-| Online event | `sync.mjs eventsOf` (`lmuEvents.mjs`) → `analyzeFromArchive.mjs` 251-252 | LMU trace logs on the PC | `lmuEvents.test.mjs` (S). Live sessions: **never set** |
+| Online event (series, eventId) | `sync.mjs eventsOf` (`lmuEvents.mjs`) → `analyzeFromArchive.mjs` 251-252 | LMU trace logs on the PC, read only by the game-file sync. **Live sessions: never set** (`liveSessionDoc` has none; the skipped sync step was the only caller, same cause as the field) | `lmuEvents.test.mjs` (S); live: **none** |
 | Plan | `planBlock.mjs` (`store.mjs` 501-507) | fuel, laps, race, result | `planBlock.test.mjs` (S, one real race fixture) |
 
 ### Tray-side rows (torsion), to merge into the table
@@ -117,13 +117,14 @@ descriptions, the curated track map and boundaries, `fieldFor`, `damage`,
 | `analyzeStored.mjs` | cloud: `liveAnalyze` on each live lap, `analyzeApi` when a stale session is opened | **always none** (`:160`); the store keeps a stored field, and a live session has none to keep | from the stored capture extract; live sessions had none before #619 | the stored session's | from the recording doc; a live recording has no fill limit |
 | `irLiveParity.mjs`, `lmuCapture.test.mjs` | tests | none | none | none | as described |
 
-**Rule:** one `sessionInputs()` gathers every input for every caller. Each is a
-value or `{absent: reason}`, never a default null, so a caller that does
-without one says so where a reviewer and the manifest check see it. The cloud
-reads stored inputs (field file, capture extract, setup on the recording doc);
-the PC never analyses (*Repair paths*).
+**Target** (gap 1 below; #619 starts it with `liveInputs.mjs`): one
+`sessionInputs()` gathers every input for every caller. Each is a value or
+`{absent: reason}`, never a default null, so a caller that does without one
+says so where a reviewer and the manifest check see it. The cloud reads stored
+inputs (field file, capture extract, setup on the recording doc), and the PC
+stops analysing (*Repair paths*).
 
-**When the cloud analyses** (`functions/src/analyzeCore.ts runAnalysis`):
+**Today, when the cloud analyses** (`functions/src/analyzeCore.ts runAnalysis`):
 - a live lap lands: `liveAnalyze` fires on `live.updatedAt` (`liveLapLanded`);
 - a stale session is opened: the app posts `/api/analyze/{id}` (stale = older
   rules or catalog, `analyzeStored.mjs staleNow`).
@@ -134,8 +135,8 @@ times.
 
 ## Store
 
-`tools/sessions/store.mjs` writes over a backend (Admin on the PC, HTTP from
-the tray, the same calls in the cloud).
+**Today.** `tools/sessions/store.mjs` writes over a backend (Admin on the PC,
+HTTP from the tray, the same calls in the cloud).
 
 - **`upload`** (after an analysis): the session, its laps (laps the run did not
   make are deleted), traces, slices, band, field file, capture extract.
@@ -152,8 +153,10 @@ visits built from damage. Each kept block is named in `analysis.kept`.
 
 These keep rules are inputs in disguise: they are why a cloud run without a
 field looked fine for every game-file session and silently empty for every
-live one. With `sessionInputs()`, the stored field and extract are read as
-inputs, and the keep rules go.
+live one.
+
+**Target** (gap 1): `sessionInputs()` reads the stored field and extract as
+inputs, and the keep rules are deleted.
 
 Tests: `uploadLive.test.mjs`, `keepCapture.test.mjs`, `field.test.mjs:248`,
 `sessionLast.test.mjs` (S, stub backends). A real session through upload and
@@ -162,20 +165,25 @@ checks only that laps land in time.
 
 ## App
 
-The app reads the session doc, then its laps, band, field and traces
-(`src/data/sessions/queries.ts`). It never builds a session.
+**Today.** The app reads the session doc, then its laps, band, field and
+traces (`src/data/sessions/queries.ts`). It never builds a session.
 
 - **Sessions list:** read on mount and focus, and again when `/uploaders`
   (one small call a minute while the list is open) reports a new upload
   (`useNewUploads`).
 - **An open session:** read every 5 s while `live.updatedAt` is under 10 min
-  old (`live.ts livePoll`); a session live in the last 2 h also listens for
-  uploads to it (#618). When the doc's `updatedAt` changes, laps and band are
-  read again.
+  old (`live.ts livePoll`, `queries.ts:73`). When the doc's `updatedAt`
+  changes, laps and band are read again (`queries.ts` `useSession`). A drive
+  that resumes after 10 quiet minutes is not seen until the screen is left and
+  reopened.
 - **Stale on open:** the app posts `/api/analyze/{id}` once per id and part
-  count (`analysisOnOpen.ts`). For a live session `liveAnalyze` already runs
-  each lap; the post only joins its lease (seen in prod 2026-10-14: 3 posts,
-  202 in 0.13 s, no second run). It stays for rule changes and the backlog.
+  count (`analysisOnOpen.ts`, `queries.ts:86`). For a live session
+  `liveAnalyze` already runs each lap, and the post only joins its lease (prod
+  2026-10-14, seat-test: 3 posts, 202 in 0.13-0.15 s, no second run).
+
+**Target.** A session live in the last 2 h listens for uploads to it, so a
+resumed drive shows (#618, open). The post on open stays for rule changes and
+the backlog, and is skipped while a session is live.
 
 Tests: `src/data/sessions/*.test.ts` (S); the screen side of live laps is the
 release gate's pane check (`tools/dev/liveE2E.mjs`, R, prod as seat-test).
