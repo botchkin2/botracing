@@ -16,7 +16,7 @@ What the hosted page can reach is pinned by `capabilities/viewer.json`: exactly 
 
 ## Recorder
 
-The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port of `tools/capture` that writes the same files: `<startUtc>_<track>_<session>/` under `%LOCALAPPDATA%\lap-capture` (`LAP_CAPTURE` overrides) with `meta.json` and 60 s chunks of `player-`, `field-` and `session-NNNN.parquet`, plus `status.json` at the root. Columns are byte-identical to `columns.py` (float32 only when exact; byte-stream-split on floats only).
+The tray records LMU's shared memory itself (`src-tauri/src/capture/`), a port of `tools/capture` that writes the same files: `<startUtc>_<track>_<session>/` under `%LOCALAPPDATA%\lap-capture` (a `BOTRACING_PROFILE` tray: `lap-capture-<profile>`; `LAP_CAPTURE` overrides both, and the tray passes the folder to the uploader) with `meta.json` and 60 s chunks of `player-`, `field-` and `session-NNNN.parquet`, plus `status.json` at the root. Columns are byte-identical to `columns.py` (float32 only when exact; byte-stream-split on floats only).
 
 - **The layout is read from the game's header at run time** (`LMU_SHM_HEADER_DIR`, default the Steam install), as `layout.py` does. No struct offsets are written down here; a type the parser does not know stops the recorder and the menu says so.
 - **A frame is kept only when two copies match**; the scoring read is info, vehicles, info, vehicles. The game's lock and events are never touched.
