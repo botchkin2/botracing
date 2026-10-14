@@ -28,7 +28,9 @@ const speed = Number(arg('--speed', '1'));
 const maxLaps = Number(arg('--laps', '0')) || Infinity;
 let lapsDone = 0;
 if (!existsSync(resolve(from, 'meta.json')) || !arg('--out')) {
-  console.error('usage: --from <capture folder> --out <scratch root> [--speed n]');
+  console.error(
+    'usage: --from <capture folder> --out <scratch root> [--speed n]',
+  );
   process.exit(2);
 }
 
@@ -39,17 +41,23 @@ const glob = kind => sqlPath(resolve(from, `${kind}-*.parquet`));
 const crossings = rows(
   ':memory:',
   `SELECT ls t FROM (SELECT mLapStartET ls, mLapNumber lap,
-     lag(mLapNumber) OVER (ORDER BY mElapsedTime) pl FROM read_parquet(${glob('player')}))
+     lag(mLapNumber) OVER (ORDER BY mElapsedTime) pl FROM read_parquet(${glob(
+       'player',
+     )}))
    WHERE pl IS NOT NULL AND lap <> pl ORDER BY t`,
 ).map(r => Number(r.t));
 const [{t0, t1}] = rows(
   ':memory:',
-  `SELECT min(mElapsedTime) t0, max(mElapsedTime) t1 FROM read_parquet(${glob('player')})`,
+  `SELECT min(mElapsedTime) t0, max(mElapsedTime) t1 FROM read_parquet(${glob(
+    'player',
+  )})`,
 );
 // The recorder cuts a lap's chunk 1 s after the crossing (recorder.rs
 // LAP_CUT_AFTER_S): the chunk then holds what marks the lap finished.
 const LAP_CUT_AFTER_S = 1.0;
-const lapCuts = crossings.filter(t => t > Number(t0)).map(t => t + LAP_CUT_AFTER_S);
+const lapCuts = crossings
+  .filter(t => t > Number(t0))
+  .map(t => t + LAP_CUT_AFTER_S);
 const cuts = [Number(t0), ...lapCuts, Number(t1) + 0.001];
 
 const dir = resolve(root, basename(from));
@@ -61,6 +69,23 @@ const writeJson = (path, value) => {
   renameSync(`${path}.tmp`, path);
 };
 const iso = () => new Date().toISOString();
+// status.json as the recorder writes it (recorder.rs Status::json), every
+// field: the watcher sends it on in its heartbeat, and the contract replay
+// checks its shape against the real ones (contract/README.md).
+const recorderStatus = (state, fields) => ({
+  captureBytes: 0,
+  droppedPct: 0,
+  gameVersion: meta.gameVersion ?? null,
+  lastChunkAt: null,
+  lastLapAt,
+  layoutOk: true,
+  layoutReason: '',
+  pid: process.pid,
+  sessionDir: null,
+  state,
+  updatedAt: iso(),
+  ...fields,
+});
 
 writeJson(resolve(dir, 'meta.json'), {...meta, endUtc: null, chunks: 0});
 let lastLapAt = null;
@@ -80,7 +105,9 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     const out = resolve(dir, `${kind}-${name}.parquet`);
     run(
       ':memory:',
-      `COPY (SELECT * FROM read_parquet(${glob(kind)}) WHERE ${clock} >= ${a} AND ${clock} < ${b})
+      `COPY (SELECT * FROM read_parquet(${glob(
+        kind,
+      )}) WHERE ${clock} >= ${a} AND ${clock} < ${b})
        TO ${sqlPath(`${out}.tmp`)} (FORMAT parquet, COMPRESSION zstd)`,
     );
     renameSync(`${out}.tmp`, out);
@@ -91,16 +118,20 @@ for (let n = 0; n + 1 < cuts.length; n++) {
     lastLapAt = iso();
     lapsDone++;
   }
-  writeJson(status, {
-    state: 'recording',
-    lastChunkAt: iso(),
-    lastLapAt,
-    sessionDir: basename(from),
-    updatedAt: iso(),
-  });
-  console.log(`${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${lapCuts.includes(b) ? ' lap on disk' : ''}`);
+  writeJson(
+    status,
+    recorderStatus('recording', {
+      lastChunkAt: iso(),
+      sessionDir: basename(from),
+    }),
+  );
+  console.log(
+    `${iso()} chunk ${name} [${a.toFixed(2)}, ${b.toFixed(2)})${
+      lapCuts.includes(b) ? ' lap on disk' : ''
+    }`,
+  );
   if (lapsDone >= maxLaps) break;
 }
 writeJson(resolve(dir, 'meta.json'), {...meta, chunks: cuts.length - 1});
-writeJson(status, {state: 'waiting', lastLapAt, sessionDir: null, updatedAt: iso()});
+writeJson(status, recorderStatus('waiting'));
 console.log(`${iso()} replay done, ${lapsDone} laps`);

@@ -99,17 +99,13 @@ export function buildPlanHalf(input: {
   end: ActualEnd | null;
 }): PlanHalf {
   const {facts, plan, rules, basis, hasVe, stops, end} = input;
-  if (facts.limitL != null && scheduledLength(facts) == null)
-    // Nothing to plan from, so nothing to compare: no note either, the card
-    // is left out (PitPlanHalf) unless there is a DNF to show.
+  if (facts.limitL == null || !rules || scheduledLength(facts) == null)
+    // Nothing to plan from (no fill limit, or no race length), so nothing to
+    // compare: no note either, the card is left out (PitPlanHalf) unless
+    // there is a DNF to show (roadmap 2i: no "No fill limit" line).
     return {
       note: null,
       rows: facts.leftEarly ? [finishRow(facts, null)] : [],
-    };
-  if (facts.limitL == null || !rules)
-    return {
-      note: 'No fill limit on record for this race.',
-      rows: [],
     };
   const limit = facts.limitL.toFixed(0);
   if (!plan || basis.laps === 0)

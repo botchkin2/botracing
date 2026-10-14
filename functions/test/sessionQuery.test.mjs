@@ -94,3 +94,14 @@ test('a track carries its layout as variant; the name stays plain', () => {
     ],
   );
 });
+
+test('the list version moves with a count, a write, the owner and the day', async () => {
+  const {listVersion} = await import('../src/sessionQuery.ts');
+  const v = listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW);
+  assert.equal(v, listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 3600_000));
+  assert.notEqual(v, listVersion('u', 171, '2026-10-13T03:00:00.000Z', NOW));
+  assert.notEqual(v, listVersion('u', 170, '2026-10-13T03:00:01.000Z', NOW));
+  assert.notEqual(v, listVersion('w', 170, '2026-10-13T03:00:00.000Z', NOW));
+  assert.notEqual(v, listVersion('u', 170, '2026-10-13T03:00:00.000Z', NOW + 86400000));
+  assert.equal(v.length, 16);
+});

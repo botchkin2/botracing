@@ -41,7 +41,21 @@ pub fn hostname() -> Option<String> {
     std::env::var("HOSTNAME").ok()
 }
 
+// What the server takes (functions/src/contract/heartbeat.ts), counted as
+// JavaScript counts: UTF-16 units, so a character outside the BMP is two.
 const MESSAGE_MAX: usize = 120;
+const LABEL_MAX: usize = 64;
+
+/// The longest start of `text` that is at most `max` UTF-16 units.
+fn cut_utf16(text: &str, max: usize) -> String {
+    let mut units = 0;
+    text.chars()
+        .take_while(|c| {
+            units += c.len_utf16();
+            units <= max
+        })
+        .collect()
+}
 
 /// First line only, user folders replaced, tokens and addresses redacted, cut
 /// to 120 characters (the same rules as the uploader's problem messages).
@@ -59,7 +73,7 @@ pub fn scrub(text: &str) -> String {
     let line = FOLDERS.replace_all(line, "~");
     let line = TOKEN.replace_all(&line, "<token>");
     let line = EMAIL.replace_all(&line, "<email>");
-    line.chars().take(MESSAGE_MAX).collect()
+    cut_utf16(&line, MESSAGE_MAX)
 }
 
 /// The line of a log's last run that names the cause: after the last start
@@ -98,11 +112,21 @@ pub fn last_line(log: &Path) -> String {
 
 /// The PC's name as the uploader reads it from config.json, else its default.
 pub fn label_of(uploader_home: &Path) -> String {
-    std::fs::read_to_string(uploader_home.join("config.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|v| v.get("label")?.as_str().map(str::to_string))
-        .unwrap_or_else(|| "Race PC".to_string())
+    label_from(
+        std::fs::read_to_string(uploader_home.join("config.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            .as_ref(),
+    )
+}
+
+/// config.json's label as heartbeat.mjs sends it: any text the user wrote,
+/// cut to what the server takes; blank or not text is the default.
+pub fn label_from(config: Option<&Value>) -> String {
+    match config.and_then(|v| v.get("label")?.as_str()) {
+        Some(label) if !label.trim().is_empty() => cut_utf16(label, LABEL_MAX),
+        _ => "Race PC".to_string(),
+    }
 }
 
 /// What the server requires of a heartbeat, plus the one problem. No
@@ -208,6 +232,30 @@ mod tests {
         assert!(!secret.contains("eyJ"), "{secret}");
         assert!(!secret.contains("second"), "{secret}");
         assert_eq!(scrub(&"x".repeat(500)).len(), 120);
+        // JavaScript counts UTF-16 units: 61 emoji are 122.
+        assert_eq!(scrub(&"🏎".repeat(61)).chars().count(), 60);
+    }
+
+    #[test]
+    fn every_body_the_tray_sends_is_one_the_server_takes() {
+        let long = "🏎 Race PC ".repeat(20);
+        for (config, reason, last, count) in [
+            (None, "exit code: 1", "Error: boom", 3),
+            (Some(json!({"label": long})), &*"r".repeat(300), "", 0),
+            (Some(json!({"label": 42})), "exit code: 1", &*"🏎".repeat(100), 1),
+            (Some(json!({"label": "  "})), "spawn failed", r"C:\Users\Jane Doe\x", 0),
+        ] {
+            let b = body(
+                &host_id_of("DESKTOP-TEST"),
+                &label_from(config.as_ref()),
+                "0.1.10",
+                reason,
+                last,
+                count,
+                "2026-10-13T02:00:00.000Z",
+            );
+            crate::contract::server_takes("heartbeat", &b);
+        }
     }
 
     #[test]
