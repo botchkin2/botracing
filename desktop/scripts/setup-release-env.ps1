@@ -1,11 +1,11 @@
 # Sets up the GitHub Environment that the tray release job runs in
-# (.github/workflows/tray-release.yml). For Botkin to run once, from anywhere:
+# (.github/workflows/release-tray.yml, "Release tray"). For Botkin to run once, from anywhere:
 #
 #   .\desktop\scripts\setup-release-env.ps1            create it and set what is on this PC
 #   .\desktop\scripts\setup-release-env.ps1 -DryRun    show what it would do, change nothing
 #
 # It creates the Environment `tray-release` with Botkin (the signed-in `gh`
-# user) as the required reviewer, deployable from `tray-v*` tags only, and sets
+# user) as the required reviewer, deployable from `main` only, and sets
 # its secrets from files already on this PC. It prints what it did and never a
 # secret's value. It is safe to run again: it replaces the secrets and fixes
 # the rules.
@@ -124,10 +124,11 @@ if ($missing.Count -gt 0) {
   exit 1
 }
 
-# --- the Environment: Botkin reviews, and only tray-v* tags may deploy to it
+# --- the Environment: Botkin reviews, and only main may deploy to it ("Release
+# tray", release-tray.yml, runs on main and tags the commit itself; roadmap 2w)
 $userId = gh api user --jq .id
 $login = gh api user --jq .login
-Step "Environment '$EnvName' on ${Repo}: required reviewer $login, deployable from tags tray-v* only"
+Step "Environment '$EnvName' on ${Repo}: required reviewer $login, deployable from main only"
 if (-not $DryRun) {
   $body = @{
     wait_timer = 0
@@ -141,19 +142,20 @@ if (-not $DryRun) {
     gh api -X PUT "repos/$Repo/environments/$EnvName" --input $tmp *> $null
     if ($LASTEXITCODE -ne 0) { Fail "could not create the Environment (does this account own $Repo?)" }
 
-    # Only a tray-v* tag rule: drop any other policy, add the tag rule if absent.
+    # Only a main branch rule: drop any other policy (the old tray-v* tag rule
+    # included), add the main rule if absent.
     $policies = gh api "repos/$Repo/environments/$EnvName/deployment-branch-policies" --jq '.branch_policies[] | [.id, .name, .type] | @tsv'
-    $haveTag = $false
+    $haveMain = $false
     foreach ($line in $policies) {
       if (-not $line) { continue }
       $id, $name, $type = $line -split "`t"
-      if ($name -eq "tray-v*" -and $type -eq "tag") { $haveTag = $true }
+      if ($name -eq "main" -and $type -eq "branch") { $haveMain = $true }
       else { gh api -X DELETE "repos/$Repo/environments/$EnvName/deployment-branch-policies/$id" *> $null }
     }
-    if (-not $haveTag) {
-      Set-Content $tmp (@{name = "tray-v*"; type = "tag"} | ConvertTo-Json)
+    if (-not $haveMain) {
+      Set-Content $tmp (@{name = "main"; type = "branch"} | ConvertTo-Json)
       gh api -X POST "repos/$Repo/environments/$EnvName/deployment-branch-policies" --input $tmp *> $null
-      if ($LASTEXITCODE -ne 0) { Fail "could not add the tray-v* tag rule" }
+      if ($LASTEXITCODE -ne 0) { Fail "could not add the main branch rule" }
     }
   } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
@@ -209,6 +211,28 @@ if ($haveFiles) {
     Remove-Item $keyFile, $pwFile -Force
     Write-Host "  deleted $keyFile and $pwFile (their copy is in Secret Manager)"
   } else { Fail "Secret Manager copy did not verify; $keyFile and $pwFile were kept" }
+}
+
+# --- "Release tray" (release-tray.yml, roadmap 2w) at repo level, outside the
+# Environment: the build needs the Firebase web key (public, so a variable),
+# and the live gate needs seat-test's refresh token (a secret that can only
+# ever sign in as seat-test; tools/dev/seatSession.mjs refuses any other uid).
+Step "repo variable BOTRACING_FIREBASE_API_KEY (the public web key)"
+Step "repo secret SEAT_TEST_REFRESH_TOKEN (seat-test's refresh token, from functions/scripts/mintTestToken.mjs; never printed)"
+if (-not $DryRun) {
+  gh variable set BOTRACING_FIREBASE_API_KEY --body $FirebaseApiKey --repo $Repo *> $null
+  if ($LASTEXITCODE -ne 0) { Fail "could not set the repo variable BOTRACING_FIREBASE_API_KEY" }
+  $sa = gcloud iam service-accounts list --project $GcpProject --filter "email~^firebase-adminsdk" --format "value(email)" | Select-Object -First 1
+  if (-not $sa) { Fail "no firebase-adminsdk service account in $GcpProject to mint seat-test's token with" }
+  $tmp = New-TemporaryFile
+  try {
+    $env:SMOKE_SERVICE_ACCOUNT = $sa
+    node (Join-Path $PSScriptRoot "..\..\functions\scripts\mintTestToken.mjs") --refresh-token-file $tmp *> $null
+    if ($LASTEXITCODE -ne 0 -or (Get-Item $tmp).Length -eq 0) { Fail "could not make seat-test's refresh token (npm ci --prefix functions first?)" }
+    $p = Start-Process gh -ArgumentList @("secret", "set", "SEAT_TEST_REFRESH_TOKEN", "--repo", $Repo) `
+      -RedirectStandardInput $tmp -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) { Fail "could not set SEAT_TEST_REFRESH_TOKEN" }
+  } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
 }
 
 # --- what is there now (names only)

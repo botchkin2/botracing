@@ -157,10 +157,12 @@ export function httpBackend({
       const res = await call('POST', '/file/upload-url', {
         json: {dest, contentType, gzip: !!gzip, size: body.length},
       });
-      const {url, headers} = await res.json();
+      // The server names the method (PUT to Storage; the emulator's POST in
+      // the contract replay); a server that does not is PUT.
+      const {url, headers, method = 'PUT'} = await res.json();
       // The signed URL carries its own authority: no bearer token.
       await withNetRetry(async () => {
-        const put = await fetch(url, {method: 'PUT', headers, body});
+        const put = await fetch(url, {method, headers, body});
         if (!put.ok)
           throw new HttpError(
             put.status,

@@ -26,13 +26,13 @@ import {
   renameSync,
   statSync,
   statfsSync,
-  writeFileSync,
 } from 'node:fs';
 import {createServer} from 'node:net';
 import {constants, homedir, hostname, setPriority} from 'node:os';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {analysisVersion, blockVersions} from '../sessions/analyze.mjs';
+import {replaceFile} from '../sessions/replaceFile.mjs';
 import {versionKey} from '../sessions/versionKey.mjs';
 import {ARCHIVE_REPAIR} from '../sessions/archiveRepair.mjs';
 import {adapter, telemetryFolder} from '../sessions/sims.mjs';
@@ -60,11 +60,14 @@ import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {
   decide,
   decideLive,
+  liveClosed,
   liveRetryDelayMs,
   liveWake,
   retryDelayMin,
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
+import {readLiveIndex} from '../sessions/liveSession.mjs';
+import {usableLiveIndex} from '../sessions/brokenWheels.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -385,17 +388,16 @@ async function main() {
   // reads as changed, so the first run with this code syncs everything once.
   // The archive repair's version too: a tray that brings a new repair syncs
   // once on its first start (game closed, as every run), not at the next drive.
-  const currentKey = `${versionKey(analysisVersion, blockVersions)}|repair${ARCHIVE_REPAIR}`;
+  const currentKey = `${versionKey(
+    analysisVersion,
+    blockVersions,
+  )}|repair${ARCHIVE_REPAIR}`;
   // Failed sessions and their backoff (retries.mjs); older state had a list.
   watch.retries ??= {};
   delete watch.failedSessions;
   clearStaleSyncing(watch, SIMS);
   // Written to a temp file and renamed, so the tray never reads a half-written state.json.
-  const save = () => {
-    const tmp = `${statePath}.tmp`;
-    writeFileSync(tmp, JSON.stringify(watch));
-    renameSync(tmp, statePath);
-  };
+  const save = () => replaceFile(statePath, JSON.stringify(watch));
   save();
   let wasRunning = false;
   let lastKey = '';
@@ -480,6 +482,24 @@ async function main() {
     }
   };
 
+  // Live sessions uploaded before live laps carried the field (tray 0.1.10,
+  // roadmap row 0a): each capture the live index names, still on the PC, is
+  // run through the live path once more; uploadLive adds the field and the
+  // capture extract to a stored session that has none. Once per session.
+  for (const sim of LIVE_SIMS) {
+    const done = ((watch.liveFieldRepair ??= {})[sim.id] ??= {});
+    // Never a broken-wheel capture: flow B rebuilds that drive (brokenWheels.mjs).
+    const index = usableLiveIndex(readLiveIndex(workOf(sim)), captureRoot);
+    for (const [key, span] of Object.entries(index)) {
+      const dir = key.split('#')[0];
+      if (done[span.sessionId] || !existsSync(resolve(captureRoot, dir))) continue;
+      log(`live ${sim.id}: adding the field to ${span.sessionId} (${dir})`);
+      const r = await runLive(sim, dir);
+      if (r.code === 0) done[span.sessionId] = true;
+      save();
+    }
+  }
+
   tick: for (;;) {
     if (parentGone()) {
       log('the tray app is gone, stopping');
@@ -494,7 +514,11 @@ async function main() {
         const recorder = readJson(recorderStatusOf(sim), null);
         // The capture live laps were following has closed (the drive ended,
         // the game quit): one last run sends its in-lap, game running or not.
-        if (live.dir && recorder?.sessionDir !== live.dir) {
+        // Closed is a new capture, or the recorder no longer recording: when
+        // the game exits it keeps the last sessionDir and says no-game, so a
+        // changed sessionDir alone never came and the drive's last lap stayed
+        // partial (2026-10-14, pit wall #5305).
+        if (liveClosed(live.dir, recorder)) {
           log(`live ${sim.id}: ${live.dir} closed, sending its last lap`);
           const r = await runLive(sim, live.dir);
           log(`live ${sim.id}: exit ${r.code}`);
@@ -502,7 +526,9 @@ async function main() {
           save();
         }
         if (!running || !exeRunning(gameExeOf(sim))) continue;
-        const lastLapAtMs = recorder?.lastLapAt ? Date.parse(recorder.lastLapAt) : null;
+        const lastLapAtMs = recorder?.lastLapAt
+          ? Date.parse(recorder.lastLapAt)
+          : null;
         const plan = decideLive({
           gameRunning: true,
           lastLapAtMs,

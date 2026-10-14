@@ -122,6 +122,12 @@ async function putAdminFile(bucket, dest, source, {contentType, gzip}) {
 // gRPC codes worth retrying: deadline, exhausted, aborted, internal, unavailable.
 const TRANSIENT = new Set([4, 8, 10, 13, 14]);
 
+// A session write stamps `changedAt`: the session list's version is the newest
+// stamp (functions/src/sessionStore.ts sessionsVersion). The upload route
+// stamps the same field (functions/src/uploadApi.ts commit).
+const stampSession = (coll, data) =>
+  coll === 'sessions' ? {...data, changedAt: new Date().toISOString()} : data;
+
 // `bucket` is only needed for the file primitives.
 export function adminBackend({db, bucket}) {
   const ref = (coll, id) => db.collection(coll).doc(id);
@@ -137,7 +143,12 @@ export function adminBackend({db, bucket}) {
       const writer = guardedWriter(db.bulkWriter());
       for (const {op, coll, id, data, merge} of ops) {
         if (op === 'delete') writer.delete(ref(coll, id));
-        else writer.set(ref(coll, id), data, merge ? {merge: true} : undefined);
+        else
+          writer.set(
+            ref(coll, id),
+            stampSession(coll, data),
+            merge ? {merge: true} : undefined,
+          );
       }
       await writer.close();
     },
@@ -154,7 +165,7 @@ export function adminBackend({db, bucket}) {
       // Each update's promise rejects once onWriteError gives up. The failure
       // is already in `failed`; waiting on them keeps it from being unhandled.
       const writes = ops.map(({coll, id, data}) =>
-        writer.update(ref(coll, id), data),
+        writer.update(ref(coll, id), stampSession(coll, data)),
       );
       await writer.close();
       await Promise.allSettled(writes);
@@ -255,6 +266,27 @@ function bringsNewRecordings(before, session) {
   return (session.archiveParts ?? 0) > (before?.archiveParts ?? 0);
 }
 
+// A live session's lap uploaded while this analysis ran (most of its time
+// goes on the files and laps above): read the doc again right before the
+// session write and keep what the upload set. Never roll the live stamp back
+// (liveAnalyze's re-run watches it; sidepod on #614), and keep the stored
+// part count and leave the session stale, so the new lap is analysed too.
+// The window left is one read to one write; a lap landing in it is still
+// picked up by the next lap's run, or by an open. ISO times compare as text.
+export function keepNewerLive(session, stored, log = () => {}) {
+  const storedLive = stored?.live?.updatedAt;
+  if (
+    typeof storedLive === 'string' &&
+    storedLive > (session.live?.updatedAt ?? '')
+  )
+    session.live = stored.live;
+  if ((stored?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
+    session.archiveParts = stored.archiveParts;
+    session.analysis = {...session.analysis, v: 0};
+    log('  a lap arrived during this analysis: left stale');
+  }
+}
+
 async function uploadSession(backend, out, {log = () => {}} = {}) {
   const {session} = out;
 
@@ -270,13 +302,6 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
     return {skipped: 'newer'};
   }
 
-  // A live session gained a lap while this analysis ran: keep the count of
-  // what is stored and leave it stale, so the next open analyses that lap too.
-  if ((before?.archiveParts ?? 0) > (session.archiveParts ?? 0)) {
-    session.archiveParts = before.archiveParts;
-    session.analysis = {...session.analysis, v: 0};
-    log('  a lap arrived during this analysis: left stale');
-  }
 
   // The field file already in the bucket (the capture is gone after 14 days,
   // the uploaded file is not). A failure is a log line and null: the next
@@ -522,6 +547,7 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
   // leaves the old stamp, and the session is analysed again.
   const writer = {stamp: session.analysis ?? null};
   await backend.writeDocs(ops, writer);
+  keepNewerLive(session, await backend.getDoc('sessions', session.id), log);
   await backend.writeDocs(
     [{op: 'set', coll: 'sessions', id: session.id, data: session}],
     writer,
@@ -552,6 +578,24 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 // docs only after all of them: an upload that fails part-way writes no doc, and
 // the next lap sends every part the bucket lacks (md5), so a lap is never lost
 // or out of order. Older-over-newer is refused unless a part is new.
+// The live path's field file and capture extract (liveInputs.mjs).
+async function putLiveInputs(backend, out, session, log) {
+  if (out.fieldText && out.field) {
+    await backend.putFile(
+      out.field.path,
+      {body: Buffer.from(out.fieldText)},
+      {contentType: 'application/json', gzip: true},
+    );
+    log(`  live: field ${out.field.cars} cars`);
+  }
+  if (out.captureExtract)
+    await backend.putFile(
+      captureExtractPath(session.ownerId, session.id),
+      {body: Buffer.from(JSON.stringify(out.captureExtract))},
+      {contentType: 'application/json', gzip: true},
+    );
+}
+
 async function uploadLive(backend, out, {log = () => {}} = {}) {
   const {session} = out;
   const before = await backend.getDoc('sessions', session.id);
@@ -559,6 +603,24 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
   ) {
+    // No new lap, but a session from before live laps carried the field
+    // (roadmap row 0a): its field and capture extract go up once, alone, and
+    // the session reads stale so the next open works out the class laps,
+    // bests and traffic from the field (uploadSession's kept-field path).
+    if (out.fieldText && out.field && !before?.field) {
+      await putLiveInputs(backend, out, session, log);
+      await backend.writeDocs([
+        {
+          op: 'set',
+          coll: 'sessions',
+          id: session.id,
+          data: {field: out.field, analysis: {...before.analysis, v: 0}},
+          merge: true,
+        },
+      ]);
+      log('  live: field added to the stored session; it reads stale');
+      return {skipped: 'newer', field: 'added'};
+    }
     log('  live: nothing new over the stored session');
     return {skipped: 'newer'};
   }
@@ -575,15 +637,34 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     );
     sent++;
   }
+  // The field and the capture extract the live path made (liveInputs.mjs):
+  // the field is named by its content, so an unchanged one is not sent again;
+  // the session then points at it, and analysis keeps and reads it (the
+  // kept-field path in uploadSession). The extract is a few KB, sent as is.
+  if (out.fieldText && out.field && out.field.hash !== before?.field?.hash) {
+    await putLiveInputs(backend, out, session, log);
+    session.field = out.field;
+  } else {
+    if (before?.field) session.field = before.field;
+    if (out.captureExtract) await putLiveInputs(backend, {...out, fieldText: null}, session, log);
+  }
   const ops = out.recordings.map(rec => ({
     op: 'set',
     coll: 'recordings',
     id: rec.id,
     data: rec,
   }));
-  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session, merge: true});
+  ops.push({
+    op: 'set',
+    coll: 'sessions',
+    id: session.id,
+    data: session,
+    merge: true,
+  });
   await backend.writeDocs(ops);
-  log(`  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`);
+  log(
+    `  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`,
+  );
   return {sent};
 }
 

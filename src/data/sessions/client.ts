@@ -22,6 +22,42 @@ import {
 import {type SessionFilter} from './keys';
 import {type PlanSession, toPlanSessions} from './planBlock';
 
+/**
+ * The last answer of each list request with the version the server gave it.
+ * Asking again sends that version (`?v=`): an unchanged list answers
+ * `{unchanged: true}` and the server read two documents, not every session
+ * (Hosting passes no If-None-Match to the function). The server's version
+ * names the owner, so another person's cached answer never matches.
+ */
+const lastAnswer = new Map<string, {version: string; value: unknown}>();
+
+/** For tests. */
+export function forgetListAnswers(): void {
+  lastAnswer.clear();
+}
+
+async function getVersioned<R extends {version?: string}, T>(
+  path: string,
+  params: URLSearchParams,
+  convert: (body: R) => T,
+  signal?: AbortSignal,
+): Promise<T> {
+  const key = `${path}?${params}`;
+  const held = lastAnswer.get(key);
+  const asked = new URLSearchParams(params);
+  if (held) asked.set('v', held.version);
+  const query = asked.toString();
+  const body = await getJson<R & {unchanged?: boolean}>(
+    `${path}${query ? `?${query}` : ''}`,
+    signal,
+  );
+  if (body.unchanged && held) return held.value as T;
+  const value = convert(body);
+  if (body.version) lastAnswer.set(key, {version: body.version, value});
+  else lastAnswer.delete(key);
+  return value;
+}
+
 export async function fetchSessions(
   filter: SessionFilter,
   signal?: AbortSignal,
@@ -30,12 +66,15 @@ export async function fetchSessions(
   if (filter.ageDays) params.set('age', String(filter.ageDays));
   if (filter.trackId) params.set('track', filter.trackId);
   if (filter.sim) params.set('sim', filter.sim);
-  const query = params.toString();
-  const body = await getJson<SessionListResponse>(
-    `/sessions${query ? `?${query}` : ''}`,
+  return getVersioned<
+    SessionListResponse & {version?: string},
+    {items: SessionSummary[]; total: number}
+  >(
+    '/sessions',
+    params,
+    body => ({items: body.items.map(toSessionSummary), total: body.total}),
     signal,
   );
-  return {items: body.items.map(toSessionSummary), total: body.total};
 }
 
 /**
@@ -58,7 +97,12 @@ export async function fetchPlanSessions(
 export async function fetchSessionFacets(
   signal?: AbortSignal,
 ): Promise<SessionFacets> {
-  return toSessionFacets(await getJson<unknown>('/sessions/facets', signal));
+  return getVersioned<{version?: string}, SessionFacets>(
+    '/sessions/facets',
+    new URLSearchParams(),
+    body => toSessionFacets(body),
+    signal,
+  );
 }
 
 export async function fetchSession(

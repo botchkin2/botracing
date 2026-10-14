@@ -186,7 +186,8 @@ fn emit(
             walk(layout, nested, raw, stride, rows, offset, name, out)
         }
         Kind::Array(inner, n) => {
-            let (elem, _) = crate::capture::layout::size_align(inner);
+            // Layout::size_of, a struct's size included (pit wall #5324).
+            let elem = layout.size_of(inner)?;
             if name == "mWheel" && *n == 4 {
                 for i in 0..4 {
                     emit(layout, inner, raw, stride, rows, offset + i * elem, WHEELS[i], out)?;
@@ -487,6 +488,35 @@ mod tests {
         assert!(!cols.keys().any(|k| k.contains("mExpansion")));
         assert!(cols.contains_key("fl_mBrakeTemp"));
         assert!(!cols.contains_key("mWheel_0_mBrakeTemp"));
+    }
+
+    #[test]
+    fn each_wheel_reads_its_own_slot_of_mwheel() {
+        // Tray 0.1.9-0.1.10 read all four at FL's offset (an array of structs
+        // stepped by 0): every capture since 2026-10-13 had fl = fr = rl = rr.
+        let lay = layout();
+        let telem = lay.built("TelemInfoV01").unwrap();
+        let wheel = lay.built("TelemWheelV01").unwrap();
+        let mut raw = vec![0_u8; telem.size];
+        let base = telem.fields.iter().find(|f| f.name == "mWheel").unwrap().offset;
+        let wear = wheel.fields.iter().find(|f| f.name == "mBrakeTemp").unwrap();
+        let values = [301.5_f64, 302.5, 303.5, 304.5];
+        for (i, v) in values.iter().enumerate() {
+            let at = base + i * wheel.size + wear.offset;
+            raw[at..at + wear.size].copy_from_slice(&v.to_le_bytes()[..wear.size]);
+        }
+        let cols = columns(&lay, "TelemInfoV01", &raw, &[], float32_player()).unwrap();
+        let got: Vec<f64> = ["fl_mBrakeTemp", "fr_mBrakeTemp", "rl_mBrakeTemp", "rr_mBrakeTemp"]
+            .iter()
+            .map(|k| match &cols[*k] {
+                Column::F64(v) => v[0],
+                Column::F32(v) => v[0] as f64,
+                other => panic!("{k}: {other:?}"),
+            })
+            .collect();
+        for (g, v) in got.iter().zip(values) {
+            assert!((g - v).abs() < 1e-6, "{got:?}");
+        }
     }
 
     #[test]

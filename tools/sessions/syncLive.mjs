@@ -12,6 +12,7 @@ import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {basename, join, resolve} from 'node:path';
 import * as irLiveCapture from './irLiveCapture.mjs';
 import * as lmuCapture from './lmuCapture.mjs';
+import {liveInputs} from './liveInputs.mjs';
 import {groupFiles} from './sessionFiles.mjs';
 import {
   liveRecordingDoc,
@@ -57,6 +58,7 @@ export async function syncLive({
   capture = captureAdapterFor(captureDir).adapter,
   now = () => new Date().toISOString(),
   log = () => {},
+  makeInputs = liveInputs,
 }) {
   const {stretches} = capture.describeCapture(captureDir);
   const files = stretches
@@ -77,7 +79,9 @@ export async function syncLive({
     mkdirSync(dir, {recursive: true});
     const recordings = [];
     const upload = [];
+    const samplesOf = [];
     for (const f of session.files) {
+      const samplePaths = [];
       const sim = f.info.sim;
       f.laps.forEach((lap, i) => {
         const n = partName(i);
@@ -87,11 +91,30 @@ export async function syncLive({
         if (!existsSync(samples) || !existsSync(events))
           capture.writeCaptureArchive(captureDir, f.info, lap, samples, events);
         const prefix = `archive/${sim}/${session.id}/${f.id}`;
+        samplePaths.push(samples);
         upload.push({local: samples, dest: `${prefix}/samples.${n}.parquet`});
         upload.push({local: events, dest: `${prefix}/events.${n}.parquet`});
       });
       recordings.push({id: f.id, info: f.info, parts: f.laps});
+      samplesOf.push({samplePaths});
     }
+    // The field and the capture extract, from the same capture (liveInputs.mjs):
+    // live sessions are skipped by the game-file sync that used to make them.
+    // Never at the cost of the lap: a field that cannot be made this time is
+    // a log line, and the next lap tries again.
+    let inputs;
+    try {
+      inputs = makeInputs({
+        captureDir,
+        ownerId,
+        sessionId: session.id,
+        files: session.files,
+        recordings: samplesOf,
+      });
+    } catch (e) {
+      inputs = {field: null, fieldText: null, fieldReason: e.message, extract: null};
+    }
+    if (!inputs.field) log(`live: ${session.id} field: none (${inputs.fieldReason})`);
     const out = {
       session: liveSessionDoc({
         ownerId,
@@ -103,6 +126,9 @@ export async function syncLive({
         liveRecordingDoc({ownerId, sessionId: session.id, recording}),
       ),
       files: upload,
+      field: inputs.field,
+      fieldText: inputs.fieldText,
+      captureExtract: inputs.extract,
     };
     log(`live: ${session.id} ${out.session.lapCount} laps`);
     await store.uploadLive(out, {log});

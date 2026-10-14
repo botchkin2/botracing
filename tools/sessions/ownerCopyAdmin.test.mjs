@@ -127,6 +127,12 @@ test('the Admin backend writes whole documents, copies server side, keeps metada
     ['set', 'laps/y', {a: 1}, undefined],
     'a whole document, never a merge',
   );
+  // A session copy stamps changedAt: the session list's version moves.
+  await b.setDoc('sessions/n', {a: 1});
+  const [, path, data] = calls.at(-1);
+  assert.equal(path, 'sessions/n');
+  assert.equal(data.a, 1);
+  assert.match(data.changedAt, /^\d{4}-\d\d-\d\dT/);
   assert.deepEqual(await b.statFile('traces/a'), {
     size: 5,
     md5: 'MD5',

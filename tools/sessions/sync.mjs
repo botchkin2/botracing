@@ -32,7 +32,6 @@ import {
   readdirSync,
   readFileSync,
   statSync,
-  renameSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -45,6 +44,7 @@ import {
   QUIET_MIN_DEFAULT,
   scanFolder,
 } from './sessionFiles.mjs';
+import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
 import {analyzeFromArchive, slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
@@ -58,6 +58,7 @@ import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
+import {usableLiveIndex} from './brokenWheels.mjs';
 import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
@@ -148,9 +149,13 @@ if (liveDir) {
   const {captureAdapterFor, syncLive} = await import('./syncLive.mjs');
   // The work folder is the sim's (watch.mjs passes --sim): a capture of another
   // sim would write its live index where that sim's sync never reads it.
-  const {sim: captureSim, adapter: capture} = captureAdapterFor(resolve(liveDir));
+  const {sim: captureSim, adapter: capture} = captureAdapterFor(
+    resolve(liveDir),
+  );
   if (captureSim !== simName) {
-    console.error(`--live: the capture is ${captureSim}, this sync is --sim ${simName}.`);
+    console.error(
+      `--live: the capture is ${captureSim}, this sync is --sim ${simName}.`,
+    );
     process.exit(2);
   }
   const r = await syncLive({
@@ -186,9 +191,7 @@ function readState() {
 // state.json behind (pitlane #667).
 function saveState(state) {
   mkdirSync(work, {recursive: true});
-  const tmp = `${statePath}.tmp`;
-  writeFileSync(tmp, JSON.stringify(state));
-  renameSync(tmp, statePath);
+  replaceFile(statePath, JSON.stringify(state));
 }
 
 function log(line) {
@@ -547,10 +550,14 @@ async function main() {
   if (!check) saveState(state);
   // A drive live laps already uploaded (syncLive.mjs) is that session: its
   // game file adds nothing the capture lacks (STORAGE.md, Live laps).
-  const liveIndex = readLiveIndex(work);
+  // A broken-wheel capture covers nothing: its game file builds the drive.
+  const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
   const files = scanned.filter(f => {
     const cover = liveCover(liveIndex, f.info);
-    if (cover) log(`  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`);
+    if (cover)
+      log(
+        `  ${f.info.source}: live laps have it (${cover.sessionId}), skipped`,
+      );
     return !cover;
   });
   const sessions = group(files);

@@ -30,7 +30,12 @@ const EXCHANGE =
   'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken';
 
 // A custom token for an ID token, which the upload API takes as a bearer token.
-export async function exchangeForIdToken({
+export async function exchangeForIdToken(options) {
+  return (await exchangeForTokens(options)).idToken;
+}
+
+// A custom token for seat-test's ID token and refresh token.
+export async function exchangeForTokens({
   customToken,
   fetch = globalThis.fetch,
   apiKey = WEB_API_KEY,
@@ -47,7 +52,8 @@ export async function exchangeForIdToken({
         200,
       )}`,
     );
-  return (await res.json()).idToken;
+  const {idToken, refreshToken} = await res.json();
+  return {idToken, refreshToken};
 }
 
 // The live site: seats test on localhost and preview channels, never there.
@@ -121,6 +127,15 @@ if (
     if (args.includes('--custom-token-file') && customFile) {
       writeFileSync(customFile, token);
       console.log(`wrote seat-test's custom token to ${customFile}`);
+    }
+    // CI's live gate holds seat-test's refresh token (secret
+    // SEAT_TEST_REFRESH_TOKEN; tools/dev/seatSession.mjs): written to a file,
+    // never printed, for `gh secret set ... < file` (roadmap 2w).
+    const refreshFile = args[args.indexOf('--refresh-token-file') + 1];
+    if (args.includes('--refresh-token-file') && refreshFile) {
+      const {refreshToken} = await exchangeForTokens({customToken: token});
+      writeFileSync(refreshFile, refreshToken);
+      console.log(`wrote seat-test's refresh token to ${refreshFile}`);
     }
     const tokenFile = args[args.indexOf('--id-token-file') + 1];
     if (args.includes('--id-token-file') && tokenFile) {

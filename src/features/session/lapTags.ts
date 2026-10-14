@@ -42,11 +42,12 @@ export function trafficTags(traffic: LapTraffic | null): {code: string}[] {
   return tags;
 }
 
-// R3: PART · PARK · OUT · IN · RESET · SLOW · TOW · BEST · OFF · HIT · TRAF · BLUE ·
+// R3: PART · INV · PARK · OUT · IN · RESET · SLOW · TOW · BEST · OFF · HIT · TRAF · BLUE ·
 // PASS · BTL. At 375 pt one tag shows, so this decides which one; TOW is above BEST
 // so a towed best lap shows TOW.
 const PRIORITY = [
   'PART',
+  'INV',
   'PARK',
   'OUT',
   'IN',
@@ -68,6 +69,7 @@ type TagCode = (typeof PRIORITY)[number];
 // word does not compile, so the legend cannot miss a tag the rows can draw.
 const MEANING: Record<TagCode, string> = {
   PART: 'partial',
+  INV: 'invalid',
   PARK: 'parked',
   OUT: 'out lap',
   IN: 'in lap',
