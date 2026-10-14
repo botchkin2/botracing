@@ -194,7 +194,14 @@ stops analysing (*Repair paths*).
 - a stale session is opened: the app posts `/api/analyze/{id}` (stale = older
   rules or catalog, `analyzeStored.mjs staleNow`).
 
-Both take one lease per session (`analysisRuns/{id}`, 150 s); a second caller
+A run that takes the lease over a session that is already current
+(`engine.ts isSessionStale`, the test the session route answers with) writes
+nothing and answers done, so an open after a live lap's run, a retry or a
+second tab never runs the analysis twice. That test needs no DuckDB: only the
+functions that analyse stage its binary in /tmp (`engine.ts analysisEngine`),
+which is memory on Cloud Run (dataApi has 256 MiB).
+
+Both take one lease per session (`analysisRuns/{id}`, 330 s); a second caller
 gets 202 and waits. A run that sees the live stamp move runs again, at most 3
 times.
 

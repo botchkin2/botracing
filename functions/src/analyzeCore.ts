@@ -69,6 +69,14 @@ export interface AnalyzeDeps {
    * it was never live. A lap uploaded during a run moves it.
    */
   liveStamp?(sessionId: string): Promise<string | null>;
+  /**
+   * Whether the stored session needs analysing (engine.ts isSessionStale, the
+   * session route's test). A run that takes the lease over a current session
+   * writes nothing: an open that lands after a live lap's run, a retry or a
+   * second tab is then a no-op, not a second 2 GiB run (pit wall thread 69).
+   * True for a session that is not `owner`'s: the run then refuses it (404).
+   */
+  stale?(sessionId: string, owner: string): Promise<boolean>;
   /** A run's lease token, unique per run. */
   token(): string;
   now(): number;
@@ -98,6 +106,7 @@ export async function handleAnalyze(
   if (run.state === 'running') return {status: 202, body: {state: 'running'}};
   if (run.state === 'refused')
     return {status: run.status, body: {error: run.message}};
+  if (run.state === 'current') return {status: 200, body: {state: 'done'}};
   return {status: 200, body: {state: 'done', laps: run.laps}};
 }
 
@@ -110,6 +119,7 @@ export const MAX_RUNS = 3;
 
 export type Run =
   | {state: 'done'; laps: number}
+  | {state: 'current'}
   | {state: 'running'}
   | {state: 'refused'; status: 404 | 409; message: string};
 
@@ -128,6 +138,8 @@ export async function runAnalysis(
       throw new LeaseLost('analysis lease lost: another run holds it');
   };
   try {
+    if (deps.stale && !(await deps.stale(sessionId, owner)))
+      return {state: 'current'};
     let laps = 0;
     for (let run = 1; run <= MAX_RUNS; run++) {
       const before = deps.liveStamp ? await deps.liveStamp(sessionId) : null;

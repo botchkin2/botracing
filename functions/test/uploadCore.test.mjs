@@ -127,6 +127,12 @@ test("reads of another owner's documents are 404, not 403", async () => {
   ]);
   assert.equal((await call(w, 'tok-a', 'GET', '/doc/sessions/s1')).status, 200);
   assert.equal((await call(w, 'tok-b', 'GET', '/doc/sessions/s1')).status, 404);
+  // A live lap reads its recording docs (store.mjs uploadLive): the owner's only.
+  await write(w, 'tok-a', [
+    {op: 'set', coll: 'recordings', id: 'r1', data: {ownerId: 'uidA', archive: {parts: []}}},
+  ]);
+  assert.equal((await call(w, 'tok-a', 'GET', '/doc/recordings/r1')).status, 200);
+  assert.equal((await call(w, 'tok-b', 'GET', '/doc/recordings/r1')).status, 404);
   assert.equal(
     (await call(w, 'tok-b', 'GET', '/doc/sessions/none')).status,
     404,
@@ -142,8 +148,8 @@ test("reads of another owner's documents are 404, not 403", async () => {
   // Laps read like sessions: the owner's, never another owner's.
   assert.equal((await call(w, 'tok-a', 'GET', '/doc/laps/l1')).status, 200);
   assert.equal((await call(w, 'tok-b', 'GET', '/doc/laps/l1')).status, 404);
-  // Not readable at all: recordings, users.
-  for (const coll of ['recordings', 'users'])
+  // Not readable at all: users.
+  for (const coll of ['users'])
     assert.equal(
       (await call(w, 'tok-a', 'GET', `/doc/${coll}/l1`)).status,
       403,
