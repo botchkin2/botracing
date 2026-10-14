@@ -41,12 +41,21 @@ function firebaseDocs(): DocStore {
     },
     async commit(writes) {
       const batch = db.batch();
+      // A session write stamps `changedAt`: the session list's version is
+      // the newest stamp (sessionStore.ts sessionsVersion).
+      const changedAt = new Date().toISOString();
       for (const w of writes) {
         const ref = db.doc(w.path);
-        if (w.op === 'delete') batch.delete(ref);
-        else if (w.op === 'update') batch.update(ref, w.data);
-        else if (w.merge) batch.set(ref, w.data, {merge: true});
-        else batch.set(ref, w.data);
+        if (w.op === 'delete') {
+          batch.delete(ref);
+          continue;
+        }
+        const data = w.path.startsWith('sessions/')
+          ? {...w.data, changedAt}
+          : w.data;
+        if (w.op === 'update') batch.update(ref, data);
+        else if (w.merge) batch.set(ref, data, {merge: true});
+        else batch.set(ref, data);
       }
       await batch.commit();
     },

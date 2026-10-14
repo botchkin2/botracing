@@ -122,6 +122,12 @@ async function putAdminFile(bucket, dest, source, {contentType, gzip}) {
 // gRPC codes worth retrying: deadline, exhausted, aborted, internal, unavailable.
 const TRANSIENT = new Set([4, 8, 10, 13, 14]);
 
+// A session write stamps `changedAt`: the session list's version is the newest
+// stamp (functions/src/sessionStore.ts sessionsVersion). The upload route
+// stamps the same field (functions/src/uploadApi.ts commit).
+const stampSession = (coll, data) =>
+  coll === 'sessions' ? {...data, changedAt: new Date().toISOString()} : data;
+
 // `bucket` is only needed for the file primitives.
 export function adminBackend({db, bucket}) {
   const ref = (coll, id) => db.collection(coll).doc(id);
@@ -137,7 +143,12 @@ export function adminBackend({db, bucket}) {
       const writer = guardedWriter(db.bulkWriter());
       for (const {op, coll, id, data, merge} of ops) {
         if (op === 'delete') writer.delete(ref(coll, id));
-        else writer.set(ref(coll, id), data, merge ? {merge: true} : undefined);
+        else
+          writer.set(
+            ref(coll, id),
+            stampSession(coll, data),
+            merge ? {merge: true} : undefined,
+          );
       }
       await writer.close();
     },
@@ -154,7 +165,7 @@ export function adminBackend({db, bucket}) {
       // Each update's promise rejects once onWriteError gives up. The failure
       // is already in `failed`; waiting on them keeps it from being unhandled.
       const writes = ops.map(({coll, id, data}) =>
-        writer.update(ref(coll, id), data),
+        writer.update(ref(coll, id), stampSession(coll, data)),
       );
       await writer.close();
       await Promise.allSettled(writes);
@@ -581,9 +592,17 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     id: rec.id,
     data: rec,
   }));
-  ops.push({op: 'set', coll: 'sessions', id: session.id, data: session, merge: true});
+  ops.push({
+    op: 'set',
+    coll: 'sessions',
+    id: session.id,
+    data: session,
+    merge: true,
+  });
   await backend.writeDocs(ops);
-  log(`  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`);
+  log(
+    `  live: ${sent} of ${out.files.length} parts sent, ${session.lapCount} laps`,
+  );
   return {sent};
 }
 

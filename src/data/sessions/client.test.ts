@@ -1,6 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, jest} from '@jest/globals';
 
-import {fetchSessionLaps, fetchTrackMap} from './client';
+import {
+  fetchSessionLaps,
+  fetchSessions,
+  fetchTrackMap,
+  forgetListAnswers,
+} from './client';
 
 const realFetch = globalThis.fetch;
 let calls: string[];
@@ -45,5 +50,42 @@ describe('fetchTrackMap', () => {
   it('still fails on a server error, so it can be retried', async () => {
     answer(500);
     await expect(fetchTrackMap('t')).rejects.toThrow();
+  });
+});
+
+describe('fetchSessions version', () => {
+  const sent: string[] = [];
+  const server = (bodies: unknown[]) => {
+    sent.length = 0;
+    globalThis.fetch = (async (url: string) => {
+      sent.push(url);
+      return new Response(JSON.stringify(bodies.shift()), {status: 200});
+    }) as typeof fetch;
+  };
+  beforeEach(() => forgetListAnswers());
+
+  it('sends the held version and keeps the held list on {unchanged}', async () => {
+    server([
+      {items: [], total: 0, version: 'v1'},
+      {unchanged: true, version: 'v1'},
+      {items: [], total: 0, version: 'v2'},
+    ]);
+    const first = await fetchSessions({ageDays: 30});
+    const second = await fetchSessions({ageDays: 30});
+    expect(second).toBe(first);
+    await fetchSessions({ageDays: 30});
+    expect(sent[0]).toMatch(/\/sessions\?age=30$/);
+    expect(sent[1]).toMatch(/\/sessions\?age=30&v=v1$/);
+    expect(sent[2]).toMatch(/\/sessions\?age=30&v=v1$/);
+  });
+
+  it('keeps a version per request, and none from a server that sends none', async () => {
+    server([
+      {items: [], total: 0},
+      {items: [], total: 0},
+    ]);
+    await fetchSessions({ageDays: 30});
+    await fetchSessions({ageDays: 30});
+    expect(sent[1]).not.toMatch(/v=/);
   });
 });
