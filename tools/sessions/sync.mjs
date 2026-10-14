@@ -58,6 +58,7 @@ import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
+import {usableLiveIndex} from './brokenWheels.mjs';
 import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
@@ -549,7 +550,8 @@ async function main() {
   if (!check) saveState(state);
   // A drive live laps already uploaded (syncLive.mjs) is that session: its
   // game file adds nothing the capture lacks (STORAGE.md, Live laps).
-  const liveIndex = readLiveIndex(work);
+  // A broken-wheel capture covers nothing: its game file builds the drive.
+  const liveIndex = usableLiveIndex(readLiveIndex(work), captureRoot);
   const files = scanned.filter(f => {
     const cover = liveCover(liveIndex, f.info);
     if (cover)

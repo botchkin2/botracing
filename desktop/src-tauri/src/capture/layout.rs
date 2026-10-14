@@ -384,6 +384,21 @@ impl Layout {
         Ok(layout)
     }
 
+    /// The size of one `kind`, a struct's included: size_align alone says 0
+    /// for a struct (it has no layout), which stepped mWheel's elements by 0
+    /// and read every wheel as FL (pit wall #5324). Every step through an
+    /// array goes through here.
+    pub fn size_of(&self, kind: &Kind) -> Result<usize, String> {
+        match kind {
+            Kind::Struct(name) => self
+                .built(name)
+                .map(|s| s.size)
+                .ok_or_else(|| format!("struct {name} was not built")),
+            Kind::Array(inner, n) => Ok(self.size_of(inner)? * n),
+            other => Ok(size_align(other).0),
+        }
+    }
+
     pub fn built(&self, name: &str) -> Option<&Struct> {
         self.built.get(name)
     }
