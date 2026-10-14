@@ -94,3 +94,11 @@ describe('trayCard', () => {
     ).toEqual(['Race PC · v0.1.3 · latest', 'Old PC · v0.1.2 · not reporting']);
   });
 });
+
+describe('trayCard offline (roadmap 6b)', () => {
+  it('says Offline, not that the check failed, when there was no network', () => {
+    const q = {isPending: false, isError: true, data: undefined};
+    expect(trayCard({...q, offline: true}).status).toBe('Offline');
+    expect(trayCard(q).status).toBe('Couldn’t check for the Windows app');
+  });
+});

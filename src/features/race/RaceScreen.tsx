@@ -193,7 +193,13 @@ function Notice({data}: {data: Exclude<RaceData, {kind: 'ready'}>}) {
       <View style={[styles.notice, {width}]}>
         <StatusBanner
           dot='idle'
-          text={data.kind === 'line-error' ? LINE_ERROR_TEXT : FIELD_ERROR_TEXT}
+          text={
+            data.kind === 'line-error'
+              ? LINE_ERROR_TEXT
+              : data.offline
+              ? 'Offline'
+              : FIELD_ERROR_TEXT
+          }
           actionLabel='Retry'
           onAction={data.retry}
         />

@@ -188,3 +188,17 @@ describe('runningLine', () => {
     );
   });
 });
+
+describe('androidCard offline (roadmap 6b)', () => {
+  it('says Offline, not that the check failed, when there was no network', () => {
+    const q = {
+      surface: 'browser' as const,
+      installedVersionCode: null,
+      isPending: false,
+      isError: true,
+      data: undefined,
+    };
+    expect(androidCard({...q, offline: true})?.status).toBe('Offline');
+    expect(androidCard(q)?.status).toBe('Couldn’t check for the Android app');
+  });
+});

@@ -15,6 +15,7 @@ import {accountLabel, useAuthStore, useSignIn} from '@/src/auth';
 import {radius, size, space, useLayout, useTheme} from '@/src/design';
 import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
+import {readFailure} from '@/src/data/queryState';
 import {useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
 import {OfflineLine, Button, Pressable, Segment, Text} from '@/src/ui';
@@ -149,6 +150,7 @@ function WindowsApp() {
   const card = trayCard({
     isPending: release.isPending,
     isError: release.isError,
+    offline: readFailure(release) === 'offline',
     data: release.data,
     pcs: uploaders.data,
     nowMs: uploaders.dataUpdatedAt || undefined,
@@ -198,6 +200,7 @@ function AndroidApp() {
     installedVersionCode,
     isPending: release.isPending,
     isError: release.isError,
+    offline: readFailure(release) === 'offline',
     data: release.data,
   });
   // In the installed app the running build shows even when no update does.

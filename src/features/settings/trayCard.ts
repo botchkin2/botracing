@@ -59,6 +59,8 @@ export function pcLine(
 export function trayCard(q: {
   isPending: boolean;
   isError: boolean;
+  /** The check failed for want of a network (src/data/queryState.ts). */
+  offline?: boolean;
   data: TrayRelease | null | undefined;
   /** Every PC's uploader status; undefined while it loads or when it failed. */
   pcs?: Uploader[];
@@ -77,6 +79,10 @@ export function trayCard(q: {
     return {status: `Latest v${q.data.version}`, version: q.data.version, pcs};
   if (q.isPending) return {status: 'Checking…', version: null, pcs};
   if (q.isError)
-    return {status: 'Couldn’t check for the Windows app', version: null, pcs};
+    return {
+      status: q.offline ? 'Offline' : 'Couldn’t check for the Windows app',
+      version: null,
+      pcs,
+    };
   return {status: 'Not released yet', version: null, pcs};
 }
