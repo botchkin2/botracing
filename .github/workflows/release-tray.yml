@@ -69,6 +69,10 @@ jobs:
         run: |
           if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "run Release tray on main, not $GITHUB_REF"; exit 1; fi
           if git ls-remote --exit-code --tags origin "refs/tags/tray-v$VERSION" >/dev/null; then echo "tray-v$VERSION exists: a version is never published twice"; exit 1; fi
+          # A publish whose tag push failed left no tag: the update endpoint is
+          # the other record of what shipped.
+          served=$(curl -fsS "https://botracing-61.web.app/api/tray/latest?target=windows&arch=x86_64&current_version=0.0.0" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).version))')
+          if [ "$served" = "$VERSION" ]; then echo "$VERSION is already served by /api/tray/latest: a version is never published twice"; exit 1; fi
           echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v7
@@ -156,11 +160,24 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v3
 
-      # A real LMU capture, 3 laps of Road Atlanta (3 Oct): player and session
-      # tables only, no field (other drivers' names stay out of CI).
+      # A real LMU capture, 3 laps of Road Atlanta (3 Oct), every table as
+      # recorded (the replay reads the field too). Each object by name: the
+      # golden reader may get objects under golden/ but not list them
+      # (ops/iam/goldenReaderPlan.mjs), pinned like tools/golden.
       - name: The capture
         shell: bash
-        run: gcloud storage cp -r gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03 "$RUNNER_TEMP/capture"
+        run: |
+          d="$RUNNER_TEMP/capture"
+          mkdir -p "$d"
+          g=gs://botracing-61-lmu/golden/live-capture/road-atlanta-2026-10-03
+          gcloud storage cp "$g/meta.json" "$g/player-0000.parquet" "$g/field-0000.parquet" "$g/session-0000.parquet" "$d/"
+          cd "$d"
+          sha256sum -c - <<SUMS
+          eda895db43ccecd372a5daa8a4f5401c393a5bd1501cef436c4da6dea9c1df05  meta.json
+          b80a810748f34f12e159c80fb236bada8a763b5aeb251c349c842a21c8c3e202  player-0000.parquet
+          37928e31cc497f6fcf7fee13ecfbcdb89166f82b08cb080026a7a6ff7aed717b  field-0000.parquet
+          63ea035560c47aa72aea48c09b094d132626dfdef53e0ed5dbfc6c1f389ec6c9  session-0000.parquet
+          SUMS
 
       - name: Install the candidate (per user, silent)
         shell: pwsh
