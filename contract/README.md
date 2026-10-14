@@ -20,6 +20,29 @@ What the tray sends and what the API takes, tested on real bodies only. Roadmap 
   - the tray: `failure_report.rs` and `capture/recorder.rs`, through `check.mjs`
 - A body is never accepted by the rules alone: it must also have no key or type that no real payload has. A tray build that writes something new fails until a real payload of it is saved here. The set is refreshed by the change that needs it, not from memory.
 
+## The replay
+
+`functions/test/replay/` runs the tray's own watcher against the API in the emulators. Requests go through the Hosting emulator's `/api` rewrites, which are built from `firebase.json` itself. It uses real recordings:
+- a live capture replayed lap by lap (`--live`, via `tools/dev/liveE2E.mjs`)
+- finished LMU and iRacing game files (`--file`)
+
+The recordings are in the golden bucket under `golden/live-capture/` and `golden/finished-file/`, pinned by sha256 in the `contract-replay` job of `.github/workflows/test.yml`.
+
+The replay fails on any of these:
+- a request the API refused (a 429 is the server's pacing, which the sender honours)
+- a lap that does not land
+- a heartbeat the contract refuses, or with a shape no real beat has
+- a replayed status.json unlike the recorder's
+
+The one emulator-only branch is in `uploadApi.ts`: the Storage emulator cannot check a signed URL, so it takes a media POST and the upload-url answer says so (`method`). Production answers PUT. An installed tray's own client is tested against the server in `uploadCore.test.mjs`. Production's signed PUT is proven by the release gate's live run.
+
+```bash
+npm --prefix functions run build
+node functions/test/replay/emulators.mjs -- functions/test/replay/run.mjs --live <capture folder> --file <game file>
+```
+
+The emulators need Java 21.
+
 ## Adding a payload
 
 1. Take it from a real tray, for example `%LOCALAPPDATA%\BotRacing\status.jsonl` (one beat a line, drop `lastSeenAt`) or `%LOCALAPPDATA%\lap-capture\status.json`.
