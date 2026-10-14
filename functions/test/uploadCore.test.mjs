@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {rmSync, writeFileSync} from 'node:fs';
 import {test} from 'node:test';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import {httpBackend} from '../../tools/sessions/storeClient.mjs';
 import {
@@ -471,7 +474,7 @@ test('a document is limited by its bytes, not its characters', async () => {
 
 // The real client (tools/sessions/storeClient.mjs) against the real handler,
 // with fetch wired in-process: what #275 sends is what #274 accepts.
-function clientFor(w, tokenName) {
+function clientFor(w, tokenName, backend = httpBackend) {
   const fetch = async (url, init = {}) => {
     const u = new URL(url);
     if (u.protocol === 'fake:') {
@@ -480,6 +483,7 @@ function clientFor(w, tokenName) {
         `fake://${decodeURIComponent(u.hostname + u.pathname)}`,
       );
       assert.ok(grant, 'PUT to a URL the server did not sign');
+      assert.equal(init.method, 'PUT', 'Storage takes a PUT');
       assert.ok(init.body.length <= grant.maxBytes);
       w.files.set(grant.path, {bytes: Buffer.from(init.body), meta: grant});
       return new Response(null, {status: 200});
@@ -498,7 +502,7 @@ function clientFor(w, tokenName) {
     if (out.json === undefined) return new Response(null, {status: out.status});
     return Response.json(out.json, {status: out.status});
   };
-  return httpBackend({
+  return backend({
     api: 'https://x.test/api/upload',
     token: () => tokenName,
     fetch,
@@ -604,4 +608,37 @@ test('a write over a session analysed under newer rules still lands', async () =
   };
   assert.equal((await write(w, 'tok-a', [lap])).status, 204);
   assert.equal(w.docs.get('laps/l1').lapTime, 99);
+});
+
+// An installed tray never updates its client with the server (torsion #5134
+// 2): tray 0.1.10's own storeClient.mjs, from its tag, against this server.
+// It ignores the answer's `method` and always PUTs, which is what production
+// answers; the emulator's POST (uploadApi.ts) never reaches it.
+test("tray 0.1.10's own client still uploads to this server", async () => {
+  const old = execFileSync(
+    'git',
+    ['show', 'tray-v0.1.10:tools/sessions/storeClient.mjs'],
+    {encoding: 'utf8'},
+  );
+  // Beside the current file, so its own imports resolve.
+  const path = fileURLToPath(
+    new URL(
+      '../../tools/sessions/.storeClient-tray-0.1.10.mjs',
+      import.meta.url,
+    ),
+  );
+  writeFileSync(path, old);
+  try {
+    const {httpBackend: oldBackend} = await import(pathToFileURL(path).href);
+    const w = world();
+    const a = clientFor(w, 'tok-a', oldBackend);
+    await a.putFile(
+      'archive/lmu/s1/a.json',
+      {body: Buffer.from('{"a":1}')},
+      {contentType: 'application/json', gzip: true},
+    );
+    assert.deepEqual([...w.files.keys()], ['archive/uidA/lmu/s1/a.json']);
+  } finally {
+    rmSync(path);
+  }
 });

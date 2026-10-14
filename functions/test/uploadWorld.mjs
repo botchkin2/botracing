@@ -68,7 +68,9 @@ export function world(
       // the client's PUT against it.
       signedUpload: async (p, opts) => {
         signed.set(`fake://${p}`, {path: p, ...opts});
+        // As uploadApi.ts answers in production: a PUT to Storage.
         return {
+          method: 'PUT',
           url: `fake://${p}`,
           headers: {
             'Content-Type': opts.contentType,

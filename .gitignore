@@ -186,3 +186,6 @@ app-example
 
 # Contract replay emulator config (functions/test/replay/emulators.mjs)
 .replay-firebase-*.json
+
+# A tray tag's storeClient, written beside the current one by uploadCore.test.mjs
+tools/sessions/.storeClient-tray-*.mjs
