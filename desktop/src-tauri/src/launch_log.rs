@@ -38,13 +38,41 @@ fn trim(file: &Path) {
     if meta.len() <= MAX_BYTES {
         return;
     }
-    let Ok(text) = std::fs::read_to_string(file) else { return };
-    let mut keep = &text[text.len() / 2..];
-    // Start on a whole line.
-    if let Some(i) = keep.find('\n') {
-        keep = &keep[i + 1..];
+    let Ok(bytes) = std::fs::read(file) else { return };
+    let _ = std::fs::write(file, newest_half(&bytes));
+}
+
+/// The bytes after the first newline at or past the middle. A newline is a
+/// whole character in UTF-8, so the cut never splits one (the log holds args and
+/// error text, which can be non-ASCII); no newline past the middle empties it.
+fn newest_half(bytes: &[u8]) -> &[u8] {
+    let mid = bytes.len() / 2;
+    match bytes[mid..].iter().position(|b| *b == b'\n') {
+        Some(i) => &bytes[mid + i + 1..],
+        None => &[],
     }
-    let _ = std::fs::write(file, keep);
+}
+
+/// The `launch` line: every process start, before the single-instance hold
+/// forwards it. Written to the data folder by name (the sidecar's paths are not
+/// built yet): %LOCALAPPDATA%\BotRacing[-<profile>].
+pub fn note_launch() {
+    let local = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let data = local.join(crate::profile::data_dir_name());
+    let _ = std::fs::create_dir_all(&data);
+    let args = std::env::args().collect::<Vec<_>>();
+    note(
+        &data,
+        "launch",
+        &format!(
+            "args={} pid={} data={}",
+            args_text(&args),
+            std::process::id(),
+            data.display()
+        ),
+    );
 }
 
 #[cfg(test)]
@@ -65,6 +93,17 @@ mod tests {
     fn arguments_are_quoted() {
         let args = vec!["a.exe".to_string(), "--background".to_string(), "".to_string()];
         assert_eq!(args_text(&args), r#"["a.exe", "--background", ""]"#);
+    }
+
+    #[test]
+    fn the_cut_never_splits_a_multibyte_character() {
+        // A line of 'Ü' (2 bytes each) straddling the midpoint, which lands
+        // inside a character.
+        let text = format!("a\n{}\nlast\n", "Ü".repeat(41));
+        let bytes = text.as_bytes();
+        assert!(!text.is_char_boundary(bytes.len() / 2));
+        assert_eq!(newest_half(bytes), b"last\n");
+        assert_eq!(newest_half(b"no newline past the middle"), b"");
     }
 
     #[test]

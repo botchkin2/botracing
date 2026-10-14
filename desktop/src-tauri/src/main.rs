@@ -376,6 +376,10 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
 }
 
 fn main() {
+    // launch.log's first line, before anything can fail: no line at all means
+    // Windows never started the tray; this line with no `second launch` after
+    // it means the handoff never reached the running tray.
+    launch_log::note_launch();
     let builder = tauri::Builder::default();
     // The single-instance hold is named after the app identifier; a profile
     // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
