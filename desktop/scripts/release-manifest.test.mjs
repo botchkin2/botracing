@@ -5,6 +5,7 @@ import {
   cargoVersionOf,
   checkVersions,
   findInstaller,
+  stampVersions,
   versionOfTag,
 } from './release-manifest.mjs';
 
@@ -83,4 +84,41 @@ test('finds the one installer and requires its signature beside it', () => {
   assert.equal(findInstaller([name, `${name}.sig`, 'other.txt']), name);
   assert.throws(() => findInstaller([name]), /\.sig is missing/);
   assert.throws(() => findInstaller([]), /found 0/);
+});
+
+const devFiles = () => ({
+  conf: JSON.stringify({productName: 'BotRacing', version: '0.0.0-dev'}, null, 2),
+  pkg: JSON.stringify({name: 'botracing-desktop', version: '0.0.0-dev'}, null, 2),
+  pkgLock: JSON.stringify(
+    {name: 'botracing-desktop', version: '0.0.0-dev', packages: {'': {version: '0.0.0-dev'}, 'node_modules/x': {version: '1.0.0'}}},
+    null,
+    2,
+  ),
+  cargo: '[package]\nname = "botracing"\nversion = "0.0.0-dev"\n\n[dependencies]\nserde = { version = "1" }\n',
+  cargoLock:
+    '[[package]]\nname = "botracing"\nversion = "0.0.0-dev"\n\n[[package]]\nname = "cargo-platform"\nversion = "0.1.9"\n',
+});
+
+test('stamp writes the release version into the five files, nothing else moves', () => {
+  const out = stampVersions('0.1.11', devFiles());
+  assert.equal(JSON.parse(out.conf).version, '0.1.11');
+  assert.equal(JSON.parse(out.pkg).version, '0.1.11');
+  const lock = JSON.parse(out.pkgLock);
+  assert.equal(lock.version, '0.1.11');
+  assert.equal(lock.packages[''].version, '0.1.11');
+  assert.equal(lock.packages['node_modules/x'].version, '1.0.0');
+  assert.equal(cargoVersionOf(out.cargo), '0.1.11');
+  assert.match(out.cargo, /serde = \{ version = "1" \}/);
+  assert.match(out.cargoLock, /name = "botracing"\nversion = "0.1.11"/);
+  // Another crate that happens to share a version string is left alone.
+  assert.match(out.cargoLock, /name = "cargo-platform"\nversion = "0.1.9"/);
+});
+
+test('stamp refuses anything but X.Y.Z, and a Cargo.lock without the app', () => {
+  assert.throws(() => stampVersions('v0.1.11', devFiles()), /not an X.Y.Z/);
+  assert.throws(() => stampVersions('0.1', devFiles()), /not an X.Y.Z/);
+  assert.throws(
+    () => stampVersions('0.1.11', {...devFiles(), cargoLock: '[[package]]\nname = "other"\nversion = "1"\n'}),
+    /no botracing package/,
+  );
 });
