@@ -31,7 +31,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import {availableParallelism, homedir} from 'node:os';
@@ -46,18 +45,15 @@ import {
 } from './sessionFiles.mjs';
 import {replaceFile} from './replaceFile.mjs';
 import {versionKey} from './versionKey.mjs';
-import {analyzeFromArchive, slugId} from './analyzeFromArchive.mjs';
+import {slugId} from './analyzeFromArchive.mjs';
 import {analysisVersion, blockVersions, trackMapVersion} from './analyze.mjs';
-import {fieldFor} from './field.mjs';
-import {capturesRead, markUploaded} from './captureMarker.mjs';
-import {describeCheck, ibtCrossings, liveLapCheck} from './irCapture.mjs';
-import {irFieldFor} from './irField.mjs';
-import {driversOfYaml} from './irClasses.mjs';
-import {openIbt} from './ibt.mjs';
+import {markUploaded} from './captureMarker.mjs';
+import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
+import {makeBuilder} from './buildSession.mjs';
 import {repairArchives} from './archiveRepair.mjs';
 import {checkDoc} from './docShape.mjs';
 import {packState, unpackState} from './layoutBoundaries.mjs';
@@ -197,6 +193,15 @@ function log(line) {
   console.log(line);
 }
 
+const {build, eventsOf, spanOf} = makeBuilder({
+  adapter,
+  work,
+  ownerId,
+  catalogOnly,
+  captureRoot,
+  log,
+});
+
 // Describe every recording, reusing earlier results for files that have not changed
 // (sessionFiles.mjs: the scan and the grouping are shared with the curator).
 function scan(state) {
@@ -217,21 +222,6 @@ function group(files) {
     s.sources = hash(...sources);
   }
   return sessions;
-}
-
-// Every car's class in an iRacing session, from its .ibt (irClasses.mjs);
-// none when the file can't be read.
-function ibtDriversOf(path) {
-  try {
-    const ibt = openIbt(path);
-    try {
-      return driversOfYaml(ibt.yaml);
-    } finally {
-      ibt.close();
-    }
-  } catch {
-    return [];
-  }
 }
 
 // The track's corner map, kept once per track layout so corner numbers stay
@@ -296,38 +286,6 @@ function keepBoundaries(trackId, state) {
   writeFileSync(boundariesPath(trackId), JSON.stringify(packState(state)));
 }
 
-// Which online event a session and each of its recordings were part of.
-function eventsOf(s, eventWindows) {
-  const recordings = s.files.map(f => ({
-    id: f.id,
-    event: adapter.eventFor(eventWindows, f.info.recordedAt),
-  }));
-  const event = recordings.find(r => r.event)?.event ?? null;
-  const ids = new Set(recordings.map(r => r.event?.eventId).filter(Boolean));
-  // One session spanning two events means the grouping or a window is wrong.
-  if (ids.size > 1)
-    log(`  warning: ${s.id} spans events ${[...ids].join(', ')}`);
-  return {
-    session: {
-      id: s.id,
-      series: event?.series ?? null,
-      eventId: event?.eventId ?? null,
-    },
-    recordings,
-  };
-}
-
-// The session's track and wall-clock window, the key a capture joins on.
-function spanOf(s) {
-  const first = s.files[0].info;
-  const last = s.files[s.files.length - 1].info;
-  return {
-    tracks: [first.track, first.layout],
-    startMs: Date.parse(first.recordedAt),
-    endMs: Date.parse(last.recordedAt) + (last.endT - last.startT) * 1000,
-  };
-}
-
 // Sessions uploaded before the tray kept capture extracts, whose capture is
 // still on the PC: their extract goes up once, by itself, with no analysis
 // (pit-wall thread 1 #4611, #4613). Recorded in state.extracts so a session
@@ -374,115 +332,6 @@ async function repairIracingArchives(sessions, state, store) {
     log,
   });
   if (repaired) log(`iRacing archives repaired for ${repaired} session(s)`);
-}
-
-function build(
-  s,
-  trackMap,
-  boundaries,
-  eventWindows,
-  {fresh = [], foldOnly = false} = {},
-) {
-  const dir = resolve(work, 'archive', s.id);
-  mkdirSync(dir, {recursive: true});
-  const first = s.files[0].info;
-  const sim = first.sim;
-  const files = [];
-  const archived = [];
-  const recordings = [];
-  const joined = eventsOf(s, eventWindows);
-  for (const [k, f] of s.files.entries()) {
-    const samples = resolve(dir, `${f.id}.samples.parquet`);
-    const events = resolve(dir, `${f.id}.events.parquet`);
-    // An archive the fold pass of this very run just wrote is not written again.
-    if (!fresh.includes(samples))
-      adapter.writeArchive(f.path, f.info, samples, events);
-    archived.push(samples);
-    const prefix = `archive/${sim}/${s.id}/${f.id}`;
-    files.push({local: samples, dest: `${prefix}/samples.parquet`});
-    files.push({local: events, dest: `${prefix}/events.parquet`});
-    const {_channels, _events, ...info} = f.info;
-    recordings.push({
-      ...info,
-      // The online event this recording was part of, or null offline.
-      event: joined.recordings[k].event,
-      id: f.id,
-      ownerId,
-      sessionId: s.id,
-      durationSec: Math.round((info.endT - info.startT) * 1000) / 1000,
-      archive: {
-        samples: `${prefix}/samples.parquet`,
-        events: `${prefix}/events.parquet`,
-        bytes: statSync(samples).size + statSync(events).size,
-      },
-    });
-  }
-
-  const span = spanOf(s);
-  // iRacing: the tray's live capture against the .ibt of the same drive, lap
-  // by lap. Only logged: a lap over 5 ms apart is the news (apex #2958).
-  // Every capture this session read (field, damage, race length, the player
-  // stream): once it is uploaded they are the tray's to prune.
-  const capturesUsed = foldOnly ? [] : capturesRead(captureRoot, sim, span);
-  const liveCheck =
-    foldOnly || sim !== 'iracing'
-      ? null
-      : liveLapCheck(captureRoot, span, ibtCrossings(s.files.map(f => f.path)));
-  // The car's damage from the live capture, to tell a repair from a penalty
-  // (pitVisit.mjs); null where the capture is gone.
-  const damage = foldOnly ? null : damageFor(captureRoot, span);
-  // How long the race is: {minutes}. LMU: from the capture, null where it is gone.
-  // iRacing: from the .ibt's session info. Null for other sessions.
-  const ibtDrivers =
-    !foldOnly && sim === 'iracing' ? ibtDriversOf(s.files[0].path) : [];
-  const raceLength =
-    foldOnly || !/^r/i.test(first.sessionType)
-      ? null
-      : sim === 'iracing'
-      ? first.raceLength ?? null
-      : raceLengthFor(captureRoot, span);
-  const out = analyzeFromArchive({
-    ownerId,
-    sessionId: s.id,
-    recordings: s.files.map(f => ({
-      id: f.id,
-      info: f.info,
-      samplesPath: resolve(dir, `${f.id}.samples.parquet`),
-      eventsPath: resolve(dir, `${f.id}.events.parquet`),
-    })),
-    trackMap,
-    boundaries,
-    catalogOnly,
-    foldOnly,
-    damage,
-    raceLength,
-    event: joined.session,
-    // Every car in the session, when the recorder ran (field.mjs, irField.mjs).
-    fieldFor: lite =>
-      (sim === 'iracing' ? irFieldFor : fieldFor)(
-        captureRoot,
-        span,
-        lite,
-        ibtDrivers,
-      ),
-  });
-  if (foldOnly) return {a: out.a, archived};
-  return {
-    ...out,
-    recordings,
-    // iRacing: every car's class from the .ibt, so a stored field from before
-    // the field carried classes gets them (store.mjs, irClasses.relabelField).
-    ibtDrivers,
-    liveCheck,
-    // The capture's damage and race length, kept in the store for analysis
-    // on open once the capture is pruned (captureExtract.mjs).
-    captureExtract: captureExtract({
-      damage,
-      raceLength: sim === 'lmu' ? raceLength : null,
-    }),
-    capturesUsed,
-    files,
-  };
 }
 
 function writeLocal(out) {
