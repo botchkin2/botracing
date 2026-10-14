@@ -1,8 +1,18 @@
 import {afterEach, describe, expect, it, jest} from '@jest/globals';
 
-import {setIdTokenProvider, setUnauthorizedListener} from './tokenSource';
+import {
+  AuthTokenError,
+  setIdTokenProvider,
+  setUnauthorizedListener,
+} from './tokenSource';
 
-import {apiBaseUrl, apiFetch, getJson, HttpError} from './http';
+import {
+  apiBaseUrl,
+  apiFetch,
+  getJson,
+  HttpError,
+  retryUnlessClientError,
+} from './http';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -55,6 +65,20 @@ describe('apiFetch', () => {
     const response = await apiFetch('/sessions');
     expect(response.status).toBe(401);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed token refresh sends nothing and asks nobody to sign in, and is retried', async () => {
+    const listener = jest.fn();
+    setUnauthorizedListener(listener);
+    setIdTokenProvider(async () => {
+      throw new Error('auth/network-request-failed');
+    });
+    const calls = stubFetch(200);
+    const thrown = await apiFetch('/sessions').catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(AuthTokenError);
+    expect(calls).toHaveLength(0);
+    expect(listener).not.toHaveBeenCalled();
+    expect(retryUnlessClientError(0, thrown)).toBe(true);
   });
 
   it('does not report other failures as a sign-in problem', async () => {
