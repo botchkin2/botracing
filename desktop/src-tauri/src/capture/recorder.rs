@@ -896,7 +896,9 @@ mod tests {
         assert_eq!(rec.status.last_lap_at, None);
         rig.player("Road Atlanta", 6.03);
         rec.tick(2_030);
-        for i in 0..200 {
+        // Up to 10 s: the write is on the writer thread, and a busy CI runner
+        // took over 1 s (ac2cf558, a run that changed no Rust).
+        for i in 0..2_000 {
             if rec.status.last_lap_at.is_some() {
                 break;
             }

@@ -14,7 +14,6 @@
 //   node functions/test/replay/emulators.mjs -- functions/test/replay/run.mjs --live <dir> --file <a.duckdb> --file <b.ibt>
 //
 // Windows only: the watcher's lock and game check are the tray's.
-import {gunzipSync} from 'node:zlib';
 import {spawn} from 'node:child_process';
 import {
   copyFileSync,
@@ -154,7 +153,8 @@ async function live(from) {
   });
   if (!fieldRes.ok) fail(`no field for /sessions/${sessionId} (${fieldRes.status})`);
   else {
-    const fieldDoc = JSON.parse(gunzipSync(Buffer.from(await fieldRes.arrayBuffer())).toString('utf8'));
+    // fetch inflates it already (the route sends Content-Encoding: gzip).
+    const fieldDoc = await fieldRes.json();
     const cars = fieldDoc.cars?.length ?? 0;
     if (cars < 2) fail(`the field has ${cars} car(s); the capture has every car`);
     else console.log(`live ${basename(from)}: field with ${cars} cars`);
