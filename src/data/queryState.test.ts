@@ -1,7 +1,7 @@
 import {describe, expect, it} from '@jest/globals';
 
 import {HttpError} from './http';
-import {isOffline, queryState} from './queryState';
+import {isOffline, queryState, readFailure} from './queryState';
 import {AuthTokenError} from './tokenSource';
 
 // What fetch rejects with when no answer comes: web, React Native, Safari.
@@ -81,5 +81,18 @@ describe('isOffline', () => {
       kind: 'error',
       message: 'Failed to fetch',
     });
+  });
+});
+
+describe('readFailure', () => {
+  it('is null while the read has data, whatever its refetch did', () => {
+    expect(readFailure(q({a: 1}, web), BEFORE)).toBeNull();
+    expect(readFailure(q({a: 1}, serverError), BEFORE)).toBeNull();
+    expect(readFailure(q(undefined), BEFORE)).toBeNull();
+  });
+
+  it('says offline or error when nothing was read', () => {
+    expect(readFailure(q(undefined, android), BEFORE)).toBe('offline');
+    expect(readFailure(q(undefined, serverError), BEFORE)).toBe('error');
   });
 });

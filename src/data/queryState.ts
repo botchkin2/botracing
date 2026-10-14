@@ -70,3 +70,15 @@ export function queryState(
       : null,
   };
 }
+
+/**
+ * For a read a screen draws a part from (a map, a surface, a card): how it
+ * failed, if it left nothing to draw. Null while it has data or did not fail.
+ */
+export function readFailure(
+  query: QueryLike,
+  answeredAt: number = lastApiAnswerAt(),
+): 'offline' | 'error' | null {
+  const read = queryState([query], answeredAt);
+  return read.kind === 'offline' || read.kind === 'error' ? read.kind : null;
+}

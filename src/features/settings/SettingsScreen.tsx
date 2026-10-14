@@ -17,7 +17,7 @@ import {androidDownloadUrl, useAndroidRelease} from '@/src/data/android';
 import {trayDownloadUrl, useTrayRelease} from '@/src/data/tray';
 import {useUploaders} from '@/src/data/uploaders';
 import {useSectionPrefs, sectionModeOf} from '@/src/state/sectionPrefs';
-import {Button, Pressable, Segment, Text} from '@/src/ui';
+import {OfflineLine, Button, Pressable, Segment, Text} from '@/src/ui';
 
 import {
   androidCard,
@@ -67,6 +67,8 @@ export function SettingsScreen() {
         Uploader
       </Text>
       {u.state === 'loading' && <ActivityIndicator color={color.accent} />}
+      {u.state === 'offline' && <Text tone='textMuted'>Offline</Text>}
+      <OfflineLine text={model.offlineText} />
       {u.state === 'error' && (
         <Text tone='textMuted'>
           Couldn’t load the uploader status: {u.message}
