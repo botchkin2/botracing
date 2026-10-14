@@ -3,21 +3,21 @@
 // the session doc, and lap docs exist only after analysis. Tonight that left
 // the opened session empty for the 21 s analysis-on-open took.
 //
-// Fired by the session doc's own update, so it works for every tray version
+// Fired by the session doc's own write (a create too: lap 1), so it works for every tray version
 // and when the tray dies after an upload. It runs the analysis in-process: an
 // event function keeps its CPU until it returns, which an HTTP call fired
 // from the upload handler would not (pit wall #5250). Same lease, re-runs and
 // engine as analysis on open (analyzeCore runAnalysis, analyzeApi engineDeps);
 // the owner is the session doc's own, never a caller's.
 import * as admin from 'firebase-admin';
-import {onDocumentUpdated} from 'firebase-functions/v2/firestore';
-import {gainedLiveLap, runAnalysis} from './analyzeCore';
+import {onDocumentWritten} from 'firebase-functions/v2/firestore';
+import {liveLapLanded, runAnalysis} from './analyzeCore';
 import {engineDeps} from './analyzeApi';
 import {RUNTIME_ACCOUNT} from './runtime';
 
 if (!admin.apps.length) admin.initializeApp();
 
-export const liveAnalyze = onDocumentUpdated(
+export const liveAnalyze = onDocumentWritten(
   {
     document: 'sessions/{sessionId}',
     // As analyzeApi: one run per instance, and a cap.
@@ -27,12 +27,14 @@ export const liveAnalyze = onDocumentUpdated(
     maxInstances: 10,
     // Up to MAX_RUNS runs back to back on a long race.
     timeoutSeconds: 300,
+    // No retry: a failed run is picked up by the next lap, or by the open.
+    retry: false,
     serviceAccount: RUNTIME_ACCOUNT,
   },
   async event => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
-    if (!gainedLiveLap(before, after)) return;
+    if (!liveLapLanded(before, after)) return;
     const owner = after?.ownerId;
     if (typeof owner !== 'string' || !owner) return;
     const sessionId = event.params.sessionId;

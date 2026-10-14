@@ -97,12 +97,15 @@ export async function runAnalysis(
 type Doc = Record<string, unknown> | undefined;
 
 /**
- * The live upload of a new lap (tools/sessions/liveSession.mjs): a live
- * session doc whose lap count went up. Analysis writes the same lap count,
- * so its own write never starts another run.
+ * The live upload of a new lap (tools/sessions/liveSession.mjs) stamps
+ * `live.updatedAt`; nothing else moves it. Analysis writes the stamp it read
+ * back unchanged (analyzeStored.mjs) and its own lap count, which need not
+ * equal the live part count, so the lap count is no trigger (sidepod #5258).
+ * A create counts: lap 1's upload creates the doc.
  */
-export function gainedLiveLap(before: Doc, after: Doc): boolean {
-  if (!after?.live) return false;
-  const n = (d: Doc) => (typeof d?.lapCount === 'number' ? d.lapCount : 0);
-  return n(after) > n(before);
+export function liveLapLanded(before: Doc, after: Doc): boolean {
+  const stamp = (d: Doc) =>
+    (d?.live as {updatedAt?: unknown} | null | undefined)?.updatedAt;
+  const now = stamp(after);
+  return typeof now === 'string' && now !== stamp(before);
 }

@@ -98,7 +98,7 @@ test('an engine failure other than 404/409 propagates, and the lease is let go',
 
 // Live laps (roadmap row 1, pit wall #5232-#5252): a run goes again while laps
 // land during it, so the last lap of a drive is analysed without an open.
-import {MAX_RUNS, gainedLiveLap, runAnalysis} from '../src/analyzeCore.ts';
+import {MAX_RUNS, liveLapLanded, runAnalysis} from '../src/analyzeCore.ts';
 
 function liveWorld(stamps) {
   const w = world();
@@ -145,12 +145,15 @@ test('a live lap while a run holds the lease starts nothing', async () => {
   assert.equal(w.runs.length, 0);
 });
 
-test('only a live upload that raises the lap count starts a run, never analysis writing back', () => {
-  const live = n => ({live: {updatedAt: 'x'}, lapCount: n});
-  assert.equal(gainedLiveLap(live(4), live(5)), true);
-  assert.equal(gainedLiveLap(undefined, live(1)), true);
-  // Analysis writes the doc with the same lap count: no loop.
-  assert.equal(gainedLiveLap(live(5), {...live(5), analysis: {v: 2}}), false);
+test("only a live upload's new stamp starts a run: lap 1's create too, never analysis writing back", () => {
+  const live = (at, n) => ({live: {updatedAt: at}, lapCount: n});
+  assert.equal(liveLapLanded(live('t4', 4), live('t5', 5)), true);
+  assert.equal(liveLapLanded(undefined, live('t1', 1)), true, 'lap 1 creates the doc');
+  // Analysis writes the stamp it read and its own lap count: no run, even
+  // when its lap count differs from the live part count.
+  assert.equal(liveLapLanded(live('t5', 5), {...live('t5', 6), analysis: {v: 2}}), false);
+  // A later live lap still starts one, whatever lap count analysis wrote.
+  assert.equal(liveLapLanded(live('t5', 6), live('t6', 6)), true);
   // A game-file sync (no live block) never starts it.
-  assert.equal(gainedLiveLap({lapCount: 4}, {lapCount: 9}), false);
+  assert.equal(liveLapLanded({lapCount: 4}, {lapCount: 9}), false);
 });
