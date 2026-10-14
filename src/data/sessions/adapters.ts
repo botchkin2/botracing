@@ -479,6 +479,13 @@ export type Lap = {
    * laps analysed before the grid rule (blockVersions.gridLap).
    */
   partialWhy?: 'grid' | 'file' | null;
+  /**
+   * A whole lap the game did not time (LMU withholds the time of a lap it
+   * invalidates, e.g. on track limits): its line-to-line time, for display
+   * only. timeS stays null, so no median, best or selection uses it. Null on
+   * timed, partial and pit laps.
+   */
+  invalidTimeS: number | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
@@ -985,6 +992,13 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     endedInReset: raw.endedInReset === true,
     partial: raw.partial === true || raw.incomplete === true,
     partialWhy: toPartialWhy(raw.partialWhy),
+    invalidTimeS:
+      raw.timed === false &&
+      raw.partial !== true &&
+      raw.pitIn !== true &&
+      raw.pitOut !== true
+        ? num(raw.lapTime)
+        : null,
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({
