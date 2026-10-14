@@ -60,11 +60,13 @@ import {clearStaleSyncing, stateOf} from './watchState.mjs';
 import {
   decide,
   decideLive,
+  liveClosed,
   liveRetryDelayMs,
   liveWake,
   retryDelayMin,
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
+import {readLiveIndex} from '../sessions/liveSession.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -479,6 +481,22 @@ async function main() {
     }
   };
 
+  // Live sessions uploaded before live laps carried the field (tray 0.1.10,
+  // roadmap row 0a): each capture the live index names, still on the PC, is
+  // run through the live path once more; uploadLive adds the field and the
+  // capture extract to a stored session that has none. Once per session.
+  for (const sim of LIVE_SIMS) {
+    const done = ((watch.liveFieldRepair ??= {})[sim.id] ??= {});
+    for (const [key, span] of Object.entries(readLiveIndex(workOf(sim)))) {
+      const dir = key.split('#')[0];
+      if (done[span.sessionId] || !existsSync(resolve(captureRoot, dir))) continue;
+      log(`live ${sim.id}: adding the field to ${span.sessionId} (${dir})`);
+      const r = await runLive(sim, dir);
+      if (r.code === 0) done[span.sessionId] = true;
+      save();
+    }
+  }
+
   tick: for (;;) {
     if (parentGone()) {
       log('the tray app is gone, stopping');
@@ -493,7 +511,11 @@ async function main() {
         const recorder = readJson(recorderStatusOf(sim), null);
         // The capture live laps were following has closed (the drive ended,
         // the game quit): one last run sends its in-lap, game running or not.
-        if (live.dir && recorder?.sessionDir !== live.dir) {
+        // Closed is a new capture, or the recorder no longer recording: when
+        // the game exits it keeps the last sessionDir and says no-game, so a
+        // changed sessionDir alone never came and the drive's last lap stayed
+        // partial (2026-10-14, pit wall #5305).
+        if (liveClosed(live.dir, recorder)) {
           log(`live ${sim.id}: ${live.dir} closed, sending its last lap`);
           const r = await runLive(sim, live.dir);
           log(`live ${sim.id}: exit ${r.code}`);

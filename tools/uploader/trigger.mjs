@@ -104,3 +104,15 @@ export function liveRetryDelayMs(failuresInRow) {
   if (!(failuresInRow > 0)) return null;
   return Math.min(5_000 * 2 ** (failuresInRow - 1), 30_000);
 }
+
+/**
+ * Whether the capture live laps were following (`dir`) has closed, so its last
+ * lap must go up now: the recorder moved to another capture, or stopped
+ * recording. On a game exit it keeps the last sessionDir and says no-game
+ * (recorder.rs Status), so the sessionDir alone never tells (pit wall #5305).
+ */
+export function liveClosed(dir, recorder) {
+  if (!dir) return false;
+  if (!recorder) return false;
+  return recorder.sessionDir !== dir || recorder.state !== 'recording';
+}

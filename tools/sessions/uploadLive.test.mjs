@@ -144,3 +144,17 @@ test('a lap with no field keeps the stored one', async () => {
   await store.uploadLive(lapsOut(2));
   assert.equal(b.docs.get('sessions/s1').field.hash, 'aaaa11112222');
 });
+
+test('a stored live session with no field gets it once, with no new lap, and reads stale', async () => {
+  const b = backend(new Map([['sessions/s1', {id: 's1', recordingIds: ['r1'], archiveParts: 2, analysis: analysisStamp(17, {})}]]));
+  const out = withField(2, 'cccc55556666');
+  const r = await createStore(b).uploadLive(out);
+  assert.deepEqual(r, {skipped: 'newer', field: 'added'});
+  assert.equal(b.docs.get('sessions/s1').field.hash, 'cccc55556666');
+  assert.equal(b.docs.get('sessions/s1').analysis.v, 0);
+  assert.ok(b.files.has('field/o/s1/cccc55556666.json.gz'));
+  // Once it has one, a re-run does not send the field again.
+  const fieldPuts = b.order.filter(d => d.startsWith('field/')).length;
+  await createStore(b).uploadLive(out);
+  assert.equal(b.order.filter(d => d.startsWith('field/')).length, fieldPuts);
+});
