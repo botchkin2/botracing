@@ -22,17 +22,57 @@ One flow. Only the reader depends on where the drive came from.
 3. **One uploader** sends parts as they exist: each lap as it closes during a
    drive, all of them at once for a drive found later (the backlog), and a
    closing run at the end of a drive (`liveClosed`). The same code, order and
-   idempotency (md5) in every case. The session id comes from the drive.
-4. **One analysis, in the cloud** (`runAnalysis` → `analyzeStored` →
+   idempotency (md5) in every case.
+   For a backlog drive, the reader also writes the lap count and best lap from
+   the game's own times into the session doc. The list row is then complete
+   before any analysis, and the manifest checks it.
+4. **Session identity.** Whoever uploads a drive first mints its id. Every
+   later source asks the store first: is there a session of this owner, sim
+   and layout whose time overlaps? If so, it uses that id and mints none. One
+   id function, imported everywhere (today `sessionFiles.mjs groupFiles` and
+   `ownerCopy.mjs` each derive ids, and they differ on `groupId`). The cover
+   rule no longer lives in a local file (`work/live/index.json`), which a
+   reinstall or a new PC loses.
+5. **One analysis, in the cloud** (`runAnalysis` → `analyzeStored` →
    `analyzeFromArchive`), over the stored parts and inputs. Triggers: a live
    lap lands (`liveAnalyze`); a stale session is opened (rules or catalog
    changed, or a backlog session never analysed; no compute on sessions never
-   looked at). The PC never analyses.
-5. **Every analysis checks the feature manifest** and stores the misses on the
+   looked at).
+   - **Incremental:** `analyzeParts(new parts)` → per-lap facts, stored with
+     each lap's grid; `aggregate(all lap facts + inputs)` → the session
+     (lap numbers, stints, slow and comparable, laps left, hot pressure,
+     consistency, band, class, result, plan). A run costs its new laps plus a
+     cheap aggregate, not the whole drive again.
+     - Preconditions: the grid length comes from the curated map's `lengthM`,
+       not the best lap's distance (`analyze.mjs` 1038-1050).
+     - A track with no curated map gets a full re-run.
+   - **Concurrency:** one run per session under a token lease no shorter than
+     the function's timeout. Every session write is fenced on the token, so a
+     run that lost its lease writes nothing (#622).
+   - **Measurement gate:** the PC stops analysing only after one measured run,
+     as seat-test, on the longest stored race, through `analyzeApi` (120 s)
+     and `liveAnalyze` (300 s): peak memory and time. Until then the PC's
+     analysis stays.
+6. **Every analysis checks the feature manifest** and stores the misses on the
    session (Settings > Problems).
 
-Repairs are the same reader and uploader re-run on what is still on the PC,
-under a version, never a separate build.
+**Repairs.**
+- A rule change re-runs the analysis from the stored parts.
+- A recorder bug needs the raw source again: the capture (pruned 14 days after
+  the drive) or the game file. Such a repair is the same reader and uploader,
+  under a version. It must run before the captures it needs are pruned. The
+  per-wheel repair of the 0.1.9-0.1.10 captures (#619) has that deadline.
+
+**Off-track (on the plan list, not on this design's path).** Two separate facts,
+never merged:
+- **INV:** the game's own track-limits call (`mCountLapFlag`, lap time −1).
+- **OFF:** our geometry: all four wheels past the line (the centre past the
+  edge by more than half the car's track width), or 2+ wheels on grass, dirt or
+  gravel.
+
+Today the surface rule cannot see tarmac run-off (it reads code 0, the same as
+the track; pit wall #5382, #5387). One open question first: whether LMU's
+Track Edge is the white line or the outer edge of the kerb.
 
 ## Today
 
