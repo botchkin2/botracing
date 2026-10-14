@@ -55,7 +55,35 @@ After the game exits (and on a timer), the watcher runs `sync.mjs` per sim:
 Every session has each of these, or names why not (`{absent: reason}`), never
 a silent null.
 
-<!-- sidepod: feature table (feature, built by, source per flow, test that proves it / "none today") -->
+### Analysis-side rows (sidepod), to merge into the table
+
+What the analysis builds, from which input, and what proves it. **R** is a test
+on real recorded data, **S** a stub or synthetic input. The golden set
+(`tools/golden`) runs `analyzeSession` alone (`golden.mjs:28`), so it covers
+nothing that comes from an input or from the store: field, damage, race
+length, event, kept values.
+
+| Feature | Built in | Input | Test |
+|---|---|---|---|
+| Lap time, sectors, timed | `analyze.mjs analyzeLap` (548, 600-625) | `lap`, `lap_time`, sector events | golden (R, game file); `lmuCapture.test.mjs:88` capture = game file on the same laps (R); `irLiveCapture.test.mjs:107` (R) |
+| Partial, reset (`partial`, `endedInReset`, `afterReset`) | `analyze.mjs analyzeSession` (979-1005), `gridLap.mjs partialWhy` | recording boundaries, `lap_dist` | golden `partial` (R, game file); capture: `lmuCapture.test.mjs:187,217` clock restart (R). Reset laps from the capture: **none today** (#619) |
+| Pit in/out, pit stop and visit | `analyze.mjs` (588-590, 641), `fuelFacts.mjs lapPitStop`, `pitVisit.mjs` | `in_pits`, fuel and tyre channels, damage | golden (R, damage null); visit with damage: `pitVisit.test.mjs`, `keepCapture.test.mjs` (S) |
+| Stints | `analyze.mjs` (963-1009, 1273) | derived | golden (R); `lmuCapture.test.mjs:88` (R) |
+| Fuel per lap and session fuel | `fuelFacts.mjs lapFuel`, `stintFuel`; `analyze.mjs` 1229-1236 | fuel/VE channels; `recording.fuelSetup` (tank, fill limit) | golden (R, game file); fill limit: `fuelFacts.test.mjs:205` (S). From the capture: **none** (the capture has no fill limit, `lmuCapture.mjs:217`) |
+| Tyres per wheel | `tyres.mjs lapTyres`, `settleHotPressure` | tyre channels per wheel | `tyres.test.mjs` (S); golden checks only the tyre change (R). Four distinct wheels on real data: **none today** |
+| Off track | `analyze.mjs` (553-573, 609-611) | `surface` events per wheel | golden (R, game file only); from the capture: **none today** |
+| Corners, start straight, slices | `analyze.mjs` (1084-1141), `cornerFacts.mjs`, `cornerSlices.mjs` | trace, curated map and boundaries | golden corners (R); slices `cornerSlices.test.mjs` (S) |
+| Consistency, band | `analyze.mjs` (1043-1052, 1146-1206) | derived | golden (R) |
+| Field file | `field.mjs fieldFor` (LMU), `irField.mjs irFieldFor` (iRacing), named by content (`analyzeFromArchive.mjs` 225-231) | the capture's field chunks | `field.test.mjs` (S, synthetic capture). On a real capture through upload and analysis: **none today** (#619 replay assertion) |
+| Class laps, class bests, result | `src/analysis/classLaps.ts`, `raceResult.ts` (`analyzeFromArchive.mjs` 292-304; again in `store.mjs` 433-459 from the stored field) | field | `classLaps.test.ts`, `classBests.test.ts`, `raceResult.test.ts` (S) |
+| Traffic per lap and session | `lapTraffic.mjs` (`analyzeFromArchive.mjs` 196; `store.mjs` 412-421, 460-468, 508) | field | `lapTraffic.test.mjs` (S) |
+| Damage | `playerDamage.mjs damageFor`, stored as the capture extract (`captureExtract.mjs`) | capture | `neverResync.test.mjs:57` (S); `damageFor`: **none** |
+| Race length | `raceLength.mjs raceLengthFor` (LMU), `.ibt` YAML (iRacing) | capture / .ibt | `raceLength.test.mjs`, `keepCapture.test.mjs` (S) |
+| Weather | `analyzeFromArchive.mjs:249` from `recording.weather` | game file (`lmu.mjs:178`); the capture sets `''` (`lmuCapture.mjs:218`) | **none** |
+| GPS | trace and map channels (`analyze.mjs` 683-702, 796-810, 841) | LMU: game file only; the capture's `lat_deg` is computed from `mPos` (`lmuCaptureChannels.mjs:24-25`) | `geo.test.mjs` (S + one real sample) |
+| Track map, boundaries | `analyze.mjs planTrackMap`, `catalogStamp` | curated `tracks/` and `trackBoundaries/` docs | `catalogOnly.test.mjs`, `catalogStamp.test.mjs` (S); golden `trackMapSource` (R) |
+| Online event | `sync.mjs eventsOf` (`lmuEvents.mjs`) → `analyzeFromArchive.mjs` 251-252 | LMU trace logs on the PC | `lmuEvents.test.mjs` (S). Live sessions: **never set** |
+| Plan | `planBlock.mjs` (`store.mjs` 501-507) | fuel, laps, race, result | `planBlock.test.mjs` (S, one real race fixture) |
 
 ### Tray-side rows (torsion), to merge into the table
 
@@ -73,15 +101,84 @@ a silent null.
 
 ## Analysis
 
-<!-- sidepod: one engine, its callers and the inputs each passes -->
+One engine: `tools/sessions/analyzeFromArchive.mjs` turns a session's archive
+plus its inputs into the session doc, lap docs, traces, slices, band and field
+file. It runs in Cloud Run (`functions/src/engine.ts` loads it) and on the PC.
+Its inputs are everything that is not in the archive: the recordings'
+descriptions, the curated track map and boundaries, `fieldFor`, `damage`,
+`raceLength`, `event`, `catalogOnly`.
+
+**Today the callers pass different inputs, and that is what broke on
+2026-10-14:**
+
+| Caller | Runs | fieldFor | damage, race length | event | fuel setup |
+|---|---|---|---|---|---|
+| `sync.mjs build()` | PC, flow B | `fieldFor` / `irFieldFor` on the PC's capture | `damageFor`, `raceLengthFor` on the capture | `eventsOf` (trace logs) | `recording.fuelSetup` from the game file |
+| `analyzeStored.mjs` | cloud: `liveAnalyze` on each live lap, `analyzeApi` when a stale session is opened | **always none** (`:160`); the store keeps a stored field, and a live session has none to keep | from the stored capture extract; live sessions had none before #619 | the stored session's | from the recording doc; a live recording has no fill limit |
+| `irLiveParity.mjs`, `lmuCapture.test.mjs` | tests | none | none | none | as described |
+
+**Rule:** one `sessionInputs()` gathers every input for every caller. Each is a
+value or `{absent: reason}`, never a default null, so a caller that does
+without one says so where a reviewer and the manifest check see it. The cloud
+reads stored inputs (field file, capture extract, setup on the recording doc);
+the PC never analyses (*Repair paths*).
+
+**When the cloud analyses** (`functions/src/analyzeCore.ts runAnalysis`):
+- a live lap lands: `liveAnalyze` fires on `live.updatedAt` (`liveLapLanded`);
+- a stale session is opened: the app posts `/api/analyze/{id}` (stale = older
+  rules or catalog, `analyzeStored.mjs staleNow`).
+
+Both take one lease per session (`analysisRuns/{id}`, 150 s); a second caller
+gets 202 and waits. A run that sees the live stamp move runs again, at most 3
+times.
 
 ## Store
 
-<!-- sidepod: uploadSession / uploadLive / what a write keeps from the stored doc -->
+`tools/sessions/store.mjs` writes over a backend (Admin on the PC, HTTP from
+the tray, the same calls in the cloud).
+
+- **`upload`** (after an analysis): the session, its laps (laps the run did not
+  make are deleted), traces, slices, band, field file, capture extract.
+- **`uploadLive`** (the tray, each lap): parts (md5), recording docs, the
+  session doc merged. No lap docs, no analysis; what the last analysis wrote
+  stays until the next one.
+- **`keepNewerLive`**: a cloud write never moves `live` or `archiveParts`
+  backwards; a lap that landed during the run leaves the session stale.
+
+**What `upload` keeps from the stored doc when its run lacked an input**
+(`store.mjs` 387-499): the field and the class laps, bests and result made
+from it; lap traffic redone from the stored field; the LMU race length; pit
+visits built from damage. Each kept block is named in `analysis.kept`.
+
+These keep rules are inputs in disguise: they are why a cloud run without a
+field looked fine for every game-file session and silently empty for every
+live one. With `sessionInputs()`, the stored field and extract are read as
+inputs, and the keep rules go.
+
+Tests: `uploadLive.test.mjs`, `keepCapture.test.mjs`, `field.test.mjs:248`,
+`sessionLast.test.mjs` (S, stub backends). A real session through upload and
+analysis against the emulators: `functions/test/replay/run.mjs` (R), which
+checks only that laps land in time.
 
 ## App
 
-<!-- sidepod: how the app learns a session changed and what it reads -->
+The app reads the session doc, then its laps, band, field and traces
+(`src/data/sessions/queries.ts`). It never builds a session.
+
+- **Sessions list:** read on mount and focus, and again when `/uploaders`
+  (one small call a minute while the list is open) reports a new upload
+  (`useNewUploads`).
+- **An open session:** read every 5 s while `live.updatedAt` is under 10 min
+  old (`live.ts livePoll`); a session live in the last 2 h also listens for
+  uploads to it (#618). When the doc's `updatedAt` changes, laps and band are
+  read again.
+- **Stale on open:** the app posts `/api/analyze/{id}` once per id and part
+  count (`analysisOnOpen.ts`). For a live session `liveAnalyze` already runs
+  each lap; the post only joins its lease (seen in prod 2026-10-14: 3 posts,
+  202 in 0.13 s, no second run). It stays for rule changes and the backlog.
+
+Tests: `src/data/sessions/*.test.ts` (S); the screen side of live laps is the
+release gate's pane check (`tools/dev/liveE2E.mjs`, R, prod as seat-test).
 
 ## Repair paths
 
@@ -99,6 +196,16 @@ Today's tray-side repairs, each a one-time pass recorded in its own state key, a
 | live per-wheel repair (#619, planned) | the two live sessions from the 0.1.9-0.1.10 recorder rebuilt from their game files under their live ids | **merge** (same runner); then deleted once both have run |
 
 One runner, one state key per session (`repairs: {name: version}`), each repair a small module with a test. The server's analysis on open (a stale stamp re-analyses) and `ownerCopy` are sidepod's half.
+
+### Server and app side (sidepod)
+
+| Path | What it does | Verdict |
+|---|---|---|
+| Analysis on open (`analyzeApi`, stale stamp) | a session made under older rules or catalog is analysed again when opened | **keep**, as the one cloud analysis with a second trigger; it is how the backlog is analysed (no compute on sessions never looked at, `decisions/lap/2026-10-12-analysis-on-open.md`) |
+| `liveAnalyze` | analysis on each live lap | **keep**: the same `runAnalysis` |
+| `ownerCopy` / `migrateOwner.mjs` | one-time copy of Botkin's data from owner key `botkin` to his uid | **not a flow**: an ops tool, out of this document; delete once the switch is done (docs/OWNER_COPY.md) |
+| Keep rules in `store.upload` | stored field, class blocks, race, visits kept when a run lacks the input | **delete**, replaced by `sessionInputs()` reading the stored inputs |
+| PC-side analysis (`sync.mjs build` → `analyzeFromArchive`) | flow B analyses on the PC | **delete** with the one-uploader design: flow B uploads parts and the session is analysed on open. The corner-boundary fold (`build(..., {foldOnly})`) needs a home first (curation) |
 
 ## Script-era cruft
 
@@ -126,3 +233,13 @@ The pipeline started as separate scripts run by hand; the tray now runs them as 
 3. GPS for flow A (LMU): read the game file by time when it lands, as one input of flow A, not a second build.
 4. A raw LMU_Data fixture: a few seconds of real shared memory from a normal drive, kept by the tray in its own folder and stored as test data only with Botkin's OK (it holds other drivers' names). The recorder test then runs on real game memory.
 5. The script-era cleanup above.
+
+### Server and app side (sidepod)
+
+1. `sessionInputs()`: one gatherer for every analysis caller, `{absent: reason}` instead of null; the store's keep rules go.
+2. Parity diff in CI (`tools/golden`): the golden pair (a capture and the game file of the same drive) through the capture path and the game-file path, every session and lap field compared, failing outside a reviewed allow-list (GPS, start-time precision, out-lap crossing clocks).
+3. The feature manifest, in code: run by CI on the golden sessions and by every cloud analysis on the session it wrote; misses stored on the session and shown in Settings > Problems.
+4. Golden covers the inputs: the golden runner calls `analyzeFromArchive` with real inputs (field, damage, race length), not `analyzeSession` alone.
+5. Online event for live sessions (never set today).
+6. Weather from the capture (`''` today).
+7. One session id per drive, whichever reader saw it first (tonight's drive was `682524ed` from the capture and `9b96efed` from the game file).
