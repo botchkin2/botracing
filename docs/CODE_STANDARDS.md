@@ -20,6 +20,7 @@ Botkin uses this app mostly on his phone, straight out of the car after a sessio
 - **Keep files small enough to read in one pass.** Aim for under 250 lines; over 400 is a signal to split along a real seam (a subcomponent, a pure function), not arbitrarily.
 - **Every folder under `src/` has a short `README.md`** saying what belongs there, what does not, and what it may import. Update it when you change the folder's purpose.
 - **Comments explain why, never what.** Say where a constant comes from ("median + 3 robust σ, from the handoff"), why a workaround exists, or which doc a rule comes from. No commented-out code, no changelog comments, no `// TODO` without a pit-wall thread number.
+- **A comment never claims what other code or data does or covers.** "The game file adds nothing the capture lacks", "X is covered by Y", "the endpoint is public": each one is a test, or it is deleted. The comment may name the test. A wrong claim of this kind cost every live session its other cars (2026-10-14, `docs/SESSION_PIPELINE.md`).
 - **No clever code.** Prefer a plain loop over a chain of five array methods when the loop is clearer. No metaprogramming, no dynamic imports for style, no string-built keys where a typed union works.
 
 ## 2. Types are the contract
