@@ -1,5 +1,7 @@
 import {useMemo} from 'react';
 
+import {readFailure} from '@/src/data/queryState';
+
 import {sinceChange} from '@/src/analysis/fuelHistory';
 import {
   type PlanSession,
@@ -43,7 +45,8 @@ export function usePlanRows(combo: Combo | null) {
     byId,
     /** True while the request is in flight (and for a combo not chosen yet it is false). */
     pending: combo != null && query.isPending,
-    failed: query.isError,
+    // Only a read with nothing kept failed: a refetch that fails keeps the plan (roadmap 6b).
+    failure: readFailure(query),
     /** The request has answered: a session it does not list is no data, not loading. */
     answered: query.data != null,
     /**
@@ -165,7 +168,11 @@ export function usePlanHistory(
   return {
     history,
     /** Loading state of the one request (the screens used to count lap fetches). */
-    loading: {pending: rows.pending, failed: rows.failed},
+    loading: {
+      pending: rows.pending,
+      failed: rows.failure !== null,
+      offline: rows.failure === 'offline',
+    },
     measured,
     ratio,
     chosen,
