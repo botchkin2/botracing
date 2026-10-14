@@ -11,6 +11,7 @@ export interface Engine {
     sessionId: string;
     owner: string;
     workDir: string;
+    beforeWrite?: () => Promise<void>;
     log?: (line: string) => void;
   }): Promise<{laps: number}>;
   adminBackend(o: {db: unknown; bucket: unknown}): unknown;
