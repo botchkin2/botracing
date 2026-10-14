@@ -554,11 +554,6 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
   const dist = lapDistance(rec, i0, i1);
   const gameLapTime = lapTimeNear(events.lap_time, seg.end);
   const timed = gameLapTime != null;
-  // Invalid: the game closed the lap at a real crossing with no time (<= 0).
-  // A recording's end is no crossing, whatever event sits there.
-  const endsAtCrossing = seg.end < s.t[s.t.length - 1] - 0.5;
-  const endTime = lapTimeEventNear(events.lap_time, seg.end);
-  const invalid = endsAtCrossing && endTime != null && endTime <= 0;
   // A grid start is the parked car and the roll to the line, not a lap.
   const why = partialWhy(seg.partial, dist, seg.end - seg.start);
 
@@ -600,6 +595,13 @@ function analyzeLap(rec, seg, pits, flags, visitFacts) {
   const pitIn = pits.some(([a]) => a > seg.start && a <= seg.end);
   const pitOut = pits.some(([, b]) => b >= seg.start && b < seg.end);
   const pitlane = pits.some(([a, b]) => a < seg.end && b > seg.start);
+  // Invalid: the game closed the lap at a real crossing with no time (<= 0).
+  // A recording's end is no crossing, whatever event sits there. A lap through
+  // the pit lane closes with -1 too, and is no track-limits call (spring #5422).
+  const endsAtCrossing = seg.end < s.t[s.t.length - 1] - 0.5;
+  const endTime = lapTimeEventNear(events.lap_time, seg.end);
+  const invalid =
+    !pitlane && endsAtCrossing && endTime != null && endTime <= 0;
 
   return {
     lapNumber: seg.lapNumber,

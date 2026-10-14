@@ -130,6 +130,9 @@ test(
       l.pitIn,
       l.pitOut,
       l.excluded,
+      // A pit out-lap closes with lap time -1 in the capture and no time in
+      // the game file: not invalid in either (spring #5422).
+      l.invalid,
     ];
     assert.deepEqual(cap.laps.map(flags), duck.laps.map(flags));
   },
@@ -369,3 +372,28 @@ test(
     );
   },
 );
+
+// fixtures/lmu-capture-pitlaps: the same capture, 3530-3735 s, the player's
+// rows only. Lap 3 ends at 3536.8 into the pit lane, lap 4 leaves it at
+// 3598.8 and closes at 3728.3; both close with mLastLapTime -1, which is the
+// pit, not the game's track-limits call (spring #5422).
+test('a pit in-lap and out-lap closing with lap time -1 are not invalid', needsDuckdb, () => {
+  const dir = resolve(here, 'fixtures/lmu-capture-pitlaps');
+  // The garage visit splits the capture: the in-lap ends the first stretch.
+  const laps = describeCapture(dir).stretches.flatMap(st =>
+    withTmp(tmp => {
+      const s = join(tmp, 's.parquet');
+      const e = join(tmp, 'e.parquet');
+      writeCaptureArchive(dir, st.info, {t0: st.laps[0].t0, t1: st.laps.at(-1).t1}, s, e);
+      return analyze(st.info, s, e).laps;
+    }),
+  );
+  assert.deepEqual(
+    laps.map(l => [l.lapNumber, l.pitIn, l.pitOut, l.invalid]),
+    [
+      [3, false, false, false],
+      [4, false, true, false],
+      [5, false, false, false],
+    ],
+  );
+});
