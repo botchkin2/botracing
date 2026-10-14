@@ -77,7 +77,7 @@ describe('buildSessionModel', () => {
     // L25 of 682524ed (2026-10-14): LMU invalidated a full lap; it read PART, no time.
     const raw = fixture.laps.map((l, i) =>
       i === 12
-        ? {...l, timed: false, lapTime: 121.627, partial: false, comparable: false, reasons: ['untimed']}
+        ? {...l, timed: false, invalid: true, lapTime: 121.627, partial: false, comparable: false, reasons: ['untimed']}
         : l,
     );
     const r = buildSessionModel(session, toLaps(raw), none);
@@ -90,6 +90,16 @@ describe('buildSessionModel', () => {
     const ids = raw.map(l => l.id);
     const d = buildSessionModel(session, toLaps(raw), {laps: [], hl: ids[12]});
     expect(d.detail).toMatchObject({status: 'Excluded · Invalid'});
+  });
+
+  it('an untimed lap without the invalid fact is not INV (a reset fragment stays PART)', () => {
+    // L4 of 682524ed: 80 s cut by a reset, untimed, stored before the reset fix as whole.
+    const raw = fixture.laps.map((l, i) =>
+      i === 12 ? {...l, timed: false, lapTime: 80.673, partial: false, reasons: ['untimed']} : l,
+    );
+    const r = buildSessionModel(session, toLaps(raw), none);
+    expect(lapRow(r, 'L13').tags.map(t => t.code)).toContain('PART');
+    expect(lapRow(r, 'L13').time).toBe('—');
   });
 
   it('a pit or cut lap the game did not time is not INV', () => {

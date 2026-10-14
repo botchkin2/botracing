@@ -480,9 +480,8 @@ export type Lap = {
    */
   partialWhy?: 'grid' | 'file' | null;
   /**
-   * A whole lap the game did not time (LMU withholds the time of a lap it
-   * invalidates, e.g. on track limits): its line-to-line time, for display
-   * only. timeS stays null, so no median, best or selection uses it. Null on
+   * A whole lap the game invalidated (it gave −1 at the crossing; the lap
+   * doc's `invalid`): its line-to-line time, for display only. timeS stays null, so no median, best or selection uses it. Null on
    * timed, partial and pit laps.
    */
   invalidTimeS: number | null;
@@ -992,8 +991,10 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
     endedInReset: raw.endedInReset === true,
     partial: raw.partial === true || raw.incomplete === true,
     partialWhy: toPartialWhy(raw.partialWhy),
+    // Only the analysis's own `invalid` (the game gave −1 at a real crossing,
+    // not a reset's lap bump): never inferred from 'untimed' (sidepod #5337).
     invalidTimeS:
-      raw.timed === false &&
+      raw.invalid === true &&
       raw.partial !== true &&
       raw.pitIn !== true &&
       raw.pitOut !== true
