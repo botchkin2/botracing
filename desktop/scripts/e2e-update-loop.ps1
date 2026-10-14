@@ -6,8 +6,8 @@
 #   ./desktop/scripts/e2e-update-loop.ps1 -Runs 30 -Old .. -New .. -Signature .. -Version .. -Port .. -Out <dir>
 #
 # Each run's whole output goes to <Out>/run-<i>.log. After a failed run the
-# runner is reset (installer, tray and test server ended, the install and its
-# data removed) so the next run starts clean. <Out>/summary.txt counts the
+# runner is reset before each run (installer, tray and test server ended, the
+# install and its data removed) so every run starts clean. <Out>/summary.txt counts the
 # failures by the wait that timed out ("UPDATE E2E FAILED: ..."). Exits 1 when
 # any run failed.
 param(
@@ -42,6 +42,9 @@ function Reset-Runner {
 $failures = @{}
 $started = Get-Date
 for ($i = 1; $i -le $Runs; $i++) {
+  # Clean before every run: a passing run's uninstall keeps the data folder
+  # (the user's), which e2e-update.ps1 refuses to start over.
+  Reset-Runner
   $log = Join-Path $Out ("run-{0:d2}.log" -f $i)
   $t0 = Get-Date
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot "e2e-update.ps1") -Old $Old -New $New -Signature $Signature -Version $Version -Port $Port *> $log
@@ -58,7 +61,6 @@ for ($i = 1; $i -le $Runs; $i++) {
   $kind = $why -replace 'pid \d+', 'pid N' -replace '\d+\.\d+\.\d+', 'X'
   $failures[$kind] = 1 + [int]$failures[$kind]
   Write-Host ("run {0}: FAILED ({1}s): {2}" -f $i, $secs, $why)
-  Reset-Runner
 }
 
 $failed = ($failures.Values | Measure-Object -Sum).Sum
