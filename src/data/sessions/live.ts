@@ -16,6 +16,20 @@ export function isLive(liveAt: number | null | undefined, now = Date.now()) {
   return liveAt != null && now - liveAt < LIVE_FRESH_MS;
 }
 
+/**
+ * A session a PC may still add laps to: live within this window. An open
+ * session listens for uploads to it only then (useSessionNewUploads), so an
+ * old session being reviewed costs nothing (apex #5291).
+ */
+export const RECENT_LIVE_MS = 2 * 60 * 60_000;
+
+export function isRecentlyLive(
+  liveAt: number | null | undefined,
+  now = Date.now(),
+) {
+  return liveAt != null && now - liveAt < RECENT_LIVE_MS;
+}
+
 /** React Query's `refetchInterval` for a live session; false stops the poll. */
 export function livePoll(liveAt: number | null | undefined) {
   return isLive(liveAt) ? LIVE_POLL_MS : false;
