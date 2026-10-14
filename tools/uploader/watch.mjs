@@ -67,6 +67,7 @@ import {
 } from './trigger.mjs';
 import {floorOf} from '../sessions/syncState.mjs';
 import {readLiveIndex} from '../sessions/liveSession.mjs';
+import {usableLiveIndex} from '../sessions/brokenWheels.mjs';
 import {QUIET_MIN_DEFAULT} from '../sessions/sessionFiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -487,7 +488,9 @@ async function main() {
   // capture extract to a stored session that has none. Once per session.
   for (const sim of LIVE_SIMS) {
     const done = ((watch.liveFieldRepair ??= {})[sim.id] ??= {});
-    for (const [key, span] of Object.entries(readLiveIndex(workOf(sim)))) {
+    // Never a broken-wheel capture: flow B rebuilds that drive (brokenWheels.mjs).
+    const index = usableLiveIndex(readLiveIndex(workOf(sim)), captureRoot);
+    for (const [key, span] of Object.entries(index)) {
       const dir = key.split('#')[0];
       if (done[span.sessionId] || !existsSync(resolve(captureRoot, dir))) continue;
       log(`live ${sim.id}: adding the field to ${span.sessionId} (${dir})`);
