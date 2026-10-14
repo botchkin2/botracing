@@ -1,5 +1,6 @@
 import {describe, expect, it} from '@jest/globals';
 
+import {HttpError} from '@/src/data/http';
 import {type Uploader, type UploaderProblem} from '@/src/data/uploaders';
 
 import {
@@ -10,6 +11,7 @@ import {
   problemRows,
   problemText,
   uploaderCard,
+  uploadersRead,
 } from './model';
 
 const NOW = Date.parse('2026-09-28T22:00:00Z');
@@ -307,5 +309,31 @@ describe('formatters', () => {
   it('days are "Oct 1" and "Sep 14", never en-GB "Sept"', () => {
     expect(formatDay(new Date(2026, 9, 1, 12).getTime())).toBe('Oct 1');
     expect(formatDay(new Date(2026, 8, 14, 12).getTime())).toBe('Sep 14');
+  });
+});
+
+// Roadmap 6b: the uploader status with the network gone.
+describe('uploadersRead', () => {
+  const keptAt = 4000;
+  const read = (data: unknown, error: unknown) => ({
+    isError: error !== null,
+    isPending: false,
+    error,
+    data: data as Uploader[] | undefined,
+    dataUpdatedAt: data ? keptAt : 0,
+    errorUpdatedAt: error ? keptAt + 1000 : 0,
+  });
+  it('keeps the PCs it had, and says since when', () => {
+    expect(
+      uploadersRead(read([], new TypeError('Failed to fetch')), 0),
+    ).toEqual({state: 'ready', items: [], offlineSince: keptAt});
+  });
+  it('reads Offline with nothing kept, and the server’s error when it answered', () => {
+    expect(uploadersRead(read(undefined, new TypeError('x')), 0)).toEqual({
+      state: 'offline',
+    });
+    expect(
+      uploadersRead(read(undefined, new HttpError(500, '/uploaders')), 0),
+    ).toEqual({state: 'error', message: 'GET /uploaders → 500'});
   });
 });

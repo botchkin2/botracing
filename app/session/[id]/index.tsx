@@ -79,7 +79,8 @@ function Rail({
       ? `Couldn’t load sessions: ${model.message}`
       : model.state === 'empty'
       ? 'No sessions yet'
-      : undefined;
+      : // Offline is said once, by the session screen beside it.
+        undefined;
   return (
     <SessionsRail
       days={model.state === 'ready' ? model.days : []}

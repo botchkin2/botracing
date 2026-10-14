@@ -29,9 +29,11 @@ import {
   dayMonthOf,
   formatGap,
   formatLapTime,
+  formatOffline,
   shortTrackName,
 } from '@/src/design';
 import {planComboKey} from '@/src/nav/routes';
+import {type QueryLike, queryState} from '@/src/data/queryState';
 import {useSectionMode} from '@/src/state/sectionPrefs';
 
 import {lapFuelLines, pitLine, stintFuelLine} from './fuelLines';
@@ -704,34 +706,69 @@ export function useSessionScreenModel(id: string, selection: Selection) {
   // Only the optimal lap needs the map; the screen draws without it.
   const map = useTrackMap(session.data?.trackId);
   const sectionMode = useSectionMode();
-  return useMemo(() => {
-    if (session.isError || laps.isError) {
-      const error = session.error ?? laps.error;
-      return {
-        state: 'error' as const,
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-    if (!session.data || !laps.data) return {state: 'loading' as const};
-    return {
-      state: 'ready' as const,
-      model: buildSessionModel(
-        session.data,
-        laps.data,
+  return useMemo(
+    () =>
+      sessionScreenModelOf({
+        session,
+        laps,
+        map: map.data ?? null,
         selection,
-        map.data ?? null,
         sectionMode,
-      ),
-    };
-  }, [
-    session.data,
-    laps.data,
-    map.data,
-    session.error,
-    laps.error,
-    selection,
-    sectionMode,
-  ]);
+      }),
+    [
+      session.data,
+      laps.data,
+      map.data,
+      session.error,
+      laps.error,
+      session.dataUpdatedAt,
+      laps.dataUpdatedAt,
+      session.errorUpdatedAt,
+      laps.errorUpdatedAt,
+      selection,
+      sectionMode,
+    ],
+  );
+}
+
+/**
+ * The Session screen from its reads: what was read wins over a failed
+ * refetch (src/data/queryState.ts, roadmap 6b).
+ */
+export function sessionScreenModelOf({
+  session,
+  laps,
+  map,
+  selection,
+  sectionMode,
+  now = new Date(),
+  answeredAt,
+}: {
+  session: QueryLike & {data?: SessionDetail};
+  laps: QueryLike & {data?: Lap[]};
+  map: TrackMapData | null;
+  selection: Selection;
+  sectionMode: SectionMode;
+  now?: Date;
+  answeredAt?: number;
+}) {
+  const read = queryState([session, laps], answeredAt);
+  if (read.kind === 'error')
+    return {state: 'error' as const, message: read.message};
+  if (read.kind === 'offline') return {state: 'offline' as const};
+  if (read.kind === 'loading' || !session.data || !laps.data)
+    return {state: 'loading' as const};
+  return {
+    state: 'ready' as const,
+    offlineText: formatOffline(read.offlineSince, now),
+    model: buildSessionModel(
+      session.data,
+      laps.data,
+      selection,
+      map,
+      sectionMode,
+    ),
+  };
 }
 
 /**

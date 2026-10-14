@@ -2,7 +2,8 @@ import {useMemo} from 'react';
 
 import Constants from 'expo-constants';
 
-import {dayMonthOf} from '@/src/design';
+import {type QueryLike, queryState} from '@/src/data/queryState';
+import {dayMonthOf, formatOffline} from '@/src/design';
 import {
   type Uploader,
   type UploaderProblem,
@@ -34,8 +35,11 @@ export type SettingsModel = {
   uploaders:
     | {state: 'loading'}
     | {state: 'error'; message: string}
+    | {state: 'offline'}
     | {state: 'none'}
     | {state: 'ready'; cards: UploaderCard[]};
+  /** "Offline · 00:41" while the status shown could not be renewed. */
+  offlineText: string | null;
   /** What is wrong on the PCs now, newest first per PC; empty when nothing. */
   problems: ProblemRow[];
   version: string;
@@ -202,7 +206,8 @@ export function buildSettingsModel(input: {
   uploaders:
     | {state: 'loading'}
     | {state: 'error'; message: string}
-    | {state: 'ready'; items: Uploader[]};
+    | {state: 'offline'}
+    | {state: 'ready'; items: Uploader[]; offlineSince?: number | null};
   version: string;
   nowMs: number;
 }): SettingsModel {
@@ -213,7 +218,7 @@ export function buildSettingsModel(input: {
       : [];
   return {
     uploaders:
-      u.state === 'loading' || u.state === 'error'
+      u.state === 'loading' || u.state === 'error' || u.state === 'offline'
         ? u
         : u.items.length === 0
         ? {state: 'none'}
@@ -223,6 +228,10 @@ export function buildSettingsModel(input: {
           },
     problems: problemRows(items),
     version: input.version,
+    offlineText:
+      u.state === 'ready'
+        ? formatOffline(u.offlineSince ?? null, new Date(input.nowMs))
+        : null,
   };
 }
 
@@ -233,18 +242,23 @@ export function useSettingsModel(): SettingsModel {
   return useMemo(
     () =>
       buildSettingsModel({
-        uploaders: q.isPending
-          ? {state: 'loading'}
-          : q.isError
-          ? {
-              state: 'error',
-              message:
-                q.error instanceof Error ? q.error.message : String(q.error),
-            }
-          : {state: 'ready', items: q.data},
+        uploaders: uploadersRead(q),
         version: Constants.expoConfig?.version ?? '',
         nowMs,
       }),
-    [q.isPending, q.isError, q.error, q.data, nowMs],
+    [q.isPending, q.isError, q.error, q.data, q.dataUpdatedAt, nowMs],
   );
+}
+
+/** The uploader status from its read: what was read wins over a failed refetch (roadmap 6b). */
+export function uploadersRead(
+  q: QueryLike & {data?: Uploader[]},
+  answeredAt?: number,
+): Parameters<typeof buildSettingsModel>[0]['uploaders'] {
+  const read = queryState([q], answeredAt);
+  if (read.kind === 'ready' && q.data)
+    return {state: 'ready', items: q.data, offlineSince: read.offlineSince};
+  if (read.kind === 'error') return {state: 'error', message: read.message};
+  if (read.kind === 'offline') return {state: 'offline'};
+  return {state: 'loading'};
 }

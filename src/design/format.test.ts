@@ -7,6 +7,8 @@ import {
   formatDate,
   formatDayMonth,
   formatDayMonthTime,
+  formatClock,
+  formatOffline,
   formatDistance,
   formatLength,
   formatGap,
@@ -159,5 +161,24 @@ describe('formatDayMonthTime', () => {
 
   it('is empty for a bad date', () => {
     expect(formatDayMonthTime('nope', now)).toBe('');
+  });
+});
+
+describe('formatClock and formatOffline', () => {
+  const now = new Date(2026, 9, 14, 1, 30);
+  it('is the clock today, the day and clock before', () => {
+    expect(formatClock(new Date(2026, 9, 14, 0, 41).getTime(), now)).toBe(
+      '00:41',
+    );
+    expect(formatClock(new Date(2026, 9, 13, 23, 5).getTime(), now)).toBe(
+      'Oct 13, 23:05',
+    );
+  });
+
+  it('says Offline and since when, or nothing while current', () => {
+    expect(formatOffline(new Date(2026, 9, 14, 0, 41).getTime(), now)).toBe(
+      'Offline · 00:41',
+    );
+    expect(formatOffline(null, now)).toBeNull();
   });
 });

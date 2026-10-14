@@ -30,7 +30,13 @@ import {
 import {replace, toggle} from '@/src/state/lapSelection';
 import {LapStrip} from './components/LapStrip';
 import {usePanelWidth} from '@/src/state/panelPrefs';
-import {FoldedSection, PANEL_DIVIDER_W, Pressable, Text} from '@/src/ui';
+import {
+  FoldedSection,
+  OfflineLine,
+  PANEL_DIVIDER_W,
+  Pressable,
+  Text,
+} from '@/src/ui';
 
 import {CompareTray} from './components/CompareTray';
 import {LapDetail} from './components/LapDetail';
@@ -117,7 +123,9 @@ export function SessionScreen({
           <ActivityIndicator color={color.accent} />
         ) : (
           <Text tone='textMuted'>
-            Couldn’t load this session: {result.message}
+            {result.state === 'offline'
+              ? 'Offline'
+              : `Couldn’t load this session: ${result.message}`}
           </Text>
         )}
       </View>
@@ -127,6 +135,7 @@ export function SessionScreen({
     <SessionView
       sessionId={sessionId}
       model={result.model}
+      offlineText={result.offlineText}
       selection={resolved}
       onSelectionChange={onSelectionChange}
       renderPlanHalf={renderPlanHalf}
@@ -138,6 +147,7 @@ export function SessionScreen({
 function SessionView({
   sessionId,
   model,
+  offlineText,
   selection,
   onSelectionChange,
   renderPlanHalf,
@@ -145,6 +155,8 @@ function SessionView({
 }: {
   sessionId: string;
   model: SessionScreenModel;
+  /** "Offline · 00:41" while a refetch could not renew what is shown. */
+  offlineText: string | null;
   selection: Selection;
   onSelectionChange: (next: Selection) => void;
   renderPlanHalf?: (card: PitCardModel, facts: RaceFacts) => ReactNode;
@@ -390,6 +402,7 @@ function SessionView({
       ) : (
         <SessionHead facts={model.facts} />
       )}
+      <OfflineLine text={offlineText} />
       {model.classTable ? <ClassTableView table={model.classTable} /> : null}
 
       {chartBlock(tableW)}

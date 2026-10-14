@@ -24,13 +24,16 @@ import {
   type CornerModel,
   type CornerSelection,
 } from './model';
-import {lapMode} from '@/src/design';
+import {queryState} from '@/src/data/queryState';
+import {formatOffline, lapMode} from '@/src/design';
 import {keyLapIds as keyLapsOf} from './keyLaps';
 import {sliceCornerOf} from './wholeCorner';
 
 export type CornerResult =
   | {state: 'loading'}
   | {state: 'error'; message: string; retry: () => void}
+  // No network and nothing kept to draw (src/data/queryState.ts).
+  | {state: 'offline'}
   /** noMap: the track has no corner map yet; else this corner doesn't exist. */
   | {state: 'missing'; noMap: boolean}
   /** The session has no comparable lap to show. */
@@ -45,6 +48,8 @@ export type CornerResult =
       openingIds: string[];
       traceLoad: TraceLoad;
       retryTraces: () => void;
+      /** "Offline · 00:41" while a refetch could not renew what is drawn. */
+      offlineText: string | null;
     };
 
 export function useCornerModel(
@@ -147,12 +152,17 @@ export function useCornerModel(
   const {refetch: refetchSession} = session;
   const {refetch: refetchLaps} = laps;
   const {refetch: refetchMap} = map;
-  const error = [session, laps, map].find(q => q.isError)?.error;
+  // What was read wins over a failed refetch (roadmap 6b).
+  const read = queryState([session, laps, map]);
+  const readKind = read.kind;
+  const readMessage = read.kind === 'error' ? read.message : null;
+  const offlineSince = read.kind === 'ready' ? read.offlineSince : null;
   return useMemo((): CornerResult => {
-    if (error)
+    if (readKind === 'offline') return {state: 'offline'};
+    if (readKind === 'error')
       return {
         state: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: readMessage ?? '',
         retry: () => {
           void refetchSession();
           void refetchLaps();
@@ -185,10 +195,13 @@ export function useCornerModel(
           openingIds,
           traceLoad,
           retryTraces,
+          offlineText: formatOffline(offlineSince),
         }
       : {state: 'missing', noMap: map.data.sections.length === 0};
   }, [
-    error,
+    readKind,
+    readMessage,
+    offlineSince,
     session.data,
     laps.data,
     map.data,
