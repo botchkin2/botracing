@@ -3,7 +3,7 @@
 // as seat-test against the production API with LMU "running", and the time
 // from each lap reaching the disk to the session's lap count showing it.
 //
-//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 15]
+//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 15] [--pane-origin <app origin>]
 //
 // Exits 1, the release gate's fail, when a lap never reaches the app or takes
 // more than --max-lap-s from the disk to the session's lap count, or when the
@@ -64,6 +64,10 @@ const paneOptions = session
   ? {session}
   : {customTokenFile: customToken};
 const api = process.env.LAP_API_BASE || 'https://botracing-61.web.app';
+// The app the panes open: the API's own host by default; --pane-origin
+// http://localhost:<live slot port> checks a branch's app against the same API
+// before it deploys (AGENTS.md live slots).
+const paneOrigin = arg('--pane-origin', api);
 
 const root = mkdtempSync(resolve(tmpdir(), 'live-e2e-'));
 const dirs = Object.fromEntries(
@@ -145,6 +149,7 @@ replay.stdout.setEncoding('utf8').on('data', chunk => {
 const seen = new Map();
 const onScreen = new Map();
 let pane = null;
+let paneOpening = null;
 // The Sessions list, open and untouched from before the first lap: the drive
 // must change it by itself (Botkin had to filter to LMU to find the live
 // session, thread 1 #4997). Its text is the baseline; the first change after
@@ -154,7 +159,7 @@ let listPane = null;
 let listBaseline = null;
 const onList = new Map();
 if (!noScreen) {
-  listPane = await openPane({origin: api, ...paneOptions});
+  listPane = await openPane({origin: paneOrigin, ...paneOptions});
   await listPane.goto('/', 4000);
   listBaseline = await listPane.text();
   console.log(`${stamp()} list pane open (${listBaseline.length} chars)`);
@@ -187,12 +192,19 @@ const poll = async () => {
     } catch {
       // No log yet.
     }
-    if (sessionId && !noScreen) {
-      pane = await openPane({origin: api, ...paneOptions});
-      await pane.goto(`/session/${sessionId}`);
-      console.log(`${stamp()} pane open on session ${sessionId}`);
-    }
-    return;
+    // The pane opens beside the polls, not between them: awaiting its ~7 s
+    // start here left the API unread, and lap 1 read 13 s "in the app" for a
+    // doc written 5.6 s after the line (pit wall thread 69).
+    if (sessionId && !noScreen)
+      paneOpening = openPane({origin: paneOrigin, ...paneOptions})
+        .then(async p => {
+          await p.goto(`/session/${sessionId}`);
+          pane = p;
+          console.log(`${stamp()} pane open on session ${sessionId}`);
+        })
+        // No pane: no lap reaches the screen, and the verdict says so.
+        .catch(err => console.log(`${stamp()} pane: ${err.message}`));
+    if (!sessionId) return;
   }
   const res = await fetch(`${api}/api/sessions/${sessionId}`, {
     headers: {Authorization: `Bearer ${readFileSync(token, 'utf8').trim()}`},
@@ -245,6 +257,7 @@ while (Date.now() < until && !done() && !alreadyStored) {
   await new Promise(r => setTimeout(r, 2000));
   await poll().catch(err => console.log(`${stamp()} poll: ${err.message}`));
 }
+await paneOpening;
 if (pane) await pane.close();
 if (listPane) await listPane.close();
 watcher.kill();

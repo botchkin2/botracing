@@ -292,8 +292,10 @@ function runLive(sim, sessionDir) {
 // The wait between ticks. The recorders' status files are read every
 // LIVE_POLL_MS (small files) and a new lap on disk, or a recorder that starts
 // recording, ends the wait (trigger.mjs liveWake), so a lap starts up within
-// seconds instead of up to a whole tick, the drive's first lap included.
-const LIVE_POLL_MS = 2_000;
+// seconds instead of up to a whole tick, the drive's first lap included. Read
+// each half second: at 2 s the wait cost each lap a second on average before
+// the screen (pit wall thread 69).
+const LIVE_POLL_MS = 500;
 // When a failed live upload is tried again (liveRetryDelayMs), else null.
 let liveRetryAtMs = null;
 let liveFailuresInRow = 0;

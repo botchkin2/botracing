@@ -46,6 +46,7 @@ import {
   residual,
   sliceHash,
 } from './ownerCopy.mjs';
+import {mapLimit} from './mapLimit.mjs';
 
 const md5 = bytes => createHash('md5').update(bytes).digest('base64');
 const sameDoc = (a, b) => {
@@ -73,20 +74,6 @@ const textOrNull = bytes => {
 };
 
 export const DEFAULT_CONCURRENCY = {stat: 16, copy: 8, docs: 8};
-
-/** fn over items, at most `limit` at a time; results in order. */
-export async function mapLimit(items, limit, fn) {
-  const results = new Array(items.length);
-  let next = 0;
-  const worker = async () => {
-    for (let i = next++; i < items.length; i = next++)
-      results[i] = await fn(items[i], i);
-  };
-  await Promise.all(
-    Array.from({length: Math.min(limit, items.length)}, worker),
-  );
-  return results;
-}
 
 /** Every old id (recordings and sessions) of the owner, ids only. */
 async function oldIdsOf(backend, from) {
