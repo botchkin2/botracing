@@ -5,15 +5,39 @@ is the one place that says it: STORAGE.md, LMU_SYNC_NOTES.md and the code
 comments point here. A claim in this file that something "adds nothing" or
 "is covered" names the test that proves it, or it is not made.
 
-## Flows
+## Design (target)
 
-There are three, and no others.
+One flow. Only the reader depends on where the drive came from.
 
-| Flow | When | Input | Who runs it |
-|---|---|---|---|
-| A. Recorded drive | the tray's recorder ran during the drive | the capture (live during, final at the end of the drive) | the tray |
-| B. Unrecorded drive | before install, tray off, recorder off, older sessions | the game's file (.duckdb, .ibt) | the tray |
-| C. Repair | a stored session is stale (rules or catalog changed) | the stored archive and stored inputs | the cloud |
+1. **One source per drive.** The capture if the recorder ran, else the game
+   file (.duckdb, .ibt). Never both, never a supplement: for LMU the game file
+   adds nothing the analysis reads that the capture lacks, except the setup's
+   fill limit, which gets its own reader of LMU's setup (gap). This is
+   unproven until the parity diff (gap) runs in CI. The 2026-10-14 Silverstone
+   diff (pit wall #5324) is the evidence so far.
+2. **Readers** turn a source into the same thing: per-lap archive parts
+   (samples, events), the recording descriptions, and the inputs
+   (`sessionInputs()`: field, damage, race length, setup, event), each a value
+   or `{absent: reason}`. Readers are the only sim- or source-specific code.
+3. **One uploader** sends parts as they exist: each lap as it closes during a
+   drive, all of them at once for a drive found later (the backlog), and a
+   closing run at the end of a drive (`liveClosed`). The same code, order and
+   idempotency (md5) in every case. The session id comes from the drive.
+4. **One analysis, in the cloud** (`runAnalysis` → `analyzeStored` →
+   `analyzeFromArchive`), over the stored parts and inputs. Triggers: a live
+   lap lands (`liveAnalyze`); a stale session is opened (rules or catalog
+   changed, or a backlog session never analysed; no compute on sessions never
+   looked at). The PC never analyses.
+5. **Every analysis checks the feature manifest** and stores the misses on the
+   session (Settings > Problems).
+
+Repairs are the same reader and uploader re-run on what is still on the PC,
+under a version, never a separate build.
+
+## Today
+
+What runs now, with file:line. Each part that differs from the design above is
+a gap at the end.
 
 ### Tray side (torsion)
 
