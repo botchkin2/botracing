@@ -21,6 +21,11 @@ on:
   push:
     tags: ['tray-v*']
   workflow_dispatch:
+    inputs:
+      rehearsals:
+        description: Run the update rehearsal this many times on one runner (roadmap row 4); 1 is the normal check
+        type: number
+        default: 1
 
 permissions:
   contents: read
@@ -116,7 +121,8 @@ jobs:
   update:
     name: Tray update rehearsal (N-1 to N)
     runs-on: windows-latest
-    timeout-minutes: 45
+    # About 3 min a rehearsal after the build.
+    timeout-minutes: ${{ inputs.rehearsals > 1 && 180 || 45 }}
     defaults:
       run:
         working-directory: desktop
@@ -179,7 +185,20 @@ jobs:
 
       - name: Install N-1, update to N with --update, uninstall
         working-directory: .
+        env:
+          REHEARSALS: ${{ inputs.rehearsals || 1 }}
         run: |
           $out = Join-Path $env:RUNNER_TEMP "rehearsal"
-          ./desktop/scripts/e2e-update.ps1 -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT
+          if ([int]$env:REHEARSALS -gt 1) {
+            ./desktop/scripts/e2e-update-loop.ps1 -Runs ([int]$env:REHEARSALS) -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT -Out "$env:RUNNER_TEMP/rehearsal-logs"
+          } else {
+            ./desktop/scripts/e2e-update.ps1 -Old "$out/$env:OLD-setup.exe" -New "$out/$env:NEW-setup.exe" -Signature "$out/$env:NEW-setup.exe.sig" -Version $env:NEW -Port $env:PORT
+          }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() && inputs.rehearsals > 1 }}
+        with:
+          name: rehearsal-logs
+          path: ${{ runner.temp }}/rehearsal-logs
+          retention-days: 14
