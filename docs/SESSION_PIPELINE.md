@@ -22,7 +22,7 @@ There are three, and no others.
 - **LMU:** `desktop/src-tauri/src/capture/recorder.rs` reads LMU's shared memory (`LMU_Data`) and writes parquet chunks per minute: `player-NNNN` (telemetry at ~100 Hz, every field of the player's `TelemInfoV01` incl. `mWheel[4]` as `fl_/fr_/rl_/rr_` columns), `field-NNNN` (scoring at 5 Hz, every car), `session-NNNN` (scoring info at 5 Hz), `meta.json` (track, start and end, vehicle models per car id), and `status.json` (state, sessionDir, lastLapAt, gameVersion, layout check).
 - **iRacing:** `capture/ir_recorder.rs`, the same folder shape from the iRacing SDK.
 - A new capture folder starts on each game session; a reset to the garage splits the stretch inside it.
-- **What the capture holds that the game file does not:** every other car (the field) and the damage series. **What only the game file holds:** the car setup (tank and fill limit, LMU `VM_FUEL_LEVEL`) and LMU GPS.
+- **What the capture holds that the game file does not:** every other car (the field) and the damage series. **What only the game file holds:** the car setup's fill limit (LMU `VM_FUEL_LEVEL`). LMU has no real GPS in either source: its `.duckdb` and the capture both give world position projected onto LMU's fake origin at 60° N, 0° (`src/analysis/geo.ts` LMU_FAKE_ORIGIN; sidepod #5369), and the app georeferences both the same way.
 
 ### Flow A: a recorded drive
 
@@ -96,7 +96,7 @@ length, event, kept values.
 | Other cars, class times, result, traffic | capture field (`liveInputs.mjs`, #619) | capture field if on the PC, else none | `uploadLive.test.mjs` field tests (#619); replay gate field assertion: **none today** |
 | Damage (repair detection), LMU race length | capture extract (#619) | capture extract if on the PC | **none today** |
 | Fuel and the fill limit | **missing** (see *Gaps*) | game file setup | **none** |
-| GPS | **missing** (LMU) | LMU `.duckdb` | allow-listed |
+| Position (LMU's fake-origin lat/lon) | capture, LMU's own convention (`lmuCaptureChannels.mjs:24-25`, same frame as the `.duckdb` to ~0.3 m) | game file | **none today** (a parity row) |
 | Weather | **missing** until #619 | game file | **none today** |
 
 ## Analysis
@@ -238,7 +238,7 @@ The pipeline started as separate scripts run by hand; the tray now runs them as 
 
 1. #619: field, last lap, reset laps, per-wheel recorder fix, weather, backfill and repair. In review.
 2. Fuel setup (tank, fill limit) for flow A: from LMU's setup (its REST API or the setup file), not the game file. Until then flow A sessions have no fill limit and the Plan says so.
-3. GPS for flow A (LMU): read the game file by time when it lands, as one input of flow A, not a second build.
+3. ~~GPS for flow A~~: not a gap. LMU's game file has no real GPS either (#5369). iRacing's `.ibt` GPS is real; the live iRacing capture's lat/lon needs the same check before any claim.
 4. A raw LMU_Data fixture: a few seconds of real shared memory from a normal drive, kept by the tray in its own folder and stored as test data only with Botkin's OK (it holds other drivers' names). The recorder test then runs on real game memory.
 5. The script-era cleanup above.
 
