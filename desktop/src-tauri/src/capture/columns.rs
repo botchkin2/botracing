@@ -186,18 +186,8 @@ fn emit(
             walk(layout, nested, raw, stride, rows, offset, name, out)
         }
         Kind::Array(inner, n) => {
-            // A struct element's size is the built struct's: size_align knows
-            // only scalars and says 0 for a struct, which read every wheel of
-            // mWheel at FL's offset (tray 0.1.9-0.1.10 captures, pit wall #5324).
-            let elem = match &**inner {
-                Kind::Struct(struct_name) => {
-                    layout
-                        .built(struct_name)
-                        .ok_or_else(|| format!("struct {struct_name} was not built"))?
-                        .size
-                }
-                other => crate::capture::layout::size_align(other).0,
-            };
+            // Layout::size_of, a struct's size included (pit wall #5324).
+            let elem = layout.size_of(inner)?;
             if name == "mWheel" && *n == 4 {
                 for i in 0..4 {
                     emit(layout, inner, raw, stride, rows, offset + i * elem, WHEELS[i], out)?;
