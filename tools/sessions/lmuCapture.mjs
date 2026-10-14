@@ -52,15 +52,10 @@ const RESET_BUMP_S = 1;
 
 // mCloudCoverage as the .duckdb's WeatherConditions names it. 0, 1 and 3
 // checked against every capture with a .duckdb beside it (13, Sep-Oct 2026:
-// the label is the first realtime row's value); 2 and 4 by the labels' order.
-// Rain levels are not checked: ''.
-const SKIES = [
-  'Clear',
-  'Light Clouds',
-  'Partially Cloudy',
-  'Mostly Cloudy',
-  'Overcast',
-];
+// the label is the first realtime row's value).
+// Only the values seen with the game's own label: an unchecked one is left
+// empty rather than guessed (2 and 4 have not been seen yet).
+const SKIES = {0: 'Clear', 1: 'Light Clouds', 3: 'Mostly Cloudy'};
 export const skyLabel = cc => SKIES[cc] ?? '';
 
 const chunkRe = /^(player|field|session)-\d+\.parquet$/;
