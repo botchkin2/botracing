@@ -1,5 +1,6 @@
 // A store backend in memory (store.mjs's primitives), for running the real
 // upload and analysis code with no Firestore or bucket: the parity gate.
+import {Buffer} from 'node:buffer';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
