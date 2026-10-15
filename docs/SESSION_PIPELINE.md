@@ -94,7 +94,7 @@ a gap at the end.
    - `describeCapture` cuts the capture into stretches and laps (`lmuCapture.mjs` / `irLiveCapture.mjs`);
    - each finished lap becomes one archive part, `samples.N` + `events.N` parquet (`writeCaptureArchive`), written once;
    - `liveInputs.mjs` builds the field (`field.mjs fieldFor`, LMU) and the capture extract (damage, race length) from the same capture;
-   - `store.uploadLive` sends the parts not yet in the bucket (md5), the field when its content changed, the extract, then the recording docs and the session doc (merged). It writes **no lap docs**.
+   - `store.uploadLive` sends the parts no stored recording doc lists yet (md5 for those only, so a lap costs the same at lap 30 as at lap 1), the field when its content changed and the extract, side by side (`mapLimit.mjs`, 6 at once), then the recording docs and the session doc (merged). It writes **no lap docs**.
    - The server's `liveAnalyze` (an event function on the session doc's `live.updatedAt`) analyses the session from the stored parts, field and extract, and writes the lap docs. A lap is in the app ~5-30 s after the line.
 2. **End of the drive, defined:** the recorder's `status.json` stops saying `recording` for the capture live laps were following (game exit, back to the menus, a new session). Before #619 the watcher waited for `sessionDir` to change, and the recorder keeps the old one on a game exit, so the last lap never went up (L27 on 2026-10-14).
    **When the capture closes:** the recorder stops recording (game exit, back to the menus, a new session) and `trigger.mjs liveClosed` makes the watcher run the live path once more. That sends the last lap and the stretch after the final crossing. It is the same code; there is no second, "final" build.
@@ -212,9 +212,9 @@ HTTP from the tray, the same calls in the cloud).
 
 - **`upload`** (after an analysis): the session, its laps (laps the run did not
   make are deleted), traces, slices, band, field file, capture extract.
-- **`uploadLive`** (the tray, each lap): parts (md5), recording docs, the
-  session doc merged. No lap docs, no analysis; what the last analysis wrote
-  stays until the next one.
+- **`uploadLive`** (the tray, each lap): the parts no stored recording doc
+  lists (md5), recording docs, the session doc merged. No lap docs, no
+  analysis; what the last analysis wrote stays until the next one.
 - **`keepNewerLive`**: a cloud write never moves `live` or `archiveParts`
   backwards; a lap that landed during the run leaves the session stale.
 
@@ -243,19 +243,23 @@ traces (`src/data/sessions/queries.ts`). It never builds a session.
 - **Sessions list:** read on mount and focus, and again when `/uploaders`
   (one small call a minute while the list is open) reports a new upload
   (`useNewUploads`).
-- **An open session:** read every 5 s while `live.updatedAt` is under 10 min
-  old (`live.ts livePoll`, `queries.ts:73`). When the doc's `updatedAt`
-  changes, laps and band are read again (`queries.ts` `useSession`). A drive
+- **An open session:** read every 2 s while `live.updatedAt` is under 10 min
+  old (`live.ts livePoll`, `queries.ts`). A hidden page does not poll
+  (`refetchIntervalInBackground` false); it reads again the moment it is
+  shown. When the doc's `updatedAt` changes, laps and band are read again
+  (`queries.ts` `useSession`). A drive
   that resumes after 10 quiet minutes is not seen until the screen is left and
   reopened.
 - **Stale on open:** the app posts `/api/analyze/{id}` once per id and part
-  count (`analysisOnOpen.ts`, `queries.ts:86`). For a live session
-  `liveAnalyze` already runs each lap, and the post only joins its lease (prod
-  2026-10-14, seat-test: 3 posts, 202 in 0.13-0.15 s, no second run).
+  count (`analysisOnOpen.ts`, `queries.ts`), but not in the first 60 s after a
+  live lap (`live.ts liveAnalysisDue`): that lap is `liveAnalyze`'s. Past it,
+  the post is the fallback for a failed live run. (Before, an open that
+  arrived as `liveAnalyze` finished ran a second full analysis: seat-test
+  2026-10-14 23:23, pit wall thread 69.)
 
 **Target.** A session live in the last 2 h listens for uploads to it, so a
 resumed drive shows (#618, open). The post on open stays for rule changes and
-the backlog, and is skipped while a session is live.
+the backlog.
 
 Tests: `src/data/sessions/*.test.ts` (S); the screen side of live laps is the
 release gate's pane check (`tools/dev/liveE2E.mjs`, R, prod as seat-test).

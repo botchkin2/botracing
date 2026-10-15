@@ -158,3 +158,54 @@ test('a stored live session with no field gets it once, with no new lap, and rea
   await createStore(b).uploadLive(out);
   assert.equal(b.order.filter(d => d.startsWith('field/')).length, fieldPuts);
 });
+
+const countingMd5 = b => {
+  const asked = [];
+  const fileMd5 = b.fileMd5;
+  b.fileMd5 = async dest => (asked.push(dest), fileMd5(dest));
+  return asked;
+};
+
+test('a lap asks the server only about the parts no stored recording lists (flat over a long drive)', async () => {
+  const b = backend();
+  const asked = countingMd5(b);
+  const store = createStore(b);
+  for (let n = 1; n <= 30; n++) await store.uploadLive(lapsOut(n));
+  // One md5 call per part, ever: not 1 + 2 + ... + 30.
+  assert.equal(asked.length, 30);
+  assert.equal(b.docs.get('sessions/s1').lapCount, 30);
+});
+
+test('offline part-way: no doc lists the lap, so the next lap asks about it and sends what is missing', async () => {
+  const b = backend();
+  const asked = countingMd5(b);
+  const store = createStore(b);
+  await store.uploadLive(lapsOut(1));
+  b.offline = true;
+  await assert.rejects(store.uploadLive(lapsOut(2)));
+  b.offline = false;
+  asked.length = 0;
+  assert.deepEqual(await store.uploadLive(lapsOut(3)), {sent: 2});
+  assert.deepEqual(asked, ['archive/lmu/s1/r1/samples.001.parquet', 'archive/lmu/s1/r1/samples.002.parquet']);
+});
+
+test('the parts and the field go up side by side, and the docs only after all of them', async () => {
+  const b = backend();
+  let inFlight = 0;
+  let peak = 0;
+  const putFile = b.putFile;
+  b.putFile = async (...a) => {
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    await new Promise(r => setTimeout(r, 5));
+    await putFile(...a);
+    inFlight--;
+  };
+  const writeDocs = b.writeDocs;
+  b.writeDocs = async ops => {
+    assert.equal(inFlight, 0, 'no doc before every file is up');
+    await writeDocs(ops);
+  };
+  await createStore(b).uploadLive(withField(3, 'aaaa11112222'));
+  assert.ok(peak >= 3, `peak ${peak}`);
+});

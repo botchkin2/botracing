@@ -36,6 +36,7 @@ import {packState} from './layoutBoundaries.mjs';
 import {trafficMedians} from '../../src/analysis/traffic.ts';
 import {lapTrafficFrom} from './lapTraffic.mjs';
 import {withNetRetry} from './netRetry.mjs';
+import {mapLimit} from './mapLimit.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
@@ -574,31 +575,51 @@ async function uploadSession(backend, out, {log = () => {}} = {}) {
 // The store sync.mjs talks to, over any backend.
 // Live laps (pit-wall thread 66, liveSession.mjs): a session's new archive
 // parts, then its recording docs, then the session doc, merged so the fields a
-// cloud analysis wrote stay until the next one. Parts go up in order and the
-// docs only after all of them: an upload that fails part-way writes no doc, and
-// the next lap sends every part the bucket lacks (md5), so a lap is never lost
-// or out of order. Older-over-newer is refused unless a part is new.
-// The live path's field file and capture extract (liveInputs.mjs).
+// cloud analysis wrote stay until the next one. The docs go only after every
+// part is up: an upload that fails part-way writes no doc, and the next lap
+// sends every unlisted part the bucket lacks (md5), so a lap is never lost.
+// Older-over-newer is refused unless a part is new.
+// The live path's field file and capture extract (liveInputs.mjs), side by side.
 async function putLiveInputs(backend, out, session, log) {
-  if (out.fieldText && out.field) {
-    await backend.putFile(
-      out.field.path,
-      {body: Buffer.from(out.fieldText)},
-      {contentType: 'application/json', gzip: true},
+  const puts = [];
+  if (out.fieldText && out.field)
+    puts.push(
+      backend
+        .putFile(
+          out.field.path,
+          {body: Buffer.from(out.fieldText)},
+          {contentType: 'application/json', gzip: true},
+        )
+        .then(() => log(`  live: field ${out.field.cars} cars`)),
     );
-    log(`  live: field ${out.field.cars} cars`);
-  }
   if (out.captureExtract)
-    await backend.putFile(
-      captureExtractPath(session.ownerId, session.id),
-      {body: Buffer.from(JSON.stringify(out.captureExtract))},
-      {contentType: 'application/json', gzip: true},
+    puts.push(
+      backend.putFile(
+        captureExtractPath(session.ownerId, session.id),
+        {body: Buffer.from(JSON.stringify(out.captureExtract))},
+        {contentType: 'application/json', gzip: true},
+      ),
     );
+  await Promise.all(puts);
 }
 
+// Requests in flight at once on a live lap: each is a round trip to the API or
+// a signed PUT of ~0.1 MB, so a few together cost about one.
+const LIVE_CONCURRENCY = 6;
+
+/**
+ * A part a stored recording doc lists is in the bucket (the docs are written
+ * only after every part is up, and a finished lap's part never changes), so a
+ * lap asks the server only about the parts no doc lists yet. One md5 call per
+ * part per lap made the upload grow with the drive (3.4 s at lap 1, 15.5 s at
+ * lap 30; pit wall thread 69). A re-cut lap is the repair path's to send.
+ */
 async function uploadLive(backend, out, {log = () => {}} = {}) {
   const {session} = out;
-  const before = await backend.getDoc('sessions', session.id);
+  const [before, ...stored] = await Promise.all([
+    backend.getDoc('sessions', session.id),
+    ...out.recordings.map(rec => backend.getDoc('recordings', rec.id)),
+  ]);
   if (
     stampNewer(before?.analysis, session.analysis) &&
     !bringsNewRecordings(before, session)
@@ -624,30 +645,43 @@ async function uploadLive(backend, out, {log = () => {}} = {}) {
     log('  live: nothing new over the stored session');
     return {skipped: 'newer'};
   }
+  const listed = new Set(
+    stored.flatMap(rec =>
+      (rec?.archive?.parts ?? []).flatMap(p => [p.samples, p.events]),
+    ),
+  );
   let sent = 0;
-  for (const file of out.files) {
-    const local = createHash('md5')
-      .update(readFileSync(file.local))
-      .digest('base64');
-    if ((await backend.fileMd5(file.dest)) === local) continue;
-    await backend.putFile(
-      file.dest,
-      {localPath: file.local},
-      {contentType: 'application/vnd.apache.parquet'},
-    );
-    sent++;
-  }
-  // The field and the capture extract the live path made (liveInputs.mjs):
-  // the field is named by its content, so an unchanged one is not sent again;
-  // the session then points at it, and analysis keeps and reads it (the
-  // kept-field path in uploadSession). The extract is a few KB, sent as is.
-  if (out.fieldText && out.field && out.field.hash !== before?.field?.hash) {
-    await putLiveInputs(backend, out, session, log);
-    session.field = out.field;
-  } else {
-    if (before?.field) session.field = before.field;
-    if (out.captureExtract) await putLiveInputs(backend, {...out, fieldText: null}, session, log);
-  }
+  const parts = mapLimit(
+    out.files.filter(file => !listed.has(file.dest)),
+    LIVE_CONCURRENCY,
+    async file => {
+      const local = createHash('md5')
+        .update(readFileSync(file.local))
+        .digest('base64');
+      if ((await backend.fileMd5(file.dest)) === local) return;
+      await backend.putFile(
+        file.dest,
+        {localPath: file.local},
+        {contentType: 'application/vnd.apache.parquet'},
+      );
+      sent++;
+    },
+  );
+  // The field and the capture extract the live path made (liveInputs.mjs),
+  // beside the parts: the field is named by its content, so an unchanged one
+  // is not sent again; the session then points at it, and analysis keeps and
+  // reads it (the kept-field path in uploadSession). The extract is a few KB.
+  const newField =
+    out.fieldText && out.field && out.field.hash !== before?.field?.hash;
+  const inputs = putLiveInputs(
+    backend,
+    newField ? out : {...out, fieldText: null},
+    session,
+    log,
+  );
+  await Promise.all([parts, inputs]);
+  if (newField) session.field = out.field;
+  else if (before?.field) session.field = before.field;
   const ops = out.recordings.map(rec => ({
     op: 'set',
     coll: 'recordings',

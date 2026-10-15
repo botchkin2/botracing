@@ -51,10 +51,12 @@ describe('the live poll with no token', () => {
     client.clear();
 
     expect(maxInFlight).toBe(1);
-    // Each poll is one attempt and 3 retries (1 + 2 + 4 s backoff), then the
-    // next poll: 18 attempts in the minute, and it keeps trying.
+    // Each poll is one attempt and 3 retries (0.3 s each, 1 + 2 + 4 s
+    // backoff), then the next poll after LIVE_POLL_MS: about 24 attempts in
+    // the minute at a 2 s poll, and it keeps trying.
+    const cycleS = 4 * 0.3 + 7 + LIVE_POLL_MS / 1000;
     expect(calls).toBeGreaterThanOrEqual(12);
-    expect(calls).toBeLessThanOrEqual(20);
+    expect(calls).toBeLessThanOrEqual(Math.ceil((60 / cycleS) * 4) + 1);
     expect(result.data).toEqual({lapCount: 3});
   });
 });
