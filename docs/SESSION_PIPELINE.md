@@ -63,16 +63,34 @@ One flow. Only the reader depends on where the drive came from.
   under a version. It must run before the captures it needs are pruned. The
   per-wheel repair of the 0.1.9-0.1.10 captures (#619) has that deadline.
 
-**Off-track (on the plan list, not on this design's path).** Two separate facts,
-never merged:
-- **INV:** the game's own track-limits call (`mCountLapFlag`, lap time −1).
-- **OFF:** our geometry: all four wheels past the line (the centre past the
-  edge by more than half the car's track width), or 2+ wheels on grass, dirt or
-  gravel.
-
-Today the surface rule cannot see tarmac run-off (it reads code 0, the same as
-the track; pit wall #5382, #5387). One open question first: whether LMU's
-Track Edge is the white line or the outer edge of the kerb.
+**Track limits (the game's verdict, thread 70).** The game rules every strike in
+its results file (`UserData\Log\Results`, one XML per session, written when the
+session ends): a strike is a row with the driver, the session time `et`, points
+and a Resolution. We show what the game ruled and our own measure of where, never
+our own verdict: the earlier OFF (all four wheels past the line, or two on loose
+surface) is no longer shown anywhere. The surface time it was made from
+(`offTrackSec`) stays an input of lap selection, unchanged
+(`decisions/lap/2026-10-15-lap-selection-protected.md`), and `selectionPin.test.ts`
+pins what the default selection picks on the held sessions.
+- **Source:** `lmuResults.mjs`. The file is the session's by its letter (P, Q, R)
+  and by being the first written after the recording ends: the header's
+  `DateTime` is the event's start, the same across a weekend. Our driver by name.
+  A row identical to the one before it is dropped (the game writes many drivers'
+  rows twice).
+- **Placement:** `<Lap num=n et=…>`: `et` is the lap's start, so lap n =
+  [et_n, et_n+1) (et[n+1] - et[n] is lap n's time on 2529 of 2529 timed laps); our
+  lapNumber is n - 1. A strike outside every lap of his, or in his last lap, is
+  counted on the session (`trackLimits.unplaced`), never guessed onto a lap.
+- **INV** is the game deleting the lap: a strike of Resolution 4, 5 or 6 (315 of
+  315 placed strikes, `tools/dev/trackLimitsTable.mjs` re-runs the table). The
+  results file is the source when there is one (`invalidFrom: 'results'`); the
+  lap time (capture -1, game file 0.0) stands in until the file exists, and where
+  they disagree the file wins and the lap is counted in
+  `trackLimits.disagreements`. Resolution 7 No Further Action does not delete.
+- **The measure:** per strike, the lap distance (`atM`) and how far past the track
+  edge the path got (`widthM`) in the 5 s before it (the game rules 1.5 to 3.9 s
+  after the excursion).
+- **iRacing:** none yet (its own verdict is the incident count, a separate row).
 
 ## Today
 
@@ -136,7 +154,8 @@ length, event, kept values.
 | Stints | `analyze.mjs` (963-1009, 1273) | derived | golden (R); `lmuCapture.test.mjs:88` (R) |
 | Fuel per lap and session fuel | `fuelFacts.mjs lapFuel`, `stintFuel`; `analyze.mjs` 1229-1236 | fuel/VE channels; `recording.fuelSetup` (tank, fill limit) | golden (R, game file); fill limit: `fuelFacts.test.mjs:205` (S). From the capture: **none** (the capture has no fill limit, `lmuCapture.mjs:217`) |
 | Tyres per wheel | `tyres.mjs lapTyres`, `settleHotPressure` | tyre channels per wheel | `tyres.test.mjs` (S); golden checks only the tyre change (R). Four distinct wheels on real data: **none today** |
-| Off track | `analyze.mjs` (553-573, 609-611) | `surface` events per wheel | golden (R, game file only); from the capture: **none today** |
+| Surface time off the road (selection input only, not shown) | `analyze.mjs` (553-573, 609-611) | `surface` events per wheel | golden (R, game file only); from the capture: **none today** |
+| Track limits (strikes, INV from the game's results) | `lmuResults.mjs`, `analyze.mjs lapStrikes`, `analyzeFromArchive.mjs trackLimitsOf` | LMU's results XML on the PC, kept as `inputs/…/results.json.gz` | `lmuResults.test.mjs` (his real race laps and Warnings, tonight's three files), `trackLimits.test.mjs` (S); LMU only, both paths read the same file |
 | Corners, start straight, slices | `analyze.mjs` (1084-1141), `cornerFacts.mjs`, `cornerSlices.mjs` | trace, curated map and boundaries | golden corners (R); slices `cornerSlices.test.mjs` (S) |
 | Consistency, band | `analyze.mjs` (1043-1052, 1146-1206) | derived | golden (R) |
 | Field file | `field.mjs fieldFor` (LMU), `irField.mjs irFieldFor` (iRacing), named by content (`analyzeFromArchive.mjs` 225-231) | the capture's field chunks | `field.test.mjs` (S, synthetic capture). On a real capture through upload and analysis: **none today** (#619 replay assertion) |
