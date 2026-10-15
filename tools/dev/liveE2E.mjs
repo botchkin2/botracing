@@ -3,7 +3,7 @@
 // as seat-test against the production API with LMU "running", and the time
 // from each lap reaching the disk to the session's lap count showing it.
 //
-//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 15] [--pane-origin <app origin>]
+//   node tools/dev/liveE2E.mjs --from <capture folder> --token <seat-test ID token file> --custom-token <seat-test custom token file> [--laps 4] [--speed 1] [--max-lap-s 60] [--pane-origin <app origin>]
 //
 // Exits 1, the release gate's fail, when a lap never reaches the app or takes
 // more than --max-lap-s from the disk to the session's lap count, or when the
@@ -41,7 +41,10 @@ const nodeExe = arg('--node', process.execPath);
 const appDir = arg('--app', '') ? resolve(arg('--app', '')) : resolve(here, '../..');
 const laps = Number(arg('--laps', '4'));
 const speed = arg('--speed', '1');
-const maxLapS = Number(arg('--max-lap-s', '15'));
+// A lap is well over a minute: 60 s from the line to the app and the screen is
+// the limit (Botkin, 2026-10-15: "Yes, raise the live-lap test limit to 60 s.").
+// 0.1.11 measured 10.7-12.3 s on the screen (run 38662560290).
+const maxLapS = Number(arg('--max-lap-s', '60'));
 // The Sessions list learns of a drive from the uploader signal (one /uploaders
 // call a minute), not a poll of its own: its limit is 75 s, apart from the laps'.
 const maxListS = Number(arg('--max-list-s', '75'));
