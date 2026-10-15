@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdtempSync, rmSync, utimesSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
@@ -167,81 +167,115 @@ test('a strike outside every lap of his is counted, not placed and not guessed o
   assert.deepEqual(r.deletedLaps, [1]);
 });
 
-test('resultsFor returns our driver by name from the file that covers the session, with the unplaced count', () => {
+test('resultsFor picks the file by its session letter and by being the first written after the recording ends, not by the header (a weekend shares one DateTime)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'results-'));
   try {
-    writeFileSync(
-      join(dir, 'a.xml'),
-      file(
-        [
-          row('Me', 1, 4, 150, 0.25),
-          row('Other', 1, 4, 151, 0.25),
-          row('Me', 9, 7, 9000),
-        ],
-        driver('Me', [
-          [1, 7.1, 130],
-          [2, 137.1, 120],
-          [3, 257.1, 120],
-        ]) +
-          driver('Other', [
-            [1, 7.1, 130],
-            [2, 137.1, 120],
-            [3, 257.1, 120],
-          ]),
-      ),
-    );
-    writeFileSync(
-      join(dir, 'b.xml'),
-      file([row('Me', 1, 5, 9)]).replace('1792025756', '1700000000'),
-    );
-    const start = new Date(1792025756000 + 60000).toISOString();
-    const end = new Date(1792025756000 + 1500000).toISOString();
-    const span = {startedAt: start, endedAt: end};
-    const mine = resultsFor({span, driverName: 'Me', folder: dir});
-    assert.deepEqual(mine.strikes, [
-      {
-        et: 150,
-        lapNumber: 1,
-        points: 0.25,
-        outcome: 'warning',
-        ruling: 'Warning',
-      },
-    ]);
-    assert.equal(mine.unplaced, 1);
-    assert.deepEqual(mine.deletedLaps, [1]);
-    assert.deepEqual(resultsFor({span, driverName: 'Nobody', folder: dir}), {
-      strikes: [],
-      unplaced: 0,
-      deletedLaps: [],
-    });
-    assert.deepEqual(resultsFor({span, driverName: '', folder: dir}), {
-      absent: 'no driver name',
-    });
-    assert.deepEqual(
-      resultsFor({
-        span: {
-          startedAt: '2020-01-01T00:00:00Z',
-          endedAt: '2020-01-01T01:00:00Z',
-        },
-        driverName: 'Me',
-        folder: dir,
-      }),
-      {absent: 'no results file covers the session'},
+    // Tonight's Silverstone weekend (2026-10-15 UTC): three files, one event
+    // start in all three headers, written when each session ended. The race file
+    // also "reaches back" over the qualifying window by its header and lastEt.
+    const laps = [
+      [1, 7.1, 130],
+      [2, 137.1, 120],
+      [3, 257.1, 120],
+    ];
+    const weekend = {
+      '2026_10_14_20_49_36-66P1.xml': [
+        '2026-10-15T00:58:30Z',
+        [row('Me', 1, 5, 150, 0.25)],
+      ],
+      '2026_10_14_21_09_46-39Q1.xml': [
+        '2026-10-15T01:09:46Z',
+        [row('Me', 1, 7, 150)],
+      ],
+      '2026_10_14_22_14_53-60R1.xml': [
+        '2026-10-15T02:14:53Z',
+        [row('Me', 1, 4, 150, 0.5), row('Me', 2, 7, 9000)],
+      ],
+    };
+    for (const [name, [written, rows]] of Object.entries(weekend)) {
+      const path = join(dir, name);
+      writeFileSync(path, file(rows, driver('Me', laps)));
+      utimesSync(path, new Date(written), new Date(written));
+    }
+    const window = (startedAt, endedAt) => ({startedAt, endedAt});
+    const ask = (sessionType, span) =>
+      resultsFor({span, driverName: 'Me', sessionType, folder: dir});
+    // Qualifying: its own window and the race file overlaps it by header; Q1 is the Q file written at its end.
+    const q = ask(
+      'Qualify',
+      window('2026-10-15T00:58:39Z', '2026-10-15T01:09:53Z'),
     );
     assert.deepEqual(
-      resultsFor({
-        span,
-        driverName: 'Me',
-        trackCourse: 'Elsewhere',
-        folder: dir,
-      }),
+      q.strikes.map(k => k.outcome),
+      ['none'],
+    );
+    // The race: R1, with the row after his laps counted, not placed.
+    const r = ask(
+      'Race',
+      window('2026-10-15T01:09:59Z', '2026-10-15T02:14:50Z'),
+    );
+    assert.deepEqual(
+      r.strikes.map(k => [k.outcome, k.points]),
+      [['warning', 0.5]],
+    );
+    assert.equal(r.unplaced, 1);
+    assert.deepEqual(r.deletedLaps, [1]);
+    // Practice: P1.
+    const p = ask(
+      'Practice',
+      window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
+    );
+    assert.deepEqual(
+      p.strikes.map(k => k.outcome),
+      ['invalidCut'],
+    );
+    assert.deepEqual(p.deletedLaps, [1]);
+    // A recording that ended before a file was written there cannot be its session; another letter finds none.
+    assert.deepEqual(
+      ask('Race', window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z')),
       {
         absent: 'no results file covers the session',
       },
     );
     assert.deepEqual(
-      resultsFor({span, driverName: 'Me', folder: join(dir, 'missing')}),
-      {absent: 'no results folder'},
+      ask('', window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z')),
+      {absent: 'no session type'},
+    );
+    assert.deepEqual(
+      resultsFor({
+        span: window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
+        driverName: '',
+        sessionType: 'P',
+        folder: dir,
+      }),
+      {
+        absent: 'no driver name',
+      },
+    );
+    assert.deepEqual(
+      resultsFor({
+        span: window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
+        driverName: 'Me',
+        sessionType: 'P',
+        folder: join(dir, 'missing'),
+      }),
+      {
+        absent: 'no results folder',
+      },
+    );
+    assert.deepEqual(
+      ask('Practice', window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'))
+        .unplaced,
+      0,
+    );
+    assert.deepEqual(
+      resultsFor({
+        span: window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z'),
+        driverName: 'Nobody',
+        sessionType: 'P',
+        folder: dir,
+      }),
+      {strikes: [], unplaced: 0, deletedLaps: []},
     );
   } finally {
     rmSync(dir, {recursive: true, force: true});

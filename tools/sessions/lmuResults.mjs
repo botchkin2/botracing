@@ -177,12 +177,13 @@ export function strikesOf(xml, driverName) {
 /**
  * `resultsFor` for a session's wall-clock window in ms ({startMs, endMs}, as
  * sync.mjs spanOf): what the builders and the live path hold. The layout name
- * is not asked: the time window and the file's write time already pick the one
- * session, and the game file's layout name is not always the results file's.
+ * is not asked: the session letter and the file's write time already pick the
+ * one file, and the game file's layout name is not always the results file's.
  */
 export function resultsForSpan(
   span,
   driverName,
+  sessionType,
   folder = defaultResultsFolder,
 ) {
   return resultsFor({
@@ -191,42 +192,62 @@ export function resultsForSpan(
       endedAt: new Date(span.endMs).toISOString(),
     },
     driverName,
+    sessionType,
     folder,
   });
 }
 
+// The session letter in the file name: `2026_10_14_22_14_53-60R1.xml` is a race.
+const typeOfFile = name =>
+  /-\d+([A-Z])\d*\.xml$/i.exec(name)?.[1].toUpperCase() ?? null;
+const typeLetter = sessionType =>
+  String(sessionType ?? '')
+    .trim()[0]
+    ?.toUpperCase() ?? null;
+
+/** How soon after a recording's end the game's file may have been written, ms. */
+export const WRITE_WINDOW_MS = 30 * 60_000;
+
 /**
  * The strikes of one driver in the session a recording belongs to, or
  * {absent: reason}. span is {startedAt, endedAt} (ISO, the recording's wall
- * clock); trackCourse is the game's layout name when known ('' skips the check).
+ * clock); sessionType is the recording's ('Practice', 'Qualify', 'Race').
+ *
+ * The file is picked by two keys the file system gives (plank, thread 70
+ * #5638), not by the header's DateTime, which is the EVENT's start and the same
+ * in a weekend's practice, qualifying and race files:
+ *  1. the session letter in the file name (P, Q, R) is the recording's;
+ *  2. of those, the first one written at or after the recording's end (within
+ *     30 min): the game writes it when its session ends.
+ * One older than the recording's end cannot be its session, so it is skipped
+ * unread (the live path asks at every lap, and the folder holds hundreds).
+ * The header's start must still precede the recording's end, and the layout
+ * name, when asked and in both, must agree.
  */
 export function resultsFor({
   span,
   driverName,
+  sessionType,
   trackCourse = '',
   folder = defaultResultsFolder,
 }) {
   if (!driverName) return {absent: 'no driver name'};
   if (!existsSync(folder)) return {absent: 'no results folder'};
-  const from = Date.parse(span.startedAt);
+  const letter = typeLetter(sessionType);
+  if (!letter) return {absent: 'no session type'};
   const to = Date.parse(span.endedAt);
   let best = null;
   for (const name of readdirSync(folder)) {
-    if (!name.endsWith('.xml')) continue;
-    // The game writes a file when its session ends, so one older than the
-    // recording's start cannot be its session: skipped unread (the live path
-    // asks at every lap, and the folder holds hundreds of files).
-    if (statSync(resolve(folder, name)).mtimeMs < from - 60_000) continue;
+    if (typeOfFile(name) !== letter) continue;
+    const written = statSync(resolve(folder, name)).mtimeMs;
+    if (written < to - 60_000 || written > to + WRITE_WINDOW_MS) continue;
+    if (best && written >= best.written) continue;
     const xml = readFileSync(resolve(folder, name), 'utf8');
     const file = parseResults(xml);
-    if (file.startedAtMs == null) continue;
-    // The file begins with the session and ends after its last row.
-    const endsAtMs = file.startedAtMs + file.lastEt * 1000;
-    if (file.startedAtMs > to || endsAtMs < from) continue;
+    if (file.startedAtMs == null || file.startedAtMs > to) continue;
     if (trackCourse && file.trackCourse && file.trackCourse !== trackCourse)
       continue;
-    const overlap = Math.min(to, endsAtMs) - Math.max(from, file.startedAtMs);
-    if (!best || overlap > best.overlap) best = {overlap, xml};
+    best = {written, xml};
   }
   if (!best) return {absent: 'no results file covers the session'};
   return strikesOf(best.xml, driverName);

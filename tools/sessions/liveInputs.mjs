@@ -66,7 +66,7 @@ export function liveInputs({
   // a lap during the drive finds none and the run at the close finds it.
   const results =
     first.sim === 'lmu'
-      ? resultsInput(resultsForSpan(span, first.driver))
+      ? resultsInput(resultsForSpan(span, first.driver, first.sessionType))
       : null;
   if (first.sim !== 'lmu')
     return {

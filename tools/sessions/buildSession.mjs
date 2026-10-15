@@ -143,7 +143,9 @@ export function makeBuilder({
     // The game's track-limit rulings for his laps, from the results file it
     // wrote when the session ended (lmuResults.mjs); LMU only, null with no file.
     const results =
-      foldOnly || sim !== 'lmu' ? null : resultsForSpan(span, first.driver);
+      foldOnly || sim !== 'lmu'
+        ? null
+        : resultsForSpan(span, first.driver, first.sessionType);
     const out = analyzeFromArchive({
       ownerId,
       sessionId: s.id,
