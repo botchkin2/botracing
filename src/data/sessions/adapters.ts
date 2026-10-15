@@ -390,7 +390,64 @@ export type SessionDetail = SessionSummary & {
   slices: SlicePointer | null;
   /** How long the race is, from the capture; null for other sessions, and for a race with no capture. */
   race: RaceLength | null;
+  /** The game's track-limit rulings over the session (its results file); null without the file. */
+  trackLimits: SessionTrackLimits | null;
 };
+
+/**
+ * What the game ruled over the session: how many strikes, their points, how
+ * many fit no lap of the driver's (after the last lap, or a re-report), and
+ * the laps where the results file and the lap time disagree on INV.
+ */
+export type SessionTrackLimits = {
+  strikes: number;
+  points: number;
+  unplaced: number;
+  disagreements: number;
+};
+
+function toSessionTrackLimits(v: unknown): SessionTrackLimits | null {
+  if (v == null || typeof v !== 'object') return null;
+  const x = obj(v);
+  const strikes = num(x.strikes);
+  if (strikes == null) return null;
+  return {
+    strikes,
+    points: num(x.points) ?? 0,
+    unplaced: num(x.unplaced) ?? 0,
+    disagreements: num(x.disagreements) ?? 0,
+  };
+}
+
+/**
+ * One strike of the game's, on the lap it landed in: when (session seconds),
+ * where (lap distance of the furthest the path was past the edge in the 5 s
+ * before, null without the channels), how far past (metres; negative is inside
+ * the edge), its points, and the game's own words for the ruling.
+ */
+export type LapStrike = {
+  et: number;
+  atM: number | null;
+  widthM: number | null;
+  points: number;
+  outcome: string;
+  ruling: string;
+};
+
+function toLapStrikes(v: unknown): LapStrike[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.map(raw => {
+    const x = obj(raw);
+    return {
+      et: num(x.et) ?? 0,
+      atM: num(x.atM),
+      widthM: num(x.widthM),
+      points: num(x.points) ?? 0,
+      outcome: str(x.outcome),
+      ruling: str(x.ruling),
+    };
+  });
+}
 
 /** The scheduled length of a race, in minutes. */
 export type RaceLength = {minutes: number};
@@ -417,6 +474,7 @@ export function toSessionDetail(raw: RawSession): SessionDetail {
     liveAt: toLiveAt(raw.live),
     field: toFieldPointer(raw.field),
     race: toRaceLength(raw.race),
+    trackLimits: toSessionTrackLimits(raw.trackLimits),
     classLaps: toClassLaps(raw.classLaps),
     classBests: toClassBests(raw.classBests),
     traffic: toSessionTraffic(raw.traffic),
@@ -485,6 +543,8 @@ export type Lap = {
    * timed, partial and pit laps.
    */
   invalidTimeS: number | null;
+  /** The game's rulings that fell in this lap (its results file), null without the file. */
+  trackLimits: LapStrike[] | null;
   /** The recording file the lap came from; a new file mid-stint is a reset
    *  or a server drop, not a continuous run. */
   recordingId: string | null;
@@ -1000,6 +1060,7 @@ export function toLaps(items: Record<string, unknown>[]): Lap[] {
       raw.pitOut !== true
         ? num(raw.lapTime)
         : null,
+    trackLimits: toLapStrikes(raw.trackLimits),
     offTrackS: num(raw.offTrackSec) ?? 0,
     hadImpact: (num(raw.impactMax) ?? 0) > 0,
     sections: (Array.isArray(raw.corners) ? raw.corners : []).map(c => ({

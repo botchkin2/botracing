@@ -310,6 +310,14 @@ const lapLabel = (lap: Lap) => `L${lap.lapIndex}`;
 const timeOrDash = (t: number | null) => (t == null ? '—' : formatLapTime(t));
 const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
 
+/** "Invalid", and the game's words for the strike that deleted the lap when its results file has one. */
+function invalidWhy(lap: Lap): string {
+  const ruling = lap.trackLimits?.find(
+    k => k.outcome !== 'none' && k.ruling,
+  )?.ruling;
+  return ruling ? `Invalid · ${ruling}` : 'Invalid';
+}
+
 function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   const tags: Tag[] = [];
   if (lap.id === bestLapId) tags.push({code: 'BEST', best: true});
@@ -324,15 +332,14 @@ function tagsFor(lap: Lap, bestLapId: string | null): Tag[] {
   else if (lap.partial || lap.reasons.includes('untimed'))
     tags.push({code: 'PART'});
   if (lap.reasons.includes('slow')) tags.push({code: 'SLOW'});
-  if (lap.offTrackS >= OFF_TRACK_TOLERANCE_S)
-    tags.push({code: `OFF ${lap.offTrackS.toFixed(1)}`});
+  // The game's own rulings in this lap (its results file), counted: what it
+  // ruled is the status line's, never ours.
+  if (lap.trackLimits?.length)
+    tags.push({code: `LIM ${lap.trackLimits.length}`});
   if (lap.hadImpact) tags.push({code: 'HIT'});
   tags.push(...trafficTags(lap.traffic));
   return orderTags(tags);
 }
-
-/** Off-track time a comparable lap may carry (handoff exclusion copy). */
-export const OFF_TRACK_TOLERANCE_S = 1.0;
 
 function statusFor(
   lap: Lap,
@@ -350,7 +357,7 @@ function statusFor(
       : lap.partialWhy === 'grid'
       ? 'Parked start'
       : lap.invalidTimeS != null
-      ? 'Invalid'
+      ? invalidWhy(lap)
       : lap.partial || lap.reasons.includes('untimed')
       ? 'Partial'
       : lap.reasons.includes('slow')
