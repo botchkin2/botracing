@@ -15,7 +15,8 @@ import {
 } from './client';
 import {analyzeDeps, analyzeOnce} from './analysisOnOpen';
 import {type SessionFilter, sessionKeys} from './keys';
-import {isLive, livePoll} from './live';
+import {isLive, isRecentlyLive, livePoll} from './live';
+import {useSessionNewUploads} from './useNewUploads';
 
 // A session is rewritten only by an upload or analysis on open (which
 // refetches it itself), so detail data stays fresh for a while; the list
@@ -89,6 +90,10 @@ export function useSession(id: string, enabled = true) {
   // The lap table and band are other queries (5 min stale): when the doc is
   // rewritten under an open screen, by a lap upload or by an analysis another
   // device ran, they are read again with it.
+  // A drive that went quiet and resumed into this session (pit-wall #5290):
+  // the uploaders say so, and the doc is read again; only for a session live
+  // in the last 2 h, so reviewing an old one costs nothing.
+  useSessionNewUploads(id, enabled && isRecentlyLive(query.data?.liveAt));
   const docAt = query.data?.updatedAt;
   const seen = useRef<{id: string; at: string} | null>(null);
   useEffect(() => {
