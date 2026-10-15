@@ -140,9 +140,12 @@ export function parseResults(xml) {
 
 /**
  * One driver's strikes of a results file, placed on his laps:
- *   strikes: [{et, lapNumber, points, outcome, ruling}], the ones that land in a lap of his
- *   unplaced: how many did not (after his laps, in his last lap, or a re-report)
- *   deletedLaps: the lapNumbers a strike of a deleting Resolution lands in, ascending
+ *   strikes: [{et, points, outcome, ruling}], the ones that land in a lap of his
+ *   unplaced: how many did not (before his laps, in his last lap, or a re-report)
+ *   coveredFrom, coveredTo: the session times the file's laps of his cover, [first
+ *     lap's start, last lap's start] (the last lap has no end): the file rules a
+ *     lap only inside them, and a lap outside them keeps the lap time's verdict
+ * A strike is placed by its `et` on the lap clock, not by a lap number.
  */
 export function strikesOf(xml, driverName) {
   const file = parseResults(xml);
@@ -150,27 +153,22 @@ export function strikesOf(xml, driverName) {
   const placed = [];
   let unplaced = 0;
   for (const r of file.rows.filter(row => row.driver === driverName)) {
-    const lap = lapOfStrike(spans, r.et);
-    if (!lap) {
+    if (!lapOfStrike(spans, r.et)) {
       unplaced++;
       continue;
     }
     placed.push({
       et: r.et,
-      lapNumber: lap.num - 1,
       points: r.points,
       outcome: r.outcome,
       ruling: RULINGS[r.resolution],
-      deletes: DELETING_RESOLUTIONS.has(r.resolution),
     });
   }
-  const deletedLaps = [
-    ...new Set(placed.filter(s => s.deletes).map(s => s.lapNumber)),
-  ].sort((a, b) => a - b);
   return {
-    strikes: placed.map(({deletes: _d, ...s}) => s),
+    strikes: placed,
     unplaced,
-    deletedLaps,
+    coveredFrom: spans.length ? spans[0].start : null,
+    coveredTo: spans.length ? spans[spans.length - 1].start : null,
   };
 }
 

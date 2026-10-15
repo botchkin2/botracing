@@ -3,7 +3,7 @@
 // same job as captureExtract.mjs; pit-wall thread 70, design #5521 point 2):
 //
 //   gs://BUCKET/inputs/{ownerId}/{sessionId}/results.json.gz
-//   {v: 1, strikes: [{et, lapNumber, points, outcome, ruling}], unplaced: n, deletedLaps: [lapNumber]}
+//   {v: 1, strikes: [{et, points, outcome, ruling}], unplaced: n, coveredFrom, coveredTo}
 //
 // A few hundred bytes. Absent when the PC has no results file for the session.
 
@@ -19,7 +19,8 @@ export function resultsInput(found) {
     v: RESULTS_INPUT_VERSION,
     strikes: found.strikes,
     unplaced: found.unplaced,
-    deletedLaps: found.deletedLaps,
+    coveredFrom: found.coveredFrom,
+    coveredTo: found.coveredTo,
   };
 }
 
@@ -32,7 +33,9 @@ export function readResultsInput(text) {
     return {
       strikes: x.strikes,
       unplaced: Number(x.unplaced) || 0,
-      deletedLaps: Array.isArray(x.deletedLaps) ? x.deletedLaps : [],
+      // The session times the file's laps of his cover; null when it lists none.
+      coveredFrom: Number.isFinite(x.coveredFrom) ? x.coveredFrom : null,
+      coveredTo: Number.isFinite(x.coveredTo) ? x.coveredTo : null,
     };
   } catch {
     return null;

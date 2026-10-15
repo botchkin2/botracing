@@ -118,19 +118,22 @@ test("a lap is its start et to the next lap's: et[n+1] - et[n] is lap n's time, 
 
 test('his real race: the four Warnings land in the four laps the game deleted, by his lap spans', () => {
   const r = strikesOf(file(REAL_ROWS, driver('Me', REAL_LAPS)), 'Me');
-  // XML lap n is our lapNumber n - 1.
+  // Each Warning's et lies in the lap the game deleted: XML laps 11, 13, 14 and 21.
+  const spans = lapSpansOf(file(REAL_ROWS, driver('Me', REAL_LAPS)), 'Me');
   assert.deepEqual(
     r.strikes
       .filter(s => s.outcome === 'warning')
-      .map(s => [s.et, s.lapNumber, s.points]),
+      .map(s => [s.et, lapOfStrike(spans, s.et).num, s.points]),
     [
-      [1390.7, 10, 0.25],
-      [1675.1, 12, 0.5],
-      [1759.8, 13, 0.5],
-      [2691.4, 20, 0.25],
+      [1390.7, 11, 0.25],
+      [1675.1, 13, 0.5],
+      [1759.8, 14, 0.5],
+      [2691.4, 21, 0.25],
     ],
   );
-  assert.deepEqual(r.deletedLaps, [10, 12, 13, 20]);
+  // The file rules laps 10 (start 1257.12) to 22 (the last, its start 2800.76).
+  assert.equal(r.coveredFrom, 1257.1201);
+  assert.equal(r.coveredTo, 2800.76);
   assert.equal(
     r.strikes.find(s => s.outcome === 'none').ruling,
     'No Further Action',
@@ -154,17 +157,14 @@ test('a strike outside every lap of his is counted, not placed and not guessed o
     ]),
   );
   const r = strikesOf(xml, 'Me');
-  // 100 is in lap 1 (our lapNumber 0); 250 is a Warning in lap 2 (137.1-257.1, lapNumber 1);
-  // the two after he stopped are counted, not placed.
+  // 100 is in lap 1 and 250 in lap 2 (137.1-257.1); the two after he stopped are
+  // counted, not placed. The file covers his laps from 7.1 to 257.1.
   assert.deepEqual(
-    r.strikes.map(s => [s.et, s.lapNumber]),
-    [
-      [100, 0],
-      [250, 1],
-    ],
+    r.strikes.map(s => s.et),
+    [100, 250],
   );
   assert.equal(r.unplaced, 2);
-  assert.deepEqual(r.deletedLaps, [1]);
+  assert.deepEqual([r.coveredFrom, r.coveredTo], [7.1, 257.1]);
 });
 
 test('resultsFor picks the file by its session letter and by being the first written after the recording ends, not by the header (a weekend shares one DateTime)', () => {
@@ -219,7 +219,6 @@ test('resultsFor picks the file by its session letter and by being the first wri
       [['warning', 0.5]],
     );
     assert.equal(r.unplaced, 1);
-    assert.deepEqual(r.deletedLaps, [1]);
     // Practice: P1.
     const p = ask(
       'Practice',
@@ -229,7 +228,6 @@ test('resultsFor picks the file by its session letter and by being the first wri
       p.strikes.map(k => k.outcome),
       ['invalidCut'],
     );
-    assert.deepEqual(p.deletedLaps, [1]);
     // A recording that ended before a file was written there cannot be its session; another letter finds none.
     assert.deepEqual(
       ask('Race', window('2026-10-15T00:12:23Z', '2026-10-15T00:58:20Z')),
@@ -275,7 +273,7 @@ test('resultsFor picks the file by its session letter and by being the first wri
         sessionType: 'P',
         folder: dir,
       }),
-      {strikes: [], unplaced: 0, deletedLaps: []},
+      {strikes: [], unplaced: 0, coveredFrom: null, coveredTo: null},
     );
   } finally {
     rmSync(dir, {recursive: true, force: true});

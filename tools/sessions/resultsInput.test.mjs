@@ -11,14 +11,14 @@ const found = {
   strikes: [
     {
       et: 1390.7,
-      lapNumber: 10,
       points: 0.25,
       outcome: 'warning',
       ruling: 'Warning',
     },
   ],
   unplaced: 2,
-  deletedLaps: [10],
+  coveredFrom: 7.1,
+  coveredTo: 2800.8,
 };
 
 test('the input is kept where the cloud looks for it, and round-trips', () => {
@@ -42,6 +42,7 @@ test('a stored input of another version or a broken one reads as none', () => {
   assert.deepEqual(readResultsInput(JSON.stringify({v: 1, strikes: []})), {
     strikes: [],
     unplaced: 0,
-    deletedLaps: [],
+    coveredFrom: null,
+    coveredTo: null,
   });
 });

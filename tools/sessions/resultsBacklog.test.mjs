@@ -11,14 +11,14 @@ const found = {
   strikes: [
     {
       et: 1,
-      lapNumber: 0,
       points: 0,
       outcome: 'none',
       ruling: 'No Further Action',
     },
   ],
   unplaced: 0,
-  deletedLaps: [],
+  coveredFrom: 7.1,
+  coveredTo: 100,
 };
 
 function run(sessions, state, results) {

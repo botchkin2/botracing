@@ -39,7 +39,9 @@ export function trackLimitsOf(laps, results) {
   return {
     strikes: strikes.length,
     points: strikes.reduce((n, k) => n + k.points, 0),
-    unplaced: results.unplaced,
+    // The file's own ones that fit none of his laps, and the ones that fit a lap
+    // of his the recording has no segment for (a reset, a file gap).
+    unplaced: results.unplaced + (results.strikes.length - strikes.length),
     disagreements: laps.filter(lap => lap.invalidDisagrees).length,
   };
 }

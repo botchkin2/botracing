@@ -553,11 +553,30 @@ function lapDistance(rec, i0, i1) {
 }
 
 /**
+ * Whether the results file can rule a lap: the lap lies inside the laps of his
+ * the file lists (its last lap has no end, so a strike in it cannot be placed,
+ * and a lap before his first listed one is not in it). A lap it cannot rule
+ * keeps the lap time's verdict: a Warning in his last lap must not turn the
+ * game's -1 into a partial lap (#620, bearing #5660 B2).
+ */
+export function lapCovered(results, seg) {
+  const slack = 1;
+  return (
+    results.coveredFrom != null &&
+    results.coveredTo != null &&
+    seg.start >= results.coveredFrom - slack &&
+    seg.end <= results.coveredTo + slack
+  );
+}
+
+/**
  * The game's rulings that fall in one lap (a strike's `et` is on the lap
  * clock), each with where it happened: the lap distance at, and how far past
  * the track edge, the path got in the 5 s before the strike (the game rules a
- * moment after the excursion: 1.5 to 3.9 s, plank #5583). Null width and
- * place without the path and edge channels (iRacing).
+ * moment after the excursion: 1.5 to 3.9 s, plank #5583). The window may begin
+ * in the lap before: the furthest point is then measured there, in that lap's
+ * own distance. Null width and place without the path and edge channels
+ * (iRacing).
  */
 export function lapStrikes(results, s, seg, i0, i1, dist) {
   return results.strikes
@@ -566,13 +585,15 @@ export function lapStrikes(results, s, seg, i0, i1, dist) {
       let widthM = null;
       let atM = null;
       if (s.path_lateral_m && s.track_edge_m) {
-        for (let i = i0; i <= i1; i++) {
+        let first = i0;
+        while (first > 0 && s.t[first - 1] >= k.et - 5) first--;
+        for (let i = first; i <= i1; i++) {
           if (s.t[i] < k.et - 5 || s.t[i] > k.et) continue;
           const past =
             Math.abs(s.path_lateral_m[i]) - Math.abs(s.track_edge_m[i]);
           if (widthM == null || past > widthM) {
             widthM = past;
-            atM = dist[i - i0];
+            atM = i >= i0 ? dist[i - i0] : s.lap_dist_m?.[i] ?? null;
           }
         }
       }
@@ -585,6 +606,27 @@ export function lapStrikes(results, s, seg, i0, i1, dist) {
         ruling: k.ruling,
       };
     });
+}
+
+/**
+ * Whether the game deleted a lap. Where the results file covers the lap it is
+ * the source: a strike of a deleting ruling in it (not in a pit-lane lap, which
+ * is no track-limits call). Where it does not (no file, or the lap is outside
+ * his laps in it), the lap time stands in. Where they disagree the file wins
+ * and the lap counts in `invalidDisagrees`. Only an invalid lap says where its
+ * verdict came from (thread 70 #5592, bearing #5660 B2 and non-blocking 4).
+ */
+export function lapVerdict({covered, trackLimits, pitlane, timeInvalid}) {
+  const resultsInvalid =
+    covered &&
+    trackLimits.some(k => DELETING_OUTCOMES.has(k.outcome)) &&
+    !pitlane;
+  const invalid = covered ? resultsInvalid : timeInvalid;
+  return {
+    invalid,
+    invalidFrom: !invalid ? undefined : covered ? 'results' : 'lapTime',
+    invalidDisagrees: covered ? resultsInvalid !== timeInvalid : false,
+  };
 }
 
 function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
@@ -645,14 +687,16 @@ function analyzeLap(rec, seg, pits, flags, visitFacts, results = null) {
   // strike of a deleting ruling in it (resultsInput.mjs). The lap time is the
   // stand-in until the file exists, and where they disagree the file wins and
   // the disagreement is counted on the session (thread 70 #5592).
-  const trackLimits = results
+  const covered = results ? lapCovered(results, seg) : false;
+  const trackLimits = covered
     ? lapStrikes(results, s, seg, i0, i1, dist)
     : undefined;
-  const resultsInvalid =
-    trackLimits?.some(k => DELETING_OUTCOMES.has(k.outcome)) && !pitlane;
-  const invalid = results ? !!resultsInvalid : timeInvalid;
-  const invalidFrom = results ? 'results' : timeInvalid ? 'lapTime' : undefined;
-  const invalidDisagrees = results ? !!resultsInvalid !== timeInvalid : false;
+  const {invalid, invalidFrom, invalidDisagrees} = lapVerdict({
+    covered,
+    trackLimits,
+    pitlane,
+    timeInvalid,
+  });
 
   return {
     lapNumber: seg.lapNumber,
