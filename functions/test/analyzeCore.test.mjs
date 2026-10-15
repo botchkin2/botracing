@@ -220,3 +220,26 @@ test('an expired lease no longer passes the fence', async () => {
   assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'running'});
   assert.equal(wrote, false);
 });
+
+// A run over a session already current writes nothing (pit wall thread 69): an
+// open that lands after a live lap's run ran a second full analysis.
+test('a run over a current session is a no-op: nothing analysed, the lease let go, the open told done', async () => {
+  const w = world();
+  const asked = [];
+  w.deps.stale = async (id, owner) => (asked.push([id, owner]), false);
+  const r = await handleAnalyze(w.deps, 'POST', `/api/analyze/${ID}`, 'Bearer a');
+  assert.deepEqual(r, {status: 200, body: {state: 'done'}});
+  assert.deepEqual(asked, [[ID, 'botkin']]);
+  assert.equal(w.runs.length, 0);
+  assert.equal(w.leases.size, 0);
+});
+
+test('a stale session is analysed, and the test is asked only once the lease is held', async () => {
+  const w = world();
+  w.deps.stale = async () => {
+    assert.equal(w.leases.size, 1, 'under the lease');
+    return true;
+  };
+  assert.deepEqual(await runAnalysis(w.deps, ID, 'botkin'), {state: 'done', laps: 21});
+  assert.equal(w.runs.length, 1);
+});

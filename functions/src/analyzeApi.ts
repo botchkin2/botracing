@@ -8,7 +8,7 @@ import {tmpdir} from 'os';
 import {join} from 'path';
 import {onRequest} from 'firebase-functions/v2/https';
 import {type AnalyzeDeps, handleAnalyze} from './analyzeCore';
-import {loadEngine} from './engine';
+import {analysisEngine, isSessionStale} from './engine';
 import {Unauthorized, resolveOwner} from './ownerAccess';
 import {RUNTIME_ACCOUNT} from './runtime';
 
@@ -49,8 +49,18 @@ export function engineDeps(
       );
       return typeof at === 'string' ? at : null;
     },
+    // A session gone or not the caller's, or a test that cannot tell, runs:
+    // the run then answers for itself (404, or a fresh analysis).
+    stale: async (id, owner) => {
+      const doc = (await db.doc(`sessions/${id}`).get()).data();
+      if (!doc || doc.ownerId !== owner) return true;
+      return isSessionStale(doc, async (coll, docId) => {
+        const d = await db.doc(`${coll}/${docId}`).get();
+        return d.exists ? d.data() : null;
+      }).catch(() => true);
+    },
     analyze: async (sessionId, owner, fence) => {
-      const {analyzeStored, adminBackend} = loadEngine();
+      const {analyzeStored, adminBackend} = analysisEngine();
       const workDir = mkdtempSync(
         join(tmpdir(), `analyze-${sessionId}-`),
       );

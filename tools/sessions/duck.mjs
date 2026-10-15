@@ -20,13 +20,17 @@ function findDuckdb() {
   return found || 'duckdb';
 }
 
-const duckdb = findDuckdb();
+// Found on first use, not on load: the cloud stages its binary only where
+// analysis runs (functions/src/engine.ts), after the engine is loaded.
+let duckdbPath = null;
+const bin = () => (duckdbPath ??= findDuckdb());
 
 // db is a database file, or ':memory:' for queries over Parquet files.
 export function run(db, query, {readonly = true} = {}) {
   const args = [];
   if (readonly && db !== ':memory:') args.push('-readonly');
   args.push(db, '-csv', '-c', query);
+  const duckdb = bin();
   const result = spawnSync(duckdb, args, {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 1024,

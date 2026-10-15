@@ -36,7 +36,9 @@ const OWNED = ['recordings', 'sessions', 'laps'];
 const TRACK_DATA = ['tracks', 'trackBoundaries'];
 const WRITABLE = OWNED;
 // laps: a resync keeps the stored visits read from the car's damage (tools/sessions/keepCapture.mjs).
-const READABLE = [...TRACK_DATA, 'sessions', 'laps'];
+// recordings: a live lap sends only the parts no stored recording doc lists
+// (store.mjs uploadLive, pit wall thread 69).
+const READABLE = [...TRACK_DATA, 'sessions', 'laps', 'recordings'];
 // update merges into an existing doc: only what the events pass sets.
 const UPDATABLE = ['sessions', 'recordings'];
 const UPDATE_FIELDS = new Set(['series', 'eventId', 'event']);
