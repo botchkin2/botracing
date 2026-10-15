@@ -804,6 +804,8 @@ export const putCaptureExtract = (ownerId, sessionId, extract) =>
   admin().putCaptureExtract(ownerId, sessionId, extract);
 export const putResultsInput = (ownerId, sessionId, input) =>
   admin().putResultsInput(ownerId, sessionId, input);
+export const markStale = (sessionId, ownerId) =>
+  admin().markStale(sessionId, ownerId);
 export const getBoundaries = (trackId, db) =>
   createStore(adminBackend({db: db ?? connect().db})).getBoundaries(trackId);
 export const putBoundaries = (boundaries, db) =>

@@ -52,6 +52,8 @@ import {describeCheck} from './irCapture.mjs';
 import {damageFor} from './playerDamage.mjs';
 import {raceLengthFor} from './raceLength.mjs';
 import {captureExtract} from './captureExtract.mjs';
+import {resultsForSpan} from './lmuResults.mjs';
+import {uploadResultsBacklog} from './resultsBacklog.mjs';
 import {liveCover, readLiveIndex} from './liveSession.mjs';
 import {usableLiveIndex} from './brokenWheels.mjs';
 import {makeBuilder} from './buildSession.mjs';
@@ -460,6 +462,17 @@ async function main() {
     todo = todo.filter(s => !skipIds.has(s.id));
   }
   if (!local && !check) await uploadCaptureBacklog(sessions, state, store);
+  if (!local && !check)
+    await uploadResultsBacklog({
+      sessions,
+      state,
+      store,
+      ownerId,
+      spanOf,
+      resultsForSpan,
+      saveState: () => saveState(state),
+      log,
+    });
   if (!local && !check) await repairIracingArchives(sessions, state, store);
   // The watcher reads this line for the heartbeat's done/total.
   log(`to do ${todo.length}`);
@@ -572,6 +585,9 @@ async function runPool(
           state.extracts ??= {};
           // Its extract, if the capture gave one, went up with it.
           state.extracts[s.id] = 'with-session';
+          state.resultsInputs ??= {};
+          // Its results input, if the game wrote a file, went up with it.
+          state.resultsInputs[s.id] = 'with-session';
           saveState(state);
         }
       } else {
