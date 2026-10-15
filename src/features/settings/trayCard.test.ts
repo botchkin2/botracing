@@ -2,7 +2,7 @@ import {describe, expect, it} from '@jest/globals';
 
 import {type Uploader} from '@/src/data/uploaders';
 
-import {compareVersions, pcLine, trayCard} from './trayCard';
+import {pcLine, trayCard} from './trayCard';
 
 const NOW = Date.parse('2026-10-10T12:00:00Z');
 const pc = (over: Partial<Uploader>): Uploader =>
@@ -38,15 +38,6 @@ describe('trayCard', () => {
     expect(trayCard({...none, isError: true, data: undefined}).status).toBe(
       'Couldn’t check for the Windows app',
     );
-  });
-
-  it('compares x.y.z versions and nothing else', () => {
-    expect(compareVersions('0.1.2', '0.1.3')).toBeLessThan(0);
-    expect(compareVersions('0.2.0', '0.1.9')).toBeGreaterThan(0);
-    expect(compareVersions('0.1.3', '0.1.3')).toBe(0);
-    expect(compareVersions('0.1.3-rc.1', '0.1.3')).toBe(0);
-    expect(compareVersions('4dda01b', '0.1.3')).toBeNull();
-    expect(compareVersions('', '0.1.3')).toBeNull();
   });
 
   it('says per PC: version, then not reporting, or update available, or latest', () => {

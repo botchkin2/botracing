@@ -4,6 +4,8 @@
 
 import {createHash} from 'node:crypto';
 
+import {compareVersions} from '../../src/data/uploaders/version.ts';
+
 // The endpoint is public (the app has no sign-in), so the doc carries no
 // machine name or user paths: a short hash as id, a label from config.
 export function hostIdOf(machineName) {
@@ -58,6 +60,25 @@ export function simsDoc(entries, syncingSim = null, progress = null) {
   );
 }
 
+/**
+ * The version of an update the tray has downloaded and is holding, from the
+ * text of its update-waiting.json ({version}), or null. Only a version higher
+ * than the running tray's counts: a file left by an update that did install,
+ * or a tray that crashed with the slot full, can never show a banner.
+ */
+export function updateWaitingOf(fileText, runningVersion) {
+  let version;
+  try {
+    version = JSON.parse(fileText)?.version;
+  } catch {
+    return null;
+  }
+  // The one place the rule is written: the app only shows what this sends.
+  const newer =
+    typeof version === 'string' ? compareVersions(version, runningVersion) : null;
+  return newer != null && newer > 0 ? version : null;
+}
+
 // watch: the watcher's own state. recorder: tools/capture's status.json, or
 // null when there is none. sims: simsDoc() of each sim.
 export function heartbeatDoc({
@@ -74,6 +95,7 @@ export function heartbeatDoc({
   recorder,
   retryAtMs = null,
   problems = [],
+  updateWaiting = null,
   nowMs,
 }) {
   return {
@@ -103,6 +125,9 @@ export function heartbeatDoc({
     disk: {captureBytes: recorder?.captureBytes ?? 0, freeBytes},
     recorder: recorderBlock(recorder, nowMs),
     problems,
+    // The newer tray the tray holds ready to install; the key is absent with
+    // none (updateWaitingOf), so a tray with no update sends what it always did.
+    ...(updateWaiting ? {updateWaiting} : {}),
   };
 }
 
@@ -208,6 +233,7 @@ export function beatKey(doc) {
     doc.retryAt,
     doc.recorder?.state,
     doc.recorder?.layoutOk,
+    doc.updateWaiting ?? null,
     Object.entries(doc.sims ?? {}).map(([id, s]) => [
       id,
       s.queue,

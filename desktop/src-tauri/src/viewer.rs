@@ -3,10 +3,10 @@
 // signed in as the tray's user with no Google in the webview.
 //
 // The page is remote content, so what it can reach is small and pinned down:
-// - the capability `viewer.json` names exactly the app origin and exactly three
-//   commands, `tray_uid`, `viewer_token` and `sign_out`; nothing else (no fs, shell,
+// - the capability `viewer.json` names exactly the app origin and exactly four
+//   commands, `tray_uid`, `viewer_token`, `sign_out` and `restart_to_update`; nothing else (no fs, shell,
 //   opener, events). Whatever the page can call, an XSS on it could call too;
-//   `tray_uid` and `viewer_token` give it only the user's own session, `sign_out` ends it;
+//   `tray_uid` and `viewer_token` give it only the user's own session, `sign_out` ends it, `restart_to_update` installs the update already held;
 // - the commands refuse a caller that is not the app origin;
 // - navigation stays on the app origin; any other link opens in the system
 //   browser and the window stays where it is (never accounts.google.com);
@@ -363,6 +363,17 @@ pub fn sign_out(
     Ok(())
 }
 
+/// The banner's button: installs the update the tray holds ready, by the
+/// menu's own path (quit, then the installer). Refused when none is waiting.
+/// An XSS on the page could call it, which can only install an update the
+/// updater already verified against the release key (update.rs), never code
+/// of its own.
+#[tauri::command(async)]
+pub fn restart_to_update(webview: Webview, window: WebviewWindow) -> Result<(), String> {
+    from_app(&webview)?;
+    crate::restart_to_update(window.app_handle())
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -521,10 +532,10 @@ mod tests {
 
     // What the page can reach is pinned here, replacing the "no embedded page"
     // test from #292: the capability names exactly the app origin and exactly
-    // the three commands, with no other permission; the commands are the only
+    // the four commands, with no other permission; the commands are the only
     // ones registered; navigation refuses everything else.
     #[test]
-    fn the_page_can_reach_exactly_the_app_origin_and_three_commands() {
+    fn the_page_can_reach_exactly_the_app_origin_and_four_commands() {
         let caps: serde_json::Value =
             serde_json::from_str(include_str!("../capabilities/viewer.json")).unwrap();
         assert_eq!(caps["windows"], serde_json::json!([LABEL]));
@@ -544,7 +555,12 @@ mod tests {
         permissions.sort();
         assert_eq!(
             permissions,
-            ["allow-sign-out", "allow-tray-uid", "allow-viewer-token"]
+            [
+                "allow-restart-to-update",
+                "allow-sign-out",
+                "allow-tray-uid",
+                "allow-viewer-token"
+            ]
         );
 
         // The tray's other capability grants nothing and names no window.
@@ -554,7 +570,7 @@ mod tests {
         assert_eq!(default["permissions"], serde_json::json!([]));
         assert_eq!(default["windows"], serde_json::json!([]));
 
-        // Only these three commands are registered, and the build declares them.
+        // Only these four commands are registered, and the build declares them.
         // Read as sets, whitespace dropped: rustfmt wraps a list when it grows.
         let listed = |source: &str, open: &str| -> BTreeSet<String> {
             let squeezed: String = source.split_whitespace().collect();
@@ -566,12 +582,13 @@ mod tests {
                 .map(|s| s.trim_matches('"').to_string())
                 .collect()
         };
-        let set = |names: [&str; 3]| names.map(String::from).into_iter().collect::<BTreeSet<_>>();
+        let set = |names: [&str; 4]| names.map(String::from).into_iter().collect::<BTreeSet<_>>();
         let main = include_str!("main.rs");
         assert_eq!(main.matches("generate_handler!").count(), 1);
         assert_eq!(
             listed(main, "generate_handler!["),
             set([
+                "viewer::restart_to_update",
                 "viewer::sign_out",
                 "viewer::tray_uid",
                 "viewer::viewer_token"
@@ -579,7 +596,7 @@ mod tests {
         );
         assert_eq!(
             listed(include_str!("../build.rs"), ".commands(&["),
-            set(["sign_out", "tray_uid", "viewer_token"])
+            set(["restart_to_update", "sign_out", "tray_uid", "viewer_token"])
         );
     }
 

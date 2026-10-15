@@ -37,6 +37,9 @@ export type Uploader = {
   hostId: string;
   host: string;
   version: string;
+  /** The newer tray version this PC's tray has downloaded and holds ready to
+   *  install (heartbeat updateWaiting); null with none. */
+  updateWaiting: string | null;
   /** Null when the sender did not look (the tray's own failure report). */
   lmuFound: boolean | null;
   state: UploaderState;
@@ -150,6 +153,7 @@ export function toUploader(raw: unknown): Uploader {
     // A label from the uploader's config ("Race PC"); hostId is a hash.
     host: str(x.label) ?? hostId,
     version: str(x.version) ?? '',
+    updateWaiting: str(x.updateWaiting) || null,
     lmuFound: typeof x.lmuFound === 'boolean' ? x.lmuFound : null,
     state: STATES.includes(state as UploaderState)
       ? (state as UploaderState)

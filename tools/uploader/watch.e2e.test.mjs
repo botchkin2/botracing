@@ -66,7 +66,7 @@ before(() => {
 after(() => rmSync(root, {recursive: true, force: true}));
 
 // One watcher tick. Returns the heartbeat docs it wrote, in order.
-function tick(fake) {
+function tick(fake, extraEnv = {}) {
   writeFileSync(beatsPath, '');
   const r = spawnSync(process.execPath, [watch, '--once'], {
     encoding: 'utf8',
@@ -82,6 +82,7 @@ function tick(fake) {
       LAP_GAME_EXE: 'lap-e2e-no-such-game.exe',
       LAP_SIMS: 'lmu',
       FAKE_SYNC: fake,
+      ...extraEnv,
     },
   });
   assert.equal(r.status, 0, r.stderr);
@@ -110,6 +111,24 @@ test(
     const state = readState();
     assert.ok(state.lastRunAtMs);
     assert.equal(state.retryAtMs, null);
+  },
+);
+
+test(
+  'a downloaded update the tray holds shows in the heartbeat only while it is newer than the tray',
+  {skip: !windows},
+  () => {
+    const file = resolve(local, 'lap-uploader', 'update-waiting.json');
+    const lastBeat = version => {
+      const beats = tick('crash', {LAP_VERSION: version});
+      return beats[beats.length - 1];
+    };
+    writeFileSync(file, JSON.stringify({version: '0.1.12'}));
+    assert.equal(lastBeat('0.1.11').updateWaiting, '0.1.12');
+    // The update installed: the tray is now that version, and a leftover file says nothing.
+    assert.equal('updateWaiting' in lastBeat('0.1.12'), false);
+    rmSync(file);
+    assert.equal('updateWaiting' in lastBeat('0.1.11'), false);
   },
 );
 
