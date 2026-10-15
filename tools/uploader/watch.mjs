@@ -299,14 +299,14 @@ function runLive(sim, sessionDir) {
   });
 }
 
-// The game's results for live-uploaded sessions (sync.mjs --results-live): the
+// The game's results for stored sessions (sync.mjs --results / --results-live): the
 // game writes its file when a session ends, after the last live run. Idle
 // priority; --run names this tray start (resultsBacklog.mjs).
-function runResults(sim) {
+function runResults(sim, mode) {
   return new Promise(done => {
     const child = spawn(
       process.execPath,
-      [syncScript, ...syncArgsOf(sim), '--results-live', '--run', startedAtIso],
+      [syncScript, ...syncArgsOf(sim), mode === 'all' ? '--results' : '--results-live', '--run', startedAtIso],
       {windowsHide: true},
     );
     try {
@@ -605,10 +605,11 @@ async function main() {
         const liveEnds = LIVE_SIMS.flatMap(sim =>
           Object.values(readLiveIndex(workOf(sim))).map(e => e.endMs),
         );
-        if (resultsDue({liveEnds, nowMs, lastRunMs: lastResultsMs})) {
+        const mode = resultsDue({liveEnds, nowMs, lastRunMs: lastResultsMs});
+        if (mode) {
           lastResultsMs = nowMs;
           for (const sim of LIVE_SIMS.filter(s => s.id === 'lmu'))
-            await runResults(sim);
+            await runResults(sim, mode);
         }
       }
       for (const sim of SIMS) {

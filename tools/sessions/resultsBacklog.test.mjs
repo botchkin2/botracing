@@ -157,11 +157,11 @@ test('backlogDue and the watcher trigger agree on what is worth a run', () => {
     true,
   );
   // The watcher: first tick of a start, then each minute while a session ended recently.
-  assert.equal(resultsDue({liveEnds: [], nowMs: 5, lastRunMs: null}), true);
-  assert.equal(resultsDue({liveEnds: [0], nowMs: 30_000, lastRunMs: 0}), false);
-  assert.equal(resultsDue({liveEnds: [0], nowMs: 61_000, lastRunMs: 0}), true);
+  assert.equal(resultsDue({liveEnds: [], nowMs: 5, lastRunMs: null}), 'all');
+  assert.equal(resultsDue({liveEnds: [0], nowMs: 30_000, lastRunMs: 0}), null);
+  assert.equal(resultsDue({liveEnds: [0], nowMs: 61_000, lastRunMs: 0}), 'live');
   assert.equal(
     resultsDue({liveEnds: [0], nowMs: RETRY_WINDOW_MS + MIN, lastRunMs: 0}),
-    false,
+    null,
   );
 });

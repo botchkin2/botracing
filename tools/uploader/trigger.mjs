@@ -118,11 +118,12 @@ export function liveClosed(dir, recorder) {
 }
 
 /**
- * Whether the watcher should look for the game's results file now (sync.mjs
- * --results-live): on its first tick of a tray start, and every
- * RESULTS_EVERY_MS while a live session ended within windowMs, because the game
- * writes the file when the session ends, after the last live run
- * (resultsBacklog.mjs). `liveEnds` are the live index's session end times.
+ * Which look for the game's results file the watcher starts now: 'all' on its
+ * first tick of a tray start (sync.mjs --results: every stored session), then
+ * 'live' (--results-live, no telemetry scan) every RESULTS_EVERY_MS while a
+ * live session ended within windowMs, because the game writes the file when the
+ * session ends, after the last live run (resultsBacklog.mjs). `liveEnds` are the
+ * live index's session end times; null: nothing to start.
  */
 export const RESULTS_EVERY_MS = 60_000;
 export const RESULTS_WINDOW_MS = 30 * 60_000;
@@ -132,7 +133,7 @@ export function resultsDue({
   lastRunMs,
   windowMs = RESULTS_WINDOW_MS,
 }) {
-  if (lastRunMs == null) return true;
-  if (nowMs - lastRunMs < RESULTS_EVERY_MS) return false;
-  return liveEnds.some(end => nowMs - end <= windowMs);
+  if (lastRunMs == null) return 'all';
+  if (nowMs - lastRunMs < RESULTS_EVERY_MS) return null;
+  return liveEnds.some(end => nowMs - end <= windowMs) ? 'live' : null;
 }
