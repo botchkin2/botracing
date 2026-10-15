@@ -11,6 +11,7 @@ mod capture;
 mod contract;
 mod failure_report;
 mod install;
+mod launch_log;
 mod menu;
 mod paths;
 mod profile;
@@ -375,6 +376,10 @@ fn quit_tray(app: &tauri::AppHandle, on_quit: OnQuit, log: QuitLog) {
 }
 
 fn main() {
+    // launch.log's first line, before anything can fail: no line at all means
+    // Windows never started the tray; this line with no `second launch` after
+    // it means the handoff never reached the running tray.
+    launch_log::note_launch();
     let builder = tauri::Builder::default();
     // The single-instance hold is named after the app identifier; a profile
     // (BOTRACING_PROFILE) gets its own (profile::identifier), so it runs next
@@ -406,11 +411,31 @@ fn main() {
             let signing_in = app
                 .try_state::<Shared<account::Account>>()
                 .is_some_and(|a| a.lock().unwrap().signing_in);
+            // launch.log: a taskbar click that "did nothing" is told apart from
+            // one that never arrived, one the tray ignored, and one whose
+            // window did not come forward.
+            let data = app.try_state::<Arc<sidecar::Paths>>().map(|p| p.data.clone());
+            let note = move |step: &str, facts: &str| {
+                if let Some(data) = &data {
+                    launch_log::note(data, step, facts);
+                }
+            };
+            note(
+                "second launch",
+                &format!("args={} signing_in={signing_in}", launch_log::args_text(&args)),
+            );
             if signing_in {
+                note("second launch ignored", "the browser sign-in is open");
                 return;
             }
             let app = app.clone();
-            std::thread::spawn(move || open_window(&app));
+            std::thread::spawn(move || {
+                note("window open", &open_window(&app));
+                // The window is built on the event loop's thread: give it a
+                // moment, then read where it stands.
+                std::thread::sleep(Duration::from_millis(500));
+                note("window state", &viewer::state_text(&app));
+            });
         }))
     };
     builder
@@ -723,14 +748,20 @@ fn main() {
 
 /// Shows the window on the hosted app. If it cannot be built the system
 /// browser takes over, and the status line says if even that fails.
-fn open_window(app: &tauri::AppHandle) {
+/// What happened, for launch.log: `window`, or why not and what the browser did.
+fn open_window(app: &tauri::AppHandle) -> String {
     let data = viewer::webview_dir(&app.state::<Arc<sidecar::Paths>>().data);
-    if viewer::open(app, &data).is_err() {
-        if let Err(why) = browser::open() {
-            if let Some(account) = app.try_state::<Shared<account::Account>>() {
-                account.lock().unwrap().message = Some(why);
+    match viewer::open(app, &data) {
+        Ok(()) => "window ok".into(),
+        Err(why) => match browser::open() {
+            Ok(()) => format!("window failed ({why}); opened the browser"),
+            Err(browser_why) => {
+                if let Some(account) = app.try_state::<Shared<account::Account>>() {
+                    account.lock().unwrap().message = Some(browser_why.clone());
+                }
+                format!("window failed ({why}); browser failed ({browser_why})")
             }
-        }
+        },
     }
 }
 

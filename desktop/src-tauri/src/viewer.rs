@@ -171,6 +171,24 @@ pub fn open(app: &AppHandle, webview_data: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Where the window stands, for launch.log (the foreground result of a second
+/// launch): present, visible, minimized, focused.
+pub fn state_text(app: &AppHandle) -> String {
+    let Some(window) = app.get_webview_window(LABEL) else {
+        return "no window".into();
+    };
+    let flag = |r: tauri::Result<bool>| match r {
+        Ok(b) => b.to_string(),
+        Err(e) => format!("error: {e}"),
+    };
+    format!(
+        "visible={} minimized={} focused={}",
+        flag(window.is_visible()),
+        flag(window.is_minimized()),
+        flag(window.is_focused())
+    )
+}
+
 /// What the tray hands the page.
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
